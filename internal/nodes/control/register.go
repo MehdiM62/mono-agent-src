@@ -19,4 +19,10 @@ func RegisterAll(r *workflow.NodeTypeRegistry) {
 	r.Register("core.compare_datasets", func() workflow.NodeExecutor { return &CompareDatasetsNode{} })
 	r.Register("core.aggregate", func() workflow.NodeExecutor { return &AggregateNode{} })
 	r.Register("core.human_in_loop", func() workflow.NodeExecutor { return &HumanInLoopNode{} })
+	r.Register("core.execute_workflow", func() workflow.NodeExecutor { return &ExecuteWorkflowNode{} })
+	r.Register("core.respond_webhook", func() workflow.NodeExecutor { return &RespondWebhookNode{} })
+	r.Register("core.respond_chat", func() workflow.NodeExecutor { return &RespondChatNode{} })
+	r.Register("core.noop", func() workflow.NodeExecutor { return &NoOpNode{} })
+	r.Register("core.form", func() workflow.NodeExecutor { return &FormNode{} })
+	r.Register("core.data_table", func() workflow.NodeExecutor { return &DataTableNode{} })
 }

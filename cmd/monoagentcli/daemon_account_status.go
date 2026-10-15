@@ -5,27 +5,13 @@ import (
 	"database/sql"
 
 	"github.com/monoes/mono-agent/internal/account"
-	"github.com/monoes/mono-agent/internal/daemonhb"
-	"github.com/monoes/mono-agent/internal/workflow"
+	agentcli "github.com/monoes/mono-agent/internal/cli/agent"
 )
 
-// heartbeatAccount is the account verdict as the heartbeat file carries it. It
-// is nil while the gate is dormant (no enforcement date: nothing to report, D22).
-func heartbeatAccount(st account.Status) *daemonhb.AccountState {
-	if st.EnforceFrom.IsZero() {
-		return nil
-	}
-	return &daemonhb.AccountState{State: string(st.State), Reason: string(st.Reason), ValidUntil: st.ValidUntil, Enforced: st.Enforced}
-}
-
-// daemonHeartbeatRefresh is what the daemon updates in its heartbeat before every
-// write: the schedules, and the account verdict, so that the desktop and doctor
-// see "locked" within one heartbeat interval.
-func daemonHeartbeatRefresh(engine *workflow.WorkflowEngine) func(*daemonhb.Heartbeat) {
-	return func(hb *daemonhb.Heartbeat) {
-		hb.Schedules = heartbeatSchedules(engine.ScheduledRuns())
-		hb.Account = heartbeatAccount(account.CurrentStatus())
-	}
+// startAutoRevalidation runs the daemon's automatic re-validation of stale roster entries
+// (agentcli.StartAutoRevalidation) with busyOrLocked as its Busy check.
+func startAutoRevalidation(ctx context.Context, db *sql.DB, logf func(string, ...interface{})) (wait func()) {
+	return agentcli.StartAutoRevalidation(ctx, db, logf, busyOrLocked)
 }
 
 // busyOrLocked is the Busy check of the daemon's automatic re-validation with
@@ -35,5 +21,5 @@ func busyOrLocked(ctx context.Context, db *sql.DB) (bool, string) {
 	if !account.CurrentStatus().Allowed() {
 		return true, "the monoes.me account is locked"
 	}
-	return appBusy(ctx, db)
+	return agentcli.AppBusy(ctx, db)
 }

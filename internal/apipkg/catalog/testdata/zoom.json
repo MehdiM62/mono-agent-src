@@ -1,0 +1,127 @@
+{
+  "meeting.create": {
+    "params": {
+      "topic": "Standup",
+      "additionalFields": {
+        "startTime": "2024-05-01T09:00:00Z",
+        "duration": 30,
+        "type": 2,
+        "settings": {
+          "joinBeforeHost": true,
+          "muteUponEntry": false,
+          "audio": "voip"
+        }
+      }
+    },
+    "credential": {
+      "access_token": "tok"
+    },
+    "response": {
+      "id": 1
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/users/me/meetings",
+      "body": {
+        "topic": "Standup",
+        "start_time": "2024-05-01T09:00:00Z",
+        "duration": 30,
+        "type": 2,
+        "settings": {
+          "join_before_host": true,
+          "audio": "voip"
+        }
+      },
+      "items": 1
+    }
+  },
+  "meeting.delete": {
+    "params": {
+      "meetingId": "1",
+      "additionalFields": {
+        "occurrenceId": "o1"
+      }
+    },
+    "credential": {
+      "access_token": "tok"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/v2/meetings/1",
+      "query": {
+        "occurrence_id": "o1"
+      },
+      "items": 1
+    }
+  },
+  "meeting.get": {
+    "params": {
+      "meetingId": "1",
+      "additionalFields": {
+        "showPreviousOccurrences": true
+      }
+    },
+    "credential": {
+      "access_token": "tok"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v2/meetings/1",
+      "query": {
+        "show_previous_occurrences": "true"
+      }
+    }
+  },
+  "meeting.getAll": {
+    "params": {
+      "limit": 10,
+      "filters": {
+        "type": "upcoming"
+      }
+    },
+    "credential": {
+      "access_token": "tok"
+    },
+    "response": {
+      "meetings": [
+        {
+          "id": 1
+        }
+      ],
+      "next_page_token": ""
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v2/users/me/meetings",
+      "query": {
+        "type": "upcoming",
+        "page_size": "10"
+      },
+      "items": 1
+    }
+  },
+  "meeting.update": {
+    "params": {
+      "meetingId": "1",
+      "updateFields": {
+        "topic": "New",
+        "timeZone": "Europe/Oslo",
+        "startTime": "2024-05-01T09:00:00"
+      }
+    },
+    "credential": {
+      "access_token": "tok"
+    },
+    "response_status": 204,
+    "expect": {
+      "method": "PATCH",
+      "path": "/v2/meetings/1",
+      "body": {
+        "topic": "New",
+        "timezone": "Europe/Oslo",
+        "start_time": "2024-05-01T09:00:00"
+      },
+      "items": 1
+    }
+  }
+}

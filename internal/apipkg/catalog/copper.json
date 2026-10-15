@@ -1,0 +1,1103 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "copper",
+  "node_type": "app.copper",
+  "title": "Copper",
+  "description": "Companies, leads, opportunities, people, projects, tasks and users in Copper CRM",
+  "category": "app",
+  "docs_url": "https://developer.copper.com/",
+  "n8n_types": [
+    "n8n-nodes-base.copper"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.copperTrigger"
+  ],
+  "base_url": "https://api.copper.com/developer_api/v1",
+  "headers": {
+    "Accept": "application/json"
+  },
+  "credentials": [
+    {
+      "platform": "copper",
+      "name": "Copper",
+      "n8n_credential": "copperApi",
+      "n8n_field_map": {
+        "apiKey": "api_key",
+        "email": "email"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true,
+          "help": "Copper: Settings → Integrations → API keys"
+        },
+        {
+          "key": "email",
+          "label": "User email",
+          "required": true,
+          "help": "Email of the user who owns the key"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "X-PW-AccessToken": "{{ cred.api_key }}",
+          "X-PW-Application": "developer_api",
+          "X-PW-UserEmail": "{{ cred.email }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "company",
+      "label": "Company"
+    },
+    {
+      "value": "customerSource",
+      "label": "Customer Source"
+    },
+    {
+      "value": "lead",
+      "label": "Lead"
+    },
+    {
+      "value": "opportunity",
+      "label": "Opportunity"
+    },
+    {
+      "value": "person",
+      "label": "Person"
+    },
+    {
+      "value": "project",
+      "label": "Project"
+    },
+    {
+      "value": "task",
+      "label": "Task"
+    },
+    {
+      "value": "user",
+      "label": "User"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "company",
+      "operation": "create",
+      "title": "Create a company",
+      "method": "POST",
+      "path": "/companies",
+      "body": {
+        "$merge": "{{ p.additionalFields | omit:'address,phone_numbers,emails,email,project_ids' }}",
+        "address": "{{ p.additionalFields.address.addressFields }}",
+        "phone_numbers": "{{ p.additionalFields.phone_numbers.phoneFields }}",
+        "emails": "{{ p.additionalFields.emails.emailFields }}",
+        "email": "{{ p.additionalFields.email.emailFields }}",
+        "project_ids": "{{ p.additionalFields.project_ids | split }}",
+        "name": "{{ p.name }}"
+      },
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "address",
+            "details",
+            "email_domain",
+            "phone_numbers"
+          ],
+          "help": "address: {\"addressFields\": {\"street\": \"\", \"city\": \"\", \"state\": \"\", \"postal_code\": \"\", \"country\": \"\"}}; phone_numbers: {\"phoneFields\": [{\"number\": \"\", \"category\": \"work\"}]}; emails / email: {\"emailFields\": [{\"email\": \"\", \"category\": \"work\"}]} (email: one object)"
+        }
+      ]
+    },
+    {
+      "resource": "company",
+      "operation": "delete",
+      "title": "Delete a company",
+      "method": "DELETE",
+      "path": "/companies/{{ p.companyId }}",
+      "fields": [
+        {
+          "key": "companyId",
+          "label": "Company ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "company",
+      "operation": "get",
+      "title": "Get a company",
+      "method": "GET",
+      "path": "/companies/{{ p.companyId }}",
+      "fields": [
+        {
+          "key": "companyId",
+          "label": "Company ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "company",
+      "operation": "getAll",
+      "title": "Search companys",
+      "method": "POST",
+      "path": "/companies/search",
+      "body": {
+        "$merge": "{{ p.filterFields | omit:'project_ids,assignee_ids,company_ids,customer_source_ids' }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page_number",
+        "limit_param": "page_size",
+        "page_size": 200,
+        "param_in": "body",
+        "results_path": ""
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Fetch every page instead of stopping at Limit."
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 5,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off."
+        },
+        {
+          "key": "filterFields",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "country",
+            "name"
+          ],
+          "help": "*_ids filters take comma-separated IDs"
+        }
+      ]
+    },
+    {
+      "resource": "company",
+      "operation": "update",
+      "title": "Update a company",
+      "method": "PUT",
+      "path": "/companies/{{ p.companyId }}",
+      "body": {
+        "$merge": "{{ p.updateFields | omit:'address,phone_numbers,emails,email,project_ids' }}",
+        "address": "{{ p.updateFields.address.addressFields }}",
+        "phone_numbers": "{{ p.updateFields.phone_numbers.phoneFields }}",
+        "emails": "{{ p.updateFields.emails.emailFields }}",
+        "email": "{{ p.updateFields.email.emailFields }}",
+        "project_ids": "{{ p.updateFields.project_ids | split }}"
+      },
+      "fields": [
+        {
+          "key": "companyId",
+          "label": "Company ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "address",
+            "details",
+            "name",
+            "phone_numbers"
+          ],
+          "help": "address: {\"addressFields\": {\"street\": \"\", \"city\": \"\", \"state\": \"\", \"postal_code\": \"\", \"country\": \"\"}}; phone_numbers: {\"phoneFields\": [{\"number\": \"\", \"category\": \"work\"}]}; emails / email: {\"emailFields\": [{\"email\": \"\", \"category\": \"work\"}]} (email: one object)"
+        }
+      ]
+    },
+    {
+      "resource": "customerSource",
+      "operation": "getAll",
+      "title": "Get many customer sources",
+      "method": "GET",
+      "path": "/customer_sources",
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "page",
+        "cursor_path": "__no_next_page",
+        "results_path": ""
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Fetch every page instead of stopping at Limit."
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 5,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off."
+        }
+      ]
+    },
+    {
+      "resource": "lead",
+      "operation": "create",
+      "title": "Create a lead",
+      "method": "POST",
+      "path": "/leads",
+      "body": {
+        "$merge": "{{ p.additionalFields | omit:'address,phone_numbers,emails,email,project_ids' }}",
+        "address": "{{ p.additionalFields.address.addressFields }}",
+        "phone_numbers": "{{ p.additionalFields.phone_numbers.phoneFields }}",
+        "emails": "{{ p.additionalFields.emails.emailFields }}",
+        "email": "{{ p.additionalFields.email.emailFields }}",
+        "project_ids": "{{ p.additionalFields.project_ids | split }}",
+        "name": "{{ p.name }}"
+      },
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "address",
+            "email",
+            "phone_numbers"
+          ],
+          "help": "address: {\"addressFields\": {\"street\": \"\", \"city\": \"\", \"state\": \"\", \"postal_code\": \"\", \"country\": \"\"}}; phone_numbers: {\"phoneFields\": [{\"number\": \"\", \"category\": \"work\"}]}; emails / email: {\"emailFields\": [{\"email\": \"\", \"category\": \"work\"}]} (email: one object)"
+        }
+      ]
+    },
+    {
+      "resource": "lead",
+      "operation": "delete",
+      "title": "Delete a lead",
+      "method": "DELETE",
+      "path": "/leads/{{ p.leadId }}",
+      "fields": [
+        {
+          "key": "leadId",
+          "label": "Lead ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "lead",
+      "operation": "get",
+      "title": "Get a lead",
+      "method": "GET",
+      "path": "/leads/{{ p.leadId }}",
+      "fields": [
+        {
+          "key": "leadId",
+          "label": "Lead ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "lead",
+      "operation": "getAll",
+      "title": "Search leads",
+      "method": "POST",
+      "path": "/leads/search",
+      "body": {
+        "$merge": "{{ p.filterFields | omit:'project_ids,assignee_ids,company_ids,customer_source_ids' }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page_number",
+        "limit_param": "page_size",
+        "page_size": 200,
+        "param_in": "body",
+        "results_path": ""
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Fetch every page instead of stopping at Limit."
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 5,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off."
+        },
+        {
+          "key": "filterFields",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "country",
+            "name"
+          ],
+          "help": "*_ids filters take comma-separated IDs"
+        }
+      ]
+    },
+    {
+      "resource": "lead",
+      "operation": "update",
+      "title": "Update a lead",
+      "method": "PUT",
+      "path": "/leads/{{ p.leadId }}",
+      "body": {
+        "$merge": "{{ p.updateFields | omit:'address,phone_numbers,emails,email,project_ids' }}",
+        "address": "{{ p.updateFields.address.addressFields }}",
+        "phone_numbers": "{{ p.updateFields.phone_numbers.phoneFields }}",
+        "emails": "{{ p.updateFields.emails.emailFields }}",
+        "email": "{{ p.updateFields.email.emailFields }}",
+        "project_ids": "{{ p.updateFields.project_ids | split }}"
+      },
+      "fields": [
+        {
+          "key": "leadId",
+          "label": "Lead ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "address",
+            "details",
+            "email",
+            "name",
+            "phone_numbers"
+          ],
+          "help": "address: {\"addressFields\": {\"street\": \"\", \"city\": \"\", \"state\": \"\", \"postal_code\": \"\", \"country\": \"\"}}; phone_numbers: {\"phoneFields\": [{\"number\": \"\", \"category\": \"work\"}]}; emails / email: {\"emailFields\": [{\"email\": \"\", \"category\": \"work\"}]} (email: one object)"
+        }
+      ]
+    },
+    {
+      "resource": "opportunity",
+      "operation": "create",
+      "title": "Create a opportunity",
+      "method": "POST",
+      "path": "/opportunities",
+      "body": {
+        "customer_source_id": "{{ p.customerSourceId }}",
+        "primary_contact_id": "{{ p.primaryContactId }}",
+        "name": "{{ p.name }}"
+      },
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "customerSourceId",
+          "label": "Customer source ID",
+          "type": "text"
+        },
+        {
+          "key": "primaryContactId",
+          "label": "Primary contact ID",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "resource": "opportunity",
+      "operation": "delete",
+      "title": "Delete a opportunity",
+      "method": "DELETE",
+      "path": "/opportunities/{{ p.opportunityId }}",
+      "fields": [
+        {
+          "key": "opportunityId",
+          "label": "Opportunity ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "opportunity",
+      "operation": "get",
+      "title": "Get a opportunity",
+      "method": "GET",
+      "path": "/opportunities/{{ p.opportunityId }}",
+      "fields": [
+        {
+          "key": "opportunityId",
+          "label": "Opportunity ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "opportunity",
+      "operation": "getAll",
+      "title": "Search opportunitys",
+      "method": "POST",
+      "path": "/opportunities/search",
+      "body": {
+        "$merge": "{{ p.filterFields | omit:'project_ids,assignee_ids,company_ids,customer_source_ids' }}",
+        "company_ids": "{{ p.filterFields.company_ids | split }}",
+        "customer_source_ids": "{{ p.filterFields.customer_source_ids | split }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page_number",
+        "limit_param": "page_size",
+        "page_size": 200,
+        "param_in": "body",
+        "results_path": ""
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Fetch every page instead of stopping at Limit."
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 5,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off."
+        },
+        {
+          "key": "filterFields",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "company_ids",
+            "customer_source_ids"
+          ],
+          "help": "*_ids filters take comma-separated IDs"
+        }
+      ]
+    },
+    {
+      "resource": "opportunity",
+      "operation": "update",
+      "title": "Update a opportunity",
+      "method": "PUT",
+      "path": "/opportunities/{{ p.opportunityId }}",
+      "body": {
+        "$merge": "{{ p.updateFields | omit:'address,phone_numbers,emails,email,project_ids' }}",
+        "address": "{{ p.updateFields.address.addressFields }}",
+        "phone_numbers": "{{ p.updateFields.phone_numbers.phoneFields }}",
+        "emails": "{{ p.updateFields.emails.emailFields }}",
+        "email": "{{ p.updateFields.email.emailFields }}",
+        "project_ids": "{{ p.updateFields.project_ids | split }}"
+      },
+      "fields": [
+        {
+          "key": "opportunityId",
+          "label": "Opportunity ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "customer_source_id",
+            "name",
+            "primary_contact_id"
+          ],
+          "help": "address: {\"addressFields\": {\"street\": \"\", \"city\": \"\", \"state\": \"\", \"postal_code\": \"\", \"country\": \"\"}}; phone_numbers: {\"phoneFields\": [{\"number\": \"\", \"category\": \"work\"}]}; emails / email: {\"emailFields\": [{\"email\": \"\", \"category\": \"work\"}]} (email: one object)"
+        }
+      ]
+    },
+    {
+      "resource": "person",
+      "operation": "create",
+      "title": "Create a person",
+      "method": "POST",
+      "path": "/people",
+      "body": {
+        "$merge": "{{ p.additionalFields | omit:'address,phone_numbers,emails,email,project_ids' }}",
+        "address": "{{ p.additionalFields.address.addressFields }}",
+        "phone_numbers": "{{ p.additionalFields.phone_numbers.phoneFields }}",
+        "emails": "{{ p.additionalFields.emails.emailFields }}",
+        "email": "{{ p.additionalFields.email.emailFields }}",
+        "project_ids": "{{ p.additionalFields.project_ids | split }}",
+        "name": "{{ p.name }}"
+      },
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "address",
+            "details",
+            "email_domain",
+            "emails",
+            "phone_numbers"
+          ],
+          "help": "address: {\"addressFields\": {\"street\": \"\", \"city\": \"\", \"state\": \"\", \"postal_code\": \"\", \"country\": \"\"}}; phone_numbers: {\"phoneFields\": [{\"number\": \"\", \"category\": \"work\"}]}; emails / email: {\"emailFields\": [{\"email\": \"\", \"category\": \"work\"}]} (email: one object)"
+        }
+      ]
+    },
+    {
+      "resource": "person",
+      "operation": "delete",
+      "title": "Delete a person",
+      "method": "DELETE",
+      "path": "/people/{{ p.personId }}",
+      "fields": [
+        {
+          "key": "personId",
+          "label": "Person ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "person",
+      "operation": "get",
+      "title": "Get a person",
+      "method": "GET",
+      "path": "/people/{{ p.personId }}",
+      "fields": [
+        {
+          "key": "personId",
+          "label": "Person ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "person",
+      "operation": "getAll",
+      "title": "Search persons",
+      "method": "POST",
+      "path": "/people/search",
+      "body": {
+        "$merge": "{{ p.filterFields | omit:'project_ids,assignee_ids,company_ids,customer_source_ids' }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page_number",
+        "limit_param": "page_size",
+        "page_size": 200,
+        "param_in": "body",
+        "results_path": ""
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Fetch every page instead of stopping at Limit."
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 5,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off."
+        },
+        {
+          "key": "filterFields",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "name"
+          ],
+          "help": "*_ids filters take comma-separated IDs"
+        }
+      ]
+    },
+    {
+      "resource": "person",
+      "operation": "update",
+      "title": "Update a person",
+      "method": "PUT",
+      "path": "/people/{{ p.personId }}",
+      "body": {
+        "$merge": "{{ p.updateFields | omit:'address,phone_numbers,emails,email,project_ids' }}",
+        "address": "{{ p.updateFields.address.addressFields }}",
+        "phone_numbers": "{{ p.updateFields.phone_numbers.phoneFields }}",
+        "emails": "{{ p.updateFields.emails.emailFields }}",
+        "email": "{{ p.updateFields.email.emailFields }}",
+        "project_ids": "{{ p.updateFields.project_ids | split }}"
+      },
+      "fields": [
+        {
+          "key": "personId",
+          "label": "Person ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "address",
+            "details",
+            "email_domain",
+            "emails",
+            "name",
+            "phone_numbers"
+          ],
+          "help": "address: {\"addressFields\": {\"street\": \"\", \"city\": \"\", \"state\": \"\", \"postal_code\": \"\", \"country\": \"\"}}; phone_numbers: {\"phoneFields\": [{\"number\": \"\", \"category\": \"work\"}]}; emails / email: {\"emailFields\": [{\"email\": \"\", \"category\": \"work\"}]} (email: one object)"
+        }
+      ]
+    },
+    {
+      "resource": "project",
+      "operation": "create",
+      "title": "Create a project",
+      "method": "POST",
+      "path": "/projects",
+      "body": {
+        "$merge": "{{ p.additionalFields | omit:'address,phone_numbers,emails,email,project_ids' }}",
+        "address": "{{ p.additionalFields.address.addressFields }}",
+        "phone_numbers": "{{ p.additionalFields.phone_numbers.phoneFields }}",
+        "emails": "{{ p.additionalFields.emails.emailFields }}",
+        "email": "{{ p.additionalFields.email.emailFields }}",
+        "project_ids": "{{ p.additionalFields.project_ids | split }}",
+        "name": "{{ p.name }}"
+      },
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "assignee_id",
+            "details",
+            "status"
+          ],
+          "help": "address: {\"addressFields\": {\"street\": \"\", \"city\": \"\", \"state\": \"\", \"postal_code\": \"\", \"country\": \"\"}}; phone_numbers: {\"phoneFields\": [{\"number\": \"\", \"category\": \"work\"}]}; emails / email: {\"emailFields\": [{\"email\": \"\", \"category\": \"work\"}]} (email: one object)"
+        }
+      ]
+    },
+    {
+      "resource": "project",
+      "operation": "delete",
+      "title": "Delete a project",
+      "method": "DELETE",
+      "path": "/projects/{{ p.projectId }}",
+      "fields": [
+        {
+          "key": "projectId",
+          "label": "Project ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "project",
+      "operation": "get",
+      "title": "Get a project",
+      "method": "GET",
+      "path": "/projects/{{ p.projectId }}",
+      "fields": [
+        {
+          "key": "projectId",
+          "label": "Project ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "project",
+      "operation": "getAll",
+      "title": "Search projects",
+      "method": "POST",
+      "path": "/projects/search",
+      "body": {
+        "$merge": "{{ p.filterFields | omit:'project_ids,assignee_ids,company_ids,customer_source_ids' }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page_number",
+        "limit_param": "page_size",
+        "page_size": 200,
+        "param_in": "body",
+        "results_path": ""
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Fetch every page instead of stopping at Limit."
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 5,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off."
+        },
+        {
+          "key": "filterFields",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "name"
+          ],
+          "help": "*_ids filters take comma-separated IDs"
+        }
+      ]
+    },
+    {
+      "resource": "project",
+      "operation": "update",
+      "title": "Update a project",
+      "method": "PUT",
+      "path": "/projects/{{ p.projectId }}",
+      "body": {
+        "$merge": "{{ p.updateFields | omit:'address,phone_numbers,emails,email,project_ids' }}",
+        "address": "{{ p.updateFields.address.addressFields }}",
+        "phone_numbers": "{{ p.updateFields.phone_numbers.phoneFields }}",
+        "emails": "{{ p.updateFields.emails.emailFields }}",
+        "email": "{{ p.updateFields.email.emailFields }}",
+        "project_ids": "{{ p.updateFields.project_ids | split }}"
+      },
+      "fields": [
+        {
+          "key": "projectId",
+          "label": "Project ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "assignee_id",
+            "details",
+            "name",
+            "status"
+          ],
+          "help": "address: {\"addressFields\": {\"street\": \"\", \"city\": \"\", \"state\": \"\", \"postal_code\": \"\", \"country\": \"\"}}; phone_numbers: {\"phoneFields\": [{\"number\": \"\", \"category\": \"work\"}]}; emails / email: {\"emailFields\": [{\"email\": \"\", \"category\": \"work\"}]} (email: one object)"
+        }
+      ]
+    },
+    {
+      "resource": "task",
+      "operation": "create",
+      "title": "Create a task",
+      "method": "POST",
+      "path": "/tasks",
+      "body": {
+        "$merge": "{{ p.additionalFields | omit:'address,phone_numbers,emails,email,project_ids' }}",
+        "address": "{{ p.additionalFields.address.addressFields }}",
+        "phone_numbers": "{{ p.additionalFields.phone_numbers.phoneFields }}",
+        "emails": "{{ p.additionalFields.emails.emailFields }}",
+        "email": "{{ p.additionalFields.email.emailFields }}",
+        "project_ids": "{{ p.additionalFields.project_ids | split }}",
+        "name": "{{ p.name }}"
+      },
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "assignee_id",
+            "details",
+            "priority",
+            "status"
+          ],
+          "help": "address: {\"addressFields\": {\"street\": \"\", \"city\": \"\", \"state\": \"\", \"postal_code\": \"\", \"country\": \"\"}}; phone_numbers: {\"phoneFields\": [{\"number\": \"\", \"category\": \"work\"}]}; emails / email: {\"emailFields\": [{\"email\": \"\", \"category\": \"work\"}]} (email: one object)"
+        }
+      ]
+    },
+    {
+      "resource": "task",
+      "operation": "delete",
+      "title": "Delete a task",
+      "method": "DELETE",
+      "path": "/tasks/{{ p.taskId }}",
+      "fields": [
+        {
+          "key": "taskId",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "task",
+      "operation": "get",
+      "title": "Get a task",
+      "method": "GET",
+      "path": "/tasks/{{ p.taskId }}",
+      "fields": [
+        {
+          "key": "taskId",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "task",
+      "operation": "getAll",
+      "title": "Search tasks",
+      "method": "POST",
+      "path": "/tasks/search",
+      "body": {
+        "$merge": "{{ p.filterFields | omit:'project_ids,assignee_ids,company_ids,customer_source_ids' }}",
+        "project_ids": "{{ p.filterFields.project_ids | split }}",
+        "assignee_ids": "{{ p.filterFields.assignee_ids | split }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page_number",
+        "limit_param": "page_size",
+        "page_size": 200,
+        "param_in": "body",
+        "results_path": ""
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Fetch every page instead of stopping at Limit."
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 5,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off."
+        },
+        {
+          "key": "filterFields",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "assignee_ids",
+            "project_ids"
+          ],
+          "help": "*_ids filters take comma-separated IDs"
+        }
+      ]
+    },
+    {
+      "resource": "task",
+      "operation": "update",
+      "title": "Update a task",
+      "method": "PUT",
+      "path": "/tasks/{{ p.taskId }}",
+      "body": {
+        "$merge": "{{ p.updateFields | omit:'address,phone_numbers,emails,email,project_ids' }}",
+        "address": "{{ p.updateFields.address.addressFields }}",
+        "phone_numbers": "{{ p.updateFields.phone_numbers.phoneFields }}",
+        "emails": "{{ p.updateFields.emails.emailFields }}",
+        "email": "{{ p.updateFields.email.emailFields }}",
+        "project_ids": "{{ p.updateFields.project_ids | split }}"
+      },
+      "fields": [
+        {
+          "key": "taskId",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "assignee_id",
+            "details",
+            "name",
+            "priority",
+            "status"
+          ],
+          "help": "address: {\"addressFields\": {\"street\": \"\", \"city\": \"\", \"state\": \"\", \"postal_code\": \"\", \"country\": \"\"}}; phone_numbers: {\"phoneFields\": [{\"number\": \"\", \"category\": \"work\"}]}; emails / email: {\"emailFields\": [{\"email\": \"\", \"category\": \"work\"}]} (email: one object)"
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "getAll",
+      "title": "Get many users",
+      "method": "POST",
+      "path": "/users/search",
+      "body": {},
+      "pagination": {
+        "type": "page",
+        "page_param": "page_number",
+        "limit_param": "page_size",
+        "page_size": 200,
+        "param_in": "body",
+        "results_path": ""
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Fetch every page instead of stopping at Limit."
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 5,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off."
+        }
+      ]
+    }
+  ],
+  "webhook": {
+    "fields": [
+      {
+        "key": "resource",
+        "label": "Resource",
+        "type": "select",
+        "required": true,
+        "options": [
+          "company",
+          "lead",
+          "opportunity",
+          "person",
+          "project",
+          "task"
+        ]
+      },
+      {
+        "key": "event",
+        "label": "Event",
+        "type": "select",
+        "required": true,
+        "options": [
+          "delete",
+          "new",
+          "update"
+        ]
+      }
+    ],
+    "create": [
+      {
+        "method": "POST",
+        "path": "/webhooks",
+        "body": {
+          "target": "{{ hook.url }}",
+          "type": "{{ p.resource }}",
+          "event": "{{ p.event }}",
+          "secret": {
+            "secret": "{{ hook.secret }}"
+          }
+        }
+      }
+    ],
+    "id": "{{ res.id }}",
+    "delete": [
+      {
+        "method": "DELETE",
+        "path": "/webhooks/{{ hook.id }}"
+      }
+    ],
+    "check": {
+      "method": "GET",
+      "path": "/webhooks/{{ hook.id }}"
+    },
+    "verify": {
+      "signature": "{{ req.body | fromjson | get:'secret' }}",
+      "alg": "token"
+    }
+  }
+}

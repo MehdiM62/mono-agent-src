@@ -317,7 +317,9 @@ func TestServerValidateValidInline(t *testing.T) {
 		"name": "ok",
 		"nodes": []map[string]interface{}{
 			{"id": "a", "type": "trigger.schedule", "name": "Daily", "config": map[string]interface{}{"cron": "0 0 9 * * *"}},
-			{"id": "b", "type": "core.set", "name": "Set", "config": map[string]interface{}{}},
+			{"id": "b", "type": "core.set", "name": "Set", "config": map[string]interface{}{
+				"assignments": []interface{}{map[string]interface{}{"field": "a", "value": "1"}},
+			}},
 		},
 		"connections": []map[string]interface{}{
 			{"source": "a", "source_handle": "main", "target": "b", "target_handle": "main"},

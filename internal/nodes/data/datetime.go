@@ -16,6 +16,12 @@ func (n *DateTimeNode) Type() string { return "data.datetime" }
 
 func (n *DateTimeNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
 	operation, _ := config["operation"].(string)
+	if alias, ok := N8nDateTimeOperations[operation]; ok {
+		operation = alias
+	}
+	if dateTimeV2Ops[operation] {
+		return n.executeV2(input, config, operation)
+	}
 	field, _ := config["field"].(string)
 	inputFormat, _ := config["input_format"].(string)
 	outputFormat, _ := config["output_format"].(string)

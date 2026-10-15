@@ -1,0 +1,700 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "splunk",
+  "title": "Splunk",
+  "description": "Search jobs, reports (saved searches), fired alerts and users on a Splunk Enterprise or Cloud instance",
+  "category": "app",
+  "docs_url": "https://docs.splunk.com/Documentation/Splunk/latest/RESTREF/RESTprolog",
+  "n8n_types": [
+    "n8n-nodes-base.splunk"
+  ],
+  "base_url": "{{ cred.base_url }}",
+  "credentials": [
+    {
+      "platform": "splunk",
+      "name": "Splunk",
+      "n8n_credential": "splunkApi",
+      "n8n_field_map": {
+        "authToken": "access_token",
+        "baseUrl": "base_url",
+        "allowUnauthorizedCerts": "allow_unauthorized_certs"
+      },
+      "methods": [
+        "bearer"
+      ],
+      "fields": [
+        {
+          "key": "base_url",
+          "label": "Base URL",
+          "required": true,
+          "help": "Management endpoint, e.g. https://splunk.example.com:8089"
+        },
+        {
+          "key": "access_token",
+          "label": "Auth token",
+          "secret": true,
+          "required": true,
+          "help": "Settings → Tokens"
+        },
+        {
+          "key": "allow_unauthorized_certs",
+          "label": "Ignore SSL issues",
+          "help": "true to accept self-signed or invalid TLS certificates (self-hosted servers)"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "search",
+      "label": "Search"
+    },
+    {
+      "value": "alert",
+      "label": "Alert"
+    },
+    {
+      "value": "report",
+      "label": "Report"
+    },
+    {
+      "value": "user",
+      "label": "User"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "alert",
+      "operation": "getReport",
+      "title": "Get fired alerts",
+      "method": "GET",
+      "path": "/services/alerts/fired_alerts",
+      "query": {
+        "output_mode": "json"
+      },
+      "fields": [],
+      "output": {
+        "path": "entry",
+        "to": {
+          "$merge": [
+            "{{ el | omit:'content,links' }}",
+            "{{ el.content }}"
+          ],
+          "entryUrl": "{{ el.id }}",
+          "id": "{{ el.id | re:'([^/]+)$' }}"
+        }
+      }
+    },
+    {
+      "resource": "alert",
+      "operation": "getMetrics",
+      "title": "Get alert metrics",
+      "method": "GET",
+      "path": "/services/alerts/metric_alerts",
+      "query": {
+        "output_mode": "json"
+      },
+      "fields": [],
+      "output": {
+        "path": "entry",
+        "to": {
+          "$merge": [
+            "{{ el | omit:'content,links' }}",
+            "{{ el.content }}"
+          ],
+          "entryUrl": "{{ el.id }}",
+          "id": "{{ el.id | re:'([^/]+)$' }}"
+        }
+      }
+    },
+    {
+      "resource": "report",
+      "operation": "getAll",
+      "title": "Get many reports",
+      "method": "GET",
+      "path": "/services/saved/searches",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "add_orphan_field",
+            "listDefaultActionArgs"
+          ]
+        }
+      ],
+      "query": {
+        "output_mode": "json",
+        "count": "{{ p.returnAll | eq:'true' | then:'0' | default:p.limit }}",
+        "$merge": "{{ p.options }}"
+      },
+      "output": {
+        "path": "entry",
+        "to": {
+          "$merge": [
+            "{{ el | omit:'content,links' }}",
+            "{{ el.content }}"
+          ],
+          "entryUrl": "{{ el.id }}",
+          "id": "{{ el.id | re:'([^/]+)$' }}"
+        }
+      }
+    },
+    {
+      "resource": "report",
+      "operation": "create",
+      "title": "Create a report from a search job",
+      "method": "POST",
+      "path": "/services/saved/searches",
+      "body_type": "form",
+      "fields": [
+        {
+          "key": "searchJobId",
+          "label": "Search job ID",
+          "type": "text",
+          "required": true,
+          "help": "ID, or a resource locator"
+        },
+        {
+          "key": "name",
+          "label": "Report name",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "before": {
+        "method": "GET",
+        "path": "/services/search/jobs/{{ p.searchJobId | rl }}",
+        "query": {
+          "output_mode": "json"
+        }
+      },
+      "query": {
+        "output_mode": "json"
+      },
+      "body": {
+        "name": "{{ p.name }}",
+        "search": "{{ pre.entry.0.content.search }}",
+        "alert_type": "always",
+        "dispatch.earliest_time": "{{ pre.entry.0.content.earliestTime }}",
+        "dispatch.latest_time": "{{ pre.entry.0.content.latestTime }}",
+        "is_scheduled": "{{ pre.entry.0.content.isScheduled }}",
+        "cron_schedule": "{{ pre.entry.0.content.cronSchedule }}"
+      },
+      "output": {
+        "path": "entry",
+        "to": {
+          "$merge": [
+            "{{ el | omit:'content,links' }}",
+            "{{ el.content }}"
+          ],
+          "entryUrl": "{{ el.id }}",
+          "id": "{{ el.id | re:'([^/]+)$' }}"
+        }
+      }
+    },
+    {
+      "resource": "report",
+      "operation": "deleteReport",
+      "title": "Delete a report",
+      "method": "DELETE",
+      "path": "/services/saved/searches/{{ p.reportId | rl }}",
+      "query": {
+        "output_mode": "json"
+      },
+      "fields": [
+        {
+          "key": "reportId",
+          "label": "Report ID",
+          "type": "text",
+          "required": true,
+          "help": "ID, or a resource locator"
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "report",
+      "operation": "get",
+      "title": "Get a report",
+      "method": "GET",
+      "path": "/services/saved/searches/{{ p.reportId | rl }}",
+      "query": {
+        "output_mode": "json"
+      },
+      "fields": [
+        {
+          "key": "reportId",
+          "label": "Report ID",
+          "type": "text",
+          "required": true,
+          "help": "ID, or a resource locator"
+        }
+      ],
+      "output": {
+        "path": "entry",
+        "to": {
+          "$merge": [
+            "{{ el | omit:'content,links' }}",
+            "{{ el.content }}"
+          ],
+          "entryUrl": "{{ el.id }}",
+          "id": "{{ el.id | re:'([^/]+)$' }}"
+        }
+      }
+    },
+    {
+      "resource": "search",
+      "operation": "create",
+      "title": "Create a search job",
+      "method": "POST",
+      "path": "/services/search/jobs",
+      "body_type": "form",
+      "fields": [
+        {
+          "key": "search",
+          "label": "Search query",
+          "type": "textarea",
+          "required": true,
+          "help": "SPL, e.g. search index=_internal | head 10"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "adhoc_search_level",
+            "auto_cancel",
+            "auto_finalize_ec",
+            "auto_pause",
+            "index_earliest",
+            "earliest_time",
+            "exec_mode",
+            "indexedRealtimeOffset",
+            "index_latest",
+            "latest_time",
+            "max_time",
+            "namespace",
+            "reduce_freq",
+            "remote_server_list",
+            "reuse_max_seconds_ago",
+            "rf",
+            "search_mode",
+            "status_buckets",
+            "timeout",
+            "workload_pool"
+          ],
+          "help": "earliest_time, latest_time, index_earliest and index_latest are dates (sent as Unix seconds)"
+        }
+      ],
+      "query": {
+        "output_mode": "json"
+      },
+      "body": {
+        "search": "{{ p.search }}",
+        "$merge": "{{ p.additionalFields | omit:'earliest_time,latest_time,index_earliest,index_latest' }}",
+        "earliest_time": "{{ p.additionalFields.earliest_time | epoch }}",
+        "latest_time": "{{ p.additionalFields.latest_time | epoch }}",
+        "index_earliest": "{{ p.additionalFields.index_earliest | epoch }}",
+        "index_latest": "{{ p.additionalFields.index_latest | epoch }}"
+      },
+      "output": {
+        "expand": {
+          "method": "GET",
+          "path": "/services/search/jobs/{{ el.sid }}",
+          "query": {
+            "output_mode": "json"
+          }
+        },
+        "to": {
+          "$merge": [
+            "{{ el.entry.0 | omit:'content,links' }}",
+            "{{ el.entry.0.content }}"
+          ],
+          "entryUrl": "{{ el.entry.0.id }}",
+          "id": "{{ el.entry.0.id | re:'([^/]+)$' }}"
+        }
+      }
+    },
+    {
+      "resource": "search",
+      "operation": "deleteJob",
+      "title": "Delete a search job",
+      "method": "DELETE",
+      "path": "/services/search/jobs/{{ p.searchJobId | rl }}",
+      "query": {
+        "output_mode": "json"
+      },
+      "fields": [
+        {
+          "key": "searchJobId",
+          "label": "Search job ID",
+          "type": "text",
+          "required": true,
+          "help": "ID, or a resource locator"
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "search",
+      "operation": "get",
+      "title": "Get a search job",
+      "method": "GET",
+      "path": "/services/search/jobs/{{ p.searchJobId | rl }}",
+      "query": {
+        "output_mode": "json"
+      },
+      "fields": [
+        {
+          "key": "searchJobId",
+          "label": "Search job ID",
+          "type": "text",
+          "required": true,
+          "help": "ID, or a resource locator"
+        }
+      ],
+      "output": {
+        "path": "entry",
+        "to": {
+          "$merge": [
+            "{{ el | omit:'content,links' }}",
+            "{{ el.content }}"
+          ],
+          "entryUrl": "{{ el.id }}",
+          "id": "{{ el.id | re:'([^/]+)$' }}"
+        }
+      }
+    },
+    {
+      "resource": "search",
+      "operation": "getAll",
+      "title": "Get many search jobs",
+      "method": "GET",
+      "path": "/services/search/jobs",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "sort",
+          "label": "Sort",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "values"
+          ],
+          "help": "{\"values\": {\"sort_dir\": \"asc|desc\", \"sort_key\": \"\", \"sort_mode\": \"auto|alpha|alpha_case|num\"}}"
+        }
+      ],
+      "query": {
+        "output_mode": "json",
+        "count": "{{ p.returnAll | eq:'true' | then:'0' | default:p.limit }}",
+        "$merge": "{{ p.sort.values }}"
+      },
+      "output": {
+        "path": "entry",
+        "to": {
+          "$merge": [
+            "{{ el | omit:'content,links' }}",
+            "{{ el.content }}"
+          ],
+          "entryUrl": "{{ el.id }}",
+          "id": "{{ el.id | re:'([^/]+)$' }}"
+        }
+      }
+    },
+    {
+      "resource": "search",
+      "operation": "getResult",
+      "title": "Get the results of a search job",
+      "method": "GET",
+      "path": "/services/search/jobs/{{ p.searchJobId | rl }}/results",
+      "fields": [
+        {
+          "key": "searchJobId",
+          "label": "Search job ID",
+          "type": "text",
+          "required": true,
+          "help": "ID, or a resource locator"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "keyValueMatch"
+          ],
+          "help": "{\"keyValueMatch\": {\"keyValuePair\": {\"key\": \"host\", \"value\": \"web1\"}}}"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "add_summary_to_metadata"
+          ]
+        }
+      ],
+      "query": {
+        "output_mode": "json",
+        "count": "{{ p.returnAll | eq:'true' | then:'0' | default:p.limit }}",
+        "search": "{{ p.filters.keyValueMatch.keyValuePair.value | then:(p.filters.keyValueMatch.keyValuePair.key | prefix:'search ') }}{{ p.filters.keyValueMatch.keyValuePair.key | then:(p.filters.keyValueMatch.keyValuePair.value | prefix:'=') }}",
+        "$merge": "{{ p.options }}"
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "create",
+      "title": "Create a user",
+      "method": "POST",
+      "path": "/services/authentication/users",
+      "body_type": "form",
+      "fields": [
+        {
+          "key": "name",
+          "label": "Username",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "roles",
+          "label": "Roles",
+          "type": "array",
+          "item_type": "text",
+          "default": [
+            "user"
+          ],
+          "required": true
+        },
+        {
+          "key": "password",
+          "label": "Password",
+          "type": "password",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "email",
+            "realname"
+          ]
+        }
+      ],
+      "query": {
+        "output_mode": "json"
+      },
+      "body": {
+        "name": "{{ p.name }}",
+        "roles": "{{ p.roles }}",
+        "password": "{{ p.password }}",
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "output": {
+        "path": "entry",
+        "to": {
+          "$merge": [
+            "{{ el | omit:'content,links' }}",
+            "{{ el.content }}"
+          ],
+          "entryUrl": "{{ el.id }}",
+          "id": "{{ el.id | re:'([^/]+)$' }}"
+        }
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "deleteUser",
+      "title": "Delete a user",
+      "method": "DELETE",
+      "path": "/services/authentication/users/{{ p.userId | rl }}",
+      "query": {
+        "output_mode": "json"
+      },
+      "fields": [
+        {
+          "key": "userId",
+          "label": "User ID",
+          "type": "text",
+          "required": true,
+          "help": "ID, or a resource locator"
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "get",
+      "title": "Get a user",
+      "method": "GET",
+      "path": "/services/authentication/users/{{ p.userId | rl }}",
+      "query": {
+        "output_mode": "json"
+      },
+      "fields": [
+        {
+          "key": "userId",
+          "label": "User ID",
+          "type": "text",
+          "required": true,
+          "help": "ID, or a resource locator"
+        }
+      ],
+      "output": {
+        "path": "entry",
+        "to": {
+          "$merge": [
+            "{{ el | omit:'content,links' }}",
+            "{{ el.content }}"
+          ],
+          "entryUrl": "{{ el.id }}",
+          "id": "{{ el.id | re:'([^/]+)$' }}"
+        }
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "getAll",
+      "title": "Get many users",
+      "method": "GET",
+      "path": "/services/authentication/users",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "query": {
+        "output_mode": "json",
+        "count": "{{ p.returnAll | eq:'true' | then:'0' | default:p.limit }}"
+      },
+      "output": {
+        "path": "entry",
+        "to": {
+          "$merge": [
+            "{{ el | omit:'content,links' }}",
+            "{{ el.content }}"
+          ],
+          "entryUrl": "{{ el.id }}",
+          "id": "{{ el.id | re:'([^/]+)$' }}"
+        }
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "update",
+      "title": "Update a user",
+      "method": "POST",
+      "path": "/services/authentication/users/{{ p.userId | rl }}",
+      "body_type": "form",
+      "fields": [
+        {
+          "key": "userId",
+          "label": "User ID",
+          "type": "text",
+          "required": true,
+          "help": "ID, or a resource locator"
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "email",
+            "realname",
+            "password",
+            "roles"
+          ]
+        }
+      ],
+      "query": {
+        "output_mode": "json"
+      },
+      "body": {
+        "$merge": "{{ p.updateFields }}"
+      },
+      "output": {
+        "path": "entry",
+        "to": {
+          "$merge": [
+            "{{ el | omit:'content,links' }}",
+            "{{ el.content }}"
+          ],
+          "entryUrl": "{{ el.id }}",
+          "id": "{{ el.id | re:'([^/]+)$' }}"
+        }
+      }
+    }
+  ]
+}

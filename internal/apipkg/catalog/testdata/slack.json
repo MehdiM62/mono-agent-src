@@ -1,0 +1,1155 @@
+{
+  "channel.create": {
+    "params": {
+      "channelId": "#ops",
+      "channelVisibility": "private"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/conversations.create",
+      "body": {
+        "name": "ops",
+        "is_private": true
+      },
+      "items": 1
+    },
+    "response": {
+      "ok": true,
+      "channel": {
+        "id": "C9"
+      }
+    }
+  },
+  "channel.archive": {
+    "params": {
+      "channelId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "C1"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/conversations.archive",
+      "body": {
+        "channel": "C1"
+      }
+    }
+  },
+  "channel.close": {
+    "params": {
+      "channelId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "C1"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/conversations.close",
+      "body": {
+        "channel": "C1"
+      }
+    }
+  },
+  "channel.get": {
+    "params": {
+      "channelId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "C1"
+      },
+      "options": {
+        "includeNumMembers": true
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/conversations.info",
+      "query": {
+        "channel": "C1",
+        "include_num_members": "true"
+      },
+      "items": 1
+    },
+    "response": {
+      "channel": {
+        "id": "C1"
+      }
+    }
+  },
+  "channel.getAll": {
+    "params": {
+      "limit": 2,
+      "filters": {
+        "types": [
+          "public_channel",
+          "private_channel"
+        ],
+        "excludeArchived": true
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/conversations.list",
+      "query": {
+        "types": "public_channel,private_channel",
+        "exclude_archived": "true",
+        "limit": "2"
+      },
+      "items": 2
+    },
+    "response": {
+      "channels": [
+        {
+          "id": "a"
+        },
+        {
+          "id": "b"
+        }
+      ]
+    }
+  },
+  "channel.history": {
+    "params": {
+      "channelId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "C1"
+      },
+      "limit": 5,
+      "filters": {
+        "oldest": "2026-01-02T00:00:00Z"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/conversations.history",
+      "query": {
+        "channel": "C1",
+        "oldest": "1767312000",
+        "limit": "5"
+      },
+      "items": 1
+    },
+    "response": {
+      "messages": [
+        {
+          "ts": "1"
+        }
+      ]
+    }
+  },
+  "channel.invite": {
+    "params": {
+      "channelId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "C1"
+      },
+      "userIds": [
+        "U1",
+        "U2"
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/conversations.invite",
+      "body": {
+        "channel": "C1",
+        "users": "U1,U2"
+      }
+    },
+    "response": {
+      "channel": {
+        "id": "C1"
+      }
+    }
+  },
+  "channel.join": {
+    "params": {
+      "channelId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "C1"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/conversations.join",
+      "body": {
+        "channel": "C1"
+      }
+    },
+    "response": {
+      "channel": {
+        "id": "C1"
+      }
+    }
+  },
+  "channel.kick": {
+    "params": {
+      "channelId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "C1"
+      },
+      "userId": "U1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/conversations.kick",
+      "body": {
+        "channel": "C1",
+        "user": "U1"
+      }
+    }
+  },
+  "channel.leave": {
+    "params": {
+      "channelId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "C1"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/conversations.leave",
+      "body": {
+        "channel": "C1"
+      }
+    }
+  },
+  "channel.member": {
+    "params": {
+      "channelId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "C1"
+      },
+      "limit": 2,
+      "resolveData": true
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/conversations.members",
+      "query": {
+        "channel": "C1",
+        "limit": "2"
+      },
+      "items": 2
+    },
+    "responses": [
+      {
+        "members": [
+          "U1",
+          "U2"
+        ]
+      },
+      {
+        "user": {
+          "id": "U1"
+        }
+      },
+      {
+        "user": {
+          "id": "U2"
+        }
+      }
+    ]
+  },
+  "channel.open": {
+    "params": {
+      "options": {
+        "users": [
+          "U1",
+          "U2"
+        ]
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/conversations.open",
+      "body": {
+        "users": "U1,U2"
+      }
+    },
+    "response": {
+      "channel": {
+        "id": "D1"
+      }
+    }
+  },
+  "channel.rename": {
+    "params": {
+      "channelId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "C1"
+      },
+      "name": "new"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/conversations.rename",
+      "body": {
+        "channel": "C1",
+        "name": "new"
+      }
+    },
+    "response": {
+      "channel": {
+        "id": "C1"
+      }
+    }
+  },
+  "channel.replies": {
+    "params": {
+      "channelId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "C1"
+      },
+      "ts": "1700000000.123456",
+      "returnAll": true
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/conversations.replies",
+      "query": {
+        "channel": "C1",
+        "ts": "1700000000.123456",
+        "limit": "100"
+      },
+      "items": 1
+    },
+    "response": {
+      "messages": [
+        {
+          "ts": "1"
+        }
+      ]
+    }
+  },
+  "channel.setPurpose": {
+    "params": {
+      "channelId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "C1"
+      },
+      "purpose": "p"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/conversations.setPurpose",
+      "body": {
+        "channel": "C1",
+        "purpose": "p"
+      }
+    },
+    "response": {
+      "channel": {
+        "id": "C1"
+      }
+    }
+  },
+  "channel.setTopic": {
+    "params": {
+      "channelId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "C1"
+      },
+      "topic": "t"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/conversations.setTopic",
+      "body": {
+        "channel": "C1",
+        "topic": "t"
+      }
+    },
+    "response": {
+      "channel": {
+        "id": "C1"
+      }
+    }
+  },
+  "channel.unarchive": {
+    "params": {
+      "channelId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "C1"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/conversations.unarchive",
+      "body": {
+        "channel": "C1"
+      }
+    }
+  },
+  "file.upload": {
+    "params": {
+      "options": {
+        "channelId": "C1",
+        "title": "Report"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/files.getUploadURLExternal",
+      "query": {
+        "filename": "r.txt",
+        "length": "2"
+      },
+      "items": 1
+    },
+    "input": {
+      "data": "aGk=",
+      "file_name": "r.txt"
+    },
+    "responses": [
+      {
+        "ok": true,
+        "upload_url": "https://files.slack.com/upload/v1/abc",
+        "file_id": "F1"
+      },
+      {},
+      {
+        "files": [
+          {
+            "id": "F1"
+          }
+        ]
+      }
+    ],
+    "expect_requests": [
+      {
+        "method": "GET",
+        "path": "/api/files.getUploadURLExternal",
+        "query": {
+          "filename": "r.txt",
+          "length": "2"
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/upload/v1/abc",
+        "body": "hi"
+      },
+      {
+        "method": "POST",
+        "path": "/api/files.completeUploadExternal",
+        "body": {
+          "files": [
+            {
+              "id": "F1",
+              "title": "Report"
+            }
+          ],
+          "channel_id": "C1"
+        }
+      }
+    ]
+  },
+  "file.get": {
+    "params": {
+      "fileId": "F1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/files.info",
+      "query": {
+        "file": "F1"
+      }
+    },
+    "response": {
+      "file": {
+        "id": "F1"
+      }
+    }
+  },
+  "file.getAll": {
+    "params": {
+      "limit": 3,
+      "filters": {
+        "channelId": "C1",
+        "types": [
+          "images"
+        ]
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/files.list",
+      "query": {
+        "channel": "C1",
+        "types": "images",
+        "page": "1",
+        "count": "3"
+      },
+      "items": 1
+    },
+    "response": {
+      "files": [
+        {
+          "id": "F1"
+        }
+      ]
+    }
+  },
+  "message.post": {
+    "params": {
+      "select": "channel",
+      "channelId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "C1"
+      },
+      "text": "Hello",
+      "otherOptions": {
+        "thread_ts": {
+          "replyValues": {
+            "thread_ts": "1700000000.1"
+          }
+        },
+        "mrkdwn": true,
+        "includeLinkToWorkflow": false
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/chat.postMessage",
+      "body": {
+        "channel": "C1",
+        "text": "Hello",
+        "thread_ts": "1700000000.1",
+        "mrkdwn": true
+      },
+      "items": 1
+    },
+    "response": {
+      "ok": true,
+      "ts": "1"
+    }
+  },
+  "message.delete": {
+    "params": {
+      "select": "user",
+      "user": {
+        "__rl": true,
+        "mode": "id",
+        "value": "U1"
+      },
+      "timestamp": "1.2"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/chat.delete",
+      "body": {
+        "channel": "U1",
+        "ts": "1.2"
+      }
+    }
+  },
+  "message.deleteScheduled": {
+    "params": {
+      "channelId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "C1"
+      },
+      "scheduledMessageId": "Q1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/chat.deleteScheduledMessage",
+      "body": {
+        "channel": "C1",
+        "scheduled_message_id": "Q1"
+      }
+    }
+  },
+  "message.getManyScheduled": {
+    "params": {
+      "limit": 2,
+      "filters": {
+        "channelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "C1"
+        }
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/chat.scheduledMessages.list",
+      "query": {
+        "channel": "C1",
+        "limit": "2"
+      },
+      "items": 1
+    },
+    "response": {
+      "scheduled_messages": [
+        {
+          "id": "Q1"
+        }
+      ]
+    }
+  },
+  "message.getPermalink": {
+    "params": {
+      "channelId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "C1"
+      },
+      "timestamp": "1.2"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/chat.getPermalink",
+      "query": {
+        "channel": "C1",
+        "message_ts": "1.2"
+      }
+    }
+  },
+  "message.schedule": {
+    "params": {
+      "select": "channel",
+      "channelId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "C1"
+      },
+      "messageType": "block",
+      "blocksUi": "{\"blocks\":[{\"type\":\"divider\"}]}",
+      "text": "fallback",
+      "postAt": "2026-01-02T00:00:00Z"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/chat.scheduleMessage",
+      "body": {
+        "channel": "C1",
+        "post_at": 1767312000,
+        "blocks": [
+          {
+            "type": "divider"
+          }
+        ],
+        "text": "fallback"
+      }
+    }
+  },
+  "message.search": {
+    "params": {
+      "query": "deploy",
+      "limit": 5,
+      "options": {
+        "searchChannel": [
+          "general"
+        ]
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/search.messages",
+      "query": {
+        "query": "deploy in:general",
+        "sort": "timestamp",
+        "sort_dir": "desc",
+        "page": "1",
+        "count": "5"
+      },
+      "items": 1
+    },
+    "response": {
+      "messages": {
+        "matches": [
+          {
+            "ts": "1"
+          }
+        ]
+      }
+    }
+  },
+  "message.update": {
+    "params": {
+      "channelId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "C1"
+      },
+      "ts": "1.2",
+      "messageType": "attachment",
+      "attachments": [
+        {
+          "text": "a",
+          "fields": {
+            "item": [
+              {
+                "title": "t",
+                "value": "v"
+              }
+            ]
+          }
+        }
+      ],
+      "updateFields": {
+        "link_names": true
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/chat.update",
+      "body": {
+        "channel": "C1",
+        "ts": "1.2",
+        "attachments": [
+          {
+            "text": "a",
+            "fields": [
+              {
+                "title": "t",
+                "value": "v"
+              }
+            ]
+          }
+        ],
+        "link_names": true
+      }
+    }
+  },
+  "reaction.add": {
+    "params": {
+      "channelId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "C1"
+      },
+      "timestamp": "1.2",
+      "name": "thumbsup"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/reactions.add",
+      "body": {
+        "channel": "C1",
+        "name": "thumbsup",
+        "timestamp": "1.2"
+      }
+    }
+  },
+  "reaction.get": {
+    "params": {
+      "channelId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "C1"
+      },
+      "timestamp": "1.2"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/reactions.get",
+      "query": {
+        "channel": "C1",
+        "timestamp": "1.2"
+      }
+    }
+  },
+  "reaction.remove": {
+    "params": {
+      "channelId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "C1"
+      },
+      "timestamp": "1.2",
+      "name": "thumbsup"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/reactions.remove",
+      "body": {
+        "channel": "C1",
+        "name": "thumbsup",
+        "timestamp": "1.2"
+      }
+    }
+  },
+  "star.add": {
+    "params": {
+      "target": "file",
+      "channelId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "C1"
+      },
+      "fileId": "F1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/stars.add",
+      "body": {
+        "channel": "C1",
+        "file": "F1"
+      }
+    }
+  },
+  "star.delete": {
+    "params": {
+      "options": {
+        "channelId": "C1",
+        "timestamp": "1.2"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/stars.remove",
+      "body": {
+        "channel": "C1",
+        "timestamp": "1.2"
+      }
+    }
+  },
+  "star.getAll": {
+    "params": {
+      "limit": 4
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/stars.list",
+      "query": {
+        "limit": "4"
+      },
+      "items": 1
+    },
+    "response": {
+      "items": [
+        {
+          "type": "message"
+        }
+      ]
+    }
+  },
+  "user.info": {
+    "params": {
+      "user": {
+        "__rl": true,
+        "mode": "id",
+        "value": "U1"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/users.info",
+      "query": {
+        "user": "U1"
+      },
+      "items": 1
+    },
+    "response": {
+      "user": {
+        "id": "U1"
+      }
+    }
+  },
+  "user.getAll": {
+    "params": {
+      "limit": 4
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/users.list",
+      "query": {
+        "limit": "4"
+      },
+      "items": 1
+    },
+    "response": {
+      "members": [
+        {
+          "id": "U1"
+        }
+      ]
+    }
+  },
+  "user.getProfile": {
+    "params": {
+      "user": "U1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/users.profile.get",
+      "query": {
+        "user": "U1"
+      }
+    },
+    "response": {
+      "profile": {
+        "email": "a@b.c"
+      }
+    }
+  },
+  "user.getPresence": {
+    "params": {
+      "user": "U1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/users.getPresence",
+      "query": {
+        "user": "U1"
+      }
+    }
+  },
+  "user.lookupByEmail": {
+    "params": {
+      "email": "a@b.c"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/users.lookupByEmail",
+      "query": {
+        "email": "a@b.c"
+      }
+    },
+    "response": {
+      "user": {
+        "id": "U1"
+      }
+    }
+  },
+  "user.updateProfile": {
+    "params": {
+      "options": {
+        "first_name": "Ada",
+        "status": {
+          "set_status": [
+            {
+              "status_text": "Away",
+              "status_emoji": ":palm_tree:"
+            }
+          ]
+        },
+        "customFieldUi": {
+          "customFieldValues": [
+            {
+              "id": "Xf1",
+              "value": "v",
+              "alt": ""
+            }
+          ]
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/users.profile.set",
+      "body": {
+        "profile": {
+          "first_name": "Ada",
+          "status_text": "Away",
+          "status_emoji": ":palm_tree:",
+          "status_expiration": 0,
+          "fields": {
+            "Xf1": {
+              "value": "v",
+              "alt": ""
+            }
+          }
+        }
+      }
+    },
+    "response": {
+      "profile": {}
+    }
+  },
+  "userGroup.create": {
+    "params": {
+      "name": "Ops",
+      "Options": {
+        "handle": "ops",
+        "channelIds": [
+          "C1"
+        ]
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/usergroups.create",
+      "body": {
+        "name": "Ops",
+        "handle": "ops",
+        "channels": "C1"
+      }
+    },
+    "response": {
+      "usergroup": {
+        "id": "S1"
+      }
+    }
+  },
+  "userGroup.disable": {
+    "params": {
+      "userGroupId": "S1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/usergroups.disable",
+      "body": {
+        "usergroup": "S1"
+      }
+    },
+    "response": {
+      "usergroup": {
+        "id": "S1"
+      }
+    }
+  },
+  "userGroup.enable": {
+    "params": {
+      "userGroupId": "S1",
+      "option": {
+        "include_count": true
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/usergroups.enable",
+      "body": {
+        "usergroup": "S1",
+        "include_count": true
+      }
+    },
+    "response": {
+      "usergroup": {
+        "id": "S1"
+      }
+    }
+  },
+  "userGroup.getAll": {
+    "params": {
+      "limit": 1,
+      "options": {
+        "include_users": true
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/usergroups.list",
+      "query": {
+        "include_users": "true"
+      },
+      "items": 1
+    },
+    "response": {
+      "usergroups": [
+        {
+          "id": "S1"
+        },
+        {
+          "id": "S2"
+        }
+      ]
+    }
+  },
+  "userGroup.getUsers": {
+    "params": {
+      "userGroupId": "S1",
+      "options": {
+        "resolveData": false
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/usergroups.list",
+      "query": {
+        "include_users": "true",
+        "usergroup": "S1"
+      },
+      "items": 2
+    },
+    "response": {
+      "usergroups": [
+        {
+          "id": "S1",
+          "users": [
+            "U1",
+            "U2"
+          ]
+        }
+      ]
+    }
+  },
+  "userGroup.update": {
+    "params": {
+      "userGroupId": "S1",
+      "updateFields": {
+        "name": "Ops2",
+        "channels": [
+          "C1",
+          "C2"
+        ]
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/usergroups.update",
+      "body": {
+        "usergroup": "S1",
+        "name": "Ops2",
+        "channels": "C1,C2"
+      }
+    },
+    "response": {
+      "usergroup": {
+        "id": "S1"
+      }
+    }
+  },
+  "userGroup.updateUsers": {
+    "params": {
+      "userGroupId": "S1",
+      "users": [
+        "U3"
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/usergroups.users.update",
+      "body": {
+        "usergroup": "S1",
+        "users": "U1,U2,U3"
+      }
+    },
+    "responses": [
+      {
+        "usergroups": [
+          {
+            "id": "S1",
+            "users": [
+              "U1",
+              "U2"
+            ]
+          }
+        ]
+      },
+      {
+        "usergroup": {
+          "id": "S1"
+        }
+      }
+    ]
+  }
+}

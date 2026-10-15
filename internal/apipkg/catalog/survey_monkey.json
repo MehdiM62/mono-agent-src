@@ -1,0 +1,115 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "survey_monkey",
+  "title": "SurveyMonkey",
+  "description": "SurveyMonkey connection for the SurveyMonkey trigger (no action operations in n8n)",
+  "category": "app",
+  "docs_url": "https://api.surveymonkey.com/v3/docs",
+  "n8n_types": [],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.surveyMonkeyTrigger"
+  ],
+  "base_url": "https://api.surveymonkey.com/v3",
+  "credentials": [
+    {
+      "platform": "survey_monkey",
+      "name": "SurveyMonkey",
+      "n8n_credential": "surveyMonkeyApi",
+      "n8n_credential_alt": [
+        "surveyMonkeyOAuth2Api"
+      ],
+      "n8n_field_map": {
+        "accessToken": "access_token",
+        "clientId": "client_id",
+        "clientSecret": "client_secret"
+      },
+      "methods": [
+        "bearer",
+        "oauth"
+      ],
+      "fields": [
+        {
+          "key": "access_token",
+          "label": "Access token",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "client_id",
+          "label": "Client ID",
+          "help": "Used to verify webhook signatures"
+        },
+        {
+          "key": "client_secret",
+          "label": "Client secret",
+          "secret": true,
+          "help": "Used to verify webhook signatures"
+        }
+      ],
+      "oauth": {
+        "auth_url": "https://api.surveymonkey.com/oauth/authorize",
+        "token_url": "https://api.surveymonkey.com/oauth/token",
+        "scopes": [],
+        "extra_params": {
+          "scope": "surveys_read,collectors_read,responses_read,responses_read_detail,webhooks_write,webhooks_read"
+        }
+      },
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "operations": [],
+  "webhook": {
+    "fields": [
+      {
+        "key": "objectType",
+        "label": "Object type",
+        "type": "select",
+        "required": true,
+        "options": [
+          "collector",
+          "survey"
+        ]
+      },
+      {
+        "key": "event",
+        "label": "Event",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "surveyIds",
+        "label": "Survey IDs",
+        "type": "array"
+      },
+      {
+        "key": "collectorIds",
+        "label": "Collector IDs",
+        "type": "array"
+      }
+    ],
+    "create": [
+      {
+        "method": "POST",
+        "path": "/webhooks",
+        "body": {
+          "name": "mono-agent - Webhook [{{ p.event }}]",
+          "subscription_url": "{{ hook.url }}",
+          "event_type": "{{ p.event }}",
+          "object_type": "{{ p.event | ne:'survey_created' | then:p.objectType }}",
+          "object_ids": "{{ p.objectType | eq:'collector' | then:p.collectorIds | default:(p.event | ne:'survey_created' | then:p.surveyIds) }}"
+        }
+      }
+    ],
+    "id": "{{ res.id }}",
+    "delete": [
+      {
+        "method": "DELETE",
+        "path": "/webhooks/{{ hook.id }}"
+      }
+    ]
+  }
+}

@@ -4,7 +4,10 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"regexp"
+	"strings"
 
+	"github.com/monoes/mono-agent/internal/apipkg"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -13,7 +16,33 @@ type SalesforceNode struct{}
 
 func (n *SalesforceNode) Type() string { return "service.salesforce" }
 
+// salesforceDefaultAPIVersion is the REST API version used when the node's
+// api_version field is empty (66.0 = Spring '26). Salesforce keeps old
+// versions available for years, so saved workflows keep working when this
+// moves; set api_version to pin one.
+const salesforceDefaultAPIVersion = "66.0"
+
+// salesforceAPIVersionRe matches "66.0" or "v66.0".
+var salesforceAPIVersionRe = regexp.MustCompile(`^v?(\d{1,3}\.\d{1,2})$`)
+
+// salesforceAPIVersion returns the path segment ("v66.0") for the configured
+// api_version, or the default when unset.
+func salesforceAPIVersion(config map[string]interface{}) (string, error) {
+	v := strings.TrimSpace(strVal(config, "api_version"))
+	if v == "" {
+		v = salesforceDefaultAPIVersion
+	}
+	m := salesforceAPIVersionRe.FindStringSubmatch(v)
+	if m == nil {
+		return "", fmt.Errorf("salesforce: api_version %q is invalid: use a number like %s (or v%s)", v, salesforceDefaultAPIVersion, salesforceDefaultAPIVersion)
+	}
+	return "v" + m[1], nil
+}
+
 func (n *SalesforceNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
+	if extensionOwns("service.salesforce", config) {
+		return apipkg.ExecuteExtension(ctx, "service.salesforce", input, config)
+	}
 	instanceURL := strVal(config, "instance_url")
 	if instanceURL == "" {
 		return nil, fmt.Errorf("salesforce: instance_url is required")
@@ -22,8 +51,12 @@ func (n *SalesforceNode) Execute(ctx context.Context, input workflow.NodeInput, 
 	if accessToken == "" {
 		return nil, fmt.Errorf("salesforce: access_token is required")
 	}
+	apiVersion, err := salesforceAPIVersion(config)
+	if err != nil {
+		return nil, err
+	}
 	operation := strVal(config, "operation")
-	baseURL := instanceURL + "/services/data/v58.0"
+	baseURL := strings.TrimRight(instanceURL, "/") + "/services/data/" + apiVersion
 
 	var items []workflow.Item
 
@@ -153,9 +186,9 @@ func salesforceQuery(ctx context.Context, baseURL, accessToken, soql string) ([]
 		if nextURL == "" {
 			break
 		}
-		// nextRecordsUrl is a path like /services/data/v58.0/query/...
+		// nextRecordsUrl is a path like /services/data/v66.0/query/...
 		// Extract the base instance URL
-		// baseURL is like https://myorg.salesforce.com/services/data/v58.0
+		// baseURL is like https://myorg.salesforce.com/services/data/v66.0
 		// We need the instance root
 		instanceRoot := salesforceInstanceRoot(baseURL)
 		queryURL = instanceRoot + nextURL
@@ -165,7 +198,7 @@ func salesforceQuery(ctx context.Context, baseURL, accessToken, soql string) ([]
 }
 
 // salesforceInstanceRoot extracts the instance root URL from a base URL.
-// e.g. https://myorg.salesforce.com/services/data/v58.0 -> https://myorg.salesforce.com
+// e.g. https://myorg.salesforce.com/services/data/v66.0 -> https://myorg.salesforce.com
 func salesforceInstanceRoot(baseURL string) string {
 	// Find the third slash (after https://)
 	count := 0

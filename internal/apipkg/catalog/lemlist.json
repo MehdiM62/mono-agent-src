@@ -1,0 +1,528 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "lemlist",
+  "node_type": "app.lemlist",
+  "title": "lemlist",
+  "description": "Campaigns, leads, activities, enrichment and unsubscribes in lemlist",
+  "category": "app",
+  "docs_url": "https://developer.lemlist.com/",
+  "n8n_types": [
+    "n8n-nodes-base.lemlist"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.lemlistTrigger"
+  ],
+  "base_url": "https://api.lemlist.com/api",
+  "headers": {
+    "Accept": "application/json"
+  },
+  "credentials": [
+    {
+      "platform": "lemlist",
+      "name": "lemlist",
+      "n8n_credential": "lemlistApi",
+      "n8n_field_map": {
+        "apiKey": "api_key"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true,
+          "help": "lemlist → Settings → Integrations → API"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Basic {{ cred.api_key | prefix:':' | base64 }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "activity",
+      "label": "Activity"
+    },
+    {
+      "value": "campaign",
+      "label": "Campaign"
+    },
+    {
+      "value": "enrich",
+      "label": "Enrichment"
+    },
+    {
+      "value": "lead",
+      "label": "Lead"
+    },
+    {
+      "value": "team",
+      "label": "Team"
+    },
+    {
+      "value": "unsubscribe",
+      "label": "Unsubscribe"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "activity",
+      "operation": "getAll",
+      "title": "Get many activities",
+      "method": "GET",
+      "path": "/activities",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 5,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "campaignId",
+            "isFirst",
+            "leadId",
+            "type",
+            "version"
+          ],
+          "help": "type: activity type such as emailsOpened, emailsReplied, linkedinSent"
+        }
+      ],
+      "query": {
+        "$merge": "{{ p.filters }}"
+      },
+      "pagination": {
+        "type": "offset",
+        "offset_param": "offset",
+        "limit_param": "limit",
+        "page_size": 100
+      }
+    },
+    {
+      "resource": "campaign",
+      "operation": "getAll",
+      "title": "Get many campaigns",
+      "method": "GET",
+      "path": "/campaigns",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 5,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "version"
+          ]
+        }
+      ],
+      "query": {
+        "$merge": "{{ p.filters }}"
+      },
+      "pagination": {
+        "type": "offset",
+        "offset_param": "offset",
+        "limit_param": "limit",
+        "page_size": 100
+      }
+    },
+    {
+      "resource": "campaign",
+      "operation": "getStats",
+      "title": "Get campaign stats",
+      "method": "GET",
+      "path": "/campaigns/{{ p.campaignId }}/stats",
+      "fields": [
+        {
+          "key": "campaignId",
+          "label": "Campaign ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "startDate",
+          "label": "Start date",
+          "type": "datetime",
+          "required": true
+        },
+        {
+          "key": "endDate",
+          "label": "End date",
+          "type": "datetime",
+          "required": true
+        },
+        {
+          "key": "timezone",
+          "label": "Timezone",
+          "type": "text",
+          "required": true,
+          "placeholder": "Europe/Paris"
+        }
+      ],
+      "query": {
+        "startDate": "{{ p.startDate }}",
+        "endDate": "{{ p.endDate }}",
+        "timezone": "{{ p.timezone }}"
+      }
+    },
+    {
+      "resource": "enrich",
+      "operation": "get",
+      "title": "Get an enrichment result",
+      "method": "GET",
+      "path": "/enrich/{{ p.enrichId }}",
+      "fields": [
+        {
+          "key": "enrichId",
+          "label": "Enrichment ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "enrich",
+      "operation": "enrichLead",
+      "title": "Enrich a lead",
+      "method": "POST",
+      "path": "/leads/{{ p.leadId }}/enrich/",
+      "fields": [
+        {
+          "key": "leadId",
+          "label": "Lead ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "findEmail",
+          "label": "Find email",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "verifyEmail",
+          "label": "Verify email",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "linkedinEnrichment",
+          "label": "LinkedIn enrichment",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "findPhone",
+          "label": "Find phone",
+          "type": "boolean",
+          "default": false
+        }
+      ],
+      "query": {
+        "!findEmail": "{{ p.findEmail | string }}",
+        "!verifyEmail": "{{ p.verifyEmail | string }}",
+        "!linkedinEnrichment": "{{ p.linkedinEnrichment | string }}",
+        "!findPhone": "{{ p.findPhone | string }}"
+      }
+    },
+    {
+      "resource": "enrich",
+      "operation": "enrichPerson",
+      "title": "Enrich a person",
+      "method": "POST",
+      "path": "/enrich/",
+      "fields": [
+        {
+          "key": "findEmail",
+          "label": "Find email",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "verifyEmail",
+          "label": "Verify email",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "linkedinEnrichment",
+          "label": "LinkedIn enrichment",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "findPhone",
+          "label": "Find phone",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "email",
+            "firstName",
+            "lastName",
+            "linkedinUrl",
+            "companyName",
+            "companyDomain"
+          ]
+        }
+      ],
+      "query": {
+        "!findEmail": "{{ p.findEmail | string }}",
+        "!verifyEmail": "{{ p.verifyEmail | string }}",
+        "!linkedinEnrichment": "{{ p.linkedinEnrichment | string }}",
+        "!findPhone": "{{ p.findPhone | string }}",
+        "$merge": "{{ p.additionalFields }}"
+      }
+    },
+    {
+      "resource": "lead",
+      "operation": "create",
+      "title": "Add a lead to a campaign",
+      "method": "POST",
+      "path": "/campaigns/{{ p.campaignId }}/leads/{{ p.email }}",
+      "fields": [
+        {
+          "key": "campaignId",
+          "label": "Campaign ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "companyName",
+            "companyDomain",
+            "deduplicate",
+            "findEmail",
+            "findPhone",
+            "firstName",
+            "icebreaker",
+            "jobTitle",
+            "lastName",
+            "linkedinEnrichment",
+            "linkedinUrl",
+            "phone",
+            "picture",
+            "verifyEmail"
+          ]
+        }
+      ],
+      "query": {
+        "deduplicate": "{{ p.additionalFields.deduplicate | string }}"
+      },
+      "body": {
+        "$merge": "{{ p.additionalFields | omit:'deduplicate' }}"
+      }
+    },
+    {
+      "resource": "lead",
+      "operation": "delete",
+      "title": "Remove a lead from a campaign",
+      "method": "DELETE",
+      "path": "/campaigns/{{ p.campaignId }}/leads/{{ p.email }}",
+      "fields": [
+        {
+          "key": "campaignId",
+          "label": "Campaign ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "query": {
+        "action": "remove"
+      }
+    },
+    {
+      "resource": "lead",
+      "operation": "get",
+      "title": "Get a lead",
+      "method": "GET",
+      "path": "/leads/{{ p.email }}",
+      "fields": [
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "lead",
+      "operation": "unsubscribe",
+      "title": "Unsubscribe a lead from a campaign",
+      "method": "DELETE",
+      "path": "/campaigns/{{ p.campaignId }}/leads/{{ p.email }}",
+      "fields": [
+        {
+          "key": "campaignId",
+          "label": "Campaign ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "team",
+      "operation": "get",
+      "title": "Get the team",
+      "method": "GET",
+      "path": "/team"
+    },
+    {
+      "resource": "team",
+      "operation": "getCredits",
+      "title": "Get the team's credits",
+      "method": "GET",
+      "path": "/team/credits"
+    },
+    {
+      "resource": "unsubscribe",
+      "operation": "add",
+      "title": "Add an unsubscribed email",
+      "method": "POST",
+      "path": "/unsubscribes/{{ p.email }}",
+      "fields": [
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "unsubscribe",
+      "operation": "delete",
+      "title": "Remove an unsubscribed email",
+      "method": "DELETE",
+      "path": "/unsubscribes/{{ p.email }}",
+      "fields": [
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "unsubscribe",
+      "operation": "getAll",
+      "title": "Get many unsubscribed emails",
+      "method": "GET",
+      "path": "/unsubscribes",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 5,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "offset",
+        "offset_param": "offset",
+        "limit_param": "limit",
+        "page_size": 100
+      }
+    }
+  ],
+  "webhook": {
+    "fields": [
+      {
+        "key": "event",
+        "label": "Event",
+        "type": "text",
+        "required": true,
+        "default": "*"
+      },
+      {
+        "key": "options",
+        "label": "Options",
+        "type": "collection",
+        "default": {}
+      }
+    ],
+    "create": [
+      {
+        "method": "POST",
+        "path": "/hooks",
+        "body": {
+          "targetUrl": "{{ hook.url }}",
+          "type": "{{ p.event | ne:'*' | then:p.event }}",
+          "$merge": "{{ p.options }}"
+        }
+      }
+    ],
+    "id": "{{ res._id }}",
+    "delete": [
+      {
+        "method": "DELETE",
+        "path": "/hooks/{{ hook.id }}"
+      }
+    ]
+  }
+}

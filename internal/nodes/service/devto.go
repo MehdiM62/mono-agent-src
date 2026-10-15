@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/monoes/mono-agent/internal/apipkg"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -37,6 +38,9 @@ func (n *DevToNode) Type() string { return "service.devto" }
 var devtoBaseURL = "https://dev.to/api"
 
 func (n *DevToNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
+	if extensionOwns("service.devto", config) {
+		return apipkg.ExecuteExtension(ctx, "service.devto", input, config)
+	}
 	apiKey := strVal(config, "api_key")
 	if apiKey == "" {
 		return nil, fmt.Errorf("service.devto: 'api_key' is required")

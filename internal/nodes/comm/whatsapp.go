@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/monoes/mono-agent/internal/apipkg"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -32,6 +33,9 @@ func (n *WhatsAppNode) Type() string { return "comm.whatsapp" }
 const whatsappAPIBase = "https://graph.facebook.com/v19.0"
 
 func (n *WhatsAppNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
+	if extensionOwns("comm.whatsapp", config) {
+		return apipkg.ExecuteExtension(ctx, "comm.whatsapp", input, config)
+	}
 	accessToken, _ := config["access_token"].(string)
 	if accessToken == "" {
 		return nil, fmt.Errorf("comm.whatsapp: access_token is required")

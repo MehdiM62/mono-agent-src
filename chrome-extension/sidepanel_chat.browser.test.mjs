@@ -156,6 +156,9 @@ describe("the side panel chat", { skip: browser ? false : why, concurrency: 1 },
     sw = await attach(cdp, { targetId: browser.worker.targetId });
     tabId = await ev(sw, `chrome.tabs.query({}).then((ts) => ts.find((t) => t.url === ${JSON.stringify(pageUrl)}).id)`);
     await ev(sw, DAEMON);
+    // Signed in, as a bridge would report it (gate.js): signed out the panel is the sign-in screen.
+    // The fake socket above has answered the account ping too (accountHeard).
+    assert.equal(await ev(sw, `gate.observe({ kind: "reply", id: "account-test", ok: true, data: { pong: true, account: { state: "ok", reason: "", enforced: true } } }), accountHeard = true, gate.signedIn()`), true);
     // The panel is a tab here, so "the active tab" is the panel itself: point the worker's lookup at the fixture.
     await ev(
       sw,
@@ -291,6 +294,8 @@ describe("the side panel chat", { skip: browser ? false : why, concurrency: 1 },
     panel = (await cdp.send("Target.attachToTarget", { targetId: panelTarget, flatten: true })).sessionId;
     await cdp.send("Runtime.enable", {}, panel);
     await cdp.send("Emulation.setDeviceMetricsOverride", { width: 400, height: 900, deviceScaleFactor: 1, mobile: false }, panel);
+    // The new document may not have parsed yet (it raced on the base commit too).
+    await until(`document.readyState === "complete" && !!document.getElementById("chat-notice")`, "the panel to load");
     await until(`!document.getElementById("chat-notice").hidden`, "the update notice");
     assert.match(await ev(panel, `document.getElementById("chat-notice").textContent`), /Update MonoAgent/);
     assert.equal(await ev(panel, `document.getElementById("chat-input").disabled`), true);

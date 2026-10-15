@@ -92,24 +92,15 @@ func TestDeleteCascade_RemovesLinkedConnectionRow(t *testing.T) {
 	db := newSecretsTestDB(t)
 	ctx := context.Background()
 
-	// crawler_sessions is created by the real migrations newSecretsTestDB
-	// applies; connections is not (see Task 1's note), so this
-	// test creates a minimal connections table by hand — mirroring how
-	// internal/connections/storage_test.go hand-creates vault_keys instead
-	// of importing internal/secrets.
-	if _, err := db.DB.Exec(`CREATE TABLE connections (
-		id TEXT PRIMARY KEY, platform TEXT, method TEXT, label TEXT, account_id TEXT,
-		data TEXT, status TEXT, last_tested TEXT, profile_id TEXT, vault_ref TEXT, created_at TEXT, updated_at TEXT
-	)`); err != nil {
-		t.Fatalf("creating connections table: %v", err)
-	}
+	// crawler_sessions and connections (095) are created by the real
+	// migrations newSecretsTestDB applies.
 
 	tokenA := "PLACEHOLDER-a"
 	vaultID, err := PutSystemEntry(ctx, db.DB, "default", "connection", "", "GitHub", map[string]string{"access_token": tokenA}, "", "")
 	if err != nil {
 		t.Fatalf("PutSystemEntry: %v", err)
 	}
-	if _, err := db.DB.Exec(`INSERT INTO connections (id, platform, profile_id, vault_ref) VALUES ('conn-1', 'github', 'default', ?)`, vaultID); err != nil {
+	if _, err := db.DB.Exec(`INSERT INTO connections (id, platform, method, label, profile_id, vault_ref, created_at, updated_at) VALUES ('conn-1', 'github', 'oauth', 'GitHub', 'default', ?, 't', 't')`, vaultID); err != nil {
 		t.Fatalf("seeding connections row: %v", err)
 	}
 

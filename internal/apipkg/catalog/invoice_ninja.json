@@ -1,0 +1,1465 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "invoice_ninja",
+  "node_type": "app.invoice_ninja",
+  "title": "Invoice Ninja",
+  "description": "Clients, invoices, quotes, payments, expenses, tasks and bank transactions in Invoice Ninja (v4 and v5)",
+  "category": "app",
+  "docs_url": "https://api-docs.invoicing.co/",
+  "n8n_types": [
+    "n8n-nodes-base.invoiceNinja"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.invoiceNinjaTrigger"
+  ],
+  "n8n_version_defaults": {
+    "1": {
+      "apiVersion": "v4"
+    }
+  },
+  "base_url": "{{ cred.url | default:'https://invoicing.co' | re:'^(.*?)/*$' }}/api/v1",
+  "headers": {
+    "Accept": "application/json",
+    "X-Requested-With": "XMLHttpRequest"
+  },
+  "credentials": [
+    {
+      "platform": "invoice_ninja",
+      "name": "Invoice Ninja",
+      "n8n_credential": "invoiceNinjaApi",
+      "n8n_field_map": {
+        "url": "url",
+        "apiToken": "api_token",
+        "secret": "secret"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "url",
+          "label": "Server URL",
+          "help": "Empty for invoicing.co; v4 and self-hosted servers need their URL"
+        },
+        {
+          "key": "api_token",
+          "label": "API token",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "secret",
+          "label": "API secret (v5, optional)",
+          "secret": true
+        }
+      ],
+      "inject": {
+        "headers": {
+          "X-API-TOKEN": "{{ cred.api_token }}",
+          "X-Ninja-Token": "{{ cred.api_token }}",
+          "X-API-SECRET": "{{ cred.secret }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "client",
+      "label": "Client"
+    },
+    {
+      "value": "bank_transaction",
+      "label": "Bank Transaction"
+    },
+    {
+      "value": "expense",
+      "label": "Expense"
+    },
+    {
+      "value": "invoice",
+      "label": "Invoice"
+    },
+    {
+      "value": "payment",
+      "label": "Payment"
+    },
+    {
+      "value": "quote",
+      "label": "Quote"
+    },
+    {
+      "value": "task",
+      "label": "Task"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "bank_transaction",
+      "operation": "create",
+      "title": "Create a bank transaction",
+      "method": "POST",
+      "path": "/bank_transactions",
+      "fields": [
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "amount",
+            "baseType",
+            "bankIntegrationId",
+            "currencyId",
+            "date",
+            "description"
+          ],
+          "help": "baseType: CREDIT (deposit) or DEBIT (withdrawal)"
+        }
+      ],
+      "body": {
+        "amount": "{{ p.additionalFields.amount }}",
+        "base_type": "{{ p.additionalFields.baseType }}",
+        "bank_integration_id": "{{ p.additionalFields.bankIntegrationId }}",
+        "date": "{{ p.additionalFields.date }}",
+        "currency_id": "{{ p.additionalFields.currencyId }}",
+        "description": "{{ p.additionalFields.description }}"
+      },
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "bank_transaction",
+      "operation": "delete",
+      "title": "Delete a bank transaction",
+      "method": "DELETE",
+      "path": "/bank_transactions/{{ p.bankTransactionId }}",
+      "fields": [
+        {
+          "key": "bankTransactionId",
+          "label": "Bank transaction ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "bank_transaction",
+      "operation": "get",
+      "title": "Get a bank transaction",
+      "method": "GET",
+      "path": "/bank_transactions/{{ p.bankTransactionId }}",
+      "fields": [
+        {
+          "key": "bankTransactionId",
+          "label": "Bank transaction ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "include"
+          ]
+        }
+      ],
+      "output": {
+        "path": "data"
+      },
+      "query": {
+        "include": "{{ p.options.include }}"
+      }
+    },
+    {
+      "resource": "bank_transaction",
+      "operation": "getAll",
+      "title": "Get many bank transactions",
+      "method": "GET",
+      "path": "/bank_transactions",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "include",
+            "invoiceNumber"
+          ]
+        }
+      ],
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "meta.pagination.links.next",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": "data"
+      },
+      "output": {
+        "path": "data"
+      },
+      "query": {
+        "include": "{{ p.options.include }}",
+        "invoice_number": "{{ p.options.invoiceNumber }}"
+      }
+    },
+    {
+      "resource": "bank_transaction",
+      "operation": "matchPayment",
+      "title": "Match a bank transaction to a payment",
+      "method": "POST",
+      "path": "/bank_transactions/match",
+      "fields": [
+        {
+          "key": "bankTransactionId",
+          "label": "Bank transaction ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "paymentId",
+          "label": "Payment ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "transactions": [
+          {
+            "id": "{{ p.bankTransactionId }}",
+            "payment_id": "{{ p.paymentId }}"
+          }
+        ]
+      }
+    },
+    {
+      "resource": "client",
+      "operation": "create",
+      "title": "Create a client",
+      "method": "POST",
+      "path": "/clients",
+      "fields": [
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "clientName",
+            "idNumber",
+            "privateNotes",
+            "vatNumber",
+            "workPhone",
+            "website"
+          ]
+        },
+        {
+          "key": "contactsUi",
+          "label": "Contacts",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "contacstValues"
+          ],
+          "help": "contacstValues (n8n's spelling): list of {firstName, lastName, email, phone}"
+        },
+        {
+          "key": "shippingAddressUi",
+          "label": "Shipping address",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "shippingAddressValue"
+          ],
+          "help": "{streetAddress, aptSuite, city, state, postalCode, countryCode (numeric ID)}"
+        },
+        {
+          "key": "billingAddressUi",
+          "label": "Billing address",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "billingAddressValue"
+          ],
+          "help": "{streetAddress, aptSuite, city, state, postalCode, countryCode (numeric ID)}"
+        }
+      ],
+      "body": {
+        "name": "{{ p.additionalFields.clientName }}",
+        "id_number": "{{ p.additionalFields.idNumber }}",
+        "private_notes": "{{ p.additionalFields.privateNotes }}",
+        "vat_number": "{{ p.additionalFields.vatNumber }}",
+        "work_phone": "{{ p.additionalFields.workPhone }}",
+        "website": "{{ p.additionalFields.website }}",
+        "contacts": {
+          "$map": "{{ p.contactsUi.contacstValues }}",
+          "$to": {
+            "first_name": "{{ el.firstName }}",
+            "last_name": "{{ el.lastName }}",
+            "email": "{{ el.email }}",
+            "phone": "{{ el.phone }}"
+          }
+        },
+        "shipping_address1": "{{ p.shippingAddressUi.shippingAddressValue.streetAddress }}",
+        "shipping_address2": "{{ p.shippingAddressUi.shippingAddressValue.aptSuite }}",
+        "shipping_city": "{{ p.shippingAddressUi.shippingAddressValue.city }}",
+        "shipping_state": "{{ p.shippingAddressUi.shippingAddressValue.state }}",
+        "shipping_postal_code": "{{ p.shippingAddressUi.shippingAddressValue.postalCode }}",
+        "shipping_country_id": "{{ p.shippingAddressUi.shippingAddressValue.countryCode | int }}",
+        "address1": "{{ p.billingAddressUi.billingAddressValue.streetAddress }}",
+        "address2": "{{ p.billingAddressUi.billingAddressValue.aptSuite }}",
+        "city": "{{ p.billingAddressUi.billingAddressValue.city }}",
+        "state": "{{ p.billingAddressUi.billingAddressValue.state }}",
+        "postal_code": "{{ p.billingAddressUi.billingAddressValue.postalCode }}",
+        "country_id": "{{ p.billingAddressUi.billingAddressValue.countryCode | int }}"
+      },
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "client",
+      "operation": "delete",
+      "title": "Delete a client",
+      "method": "DELETE",
+      "path": "/clients/{{ p.clientId }}",
+      "fields": [
+        {
+          "key": "clientId",
+          "label": "Client ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "client",
+      "operation": "get",
+      "title": "Get a client",
+      "method": "GET",
+      "path": "/clients/{{ p.clientId }}",
+      "fields": [
+        {
+          "key": "clientId",
+          "label": "Client ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "include"
+          ]
+        }
+      ],
+      "output": {
+        "path": "data"
+      },
+      "query": {
+        "include": "{{ p.options.include }}"
+      }
+    },
+    {
+      "resource": "client",
+      "operation": "getAll",
+      "title": "Get many clients",
+      "method": "GET",
+      "path": "/clients",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "include",
+            "status",
+            "createdAt",
+            "updatedAt",
+            "isDeleted"
+          ]
+        }
+      ],
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "meta.pagination.links.next",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": "data"
+      },
+      "output": {
+        "path": "data"
+      },
+      "query": {
+        "include": "{{ p.options.include }}",
+        "status": "{{ p.options.status }}",
+        "created_at": "{{ p.options.createdAt }}",
+        "updated_at": "{{ p.options.updatedAt }}",
+        "is_deleted": "{{ p.options.isDeleted | eq:'true' | then:'true' }}"
+      }
+    },
+    {
+      "resource": "expense",
+      "operation": "create",
+      "title": "Create an expense",
+      "method": "POST",
+      "path": "/expenses",
+      "fields": [
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "amount",
+            "billable",
+            "client",
+            "customValue1",
+            "customValue2",
+            "category",
+            "expenseDate",
+            "paymentDate",
+            "paymentType",
+            "publicNotes",
+            "privateNotes",
+            "taxName1",
+            "taxName2",
+            "taxRate1",
+            "taxRate2",
+            "transactionReference",
+            "vendor"
+          ]
+        }
+      ],
+      "body": {
+        "amount": "{{ p.additionalFields.amount }}",
+        "should_be_invoiced": "{{ p.additionalFields.billable | eq:'true' | then:true }}",
+        "client_id": "{{ p.additionalFields.client }}",
+        "custom_value1": "{{ p.additionalFields.customValue1 }}",
+        "custom_value2": "{{ p.additionalFields.customValue2 }}",
+        "expense_category_id": "{{ p.additionalFields.category }}",
+        "expense_date": "{{ p.additionalFields.expenseDate }}",
+        "payment_date": "{{ p.additionalFields.paymentDate }}",
+        "payment_type_id": "{{ p.additionalFields.paymentType }}",
+        "public_notes": "{{ p.additionalFields.publicNotes }}",
+        "private_notes": "{{ p.additionalFields.privateNotes }}",
+        "tax_name1": "{{ p.additionalFields.taxName1 }}",
+        "tax_name2": "{{ p.additionalFields.taxName2 }}",
+        "tax_rate1": "{{ p.additionalFields.taxRate1 }}",
+        "tax_rate2": "{{ p.additionalFields.taxRate2 }}",
+        "transaction_reference": "{{ p.additionalFields.transactionReference }}",
+        "vendor_id": "{{ p.additionalFields.vendor }}"
+      },
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "expense",
+      "operation": "delete",
+      "title": "Delete a expense",
+      "method": "DELETE",
+      "path": "/expenses/{{ p.expenseId }}",
+      "fields": [
+        {
+          "key": "expenseId",
+          "label": "Expense ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "expense",
+      "operation": "get",
+      "title": "Get a expense",
+      "method": "GET",
+      "path": "/expenses/{{ p.expenseId }}",
+      "fields": [
+        {
+          "key": "expenseId",
+          "label": "Expense ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "expense",
+      "operation": "getAll",
+      "title": "Get many expenses",
+      "method": "GET",
+      "path": "/expenses",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "meta.pagination.links.next",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": "data"
+      },
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "invoice",
+      "operation": "create",
+      "title": "Create an invoice",
+      "method": "POST",
+      "path": "/invoices",
+      "fields": [
+        {
+          "key": "apiVersion",
+          "label": "API version",
+          "type": "select",
+          "options": [
+            "v4",
+            "v5"
+          ],
+          "default": "v5",
+          "help": "Invoice Ninja v4 or v5 server"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "client",
+            "email",
+            "autoBill",
+            "customValue1",
+            "customValue2",
+            "discount",
+            "dueDate",
+            "emailInvoice",
+            "invoiceDate",
+            "invoiceNumber",
+            "invoiceStatus",
+            "isAmountDiscount",
+            "markSent",
+            "paid",
+            "partial",
+            "partialDueDate",
+            "poNumber",
+            "privateNotes",
+            "publicNotes",
+            "taxName1",
+            "taxName2",
+            "taxRate1",
+            "taxRate2"
+          ]
+        },
+        {
+          "key": "invoiceItemsUi",
+          "label": "Items",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "invoiceItemsValues"
+          ],
+          "help": "invoiceItemsValues: list of {cost, description, hours, service, taxName1, taxName2, taxRate1, taxRate2}"
+        }
+      ],
+      "query": {
+        "amount_paid": "{{ p.apiVersion | ne:'v4' | then:p.additionalFields.paid }}",
+        "send_email": "{{ p.apiVersion | ne:'v4' | then:(p.additionalFields.emailInvoice | eq:'true' | then:'true') }}",
+        "mark_sent": "{{ p.additionalFields.markSent | eq:'true' | then:'true' }}"
+      },
+      "body": {
+        "email": "{{ p.additionalFields.email }}",
+        "client_id": "{{ p.additionalFields.client }}",
+        "auto_bill": "{{ p.additionalFields.autoBill | eq:'true' | then:true }}",
+        "custom_value1": "{{ p.additionalFields.customValue1 }}",
+        "custom_value2": "{{ p.additionalFields.customValue2 }}",
+        "due_date": "{{ p.additionalFields.dueDate }}",
+        "invoice_status_id": "{{ p.additionalFields.invoiceStatus }}",
+        "is_amount_discount": "{{ p.additionalFields.isAmountDiscount | eq:'true' | then:true }}",
+        "partial": "{{ p.additionalFields.partial }}",
+        "partial_due_date": "{{ p.additionalFields.partialDueDate }}",
+        "po_number": "{{ p.additionalFields.poNumber }}",
+        "private_notes": "{{ p.additionalFields.privateNotes }}",
+        "public_notes": "{{ p.additionalFields.publicNotes }}",
+        "tax_name1": "{{ p.additionalFields.taxName1 }}",
+        "tax_name2": "{{ p.additionalFields.taxName2 }}",
+        "tax_rate1": "{{ p.additionalFields.taxRate1 }}",
+        "tax_rate2": "{{ p.additionalFields.taxRate2 }}",
+        "discount": "{{ p.additionalFields.discount }}",
+        "invoice_date": "{{ p.additionalFields.invoiceDate }}",
+        "invoice_number": "{{ p.apiVersion | eq:'v4' | then:p.additionalFields.invoiceNumber }}",
+        "number": "{{ p.apiVersion | ne:'v4' | then:p.additionalFields.invoiceNumber }}",
+        "paid": "{{ p.apiVersion | eq:'v4' | then:p.additionalFields.paid }}",
+        "email_invoice": "{{ p.apiVersion | eq:'v4' | then:(p.additionalFields.emailInvoice | eq:'true' | then:true) }}",
+        "invoice_items": {
+          "$map": "{{ p.apiVersion | eq:'v4' | then:p.invoiceItemsUi.invoiceItemsValues }}",
+          "$to": {
+            "cost": "{{ el.cost }}",
+            "notes": "{{ el.description }}",
+            "product_key": "{{ el.service }}",
+            "tax_rate1": "{{ el.taxRate1 }}",
+            "tax_rate2": "{{ el.taxRate2 }}",
+            "tax_name1": "{{ el.taxName1 }}",
+            "tax_name2": "{{ el.taxName2 }}",
+            "qty": "{{ el.hours }}"
+          }
+        },
+        "line_items": {
+          "$map": "{{ p.apiVersion | ne:'v4' | then:p.invoiceItemsUi.invoiceItemsValues }}",
+          "$to": {
+            "cost": "{{ el.cost }}",
+            "notes": "{{ el.description }}",
+            "product_key": "{{ el.service }}",
+            "tax_rate1": "{{ el.taxRate1 }}",
+            "tax_rate2": "{{ el.taxRate2 }}",
+            "tax_name1": "{{ el.taxName1 }}",
+            "tax_name2": "{{ el.taxName2 }}",
+            "quantity": "{{ el.hours }}"
+          }
+        }
+      },
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "invoice",
+      "operation": "email",
+      "title": "Email an invoice",
+      "method": "{{ p.apiVersion | eq:'v4' | then:'POST' | default:'GET' }}",
+      "path": "/{{ p.apiVersion | eq:'v4' | then:'email_invoice' | default:'invoices/' }}{{ p.apiVersion | ne:'v4' | then:p.invoiceId }}{{ p.apiVersion | ne:'v4' | then:'/email' }}",
+      "fields": [
+        {
+          "key": "apiVersion",
+          "label": "API version",
+          "type": "select",
+          "options": [
+            "v4",
+            "v5"
+          ],
+          "default": "v5",
+          "help": "Invoice Ninja v4 or v5 server"
+        },
+        {
+          "key": "invoiceId",
+          "label": "Invoice ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "id": "{{ p.apiVersion | eq:'v4' | then:p.invoiceId }}"
+      }
+    },
+    {
+      "resource": "invoice",
+      "operation": "delete",
+      "title": "Delete a invoice",
+      "method": "DELETE",
+      "path": "/invoices/{{ p.invoiceId }}",
+      "fields": [
+        {
+          "key": "invoiceId",
+          "label": "Invoice ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "invoice",
+      "operation": "get",
+      "title": "Get a invoice",
+      "method": "GET",
+      "path": "/invoices/{{ p.invoiceId }}",
+      "fields": [
+        {
+          "key": "invoiceId",
+          "label": "Invoice ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "include"
+          ]
+        }
+      ],
+      "output": {
+        "path": "data"
+      },
+      "query": {
+        "include": "{{ p.options.include }}"
+      }
+    },
+    {
+      "resource": "invoice",
+      "operation": "getAll",
+      "title": "Get many invoices",
+      "method": "GET",
+      "path": "/invoices",
+      "fields": [
+        {
+          "key": "apiVersion",
+          "label": "API version",
+          "type": "select",
+          "options": [
+            "v4",
+            "v5"
+          ],
+          "default": "v5",
+          "help": "Invoice Ninja v4 or v5 server"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "include",
+            "invoiceNumber",
+            "status",
+            "createdAt",
+            "updatedAt",
+            "isDeleted",
+            "clientStatus"
+          ]
+        }
+      ],
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "meta.pagination.links.next",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": "data"
+      },
+      "output": {
+        "path": "data"
+      },
+      "query": {
+        "include": "{{ p.options.include }}",
+        "status": "{{ p.options.status }}",
+        "created_at": "{{ p.options.createdAt }}",
+        "updated_at": "{{ p.options.updatedAt }}",
+        "is_deleted": "{{ p.options.isDeleted | eq:'true' | then:'true' }}",
+        "invoice_number": "{{ p.apiVersion | eq:'v4' | then:p.options.invoiceNumber }}",
+        "number": "{{ p.apiVersion | ne:'v4' | then:p.options.invoiceNumber }}",
+        "client_status": "{{ p.options.clientStatus }}"
+      }
+    },
+    {
+      "resource": "payment",
+      "operation": "create",
+      "title": "Create a payment",
+      "description": "Reads the invoice first to find its client",
+      "method": "POST",
+      "path": "/payments",
+      "fields": [
+        {
+          "key": "apiVersion",
+          "label": "API version",
+          "type": "select",
+          "options": [
+            "v4",
+            "v5"
+          ],
+          "default": "v5",
+          "help": "Invoice Ninja v4 or v5 server"
+        },
+        {
+          "key": "invoice",
+          "label": "Invoice ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "amount",
+          "label": "Amount",
+          "type": "number",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "paymentType",
+            "transferReference",
+            "privateNotes"
+          ]
+        }
+      ],
+      "before": {
+        "method": "GET",
+        "path": "/invoices/{{ p.invoice }}"
+      },
+      "body": {
+        "amount": "{{ p.amount }}",
+        "client_id": "{{ pre.data.client_id }}",
+        "invoice_id": "{{ p.apiVersion | eq:'v4' | then:p.invoice }}",
+        "invoices": {
+          "$map": "{{ p.apiVersion | ne:'v4' | then:(p.invoice | split) }}",
+          "$to": {
+            "invoice_id": "{{ el }}",
+            "amount": "{{ p.amount }}"
+          }
+        },
+        "payment_type_id": "{{ p.apiVersion | eq:'v4' | then:p.additionalFields.paymentType }}",
+        "type_id": "{{ p.apiVersion | ne:'v4' | then:p.additionalFields.paymentType }}",
+        "transaction_reference": "{{ p.additionalFields.transferReference }}",
+        "private_notes": "{{ p.additionalFields.privateNotes }}"
+      },
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "payment",
+      "operation": "delete",
+      "title": "Delete a payment",
+      "method": "DELETE",
+      "path": "/payments/{{ p.paymentId }}",
+      "fields": [
+        {
+          "key": "paymentId",
+          "label": "Payment ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "payment",
+      "operation": "get",
+      "title": "Get a payment",
+      "method": "GET",
+      "path": "/payments/{{ p.paymentId }}",
+      "fields": [
+        {
+          "key": "paymentId",
+          "label": "Payment ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "include"
+          ]
+        }
+      ],
+      "output": {
+        "path": "data"
+      },
+      "query": {
+        "include": "{{ p.options.include }}"
+      }
+    },
+    {
+      "resource": "payment",
+      "operation": "getAll",
+      "title": "Get many payments",
+      "method": "GET",
+      "path": "/payments",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "include",
+            "status",
+            "createdAt",
+            "updatedAt",
+            "isDeleted"
+          ]
+        }
+      ],
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "meta.pagination.links.next",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": "data"
+      },
+      "output": {
+        "path": "data"
+      },
+      "query": {
+        "include": "{{ p.options.include }}",
+        "status": "{{ p.options.status }}",
+        "created_at": "{{ p.options.createdAt }}",
+        "updated_at": "{{ p.options.updatedAt }}",
+        "is_deleted": "{{ p.options.isDeleted | eq:'true' | then:'true' }}"
+      }
+    },
+    {
+      "resource": "quote",
+      "operation": "create",
+      "title": "Create a quote",
+      "method": "POST",
+      "path": "/{{ p.apiVersion | eq:'v4' | then:'invoices' | default:'quotes' }}",
+      "fields": [
+        {
+          "key": "apiVersion",
+          "label": "API version",
+          "type": "select",
+          "options": [
+            "v4",
+            "v5"
+          ],
+          "default": "v5",
+          "help": "Invoice Ninja v4 or v5 server"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "client",
+            "email",
+            "autoBill",
+            "customValue1",
+            "customValue2",
+            "discount",
+            "dueDate",
+            "emailQuote",
+            "invoiceStatus",
+            "isAmountDiscount",
+            "paid",
+            "partial",
+            "partialDueDate",
+            "poNumber",
+            "privateNotes",
+            "publicNotes",
+            "quoteDate",
+            "quoteNumber",
+            "taxName1",
+            "taxName2",
+            "taxRate1",
+            "taxRate2"
+          ]
+        },
+        {
+          "key": "invoiceItemsUi",
+          "label": "Items",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "invoiceItemsValues"
+          ],
+          "help": "invoiceItemsValues: list of {cost, description, hours, service, taxName1, taxName2, taxRate1, taxRate2}"
+        }
+      ],
+      "body": {
+        "email": "{{ p.additionalFields.email }}",
+        "client_id": "{{ p.additionalFields.client }}",
+        "auto_bill": "{{ p.additionalFields.autoBill | eq:'true' | then:true }}",
+        "custom_value1": "{{ p.additionalFields.customValue1 }}",
+        "custom_value2": "{{ p.additionalFields.customValue2 }}",
+        "due_date": "{{ p.additionalFields.dueDate }}",
+        "invoice_status_id": "{{ p.additionalFields.invoiceStatus }}",
+        "is_amount_discount": "{{ p.additionalFields.isAmountDiscount | eq:'true' | then:true }}",
+        "partial": "{{ p.additionalFields.partial }}",
+        "partial_due_date": "{{ p.additionalFields.partialDueDate }}",
+        "po_number": "{{ p.additionalFields.poNumber }}",
+        "private_notes": "{{ p.additionalFields.privateNotes }}",
+        "public_notes": "{{ p.additionalFields.publicNotes }}",
+        "tax_name1": "{{ p.additionalFields.taxName1 }}",
+        "tax_name2": "{{ p.additionalFields.taxName2 }}",
+        "tax_rate1": "{{ p.additionalFields.taxRate1 }}",
+        "tax_rate2": "{{ p.additionalFields.taxRate2 }}",
+        "discount": "{{ p.additionalFields.discount }}",
+        "is_quote": true,
+        "invoice_date": "{{ p.additionalFields.quoteDate }}",
+        "invoice_number": "{{ p.apiVersion | eq:'v4' | then:p.additionalFields.quoteNumber }}",
+        "number": "{{ p.apiVersion | ne:'v4' | then:p.additionalFields.quoteNumber }}",
+        "paid": "{{ p.additionalFields.paid }}",
+        "email_invoice": "{{ p.additionalFields.emailQuote | eq:'true' | then:true }}",
+        "invoice_items": {
+          "$map": "{{ p.apiVersion | eq:'v4' | then:p.invoiceItemsUi.invoiceItemsValues }}",
+          "$to": {
+            "cost": "{{ el.cost }}",
+            "notes": "{{ el.description }}",
+            "product_key": "{{ el.service }}",
+            "tax_rate1": "{{ el.taxRate1 }}",
+            "tax_rate2": "{{ el.taxRate2 }}",
+            "tax_name1": "{{ el.taxName1 }}",
+            "tax_name2": "{{ el.taxName2 }}",
+            "qty": "{{ el.hours }}"
+          }
+        },
+        "line_items": {
+          "$map": "{{ p.apiVersion | ne:'v4' | then:p.invoiceItemsUi.invoiceItemsValues }}",
+          "$to": {
+            "cost": "{{ el.cost }}",
+            "notes": "{{ el.description }}",
+            "product_key": "{{ el.service }}",
+            "tax_rate1": "{{ el.taxRate1 }}",
+            "tax_rate2": "{{ el.taxRate2 }}",
+            "tax_name1": "{{ el.taxName1 }}",
+            "tax_name2": "{{ el.taxName2 }}",
+            "quantity": "{{ el.hours }}"
+          }
+        }
+      },
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "quote",
+      "operation": "email",
+      "title": "Email a quote",
+      "method": "{{ p.apiVersion | eq:'v4' | then:'POST' | default:'GET' }}",
+      "path": "/{{ p.apiVersion | eq:'v4' | then:'email_invoice' | default:'quotes/' }}{{ p.apiVersion | ne:'v4' | then:p.quoteId }}{{ p.apiVersion | ne:'v4' | then:'/email' }}",
+      "fields": [
+        {
+          "key": "apiVersion",
+          "label": "API version",
+          "type": "select",
+          "options": [
+            "v4",
+            "v5"
+          ],
+          "default": "v5",
+          "help": "Invoice Ninja v4 or v5 server"
+        },
+        {
+          "key": "quoteId",
+          "label": "Quote ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "id": "{{ p.apiVersion | eq:'v4' | then:p.quoteId }}"
+      }
+    },
+    {
+      "resource": "quote",
+      "operation": "delete",
+      "title": "Delete a quote",
+      "method": "DELETE",
+      "path": "/{{ p.apiVersion | eq:'v4' | then:'invoices' | default:'quotes' }}/{{ p.quoteId }}",
+      "fields": [
+        {
+          "key": "apiVersion",
+          "label": "API version",
+          "type": "select",
+          "options": [
+            "v4",
+            "v5"
+          ],
+          "default": "v5",
+          "help": "Invoice Ninja v4 or v5 server"
+        },
+        {
+          "key": "quoteId",
+          "label": "Quote ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "quote",
+      "operation": "get",
+      "title": "Get a quote",
+      "method": "GET",
+      "path": "/{{ p.apiVersion | eq:'v4' | then:'invoices' | default:'quotes' }}/{{ p.quoteId }}",
+      "fields": [
+        {
+          "key": "apiVersion",
+          "label": "API version",
+          "type": "select",
+          "options": [
+            "v4",
+            "v5"
+          ],
+          "default": "v5",
+          "help": "Invoice Ninja v4 or v5 server"
+        },
+        {
+          "key": "quoteId",
+          "label": "Quote ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "include"
+          ]
+        }
+      ],
+      "output": {
+        "path": "data"
+      },
+      "query": {
+        "include": "{{ p.options.include }}"
+      }
+    },
+    {
+      "resource": "quote",
+      "operation": "getAll",
+      "title": "Get many quotes",
+      "method": "GET",
+      "path": "/{{ p.apiVersion | eq:'v4' | then:'invoices' | default:'quotes' }}",
+      "fields": [
+        {
+          "key": "apiVersion",
+          "label": "API version",
+          "type": "select",
+          "options": [
+            "v4",
+            "v5"
+          ],
+          "default": "v5",
+          "help": "Invoice Ninja v4 or v5 server"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "include",
+            "invoiceNumber",
+            "status",
+            "createdAt",
+            "updatedAt",
+            "isDeleted"
+          ]
+        }
+      ],
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "meta.pagination.links.next",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": "data"
+      },
+      "output": {
+        "path": "data"
+      },
+      "query": {
+        "include": "{{ p.options.include }}",
+        "status": "{{ p.options.status }}",
+        "created_at": "{{ p.options.createdAt }}",
+        "updated_at": "{{ p.options.updatedAt }}",
+        "is_deleted": "{{ p.options.isDeleted | eq:'true' | then:'true' }}",
+        "invoice_number": "{{ p.options.invoiceNumber }}"
+      }
+    },
+    {
+      "resource": "task",
+      "operation": "create",
+      "title": "Create a task",
+      "method": "POST",
+      "path": "/tasks",
+      "fields": [
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "client",
+            "project",
+            "customValue1",
+            "customValue2",
+            "description"
+          ]
+        },
+        {
+          "key": "timeLogsUi",
+          "label": "Time logs",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "timeLogsValues"
+          ],
+          "help": "timeLogsValues: list of {startDate, endDate, duration (hours)}"
+        }
+      ],
+      "body": {
+        "client_id": "{{ p.additionalFields.client }}",
+        "project_id": "{{ p.additionalFields.project }}",
+        "custom_value1": "{{ p.additionalFields.customValue1 }}",
+        "custom_value2": "{{ p.additionalFields.customValue2 }}",
+        "description": "{{ p.additionalFields.description }}",
+        "time_log": {
+          "$json": {
+            "$map": "{{ p.timeLogsUi.timeLogsValues }}",
+            "$to": [
+              "{{ el.startDate | epoch | default:0 }}",
+              "{{ el.duration | mul:3600 | add:(el.startDate | epoch | default:0) | default:(el.endDate | epoch) }}"
+            ]
+          }
+        }
+      },
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "task",
+      "operation": "delete",
+      "title": "Delete a task",
+      "method": "DELETE",
+      "path": "/tasks/{{ p.taskId }}",
+      "fields": [
+        {
+          "key": "taskId",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "task",
+      "operation": "get",
+      "title": "Get a task",
+      "method": "GET",
+      "path": "/tasks/{{ p.taskId }}",
+      "fields": [
+        {
+          "key": "taskId",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "include"
+          ]
+        }
+      ],
+      "output": {
+        "path": "data"
+      },
+      "query": {
+        "include": "{{ p.options.include }}"
+      }
+    },
+    {
+      "resource": "task",
+      "operation": "getAll",
+      "title": "Get many tasks",
+      "method": "GET",
+      "path": "/tasks",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "include"
+          ]
+        }
+      ],
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "meta.pagination.links.next",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": "data"
+      },
+      "output": {
+        "path": "data"
+      },
+      "query": {
+        "include": "{{ p.options.include }}"
+      }
+    }
+  ],
+  "webhook": {
+    "fields": [
+      {
+        "key": "apiVersion",
+        "label": "API version",
+        "type": "select",
+        "default": "v5",
+        "options": [
+          "v4",
+          "v5"
+        ]
+      },
+      {
+        "key": "event",
+        "label": "Event",
+        "type": "select",
+        "required": true,
+        "options": [
+          "create_client",
+          "create_invoice",
+          "create_payment",
+          "create_quote",
+          "create_vendor"
+        ]
+      }
+    ],
+    "create": [
+      {
+        "method": "POST",
+        "path": "{{ p.apiVersion | eq:'v4' | then:'/hooks' | default:'/webhooks' }}",
+        "body": {
+          "target_url": "{{ hook.url }}",
+          "event": "{{ p.apiVersion | eq:'v4' | then:p.event }}",
+          "event_id": "{{ p.apiVersion | ne:'v4' | then:(p.event | map:'create_client=1,create_invoice=2,create_quote=3,create_payment=4,create_vendor=5') }}"
+        },
+        "base_url": "{{ cred.url | default:(p.apiVersion | eq:'v4' | then:'https://app.invoiceninja.com' | default:'https://invoicing.co') | re:'^(.*?)/*$' }}/api/v1"
+      }
+    ],
+    "id": "{{ res.data.id | default:res.id }}",
+    "delete": [
+      {
+        "method": "DELETE",
+        "path": "{{ p.apiVersion | eq:'v4' | then:'/hooks/' | default:'/webhooks/' }}{{ hook.id }}",
+        "base_url": "{{ cred.url | default:(p.apiVersion | eq:'v4' | then:'https://app.invoiceninja.com' | default:'https://invoicing.co') | re:'^(.*?)/*$' }}/api/v1"
+      }
+    ]
+  }
+}

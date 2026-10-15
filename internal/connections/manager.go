@@ -6,7 +6,6 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
-	"os/exec"
 	"strings"
 	"time"
 
@@ -18,13 +17,11 @@ type Manager struct {
 	store *Store
 }
 
-// NewManager creates a Manager backed by db. Calls EnsureTable on init.
+// NewManager creates a Manager backed by db, which must be migrated
+// (ApplyMigrations creates the connections tables). The error is always
+// nil; it stays for the callers.
 func NewManager(db *sql.DB) (*Manager, error) {
-	store := NewStore(db)
-	if err := store.EnsureTable(context.Background()); err != nil {
-		return nil, fmt.Errorf("NewManager: EnsureTable: %w", err)
-	}
-	return &Manager{store: store}, nil
+	return &Manager{store: NewStore(db)}, nil
 }
 
 // ConnectOptions controls how Connect behaves.
@@ -33,6 +30,9 @@ type ConnectOptions struct {
 	OAuthTimeout time.Duration
 	FieldValues  map[string]string // pre-filled field values for non-interactive use
 	ProfileID    string            // profile to save the connection under (empty = "default")
+	// Scopes narrows an umbrella platform's (google, microsoft) consent to
+	// these scope groups; empty requests every group. Error elsewhere.
+	Scopes []string
 }
 
 // Connect authenticates to platform and saves the result. Returns saved Connection.
@@ -41,6 +41,12 @@ func (m *Manager) Connect(ctx context.Context, platformID string, opts ConnectOp
 	p, ok := Get(platformID)
 	if !ok {
 		return nil, fmt.Errorf("connect: unknown platform %q", platformID)
+	}
+	// Reject bad --scopes before any prompt or browser round-trip.
+	if len(nonEmpty(opts.Scopes)) > 0 {
+		if err := prepareUmbrellaOAuth(&OAuthConfig{}, platformID, opts.Scopes); err != nil {
+			return nil, fmt.Errorf("connect: %w", err)
+		}
 	}
 
 	// 2. Pick method — use a single reader for all stdin interactions
@@ -75,8 +81,20 @@ func (m *Manager) Connect(ctx context.Context, platformID string, opts ConnectOp
 	// 4. Switch on method
 	switch method {
 	case MethodOAuth:
-		if err := m.connectOAuth(ctx, p, conn, opts.OAuthTimeout); err != nil {
+		if p.OAuth != nil && len(p.OAuth.ConnectFields) > 0 {
+			if err := promptFields(p.OAuth.ConnectFields, conn, opts.FieldValues, stdinReader); err != nil {
+				return nil, fmt.Errorf("connect: fields: %w", err)
+			}
+		}
+		if err := m.connectOAuth(ctx, p, conn, opts.OAuthTimeout, opts.Scopes); err != nil {
 			return nil, fmt.Errorf("connect: oauth: %w", err)
+		}
+	case MethodOAuth1:
+		if err := m.connectFields(p, method, conn, opts.FieldValues, stdinReader); err != nil {
+			return nil, fmt.Errorf("connect: fields: %w", err)
+		}
+		if err := m.runOAuth1(ctx, p, conn, opts.OAuthTimeout, nil); err != nil {
+			return nil, fmt.Errorf("connect: oauth1: %w", err)
 		}
 	case MethodAPIKey, MethodAppPass, MethodConnStr, MethodSSHKey:
 		if err := m.connectFields(p, method, conn, opts.FieldValues, stdinReader); err != nil {
@@ -92,6 +110,13 @@ func (m *Manager) Connect(ctx context.Context, platformID string, opts ConnectOp
 	accountID, err := ValidateConnection(ctx, conn)
 	if err != nil {
 		return nil, fmt.Errorf("connect: validate: %w", err)
+	}
+
+	// An umbrella re-consent (e.g. adding a scope group) updates the
+	// profile's existing connection for the same account in place, so
+	// workflows that reference its ID pick up the new scopes.
+	if IsUmbrella(platformID) {
+		m.adoptSameAccountConnection(ctx, conn, accountID)
 	}
 
 	// 6. Set conn.AccountID, conn.Status="active", conn.LastTested=now
@@ -244,20 +269,6 @@ func (m *Manager) Remove(ctx context.Context, id, profileID string) error {
 	return m.store.Delete(ctx, id, profileID)
 }
 
-// Save persists a connection (insert or update).
-func (m *Manager) Save(ctx context.Context, conn *Connection) error {
-	return m.store.Save(ctx, conn)
-}
-
-// RefreshToken silently exchanges conn's stored refresh_token for a new
-// access_token (per-profile client credentials, with the /consumers/
-// audience fallback) and persists the result. Exposed so every caller —
-// CLI, GUI, workflow engine — shares this one implementation instead of
-// keeping its own copy that silently misses fixes applied to the others.
-func (m *Manager) RefreshToken(ctx context.Context, conn *Connection) error {
-	return m.store.RefreshToken(ctx, conn)
-}
-
 // Refresh silently exchanges a connection's stored refresh_token for a new
 // access_token — no browser, no user interaction — the same mechanism used
 // automatically whenever a stale connection is resolved for use. Falls back
@@ -301,8 +312,9 @@ func (m *Manager) Refresh(ctx context.Context, id string, timeout time.Duration)
 		return nil
 	}
 
-	// No refresh_token on file — only path left is a full interactive re-auth.
-	if err := m.connectOAuth(ctx, p, conn, timeout); err != nil {
+	// No refresh_token on file — only path left is a full interactive re-auth
+	// (an umbrella connection asks again for the groups it held).
+	if err := m.connectOAuth(ctx, p, conn, timeout, GrantedGroups(p.ID, getStr(conn.Data, "scope"))); err != nil {
 		return fmt.Errorf("refresh: oauth: %w", err)
 	}
 
@@ -360,246 +372,4 @@ func (m *Manager) pickMethod(p PlatformDef, r *bufio.Reader) AuthMethod {
 	}
 
 	return p.Methods[idx]
-}
-
-// ConnectOAuthWithProgress runs the full OAuth connect flow, calling progress(msg, kind) at each step.
-// kind is "info", "success", or "error". Returns the saved Connection on success.
-// If clientID/clientSecret are non-empty they override env-var lookup.
-// profileID scopes the connection; empty string defaults to "default".
-func (m *Manager) ConnectOAuthWithProgress(ctx context.Context, platformID string, progress func(msg, kind string), clientID, clientSecret, profileID string) (*Connection, error) {
-	p, ok := Get(platformID)
-	if !ok {
-		return nil, fmt.Errorf("unknown platform %q", platformID)
-	}
-	if p.OAuth == nil {
-		return nil, fmt.Errorf("platform %q does not support OAuth", platformID)
-	}
-
-	if profileID == "" {
-		profileID = "default"
-	}
-	// Reuse existing connection for this platform+profile if one exists (reconnect flow).
-	conn := &Connection{
-		Platform:  platformID,
-		Method:    MethodOAuth,
-		Data:      map[string]interface{}{},
-		ProfileID: profileID,
-	}
-	if existing, _ := m.store.ListByPlatform(ctx, platformID, profileID); len(existing) > 0 {
-		for i := range existing {
-			if existing[i].Method == MethodOAuth {
-				conn = &existing[i]
-				conn.Data = map[string]interface{}{} // clear old tokens
-				break
-			}
-		}
-	}
-
-	cfg := *p.OAuth
-	cfg.PlatformID = platformID
-	if clientID != "" {
-		cfg.ClientID = clientID
-	}
-	if clientSecret != "" {
-		cfg.ClientSecret = clientSecret
-	}
-	if cfg.ClientID == "" {
-		if dbID, dbSecret := m.store.GetOAuthClient(ctx, platformID, profileID); dbID != "" {
-			cfg.ClientID = dbID
-			cfg.ClientSecret = dbSecret
-		}
-	}
-	envPrefix := "MONOAGENT_" + strings.ToUpper(strings.ReplaceAll(p.ID, "-", "_")) + "_"
-	if cfg.ClientID == "" {
-		cfg.ClientID = os.Getenv(envPrefix + "CLIENT_ID")
-	}
-	if cfg.ClientSecret == "" {
-		cfg.ClientSecret = os.Getenv(envPrefix + "CLIENT_SECRET")
-	}
-	if cfg.ClientID == "" {
-		return nil, fmt.Errorf("missing OAuth credentials — set %sCLIENT_ID and %sCLIENT_SECRET", envPrefix, envPrefix)
-	}
-
-	if progress != nil {
-		progress("Opening browser for authorization…", "info")
-	}
-
-	result, err := RunOAuthFlow(ctx, cfg, 5*time.Minute, progress)
-	if err != nil {
-		return nil, err
-	}
-
-	// Persist the client credentials that just worked so silent token refresh
-	// works in any later process without env vars or manual set-oauth-client.
-	if err := m.store.SaveOAuthClient(ctx, platformID, profileID, cfg.ClientID, cfg.ClientSecret); err != nil && progress != nil {
-		progress(fmt.Sprintf("warning: could not persist OAuth client credentials for silent refresh: %v", err), "error")
-	}
-
-	conn.Data["access_token"] = result.AccessToken
-	conn.Data["refresh_token"] = result.RefreshToken
-	conn.Data["token_type"] = result.TokenType
-	conn.Data["scope"] = result.Scope
-	conn.Data["instance_url"] = result.InstanceURL
-	if result.ExpiresIn > 0 {
-		expiresAt := time.Now().UTC().Add(time.Duration(result.ExpiresIn) * time.Second)
-		conn.Data["expires_at"] = expiresAt.Format(time.RFC3339)
-	} else {
-		conn.Data["expires_at"] = ""
-	}
-
-	if progress != nil {
-		progress("Validating your account…", "info")
-	}
-
-	accountID, err := ValidateConnection(ctx, conn)
-	if err != nil {
-		return nil, fmt.Errorf("validation failed: %w", err)
-	}
-
-	conn.AccountID = accountID
-	conn.Status = "active"
-	conn.LastTested = time.Now().UTC().Format(time.RFC3339)
-	if accountID != "" {
-		conn.Label = fmt.Sprintf("%s – %s", p.Name, accountID)
-	} else {
-		conn.Label = p.Name
-	}
-
-	if progress != nil {
-		progress("Saving connection…", "info")
-	}
-
-	if err := m.store.Save(ctx, conn); err != nil {
-		return nil, fmt.Errorf("failed to save: %w", err)
-	}
-
-	label := accountID
-	if label == "" {
-		label = conn.Label
-	}
-	if progress != nil {
-		progress(fmt.Sprintf("Connected as %s", label), "success")
-	}
-
-	return conn, nil
-}
-
-// connectOAuth runs the OAuth flow for a platform and populates conn.Data.
-func (m *Manager) connectOAuth(ctx context.Context, p PlatformDef, conn *Connection, timeout time.Duration) error {
-	if p.OAuth == nil {
-		return fmt.Errorf("connectOAuth: platform %q has no OAuth config", p.ID)
-	}
-
-	cfg := *p.OAuth // copy
-	cfg.PlatformID = p.ID
-
-	// Stored per-profile credentials first (set via `connect set-oauth-client`
-	// or persisted by a previous successful connect), then env vars
-	// MONOAGENT_{UPPERCASE_PLATFORM}_CLIENT_ID and _CLIENT_SECRET.
-	if dbID, dbSecret := m.store.GetOAuthClient(ctx, p.ID, conn.ProfileID); dbID != "" {
-		cfg.ClientID = dbID
-		cfg.ClientSecret = dbSecret
-	}
-	envPrefix := "MONOAGENT_" + strings.ToUpper(strings.ReplaceAll(p.ID, "-", "_")) + "_"
-	if cfg.ClientID == "" {
-		cfg.ClientID = os.Getenv(envPrefix + "CLIENT_ID")
-	}
-	if cfg.ClientSecret == "" {
-		cfg.ClientSecret = os.Getenv(envPrefix + "CLIENT_SECRET")
-	}
-
-	if cfg.ClientID == "" {
-		return fmt.Errorf("connectOAuth: missing ClientID for platform %q (set %sCLIENT_ID)", p.ID, envPrefix)
-	}
-
-	result, err := RunOAuthFlow(ctx, cfg, timeout, nil)
-	if err != nil {
-		return fmt.Errorf("connectOAuth: %w", err)
-	}
-
-	// Persist the client credentials that just worked so silent token refresh
-	// (connect refresh, ensureFreshToken on use) works in any later process
-	// without this env var — without this, the token silently dies after ~1h
-	// and only a full interactive re-login can revive it.
-	if err := m.store.SaveOAuthClient(ctx, p.ID, conn.ProfileID, cfg.ClientID, cfg.ClientSecret); err != nil {
-		fmt.Fprintf(os.Stderr, "warning: could not persist OAuth client credentials for silent refresh: %v\n", err)
-	}
-
-	// Populate conn.Data
-	conn.Data["access_token"] = result.AccessToken
-	conn.Data["refresh_token"] = result.RefreshToken
-	conn.Data["token_type"] = result.TokenType
-	conn.Data["scope"] = result.Scope
-	conn.Data["instance_url"] = result.InstanceURL
-
-	// expires_at as RFC3339
-	if result.ExpiresIn > 0 {
-		expiresAt := time.Now().UTC().Add(time.Duration(result.ExpiresIn) * time.Second)
-		conn.Data["expires_at"] = expiresAt.Format(time.RFC3339)
-	} else {
-		conn.Data["expires_at"] = ""
-	}
-
-	return nil
-}
-
-// connectFields prompts the user to fill in credential fields and populates conn.Data.
-func (m *Manager) connectFields(p PlatformDef, method AuthMethod, conn *Connection, prefilled map[string]string, reader *bufio.Reader) error {
-	fields, ok := p.Fields[method]
-	if !ok {
-		return fmt.Errorf("connectFields: platform %q has no fields for method %q", p.ID, method)
-	}
-
-	for _, field := range fields {
-		// Check prefilled map first
-		if prefilled != nil {
-			if val, ok := prefilled[field.Key]; ok {
-				if field.Required && val == "" {
-					return fmt.Errorf("connectFields: required field %q is empty", field.Key)
-				}
-				conn.Data[field.Key] = val
-				continue
-			}
-		}
-
-		// Print help if available
-		if field.HelpText != "" {
-			fmt.Printf("  %s\n", field.HelpText)
-		}
-		if field.HelpURL != "" {
-			fmt.Printf("  See: %s\n", field.HelpURL)
-		}
-
-		fmt.Printf("%s: ", field.Label)
-
-		var value string
-		if field.Secret {
-			value = readSecret(reader)
-		} else {
-			line, _ := reader.ReadString('\n')
-			value = strings.TrimSpace(line)
-		}
-
-		if field.Required && value == "" {
-			return fmt.Errorf("connectFields: required field %q is empty", field.Key)
-		}
-
-		if value != "" {
-			conn.Data[field.Key] = value
-		}
-	}
-
-	return nil
-}
-
-// readSecret reads a secret value from the terminal with echo disabled.
-func readSecret(r *bufio.Reader) string {
-	if err := exec.Command("stty", "-echo").Run(); err == nil {
-		defer func() {
-			_ = exec.Command("stty", "echo").Run()
-			fmt.Println()
-		}()
-	}
-	line, _ := r.ReadString('\n')
-	return strings.TrimSpace(line)
 }

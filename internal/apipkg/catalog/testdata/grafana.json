@@ -1,0 +1,331 @@
+{
+  "dashboard.create": {
+    "params": {
+      "title": "D",
+      "additionalFields": {
+        "folderId": 3
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/dashboards/db",
+      "body": {
+        "dashboard": {
+          "id": null,
+          "title": "D"
+        },
+        "folderId": 3
+      }
+    },
+    "credential": {
+      "base_url": "https://g.test/",
+      "access_token": "t"
+    }
+  },
+  "dashboard.delete": {
+    "params": {
+      "dashboardUidOrUrl": "https://g.test/d/abc123/my-dash?orgId=1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/dashboards/uid/abc123"
+    },
+    "credential": {
+      "base_url": "https://g.test/",
+      "access_token": "t"
+    }
+  },
+  "dashboard.get": {
+    "params": {
+      "dashboardUidOrUrl": "xyz"
+    },
+    "response": {
+      "dashboard": {}
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/dashboards/uid/xyz",
+      "items": 1
+    },
+    "credential": {
+      "base_url": "https://g.test/",
+      "access_token": "t"
+    }
+  },
+  "dashboard.getAll": {
+    "params": {
+      "limit": 5,
+      "filters": {
+        "query": "cpu"
+      }
+    },
+    "response": [
+      {
+        "uid": "a"
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/search",
+      "query": {
+        "type": "dash-db",
+        "query": "cpu",
+        "page": "1",
+        "limit": "5"
+      },
+      "items": 1
+    },
+    "credential": {
+      "base_url": "https://g.test/",
+      "access_token": "t"
+    }
+  },
+  "dashboard.update": {
+    "params": {
+      "dashboardUidOrUrl": "xyz",
+      "updateFields": {
+        "folderId": 2
+      }
+    },
+    "responses": [
+      {
+        "dashboard": {
+          "title": "Old"
+        }
+      },
+      {
+        "status": "success"
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/api/dashboards/db",
+      "body": {
+        "overwrite": true,
+        "dashboard": {
+          "uid": "xyz",
+          "title": "Old"
+        },
+        "folderId": 2
+      }
+    },
+    "credential": {
+      "base_url": "https://g.test/",
+      "access_token": "t"
+    }
+  },
+  "team.create": {
+    "params": {
+      "name": "Ops",
+      "additionalFields": {
+        "email": "o@x"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/teams",
+      "body": {
+        "name": "Ops",
+        "email": "o@x"
+      }
+    },
+    "credential": {
+      "base_url": "https://g.test/",
+      "access_token": "t"
+    }
+  },
+  "team.delete": {
+    "params": {
+      "teamId": "4"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/teams/4"
+    },
+    "credential": {
+      "base_url": "https://g.test/",
+      "access_token": "t"
+    }
+  },
+  "team.get": {
+    "params": {
+      "teamId": "4"
+    },
+    "response": {
+      "id": 4
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/teams/4",
+      "items": 1
+    },
+    "credential": {
+      "base_url": "https://g.test/",
+      "access_token": "t"
+    }
+  },
+  "team.getAll": {
+    "params": {
+      "returnAll": true,
+      "filters": {
+        "name": "Ops"
+      }
+    },
+    "response": {
+      "teams": [
+        {
+          "id": 1
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/teams/search",
+      "query": {
+        "name": "Ops",
+        "page": "1",
+        "perpage": "100"
+      },
+      "items": 1
+    },
+    "credential": {
+      "base_url": "https://g.test/",
+      "access_token": "t"
+    }
+  },
+  "team.update": {
+    "params": {
+      "teamId": "4",
+      "updateFields": {
+        "name": "New"
+      }
+    },
+    "responses": [
+      {
+        "email": "e@x",
+        "name": "Old"
+      },
+      {}
+    ],
+    "expect": {
+      "method": "PUT",
+      "path": "/api/teams/4",
+      "body": {
+        "email": "e@x",
+        "name": "New"
+      }
+    },
+    "credential": {
+      "base_url": "https://g.test/",
+      "access_token": "t"
+    }
+  },
+  "teamMember.add": {
+    "params": {
+      "teamId": "4",
+      "userId": "9"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/teams/4/members",
+      "body": {
+        "userId": 9
+      }
+    },
+    "credential": {
+      "base_url": "https://g.test/",
+      "access_token": "t"
+    }
+  },
+  "teamMember.getAll": {
+    "params": {
+      "teamId": "4",
+      "limit": 1
+    },
+    "response": [
+      {
+        "userId": 1
+      },
+      {
+        "userId": 2
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/teams/4/members",
+      "items": 1
+    },
+    "credential": {
+      "base_url": "https://g.test/",
+      "access_token": "t"
+    }
+  },
+  "teamMember.remove": {
+    "params": {
+      "teamId": "4",
+      "memberId": "9"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/teams/4/members/9"
+    },
+    "credential": {
+      "base_url": "https://g.test/",
+      "access_token": "t"
+    }
+  },
+  "user.getAll": {
+    "params": {
+      "returnAll": true
+    },
+    "response": [
+      {
+        "userId": 1
+      },
+      {
+        "userId": 2
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/org/users",
+      "items": 2
+    },
+    "credential": {
+      "base_url": "https://g.test/",
+      "access_token": "t"
+    }
+  },
+  "user.delete": {
+    "params": {
+      "userId": "9"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/org/users/9"
+    },
+    "credential": {
+      "base_url": "https://g.test/",
+      "access_token": "t"
+    }
+  },
+  "user.update": {
+    "params": {
+      "userId": "9",
+      "updateFields": {
+        "role": "Editor"
+      }
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/api/org/users/9",
+      "body": {
+        "role": "Editor"
+      }
+    },
+    "credential": {
+      "base_url": "https://g.test/",
+      "access_token": "t"
+    }
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "invoke": {
+    "params": {
+      "function": "arn:aws:lambda:us-east-1:1:function:hello",
+      "qualifier": "$LATEST",
+      "invocationType": "RequestResponse",
+      "payload": "{\"a\":1}"
+    },
+    "response": {
+      "ok": true
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/2015-03-31/functions/arn:aws:lambda:us-east-1:1:function:hello/invocations",
+      "query": {
+        "Qualifier": "$LATEST"
+      },
+      "body": {
+        "a": 1
+      },
+      "headers": {
+        "X-Amz-Invocation-Type": "RequestResponse"
+      },
+      "items": 1
+    }
+  }
+}

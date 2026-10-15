@@ -1,0 +1,520 @@
+{
+  "event.get": {
+    "params": {
+      "organizationSlug": "acme",
+      "projectSlug": "web",
+      "eventId": "e1"
+    },
+    "response": {
+      "id": "e1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/0/projects/acme/web/events/e1/",
+      "items": 1
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "event.getAll": {
+    "params": {
+      "organizationSlug": "acme",
+      "projectSlug": "web",
+      "limit": 2
+    },
+    "response": [
+      {
+        "id": "1"
+      },
+      {
+        "id": "2"
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/0/projects/acme/web/events/",
+      "query": {
+        "full": "true"
+      },
+      "items": 2
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "issue.get": {
+    "params": {
+      "issueId": "9"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/0/issues/9/",
+      "items": 1
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "issue.delete": {
+    "params": {
+      "issueId": "9"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/0/issues/9/",
+      "items": 1
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "issue.getAll": {
+    "params": {
+      "organizationSlug": "acme",
+      "projectSlug": "web",
+      "returnAll": true,
+      "additionalFields": {
+        "query": "is:unresolved",
+        "statsPeriod": "24h"
+      }
+    },
+    "response": [
+      {
+        "id": "1"
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/0/projects/acme/web/issues/",
+      "query": {
+        "query": "is:unresolved",
+        "statsPeriod": "24h"
+      },
+      "items": 1
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "issue.update": {
+    "params": {
+      "issueId": "9",
+      "additionalFields": {
+        "status": "resolved",
+        "hasSeen": true
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/0/issues/9/",
+      "body": {
+        "status": "resolved",
+        "hasSeen": true
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "organization.get": {
+    "params": {
+      "organizationSlug": "acme"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/0/organizations/acme/"
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "organization.create": {
+    "params": {
+      "name": "Acme",
+      "agreeTerms": true,
+      "additionalFields": {
+        "slug": "acme"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/0/organizations/",
+      "body": {
+        "name": "Acme",
+        "agreeTerms": true,
+        "slug": "acme"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "organization.getAll": {
+    "params": {
+      "limit": 5,
+      "additionalFields": {
+        "owner": true
+      }
+    },
+    "response": [
+      {
+        "slug": "a"
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/0/organizations/",
+      "query": {
+        "owner": "true"
+      },
+      "items": 1
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "organization.update": {
+    "params": {
+      "organization_slug": "acme",
+      "updateFields": {
+        "name": "Acme 2"
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/0/organizations/acme/",
+      "body": {
+        "name": "Acme 2"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "project.get": {
+    "params": {
+      "organizationSlug": "acme",
+      "projectSlug": "web"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/0/projects/acme/web/"
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "project.create": {
+    "params": {
+      "organizationSlug": "acme",
+      "teamSlug": "core",
+      "name": "Web",
+      "additionalFields": {
+        "slug": "web"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/0/teams/acme/core/projects/",
+      "body": {
+        "name": "Web",
+        "slug": "web"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "project.delete": {
+    "params": {
+      "organizationSlug": "acme",
+      "projectSlug": "web"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/0/projects/acme/web/"
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "project.getAll": {
+    "params": {
+      "limit": 5
+    },
+    "response": [
+      {
+        "slug": "a"
+      },
+      {
+        "slug": "b"
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/0/projects/",
+      "query": {},
+      "items": 2
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "project.update": {
+    "params": {
+      "organizationSlug": "acme",
+      "projectSlug": "web",
+      "updateFields": {
+        "platform": "javascript",
+        "digestsMinDelay": 60
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/0/projects/acme/web/",
+      "body": {
+        "platform": "javascript",
+        "digestsMinDelay": 60
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "release.get": {
+    "params": {
+      "organizationSlug": "acme",
+      "version": "1.0"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/0/organizations/acme/releases/1.0/"
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "release.create": {
+    "params": {
+      "organizationSlug": "acme",
+      "version": "1.0",
+      "url": "https://x.io",
+      "projects": [
+        "web"
+      ],
+      "additionalFields": {
+        "commits": {
+          "commitProperties": [
+            {
+              "id": "abc",
+              "repository": "acme/web",
+              "patchSet": {
+                "patchSetProperties": [
+                  {
+                    "path": "a.go",
+                    "type": "modify"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "refs": {
+          "refProperties": [
+            {
+              "commit": "abc",
+              "repository": "acme/web"
+            }
+          ]
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/0/organizations/acme/releases/",
+      "body": {
+        "version": "1.0",
+        "url": "https://x.io",
+        "projects": [
+          "web"
+        ],
+        "commits": [
+          {
+            "id": "abc",
+            "repository": "acme/web",
+            "patch_set": [
+              {
+                "path": "a.go",
+                "type": "modify"
+              }
+            ]
+          }
+        ],
+        "refs": [
+          {
+            "commit": "abc",
+            "repository": "acme/web"
+          }
+        ]
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "release.delete": {
+    "params": {
+      "organizationSlug": "acme",
+      "version": "1.0"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/0/organizations/acme/releases/1.0/"
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "release.getAll": {
+    "params": {
+      "organizationSlug": "acme",
+      "limit": 3,
+      "additionalFields": {
+        "query": "1."
+      }
+    },
+    "response": [
+      {
+        "version": "1.0"
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/0/organizations/acme/releases/",
+      "query": {
+        "query": "1."
+      },
+      "items": 1
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "release.update": {
+    "params": {
+      "organizationSlug": "acme",
+      "version": "1.0",
+      "updateFields": {
+        "url": "https://y.io",
+        "commits": {
+          "commitProperties": [
+            {
+              "id": "def"
+            }
+          ]
+        }
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/0/organizations/acme/releases/1.0/",
+      "body": {
+        "url": "https://y.io",
+        "commits": [
+          {
+            "id": "def"
+          }
+        ]
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "team.get": {
+    "params": {
+      "organizationSlug": "acme",
+      "teamSlug": "core"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/0/teams/acme/core/"
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "team.create": {
+    "params": {
+      "organizationSlug": "acme",
+      "name": "Core"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/0/organizations/acme/teams/",
+      "body": {
+        "name": "Core"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "team.delete": {
+    "params": {
+      "organizationSlug": "acme",
+      "teamSlug": "core"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/0/teams/acme/core/"
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "team.getAll": {
+    "params": {
+      "organizationSlug": "acme",
+      "limit": 3
+    },
+    "response": [
+      {
+        "slug": "core"
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/0/organizations/acme/teams/",
+      "query": {},
+      "items": 1
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "team.update": {
+    "params": {
+      "organizationSlug": "acme",
+      "teamSlug": "core",
+      "updateFields": {
+        "slug": "core2"
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/0/teams/acme/core/",
+      "body": {
+        "slug": "core2"
+      },
+      "headers": {
+        "Authorization": "Bearer srv"
+      }
+    },
+    "credential": {
+      "url": "https://sentry.example.com",
+      "token": "srv"
+    }
+  }
+}

@@ -19,6 +19,9 @@ func (n *XMLNode) Type() string { return "data.xml" }
 
 func (n *XMLNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
 	operation, _ := config["operation"].(string)
+	if operation == "xml_to_json" || operation == "json_to_xml" {
+		return executeN8nXML(operation, input, config)
+	}
 	field, _ := config["field"].(string)
 	outputField, _ := config["output_field"].(string)
 	rootElement, _ := config["root_element"].(string)

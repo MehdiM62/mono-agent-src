@@ -1,0 +1,1252 @@
+{
+  "customer.get": {
+    "credential": {
+      "realm_id": "123",
+      "access_token": "tok"
+    },
+    "params": {
+      "customerId": "7"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v3/company/123/customer/7",
+      "items": 1
+    },
+    "response": {
+      "Customer": {
+        "Id": "7"
+      }
+    }
+  },
+  "customer.getAll": {
+    "credential": {
+      "realm_id": "123",
+      "access_token": "tok"
+    },
+    "params": {
+      "limit": 10,
+      "filters": {
+        "query": "WHERE Active = true"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v3/company/123/query",
+      "query": {
+        "query": "SELECT * FROM Customer WHERE Active = true MAXRESULTS 10"
+      },
+      "items": 2
+    },
+    "response": {
+      "QueryResponse": {
+        "Customer": [
+          {
+            "Id": "1"
+          },
+          {
+            "Id": "2"
+          }
+        ]
+      }
+    }
+  },
+  "bill.get": {
+    "credential": {
+      "realm_id": "123",
+      "access_token": "tok"
+    },
+    "params": {
+      "billId": "7"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v3/company/123/bill/7",
+      "items": 1
+    },
+    "response": {
+      "Bill": {
+        "Id": "7"
+      }
+    }
+  },
+  "bill.getAll": {
+    "credential": {
+      "realm_id": "123",
+      "access_token": "tok"
+    },
+    "params": {
+      "limit": 10,
+      "filters": {
+        "query": "WHERE Active = true"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v3/company/123/query",
+      "query": {
+        "query": "SELECT * FROM Bill WHERE Active = true MAXRESULTS 10"
+      },
+      "items": 2
+    },
+    "response": {
+      "QueryResponse": {
+        "Bill": [
+          {
+            "Id": "1"
+          },
+          {
+            "Id": "2"
+          }
+        ]
+      }
+    }
+  },
+  "employee.get": {
+    "credential": {
+      "realm_id": "123",
+      "access_token": "tok"
+    },
+    "params": {
+      "employeeId": "7"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v3/company/123/employee/7",
+      "items": 1
+    },
+    "response": {
+      "Employee": {
+        "Id": "7"
+      }
+    }
+  },
+  "employee.getAll": {
+    "credential": {
+      "realm_id": "123",
+      "access_token": "tok"
+    },
+    "params": {
+      "limit": 10,
+      "filters": {
+        "query": "WHERE Active = true"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v3/company/123/query",
+      "query": {
+        "query": "SELECT * FROM Employee WHERE Active = true MAXRESULTS 10"
+      },
+      "items": 2
+    },
+    "response": {
+      "QueryResponse": {
+        "Employee": [
+          {
+            "Id": "1"
+          },
+          {
+            "Id": "2"
+          }
+        ]
+      }
+    }
+  },
+  "estimate.get": {
+    "credential": {
+      "realm_id": "123",
+      "access_token": "tok"
+    },
+    "params": {
+      "estimateId": "7"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v3/company/123/estimate/7",
+      "items": 1
+    },
+    "response": {
+      "Estimate": {
+        "Id": "7"
+      }
+    }
+  },
+  "estimate.getAll": {
+    "credential": {
+      "realm_id": "123",
+      "access_token": "tok"
+    },
+    "params": {
+      "limit": 10,
+      "filters": {
+        "query": "WHERE Active = true"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v3/company/123/query",
+      "query": {
+        "query": "SELECT * FROM Estimate WHERE Active = true MAXRESULTS 10"
+      },
+      "items": 2
+    },
+    "response": {
+      "QueryResponse": {
+        "Estimate": [
+          {
+            "Id": "1"
+          },
+          {
+            "Id": "2"
+          }
+        ]
+      }
+    }
+  },
+  "invoice.get": {
+    "credential": {
+      "realm_id": "123",
+      "access_token": "tok"
+    },
+    "params": {
+      "invoiceId": "7",
+      "download": true,
+      "fileName": "inv.pdf"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v3/company/123/invoice/7/pdf",
+      "headers": {
+        "Accept": "application/pdf"
+      },
+      "items": 1
+    }
+  },
+  "invoice.getAll": {
+    "credential": {
+      "realm_id": "123",
+      "access_token": "tok"
+    },
+    "params": {
+      "limit": 10,
+      "filters": {
+        "query": "WHERE Active = true"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v3/company/123/query",
+      "query": {
+        "query": "SELECT * FROM Invoice WHERE Active = true MAXRESULTS 10"
+      },
+      "items": 2
+    },
+    "response": {
+      "QueryResponse": {
+        "Invoice": [
+          {
+            "Id": "1"
+          },
+          {
+            "Id": "2"
+          }
+        ]
+      }
+    }
+  },
+  "item.get": {
+    "credential": {
+      "realm_id": "123",
+      "access_token": "tok"
+    },
+    "params": {
+      "itemId": "7"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v3/company/123/item/7",
+      "items": 1
+    },
+    "response": {
+      "Item": {
+        "Id": "7"
+      }
+    }
+  },
+  "item.getAll": {
+    "credential": {
+      "realm_id": "123",
+      "access_token": "tok"
+    },
+    "params": {
+      "limit": 10,
+      "filters": {
+        "query": "WHERE Active = true"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v3/company/123/query",
+      "query": {
+        "query": "SELECT * FROM Item WHERE Active = true MAXRESULTS 10"
+      },
+      "items": 2
+    },
+    "response": {
+      "QueryResponse": {
+        "Item": [
+          {
+            "Id": "1"
+          },
+          {
+            "Id": "2"
+          }
+        ]
+      }
+    }
+  },
+  "payment.get": {
+    "credential": {
+      "realm_id": "123",
+      "access_token": "tok"
+    },
+    "params": {
+      "paymentId": "7"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v3/company/123/payment/7",
+      "items": 1
+    },
+    "response": {
+      "Payment": {
+        "Id": "7"
+      }
+    }
+  },
+  "payment.getAll": {
+    "credential": {
+      "realm_id": "123",
+      "access_token": "tok"
+    },
+    "params": {
+      "limit": 10,
+      "filters": {
+        "query": "WHERE Active = true"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v3/company/123/query",
+      "query": {
+        "query": "SELECT * FROM Payment WHERE Active = true MAXRESULTS 10"
+      },
+      "items": 2
+    },
+    "response": {
+      "QueryResponse": {
+        "Payment": [
+          {
+            "Id": "1"
+          },
+          {
+            "Id": "2"
+          }
+        ]
+      }
+    }
+  },
+  "purchase.get": {
+    "credential": {
+      "realm_id": "123",
+      "access_token": "tok"
+    },
+    "params": {
+      "purchaseId": "7"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v3/company/123/purchase/7",
+      "items": 1
+    },
+    "response": {
+      "Purchase": {
+        "Id": "7"
+      }
+    }
+  },
+  "purchase.getAll": {
+    "credential": {
+      "realm_id": "123",
+      "access_token": "tok"
+    },
+    "params": {
+      "limit": 10,
+      "filters": {
+        "query": "WHERE Active = true"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v3/company/123/query",
+      "query": {
+        "query": "SELECT * FROM Purchase WHERE Active = true MAXRESULTS 10"
+      },
+      "items": 2
+    },
+    "response": {
+      "QueryResponse": {
+        "Purchase": [
+          {
+            "Id": "1"
+          },
+          {
+            "Id": "2"
+          }
+        ]
+      }
+    }
+  },
+  "vendor.get": {
+    "credential": {
+      "realm_id": "123",
+      "access_token": "tok"
+    },
+    "params": {
+      "vendorId": "7"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v3/company/123/vendor/7",
+      "items": 1
+    },
+    "response": {
+      "Vendor": {
+        "Id": "7"
+      }
+    }
+  },
+  "vendor.getAll": {
+    "credential": {
+      "realm_id": "123",
+      "access_token": "tok"
+    },
+    "params": {
+      "limit": 10,
+      "filters": {
+        "query": "WHERE Active = true"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v3/company/123/query",
+      "query": {
+        "query": "SELECT * FROM Vendor WHERE Active = true MAXRESULTS 10"
+      },
+      "items": 2
+    },
+    "response": {
+      "QueryResponse": {
+        "Vendor": [
+          {
+            "Id": "1"
+          },
+          {
+            "Id": "2"
+          }
+        ]
+      }
+    }
+  },
+  "bill.delete": {
+    "credential": {
+      "realm_id": "123",
+      "access_token": "tok"
+    },
+    "params": {
+      "billId": "7"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v3/company/123/bill",
+      "query": {
+        "operation": "delete"
+      },
+      "body": {
+        "Id": "7",
+        "SyncToken": "3"
+      }
+    },
+    "responses": [
+      {
+        "Bill": {
+          "SyncToken": "3"
+        }
+      },
+      {
+        "Bill": {}
+      }
+    ]
+  },
+  "estimate.delete": {
+    "credential": {
+      "realm_id": "123",
+      "access_token": "tok"
+    },
+    "params": {
+      "estimateId": "7"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v3/company/123/estimate",
+      "query": {
+        "operation": "delete"
+      },
+      "body": {
+        "Id": "7",
+        "SyncToken": "3"
+      }
+    },
+    "responses": [
+      {
+        "Estimate": {
+          "SyncToken": "3"
+        }
+      },
+      {
+        "Estimate": {}
+      }
+    ]
+  },
+  "invoice.delete": {
+    "credential": {
+      "realm_id": "123",
+      "access_token": "tok"
+    },
+    "params": {
+      "invoiceId": "7"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v3/company/123/invoice",
+      "query": {
+        "operation": "delete"
+      },
+      "body": {
+        "Id": "7",
+        "SyncToken": "3"
+      }
+    },
+    "responses": [
+      {
+        "Invoice": {
+          "SyncToken": "3"
+        }
+      },
+      {
+        "Invoice": {}
+      }
+    ]
+  },
+  "payment.delete": {
+    "credential": {
+      "realm_id": "123",
+      "access_token": "tok"
+    },
+    "params": {
+      "paymentId": "7"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v3/company/123/payment",
+      "query": {
+        "operation": "delete"
+      },
+      "body": {
+        "Id": "7",
+        "SyncToken": "3"
+      }
+    },
+    "responses": [
+      {
+        "Payment": {
+          "SyncToken": "3"
+        }
+      },
+      {
+        "Payment": {}
+      }
+    ]
+  },
+  "invoice.void": {
+    "credential": {
+      "realm_id": "123",
+      "access_token": "tok"
+    },
+    "params": {
+      "invoiceId": "7"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v3/company/123/invoice",
+      "query": {
+        "operation": "void"
+      },
+      "body": {
+        "Id": "7",
+        "SyncToken": "3"
+      }
+    },
+    "responses": [
+      {
+        "Invoice": {
+          "SyncToken": "3"
+        }
+      },
+      {
+        "Invoice": {}
+      }
+    ]
+  },
+  "payment.void": {
+    "credential": {
+      "realm_id": "123",
+      "access_token": "tok"
+    },
+    "params": {
+      "paymentId": "7"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v3/company/123/payment",
+      "query": {
+        "operation": "void"
+      },
+      "body": {
+        "Id": "7",
+        "SyncToken": "3"
+      }
+    },
+    "responses": [
+      {
+        "Payment": {
+          "SyncToken": "3"
+        }
+      },
+      {
+        "Payment": {}
+      }
+    ]
+  },
+  "estimate.send": {
+    "credential": {
+      "realm_id": "123",
+      "access_token": "tok"
+    },
+    "params": {
+      "estimateId": "7",
+      "email": "a@b.c"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v3/company/123/estimate/7/send",
+      "query": {
+        "sendTo": "a@b.c"
+      }
+    }
+  },
+  "invoice.send": {
+    "credential": {
+      "realm_id": "123",
+      "access_token": "tok"
+    },
+    "params": {
+      "invoiceId": "7",
+      "email": "a@b.c"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v3/company/123/invoice/7/send",
+      "query": {
+        "sendTo": "a@b.c"
+      }
+    }
+  },
+  "payment.send": {
+    "credential": {
+      "realm_id": "123",
+      "access_token": "tok"
+    },
+    "params": {
+      "paymentId": "7",
+      "email": "a@b.c"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v3/company/123/payment/7/send",
+      "query": {
+        "sendTo": "a@b.c"
+      }
+    }
+  },
+  "customer.create": {
+    "credential": {
+      "realm_id": "123",
+      "access_token": "tok"
+    },
+    "params": {
+      "displayName": "Ada",
+      "additionalFields": {
+        "PrimaryEmailAddr": "a@b.c",
+        "BillAddr": {
+          "details": {
+            "City": "X",
+            "Line1": ""
+          }
+        },
+        "Taxable": true
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v3/company/123/customer",
+      "body": {
+        "DisplayName": "Ada",
+        "PrimaryEmailAddr": {
+          "Address": "a@b.c"
+        },
+        "BillAddr": {
+          "City": "X"
+        },
+        "Taxable": true
+      },
+      "items": 1
+    },
+    "response": {
+      "Customer": {
+        "Id": "1"
+      }
+    }
+  },
+  "customer.update": {
+    "credential": {
+      "realm_id": "123",
+      "access_token": "tok"
+    },
+    "params": {
+      "customerId": "7",
+      "updateFields": {
+        "CompanyName": "Acme"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v3/company/123/customer",
+      "body": {
+        "Id": "7",
+        "SyncToken": "2",
+        "sparse": true,
+        "CompanyName": "Acme"
+      }
+    },
+    "responses": [
+      {
+        "Customer": {
+          "SyncToken": "2"
+        }
+      },
+      {}
+    ]
+  },
+  "employee.create": {
+    "credential": {
+      "realm_id": "123",
+      "access_token": "tok"
+    },
+    "params": {
+      "FamilyName": "L",
+      "GivenName": "A",
+      "additionalFields": {
+        "PrimaryPhone": "555"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v3/company/123/employee",
+      "body": {
+        "FamilyName": "L",
+        "GivenName": "A",
+        "PrimaryPhone": {
+          "FreeFormNumber": "555"
+        }
+      }
+    }
+  },
+  "employee.update": {
+    "credential": {
+      "realm_id": "123",
+      "access_token": "tok"
+    },
+    "params": {
+      "employeeId": "7",
+      "updateFields": {
+        "SSN": "x"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v3/company/123/employee",
+      "body": {
+        "Id": "7",
+        "SyncToken": "2",
+        "sparse": true,
+        "SSN": "x"
+      }
+    },
+    "responses": [
+      {
+        "Employee": {
+          "SyncToken": "2"
+        }
+      },
+      {}
+    ]
+  },
+  "vendor.create": {
+    "credential": {
+      "realm_id": "123",
+      "access_token": "tok"
+    },
+    "params": {
+      "displayName": "V"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v3/company/123/vendor",
+      "body": {
+        "DisplayName": "V"
+      }
+    }
+  },
+  "vendor.update": {
+    "credential": {
+      "realm_id": "123",
+      "access_token": "tok"
+    },
+    "params": {
+      "vendorId": "7",
+      "updateFields": {
+        "Vendor1099": true
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v3/company/123/vendor",
+      "body": {
+        "Id": "7",
+        "SyncToken": "2",
+        "sparse": true,
+        "Vendor1099": true
+      }
+    },
+    "responses": [
+      {
+        "Vendor": {
+          "SyncToken": "2"
+        }
+      },
+      {}
+    ]
+  },
+  "bill.create": {
+    "credential": {
+      "realm_id": "123",
+      "access_token": "tok"
+    },
+    "params": {
+      "VendorRef": "56",
+      "Line": [
+        {
+          "DetailType": "AccountBasedExpenseLineDetail",
+          "Amount": 10,
+          "Description": "d",
+          "accountId": "9"
+        }
+      ],
+      "additionalFields": {
+        "APAccountRef": {
+          "details": {
+            "name": "AP",
+            "value": "33"
+          }
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v3/company/123/bill",
+      "body": {
+        "VendorRef": {
+          "value": "56"
+        },
+        "APAccountRef": {
+          "name": "AP",
+          "value": "33"
+        },
+        "Line": [
+          {
+            "DetailType": "AccountBasedExpenseLineDetail",
+            "Amount": 10,
+            "Description": "d",
+            "AccountBasedExpenseLineDetail": {
+              "AccountRef": {
+                "value": "9"
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "bill.update": {
+    "credential": {
+      "realm_id": "123",
+      "access_token": "tok"
+    },
+    "params": {
+      "billId": "7",
+      "updateFields": {
+        "DueDate": "2024-02-01"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v3/company/123/bill",
+      "body": {
+        "Id": "7",
+        "SyncToken": "2",
+        "sparse": true,
+        "VendorRef": {
+          "name": "V",
+          "value": "56"
+        },
+        "DueDate": "2024-02-01"
+      }
+    },
+    "responses": [
+      {
+        "Bill": {
+          "SyncToken": "2",
+          "VendorRef": {
+            "name": "V",
+            "value": "56"
+          }
+        }
+      },
+      {}
+    ]
+  },
+  "estimate.create": {
+    "credential": {
+      "realm_id": "123",
+      "access_token": "tok"
+    },
+    "params": {
+      "CustomerRef": "1",
+      "Line": [
+        {
+          "DetailType": "SalesItemLineDetail",
+          "Amount": 5,
+          "Description": "x",
+          "itemId": "3",
+          "TaxCodeRef": "TAX"
+        }
+      ],
+      "additionalFields": {
+        "BillEmail": "a@b.c",
+        "CustomerMemo": "hi",
+        "TotalTax": 2
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v3/company/123/estimate",
+      "body": {
+        "CustomerRef": {
+          "value": "1"
+        },
+        "BillEmail": {
+          "Address": "a@b.c"
+        },
+        "CustomerMemo": {
+          "value": "hi"
+        },
+        "TxnTaxDetail": {
+          "TotalTax": 2
+        },
+        "Line": [
+          {
+            "DetailType": "SalesItemLineDetail",
+            "Amount": 5,
+            "Description": "x",
+            "SalesItemLineDetail": {
+              "ItemRef": {
+                "value": "3"
+              },
+              "TaxCodeRef": {
+                "value": "TAX"
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "estimate.update": {
+    "credential": {
+      "realm_id": "123",
+      "access_token": "tok"
+    },
+    "params": {
+      "estimateId": "7",
+      "updateFields": {
+        "DocNumber": "E1"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v3/company/123/estimate",
+      "body": {
+        "Id": "7",
+        "SyncToken": "2",
+        "sparse": true,
+        "CustomerRef": {
+          "value": "1"
+        },
+        "DocNumber": "E1"
+      }
+    },
+    "responses": [
+      {
+        "Estimate": {
+          "SyncToken": "2",
+          "CustomerRef": {
+            "value": "1"
+          }
+        }
+      },
+      {}
+    ]
+  },
+  "invoice.create": {
+    "credential": {
+      "realm_id": "123",
+      "access_token": "tok"
+    },
+    "params": {
+      "CustomerRef": "1",
+      "Line": [
+        {
+          "DetailType": "SalesItemLineDetail",
+          "Amount": 5,
+          "Description": "x",
+          "itemId": "3",
+          "Qty": 2
+        }
+      ],
+      "additionalFields": {
+        "CustomFields": {
+          "Field": [
+            {
+              "DefinitionId": "1",
+              "StringValue": "v"
+            }
+          ]
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v3/company/123/invoice",
+      "body": {
+        "CustomerRef": {
+          "value": "1"
+        },
+        "CustomField": [
+          {
+            "DefinitionId": "1",
+            "StringValue": "v",
+            "Type": "StringType"
+          }
+        ],
+        "Line": [
+          {
+            "DetailType": "SalesItemLineDetail",
+            "Amount": 5,
+            "Description": "x",
+            "SalesItemLineDetail": {
+              "ItemRef": {
+                "value": "3"
+              },
+              "Qty": 2
+            }
+          }
+        ]
+      }
+    }
+  },
+  "invoice.update": {
+    "credential": {
+      "realm_id": "123",
+      "access_token": "tok"
+    },
+    "params": {
+      "invoiceId": "7",
+      "updateFields": {
+        "DueDate": "2024-03-01"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v3/company/123/invoice",
+      "body": {
+        "Id": "7",
+        "SyncToken": "2",
+        "sparse": true,
+        "CustomerRef": {
+          "value": "1"
+        },
+        "DueDate": "2024-03-01"
+      }
+    },
+    "responses": [
+      {
+        "Invoice": {
+          "SyncToken": "2",
+          "CustomerRef": {
+            "value": "1"
+          }
+        }
+      },
+      {}
+    ]
+  },
+  "payment.create": {
+    "credential": {
+      "realm_id": "123",
+      "access_token": "tok"
+    },
+    "params": {
+      "CustomerRef": "1",
+      "TotalAmt": 25,
+      "additionalFields": {
+        "TxnDate": "2024-01-01"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v3/company/123/payment",
+      "body": {
+        "CustomerRef": {
+          "value": "1"
+        },
+        "TotalAmt": 25,
+        "TxnDate": "2024-01-01"
+      }
+    }
+  },
+  "payment.update": {
+    "credential": {
+      "realm_id": "123",
+      "access_token": "tok"
+    },
+    "params": {
+      "paymentId": "7",
+      "updateFields": {
+        "TxnDate": "2024-01-02"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v3/company/123/payment",
+      "body": {
+        "Id": "7",
+        "SyncToken": "2",
+        "sparse": true,
+        "CustomerRef": {
+          "value": "1"
+        },
+        "TxnDate": "2024-01-02"
+      }
+    },
+    "responses": [
+      {
+        "Payment": {
+          "SyncToken": "2",
+          "CustomerRef": {
+            "value": "1"
+          }
+        }
+      },
+      {}
+    ]
+  },
+  "transaction.getReport": {
+    "credential": {
+      "realm_id": "123",
+      "access_token": "tok"
+    },
+    "params": {
+      "filters": {
+        "columns": [
+          "tx_date",
+          "name"
+        ],
+        "date_macro": "This Month",
+        "dateRangeCustom": {
+          "dateRangeCustomProperties": {
+            "start_date": "2024-01-01T00:00:00",
+            "end_date": "2024-01-31T00:00:00"
+          }
+        }
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v3/company/123/reports/TransactionList",
+      "query": {
+        "columns": "tx_date,name",
+        "date_macro": "This Month",
+        "start_date": "2024-01-01",
+        "end_date": "2024-01-31"
+      },
+      "items": 1
+    },
+    "response": {
+      "Columns": {
+        "Column": [
+          {
+            "ColType": "tx_date"
+          },
+          {
+            "ColType": "name"
+          }
+        ]
+      },
+      "Rows": {
+        "Row": [
+          {
+            "ColData": [
+              {
+                "value": "2024-01-05"
+              },
+              {
+                "value": "Ada"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

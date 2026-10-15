@@ -1,0 +1,292 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "cockpit",
+  "node_type": "app.cockpit",
+  "title": "Cockpit",
+  "description": "Collections, forms and singletons in a Cockpit CMS",
+  "category": "app",
+  "docs_url": "https://getcockpit.com/documentation",
+  "n8n_types": [
+    "n8n-nodes-base.cockpit"
+  ],
+  "base_url": "{{ cred.url }}",
+  "headers": {
+    "Accept": "application/json"
+  },
+  "credentials": [
+    {
+      "platform": "cockpit",
+      "name": "Cockpit",
+      "n8n_credential": "cockpitApi",
+      "n8n_field_map": {
+        "url": "url",
+        "accessToken": "access_token"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "url",
+          "label": "Cockpit URL",
+          "required": true,
+          "help": "e.g. https://cms.example.com, without a trailing slash"
+        },
+        {
+          "key": "access_token",
+          "label": "API token",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "query": {
+          "token": "{{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "collection",
+      "label": "Collection"
+    },
+    {
+      "value": "form",
+      "label": "Form"
+    },
+    {
+      "value": "singleton",
+      "label": "Singleton"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "collection",
+      "operation": "getAll",
+      "title": "Get many entries",
+      "method": "POST",
+      "path": "/api/collections/get/{{ p.collection }}",
+      "body": {
+        "fields": {
+          "$when": "{{ p.options.fields }}",
+          "_id": false,
+          "$merge": {
+            "$entries": "{{ p.options.fields | split }}",
+            "$key": "{{ el }}",
+            "$value": true
+          }
+        },
+        "filter": "{{ p.options.filter | fromjson }}",
+        "limit": "{{ p.returnAll | ne:'true' | then:p.limit }}",
+        "skip": "{{ p.options.skip | int }}",
+        "sort": "{{ p.options.sort | fromjson }}",
+        "populate": "{{ p.options.populate | eq:'true' }}",
+        "simple": "{{ p.options.rawData | ne:'true' | default:false }}",
+        "lang": "{{ p.options.language }}"
+      },
+      "output": {
+        "path": ""
+      },
+      "fields": [
+        {
+          "key": "collection",
+          "label": "Collection",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Fetch every page instead of stopping at Limit."
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off."
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fields",
+            "filter",
+            "language",
+            "populate",
+            "rawData",
+            "skip",
+            "sort"
+          ],
+          "help": "fields: comma-separated names; filter and sort: JSON such as {\"published\": true} / {\"_created\": -1}"
+        }
+      ]
+    },
+    {
+      "resource": "collection",
+      "operation": "create",
+      "title": "Create an entry",
+      "method": "POST",
+      "path": "/api/collections/save/{{ p.collection }}",
+      "body": {
+        "data": {
+          "$merge": [
+            "{{ p.jsonDataFields | eq:'true' | then:p.dataFieldsJson | fromjson }}",
+            "{{ p.jsonDataFields | ne:'true' | then:p.dataFieldsUi | kv:'name,value' }}"
+          ]
+        }
+      },
+      "fields": [
+        {
+          "key": "collection",
+          "label": "Collection",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "jsonDataFields",
+          "label": "Data as JSON",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "dataFieldsJson",
+          "label": "Data (JSON)",
+          "type": "json",
+          "default": "",
+          "help": "With Data as JSON on: an object of field values."
+        },
+        {
+          "key": "dataFieldsUi",
+          "label": "Data",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "field"
+          ],
+          "help": "{\"field\": [{\"name\": \"title\", \"value\": \"Hello\"}]}"
+        }
+      ]
+    },
+    {
+      "resource": "collection",
+      "operation": "update",
+      "title": "Update an entry",
+      "method": "POST",
+      "path": "/api/collections/save/{{ p.collection }}",
+      "body": {
+        "data": {
+          "_id": "{{ p.id }}",
+          "$merge": [
+            "{{ p.jsonDataFields | eq:'true' | then:p.dataFieldsJson | fromjson }}",
+            "{{ p.jsonDataFields | ne:'true' | then:p.dataFieldsUi | kv:'name,value' }}"
+          ]
+        }
+      },
+      "fields": [
+        {
+          "key": "collection",
+          "label": "Collection",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "id",
+          "label": "Entry ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "jsonDataFields",
+          "label": "Data as JSON",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "dataFieldsJson",
+          "label": "Data (JSON)",
+          "type": "json",
+          "default": "",
+          "help": "With Data as JSON on: an object of field values."
+        },
+        {
+          "key": "dataFieldsUi",
+          "label": "Data",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "field"
+          ],
+          "help": "{\"field\": [{\"name\": \"title\", \"value\": \"Hello\"}]}"
+        }
+      ]
+    },
+    {
+      "resource": "form",
+      "operation": "submit",
+      "title": "Submit a form",
+      "method": "POST",
+      "path": "/api/forms/submit/{{ p.form }}",
+      "body": {
+        "form": {
+          "$merge": [
+            "{{ p.jsonDataFields | eq:'true' | then:p.dataFieldsJson | fromjson }}",
+            "{{ p.jsonDataFields | ne:'true' | then:p.dataFieldsUi | kv:'name,value' }}"
+          ]
+        }
+      },
+      "fields": [
+        {
+          "key": "form",
+          "label": "Form",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "jsonDataFields",
+          "label": "Data as JSON",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "dataFieldsJson",
+          "label": "Data (JSON)",
+          "type": "json",
+          "default": "",
+          "help": "With Data as JSON on: an object of field values."
+        },
+        {
+          "key": "dataFieldsUi",
+          "label": "Data",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "field"
+          ],
+          "help": "{\"field\": [{\"name\": \"title\", \"value\": \"Hello\"}]}"
+        }
+      ]
+    },
+    {
+      "resource": "singleton",
+      "operation": "get",
+      "title": "Get a singleton",
+      "method": "GET",
+      "path": "/api/singletons/get/{{ p.singleton }}",
+      "fields": [
+        {
+          "key": "singleton",
+          "label": "Singleton",
+          "type": "text",
+          "required": true
+        }
+      ]
+    }
+  ]
+}

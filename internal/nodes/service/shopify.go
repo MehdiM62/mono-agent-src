@@ -7,9 +7,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 
+	"github.com/monoes/mono-agent/internal/apipkg"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -18,10 +20,39 @@ type ShopifyNode struct{}
 
 func (n *ShopifyNode) Type() string { return "service.shopify" }
 
+// shopifyDefaultAPIVersion is the Admin API version used when the node's
+// api_version field is empty: the newest stable quarterly release at the
+// time it was set. Shopify supports each stable version for at least 12
+// months, so this should be bumped about once a year.
+const shopifyDefaultAPIVersion = "2026-04"
+
+// shopifyAPIVersionRe matches a Shopify API version: a YYYY-MM release
+// ("2026-04") or the literal "unstable".
+var shopifyAPIVersionRe = regexp.MustCompile(`^(\d{4}-(0[1-9]|1[0-2])|unstable)$`)
+
+// shopifyBaseURLFor returns the scheme+host for a validated shop name. It is
+// a var (not a func) so tests can point it at an httptest server.
+var shopifyBaseURLFor = func(shop string) string {
+	return "https://" + shop + ".myshopify.com"
+}
+
+// shopifyAPIVersion returns the configured api_version, or the default when
+// unset, and rejects anything that is not YYYY-MM or "unstable".
+func shopifyAPIVersion(config map[string]interface{}) (string, error) {
+	v := strings.TrimSpace(strVal(config, "api_version"))
+	if v == "" {
+		return shopifyDefaultAPIVersion, nil
+	}
+	if !shopifyAPIVersionRe.MatchString(v) {
+		return "", fmt.Errorf("shopify: api_version %q is invalid: use YYYY-MM (e.g. %s) or \"unstable\"", v, shopifyDefaultAPIVersion)
+	}
+	return v, nil
+}
+
 // shopifyRequest makes an authenticated request to the Shopify Admin API.
 // shop may be given as the bare store name ("mystore") or the full domain
 // ("mystore.myshopify.com"); either form works.
-func shopifyRequest(ctx context.Context, method, shop, accessToken, path string, body interface{}) (map[string]interface{}, error) {
+func shopifyRequest(ctx context.Context, method, shop, apiVersion, accessToken, path string, body interface{}) (map[string]interface{}, error) {
 	shop = strings.TrimSuffix(shop, ".myshopify.com")
 	// Validate the shop name so it cannot escape the .myshopify.com host pin:
 	// a value like "evil.com/x?" would otherwise redirect the request (and the
@@ -30,7 +61,7 @@ func shopifyRequest(ctx context.Context, method, shop, accessToken, path string,
 	if !shopifyValidShop(shop) {
 		return nil, fmt.Errorf("shopify: invalid shop_domain %q", shop)
 	}
-	fullURL := fmt.Sprintf("https://%s.myshopify.com/admin/api/2024-01%s", shop, path)
+	fullURL := shopifyBaseURLFor(shop) + "/admin/api/" + apiVersion + path
 	var bodyReader io.Reader
 	if body != nil {
 		b, err := json.Marshal(body)
@@ -55,12 +86,12 @@ func shopifyRequest(ctx context.Context, method, shop, accessToken, path string,
 		return nil, fmt.Errorf("shopify %s %s: %w", method, fullURL, err)
 	}
 	defer resp.Body.Close()
-	respBytes, err := io.ReadAll(resp.Body)
+	respBytes, err := readBodyCapped(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("shopify: reading response: %w", err)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("shopify HTTP %d: %s", resp.StatusCode, string(respBytes))
+		return nil, fmt.Errorf("shopify HTTP %d: %s", resp.StatusCode, errorBodyEcho(respBytes))
 	}
 	if len(respBytes) == 0 {
 		return map[string]interface{}{}, nil
@@ -73,6 +104,9 @@ func shopifyRequest(ctx context.Context, method, shop, accessToken, path string,
 }
 
 func (n *ShopifyNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
+	if extensionOwns("service.shopify", config) {
+		return apipkg.ExecuteExtension(ctx, "service.shopify", input, config)
+	}
 	shop := strVal(config, "shop_domain")
 	if shop == "" {
 		return nil, fmt.Errorf("shopify: shop_domain is required")
@@ -80,6 +114,10 @@ func (n *ShopifyNode) Execute(ctx context.Context, input workflow.NodeInput, con
 	accessToken := strVal(config, "access_token")
 	if accessToken == "" {
 		return nil, fmt.Errorf("shopify: access_token is required")
+	}
+	apiVersion, err := shopifyAPIVersion(config)
+	if err != nil {
+		return nil, err
 	}
 	operation := strVal(config, "operation")
 	limit := intVal(config, "limit")
@@ -92,7 +130,7 @@ func (n *ShopifyNode) Execute(ctx context.Context, input workflow.NodeInput, con
 	switch operation {
 	case "list_products":
 		path := "/products.json?limit=" + strconv.Itoa(limit)
-		data, err := shopifyRequest(ctx, "GET", shop, accessToken, path, nil)
+		data, err := shopifyRequest(ctx, "GET", shop, apiVersion, accessToken, path, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -103,7 +141,7 @@ func (n *ShopifyNode) Execute(ctx context.Context, input workflow.NodeInput, con
 		if productID == "" {
 			return nil, fmt.Errorf("shopify: product_id is required for get_product")
 		}
-		data, err := shopifyRequest(ctx, "GET", shop, accessToken, "/products/"+productID+".json", nil)
+		data, err := shopifyRequest(ctx, "GET", shop, apiVersion, accessToken, "/products/"+productID+".json", nil)
 		if err != nil {
 			return nil, err
 		}
@@ -125,7 +163,7 @@ func (n *ShopifyNode) Execute(ctx context.Context, input workflow.NodeInput, con
 			product["product_type"] = productType
 		}
 		body := map[string]interface{}{"product": product}
-		data, err := shopifyRequest(ctx, "POST", shop, accessToken, "/products.json", body)
+		data, err := shopifyRequest(ctx, "POST", shop, apiVersion, accessToken, "/products.json", body)
 		if err != nil {
 			return nil, err
 		}
@@ -149,7 +187,7 @@ func (n *ShopifyNode) Execute(ctx context.Context, input workflow.NodeInput, con
 			product["product_type"] = productType
 		}
 		body := map[string]interface{}{"product": product}
-		data, err := shopifyRequest(ctx, "PUT", shop, accessToken, "/products/"+productID+".json", body)
+		data, err := shopifyRequest(ctx, "PUT", shop, apiVersion, accessToken, "/products/"+productID+".json", body)
 		if err != nil {
 			return nil, err
 		}
@@ -162,7 +200,7 @@ func (n *ShopifyNode) Execute(ctx context.Context, input workflow.NodeInput, con
 		if status := strVal(config, "status"); status != "" {
 			path += "&status=" + status
 		}
-		data, err := shopifyRequest(ctx, "GET", shop, accessToken, path, nil)
+		data, err := shopifyRequest(ctx, "GET", shop, apiVersion, accessToken, path, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -173,7 +211,7 @@ func (n *ShopifyNode) Execute(ctx context.Context, input workflow.NodeInput, con
 		if orderID == "" {
 			return nil, fmt.Errorf("shopify: order_id is required for get_order")
 		}
-		data, err := shopifyRequest(ctx, "GET", shop, accessToken, "/orders/"+orderID+".json", nil)
+		data, err := shopifyRequest(ctx, "GET", shop, apiVersion, accessToken, "/orders/"+orderID+".json", nil)
 		if err != nil {
 			return nil, err
 		}
@@ -193,7 +231,7 @@ func (n *ShopifyNode) Execute(ctx context.Context, input workflow.NodeInput, con
 			order["financial_status"] = status
 		}
 		body := map[string]interface{}{"order": order}
-		data, err := shopifyRequest(ctx, "PUT", shop, accessToken, "/orders/"+orderID+".json", body)
+		data, err := shopifyRequest(ctx, "PUT", shop, apiVersion, accessToken, "/orders/"+orderID+".json", body)
 		if err != nil {
 			return nil, err
 		}
@@ -203,7 +241,7 @@ func (n *ShopifyNode) Execute(ctx context.Context, input workflow.NodeInput, con
 
 	case "list_customers":
 		path := "/customers.json?limit=" + strconv.Itoa(limit)
-		data, err := shopifyRequest(ctx, "GET", shop, accessToken, path, nil)
+		data, err := shopifyRequest(ctx, "GET", shop, apiVersion, accessToken, path, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -214,7 +252,7 @@ func (n *ShopifyNode) Execute(ctx context.Context, input workflow.NodeInput, con
 		if customerID == "" {
 			return nil, fmt.Errorf("shopify: customer_id is required for get_customer")
 		}
-		data, err := shopifyRequest(ctx, "GET", shop, accessToken, "/customers/"+customerID+".json", nil)
+		data, err := shopifyRequest(ctx, "GET", shop, apiVersion, accessToken, "/customers/"+customerID+".json", nil)
 		if err != nil {
 			return nil, err
 		}

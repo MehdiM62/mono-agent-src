@@ -17,7 +17,6 @@ package orgdesign
 
 import (
 	"encoding/json"
-	"fmt"
 	"sort"
 )
 
@@ -296,12 +295,3 @@ func (d *Doc) Children(parentID string) []*Role {
 // strPtr is a small helper for constructing *string literals (Go has no
 // address-of-literal syntax), used throughout this package and its callers.
 func strPtr(s string) *string { return &s }
-
-// reportsToLabel renders a role's ReportsTo for error messages ("null" vs a
-// quoted id).
-func reportsToLabel(r *string) string {
-	if r == nil {
-		return "null"
-	}
-	return fmt.Sprintf("%q", *r)
-}

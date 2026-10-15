@@ -1,0 +1,33 @@
+{
+  "message.send": {
+    "params": {
+      "channelId": "c1",
+      "content": "hello",
+      "additionalFields": {
+        "senderName": "Bot"
+      }
+    },
+    "response": {
+      "object": {
+        "id": "m1"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/plugins/n8n/actions/message/save",
+      "body": {
+        "object": {
+          "channel_id": "c1",
+          "content": {
+            "formatted": "hello"
+          },
+          "hidden_data": {
+            "allow_delete": "everyone",
+            "custom_title": "Bot"
+          }
+        }
+      },
+      "items": 1
+    }
+  }
+}

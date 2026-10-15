@@ -18,9 +18,9 @@ type fakeInstaller struct {
 	restartCalls int
 }
 
-func (f *fakeInstaller) Install(context.Context) (Result, error) { return Result{}, nil }
-func (f *fakeInstaller) Uninstall(context.Context) error         { return nil }
-func (f *fakeInstaller) Start(context.Context) error             { return nil }
+func (f *fakeInstaller) Install(context.Context, string) (Result, error) { return Result{}, nil }
+func (f *fakeInstaller) Uninstall(context.Context) error                 { return nil }
+func (f *fakeInstaller) Start(context.Context) error                     { return nil }
 func (f *fakeInstaller) Status(context.Context) (bool, string) {
 	f.statusCalls++
 	return f.installed, f.where
@@ -87,7 +87,6 @@ func TestServiceManagerNamesTheOneOfThisSystem(t *testing.T) {
 // old process would start a daemon that cannot take the lock and exits, and the task has no
 // keep-alive.
 func TestEndThenRun(t *testing.T) {
-	type call struct{ args string }
 	var order []string
 	runner := func(fail map[string]error) func(context.Context, ...string) ([]byte, error) {
 		return func(_ context.Context, args ...string) ([]byte, error) {

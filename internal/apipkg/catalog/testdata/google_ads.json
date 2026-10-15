@@ -1,0 +1,58 @@
+{
+  "campaign.getAll": {
+    "params": {
+      "managerCustomerId": "111-222-3333",
+      "clientCustomerId": "444-555-6666",
+      "additionalOptions": {
+        "dateRange": "LAST_7_DAYS",
+        "campaignStatus": "ENABLED"
+      }
+    },
+    "credential": {
+      "access_token": "t",
+      "developer_token": "dev"
+    },
+    "response": {
+      "results": [
+        {
+          "campaign": {
+            "id": "1"
+          },
+          "metrics": {
+            "clicks": "3"
+          },
+          "campaignBudget": {
+            "amountMicros": "5"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v25/customers/4445556666/googleAds:search",
+      "headers": {
+        "login-customer-id": "1112223333",
+        "developer-token": "dev"
+      },
+      "body": {
+        "query": "select campaign.id, campaign.name, campaign_budget.amount_micros, campaign_budget.period, campaign.status, campaign.optimization_score, campaign.advertising_channel_type, campaign.advertising_channel_sub_type, metrics.impressions, metrics.interactions, metrics.interaction_rate, metrics.average_cost, metrics.cost_micros, metrics.conversions, metrics.cost_per_conversion, metrics.conversions_from_interactions_rate, metrics.video_trueview_views, metrics.average_cpm, metrics.ctr from campaign where campaign.id > 0 and segments.date DURING LAST_7_DAYS and campaign.status = 'ENABLED'"
+      },
+      "items": 1
+    }
+  },
+  "campaign.get": {
+    "params": {
+      "managerCustomerId": "1112223333",
+      "clientCustomerId": "4445556666",
+      "campaignId": "77",
+      "developerToken": "dev"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v25/customers/4445556666/googleAds:search",
+      "body": {
+        "query": "select campaign.id, campaign.name, campaign_budget.amount_micros, campaign_budget.period, campaign.status, campaign.optimization_score, campaign.advertising_channel_type, campaign.advertising_channel_sub_type, metrics.impressions, metrics.interactions, metrics.interaction_rate, metrics.average_cost, metrics.cost_micros, metrics.conversions, metrics.cost_per_conversion, metrics.conversions_from_interactions_rate, metrics.video_trueview_views, metrics.average_cpm, metrics.ctr from campaign where campaign.id = 77"
+      }
+    }
+  }
+}

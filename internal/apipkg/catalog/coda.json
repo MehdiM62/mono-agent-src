@@ -1,0 +1,780 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "coda",
+  "node_type": "app.coda",
+  "title": "Coda",
+  "description": "Tables, rows, views, formulas and controls in Coda docs",
+  "category": "app",
+  "docs_url": "https://coda.io/developers/apis/v1",
+  "n8n_types": [
+    "n8n-nodes-base.coda"
+  ],
+  "base_url": "https://coda.io/apis/v1",
+  "headers": {
+    "Accept": "application/json"
+  },
+  "credentials": [
+    {
+      "platform": "coda",
+      "name": "Coda",
+      "n8n_credential": "codaApi",
+      "n8n_field_map": {
+        "accessToken": "access_token"
+      },
+      "methods": [
+        "bearer"
+      ],
+      "fields": [
+        {
+          "key": "access_token",
+          "label": "API token",
+          "secret": true,
+          "required": true,
+          "help": "coda.io/account → API settings"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "table",
+      "label": "Table"
+    },
+    {
+      "value": "control",
+      "label": "Control"
+    },
+    {
+      "value": "formula",
+      "label": "Formula"
+    },
+    {
+      "value": "view",
+      "label": "View"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "table",
+      "operation": "createRow",
+      "title": "Insert or upsert rows",
+      "method": "POST",
+      "path": "/docs/{{ p.docId }}/tables/{{ p.tableId }}/rows",
+      "batch": true,
+      "query": {
+        "disableParsing": "{{ p.options.disableParsing | eq:'true' }}"
+      },
+      "body": {
+        "rows": {
+          "$map": "{{ items }}",
+          "$to": {
+            "cells": "{{ el | entries:'column,value' }}"
+          }
+        },
+        "keyColumns": "{{ p.options.keyColumns | split }}"
+      },
+      "description": "Every input item becomes one row; its fields are the cells.",
+      "fields": [
+        {
+          "key": "docId",
+          "label": "Doc ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "tableId",
+          "label": "Table ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "disableParsing",
+            "keyColumns"
+          ],
+          "help": "keyColumns: comma-separated column IDs/names to upsert on"
+        }
+      ]
+    },
+    {
+      "resource": "table",
+      "operation": "deleteRow",
+      "title": "Delete a row",
+      "method": "DELETE",
+      "path": "/docs/{{ p.docId }}/tables/{{ p.tableId }}/rows/{{ p.rowId }}",
+      "fields": [
+        {
+          "key": "docId",
+          "label": "Doc ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "tableId",
+          "label": "Table ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "rowId",
+          "label": "Row ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "table",
+      "operation": "getAllColumns",
+      "title": "Get many columns",
+      "method": "GET",
+      "path": "/docs/{{ p.docId }}/tables/{{ p.tableId }}/columns",
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "nextPageLink",
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": "items"
+      },
+      "output": {
+        "path": "items"
+      },
+      "fields": [
+        {
+          "key": "docId",
+          "label": "Doc ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "tableId",
+          "label": "Table ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Fetch every page instead of stopping at Limit."
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off."
+        }
+      ]
+    },
+    {
+      "resource": "table",
+      "operation": "getAllRows",
+      "title": "Get many rows",
+      "method": "GET",
+      "path": "/docs/{{ p.docId }}/tables/{{ p.tableId }}/rows",
+      "query": {
+        "useColumnNames": "{{ p.options.useColumnNames | default:true }}",
+        "valueFormat": "{{ p.options.valueFormat }}",
+        "sortBy": "{{ p.options.sortBy }}",
+        "query": "{{ p.options.query }}",
+        "visibleOnly": "{{ p.options.visibleOnly | eq:'true' }}"
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "nextPageLink",
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": "items"
+      },
+      "output": {
+        "path": "items",
+        "to": {
+          "id": "{{ el.id }}",
+          "$merge": "{{ el.values }}"
+        },
+        "to_when": "{{ p.options.rawData | ne:'true' }}"
+      },
+      "fields": [
+        {
+          "key": "docId",
+          "label": "Doc ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "tableId",
+          "label": "Table ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Fetch every page instead of stopping at Limit."
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off."
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "query",
+            "rawData",
+            "sortBy",
+            "useColumnNames",
+            "valueFormat",
+            "visibleOnly"
+          ],
+          "help": "rawData: output Coda's full row instead of {id, ...values}; useColumnNames defaults to true"
+        }
+      ]
+    },
+    {
+      "resource": "table",
+      "operation": "getColumn",
+      "title": "Get a column",
+      "method": "GET",
+      "path": "/docs/{{ p.docId }}/tables/{{ p.tableId }}/columns/{{ p.columnId }}",
+      "fields": [
+        {
+          "key": "docId",
+          "label": "Doc ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "tableId",
+          "label": "Table ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "columnId",
+          "label": "Column ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "table",
+      "operation": "getRow",
+      "title": "Get a row",
+      "method": "GET",
+      "path": "/docs/{{ p.docId }}/tables/{{ p.tableId }}/rows/{{ p.rowId }}",
+      "query": {
+        "useColumnNames": "{{ p.options.useColumnNames | default:true }}",
+        "valueFormat": "{{ p.options.valueFormat }}"
+      },
+      "output": {
+        "to": {
+          "id": "{{ el.id }}",
+          "$merge": "{{ el.values }}"
+        },
+        "to_when": "{{ p.options.rawData | ne:'true' }}"
+      },
+      "fields": [
+        {
+          "key": "docId",
+          "label": "Doc ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "tableId",
+          "label": "Table ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "rowId",
+          "label": "Row ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "rawData",
+            "useColumnNames",
+            "valueFormat"
+          ],
+          "help": "rawData: output Coda's full row instead of {id, ...values}; useColumnNames defaults to true"
+        }
+      ]
+    },
+    {
+      "resource": "table",
+      "operation": "pushButton",
+      "title": "Push a button",
+      "method": "POST",
+      "path": "/docs/{{ p.docId }}/tables/{{ p.tableId }}/rows/{{ p.rowId }}/buttons/{{ p.columnId }}",
+      "fields": [
+        {
+          "key": "docId",
+          "label": "Doc ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "tableId",
+          "label": "Table ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "rowId",
+          "label": "Row ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "columnId",
+          "label": "Column ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "formula",
+      "operation": "get",
+      "title": "Get a formula",
+      "method": "GET",
+      "path": "/docs/{{ p.docId }}/formulas/{{ p.formulaId }}",
+      "fields": [
+        {
+          "key": "docId",
+          "label": "Doc ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "formulaId",
+          "label": "Formula ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "formula",
+      "operation": "getAll",
+      "title": "Get many formulas",
+      "method": "GET",
+      "path": "/docs/{{ p.docId }}/formulas",
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "nextPageLink",
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": "items"
+      },
+      "output": {
+        "path": "items"
+      },
+      "fields": [
+        {
+          "key": "docId",
+          "label": "Doc ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Fetch every page instead of stopping at Limit."
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off."
+        }
+      ]
+    },
+    {
+      "resource": "control",
+      "operation": "get",
+      "title": "Get a control",
+      "method": "GET",
+      "path": "/docs/{{ p.docId }}/controls/{{ p.controlId }}",
+      "fields": [
+        {
+          "key": "docId",
+          "label": "Doc ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "controlId",
+          "label": "Control ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "control",
+      "operation": "getAll",
+      "title": "Get many controls",
+      "method": "GET",
+      "path": "/docs/{{ p.docId }}/controls",
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "nextPageLink",
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": "items"
+      },
+      "output": {
+        "path": "items"
+      },
+      "fields": [
+        {
+          "key": "docId",
+          "label": "Doc ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Fetch every page instead of stopping at Limit."
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off."
+        }
+      ]
+    },
+    {
+      "resource": "view",
+      "operation": "get",
+      "title": "Get a view",
+      "method": "GET",
+      "path": "/docs/{{ p.docId }}/tables/{{ p.viewId }}",
+      "fields": [
+        {
+          "key": "docId",
+          "label": "Doc ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "viewId",
+          "label": "View ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "view",
+      "operation": "deleteViewRow",
+      "title": "Delete a view row",
+      "method": "DELETE",
+      "path": "/docs/{{ p.docId }}/tables/{{ p.viewId }}/rows/{{ p.rowId }}",
+      "fields": [
+        {
+          "key": "docId",
+          "label": "Doc ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "viewId",
+          "label": "View ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "rowId",
+          "label": "Row ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "view",
+      "operation": "getAllViewColumns",
+      "title": "Get many view columns",
+      "method": "GET",
+      "path": "/docs/{{ p.docId }}/tables/{{ p.viewId }}/columns",
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "nextPageLink",
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": "items"
+      },
+      "output": {
+        "path": "items"
+      },
+      "fields": [
+        {
+          "key": "docId",
+          "label": "Doc ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "viewId",
+          "label": "View ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Fetch every page instead of stopping at Limit."
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off."
+        }
+      ]
+    },
+    {
+      "resource": "view",
+      "operation": "getAll",
+      "title": "Get many views",
+      "method": "GET",
+      "path": "/docs/{{ p.docId }}/tables",
+      "query": {
+        "tableTypes": "view"
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "nextPageLink",
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": "items"
+      },
+      "output": {
+        "path": "items"
+      },
+      "fields": [
+        {
+          "key": "docId",
+          "label": "Doc ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Fetch every page instead of stopping at Limit."
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off."
+        }
+      ]
+    },
+    {
+      "resource": "view",
+      "operation": "getAllViewRows",
+      "title": "Get many view rows",
+      "method": "GET",
+      "path": "/docs/{{ p.docId }}/tables/{{ p.viewId }}/rows",
+      "query": {
+        "useColumnNames": "{{ p.options.useColumnNames | default:true }}",
+        "valueFormat": "{{ p.options.valueFormat }}",
+        "sortBy": "{{ p.options.sortBy }}",
+        "query": "{{ p.options.query }}"
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "nextPageLink",
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": "items"
+      },
+      "output": {
+        "path": "items",
+        "to": {
+          "id": "{{ el.id }}",
+          "$merge": "{{ el.values }}"
+        },
+        "to_when": "{{ p.options.rawData | ne:'true' }}"
+      },
+      "fields": [
+        {
+          "key": "docId",
+          "label": "Doc ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "viewId",
+          "label": "View ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Fetch every page instead of stopping at Limit."
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off."
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "query",
+            "useColumnNames",
+            "valueFormat",
+            "rawData",
+            "sortBy"
+          ],
+          "help": "rawData: output Coda's full row instead of {id, ...values}; useColumnNames defaults to true"
+        }
+      ]
+    },
+    {
+      "resource": "view",
+      "operation": "pushViewButton",
+      "title": "Push a view button",
+      "method": "POST",
+      "path": "/docs/{{ p.docId }}/tables/{{ p.viewId }}/rows/{{ p.rowId }}/buttons/{{ p.columnId }}",
+      "fields": [
+        {
+          "key": "docId",
+          "label": "Doc ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "viewId",
+          "label": "View ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "rowId",
+          "label": "Row ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "columnId",
+          "label": "Column ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "view",
+      "operation": "updateViewRow",
+      "title": "Update a view row",
+      "method": "PUT",
+      "path": "/docs/{{ p.docId }}/tables/{{ p.viewId }}/rows/{{ p.rowId }}",
+      "query": {
+        "disableParsing": "{{ p.options.disableParsing | eq:'true' }}"
+      },
+      "body": {
+        "row": {
+          "cells": "{{ item | get:p.keyName | entries:'column,value' }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "docId",
+          "label": "Doc ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "viewId",
+          "label": "View ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "rowId",
+          "label": "Row ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "keyName",
+          "label": "Input field with the columns",
+          "type": "text",
+          "required": true,
+          "default": "columns",
+          "help": "Name of the input item's field holding {column: value}"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "disableParsing"
+          ]
+        }
+      ]
+    }
+  ]
+}

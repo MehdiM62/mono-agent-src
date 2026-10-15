@@ -21,7 +21,12 @@
   "use strict";
 
   const PORT_NAME = "monoagent-record";
-  const RECORDER_FILES = ["recorder_privacy.js", "recorder_selectors.js", "recorder_list.js", "recorder_dom.js", "recorder.js"];
+  const RECORDER_FILES = [
+    "recorder_privacy.js", "recorder_selectors.js", "recorder_list.js", "recorder_dom.js", "recorder.js", "recorder_network.js",
+  ];
+  // The fetch/XHR hook runs in the page's own world; recorder_network.js in
+  // RECORDER_FILES is its relay in the isolated one.
+  const NETWORK_HOOK = "recorder_network.js";
   // Analysis runs a model; verify replays the whole action in a browser.
   // Both report progress when the Go side supports it, which keeps the
   // idle timer from firing while they work.
@@ -55,6 +60,17 @@
     const target = frameId == null ? { tabId, allFrames: true } : { tabId, frameIds: [frameId] };
     await chrome.scripting.executeScript({ target, files: RECORDER_FILES });
     if (pick) await setPickInTab(tabId, true, frameId);
+    // API capture is extra: a frame that refuses it is still recorded.
+    try {
+      await chrome.scripting.executeScript({ target, world: "MAIN", files: [NETWORK_HOOK] });
+      await chrome.scripting.executeScript({
+        target,
+        world: "MAIN",
+        func: () => globalThis.MonoRecorderNet && globalThis.MonoRecorderNet.hook(window),
+      });
+    } catch {
+      // the frame closed or is not scriptable
+    }
   }
 
   async function uninject(tabId) {
@@ -62,6 +78,13 @@
       target: { tabId, allFrames: true },
       func: () => globalThis.MonoRecorder && globalThis.MonoRecorder.stopActive(),
     });
+    await chrome.scripting
+      .executeScript({
+        target: { tabId, allFrames: true },
+        world: "MAIN",
+        func: () => globalThis.MonoRecorderNet && globalThis.MonoRecorderNet.unhook(window),
+      })
+      .catch(() => {});
   }
 
   async function setPickInTab(tabId, on, frameId) {
@@ -220,15 +243,19 @@
   function registerMessages() {
     chrome.runtime.onMessage.addListener((msg, sender, respond) => {
       if (!msg || typeof msg.type !== "string") return false;
-      if (!(msg.type in handlers) && msg.type !== "recorder_event") return false;
+      if (!(msg.type in handlers) && msg.type !== "recorder_event" && msg.type !== "recorder_net") return false;
       // Only this extension talks to the recorder: the page recorders (from
       // a tab) send recorder_event / recorder_alive, and only the extension's
       // own pages (the side panel) may drive a recording.
       if (!sender || sender.id !== chrome.runtime.id) return false;
-      const fromPage = msg.type === "recorder_event" || msg.type === "recorder_alive";
+      const fromPage = msg.type === "recorder_event" || msg.type === "recorder_net" || msg.type === "recorder_alive";
       if (fromPage ? !sender.tab : !isExtensionPage(sender)) return false;
       if (msg.type === "recorder_event") {
         later(() => session.event(msg, sender))();
+        return false;
+      }
+      if (msg.type === "recorder_net") {
+        later(() => session.network(msg, sender))();
         return false;
       }
       const handler = handlers[msg.type];
@@ -281,6 +308,8 @@
   root.MonoRecorderWiring = {
     install,
     flush: () => session && session.flush(),
+    // Signed out (background.js): the recording ends; what it recorded stays queued.
+    stop: () => session && later(() => session.stop("error"))(),
     handleFrame: (msg) => !!session && session.handleFrame(msg),
     PORT_NAME,
     RECORDER_FILES,

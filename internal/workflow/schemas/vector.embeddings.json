@@ -1,0 +1,200 @@
+{
+  "credential_platform": null,
+  "fields": [
+    {
+      "key": "provider",
+      "label": "Provider",
+      "type": "select",
+      "required": true,
+      "options": [
+        "openai_compatible",
+        "ollama",
+        "cohere",
+        "gemini",
+        "mistral",
+        "huggingface",
+        "bedrock",
+        "azure_openai",
+        "databricks",
+        "vertex",
+        "oracle"
+      ],
+      "default": "openai_compatible",
+      "help": "openai_compatible also covers OpenRouter-compatible and local servers (vLLM, LM Studio, llama.cpp) through Base URL."
+    },
+    {
+      "key": "credential_id",
+      "label": "Connection",
+      "type": "credential_picker",
+      "required": false,
+      "help": "openai_compatible → openai, ollama → ollama, cohere, gemini → gemini_api, mistral, huggingface, bedrock → aws, azure_openai. Optional for local servers. databricks → databricks or databricks_sp, oracle → oracle, vertex → google_service_account (or a token / the fields below)."
+    },
+    {
+      "key": "model",
+      "label": "Model",
+      "type": "text",
+      "required": false,
+      "placeholder": "text-embedding-3-small",
+      "help": "Empty = the provider's default model. For azure_openai: the deployment name."
+    },
+    {
+      "key": "base_url",
+      "label": "Base URL",
+      "type": "text",
+      "required": false,
+      "placeholder": "http://localhost:11434",
+      "help": "Overrides the provider's endpoint (or the connection's)."
+    },
+    {
+      "key": "batch_size",
+      "label": "Batch Size",
+      "type": "number",
+      "required": false,
+      "default": 100,
+      "min": 1,
+      "help": "Texts per API request."
+    },
+    {
+      "key": "dimensions",
+      "label": "Dimensions",
+      "type": "number",
+      "required": false,
+      "default": 0,
+      "min": 0,
+      "help": "Shorter vectors where the model supports it (OpenAI v3, Gemini, Cohere v4, Titan v2). 0 = model default."
+    },
+    {
+      "key": "input_type",
+      "label": "Cohere Input Type",
+      "type": "text",
+      "required": false,
+      "depends_on": {
+        "key": "provider",
+        "values": [
+          "cohere",
+          "bedrock"
+        ]
+      },
+      "placeholder": "search_document",
+      "help": "Overrides the input type the store picks (documents when inserting, queries when searching)."
+    },
+    {
+      "key": "resource_name",
+      "label": "Azure Resource Name",
+      "type": "text",
+      "required": false,
+      "depends_on": {
+        "key": "provider",
+        "values": [
+          "azure_openai"
+        ]
+      }
+    },
+    {
+      "key": "api_version",
+      "label": "Azure API Version",
+      "type": "text",
+      "required": false,
+      "depends_on": {
+        "key": "provider",
+        "values": [
+          "azure_openai"
+        ]
+      },
+      "placeholder": "2024-10-21"
+    },
+    {
+      "key": "region",
+      "label": "AWS Region",
+      "type": "text",
+      "required": false,
+      "depends_on": {
+        "key": "provider",
+        "values": [
+          "bedrock"
+        ]
+      },
+      "placeholder": "us-east-1"
+    },
+    {
+      "key": "project_id",
+      "label": "Vertex Project ID",
+      "type": "text",
+      "required": false,
+      "depends_on": {
+        "key": "provider",
+        "values": [
+          "vertex"
+        ]
+      }
+    },
+    {
+      "key": "location",
+      "label": "Vertex Location",
+      "type": "text",
+      "required": false,
+      "depends_on": {
+        "key": "provider",
+        "values": [
+          "vertex"
+        ]
+      },
+      "placeholder": "us-central1",
+      "help": "A region, or global, eu, us."
+    },
+    {
+      "key": "client_email",
+      "label": "Service Account Email",
+      "type": "text",
+      "required": false,
+      "depends_on": {
+        "key": "provider",
+        "values": [
+          "vertex"
+        ]
+      },
+      "help": "With Private Key: a cloud-platform token is fetched per run. Or set Access Token."
+    },
+    {
+      "key": "private_key",
+      "label": "Service Account Private Key (PEM)",
+      "type": "textarea",
+      "required": false,
+      "depends_on": {
+        "key": "provider",
+        "values": [
+          "vertex"
+        ]
+      },
+      "help": "Use a vault secret expression rather than pasting the key."
+    },
+    {
+      "key": "access_token",
+      "label": "Access Token",
+      "type": "text",
+      "required": false,
+      "depends_on": {
+        "key": "provider",
+        "values": [
+          "vertex",
+          "databricks"
+        ]
+      },
+      "help": "A ready token; for databricks usually from the connection."
+    },
+    {
+      "key": "connection_string",
+      "label": "Oracle Connection String",
+      "type": "text",
+      "required": false,
+      "depends_on": {
+        "key": "provider",
+        "values": [
+          "oracle"
+        ]
+      },
+      "help": "Usually from the oracle connection."
+    }
+  ],
+  "sub_output": "ai_embedding"
+}

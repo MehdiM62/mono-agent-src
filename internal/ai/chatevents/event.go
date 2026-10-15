@@ -108,6 +108,18 @@ type TurnStartedPayload struct {
 	Runtime string `json:"runtime,omitempty"`
 	Model   string `json:"model,omitempty"`
 	Text    string `json:"text"` // the accepted user message
+	// Attachments are the files attached to a coder turn (`chat --attach`),
+	// as copied into its folder; absent on every other turn.
+	Attachments []TurnAttachment `json:"attachments,omitempty"`
+}
+
+// TurnAttachment is one file attached to a turn: its name, the copy the
+// agent reads, its media type and its size in bytes.
+type TurnAttachment struct {
+	Name string `json:"name"`
+	Path string `json:"path"`
+	Mime string `json:"mime"`
+	Size int64  `json:"size"`
 }
 
 // SessionBoundPayload is session.bound's payload — the runtime-assigned

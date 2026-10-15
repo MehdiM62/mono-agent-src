@@ -3,6 +3,7 @@ package nodes
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"github.com/monoes/mono-agent/internal/personitem"
 	"github.com/monoes/mono-agent/internal/personphoto"
 	"github.com/monoes/mono-agent/internal/util"
+	"github.com/monoes/mono-agent/internal/vault"
 )
 
 // workflowActionStorage implements action.StorageInterface backed by the
@@ -33,6 +35,13 @@ type workflowActionStorage struct {
 	nodeID      string
 	platform    string
 	saved       bool // SaveExtractedData has stored items
+}
+
+// storageProfile is the execution's profile, or "" when ctx carries none (the
+// storage then refuses to persist or count anything).
+func storageProfile(ctx context.Context) string {
+	pid, _ := vault.ProfileIDInContext(ctx)
+	return pid
 }
 
 func (s *workflowActionStorage) UpdateActionState(id, state string) error { return nil }
@@ -65,7 +74,7 @@ func (s *workflowActionStorage) SaveExtractedData(actionID string, items []map[s
 
 	profileID := s.profileID
 	if profileID == "" {
-		profileID = "default"
+		return errNoProfile
 	}
 	now := time.Now().UTC()
 
@@ -209,10 +218,14 @@ func (s *workflowActionStorage) GetDailyActionCount(actionType string) (int, err
 	if s.db == nil {
 		return 0, nil
 	}
+	key, err := s.dailyCounterKey()
+	if err != nil {
+		return 0, err
+	}
 	var count int
-	err := s.db.QueryRow(
+	err = s.db.QueryRow(
 		`SELECT count FROM workflow_daily_counters WHERE profile_key = ? AND node_type = ? AND day = ?`,
-		s.dailyCounterKey(), s.nodeTypeKey(actionType), today(),
+		key, s.nodeTypeKey(actionType), today(),
 	).Scan(&count)
 	if err == sql.ErrNoRows {
 		return 0, nil
@@ -227,23 +240,31 @@ func (s *workflowActionStorage) IncrementDailyActionCount(actionType string) (in
 	if s.db == nil {
 		return 0, nil
 	}
+	key, err := s.dailyCounterKey()
+	if err != nil {
+		return 0, err
+	}
 	if _, err := s.db.Exec(`
 		INSERT INTO workflow_daily_counters (profile_key, node_type, day, count, updated_at)
 		VALUES (?, ?, ?, 1, CURRENT_TIMESTAMP)
 		ON CONFLICT(profile_key, node_type, day) DO UPDATE SET
 		  count = count + 1, updated_at = CURRENT_TIMESTAMP`,
-		s.dailyCounterKey(), s.nodeTypeKey(actionType), today(),
+		key, s.nodeTypeKey(actionType), today(),
 	); err != nil {
 		return 0, fmt.Errorf("nodes: incrementing daily action count: %w", err)
 	}
 	return s.GetDailyActionCount(actionType)
 }
 
-func (s *workflowActionStorage) dailyCounterKey() string {
+// errNoProfile is returned when the storage has no profile: per-profile
+// history and daily caps must never fall into a shared "default" bucket.
+var errNoProfile = errors.New("nodes: action storage has no profile (the node ran without a profile)")
+
+func (s *workflowActionStorage) dailyCounterKey() (string, error) {
 	if s.profileID == "" {
-		return "default"
+		return "", errNoProfile
 	}
-	return s.profileID
+	return s.profileID, nil
 }
 
 func (s *workflowActionStorage) nodeTypeKey(actionType string) string {

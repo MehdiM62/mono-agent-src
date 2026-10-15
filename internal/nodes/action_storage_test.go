@@ -28,7 +28,7 @@ func newTargetsDB(t *testing.T) *sql.DB {
 func TestSaveExtractedDataWithoutWorkflowExecution(t *testing.T) {
 	db := newTargetsDB(t)
 
-	s := &workflowActionStorage{db: db, executionID: "cli", nodeID: "cli-node", platform: "hackernews"}
+	s := &workflowActionStorage{db: db, profileID: "p1", executionID: "cli", nodeID: "cli-node", platform: "hackernews"}
 	items := []map[string]interface{}{{"url": "https://news.ycombinator.com/item?id=1"}}
 	if err := s.SaveExtractedData("a", items); err != nil {
 		t.Fatalf("SaveExtractedData: %v", err)
@@ -53,7 +53,7 @@ func TestSaveExtractedDataAttachesToWorkflowExecution(t *testing.T) {
 		t.Fatalf("seeding execution: %v", err)
 	}
 
-	s := &workflowActionStorage{db: db, executionID: "e1", nodeID: "n1", platform: "hackernews"}
+	s := &workflowActionStorage{db: db, profileID: "p1", executionID: "e1", nodeID: "n1", platform: "hackernews"}
 	if err := s.SaveExtractedData("a", []map[string]interface{}{{"url": "https://news.ycombinator.com/item?id=1"}}); err != nil {
 		t.Fatalf("SaveExtractedData: %v", err)
 	}
@@ -200,5 +200,26 @@ func TestSaveExtractedDataStoresCounts(t *testing.T) {
 	}
 	if followers != 176697 || following != 332 || posts != 10168 {
 		t.Fatalf("counts = %d %d %d", followers, following, posts)
+	}
+}
+
+// With no profile the storage must fail loudly: saving or counting would
+// otherwise land in a shared "default" bucket (and share its daily caps).
+func TestActionStorageWithoutProfileErrors(t *testing.T) {
+	db := newTargetsDB(t)
+	s := &workflowActionStorage{db: db, executionID: "cli", nodeID: "cli-node", platform: "hackernews"}
+
+	if err := s.SaveExtractedData("a", []map[string]interface{}{{"url": "https://news.ycombinator.com/item?id=1"}}); err == nil {
+		t.Error("SaveExtractedData without a profile: want error")
+	}
+	if _, err := s.IncrementDailyActionCount("like"); err == nil {
+		t.Error("IncrementDailyActionCount without a profile: want error")
+	}
+	if _, err := s.GetDailyActionCount("like"); err == nil {
+		t.Error("GetDailyActionCount without a profile: want error")
+	}
+	var n int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM workflow_daily_counters`).Scan(&n); err != nil || n != 0 {
+		t.Errorf("counters rows = %d (%v), want 0", n, err)
 	}
 }

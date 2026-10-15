@@ -86,16 +86,25 @@ func (a *App) runAutomation(sub ...string) string {
 // ListAutomations includes uninstalled built-ins (removed: true) so the
 // page can offer to restore them.
 func (a *App) ListAutomations() string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	return a.runAutomation("automation", "list", "--all")
 }
 
 func (a *App) ShowAutomation(id string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	return a.runAutomationCLI(automationCLITimeout, withPositional([]string{"automation", "show"}, id), requireArg("automation id", id))
 }
 
 // InstallAutomationDryRun returns the install review, including the sha256
 // of the exact bytes reviewed.
 func (a *App) InstallAutomationDryRun(path string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	args, err := automationInstallArgs(path, true, InstallSpec{})
 	return a.runAutomationCLI(automationCLITimeout, args, err)
 }
@@ -103,6 +112,9 @@ func (a *App) InstallAutomationDryRun(path string) string {
 // InstallAutomation installs after the review; specJSON is an InstallSpec
 // carrying the reviewed sha256 and the replace-built-in consent.
 func (a *App) InstallAutomation(path, specJSON string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	var spec InstallSpec
 	if strings.TrimSpace(specJSON) != "" {
 		if err := json.Unmarshal([]byte(specJSON), &spec); err != nil {
@@ -114,20 +126,51 @@ func (a *App) InstallAutomation(path, specJSON string) string {
 }
 
 func (a *App) ExportAutomation(id, path string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	args, err := automationExportArgs(id, path, false)
 	return a.runAutomationCLI(automationCLITimeout, args, err)
 }
 
 func (a *App) ExportAction(ref, path string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	args, err := actionExportArgs(ref, path)
 	return a.runAutomationCLI(automationCLITimeout, args, err)
 }
 
-func (a *App) UninstallAutomation(id string) string { return a.automationLifecycle("uninstall", id) }
-func (a *App) RestoreAutomation(id string) string   { return a.automationLifecycle("restore", id) }
-func (a *App) EnableAutomation(id string) string    { return a.automationLifecycle("enable", id) }
-func (a *App) DisableAutomation(id string) string   { return a.automationLifecycle("disable", id) }
-func (a *App) RollbackAutomation(id string) string  { return a.automationLifecycle("rollback", id) }
+func (a *App) UninstallAutomation(id string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
+	return a.automationLifecycle("uninstall", id)
+}
+func (a *App) RestoreAutomation(id string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
+	return a.automationLifecycle("restore", id)
+}
+func (a *App) EnableAutomation(id string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
+	return a.automationLifecycle("enable", id)
+}
+func (a *App) DisableAutomation(id string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
+	return a.automationLifecycle("disable", id)
+}
+func (a *App) RollbackAutomation(id string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
+	return a.automationLifecycle("rollback", id)
+}
 
 func (a *App) automationLifecycle(verb, id string) string {
 	args, err := automationLifecycleArgs(verb, id)
@@ -137,6 +180,9 @@ func (a *App) automationLifecycle(verb, id string) string {
 // SetAutomationTrust flips one per-package trust choice: flag is scripts,
 // no-scripts, live or no-live (`automation trust`).
 func (a *App) SetAutomationTrust(id, flag string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	args, err := automationTrustArgs(id, flag)
 	return a.runAutomationCLI(automationCLITimeout, args, err)
 }
@@ -149,23 +195,35 @@ const automationRerecordTimeout = 4 * time.Minute
 // selector with the element the user clicks (contracts §9). Errors include
 // "cancelled", "timeout" and "browser bridge not connected".
 func (a *App) RerecordSelector(id, key string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	args, err := automationRerecordArgs(id, key)
 	return a.runAutomationCLI(automationRerecordTimeout, args, err)
 }
 
 // ValidateAutomation validates a package directory or action file.
 func (a *App) ValidateAutomation(path string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	return a.runAutomationCLI(automationCLITimeout, withPositional([]string{"automation", "validate"}, path), requireArg("path", path))
 }
 
 // TestAutomation runs fixture tests (or live ones) for a package or one action.
 func (a *App) TestAutomation(id, action string, live bool) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	args, err := automationTestArgs(id, action, live)
 	return a.runAutomationCLI(automationLongCLITimeout, args, err)
 }
 
 // DoctorAutomations reports selector health and issues; id "" = all.
 func (a *App) DoctorAutomations(id string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	sub := []string{"automation", "doctor"}
 	if id != "" {
 		sub = withPositional(sub, id)
@@ -176,14 +234,23 @@ func (a *App) DoctorAutomations(id string) string {
 // ── Bindings: recordings ───────────────────────────────────────────────────
 
 func (a *App) ListRecordings() string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	return a.runAutomation("record", "list")
 }
 
 func (a *App) ShowRecording(id string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	return a.runAutomationCLI(automationCLITimeout, withPositional([]string{"record", "show"}, id), requireArg("recording id", id))
 }
 
 func (a *App) DeleteRecording(id string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	return a.runAutomationCLI(automationCLITimeout, withPositional([]string{"record", "delete"}, id), requireArg("recording id", id))
 }
 
@@ -192,6 +259,9 @@ func (a *App) DeleteRecording(id string) string {
 // scripts and other advanced steps (`--allow-advanced`), which the page
 // only offers behind a warning.
 func (a *App) AnalyzeRecording(id, automation string, advanced bool) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	args, err := recordAnalyzeArgs(id, automation, advanced)
 	return a.runAutomationCLI(automationLongCLITimeout, args, err)
 }
@@ -202,6 +272,9 @@ func (a *App) AnalyzeRecording(id, automation string, advanced bool) string {
 // recorded). The values go to the CLI in a 0600 file removed afterwards,
 // never on argv.
 func (a *App) VerifyDraft(draftDir string, full bool, inputsJSON string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	inputs := map[string]string{}
 	if strings.TrimSpace(inputsJSON) != "" {
 		if err := json.Unmarshal([]byte(inputsJSON), &inputs); err != nil {
@@ -231,6 +304,9 @@ func (a *App) VerifyDraft(draftDir string, full bool, inputsJSON string) string 
 
 // SaveDraft saves a verified draft; specJSON is a SaveDraftSpec.
 func (a *App) SaveDraft(draftDir, specJSON string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	var spec SaveDraftSpec
 	if strings.TrimSpace(specJSON) != "" {
 		if err := json.Unmarshal([]byte(specJSON), &spec); err != nil {
@@ -246,6 +322,9 @@ func (a *App) SaveDraft(draftDir, specJSON string) string {
 // ChooseAutomationPackage opens a native picker for a .mpkg file and
 // returns its path ("" when cancelled).
 func (a *App) ChooseAutomationPackage() string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	path, err := runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
 		Title:   "Import automation",
 		Filters: []runtime.FileFilter{{DisplayName: "Automation package", Pattern: "*.mpkg"}},
@@ -259,6 +338,9 @@ func (a *App) ChooseAutomationPackage() string {
 // ChooseAutomationExportPath opens a native save dialog for a .mpkg file
 // and returns its path ("" when cancelled).
 func (a *App) ChooseAutomationExportPath(defaultName string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	if defaultName == "" {
 		defaultName = "automation.mpkg"
 	}

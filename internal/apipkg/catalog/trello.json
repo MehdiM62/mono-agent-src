@@ -1,0 +1,1447 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "trello",
+  "node_type": "app.trello",
+  "title": "Trello",
+  "description": "Boards, lists, cards, checklists, labels, comments and attachments in Trello",
+  "category": "app",
+  "docs_url": "https://developer.atlassian.com/cloud/trello/rest/",
+  "n8n_types": [
+    "n8n-nodes-base.trello"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.trelloTrigger"
+  ],
+  "base_url": "https://api.trello.com/1",
+  "credentials": [
+    {
+      "platform": "trello",
+      "name": "Trello",
+      "n8n_credential": "trelloApi",
+      "n8n_field_map": {
+        "apiKey": "api_key",
+        "apiToken": "api_token"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "api_key",
+          "label": "API key",
+          "required": true,
+          "help": "trello.com/power-ups/admin → your Power-Up → API key"
+        },
+        {
+          "key": "api_token",
+          "label": "API token",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "query": {
+          "key": "{{ cred.api_key }}",
+          "token": "{{ cred.api_token }}"
+        }
+      }
+    },
+    {
+      "platform": "trello_oauth1",
+      "name": "Trello (OAuth 1.0a)",
+      "n8n_credential": "trelloOAuth1Api",
+      "n8n_field_map": {
+        "consumerKey": "consumer_key",
+        "consumerSecret": "consumer_secret"
+      },
+      "methods": [
+        "oauth1"
+      ],
+      "fields": [
+        {
+          "key": "consumer_key",
+          "label": "API key",
+          "required": true,
+          "help": "trello.com/power-ups/admin → your Power-Up → API key"
+        },
+        {
+          "key": "consumer_secret",
+          "label": "OAuth secret",
+          "secret": true,
+          "required": true,
+          "help": "Shown under the API key as the secret"
+        },
+        {
+          "key": "oauth_token",
+          "label": "Access token",
+          "secret": true,
+          "required": true,
+          "help": "Filled by `monoagentcli connect` (OAuth 1.0a); paste one only when you have it already"
+        },
+        {
+          "key": "oauth_token_secret",
+          "label": "Access token secret",
+          "secret": true,
+          "required": true,
+          "help": "Filled by `monoagentcli connect` together with the access token"
+        }
+      ],
+      "oauth": {
+        "request_token_url": "https://trello.com/1/OAuthGetRequestToken",
+        "auth_url": "https://trello.com/1/OAuthAuthorizeToken?scope=read,write,account&expiration=never&name=mono-agent",
+        "token_url": "https://trello.com/1/OAuthGetAccessToken"
+      },
+      "inject": {
+        "oauth1": {}
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "card",
+      "label": "Card"
+    },
+    {
+      "value": "attachment",
+      "label": "Attachment"
+    },
+    {
+      "value": "board",
+      "label": "Board"
+    },
+    {
+      "value": "boardMember",
+      "label": "Board member"
+    },
+    {
+      "value": "cardComment",
+      "label": "Card comment"
+    },
+    {
+      "value": "checklist",
+      "label": "Checklist"
+    },
+    {
+      "value": "label",
+      "label": "Label"
+    },
+    {
+      "value": "list",
+      "label": "List"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "card",
+      "operation": "create",
+      "title": "Create a card",
+      "method": "POST",
+      "path": "/cards",
+      "body": {
+        "idList": "{{ p.listId }}",
+        "name": "{{ p.name }}",
+        "desc": "{{ p.description }}",
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "fields": [
+        {
+          "key": "listId",
+          "label": "List ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "description",
+          "label": "Description",
+          "type": "textarea",
+          "default": ""
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "due",
+            "dueComplete",
+            "pos",
+            "idMembers",
+            "idLabels",
+            "urlSource",
+            "idCardSource",
+            "keepFromSource"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "card",
+      "operation": "delete",
+      "title": "Delete a card",
+      "method": "DELETE",
+      "path": "/cards/{{ p.id | rl | re:'trello.com/c/([^/]+)' }}",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Card ID",
+          "type": "text",
+          "required": true,
+          "help": "ID, URL or n8n resource locator"
+        }
+      ]
+    },
+    {
+      "resource": "card",
+      "operation": "get",
+      "title": "Get a card",
+      "method": "GET",
+      "path": "/cards/{{ p.id | rl | re:'trello.com/c/([^/]+)' }}",
+      "query": {
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "Card ID",
+          "type": "text",
+          "required": true,
+          "help": "ID, URL or n8n resource locator"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fields",
+            "board",
+            "board_fields",
+            "customFieldItems",
+            "members",
+            "member_fields",
+            "pluginData",
+            "stickers",
+            "sticker_fields"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "card",
+      "operation": "update",
+      "title": "Update a card",
+      "method": "PUT",
+      "path": "/cards/{{ p.id | rl | re:'trello.com/c/([^/]+)' }}",
+      "query": {
+        "$merge": "{{ p.updateFields }}"
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "Card ID",
+          "type": "text",
+          "required": true,
+          "help": "ID, URL or n8n resource locator"
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "idAttachmentCover",
+            "idBoard",
+            "closed",
+            "desc",
+            "due",
+            "dueComplete",
+            "idLabels",
+            "idList",
+            "idMembers",
+            "name",
+            "pos",
+            "subscribed"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "attachment",
+      "operation": "getAll",
+      "title": "Get many attachments of a card",
+      "method": "GET",
+      "path": "/cards/{{ p.cardId | rl | re:'trello.com/c/([^/]+)' }}/attachments",
+      "query": {
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "fields": [
+        {
+          "key": "cardId",
+          "label": "Card ID",
+          "type": "text",
+          "required": true,
+          "help": "ID, URL or n8n resource locator"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fields"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "attachment",
+      "operation": "create",
+      "title": "Attach a URL to a card",
+      "method": "POST",
+      "path": "/cards/{{ p.cardId | rl | re:'trello.com/c/([^/]+)' }}/attachments",
+      "body": {
+        "url": "{{ p.url }}",
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "fields": [
+        {
+          "key": "cardId",
+          "label": "Card ID",
+          "type": "text",
+          "required": true,
+          "help": "ID, URL or n8n resource locator"
+        },
+        {
+          "key": "url",
+          "label": "URL",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "mimeType",
+            "name"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "attachment",
+      "operation": "delete",
+      "title": "Delete an attachment",
+      "method": "DELETE",
+      "path": "/cards/{{ p.cardId | rl | re:'trello.com/c/([^/]+)' }}/attachments/{{ p.id }}",
+      "fields": [
+        {
+          "key": "cardId",
+          "label": "Card ID",
+          "type": "text",
+          "required": true,
+          "help": "ID, URL or n8n resource locator"
+        },
+        {
+          "key": "id",
+          "label": "Attachment ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "attachment",
+      "operation": "get",
+      "title": "Get an attachment",
+      "method": "GET",
+      "path": "/cards/{{ p.cardId | rl | re:'trello.com/c/([^/]+)' }}/attachments/{{ p.id }}",
+      "query": {
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "fields": [
+        {
+          "key": "cardId",
+          "label": "Card ID",
+          "type": "text",
+          "required": true,
+          "help": "ID, URL or n8n resource locator"
+        },
+        {
+          "key": "id",
+          "label": "Attachment ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fields"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "board",
+      "operation": "create",
+      "title": "Create a board",
+      "method": "POST",
+      "path": "/boards",
+      "body": {
+        "name": "{{ p.name }}",
+        "desc": "{{ p.description }}",
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "description",
+          "label": "Description",
+          "type": "textarea",
+          "default": ""
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "prefs_cardAging",
+            "prefs_background",
+            "prefs_comments",
+            "prefs_cardCovers",
+            "prefs_invitations",
+            "keepFromSource",
+            "defaultLabels",
+            "defaultLists",
+            "idOrganization",
+            "prefs_permissionLevel",
+            "powerUps",
+            "prefs_selfJoin",
+            "idBoardSource",
+            "prefs_voting"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "board",
+      "operation": "delete",
+      "title": "Delete a board",
+      "method": "DELETE",
+      "path": "/boards/{{ p.id | rl | re:'trello.com/b/([^/]+)' }}",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Board ID",
+          "type": "text",
+          "required": true,
+          "help": "ID, URL or n8n resource locator"
+        }
+      ]
+    },
+    {
+      "resource": "board",
+      "operation": "get",
+      "title": "Get a board",
+      "method": "GET",
+      "path": "/boards/{{ p.id | rl | re:'trello.com/b/([^/]+)' }}",
+      "query": {
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "Board ID",
+          "type": "text",
+          "required": true,
+          "help": "ID, URL or n8n resource locator"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fields",
+            "pluginData"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "board",
+      "operation": "update",
+      "title": "Update a board",
+      "method": "PUT",
+      "path": "/boards/{{ p.id | rl | re:'trello.com/b/([^/]+)' }}",
+      "query": {
+        "$merge": "{{ p.updateFields }}"
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "Board ID",
+          "type": "text",
+          "required": true,
+          "help": "ID, URL or n8n resource locator"
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "closed",
+            "desc",
+            "name",
+            "idOrganization",
+            "subscribed"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "boardMember",
+      "operation": "add",
+      "title": "Add a member to a board",
+      "method": "PUT",
+      "path": "/boards/{{ p.id }}/members/{{ p.idMember }}",
+      "query": {
+        "type": "{{ p.type }}",
+        "allowBillableGuest": "{{ p.additionalFields.allowBillableGuest | default:false }}"
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "Board ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "idMember",
+          "label": "Member ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "type",
+          "label": "Type",
+          "type": "select",
+          "required": true,
+          "default": "normal",
+          "options": [
+            "normal",
+            "admin",
+            "observer"
+          ]
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "allowBillableGuest"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "boardMember",
+      "operation": "getAll",
+      "title": "Get many members of a board",
+      "method": "GET",
+      "path": "/boards/{{ p.id }}/members",
+      "query": {
+        "sort": "{{ p.returnAll | eq:'true' | then:'-id' }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "before",
+        "cursor_path": "-1.id",
+        "limit_param": "limit",
+        "page_size": 30,
+        "results_path": ""
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "Board ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 20,
+          "min": 1
+        }
+      ]
+    },
+    {
+      "resource": "boardMember",
+      "operation": "invite",
+      "title": "Invite a member to a board by email",
+      "method": "PUT",
+      "path": "/boards/{{ p.id }}/members",
+      "query": {
+        "email": "{{ p.email }}",
+        "type": "{{ p.additionalFields.type }}"
+      },
+      "body": {
+        "fullName": "{{ p.additionalFields.fullName }}"
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "Board ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "type",
+            "fullName"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "boardMember",
+      "operation": "remove",
+      "title": "Remove a member from a board",
+      "method": "DELETE",
+      "path": "/boards/{{ p.id }}/members/{{ p.idMember }}",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Board ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "idMember",
+          "label": "Member ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "cardComment",
+      "operation": "create",
+      "title": "Comment on a card",
+      "method": "POST",
+      "path": "/cards/{{ p.cardId | rl | re:'trello.com/c/([^/]+)' }}/actions/comments",
+      "body": {
+        "text": "{{ p.text }}"
+      },
+      "fields": [
+        {
+          "key": "cardId",
+          "label": "Card ID",
+          "type": "text",
+          "required": true,
+          "help": "ID, URL or n8n resource locator"
+        },
+        {
+          "key": "text",
+          "label": "Text",
+          "type": "textarea",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "cardComment",
+      "operation": "delete",
+      "title": "Delete a comment",
+      "method": "DELETE",
+      "path": "/cards/{{ p.cardId | rl | re:'trello.com/c/([^/]+)' }}/actions/{{ p.commentId }}/comments",
+      "fields": [
+        {
+          "key": "cardId",
+          "label": "Card ID",
+          "type": "text",
+          "required": true,
+          "help": "ID, URL or n8n resource locator"
+        },
+        {
+          "key": "commentId",
+          "label": "Comment ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "cardComment",
+      "operation": "update",
+      "title": "Update a comment",
+      "method": "PUT",
+      "path": "/cards/{{ p.cardId | rl | re:'trello.com/c/([^/]+)' }}/actions/{{ p.commentId }}/comments",
+      "query": {
+        "text": "{{ p.text }}"
+      },
+      "fields": [
+        {
+          "key": "cardId",
+          "label": "Card ID",
+          "type": "text",
+          "required": true,
+          "help": "ID, URL or n8n resource locator"
+        },
+        {
+          "key": "commentId",
+          "label": "Comment ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "text",
+          "label": "Text",
+          "type": "textarea",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "checklist",
+      "operation": "getAll",
+      "title": "Get the checklists of a card",
+      "method": "GET",
+      "path": "/cards/{{ p.cardId | rl | re:'trello.com/c/([^/]+)' }}/checklists",
+      "query": {
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "fields": [
+        {
+          "key": "cardId",
+          "label": "Card ID",
+          "type": "text",
+          "required": true,
+          "help": "ID, URL or n8n resource locator"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fields"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "checklist",
+      "operation": "create",
+      "title": "Create a checklist on a card",
+      "method": "POST",
+      "path": "/cards/{{ p.cardId | rl | re:'trello.com/c/([^/]+)' }}/checklists",
+      "body": {
+        "name": "{{ p.name }}",
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "fields": [
+        {
+          "key": "cardId",
+          "label": "Card ID",
+          "type": "text",
+          "required": true,
+          "help": "ID, URL or n8n resource locator"
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "idChecklistSource",
+            "pos"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "checklist",
+      "operation": "createCheckItem",
+      "title": "Create a checklist item",
+      "method": "POST",
+      "path": "/checklists/{{ p.checklistId }}/checkItems",
+      "body": {
+        "name": "{{ p.name }}",
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "fields": [
+        {
+          "key": "checklistId",
+          "label": "Checklist ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "checked",
+            "pos"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "checklist",
+      "operation": "delete",
+      "title": "Delete a checklist",
+      "method": "DELETE",
+      "path": "/cards/{{ p.cardId | rl | re:'trello.com/c/([^/]+)' }}/checklists/{{ p.id }}",
+      "fields": [
+        {
+          "key": "cardId",
+          "label": "Card ID",
+          "type": "text",
+          "required": true,
+          "help": "ID, URL or n8n resource locator"
+        },
+        {
+          "key": "id",
+          "label": "Checklist ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "checklist",
+      "operation": "deleteCheckItem",
+      "title": "Delete a checklist item",
+      "method": "DELETE",
+      "path": "/cards/{{ p.cardId | rl | re:'trello.com/c/([^/]+)' }}/checkItem/{{ p.checkItemId }}",
+      "fields": [
+        {
+          "key": "cardId",
+          "label": "Card ID",
+          "type": "text",
+          "required": true,
+          "help": "ID, URL or n8n resource locator"
+        },
+        {
+          "key": "checkItemId",
+          "label": "Checklist item ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "checklist",
+      "operation": "get",
+      "title": "Get a checklist",
+      "method": "GET",
+      "path": "/checklists/{{ p.id }}",
+      "query": {
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "Checklist ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fields"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "checklist",
+      "operation": "getCheckItem",
+      "title": "Get a checklist item",
+      "method": "GET",
+      "path": "/cards/{{ p.cardId | rl | re:'trello.com/c/([^/]+)' }}/checkItem/{{ p.checkItemId }}",
+      "query": {
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "fields": [
+        {
+          "key": "cardId",
+          "label": "Card ID",
+          "type": "text",
+          "required": true,
+          "help": "ID, URL or n8n resource locator"
+        },
+        {
+          "key": "checkItemId",
+          "label": "Checklist item ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fields"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "checklist",
+      "operation": "completedCheckItems",
+      "title": "Get completed checklist items",
+      "method": "GET",
+      "path": "/cards/{{ p.cardId | rl | re:'trello.com/c/([^/]+)' }}/checkItemStates",
+      "query": {
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "fields": [
+        {
+          "key": "cardId",
+          "label": "Card ID",
+          "type": "text",
+          "required": true,
+          "help": "ID, URL or n8n resource locator"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fields"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "checklist",
+      "operation": "updateCheckItem",
+      "title": "Update a checklist item",
+      "method": "PUT",
+      "path": "/cards/{{ p.cardId | rl | re:'trello.com/c/([^/]+)' }}/checkItem/{{ p.checkItemId }}",
+      "query": {
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "fields": [
+        {
+          "key": "cardId",
+          "label": "Card ID",
+          "type": "text",
+          "required": true,
+          "help": "ID, URL or n8n resource locator"
+        },
+        {
+          "key": "checkItemId",
+          "label": "Checklist item ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "name",
+            "state",
+            "checklistId",
+            "pos"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "label",
+      "operation": "getAll",
+      "title": "Get many labels of a board",
+      "method": "GET",
+      "path": "/board/{{ p.boardId | rl | re:'trello.com/b/([^/]+)' }}/labels",
+      "query": {
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "fields": [
+        {
+          "key": "boardId",
+          "label": "Board ID",
+          "type": "text",
+          "required": true,
+          "help": "ID, URL or n8n resource locator"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fields"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "label",
+      "operation": "addLabel",
+      "title": "Add a label to a card",
+      "method": "POST",
+      "path": "/cards/{{ p.cardId | rl | re:'trello.com/c/([^/]+)' }}/idLabels",
+      "body": {
+        "value": "{{ p.id }}"
+      },
+      "fields": [
+        {
+          "key": "cardId",
+          "label": "Card ID",
+          "type": "text",
+          "required": true,
+          "help": "ID, URL or n8n resource locator"
+        },
+        {
+          "key": "id",
+          "label": "Label ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "label",
+      "operation": "create",
+      "title": "Create a label",
+      "method": "POST",
+      "path": "/labels",
+      "body": {
+        "idBoard": "{{ p.boardId | rl | re:'trello.com/b/([^/]+)' }}",
+        "name": "{{ p.name }}",
+        "color": "{{ p.color }}"
+      },
+      "fields": [
+        {
+          "key": "boardId",
+          "label": "Board ID",
+          "type": "text",
+          "required": true,
+          "help": "ID, URL or n8n resource locator"
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "color",
+          "label": "Color",
+          "type": "select",
+          "required": true,
+          "default": "null",
+          "options": [
+            "black",
+            "blue",
+            "green",
+            "lime",
+            "null",
+            "orange",
+            "pink",
+            "purple",
+            "red",
+            "sky",
+            "yellow"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "label",
+      "operation": "delete",
+      "title": "Delete a label",
+      "method": "DELETE",
+      "path": "/labels/{{ p.id }}",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Label ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "label",
+      "operation": "get",
+      "title": "Get a label",
+      "method": "GET",
+      "path": "/labels/{{ p.id }}",
+      "query": {
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "Label ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fields"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "label",
+      "operation": "removeLabel",
+      "title": "Remove a label from a card",
+      "method": "DELETE",
+      "path": "/cards/{{ p.cardId | rl | re:'trello.com/c/([^/]+)' }}/idLabels/{{ p.id }}",
+      "fields": [
+        {
+          "key": "cardId",
+          "label": "Card ID",
+          "type": "text",
+          "required": true,
+          "help": "ID, URL or n8n resource locator"
+        },
+        {
+          "key": "id",
+          "label": "Label ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "label",
+      "operation": "update",
+      "title": "Update a label",
+      "method": "PUT",
+      "path": "/labels/{{ p.id }}",
+      "query": {
+        "$merge": "{{ p.updateFields }}"
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "Label ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "name",
+            "color"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "list",
+      "operation": "create",
+      "title": "Create a list",
+      "method": "POST",
+      "path": "/lists",
+      "body": {
+        "idBoard": "{{ p.idBoard }}",
+        "name": "{{ p.name }}",
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "fields": [
+        {
+          "key": "idBoard",
+          "label": "Board ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "idListSource",
+            "pos"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "list",
+      "operation": "archive",
+      "title": "Archive or unarchive a list",
+      "method": "PUT",
+      "path": "/lists/{{ p.id }}/closed",
+      "query": {
+        "value": "{{ p.archive | default:false }}"
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "List ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "archive",
+          "label": "Archive",
+          "type": "boolean",
+          "default": false
+        }
+      ]
+    },
+    {
+      "resource": "list",
+      "operation": "get",
+      "title": "Get a list",
+      "method": "GET",
+      "path": "/lists/{{ p.id }}",
+      "query": {
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "List ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fields"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "list",
+      "operation": "getCards",
+      "title": "Get the cards of a list",
+      "method": "GET",
+      "path": "/lists/{{ p.id }}/cards",
+      "query": {
+        "$merge": "{{ p.additionalFields }}",
+        "sort": "{{ p.returnAll | eq:'true' | then:'-id' }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "before",
+        "cursor_path": "-1.id",
+        "limit_param": "limit",
+        "page_size": 30,
+        "results_path": ""
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "List ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 20,
+          "min": 1
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fields"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "list",
+      "operation": "getAll",
+      "title": "Get many lists of a board",
+      "method": "GET",
+      "path": "/boards/{{ p.id }}/lists",
+      "query": {
+        "$merge": "{{ p.additionalFields }}",
+        "limit": "{{ p.returnAll | ne:'true' | then:p.limit }}"
+      },
+      "output": {
+        "limit": true
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "Board ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 20,
+          "min": 1
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fields"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "list",
+      "operation": "update",
+      "title": "Update a list",
+      "method": "PUT",
+      "path": "/lists/{{ p.id }}",
+      "query": {
+        "$merge": "{{ p.updateFields }}"
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "List ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "idBoard",
+            "closed",
+            "name",
+            "pos",
+            "subscribed"
+          ]
+        }
+      ]
+    }
+  ],
+  "webhook": {
+    "fields": [
+      {
+        "key": "id",
+        "label": "Model ID",
+        "type": "text",
+        "required": true,
+        "help": "The board, list or card to watch"
+      }
+    ],
+    "create": [
+      {
+        "method": "POST",
+        "path": "/webhooks",
+        "body": {
+          "description": "mono-agent webhook - {{ p.id }}",
+          "callbackURL": "{{ hook.url }}",
+          "idModel": "{{ p.id }}"
+        }
+      }
+    ],
+    "id": "{{ res.id }}",
+    "delete": [
+      {
+        "method": "DELETE",
+        "path": "/webhooks/{{ hook.id }}"
+      }
+    ],
+    "check": {
+      "method": "GET",
+      "path": "/webhooks/{{ hook.id }}"
+    }
+  }
+}

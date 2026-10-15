@@ -1,0 +1,59 @@
+{
+  "send": {
+    "params": {
+      "fromEmail": "a@x.io",
+      "toEmail": "b@x.io",
+      "subject": "Hi",
+      "text": "hello",
+      "tags": "t1, t2",
+      "replyTo": "r@x.io",
+      "customHeaders": {
+        "headers": [
+          {
+            "name": "X-One",
+            "value": "1"
+          }
+        ]
+      },
+      "attachments": "data, data2"
+    },
+    "credential": {
+      "api_domain": "api.mailgun.net",
+      "email_domain": "mg.x.io",
+      "api_key": "k"
+    },
+    "response": {
+      "id": "<1>",
+      "message": "Queued"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v3/mg.x.io/messages",
+      "body": {
+        "from": "a@x.io",
+        "to": "b@x.io",
+        "subject": "Hi",
+        "text": "hello",
+        "o:tag": "t2",
+        "h:Reply-To": "r@x.io",
+        "h:X-One": "1",
+        "attachment": "file:b.txt:yo"
+      },
+      "items": 1
+    },
+    "input": {
+      "binary": {
+        "data": {
+          "data": "aGk=",
+          "fileName": "a.txt",
+          "mimeType": "text/plain"
+        },
+        "data2": {
+          "data": "eW8=",
+          "fileName": "b.txt",
+          "mimeType": "text/plain"
+        }
+      }
+    }
+  }
+}

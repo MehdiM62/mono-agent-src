@@ -1,0 +1,2646 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "hubspot",
+  "extends": "service.hubspot",
+  "title": "HubSpot",
+  "description": "Contacts, contact lists, companies, deals, engagements, forms and tickets in HubSpot (n8n operations)",
+  "category": "app",
+  "docs_url": "https://developers.hubspot.com/docs/api/overview",
+  "n8n_types": [
+    "n8n-nodes-base.hubspot"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.hubspotTrigger"
+  ],
+  "base_url": "https://api.hubapi.com",
+  "headers": {
+    "Accept": "application/json"
+  },
+  "credentials": [
+    {
+      "platform": "hubspot",
+      "reuse_platform": "hubspot",
+      "name": "HubSpot",
+      "n8n_credential": "hubspotAppToken",
+      "n8n_credential_alt": [
+        "hubspotOAuth2Api",
+        "hubspotApi"
+      ],
+      "n8n_field_map": {
+        "appToken": "access_token",
+        "apiKey": "access_token"
+      },
+      "methods": [
+        "bearer",
+        "oauth"
+      ],
+      "fields": [
+        {
+          "key": "access_token",
+          "label": "Private app access token",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    },
+    {
+      "platform": "hubspot_developer",
+      "name": "HubSpot developer app",
+      "n8n_credential": "hubspotDeveloperApi",
+      "n8n_field_map": {
+        "apiKey": "developer_api_key",
+        "appId": "app_id",
+        "clientSecret": "client_secret"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "developer_api_key",
+          "label": "Developer API key",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "app_id",
+          "label": "App ID",
+          "required": true
+        },
+        {
+          "key": "client_secret",
+          "label": "App client secret",
+          "secret": true,
+          "help": "Checks the deliveries' X-HubSpot-Signature-v3"
+        }
+      ],
+      "inject": {
+        "query": {
+          "hapikey": "{{ cred.developer_api_key }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "contact",
+      "label": "Contact"
+    },
+    {
+      "value": "contactList",
+      "label": "Contact List"
+    },
+    {
+      "value": "company",
+      "label": "Company"
+    },
+    {
+      "value": "deal",
+      "label": "Deal"
+    },
+    {
+      "value": "engagement",
+      "label": "Engagement"
+    },
+    {
+      "value": "form",
+      "label": "Form"
+    },
+    {
+      "value": "ticket",
+      "label": "Ticket"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "contact",
+      "operation": "upsert",
+      "title": "Create or update a contact",
+      "method": "POST",
+      "path": "/contacts/v1/contact/createOrUpdate/email/{{ p.email }}",
+      "fields": [
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "annualRevenue",
+            "associatedCompanyId",
+            "buyingRole",
+            "city",
+            "clickedFacebookAd",
+            "closeDate",
+            "companyName",
+            "companySize",
+            "contactOwner",
+            "country",
+            "countryRegionCode",
+            "customPropertiesUi",
+            "dateOfBirth",
+            "degree",
+            "description",
+            "emailCustomerQuarantinedReason",
+            "employmentRole",
+            "employmentSeniority",
+            "employmentSubRole",
+            "enrichedEmailBounceDetected",
+            "facebookClickId",
+            "faxNumber",
+            "fieldOfStudy",
+            "firstName",
+            "gender",
+            "googleAdClickId",
+            "graduationDate",
+            "industry",
+            "inferredLanguageCodes",
+            "jobFunction",
+            "jobTitle",
+            "lastName",
+            "latestTrafficSource",
+            "latestTrafficSourceDate",
+            "leadStatus",
+            "lifeCycleStage",
+            "linkedinUrl",
+            "maritalStatus",
+            "memberEmail",
+            "membershipNote",
+            "message",
+            "militaryStatus",
+            "mobilePhoneNumber",
+            "numberOfEmployees",
+            "originalSource",
+            "persona",
+            "phoneNumber",
+            "postalCode",
+            "prefferedLanguage",
+            "processingContactData",
+            "properties",
+            "prospectingAgentLastEnrolled",
+            "prospectingAgentTotalEnrolledCount",
+            "relationshipStatus",
+            "salutation",
+            "school",
+            "seniority",
+            "startDate",
+            "stateRegion",
+            "stateRegionCode",
+            "status",
+            "streetAddress",
+            "timeZone",
+            "twitterUsername",
+            "websiteUrl",
+            "whatsappPhoneNumber",
+            "workEmail"
+          ],
+          "help": "customPropertiesUi: {\"customPropertiesValues\": [{property, value}]}; properties: list returned after the upsert"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "resolveData"
+          ],
+          "help": "resolveData true returns the upsert response instead of the full profile"
+        }
+      ],
+      "body": {
+        "properties": {
+          "$concat": [
+            [
+              {
+                "$when": "{{ p.additionalFields.buyingRole }}",
+                "property": "hs_buying_role",
+                "value": "{{ p.additionalFields.buyingRole | csv | replace:',',';' }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.annualRevenue }}",
+                "property": "annualrevenue",
+                "value": "{{ p.additionalFields.annualRevenue | string }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.city }}",
+                "property": "city",
+                "value": "{{ p.additionalFields.city }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.clickedFacebookAd }}",
+                "property": "hs_facebook_ad_clicked",
+                "value": "{{ p.additionalFields.clickedFacebookAd }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.closeDate }}",
+                "property": "closedate",
+                "value": "{{ p.additionalFields.closeDate | epoch_ms }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.companyName }}",
+                "property": "company",
+                "value": "{{ p.additionalFields.companyName }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.companySize }}",
+                "property": "company_size",
+                "value": "{{ p.additionalFields.companySize }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.description }}",
+                "property": "description",
+                "value": "{{ p.additionalFields.description }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.contactOwner }}",
+                "property": "hubspot_owner_id",
+                "value": "{{ p.additionalFields.contactOwner }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.country }}",
+                "property": "country",
+                "value": "{{ p.additionalFields.country }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.dateOfBirth }}",
+                "property": "date_of_birth",
+                "value": "{{ p.additionalFields.dateOfBirth }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.degree }}",
+                "property": "degree",
+                "value": "{{ p.additionalFields.degree }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.facebookClickId }}",
+                "property": "hs_facebook_click_id",
+                "value": "{{ p.additionalFields.facebookClickId }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.faxNumber }}",
+                "property": "fax",
+                "value": "{{ p.additionalFields.faxNumber }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.fieldOfStudy }}",
+                "property": "field_of_study",
+                "value": "{{ p.additionalFields.fieldOfStudy }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.firstName }}",
+                "property": "firstname",
+                "value": "{{ p.additionalFields.firstName }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.gender }}",
+                "property": "gender",
+                "value": "{{ p.additionalFields.gender }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.googleAdClickId }}",
+                "property": "hs_google_click_id",
+                "value": "{{ p.additionalFields.googleAdClickId }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.graduationDate }}",
+                "property": "graduation_date",
+                "value": "{{ p.additionalFields.graduationDate }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.industry }}",
+                "property": "industry",
+                "value": "{{ p.additionalFields.industry }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.jobFunction }}",
+                "property": "job_function",
+                "value": "{{ p.additionalFields.jobFunction }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.jobTitle }}",
+                "property": "jobtitle",
+                "value": "{{ p.additionalFields.jobTitle }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.lastName }}",
+                "property": "lastname",
+                "value": "{{ p.additionalFields.lastName }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.leadStatus }}",
+                "property": "hs_lead_status",
+                "value": "{{ p.additionalFields.leadStatus }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.processingContactData }}",
+                "property": "hs_legal_basis",
+                "value": "{{ p.additionalFields.processingContactData }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.lifeCycleStage }}",
+                "property": "lifecyclestage",
+                "value": "{{ p.additionalFields.lifeCycleStage }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.maritalStatus }}",
+                "property": "marital_status",
+                "value": "{{ p.additionalFields.maritalStatus }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.membershipNote }}",
+                "property": "hs_content_membership_notes",
+                "value": "{{ p.additionalFields.membershipNote }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.message }}",
+                "property": "message",
+                "value": "{{ p.additionalFields.message }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.mobilePhoneNumber }}",
+                "property": "mobilephone",
+                "value": "{{ p.additionalFields.mobilePhoneNumber }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.numberOfEmployees }}",
+                "property": "numemployees",
+                "value": "{{ p.additionalFields.numberOfEmployees }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.originalSource }}",
+                "property": "hs_analytics_source",
+                "value": "{{ p.additionalFields.originalSource }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.phoneNumber }}",
+                "property": "phone",
+                "value": "{{ p.additionalFields.phoneNumber }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.postalCode }}",
+                "property": "zip",
+                "value": "{{ p.additionalFields.postalCode }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.prefferedLanguage }}",
+                "property": "hs_language",
+                "value": "{{ p.additionalFields.prefferedLanguage }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.relationshipStatus }}",
+                "property": "relationship_status",
+                "value": "{{ p.additionalFields.relationshipStatus }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.salutation }}",
+                "property": "salutation",
+                "value": "{{ p.additionalFields.salutation }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.school }}",
+                "property": "school",
+                "value": "{{ p.additionalFields.school }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.seniority }}",
+                "property": "seniority",
+                "value": "{{ p.additionalFields.seniority }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.startDate }}",
+                "property": "start_date",
+                "value": "{{ p.additionalFields.startDate }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.stateRegion }}",
+                "property": "state",
+                "value": "{{ p.additionalFields.stateRegion }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.status }}",
+                "property": "hs_content_membership_status",
+                "value": "{{ p.additionalFields.status }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.streetAddress }}",
+                "property": "address",
+                "value": "{{ p.additionalFields.streetAddress }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.twitterUsername }}",
+                "property": "twitterhandle",
+                "value": "{{ p.additionalFields.twitterUsername }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.websiteUrl }}",
+                "property": "website",
+                "value": "{{ p.additionalFields.websiteUrl }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.workEmail }}",
+                "property": "work_email",
+                "value": "{{ p.additionalFields.workEmail }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.countryRegionCode }}",
+                "property": "hs_country_region_code",
+                "value": "{{ p.additionalFields.countryRegionCode }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.emailCustomerQuarantinedReason }}",
+                "property": "hs_email_customer_quarantined_reason",
+                "value": "{{ p.additionalFields.emailCustomerQuarantinedReason }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.employmentRole }}",
+                "property": "hs_role",
+                "value": "{{ p.additionalFields.employmentRole }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.employmentSeniority }}",
+                "property": "hs_seniority",
+                "value": "{{ p.additionalFields.employmentSeniority }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.employmentSubRole }}",
+                "property": "hs_sub_role",
+                "value": "{{ p.additionalFields.employmentSubRole }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.enrichedEmailBounceDetected }}",
+                "property": "hs_enriched_email_bounce_detected",
+                "value": "{{ p.additionalFields.enrichedEmailBounceDetected }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.inferredLanguageCodes }}",
+                "property": "hs_inferred_language_codes",
+                "value": "{{ p.additionalFields.inferredLanguageCodes }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.latestTrafficSource }}",
+                "property": "hs_latest_source",
+                "value": "{{ p.additionalFields.latestTrafficSource }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.latestTrafficSourceDate }}",
+                "property": "hs_latest_source_timestamp",
+                "value": "{{ p.additionalFields.latestTrafficSourceDate | epoch_ms }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.linkedinUrl }}",
+                "property": "hs_linkedin_url",
+                "value": "{{ p.additionalFields.linkedinUrl }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.memberEmail }}",
+                "property": "hs_content_membership_email",
+                "value": "{{ p.additionalFields.memberEmail }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.militaryStatus }}",
+                "property": "military_status",
+                "value": "{{ p.additionalFields.militaryStatus }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.persona }}",
+                "property": "hs_persona",
+                "value": "{{ p.additionalFields.persona }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.prospectingAgentLastEnrolled }}",
+                "property": "hs_prospecting_agent_last_enrolled",
+                "value": "{{ p.additionalFields.prospectingAgentLastEnrolled | epoch_ms }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.prospectingAgentTotalEnrolledCount }}",
+                "property": "hs_prospecting_agent_total_enrolled_count",
+                "value": "{{ p.additionalFields.prospectingAgentTotalEnrolledCount }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.stateRegionCode }}",
+                "property": "hs_state_code",
+                "value": "{{ p.additionalFields.stateRegionCode }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.timeZone }}",
+                "property": "hs_timezone",
+                "value": "{{ p.additionalFields.timeZone }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.whatsappPhoneNumber }}",
+                "property": "hs_whatsapp_phone_number",
+                "value": "{{ p.additionalFields.whatsappPhoneNumber }}"
+              }
+            ],
+            {
+              "$map": "{{ p.additionalFields.customPropertiesUi.customPropertiesValues }}",
+              "$to": {
+                "property": "{{ el.property }}",
+                "value": "{{ el.value }}"
+              }
+            }
+          ]
+        }
+      },
+      "also": [
+        {
+          "when": "{{ p.additionalFields.associatedCompanyId }}",
+          "method": "PUT",
+          "path": "/crm-associations/v1/associations/create-batch",
+          "body": [
+            {
+              "fromObjectId": "{{ res.vid }}",
+              "toObjectId": "{{ p.additionalFields.associatedCompanyId }}",
+              "category": "HUBSPOT_DEFINED",
+              "definitionId": 1
+            }
+          ]
+        }
+      ],
+      "output": {
+        "expand": {
+          "when": "{{ p.options.resolveData | default:false | ne:'true' }}",
+          "method": "GET",
+          "path": "/contacts/v1/contact/vid/{{ el.vid }}/profile",
+          "query": {
+            "property": "{{ p.additionalFields.properties }}"
+          }
+        }
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "delete",
+      "title": "Delete a contact",
+      "method": "DELETE",
+      "path": "/contacts/v1/contact/vid/{{ p.contactId | rl }}",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true,
+          "help": "Resource locator or ID"
+        }
+      ],
+      "output": {
+        "to": {
+          "vid": "{{ p.contactId | rl }}",
+          "deleted": true
+        }
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "get",
+      "title": "Get a contact",
+      "method": "GET",
+      "path": "/contacts/v1/contact/vid/{{ p.contactId | rl }}/profile",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true,
+          "help": "Resource locator or ID"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "formSubmissionMode",
+            "listMemberships",
+            "propertiesCollection"
+          ],
+          "help": "propertiesCollection: {\"propertiesValues\": {\"properties\": \"a,b\", \"propertyMode\": \"valueAndHistory|valueOnly\"}}"
+        }
+      ],
+      "query": {
+        "formSubmissionMode": "{{ p.additionalFields.formSubmissionMode }}",
+        "showListMemberships": "{{ p.additionalFields.listMemberships | eq:'true' | then:true }}",
+        "properties": "{{ p.additionalFields.propertiesCollection.propertiesValues.properties | split }}",
+        "propertyMode": "{{ p.additionalFields.propertiesCollection.propertiesValues.propertyMode | replace:'valueAndHistory','value_and_history' | replace:'valueOnly','value_only' }}"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "getAll",
+      "title": "Get many contacts",
+      "method": "GET",
+      "path": "/contacts/v1/lists/all/contacts/all",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "formSubmissionMode",
+            "listMemberships",
+            "propertiesCollection"
+          ],
+          "help": "propertiesCollection: {\"propertiesValues\": {\"properties\": \"a,b\", \"propertyMode\": \"valueAndHistory|valueOnly\"}}"
+        }
+      ],
+      "query": {
+        "formSubmissionMode": "{{ p.additionalFields.formSubmissionMode }}",
+        "showListMemberships": "{{ p.additionalFields.listMemberships | eq:'true' | then:true }}",
+        "property": "{{ p.additionalFields.propertiesCollection.propertiesValues.properties | split }}",
+        "propertyMode": "{{ p.additionalFields.propertiesCollection.propertiesValues.propertyMode | replace:'valueAndHistory','value_and_history' | replace:'valueOnly','value_only' }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "vidOffset",
+        "cursor_path": "vid-offset",
+        "has_more_path": "has-more",
+        "limit_param": "count",
+        "page_size": 100,
+        "results_path": "contacts"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "getRecentlyCreatedUpdated",
+      "title": "Get recently created or updated contacts",
+      "method": "GET",
+      "path": "/contacts/v1/lists/recently_updated/contacts/recent",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "formSubmissionMode",
+            "listMemberships",
+            "propertiesCollection"
+          ],
+          "help": "propertiesCollection: {\"propertiesValues\": {\"properties\": \"a,b\", \"propertyMode\": \"valueAndHistory|valueOnly\"}}"
+        }
+      ],
+      "query": {
+        "formSubmissionMode": "{{ p.additionalFields.formSubmissionMode }}",
+        "showListMemberships": "{{ p.additionalFields.listMemberships | eq:'true' | then:true }}",
+        "properties": "{{ p.additionalFields.propertiesCollection.propertiesValues.properties | split }}",
+        "propertyMode": "{{ p.additionalFields.propertiesCollection.propertiesValues.propertyMode | replace:'valueAndHistory','value_and_history' | replace:'valueOnly','value_only' }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "vidOffset",
+        "cursor_path": "vid-offset",
+        "has_more_path": "has-more",
+        "limit_param": "count",
+        "page_size": 100,
+        "results_path": "contacts"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "search",
+      "title": "Search contacts",
+      "method": "POST",
+      "path": "/crm/v3/objects/contacts/search",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "filterGroupsUi",
+          "label": "Filter groups",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "filterGroupsValues"
+          ],
+          "help": "{\"filterGroupsValues\": [{\"filtersUi\": {\"filterValues\": [{\"propertyName\", \"operator\", \"value\"}]}}]} (max 3 groups)"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "direction",
+            "properties",
+            "query",
+            "sortBy"
+          ]
+        }
+      ],
+      "body": {
+        "sorts": [
+          {
+            "propertyName": "{{ p.additionalFields.sortBy | default:'createdate' }}",
+            "direction": "{{ p.additionalFields.direction | default:'DESCENDING' }}"
+          }
+        ],
+        "filterGroups": {
+          "$map": "{{ p.filterGroupsUi.filterGroupsValues }}",
+          "$to": {
+            "filters": {
+              "$map": "{{ el.filtersUi.filterValues }}",
+              "$to": {
+                "$merge": "{{ el | omit:'type,propertyName' }}",
+                "propertyName": "{{ el.propertyName | split:'|' | get:'0' }}"
+              }
+            }
+          }
+        },
+        "properties": "{{ p.additionalFields.properties }}",
+        "query": "{{ p.additionalFields.query }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "after",
+        "cursor_path": "paging.next.after",
+        "limit_param": "limit",
+        "page_size": 100,
+        "param_in": "body",
+        "results_path": "results"
+      }
+    },
+    {
+      "resource": "contactList",
+      "operation": "add",
+      "title": "Add a contact to a list",
+      "method": "POST",
+      "path": "/contacts/v1/lists/{{ p.listId }}/add",
+      "fields": [
+        {
+          "key": "by",
+          "label": "Add by",
+          "type": "select",
+          "default": "email",
+          "options": [
+            "id",
+            "email"
+          ]
+        },
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text"
+        },
+        {
+          "key": "id",
+          "label": "Contact ID",
+          "type": "number"
+        },
+        {
+          "key": "listId",
+          "label": "List ID",
+          "type": "number",
+          "required": true
+        }
+      ],
+      "body": {
+        "emails": [
+          "{{ p.by | eq:'email' | then:p.email }}"
+        ],
+        "vids": [
+          "{{ p.by | eq:'id' | then:(p.id | int) }}"
+        ]
+      }
+    },
+    {
+      "resource": "contactList",
+      "operation": "remove",
+      "title": "Remove a contact from a list",
+      "method": "POST",
+      "path": "/contacts/v1/lists/{{ p.listId }}/remove",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Contact ID",
+          "type": "number",
+          "required": true
+        },
+        {
+          "key": "listId",
+          "label": "List ID",
+          "type": "number",
+          "required": true
+        }
+      ],
+      "body": {
+        "vids": [
+          "{{ p.id | int }}"
+        ]
+      }
+    },
+    {
+      "resource": "company",
+      "operation": "create",
+      "title": "Create a company",
+      "method": "POST",
+      "path": "/companies/v2/companies",
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "aboutUs",
+            "annualRevenue",
+            "city",
+            "closeDate",
+            "companyDomainName",
+            "companyOwner",
+            "countryRegion",
+            "customPropertiesUi",
+            "description",
+            "facebookFans",
+            "googlePlusPage",
+            "industry",
+            "isPublic",
+            "leadStatus",
+            "lifecycleStatus",
+            "linkedInCompanyPage",
+            "linkedinBio",
+            "numberOfEmployees",
+            "originalSourceType",
+            "phoneNumber",
+            "postalCode",
+            "stateRegion",
+            "streetAddress",
+            "streetAddress2",
+            "targetAccount",
+            "timezone",
+            "totalMoneyRaised",
+            "twitterBio",
+            "twitterFollowers",
+            "twitterHandle",
+            "type",
+            "webTechnologies",
+            "websiteUrl",
+            "yearFounded"
+          ]
+        }
+      ],
+      "body": {
+        "properties": {
+          "$concat": [
+            [
+              {
+                "name": "name",
+                "value": "{{ p.name }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.aboutUs }}",
+                "name": "about_us",
+                "value": "{{ p.additionalFields.aboutUs }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.annualRevenue }}",
+                "name": "annualrevenue",
+                "value": "{{ p.additionalFields.annualRevenue | string }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.city }}",
+                "name": "city",
+                "value": "{{ p.additionalFields.city }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.closeDate }}",
+                "name": "closedate",
+                "value": "{{ p.additionalFields.closeDate | epoch_ms }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.companyDomainName }}",
+                "name": "domain",
+                "value": "{{ p.additionalFields.companyDomainName }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.companyOwner }}",
+                "name": "hubspot_owner_id",
+                "value": "{{ p.additionalFields.companyOwner }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.countryRegion }}",
+                "name": "country",
+                "value": "{{ p.additionalFields.countryRegion }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.description }}",
+                "name": "description",
+                "value": "{{ p.additionalFields.description }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.facebookFans }}",
+                "name": "facebookfans",
+                "value": "{{ p.additionalFields.facebookFans }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.googlePlusPage }}",
+                "name": "googleplus_page",
+                "value": "{{ p.additionalFields.googlePlusPage }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.industry }}",
+                "name": "industry",
+                "value": "{{ p.additionalFields.industry }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.isPublic }}",
+                "name": "is_public",
+                "value": "{{ p.additionalFields.isPublic }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.leadStatus }}",
+                "name": "hs_lead_status",
+                "value": "{{ p.additionalFields.leadStatus }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.lifecycleStatus }}",
+                "name": "lifecyclestage",
+                "value": "{{ p.additionalFields.lifecycleStatus }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.linkedinBio }}",
+                "name": "linkedinbio",
+                "value": "{{ p.additionalFields.linkedinBio }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.linkedInCompanyPage }}",
+                "name": "linkedin_company_page",
+                "value": "{{ p.additionalFields.linkedInCompanyPage }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.numberOfEmployees }}",
+                "name": "numberofemployees",
+                "value": "{{ p.additionalFields.numberOfEmployees }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.originalSourceType }}",
+                "name": "hs_analytics_source",
+                "value": "{{ p.additionalFields.originalSourceType }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.phoneNumber }}",
+                "name": "phone",
+                "value": "{{ p.additionalFields.phoneNumber }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.postalCode }}",
+                "name": "zip",
+                "value": "{{ p.additionalFields.postalCode }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.stateRegion }}",
+                "name": "state",
+                "value": "{{ p.additionalFields.stateRegion }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.streetAddress }}",
+                "name": "address",
+                "value": "{{ p.additionalFields.streetAddress }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.streetAddress2 }}",
+                "name": "address2",
+                "value": "{{ p.additionalFields.streetAddress2 }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.targetAccount }}",
+                "name": "hs_target_account",
+                "value": "{{ p.additionalFields.targetAccount }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.timezone }}",
+                "name": "timezone",
+                "value": "{{ p.additionalFields.timezone }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.totalMoneyRaised }}",
+                "name": "total_money_raised",
+                "value": "{{ p.additionalFields.totalMoneyRaised }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.twitterBio }}",
+                "name": "twitterbio",
+                "value": "{{ p.additionalFields.twitterBio }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.twitterFollowers }}",
+                "name": "twitterfollowers",
+                "value": "{{ p.additionalFields.twitterFollowers }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.twitterHandle }}",
+                "name": "twitterhandle",
+                "value": "{{ p.additionalFields.twitterHandle }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.type }}",
+                "name": "type",
+                "value": "{{ p.additionalFields.type }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.websiteUrl }}",
+                "name": "website",
+                "value": "{{ p.additionalFields.websiteUrl }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.webTechnologies }}",
+                "name": "web_technologies",
+                "value": "{{ p.additionalFields.webTechnologies }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.yearFounded }}",
+                "name": "founded_year",
+                "value": "{{ p.additionalFields.yearFounded }}"
+              }
+            ],
+            {
+              "$map": "{{ p.additionalFields.customPropertiesUi.customPropertiesValues }}",
+              "$to": {
+                "name": "{{ el.property }}",
+                "value": "{{ el.value }}"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "resource": "company",
+      "operation": "delete",
+      "title": "Delete a company",
+      "method": "DELETE",
+      "path": "/crm/v3/objects/companies/{{ p.companyId | rl }}",
+      "fields": [
+        {
+          "key": "companyId",
+          "label": "Company ID",
+          "type": "text",
+          "required": true,
+          "help": "Resource locator or ID"
+        }
+      ],
+      "output": {
+        "to": {
+          "vid": "{{ p.companyId | rl }}",
+          "deleted": true
+        }
+      }
+    },
+    {
+      "resource": "company",
+      "operation": "get",
+      "title": "Get a company",
+      "method": "GET",
+      "path": "/companies/v2/companies/{{ p.companyId | rl }}",
+      "fields": [
+        {
+          "key": "companyId",
+          "label": "Company ID",
+          "type": "text",
+          "required": true,
+          "help": "Resource locator or ID"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "includeMergeAudits"
+          ]
+        }
+      ],
+      "query": {
+        "includeMergeAudits": "{{ p.additionalFields.includeMergeAudits | eq:'true' | then:true }}"
+      }
+    },
+    {
+      "resource": "company",
+      "operation": "getAll",
+      "title": "Get many companies",
+      "method": "GET",
+      "path": "/companies/v2/companies/paged",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "includeMergeAudits",
+            "propertiesCollection"
+          ],
+          "help": "propertiesCollection: {\"propertiesValues\": {\"properties\": \"a,b\", \"propertyMode\": \"valueAndHistory|valueOnly\"}}"
+        }
+      ],
+      "query": {
+        "properties": "{{ p.options.propertiesCollection.propertiesValues.properties | split }}",
+        "propertyMode": "{{ p.options.propertiesCollection.propertiesValues.propertyMode | replace:'valueAndHistory','value_and_history' | replace:'valueOnly','value_only' }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "offset",
+        "cursor_path": "offset",
+        "has_more_path": "has-more",
+        "limit_param": "limit",
+        "page_size": 250,
+        "results_path": "companies"
+      }
+    },
+    {
+      "resource": "company",
+      "operation": "getRecentlyCreatedUpdated",
+      "title": "Get recently created or updated companies",
+      "method": "GET",
+      "path": "/companies/v2/companies/recent/modified",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "since",
+            "propertiesCollection"
+          ],
+          "help": "propertiesCollection: {\"propertiesValues\": {\"properties\": \"a,b\", \"propertyMode\": \"valueAndHistory|valueOnly\"}}"
+        }
+      ],
+      "query": {
+        "since": "{{ p.additionalFields.since | epoch_ms }}",
+        "properties": "{{ p.additionalFields.propertiesCollection.propertiesValues.properties | split }}",
+        "propertyMode": "{{ p.additionalFields.propertiesCollection.propertiesValues.propertyMode | replace:'valueAndHistory','value_and_history' | replace:'valueOnly','value_only' }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "offset",
+        "cursor_path": "offset",
+        "has_more_path": "hasMore",
+        "limit_param": "count",
+        "page_size": 100,
+        "results_path": "results"
+      }
+    },
+    {
+      "resource": "company",
+      "operation": "searchByDomain",
+      "title": "Search companies by domain",
+      "method": "POST",
+      "path": "/companies/v2/domains/{{ p.domain | replace:'https://','' | replace:'http://','' }}/companies",
+      "fields": [
+        {
+          "key": "domain",
+          "label": "Domain",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "properties"
+          ]
+        }
+      ],
+      "body": {
+        "!requestOptions": {
+          "properties": "{{ p.options.properties }}"
+        },
+        "limit": "{{ p.returnAll | ne:'true' | then:p.limit | default:100 }}"
+      },
+      "output": {
+        "path": "results",
+        "limit": true
+      }
+    },
+    {
+      "resource": "company",
+      "operation": "update",
+      "title": "Update a company",
+      "method": "PUT",
+      "path": "/companies/v2/companies/{{ p.companyId | rl }}",
+      "fields": [
+        {
+          "key": "companyId",
+          "label": "Company ID",
+          "type": "text",
+          "required": true,
+          "help": "Resource locator or ID"
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "aboutUs",
+            "annualRevenue",
+            "city",
+            "closeDate",
+            "companyDomainName",
+            "companyOwner",
+            "countryRegion",
+            "customPropertiesUi",
+            "description",
+            "facebookFans",
+            "googlePlusPage",
+            "industry",
+            "isPublic",
+            "leadStatus",
+            "lifecycleStatus",
+            "linkedInCompanyPage",
+            "linkedinBio",
+            "name",
+            "numberOfEmployees",
+            "originalSourceType",
+            "phoneNumber",
+            "postalCode",
+            "stateRegion",
+            "streetAddress",
+            "streetAddress2",
+            "targetAccount",
+            "timezone",
+            "totalMoneyRaised",
+            "twitterBio",
+            "twitterFollowers",
+            "twitterHandle",
+            "type",
+            "webTechnologies",
+            "websiteUrl",
+            "yearFounded"
+          ]
+        }
+      ],
+      "body": {
+        "properties": {
+          "$concat": [
+            [
+              {
+                "$when": "{{ p.updateFields.name }}",
+                "name": "name",
+                "value": "{{ p.updateFields.name }}"
+              },
+              {
+                "$when": "{{ p.updateFields.aboutUs }}",
+                "name": "about_us",
+                "value": "{{ p.updateFields.aboutUs }}"
+              },
+              {
+                "$when": "{{ p.updateFields.annualRevenue }}",
+                "name": "annualrevenue",
+                "value": "{{ p.updateFields.annualRevenue | string }}"
+              },
+              {
+                "$when": "{{ p.updateFields.city }}",
+                "name": "city",
+                "value": "{{ p.updateFields.city }}"
+              },
+              {
+                "$when": "{{ p.updateFields.closeDate }}",
+                "name": "closedate",
+                "value": "{{ p.updateFields.closeDate | epoch_ms }}"
+              },
+              {
+                "$when": "{{ p.updateFields.companyDomainName }}",
+                "name": "domain",
+                "value": "{{ p.updateFields.companyDomainName }}"
+              },
+              {
+                "$when": "{{ p.updateFields.companyOwner }}",
+                "name": "hubspot_owner_id",
+                "value": "{{ p.updateFields.companyOwner }}"
+              },
+              {
+                "$when": "{{ p.updateFields.countryRegion }}",
+                "name": "country",
+                "value": "{{ p.updateFields.countryRegion }}"
+              },
+              {
+                "$when": "{{ p.updateFields.description }}",
+                "name": "description",
+                "value": "{{ p.updateFields.description }}"
+              },
+              {
+                "$when": "{{ p.updateFields.facebookFans }}",
+                "name": "facebookfans",
+                "value": "{{ p.updateFields.facebookFans }}"
+              },
+              {
+                "$when": "{{ p.updateFields.googlePlusPage }}",
+                "name": "googleplus_page",
+                "value": "{{ p.updateFields.googlePlusPage }}"
+              },
+              {
+                "$when": "{{ p.updateFields.industry }}",
+                "name": "industry",
+                "value": "{{ p.updateFields.industry }}"
+              },
+              {
+                "$when": "{{ p.updateFields.isPublic }}",
+                "name": "is_public",
+                "value": "{{ p.updateFields.isPublic }}"
+              },
+              {
+                "$when": "{{ p.updateFields.leadStatus }}",
+                "name": "hs_lead_status",
+                "value": "{{ p.updateFields.leadStatus }}"
+              },
+              {
+                "$when": "{{ p.updateFields.lifecycleStatus }}",
+                "name": "lifecyclestage",
+                "value": "{{ p.updateFields.lifecycleStatus }}"
+              },
+              {
+                "$when": "{{ p.updateFields.linkedinBio }}",
+                "name": "linkedinbio",
+                "value": "{{ p.updateFields.linkedinBio }}"
+              },
+              {
+                "$when": "{{ p.updateFields.linkedInCompanyPage }}",
+                "name": "linkedin_company_page",
+                "value": "{{ p.updateFields.linkedInCompanyPage }}"
+              },
+              {
+                "$when": "{{ p.updateFields.numberOfEmployees }}",
+                "name": "numberofemployees",
+                "value": "{{ p.updateFields.numberOfEmployees }}"
+              },
+              {
+                "$when": "{{ p.updateFields.originalSourceType }}",
+                "name": "hs_analytics_source",
+                "value": "{{ p.updateFields.originalSourceType }}"
+              },
+              {
+                "$when": "{{ p.updateFields.phoneNumber }}",
+                "name": "phone",
+                "value": "{{ p.updateFields.phoneNumber }}"
+              },
+              {
+                "$when": "{{ p.updateFields.postalCode }}",
+                "name": "zip",
+                "value": "{{ p.updateFields.postalCode }}"
+              },
+              {
+                "$when": "{{ p.updateFields.stateRegion }}",
+                "name": "state",
+                "value": "{{ p.updateFields.stateRegion }}"
+              },
+              {
+                "$when": "{{ p.updateFields.streetAddress }}",
+                "name": "address",
+                "value": "{{ p.updateFields.streetAddress }}"
+              },
+              {
+                "$when": "{{ p.updateFields.streetAddress2 }}",
+                "name": "address2",
+                "value": "{{ p.updateFields.streetAddress2 }}"
+              },
+              {
+                "$when": "{{ p.updateFields.targetAccount }}",
+                "name": "hs_target_account",
+                "value": "{{ p.updateFields.targetAccount }}"
+              },
+              {
+                "$when": "{{ p.updateFields.timezone }}",
+                "name": "timezone",
+                "value": "{{ p.updateFields.timezone }}"
+              },
+              {
+                "$when": "{{ p.updateFields.totalMoneyRaised }}",
+                "name": "total_money_raised",
+                "value": "{{ p.updateFields.totalMoneyRaised }}"
+              },
+              {
+                "$when": "{{ p.updateFields.twitterBio }}",
+                "name": "twitterbio",
+                "value": "{{ p.updateFields.twitterBio }}"
+              },
+              {
+                "$when": "{{ p.updateFields.twitterFollowers }}",
+                "name": "twitterfollowers",
+                "value": "{{ p.updateFields.twitterFollowers }}"
+              },
+              {
+                "$when": "{{ p.updateFields.twitterHandle }}",
+                "name": "twitterhandle",
+                "value": "{{ p.updateFields.twitterHandle }}"
+              },
+              {
+                "$when": "{{ p.updateFields.type }}",
+                "name": "type",
+                "value": "{{ p.updateFields.type }}"
+              },
+              {
+                "$when": "{{ p.updateFields.websiteUrl }}",
+                "name": "website",
+                "value": "{{ p.updateFields.websiteUrl }}"
+              },
+              {
+                "$when": "{{ p.updateFields.webTechnologies }}",
+                "name": "web_technologies",
+                "value": "{{ p.updateFields.webTechnologies }}"
+              },
+              {
+                "$when": "{{ p.updateFields.yearFounded }}",
+                "name": "founded_year",
+                "value": "{{ p.updateFields.yearFounded }}"
+              }
+            ],
+            {
+              "$map": "{{ p.updateFields.customPropertiesUi.customPropertiesValues }}",
+              "$to": {
+                "name": "{{ el.property }}",
+                "value": "{{ el.value }}"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "resource": "deal",
+      "operation": "create",
+      "title": "Create a deal",
+      "method": "POST",
+      "path": "/deals/v1/deal",
+      "fields": [
+        {
+          "key": "stage",
+          "label": "Deal stage ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "amount",
+            "associatedCompany",
+            "associatedVids",
+            "closeDate",
+            "customPropertiesUi",
+            "dealName",
+            "dealOwner",
+            "dealType",
+            "description",
+            "pipeline"
+          ],
+          "help": "dealOwner: resource locator; associatedCompany/associatedVids: lists of IDs"
+        }
+      ],
+      "body": {
+        "properties": {
+          "$concat": [
+            [
+              {
+                "name": "dealstage",
+                "value": "{{ p.stage }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.dealName }}",
+                "name": "dealname",
+                "value": "{{ p.additionalFields.dealName }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.dealOwner }}",
+                "name": "hubspot_owner_id",
+                "value": "{{ p.additionalFields.dealOwner | rl }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.closeDate }}",
+                "name": "closedate",
+                "value": "{{ p.additionalFields.closeDate | epoch_ms }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.amount }}",
+                "name": "amount",
+                "value": "{{ p.additionalFields.amount }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.dealType }}",
+                "name": "dealtype",
+                "value": "{{ p.additionalFields.dealType }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.pipeline }}",
+                "name": "pipeline",
+                "value": "{{ p.additionalFields.pipeline }}"
+              },
+              {
+                "$when": "{{ p.additionalFields.description }}",
+                "name": "description",
+                "value": "{{ p.additionalFields.description }}"
+              }
+            ],
+            {
+              "$map": "{{ p.additionalFields.customPropertiesUi.customPropertiesValues }}",
+              "$to": {
+                "name": "{{ el.property }}",
+                "value": "{{ el.value }}"
+              }
+            }
+          ]
+        },
+        "!associations": {
+          "associatedCompanyIds": "{{ p.additionalFields.associatedCompany }}",
+          "associatedVids": "{{ p.additionalFields.associatedVids }}"
+        }
+      }
+    },
+    {
+      "resource": "deal",
+      "operation": "delete",
+      "title": "Delete a deal",
+      "method": "DELETE",
+      "path": "/deals/v1/deal/{{ p.dealId | rl }}",
+      "fields": [
+        {
+          "key": "dealId",
+          "label": "Deal ID",
+          "type": "text",
+          "required": true,
+          "help": "Resource locator or ID"
+        }
+      ],
+      "output": {
+        "to": {
+          "vid": "{{ p.dealId | rl }}",
+          "deleted": true
+        }
+      }
+    },
+    {
+      "resource": "deal",
+      "operation": "get",
+      "title": "Get a deal",
+      "method": "GET",
+      "path": "/deals/v1/deal/{{ p.dealId | rl }}",
+      "fields": [
+        {
+          "key": "dealId",
+          "label": "Deal ID",
+          "type": "text",
+          "required": true,
+          "help": "Resource locator or ID"
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "includePropertyVersions",
+            "propertiesCollection"
+          ],
+          "help": "propertiesCollection: {\"propertiesValues\": {\"properties\": \"a,b\", \"propertyMode\": \"valueAndHistory|valueOnly\"}}"
+        }
+      ],
+      "query": {
+        "includePropertyVersions": "{{ p.filters.includePropertyVersions | eq:'true' | then:true }}",
+        "properties": "{{ p.filters.propertiesCollection.propertiesValues.properties | split }}",
+        "propertyMode": "{{ p.filters.propertiesCollection.propertiesValues.propertyMode | replace:'valueAndHistory','value_and_history' | replace:'valueOnly','value_only' }}"
+      }
+    },
+    {
+      "resource": "deal",
+      "operation": "getAll",
+      "title": "Get many deals",
+      "method": "GET",
+      "path": "/deals/v1/deal/paged",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "includeAssociations",
+            "properties",
+            "propertiesWithHistory",
+            "propertiesCollection"
+          ],
+          "help": "propertiesCollection: {\"propertiesValues\": {\"properties\": \"a,b\", \"propertyMode\": \"valueAndHistory|valueOnly\"}}"
+        }
+      ],
+      "query": {
+        "includeAssociations": "{{ p.filters.includeAssociations | eq:'true' | then:true }}",
+        "properties": "{{ p.filters.properties | split | default:(p.filters.propertiesCollection.propertiesValues.properties | split) }}",
+        "propertyMode": "{{ p.filters.propertiesCollection.propertiesValues.propertyMode | replace:'valueAndHistory','value_and_history' | replace:'valueOnly','value_only' }}",
+        "propertiesWithHistory": "{{ p.filters.propertiesWithHistory | split }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "offset",
+        "cursor_path": "offset",
+        "has_more_path": "hasMore",
+        "limit_param": "limit",
+        "page_size": 250,
+        "results_path": "deals"
+      }
+    },
+    {
+      "resource": "deal",
+      "operation": "getRecentlyCreatedUpdated",
+      "title": "Get recently created deals",
+      "method": "GET",
+      "path": "/deals/v1/deal/recent/created",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "since",
+            "includePropertyVersions"
+          ]
+        }
+      ],
+      "query": {
+        "since": "{{ p.filters.since | epoch_ms }}",
+        "includePropertyVersions": "{{ p.filters.includePropertyVersions | eq:'true' | then:true }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "offset",
+        "cursor_path": "offset",
+        "has_more_path": "hasMore",
+        "limit_param": "count",
+        "page_size": 100,
+        "results_path": "results"
+      }
+    },
+    {
+      "resource": "deal",
+      "operation": "search",
+      "title": "Search deals",
+      "method": "POST",
+      "path": "/crm/v3/objects/deals/search",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "filterGroupsUi",
+          "label": "Filter groups",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "filterGroupsValues"
+          ],
+          "help": "{\"filterGroupsValues\": [{\"filtersUi\": {\"filterValues\": [{\"propertyName\", \"operator\", \"value\"}]}}]} (max 3 groups)"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "direction",
+            "properties",
+            "query",
+            "sortBy"
+          ]
+        }
+      ],
+      "body": {
+        "sorts": [
+          {
+            "propertyName": "{{ p.additionalFields.sortBy | default:'createdate' }}",
+            "direction": "{{ p.additionalFields.direction | default:'DESCENDING' }}"
+          }
+        ],
+        "filterGroups": {
+          "$map": "{{ p.filterGroupsUi.filterGroupsValues }}",
+          "$to": {
+            "filters": {
+              "$map": "{{ el.filtersUi.filterValues }}",
+              "$to": {
+                "$merge": "{{ el | omit:'type,propertyName' }}",
+                "propertyName": "{{ el.propertyName | split:'|' | get:'0' }}"
+              }
+            }
+          }
+        },
+        "properties": "{{ p.additionalFields.properties }}",
+        "query": "{{ p.additionalFields.query }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "after",
+        "cursor_path": "paging.next.after",
+        "limit_param": "limit",
+        "page_size": 100,
+        "param_in": "body",
+        "results_path": "results"
+      }
+    },
+    {
+      "resource": "deal",
+      "operation": "update",
+      "title": "Update a deal",
+      "method": "PUT",
+      "path": "/deals/v1/deal/{{ p.dealId | rl }}",
+      "fields": [
+        {
+          "key": "dealId",
+          "label": "Deal ID",
+          "type": "text",
+          "required": true,
+          "help": "Resource locator or ID"
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "amount",
+            "closeDate",
+            "customPropertiesUi",
+            "dealName",
+            "dealOwner",
+            "dealType",
+            "description",
+            "pipeline",
+            "stage"
+          ]
+        }
+      ],
+      "body": {
+        "properties": {
+          "$concat": [
+            [
+              {
+                "$when": "{{ p.updateFields.stage }}",
+                "name": "dealstage",
+                "value": "{{ p.updateFields.stage }}"
+              },
+              {
+                "$when": "{{ p.updateFields.dealName }}",
+                "name": "dealname",
+                "value": "{{ p.updateFields.dealName }}"
+              },
+              {
+                "$when": "{{ p.updateFields.dealOwner }}",
+                "name": "hubspot_owner_id",
+                "value": "{{ p.updateFields.dealOwner | rl }}"
+              },
+              {
+                "$when": "{{ p.updateFields.closeDate }}",
+                "name": "closedate",
+                "value": "{{ p.updateFields.closeDate | epoch_ms }}"
+              },
+              {
+                "$when": "{{ p.updateFields.amount }}",
+                "name": "amount",
+                "value": "{{ p.updateFields.amount }}"
+              },
+              {
+                "$when": "{{ p.updateFields.dealType }}",
+                "name": "dealtype",
+                "value": "{{ p.updateFields.dealType }}"
+              },
+              {
+                "$when": "{{ p.updateFields.pipeline }}",
+                "name": "pipeline",
+                "value": "{{ p.updateFields.pipeline }}"
+              },
+              {
+                "$when": "{{ p.updateFields.description }}",
+                "name": "description",
+                "value": "{{ p.updateFields.description }}"
+              }
+            ],
+            {
+              "$map": "{{ p.updateFields.customPropertiesUi.customPropertiesValues }}",
+              "$to": {
+                "name": "{{ el.property }}",
+                "value": "{{ el.value }}"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "resource": "engagement",
+      "operation": "create",
+      "title": "Create an engagement",
+      "method": "POST",
+      "path": "/engagements/v1/engagements",
+      "fields": [
+        {
+          "key": "type",
+          "label": "Type",
+          "type": "select",
+          "required": true,
+          "default": "",
+          "options": [
+            "call",
+            "email",
+            "meeting",
+            "task"
+          ]
+        },
+        {
+          "key": "dueDate",
+          "label": "Due date (task)",
+          "type": "datetime"
+        },
+        {
+          "key": "metadata",
+          "label": "Metadata",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "body",
+            "forObjectType",
+            "status",
+            "subject",
+            "bcc",
+            "cc",
+            "fromEmail",
+            "firstName",
+            "lastName",
+            "html",
+            "toEmail",
+            "endTime",
+            "internalMeetingNotes",
+            "startTime",
+            "title",
+            "durationMilliseconds",
+            "fromNumber",
+            "recordingUrl",
+            "toNumber"
+          ],
+          "help": "Keys depend on the type"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "associations"
+          ],
+          "help": "associations: {companyIds, contactIds, dealIds, ownerIds, ticketIds} (comma-separated)"
+        }
+      ],
+      "body": {
+        "engagement": {
+          "type": "{{ p.type | upper }}",
+          "ownerId": "{{ p.additionalFields.associations.ownerId }}",
+          "timestamp": "{{ p.type | eq:'task' | then:(p.dueDate | epoch_ms) }}"
+        },
+        "!metadata": {
+          "from": {
+            "$when": "{{ p.type | eq:'email' }}",
+            "email": "{{ p.metadata.fromEmail }}",
+            "firstName": "{{ p.metadata.firstName }}",
+            "lastName": "{{ p.metadata.lastName }}"
+          },
+          "to": {
+            "$map": "{{ p.metadata.toEmail | csv | split }}",
+            "$to": {
+              "email": "{{ el }}"
+            }
+          },
+          "cc": {
+            "$map": "{{ p.metadata.cc | csv | split }}",
+            "$to": {
+              "email": "{{ el }}"
+            }
+          },
+          "bcc": {
+            "$map": "{{ p.metadata.bcc | csv | split }}",
+            "$to": {
+              "email": "{{ el }}"
+            }
+          },
+          "subject": "{{ p.metadata.subject }}",
+          "html": "{{ p.metadata.html }}",
+          "text": "{{ p.metadata.text }}",
+          "body": "{{ p.metadata.body }}",
+          "status": "{{ p.metadata.status }}",
+          "forObjectType": "{{ p.metadata.forObjectType }}",
+          "startTime": "{{ p.metadata.startTime | epoch }}",
+          "endTime": "{{ p.metadata.endTime | epoch }}",
+          "title": "{{ p.metadata.title }}",
+          "internalMeetingNotes": "{{ p.metadata.internalMeetingNotes }}",
+          "toNumber": "{{ p.metadata.toNumber }}",
+          "fromNumber": "{{ p.metadata.fromNumber }}",
+          "durationMilliseconds": "{{ p.metadata.durationMilliseconds }}",
+          "recordingUrl": "{{ p.metadata.recordingUrl }}"
+        },
+        "!associations": {
+          "companyIds": "{{ p.additionalFields.associations.companyIds | string | split }}",
+          "contactIds": "{{ p.additionalFields.associations.contactIds | string | split }}",
+          "dealIds": "{{ p.additionalFields.associations.dealIds | string | split }}",
+          "ownerIds": "{{ p.additionalFields.associations.ownerIds | string | split }}",
+          "ticketIds": "{{ p.additionalFields.associations.ticketIds | string | split }}"
+        }
+      }
+    },
+    {
+      "resource": "engagement",
+      "operation": "delete",
+      "title": "Delete an engagement",
+      "method": "DELETE",
+      "path": "/engagements/v1/engagements/{{ p.engagementId | rl }}",
+      "fields": [
+        {
+          "key": "engagementId",
+          "label": "Engagement ID",
+          "type": "text",
+          "required": true,
+          "help": "Resource locator or ID"
+        }
+      ],
+      "output": {
+        "to": {
+          "vid": "{{ p.engagementId | rl }}",
+          "deleted": true
+        }
+      }
+    },
+    {
+      "resource": "engagement",
+      "operation": "get",
+      "title": "Get an engagement",
+      "method": "GET",
+      "path": "/engagements/v1/engagements/{{ p.engagementId | rl }}",
+      "fields": [
+        {
+          "key": "engagementId",
+          "label": "Engagement ID",
+          "type": "text",
+          "required": true,
+          "help": "Resource locator or ID"
+        }
+      ]
+    },
+    {
+      "resource": "engagement",
+      "operation": "getAll",
+      "title": "Get many engagements",
+      "method": "GET",
+      "path": "/engagements/v1/engagements/paged",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "offset",
+        "cursor_path": "offset",
+        "has_more_path": "hasMore",
+        "limit_param": "limit",
+        "page_size": 250,
+        "results_path": "results"
+      }
+    },
+    {
+      "resource": "form",
+      "operation": "getFields",
+      "title": "Get a form's fields",
+      "method": "GET",
+      "path": "/forms/v2/fields/{{ p.formId }}",
+      "fields": [
+        {
+          "key": "formId",
+          "label": "Form ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "form",
+      "operation": "submit",
+      "title": "Submit a form",
+      "method": "POST",
+      "path": "https://api.hsforms.com/submissions/v3/integration/submit/{{ pre.portalId }}/{{ p.formId }}",
+      "fields": [
+        {
+          "key": "formId",
+          "label": "Form ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "skipValidation",
+            "submittedAt"
+          ]
+        },
+        {
+          "key": "contextUi",
+          "label": "Context",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "contextValue"
+          ],
+          "help": "{\"contextValue\": {hutk, ipAddress, pageUri, pageName, pageId, sfdcCampaignId, goToWebinarWebinarKey}}"
+        },
+        {
+          "key": "lengalConsentUi",
+          "label": "Legal consent",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "lengalConsentValues",
+            "legitimateInterestValues"
+          ],
+          "help": "lengalConsentValues: {consentToProcess, text, communicationsUi: {communicationValues: [...]}}"
+        }
+      ],
+      "before": {
+        "method": "GET",
+        "path": "/forms/v2/forms/{{ p.formId }}"
+      },
+      "body": {
+        "formId": "{{ p.formId }}",
+        "portalId": "{{ pre.portalId }}",
+        "submittedAt": "{{ p.additionalFields.submittedAt | epoch_ms }}",
+        "skipValidation": "{{ p.additionalFields.skipValidation | eq:'true' | then:true }}",
+        "!fields": "{{ item | entries:'name,value' }}",
+        "legalConsentOptions": {
+          "consent": {
+            "consentToProcess": "{{ p.lengalConsentUi.lengalConsentValues.consentToProcess }}",
+            "text": "{{ p.lengalConsentUi.lengalConsentValues.text }}",
+            "communications": "{{ p.lengalConsentUi.lengalConsentValues.communicationsUi.communicationValues }}"
+          }
+        },
+        "context": "{{ p.contextUi.contextValue }}"
+      }
+    },
+    {
+      "resource": "ticket",
+      "operation": "create",
+      "title": "Create a ticket",
+      "method": "POST",
+      "path": "/crm-objects/v1/objects/tickets",
+      "fields": [
+        {
+          "key": "pipelineId",
+          "label": "Pipeline ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "stageId",
+          "label": "Stage ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "ticketName",
+          "label": "Ticket name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "associatedCompanyIds",
+            "associatedContactIds",
+            "category",
+            "closeDate",
+            "createDate",
+            "description",
+            "priority",
+            "resolution",
+            "source",
+            "ticketOwnerId"
+          ],
+          "help": "associatedCompanyIds/associatedContactIds: lists of IDs"
+        }
+      ],
+      "body": {
+        "$concat": [
+          [
+            {
+              "name": "hs_pipeline",
+              "value": "{{ p.pipelineId }}"
+            },
+            {
+              "name": "hs_pipeline_stage",
+              "value": "{{ p.stageId }}"
+            },
+            {
+              "name": "subject",
+              "value": "{{ p.ticketName }}"
+            },
+            {
+              "$when": "{{ p.additionalFields.category }}",
+              "name": "hs_ticket_category",
+              "value": "{{ p.additionalFields.category }}"
+            },
+            {
+              "$when": "{{ p.additionalFields.closeDate }}",
+              "name": "closed_date",
+              "value": "{{ p.additionalFields.closeDate | epoch_ms }}"
+            },
+            {
+              "$when": "{{ p.additionalFields.createDate }}",
+              "name": "createdate",
+              "value": "{{ p.additionalFields.createDate | epoch_ms }}"
+            },
+            {
+              "$when": "{{ p.additionalFields.description }}",
+              "name": "content",
+              "value": "{{ p.additionalFields.description }}"
+            },
+            {
+              "$when": "{{ p.additionalFields.priority }}",
+              "name": "hs_ticket_priority",
+              "value": "{{ p.additionalFields.priority }}"
+            },
+            {
+              "$when": "{{ p.additionalFields.resolution }}",
+              "name": "hs_resolution",
+              "value": "{{ p.additionalFields.resolution }}"
+            },
+            {
+              "$when": "{{ p.additionalFields.source }}",
+              "name": "source_type",
+              "value": "{{ p.additionalFields.source }}"
+            },
+            {
+              "$when": "{{ p.additionalFields.ticketOwnerId }}",
+              "name": "hubspot_owner_id",
+              "value": "{{ p.additionalFields.ticketOwnerId }}"
+            }
+          ]
+        ]
+      },
+      "also": [
+        {
+          "when": "{{ p.additionalFields.associatedCompanyIds }}",
+          "method": "PUT",
+          "path": "/crm-associations/v1/associations/create-batch",
+          "body": {
+            "$map": "{{ p.additionalFields.associatedCompanyIds }}",
+            "$to": {
+              "fromObjectId": "{{ res.objectId }}",
+              "toObjectId": "{{ el }}",
+              "category": "HUBSPOT_DEFINED",
+              "definitionId": 26
+            }
+          }
+        },
+        {
+          "when": "{{ p.additionalFields.associatedContactIds }}",
+          "method": "PUT",
+          "path": "/crm-associations/v1/associations/create-batch",
+          "body": {
+            "$map": "{{ p.additionalFields.associatedContactIds }}",
+            "$to": {
+              "fromObjectId": "{{ res.objectId }}",
+              "toObjectId": "{{ el }}",
+              "category": "HUBSPOT_DEFINED",
+              "definitionId": 16
+            }
+          }
+        }
+      ]
+    },
+    {
+      "resource": "ticket",
+      "operation": "delete",
+      "title": "Delete a ticket",
+      "method": "DELETE",
+      "path": "/crm-objects/v1/objects/tickets/{{ p.ticketId | rl }}",
+      "fields": [
+        {
+          "key": "ticketId",
+          "label": "Ticket ID",
+          "type": "text",
+          "required": true,
+          "help": "Resource locator or ID"
+        }
+      ],
+      "output": {
+        "to": {
+          "vid": "{{ p.ticketId | rl }}",
+          "deleted": true
+        }
+      }
+    },
+    {
+      "resource": "ticket",
+      "operation": "get",
+      "title": "Get a ticket",
+      "method": "GET",
+      "path": "/crm-objects/v1/objects/tickets/{{ p.ticketId | rl }}",
+      "fields": [
+        {
+          "key": "ticketId",
+          "label": "Ticket ID",
+          "type": "text",
+          "required": true,
+          "help": "Resource locator or ID"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "includeDeleted",
+            "properties",
+            "propertiesWithHistory"
+          ]
+        }
+      ],
+      "query": {
+        "properties": "{{ p.additionalFields.properties }}",
+        "propertiesWithHistory": "{{ p.additionalFields.propertiesWithHistory | split }}",
+        "includeDeleted": "{{ p.additionalFields.includeDeleted | eq:'true' | then:true }}"
+      }
+    },
+    {
+      "resource": "ticket",
+      "operation": "getAll",
+      "title": "Get many tickets",
+      "method": "GET",
+      "path": "/crm-objects/v1/objects/tickets/paged",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "properties",
+            "propertiesWithHistory"
+          ]
+        }
+      ],
+      "query": {
+        "properties": "{{ p.additionalFields.properties }}",
+        "propertiesWithHistory": "{{ p.additionalFields.propertiesWithHistory | split }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "offset",
+        "cursor_path": "offset",
+        "has_more_path": "hasMore",
+        "limit_param": "limit",
+        "page_size": 250,
+        "results_path": "objects"
+      }
+    },
+    {
+      "resource": "ticket",
+      "operation": "update",
+      "title": "Update a ticket",
+      "method": "PUT",
+      "path": "/crm-objects/v1/objects/tickets/{{ p.ticketId | rl }}",
+      "fields": [
+        {
+          "key": "ticketId",
+          "label": "Ticket ID",
+          "type": "text",
+          "required": true,
+          "help": "Resource locator or ID"
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "associatedCompanyIds",
+            "associatedContactIds",
+            "category",
+            "closeDate",
+            "createDate",
+            "description",
+            "pipelineId",
+            "priority",
+            "resolution",
+            "source",
+            "stageId",
+            "ticketName",
+            "ticketOwnerId"
+          ]
+        }
+      ],
+      "body": {
+        "$concat": [
+          [
+            {
+              "$when": "{{ p.updateFields.pipelineId }}",
+              "name": "hs_pipeline",
+              "value": "{{ p.updateFields.pipelineId }}"
+            },
+            {
+              "$when": "{{ p.updateFields.stageId }}",
+              "name": "hs_pipeline_stage",
+              "value": "{{ p.updateFields.stageId }}"
+            },
+            {
+              "$when": "{{ p.updateFields.ticketName }}",
+              "name": "subject",
+              "value": "{{ p.updateFields.ticketName }}"
+            },
+            {
+              "$when": "{{ p.updateFields.category }}",
+              "name": "hs_ticket_category",
+              "value": "{{ p.updateFields.category }}"
+            },
+            {
+              "$when": "{{ p.updateFields.closeDate }}",
+              "name": "closed_date",
+              "value": "{{ p.updateFields.closeDate | epoch_ms }}"
+            },
+            {
+              "$when": "{{ p.updateFields.createDate }}",
+              "name": "createdate",
+              "value": "{{ p.updateFields.createDate | epoch_ms }}"
+            },
+            {
+              "$when": "{{ p.updateFields.description }}",
+              "name": "content",
+              "value": "{{ p.updateFields.description }}"
+            },
+            {
+              "$when": "{{ p.updateFields.priority }}",
+              "name": "hs_ticket_priority",
+              "value": "{{ p.updateFields.priority }}"
+            },
+            {
+              "$when": "{{ p.updateFields.resolution }}",
+              "name": "hs_resolution",
+              "value": "{{ p.updateFields.resolution }}"
+            },
+            {
+              "$when": "{{ p.updateFields.source }}",
+              "name": "source_type",
+              "value": "{{ p.updateFields.source }}"
+            },
+            {
+              "$when": "{{ p.updateFields.ticketOwnerId }}",
+              "name": "hubspot_owner_id",
+              "value": "{{ p.updateFields.ticketOwnerId }}"
+            }
+          ]
+        ]
+      },
+      "also": [
+        {
+          "when": "{{ p.updateFields.associatedCompanyIds }}",
+          "method": "PUT",
+          "path": "/crm-associations/v1/associations/create-batch",
+          "body": {
+            "$map": "{{ p.updateFields.associatedCompanyIds }}",
+            "$to": {
+              "fromObjectId": "{{ res.objectId }}",
+              "toObjectId": "{{ el }}",
+              "category": "HUBSPOT_DEFINED",
+              "definitionId": 26
+            }
+          }
+        },
+        {
+          "when": "{{ p.updateFields.associatedContactIds }}",
+          "method": "PUT",
+          "path": "/crm-associations/v1/associations/create-batch",
+          "body": {
+            "$map": "{{ p.updateFields.associatedContactIds }}",
+            "$to": {
+              "fromObjectId": "{{ res.objectId }}",
+              "toObjectId": "{{ el }}",
+              "category": "HUBSPOT_DEFINED",
+              "definitionId": 16
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "webhook": {
+    "fields": [
+      {
+        "key": "eventsUi",
+        "label": "Events",
+        "type": "collection",
+        "required": true,
+        "help": "{\"eventValues\": [{\"name\": \"contact.creation\"}, …]}"
+      },
+      {
+        "key": "additionalFields",
+        "label": "Additional fields",
+        "type": "collection",
+        "default": {}
+      }
+    ],
+    "create": [
+      {
+        "method": "PUT",
+        "path": "/webhooks/v3/{{ cred.app_id }}/settings",
+        "body": {
+          "targetUrl": "{{ hook.url }}",
+          "maxConcurrentRequests": "{{ p.additionalFields.maxConcurrentRequests | default:5 }}"
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/webhooks/v3/{{ cred.app_id }}/subscriptions",
+        "body": {
+          "eventType": "{{ el.name }}",
+          "active": true,
+          "propertyName": "{{ el.name | matches:'propertyChange$' | then:el.property }}"
+        },
+        "for_each": "{{ p.eventsUi.eventValues }}"
+      }
+    ],
+    "id": "{{ res | pluck:'id' | join:',' }}",
+    "extra": {
+      "ids": "{{ res | pluck:'id' }}"
+    },
+    "delete": [
+      {
+        "method": "DELETE",
+        "path": "/webhooks/v3/{{ cred.app_id }}/subscriptions/{{ el }}",
+        "for_each": "{{ hook.extra.ids }}"
+      },
+      {
+        "method": "DELETE",
+        "path": "/webhooks/v3/{{ cred.app_id }}/settings"
+      }
+    ],
+    "verify": {
+      "signature": "{{ hdr.X-HubSpot-Signature-v3 }}",
+      "encoding": "base64",
+      "secret": "{{ cred.client_secret }}",
+      "message": "POST{{ hook.url }}{{ req.body }}{{ hdr.X-HubSpot-Request-Timestamp }}"
+    }
+  }
+}

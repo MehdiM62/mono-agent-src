@@ -1,0 +1,416 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "strava",
+  "title": "Strava",
+  "description": "Create, read and update activities and their streams, laps, zones, kudos and comments on Strava",
+  "category": "app",
+  "docs_url": "https://developers.strava.com/docs/reference/",
+  "n8n_types": [
+    "n8n-nodes-base.strava"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.stravaTrigger"
+  ],
+  "n8n_version_defaults": {
+    "1.1": {
+      "sport_type": "Run"
+    }
+  },
+  "base_url": "https://www.strava.com/api/v3",
+  "credentials": [
+    {
+      "platform": "strava",
+      "name": "Strava",
+      "n8n_credential": "stravaOAuth2Api",
+      "methods": [
+        "oauth"
+      ],
+      "fields": [
+        {
+          "key": "client_id",
+          "label": "API application client ID",
+          "help": "Only for the Strava trigger (push subscriptions)"
+        },
+        {
+          "key": "client_secret",
+          "label": "API application client secret",
+          "secret": true,
+          "help": "Only for the Strava trigger"
+        }
+      ],
+      "oauth": {
+        "auth_url": "https://www.strava.com/oauth/authorize",
+        "token_url": "https://www.strava.com/oauth/token",
+        "scopes": [],
+        "pkce": true,
+        "extra_params": {
+          "scope": "activity:read_all,activity:write"
+        },
+        "connect_fields": [
+          "client_id",
+          "client_secret"
+        ]
+      },
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "activity",
+      "label": "Activity"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "activity",
+      "operation": "create",
+      "title": "Create a manual activity",
+      "method": "POST",
+      "path": "/activities",
+      "body_type": "form",
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "sport_type",
+          "label": "Sport type",
+          "type": "text",
+          "help": "e.g. Run, Ride, Swim (node version 1.1+)"
+        },
+        {
+          "key": "type",
+          "label": "Type",
+          "type": "text",
+          "help": "Legacy activity type (node version 1)"
+        },
+        {
+          "key": "startDate",
+          "label": "Start date",
+          "type": "datetime",
+          "required": true
+        },
+        {
+          "key": "elapsedTime",
+          "label": "Elapsed time (seconds)",
+          "type": "number",
+          "default": 0,
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "commute",
+            "description",
+            "distance",
+            "trainer"
+          ]
+        }
+      ],
+      "body": {
+        "name": "{{ p.name }}",
+        "start_date_local": "{{ p.startDate | date:'YYYY-MM-DDTHH:mm:ss.SSSZ' }}",
+        "elapsed_time": "{{ p.elapsedTime }}",
+        "type": "{{ p.type }}",
+        "sport_type": "{{ p.sport_type }}",
+        "$merge": "{{ p.additionalFields | omit:'trainer,commute' }}",
+        "trainer": "{{ p.additionalFields.trainer | eq:'true' | then:1 }}",
+        "commute": "{{ p.additionalFields.commute | eq:'true' | then:1 }}"
+      }
+    },
+    {
+      "resource": "activity",
+      "operation": "get",
+      "title": "Get an activity",
+      "method": "GET",
+      "path": "/activities/{{ p.activityId }}",
+      "fields": [
+        {
+          "key": "activityId",
+          "label": "Activity ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "activity",
+      "operation": "getComments",
+      "title": "Get an activity's comments",
+      "method": "GET",
+      "path": "/activities/{{ p.activityId }}/comments",
+      "fields": [
+        {
+          "key": "activityId",
+          "label": "Activity ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 100
+        }
+      ],
+      "output": {
+        "limit": true
+      }
+    },
+    {
+      "resource": "activity",
+      "operation": "getKudos",
+      "title": "Get an activity's kudos",
+      "method": "GET",
+      "path": "/activities/{{ p.activityId }}/kudos",
+      "fields": [
+        {
+          "key": "activityId",
+          "label": "Activity ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 100
+        }
+      ],
+      "output": {
+        "limit": true
+      }
+    },
+    {
+      "resource": "activity",
+      "operation": "getLaps",
+      "title": "Get an activity's laps",
+      "method": "GET",
+      "path": "/activities/{{ p.activityId }}/laps",
+      "fields": [
+        {
+          "key": "activityId",
+          "label": "Activity ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 100
+        }
+      ],
+      "output": {
+        "limit": true
+      }
+    },
+    {
+      "resource": "activity",
+      "operation": "getAll",
+      "title": "Get your activities",
+      "method": "GET",
+      "path": "/athlete/activities",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 100
+        }
+      ],
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": ""
+      }
+    },
+    {
+      "resource": "activity",
+      "operation": "getStreams",
+      "title": "Get an activity's streams",
+      "method": "GET",
+      "path": "/activities/{{ p.activityId }}/streams",
+      "fields": [
+        {
+          "key": "activityId",
+          "label": "Activity ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "keys",
+          "label": "Stream types",
+          "type": "multiselect",
+          "required": true,
+          "options": [
+            "altitude",
+            "cadence",
+            "distance",
+            "grade_smooth",
+            "heartrate",
+            "latlng",
+            "moving",
+            "temp",
+            "time",
+            "velocity_smooth",
+            "watts"
+          ]
+        }
+      ],
+      "query": {
+        "keys": "{{ p.keys | csv }}",
+        "key_by_type": "true"
+      }
+    },
+    {
+      "resource": "activity",
+      "operation": "getZones",
+      "title": "Get an activity's zones",
+      "method": "GET",
+      "path": "/activities/{{ p.activityId }}/zones",
+      "fields": [
+        {
+          "key": "activityId",
+          "label": "Activity ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 100
+        }
+      ],
+      "output": {
+        "limit": true
+      }
+    },
+    {
+      "resource": "activity",
+      "operation": "update",
+      "title": "Update an activity",
+      "method": "PUT",
+      "path": "/activities/{{ p.activityId }}",
+      "body_type": "form",
+      "fields": [
+        {
+          "key": "activityId",
+          "label": "Activity ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "commute",
+            "description",
+            "gear_id",
+            "hide_from_home",
+            "name",
+            "type",
+            "sport_type",
+            "trainer"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields }}"
+      }
+    }
+  ],
+  "webhook": {
+    "create": [
+      {
+        "method": "POST",
+        "path": "/push_subscriptions",
+        "body": {
+          "client_id": "{{ cred.client_id }}",
+          "client_secret": "{{ cred.client_secret }}",
+          "callback_url": "{{ hook.url }}",
+          "verify_token": "{{ hook.secret }}"
+        },
+        "body_type": "form",
+        "auth": false
+      }
+    ],
+    "id": "{{ res.id }}",
+    "delete": [
+      {
+        "method": "DELETE",
+        "path": "/push_subscriptions/{{ hook.id }}",
+        "query": {
+          "client_id": "{{ cred.client_id }}",
+          "client_secret": "{{ cred.client_secret }}"
+        },
+        "auth": false
+      }
+    ],
+    "check": {
+      "method": "GET",
+      "path": "/push_subscriptions",
+      "query": {
+        "client_id": "{{ cred.client_id }}",
+        "client_secret": "{{ cred.client_secret }}"
+      },
+      "auth": false,
+      "exists_when": "{{ res | find:'id',hook.id }}"
+    }
+  }
+}

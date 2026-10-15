@@ -141,6 +141,9 @@ func withReviewLines(stdout string, lines []string) string {
 // pasted workflow JSON; optsJSON is a WorkflowImportOptions. Returns the
 // CLI's JSON, or {"error": "..."}.
 func (a *App) ImportWorkflowFull(input, optsJSON string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	input = strings.TrimSpace(input)
 	if input == "" {
 		return aiError(fmt.Errorf("choose a workflow file or paste workflow JSON"))
@@ -230,6 +233,9 @@ func (a *App) removeImportCopy(ctx context.Context, cliBin, res, copyID string) 
 // ChooseWorkflowFile opens a native picker for a workflow .json file and
 // returns its path ("" when cancelled).
 func (a *App) ChooseWorkflowFile() string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	path, err := runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
 		Title:   "Import workflow",
 		Filters: []runtime.FileFilter{{DisplayName: "Workflow JSON", Pattern: "*.json"}},

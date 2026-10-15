@@ -79,5 +79,77 @@
       "required": false,
       "type": "boolean"
     }
+  ],
+  "outputs": [
+    {
+      "description": "the input item's fields, passed through",
+      "key": "*",
+      "type": "object"
+    },
+    {
+      "description": "done, blocked, budget or timeout",
+      "key": "status",
+      "type": "string"
+    },
+    {
+      "description": "why the run ended",
+      "key": "reason",
+      "type": "string"
+    },
+    {
+      "description": "the goal given",
+      "key": "goal",
+      "type": "string"
+    },
+    {
+      "description": "final page URL",
+      "key": "url",
+      "type": "string"
+    },
+    {
+      "description": "final page title",
+      "key": "title",
+      "type": "string"
+    },
+    {
+      "description": "final page text",
+      "key": "page_text",
+      "type": "string"
+    },
+    {
+      "description": "one entry per step taken",
+      "key": "steps",
+      "type": "array"
+    },
+    {
+      "description": "decisions made",
+      "key": "decisions",
+      "type": "number"
+    },
+    {
+      "description": "input tokens used",
+      "key": "jev_input_tokens",
+      "type": "number"
+    },
+    {
+      "description": "steps with confidence < 0.5",
+      "key": "low_confidence_steps",
+      "type": "number"
+    },
+    {
+      "description": "values asked for",
+      "key": "value_requests",
+      "type": "number"
+    },
+    {
+      "description": "text turns taken",
+      "key": "text_turns",
+      "type": "number"
+    },
+    {
+      "description": "run time in ms",
+      "key": "elapsed_ms",
+      "type": "number"
+    }
   ]
 }

@@ -1,0 +1,385 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "metabase",
+  "node_type": "app.metabase",
+  "title": "Metabase",
+  "description": "Questions, alerts, databases and metrics in Metabase",
+  "category": "app",
+  "docs_url": "https://www.metabase.com/docs/latest/api",
+  "n8n_types": [
+    "n8n-nodes-base.metabase"
+  ],
+  "base_url": "{{ cred.url }}",
+  "credentials": [
+    {
+      "platform": "metabase",
+      "name": "Metabase",
+      "n8n_credential": "metabaseApi",
+      "n8n_field_map": {
+        "url": "url",
+        "username": "username",
+        "password": "password"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "url",
+          "label": "Metabase URL",
+          "required": true,
+          "help": "e.g. https://metabase.example.com (no trailing slash)"
+        },
+        {
+          "key": "username",
+          "label": "Email",
+          "required": true
+        },
+        {
+          "key": "password",
+          "label": "Password",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "headers": {
+          "X-Metabase-Session": "{{ pres.0.id }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "questions",
+      "label": "Question"
+    },
+    {
+      "value": "alerts",
+      "label": "Alert"
+    },
+    {
+      "value": "databases",
+      "label": "Database"
+    },
+    {
+      "value": "metrics",
+      "label": "Metric"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "questions",
+      "operation": "getAll",
+      "title": "Get many questions",
+      "method": "GET",
+      "path": "/api/card/",
+      "before": {
+        "method": "POST",
+        "path": "/api/session",
+        "body": {
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}"
+        }
+      },
+      "fields": []
+    },
+    {
+      "resource": "questions",
+      "operation": "get",
+      "title": "Get a question",
+      "method": "GET",
+      "path": "/api/card/{{ p.questionId }}",
+      "before": {
+        "method": "POST",
+        "path": "/api/session",
+        "body": {
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "questionId",
+          "label": "Question ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "questions",
+      "operation": "resultData",
+      "title": "Get the results of a question",
+      "method": "POST",
+      "path": "/api/card/{{ p.questionId }}/query/{{ p.format }}",
+      "before": {
+        "method": "POST",
+        "path": "/api/session",
+        "body": {
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "questionId",
+          "label": "Question ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "format",
+          "label": "Format",
+          "type": "select",
+          "default": "csv",
+          "options": [
+            "csv",
+            "json",
+            "xlsx"
+          ],
+          "help": "csv and xlsx are returned as a file in the data binary property"
+        }
+      ],
+      "binary": {
+        "download_when": "{{ p.format | ne:'json' }}"
+      }
+    },
+    {
+      "resource": "alerts",
+      "operation": "getAll",
+      "title": "Get many alerts",
+      "method": "GET",
+      "path": "/api/alert/",
+      "before": {
+        "method": "POST",
+        "path": "/api/session",
+        "body": {
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}"
+        }
+      },
+      "fields": []
+    },
+    {
+      "resource": "alerts",
+      "operation": "get",
+      "title": "Get an alert",
+      "method": "GET",
+      "path": "/api/alert/{{ p.alertId }}",
+      "before": {
+        "method": "POST",
+        "path": "/api/session",
+        "body": {
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "alertId",
+          "label": "Alert ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "databases",
+      "operation": "getAll",
+      "title": "Get many databases",
+      "method": "GET",
+      "path": "/api/database/",
+      "before": {
+        "method": "POST",
+        "path": "/api/session",
+        "body": {
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "simple",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true
+        }
+      ],
+      "output": {
+        "path": "data",
+        "to": {
+          "id": "{{ el.id }}",
+          "name": "{{ el.name }}",
+          "engine": "{{ el.engine }}",
+          "creator_id": "{{ el.creator_id }}",
+          "timezone": "{{ el.timezone }}",
+          "created_at": "{{ el.created_at }}",
+          "updated_at": "{{ el.updated_at }}",
+          "db": "{{ el.details.db }}",
+          "user": "{{ el.details.user }}",
+          "host": "{{ el.details.host }}",
+          "port": "{{ el.details.port }}",
+          "ssl": "{{ el.details.ssl }}",
+          "is_full_sync": "{{ el.details.is_full_sync }}"
+        },
+        "to_when": "{{ p.simple }}"
+      }
+    },
+    {
+      "resource": "databases",
+      "operation": "addNewDatasource",
+      "title": "Add a database",
+      "method": "POST",
+      "path": "/api/database",
+      "before": {
+        "method": "POST",
+        "path": "/api/session",
+        "body": {
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "engine",
+          "label": "Engine",
+          "type": "select",
+          "required": true,
+          "default": "postgres",
+          "options": [
+            "h2",
+            "mongo",
+            "mysql",
+            "postgres",
+            "redshift",
+            "sqlite"
+          ]
+        },
+        {
+          "key": "host",
+          "label": "Host",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "port",
+          "label": "Port",
+          "type": "number",
+          "default": 5432
+        },
+        {
+          "key": "user",
+          "label": "User",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "password",
+          "label": "Password",
+          "type": "password",
+          "default": ""
+        },
+        {
+          "key": "dbName",
+          "label": "Database name",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "filePath",
+          "label": "File path",
+          "type": "text",
+          "default": "",
+          "help": "h2 and sqlite"
+        },
+        {
+          "key": "fullSync",
+          "label": "Full sync",
+          "type": "boolean",
+          "default": true
+        }
+      ],
+      "body": {
+        "engine": "{{ p.engine }}",
+        "name": "{{ p.name }}",
+        "is_full_sync": "{{ p.fullSync }}",
+        "details": {
+          "host": "{{ p.engine | ne:'h2' | then:(p.engine | ne:'sqlite' | then:p.host) }}",
+          "port": "{{ p.engine | ne:'h2' | then:(p.engine | ne:'sqlite' | then:p.port) }}",
+          "user": "{{ p.engine | ne:'h2' | then:(p.engine | ne:'sqlite' | then:p.user) }}",
+          "password": "{{ p.engine | ne:'h2' | then:(p.engine | ne:'sqlite' | then:p.password) }}",
+          "db": "{{ p.engine | ne:'h2' | then:(p.engine | ne:'sqlite' | then:p.dbName) | default:p.filePath }}"
+        }
+      }
+    },
+    {
+      "resource": "databases",
+      "operation": "getFields",
+      "title": "Get the fields of a database",
+      "method": "GET",
+      "path": "/api/database/{{ p.databaseId }}/fields",
+      "before": {
+        "method": "POST",
+        "path": "/api/session",
+        "body": {
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "databaseId",
+          "label": "Database ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "metrics",
+      "operation": "getAll",
+      "title": "Get many metrics",
+      "method": "GET",
+      "path": "/api/metric/",
+      "before": {
+        "method": "POST",
+        "path": "/api/session",
+        "body": {
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}"
+        }
+      },
+      "fields": []
+    },
+    {
+      "resource": "metrics",
+      "operation": "get",
+      "title": "Get a metric",
+      "method": "GET",
+      "path": "/api/metric/{{ p.metricId }}",
+      "before": {
+        "method": "POST",
+        "path": "/api/session",
+        "body": {
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "metricId",
+          "label": "Metric ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    }
+  ]
+}

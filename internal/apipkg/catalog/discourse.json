@@ -1,0 +1,591 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "discourse",
+  "node_type": "app.discourse",
+  "title": "Discourse",
+  "description": "Posts, categories, groups and users in a Discourse forum",
+  "category": "app",
+  "docs_url": "https://docs.discourse.org/",
+  "n8n_types": [
+    "n8n-nodes-base.discourse"
+  ],
+  "base_url": "{{ cred.url }}",
+  "credentials": [
+    {
+      "platform": "discourse",
+      "name": "Discourse",
+      "n8n_credential": "discourseApi",
+      "n8n_field_map": {
+        "url": "url",
+        "apiKey": "api_key",
+        "username": "username"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "url",
+          "label": "Forum URL",
+          "required": true,
+          "help": "e.g. https://forum.example.com"
+        },
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "username",
+          "label": "API username",
+          "required": true,
+          "help": "The user the key acts as, e.g. system"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Api-Key": "{{ cred.api_key }}",
+          "Api-Username": "{{ cred.username }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "post",
+      "label": "Post"
+    },
+    {
+      "value": "category",
+      "label": "Category"
+    },
+    {
+      "value": "group",
+      "label": "Group"
+    },
+    {
+      "value": "user",
+      "label": "User"
+    },
+    {
+      "value": "userGroup",
+      "label": "User group"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "post",
+      "operation": "create",
+      "title": "Create a post or topic",
+      "method": "POST",
+      "path": "/posts.json",
+      "fields": [
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "required": true,
+          "help": "Topic title (for a new topic)"
+        },
+        {
+          "key": "content",
+          "label": "Content",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "category",
+            "reply_to_post_number",
+            "topic_id"
+          ],
+          "help": "category: category ID; topic_id: reply in this topic; reply_to_post_number: post number to reply to"
+        }
+      ],
+      "body": {
+        "title": "{{ p.title }}",
+        "raw": "{{ p.content }}",
+        "$merge": "{{ p.additionalFields }}"
+      }
+    },
+    {
+      "resource": "post",
+      "operation": "get",
+      "title": "Get a post",
+      "method": "GET",
+      "path": "/posts/{{ p.postId }}.json",
+      "fields": [
+        {
+          "key": "postId",
+          "label": "Post ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "post",
+      "operation": "getAll",
+      "title": "Get many latest posts",
+      "method": "GET",
+      "path": "/posts.json",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "before",
+        "cursor_path": "latest_posts.-1.id",
+        "results_path": "latest_posts"
+      }
+    },
+    {
+      "resource": "post",
+      "operation": "update",
+      "title": "Update a post",
+      "method": "PUT",
+      "path": "/posts/{{ p.postId }}.json",
+      "fields": [
+        {
+          "key": "postId",
+          "label": "Post ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "content",
+          "label": "Content",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "edit_reason",
+            "cooked"
+          ]
+        }
+      ],
+      "body": {
+        "post": {
+          "raw": "{{ p.content }}",
+          "edit_reason": "{{ p.updateFields.edit_reason }}",
+          "cooked": "{{ p.updateFields.cooked }}"
+        }
+      },
+      "output": {
+        "path": "post"
+      }
+    },
+    {
+      "resource": "category",
+      "operation": "create",
+      "title": "Create a category",
+      "method": "POST",
+      "path": "/categories.json",
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "color",
+          "label": "Color",
+          "type": "text",
+          "default": "0000FF",
+          "help": "Hex without #"
+        },
+        {
+          "key": "textColor",
+          "label": "Text color",
+          "type": "text",
+          "default": "0000FF"
+        }
+      ],
+      "body": {
+        "name": "{{ p.name }}",
+        "color": "{{ p.color | default:'0000FF' }}",
+        "text_color": "{{ p.textColor | default:'0000FF' }}"
+      },
+      "output": {
+        "path": "category"
+      }
+    },
+    {
+      "resource": "category",
+      "operation": "getAll",
+      "title": "Get many categories",
+      "method": "GET",
+      "path": "/categories.json",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "__single_page__",
+        "results_path": "category_list.categories"
+      }
+    },
+    {
+      "resource": "category",
+      "operation": "update",
+      "title": "Update a category",
+      "method": "PUT",
+      "path": "/categories/{{ p.categoryId }}.json",
+      "fields": [
+        {
+          "key": "categoryId",
+          "label": "Category ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "color",
+            "textColor"
+          ]
+        }
+      ],
+      "body": {
+        "name": "{{ p.name }}",
+        "color": "{{ p.updateFields.color }}",
+        "text_color": "{{ p.updateFields.textColor }}"
+      },
+      "output": {
+        "path": "category"
+      }
+    },
+    {
+      "resource": "group",
+      "operation": "create",
+      "title": "Create a group",
+      "method": "POST",
+      "path": "/admin/groups.json",
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "group": {
+          "name": "{{ p.name }}"
+        }
+      },
+      "output": {
+        "path": "basic_group"
+      }
+    },
+    {
+      "resource": "group",
+      "operation": "get",
+      "title": "Get a group",
+      "method": "GET",
+      "path": "/groups/{{ p.name }}.json",
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "group"
+      }
+    },
+    {
+      "resource": "group",
+      "operation": "getAll",
+      "title": "Get many groups",
+      "method": "GET",
+      "path": "/groups.json",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "__single_page__",
+        "results_path": "groups"
+      }
+    },
+    {
+      "resource": "group",
+      "operation": "update",
+      "title": "Update a group",
+      "method": "PUT",
+      "path": "/groups/{{ p.groupId }}.json",
+      "fields": [
+        {
+          "key": "groupId",
+          "label": "Group ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "group": {
+          "name": "{{ p.name }}"
+        }
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "create",
+      "title": "Create a user",
+      "method": "POST",
+      "path": "/users.json",
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "username",
+          "label": "Username",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "password",
+          "label": "Password",
+          "type": "password",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "active",
+            "approved"
+          ]
+        }
+      ],
+      "body": {
+        "name": "{{ p.name }}",
+        "email": "{{ p.email }}",
+        "username": "{{ p.username }}",
+        "password": "{{ p.password }}",
+        "$merge": "{{ p.additionalFields }}"
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "get",
+      "title": "Get a user",
+      "method": "GET",
+      "path": "{{ p.by | eq:'externalId' | then:'/u/by-external/' | default:'/users/' }}{{ p.by | eq:'externalId' | then:p.externalId | default:p.username }}.json",
+      "fields": [
+        {
+          "key": "by",
+          "label": "Find by",
+          "type": "select",
+          "default": "username",
+          "options": [
+            "username",
+            "externalId"
+          ]
+        },
+        {
+          "key": "username",
+          "label": "Username",
+          "type": "text",
+          "required": false,
+          "default": ""
+        },
+        {
+          "key": "externalId",
+          "label": "SSO external ID",
+          "type": "text",
+          "required": false,
+          "default": ""
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "getAll",
+      "title": "Get many users",
+      "method": "GET",
+      "path": "/admin/users/list/{{ p.flag }}.json",
+      "fields": [
+        {
+          "key": "flag",
+          "label": "Flag",
+          "type": "select",
+          "required": true,
+          "options": [
+            "active",
+            "blocked",
+            "new",
+            "staff",
+            "suspect",
+            "suspended"
+          ]
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "asc",
+            "order",
+            "showEmails",
+            "stats"
+          ],
+          "help": "order: created, days_visited, email, last_emailed, posts, posts_read, read_time, seen, topics_viewed, trust_level or username"
+        }
+      ],
+      "query": {
+        "asc": "{{ p.options.asc | eq:'true' | then:true }}",
+        "order": "{{ p.options.order }}",
+        "show_emails": "{{ p.options.showEmails | eq:'true' | then:true }}",
+        "stats": "{{ p.options.stats | eq:'true' | then:true }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "start_page": 1,
+        "results_path": ""
+      }
+    },
+    {
+      "resource": "userGroup",
+      "operation": "add",
+      "title": "Add users to a group",
+      "method": "PUT",
+      "path": "/groups/{{ p.groupId }}/members.json",
+      "fields": [
+        {
+          "key": "usernames",
+          "label": "Usernames",
+          "type": "text",
+          "required": true,
+          "help": "Comma-separated"
+        },
+        {
+          "key": "groupId",
+          "label": "Group ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "usernames": "{{ p.usernames }}"
+      }
+    },
+    {
+      "resource": "userGroup",
+      "operation": "remove",
+      "title": "Remove users from a group",
+      "method": "DELETE",
+      "path": "/groups/{{ p.groupId }}/members.json",
+      "fields": [
+        {
+          "key": "usernames",
+          "label": "Usernames",
+          "type": "text",
+          "required": true,
+          "help": "Comma-separated"
+        },
+        {
+          "key": "groupId",
+          "label": "Group ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "usernames": "{{ p.usernames }}"
+      }
+    }
+  ]
+}

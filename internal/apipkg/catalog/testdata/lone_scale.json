@@ -1,0 +1,163 @@
+{
+  "list.create": {
+    "params": {
+      "name": "Targets",
+      "type": "PEOPLE"
+    },
+    "response": {
+      "id": "l1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/lists",
+      "body": {
+        "name": "Targets",
+        "entity": "PEOPLE"
+      },
+      "items": 1
+    }
+  },
+  "item.add": {
+    "params": {
+      "list": "l1",
+      "first_name": "Ada",
+      "last_name": "Lovelace",
+      "peopleAdditionalFields": {
+        "email": "ada@x.io",
+        "current_position": "CTO"
+      }
+    },
+    "response": {
+      "id": "i1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/lists/l1/item",
+      "body": {
+        "first_name": "Ada",
+        "last_name": "Lovelace",
+        "email": "ada@x.io",
+        "current_position": "CTO"
+      },
+      "items": 1
+    }
+  },
+  "contact.enrich": {
+    "params": {
+      "enrichmentType": [
+        "email",
+        "phone"
+      ],
+      "firstName": "Ada",
+      "lastName": "Lovelace",
+      "enrichCompanyDomain": "x.io",
+      "detectJobChange": true,
+      "enrichAdditionalFields": {
+        "contactId": "c9"
+      }
+    },
+    "response": {
+      "contacts": [
+        {
+          "email": "ada@x.io"
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/trigger/enrich/sync",
+      "body": {
+        "enrichment_type": [
+          "email",
+          "phone"
+        ],
+        "contacts": [
+          {
+            "firstname": "Ada",
+            "lastname": "Lovelace",
+            "domain": "x.io",
+            "custom": {
+              "contact_id": "c9"
+            }
+          }
+        ],
+        "detect_job_change": true
+      },
+      "items": 1
+    }
+  },
+  "contact.source": {
+    "params": {
+      "sourceCompanyDomain": "x.io",
+      "personas": {
+        "persona": [
+          {
+            "name": "Eng",
+            "jobTitles": "CTO, VP Engineering",
+            "excludeJobTitles": ""
+          }
+        ]
+      },
+      "sourceAdditionalFields": {
+        "maxResults": 5,
+        "seniorityLevels": [
+          "vp"
+        ],
+        "disableCompanyInfo": false
+      }
+    },
+    "response": {
+      "contacts": [
+        {
+          "a": 1
+        },
+        {
+          "a": 2
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/trigger/contact-sourcing/sync",
+      "body": {
+        "company_domain": "x.io",
+        "personas": [
+          {
+            "name": "Eng",
+            "job_titles": [
+              "CTO",
+              "VP Engineering"
+            ]
+          }
+        ],
+        "limit": 5,
+        "seniority_levels": [
+          "vp"
+        ]
+      },
+      "items": 2
+    }
+  },
+  "company.search": {
+    "params": {
+      "searchDomain": "x.io",
+      "searchEnrich": true
+    },
+    "response": {
+      "results": [
+        {
+          "name": "X"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/companies/search",
+      "query": {
+        "domain": "x.io",
+        "enrich": "true"
+      },
+      "items": 1
+    }
+  }
+}

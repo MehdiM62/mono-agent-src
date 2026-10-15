@@ -1,0 +1,72 @@
+{
+  "list.get": {
+    "params": { "site": { "__rl": true, "mode": "url", "value": "https://contoso.sharepoint.com/sites/team" }, "list": "Tasks" },
+    "response": { "id": "l1", "@odata.etag": "x" },
+    "expect": {
+      "method": "GET", "path": "/v1.0/sites/contoso.sharepoint.com:/sites/team:/lists/Tasks",
+      "query": { "$select": "id,name,displayName,description,createdDateTime,lastModifiedDateTime,webUrl" }, "items": 1
+    }
+  },
+  "list.getAll": {
+    "params": { "site": "contoso.sharepoint.com,abc,def", "simplify": false, "limit": 5 },
+    "response": { "value": [ { "id": "l1" }, { "id": "l2" } ] },
+    "expect": { "method": "GET", "path": "/v1.0/sites/contoso.sharepoint.com,abc,def/lists", "query": { "$top": "5" }, "items": 2 }
+  },
+  "item.getAll": {
+    "params": { "site": "S1", "list": "L1", "filter": "fields/Status eq 'Open'" },
+    "response": { "value": [ { "id": "1" } ] },
+    "expect": {
+      "method": "GET", "path": "/v1.0/sites/S1/lists/L1/items",
+      "headers": { "Prefer": "HonorNonIndexedQueriesWarningMayFailRandomly" },
+      "query": { "$filter": "fields/Status eq 'Open'", "$select": "id,createdDateTime,lastModifiedDateTime,webUrl", "$expand": "fields($select=Title)", "$top": "50" },
+      "items": 1
+    }
+  },
+  "item.create": {
+    "params": { "site": "S1", "list": "L1", "columns": { "mappingMode": "defineBelow", "value": { "Title": "Hello", "Status": "Open" } } },
+    "expect": { "method": "POST", "path": "/v1.0/sites/S1/lists/L1/items", "body": { "fields": { "Title": "Hello", "Status": "Open" } } }
+  },
+  "item.upsert": {
+    "params": { "site": "S1", "list": "L1", "columns": { "mappingMode": "defineBelow", "value": { "Title": "Hello", "Status": "Done" }, "matchingColumns": [ "Title" ] } },
+    "responses": [ { "value": [ { "id": "7" } ] }, { "Title": "Hello" } ],
+    "expect_requests": [
+      { "method": "GET", "path": "/v1.0/sites/S1/lists/L1/items", "query": { "$top": "2", "$filter": "fields/Title eq 'Hello'" } },
+      { "method": "PATCH", "path": "/v1.0/sites/S1/lists/L1/items/7/fields", "body": { "Title": "Hello", "Status": "Done" } }
+    ]
+  },
+  "item.delete": {
+    "params": { "site": "S1", "list": "L1", "item": "7" },
+    "response_status": 204,
+    "expect": { "method": "DELETE", "path": "/v1.0/sites/S1/lists/L1/items/7", "items": 1 }
+  },
+  "item.get": {
+    "params": { "site": "S1", "list": "L1", "item": "7", "simplify": false },
+    "expect": { "method": "GET", "path": "/v1.0/sites/S1/lists/L1/items/7", "query": { "$expand": "fields" } }
+  },
+  "item.update": {
+    "params": { "site": "S1", "list": "L1", "columns": { "mappingMode": "defineBelow", "value": { "id": "9", "Status": "Done" }, "matchingColumns": [ "id" ] } },
+    "expect": { "method": "PATCH", "path": "/v1.0/sites/S1/lists/L1/items/9/fields", "body": { "Status": "Done" } }
+  },
+  "file.upload": {
+    "params": { "site": "S1", "folder": "root", "fileName": "a.txt" },
+    "input": { "data": "aGVsbG8=" },
+    "expect": { "method": "PUT", "path": "/v1.0/sites/S1/drive/items/root:/a.txt:/content", "body": "hello" }
+  },
+  "file.download": {
+    "params": { "site": "S1", "file": "F1" },
+    "responses": [ { "name": "a.txt", "file": { "mimeType": "text/plain" } }, { "x": 1 } ],
+    "expect": { "method": "GET", "path": "/v1.0/sites/S1/drive/items/F1/content" }
+  },
+  "file.update": {
+    "params": { "site": "S1", "file": "F1", "fileName": "b.txt" },
+    "expect": { "method": "PATCH", "path": "/v1.0/sites/S1/drive/items/F1", "body": { "name": "b.txt" } }
+  },
+  "file.getChanges": {
+    "params": { "site": "S1", "drive": { "__rl": true, "mode": "id", "value": "b!x1" } },
+    "response": { "value": [
+      { "id": "r", "root": {}, "folder": { "childCount": 2 } },
+      { "id": "f1", "file": { "mimeType": "text/plain" }, "lastModifiedDateTime": "2026-10-13T08:00:00Z" },
+      { "id": "d", "folder": { "childCount": 1 } } ] },
+    "expect": { "method": "GET", "path": "/v1.0/sites/S1/drives/b%21x1/root/delta", "query": {}, "items": 1 }
+  }
+}

@@ -1,0 +1,284 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "google_chat",
+  "node_type": "app.google_chat",
+  "title": "Google Chat",
+  "description": "Spaces, members and messages in Google Chat",
+  "category": "app",
+  "docs_url": "https://developers.google.com/workspace/chat/api/reference/rest",
+  "n8n_types": [
+    "n8n-nodes-base.googleChat"
+  ],
+  "base_url": "https://chat.googleapis.com/v1",
+  "credentials": [
+    {
+      "platform": "google",
+      "name": "Google (Chat)",
+      "n8n_credential": "googleChatOAuth2Api",
+      "n8n_credential_alt": [
+        "googleApi",
+        "googleOAuth2Api"
+      ],
+      "methods": [
+        "oauth"
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      },
+      "reuse_platform": "google"
+    }
+  ],
+  "resources": [
+    {
+      "value": "message",
+      "label": "Message"
+    },
+    {
+      "value": "member",
+      "label": "Member"
+    },
+    {
+      "value": "space",
+      "label": "Space"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "message",
+      "operation": "create",
+      "title": "Create a message",
+      "method": "POST",
+      "path": "/{{ p.spaceId | path }}/messages",
+      "fields": [
+        {
+          "key": "spaceId",
+          "label": "Space",
+          "type": "text",
+          "required": true,
+          "help": "Space resource name, e.g. spaces/AAAA."
+        },
+        {
+          "key": "jsonParameters",
+          "label": "JSON parameters",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "messageUi",
+          "label": "Message",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "text",
+            "cards"
+          ]
+        },
+        {
+          "key": "messageJson",
+          "label": "Message (JSON)",
+          "type": "json",
+          "help": "Full Chat message object, used when JSON parameters is on."
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "threadKey",
+            "requestId"
+          ]
+        }
+      ],
+      "query": {
+        "threadKey": "{{ p.additionalFields.threadKey }}",
+        "requestId": "{{ p.additionalFields.requestId }}"
+      },
+      "body": {
+        "$merge": [
+          "{{ p.jsonParameters | eq:'true' | then:(p.messageJson | fromjson) }}"
+        ],
+        "text": "{{ p.jsonParameters | ne:'true' | then:p.messageUi.text }}"
+      }
+    },
+    {
+      "resource": "message",
+      "operation": "delete",
+      "title": "Delete a message",
+      "method": "DELETE",
+      "path": "/{{ p.messageId | path }}",
+      "fields": [
+        {
+          "key": "messageId",
+          "label": "Message",
+          "type": "text",
+          "required": true,
+          "help": "Message resource name, e.g. spaces/AAAA/messages/BBBB."
+        }
+      ]
+    },
+    {
+      "resource": "message",
+      "operation": "get",
+      "title": "Get a message",
+      "method": "GET",
+      "path": "/{{ p.messageId | path }}",
+      "fields": [
+        {
+          "key": "messageId",
+          "label": "Message",
+          "type": "text",
+          "required": true,
+          "help": "Message resource name, e.g. spaces/AAAA/messages/BBBB."
+        }
+      ]
+    },
+    {
+      "resource": "message",
+      "operation": "update",
+      "title": "Update a message",
+      "method": "PUT",
+      "path": "/{{ p.messageId | path }}",
+      "fields": [
+        {
+          "key": "messageId",
+          "label": "Message",
+          "type": "text",
+          "required": true,
+          "help": "Message resource name, e.g. spaces/AAAA/messages/BBBB."
+        },
+        {
+          "key": "jsonParameters",
+          "label": "JSON parameters",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "updateFieldsUi",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "text",
+            "cards"
+          ]
+        },
+        {
+          "key": "updateFieldsJson",
+          "label": "Update fields (JSON)",
+          "type": "json"
+        }
+      ],
+      "query": {
+        "updateMask": "{{ p.jsonParameters | eq:'true' | then:(p.updateFieldsJson | fromjson | get:'text') | default:p.updateFieldsUi.text | then:'text' }}{{ p.jsonParameters | eq:'true' | then:(p.updateFieldsJson | fromjson | get:'cards') | default:p.updateFieldsUi.cards | then:',cards' }}"
+      },
+      "body": {
+        "$merge": [
+          "{{ p.jsonParameters | eq:'true' | then:(p.updateFieldsJson | fromjson) }}"
+        ],
+        "text": "{{ p.jsonParameters | ne:'true' | then:p.updateFieldsUi.text }}"
+      }
+    },
+    {
+      "resource": "member",
+      "operation": "get",
+      "title": "Get a member",
+      "method": "GET",
+      "path": "/{{ p.memberId | path }}",
+      "fields": [
+        {
+          "key": "memberId",
+          "label": "Member",
+          "type": "text",
+          "required": true,
+          "help": "Membership resource name, e.g. spaces/AAAA/members/123."
+        }
+      ]
+    },
+    {
+      "resource": "member",
+      "operation": "getAll",
+      "title": "Get many members",
+      "method": "GET",
+      "path": "/{{ p.spaceId | path }}/members",
+      "fields": [
+        {
+          "key": "spaceId",
+          "label": "Space",
+          "type": "text",
+          "required": true,
+          "help": "Space resource name, e.g. spaces/AAAA."
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "pageToken",
+        "cursor_path": "nextPageToken",
+        "limit_param": "pageSize",
+        "page_size": 100,
+        "results_path": "memberships"
+      }
+    },
+    {
+      "resource": "space",
+      "operation": "get",
+      "title": "Get a space",
+      "method": "GET",
+      "path": "/{{ p.spaceId | path }}",
+      "fields": [
+        {
+          "key": "spaceId",
+          "label": "Space",
+          "type": "text",
+          "required": true,
+          "help": "Space resource name, e.g. spaces/AAAA."
+        }
+      ]
+    },
+    {
+      "resource": "space",
+      "operation": "getAll",
+      "title": "Get many spaces",
+      "method": "GET",
+      "path": "/spaces",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "pageToken",
+        "cursor_path": "nextPageToken",
+        "limit_param": "pageSize",
+        "page_size": 100,
+        "results_path": "spaces"
+      }
+    }
+  ]
+}

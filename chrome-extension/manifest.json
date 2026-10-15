@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "MonoAgent Bridge",
-  "version": "1.7.1",
-  "description": "Browser automation bridge for MonoAgent",
+  "version": "1.8.0",
+  "description": "Connects your own browser to the MonoAgent app on your computer, to save pages, highlights and tasks, and run your automations.",
   "permissions": [
     "tabs",
     "scripting",
@@ -28,10 +28,10 @@
         "default": "Ctrl+Shift+S",
         "mac": "Command+Shift+S"
       },
-      "description": "Save this page to monomind"
+      "description": "Save this page to MonoAgent"
     },
     "capture-selection": {
-      "description": "Save the selected text to monomind"
+      "description": "Save the selected text to MonoAgent"
     },
     "highlight-selection": {
       "description": "Highlight the selected text and save it as a note"
@@ -59,6 +59,7 @@
         "<all_urls>"
       ],
       "js": [
+        "account_state.js",
         "content.js",
         "highlights.js",
         "highlight_panel.js",

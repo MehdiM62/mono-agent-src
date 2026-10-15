@@ -1,0 +1,533 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "twitter",
+  "node_type": "app.twitter",
+  "title": "X (Twitter)",
+  "description": "Post, delete, like, retweet and search tweets, look up users, manage lists and send DMs on X",
+  "category": "app",
+  "docs_url": "https://docs.x.com/x-api/introduction",
+  "n8n_types": [
+    "n8n-nodes-base.twitter"
+  ],
+  "n8n_version_defaults": {
+    "<2": {
+      "attachmentsAre": "binaryProperties"
+    }
+  },
+  "base_url": "https://api.x.com/2",
+  "credentials": [
+    {
+      "platform": "twitter",
+      "name": "X (Twitter) API",
+      "n8n_credential": "twitterOAuth2Api",
+      "n8n_field_map": {},
+      "methods": [
+        "oauth"
+      ],
+      "fields": [
+        {
+          "key": "access_token",
+          "label": "Access token",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "oauth": {
+        "auth_url": "https://x.com/i/oauth2/authorize",
+        "token_url": "https://api.x.com/2/oauth2/token",
+        "pkce": true,
+        "scopes": [
+          "tweet.read",
+          "users.read",
+          "tweet.write",
+          "tweet.moderate.write",
+          "follows.read",
+          "follows.write",
+          "offline.access",
+          "like.read",
+          "like.write",
+          "dm.write",
+          "dm.read",
+          "list.read",
+          "list.write"
+        ]
+      },
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    },
+    {
+      "platform": "twitter_oauth1",
+      "name": "X / Twitter (OAuth 1.0a)",
+      "n8n_credential": "twitterOAuth1Api",
+      "n8n_field_map": {
+        "consumerKey": "consumer_key",
+        "consumerSecret": "consumer_secret"
+      },
+      "methods": [
+        "oauth1"
+      ],
+      "fields": [
+        {
+          "key": "consumer_key",
+          "label": "API key (consumer key)",
+          "required": true,
+          "help": "developer.x.com → your app → Keys and tokens"
+        },
+        {
+          "key": "consumer_secret",
+          "label": "API key secret (consumer secret)",
+          "secret": true,
+          "required": true,
+          "help": "Next to the API key"
+        },
+        {
+          "key": "oauth_token",
+          "label": "Access token",
+          "secret": true,
+          "required": true,
+          "help": "Filled by `monoagentcli connect` (OAuth 1.0a); paste one only when you have it already"
+        },
+        {
+          "key": "oauth_token_secret",
+          "label": "Access token secret",
+          "secret": true,
+          "required": true,
+          "help": "Filled by `monoagentcli connect` together with the access token"
+        }
+      ],
+      "oauth": {
+        "request_token_url": "https://api.x.com/oauth/request_token",
+        "auth_url": "https://api.x.com/oauth/authorize",
+        "token_url": "https://api.x.com/oauth/access_token"
+      },
+      "inject": {
+        "oauth1": {}
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "tweet",
+      "label": "Tweet"
+    },
+    {
+      "value": "user",
+      "label": "User"
+    },
+    {
+      "value": "list",
+      "label": "List"
+    },
+    {
+      "value": "directMessage",
+      "label": "Direct message"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "tweet",
+      "operation": "create",
+      "title": "Post a tweet",
+      "method": "POST",
+      "path": "/tweets",
+      "body": {
+        "text": "{{ p.text }}",
+        "geo": {
+          "place_id": "{{ p.additionalFields.location }}"
+        },
+        "media": {
+          "media_ids": {
+            "$concat": [
+              "{{ p.attachmentsAre | ne:'binaryProperties' | then:p.additionalFields.attachments }}",
+              {
+                "$map": "{{ p.attachmentsAre | eq:'binaryProperties' | then:bin.files }}",
+                "$to": "{{ pres.0 | get:(idx | string) | get:'media_id_string' | default:(pres.3 | get:(idx | string) | get:'media_id_string') }}"
+              }
+            ]
+          }
+        },
+        "quote_tweet_id": "{{ p.additionalFields.inQuoteToStatusId | rl | re:'status/([0-9]+)' }}",
+        "reply": {
+          "in_reply_to_tweet_id": "{{ p.additionalFields.inReplyToStatusId | rl | re:'status/([0-9]+)' }}"
+        }
+      },
+      "output": {
+        "path": "data"
+      },
+      "fields": [
+        {
+          "key": "text",
+          "label": "Text",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "attachments",
+            "inQuoteToStatusId",
+            "inReplyToStatusId",
+            "location"
+          ],
+          "help": "attachments: a media ID; location: a place ID; quote/reply IDs accept a tweet URL"
+        },
+        {
+          "key": "attachmentsAre",
+          "label": "Attachments are",
+          "type": "select",
+          "default": "mediaIds",
+          "options": [
+            "mediaIds",
+            "binaryProperties"
+          ],
+          "help": "mediaIds: attachments holds media IDs (n8n node version 2); binaryProperties: comma-separated input binary properties, each uploaded through upload.twitter.com/1.1/media/upload and attached (n8n version 1; imported nodes get it from their version)"
+        }
+      ],
+      "before": [
+        {
+          "for_each": "{{ p.attachmentsAre | eq:'binaryProperties' | then:bin.files }}",
+          "when": "{{ el.mime_type | matches:'image' }}",
+          "method": "POST",
+          "path": "https://upload.twitter.com/1.1/media/upload.json",
+          "body_type": "form",
+          "body": {
+            "media_data": "{{ el.base64 }}"
+          }
+        },
+        {
+          "for_each": "{{ p.attachmentsAre | eq:'binaryProperties' | then:bin.files }}",
+          "when": "{{ (el.mime_type | matches:'image') | not }}",
+          "method": "POST",
+          "path": "https://upload.twitter.com/1.1/media/upload.json",
+          "body_type": "form",
+          "body": {
+            "command": "INIT",
+            "total_bytes": "{{ el.file_size }}",
+            "media_type": "{{ el.mime_type }}"
+          }
+        },
+        {
+          "for_each": "{{ p.attachmentsAre | eq:'binaryProperties' | then:(bin.files | base64_chunks:5242880) }}",
+          "when": "{{ (el.file.mime_type | matches:'image') | not }}",
+          "method": "POST",
+          "path": "https://upload.twitter.com/1.1/media/upload.json",
+          "body_type": "form",
+          "body": {
+            "command": "APPEND",
+            "media_id": "{{ pres.1 | get:(el.item | string) | get:'media_id_string' }}",
+            "media_data": "{{ el.data }}",
+            "segment_index": "{{ el.segment }}",
+            "name": "{{ el.file.file_name }}"
+          }
+        },
+        {
+          "for_each": "{{ p.attachmentsAre | eq:'binaryProperties' | then:bin.files }}",
+          "when": "{{ (el.mime_type | matches:'image') | not }}",
+          "method": "POST",
+          "path": "https://upload.twitter.com/1.1/media/upload.json",
+          "body_type": "form",
+          "body": {
+            "command": "FINALIZE",
+            "media_id": "{{ pres.1 | get:(idx | string) | get:'media_id_string' }}"
+          }
+        }
+      ],
+      "binary": {
+        "properties": "{{ p.attachmentsAre | eq:'binaryProperties' | then:p.additionalFields.attachments }}"
+      },
+      "description": "With attachments as binary properties, each file is uploaded first (images in one request, other media by INIT/APPEND/FINALIZE in 5 MiB segments) and the media IDs attached."
+    },
+    {
+      "resource": "tweet",
+      "operation": "delete",
+      "title": "Delete a tweet",
+      "method": "DELETE",
+      "path": "/tweets/{{ p.tweetDeleteId | rl | re:'status/([0-9]+)' }}",
+      "output": {
+        "path": "data"
+      },
+      "fields": [
+        {
+          "key": "tweetDeleteId",
+          "label": "Tweet ID or URL",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "n8n_param_map": {
+        "tweetId": "tweetDeleteId"
+      }
+    },
+    {
+      "resource": "tweet",
+      "operation": "like",
+      "title": "Like a tweet",
+      "method": "POST",
+      "path": "/users/{{ pre.data.id }}/likes",
+      "before": {
+        "method": "GET",
+        "path": "/users/me"
+      },
+      "body": {
+        "tweet_id": "{{ p.tweetId | rl | re:'status/([0-9]+)' }}"
+      },
+      "output": {
+        "path": "data"
+      },
+      "fields": [
+        {
+          "key": "tweetId",
+          "label": "Tweet ID or URL",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "tweet",
+      "operation": "retweet",
+      "title": "Retweet a tweet",
+      "method": "POST",
+      "path": "/users/{{ pre.data.id }}/retweets",
+      "before": {
+        "method": "GET",
+        "path": "/users/me"
+      },
+      "body": {
+        "tweet_id": "{{ p.tweetId | rl | re:'status/([0-9]+)' }}"
+      },
+      "output": {
+        "path": "data"
+      },
+      "fields": [
+        {
+          "key": "tweetId",
+          "label": "Tweet ID or URL",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "tweet",
+      "operation": "search",
+      "title": "Search recent tweets",
+      "method": "GET",
+      "path": "/tweets/search/recent",
+      "query": {
+        "query": "{{ p.searchText }}",
+        "sort_order": "{{ p.additionalFields.sortOrder }}",
+        "start_time": "{{ p.additionalFields.startTime }}",
+        "end_time": "{{ p.additionalFields.endTime }}",
+        "tweet.fields": "{{ p.additionalFields.tweetFieldsObject | csv }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "next_token",
+        "cursor_path": "meta.next_token",
+        "limit_param": "max_results",
+        "page_size": 100,
+        "results_path": "data"
+      },
+      "fields": [
+        {
+          "key": "searchText",
+          "label": "Search query",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "sortOrder",
+            "startTime",
+            "endTime",
+            "tweetFieldsObject"
+          ],
+          "help": "sortOrder: recency or relevancy; tweetFieldsObject: list of tweet.fields names"
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "searchUser",
+      "title": "Get a user",
+      "method": "GET",
+      "path": "/users{{ p.me | eq:'true' | then:'/me' }}{{ p.me | ne:'true' | then:(p.user.mode | default:'username' | eq:'username' | then:'/by/username') | path }}{{ p.me | ne:'true' | then:(p.user | rl | replace:'@','' | prefix:'/') | path }}",
+      "output": {
+        "path": "data"
+      },
+      "fields": [
+        {
+          "key": "user",
+          "label": "User",
+          "type": "text",
+          "help": "Username (or @handle) or, with the n8n locator in id mode, a user ID"
+        },
+        {
+          "key": "me",
+          "label": "Me",
+          "type": "boolean",
+          "default": false,
+          "help": "Return the authenticated user"
+        }
+      ]
+    },
+    {
+      "resource": "list",
+      "operation": "add",
+      "title": "Add a member to a list",
+      "method": "POST",
+      "path": "/lists/{{ p.list | rl | re:'lists/([0-9]+)' }}/members",
+      "before": {
+        "when": "{{ p.user.mode | default:'username' | eq:'username' }}",
+        "method": "GET",
+        "path": "/users/by/username/{{ p.user | rl | replace:'@','' }}"
+      },
+      "body": {
+        "user_id": "{{ pre.data.id | default:(p.user | rl) }}"
+      },
+      "output": {
+        "path": "data"
+      },
+      "fields": [
+        {
+          "key": "list",
+          "label": "List ID or URL",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "user",
+          "label": "User",
+          "type": "text",
+          "required": true,
+          "help": "Username, or a user ID in an n8n id-mode locator"
+        }
+      ]
+    },
+    {
+      "resource": "directMessage",
+      "operation": "create",
+      "title": "Send a direct message",
+      "method": "POST",
+      "path": "/dm_conversations/with/{{ pres.0.data.id | default:(p.user | rl) }}/messages",
+      "before": [
+        {
+          "when": "{{ p.user.mode | default:(p.user | rl | replace:'@','' | matches:'^[0-9]+$' | then:'id') | default:'username' | eq:'username' }}",
+          "method": "GET",
+          "path": "/users/by/username/{{ p.user | rl | replace:'@','' }}"
+        },
+        {
+          "when": "{{ p.additionalFields.attachment | then:(bin.files.0.mime_type | matches:'image') }}",
+          "method": "POST",
+          "path": "https://upload.twitter.com/1.1/media/upload.json",
+          "body_type": "form",
+          "body": {
+            "media_data": "{{ bin.files.0.base64 }}"
+          }
+        },
+        {
+          "when": "{{ p.additionalFields.attachment | then:((bin.files.0.mime_type | matches:'image') | not) }}",
+          "method": "POST",
+          "path": "https://upload.twitter.com/1.1/media/upload.json",
+          "body_type": "form",
+          "body": {
+            "command": "INIT",
+            "total_bytes": "{{ bin.files.0.file_size }}",
+            "media_type": "{{ bin.files.0.mime_type }}"
+          }
+        },
+        {
+          "for_each": "{{ p.additionalFields.attachment | then:((bin.files.0.mime_type | matches:'image') | not) | then:(bin.files.0.base64 | base64_chunks:5242880) }}",
+          "method": "POST",
+          "path": "https://upload.twitter.com/1.1/media/upload.json",
+          "body_type": "form",
+          "body": {
+            "command": "APPEND",
+            "media_id": "{{ pres.2.media_id_string }}",
+            "media_data": "{{ el }}",
+            "segment_index": "{{ idx }}",
+            "name": "{{ bin.files.0.file_name }}"
+          }
+        },
+        {
+          "when": "{{ p.additionalFields.attachment | then:((bin.files.0.mime_type | matches:'image') | not) }}",
+          "method": "POST",
+          "path": "https://upload.twitter.com/1.1/media/upload.json",
+          "body_type": "form",
+          "body": {
+            "command": "FINALIZE",
+            "media_id": "{{ pres.2.media_id_string }}"
+          }
+        }
+      ],
+      "body": {
+        "text": "{{ p.text }}",
+        "attachments": [
+          {
+            "media_id": "{{ p.additionalFields.attachments | default:pres.1.media_id_string | default:pres.4.media_id_string }}"
+          }
+        ]
+      },
+      "output": {
+        "path": "data"
+      },
+      "fields": [
+        {
+          "key": "user",
+          "label": "User",
+          "type": "text",
+          "required": true,
+          "help": "Username, a numeric user ID, or n8n's locator (mode id or username)"
+        },
+        {
+          "key": "text",
+          "label": "Text",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "attachments",
+            "attachment"
+          ],
+          "help": "attachments: a media ID; attachment (n8n v1): the input binary property to upload and attach (the first of a comma-separated list), sent through upload.twitter.com/1.1/media/upload"
+        }
+      ],
+      "n8n_param_map": {
+        "userId": "user"
+      },
+      "binary": {
+        "properties": "{{ p.additionalFields.attachment | split | get:'0' }}"
+      },
+      "description": "With attachment, the file is uploaded first (images in one request, other media by INIT/APPEND/FINALIZE in 5 MiB segments) and its media ID attached."
+    }
+  ]
+}

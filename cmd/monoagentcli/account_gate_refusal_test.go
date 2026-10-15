@@ -121,7 +121,8 @@ func TestGateWhenLocked(t *testing.T) {
 
 	for _, args := range [][]string{{"workflow", "list"}, {"--profile", "work", "person", "list"}, {"daemon", "restart"},
 		{"daemon", "install"}, {"extension", "status"}, {"org", "run"}, {"org", "serve"}, {"org", "serve", "--foreground"},
-		{"workflow", "list", "--help=false"}} {
+		{"workflow", "list", "--help=false"}, {"doctor"}, {"doctor", "fix", "x"}, {"setup"}, {"ref", "node", "http.request"},
+		{"ref"}, {"release", "verify", "a", "b"}, {"completion", "bash"}, {"__complete", "work"}, {"__completeNoDesc", "work"}} {
 		if stderr, err := gate(args...); err == nil || err.Error() != why || stderr != "" {
 			t.Errorf("gated %q: %v, stderr %q", args, err, stderr)
 		}
@@ -131,9 +132,9 @@ func TestGateWhenLocked(t *testing.T) {
 			t.Errorf("serving %q: %v, stderr %q", args, err, stderr)
 		}
 	}
-	for _, args := range [][]string{{"doctor"}, {"doctor", "fix", "x"}, {"account", "login"}, {"--profile", "work", "account", "status"},
-		{"update", "--app"}, {"setup"}, {"version"}, {"library", "login"}, {"library", "status", "--json"}, {"ref", "node", "http.request"},
-		{"workflow", "list", "--help"}, {"daemon", "--help"}, {"help"}, {"completion", "bash"}, {"__complete", "work"}} {
+	for _, args := range [][]string{{"account", "login"}, {"--profile", "work", "account", "status"},
+		{"update", "--app"}, {"version"}, {"library", "login"}, {"library", "status", "--json"},
+		{"workflow", "list", "--help"}, {"daemon", "--help"}, {"doctor", "--help"}, {"help"}, {"help", "completion"}, {}} {
 		if stderr, err := gate(args...); err != nil || stderr != "" {
 			t.Errorf("open %q: %v, stderr %q", args, err, stderr)
 		}
@@ -145,7 +146,7 @@ func TestGateWhenLocked(t *testing.T) {
 // line; an open command asks nothing of monoes.me.
 func TestGateRefreshesBeforeGatedCommandsOnly(t *testing.T) {
 	r := installExpiredSession(t, nil)
-	for _, args := range [][]string{{"completion", "bash"}, {"doctor"}, {"account", "login"}} {
+	for _, args := range [][]string{{"version"}, {"help"}, {"account", "login"}} {
 		if _, err := gate(args...); err != nil || r.calls.Load() != 0 {
 			t.Fatalf("%q: %v, %d refreshes: an open command must not refresh", args, err, r.calls.Load())
 		}
@@ -166,7 +167,7 @@ func TestGateAnnouncesGraceAndWarning(t *testing.T) {
 		if err != nil || st.State != account.StateGrace || stderr != want {
 			t.Errorf("state %s: %v, stderr %q, want %q", st.State, err, stderr, want)
 		}
-		if stderr, _ := gate("doctor"); stderr != "" {
+		if stderr, _ := gate("version"); stderr != "" {
 			t.Errorf("an open command printed %q", stderr)
 		}
 	})

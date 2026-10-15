@@ -1,0 +1,78 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "peekalink",
+  "title": "Peekalink",
+  "description": "Link previews from Peekalink",
+  "category": "app",
+  "docs_url": "https://docs.peekalink.io/",
+  "n8n_types": [
+    "n8n-nodes-base.peekalink"
+  ],
+  "base_url": "https://api.peekalink.io",
+  "credentials": [
+    {
+      "platform": "peekalink",
+      "name": "Peekalink",
+      "n8n_credential": "peekalinkApi",
+      "n8n_field_map": {
+        "apiKey": "access_token"
+      },
+      "methods": [
+        "bearer"
+      ],
+      "fields": [
+        {
+          "key": "access_token",
+          "label": "API key",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "operations": [
+    {
+      "resource": "",
+      "operation": "preview",
+      "title": "Preview a link",
+      "method": "POST",
+      "path": "/",
+      "fields": [
+        {
+          "key": "url",
+          "label": "URL",
+          "type": "text",
+          "required": true,
+          "default": ""
+        }
+      ],
+      "body": {
+        "link": "{{ p.url }}"
+      }
+    },
+    {
+      "resource": "",
+      "operation": "isAvailable",
+      "title": "Check whether a link preview is available",
+      "method": "POST",
+      "path": "/is-available/",
+      "fields": [
+        {
+          "key": "url",
+          "label": "URL",
+          "type": "text",
+          "required": true,
+          "default": ""
+        }
+      ],
+      "body": {
+        "link": "{{ p.url }}"
+      }
+    }
+  ]
+}

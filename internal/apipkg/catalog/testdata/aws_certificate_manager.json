@@ -1,0 +1,118 @@
+{
+  "certificate.renew": {
+    "params": {
+      "certificateArn": "arn:c"
+    },
+    "response": {},
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "CertificateArn": "arn:c"
+      },
+      "headers": {
+        "X-Amz-Target": "CertificateManager.RenewCertificate"
+      },
+      "items": 1
+    }
+  },
+  "certificate.delete": {
+    "params": {
+      "certificateArn": "arn:c"
+    },
+    "response": {},
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "CertificateArn": "arn:c"
+      },
+      "headers": {
+        "X-Amz-Target": "CertificateManager.DeleteCertificate"
+      },
+      "items": 1
+    }
+  },
+  "certificate.get": {
+    "params": {
+      "certificateArn": "arn:c"
+    },
+    "response": {
+      "Certificate": "PEM"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "CertificateArn": "arn:c"
+      },
+      "headers": {
+        "X-Amz-Target": "CertificateManager.GetCertificate"
+      },
+      "items": 1
+    }
+  },
+  "certificate.getMany": {
+    "params": {
+      "limit": 5,
+      "options": {
+        "certificateStatuses": [
+          "ISSUED"
+        ],
+        "keyTypes": [
+          "RSA_2048"
+        ]
+      }
+    },
+    "response": {
+      "CertificateSummaryList": [
+        {
+          "CertificateArn": "a"
+        },
+        {
+          "CertificateArn": "b"
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "CertificateStatuses": [
+          "ISSUED"
+        ],
+        "Includes": {
+          "keyTypes": [
+            "RSA_2048"
+          ]
+        },
+        "MaxItems": 5
+      },
+      "headers": {
+        "X-Amz-Target": "CertificateManager.ListCertificates"
+      },
+      "items": 2
+    }
+  },
+  "certificate.getMetadata": {
+    "params": {
+      "certificateArn": "arn:c"
+    },
+    "response": {
+      "Certificate": {
+        "DomainName": "x"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "CertificateArn": "arn:c"
+      },
+      "headers": {
+        "X-Amz-Target": "CertificateManager.DescribeCertificate"
+      },
+      "items": 1
+    }
+  }
+}

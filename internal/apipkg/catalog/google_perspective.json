@@ -1,0 +1,83 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "google_perspective",
+  "node_type": "app.google_perspective",
+  "title": "Google Perspective",
+  "description": "Score comments for toxicity and other attributes with the Perspective API",
+  "category": "app",
+  "docs_url": "https://developers.perspectiveapi.com/s/about-the-api-methods",
+  "n8n_types": [
+    "n8n-nodes-base.googlePerspective"
+  ],
+  "base_url": "https://commentanalyzer.googleapis.com/v1alpha1",
+  "credentials": [
+    {
+      "platform": "google",
+      "name": "Google (Perspective)",
+      "n8n_credential": "googlePerspectiveOAuth2Api",
+      "n8n_credential_alt": [
+        "googleOAuth2Api"
+      ],
+      "methods": [
+        "oauth"
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      },
+      "reuse_platform": "google"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "",
+      "operation": "analyzeComment",
+      "title": "Analyze a comment",
+      "method": "POST",
+      "path": "/comments:analyze",
+      "fields": [
+        {
+          "key": "text",
+          "label": "Text",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "key": "requestedAttributesUi",
+          "label": "Attributes",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "requestedAttributesValues"
+          ],
+          "help": "requestedAttributesValues: list of {attributeName: toxicity|severe_toxicity|identity_attack|insult|profanity|threat|sexually_explicit|flirtation, scoreThreshold}."
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "languages"
+          ]
+        }
+      ],
+      "body": {
+        "comment": {
+          "type": "PLAIN_TEXT",
+          "text": "{{ p.text }}"
+        },
+        "requestedAttributes": {
+          "$entries": "{{ p.requestedAttributesUi.requestedAttributesValues }}",
+          "$key": "{{ el.attributeName | upper }}",
+          "$value": {
+            "scoreType": "probability",
+            "scoreThreshold": "{{ el.scoreThreshold }}"
+          }
+        },
+        "languages": "{{ p.options.languages | split }}"
+      }
+    }
+  ]
+}

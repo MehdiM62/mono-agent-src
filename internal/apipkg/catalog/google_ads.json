@@ -1,0 +1,155 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "google_ads",
+  "node_type": "app.google_ads",
+  "title": "Google Ads",
+  "description": "Campaigns and their metrics in Google Ads",
+  "category": "app",
+  "docs_url": "https://developers.google.com/google-ads/api/rest/overview",
+  "n8n_types": [
+    "n8n-nodes-base.googleAds"
+  ],
+  "base_url": "https://googleads.googleapis.com/v25",
+  "credentials": [
+    {
+      "platform": "google",
+      "name": "Google (Google Ads)",
+      "n8n_credential": "googleAdsOAuth2Api",
+      "n8n_credential_alt": [
+        "googleOAuth2Api"
+      ],
+      "methods": [
+        "oauth"
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}",
+          "developer-token": "{{ cred.developer_token | default:p.developerToken }}"
+        }
+      },
+      "reuse_platform": "google",
+      "n8n_field_map": {
+        "developerToken": "developer_token"
+      },
+      "fields": [
+        {
+          "key": "developer_token",
+          "label": "Developer token",
+          "secret": true,
+          "help": "Google Ads API developer token; an umbrella Google connection has none, so set the node's Developer token field."
+        }
+      ]
+    }
+  ],
+  "resources": [
+    {
+      "value": "campaign",
+      "label": "Campaign"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "campaign",
+      "operation": "getAll",
+      "title": "Get many campaigns",
+      "method": "POST",
+      "path": "/customers/{{ p.clientCustomerId | string | replace:'-','' }}/googleAds:search",
+      "description": "Metric names ending in micros are in millionths of the account currency.",
+      "fields": [
+        {
+          "key": "managerCustomerId",
+          "label": "Manager customer ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "clientCustomerId",
+          "label": "Client customer ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalOptions",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "dateRange",
+            "campaignStatus"
+          ],
+          "help": "dateRange: allTime (default), TODAY, YESTERDAY, LAST_7_DAYS, LAST_BUSINESS_WEEK, THIS_MONTH, LAST_MONTH, LAST_14_DAYS, LAST_30_DAYS; campaignStatus: all, ENABLED, PAUSED, REMOVED."
+        },
+        {
+          "key": "developerToken",
+          "label": "Developer token",
+          "type": "password",
+          "help": "Google Ads API developer token (used when the connection has none)."
+        }
+      ],
+      "headers": {
+        "login-customer-id": "{{ p.managerCustomerId | string | replace:'-','' }}"
+      },
+      "body": {
+        "query": "select campaign.id, campaign.name, campaign_budget.amount_micros, campaign_budget.period, campaign.status, campaign.optimization_score, campaign.advertising_channel_type, campaign.advertising_channel_sub_type, metrics.impressions, metrics.interactions, metrics.interaction_rate, metrics.average_cost, metrics.cost_micros, metrics.conversions, metrics.cost_per_conversion, metrics.conversions_from_interactions_rate, metrics.video_trueview_views, metrics.average_cpm, metrics.ctr from campaign where campaign.id > 0{{ p.additionalOptions.dateRange | ne:'allTime' | then:p.additionalOptions.dateRange | prefix:' and segments.date DURING ' }}{{ p.additionalOptions.campaignStatus | ne:'all' | then:p.additionalOptions.campaignStatus | prefix:\" and campaign.status = '\" | suffix:\"'\" }}"
+      },
+      "output": {
+        "path": "results",
+        "to": {
+          "$merge": [
+            "{{ el.campaign }}",
+            "{{ el.metrics }}",
+            "{{ el.campaignBudget }}"
+          ]
+        }
+      }
+    },
+    {
+      "resource": "campaign",
+      "operation": "get",
+      "title": "Get a campaign",
+      "method": "POST",
+      "path": "/customers/{{ p.clientCustomerId | string | replace:'-','' }}/googleAds:search",
+      "fields": [
+        {
+          "key": "managerCustomerId",
+          "label": "Manager customer ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "clientCustomerId",
+          "label": "Client customer ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "campaignId",
+          "label": "Campaign ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "developerToken",
+          "label": "Developer token",
+          "type": "password"
+        }
+      ],
+      "headers": {
+        "login-customer-id": "{{ p.managerCustomerId | string | replace:'-','' }}"
+      },
+      "body": {
+        "query": "select campaign.id, campaign.name, campaign_budget.amount_micros, campaign_budget.period, campaign.status, campaign.optimization_score, campaign.advertising_channel_type, campaign.advertising_channel_sub_type, metrics.impressions, metrics.interactions, metrics.interaction_rate, metrics.average_cost, metrics.cost_micros, metrics.conversions, metrics.cost_per_conversion, metrics.conversions_from_interactions_rate, metrics.video_trueview_views, metrics.average_cpm, metrics.ctr from campaign where campaign.id = {{ p.campaignId | string | replace:'-','' }}"
+      },
+      "output": {
+        "path": "results",
+        "to": {
+          "$merge": [
+            "{{ el.campaign }}",
+            "{{ el.metrics }}",
+            "{{ el.campaignBudget }}"
+          ]
+        }
+      }
+    }
+  ]
+}

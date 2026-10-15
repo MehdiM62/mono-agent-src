@@ -8,7 +8,7 @@ default; loopback-only bind (`127.0.0.1:9322`). Full endpoint list:
 ## Start the server
 
 ```bash
-monoagentcli httpapi
+monoagentcli --profile work httpapi
 # HTTP API listening on 127.0.0.1:9322 (mutations disabled — read-only). Press Ctrl+C to stop.
 ```
 
@@ -16,7 +16,7 @@ The bearer token is generated on first start and stored in the active
 profile's secrets vault:
 
 ```bash
-monoagentcli secret list | grep httpapi-token
+monoagentcli --profile work secret list | grep httpapi-token
 ```
 
 Reveal it with `monoagentcli secret reveal httpapi-token --reveal --json`

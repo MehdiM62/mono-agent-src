@@ -1,0 +1,194 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "npm",
+  "title": "npm",
+  "description": "Package metadata, versions, search and dist-tags in an npm registry",
+  "category": "app",
+  "docs_url": "https://github.com/npm/registry/blob/main/docs/REGISTRY-API.md",
+  "n8n_types": [
+    "n8n-nodes-base.npm"
+  ],
+  "base_url": "{{ cred.registry_url | default:'https://registry.npmjs.org' }}",
+  "credentials": [
+    {
+      "platform": "npm",
+      "name": "npm registry",
+      "n8n_credential": "npmApi",
+      "n8n_field_map": {
+        "accessToken": "access_token",
+        "registryUrl": "registry_url"
+      },
+      "methods": [
+        "bearer",
+        "none"
+      ],
+      "fields": [
+        {
+          "key": "access_token",
+          "label": "Access token",
+          "secret": true,
+          "help": "Needed for private packages and dist-tag updates."
+        },
+        {
+          "key": "registry_url",
+          "label": "Registry URL",
+          "help": "Empty for https://registry.npmjs.org"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "package",
+      "label": "Package"
+    },
+    {
+      "value": "distTag",
+      "label": "Distribution tag"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "package",
+      "operation": "getMetadata",
+      "title": "Get a package version's metadata",
+      "method": "GET",
+      "path": "/{{ p.packageName }}/{{ p.packageVersion }}",
+      "fields": [
+        {
+          "key": "packageName",
+          "label": "Package name",
+          "type": "text",
+          "required": true,
+          "default": ""
+        },
+        {
+          "key": "packageVersion",
+          "label": "Package version",
+          "type": "text",
+          "required": true,
+          "default": "latest"
+        }
+      ]
+    },
+    {
+      "resource": "package",
+      "operation": "getVersions",
+      "title": "List a package's versions",
+      "method": "GET",
+      "path": "/{{ p.packageName }}",
+      "fields": [
+        {
+          "key": "packageName",
+          "label": "Package name",
+          "type": "text",
+          "required": true,
+          "default": ""
+        }
+      ],
+      "output": {
+        "from": "{{ res.time | omit:'created,modified' | entries:'version,published_at' }}",
+        "sort": "published_at",
+        "sort_desc": true
+      }
+    },
+    {
+      "resource": "package",
+      "operation": "search",
+      "title": "Search packages",
+      "method": "GET",
+      "path": "/-/v1/search",
+      "fields": [
+        {
+          "key": "query",
+          "label": "Query",
+          "type": "text",
+          "required": true,
+          "default": ""
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 10,
+          "min": 1,
+          "max": 100
+        },
+        {
+          "key": "offset",
+          "label": "Offset",
+          "type": "number",
+          "default": 0,
+          "min": 0
+        }
+      ],
+      "query": {
+        "text": "{{ p.query }}",
+        "size": "{{ p.limit }}",
+        "from": "{{ p.offset }}",
+        "popularity": 0.99
+      },
+      "output": {
+        "path": "objects",
+        "each": "package",
+        "to": {
+          "name": "{{ el.name }}",
+          "version": "{{ el.version }}",
+          "description": "{{ el.description }}"
+        }
+      }
+    },
+    {
+      "resource": "distTag",
+      "operation": "getMany",
+      "title": "Get a package's dist-tags",
+      "method": "GET",
+      "path": "/-/package/{{ p.packageName }}/dist-tags",
+      "fields": [
+        {
+          "key": "packageName",
+          "label": "Package name",
+          "type": "text",
+          "required": true,
+          "default": ""
+        }
+      ]
+    },
+    {
+      "resource": "distTag",
+      "operation": "update",
+      "title": "Point a dist-tag at a version",
+      "method": "PUT",
+      "path": "/-/package/{{ p.packageName }}/dist-tags/{{ p.distTagName }}",
+      "fields": [
+        {
+          "key": "packageName",
+          "label": "Package name",
+          "type": "text",
+          "required": true,
+          "default": ""
+        },
+        {
+          "key": "packageVersion",
+          "label": "Package version",
+          "type": "text",
+          "required": true,
+          "default": ""
+        },
+        {
+          "key": "distTagName",
+          "label": "Dist-tag name",
+          "type": "text",
+          "required": true,
+          "default": "latest"
+        }
+      ],
+      "body": "{{ p.packageVersion }}"
+    }
+  ]
+}

@@ -4,6 +4,9 @@ import "strconv"
 
 // Publication history is owned by the CLI and scoped by rawCLI to the active profile.
 func (a *App) ListPublications(search, platform, kind, workflow, agent, since, until string, limit, offset int) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	args := []string{"publication", "list", "--limit", strconv.Itoa(limit), "--offset", strconv.Itoa(offset)}
 	for _, filter := range []struct{ flag, value string }{
 		{"--search", search}, {"--platform", platform}, {"--kind", kind},
@@ -17,9 +20,15 @@ func (a *App) ListPublications(search, platform, kind, workflow, agent, since, u
 }
 
 func (a *App) GetPublication(id string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	return a.rawCLI(summaryCLITimeout, "publication", "get", id)
 }
 
 func (a *App) GetPublicationStats() string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	return a.rawCLI(summaryCLITimeout, "publication", "stats")
 }

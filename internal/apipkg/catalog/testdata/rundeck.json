@@ -1,0 +1,47 @@
+{
+  "job.execute": {
+    "credential": {
+      "url": "https://rd.test",
+      "token": "t"
+    },
+    "params": {
+      "jobid": "j1",
+      "arguments": {
+        "arguments": [
+          {
+            "name": "env",
+            "value": "prod"
+          },
+          {
+            "name": "v",
+            "value": "2"
+          }
+        ]
+      },
+      "filter": "tags: web"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/14/job/j1/run",
+      "query": {
+        "filter": "tags: web"
+      },
+      "body": {
+        "argString": "-env prod -v 2"
+      }
+    }
+  },
+  "job.getMetadata": {
+    "credential": {
+      "url": "https://rd.test",
+      "token": "t"
+    },
+    "params": {
+      "jobid": "j1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/18/job/j1/info"
+    }
+  }
+}

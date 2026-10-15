@@ -1,0 +1,55 @@
+{
+  "sendMessage": {
+    "params": {
+      "queue": "https://sqs.us-east-1.amazonaws.com/123/jobs.fifo",
+      "queueType": "fifo",
+      "sendInputData": false,
+      "message": "hello",
+      "messageGroupId": "g1",
+      "options": {
+        "delaySeconds": 5,
+        "messageDeduplicationId": "d1",
+        "messageAttributes": {
+          "string": [
+            {
+              "name": "kind",
+              "value": "a"
+            }
+          ],
+          "number": [
+            {
+              "name": "n",
+              "value": 3
+            }
+          ]
+        }
+      }
+    },
+    "response": {
+      "SendMessageResponse": {
+        "SendMessageResult": {
+          "MessageId": "x"
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/123/jobs.fifo",
+      "body": {
+        "Action": "SendMessage",
+        "Version": "2012-11-05",
+        "MessageBody": "hello",
+        "DelaySeconds": "5",
+        "MessageDeduplicationId": "d1",
+        "MessageGroupId": "g1",
+        "MessageAttribute.1.Name": "kind",
+        "MessageAttribute.1.Value.StringValue": "a",
+        "MessageAttribute.1.Value.DataType": "String",
+        "MessageAttribute.2.Name": "n",
+        "MessageAttribute.2.Value.StringValue": "3",
+        "MessageAttribute.2.Value.DataType": "Number"
+      },
+      "items": 1
+    }
+  }
+}

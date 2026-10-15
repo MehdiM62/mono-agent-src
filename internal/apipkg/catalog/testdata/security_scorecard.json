@@ -1,0 +1,326 @@
+{
+  "company.getFactor": {
+    "params": {
+      "scorecardIdentifier": "ex.com",
+      "limit": 1,
+      "filters": {
+        "severity": "high"
+      }
+    },
+    "response": {
+      "entries": [
+        {
+          "a": 1
+        },
+        {
+          "a": 2
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/companies/ex.com/factors",
+      "query": {
+        "severity": "high"
+      },
+      "items": 1
+    }
+  },
+  "company.getFactorHistorical": {
+    "params": {
+      "scorecardIdentifier": "ex.com",
+      "returnAll": true,
+      "options": {
+        "date_from": "2024-01-01T00:00:00Z",
+        "timing": "weekly"
+      }
+    },
+    "response": {
+      "entries": [
+        {
+          "date": "2024-01-01",
+          "factors": [
+            {
+              "name": "dns_health",
+              "score": 90
+            },
+            {
+              "name": "patching",
+              "score": 80
+            }
+          ]
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/companies/ex.com/history/factors/score",
+      "query": {
+        "date_from": "2024-01-01",
+        "timing": "weekly"
+      },
+      "items": 1
+    }
+  },
+  "company.getHistoricalScore": {
+    "params": {
+      "scorecardIdentifier": "ex.com",
+      "options": {
+        "date_to": "2024-02-01"
+      }
+    },
+    "response": {
+      "entries": [
+        {
+          "date": "2024-01-01",
+          "score": 88
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/companies/ex.com/history/score",
+      "query": {
+        "to": "2024-02-01"
+      },
+      "items": 1
+    }
+  },
+  "company.getScorecard": {
+    "params": {
+      "scorecardIdentifier": "ex.com"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/companies/ex.com"
+    }
+  },
+  "company.getScorePlan": {
+    "params": {
+      "scorecardIdentifier": "ex.com",
+      "score": 90
+    },
+    "response": {
+      "entries": [
+        {}
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/companies/ex.com/score-plans/by-target/90"
+    }
+  },
+  "industry.getFactor": {
+    "params": {
+      "industry": "retail"
+    },
+    "response": {
+      "entries": []
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/industries/retail/history/factors",
+      "items": 0
+    }
+  },
+  "industry.getFactorHistorical": {
+    "params": {
+      "industry": "retail",
+      "options": {
+        "from": "2024-01-01",
+        "to": "2024-03-01"
+      }
+    },
+    "response": {
+      "entries": []
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/industries/retail/history/factors",
+      "query": {
+        "from": "2024-01-01",
+        "to": "2024-03-01"
+      }
+    }
+  },
+  "industry.getScore": {
+    "params": {
+      "industry": "food"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/industries/food/score"
+    }
+  },
+  "invite.create": {
+    "params": {
+      "email": "a@b.c",
+      "firstName": "A",
+      "lastName": "B",
+      "message": "m",
+      "additionalFields": {
+        "domain": "b.c",
+        "sendme_copy": true
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/invitations",
+      "body": {
+        "email": "a@b.c",
+        "first_name": "A",
+        "last_name": "B",
+        "message": "m",
+        "domain": "b.c",
+        "sendme_copy": true
+      }
+    }
+  },
+  "portfolio.create": {
+    "params": {
+      "name": "P",
+      "description": "d"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/portfolios",
+      "body": {
+        "name": "P",
+        "description": "d",
+        "privacy": "shared"
+      }
+    }
+  },
+  "portfolio.delete": {
+    "params": {
+      "portfolioId": "p1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/portfolios/p1",
+      "items": 1
+    }
+  },
+  "portfolio.getAll": {
+    "params": {
+      "returnAll": true
+    },
+    "response": {
+      "entries": [
+        {
+          "id": 1
+        },
+        {
+          "id": 2
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/portfolios",
+      "items": 2
+    }
+  },
+  "portfolio.update": {
+    "params": {
+      "portfolioId": "p1",
+      "name": "P2",
+      "privacy": "team"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/portfolios/p1",
+      "body": {
+        "name": "P2",
+        "privacy": "team"
+      }
+    }
+  },
+  "portfolioCompany.add": {
+    "params": {
+      "portfolioId": "p1",
+      "domain": "ex.com"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/portfolios/p1/companies/ex.com"
+    }
+  },
+  "portfolioCompany.getAll": {
+    "params": {
+      "portfolioId": "p1",
+      "filters": {
+        "grade": "A",
+        "status": "active"
+      }
+    },
+    "response": {
+      "entries": [
+        {
+          "d": 1
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/portfolios/p1/companies",
+      "query": {
+        "grade": "A",
+        "status": "active"
+      },
+      "items": 1
+    }
+  },
+  "portfolioCompany.remove": {
+    "params": {
+      "portfolioId": "p1",
+      "domain": "ex.com"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/portfolios/p1/companies/ex.com"
+    }
+  },
+  "report.getAll": {
+    "params": {},
+    "response": {
+      "entries": [
+        {
+          "id": 1
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/reports/recent",
+      "items": 1
+    }
+  },
+  "report.download": {
+    "params": {
+      "url": "https://api.securityscorecard.io/reports/files/abc/r.pdf"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/reports/files/abc/r.pdf",
+      "items": 1
+    }
+  },
+  "report.generate": {
+    "params": {
+      "report": "events-json",
+      "scorecardIdentifier": "ex.com",
+      "date": "2024-01-01"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/reports/events-json",
+      "body": {
+        "params": {
+          "scorecard_identifier": "ex.com",
+          "date": "2024-01-01"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,262 @@
+{
+  "activity.getAll": {
+    "params": {
+      "filters": {
+        "type": "emailsOpened",
+        "campaignId": "cam_1"
+      }
+    },
+    "response": [
+      {
+        "_id": "a1"
+      },
+      {
+        "_id": "a2"
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/activities",
+      "query": {
+        "type": "emailsOpened",
+        "campaignId": "cam_1",
+        "offset": "0",
+        "limit": "5"
+      },
+      "items": 2
+    }
+  },
+  "campaign.getAll": {
+    "params": {
+      "limit": 2
+    },
+    "response": [
+      {
+        "_id": "c1"
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/campaigns",
+      "query": {
+        "offset": "0",
+        "limit": "2"
+      },
+      "items": 1
+    }
+  },
+  "campaign.getStats": {
+    "params": {
+      "campaignId": "cam_1",
+      "startDate": "2026-01-01T00:00:00Z",
+      "endDate": "2026-02-01T00:00:00Z",
+      "timezone": "Europe/Paris"
+    },
+    "response": {
+      "sent": 3
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/campaigns/cam_1/stats",
+      "query": {
+        "startDate": "2026-01-01T00:00:00Z",
+        "endDate": "2026-02-01T00:00:00Z",
+        "timezone": "Europe/Paris"
+      },
+      "items": 1
+    }
+  },
+  "enrich.get": {
+    "params": {
+      "enrichId": "e1"
+    },
+    "response": {
+      "id": "e1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/enrich/e1",
+      "items": 1
+    }
+  },
+  "enrich.enrichLead": {
+    "params": {
+      "leadId": "lea_1",
+      "findEmail": true
+    },
+    "response": {
+      "id": "e1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/leads/lea_1/enrich/",
+      "query": {
+        "findEmail": "true",
+        "verifyEmail": "false",
+        "linkedinEnrichment": "false",
+        "findPhone": "false"
+      },
+      "items": 1
+    }
+  },
+  "enrich.enrichPerson": {
+    "params": {
+      "findPhone": true,
+      "additionalFields": {
+        "firstName": "Ada",
+        "companyDomain": "x.io"
+      }
+    },
+    "response": {
+      "id": "e1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/enrich/",
+      "query": {
+        "findEmail": "false",
+        "verifyEmail": "false",
+        "linkedinEnrichment": "false",
+        "findPhone": "true",
+        "firstName": "Ada",
+        "companyDomain": "x.io"
+      },
+      "items": 1
+    }
+  },
+  "lead.create": {
+    "params": {
+      "campaignId": "cam_1",
+      "email": "a@x.io",
+      "additionalFields": {
+        "deduplicate": true,
+        "firstName": "Ada",
+        "icebreaker": "Hi"
+      }
+    },
+    "response": {
+      "_id": "l1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/campaigns/cam_1/leads/a@x.io",
+      "query": {
+        "deduplicate": "true"
+      },
+      "body": {
+        "firstName": "Ada",
+        "icebreaker": "Hi"
+      },
+      "items": 1
+    }
+  },
+  "lead.delete": {
+    "params": {
+      "campaignId": "cam_1",
+      "email": "a@x.io"
+    },
+    "response": {
+      "_id": "l1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/campaigns/cam_1/leads/a@x.io",
+      "query": {
+        "action": "remove"
+      },
+      "items": 1
+    }
+  },
+  "lead.get": {
+    "params": {
+      "email": "a@x.io"
+    },
+    "response": {
+      "_id": "l1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/leads/a@x.io",
+      "items": 1
+    }
+  },
+  "lead.unsubscribe": {
+    "params": {
+      "campaignId": "cam_1",
+      "email": "a@x.io"
+    },
+    "response": {
+      "_id": "l1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/campaigns/cam_1/leads/a@x.io",
+      "items": 1
+    }
+  },
+  "team.get": {
+    "response": {
+      "_id": "t1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/team",
+      "items": 1
+    }
+  },
+  "team.getCredits": {
+    "response": {
+      "credits": 3
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/team/credits",
+      "items": 1
+    }
+  },
+  "unsubscribe.add": {
+    "params": {
+      "email": "a@x.io"
+    },
+    "response": {
+      "_id": "u1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/unsubscribes/a@x.io",
+      "items": 1
+    }
+  },
+  "unsubscribe.delete": {
+    "params": {
+      "email": "a@x.io"
+    },
+    "response": {
+      "_id": "u1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/unsubscribes/a@x.io",
+      "items": 1
+    }
+  },
+  "unsubscribe.getAll": {
+    "params": {
+      "returnAll": true
+    },
+    "response": [
+      {
+        "email": "a@x.io"
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/unsubscribes",
+      "query": {
+        "offset": "0",
+        "limit": "100"
+      },
+      "items": 1
+    }
+  }
+}

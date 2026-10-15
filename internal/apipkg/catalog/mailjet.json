@@ -1,0 +1,411 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "mailjet",
+  "node_type": "app.mailjet",
+  "title": "Mailjet",
+  "description": "Send emails, template emails and SMS through Mailjet",
+  "category": "app",
+  "docs_url": "https://dev.mailjet.com/",
+  "n8n_types": [
+    "n8n-nodes-base.mailjet"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.mailjetTrigger"
+  ],
+  "base_url": "https://api.mailjet.com",
+  "credentials": [
+    {
+      "platform": "mailjet",
+      "name": "Mailjet (email)",
+      "n8n_credential": "mailjetEmailApi",
+      "n8n_field_map": {
+        "apiKey": "api_key",
+        "secretKey": "secret_key",
+        "sandboxMode": "sandbox_mode"
+      },
+      "methods": [
+        "basic"
+      ],
+      "fields": [
+        {
+          "key": "api_key",
+          "label": "API key",
+          "required": true
+        },
+        {
+          "key": "secret_key",
+          "label": "Secret key",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "sandbox_mode",
+          "label": "Sandbox mode",
+          "help": "true to validate sends without delivering them"
+        }
+      ],
+      "inject": {
+        "basic": {
+          "username": "{{ cred.api_key }}",
+          "password": "{{ cred.secret_key }}"
+        }
+      }
+    },
+    {
+      "platform": "mailjet_sms",
+      "name": "Mailjet (SMS)",
+      "n8n_credential": "mailjetSmsApi",
+      "n8n_field_map": {
+        "token": "token"
+      },
+      "methods": [
+        "bearer"
+      ],
+      "fields": [
+        {
+          "key": "token",
+          "label": "SMS API token",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "email",
+      "label": "Email"
+    },
+    {
+      "value": "sms",
+      "label": "SMS"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "email",
+      "operation": "send",
+      "title": "Send an email",
+      "method": "POST",
+      "path": "/v3.1/send",
+      "fields": [
+        {
+          "key": "fromEmail",
+          "label": "From email",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "toEmail",
+          "label": "To email",
+          "type": "text",
+          "required": true,
+          "help": "Comma-separated"
+        },
+        {
+          "key": "subject",
+          "label": "Subject",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "text",
+          "label": "Text",
+          "type": "textarea",
+          "default": ""
+        },
+        {
+          "key": "html",
+          "label": "HTML",
+          "type": "textarea",
+          "default": ""
+        },
+        {
+          "key": "jsonParameters",
+          "label": "JSON parameters",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "variablesJson",
+          "label": "Variables (JSON)",
+          "type": "json",
+          "default": ""
+        },
+        {
+          "key": "variablesUi",
+          "label": "Variables",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "variablesValues"
+          ],
+          "help": "{\"variablesValues\": [{\"name\", \"value\"}]}"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "bccEmail",
+            "ccAddresses",
+            "customCampaign",
+            "deduplicateCampaign",
+            "fromName",
+            "priority",
+            "replyTo",
+            "templateLanguage",
+            "trackClicks",
+            "trackOpens"
+          ],
+          "help": "trackOpens/trackClicks: account_default, disabled or enabled; ccAddresses/ccEmail and bccEmail: comma-separated"
+        }
+      ],
+      "body": {
+        "SandboxMode": "{{ cred.sandbox_mode | eq:'true' | then:true }}",
+        "Messages": [
+          {
+            "From": {
+              "Email": "{{ p.fromEmail }}",
+              "Name": "{{ p.additionalFields.fromName }}"
+            },
+            "Subject": "{{ p.subject }}",
+            "To": {
+              "$map": "{{ p.toEmail | split }}",
+              "$to": {
+                "Email": "{{ el }}"
+              }
+            },
+            "Cc": {
+              "$map": "{{ p.additionalFields.ccAddresses | split }}",
+              "$to": {
+                "Email": "{{ el }}"
+              }
+            },
+            "Bcc": {
+              "$map": "{{ p.additionalFields.bccEmail | split }}",
+              "$to": {
+                "Email": "{{ el }}"
+              }
+            },
+            "Variables": {
+              "$merge": [
+                "{{ p.jsonParameters | eq:'true' | then:(p.variablesJson | fromjson) }}",
+                "{{ p.jsonParameters | ne:'true' | then:(p.variablesUi.variablesValues | kv:'name,value') }}"
+              ]
+            },
+            "TrackOpens": "{{ p.additionalFields.trackOpens }}",
+            "TrackClicks": "{{ p.additionalFields.trackClicks }}",
+            "ReplyTo": {
+              "Email": "{{ p.additionalFields.replyTo }}"
+            },
+            "TemplateLanguage": "{{ p.additionalFields.templateLanguage | eq:'true' | then:true }}",
+            "Priority": "{{ p.additionalFields.priority | int }}",
+            "CustomCampaign": "{{ p.additionalFields.customCampaign }}",
+            "DeduplicateCampaign": "{{ p.additionalFields.deduplicateCampaign | eq:'true' | then:true }}",
+            "HTMLPart": "{{ p.html }}",
+            "TextPart": "{{ p.text }}"
+          }
+        ]
+      },
+      "output": {
+        "path": "Messages"
+      }
+    },
+    {
+      "resource": "email",
+      "operation": "sendTemplate",
+      "title": "Send a template email",
+      "method": "POST",
+      "path": "/v3.1/send",
+      "fields": [
+        {
+          "key": "fromEmail",
+          "label": "From email",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "toEmail",
+          "label": "To email",
+          "type": "text",
+          "required": true,
+          "help": "Comma-separated"
+        },
+        {
+          "key": "templateId",
+          "label": "Template ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "jsonParameters",
+          "label": "JSON parameters",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "variablesJson",
+          "label": "Variables (JSON)",
+          "type": "json",
+          "default": ""
+        },
+        {
+          "key": "variablesUi",
+          "label": "Variables",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "variablesValues"
+          ],
+          "help": "{\"variablesValues\": [{\"name\", \"value\"}]}"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "bccEmail",
+            "ccEmail",
+            "customCampaign",
+            "deduplicateCampaign",
+            "fromName",
+            "priority",
+            "replyTo",
+            "subject",
+            "templateLanguage",
+            "trackClicks",
+            "trackOpens"
+          ],
+          "help": "trackOpens/trackClicks: account_default, disabled or enabled; ccAddresses/ccEmail and bccEmail: comma-separated"
+        }
+      ],
+      "body": {
+        "SandboxMode": "{{ cred.sandbox_mode | eq:'true' | then:true }}",
+        "Messages": [
+          {
+            "From": {
+              "Email": "{{ p.fromEmail }}",
+              "Name": "{{ p.additionalFields.fromName }}"
+            },
+            "Subject": "{{ p.additionalFields.subject }}",
+            "To": {
+              "$map": "{{ p.toEmail | split }}",
+              "$to": {
+                "Email": "{{ el }}"
+              }
+            },
+            "Cc": {
+              "$map": "{{ p.additionalFields.ccEmail | split }}",
+              "$to": {
+                "Email": "{{ el }}"
+              }
+            },
+            "Bcc": {
+              "$map": "{{ p.additionalFields.bccEmail | split }}",
+              "$to": {
+                "Email": "{{ el }}"
+              }
+            },
+            "Variables": {
+              "$merge": [
+                "{{ p.jsonParameters | eq:'true' | then:(p.variablesJson | fromjson) }}",
+                "{{ p.jsonParameters | ne:'true' | then:(p.variablesUi.variablesValues | kv:'name,value') }}"
+              ]
+            },
+            "TrackOpens": "{{ p.additionalFields.trackOpens }}",
+            "TrackClicks": "{{ p.additionalFields.trackClicks }}",
+            "ReplyTo": {
+              "Email": "{{ p.additionalFields.replyTo }}"
+            },
+            "TemplateLanguage": "{{ p.additionalFields.templateLanguage | eq:'true' | then:true }}",
+            "Priority": "{{ p.additionalFields.priority | int }}",
+            "CustomCampaign": "{{ p.additionalFields.customCampaign }}",
+            "DeduplicateCampaign": "{{ p.additionalFields.deduplicateCampaign | eq:'true' | then:true }}",
+            "TemplateID": "{{ p.templateId | int }}"
+          }
+        ]
+      },
+      "output": {
+        "path": "Messages"
+      }
+    },
+    {
+      "resource": "sms",
+      "operation": "send",
+      "title": "Send an SMS",
+      "method": "POST",
+      "path": "/v4/sms-send",
+      "fields": [
+        {
+          "key": "from",
+          "label": "From",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "to",
+          "label": "To",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "text",
+          "label": "Text",
+          "type": "textarea",
+          "required": true
+        }
+      ],
+      "body": {
+        "From": "{{ p.from }}",
+        "To": "{{ p.to }}",
+        "Text": "{{ p.text }}"
+      }
+    }
+  ],
+  "webhook": {
+    "fields": [
+      {
+        "key": "event",
+        "label": "Event",
+        "type": "select",
+        "required": true,
+        "default": "open",
+        "options": [
+          "blocked",
+          "bounce",
+          "open",
+          "sent",
+          "spam",
+          "unsub"
+        ]
+      }
+    ],
+    "create": [
+      {
+        "method": "POST",
+        "path": "/v3/rest/eventcallbackurl",
+        "body": {
+          "Url": "{{ hook.url }}",
+          "EventType": "{{ p.event }}",
+          "Status": "alive",
+          "isBackup": "false"
+        }
+      }
+    ],
+    "id": "{{ res.Data.0.ID }}",
+    "delete": [
+      {
+        "method": "DELETE",
+        "path": "/v3/rest/eventcallbackurl/{{ hook.id }}"
+      }
+    ]
+  }
+}

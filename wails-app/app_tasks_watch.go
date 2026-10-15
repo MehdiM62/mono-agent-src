@@ -89,6 +89,9 @@ func taskPulseData(profileID string, c tasks.Change) map[string]interface{} {
 // startup, before any page listens. {} without a database, for a profile
 // that is not there, or on a failed read.
 func (a *App) TaskPulse() map[string]interface{} {
+	if a.signedOut() != nil {
+		return nil
+	}
 	if a.db == nil {
 		return map[string]interface{}{}
 	}

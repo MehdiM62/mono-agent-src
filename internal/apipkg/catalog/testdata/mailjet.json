@@ -1,0 +1,144 @@
+{
+  "email.send": {
+    "params": {
+      "fromEmail": "a@x.io",
+      "toEmail": "b@x.io,c@x.io",
+      "subject": "Hi",
+      "text": "t",
+      "variablesUi": {
+        "variablesValues": [
+          {
+            "name": "n",
+            "value": "v"
+          }
+        ]
+      },
+      "additionalFields": {
+        "fromName": "A",
+        "replyTo": "r@x.io",
+        "trackOpens": "enabled"
+      }
+    },
+    "credential": {
+      "api_key": "k",
+      "secret_key": "s",
+      "sandbox_mode": "true"
+    },
+    "response": {
+      "Messages": [
+        {
+          "Status": "success"
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v3.1/send",
+      "items": 1,
+      "body": {
+        "SandboxMode": true,
+        "Messages": [
+          {
+            "From": {
+              "Email": "a@x.io",
+              "Name": "A"
+            },
+            "Subject": "Hi",
+            "To": [
+              {
+                "Email": "b@x.io"
+              },
+              {
+                "Email": "c@x.io"
+              }
+            ],
+            "Variables": {
+              "n": "v"
+            },
+            "TextPart": "t",
+            "ReplyTo": {
+              "Email": "r@x.io"
+            },
+            "TrackOpens": "enabled"
+          }
+        ]
+      }
+    }
+  },
+  "email.sendTemplate": {
+    "params": {
+      "fromEmail": "a@x.io",
+      "toEmail": "b@x.io",
+      "templateId": "123",
+      "jsonParameters": true,
+      "variablesJson": "{\"x\":1}",
+      "additionalFields": {
+        "subject": "S",
+        "ccEmail": "c@x.io",
+        "templateLanguage": true
+      }
+    },
+    "credential": {
+      "api_key": "k",
+      "secret_key": "s"
+    },
+    "response": {
+      "Messages": [
+        {
+          "Status": "success"
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v3.1/send",
+      "body": {
+        "Messages": [
+          {
+            "From": {
+              "Email": "a@x.io"
+            },
+            "Subject": "S",
+            "To": [
+              {
+                "Email": "b@x.io"
+              }
+            ],
+            "Cc": [
+              {
+                "Email": "c@x.io"
+              }
+            ],
+            "Variables": {
+              "x": 1
+            },
+            "TemplateID": 123,
+            "TemplateLanguage": true
+          }
+        ]
+      }
+    }
+  },
+  "sms.send": {
+    "params": {
+      "from": "Acme",
+      "to": "+33600000000",
+      "text": "hi"
+    },
+    "credential": {
+      "token": "t"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v4/sms-send",
+      "headers": {
+        "Authorization": "Bearer t"
+      },
+      "body": {
+        "From": "Acme",
+        "To": "+33600000000",
+        "Text": "hi"
+      }
+    }
+  }
+}

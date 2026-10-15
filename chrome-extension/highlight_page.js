@@ -35,6 +35,25 @@
   const UI = globalThis.MonoHighlightPanel;
   if (!UI) return; // highlight_panel.js did not load: the same
 
+  // Signed out (account_state.js) the page shows nothing of MonoAgent: no
+  // highlight panel, no painted highlights. The worker refuses everything this
+  // script asks anyway (gate.js); this keeps the page from offering it.
+  const A = globalThis.MonoAccount;
+  let seen = null;
+  const allowed = () => !!A && A.signedIn(seen, Date.now());
+  if (A && chrome.storage && chrome.storage.local) {
+    chrome.storage.local.get(A.SEEN_KEY).then((got) => {
+      seen = (got && got[A.SEEN_KEY]) || null;
+    }, () => {});
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area !== "local" || !changes[A.SEEN_KEY]) return;
+      seen = changes[A.SEEN_KEY].newValue || null;
+      if (allowed()) return;
+      dismiss();
+      for (const entry of painted.slice()) unpaint(entry.id);
+    });
+  }
+
   const MARK_CLASS = "monoagent-highlight";
   const UI_ID = UI.UI_ID;
   // A task's text is cut here before it is sent, and again by the worker and
@@ -273,6 +292,7 @@
    * cheap at the counts involved, and correct, which reusing it is not.
    */
   function restore(records) {
+    if (!allowed()) return;
     let map = null;
     const split = new Set(); // text nodes an earlier highlight has already cut
 
@@ -316,6 +336,7 @@
 
   /** offer shows the "highlight this" button next to a live selection. */
   function offer(selection) {
+    if (!allowed()) return;
     const range = selection.getRangeAt(0);
     const rect = range.getBoundingClientRect();
     const box = panel(rect.left + window.scrollX, rect.bottom + window.scrollY + 6);
@@ -420,7 +441,7 @@
     // make another one on top.
     const mark = event.target && event.target.closest && event.target.closest(`mark.${MARK_CLASS}`);
     if (mark) {
-      edit(mark.dataset.monoagentHighlight, mark);
+      if (allowed()) edit(mark.dataset.monoagentHighlight, mark);
       return;
     }
     setTimeout(() => {
@@ -451,6 +472,10 @@
       return false;
     }
     if (msg.type === "highlight_selection") {
+      if (!allowed()) {
+        respond({ ok: false, error: "sign in to MonoAgent first" });
+        return false;
+      }
       const selection = window.getSelection();
       if (selection && !selection.isCollapsed && selection.rangeCount) {
         saveSelection(selection.getRangeAt(0), "yellow", false);

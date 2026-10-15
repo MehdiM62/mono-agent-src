@@ -1,0 +1,780 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "high_level",
+  "node_type": "app.high_level",
+  "title": "HighLevel",
+  "description": "Contacts, opportunities, tasks and calendar bookings in HighLevel (LeadConnector API v2)",
+  "category": "app",
+  "docs_url": "https://highlevel.stoplight.io/docs/integrations/",
+  "n8n_types": [
+    "n8n-nodes-base.highLevel"
+  ],
+  "base_url": "https://services.leadconnectorhq.com",
+  "headers": {
+    "Accept": "application/json",
+    "Version": "2021-07-28"
+  },
+  "credentials": [
+    {
+      "platform": "highlevel",
+      "name": "HighLevel",
+      "n8n_credential": "highLevelOAuth2Api",
+      "n8n_field_map": {},
+      "methods": [
+        "bearer",
+        "oauth"
+      ],
+      "fields": [
+        {
+          "key": "access_token",
+          "label": "Private integration token",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "location_id",
+          "label": "Location (sub-account) ID",
+          "required": true,
+          "help": "Used by contact create/list and opportunity create/search"
+        }
+      ],
+      "oauth": {
+        "auth_url": "https://marketplace.leadconnectorhq.com/oauth/chooselocation",
+        "token_url": "https://services.leadconnectorhq.com/oauth/token",
+        "scopes": [
+          "contacts.readonly",
+          "contacts.write",
+          "opportunities.readonly",
+          "opportunities.write",
+          "calendars/events.write",
+          "calendars.readonly",
+          "users.readonly",
+          "locations.readonly",
+          "locations/customFields.readonly"
+        ]
+      },
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "contact",
+      "label": "Contact"
+    },
+    {
+      "value": "opportunity",
+      "label": "Opportunity"
+    },
+    {
+      "value": "task",
+      "label": "Task"
+    },
+    {
+      "value": "calendar",
+      "label": "Calendar"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "contact",
+      "operation": "create",
+      "title": "Create or update a contact",
+      "method": "POST",
+      "path": "/contacts/upsert/",
+      "fields": [
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "phone",
+          "label": "Phone",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "address1",
+            "city",
+            "customFields",
+            "dnd",
+            "firstName",
+            "lastName",
+            "name",
+            "postalCode",
+            "source",
+            "state",
+            "notes",
+            "tags",
+            "timezone",
+            "website"
+          ],
+          "help": "tags: comma-separated; customFields: {\"values\": [{\"fieldId\", \"fieldValue\"}]}; notes: added as a note"
+        }
+      ],
+      "body": {
+        "email": "{{ p.email }}",
+        "phone": "{{ p.phone }}",
+        "$merge": "{{ p.additionalFields | omit:'notes,customFields,tags,timezone' }}",
+        "tags": "{{ p.additionalFields.tags | split }}",
+        "timezone": "{{ p.additionalFields.timezone | rl }}",
+        "locationId": "{{ cred.location_id }}",
+        "customFields": {
+          "$map": "{{ p.additionalFields.customFields.values }}",
+          "$to": {
+            "id": "{{ el.fieldId | rl }}",
+            "key": "{{ el.fieldId.cachedResultName | default:'default_key' }}",
+            "field_value": "{{ el.fieldValue }}"
+          }
+        }
+      },
+      "also": [
+        {
+          "when": "{{ p.additionalFields.notes }}",
+          "method": "POST",
+          "path": "/contacts/{{ res.contact.id }}/notes",
+          "body": {
+            "userId": "{{ res.contact.locationId }}",
+            "body": "{{ p.additionalFields.notes }}"
+          }
+        }
+      ],
+      "output": {
+        "path": "contact"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "delete",
+      "title": "Delete a contact",
+      "method": "DELETE",
+      "path": "/contacts/{{ p.contactId }}/",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "get",
+      "title": "Get a contact",
+      "method": "GET",
+      "path": "/contacts/{{ p.contactId }}/",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "contact"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "getAll",
+      "title": "Get many contacts",
+      "method": "GET",
+      "path": "/contacts/",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "query"
+          ]
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "order",
+            "sortBy"
+          ]
+        }
+      ],
+      "query": {
+        "locationId": "{{ cred.location_id }}",
+        "query": "{{ p.filters.query }}",
+        "order": "{{ p.options.order }}",
+        "sortBy": "{{ p.options.sortBy }}"
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "meta.nextPageUrl",
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": "contacts"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "update",
+      "title": "Update a contact",
+      "method": "PUT",
+      "path": "/contacts/{{ p.contactId }}/",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "address1",
+            "city",
+            "customFields",
+            "dnd",
+            "email",
+            "firstName",
+            "lastName",
+            "name",
+            "phone",
+            "postalCode",
+            "state",
+            "tags",
+            "timezone",
+            "website"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields | omit:'customFields,tags,timezone' }}",
+        "tags": "{{ p.updateFields.tags | split }}",
+        "timezone": "{{ p.updateFields.timezone | rl }}",
+        "customFields": {
+          "$map": "{{ p.updateFields.customFields.values }}",
+          "$to": {
+            "id": "{{ el.fieldId | rl }}",
+            "key": "{{ el.fieldId.cachedResultName | default:'default_key' }}",
+            "field_value": "{{ el.fieldValue }}"
+          }
+        }
+      },
+      "output": {
+        "path": "contact"
+      }
+    },
+    {
+      "resource": "opportunity",
+      "operation": "create",
+      "title": "Create an opportunity",
+      "method": "POST",
+      "path": "/opportunities/",
+      "fields": [
+        {
+          "key": "pipelineId",
+          "label": "Pipeline ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "type": "select",
+          "default": "open",
+          "options": [
+            "open",
+            "won",
+            "lost",
+            "abandoned"
+          ]
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "assignedTo",
+            "companyName",
+            "monetaryValue",
+            "tags",
+            "stageId"
+          ]
+        }
+      ],
+      "body": {
+        "pipelineId": "{{ p.pipelineId }}",
+        "contactId": "{{ p.contactId | rl }}",
+        "name": "{{ p.name }}",
+        "status": "{{ p.status }}",
+        "locationId": "{{ cred.location_id }}",
+        "$merge": "{{ p.additionalFields | omit:'tags,stageId' }}",
+        "tags": "{{ p.additionalFields.tags | split }}",
+        "pipelineStageId": "{{ p.additionalFields.stageId }}"
+      }
+    },
+    {
+      "resource": "opportunity",
+      "operation": "delete",
+      "title": "Delete an opportunity",
+      "method": "DELETE",
+      "path": "/opportunities/{{ p.opportunityId }}",
+      "fields": [
+        {
+          "key": "opportunityId",
+          "label": "Opportunity ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "opportunity",
+      "operation": "get",
+      "title": "Get an opportunity",
+      "method": "GET",
+      "path": "/opportunities/{{ p.opportunityId }}",
+      "fields": [
+        {
+          "key": "opportunityId",
+          "label": "Opportunity ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "opportunity",
+      "operation": "getAll",
+      "title": "Get many opportunities",
+      "method": "GET",
+      "path": "/opportunities/search",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 20,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "assignedTo",
+            "campaignId",
+            "endDate",
+            "pipelineId",
+            "stageId",
+            "startDate",
+            "status",
+            "query"
+          ]
+        }
+      ],
+      "query": {
+        "location_id": "{{ cred.location_id }}",
+        "assigned_to": "{{ p.filters.assignedTo }}",
+        "campaignId": "{{ p.filters.campaignId }}",
+        "endDate": "{{ p.filters.endDate | epoch_ms }}",
+        "pipeline_id": "{{ p.filters.pipelineId }}",
+        "pipeline_stage_id": "{{ p.filters.stageId }}",
+        "date": "{{ p.filters.startDate | epoch_ms }}",
+        "status": "{{ p.filters.status }}",
+        "q": "{{ p.filters.query }}"
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "meta.nextPageUrl",
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": "opportunities"
+      }
+    },
+    {
+      "resource": "opportunity",
+      "operation": "update",
+      "title": "Update an opportunity",
+      "method": "PUT",
+      "path": "/opportunities/{{ p.opportunityId }}",
+      "fields": [
+        {
+          "key": "opportunityId",
+          "label": "Opportunity ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "assignedTo",
+            "monetaryValue",
+            "name",
+            "pipelineId",
+            "stageId",
+            "status"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields | omit:'stageId' }}",
+        "pipelineStageId": "{{ p.updateFields.stageId }}"
+      }
+    },
+    {
+      "resource": "task",
+      "operation": "create",
+      "title": "Create a task",
+      "method": "POST",
+      "path": "/contacts/{{ p.contactId | rl }}/tasks/",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "dueDate",
+          "label": "Due date",
+          "type": "datetime",
+          "required": true
+        },
+        {
+          "key": "completed",
+          "label": "Completed",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "assignedTo",
+            "body"
+          ]
+        }
+      ],
+      "body": {
+        "title": "{{ p.title }}",
+        "dueDate": "{{ p.dueDate | date:'YYYY-MM-DDTHH:mm:ssZ' }}",
+        "completed": "{{ p.completed }}",
+        "assignedTo": "{{ p.additionalFields.assignedTo }}",
+        "body": "{{ p.additionalFields.body }}"
+      },
+      "output": {
+        "to": {
+          "$merge": "{{ el }}",
+          "contactId": "{{ p.contactId | rl }}"
+        }
+      }
+    },
+    {
+      "resource": "task",
+      "operation": "delete",
+      "title": "Delete a task",
+      "method": "DELETE",
+      "path": "/contacts/{{ p.contactId | rl }}/tasks/{{ p.taskId }}/",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "taskId",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "task",
+      "operation": "get",
+      "title": "Get a task",
+      "method": "GET",
+      "path": "/contacts/{{ p.contactId | rl }}/tasks/{{ p.taskId }}/",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "taskId",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "$merge": "{{ el }}",
+          "contactId": "{{ p.contactId | rl }}"
+        }
+      }
+    },
+    {
+      "resource": "task",
+      "operation": "getAll",
+      "title": "Get many tasks",
+      "method": "GET",
+      "path": "/contacts/{{ p.contactId | rl }}/tasks/",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 20,
+          "min": 1
+        }
+      ],
+      "output": {
+        "path": "tasks",
+        "limit": true
+      }
+    },
+    {
+      "resource": "task",
+      "operation": "update",
+      "title": "Update a task",
+      "method": "PUT",
+      "path": "/contacts/{{ p.contactId | rl }}/tasks/{{ p.taskId }}/",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "taskId",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "assignedTo",
+            "completed",
+            "body",
+            "dueDate",
+            "title"
+          ]
+        }
+      ],
+      "before": {
+        "method": "GET",
+        "path": "/contacts/{{ p.contactId | rl }}/tasks/{{ p.taskId }}/"
+      },
+      "body": {
+        "$merge": "{{ p.updateFields | omit:'dueDate,title' }}",
+        "title": "{{ p.updateFields.title | default:pre.title }}",
+        "dueDate": "{{ p.updateFields.dueDate | default:pre.dueDate | date:'YYYY-MM-DDTHH:mm:ssZ' }}"
+      },
+      "output": {
+        "to": {
+          "$merge": "{{ el }}",
+          "contactId": "{{ p.contactId | rl }}"
+        }
+      }
+    },
+    {
+      "resource": "calendar",
+      "operation": "bookAppointment",
+      "title": "Book an appointment",
+      "method": "POST",
+      "path": "/calendars/events/appointments",
+      "fields": [
+        {
+          "key": "calendarId",
+          "label": "Calendar ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "locationId",
+          "label": "Location ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "startTime",
+          "label": "Start time",
+          "type": "text",
+          "required": true,
+          "help": "ISO 8601, e.g. 2024-05-01T10:00:00+02:00"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "endTime",
+            "title",
+            "appointmentStatus",
+            "assignedUserId",
+            "address",
+            "ignoreDateRange",
+            "toNotify"
+          ]
+        }
+      ],
+      "body": {
+        "calendarId": "{{ p.calendarId }}",
+        "locationId": "{{ p.locationId }}",
+        "contactId": "{{ p.contactId | rl }}",
+        "startTime": "{{ p.startTime }}",
+        "$merge": "{{ p.additionalFields }}"
+      }
+    },
+    {
+      "resource": "calendar",
+      "operation": "getFreeSlots",
+      "title": "Get free slots",
+      "method": "GET",
+      "path": "/calendars/{{ p.calendarId }}/free-slots",
+      "fields": [
+        {
+          "key": "calendarId",
+          "label": "Calendar ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "startDate",
+          "label": "Start (epoch ms)",
+          "type": "number",
+          "required": true
+        },
+        {
+          "key": "endDate",
+          "label": "End (epoch ms)",
+          "type": "number",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "timezone",
+            "userId",
+            "userIds"
+          ],
+          "help": "userIds: {\"userIds\": \"id1,id2\"}"
+        }
+      ],
+      "query": {
+        "startDate": "{{ p.startDate }}",
+        "endDate": "{{ p.endDate }}",
+        "timezone": "{{ p.additionalFields.timezone }}",
+        "userId": "{{ p.additionalFields.userId }}",
+        "userIds": "{{ p.additionalFields.userIds.userIds }}"
+      }
+    }
+  ]
+}

@@ -1,0 +1,169 @@
+{
+  "user.getAll": {
+    "credential": {
+      "url": "https://dev-1.okta.com",
+      "api_token": "t"
+    },
+    "params": {
+      "searchQuery": "status eq \"ACTIVE\"",
+      "limit": 5
+    },
+    "response": [
+      {
+        "id": "u1",
+        "status": "ACTIVE",
+        "created": "c",
+        "profile": {
+          "firstName": "A",
+          "lastName": "B",
+          "login": "a@b.io",
+          "email": "a@b.io",
+          "city": "X"
+        }
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/users",
+      "query": {
+        "search": "status eq \"ACTIVE\"",
+        "limit": "5"
+      },
+      "items": 1
+    }
+  },
+  "user.create": {
+    "credential": {
+      "url": "https://dev-1.okta.com",
+      "api_token": "t"
+    },
+    "params": {
+      "firstName": "A",
+      "lastName": "B",
+      "login": "a@b.io",
+      "email": "a@b.io",
+      "getCreateFields": {
+        "city": "X",
+        "password": "pw"
+      }
+    },
+    "response": {
+      "id": "u1",
+      "status": "ACTIVE",
+      "created": "c",
+      "profile": {
+        "firstName": "A",
+        "lastName": "B",
+        "login": "a@b.io",
+        "email": "a@b.io",
+        "city": "X"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/users",
+      "query": {
+        "activate": "true"
+      },
+      "body": {
+        "profile": {
+          "firstName": "A",
+          "lastName": "B",
+          "login": "a@b.io",
+          "email": "a@b.io",
+          "city": "X"
+        },
+        "credentials": {
+          "password": {
+            "value": "pw"
+          }
+        }
+      }
+    }
+  },
+  "user.delete": {
+    "credential": {
+      "url": "https://dev-1.okta.com",
+      "api_token": "t"
+    },
+    "params": {
+      "userId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "u1"
+      }
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v1/users/u1",
+      "items": 1
+    }
+  },
+  "user.get": {
+    "credential": {
+      "url": "https://dev-1.okta.com",
+      "api_token": "t"
+    },
+    "params": {
+      "userId": "u1"
+    },
+    "response": {
+      "id": "u1",
+      "status": "ACTIVE",
+      "created": "c",
+      "profile": {
+        "firstName": "A",
+        "lastName": "B",
+        "login": "a@b.io",
+        "email": "a@b.io",
+        "city": "X"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/users/u1",
+      "items": 1
+    }
+  },
+  "user.update": {
+    "credential": {
+      "url": "https://dev-1.okta.com",
+      "api_token": "t"
+    },
+    "params": {
+      "userId": "u1",
+      "getUpdateFields": {
+        "title": "CTO",
+        "recoveryQuestionQuestion": "q",
+        "recoveryQuestionAnswer": "a"
+      }
+    },
+    "response": {
+      "id": "u1",
+      "status": "ACTIVE",
+      "created": "c",
+      "profile": {
+        "firstName": "A",
+        "lastName": "B",
+        "login": "a@b.io",
+        "email": "a@b.io",
+        "city": "X"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/users/u1",
+      "body": {
+        "profile": {
+          "title": "CTO"
+        },
+        "credentials": {
+          "recovery_question": {
+            "question": "q",
+            "answer": "a"
+          }
+        }
+      }
+    }
+  }
+}

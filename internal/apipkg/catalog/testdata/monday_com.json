@@ -1,0 +1,570 @@
+{
+  "board.create": {
+    "params": {
+      "name": "B",
+      "kind": "public",
+      "additionalFields": {
+        "templateId": 0
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "response": {
+      "data": {
+        "create_board": {
+          "id": "1"
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/",
+      "body": {
+        "query": "mutation ($name: String!, $kind: BoardKind!, $templateId: ID) { create_board (board_name: $name, board_kind: $kind, template_id: $templateId) { id } }",
+        "variables": {
+          "name": "B",
+          "kind": "public"
+        }
+      },
+      "items": 1
+    }
+  },
+  "board.archive": {
+    "params": {
+      "boardId": "1"
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "response": {
+      "data": {
+        "archive_board": {
+          "id": "1"
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/",
+      "body": {
+        "query": "mutation ($id: ID!) { archive_board (board_id: $id) { id } }",
+        "variables": {
+          "id": "1"
+        }
+      },
+      "items": 1
+    }
+  },
+  "board.get": {
+    "params": {
+      "boardId": "1"
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "response": {
+      "data": {
+        "boards": [
+          {
+            "id": "1"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/",
+      "body": {
+        "query": "query ($id: [ID!]) { boards (ids: $id) { id name description state board_folder_id board_kind owners { id } } }",
+        "variables": {
+          "id": "1"
+        }
+      },
+      "items": 1
+    }
+  },
+  "board.getAll": {
+    "params": {
+      "limit": 5
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "response": {
+      "data": {
+        "boards": [
+          {
+            "id": "1"
+          },
+          {
+            "id": "2"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/",
+      "body": {
+        "query": "query ($page: Int, $limit: Int) { boards (page: $page, limit: $limit) { id name description state board_folder_id board_kind owners { id } } }",
+        "variables": {
+          "page": 1,
+          "limit": 5
+        }
+      },
+      "items": 2
+    }
+  },
+  "boardColumn.create": {
+    "params": {
+      "boardId": "1",
+      "title": "Due",
+      "columnType": "longText",
+      "additionalFields": {
+        "defaults": "{\"a\": 1}"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "response": {
+      "data": {
+        "create_column": {
+          "id": "c"
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/",
+      "body": {
+        "query": "mutation ($boardId: ID!, $title: String!, $columnType: ColumnType!, $defaults: JSON) { create_column (board_id: $boardId, title: $title, column_type: $columnType, defaults: $defaults) { id } }",
+        "variables": {
+          "boardId": "1",
+          "title": "Due",
+          "columnType": "long_text",
+          "defaults": "{\"a\":1}"
+        }
+      },
+      "items": 1
+    }
+  },
+  "boardColumn.getAll": {
+    "params": {
+      "boardId": "1"
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "response": {
+      "data": {
+        "boards": [
+          {
+            "columns": [
+              {
+                "id": "a"
+              },
+              {
+                "id": "b"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/",
+      "body": {
+        "query": "query ($boardId: [ID!]) { boards (ids: $boardId) { columns { id title type settings_str archived } } }",
+        "variables": {
+          "boardId": "1"
+        }
+      },
+      "items": 2
+    }
+  },
+  "boardGroup.create": {
+    "params": {
+      "boardId": "1",
+      "name": "G"
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "response": {
+      "data": {
+        "create_group": {
+          "id": "g"
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/",
+      "body": {
+        "query": "mutation ($boardId: ID!, $groupName: String!) { create_group (board_id: $boardId, group_name: $groupName) { id } }",
+        "variables": {
+          "boardId": "1",
+          "groupName": "G"
+        }
+      },
+      "items": 1
+    }
+  },
+  "boardGroup.delete": {
+    "params": {
+      "boardId": "1",
+      "groupId": "g"
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "response": {
+      "data": {
+        "delete_group": {
+          "id": "g"
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/",
+      "body": {
+        "query": "mutation ($boardId: ID!, $groupId: String!) { delete_group (board_id: $boardId, group_id: $groupId) { id } }",
+        "variables": {
+          "boardId": "1",
+          "groupId": "g"
+        }
+      },
+      "items": 1
+    }
+  },
+  "boardGroup.getAll": {
+    "params": {
+      "boardId": "1"
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "response": {
+      "data": {
+        "boards": [
+          {
+            "groups": [
+              {
+                "id": "g"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/",
+      "body": {
+        "query": "query ($boardId: [ID!]) { boards (ids: $boardId) { id groups { id title color position archived } } }",
+        "variables": {
+          "boardId": "1"
+        }
+      },
+      "items": 1
+    }
+  },
+  "boardItem.create": {
+    "params": {
+      "boardId": "1",
+      "groupId": "g",
+      "name": "Task",
+      "additionalFields": {
+        "columnValues": "{\"status\": {\"label\": \"Done\"}}"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "response": {
+      "data": {
+        "create_item": {
+          "id": "i"
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/",
+      "body": {
+        "query": "mutation ($boardId: ID!, $groupId: String!, $itemName: String!, $columnValues: JSON) { create_item (board_id: $boardId, group_id: $groupId, item_name: $itemName, column_values: $columnValues) { id } }",
+        "variables": {
+          "boardId": "1",
+          "groupId": "g",
+          "itemName": "Task",
+          "columnValues": "{\"status\":{\"label\":\"Done\"}}"
+        }
+      },
+      "items": 1
+    }
+  },
+  "boardItem.addUpdate": {
+    "params": {
+      "itemId": "i",
+      "value": "note"
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "response": {
+      "data": {
+        "create_update": {
+          "id": "u"
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/",
+      "body": {
+        "query": "mutation ($itemId: ID!, $value: String!) { create_update (item_id: $itemId, body: $value) { id } }",
+        "variables": {
+          "itemId": "i",
+          "value": "note"
+        }
+      },
+      "items": 1
+    }
+  },
+  "boardItem.changeColumnValue": {
+    "params": {
+      "boardId": "1",
+      "itemId": "i",
+      "columnId": "status",
+      "value": "{\"label\":\"Done\"}"
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "response": {
+      "data": {
+        "change_column_value": {
+          "id": "i"
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/",
+      "body": {
+        "query": "mutation ($boardId: ID!, $itemId: ID!, $columnId: String!, $value: JSON!) { change_column_value (board_id: $boardId, item_id: $itemId, column_id: $columnId, value: $value) { id } }",
+        "variables": {
+          "boardId": "1",
+          "itemId": "i",
+          "columnId": "status",
+          "value": "{\"label\":\"Done\"}"
+        }
+      },
+      "items": 1
+    }
+  },
+  "boardItem.changeMultipleColumnValues": {
+    "params": {
+      "boardId": "1",
+      "itemId": "i",
+      "columnValues": {
+        "text": "x"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "response": {
+      "data": {
+        "change_multiple_column_values": {
+          "id": "i"
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/",
+      "body": {
+        "query": "mutation ($boardId: ID!, $itemId: ID!, $columnValues: JSON!) { change_multiple_column_values (board_id: $boardId, item_id: $itemId, column_values: $columnValues) { id } }",
+        "variables": {
+          "boardId": "1",
+          "itemId": "i",
+          "columnValues": "{\"text\":\"x\"}"
+        }
+      },
+      "items": 1
+    }
+  },
+  "boardItem.delete": {
+    "params": {
+      "itemId": "i"
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "response": {
+      "data": {
+        "delete_item": {
+          "id": "i"
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/",
+      "body": {
+        "query": "mutation ($itemId: ID!) { delete_item (item_id: $itemId) { id } }",
+        "variables": {
+          "itemId": "i"
+        }
+      },
+      "items": 1
+    }
+  },
+  "boardItem.get": {
+    "params": {
+      "itemId": "1,2"
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "response": {
+      "data": {
+        "items": [
+          {
+            "id": "1"
+          },
+          {
+            "id": "2"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/",
+      "body": {
+        "query": "query ($itemId: [ID!]) { items (ids: $itemId) { id name created_at state column_values { id text type value ... on BoardRelationValue { display_value linked_item_ids } ... on DependencyValue { display_value linked_item_ids } ... on MirrorValue { display_value } ... on SubtasksValue { display_value subitems { id name } } column { title archived description settings_str } } } }",
+        "variables": {
+          "itemId": [
+            "1",
+            "2"
+          ]
+        }
+      },
+      "items": 2
+    }
+  },
+  "boardItem.getAll": {
+    "params": {
+      "boardId": "1",
+      "groupId": "g",
+      "limit": 10
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "response": {
+      "data": {
+        "boards": [
+          {
+            "groups": [
+              {
+                "items_page": {
+                  "cursor": null,
+                  "items": [
+                    {
+                      "id": "1"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/",
+      "body": {
+        "query": "query ($boardId: [ID!], $groupId: [String], $limit: Int, $cursor: String) { boards (ids: $boardId) { groups (ids: $groupId) { id items_page (limit: $limit, cursor: $cursor) { cursor items { id name created_at state column_values { id text type value ... on BoardRelationValue { display_value linked_item_ids } ... on DependencyValue { display_value linked_item_ids } ... on MirrorValue { display_value } ... on SubtasksValue { display_value subitems { id name } } column { title archived description settings_str } } } } } } }",
+        "variables": {
+          "boardId": "1",
+          "groupId": "g",
+          "limit": 10
+        }
+      },
+      "items": 1
+    }
+  },
+  "boardItem.getByColumnValue": {
+    "params": {
+      "boardId": "1",
+      "columnId": "status",
+      "columnValue": "Done",
+      "limit": 3
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "response": {
+      "data": {
+        "items_page_by_column_values": {
+          "cursor": null,
+          "items": [
+            {
+              "id": "1"
+            }
+          ]
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/",
+      "body": {
+        "query": "query ($boardId: ID!, $columnId: String!, $columnValue: String!, $limit: Int, $cursor: String) { items_page_by_column_values (limit: $limit, cursor: $cursor, board_id: $boardId, columns: [{column_id: $columnId, column_values: [$columnValue]}]) { cursor items { id name created_at state board { id } column_values { id text type value ... on BoardRelationValue { display_value linked_item_ids } ... on DependencyValue { display_value linked_item_ids } ... on MirrorValue { display_value } ... on SubtasksValue { display_value subitems { id name } } column { title archived description settings_str } } } } }",
+        "variables": {
+          "boardId": "1",
+          "columnId": "status",
+          "columnValue": "Done",
+          "limit": 3
+        }
+      },
+      "items": 1
+    }
+  },
+  "boardItem.move": {
+    "params": {
+      "itemId": "i",
+      "groupId": "g2"
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "response": {
+      "data": {
+        "move_item_to_group": {
+          "id": "i"
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/",
+      "body": {
+        "query": "mutation ($groupId: String!, $itemId: ID!) { move_item_to_group (group_id: $groupId, item_id: $itemId) { id } }",
+        "variables": {
+          "groupId": "g2",
+          "itemId": "i"
+        }
+      },
+      "items": 1
+    }
+  }
+}

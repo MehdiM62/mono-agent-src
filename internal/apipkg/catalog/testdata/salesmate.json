@@ -1,0 +1,322 @@
+{
+  "activity.create": {
+    "params": {
+      "title": "Call",
+      "owner": "3",
+      "type": "Call",
+      "additionalFields": {
+        "dueDate": "2024-01-01T00:00:00Z",
+        "isCompleted": true
+      }
+    },
+    "response": {
+      "Data": {
+        "id": 1,
+        "detail": {}
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/activities",
+      "body": {
+        "title": "Call",
+        "owner": 3,
+        "type": "Call",
+        "dueDate": 1704067200000,
+        "isCompleted": true
+      },
+      "items": 1
+    }
+  },
+  "activity.delete": {
+    "params": {
+      "id": "1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/v1/activities/1"
+    }
+  },
+  "activity.get": {
+    "params": {
+      "id": "1"
+    },
+    "response": {
+      "Data": [
+        {
+          "fieldName": "title",
+          "value": "Call"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/activities/1",
+      "items": 1
+    }
+  },
+  "activity.getAll": {
+    "params": {
+      "limit": 5,
+      "filters": {
+        "filtersUi": {
+          "operator": "AND",
+          "conditions": {
+            "conditionsUi": [
+              {
+                "field": "title",
+                "condition": "EQUALS",
+                "value": "x"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "response": {
+      "Data": {
+        "data": [
+          {
+            "id": 1
+          }
+        ]
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/activities/search",
+      "query": {
+        "pageNo": "1",
+        "rows": "5"
+      },
+      "body": {
+        "fields": "<any>",
+        "query": {
+          "group": {
+            "operator": "AND",
+            "rules": [
+              {
+                "moduleName": "Task",
+                "field": {
+                  "fieldName": "title"
+                },
+                "condition": "EQUALS",
+                "data": "x"
+              }
+            ]
+          }
+        }
+      },
+      "items": 1
+    }
+  },
+  "activity.update": {
+    "params": {
+      "id": "1",
+      "updateFields": {
+        "title": "New"
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/v1/activities/1",
+      "body": {
+        "title": "New"
+      }
+    }
+  },
+  "company.create": {
+    "params": {
+      "name": "Acme",
+      "owner": "2",
+      "additionalFields": {
+        "website": "acme.test"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/companies",
+      "body": {
+        "name": "Acme",
+        "owner": 2,
+        "website": "acme.test"
+      }
+    }
+  },
+  "company.delete": {
+    "params": {
+      "id": "1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/v1/companies/1"
+    }
+  },
+  "company.get": {
+    "params": {
+      "id": "1",
+      "rawData": true
+    },
+    "response": {
+      "Data": [
+        {
+          "fieldName": "name",
+          "value": "Acme"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/companies/1",
+      "items": 1
+    }
+  },
+  "company.getAll": {
+    "params": {
+      "jsonParameters": true,
+      "filtersJson": "{\"fields\":[\"name\"],\"query\":{\"group\":{}}}",
+      "returnAll": true
+    },
+    "response": {
+      "Data": {
+        "data": [
+          {
+            "id": 1
+          }
+        ],
+        "totalPages": 1
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/companies/search",
+      "query": {
+        "pageNo": "1",
+        "rows": "25"
+      },
+      "body": {
+        "fields": [
+          "name"
+        ],
+        "query": {
+          "group": {}
+        }
+      },
+      "items": 1
+    }
+  },
+  "company.update": {
+    "params": {
+      "id": "1",
+      "updateFields": {
+        "owner": "4",
+        "phone": "1"
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/v1/companies/1",
+      "body": {
+        "owner": 4,
+        "phone": "1"
+      }
+    }
+  },
+  "deal.create": {
+    "params": {
+      "title": "D",
+      "owner": "1",
+      "primaryContact": "2",
+      "pipeline": "Sales",
+      "stage": "Contacted",
+      "currency": "USD",
+      "additionalFields": {
+        "dealValue": 100
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/deals",
+      "body": {
+        "title": "D",
+        "owner": 1,
+        "primaryContact": 2,
+        "pipeline": "Sales",
+        "status": "Open",
+        "stage": "Contacted",
+        "currency": "USD",
+        "dealValue": 100
+      }
+    }
+  },
+  "deal.delete": {
+    "params": {
+      "id": "1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/v1/deals/1"
+    }
+  },
+  "deal.get": {
+    "params": {
+      "id": "1"
+    },
+    "response": {
+      "Data": []
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/deals/1"
+    }
+  },
+  "deal.getAll": {
+    "params": {
+      "options": {
+        "fields": "title,stage",
+        "sortBy": "title",
+        "sortOrder": "asc"
+      }
+    },
+    "response": {
+      "Data": {
+        "data": []
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/deals/search",
+      "query": {
+        "pageNo": "1",
+        "rows": "10",
+        "sortBy": "title",
+        "sortOrder": "asc"
+      },
+      "body": {
+        "fields": [
+          "title",
+          "stage"
+        ],
+        "query": {
+          "group": {}
+        }
+      },
+      "items": 0
+    }
+  },
+  "deal.update": {
+    "params": {
+      "id": "1",
+      "updateFields": {
+        "status": "Lost"
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/v1/deals/1",
+      "body": {
+        "status": "Lost"
+      }
+    }
+  }
+}

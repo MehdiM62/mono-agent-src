@@ -1,0 +1,67 @@
+{
+  "profile.create": {
+    "params": {
+      "userId": "https://www.linkedin.com/in/ada"
+    },
+    "response": {
+      "results": {
+        "id": "x"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/user-profile/create",
+      "query": {
+        "userid": "https://www.linkedin.com/in/ada"
+      },
+      "items": 1
+    }
+  },
+  "profile.get": {
+    "params": {
+      "userId": "ada@example.com",
+      "options": {
+        "persona": [
+          "sales",
+          "hiring"
+        ]
+      }
+    },
+    "response": {
+      "results": {
+        "id": "x"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/user-profile",
+      "query": {
+        "userid": "ada@example.com",
+        "persona": "sales,hiring"
+      },
+      "items": 1
+    }
+  },
+  "profile.update": {
+    "params": {
+      "userId": "ada@example.com",
+      "text": "I like building engines."
+    },
+    "response": {
+      "data": {
+        "id": "x"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/user-profile/create",
+      "query": {
+        "userid": "ada@example.com"
+      },
+      "body": {
+        "text": "I like building engines."
+      },
+      "items": 1
+    }
+  }
+}

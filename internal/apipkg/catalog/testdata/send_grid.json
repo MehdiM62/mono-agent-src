@@ -1,0 +1,278 @@
+{
+  "list.create": {
+    "params": {
+      "name": "VIP"
+    },
+    "response": {
+      "id": "l1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v3/marketing/lists",
+      "body": {
+        "name": "VIP"
+      },
+      "items": 1
+    }
+  },
+  "list.delete": {
+    "params": {
+      "listId": "l1",
+      "deleteContacts": true
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/v3/marketing/lists/l1",
+      "query": {
+        "delete_contacts": "true"
+      },
+      "items": 1
+    }
+  },
+  "list.get": {
+    "params": {
+      "listId": "l1"
+    },
+    "response": {
+      "id": "l1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v3/marketing/lists/l1",
+      "query": {
+        "contact_sample": "false"
+      },
+      "items": 1
+    }
+  },
+  "list.getAll": {
+    "params": {
+      "limit": 2
+    },
+    "response": {
+      "result": [
+        {
+          "id": "a"
+        },
+        {
+          "id": "b"
+        }
+      ],
+      "_metadata": {}
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v3/marketing/lists",
+      "query": {},
+      "items": 2
+    }
+  },
+  "list.update": {
+    "params": {
+      "listId": "l1",
+      "name": "New"
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/v3/marketing/lists/l1",
+      "body": {
+        "name": "New"
+      }
+    }
+  },
+  "contact.upsert": {
+    "params": {
+      "email": "a@b.c",
+      "additionalFields": {
+        "firstName": "Ada",
+        "alternateEmails": "x@y.z, q@r.s",
+        "addressUi": {
+          "addressValues": {
+            "address1": "Main 1"
+          }
+        },
+        "listIdsUi": {
+          "listIdValues": {
+            "listIds": [
+              "l1"
+            ]
+          }
+        },
+        "customFieldsUi": {
+          "customFieldValues": [
+            {
+              "fieldId": "e1_T",
+              "fieldValue": "v"
+            }
+          ]
+        }
+      }
+    },
+    "response": {
+      "job_id": "j"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/v3/marketing/contacts",
+      "body": {
+        "list_ids": [
+          "l1"
+        ],
+        "contacts": [
+          {
+            "email": "a@b.c",
+            "first_name": "Ada",
+            "address_line_1": "Main 1",
+            "alternate_emails": [
+              "x@y.z",
+              "q@r.s"
+            ],
+            "custom_fields": {
+              "e1_T": "v"
+            }
+          }
+        ]
+      },
+      "items": 1
+    }
+  },
+  "contact.delete": {
+    "params": {
+      "ids": "a, b"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/v3/marketing/contacts",
+      "query": {
+        "ids": "a,b"
+      }
+    }
+  },
+  "contact.get": {
+    "params": {
+      "by": "email",
+      "email": "o'k@b.c"
+    },
+    "response": {
+      "result": [
+        {
+          "id": "c1"
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v3/marketing/contacts/search",
+      "body": {
+        "query": "email LIKE 'o\\'k@b.c' "
+      },
+      "items": 1
+    }
+  },
+  "contact.getAll": {
+    "params": {
+      "returnAll": true,
+      "filters": {
+        "query": "first_name = 'Ada'"
+      }
+    },
+    "response": {
+      "result": [
+        {
+          "id": "c1"
+        }
+      ],
+      "_metadata": {}
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v3/marketing/contacts/search",
+      "body": {
+        "query": "first_name = 'Ada'"
+      },
+      "items": 1
+    }
+  },
+  "mail.send": {
+    "params": {
+      "fromEmail": "me@x.io",
+      "fromName": "Me",
+      "toEmail": "a@b.c, d@e.f",
+      "subject": "Hi",
+      "contentValue": "Hello",
+      "additionalFields": {
+        "ccEmail": "c@c.c",
+        "categories": "x,y",
+        "attachments": "data",
+        "headers": {
+          "details": [
+            {
+              "key": "X-A",
+              "value": "1"
+            }
+          ]
+        },
+        "sendAt": "2026-01-02T00:00:00Z"
+      }
+    },
+    "input": {
+      "data": "aGk=",
+      "file_name": "f.txt"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v3/mail/send",
+      "body": {
+        "personalizations": [
+          {
+            "to": [
+              {
+                "email": "a@b.c"
+              },
+              {
+                "email": "d@e.f"
+              }
+            ],
+            "cc": [
+              {
+                "email": "c@c.c"
+              }
+            ],
+            "subject": "Hi",
+            "send_at": 1767312000
+          }
+        ],
+        "from": {
+          "email": "me@x.io",
+          "name": "Me"
+        },
+        "mail_settings": {
+          "sandbox_mode": {
+            "enable": false
+          }
+        },
+        "content": [
+          {
+            "type": "text/plain",
+            "value": "Hello"
+          }
+        ],
+        "attachments": [
+          {
+            "content": "aGk=",
+            "filename": "f.txt",
+            "type": "text/plain; charset=utf-8"
+          }
+        ],
+        "headers": {
+          "X-A": "1"
+        },
+        "categories": [
+          "x",
+          "y"
+        ]
+      },
+      "items": 1
+    }
+  }
+}

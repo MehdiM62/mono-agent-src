@@ -24,11 +24,15 @@ test("the worker installs the task bridge once, after the recall group installed
   assert.ok(background.indexOf("MonoTaskBridge.install(") > background.indexOf("MonoRecall.install("));
 });
 
-test("the worker sends what waited when the socket opens", () => {
+test("the worker sends what waited once the bridge on a new socket reports a sign-in, and on signing in", () => {
   const start = background.indexOf("ws.onopen = () => {");
   const end = background.indexOf("ws.onmessage = ", start);
   assert.ok(start !== -1 && end > start, "ws.onopen not found");
-  assert.match(background.slice(start, end), /MonoTaskBridge\.connected\(\);/);
+  assert.match(background.slice(end, background.indexOf("ws.onerror = ", end)), /if \(gate\.signedIn\(\)\) whileSignedIn\(\);/);
+  const fn = background.indexOf("function whileSignedIn() {");
+  assert.ok(fn !== -1, "whileSignedIn not found");
+  assert.match(background.slice(fn, background.indexOf("\n}\n", fn)), /MonoTaskBridge\.connected\(\);/);
+  assert.match(background, /gate\.onChange\(\(signedIn\) => \{[\s\S]*?whileSignedIn\(\);/);
 });
 
 test("the worker loads the task menu with the bridge and installs it once", () => {

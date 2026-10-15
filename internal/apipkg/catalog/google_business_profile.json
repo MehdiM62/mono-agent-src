@@ -1,0 +1,520 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "google_business_profile",
+  "node_type": "app.google_business_profile",
+  "title": "Google Business Profile",
+  "description": "Posts and reviews on Google Business Profile",
+  "category": "app",
+  "docs_url": "https://developers.google.com/my-business/reference/rest",
+  "n8n_types": [
+    "n8n-nodes-base.googleBusinessProfile"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.googleBusinessProfileTrigger"
+  ],
+  "base_url": "https://mybusiness.googleapis.com/v4",
+  "credentials": [
+    {
+      "platform": "google",
+      "name": "Google (Business Profile)",
+      "n8n_credential": "googleBusinessProfileOAuth2Api",
+      "n8n_credential_alt": [
+        "googleOAuth2Api"
+      ],
+      "methods": [
+        "oauth"
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      },
+      "reuse_platform": "google"
+    }
+  ],
+  "resources": [
+    {
+      "value": "post",
+      "label": "Post"
+    },
+    {
+      "value": "review",
+      "label": "Review"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "post",
+      "operation": "create",
+      "title": "Create a post",
+      "method": "POST",
+      "path": "/{{ p.account | rl | path }}/{{ p.location | rl | path }}/localPosts",
+      "fields": [
+        {
+          "key": "account",
+          "label": "Account",
+          "type": "text",
+          "required": true,
+          "help": "Account resource name, e.g. accounts/123."
+        },
+        {
+          "key": "location",
+          "label": "Location",
+          "type": "text",
+          "required": true,
+          "help": "Location resource name, e.g. locations/456."
+        },
+        {
+          "key": "postType",
+          "label": "Post type",
+          "type": "select",
+          "options": [
+            "STANDARD",
+            "EVENT",
+            "OFFER",
+            "ALERT"
+          ],
+          "default": "STANDARD"
+        },
+        {
+          "key": "summary",
+          "label": "Summary",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "key": "title",
+          "label": "Event/offer title",
+          "type": "text"
+        },
+        {
+          "key": "startDateTime",
+          "label": "Start (event)",
+          "type": "datetime"
+        },
+        {
+          "key": "endDateTime",
+          "label": "End (event)",
+          "type": "datetime"
+        },
+        {
+          "key": "startDate",
+          "label": "Start date (offer)",
+          "type": "datetime"
+        },
+        {
+          "key": "endDate",
+          "label": "End date (offer)",
+          "type": "datetime"
+        },
+        {
+          "key": "alertType",
+          "label": "Alert type",
+          "type": "text",
+          "default": "COVID_19"
+        },
+        {
+          "key": "additionalOptions",
+          "label": "Additional options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "languageCode",
+            "callToActionType",
+            "url",
+            "couponCode",
+            "redeemOnlineUrl",
+            "termsConditions"
+          ]
+        }
+      ],
+      "body": {
+        "summary": "{{ p.summary }}",
+        "languageCode": "{{ p.additionalOptions.languageCode }}",
+        "callToAction": {
+          "actionType": "{{ p.additionalOptions.callToActionType }}",
+          "url": "{{ p.additionalOptions.url }}"
+        },
+        "event": {
+          "title": "{{ p.title }}",
+          "schedule": {
+            "startDate": {
+              "year": "{{ p.startDateTime | default:p.startDate | date:'YYYY' | int }}",
+              "month": "{{ p.startDateTime | default:p.startDate | date:'MM' | int }}",
+              "day": "{{ p.startDateTime | default:p.startDate | date:'DD' | int }}"
+            },
+            "startTime": {
+              "hours": "{{ p.startDateTime | date:'HH' | int }}",
+              "minutes": "{{ p.startDateTime | date:'mm' | int }}",
+              "seconds": "{{ p.startDateTime | date:'ss' | int }}",
+              "nanos": "{{ p.startDateTime | then:0 }}"
+            },
+            "endDate": {
+              "year": "{{ p.endDateTime | default:p.endDate | date:'YYYY' | int }}",
+              "month": "{{ p.endDateTime | default:p.endDate | date:'MM' | int }}",
+              "day": "{{ p.endDateTime | default:p.endDate | date:'DD' | int }}"
+            },
+            "endTime": {
+              "hours": "{{ p.endDateTime | date:'HH' | int }}",
+              "minutes": "{{ p.endDateTime | date:'mm' | int }}",
+              "seconds": "{{ p.endDateTime | date:'ss' | int }}",
+              "nanos": "{{ p.endDateTime | then:0 }}"
+            }
+          }
+        },
+        "offer": {
+          "couponCode": "{{ p.additionalOptions.couponCode }}",
+          "redeemOnlineUrl": "{{ p.additionalOptions.redeemOnlineUrl }}",
+          "termsConditions": "{{ p.additionalOptions.termsConditions }}"
+        },
+        "topicType": "{{ p.postType }}",
+        "alertType": "{{ p.postType | eq:'ALERT' | then:p.alertType }}"
+      }
+    },
+    {
+      "resource": "post",
+      "operation": "delete",
+      "title": "Delete a post",
+      "method": "DELETE",
+      "path": "/{{ p.post | rl | path }}",
+      "fields": [
+        {
+          "key": "account",
+          "label": "Account",
+          "type": "text",
+          "required": true,
+          "help": "Account resource name, e.g. accounts/123."
+        },
+        {
+          "key": "location",
+          "label": "Location",
+          "type": "text",
+          "required": true,
+          "help": "Location resource name, e.g. locations/456."
+        },
+        {
+          "key": "post",
+          "label": "Post",
+          "type": "text",
+          "required": true,
+          "help": "Post resource name, e.g. accounts/1/locations/2/localPosts/3."
+        }
+      ]
+    },
+    {
+      "resource": "post",
+      "operation": "get",
+      "title": "Get a post",
+      "method": "GET",
+      "path": "/{{ p.post | rl | path }}",
+      "fields": [
+        {
+          "key": "account",
+          "label": "Account",
+          "type": "text",
+          "required": true,
+          "help": "Account resource name, e.g. accounts/123."
+        },
+        {
+          "key": "location",
+          "label": "Location",
+          "type": "text",
+          "required": true,
+          "help": "Location resource name, e.g. locations/456."
+        },
+        {
+          "key": "post",
+          "label": "Post",
+          "type": "text",
+          "required": true,
+          "help": "Post resource name, e.g. accounts/1/locations/2/localPosts/3."
+        }
+      ]
+    },
+    {
+      "resource": "post",
+      "operation": "getAll",
+      "title": "Get many posts",
+      "method": "GET",
+      "path": "/{{ p.account | rl | path }}/{{ p.location | rl | path }}/localPosts",
+      "fields": [
+        {
+          "key": "account",
+          "label": "Account",
+          "type": "text",
+          "required": true,
+          "help": "Account resource name, e.g. accounts/123."
+        },
+        {
+          "key": "location",
+          "label": "Location",
+          "type": "text",
+          "required": true,
+          "help": "Location resource name, e.g. locations/456."
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 20,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "pageToken",
+        "cursor_path": "nextPageToken",
+        "limit_param": "pageSize",
+        "page_size": 100
+      },
+      "output": {
+        "path": "localPosts"
+      }
+    },
+    {
+      "resource": "post",
+      "operation": "update",
+      "title": "Update a post",
+      "method": "PATCH",
+      "path": "/{{ p.post | rl | path }}",
+      "fields": [
+        {
+          "key": "account",
+          "label": "Account",
+          "type": "text",
+          "required": true,
+          "help": "Account resource name, e.g. accounts/123."
+        },
+        {
+          "key": "location",
+          "label": "Location",
+          "type": "text",
+          "required": true,
+          "help": "Location resource name, e.g. locations/456."
+        },
+        {
+          "key": "post",
+          "label": "Post",
+          "type": "text",
+          "required": true,
+          "help": "Post resource name, e.g. accounts/1/locations/2/localPosts/3."
+        },
+        {
+          "key": "additionalOptions",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "postType",
+            "callToActionType",
+            "url",
+            "startDateTime",
+            "endDateTime",
+            "title",
+            "startDate",
+            "endDate",
+            "couponCode",
+            "redeemOnlineUrl",
+            "termsConditions",
+            "summary",
+            "languageCode"
+          ]
+        }
+      ],
+      "query": {
+        "updateMask": "{{ p.additionalOptions.postType | then:'topicType,' }}{{ p.additionalOptions.callToActionType | then:'callToAction.actionType,' }}{{ p.additionalOptions.url | then:'callToAction.url,' }}{{ p.additionalOptions.startDateTime | then:'event.schedule.startDate,event.schedule.startTime,' }}{{ p.additionalOptions.endDateTime | then:'event.schedule.endDate,event.schedule.endTime,' }}{{ p.additionalOptions.title | then:'event.title,' }}{{ p.additionalOptions.startDate | then:'event.schedule.startDate,' }}{{ p.additionalOptions.endDate | then:'event.schedule.endDate,' }}{{ p.additionalOptions.couponCode | then:'offer.couponCode,' }}{{ p.additionalOptions.redeemOnlineUrl | then:'offer.redeemOnlineUrl,' }}{{ p.additionalOptions.termsConditions | then:'offer.termsConditions,' }}{{ p.additionalOptions.summary | then:'summary,' }}{{ p.additionalOptions.languageCode | then:'languageCode,' }}{{ p.additionalOptions | then:'name' }}"
+      },
+      "body": {
+        "summary": "{{ p.additionalOptions.summary }}",
+        "languageCode": "{{ p.additionalOptions.languageCode }}",
+        "callToAction": {
+          "actionType": "{{ p.additionalOptions.callToActionType }}",
+          "url": "{{ p.additionalOptions.url }}"
+        },
+        "event": {
+          "title": "{{ p.additionalOptions.title }}",
+          "schedule": {
+            "startDate": {
+              "year": "{{ p.additionalOptions.startDateTime | default:p.additionalOptions.startDate | date:'YYYY' | int }}",
+              "month": "{{ p.additionalOptions.startDateTime | default:p.additionalOptions.startDate | date:'MM' | int }}",
+              "day": "{{ p.additionalOptions.startDateTime | default:p.additionalOptions.startDate | date:'DD' | int }}"
+            },
+            "startTime": {
+              "hours": "{{ p.additionalOptions.startDateTime | date:'HH' | int }}",
+              "minutes": "{{ p.additionalOptions.startDateTime | date:'mm' | int }}",
+              "seconds": "{{ p.additionalOptions.startDateTime | date:'ss' | int }}",
+              "nanos": "{{ p.additionalOptions.startDateTime | then:0 }}"
+            },
+            "endDate": {
+              "year": "{{ p.additionalOptions.endDateTime | default:p.additionalOptions.endDate | date:'YYYY' | int }}",
+              "month": "{{ p.additionalOptions.endDateTime | default:p.additionalOptions.endDate | date:'MM' | int }}",
+              "day": "{{ p.additionalOptions.endDateTime | default:p.additionalOptions.endDate | date:'DD' | int }}"
+            },
+            "endTime": {
+              "hours": "{{ p.additionalOptions.endDateTime | date:'HH' | int }}",
+              "minutes": "{{ p.additionalOptions.endDateTime | date:'mm' | int }}",
+              "seconds": "{{ p.additionalOptions.endDateTime | date:'ss' | int }}",
+              "nanos": "{{ p.additionalOptions.endDateTime | then:0 }}"
+            }
+          }
+        },
+        "offer": {
+          "couponCode": "{{ p.additionalOptions.couponCode }}",
+          "redeemOnlineUrl": "{{ p.additionalOptions.redeemOnlineUrl }}",
+          "termsConditions": "{{ p.additionalOptions.termsConditions }}"
+        }
+      }
+    },
+    {
+      "resource": "review",
+      "operation": "get",
+      "title": "Get a review",
+      "method": "GET",
+      "path": "/{{ p.account | rl | path }}/{{ p.location | rl | path }}/reviews/{{ p.review | rl | re:'reviews/([^/]+)' }}",
+      "fields": [
+        {
+          "key": "account",
+          "label": "Account",
+          "type": "text",
+          "required": true,
+          "help": "Account resource name, e.g. accounts/123."
+        },
+        {
+          "key": "location",
+          "label": "Location",
+          "type": "text",
+          "required": true,
+          "help": "Location resource name, e.g. locations/456."
+        },
+        {
+          "key": "review",
+          "label": "Review",
+          "type": "text",
+          "required": true,
+          "help": "Review ID or resource name."
+        }
+      ]
+    },
+    {
+      "resource": "review",
+      "operation": "delete",
+      "title": "Delete a review reply",
+      "method": "DELETE",
+      "path": "/{{ p.account | rl | path }}/{{ p.location | rl | path }}/reviews/{{ p.review | rl | re:'reviews/([^/]+)' }}/reply",
+      "fields": [
+        {
+          "key": "account",
+          "label": "Account",
+          "type": "text",
+          "required": true,
+          "help": "Account resource name, e.g. accounts/123."
+        },
+        {
+          "key": "location",
+          "label": "Location",
+          "type": "text",
+          "required": true,
+          "help": "Location resource name, e.g. locations/456."
+        },
+        {
+          "key": "review",
+          "label": "Review",
+          "type": "text",
+          "required": true,
+          "help": "Review ID or resource name."
+        }
+      ]
+    },
+    {
+      "resource": "review",
+      "operation": "getAll",
+      "title": "Get many reviews",
+      "method": "GET",
+      "path": "/{{ p.account | rl | path }}/{{ p.location | rl | path }}/reviews",
+      "fields": [
+        {
+          "key": "account",
+          "label": "Account",
+          "type": "text",
+          "required": true,
+          "help": "Account resource name, e.g. accounts/123."
+        },
+        {
+          "key": "location",
+          "label": "Location",
+          "type": "text",
+          "required": true,
+          "help": "Location resource name, e.g. locations/456."
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 20,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "pageToken",
+        "cursor_path": "nextPageToken",
+        "limit_param": "pageSize",
+        "page_size": 100
+      },
+      "output": {
+        "path": "reviews"
+      }
+    },
+    {
+      "resource": "review",
+      "operation": "reply",
+      "title": "Reply to a review",
+      "method": "PUT",
+      "path": "/{{ p.account | rl | path }}/{{ p.location | rl | path }}/reviews/{{ p.review | rl | re:'reviews/([^/]+)' }}/reply",
+      "fields": [
+        {
+          "key": "account",
+          "label": "Account",
+          "type": "text",
+          "required": true,
+          "help": "Account resource name, e.g. accounts/123."
+        },
+        {
+          "key": "location",
+          "label": "Location",
+          "type": "text",
+          "required": true,
+          "help": "Location resource name, e.g. locations/456."
+        },
+        {
+          "key": "review",
+          "label": "Review",
+          "type": "text",
+          "required": true,
+          "help": "Review ID or resource name."
+        },
+        {
+          "key": "reply",
+          "label": "Reply",
+          "type": "textarea",
+          "required": true
+        }
+      ],
+      "body": {
+        "comment": "{{ p.reply }}"
+      }
+    }
+  ]
+}

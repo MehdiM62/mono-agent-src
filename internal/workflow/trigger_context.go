@@ -133,6 +133,14 @@ const TriggerNodeTypeWebhook = "trigger.webhook"
 // which this package cannot import), the trigger type of a run it fires.
 const TriggerNodeTypeOrg = "trigger.org"
 
+// AICallerKey is the trigger-data field that carries "an AI started this
+// run" (a `workflow run` from an agent or a chat tool call) into whichever
+// engine runs the execution: a daemon adopting a --no-wait run, or resuming
+// a paused one. browser.jev holds such a run's form submits for approval.
+// Like the webhook trace it stays in the run's context and never reaches
+// the trigger's item.
+const AICallerKey = "_ai_caller"
+
 // withoutTrace returns a copy of data without its field key.
 func withoutTrace(data map[string]interface{}, key string) map[string]interface{} {
 	out := make(map[string]interface{}, len(data))

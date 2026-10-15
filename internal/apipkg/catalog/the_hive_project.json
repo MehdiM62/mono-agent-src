@@ -1,0 +1,2667 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "the_hive_project",
+  "node_type": "app.the_hive_project",
+  "title": "TheHive 5",
+  "description": "Alerts, cases, tasks, logs, observables, comments, pages and queries in TheHive 5",
+  "category": "app",
+  "docs_url": "https://docs.strangebee.com/thehive/api-docs/",
+  "n8n_types": [
+    "n8n-nodes-base.theHiveProject"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.theHiveProjectTrigger"
+  ],
+  "base_url": "{{ cred.url }}/api",
+  "credentials": [
+    {
+      "platform": "the_hive_project",
+      "name": "TheHive 5",
+      "n8n_credential": "theHiveProjectApi",
+      "n8n_field_map": {
+        "ApiKey": "api_key",
+        "url": "url",
+        "allowUnauthorizedCerts": "allow_unauthorized_certs"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "url",
+          "label": "Instance URL",
+          "required": true,
+          "help": "e.g. https://thehive.example.com"
+        },
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "allow_unauthorized_certs",
+          "label": "Ignore SSL issues",
+          "help": "true to accept self-signed or invalid TLS certificates (self-hosted servers)"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.api_key }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "alert",
+      "label": "Alert"
+    },
+    {
+      "value": "case",
+      "label": "Case"
+    },
+    {
+      "value": "comment",
+      "label": "Comment"
+    },
+    {
+      "value": "observable",
+      "label": "Observable"
+    },
+    {
+      "value": "page",
+      "label": "Page"
+    },
+    {
+      "value": "query",
+      "label": "Query"
+    },
+    {
+      "value": "task",
+      "label": "Task"
+    },
+    {
+      "value": "log",
+      "label": "Task log"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "alert",
+      "operation": "create",
+      "title": "Create an alert",
+      "method": "POST",
+      "path": "/v1/alert",
+      "body": {
+        "_json": {
+          "$json": {
+            "$when": "{{ p.observableUi.values | find:'dataType','file' }}",
+            "$merge": "{{ (p.alertFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertFields.schema | pluck:'id')) | default:p.alertFields.value) | unflatten }}",
+            "date": "{{ (p.alertFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertFields.schema | pluck:'id')) | default:p.alertFields.value) | get:'date' | epoch_ms }}",
+            "lastSyncDate": "{{ (p.alertFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertFields.schema | pluck:'id')) | default:p.alertFields.value) | get:'lastSyncDate' | epoch_ms }}",
+            "startDate": "{{ (p.alertFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertFields.schema | pluck:'id')) | default:p.alertFields.value) | get:'startDate' | epoch_ms }}",
+            "endDate": "{{ (p.alertFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertFields.schema | pluck:'id')) | default:p.alertFields.value) | get:'endDate' | epoch_ms }}",
+            "dueDate": "{{ (p.alertFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertFields.schema | pluck:'id')) | default:p.alertFields.value) | get:'dueDate' | epoch_ms }}",
+            "includeInTimeline": "{{ (p.alertFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertFields.schema | pluck:'id')) | default:p.alertFields.value) | get:'includeInTimeline' | epoch_ms }}",
+            "sightedAt": "{{ (p.alertFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertFields.schema | pluck:'id')) | default:p.alertFields.value) | get:'sightedAt' | epoch_ms }}",
+            "tags": "{{ (p.alertFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertFields.schema | pluck:'id')) | default:p.alertFields.value) | get:'tags' | split }}",
+            "addTags": "{{ (p.alertFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertFields.schema | pluck:'id')) | default:p.alertFields.value) | get:'addTags' | split }}",
+            "removeTags": "{{ (p.alertFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertFields.schema | pluck:'id')) | default:p.alertFields.value) | get:'removeTags' | split }}",
+            "observables": {
+              "$map": "{{ p.observableUi.values }}",
+              "$to": {
+                "dataType": "{{ el.dataType }}",
+                "data": "{{ el.dataType | ne:'file' | then:el.data }}",
+                "attachment": "{{ el.dataType | eq:'file' | then:(el.binaryProperty | default:'data') }}",
+                "message": "{{ el.message }}",
+                "tags": "{{ el.tags | split }}"
+              }
+            }
+          }
+        },
+        "$merge": [
+          {
+            "$when": "{{ p.observableUi.values | find:'dataType','file' | default:'' | eq:'' }}",
+            "$merge": "{{ (p.alertFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertFields.schema | pluck:'id')) | default:p.alertFields.value) | unflatten }}",
+            "date": "{{ (p.alertFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertFields.schema | pluck:'id')) | default:p.alertFields.value) | get:'date' | epoch_ms }}",
+            "lastSyncDate": "{{ (p.alertFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertFields.schema | pluck:'id')) | default:p.alertFields.value) | get:'lastSyncDate' | epoch_ms }}",
+            "startDate": "{{ (p.alertFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertFields.schema | pluck:'id')) | default:p.alertFields.value) | get:'startDate' | epoch_ms }}",
+            "endDate": "{{ (p.alertFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertFields.schema | pluck:'id')) | default:p.alertFields.value) | get:'endDate' | epoch_ms }}",
+            "dueDate": "{{ (p.alertFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertFields.schema | pluck:'id')) | default:p.alertFields.value) | get:'dueDate' | epoch_ms }}",
+            "includeInTimeline": "{{ (p.alertFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertFields.schema | pluck:'id')) | default:p.alertFields.value) | get:'includeInTimeline' | epoch_ms }}",
+            "sightedAt": "{{ (p.alertFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertFields.schema | pluck:'id')) | default:p.alertFields.value) | get:'sightedAt' | epoch_ms }}",
+            "tags": "{{ (p.alertFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertFields.schema | pluck:'id')) | default:p.alertFields.value) | get:'tags' | split }}",
+            "addTags": "{{ (p.alertFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertFields.schema | pluck:'id')) | default:p.alertFields.value) | get:'addTags' | split }}",
+            "removeTags": "{{ (p.alertFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertFields.schema | pluck:'id')) | default:p.alertFields.value) | get:'removeTags' | split }}",
+            "observables": {
+              "$map": "{{ p.observableUi.values }}",
+              "$to": {
+                "dataType": "{{ el.dataType }}",
+                "data": "{{ el.dataType | ne:'file' | then:el.data }}",
+                "attachment": "{{ el.dataType | eq:'file' | then:(el.binaryProperty | default:'data') }}",
+                "message": "{{ el.message }}",
+                "tags": "{{ el.tags | split }}"
+              }
+            }
+          }
+        ]
+      },
+      "fields": [
+        {
+          "key": "alertFields",
+          "label": "Alert fields",
+          "type": "json",
+          "required": true,
+          "default": {
+            "mappingMode": "defineBelow",
+            "value": null
+          },
+          "help": "n8n resource mapper: {mappingMode: defineBelow|autoMapInputData, value: {field: value}, schema: [{id}], matchingColumns: [...]}"
+        },
+        {
+          "key": "observableUi",
+          "label": "Observables",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "values"
+          ],
+          "help": "values: [{dataType, data, message, tags}]; a file observable is {dataType: \"file\", binaryProperty: \"data\"} and uploads that input binary"
+        }
+      ],
+      "body_type": "multipart",
+      "binary": {
+        "upload_field": "observableUi",
+        "properties": "{{ p.observableUi.values | pluck:'binaryProperty' }}",
+        "multipart_field": "{{ el.property }}",
+        "upload_when": "{{ p.observableUi.values | find:'dataType','file' }}",
+        "fallback_body_type": "json"
+      }
+    },
+    {
+      "resource": "alert",
+      "operation": "deleteAlert",
+      "title": "Delete an alert",
+      "method": "DELETE",
+      "path": "/v1/alert/{{ p.alertId | rl | re:'/alerts/(~[0-9]+)/details' }}",
+      "fields": [
+        {
+          "key": "alertId",
+          "label": "Alert ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "alert",
+      "operation": "executeResponder",
+      "title": "Run a Cortex responder",
+      "method": "POST",
+      "path": "/connector/cortex/action",
+      "body": {
+        "responderId": "{{ p.responder }}",
+        "objectId": "{{ p.id | rl | re:'/alerts/(~[0-9]+)/details' }}",
+        "objectType": "alert"
+      },
+      "poll": {
+        "method": "POST",
+        "path": "/v1/query",
+        "query": {
+          "name": "log-actions"
+        },
+        "body": {
+          "query": [
+            {
+              "_name": "listAction"
+            },
+            {
+              "_name": "filter",
+              "_and": [
+                {
+                  "_field": "cortexId",
+                  "_value": "{{ main.cortexId }}"
+                },
+                {
+                  "_field": "objectId",
+                  "_value": "{{ main.objectId }}"
+                },
+                {
+                  "_field": "startDate",
+                  "_value": "{{ main.startDate }}"
+                }
+              ]
+            }
+          ]
+        },
+        "until": "{{ res.cortexId | default:'-' | eq:'-' | then:(res.0.status | ne:'Waiting' | then:(res.0.status | ne:'InProgress')) }}",
+        "interval_ms": 1000
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "Alert ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "responder",
+          "label": "Responder ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "alert",
+      "operation": "get",
+      "title": "Get an alert",
+      "method": "GET",
+      "path": "/v1/alert/{{ p.alertId | rl | re:'/alerts/(~[0-9]+)/details' }}",
+      "output": {
+        "expand": {
+          "when": "{{ p.options.includeSimilarAlerts }}",
+          "method": "POST",
+          "path": "/v1/query",
+          "body": {
+            "query": [
+              {
+                "_name": "getAlert",
+                "idOrName": "{{ p.alertId | rl | re:'/alerts/(~[0-9]+)/details' }}"
+              },
+              {
+                "_name": "similarAlerts"
+              }
+            ]
+          }
+        },
+        "expand_merge_key": "similarAlerts"
+      },
+      "fields": [
+        {
+          "key": "alertId",
+          "label": "Alert ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "includeSimilarAlerts",
+            "includeSimilarCases"
+          ],
+          "help": "Similar cases are not fetched yet"
+        }
+      ]
+    },
+    {
+      "resource": "alert",
+      "operation": "merge",
+      "title": "Merge an alert into a case",
+      "method": "POST",
+      "path": "/alert/{{ p.alertId | rl | re:'/alerts/(~[0-9]+)/details' }}/merge/{{ p.caseId | rl | re:'/cases/(~[0-9]+)/details' }}",
+      "fields": [
+        {
+          "key": "alertId",
+          "label": "Alert ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "caseId",
+          "label": "Case ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "alert",
+      "operation": "promote",
+      "title": "Promote an alert to a case",
+      "method": "POST",
+      "path": "/v1/alert/{{ p.alertId | rl | re:'/alerts/(~[0-9]+)/details' }}/case",
+      "body": {
+        "caseTemplate": "{{ p.options.caseTemplate }}"
+      },
+      "fields": [
+        {
+          "key": "alertId",
+          "label": "Alert ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "caseTemplate"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "alert",
+      "operation": "search",
+      "title": "Search alerts",
+      "method": "POST",
+      "path": "/v1/query",
+      "body": {
+        "query": {
+          "$concat": [
+            {
+              "_name": "listAlert"
+            },
+            {
+              "$when": "{{ p.filters.values }}",
+              "_name": "filter",
+              "_and": {
+                "$map": "{{ p.filters.values }}",
+                "$to": {
+                  "$entries": {
+                    "$list": [
+                      "{{ el }}"
+                    ]
+                  },
+                  "$key": "{{ el.operator | default:'_eq' }}",
+                  "$value": {
+                    "_field": "{{ el.field }}",
+                    "_value": "{{ el.value }}",
+                    "_from": "{{ el.from }}",
+                    "_to": "{{ el.to }}",
+                    "_values": "{{ el.values | split }}"
+                  }
+                }
+              }
+            },
+            {
+              "$when": "{{ p.sort.fields | then:(p.options.returnCount | ne:'true') }}",
+              "_name": "sort",
+              "_fields": {
+                "$map": "{{ p.sort.fields }}",
+                "$to": {
+                  "$entries": {
+                    "$list": [
+                      "{{ el }}"
+                    ]
+                  },
+                  "$key": "{{ el.field }}",
+                  "$value": "{{ el.direction | default:'asc' }}"
+                }
+              }
+            },
+            {
+              "$when": "{{ p.options.returnCount | eq:'true' }}",
+              "_name": "count"
+            },
+            {
+              "$when": "{{ p.options.returnCount | ne:'true' }}",
+              "_name": "page",
+              "from": 0,
+              "to": "{{ p.returnAll | eq:'true' | then:100000 | default:p.limit }}",
+              "extraData": "{{ p.options.extraData }}"
+            }
+          ]
+        }
+      },
+      "output": {
+        "to": {
+          "count": "{{ el.data }}"
+        },
+        "to_when": "{{ p.options.returnCount }}"
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "values"
+          ],
+          "help": "values: [{field, operator (_eq, _ne, _lt, _lte, _gt, _gte, _like, _startsWith, _endsWith, _match, _in, _between), value, values, from, to}]"
+        },
+        {
+          "key": "sort",
+          "label": "Sort",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fields"
+          ],
+          "help": "fields: [{field, direction (asc|desc)}]"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "returnCount",
+            "extraData"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "alert",
+      "operation": "update",
+      "title": "Update",
+      "method": "PATCH",
+      "path": "/v1/alert/{{ (p.alertUpdateFields.matchingColumns | csv | prefix:',' | suffix:',' | matches:',id,') | then:((p.alertUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertUpdateFields.schema | pluck:'id')) | default:p.alertUpdateFields.value) | get:'id') | default:'_bulk' }}",
+      "before": {
+        "when": "{{ (p.alertUpdateFields.matchingColumns | csv | prefix:',' | suffix:',' | matches:',id,') | ne:'true' }}",
+        "method": "POST",
+        "path": "/v1/query",
+        "body": {
+          "query": [
+            {
+              "_name": "listAlert"
+            },
+            {
+              "_name": "filter",
+              "_and": {
+                "$map": "{{ p.alertUpdateFields.matchingColumns }}",
+                "$to": {
+                  "_eq": {
+                    "_field": "{{ el }}",
+                    "_value": "{{ (p.alertUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertUpdateFields.schema | pluck:'id')) | default:p.alertUpdateFields.value) | get:el }}"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "body": {
+        "$merge": "{{ (p.alertUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertUpdateFields.schema | pluck:'id')) | default:p.alertUpdateFields.value) | omit:p.alertUpdateFields.matchingColumns | unflatten }}",
+        "date": "{{ (p.alertUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertUpdateFields.schema | pluck:'id')) | default:p.alertUpdateFields.value) | get:'date' | epoch_ms }}",
+        "lastSyncDate": "{{ (p.alertUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertUpdateFields.schema | pluck:'id')) | default:p.alertUpdateFields.value) | get:'lastSyncDate' | epoch_ms }}",
+        "startDate": "{{ (p.alertUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertUpdateFields.schema | pluck:'id')) | default:p.alertUpdateFields.value) | get:'startDate' | epoch_ms }}",
+        "endDate": "{{ (p.alertUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertUpdateFields.schema | pluck:'id')) | default:p.alertUpdateFields.value) | get:'endDate' | epoch_ms }}",
+        "dueDate": "{{ (p.alertUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertUpdateFields.schema | pluck:'id')) | default:p.alertUpdateFields.value) | get:'dueDate' | epoch_ms }}",
+        "includeInTimeline": "{{ (p.alertUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertUpdateFields.schema | pluck:'id')) | default:p.alertUpdateFields.value) | get:'includeInTimeline' | epoch_ms }}",
+        "sightedAt": "{{ (p.alertUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertUpdateFields.schema | pluck:'id')) | default:p.alertUpdateFields.value) | get:'sightedAt' | epoch_ms }}",
+        "tags": "{{ (p.alertUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertUpdateFields.schema | pluck:'id')) | default:p.alertUpdateFields.value) | get:'tags' | split }}",
+        "addTags": "{{ (p.alertUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertUpdateFields.schema | pluck:'id')) | default:p.alertUpdateFields.value) | get:'addTags' | split }}",
+        "removeTags": "{{ (p.alertUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertUpdateFields.schema | pluck:'id')) | default:p.alertUpdateFields.value) | get:'removeTags' | split }}",
+        "ids": "{{ pre | pluck:'_id' }}"
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      },
+      "fields": [
+        {
+          "key": "alertUpdateFields",
+          "label": "Fields",
+          "type": "json",
+          "required": true,
+          "default": {
+            "mappingMode": "defineBelow",
+            "value": null
+          },
+          "help": "n8n resource mapper: {mappingMode: defineBelow|autoMapInputData, value: {field: value}, schema: [{id}], matchingColumns: [...]}"
+        }
+      ]
+    },
+    {
+      "resource": "alert",
+      "operation": "status",
+      "title": "Set an alert's status",
+      "method": "PATCH",
+      "path": "/v1/alert/{{ p.alertId | rl | re:'/alerts/(~[0-9]+)/details' }}",
+      "body": {
+        "status": "{{ p.status }}"
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      },
+      "fields": [
+        {
+          "key": "alertId",
+          "label": "Alert ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "case",
+      "operation": "create",
+      "title": "Create a case",
+      "method": "POST",
+      "path": "/v1/case",
+      "body": {
+        "$merge": "{{ (p.caseFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.caseFields.schema | pluck:'id')) | default:p.caseFields.value) | unflatten }}",
+        "date": "{{ (p.caseFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.caseFields.schema | pluck:'id')) | default:p.caseFields.value) | get:'date' | epoch_ms }}",
+        "lastSyncDate": "{{ (p.caseFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.caseFields.schema | pluck:'id')) | default:p.caseFields.value) | get:'lastSyncDate' | epoch_ms }}",
+        "startDate": "{{ (p.caseFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.caseFields.schema | pluck:'id')) | default:p.caseFields.value) | get:'startDate' | epoch_ms }}",
+        "endDate": "{{ (p.caseFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.caseFields.schema | pluck:'id')) | default:p.caseFields.value) | get:'endDate' | epoch_ms }}",
+        "dueDate": "{{ (p.caseFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.caseFields.schema | pluck:'id')) | default:p.caseFields.value) | get:'dueDate' | epoch_ms }}",
+        "includeInTimeline": "{{ (p.caseFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.caseFields.schema | pluck:'id')) | default:p.caseFields.value) | get:'includeInTimeline' | epoch_ms }}",
+        "sightedAt": "{{ (p.caseFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.caseFields.schema | pluck:'id')) | default:p.caseFields.value) | get:'sightedAt' | epoch_ms }}",
+        "tags": "{{ (p.caseFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.caseFields.schema | pluck:'id')) | default:p.caseFields.value) | get:'tags' | split }}",
+        "addTags": "{{ (p.caseFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.caseFields.schema | pluck:'id')) | default:p.caseFields.value) | get:'addTags' | split }}",
+        "removeTags": "{{ (p.caseFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.caseFields.schema | pluck:'id')) | default:p.caseFields.value) | get:'removeTags' | split }}"
+      },
+      "fields": [
+        {
+          "key": "caseFields",
+          "label": "Case fields",
+          "type": "json",
+          "required": true,
+          "default": {
+            "mappingMode": "defineBelow",
+            "value": null
+          },
+          "help": "n8n resource mapper: {mappingMode: defineBelow|autoMapInputData, value: {field: value}, schema: [{id}], matchingColumns: [...]}"
+        }
+      ]
+    },
+    {
+      "resource": "case",
+      "operation": "addAttachment",
+      "title": "Attach files to a case",
+      "method": "POST",
+      "path": "/v1/case/{{ p.caseId | rl | re:'/cases/(~[0-9]+)/details' }}/attachments",
+      "body_type": "multipart",
+      "body": {
+        "canRename": "{{ p.options.canRename | default:false | json }}"
+      },
+      "binary": {
+        "upload_field": "attachmentsUi",
+        "properties": "{{ p.attachmentsUi.values | pluck:'field' }}",
+        "multipart_field": "attachments"
+      },
+      "fields": [
+        {
+          "key": "caseId",
+          "label": "Case ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "attachmentsUi",
+          "label": "Attachments",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "values"
+          ],
+          "help": "values: [{field}] — names of the input binary properties to attach"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "canRename"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "case",
+      "operation": "deleteAttachment",
+      "title": "Delete a case attachment",
+      "method": "DELETE",
+      "path": "/v1/case/{{ p.caseId | rl | re:'/cases/(~[0-9]+)/details' }}/attachment/{{ p.attachmentId }}",
+      "fields": [
+        {
+          "key": "caseId",
+          "label": "Case ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "attachmentId",
+          "label": "Attachment ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "case",
+      "operation": "deleteCase",
+      "title": "Delete a case",
+      "method": "DELETE",
+      "path": "/v1/case/{{ p.caseId | rl | re:'/cases/(~[0-9]+)/details' }}",
+      "fields": [
+        {
+          "key": "caseId",
+          "label": "Case ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "case",
+      "operation": "executeResponder",
+      "title": "Run a Cortex responder",
+      "method": "POST",
+      "path": "/connector/cortex/action",
+      "body": {
+        "responderId": "{{ p.responder }}",
+        "objectId": "{{ p.id | rl | re:'/cases/(~[0-9]+)/details' }}",
+        "objectType": "case"
+      },
+      "poll": {
+        "method": "POST",
+        "path": "/v1/query",
+        "query": {
+          "name": "log-actions"
+        },
+        "body": {
+          "query": [
+            {
+              "_name": "listAction"
+            },
+            {
+              "_name": "filter",
+              "_and": [
+                {
+                  "_field": "cortexId",
+                  "_value": "{{ main.cortexId }}"
+                },
+                {
+                  "_field": "objectId",
+                  "_value": "{{ main.objectId }}"
+                },
+                {
+                  "_field": "startDate",
+                  "_value": "{{ main.startDate }}"
+                }
+              ]
+            }
+          ]
+        },
+        "until": "{{ res.cortexId | default:'-' | eq:'-' | then:(res.0.status | ne:'Waiting' | then:(res.0.status | ne:'InProgress')) }}",
+        "interval_ms": 1000
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "Case ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "responder",
+          "label": "Responder ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "case",
+      "operation": "get",
+      "title": "Get a case",
+      "method": "POST",
+      "path": "/v1/query",
+      "query": {
+        "name": "get-case-{{ p.caseId | rl | re:'/cases/(~[0-9]+)/details' }}"
+      },
+      "body": {
+        "query": [
+          {
+            "_name": "getCase",
+            "idOrName": "{{ p.caseId | rl | re:'/cases/(~[0-9]+)/details' }}"
+          },
+          {
+            "_name": "page",
+            "from": 0,
+            "to": 10,
+            "extraData": [
+              "attachmentCount"
+            ]
+          }
+        ]
+      },
+      "fields": [
+        {
+          "key": "caseId",
+          "label": "Case ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "case",
+      "operation": "getAttachment",
+      "title": "Download a case attachment",
+      "method": "GET",
+      "path": "/v1/case/{{ p.caseId | rl | re:'/cases/(~[0-9]+)/details' }}/attachment/{{ p.attachmentId }}/download",
+      "headers": {
+        "Accept": "*/*"
+      },
+      "binary": {
+        "download": true,
+        "property": "{{ p.options.dataPropertyName }}",
+        "file_name": "{{ p.options.fileName | default:(hdr.Content-Disposition | re:'filename=\"(.+)\"') }}"
+      },
+      "fields": [
+        {
+          "key": "caseId",
+          "label": "Case ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "attachmentId",
+          "label": "Attachment ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fileName",
+            "dataPropertyName"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "case",
+      "operation": "getTimeline",
+      "title": "Get a case's timeline",
+      "method": "GET",
+      "path": "/v1/case/{{ p.caseId | rl | re:'/cases/(~[0-9]+)/details' }}/timeline",
+      "fields": [
+        {
+          "key": "caseId",
+          "label": "Case ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "case",
+      "operation": "search",
+      "title": "Search cases",
+      "method": "POST",
+      "path": "/v1/query",
+      "body": {
+        "query": {
+          "$concat": [
+            {
+              "_name": "listCase"
+            },
+            {
+              "$when": "{{ p.filters.values }}",
+              "_name": "filter",
+              "_and": {
+                "$map": "{{ p.filters.values }}",
+                "$to": {
+                  "$entries": {
+                    "$list": [
+                      "{{ el }}"
+                    ]
+                  },
+                  "$key": "{{ el.operator | default:'_eq' }}",
+                  "$value": {
+                    "_field": "{{ el.field }}",
+                    "_value": "{{ el.value }}",
+                    "_from": "{{ el.from }}",
+                    "_to": "{{ el.to }}",
+                    "_values": "{{ el.values | split }}"
+                  }
+                }
+              }
+            },
+            {
+              "$when": "{{ p.sort.fields | then:(p.options.returnCount | ne:'true') }}",
+              "_name": "sort",
+              "_fields": {
+                "$map": "{{ p.sort.fields }}",
+                "$to": {
+                  "$entries": {
+                    "$list": [
+                      "{{ el }}"
+                    ]
+                  },
+                  "$key": "{{ el.field }}",
+                  "$value": "{{ el.direction | default:'asc' }}"
+                }
+              }
+            },
+            {
+              "$when": "{{ p.options.returnCount | eq:'true' }}",
+              "_name": "count"
+            },
+            {
+              "$when": "{{ p.options.returnCount | ne:'true' }}",
+              "_name": "page",
+              "from": 0,
+              "to": "{{ p.returnAll | eq:'true' | then:100000 | default:p.limit }}",
+              "extraData": "{{ p.options.extraData }}"
+            }
+          ]
+        }
+      },
+      "output": {
+        "to": {
+          "count": "{{ el.data }}"
+        },
+        "to_when": "{{ p.options.returnCount }}"
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "values"
+          ],
+          "help": "values: [{field, operator (_eq, _ne, _lt, _lte, _gt, _gte, _like, _startsWith, _endsWith, _match, _in, _between), value, values, from, to}]"
+        },
+        {
+          "key": "sort",
+          "label": "Sort",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fields"
+          ],
+          "help": "fields: [{field, direction (asc|desc)}]"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "returnCount",
+            "extraData"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "case",
+      "operation": "update",
+      "title": "Update",
+      "method": "PATCH",
+      "path": "/v1/case/{{ (p.caseUpdateFields.matchingColumns | csv | prefix:',' | suffix:',' | matches:',id,') | then:((p.caseUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.caseUpdateFields.schema | pluck:'id')) | default:p.caseUpdateFields.value) | get:'id') | default:'_bulk' }}",
+      "before": {
+        "when": "{{ (p.caseUpdateFields.matchingColumns | csv | prefix:',' | suffix:',' | matches:',id,') | ne:'true' }}",
+        "method": "POST",
+        "path": "/v1/query",
+        "body": {
+          "query": [
+            {
+              "_name": "listCase"
+            },
+            {
+              "_name": "filter",
+              "_and": {
+                "$map": "{{ p.caseUpdateFields.matchingColumns }}",
+                "$to": {
+                  "_eq": {
+                    "_field": "{{ el }}",
+                    "_value": "{{ (p.caseUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.caseUpdateFields.schema | pluck:'id')) | default:p.caseUpdateFields.value) | get:el }}"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "body": {
+        "$merge": "{{ (p.caseUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.caseUpdateFields.schema | pluck:'id')) | default:p.caseUpdateFields.value) | omit:p.caseUpdateFields.matchingColumns | unflatten }}",
+        "date": "{{ (p.caseUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.caseUpdateFields.schema | pluck:'id')) | default:p.caseUpdateFields.value) | get:'date' | epoch_ms }}",
+        "lastSyncDate": "{{ (p.caseUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.caseUpdateFields.schema | pluck:'id')) | default:p.caseUpdateFields.value) | get:'lastSyncDate' | epoch_ms }}",
+        "startDate": "{{ (p.caseUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.caseUpdateFields.schema | pluck:'id')) | default:p.caseUpdateFields.value) | get:'startDate' | epoch_ms }}",
+        "endDate": "{{ (p.caseUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.caseUpdateFields.schema | pluck:'id')) | default:p.caseUpdateFields.value) | get:'endDate' | epoch_ms }}",
+        "dueDate": "{{ (p.caseUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.caseUpdateFields.schema | pluck:'id')) | default:p.caseUpdateFields.value) | get:'dueDate' | epoch_ms }}",
+        "includeInTimeline": "{{ (p.caseUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.caseUpdateFields.schema | pluck:'id')) | default:p.caseUpdateFields.value) | get:'includeInTimeline' | epoch_ms }}",
+        "sightedAt": "{{ (p.caseUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.caseUpdateFields.schema | pluck:'id')) | default:p.caseUpdateFields.value) | get:'sightedAt' | epoch_ms }}",
+        "tags": "{{ (p.caseUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.caseUpdateFields.schema | pluck:'id')) | default:p.caseUpdateFields.value) | get:'tags' | split }}",
+        "addTags": "{{ (p.caseUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.caseUpdateFields.schema | pluck:'id')) | default:p.caseUpdateFields.value) | get:'addTags' | split }}",
+        "removeTags": "{{ (p.caseUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.caseUpdateFields.schema | pluck:'id')) | default:p.caseUpdateFields.value) | get:'removeTags' | split }}",
+        "ids": "{{ pre | pluck:'_id' }}"
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      },
+      "fields": [
+        {
+          "key": "caseUpdateFields",
+          "label": "Fields",
+          "type": "json",
+          "required": true,
+          "default": {
+            "mappingMode": "defineBelow",
+            "value": null
+          },
+          "help": "n8n resource mapper: {mappingMode: defineBelow|autoMapInputData, value: {field: value}, schema: [{id}], matchingColumns: [...]}"
+        }
+      ]
+    },
+    {
+      "resource": "comment",
+      "operation": "add",
+      "title": "Add a comment",
+      "method": "POST",
+      "path": "/v1/{{ p.addTo | default:'alert' }}/{{ p.id | rl | re:'/(?:alerts|cases)/(~[0-9]+)/details' }}/comment",
+      "body": {
+        "message": "{{ p.message }}"
+      },
+      "fields": [
+        {
+          "key": "addTo",
+          "label": "Add to",
+          "type": "select",
+          "default": "alert",
+          "options": [
+            "alert",
+            "case"
+          ]
+        },
+        {
+          "key": "id",
+          "label": "Alert or case ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "message",
+          "label": "Message",
+          "type": "textarea",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "comment",
+      "operation": "deleteComment",
+      "title": "Delete a comment",
+      "method": "DELETE",
+      "path": "/v1/comment/{{ p.commentId | rl }}",
+      "fields": [
+        {
+          "key": "commentId",
+          "label": "Comment ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "comment",
+      "operation": "search",
+      "title": "Search comments",
+      "method": "POST",
+      "path": "/v1/query",
+      "body": {
+        "query": {
+          "$concat": [
+            {
+              "$when": "{{ p.searchIn | default:'all' | eq:'all' }}",
+              "_name": "listComment"
+            },
+            {
+              "$when": "{{ p.searchIn | eq:'alert' }}",
+              "_name": "getAlert",
+              "idOrName": "{{ p.alertId | rl | re:'/alerts/(~[0-9]+)/details' }}"
+            },
+            {
+              "$when": "{{ p.searchIn | eq:'case' }}",
+              "_name": "getCase",
+              "idOrName": "{{ p.caseId | rl | re:'/cases/(~[0-9]+)/details' }}"
+            },
+            {
+              "$when": "{{ p.searchIn | default:'all' | ne:'all' }}",
+              "_name": "comments"
+            },
+            {
+              "$when": "{{ p.filters.values }}",
+              "_name": "filter",
+              "_and": {
+                "$map": "{{ p.filters.values }}",
+                "$to": {
+                  "$entries": {
+                    "$list": [
+                      "{{ el }}"
+                    ]
+                  },
+                  "$key": "{{ el.operator | default:'_eq' }}",
+                  "$value": {
+                    "_field": "{{ el.field }}",
+                    "_value": "{{ el.value }}",
+                    "_from": "{{ el.from }}",
+                    "_to": "{{ el.to }}",
+                    "_values": "{{ el.values | split }}"
+                  }
+                }
+              }
+            },
+            {
+              "$when": "{{ p.sort.fields | then:(p.options.returnCount | ne:'true') }}",
+              "_name": "sort",
+              "_fields": {
+                "$map": "{{ p.sort.fields }}",
+                "$to": {
+                  "$entries": {
+                    "$list": [
+                      "{{ el }}"
+                    ]
+                  },
+                  "$key": "{{ el.field }}",
+                  "$value": "{{ el.direction | default:'asc' }}"
+                }
+              }
+            },
+            {
+              "$when": "{{ p.options.returnCount | eq:'true' }}",
+              "_name": "count"
+            },
+            {
+              "$when": "{{ p.options.returnCount | ne:'true' }}",
+              "_name": "page",
+              "from": 0,
+              "to": "{{ p.returnAll | eq:'true' | then:100000 | default:p.limit }}",
+              "extraData": "{{ p.options.extraData }}"
+            }
+          ]
+        }
+      },
+      "output": {
+        "to": {
+          "count": "{{ el.data }}"
+        },
+        "to_when": "{{ p.options.returnCount }}"
+      },
+      "fields": [
+        {
+          "key": "searchIn",
+          "label": "Search in",
+          "type": "select",
+          "default": "all",
+          "options": [
+            "all",
+            "alert",
+            "case"
+          ]
+        },
+        {
+          "key": "alertId",
+          "label": "Alert ID",
+          "type": "text"
+        },
+        {
+          "key": "caseId",
+          "label": "Case ID",
+          "type": "text"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "values"
+          ],
+          "help": "values: [{field, operator (_eq, _ne, _lt, _lte, _gt, _gte, _like, _startsWith, _endsWith, _match, _in, _between), value, values, from, to}]"
+        },
+        {
+          "key": "sort",
+          "label": "Sort",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fields"
+          ],
+          "help": "fields: [{field, direction (asc|desc)}]"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "returnCount",
+            "extraData"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "comment",
+      "operation": "update",
+      "title": "Update a comment",
+      "method": "PATCH",
+      "path": "/v1/comment/{{ p.commentId | rl }}",
+      "body": {
+        "message": "{{ p.message }}"
+      },
+      "fields": [
+        {
+          "key": "commentId",
+          "label": "Comment ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "message",
+          "label": "Message",
+          "type": "textarea",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "log",
+      "operation": "create",
+      "title": "Create a task log",
+      "method": "POST",
+      "path": "/v1/task/{{ p.taskId | rl }}/log",
+      "body_type": "multipart",
+      "body": {
+        "_json": {
+          "$json": {
+            "$merge": "{{ (p.logFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.logFields.schema | pluck:'id')) | default:p.logFields.value) }}",
+            "date": "{{ (p.logFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.logFields.schema | pluck:'id')) | default:p.logFields.value) | get:'date' | epoch_ms }}",
+            "lastSyncDate": "{{ (p.logFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.logFields.schema | pluck:'id')) | default:p.logFields.value) | get:'lastSyncDate' | epoch_ms }}",
+            "startDate": "{{ (p.logFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.logFields.schema | pluck:'id')) | default:p.logFields.value) | get:'startDate' | epoch_ms }}",
+            "endDate": "{{ (p.logFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.logFields.schema | pluck:'id')) | default:p.logFields.value) | get:'endDate' | epoch_ms }}",
+            "dueDate": "{{ (p.logFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.logFields.schema | pluck:'id')) | default:p.logFields.value) | get:'dueDate' | epoch_ms }}",
+            "includeInTimeline": "{{ (p.logFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.logFields.schema | pluck:'id')) | default:p.logFields.value) | get:'includeInTimeline' | epoch_ms }}",
+            "sightedAt": "{{ (p.logFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.logFields.schema | pluck:'id')) | default:p.logFields.value) | get:'sightedAt' | epoch_ms }}",
+            "tags": "{{ (p.logFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.logFields.schema | pluck:'id')) | default:p.logFields.value) | get:'tags' | split }}",
+            "addTags": "{{ (p.logFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.logFields.schema | pluck:'id')) | default:p.logFields.value) | get:'addTags' | split }}",
+            "removeTags": "{{ (p.logFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.logFields.schema | pluck:'id')) | default:p.logFields.value) | get:'removeTags' | split }}",
+            "$when": "{{ p.attachmentsUi.values }}"
+          }
+        },
+        "$merge": {
+          "$merge": "{{ (p.logFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.logFields.schema | pluck:'id')) | default:p.logFields.value) }}",
+          "date": "{{ (p.logFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.logFields.schema | pluck:'id')) | default:p.logFields.value) | get:'date' | epoch_ms }}",
+          "lastSyncDate": "{{ (p.logFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.logFields.schema | pluck:'id')) | default:p.logFields.value) | get:'lastSyncDate' | epoch_ms }}",
+          "startDate": "{{ (p.logFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.logFields.schema | pluck:'id')) | default:p.logFields.value) | get:'startDate' | epoch_ms }}",
+          "endDate": "{{ (p.logFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.logFields.schema | pluck:'id')) | default:p.logFields.value) | get:'endDate' | epoch_ms }}",
+          "dueDate": "{{ (p.logFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.logFields.schema | pluck:'id')) | default:p.logFields.value) | get:'dueDate' | epoch_ms }}",
+          "includeInTimeline": "{{ (p.logFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.logFields.schema | pluck:'id')) | default:p.logFields.value) | get:'includeInTimeline' | epoch_ms }}",
+          "sightedAt": "{{ (p.logFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.logFields.schema | pluck:'id')) | default:p.logFields.value) | get:'sightedAt' | epoch_ms }}",
+          "tags": "{{ (p.logFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.logFields.schema | pluck:'id')) | default:p.logFields.value) | get:'tags' | split }}",
+          "addTags": "{{ (p.logFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.logFields.schema | pluck:'id')) | default:p.logFields.value) | get:'addTags' | split }}",
+          "removeTags": "{{ (p.logFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.logFields.schema | pluck:'id')) | default:p.logFields.value) | get:'removeTags' | split }}",
+          "$when": "{{ p.attachmentsUi.values | default:'-' | eq:'-' }}"
+        }
+      },
+      "binary": {
+        "upload_field": "attachmentsUi",
+        "properties": "{{ p.attachmentsUi.values | pluck:'field' }}",
+        "multipart_field": "attachments",
+        "upload_when": "{{ p.attachmentsUi.values }}",
+        "fallback_body_type": "json"
+      },
+      "fields": [
+        {
+          "key": "taskId",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "logFields",
+          "label": "Log fields",
+          "type": "json",
+          "required": true,
+          "default": {
+            "mappingMode": "defineBelow",
+            "value": null
+          },
+          "help": "n8n resource mapper: {mappingMode: defineBelow|autoMapInputData, value: {field: value}, schema: [{id}], matchingColumns: [...]}"
+        },
+        {
+          "key": "attachmentsUi",
+          "label": "Attachments",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "values"
+          ],
+          "help": "values: [{field}] — names of the input binary properties to attach"
+        }
+      ]
+    },
+    {
+      "resource": "log",
+      "operation": "addAttachment",
+      "title": "Attach files to a task log",
+      "method": "POST",
+      "path": "/v1/log/{{ p.logId | rl }}/attachments",
+      "body_type": "multipart",
+      "binary": {
+        "upload_field": "attachmentsUi",
+        "properties": "{{ p.attachmentsUi.values | pluck:'field' }}",
+        "multipart_field": "attachments"
+      },
+      "fields": [
+        {
+          "key": "logId",
+          "label": "Log ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "attachmentsUi",
+          "label": "Attachments",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "values"
+          ],
+          "help": "values: [{field}] — names of the input binary properties to attach"
+        }
+      ]
+    },
+    {
+      "resource": "log",
+      "operation": "deleteLog",
+      "title": "Delete a task log",
+      "method": "DELETE",
+      "path": "/v1/log/{{ p.logId | rl }}",
+      "fields": [
+        {
+          "key": "logId",
+          "label": "Log ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "log",
+      "operation": "deleteAttachment",
+      "title": "Delete a task log attachment",
+      "method": "DELETE",
+      "path": "/v1/log/{{ p.logId | rl }}/attachments/{{ p.attachmentId }}",
+      "fields": [
+        {
+          "key": "logId",
+          "label": "Log ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "attachmentId",
+          "label": "Attachment ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "log",
+      "operation": "executeResponder",
+      "title": "Run a Cortex responder",
+      "method": "POST",
+      "path": "/connector/cortex/action",
+      "body": {
+        "responderId": "{{ p.responder }}",
+        "objectId": "{{ p.id | rl }}",
+        "objectType": "case_task_log"
+      },
+      "poll": {
+        "method": "POST",
+        "path": "/v1/query",
+        "query": {
+          "name": "log-actions"
+        },
+        "body": {
+          "query": [
+            {
+              "_name": "listAction"
+            },
+            {
+              "_name": "filter",
+              "_and": [
+                {
+                  "_field": "cortexId",
+                  "_value": "{{ main.cortexId }}"
+                },
+                {
+                  "_field": "objectId",
+                  "_value": "{{ main.objectId }}"
+                },
+                {
+                  "_field": "startDate",
+                  "_value": "{{ main.startDate }}"
+                }
+              ]
+            }
+          ]
+        },
+        "until": "{{ res.cortexId | default:'-' | eq:'-' | then:(res.0.status | ne:'Waiting' | then:(res.0.status | ne:'InProgress')) }}",
+        "interval_ms": 1000
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "Log ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "responder",
+          "label": "Responder ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "log",
+      "operation": "get",
+      "title": "Get a task log",
+      "method": "POST",
+      "path": "/v1/query",
+      "body": {
+        "query": [
+          {
+            "_name": "getLog",
+            "idOrName": "{{ p.logId | rl }}"
+          }
+        ]
+      },
+      "fields": [
+        {
+          "key": "logId",
+          "label": "Log ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "log",
+      "operation": "search",
+      "title": "Search task logs",
+      "method": "POST",
+      "path": "/v1/query",
+      "body": {
+        "query": {
+          "$concat": [
+            {
+              "$when": "{{ p.allTasks | default:true | eq:'true' }}",
+              "_name": "listLog"
+            },
+            {
+              "$when": "{{ p.allTasks | default:true | ne:'true' }}",
+              "_name": "getTask",
+              "idOrName": "{{ p.taskId | rl }}"
+            },
+            {
+              "$when": "{{ p.allTasks | default:true | ne:'true' }}",
+              "_name": "logs"
+            },
+            {
+              "$when": "{{ p.filters.values }}",
+              "_name": "filter",
+              "_and": {
+                "$map": "{{ p.filters.values }}",
+                "$to": {
+                  "$entries": {
+                    "$list": [
+                      "{{ el }}"
+                    ]
+                  },
+                  "$key": "{{ el.operator | default:'_eq' }}",
+                  "$value": {
+                    "_field": "{{ el.field }}",
+                    "_value": "{{ el.value }}",
+                    "_from": "{{ el.from }}",
+                    "_to": "{{ el.to }}",
+                    "_values": "{{ el.values | split }}"
+                  }
+                }
+              }
+            },
+            {
+              "$when": "{{ p.sort.fields | then:(p.options.returnCount | ne:'true') }}",
+              "_name": "sort",
+              "_fields": {
+                "$map": "{{ p.sort.fields }}",
+                "$to": {
+                  "$entries": {
+                    "$list": [
+                      "{{ el }}"
+                    ]
+                  },
+                  "$key": "{{ el.field }}",
+                  "$value": "{{ el.direction | default:'asc' }}"
+                }
+              }
+            },
+            {
+              "$when": "{{ p.options.returnCount | eq:'true' }}",
+              "_name": "count"
+            },
+            {
+              "$when": "{{ p.options.returnCount | ne:'true' }}",
+              "_name": "page",
+              "from": 0,
+              "to": "{{ p.returnAll | eq:'true' | then:100000 | default:p.limit }}",
+              "extraData": "{{ p.options.extraData }}"
+            }
+          ]
+        }
+      },
+      "output": {
+        "to": {
+          "count": "{{ el.data }}"
+        },
+        "to_when": "{{ p.options.returnCount }}"
+      },
+      "fields": [
+        {
+          "key": "allTasks",
+          "label": "All tasks",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "taskId",
+          "label": "Task ID",
+          "type": "text"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "values"
+          ],
+          "help": "values: [{field, operator (_eq, _ne, _lt, _lte, _gt, _gte, _like, _startsWith, _endsWith, _match, _in, _between), value, values, from, to}]"
+        },
+        {
+          "key": "sort",
+          "label": "Sort",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fields"
+          ],
+          "help": "fields: [{field, direction (asc|desc)}]"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "returnCount",
+            "extraData"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "observable",
+      "operation": "create",
+      "title": "Create an observable",
+      "method": "POST",
+      "path": "/v1/{{ p.createIn | default:'case' }}/{{ p.id | rl | re:'/(?:alerts|cases)/(~[0-9]+)/details' }}/observable",
+      "body_type": "multipart",
+      "body": {
+        "_json": {
+          "$json": {
+            "$merge": "{{ (p.observableFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.observableFields.schema | pluck:'id')) | default:p.observableFields.value) }}",
+            "date": "{{ (p.observableFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.observableFields.schema | pluck:'id')) | default:p.observableFields.value) | get:'date' | epoch_ms }}",
+            "lastSyncDate": "{{ (p.observableFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.observableFields.schema | pluck:'id')) | default:p.observableFields.value) | get:'lastSyncDate' | epoch_ms }}",
+            "startDate": "{{ (p.observableFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.observableFields.schema | pluck:'id')) | default:p.observableFields.value) | get:'startDate' | epoch_ms }}",
+            "endDate": "{{ (p.observableFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.observableFields.schema | pluck:'id')) | default:p.observableFields.value) | get:'endDate' | epoch_ms }}",
+            "dueDate": "{{ (p.observableFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.observableFields.schema | pluck:'id')) | default:p.observableFields.value) | get:'dueDate' | epoch_ms }}",
+            "includeInTimeline": "{{ (p.observableFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.observableFields.schema | pluck:'id')) | default:p.observableFields.value) | get:'includeInTimeline' | epoch_ms }}",
+            "sightedAt": "{{ (p.observableFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.observableFields.schema | pluck:'id')) | default:p.observableFields.value) | get:'sightedAt' | epoch_ms }}",
+            "tags": "{{ (p.observableFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.observableFields.schema | pluck:'id')) | default:p.observableFields.value) | get:'tags' | split }}",
+            "addTags": "{{ (p.observableFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.observableFields.schema | pluck:'id')) | default:p.observableFields.value) | get:'addTags' | split }}",
+            "removeTags": "{{ (p.observableFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.observableFields.schema | pluck:'id')) | default:p.observableFields.value) | get:'removeTags' | split }}",
+            "dataType": "{{ p.dataType | default:'file' }}",
+            "data": "{{ p.dataType | default:'file' | ne:'file' | then:p.data }}",
+            "$when": "{{ p.dataType | default:'file' | eq:'file' }}"
+          }
+        },
+        "$merge": {
+          "$merge": "{{ (p.observableFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.observableFields.schema | pluck:'id')) | default:p.observableFields.value) }}",
+          "date": "{{ (p.observableFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.observableFields.schema | pluck:'id')) | default:p.observableFields.value) | get:'date' | epoch_ms }}",
+          "lastSyncDate": "{{ (p.observableFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.observableFields.schema | pluck:'id')) | default:p.observableFields.value) | get:'lastSyncDate' | epoch_ms }}",
+          "startDate": "{{ (p.observableFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.observableFields.schema | pluck:'id')) | default:p.observableFields.value) | get:'startDate' | epoch_ms }}",
+          "endDate": "{{ (p.observableFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.observableFields.schema | pluck:'id')) | default:p.observableFields.value) | get:'endDate' | epoch_ms }}",
+          "dueDate": "{{ (p.observableFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.observableFields.schema | pluck:'id')) | default:p.observableFields.value) | get:'dueDate' | epoch_ms }}",
+          "includeInTimeline": "{{ (p.observableFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.observableFields.schema | pluck:'id')) | default:p.observableFields.value) | get:'includeInTimeline' | epoch_ms }}",
+          "sightedAt": "{{ (p.observableFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.observableFields.schema | pluck:'id')) | default:p.observableFields.value) | get:'sightedAt' | epoch_ms }}",
+          "tags": "{{ (p.observableFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.observableFields.schema | pluck:'id')) | default:p.observableFields.value) | get:'tags' | split }}",
+          "addTags": "{{ (p.observableFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.observableFields.schema | pluck:'id')) | default:p.observableFields.value) | get:'addTags' | split }}",
+          "removeTags": "{{ (p.observableFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.observableFields.schema | pluck:'id')) | default:p.observableFields.value) | get:'removeTags' | split }}",
+          "dataType": "{{ p.dataType | default:'file' }}",
+          "data": "{{ p.dataType | default:'file' | ne:'file' | then:p.data }}",
+          "$when": "{{ p.dataType | default:'file' | ne:'file' }}"
+        }
+      },
+      "binary": {
+        "upload_field": "attachmentsUi",
+        "properties": "{{ p.attachmentsUi.values | pluck:'field' }}",
+        "multipart_field": "attachment",
+        "upload_when": "{{ p.dataType | default:'file' | eq:'file' }}",
+        "fallback_body_type": "json"
+      },
+      "fields": [
+        {
+          "key": "createIn",
+          "label": "Create in",
+          "type": "select",
+          "default": "case",
+          "options": [
+            "case",
+            "alert"
+          ]
+        },
+        {
+          "key": "id",
+          "label": "Case or alert ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "dataType",
+          "label": "Data type",
+          "type": "text",
+          "required": true,
+          "default": "file"
+        },
+        {
+          "key": "data",
+          "label": "Data",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "observableFields",
+          "label": "Observable fields",
+          "type": "json",
+          "required": true,
+          "default": {
+            "mappingMode": "defineBelow",
+            "value": null
+          },
+          "help": "n8n resource mapper: {mappingMode: defineBelow|autoMapInputData, value: {field: value}, schema: [{id}], matchingColumns: [...]}"
+        },
+        {
+          "key": "attachmentsUi",
+          "label": "Attachments",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "values"
+          ],
+          "help": "values: [{field}] — names of the input binary properties to attach"
+        }
+      ]
+    },
+    {
+      "resource": "observable",
+      "operation": "deleteObservable",
+      "title": "Delete an observable",
+      "method": "DELETE",
+      "path": "/v1/observable/{{ p.observableId | rl }}",
+      "fields": [
+        {
+          "key": "observableId",
+          "label": "Observable ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "observable",
+      "operation": "executeAnalyzer",
+      "title": "Run a Cortex analyzer",
+      "method": "POST",
+      "path": "/connector/cortex/job",
+      "body": {
+        "analyzerId": "{{ p.analyzers | split | get:'0' | split:'::' | get:'0' }}",
+        "cortexId": "{{ p.analyzers | split | get:'0' | split:'::' | get:'1' }}",
+        "artifactId": "{{ p.observableId | rl }}"
+      },
+      "poll": {
+        "method": "GET",
+        "path": "/connector/cortex/job/{{ main.id }}",
+        "query": {
+          "name": "observable-jobs"
+        },
+        "until": "{{ res.status | ne:'Waiting' | then:(res.status | ne:'InProgress') }}",
+        "interval_ms": 1000
+      },
+      "fields": [
+        {
+          "key": "observableId",
+          "label": "Observable ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "dataType",
+          "label": "Data type",
+          "type": "text"
+        },
+        {
+          "key": "analyzers",
+          "label": "Analyzers",
+          "type": "array",
+          "required": true,
+          "item_type": "text",
+          "help": "analyzerId::cortexId entries; only the first is run"
+        }
+      ]
+    },
+    {
+      "resource": "observable",
+      "operation": "executeResponder",
+      "title": "Run a Cortex responder",
+      "method": "POST",
+      "path": "/connector/cortex/action",
+      "body": {
+        "responderId": "{{ p.responder }}",
+        "objectId": "{{ p.id | rl }}",
+        "objectType": "case_artifact"
+      },
+      "poll": {
+        "method": "POST",
+        "path": "/v1/query",
+        "query": {
+          "name": "log-actions"
+        },
+        "body": {
+          "query": [
+            {
+              "_name": "listAction"
+            },
+            {
+              "_name": "filter",
+              "_and": [
+                {
+                  "_field": "cortexId",
+                  "_value": "{{ main.cortexId }}"
+                },
+                {
+                  "_field": "objectId",
+                  "_value": "{{ main.objectId }}"
+                },
+                {
+                  "_field": "startDate",
+                  "_value": "{{ main.startDate }}"
+                }
+              ]
+            }
+          ]
+        },
+        "until": "{{ res.cortexId | default:'-' | eq:'-' | then:(res.0.status | ne:'Waiting' | then:(res.0.status | ne:'InProgress')) }}",
+        "interval_ms": 1000
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "Observable ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "responder",
+          "label": "Responder ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "observable",
+      "operation": "get",
+      "title": "Get an observable",
+      "method": "POST",
+      "path": "/v1/query",
+      "query": {
+        "name": "get-observable-{{ p.observableId | rl }}"
+      },
+      "body": {
+        "query": [
+          {
+            "_name": "getObservable",
+            "idOrName": "{{ p.observableId | rl }}"
+          }
+        ]
+      },
+      "fields": [
+        {
+          "key": "observableId",
+          "label": "Observable ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "observable",
+      "operation": "search",
+      "title": "Search observables",
+      "method": "POST",
+      "path": "/v1/query",
+      "body": {
+        "query": {
+          "$concat": [
+            {
+              "$when": "{{ p.searchIn | default:'all' | eq:'all' }}",
+              "_name": "listObservable"
+            },
+            {
+              "$when": "{{ p.searchIn | eq:'alert' }}",
+              "_name": "getAlert",
+              "idOrName": "{{ p.alertId | rl | re:'/alerts/(~[0-9]+)/details' }}"
+            },
+            {
+              "$when": "{{ p.searchIn | eq:'case' }}",
+              "_name": "getCase",
+              "idOrName": "{{ p.caseId | rl | re:'/cases/(~[0-9]+)/details' }}"
+            },
+            {
+              "$when": "{{ p.searchIn | default:'all' | ne:'all' }}",
+              "_name": "observables"
+            },
+            {
+              "$when": "{{ p.filters.values }}",
+              "_name": "filter",
+              "_and": {
+                "$map": "{{ p.filters.values }}",
+                "$to": {
+                  "$entries": {
+                    "$list": [
+                      "{{ el }}"
+                    ]
+                  },
+                  "$key": "{{ el.operator | default:'_eq' }}",
+                  "$value": {
+                    "_field": "{{ el.field }}",
+                    "_value": "{{ el.value }}",
+                    "_from": "{{ el.from }}",
+                    "_to": "{{ el.to }}",
+                    "_values": "{{ el.values | split }}"
+                  }
+                }
+              }
+            },
+            {
+              "$when": "{{ p.sort.fields | then:(p.options.returnCount | ne:'true') }}",
+              "_name": "sort",
+              "_fields": {
+                "$map": "{{ p.sort.fields }}",
+                "$to": {
+                  "$entries": {
+                    "$list": [
+                      "{{ el }}"
+                    ]
+                  },
+                  "$key": "{{ el.field }}",
+                  "$value": "{{ el.direction | default:'asc' }}"
+                }
+              }
+            },
+            {
+              "$when": "{{ p.options.returnCount | eq:'true' }}",
+              "_name": "count"
+            },
+            {
+              "$when": "{{ p.options.returnCount | ne:'true' }}",
+              "_name": "page",
+              "from": 0,
+              "to": "{{ p.returnAll | eq:'true' | then:100000 | default:p.limit }}",
+              "extraData": "{{ p.options.extraData }}"
+            }
+          ]
+        }
+      },
+      "output": {
+        "to": {
+          "count": "{{ el.data }}"
+        },
+        "to_when": "{{ p.options.returnCount }}"
+      },
+      "fields": [
+        {
+          "key": "searchIn",
+          "label": "Search in",
+          "type": "select",
+          "default": "all",
+          "options": [
+            "all",
+            "alert",
+            "case"
+          ]
+        },
+        {
+          "key": "alertId",
+          "label": "Alert ID",
+          "type": "text"
+        },
+        {
+          "key": "caseId",
+          "label": "Case ID",
+          "type": "text"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "values"
+          ],
+          "help": "values: [{field, operator (_eq, _ne, _lt, _lte, _gt, _gte, _like, _startsWith, _endsWith, _match, _in, _between), value, values, from, to}]"
+        },
+        {
+          "key": "sort",
+          "label": "Sort",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fields"
+          ],
+          "help": "fields: [{field, direction (asc|desc)}]"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "returnCount",
+            "extraData"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "observable",
+      "operation": "update",
+      "title": "Update",
+      "method": "PATCH",
+      "path": "/v1/observable/{{ (p.observableUpdateFields.matchingColumns | csv | prefix:',' | suffix:',' | matches:',id,') | then:((p.observableUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.observableUpdateFields.schema | pluck:'id')) | default:p.observableUpdateFields.value) | get:'id') | default:'_bulk' }}",
+      "before": {
+        "when": "{{ (p.observableUpdateFields.matchingColumns | csv | prefix:',' | suffix:',' | matches:',id,') | ne:'true' }}",
+        "method": "POST",
+        "path": "/v1/query",
+        "body": {
+          "query": [
+            {
+              "_name": "listObservable"
+            },
+            {
+              "_name": "filter",
+              "_and": {
+                "$map": "{{ p.observableUpdateFields.matchingColumns }}",
+                "$to": {
+                  "_eq": {
+                    "_field": "{{ el }}",
+                    "_value": "{{ (p.observableUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.observableUpdateFields.schema | pluck:'id')) | default:p.observableUpdateFields.value) | get:el }}"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "body": {
+        "$merge": "{{ (p.observableUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.observableUpdateFields.schema | pluck:'id')) | default:p.observableUpdateFields.value) | omit:p.observableUpdateFields.matchingColumns }}",
+        "date": "{{ (p.observableUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.observableUpdateFields.schema | pluck:'id')) | default:p.observableUpdateFields.value) | get:'date' | epoch_ms }}",
+        "lastSyncDate": "{{ (p.observableUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.observableUpdateFields.schema | pluck:'id')) | default:p.observableUpdateFields.value) | get:'lastSyncDate' | epoch_ms }}",
+        "startDate": "{{ (p.observableUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.observableUpdateFields.schema | pluck:'id')) | default:p.observableUpdateFields.value) | get:'startDate' | epoch_ms }}",
+        "endDate": "{{ (p.observableUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.observableUpdateFields.schema | pluck:'id')) | default:p.observableUpdateFields.value) | get:'endDate' | epoch_ms }}",
+        "dueDate": "{{ (p.observableUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.observableUpdateFields.schema | pluck:'id')) | default:p.observableUpdateFields.value) | get:'dueDate' | epoch_ms }}",
+        "includeInTimeline": "{{ (p.observableUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.observableUpdateFields.schema | pluck:'id')) | default:p.observableUpdateFields.value) | get:'includeInTimeline' | epoch_ms }}",
+        "sightedAt": "{{ (p.observableUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.observableUpdateFields.schema | pluck:'id')) | default:p.observableUpdateFields.value) | get:'sightedAt' | epoch_ms }}",
+        "tags": "{{ (p.observableUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.observableUpdateFields.schema | pluck:'id')) | default:p.observableUpdateFields.value) | get:'tags' | split }}",
+        "addTags": "{{ (p.observableUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.observableUpdateFields.schema | pluck:'id')) | default:p.observableUpdateFields.value) | get:'addTags' | split }}",
+        "removeTags": "{{ (p.observableUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.observableUpdateFields.schema | pluck:'id')) | default:p.observableUpdateFields.value) | get:'removeTags' | split }}",
+        "ids": "{{ pre | pluck:'_id' }}"
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      },
+      "fields": [
+        {
+          "key": "observableUpdateFields",
+          "label": "Fields",
+          "type": "json",
+          "required": true,
+          "default": {
+            "mappingMode": "defineBelow",
+            "value": null
+          },
+          "help": "n8n resource mapper: {mappingMode: defineBelow|autoMapInputData, value: {field: value}, schema: [{id}], matchingColumns: [...]}"
+        }
+      ]
+    },
+    {
+      "resource": "page",
+      "operation": "create",
+      "title": "Create a page",
+      "method": "POST",
+      "path": "/v1{{ p.location | default:'case' | eq:'case' | then:'/case/' }}{{ p.location | default:'case' | eq:'case' | then:(p.caseId | rl | re:'/cases/(~[0-9]+)/details') }}/page",
+      "body": {
+        "title": "{{ p.title }}",
+        "category": "{{ p.category }}",
+        "content": "{{ p.content }}"
+      },
+      "fields": [
+        {
+          "key": "location",
+          "label": "Location",
+          "type": "select",
+          "default": "case",
+          "options": [
+            "case",
+            "knowledgeBase"
+          ]
+        },
+        {
+          "key": "caseId",
+          "label": "Case ID",
+          "type": "text"
+        },
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "category",
+          "label": "Category",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "content",
+          "label": "Content",
+          "type": "textarea",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "page",
+      "operation": "deletePage",
+      "title": "Delete a page",
+      "method": "DELETE",
+      "path": "/v1{{ p.location | default:'knowledgeBase' | eq:'case' | then:'/case/' }}{{ p.location | default:'knowledgeBase' | eq:'case' | then:(p.caseId | rl | re:'/cases/(~[0-9]+)/details') }}/page/{{ p.pageId | rl }}",
+      "fields": [
+        {
+          "key": "location",
+          "label": "Location",
+          "type": "select",
+          "default": "knowledgeBase",
+          "options": [
+            "case",
+            "knowledgeBase"
+          ]
+        },
+        {
+          "key": "caseId",
+          "label": "Case ID",
+          "type": "text"
+        },
+        {
+          "key": "pageId",
+          "label": "Page ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "page",
+      "operation": "search",
+      "title": "Search pages",
+      "method": "POST",
+      "path": "/v1/query",
+      "body": {
+        "query": {
+          "$concat": [
+            {
+              "$when": "{{ p.searchInKnowledgeBase | default:true | eq:'true' }}",
+              "_name": "listOrganisationPage"
+            },
+            {
+              "$when": "{{ p.searchInKnowledgeBase | default:true | ne:'true' }}",
+              "_name": "getCase",
+              "idOrName": "{{ p.caseId | rl | re:'/cases/(~[0-9]+)/details' }}"
+            },
+            {
+              "$when": "{{ p.searchInKnowledgeBase | default:true | ne:'true' }}",
+              "_name": "pages"
+            },
+            {
+              "$when": "{{ p.filters.values }}",
+              "_name": "filter",
+              "_and": {
+                "$map": "{{ p.filters.values }}",
+                "$to": {
+                  "$entries": {
+                    "$list": [
+                      "{{ el }}"
+                    ]
+                  },
+                  "$key": "{{ el.operator | default:'_eq' }}",
+                  "$value": {
+                    "_field": "{{ el.field }}",
+                    "_value": "{{ el.value }}",
+                    "_from": "{{ el.from }}",
+                    "_to": "{{ el.to }}",
+                    "_values": "{{ el.values | split }}"
+                  }
+                }
+              }
+            },
+            {
+              "$when": "{{ p.sort.fields | then:(p.options.returnCount | ne:'true') }}",
+              "_name": "sort",
+              "_fields": {
+                "$map": "{{ p.sort.fields }}",
+                "$to": {
+                  "$entries": {
+                    "$list": [
+                      "{{ el }}"
+                    ]
+                  },
+                  "$key": "{{ el.field }}",
+                  "$value": "{{ el.direction | default:'asc' }}"
+                }
+              }
+            },
+            {
+              "$when": "{{ p.options.returnCount | eq:'true' }}",
+              "_name": "count"
+            },
+            {
+              "$when": "{{ p.options.returnCount | ne:'true' }}",
+              "_name": "page",
+              "from": 0,
+              "to": "{{ p.returnAll | eq:'true' | then:100000 | default:p.limit }}",
+              "extraData": "{{ p.options.extraData }}"
+            }
+          ]
+        }
+      },
+      "output": {
+        "to": {
+          "count": "{{ el.data }}"
+        },
+        "to_when": "{{ p.options.returnCount }}"
+      },
+      "fields": [
+        {
+          "key": "searchInKnowledgeBase",
+          "label": "Search in the knowledge base",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "caseId",
+          "label": "Case ID",
+          "type": "text"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "values"
+          ],
+          "help": "values: [{field, operator (_eq, _ne, _lt, _lte, _gt, _gte, _like, _startsWith, _endsWith, _match, _in, _between), value, values, from, to}]"
+        },
+        {
+          "key": "sort",
+          "label": "Sort",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fields"
+          ],
+          "help": "fields: [{field, direction (asc|desc)}]"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "returnCount",
+            "extraData"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "page",
+      "operation": "update",
+      "title": "Update a page",
+      "method": "PATCH",
+      "path": "/v1{{ p.location | default:'case' | eq:'case' | then:'/case/' }}{{ p.location | default:'case' | eq:'case' | then:(p.caseId | rl | re:'/cases/(~[0-9]+)/details') }}/page/{{ p.pageId | rl }}",
+      "body": {
+        "$merge": "{{ p.options }}",
+        "content": "{{ p.content }}"
+      },
+      "fields": [
+        {
+          "key": "location",
+          "label": "Location",
+          "type": "select",
+          "default": "case",
+          "options": [
+            "case",
+            "knowledgeBase"
+          ]
+        },
+        {
+          "key": "caseId",
+          "label": "Case ID",
+          "type": "text"
+        },
+        {
+          "key": "pageId",
+          "label": "Page ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "content",
+          "label": "Content",
+          "type": "textarea",
+          "default": ""
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "category",
+            "title",
+            "order"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "query",
+      "operation": "executeQuery",
+      "title": "Run a TheHive query",
+      "method": "POST",
+      "path": "/v1/query",
+      "body": {
+        "query": "{{ p.queryJson | fromjson | get:'query' | default:(p.queryJson | fromjson) }}"
+      },
+      "fields": [
+        {
+          "key": "queryJson",
+          "label": "Query (JSON)",
+          "type": "json",
+          "required": true,
+          "default": "[{\"_name\": \"listOrganisation\"}]",
+          "help": "An array of query operations, or {query: [...]}"
+        }
+      ]
+    },
+    {
+      "resource": "task",
+      "operation": "create",
+      "title": "Create a task",
+      "method": "POST",
+      "path": "/v1/case/{{ p.caseId | rl | re:'/cases/(~[0-9]+)/details' }}/task",
+      "body": {
+        "$merge": "{{ (p.taskFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.taskFields.schema | pluck:'id')) | default:p.taskFields.value) }}",
+        "date": "{{ (p.taskFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.taskFields.schema | pluck:'id')) | default:p.taskFields.value) | get:'date' | epoch_ms }}",
+        "lastSyncDate": "{{ (p.taskFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.taskFields.schema | pluck:'id')) | default:p.taskFields.value) | get:'lastSyncDate' | epoch_ms }}",
+        "startDate": "{{ (p.taskFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.taskFields.schema | pluck:'id')) | default:p.taskFields.value) | get:'startDate' | epoch_ms }}",
+        "endDate": "{{ (p.taskFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.taskFields.schema | pluck:'id')) | default:p.taskFields.value) | get:'endDate' | epoch_ms }}",
+        "dueDate": "{{ (p.taskFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.taskFields.schema | pluck:'id')) | default:p.taskFields.value) | get:'dueDate' | epoch_ms }}",
+        "includeInTimeline": "{{ (p.taskFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.taskFields.schema | pluck:'id')) | default:p.taskFields.value) | get:'includeInTimeline' | epoch_ms }}",
+        "sightedAt": "{{ (p.taskFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.taskFields.schema | pluck:'id')) | default:p.taskFields.value) | get:'sightedAt' | epoch_ms }}",
+        "tags": "{{ (p.taskFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.taskFields.schema | pluck:'id')) | default:p.taskFields.value) | get:'tags' | split }}",
+        "addTags": "{{ (p.taskFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.taskFields.schema | pluck:'id')) | default:p.taskFields.value) | get:'addTags' | split }}",
+        "removeTags": "{{ (p.taskFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.taskFields.schema | pluck:'id')) | default:p.taskFields.value) | get:'removeTags' | split }}"
+      },
+      "fields": [
+        {
+          "key": "caseId",
+          "label": "Case ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "taskFields",
+          "label": "Task fields",
+          "type": "json",
+          "required": true,
+          "default": {
+            "mappingMode": "defineBelow",
+            "value": null
+          },
+          "help": "n8n resource mapper: {mappingMode: defineBelow|autoMapInputData, value: {field: value}, schema: [{id}], matchingColumns: [...]}"
+        }
+      ]
+    },
+    {
+      "resource": "task",
+      "operation": "deleteTask",
+      "title": "Delete a task",
+      "method": "DELETE",
+      "path": "/v1/task/{{ p.taskId | rl }}",
+      "fields": [
+        {
+          "key": "taskId",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "task",
+      "operation": "executeResponder",
+      "title": "Run a Cortex responder",
+      "method": "POST",
+      "path": "/connector/cortex/action",
+      "body": {
+        "responderId": "{{ p.responder }}",
+        "objectId": "{{ p.id | rl }}",
+        "objectType": "case_task"
+      },
+      "poll": {
+        "method": "POST",
+        "path": "/v1/query",
+        "query": {
+          "name": "log-actions"
+        },
+        "body": {
+          "query": [
+            {
+              "_name": "listAction"
+            },
+            {
+              "_name": "filter",
+              "_and": [
+                {
+                  "_field": "cortexId",
+                  "_value": "{{ main.cortexId }}"
+                },
+                {
+                  "_field": "objectId",
+                  "_value": "{{ main.objectId }}"
+                },
+                {
+                  "_field": "startDate",
+                  "_value": "{{ main.startDate }}"
+                }
+              ]
+            }
+          ]
+        },
+        "until": "{{ res.cortexId | default:'-' | eq:'-' | then:(res.0.status | ne:'Waiting' | then:(res.0.status | ne:'InProgress')) }}",
+        "interval_ms": 1000
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "responder",
+          "label": "Responder ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "task",
+      "operation": "get",
+      "title": "Get a task",
+      "method": "POST",
+      "path": "/v1/query",
+      "query": {
+        "name": "get-task-{{ p.taskId | rl }}"
+      },
+      "body": {
+        "query": [
+          {
+            "_name": "getTask",
+            "idOrName": "{{ p.taskId | rl }}"
+          }
+        ]
+      },
+      "fields": [
+        {
+          "key": "taskId",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "task",
+      "operation": "search",
+      "title": "Search tasks",
+      "method": "POST",
+      "path": "/v1/query",
+      "body": {
+        "query": {
+          "$concat": [
+            {
+              "$when": "{{ p.allCases | default:true | eq:'true' }}",
+              "_name": "listTask"
+            },
+            {
+              "$when": "{{ p.allCases | default:true | ne:'true' }}",
+              "_name": "getCase",
+              "idOrName": "{{ p.caseId | rl | re:'/cases/(~[0-9]+)/details' }}"
+            },
+            {
+              "$when": "{{ p.allCases | default:true | ne:'true' }}",
+              "_name": "tasks"
+            },
+            {
+              "$when": "{{ p.filters.values }}",
+              "_name": "filter",
+              "_and": {
+                "$map": "{{ p.filters.values }}",
+                "$to": {
+                  "$entries": {
+                    "$list": [
+                      "{{ el }}"
+                    ]
+                  },
+                  "$key": "{{ el.operator | default:'_eq' }}",
+                  "$value": {
+                    "_field": "{{ el.field }}",
+                    "_value": "{{ el.value }}",
+                    "_from": "{{ el.from }}",
+                    "_to": "{{ el.to }}",
+                    "_values": "{{ el.values | split }}"
+                  }
+                }
+              }
+            },
+            {
+              "$when": "{{ p.sort.fields | then:(p.options.returnCount | ne:'true') }}",
+              "_name": "sort",
+              "_fields": {
+                "$map": "{{ p.sort.fields }}",
+                "$to": {
+                  "$entries": {
+                    "$list": [
+                      "{{ el }}"
+                    ]
+                  },
+                  "$key": "{{ el.field }}",
+                  "$value": "{{ el.direction | default:'asc' }}"
+                }
+              }
+            },
+            {
+              "$when": "{{ p.options.returnCount | eq:'true' }}",
+              "_name": "count"
+            },
+            {
+              "$when": "{{ p.options.returnCount | ne:'true' }}",
+              "_name": "page",
+              "from": 0,
+              "to": "{{ p.returnAll | eq:'true' | then:100000 | default:p.limit }}",
+              "extraData": "{{ p.options.extraData }}"
+            }
+          ]
+        }
+      },
+      "output": {
+        "to": {
+          "count": "{{ el.data }}"
+        },
+        "to_when": "{{ p.options.returnCount }}"
+      },
+      "fields": [
+        {
+          "key": "allCases",
+          "label": "All cases",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "caseId",
+          "label": "Case ID",
+          "type": "text"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "values"
+          ],
+          "help": "values: [{field, operator (_eq, _ne, _lt, _lte, _gt, _gte, _like, _startsWith, _endsWith, _match, _in, _between), value, values, from, to}]"
+        },
+        {
+          "key": "sort",
+          "label": "Sort",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fields"
+          ],
+          "help": "fields: [{field, direction (asc|desc)}]"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "returnCount",
+            "extraData"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "task",
+      "operation": "update",
+      "title": "Update",
+      "method": "PATCH",
+      "path": "/v1/task/{{ (p.taskUpdateFields.matchingColumns | csv | prefix:',' | suffix:',' | matches:',id,') | then:((p.taskUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.taskUpdateFields.schema | pluck:'id')) | default:p.taskUpdateFields.value) | get:'id') | default:'_bulk' }}",
+      "before": {
+        "when": "{{ (p.taskUpdateFields.matchingColumns | csv | prefix:',' | suffix:',' | matches:',id,') | ne:'true' }}",
+        "method": "POST",
+        "path": "/v1/query",
+        "body": {
+          "query": [
+            {
+              "_name": "listTask"
+            },
+            {
+              "_name": "filter",
+              "_and": {
+                "$map": "{{ p.taskUpdateFields.matchingColumns }}",
+                "$to": {
+                  "_eq": {
+                    "_field": "{{ el }}",
+                    "_value": "{{ (p.taskUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.taskUpdateFields.schema | pluck:'id')) | default:p.taskUpdateFields.value) | get:el }}"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "body": {
+        "$merge": "{{ (p.taskUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.taskUpdateFields.schema | pluck:'id')) | default:p.taskUpdateFields.value) | omit:p.taskUpdateFields.matchingColumns }}",
+        "date": "{{ (p.taskUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.taskUpdateFields.schema | pluck:'id')) | default:p.taskUpdateFields.value) | get:'date' | epoch_ms }}",
+        "lastSyncDate": "{{ (p.taskUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.taskUpdateFields.schema | pluck:'id')) | default:p.taskUpdateFields.value) | get:'lastSyncDate' | epoch_ms }}",
+        "startDate": "{{ (p.taskUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.taskUpdateFields.schema | pluck:'id')) | default:p.taskUpdateFields.value) | get:'startDate' | epoch_ms }}",
+        "endDate": "{{ (p.taskUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.taskUpdateFields.schema | pluck:'id')) | default:p.taskUpdateFields.value) | get:'endDate' | epoch_ms }}",
+        "dueDate": "{{ (p.taskUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.taskUpdateFields.schema | pluck:'id')) | default:p.taskUpdateFields.value) | get:'dueDate' | epoch_ms }}",
+        "includeInTimeline": "{{ (p.taskUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.taskUpdateFields.schema | pluck:'id')) | default:p.taskUpdateFields.value) | get:'includeInTimeline' | epoch_ms }}",
+        "sightedAt": "{{ (p.taskUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.taskUpdateFields.schema | pluck:'id')) | default:p.taskUpdateFields.value) | get:'sightedAt' | epoch_ms }}",
+        "tags": "{{ (p.taskUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.taskUpdateFields.schema | pluck:'id')) | default:p.taskUpdateFields.value) | get:'tags' | split }}",
+        "addTags": "{{ (p.taskUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.taskUpdateFields.schema | pluck:'id')) | default:p.taskUpdateFields.value) | get:'addTags' | split }}",
+        "removeTags": "{{ (p.taskUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.taskUpdateFields.schema | pluck:'id')) | default:p.taskUpdateFields.value) | get:'removeTags' | split }}",
+        "ids": "{{ pre | pluck:'_id' }}"
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      },
+      "fields": [
+        {
+          "key": "taskUpdateFields",
+          "label": "Fields",
+          "type": "json",
+          "required": true,
+          "default": {
+            "mappingMode": "defineBelow",
+            "value": null
+          },
+          "help": "n8n resource mapper: {mappingMode: defineBelow|autoMapInputData, value: {field: value}, schema: [{id}], matchingColumns: [...]}"
+        }
+      ]
+    }
+  ]
+}

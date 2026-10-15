@@ -1,0 +1,129 @@
+{
+  "task.create": {
+    "params": {
+      "workspaceId": "7",
+      "name": "Write",
+      "additionalFields": {
+        "ownerid": "3",
+        "tags": "a,b",
+        "mirrorParentTags": true
+      }
+    },
+    "credential": {
+      "organization_id": "42",
+      "access_token": "t"
+    },
+    "response": {
+      "task": {
+        "id": 1
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/tasks",
+      "body": {
+        "organization_id": 42,
+        "task": {
+          "name": "Write",
+          "workspace_id": 7,
+          "owner_id": 3,
+          "tags": [
+            "a",
+            "b"
+          ],
+          "mirror_parent_tags": true
+        }
+      },
+      "items": 1
+    }
+  },
+  "task.update": {
+    "params": {
+      "workspaceId": "7",
+      "taskId": "9",
+      "updateFields": {
+        "completed": true,
+        "name": "Done"
+      }
+    },
+    "credential": {
+      "organization_id": "42",
+      "access_token": "t"
+    },
+    "response": {
+      "task": {
+        "id": 9
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/v2/tasks/9",
+      "body": {
+        "organization_id": 42,
+        "task": {
+          "id": 9,
+          "workspace_id": 7,
+          "name": "Done",
+          "completed": true
+        }
+      }
+    }
+  },
+  "task.get": {
+    "params": {
+      "taskId": "9",
+      "filters": {
+        "include": [
+          "schedule",
+          "files"
+        ]
+      }
+    },
+    "credential": {
+      "organization_id": "42",
+      "access_token": "t"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v2/tasks/9",
+      "query": {
+        "organization_id": "42",
+        "include": "schedule,files"
+      }
+    }
+  },
+  "task.getAll": {
+    "params": {
+      "limit": 5,
+      "filters": {
+        "order": "due_on",
+        "deleted": true
+      }
+    },
+    "credential": {
+      "organization_id": "42",
+      "access_token": "t"
+    },
+    "response": {
+      "tasks": [
+        {
+          "id": 1
+        },
+        {
+          "id": 2
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v2/tasks",
+      "query": {
+        "organization_id": "42",
+        "order": "due_on",
+        "deleted": "true",
+        "limit": "5"
+      },
+      "items": 2
+    }
+  }
+}

@@ -11,6 +11,14 @@
  * - No exponential backoff — flat 500ms retry for aggressive reconnection
  */
 
+// The sign-in gate comes first, before any module adds a listener: nothing
+// works until the person signs in to monoes.me (account_state.js says what
+// that means, gate.js puts it in front of every message, port, menu click and
+// shortcut). Signed out the socket carries only the auth frame and `ping`.
+importScripts("account_state.js", "gate.js");
+const gate = MonoGate.create({ storage: chrome.storage.local, openPanel: openSignInPanel });
+gate.install(chrome);
+
 // Page capture (CLIP-01/03/04/05/09) lives in its own modules — this file is
 // already long enough. capture.js holds the orchestration and the envelope,
 // capture_bridge.js the Chrome wiring; both are plain scripts so the same
@@ -25,7 +33,7 @@ importScripts("capture_form.js", "capture_profile.js", "browser_binding.js", "su
 // The in-page recall group (RCL-02/04/05): the extension→Go request channel
 // and the three things that ride it. ask.js must come first — the others
 // install against it.
-importScripts("ask.js", "account_state.js", "saved.js", "highlights.js", "recall_bridge.js");
+importScripts("ask.js", "saved.js", "highlights.js", "recall_bridge.js");
 // Tasks from the browser (the task board): the outbox and the worker's half.
 // After the recall group: tasks are sent over ask.js, which MonoRecall installs.
 importScripts("task_outbox.js", "task_bridge.js", "task_menu.js");
@@ -33,6 +41,12 @@ importScripts("task_outbox.js", "task_bridge.js", "task_menu.js");
 // The side panel's chat (issue #451): it asks over ask.js, so it also follows
 // the recall group. summary_ai.js (loaded above) supplies its runtime/model.
 importScripts("chat_core.js", "chat_bridge.js");
+// Handing work to the coder (C6): the side panel's Coder section and the
+// right-click items. Over ask.js too; the menu items hang under the capture
+// group's parent, so this follows it.
+importScripts("coder_bridge.js", "coder_menu.js");
+// Filling the page's form from the profile (form.fill); same channel as chat.
+importScripts("form_bridge.js");
 // The raw CDP proxy (GLU-01/RIG-07): the generalisation of eval_cdp/type_cdp
 // that lets monobrowse drive the user's own Chrome. Events flow back through
 // it unasked-for, which is why it needs its own module rather than another
@@ -45,6 +59,10 @@ importScripts("recorder_privacy.js", "recorder_outbox.js", "recorder_session.js"
 // Asked before every dial; see doConnect. The same module the side panel uses,
 // so "is that really the bridge?" has exactly one implementation.
 importScripts("bridge_health.js");
+// The coder's browser commands (plan C1): agent_cdp.js first, every other
+// agent module registers with it; agent_commands.js, the dispatch, last.
+importScripts("agent_cdp.js", "agent_redact.js", "agent_tabs.js", "agent_screenshot.js", "agent_watch.js", "agent_a11y.js");
+importScripts("agent_submit_page.js", "agent_guard_bar.js", "agent_submit_guard.js", "agent_submit_prompt.js", "agent_commands.js");
 
 // ---------------------------------------------------------------------------
 // State
@@ -150,6 +168,10 @@ const SENSITIVE_COMMANDS = new Set([
   // Raw CDP is the most sensitive of the lot: it bypasses page CSP and can
   // read anything the tab can. Same origin check as the rest.
   "cdp", "cdp_attach", "cdp_detach",
+  // The coder's commands that read the page or change how it behaves
+  // (agent_*.js). list_tabs and tab_group only ask Chrome about tabs.
+  "screenshot", "emulate", "watch_tab", "read_console", "read_network", "a11y_tree",
+  "submit_guard", "submit_prompt",
 ]);
 
 // Commands that mean "the tab the user is looking at" when given no tabId.
@@ -186,6 +208,10 @@ chrome.alarms.onAlarm.addListener((alarm) => {
       connect();
     }
     sweepIdleDebuggers();
+    // A watch, emulation or armed guard nobody has used for a while (agent_commands.js).
+    MonoAgentCommands.sweepIdle().catch((err) => console.warn("[monoagent] idle release:", err.message));
+    // The last report may have just run out of its window (account_state.js).
+    gate.check();
     // Re-create the alarm to guarantee the service worker stays alive.
     ensureAlarm();
   }
@@ -431,16 +457,11 @@ async function doConnect() {
     markCandidateConnected(url);
     console.log("[monoagent] Connected to backend at", url);
     startKeepAlive();
-    MonoRecall.connected();
-    // Recording frames buffered while the bridge was down go out first, in order.
-    MonoRecorderWiring.flush();
-    MonoCaptureBridge.flush()
-      .catch((err) => console.error("[monoagent] capture queue flush failed:", err.message))
-      // The badge counts what is still waiting, so it has to be repainted
-      // once the flush has emptied whatever it could (CLIP-08).
-      .finally(() => MonoCaptureQueue.paintBadge(chrome.storage.local).catch(() => {}));
-    // Tasks added while the bridge was down (task_bridge.js).
-    MonoTaskBridge.connected();
+    // Where the account stands, first. Nothing else goes out on this socket
+    // until this bridge has answered (accountHeard): a report stored from
+    // an earlier socket says nothing about who is signed in to this one.
+    accountHeard = false;
+    sendAccountPing();
   };
 
   ws.onmessage = (event) => {
@@ -456,11 +477,22 @@ async function doConnect() {
     // What the bridge says about the account rides on its replies (account_state.js).
     const said = MonoAccount.fromReply(cmd);
     if (said) account.set(said);
+    if (gate.observe(cmd) && !accountHeard) {
+      accountHeard = true;
+      if (gate.signedIn()) whileSignedIn();
+    }
     // A reply to something THIS side asked (ask.js). Claimed before the
     // command dispatch because a reply is not a command and has no handler.
     if (MonoAsk.handleFrame(cmd)) return;
     // Go's acks for kind:"recording" frames: {id, success, type:"recording"}.
     if (MonoRecorderWiring.handleFrame(cmd)) return;
+    // Signed out the bridge's commands are refused, whatever they are: none
+    // of them may read a page or drive the browser (gate.js). So is anything
+    // that arrives before this bridge answered the account ping.
+    if (!accountHeard || !gate.signedIn()) {
+      if (cmd.id) sendResponse(cmd.id, false, undefined, MonoGate.LOGIN_MESSAGE);
+      return;
+    }
     handleCommand(cmd);
   };
 
@@ -474,6 +506,7 @@ async function doConnect() {
     stopKeepAlive();
     // What the bridge said about the account belonged to that socket.
     account.set(null);
+    accountHeard = false;
     // Everything waiting on an answer is settled here. A question outlives
     // its socket by exactly nothing: see ask.js.
     MonoRecall.disconnected("the bridge disconnected");
@@ -512,11 +545,83 @@ function startKeepAlive() {
   }, KEEP_ALIVE_INTERVAL);
 }
 
+/**
+ * whileSignedIn sends what waited, on a socket that is open and signed in:
+ * the recordings, captures and tasks the outboxes kept while the bridge was
+ * down or the person was signed out. Never called signed out.
+ */
+function whileSignedIn() {
+  MonoRecall.connected();
+  // Recording frames buffered while the bridge was down go out first, in order.
+  MonoRecorderWiring.flush();
+  MonoCaptureBridge.flush()
+    .catch((err) => console.error("[monoagent] capture queue flush failed:", err.message))
+    // The badge counts what is still waiting, so it has to be repainted
+    // once the flush has emptied whatever it could (CLIP-08).
+    .finally(() => MonoCaptureQueue.paintBadge(chrome.storage.local).catch(() => {}));
+  // Tasks added while the bridge was down (task_bridge.js).
+  MonoTaskBridge.connected();
+}
+
+// Whether the bridge on the open socket has reported the account yet.
+let accountHeard = false;
+
+// The account ping is the one request that goes out signed out. Its reply is
+// read by gate.observe in ws.onmessage; ask.js drops a reply it never asked for.
+let accountPingSeq = 0;
+let accountPingAt = 0;
+function sendAccountPing() {
+  if (ws?.readyState !== WebSocket.OPEN) return;
+  accountPingAt = Date.now();
+  accountPingSeq += 1;
+  ws.send(JSON.stringify({ kind: "request", id: `account-${accountPingSeq}`, method: "ping", params: {} }));
+}
+
+/** openSignInPanel opens the side panel from a gesture; signed out it shows the sign-in screen. */
+function openSignInPanel(tab) {
+  if (!chrome.sidePanel || !chrome.sidePanel.open || !tab || tab.windowId === undefined) return;
+  chrome.sidePanel.open({ windowId: tab.windowId }).catch(() => {});
+}
+
+/** setPanelPath makes a panel opened from now on load the page that applies. */
+function setPanelPath(signedIn) {
+  if (!chrome.sidePanel || !chrome.sidePanel.setOptions) return;
+  chrome.sidePanel.setOptions({ path: signedIn ? "sidepanel.html" : "signin.html" }).catch(() => {});
+}
+
+/** queuedItems is what the outboxes keep, for the sign-in screen to say. */
+async function queuedItems() {
+  const local = chrome.storage.local;
+  const out = { captures: 0, tasks: 0, recording: false };
+  try {
+    out.captures = (await MonoCaptureQueue.pending(local)).counts.queued;
+  } catch {
+    // unreadable: say nothing about it
+  }
+  try {
+    out.tasks = await MonoTaskOutbox.count(local);
+  } catch {
+    // unreadable: say nothing about it
+  }
+  try {
+    const meta = (await local.get(MonoRecorderOutbox.META_KEY))[MonoRecorderOutbox.META_KEY];
+    out.recording = !!(meta && Array.isArray(meta.chunks) && meta.chunks.length);
+  } catch {
+    // unreadable: say nothing about it
+  }
+  return out;
+}
+
 function stopKeepAlive() {
   if (keepAliveInterval) {
     clearInterval(keepAliveInterval);
     keepAliveInterval = null;
   }
+}
+
+/** openAndSignedIn is "connected" as every feature sees it: signed out is offline. */
+function openAndSignedIn() {
+  return ws?.readyState === WebSocket.OPEN && accountHeard && gate.signedIn();
 }
 
 // ---------------------------------------------------------------------------
@@ -551,6 +656,8 @@ function statusPayload() {
     reason: connectionReason,
     since: connectionSince,
     binding: { instance: binding.instance, profile: binding.profile, label: binding.label },
+    // The gate (account_state.js): false shows the sign-in screen and nothing else.
+    signedIn: gate.signedIn(),
     // What the bridge said about the monoes.me account; the side panel words it.
     account: {
       refusing: account.refusing(),
@@ -579,6 +686,10 @@ async function handleCommand(cmd) {
       const [active] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
       params.tabId = active?.id;
     }
+    // Every tab's command counts as use, and a caller that names the origin
+    // it expects is refused another one (agent_commands.js).
+    MonoAgentCommands.touch(params.tabId);
+    await MonoAgentCommands.checkOrigin(params);
     if (SENSITIVE_COMMANDS.has(cmd.type) && !(await isOriginAuthorized(params.tabId))) {
       throw new Error(
         `Site not authorized for "${cmd.type}" — grant access to this tab's site in the ` +
@@ -668,6 +779,19 @@ async function handleCommand(cmd) {
         // `monoagentcli extension bind` / the app's Settings → Browsers. The
         // storage listener below reports it back with a binding frame.
         result = await MonoBrowserBinding.setBinding(chrome.storage.local, params);
+        break;
+      // The coder's browser commands (agent_commands.js).
+      case "list_tabs":
+      case "tab_group":
+      case "screenshot":
+      case "emulate":
+      case "watch_tab":
+      case "read_console":
+      case "read_network":
+      case "a11y_tree":
+      case "submit_guard":
+      case "submit_prompt":
+        result = await MonoAgentCommands.handle(cmd.type, params);
         break;
       default:
         throw new Error(`Unknown command type: ${cmd.type}`);
@@ -890,6 +1014,9 @@ function forgetDebugger(tabId) {
 }
 
 async function detachDebugger(tabId) {
+  // Not under a coder watch or emulation (agent_cdp.js): a capture's or a
+  // relay client's detach would end it. Chrome detaching still does.
+  if (MonoAgentCdp.holds(tabId)) return;
   forgetDebugger(tabId);
   try {
     await chrome.debugger.detach({ tabId });
@@ -903,6 +1030,8 @@ function sweepIdleDebuggers() {
   const now = Date.now();
   for (const tabId of debuggerAttached) {
     if (debuggerPinned.has(tabId)) continue;
+    // A coder watch or emulation holds its tab (agent_cdp.js).
+    if (MonoAgentCdp.holds(tabId)) continue;
     if (now - (debuggerLastUsed.get(tabId) || 0) > DEBUGGER_IDLE_DETACH_MS) {
       console.log("[monoagent] Detaching idle debugger from tab", tabId);
       detachDebugger(tabId);
@@ -1250,7 +1379,9 @@ chrome.storage.onChanged.addListener((changes, area) => {
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === "get_status") {
-    sendResponse(statusPayload());
+    // A worker woken by this question answers once it has read the last report.
+    if (gate.state() === "unknown") gate.ready.then(() => sendResponse(statusPayload()));
+    else sendResponse(statusPayload());
     // Someone just opened the side panel, which is the moment they care whether
     // this is connected. A suspended worker otherwise only dials again on its
     // next alarm — up to half a minute after the bridge was started, which is
@@ -1258,7 +1389,18 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     // now (see doConnect), so trying on every open costs nothing; an unpaired
     // worker is left alone until it is given a token.
     if (connectionStatus !== "connected" && connectionStatus !== "unpaired") connect();
-    return false;
+    return gate.state() === "unknown";
+  }
+  // The sign-in screen's "Check again": ask the bridge now, or dial it.
+  if (msg.type === "account_recheck") {
+    if (ws?.readyState === WebSocket.OPEN) sendAccountPing();
+    else if (connectionStatus !== "unpaired") {
+      fastRetryCount = 0;
+      connect();
+      fastRetryConnect();
+    }
+    queuedItems().then((queued) => sendResponse(Object.assign(statusPayload(), { queued })));
+    return true;
   }
   // Handle file read requests from content script (for file upload)
   if (msg.type === "read_file") {
@@ -1297,13 +1439,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
  */
 function sendFrame(message) {
   if (ws?.readyState !== WebSocket.OPEN) return false;
+  // Signed out nothing a feature sends goes out: its outbox keeps it (gate.js).
+  if (!accountHeard || !gate.signedIn()) return false;
   ws.send(JSON.stringify(message));
   return true;
 }
 
 MonoCaptureBridge.install({
   send: sendFrame,
-  isConnected: () => ws?.readyState === WebSocket.OPEN,
+  isConnected: openAndSignedIn,
   // The per-frame budget capture.js plans against. Without it the planner
   // is handed `undefined`, every size comparison becomes NaN, and the
   // envelope goes out listing artifacts whose bytes were never framed.
@@ -1318,7 +1462,7 @@ MonoCaptureBridge.install({
 // to, and the two chrome.debugger listener registrations it relays from.
 MonoCdpProxy.install({
   send: sendFrame,
-  isConnected: () => ws?.readyState === WebSocket.OPEN,
+  isConnected: openAndSignedIn,
   activeTabId: async () => {
     const [active] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
     return active?.id;
@@ -1338,7 +1482,7 @@ MonoCdpProxy.install({
 // MonoCaptureBridge's context, so it needs only the socket from here.
 MonoCaptureActions.install({
   send: sendFrame,
-  isConnected: () => ws?.readyState === WebSocket.OPEN,
+  isConnected: openAndSignedIn,
   maxMessageBytes: MonoCapture.DEFAULT_MAX_MESSAGE_BYTES,
   storage: chrome.storage.local,
 });
@@ -1348,40 +1492,70 @@ MonoCaptureActions.install({
 // hand it the socket.
 MonoRecall.install({
   send: sendFrame,
-  isConnected: () => ws?.readyState === WebSocket.OPEN,
+  isConnected: openAndSignedIn,
+  signedIn: () => gate.signedIn(),
   storage: chrome.storage.local,
 });
 
 // The chat's messages from the side panel; it reuses the ask channel above.
 MonoChat.install({
-  isConnected: () => ws?.readyState === WebSocket.OPEN,
+  isConnected: openAndSignedIn,
   storage: chrome.storage.local,
 });
+MonoForm.install();
 
-// The side panel hears of a change at once. While the bridge refuses it is asked
-// again every few seconds: its answer to ping (read in ws.onmessage) is how this
-// worker learns the person signed in.
+// The side panel hears of a change at once. Signed out the bridge is asked
+// again every few seconds, signed in every minute: its answer to ping (read in
+// ws.onmessage) is how this worker learns the person signed in, or out.
 account.onChange(() => broadcastStatus());
 setInterval(() => {
-  if (account.refusing() && ws?.readyState === WebSocket.OPEN) {
-    MonoAsk.request("ping", {}, { timeoutMs: 4000, idleTimeoutMs: 4000 }).catch(() => {});
-  }
+  if (ws?.readyState !== WebSocket.OPEN) return;
+  if (!gate.signedIn() || Date.now() - accountPingAt >= 60000) sendAccountPing();
 }, 5000);
+gate.onChange((signedIn) => {
+  setPanelPath(signedIn);
+  broadcastStatus();
+  if (signedIn) {
+    if (openAndSignedIn()) whileSignedIn();
+    return;
+  }
+  // Signed out: a recording in progress ends (its frames stay in the outbox)
+  // and the CDP relay lets go of every tab it held.
+  MonoRecorderWiring.stop();
+  MonoCdpProxy.disconnected("signed out of MonoAgent");
+});
+gate.ready.then(() => setPanelPath(gate.signedIn()));
 // Tasks from the browser ride the same request channel. The bridge registers
 // its own message and alarm listeners; it never installs ask.js again.
 MonoTaskBridge.install({
-  isConnected: () => ws?.readyState === WebSocket.OPEN,
+  isConnected: openAndSignedIn,
   storage: chrome.storage.local,
 });
 // Its menu items and the add-task shortcut (task_menu.js).
 MonoTaskMenu.install();
+// The coder's requests, its picker (the one pick_element shows) and its menu items.
+MonoCoderBridge.install({ isConnected: openAndSignedIn, pickElement });
+MonoCoderMenu.install();
 
 // The activity recorder rides the same socket: kind:"recording" frames out,
 // buffered through its own outbox while the bridge is down.
 MonoRecorderWiring.install({
   send: sendFrame,
-  isConnected: () => ws?.readyState === WebSocket.OPEN,
+  isConnected: openAndSignedIn,
   storage: chrome.storage.local,
+});
+
+// The coder's browser commands (agent_*.js) use the same debugger helpers
+// as the capture bridge and the CDP proxy; agent_cdp.js says when a tab is
+// held against the idle sweep.
+MonoAgentCommands.install({
+  attach: (tabId) => ensureDebuggerAttached({ tabId }, tabId),
+  cdp: (tabId, method, params) => debuggerSend({ tabId }, tabId, method, params),
+  onDebuggerEvent: (fn) => chrome.debugger.onEvent.addListener(fn),
+  onDebuggerDetach: (fn) => chrome.debugger.onDetach.addListener(fn),
+  onTabRemoved: (fn) => chrome.tabs.onRemoved.addListener(fn),
+  // The idle release's last step; a tab the CDP relay still listens to stays attached.
+  detach: (tabId) => (debuggerPinned.has(tabId) ? undefined : detachDebugger(tabId)),
 });
 
 // The toolbar button opens the side panel rather than a popup: a panel

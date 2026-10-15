@@ -1,0 +1,46 @@
+{
+  "_generated": true,
+  "credential_platform": null,
+  "fields": [
+    {
+      "help": "The workflow to run. It need not be active; give it a 'When called by another workflow' trigger to receive the items.",
+      "key": "workflowId",
+      "label": "Workflow",
+      "placeholder": "workflow ID or name",
+      "required": true,
+      "type": "text"
+    },
+    {
+      "default": "once",
+      "help": "once: one run with all items. each: one run per item.",
+      "key": "mode",
+      "label": "Mode",
+      "options": [
+        "once",
+        "each"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "default": true,
+      "help": "On: wait and output the sub-workflow's last node items. Off: output the input items at once with the started execution ID.",
+      "key": "waitForSubWorkflow",
+      "label": "Wait for Sub-workflow",
+      "required": false,
+      "type": "boolean"
+    }
+  ],
+  "outputs": [
+    {
+      "description": "waitForSubWorkflow true (default): the sub-workflow's output items; false: the input items, passed through",
+      "key": "*",
+      "type": "object"
+    },
+    {
+      "description": "waitForSubWorkflow false: the ID of the sub-workflow execution the item was sent to",
+      "key": "subworkflow_execution_id",
+      "type": "string"
+    }
+  ]
+}

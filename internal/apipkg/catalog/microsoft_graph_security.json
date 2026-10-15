@@ -1,0 +1,92 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "microsoft_graph_security",
+  "node_type": "app.microsoft_graph_security",
+  "title": "Microsoft Graph Security",
+  "description": "Secure scores and secure score control profiles from Microsoft Graph Security",
+  "category": "app",
+  "docs_url": "https://learn.microsoft.com/en-us/graph/api/resources/securescore",
+  "n8n_types": ["n8n-nodes-base.microsoftGraphSecurity"],
+  "base_url": "https://graph.microsoft.com/v1.0/security",
+  "credentials": [
+    {
+      "platform": "microsoft",
+      "name": "Microsoft 365 (Graph Security)",
+      "n8n_credential": "microsoftGraphSecurityOAuth2Api",
+      "n8n_credential_alt": ["microsoftOAuth2Api"],
+      "methods": ["oauth"],
+      "inject": { "headers": { "Authorization": "Bearer {{ cred.access_token }}" } },
+      "reuse_platform": "microsoft",
+      "scope_group": "security"
+    }
+  ],
+  "resources": [
+    { "value": "secureScore", "label": "Secure score" },
+    { "value": "secureScoreControlProfile", "label": "Secure score control profile" }
+  ],
+  "operations": [
+    {
+      "resource": "secureScore", "operation": "get", "title": "Get a secure score",
+      "method": "GET", "path": "/secureScores/{{ p.secureScoreId }}",
+      "fields": [ { "key": "secureScoreId", "label": "Secure score ID", "type": "text", "required": true } ],
+      "output": { "to": { "$merge": "{{ el | omit:'@odata.context' }}" } }
+    },
+    {
+      "resource": "secureScore", "operation": "getAll", "title": "Get many secure scores",
+      "method": "GET", "path": "/secureScores",
+      "fields": [
+        { "key": "returnAll", "label": "Return all", "type": "boolean", "default": false },
+        { "key": "limit", "label": "Limit", "type": "number", "default": 50, "min": 1 },
+        { "key": "filters", "label": "Filters", "type": "collection", "default": {}, "options": ["filter", "includeControlScores"],
+          "help": "filter: an OData $filter expression; includeControlScores: keep the per-control scores in each result." }
+      ],
+      "query": {
+        "$filter": "{{ p.filters.filter | replace:'\"',\"'\" }}",
+        "$count": "{{ p.returnAll | ne:'true' | then:'true' }}"
+      },
+      "pagination": { "type": "next_url", "next_url_path": "@odata.nextLink", "results_path": "value", "limit_param": "$top", "page_size": 100 },
+      "output": {
+        "path": "value",
+        "to": { "$merge": "{{ el | omit:'controlScores' }}" },
+        "to_when": "{{ p.filters.includeControlScores | then:'0' | default:'1' }}"
+      }
+    },
+    {
+      "resource": "secureScoreControlProfile", "operation": "get", "title": "Get a control profile",
+      "method": "GET", "path": "/secureScoreControlProfiles/{{ p.secureScoreControlProfileId }}",
+      "fields": [ { "key": "secureScoreControlProfileId", "label": "Control profile ID", "type": "text", "required": true } ],
+      "output": { "to": { "$merge": "{{ el | omit:'@odata.context' }}" } }
+    },
+    {
+      "resource": "secureScoreControlProfile", "operation": "getAll", "title": "Get many control profiles",
+      "method": "GET", "path": "/secureScoreControlProfiles",
+      "fields": [
+        { "key": "returnAll", "label": "Return all", "type": "boolean", "default": false },
+        { "key": "limit", "label": "Limit", "type": "number", "default": 50, "min": 1 },
+        { "key": "filters", "label": "Filters", "type": "collection", "default": {}, "options": ["filter"], "help": "filter: an OData $filter expression." }
+      ],
+      "query": {
+        "$filter": "{{ p.filters.filter | replace:'\"',\"'\" }}",
+        "$count": "{{ p.returnAll | ne:'true' | then:'true' }}"
+      },
+      "pagination": { "type": "next_url", "next_url_path": "@odata.nextLink", "results_path": "value", "limit_param": "$top", "page_size": 100 },
+      "output": { "path": "value" }
+    },
+    {
+      "resource": "secureScoreControlProfile", "operation": "update", "title": "Update a control profile",
+      "method": "PATCH", "path": "/secureScoreControlProfiles/{{ p.secureScoreControlProfileId }}",
+      "headers": { "Prefer": "return=representation" },
+      "fields": [
+        { "key": "secureScoreControlProfileId", "label": "Control profile ID", "type": "text", "required": true },
+        { "key": "provider", "label": "Provider", "type": "text", "required": true, "help": "Name of the security product or service (vendorInformation.provider)." },
+        { "key": "vendor", "label": "Vendor", "type": "text", "required": true, "help": "Name of the vendor (vendorInformation.vendor)." },
+        { "key": "updateFields", "label": "Update fields", "type": "collection", "default": {}, "options": ["state"], "help": "state: Default, Ignored or ThirdParty." }
+      ],
+      "body": {
+        "vendorInformation": { "provider": "{{ p.provider }}", "vendor": "{{ p.vendor }}" },
+        "$merge": "{{ p.updateFields }}"
+      },
+      "output": { "to": { "$merge": "{{ el | omit:'@odata.context' }}" } }
+    }
+  ]
+}

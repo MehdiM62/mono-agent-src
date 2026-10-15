@@ -1,0 +1,3028 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "click_up",
+  "node_type": "app.click_up",
+  "title": "ClickUp",
+  "description": "Tasks, lists, folders, goals, comments, checklists, tags and time tracking in ClickUp",
+  "category": "app",
+  "docs_url": "https://clickup.com/api",
+  "n8n_types": [
+    "n8n-nodes-base.clickUp"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.clickUpTrigger"
+  ],
+  "base_url": "https://api.clickup.com/api/v2",
+  "headers": {
+    "Accept": "application/json"
+  },
+  "credentials": [
+    {
+      "platform": "clickup",
+      "name": "ClickUp",
+      "n8n_credential": "clickUpApi",
+      "n8n_credential_alt": [
+        "clickUpOAuth2Api"
+      ],
+      "n8n_field_map": {
+        "accessToken": "access_token"
+      },
+      "methods": [
+        "api_key",
+        "oauth"
+      ],
+      "fields": [
+        {
+          "key": "access_token",
+          "label": "Personal API token",
+          "secret": true,
+          "required": true,
+          "help": "ClickUp: Settings → Apps → API token (pk_…)"
+        }
+      ],
+      "oauth": {
+        "auth_url": "https://app.clickup.com/api",
+        "token_url": "https://api.clickup.com/api/v2/oauth/token",
+        "scopes": [],
+        "pkce": true
+      },
+      "inject": {
+        "headers": {
+          "Authorization": "{{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "task",
+      "label": "Task"
+    },
+    {
+      "value": "checklist",
+      "label": "Checklist"
+    },
+    {
+      "value": "checklistItem",
+      "label": "Checklist Item"
+    },
+    {
+      "value": "comment",
+      "label": "Comment"
+    },
+    {
+      "value": "folder",
+      "label": "Folder"
+    },
+    {
+      "value": "goal",
+      "label": "Goal"
+    },
+    {
+      "value": "goalKeyResult",
+      "label": "Goal Key Result"
+    },
+    {
+      "value": "list",
+      "label": "List"
+    },
+    {
+      "value": "spaceTag",
+      "label": "Space Tag"
+    },
+    {
+      "value": "taskDependency",
+      "label": "Task Dependency"
+    },
+    {
+      "value": "taskList",
+      "label": "Task List"
+    },
+    {
+      "value": "taskTag",
+      "label": "Task Tag"
+    },
+    {
+      "value": "timeEntry",
+      "label": "Time Entry"
+    },
+    {
+      "value": "timeEntryTag",
+      "label": "Time Entry Tag"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "task",
+      "operation": "create",
+      "title": "Create a task",
+      "method": "POST",
+      "path": "/list/{{ p.list }}/task",
+      "body": {
+        "content": "{{ p.additionalFields.markdownContent | ne:'true' | then:p.additionalFields.content }}",
+        "markdown_content": "{{ p.additionalFields.markdownContent | eq:'true' | then:p.additionalFields.content }}",
+        "priority": "{{ p.additionalFields.priority }}",
+        "due_date": "{{ p.additionalFields.dueDate | epoch_ms }}",
+        "due_date_time": "{{ p.additionalFields.dueDateTime }}",
+        "time_estimate": "{{ p.additionalFields.timeEstimate | mul:6000 }}",
+        "start_date": "{{ p.additionalFields.startDate | epoch_ms }}",
+        "start_date_time": "{{ p.additionalFields.startDateTime }}",
+        "notify_all": "{{ p.additionalFields.notifyAll }}",
+        "parent": "{{ p.additionalFields.parentId }}",
+        "status": "{{ p.additionalFields.status }}",
+        "name": "{{ p.name }}",
+        "assignees": "{{ p.additionalFields.assignees }}",
+        "tags": "{{ p.additionalFields.tags }}",
+        "custom_fields": "{{ p.additionalFields.customFieldsJson | fromjson }}"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "team",
+          "label": "Workspace (team) ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "space",
+          "label": "Space ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "folderless",
+          "label": "Folderless list",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "folder",
+          "label": "Folder ID",
+          "type": "text",
+          "help": "With Folderless off"
+        },
+        {
+          "key": "list",
+          "label": "List ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "assignees",
+            "customFieldsJson",
+            "content",
+            "dueDate",
+            "dueDateTime",
+            "markdownContent",
+            "notifyAll",
+            "parentId",
+            "priority",
+            "startDate",
+            "startDateTime",
+            "status",
+            "tags",
+            "timeEstimate"
+          ],
+          "help": "dates ISO 8601; timeEstimate in minutes; customFieldsJson: JSON array of {id, value}"
+        }
+      ]
+    },
+    {
+      "resource": "task",
+      "operation": "delete",
+      "title": "Delete a task",
+      "method": "DELETE",
+      "path": "/task/{{ p.id }}",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "id",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "task",
+      "operation": "get",
+      "title": "Get a task",
+      "method": "GET",
+      "path": "/task/{{ p.id }}",
+      "query": {
+        "include_subtasks": "{{ p.includeSubtasks | eq:'true' }}",
+        "include_markdown_description": "{{ p.includeMarkdownDescription | eq:'true' }}"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "id",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "includeSubtasks",
+          "label": "Include subtasks",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "includeMarkdownDescription",
+          "label": "Include Markdown description",
+          "type": "boolean",
+          "default": false
+        }
+      ]
+    },
+    {
+      "resource": "task",
+      "operation": "getAll",
+      "title": "Get many tasks",
+      "method": "GET",
+      "path": "/list/{{ p.list }}/task",
+      "query": {
+        "archived": "{{ p.filters.archived | eq:'true' }}",
+        "subtasks": "{{ p.filters.subtasks | eq:'true' }}",
+        "include_closed": "{{ p.filters.includeClosed | eq:'true' }}",
+        "order_by": "{{ p.filters.orderBy }}",
+        "statuses[]": "{{ p.filters.statuses }}",
+        "assignees[]": "{{ p.filters.assignees }}",
+        "tags[]": "{{ p.filters.tags }}",
+        "due_date_gt": "{{ p.filters.dueDateGt | epoch_ms }}",
+        "due_date_lt": "{{ p.filters.dueDateLt | epoch_ms }}",
+        "date_created_gt": "{{ p.filters.dateCreatedGt | epoch_ms }}",
+        "date_created_lt": "{{ p.filters.dateCreatedLt | epoch_ms }}",
+        "date_updated_gt": "{{ p.filters.dateUpdatedGt | epoch_ms }}",
+        "date_updated_lt": "{{ p.filters.dateUpdatedLt | epoch_ms }}",
+        "custom_fields": {
+          "$json": {
+            "$map": "{{ p.filters.customFieldsUi.customFieldsValues }}",
+            "$to": {
+              "field_id": "{{ el.fieldId }}",
+              "operator": "{{ el.operator | eq:'equal' | then:'=' | default:el.operator }}",
+              "value": "{{ el.value }}"
+            }
+          }
+        }
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "start_page": 0,
+        "results_path": "tasks"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "team",
+          "label": "Workspace (team) ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "space",
+          "label": "Space ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "folderless",
+          "label": "Folderless list",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "folder",
+          "label": "Folder ID",
+          "type": "text",
+          "help": "With Folderless off"
+        },
+        {
+          "key": "list",
+          "label": "List ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off."
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "archived",
+            "assignees",
+            "customFieldsUi",
+            "dateCreatedGt",
+            "dateCreatedLt",
+            "dateUpdatedGt",
+            "dateUpdatedLt",
+            "dueDateGt",
+            "dueDateLt",
+            "includeClosed",
+            "orderBy",
+            "statuses",
+            "subtasks",
+            "tags"
+          ],
+          "help": "customFieldsUi: {\"customFieldsValues\": [{\"fieldId\": \"x\", \"operator\": \"equal\", \"value\": \"y\"}]}"
+        }
+      ]
+    },
+    {
+      "resource": "task",
+      "operation": "member",
+      "title": "Get task members",
+      "method": "GET",
+      "path": "/task/{{ p.id }}/member",
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "page",
+        "cursor_path": "__no_next_page",
+        "results_path": "members"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "id",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off."
+        }
+      ]
+    },
+    {
+      "resource": "task",
+      "operation": "setCustomField",
+      "title": "Set a custom field",
+      "method": "POST",
+      "path": "/task/{{ p.task }}/field/{{ p.field }}",
+      "body": {
+        "value": "{{ p.jsonParse | eq:'true' | then:p.value | fromjson | default:(p.value | numeric) }}"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "task",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "field",
+          "label": "Field ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "jsonParse",
+          "label": "Value is JSON",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "value",
+          "label": "Value",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "task",
+      "operation": "update",
+      "title": "Update a task",
+      "method": "PUT",
+      "path": "/task/{{ p.id }}",
+      "body": {
+        "content": "{{ p.updateFields.markdownContent | ne:'true' | then:p.updateFields.content }}",
+        "markdown_content": "{{ p.updateFields.markdownContent | eq:'true' | then:p.updateFields.content }}",
+        "priority": "{{ p.updateFields.priority }}",
+        "due_date": "{{ p.updateFields.dueDate | epoch_ms }}",
+        "due_date_time": "{{ p.updateFields.dueDateTime }}",
+        "time_estimate": "{{ p.updateFields.timeEstimate | mul:6000 }}",
+        "start_date": "{{ p.updateFields.startDate | epoch_ms }}",
+        "start_date_time": "{{ p.updateFields.startDateTime }}",
+        "notify_all": "{{ p.updateFields.notifyAll }}",
+        "parent": "{{ p.updateFields.parentId }}",
+        "status": "{{ p.updateFields.status }}",
+        "name": "{{ p.updateFields.name }}",
+        "assignees": {
+          "!add": {
+            "$concat": [
+              {
+                "$map": "{{ p.updateFields.addAssignees | split }}",
+                "$to": "{{ el | int }}"
+              }
+            ]
+          },
+          "!rem": {
+            "$concat": [
+              {
+                "$map": "{{ p.updateFields.removeAssignees | split }}",
+                "$to": "{{ el | int }}"
+              }
+            ]
+          }
+        }
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "id",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "addAssignees",
+            "content",
+            "dueDate",
+            "dueDateTime",
+            "markdownContent",
+            "name",
+            "notifyAll",
+            "parentId",
+            "priority",
+            "removeAssignees",
+            "status",
+            "startDate",
+            "startDateTime",
+            "timeEstimate"
+          ],
+          "help": "add/removeAssignees: comma-separated user IDs"
+        }
+      ]
+    },
+    {
+      "resource": "checklist",
+      "operation": "create",
+      "title": "Create a checklist",
+      "method": "POST",
+      "path": "/task/{{ p.task }}/checklist",
+      "body": {
+        "name": "{{ p.name }}"
+      },
+      "output": {
+        "path": "checklist"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "task",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "checklist",
+      "operation": "delete",
+      "title": "Delete a checklist",
+      "method": "DELETE",
+      "path": "/checklist/{{ p.checklist }}",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "checklist",
+          "label": "Checklist ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "checklist",
+      "operation": "update",
+      "title": "Update a checklist",
+      "method": "PUT",
+      "path": "/checklist/{{ p.checklist }}",
+      "body": {
+        "name": "{{ p.updateFields.name }}",
+        "position": "{{ p.updateFields.position }}"
+      },
+      "output": {
+        "path": "checklist"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "checklist",
+          "label": "Checklist ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "name",
+            "position"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "checklistItem",
+      "operation": "create",
+      "title": "Create a checklist item",
+      "method": "POST",
+      "path": "/checklist/{{ p.checklist }}/checklist_item",
+      "body": {
+        "name": "{{ p.name }}",
+        "assignee": "{{ p.additionalFields.assignee | int }}"
+      },
+      "output": {
+        "path": "checklist"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "checklist",
+          "label": "Checklist ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "assignee"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "checklistItem",
+      "operation": "delete",
+      "title": "Delete a checklist item",
+      "method": "DELETE",
+      "path": "/checklist/{{ p.checklist }}/checklist_item/{{ p.checklistItem }}",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "checklist",
+          "label": "Checklist ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "checklistItem",
+          "label": "Checklist item ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "checklistItem",
+      "operation": "update",
+      "title": "Update a checklist item",
+      "method": "PUT",
+      "path": "/checklist/{{ p.checklist }}/checklist_item/{{ p.checklistItem }}",
+      "body": {
+        "name": "{{ p.updateFields.name }}",
+        "parent": "{{ p.updateFields.parent }}",
+        "assignee": "{{ p.updateFields.assignee | int }}",
+        "resolved": "{{ p.updateFields.resolved }}"
+      },
+      "output": {
+        "path": "checklist"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "checklist",
+          "label": "Checklist ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "checklistItem",
+          "label": "Checklist item ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "assignee",
+            "name",
+            "parent",
+            "resolved"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "comment",
+      "operation": "create",
+      "title": "Create a comment",
+      "method": "POST",
+      "path": "/{{ p.commentOn }}/{{ p.id }}/comment",
+      "body": {
+        "comment_text": "{{ p.commentText }}",
+        "assignee": "{{ p.additionalFields.assignee | int }}",
+        "notify_all": "{{ p.additionalFields.notifyAll }}"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "commentOn",
+          "label": "Comment on",
+          "type": "select",
+          "required": true,
+          "options": [
+            "list",
+            "task",
+            "view"
+          ],
+          "default": ""
+        },
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "commentText",
+          "label": "Comment text",
+          "type": "textarea"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "assignee",
+            "notifyAll"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "comment",
+      "operation": "delete",
+      "title": "Delete a comment",
+      "method": "DELETE",
+      "path": "/comment/{{ p.comment }}",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "comment",
+          "label": "Comment ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "comment",
+      "operation": "getAll",
+      "title": "Get many comments",
+      "method": "GET",
+      "path": "/{{ p.commentsOn }}/{{ p.id }}/comment",
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "page",
+        "cursor_path": "__no_next_page",
+        "results_path": "comments"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "commentsOn",
+          "label": "Comments on",
+          "type": "select",
+          "required": true,
+          "options": [
+            "list",
+            "task",
+            "view"
+          ],
+          "default": ""
+        },
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Not in n8n for this operation; on returns every result."
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off."
+        }
+      ]
+    },
+    {
+      "resource": "comment",
+      "operation": "update",
+      "title": "Update a comment",
+      "method": "PUT",
+      "path": "/comment/{{ p.comment }}",
+      "body": {
+        "comment_text": "{{ p.updateFields.commentText }}",
+        "assignee": "{{ p.updateFields.assignee | int }}",
+        "resolved": "{{ p.updateFields.resolved }}"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "comment",
+          "label": "Comment ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "assignee",
+            "commentText",
+            "resolved"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "folder",
+      "operation": "create",
+      "title": "Create a folder",
+      "method": "POST",
+      "path": "/space/{{ p.space }}/folder",
+      "body": {
+        "name": "{{ p.name }}"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "team",
+          "label": "Workspace (team) ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "space",
+          "label": "Space ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "folder",
+      "operation": "delete",
+      "title": "Delete a folder",
+      "method": "DELETE",
+      "path": "/folder/{{ p.folder }}",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "team",
+          "label": "Workspace (team) ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "space",
+          "label": "Space ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "folder",
+          "label": "Folder ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "folder",
+      "operation": "get",
+      "title": "Get a folder",
+      "method": "GET",
+      "path": "/folder/{{ p.folder }}",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "team",
+          "label": "Workspace (team) ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "space",
+          "label": "Space ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "folder",
+          "label": "Folder ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "folder",
+      "operation": "getAll",
+      "title": "Get many folders",
+      "method": "GET",
+      "path": "/space/{{ p.space }}/folder",
+      "query": {
+        "archived": "{{ p.filters.archived }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "page",
+        "cursor_path": "__no_next_page",
+        "results_path": "folders"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "team",
+          "label": "Workspace (team) ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "space",
+          "label": "Space ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Not in n8n for this operation; on returns every result."
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off."
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "archived"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "folder",
+      "operation": "update",
+      "title": "Update a folder",
+      "method": "PUT",
+      "path": "/folder/{{ p.folder }}",
+      "body": {
+        "name": "{{ p.updateFields.name }}"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "team",
+          "label": "Workspace (team) ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "space",
+          "label": "Space ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "folder",
+          "label": "Folder ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "name"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "goal",
+      "operation": "create",
+      "title": "Create a goal",
+      "method": "POST",
+      "path": "/team/{{ p.team }}/goal",
+      "body": {
+        "name": "{{ p.name }}",
+        "due_date": "{{ p.additionalFields.dueDate | epoch_ms }}",
+        "description": "{{ p.additionalFields.description }}",
+        "multiple_owners": "{{ p.additionalFields.multipleOwners }}",
+        "color": "{{ p.additionalFields.color }}",
+        "owners": {
+          "$map": "{{ p.additionalFields.owners | split }}",
+          "$to": "{{ el | int }}"
+        }
+      },
+      "output": {
+        "path": "goal"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "team",
+          "label": "Workspace (team) ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "color",
+            "description",
+            "dueDate",
+            "multipleOwners",
+            "owners"
+          ],
+          "help": "owners: comma-separated user IDs"
+        }
+      ]
+    },
+    {
+      "resource": "goal",
+      "operation": "delete",
+      "title": "Delete a goal",
+      "method": "DELETE",
+      "path": "/goal/{{ p.goal }}",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "goal",
+          "label": "Goal ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "goal",
+      "operation": "get",
+      "title": "Get a goal",
+      "method": "GET",
+      "path": "/goal/{{ p.goal }}",
+      "output": {
+        "path": "goal"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "goal",
+          "label": "Goal ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "goal",
+      "operation": "getAll",
+      "title": "Get many goals",
+      "method": "GET",
+      "path": "/team/{{ p.team }}/goal",
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "page",
+        "cursor_path": "__no_next_page",
+        "results_path": "goals"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "team",
+          "label": "Workspace (team) ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Not in n8n for this operation; on returns every result."
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off."
+        }
+      ]
+    },
+    {
+      "resource": "goal",
+      "operation": "update",
+      "title": "Update a goal",
+      "method": "PUT",
+      "path": "/goal/{{ p.goal }}",
+      "body": {
+        "name": "{{ p.updateFields.name }}",
+        "due_date": "{{ p.updateFields.dueDate | epoch_ms }}",
+        "description": "{{ p.updateFields.description }}",
+        "color": "{{ p.updateFields.color }}",
+        "add_owners": {
+          "$map": "{{ p.updateFields.addOwners | split }}",
+          "$to": "{{ el | int }}"
+        },
+        "rem_owners": {
+          "$map": "{{ p.updateFields.removeOwners | split }}",
+          "$to": "{{ el | int }}"
+        }
+      },
+      "output": {
+        "path": "goal"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "goal",
+          "label": "Goal ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "addOwners",
+            "color",
+            "description",
+            "dueDate",
+            "name",
+            "removeOwners"
+          ],
+          "help": "addOwners/removeOwners: comma-separated user IDs"
+        }
+      ]
+    },
+    {
+      "resource": "goalKeyResult",
+      "operation": "create",
+      "title": "Create a key result",
+      "method": "POST",
+      "path": "/goal/{{ p.goal }}/key_result",
+      "body": {
+        "name": "{{ p.name }}",
+        "type": "{{ p.type }}",
+        "unit": "{{ p.additionalFields.unit }}",
+        "steps_start": "{{ p.additionalFields.stepsStart }}",
+        "steps_end": "{{ p.additionalFields.stepsEnd }}",
+        "task_ids": "{{ p.additionalFields.taskIds | split }}",
+        "list_ids": "{{ p.additionalFields.listIds | split }}",
+        "owners": {
+          "$map": "{{ p.additionalFields.owners | split }}",
+          "$to": "{{ el | int }}"
+        }
+      },
+      "output": {
+        "path": "key_result"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "goal",
+          "label": "Goal ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "type",
+          "label": "Type",
+          "type": "select",
+          "required": true,
+          "options": [
+            "automatic",
+            "boolean",
+            "currency",
+            "number",
+            "percentage"
+          ],
+          "default": ""
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "listIds",
+            "owners",
+            "stepsStart",
+            "stepsEnd",
+            "taskIds",
+            "unit"
+          ],
+          "help": "listIds/taskIds/owners: comma-separated"
+        }
+      ]
+    },
+    {
+      "resource": "goalKeyResult",
+      "operation": "delete",
+      "title": "Delete a key result",
+      "method": "DELETE",
+      "path": "/key_result/{{ p.keyResult }}",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "keyResult",
+          "label": "Key result ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "goalKeyResult",
+      "operation": "update",
+      "title": "Update a key result",
+      "method": "PUT",
+      "path": "/key_result/{{ p.keyResult }}",
+      "body": {
+        "name": "{{ p.updateFields.name }}",
+        "note": "{{ p.updateFields.note }}",
+        "steps_current": "{{ p.updateFields.stepsCurrent }}",
+        "steps_start": "{{ p.updateFields.stepsStart }}",
+        "steps_end": "{{ p.updateFields.stepsEnd }}",
+        "unit": "{{ p.updateFields.unit }}"
+      },
+      "output": {
+        "path": "key_result"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "keyResult",
+          "label": "Key result ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "name",
+            "note",
+            "stepsCurrent",
+            "stepsEnd",
+            "stepsStart",
+            "unit"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "list",
+      "operation": "customFields",
+      "title": "Get a list's custom fields",
+      "method": "GET",
+      "path": "/list/{{ p.list }}/field",
+      "output": {
+        "path": "fields"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "team",
+          "label": "Workspace (team) ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "space",
+          "label": "Space ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "folderless",
+          "label": "Folderless list",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "folder",
+          "label": "Folder ID",
+          "type": "text",
+          "help": "With Folderless off"
+        },
+        {
+          "key": "list",
+          "label": "List ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "list",
+      "operation": "create",
+      "title": "Create a list",
+      "method": "POST",
+      "path": "/{{ p.folderless | eq:'true' | then:'space' | default:'folder' }}/{{ p.folderless | eq:'true' | then:p.space | default:p.folder }}/list",
+      "body": {
+        "name": "{{ p.name }}",
+        "content": "{{ p.additionalFields.content }}",
+        "due_date": "{{ p.additionalFields.dueDate | epoch_ms }}",
+        "due_date_time": "{{ p.additionalFields.dueDateTime }}",
+        "priority": "{{ p.additionalFields.priority }}",
+        "assignee": "{{ p.additionalFields.assignee | int }}",
+        "status": "{{ p.additionalFields.status }}"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "team",
+          "label": "Workspace (team) ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "space",
+          "label": "Space ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "folderless",
+          "label": "Folderless list",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "folder",
+          "label": "Folder ID",
+          "type": "text",
+          "help": "With Folderless off"
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "assignee",
+            "content",
+            "dueDate",
+            "dueDateTime",
+            "priority",
+            "status"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "list",
+      "operation": "delete",
+      "title": "Delete a list",
+      "method": "DELETE",
+      "path": "/list/{{ p.list }}",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "team",
+          "label": "Workspace (team) ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "space",
+          "label": "Space ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "folderless",
+          "label": "Folderless list",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "folder",
+          "label": "Folder ID",
+          "type": "text",
+          "help": "With Folderless off"
+        },
+        {
+          "key": "list",
+          "label": "List ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "list",
+      "operation": "get",
+      "title": "Get a list",
+      "method": "GET",
+      "path": "/list/{{ p.list }}",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "team",
+          "label": "Workspace (team) ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "space",
+          "label": "Space ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "folderless",
+          "label": "Folderless list",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "folder",
+          "label": "Folder ID",
+          "type": "text",
+          "help": "With Folderless off"
+        },
+        {
+          "key": "list",
+          "label": "List ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "list",
+      "operation": "getAll",
+      "title": "Get many lists",
+      "method": "GET",
+      "path": "/{{ p.folderless | eq:'true' | then:'space' | default:'folder' }}/{{ p.folderless | eq:'true' | then:p.space | default:p.folder }}/list",
+      "query": {
+        "archived": "{{ p.filters.archived }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "page",
+        "cursor_path": "__no_next_page",
+        "results_path": "lists"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "team",
+          "label": "Workspace (team) ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "space",
+          "label": "Space ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "folderless",
+          "label": "Folderless list",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "folder",
+          "label": "Folder ID",
+          "type": "text",
+          "help": "With Folderless off"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Not in n8n for this operation; on returns every result."
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off."
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "archived"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "list",
+      "operation": "member",
+      "title": "Get list members",
+      "method": "GET",
+      "path": "/list/{{ p.id }}/member",
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "page",
+        "cursor_path": "__no_next_page",
+        "results_path": "members"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "id",
+          "label": "List ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off."
+        }
+      ]
+    },
+    {
+      "resource": "list",
+      "operation": "update",
+      "title": "Update a list",
+      "method": "PUT",
+      "path": "/list/{{ p.list }}",
+      "body": {
+        "name": "{{ p.updateFields.name }}",
+        "content": "{{ p.updateFields.content }}",
+        "due_date": "{{ p.updateFields.dueDate | epoch_ms }}",
+        "due_date_time": "{{ p.updateFields.dueDateTime }}",
+        "priority": "{{ p.updateFields.priority }}",
+        "assignee": "{{ p.updateFields.assignee | int }}",
+        "unset_status": "{{ p.updateFields.unsetStatus }}"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "team",
+          "label": "Workspace (team) ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "space",
+          "label": "Space ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "folderless",
+          "label": "Folderless list",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "folder",
+          "label": "Folder ID",
+          "type": "text",
+          "help": "With Folderless off"
+        },
+        {
+          "key": "list",
+          "label": "List ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "assignee",
+            "content",
+            "dueDate",
+            "dueDateTime",
+            "name",
+            "priority",
+            "unsetStatus"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "spaceTag",
+      "operation": "create",
+      "title": "Create a space tag",
+      "method": "POST",
+      "path": "/space/{{ p.space }}/tag",
+      "body": {
+        "tag": {
+          "name": "{{ p.name }}",
+          "tag_bg": "{{ p.backgroundColor }}",
+          "tag_fg": "{{ p.foregroundColor }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "space",
+          "label": "Space ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "foregroundColor",
+          "label": "Foreground color",
+          "type": "text",
+          "required": true,
+          "default": "#000000"
+        },
+        {
+          "key": "backgroundColor",
+          "label": "Background color",
+          "type": "text",
+          "required": true,
+          "default": "#000000"
+        }
+      ]
+    },
+    {
+      "resource": "spaceTag",
+      "operation": "delete",
+      "title": "Delete a space tag",
+      "method": "DELETE",
+      "path": "/space/{{ p.space }}/tag/{{ p.name }}",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "space",
+          "label": "Space ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "name",
+          "label": "Tag name",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "spaceTag",
+      "operation": "getAll",
+      "title": "Get many space tags",
+      "method": "GET",
+      "path": "/space/{{ p.space }}/tag",
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "page",
+        "cursor_path": "__no_next_page",
+        "results_path": "tags"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "space",
+          "label": "Space ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off."
+        }
+      ]
+    },
+    {
+      "resource": "spaceTag",
+      "operation": "update",
+      "title": "Update a space tag",
+      "method": "PUT",
+      "path": "/space/{{ p.space }}/tag/{{ p.name }}",
+      "body": {
+        "tag": {
+          "name": "{{ p.newName }}",
+          "tag_bg": "{{ p.backgroundColor }}",
+          "tag_fg": "{{ p.foregroundColor }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "space",
+          "label": "Space ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "name",
+          "label": "Tag name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "newName",
+          "label": "New name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "foregroundColor",
+          "label": "Foreground color",
+          "type": "text",
+          "required": true,
+          "default": "#000000"
+        },
+        {
+          "key": "backgroundColor",
+          "label": "Background color",
+          "type": "text",
+          "required": true,
+          "default": "#000000"
+        }
+      ]
+    },
+    {
+      "resource": "taskDependency",
+      "operation": "create",
+      "title": "Create a task dependency",
+      "method": "POST",
+      "path": "/task/{{ p.task }}/dependency",
+      "body": {
+        "depends_on": "{{ p.dependsOnTask }}"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "task",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "dependsOnTask",
+          "label": "Depends on task ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "taskDependency",
+      "operation": "delete",
+      "title": "Delete a task dependency",
+      "method": "DELETE",
+      "path": "/task/{{ p.task }}/dependency",
+      "query": {
+        "depends_on": "{{ p.dependsOnTask }}"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "task",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "dependsOnTask",
+          "label": "Depends on task ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "taskList",
+      "operation": "add",
+      "title": "Add a task to a list",
+      "method": "POST",
+      "path": "/list/{{ p.listId }}/task/{{ p.taskId }}",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "taskId",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "listId",
+          "label": "List ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "taskList",
+      "operation": "remove",
+      "title": "Remove a task from a list",
+      "method": "DELETE",
+      "path": "/list/{{ p.listId }}/task/{{ p.taskId }}",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "taskId",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "listId",
+          "label": "List ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "taskTag",
+      "operation": "add",
+      "title": "Add a tag to a task",
+      "method": "POST",
+      "path": "/task/{{ p.taskId }}/tag/{{ p.tagName }}",
+      "query": {
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "taskId",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "tagName",
+          "label": "Tag name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "custom_task_ids",
+            "team_id"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "taskTag",
+      "operation": "remove",
+      "title": "Remove a tag from a task",
+      "method": "DELETE",
+      "path": "/task/{{ p.taskId }}/tag/{{ p.tagName }}",
+      "query": {
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "taskId",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "tagName",
+          "label": "Tag name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "custom_task_ids",
+            "team_id"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "timeEntry",
+      "operation": "create",
+      "title": "Create a time entry",
+      "method": "POST",
+      "path": "/team/{{ p.team }}/time_entries",
+      "body": {
+        "start": "{{ p.start | epoch_ms }}",
+        "duration": "{{ p.duration | mul:60000 }}",
+        "tid": "{{ p.task }}",
+        "$merge": "{{ p.additionalFields | omit:'tags' }}",
+        "tags": {
+          "$map": "{{ p.additionalFields.tags }}",
+          "$to": "{{ el | fromjson }}"
+        }
+      },
+      "output": {
+        "path": "data"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "team",
+          "label": "Workspace (team) ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "space",
+          "label": "Space ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "folderless",
+          "label": "Folderless list",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "folder",
+          "label": "Folder ID",
+          "type": "text",
+          "help": "With Folderless off"
+        },
+        {
+          "key": "list",
+          "label": "List ID",
+          "type": "text"
+        },
+        {
+          "key": "start",
+          "label": "Start",
+          "type": "datetime",
+          "required": true
+        },
+        {
+          "key": "duration",
+          "label": "Duration (minutes)",
+          "type": "number",
+          "required": true,
+          "default": 0
+        },
+        {
+          "key": "task",
+          "label": "Task ID",
+          "type": "text"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "assignee",
+            "billable",
+            "description",
+            "tags"
+          ],
+          "help": "duration in minutes; tags: list of JSON strings like '{\"name\":\"x\",\"tag_bg\":\"#000\",\"tag_fg\":\"#fff\"}'"
+        }
+      ]
+    },
+    {
+      "resource": "timeEntry",
+      "operation": "delete",
+      "title": "Delete a time entry",
+      "method": "DELETE",
+      "path": "/team/{{ p.team }}/time_entries/{{ p.timeEntry }}",
+      "output": {
+        "path": "data"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "team",
+          "label": "Workspace (team) ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "timeEntry",
+          "label": "Time entry ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "timeEntry",
+      "operation": "get",
+      "title": "Get a time entry",
+      "method": "GET",
+      "path": "/team/{{ p.team }}/time_entries/{{ p.running | eq:'true' | then:'current' | default:p.timeEntry }}",
+      "output": {
+        "path": "data"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "team",
+          "label": "Workspace (team) ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "running",
+          "label": "Running entry",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "timeEntry",
+          "label": "Time entry ID",
+          "type": "text",
+          "help": "With Running entry off"
+        }
+      ]
+    },
+    {
+      "resource": "timeEntry",
+      "operation": "getAll",
+      "title": "Get many time entries",
+      "method": "GET",
+      "path": "/team/{{ p.team }}/time_entries",
+      "query": {
+        "start_date": "{{ p.filters.start_date | epoch_ms }}",
+        "end_date": "{{ p.filters.end_date | epoch_ms }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "page",
+        "cursor_path": "__no_next_page",
+        "results_path": "data"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "team",
+          "label": "Workspace (team) ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Fetch every page instead of stopping at Limit."
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 5,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off."
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "end_date",
+            "start_date"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "timeEntry",
+      "operation": "start",
+      "title": "Start a timer",
+      "method": "POST",
+      "path": "/team/{{ p.team }}/time_entries/start",
+      "body": {
+        "tid": "{{ p.task }}",
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "output": {
+        "path": "data"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "team",
+          "label": "Workspace (team) ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "task",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "billable",
+            "description"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "timeEntry",
+      "operation": "stop",
+      "title": "Stop the running timer",
+      "method": "POST",
+      "path": "/team/{{ p.team }}/time_entries/stop",
+      "output": {
+        "path": "data"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "team",
+          "label": "Workspace (team) ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "timeEntry",
+      "operation": "update",
+      "title": "Update a time entry",
+      "method": "PUT",
+      "path": "/team/{{ p.team }}/time_entries/{{ p.timeEntry }}",
+      "body": {
+        "$merge": "{{ p.updateFields | omit:'start,duration,task' }}",
+        "start": "{{ p.updateFields.start | epoch_ms }}",
+        "duration": "{{ p.updateFields.duration | mul:60000 }}",
+        "tid": "{{ p.updateFields.task }}",
+        "custom_task_ids": "{{ p.updateFields.task | then:true }}"
+      },
+      "output": {
+        "path": "data"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "team",
+          "label": "Workspace (team) ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "space",
+          "label": "Space ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "folderless",
+          "label": "Folderless list",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "folder",
+          "label": "Folder ID",
+          "type": "text",
+          "help": "With Folderless off"
+        },
+        {
+          "key": "list",
+          "label": "List ID",
+          "type": "text"
+        },
+        {
+          "key": "archived",
+          "label": "Archived",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "timeEntry",
+          "label": "Time entry ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "assignee",
+            "billable",
+            "description",
+            "duration",
+            "start",
+            "tags",
+            "task"
+          ],
+          "help": "duration in minutes; tags: list of JSON strings like '{\"name\":\"x\",\"tag_bg\":\"#000\",\"tag_fg\":\"#fff\"}'"
+        }
+      ]
+    },
+    {
+      "resource": "timeEntryTag",
+      "operation": "add",
+      "title": "Add tags to time entries",
+      "method": "POST",
+      "path": "/team/{{ p.team }}/time_entries/tags",
+      "body": {
+        "time_entry_ids": "{{ p.timeEntryIds | split }}",
+        "tags": "{{ p.tagsUi.tagsValues }}"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "team",
+          "label": "Workspace (team) ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "timeEntryIds",
+          "label": "Time entry IDs",
+          "type": "text",
+          "required": true,
+          "help": "Comma-separated"
+        },
+        {
+          "key": "tagsUi",
+          "label": "Tags",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "tagsValues"
+          ],
+          "help": "{\"tagsValues\": [{\"name\": \"x\", \"tag_bg\": \"#000000\", \"tag_fg\": \"#ffffff\"}]}"
+        }
+      ]
+    },
+    {
+      "resource": "timeEntryTag",
+      "operation": "getAll",
+      "title": "Get many time entry tags",
+      "method": "GET",
+      "path": "/team/{{ p.team }}/time_entries/tags",
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "page",
+        "cursor_path": "__no_next_page",
+        "results_path": "data"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "team",
+          "label": "Workspace (team) ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Fetch every page instead of stopping at Limit."
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 5,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off."
+        }
+      ]
+    },
+    {
+      "resource": "timeEntryTag",
+      "operation": "remove",
+      "title": "Remove tags from time entries",
+      "method": "DELETE",
+      "path": "/team/{{ p.team }}/time_entries/tags",
+      "body": {
+        "time_entry_ids": "{{ p.timeEntryIds | split }}",
+        "tags": {
+          "$map": "{{ p.tagNames }}",
+          "$to": "{{ el | fromjson | get:'name' }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "accessToken"
+        },
+        {
+          "key": "team",
+          "label": "Workspace (team) ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "timeEntryIds",
+          "label": "Time entry IDs",
+          "type": "text",
+          "required": true,
+          "help": "Comma-separated"
+        },
+        {
+          "key": "tagNames",
+          "label": "Tags",
+          "type": "array",
+          "required": true,
+          "item_type": "text",
+          "default": [],
+          "help": "n8n's JSON tag strings, e.g. {\"name\":\"x\"}"
+        }
+      ]
+    }
+  ],
+  "webhook": {
+    "fields": [
+      {
+        "key": "team",
+        "label": "Team ID",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "events",
+        "label": "Events",
+        "type": "array",
+        "required": true
+      },
+      {
+        "key": "filters",
+        "label": "Filters",
+        "type": "collection",
+        "default": {}
+      }
+    ],
+    "create": [
+      {
+        "method": "POST",
+        "path": "/team/{{ p.team }}/webhook",
+        "body": {
+          "endpoint": "{{ hook.url }}",
+          "events": "{{ p.events | join:',' | matches:'(^|,)\\*(,|$)' | then:'*' | default:p.events }}",
+          "list_id": "{{ p.filters.listId | replace:'#','' }}",
+          "task_id": "{{ p.filters.taskId | replace:'#','' }}",
+          "space_id": "{{ p.filters.spaceId | replace:'#','' }}",
+          "folder_id": "{{ p.filters.folderId | replace:'#','' }}"
+        }
+      }
+    ],
+    "id": "{{ res.webhook.id }}",
+    "extra": {
+      "secret": "{{ res.webhook.secret }}"
+    },
+    "delete": [
+      {
+        "method": "DELETE",
+        "path": "/webhook/{{ hook.id }}"
+      }
+    ],
+    "verify": {
+      "signature": "{{ hdr.X-Signature }}",
+      "secret": "{{ hook.extra.secret }}"
+    }
+  }
+}

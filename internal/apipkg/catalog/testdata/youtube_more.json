@@ -1,0 +1,467 @@
+{
+  "channel.getAll": {
+    "params": {
+      "limit": 5
+    },
+    "response": {
+      "items": [
+        {
+          "id": "c"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/youtube/v3/channels",
+      "query": {
+        "part": "brandingSettings,contentDetails,contentOwnerDetails,id,localizations,snippet,statistics,status,topicDetails",
+        "mine": "true",
+        "maxResults": "5"
+      },
+      "items": 1
+    }
+  },
+  "channel.get": {
+    "params": {
+      "channelId": "C1",
+      "part": [
+        "snippet",
+        "statistics"
+      ]
+    },
+    "response": {
+      "items": [
+        {
+          "id": "C1"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/youtube/v3/channels",
+      "query": {
+        "part": "snippet,statistics",
+        "id": "C1"
+      },
+      "items": 1
+    }
+  },
+  "channel.update": {
+    "params": {
+      "channelId": "C1",
+      "updateFields": {
+        "brandingSettingsUi": {
+          "channelSettingsValues": {
+            "channel": {
+              "description": "Hi"
+            }
+          }
+        }
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/youtube/v3/channels",
+      "query": {
+        "part": "brandingSettings"
+      },
+      "body": {
+        "id": "C1",
+        "brandingSettings": {
+          "channel": {
+            "description": "Hi"
+          }
+        }
+      }
+    }
+  },
+  "channel.uploadBanner": {
+    "params": {
+      "channelId": "C1"
+    },
+    "input": {
+      "data": "aW1n"
+    },
+    "responses": [
+      {
+        "url": "https://yt/banner"
+      },
+      {}
+    ],
+    "expect_requests": [
+      {
+        "method": "POST",
+        "path": "/upload/youtube/v3/channelBanners/insert",
+        "body": "img"
+      },
+      {
+        "method": "PUT",
+        "path": "/youtube/v3/channels",
+        "query": {
+          "part": "brandingSettings"
+        },
+        "body": {
+          "id": "C1",
+          "brandingSettings": {
+            "image": {
+              "bannerExternalUrl": "https://yt/banner"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "playlist.getAll": {
+    "params": {
+      "limit": 5,
+      "filters": {
+        "channelId": "C1"
+      }
+    },
+    "response": {
+      "items": [
+        {
+          "id": "p"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/youtube/v3/playlists",
+      "query": {
+        "part": "contentDetails,id,localizations,player,snippet,status",
+        "channelId": "C1",
+        "maxResults": "5"
+      },
+      "items": 1
+    }
+  },
+  "playlist.create": {
+    "params": {
+      "title": "Faves",
+      "options": {
+        "tags": "a, b",
+        "privacyStatus": "private"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/youtube/v3/playlists",
+      "query": {
+        "part": "snippet,status"
+      },
+      "body": {
+        "snippet": {
+          "title": "Faves",
+          "tags": [
+            "a",
+            "b"
+          ]
+        },
+        "status": {
+          "privacyStatus": "private"
+        }
+      }
+    }
+  },
+  "playlist.delete": {
+    "params": {
+      "playlistId": "P1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/youtube/v3/playlists",
+      "query": {
+        "id": "P1"
+      }
+    }
+  },
+  "playlist.get": {
+    "params": {
+      "playlistId": "P1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/youtube/v3/playlists",
+      "query": {
+        "part": "contentDetails,id,localizations,player,snippet,status",
+        "id": "P1"
+      }
+    }
+  },
+  "playlist.update": {
+    "params": {
+      "playlistId": "P1",
+      "title": "New",
+      "updateFields": {
+        "description": "d"
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/youtube/v3/playlists",
+      "query": {
+        "part": "snippet,status"
+      },
+      "body": {
+        "id": "P1",
+        "snippet": {
+          "title": "New",
+          "description": "d"
+        }
+      }
+    }
+  },
+  "playlistItem.add": {
+    "params": {
+      "playlistId": "P1",
+      "videoId": "V1",
+      "options": {
+        "position": 0,
+        "note": "n"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/youtube/v3/playlistItems",
+      "query": {
+        "part": "snippet,contentDetails"
+      },
+      "body": {
+        "snippet": {
+          "playlistId": "P1",
+          "resourceId": {
+            "kind": "youtube#video",
+            "videoId": "V1"
+          },
+          "position": 0
+        },
+        "contentDetails": {
+          "note": "n"
+        }
+      }
+    }
+  },
+  "playlistItem.delete": {
+    "params": {
+      "playlistItemId": "I1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/youtube/v3/playlistItems",
+      "query": {
+        "id": "I1"
+      }
+    }
+  },
+  "playlistItem.get": {
+    "params": {
+      "playlistItemId": "I1",
+      "part": [
+        "id"
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/youtube/v3/playlistItems",
+      "query": {
+        "part": "id",
+        "id": "I1"
+      }
+    }
+  },
+  "playlistItem.getAll": {
+    "params": {
+      "playlistId": "P1",
+      "returnAll": true
+    },
+    "response": {
+      "items": [
+        {
+          "id": "1"
+        },
+        {
+          "id": "2"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/youtube/v3/playlistItems",
+      "query": {
+        "part": "contentDetails,id,snippet,status",
+        "playlistId": "P1",
+        "maxResults": "50"
+      },
+      "items": 2
+    }
+  },
+  "video.getAll": {
+    "params": {
+      "limit": 3,
+      "filters": {
+        "q": "cats"
+      },
+      "options": {
+        "order": "date"
+      }
+    },
+    "response": {
+      "items": [
+        {
+          "id": "v"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/youtube/v3/search",
+      "query": {
+        "part": "snippet",
+        "type": "video",
+        "q": "cats",
+        "order": "date",
+        "maxResults": "3"
+      },
+      "items": 1
+    }
+  },
+  "video.delete": {
+    "params": {
+      "videoId": "V1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/youtube/v3/videos",
+      "query": {
+        "id": "V1"
+      }
+    }
+  },
+  "video.get": {
+    "params": {
+      "videoId": "V1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/youtube/v3/videos",
+      "query": {
+        "part": "contentDetails,id,liveStreamingDetails,localizations,player,recordingDetails,snippet,statistics,status,topicDetails",
+        "id": "V1"
+      }
+    }
+  },
+  "video.rate": {
+    "params": {
+      "videoId": "V1",
+      "rating": "like"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/youtube/v3/videos/rate",
+      "query": {
+        "id": "V1",
+        "rating": "like"
+      }
+    }
+  },
+  "video.update": {
+    "params": {
+      "videoId": "V1",
+      "title": "T",
+      "categoryId": "22",
+      "updateFields": {
+        "privacyStatus": "public"
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/youtube/v3/videos",
+      "query": {
+        "part": "snippet,status,recordingDetails"
+      },
+      "body": {
+        "id": "V1",
+        "snippet": {
+          "title": "T",
+          "categoryId": "22"
+        },
+        "status": {
+          "privacyStatus": "public"
+        }
+      }
+    }
+  },
+  "video.upload": {
+    "params": {
+      "title": "T",
+      "categoryId": "22",
+      "options": {
+        "tags": "x"
+      }
+    },
+    "input": {
+      "data": "dmlk"
+    },
+    "responses": [
+      {
+        "id": "V9"
+      },
+      {}
+    ],
+    "expect_requests": [
+      {
+        "method": "POST",
+        "path": "/upload/youtube/v3/videos",
+        "query": {
+          "uploadType": "media",
+          "part": "snippet,status",
+          "notifySubscribers": "false"
+        },
+        "body": "vid"
+      },
+      {
+        "method": "PUT",
+        "path": "/youtube/v3/videos",
+        "query": {
+          "part": "snippet,status,recordingDetails"
+        },
+        "body": {
+          "id": "V9",
+          "snippet": {
+            "title": "T",
+            "categoryId": "22",
+            "tags": [
+              "x"
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "videoCategory.getAll": {
+    "params": {
+      "regionCode": "US",
+      "limit": 1
+    },
+    "response": {
+      "items": [
+        {
+          "id": "1"
+        },
+        {
+          "id": "2"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/youtube/v3/videoCategories",
+      "query": {
+        "part": "snippet",
+        "regionCode": "US"
+      },
+      "items": 1
+    }
+  }
+}

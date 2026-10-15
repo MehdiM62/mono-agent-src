@@ -1,0 +1,64 @@
+{
+  "article.get": {
+    "params": {
+      "articleId": "1"
+    },
+    "response": {
+      "id": 1,
+      "title": "t",
+      "children": [
+        {
+          "id": 2
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/items/1",
+      "items": 1
+    }
+  },
+  "all.getAll": {
+    "params": {
+      "limit": 5,
+      "additionalFields": {
+        "keyword": "go",
+        "tags": [
+          "story",
+          "show_hn"
+        ]
+      }
+    },
+    "response": {
+      "hits": [
+        {
+          "objectID": "1"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/search",
+      "query": {
+        "query": "go",
+        "tags": "story,show_hn",
+        "page": "0",
+        "hitsPerPage": "5"
+      },
+      "items": 1
+    }
+  },
+  "user.get": {
+    "params": {
+      "username": "pg"
+    },
+    "response": {
+      "username": "pg"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/users/pg",
+      "items": 1
+    }
+  }
+}

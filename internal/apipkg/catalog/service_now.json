@@ -1,0 +1,1249 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "service_now",
+  "title": "ServiceNow",
+  "description": "Incidents, users, table records, attachments and CMDB lists on a ServiceNow instance",
+  "category": "app",
+  "docs_url": "https://developer.servicenow.com/dev.do#!/reference/api/latest/rest/",
+  "n8n_types": [
+    "n8n-nodes-base.serviceNow"
+  ],
+  "base_url": "https://{{ cred.subdomain }}.service-now.com/api",
+  "credentials": [
+    {
+      "platform": "service_now",
+      "name": "ServiceNow (basic auth)",
+      "n8n_credential": "serviceNowBasicApi",
+      "n8n_field_map": {
+        "user": "user",
+        "password": "password",
+        "subdomain": "subdomain"
+      },
+      "methods": [
+        "basic"
+      ],
+      "fields": [
+        {
+          "key": "subdomain",
+          "label": "Instance subdomain",
+          "required": true,
+          "help": "dev12345 for https://dev12345.service-now.com"
+        },
+        {
+          "key": "user",
+          "label": "Username",
+          "required": true
+        },
+        {
+          "key": "password",
+          "label": "Password",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "basic": {
+          "username": "{{ cred.user }}",
+          "password": "{{ cred.password }}"
+        }
+      }
+    },
+    {
+      "platform": "service_now_oauth",
+      "name": "ServiceNow (OAuth2 token)",
+      "n8n_credential": "serviceNowOAuth2Api",
+      "n8n_field_map": {
+        "subdomain": "subdomain"
+      },
+      "methods": [
+        "bearer"
+      ],
+      "fields": [
+        {
+          "key": "subdomain",
+          "label": "Instance subdomain",
+          "required": true
+        },
+        {
+          "key": "access_token",
+          "label": "Access token",
+          "secret": true,
+          "required": true,
+          "help": "An OAuth2 access token issued by your instance (System OAuth → Application Registry)"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "user",
+      "label": "User"
+    },
+    {
+      "value": "attachment",
+      "label": "Attachment"
+    },
+    {
+      "value": "businessService",
+      "label": "Business Service"
+    },
+    {
+      "value": "configurationItems",
+      "label": "Configuration Item"
+    },
+    {
+      "value": "department",
+      "label": "Department"
+    },
+    {
+      "value": "dictionary",
+      "label": "Dictionary"
+    },
+    {
+      "value": "incident",
+      "label": "Incident"
+    },
+    {
+      "value": "tableRecord",
+      "label": "Table Record"
+    },
+    {
+      "value": "userGroup",
+      "label": "User Group"
+    },
+    {
+      "value": "userRole",
+      "label": "User Role"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "user",
+      "operation": "get",
+      "title": "Get a user",
+      "method": "GET",
+      "path": "/now/table/sys_user{{ p.getOption | ne:'user_name' | then:'/' }}{{ p.getOption | ne:'user_name' | then:p.id }}",
+      "fields": [
+        {
+          "key": "getOption",
+          "label": "Look up by",
+          "type": "select",
+          "options": [
+            "id",
+            "user_name"
+          ],
+          "default": "id"
+        },
+        {
+          "key": "id",
+          "label": "User sys_id",
+          "type": "text",
+          "help": "When looking up by ID"
+        },
+        {
+          "key": "user_name",
+          "label": "Username",
+          "type": "text",
+          "help": "When looking up by username"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "sysparm_display_value",
+            "sysparm_exclude_reference_link",
+            "sysparm_fields"
+          ],
+          "help": "sysparm_fields: list of column names; sysparm_display_value: false, true or all"
+        }
+      ],
+      "query": {
+        "sysparm_display_value": "{{ p.options.sysparm_display_value }}",
+        "sysparm_exclude_reference_link": "{{ p.options.sysparm_exclude_reference_link }}",
+        "sysparm_fields": "{{ p.options.sysparm_fields | csv }}",
+        "sysparm_query": "{{ p.getOption | eq:'user_name' | then:(p.user_name | prefix:'user_name=') }}",
+        "sysparm_limit": "{{ p.getOption | eq:'user_name' | then:1 }}"
+      },
+      "output": {
+        "path": "result"
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "create",
+      "title": "Create a user",
+      "method": "POST",
+      "path": "/now/table/sys_user",
+      "fields": [
+        {
+          "key": "short_description",
+          "label": "Short description",
+          "type": "text"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "active",
+            "building",
+            "city",
+            "company",
+            "country",
+            "department",
+            "email",
+            "first_name",
+            "gender",
+            "home_phone",
+            "last_name",
+            "location",
+            "manager",
+            "middle_name",
+            "mobile_phone",
+            "user_password",
+            "password_needs_reset",
+            "phone",
+            "roles",
+            "source",
+            "state",
+            "street",
+            "user_name",
+            "zip"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "output": {
+        "path": "result"
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "delete",
+      "title": "Delete a user",
+      "method": "DELETE",
+      "path": "/now/table/sys_user/{{ p.id }}",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Record sys_id",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "getAll",
+      "title": "Get many users",
+      "method": "GET",
+      "path": "/now/table/sys_user",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 500
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "sysparm_display_value",
+            "sysparm_exclude_reference_link",
+            "sysparm_fields",
+            "sysparm_query"
+          ],
+          "help": "sysparm_fields: list of column names; sysparm_display_value: false, true or all"
+        }
+      ],
+      "query": {
+        "sysparm_display_value": "{{ p.options.sysparm_display_value }}",
+        "sysparm_exclude_reference_link": "{{ p.options.sysparm_exclude_reference_link }}",
+        "sysparm_fields": "{{ p.options.sysparm_fields | csv }}",
+        "sysparm_query": "{{ p.options.sysparm_query }}"
+      },
+      "pagination": {
+        "type": "offset",
+        "offset_param": "sysparm_offset",
+        "limit_param": "sysparm_limit",
+        "page_size": 100,
+        "results_path": "result"
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "update",
+      "title": "Update a user",
+      "method": "PATCH",
+      "path": "/now/table/sys_user/{{ p.id }}",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Record sys_id",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "active",
+            "building",
+            "city",
+            "company",
+            "country",
+            "department",
+            "email",
+            "first_name",
+            "gender",
+            "home_phone",
+            "last_name",
+            "location",
+            "manager",
+            "middle_name",
+            "mobile_phone",
+            "user_password",
+            "password_needs_reset",
+            "phone",
+            "roles",
+            "source",
+            "state",
+            "street",
+            "user_name",
+            "zip"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields }}"
+      },
+      "output": {
+        "path": "result"
+      }
+    },
+    {
+      "resource": "attachment",
+      "operation": "upload",
+      "title": "Upload an attachment to a record",
+      "method": "POST",
+      "path": "/now/attachment/file",
+      "fields": [
+        {
+          "key": "tableName",
+          "label": "Table name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "id",
+          "label": "Record sys_id",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "inputDataFieldName",
+          "label": "Input binary property",
+          "type": "text",
+          "default": "data",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "file_name"
+          ]
+        }
+      ],
+      "query": {
+        "table_name": "{{ p.tableName }}",
+        "table_sys_id": "{{ p.id }}",
+        "file_name": "{{ p.options.file_name | default:bin.file_name }}"
+      },
+      "body_type": "raw",
+      "binary": {
+        "upload_field": "inputDataFieldName"
+      },
+      "output": {
+        "path": "result"
+      }
+    },
+    {
+      "resource": "attachment",
+      "operation": "delete",
+      "title": "Delete an attachment",
+      "method": "DELETE",
+      "path": "/now/attachment/{{ p.attachmentId }}",
+      "fields": [
+        {
+          "key": "attachmentId",
+          "label": "Attachment sys_id",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "attachment",
+      "operation": "get",
+      "title": "Get an attachment",
+      "method": "GET",
+      "path": "/now/attachment/{{ p.attachmentId }}",
+      "fields": [
+        {
+          "key": "attachmentId",
+          "label": "Attachment sys_id",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "download",
+          "label": "Download the file",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "outputField",
+          "label": "Output binary property",
+          "type": "text",
+          "default": "data"
+        }
+      ],
+      "output": {
+        "path": "result",
+        "download": {
+          "when": "{{ p.download }}",
+          "method": "GET",
+          "path": "/now/attachment/{{ el.sys_id }}/file",
+          "property": "{{ p.outputField }}",
+          "file_name": "{{ el.file_name }}",
+          "mime_type": "{{ el.content_type }}"
+        }
+      }
+    },
+    {
+      "resource": "attachment",
+      "operation": "getAll",
+      "title": "Get many attachments of a table",
+      "method": "GET",
+      "path": "/now/attachment",
+      "description": "Lists attachment metadata; with Download on, each file is added to its item as binary data",
+      "fields": [
+        {
+          "key": "tableName",
+          "label": "Table name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 500
+        },
+        {
+          "key": "download",
+          "label": "Download files",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "outputField",
+          "label": "Output binary property",
+          "type": "text",
+          "default": "data"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "queryFilter"
+          ],
+          "help": "queryFilter: an encoded query added to the table filter"
+        }
+      ],
+      "query": {
+        "sysparm_query": "table_name={{ p.tableName }}{{ p.options.queryFilter | prefix:'^' }}"
+      },
+      "pagination": {
+        "type": "offset",
+        "offset_param": "sysparm_offset",
+        "limit_param": "sysparm_limit",
+        "page_size": 100,
+        "results_path": "result"
+      },
+      "output": {
+        "download": {
+          "when": "{{ p.download }}",
+          "method": "GET",
+          "path": "/now/attachment/{{ el.sys_id }}/file",
+          "property": "{{ p.outputField }}",
+          "file_name": "{{ el.file_name }}",
+          "mime_type": "{{ el.content_type }}"
+        }
+      }
+    },
+    {
+      "resource": "businessService",
+      "operation": "getAll",
+      "title": "Get many business services",
+      "method": "GET",
+      "path": "/now/table/cmdb_ci_service",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 500
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "sysparm_display_value",
+            "sysparm_exclude_reference_link",
+            "sysparm_fields",
+            "sysparm_query"
+          ],
+          "help": "sysparm_fields: list of column names; sysparm_display_value: false, true or all"
+        }
+      ],
+      "query": {
+        "sysparm_display_value": "{{ p.options.sysparm_display_value }}",
+        "sysparm_exclude_reference_link": "{{ p.options.sysparm_exclude_reference_link }}",
+        "sysparm_fields": "{{ p.options.sysparm_fields | csv }}",
+        "sysparm_query": "{{ p.options.sysparm_query }}"
+      },
+      "pagination": {
+        "type": "offset",
+        "offset_param": "sysparm_offset",
+        "limit_param": "sysparm_limit",
+        "page_size": 100,
+        "results_path": "result"
+      }
+    },
+    {
+      "resource": "configurationItems",
+      "operation": "getAll",
+      "title": "Get many configuration items",
+      "method": "GET",
+      "path": "/now/table/cmdb_ci",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 500
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "sysparm_display_value",
+            "sysparm_exclude_reference_link",
+            "sysparm_fields",
+            "sysparm_query"
+          ],
+          "help": "sysparm_fields: list of column names; sysparm_display_value: false, true or all"
+        }
+      ],
+      "query": {
+        "sysparm_display_value": "{{ p.options.sysparm_display_value }}",
+        "sysparm_exclude_reference_link": "{{ p.options.sysparm_exclude_reference_link }}",
+        "sysparm_fields": "{{ p.options.sysparm_fields | csv }}",
+        "sysparm_query": "{{ p.options.sysparm_query }}"
+      },
+      "pagination": {
+        "type": "offset",
+        "offset_param": "sysparm_offset",
+        "limit_param": "sysparm_limit",
+        "page_size": 100,
+        "results_path": "result"
+      }
+    },
+    {
+      "resource": "department",
+      "operation": "getAll",
+      "title": "Get many departments",
+      "method": "GET",
+      "path": "/now/table/cmn_department",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 500
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "sysparm_display_value",
+            "sysparm_exclude_reference_link",
+            "sysparm_fields",
+            "sysparm_query"
+          ],
+          "help": "sysparm_fields: list of column names; sysparm_display_value: false, true or all"
+        }
+      ],
+      "query": {
+        "sysparm_display_value": "{{ p.options.sysparm_display_value }}",
+        "sysparm_exclude_reference_link": "{{ p.options.sysparm_exclude_reference_link }}",
+        "sysparm_fields": "{{ p.options.sysparm_fields | csv }}",
+        "sysparm_query": "{{ p.options.sysparm_query }}"
+      },
+      "pagination": {
+        "type": "offset",
+        "offset_param": "sysparm_offset",
+        "limit_param": "sysparm_limit",
+        "page_size": 100,
+        "results_path": "result"
+      }
+    },
+    {
+      "resource": "dictionary",
+      "operation": "getAll",
+      "title": "Get many dictionary entries",
+      "method": "GET",
+      "path": "/now/table/sys_dictionary",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 500
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "sysparm_display_value",
+            "sysparm_exclude_reference_link",
+            "sysparm_fields",
+            "sysparm_query"
+          ],
+          "help": "sysparm_fields: list of column names; sysparm_display_value: false, true or all"
+        }
+      ],
+      "query": {
+        "sysparm_display_value": "{{ p.options.sysparm_display_value }}",
+        "sysparm_exclude_reference_link": "{{ p.options.sysparm_exclude_reference_link }}",
+        "sysparm_fields": "{{ p.options.sysparm_fields | csv }}",
+        "sysparm_query": "{{ p.options.sysparm_query }}"
+      },
+      "pagination": {
+        "type": "offset",
+        "offset_param": "sysparm_offset",
+        "limit_param": "sysparm_limit",
+        "page_size": 100,
+        "results_path": "result"
+      }
+    },
+    {
+      "resource": "incident",
+      "operation": "get",
+      "title": "Get an incident",
+      "method": "GET",
+      "path": "/now/table/incident/{{ p.id }}",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Record sys_id",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "sysparm_display_value",
+            "sysparm_exclude_reference_link",
+            "sysparm_fields"
+          ],
+          "help": "sysparm_fields: list of column names; sysparm_display_value: false, true or all"
+        }
+      ],
+      "query": {
+        "sysparm_display_value": "{{ p.options.sysparm_display_value }}",
+        "sysparm_exclude_reference_link": "{{ p.options.sysparm_exclude_reference_link }}",
+        "sysparm_fields": "{{ p.options.sysparm_fields | csv }}"
+      },
+      "output": {
+        "path": "result"
+      }
+    },
+    {
+      "resource": "incident",
+      "operation": "create",
+      "title": "Create an incident",
+      "method": "POST",
+      "path": "/now/table/incident",
+      "fields": [
+        {
+          "key": "short_description",
+          "label": "Short description",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "assigned_to",
+            "assignment_group",
+            "business_service",
+            "caller_id",
+            "category",
+            "close_notes",
+            "cmdb_ci",
+            "contact_type",
+            "description",
+            "impact",
+            "close_code",
+            "state",
+            "subcategory",
+            "urgency"
+          ]
+        }
+      ],
+      "body": {
+        "short_description": "{{ p.short_description }}",
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "output": {
+        "path": "result"
+      }
+    },
+    {
+      "resource": "incident",
+      "operation": "delete",
+      "title": "Delete an incident",
+      "method": "DELETE",
+      "path": "/now/table/incident/{{ p.id }}",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Record sys_id",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "incident",
+      "operation": "getAll",
+      "title": "Get many incidents",
+      "method": "GET",
+      "path": "/now/table/incident",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 500
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "sysparm_display_value",
+            "sysparm_exclude_reference_link",
+            "sysparm_fields",
+            "sysparm_query"
+          ],
+          "help": "sysparm_fields: list of column names; sysparm_display_value: false, true or all"
+        }
+      ],
+      "query": {
+        "sysparm_display_value": "{{ p.options.sysparm_display_value }}",
+        "sysparm_exclude_reference_link": "{{ p.options.sysparm_exclude_reference_link }}",
+        "sysparm_fields": "{{ p.options.sysparm_fields | csv }}",
+        "sysparm_query": "{{ p.options.sysparm_query }}"
+      },
+      "pagination": {
+        "type": "offset",
+        "offset_param": "sysparm_offset",
+        "limit_param": "sysparm_limit",
+        "page_size": 100,
+        "results_path": "result"
+      }
+    },
+    {
+      "resource": "incident",
+      "operation": "update",
+      "title": "Update an incident",
+      "method": "PATCH",
+      "path": "/now/table/incident/{{ p.id }}",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Record sys_id",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "assigned_to",
+            "assignment_group",
+            "business_service",
+            "caller_id",
+            "category",
+            "close_notes",
+            "cmdb_ci",
+            "contact_type",
+            "description",
+            "impact",
+            "close_code",
+            "state",
+            "subcategory",
+            "urgency",
+            "hold_reason",
+            "work_notes"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields }}"
+      },
+      "output": {
+        "path": "result"
+      }
+    },
+    {
+      "resource": "tableRecord",
+      "operation": "get",
+      "title": "Get a table record",
+      "method": "GET",
+      "path": "/now/table/{{ p.tableName }}/{{ p.id }}",
+      "fields": [
+        {
+          "key": "tableName",
+          "label": "Table name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "id",
+          "label": "Record sys_id",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "sysparm_display_value",
+            "sysparm_exclude_reference_link",
+            "sysparm_fields"
+          ],
+          "help": "sysparm_fields: list of column names; sysparm_display_value: false, true or all"
+        }
+      ],
+      "query": {
+        "sysparm_display_value": "{{ p.options.sysparm_display_value }}",
+        "sysparm_exclude_reference_link": "{{ p.options.sysparm_exclude_reference_link }}",
+        "sysparm_fields": "{{ p.options.sysparm_fields | csv }}"
+      },
+      "output": {
+        "path": "result"
+      }
+    },
+    {
+      "resource": "tableRecord",
+      "operation": "create",
+      "title": "Create a table record",
+      "method": "POST",
+      "path": "/now/table/{{ p.tableName }}",
+      "fields": [
+        {
+          "key": "tableName",
+          "label": "Table name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "dataToSend",
+          "label": "Data to send",
+          "type": "select",
+          "options": [
+            "columns",
+            "mapInput",
+            "nothing"
+          ],
+          "default": "columns"
+        },
+        {
+          "key": "inputsToIgnore",
+          "label": "Input fields to ignore",
+          "type": "text",
+          "help": "Comma separated; with mapInput"
+        },
+        {
+          "key": "fieldsToSend",
+          "label": "Fields to send",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "field"
+          ],
+          "help": "{\"field\": [{\"column\": \"short_description\", \"value\": \"x\"}]}; with columns"
+        }
+      ],
+      "body": {
+        "$merge": [
+          "{{ p.dataToSend | eq:'mapInput' | then:(item | omit:(p.inputsToIgnore | split)) }}",
+          "{{ p.dataToSend | eq:'columns' | then:(p.fieldsToSend.field | kv:'column,value') }}"
+        ]
+      },
+      "output": {
+        "path": "result"
+      }
+    },
+    {
+      "resource": "tableRecord",
+      "operation": "delete",
+      "title": "Delete a table record",
+      "method": "DELETE",
+      "path": "/now/table/{{ p.tableName }}/{{ p.id }}",
+      "fields": [
+        {
+          "key": "tableName",
+          "label": "Table name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "id",
+          "label": "Record sys_id",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "tableRecord",
+      "operation": "getAll",
+      "title": "Get many table records",
+      "method": "GET",
+      "path": "/now/table/{{ p.tableName }}",
+      "fields": [
+        {
+          "key": "tableName",
+          "label": "Table name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 500
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "sysparm_display_value",
+            "sysparm_exclude_reference_link",
+            "sysparm_fields",
+            "sysparm_query"
+          ],
+          "help": "sysparm_fields: list of column names; sysparm_display_value: false, true or all"
+        }
+      ],
+      "query": {
+        "sysparm_display_value": "{{ p.options.sysparm_display_value }}",
+        "sysparm_exclude_reference_link": "{{ p.options.sysparm_exclude_reference_link }}",
+        "sysparm_fields": "{{ p.options.sysparm_fields | csv }}",
+        "sysparm_query": "{{ p.options.sysparm_query }}"
+      },
+      "pagination": {
+        "type": "offset",
+        "offset_param": "sysparm_offset",
+        "limit_param": "sysparm_limit",
+        "page_size": 100,
+        "results_path": "result"
+      }
+    },
+    {
+      "resource": "tableRecord",
+      "operation": "update",
+      "title": "Update a table record",
+      "method": "PATCH",
+      "path": "/now/table/{{ p.tableName }}/{{ p.id }}",
+      "fields": [
+        {
+          "key": "tableName",
+          "label": "Table name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "id",
+          "label": "Record sys_id",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "dataToSend",
+          "label": "Data to send",
+          "type": "select",
+          "options": [
+            "columns",
+            "mapInput",
+            "nothing"
+          ],
+          "default": "columns"
+        },
+        {
+          "key": "inputsToIgnore",
+          "label": "Input fields to ignore",
+          "type": "text",
+          "help": "Comma separated; with mapInput"
+        },
+        {
+          "key": "fieldsToSend",
+          "label": "Fields to send",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "field"
+          ],
+          "help": "{\"field\": [{\"column\": \"short_description\", \"value\": \"x\"}]}; with columns"
+        }
+      ],
+      "body": {
+        "$merge": [
+          "{{ p.dataToSend | eq:'mapInput' | then:(item | omit:(p.inputsToIgnore | split)) }}",
+          "{{ p.dataToSend | eq:'columns' | then:(p.fieldsToSend.field | kv:'column,value') }}"
+        ]
+      },
+      "output": {
+        "path": "result"
+      }
+    },
+    {
+      "resource": "userGroup",
+      "operation": "getAll",
+      "title": "Get many user groups",
+      "method": "GET",
+      "path": "/now/table/sys_user_group",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 500
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "sysparm_display_value",
+            "sysparm_exclude_reference_link",
+            "sysparm_fields",
+            "sysparm_query"
+          ],
+          "help": "sysparm_fields: list of column names; sysparm_display_value: false, true or all"
+        }
+      ],
+      "query": {
+        "sysparm_display_value": "{{ p.options.sysparm_display_value }}",
+        "sysparm_exclude_reference_link": "{{ p.options.sysparm_exclude_reference_link }}",
+        "sysparm_fields": "{{ p.options.sysparm_fields | csv }}",
+        "sysparm_query": "{{ p.options.sysparm_query }}"
+      },
+      "pagination": {
+        "type": "offset",
+        "offset_param": "sysparm_offset",
+        "limit_param": "sysparm_limit",
+        "page_size": 100,
+        "results_path": "result"
+      }
+    },
+    {
+      "resource": "userRole",
+      "operation": "getAll",
+      "title": "Get many user roles",
+      "method": "GET",
+      "path": "/now/table/sys_user_role",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 500
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "sysparm_display_value",
+            "sysparm_exclude_reference_link",
+            "sysparm_fields",
+            "sysparm_query"
+          ],
+          "help": "sysparm_fields: list of column names; sysparm_display_value: false, true or all"
+        }
+      ],
+      "query": {
+        "sysparm_display_value": "{{ p.options.sysparm_display_value }}",
+        "sysparm_exclude_reference_link": "{{ p.options.sysparm_exclude_reference_link }}",
+        "sysparm_fields": "{{ p.options.sysparm_fields | csv }}",
+        "sysparm_query": "{{ p.options.sysparm_query }}"
+      },
+      "pagination": {
+        "type": "offset",
+        "offset_param": "sysparm_offset",
+        "limit_param": "sysparm_limit",
+        "page_size": 100,
+        "results_path": "result"
+      }
+    }
+  ]
+}

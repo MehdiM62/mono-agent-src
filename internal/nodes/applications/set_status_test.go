@@ -7,6 +7,7 @@ import (
 
 	"github.com/monoes/mono-agent/internal/applications"
 	applicationsnodes "github.com/monoes/mono-agent/internal/nodes/applications"
+	"github.com/monoes/mono-agent/internal/vault"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -22,7 +23,7 @@ func TestSetStatusNodeTransitions(t *testing.T) {
 
 	node := &applicationsnodes.SetStatusNode{}
 	config := map[string]interface{}{"id": app.ID, "status": "cancelled", "note": "no longer interested"}
-	outputs, err := node.Execute(context.Background(), workflow.NodeInput{}, config)
+	outputs, err := node.Execute(vault.ContextWithProfileID(context.Background(), "default"), workflow.NodeInput{}, config)
 	if err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
@@ -49,7 +50,7 @@ func TestSetStatusNodeRejectsApplied(t *testing.T) {
 
 	node := &applicationsnodes.SetStatusNode{}
 	config := map[string]interface{}{"id": app.ID, "status": "applied"}
-	if _, err := node.Execute(context.Background(), workflow.NodeInput{}, config); err == nil {
+	if _, err := node.Execute(vault.ContextWithProfileID(context.Background(), "default"), workflow.NodeInput{}, config); err == nil {
 		t.Fatal("expected error setting status to \"applied\" via a workflow node, got nil")
 	}
 
@@ -74,7 +75,7 @@ func TestSetStatusNodeRejectsInvalidTransition(t *testing.T) {
 
 	node := &applicationsnodes.SetStatusNode{}
 	config := map[string]interface{}{"id": app.ID, "status": "rejected"} // pending->rejected is not a valid edge
-	if _, err := node.Execute(context.Background(), workflow.NodeInput{}, config); err == nil {
+	if _, err := node.Execute(vault.ContextWithProfileID(context.Background(), "default"), workflow.NodeInput{}, config); err == nil {
 		t.Fatal("expected error for invalid transition, got nil")
 	}
 }

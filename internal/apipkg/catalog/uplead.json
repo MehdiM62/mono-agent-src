@@ -1,0 +1,122 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "uplead",
+  "node_type": "app.uplead",
+  "title": "Uplead",
+  "description": "Enrich people and companies with UpLead data",
+  "category": "app",
+  "docs_url": "https://docs.uplead.com/",
+  "n8n_types": [
+    "n8n-nodes-base.uplead"
+  ],
+  "base_url": "https://api.uplead.com/v2",
+  "credentials": [
+    {
+      "platform": "uplead",
+      "name": "UpLead",
+      "n8n_credential": "upleadApi",
+      "n8n_field_map": {
+        "apiKey": "api_key"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true,
+          "help": "UpLead: Account → API"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "{{ cred.api_key }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "company",
+      "label": "Company"
+    },
+    {
+      "value": "person",
+      "label": "Person"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "company",
+      "operation": "enrich",
+      "title": "Enrich a company",
+      "method": "GET",
+      "path": "/company-search",
+      "query": {
+        "domain": "{{ p.domain }}",
+        "company": "{{ p.company }}"
+      },
+      "output": {
+        "path": "data"
+      },
+      "fields": [
+        {
+          "key": "company",
+          "label": "Company name",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "domain",
+          "label": "Domain",
+          "type": "text",
+          "default": ""
+        }
+      ]
+    },
+    {
+      "resource": "person",
+      "operation": "enrich",
+      "title": "Enrich a person",
+      "method": "GET",
+      "path": "/person-search",
+      "query": {
+        "email": "{{ p.email }}",
+        "first_name": "{{ p.firstname }}",
+        "last_name": "{{ p.lastname }}",
+        "domain": "{{ p.domain }}"
+      },
+      "output": {
+        "path": "data"
+      },
+      "fields": [
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "firstname",
+          "label": "First name",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "lastname",
+          "label": "Last name",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "domain",
+          "label": "Domain",
+          "type": "text",
+          "default": ""
+        }
+      ]
+    }
+  ]
+}

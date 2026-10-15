@@ -1,0 +1,238 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "google_slides",
+  "node_type": "app.google_slides",
+  "title": "Google Slides",
+  "description": "Presentations and pages in Google Slides",
+  "category": "app",
+  "docs_url": "https://developers.google.com/slides/api/reference/rest",
+  "n8n_types": [
+    "n8n-nodes-base.googleSlides"
+  ],
+  "base_url": "https://slides.googleapis.com/v1",
+  "credentials": [
+    {
+      "platform": "google",
+      "name": "Google (Drive scope group)",
+      "n8n_credential": "googleSlidesOAuth2Api",
+      "n8n_credential_alt": [
+        "googleApi",
+        "googleOAuth2Api"
+      ],
+      "methods": [
+        "oauth"
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      },
+      "reuse_platform": "google",
+      "scope_group": "drive"
+    }
+  ],
+  "resources": [
+    {
+      "value": "presentation",
+      "label": "Presentation"
+    },
+    {
+      "value": "page",
+      "label": "Page"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "presentation",
+      "operation": "create",
+      "title": "Create a presentation",
+      "method": "POST",
+      "path": "/presentations",
+      "fields": [
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "title": "{{ p.title }}"
+      }
+    },
+    {
+      "resource": "presentation",
+      "operation": "get",
+      "title": "Get a presentation",
+      "method": "GET",
+      "path": "/presentations/{{ p.presentationId | gid }}",
+      "fields": [
+        {
+          "key": "presentationId",
+          "label": "Presentation ID",
+          "type": "text",
+          "required": true,
+          "help": "Presentation ID or its URL."
+        }
+      ]
+    },
+    {
+      "resource": "presentation",
+      "operation": "getSlides",
+      "title": "Get the slides",
+      "method": "GET",
+      "path": "/presentations/{{ p.presentationId | gid }}",
+      "fields": [
+        {
+          "key": "presentationId",
+          "label": "Presentation ID",
+          "type": "text",
+          "required": true,
+          "help": "Presentation ID or its URL."
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        }
+      ],
+      "query": {
+        "fields": "slides"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "pageToken",
+        "cursor_path": "nextPageToken",
+        "results_path": "slides"
+      }
+    },
+    {
+      "resource": "presentation",
+      "operation": "replaceText",
+      "title": "Replace text",
+      "method": "POST",
+      "path": "/presentations/{{ p.presentationId | gid }}:batchUpdate",
+      "fields": [
+        {
+          "key": "presentationId",
+          "label": "Presentation ID",
+          "type": "text",
+          "required": true,
+          "help": "Presentation ID or its URL."
+        },
+        {
+          "key": "textUi",
+          "label": "Texts",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "textValues"
+          ],
+          "help": "textValues: list of {text, replaceText, matchCase, pageObjectIds}."
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "revisionId"
+          ]
+        }
+      ],
+      "body": {
+        "requests": {
+          "$map": "{{ p.textUi.textValues }}",
+          "$to": {
+            "replaceAllText": {
+              "replaceText": "{{ el.replaceText }}",
+              "pageObjectIds": "{{ el.pageObjectIds }}",
+              "containsText": {
+                "text": "{{ el.text }}",
+                "matchCase": "{{ el.matchCase | default:false }}"
+              }
+            }
+          }
+        },
+        "writeControl": {
+          "requiredRevisionId": "{{ p.options.revisionId }}"
+        }
+      }
+    },
+    {
+      "resource": "page",
+      "operation": "get",
+      "title": "Get a page",
+      "method": "GET",
+      "path": "/presentations/{{ p.presentationId | gid }}/pages/{{ p.pageObjectId }}",
+      "fields": [
+        {
+          "key": "presentationId",
+          "label": "Presentation ID",
+          "type": "text",
+          "required": true,
+          "help": "Presentation ID or its URL."
+        },
+        {
+          "key": "pageObjectId",
+          "label": "Page object ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "page",
+      "operation": "getThumbnail",
+      "title": "Get a page thumbnail",
+      "method": "GET",
+      "path": "/presentations/{{ p.presentationId | gid }}/pages/{{ p.pageObjectId }}/thumbnail",
+      "description": "With Download on, the thumbnail image is added to the item as binary data.",
+      "fields": [
+        {
+          "key": "presentationId",
+          "label": "Presentation ID",
+          "type": "text",
+          "required": true,
+          "help": "Presentation ID or its URL."
+        },
+        {
+          "key": "pageObjectId",
+          "label": "Page object ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "download",
+          "label": "Download",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "binaryProperty",
+          "label": "Binary property",
+          "type": "text",
+          "default": "data"
+        }
+      ],
+      "output": {
+        "download": {
+          "when": "{{ p.download }}",
+          "auth": false,
+          "method": "GET",
+          "path": "{{ el.contentUrl }}",
+          "property": "{{ p.binaryProperty }}",
+          "file_name": "{{ p.pageObjectId }}.png"
+        }
+      }
+    }
+  ]
+}

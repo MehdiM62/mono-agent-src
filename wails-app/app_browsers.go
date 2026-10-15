@@ -30,6 +30,9 @@ type BrowsersReport struct {
 
 // GetBrowsers lists the browsers attached to the bridge.
 func (a *App) GetBrowsers() (*BrowsersReport, error) {
+	if err := a.signedOut(); err != nil {
+		return nil, err
+	}
 	var r BrowsersReport
 	if err := a.cliJSON(profileCLITimeout, &r, "extension", "browsers"); err != nil {
 		return nil, err
@@ -42,6 +45,9 @@ func (a *App) GetBrowsers() (*BrowsersReport, error) {
 
 // BindBrowser binds a browser to a profile; an empty profileID unbinds it.
 func (a *App) BindBrowser(instance, profileID string) (*BrowserRow, error) {
+	if err := a.signedOut(); err != nil {
+		return nil, err
+	}
 	instance = strings.TrimSpace(instance)
 	if instance == "" {
 		return nil, errors.New("no browser given")
@@ -55,4 +61,26 @@ func (a *App) BindBrowser(instance, profileID string) (*BrowserRow, error) {
 		return nil, err
 	}
 	return &row, nil
+}
+
+// GetExtensionStatus returns `monoagentcli extension status --json`
+// verbatim: whether a bridge is running, whether the extension is attached,
+// and whether this client's pairing token is accepted (clientPairing). The
+// dashboard reads it so "connected" means usable, not just "port open".
+func (a *App) GetExtensionStatus() string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
+	return a.rawCLI(profileCLITimeout, "extension", "status")
+}
+
+// PairExtension returns `monoagentcli extension pair --open --json`
+// verbatim: it opens the running bridge's one-time pairing page and says
+// whether it did, or what to do instead ({opened, url, fallback, hint,
+// error}; never the token itself).
+func (a *App) PairExtension() string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
+	return a.rawCLI(profileCLITimeout, "extension", "pair", "--open")
 }

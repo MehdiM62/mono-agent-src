@@ -23,12 +23,28 @@
       "type": "select"
     },
     {
-      "default": "default",
-      "help": "Which profile owns the synced people/messages. Defaults to 'default' — set this explicitly if this workflow belongs to a different profile (find the ID via 'monoagentcli profile list').",
+      "help": "Optional. Must match the workflow's profile (leave blank to use it).",
       "key": "profile_id",
       "label": "Profile ID",
       "required": false,
       "type": "text"
+    }
+  ],
+  "outputs": [
+    {
+      "description": "the person saved",
+      "key": "person_id",
+      "type": "string"
+    },
+    {
+      "description": "their address",
+      "key": "email",
+      "type": "string"
+    },
+    {
+      "description": "the message synced",
+      "key": "message_id",
+      "type": "string"
     }
   ]
 }

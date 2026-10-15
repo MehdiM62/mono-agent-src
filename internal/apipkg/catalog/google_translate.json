@@ -1,0 +1,71 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "google_translate",
+  "node_type": "app.google_translate",
+  "title": "Google Translate",
+  "description": "Translate text with Google Cloud Translation",
+  "category": "app",
+  "docs_url": "https://cloud.google.com/translate/docs/reference/rest/v2/translate",
+  "n8n_types": [
+    "n8n-nodes-base.googleTranslate"
+  ],
+  "base_url": "https://translation.googleapis.com/language/translate",
+  "credentials": [
+    {
+      "platform": "google",
+      "name": "Google (Cloud Translation)",
+      "n8n_credential": "googleTranslateOAuth2Api",
+      "n8n_credential_alt": [
+        "googleApi",
+        "googleOAuth2Api"
+      ],
+      "methods": [
+        "oauth"
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      },
+      "reuse_platform": "google"
+    }
+  ],
+  "resources": [
+    {
+      "value": "language",
+      "label": "Language"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "language",
+      "operation": "translate",
+      "title": "Translate text",
+      "method": "POST",
+      "path": "/v2",
+      "description": "Needs the cloud-translation (or cloud-platform) scope on the Google connection.",
+      "fields": [
+        {
+          "key": "text",
+          "label": "Text",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "key": "translateTo",
+          "label": "Target language",
+          "type": "text",
+          "required": true,
+          "help": "ISO-639 code such as de or ja."
+        }
+      ],
+      "body": {
+        "q": "{{ p.text }}",
+        "target": "{{ p.translateTo }}"
+      },
+      "output": {
+        "path": "data.translations"
+      }
+    }
+  ]
+}

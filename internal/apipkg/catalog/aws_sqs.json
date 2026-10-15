@@ -1,0 +1,277 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "aws_sqs",
+  "node_type": "app.aws_sqs",
+  "title": "AWS SQS",
+  "description": "Send messages to Amazon SQS queues",
+  "category": "app",
+  "docs_url": "https://docs.aws.amazon.com/AWSSimpleQueueService/latest/APIReference/API_SendMessage.html",
+  "n8n_types": [
+    "n8n-nodes-base.awsSqs"
+  ],
+  "base_url": "https://sqs.{{ cred.region | default:'us-east-1' }}.amazonaws.com{{ cred.region | matches:'^cn-' | then:'.cn' }}",
+  "credentials": [
+    {
+      "platform": "aws",
+      "reuse_platform": "aws",
+      "name": "AWS",
+      "n8n_credential": "aws",
+      "n8n_field_map": {
+        "accessKeyId": "access_key_id",
+        "secretAccessKey": "secret_access_key",
+        "sessionToken": "session_token",
+        "region": "region",
+        "stsAccessKeyId": "access_key_id",
+        "stsSecretAccessKey": "secret_access_key",
+        "stsSessionToken": "session_token",
+        "roleArn": "role_arn",
+        "externalId": "external_id",
+        "roleSessionName": "role_session_name"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "access_key_id",
+          "label": "Access key ID",
+          "required": true
+        },
+        {
+          "key": "secret_access_key",
+          "label": "Secret access key",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "region",
+          "label": "Region",
+          "help": "Default us-east-1"
+        },
+        {
+          "key": "session_token",
+          "label": "Session token",
+          "secret": true,
+          "help": "Only for temporary credentials"
+        }
+      ],
+      "inject": {
+        "aws_sigv4": {
+          "service": "sqs",
+          "region": "{{ cred.region | default:'us-east-1' }}"
+        }
+      },
+      "n8n_credential_alt": [
+        "awsAssumeRole"
+      ]
+    }
+  ],
+  "headers": {
+    "Accept": "text/xml"
+  },
+  "operations": [
+    {
+      "resource": "",
+      "operation": "sendMessage",
+      "title": "Send a message to a queue",
+      "method": "POST",
+      "path": "/{{ p.queue | re:'^https?://[^/]+/(.*)$' | path }}",
+      "body_type": "form",
+      "body": {
+        "Action": "SendMessage",
+        "Version": "2012-11-05",
+        "MessageBody": "{{ p.sendInputData | then:(item | json) | default:p.message }}",
+        "DelaySeconds": "{{ p.options.delaySeconds | int }}",
+        "MessageDeduplicationId": "{{ p.queueType | eq:'fifo' | then:p.options.messageDeduplicationId }}",
+        "MessageGroupId": "{{ p.queueType | eq:'fifo' | then:p.messageGroupId }}",
+        "$merge": [
+          {
+            "$entries": {
+              "$concat": [
+                {
+                  "$map": "{{ p.options.messageAttributes.string }}",
+                  "$to": {
+                    "name": "{{ el.name }}",
+                    "value": "{{ el.value | string }}",
+                    "type": "String"
+                  }
+                },
+                {
+                  "$map": "{{ p.options.messageAttributes.binary }}",
+                  "$to": {
+                    "name": "{{ el.name }}",
+                    "binary": "{{ bin.files | find:'property',el.dataPropertyName | get:'base64' }}",
+                    "type": "Binary"
+                  }
+                },
+                {
+                  "$map": "{{ p.options.messageAttributes.number }}",
+                  "$to": {
+                    "name": "{{ el.name }}",
+                    "value": "{{ el.value | string }}",
+                    "type": "Number"
+                  }
+                }
+              ]
+            },
+            "$key": "MessageAttribute.{{ idx | add:1 }}.Name",
+            "$value": "{{ el.name }}"
+          },
+          {
+            "$entries": {
+              "$concat": [
+                {
+                  "$map": "{{ p.options.messageAttributes.string }}",
+                  "$to": {
+                    "name": "{{ el.name }}",
+                    "value": "{{ el.value | string }}",
+                    "type": "String"
+                  }
+                },
+                {
+                  "$map": "{{ p.options.messageAttributes.binary }}",
+                  "$to": {
+                    "name": "{{ el.name }}",
+                    "binary": "{{ bin.files | find:'property',el.dataPropertyName | get:'base64' }}",
+                    "type": "Binary"
+                  }
+                },
+                {
+                  "$map": "{{ p.options.messageAttributes.number }}",
+                  "$to": {
+                    "name": "{{ el.name }}",
+                    "value": "{{ el.value | string }}",
+                    "type": "Number"
+                  }
+                }
+              ]
+            },
+            "$key": "MessageAttribute.{{ idx | add:1 }}.Value.StringValue",
+            "$value": "{{ el.value }}"
+          },
+          {
+            "$entries": {
+              "$concat": [
+                {
+                  "$map": "{{ p.options.messageAttributes.string }}",
+                  "$to": {
+                    "name": "{{ el.name }}",
+                    "value": "{{ el.value | string }}",
+                    "type": "String"
+                  }
+                },
+                {
+                  "$map": "{{ p.options.messageAttributes.binary }}",
+                  "$to": {
+                    "name": "{{ el.name }}",
+                    "binary": "{{ bin.files | find:'property',el.dataPropertyName | get:'base64' }}",
+                    "type": "Binary"
+                  }
+                },
+                {
+                  "$map": "{{ p.options.messageAttributes.number }}",
+                  "$to": {
+                    "name": "{{ el.name }}",
+                    "value": "{{ el.value | string }}",
+                    "type": "Number"
+                  }
+                }
+              ]
+            },
+            "$key": "MessageAttribute.{{ idx | add:1 }}.Value.BinaryValue",
+            "$value": "{{ el.binary }}"
+          },
+          {
+            "$entries": {
+              "$concat": [
+                {
+                  "$map": "{{ p.options.messageAttributes.string }}",
+                  "$to": {
+                    "name": "{{ el.name }}",
+                    "value": "{{ el.value | string }}",
+                    "type": "String"
+                  }
+                },
+                {
+                  "$map": "{{ p.options.messageAttributes.binary }}",
+                  "$to": {
+                    "name": "{{ el.name }}",
+                    "binary": "{{ bin.files | find:'property',el.dataPropertyName | get:'base64' }}",
+                    "type": "Binary"
+                  }
+                },
+                {
+                  "$map": "{{ p.options.messageAttributes.number }}",
+                  "$to": {
+                    "name": "{{ el.name }}",
+                    "value": "{{ el.value | string }}",
+                    "type": "Number"
+                  }
+                }
+              ]
+            },
+            "$key": "MessageAttribute.{{ idx | add:1 }}.Value.DataType",
+            "$value": "{{ el.type }}"
+          }
+        ]
+      },
+      "fields": [
+        {
+          "key": "queue",
+          "label": "Queue URL",
+          "type": "text",
+          "required": true,
+          "help": "https://sqs.<region>.amazonaws.com/<account>/<name>"
+        },
+        {
+          "key": "queueType",
+          "label": "Queue type",
+          "type": "select",
+          "default": "standard",
+          "options": [
+            "standard",
+            "fifo"
+          ]
+        },
+        {
+          "key": "sendInputData",
+          "label": "Send input data",
+          "type": "boolean",
+          "default": true,
+          "help": "Send the input item as JSON instead of the Message field"
+        },
+        {
+          "key": "message",
+          "label": "Message",
+          "type": "textarea",
+          "default": ""
+        },
+        {
+          "key": "messageGroupId",
+          "label": "Message group ID",
+          "type": "text",
+          "default": "",
+          "help": "Required for FIFO queues"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "delaySeconds",
+            "messageAttributes",
+            "messageDeduplicationId"
+          ],
+          "help": "messageAttributes: {string: [{name, value}], number: [{name, value}], binary: [{name, dataPropertyName}]}; binary values come from the item's binary property, sent base64"
+        }
+      ],
+      "output": {
+        "path": "SendMessageResponse.SendMessageResult"
+      },
+      "binary": {
+        "properties": "{{ p.options.messageAttributes.binary | pluck:'dataPropertyName' | join:',' }}"
+      }
+    }
+  ]
+}

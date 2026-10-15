@@ -1,0 +1,1590 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "microsoft_teams",
+  "node_type": "app.microsoft_teams",
+  "title": "Microsoft Teams",
+  "description": "Channels, messages, chats, online meetings, Planner tasks and activity notifications in Microsoft Teams (Microsoft Graph)",
+  "category": "app",
+  "docs_url": "https://learn.microsoft.com/en-us/graph/api/resources/teams-api-overview",
+  "n8n_types": [
+    "n8n-nodes-base.microsoftTeams"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.microsoftTeamsTrigger"
+  ],
+  "base_url": "https://graph.microsoft.com/v1.0",
+  "credentials": [
+    {
+      "platform": "microsoft",
+      "name": "Microsoft 365 (Teams)",
+      "n8n_credential": "microsoftTeamsOAuth2Api",
+      "n8n_credential_alt": [
+        "microsoftOAuth2Api"
+      ],
+      "methods": [
+        "oauth"
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      },
+      "reuse_platform": "microsoft",
+      "scope_group": "teams"
+    },
+    {
+      "platform": "microsoft_entra_app",
+      "name": "Microsoft Entra app (app-only Graph)",
+      "n8n_credential": "microsoftEntraServicePrincipalApi",
+      "n8n_field_map": {
+        "tenantId": "tenant_id",
+        "clientId": "client_id",
+        "clientSecret": "client_secret"
+      },
+      "methods": [
+        "client_credentials"
+      ],
+      "fields": [
+        {
+          "key": "tenant_id",
+          "label": "Tenant ID",
+          "required": true,
+          "help": "Directory (tenant) GUID or a verified domain such as contoso.onmicrosoft.com."
+        },
+        {
+          "key": "client_id",
+          "label": "Application (client) ID",
+          "required": true
+        },
+        {
+          "key": "client_secret",
+          "label": "Client secret",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "oauth": {
+        "token_url": "https://login.microsoftonline.com/{{ cred.tenant_id }}/oauth2/v2.0/token",
+        "scopes": [
+          "https://graph.microsoft.com/.default"
+        ]
+      },
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "channel",
+      "label": "Channel"
+    },
+    {
+      "value": "channelMessage",
+      "label": "Channel message"
+    },
+    {
+      "value": "chat",
+      "label": "Chat"
+    },
+    {
+      "value": "chatMember",
+      "label": "Chat member"
+    },
+    {
+      "value": "chatMessage",
+      "label": "Chat message"
+    },
+    {
+      "value": "onlineMeeting",
+      "label": "Online meeting"
+    },
+    {
+      "value": "task",
+      "label": "Task (Planner)"
+    },
+    {
+      "value": "activityNotification",
+      "label": "Activity notification"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "channel",
+      "operation": "create",
+      "title": "Create a channel",
+      "scope_group": "teams_admin",
+      "method": "POST",
+      "path": "/teams/{{ p.teamId | rl }}/channels",
+      "fields": [
+        {
+          "key": "teamId",
+          "label": "Team ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "description",
+            "type"
+          ],
+          "help": "type: standard or private."
+        }
+      ],
+      "body": {
+        "displayName": "{{ p.name }}",
+        "description": "{{ p.options.description }}",
+        "membershipType": "{{ p.options.type }}"
+      }
+    },
+    {
+      "resource": "channel",
+      "operation": "deleteChannel",
+      "title": "Delete a channel",
+      "scope_group": "teams_admin",
+      "method": "DELETE",
+      "path": "/teams/{{ p.teamId | rl }}/channels/{{ p.channelId | rl }}",
+      "fields": [
+        {
+          "key": "teamId",
+          "label": "Team ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "channelId",
+          "label": "Channel ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "channel",
+      "operation": "get",
+      "title": "Get a channel",
+      "method": "GET",
+      "path": "/teams/{{ p.teamId | rl }}/channels/{{ p.channelId | rl }}",
+      "fields": [
+        {
+          "key": "teamId",
+          "label": "Team ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "channelId",
+          "label": "Channel ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "channel",
+      "operation": "getAll",
+      "title": "Get many channels",
+      "method": "GET",
+      "path": "/teams/{{ p.teamId | rl }}/channels",
+      "fields": [
+        {
+          "key": "teamId",
+          "label": "Team ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "@odata.nextLink",
+        "results_path": "value"
+      }
+    },
+    {
+      "resource": "channel",
+      "operation": "update",
+      "title": "Update a channel",
+      "scope_group": "teams_admin",
+      "method": "PATCH",
+      "path": "/teams/{{ p.teamId | rl }}/channels/{{ p.channelId | rl }}",
+      "fields": [
+        {
+          "key": "teamId",
+          "label": "Team ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "channelId",
+          "label": "Channel ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "name",
+          "label": "New name",
+          "type": "text"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "description"
+          ]
+        }
+      ],
+      "body": {
+        "displayName": "{{ p.name }}",
+        "description": "{{ p.options.description }}"
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "channelMessage",
+      "operation": "create",
+      "title": "Send a channel message",
+      "method": "POST",
+      "path": "/teams/{{ p.teamId | rl }}/channels/{{ p.channelId | rl }}/messages{{ p.options.makeReply | then:'/' }}{{ p.options.makeReply }}{{ p.options.makeReply | then:'/replies' }}",
+      "fields": [
+        {
+          "key": "teamId",
+          "label": "Team ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "channelId",
+          "label": "Channel ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "contentType",
+          "label": "Content type",
+          "type": "select",
+          "default": "text",
+          "options": [
+            "text",
+            "html"
+          ]
+        },
+        {
+          "key": "message",
+          "label": "Message",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "makeReply",
+            "includeLinkToWorkflow",
+            "mentionPlacement"
+          ],
+          "help": "makeReply: ID of a message to reply to. @mentions and the workflow link are not added."
+        }
+      ],
+      "base_url": "https://graph.microsoft.com/beta",
+      "body": {
+        "body": {
+          "contentType": "{{ p.contentType }}",
+          "content": "{{ p.message }}"
+        }
+      }
+    },
+    {
+      "resource": "channelMessage",
+      "operation": "softDeleteMessage",
+      "title": "Delete a channel message",
+      "scope_group": "teams_admin",
+      "method": "POST",
+      "path": "/teams/{{ p.teamId | rl }}/channels/{{ p.channelId | rl }}/messages/{{ p.options.parentMessageId | then:(p.options.parentMessageId) }}{{ p.options.parentMessageId | then:'/replies/' }}{{ p.messageId }}/softDelete",
+      "fields": [
+        {
+          "key": "teamId",
+          "label": "Team ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "channelId",
+          "label": "Channel ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "messageId",
+          "label": "Message ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "parentMessageId"
+          ],
+          "help": "parentMessageId: set when the message is a reply."
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "channelMessage",
+      "operation": "get",
+      "title": "Get a channel message",
+      "scope_group": "teams_admin",
+      "method": "GET",
+      "path": "/teams/{{ p.teamId | rl }}/channels/{{ p.channelId | rl }}/messages/{{ p.messageId }}",
+      "fields": [
+        {
+          "key": "teamId",
+          "label": "Team ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "channelId",
+          "label": "Channel ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "messageId",
+          "label": "Message ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "base_url": "https://graph.microsoft.com/beta"
+    },
+    {
+      "resource": "channelMessage",
+      "operation": "getAll",
+      "title": "Get many channel messages",
+      "scope_group": "teams_admin",
+      "method": "GET",
+      "path": "/teams/{{ p.teamId | rl }}/channels/{{ p.channelId | rl }}/messages",
+      "fields": [
+        {
+          "key": "teamId",
+          "label": "Team ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "channelId",
+          "label": "Channel ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "base_url": "https://graph.microsoft.com/beta",
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "@odata.nextLink",
+        "results_path": "value",
+        "limit_param": "$top",
+        "page_size": 50
+      }
+    },
+    {
+      "resource": "channelMessage",
+      "operation": "getAllReplies",
+      "title": "Get many replies",
+      "scope_group": "teams_admin",
+      "method": "GET",
+      "path": "/teams/{{ p.teamId | rl }}/channels/{{ p.channelId | rl }}/messages/{{ p.messageId }}/replies",
+      "fields": [
+        {
+          "key": "teamId",
+          "label": "Team ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "channelId",
+          "label": "Channel ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "messageId",
+          "label": "Message ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "base_url": "https://graph.microsoft.com/beta",
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "@odata.nextLink",
+        "results_path": "value",
+        "limit_param": "$top",
+        "page_size": 50
+      }
+    },
+    {
+      "resource": "channelMessage",
+      "operation": "reply",
+      "title": "Reply to a channel message",
+      "method": "POST",
+      "path": "/teams/{{ p.teamId | rl }}/channels/{{ p.channelId | rl }}/messages/{{ p.messageId }}/replies",
+      "fields": [
+        {
+          "key": "teamId",
+          "label": "Team ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "channelId",
+          "label": "Channel ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "messageId",
+          "label": "Message ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "contentType",
+          "label": "Content type",
+          "type": "select",
+          "default": "text",
+          "options": [
+            "text",
+            "html"
+          ]
+        },
+        {
+          "key": "message",
+          "label": "Message",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "includeLinkToWorkflow",
+            "mentionPlacement"
+          ]
+        }
+      ],
+      "base_url": "https://graph.microsoft.com/beta",
+      "body": {
+        "body": {
+          "contentType": "{{ p.contentType }}",
+          "content": "{{ p.message }}"
+        }
+      }
+    },
+    {
+      "resource": "channelMessage",
+      "operation": "undoSoftDeleteMessage",
+      "title": "Restore a deleted channel message",
+      "scope_group": "teams_admin",
+      "method": "POST",
+      "path": "/teams/{{ p.teamId | rl }}/channels/{{ p.channelId | rl }}/messages/{{ p.options.parentMessageId | then:(p.options.parentMessageId) }}{{ p.options.parentMessageId | then:'/replies/' }}{{ p.messageId }}/undoSoftDelete",
+      "fields": [
+        {
+          "key": "teamId",
+          "label": "Team ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "channelId",
+          "label": "Channel ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "messageId",
+          "label": "Message ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "parentMessageId"
+          ],
+          "help": "parentMessageId: set when the message is a reply."
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "chat",
+      "operation": "create",
+      "title": "Create a chat",
+      "method": "POST",
+      "path": "/chats",
+      "fields": [
+        {
+          "key": "chatType",
+          "label": "Chat type",
+          "type": "select",
+          "default": "oneOnOne",
+          "options": [
+            "oneOnOne",
+            "group"
+          ]
+        },
+        {
+          "key": "members",
+          "label": "Other participants",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "member"
+          ],
+          "help": "{member: [{userId, role (owner|guest), tenantId}]} — you are added automatically."
+        },
+        {
+          "key": "topic",
+          "label": "Topic",
+          "type": "text",
+          "help": "Group chats only."
+        }
+      ],
+      "before": {
+        "method": "GET",
+        "path": "/me",
+        "query": {
+          "$select": "id,userPrincipalName,userType"
+        }
+      },
+      "body": {
+        "chatType": "{{ p.chatType }}",
+        "topic": "{{ p.chatType | eq:'group' | then:p.topic }}",
+        "members": {
+          "$concat": [
+            {
+              "@odata.type": "#microsoft.graph.aadUserConversationMember",
+              "roles": [
+                "{{ pre.userType | eq:'Guest' | then:'guest' | default:'owner' }}"
+              ],
+              "user@odata.bind": "https://graph.microsoft.com/v1.0/users('{{ pre.id }}')"
+            },
+            {
+              "$map": "{{ p.members.member }}",
+              "$to": {
+                "@odata.type": "#microsoft.graph.aadUserConversationMember",
+                "roles": [
+                  "{{ el.role | default:'owner' }}"
+                ],
+                "user@odata.bind": "https://graph.microsoft.com/v1.0/users('{{ el.userId | rl }}')",
+                "tenantId": "{{ el.tenantId }}"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "resource": "chat",
+      "operation": "get",
+      "title": "Get a chat",
+      "method": "GET",
+      "path": "/chats/{{ p.chatId | rl }}",
+      "fields": [
+        {
+          "key": "chatId",
+          "label": "Chat ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "chat",
+      "operation": "getAll",
+      "title": "Get many chats",
+      "method": "GET",
+      "path": "/chats",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "@odata.nextLink",
+        "results_path": "value",
+        "limit_param": "$top",
+        "page_size": 50
+      }
+    },
+    {
+      "resource": "chatMember",
+      "operation": "getAll",
+      "title": "Get many chat members",
+      "method": "GET",
+      "path": "/chats/{{ p.chatId | rl }}/members",
+      "fields": [
+        {
+          "key": "chatId",
+          "label": "Chat ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "@odata.nextLink",
+        "results_path": "value"
+      }
+    },
+    {
+      "resource": "chatMember",
+      "operation": "add",
+      "title": "Add a chat member",
+      "method": "POST",
+      "path": "/chats/{{ p.chatId | rl }}/members",
+      "fields": [
+        {
+          "key": "chatId",
+          "label": "Chat ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "userId",
+          "label": "User ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "role",
+            "shareHistory",
+            "historyStartDate"
+          ],
+          "help": "role: owner or guest; shareHistory: none, all or fromDate (with historyStartDate)."
+        }
+      ],
+      "body": {
+        "@odata.type": "#microsoft.graph.aadUserConversationMember",
+        "roles": [
+          "{{ p.options.role | eq:'guest' | then:'guest' | default:'owner' }}"
+        ],
+        "user@odata.bind": "https://graph.microsoft.com/v1.0/users('{{ p.userId | rl }}')",
+        "visibleHistoryStartDateTime": "{{ p.options.shareHistory | eq:'all' | then:'0001-01-01T00:00:00Z' | default:(p.options.shareHistory | eq:'fromDate' | then:p.options.historyStartDate) }}"
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "chatMember",
+      "operation": "remove",
+      "title": "Remove a chat member",
+      "method": "DELETE",
+      "path": "/chats/{{ p.chatId | rl }}/members/{{ p.membershipId | rl }}",
+      "fields": [
+        {
+          "key": "chatId",
+          "label": "Chat ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "membershipId",
+          "label": "Membership ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "chatMessage",
+      "operation": "create",
+      "title": "Send a chat message",
+      "method": "POST",
+      "path": "/chats/{{ p.chatId | rl }}/messages",
+      "fields": [
+        {
+          "key": "chatId",
+          "label": "Chat ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "contentType",
+          "label": "Content type",
+          "type": "select",
+          "default": "text",
+          "options": [
+            "text",
+            "html"
+          ]
+        },
+        {
+          "key": "message",
+          "label": "Message",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "includeLinkToWorkflow",
+            "mentionPlacement"
+          ],
+          "help": "@mentions and the workflow link are not added."
+        }
+      ],
+      "body": {
+        "body": {
+          "contentType": "{{ p.contentType }}",
+          "content": "{{ p.message }}"
+        }
+      }
+    },
+    {
+      "resource": "chatMessage",
+      "operation": "softDeleteMessage",
+      "title": "Delete a chat message",
+      "method": "POST",
+      "path": "/users/{{ pre.id }}/chats/{{ p.chatId | rl }}/messages/{{ p.messageId }}/softDelete",
+      "fields": [
+        {
+          "key": "chatId",
+          "label": "Chat ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "messageId",
+          "label": "Message ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "before": {
+        "method": "GET",
+        "path": "/me",
+        "query": {
+          "$select": "id"
+        }
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "chatMessage",
+      "operation": "get",
+      "title": "Get a chat message",
+      "method": "GET",
+      "path": "/chats/{{ p.chatId | rl }}/messages/{{ p.messageId }}",
+      "fields": [
+        {
+          "key": "chatId",
+          "label": "Chat ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "messageId",
+          "label": "Message ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "chatMessage",
+      "operation": "getAll",
+      "title": "Get many chat messages",
+      "method": "GET",
+      "path": "/chats/{{ p.chatId | rl }}/messages",
+      "fields": [
+        {
+          "key": "chatId",
+          "label": "Chat ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "@odata.nextLink",
+        "results_path": "value",
+        "limit_param": "$top",
+        "page_size": 50
+      }
+    },
+    {
+      "resource": "chatMessage",
+      "operation": "undoSoftDeleteMessage",
+      "title": "Restore a deleted chat message",
+      "method": "POST",
+      "path": "/users/{{ pre.id }}/chats/{{ p.chatId | rl }}/messages/{{ p.messageId }}/undoSoftDelete",
+      "fields": [
+        {
+          "key": "chatId",
+          "label": "Chat ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "messageId",
+          "label": "Message ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "before": {
+        "method": "GET",
+        "path": "/me",
+        "query": {
+          "$select": "id"
+        }
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "onlineMeeting",
+      "operation": "create",
+      "title": "Create an online meeting",
+      "method": "POST",
+      "path": "/{{ p.organizerId | rl | then:'users' | default:'me' }}{{ p.organizerId | rl | then:'/' }}{{ p.organizerId | rl }}/onlineMeetings",
+      "fields": [
+        {
+          "key": "organizerId",
+          "label": "Organizer (app-only)",
+          "type": "text",
+          "help": "Only with an Entra app connection: the user whose meetings to manage."
+        },
+        {
+          "key": "subject",
+          "label": "Subject",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "startDateTime",
+          "label": "Start time",
+          "type": "datetime",
+          "required": true
+        },
+        {
+          "key": "endDateTime",
+          "label": "End time",
+          "type": "datetime",
+          "required": true
+        },
+        {
+          "key": "attendees",
+          "label": "Attendees",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "attendee"
+          ],
+          "help": "{attendee: [{userId, role (attendee|presenter)}]}"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "passcodeRequired",
+            "lobbyBypassScope",
+            "allowAttendeeToEnableCamera",
+            "allowAttendeeToEnableMic",
+            "allowMeetingChat",
+            "allowTeamworkReactions",
+            "allowedPresenters",
+            "isEntryExitAnnounced",
+            "recordAutomatically"
+          ]
+        }
+      ],
+      "before": {
+        "for_each": "{{ p.attendees.attendee }}",
+        "method": "GET",
+        "path": "/users/{{ el.userId | rl }}",
+        "query": {
+          "$select": "id,userPrincipalName"
+        }
+      },
+      "body": {
+        "$merge": "{{ p.options | pick:'allowAttendeeToEnableCamera,allowAttendeeToEnableMic,allowMeetingChat,allowTeamworkReactions,allowedPresenters,isEntryExitAnnounced,recordAutomatically' }}",
+        "lobbyBypassSettings": {
+          "scope": "{{ p.options.lobbyBypassScope }}"
+        },
+        "subject": "{{ p.subject }}",
+        "startDateTime": "{{ p.startDateTime | date:'YYYY-MM-DDTHH:mm:ssZ' }}",
+        "endDateTime": "{{ p.endDateTime | date:'YYYY-MM-DDTHH:mm:ssZ' }}",
+        "joinMeetingIdSettings": {
+          "isPasscodeRequired": "{{ p.options.passcodeRequired }}"
+        },
+        "participants": {
+          "attendees": {
+            "$map": "{{ p.attendees.attendee }}",
+            "$to": {
+              "identity": {
+                "user": {
+                  "id": "{{ pre | get:(idx | string) | get:'id' }}"
+                }
+              },
+              "upn": "{{ pre | get:(idx | string) | get:'userPrincipalName' }}",
+              "role": "{{ el.role | default:'attendee' }}"
+            }
+          }
+        }
+      }
+    },
+    {
+      "resource": "onlineMeeting",
+      "operation": "createOrGet",
+      "title": "Create or get an online meeting",
+      "method": "POST",
+      "path": "/{{ p.organizerId | rl | then:'users' | default:'me' }}{{ p.organizerId | rl | then:'/' }}{{ p.organizerId | rl }}/onlineMeetings/createOrGet",
+      "fields": [
+        {
+          "key": "organizerId",
+          "label": "Organizer (app-only)",
+          "type": "text",
+          "help": "Only with an Entra app connection: the user whose meetings to manage."
+        },
+        {
+          "key": "externalId",
+          "label": "External ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "subject",
+            "startDateTime",
+            "endDateTime",
+            "attendees"
+          ],
+          "help": "attendees: {attendee: [{userId, role}]}"
+        }
+      ],
+      "before": {
+        "for_each": "{{ p.options.attendees.attendee }}",
+        "method": "GET",
+        "path": "/users/{{ el.userId | rl }}",
+        "query": {
+          "$select": "id,userPrincipalName"
+        }
+      },
+      "body": {
+        "externalId": "{{ p.externalId }}",
+        "subject": "{{ p.options.subject }}",
+        "startDateTime": "{{ p.options.startDateTime | date:'YYYY-MM-DDTHH:mm:ssZ' }}",
+        "endDateTime": "{{ p.options.endDateTime | date:'YYYY-MM-DDTHH:mm:ssZ' }}",
+        "participants": {
+          "attendees": {
+            "$map": "{{ p.options.attendees.attendee }}",
+            "$to": {
+              "identity": {
+                "user": {
+                  "id": "{{ pre | get:(idx | string) | get:'id' }}"
+                }
+              },
+              "upn": "{{ pre | get:(idx | string) | get:'userPrincipalName' }}",
+              "role": "{{ el.role | default:'attendee' }}"
+            }
+          }
+        }
+      }
+    },
+    {
+      "resource": "onlineMeeting",
+      "operation": "deleteMeeting",
+      "title": "Delete an online meeting",
+      "method": "DELETE",
+      "path": "/{{ p.organizerId | rl | then:'users' | default:'me' }}{{ p.organizerId | rl | then:'/' }}{{ p.organizerId | rl }}/onlineMeetings/{{ pres.0.value.0.id | default:(p.meetingId | rl) }}",
+      "fields": [
+        {
+          "key": "organizerId",
+          "label": "Organizer (app-only)",
+          "type": "text",
+          "help": "Only with an Entra app connection: the user whose meetings to manage."
+        },
+        {
+          "key": "meetingId",
+          "label": "Meeting ID",
+          "type": "text",
+          "required": true,
+          "help": "The online meeting's ID, or n8n's locator in url mode with the meeting's join URL (looked up first)."
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      },
+      "before": {
+        "when": "{{ p.meetingId.mode | eq:'url' }}",
+        "method": "GET",
+        "path": "/{{ p.organizerId | rl | then:'users' | default:'me' }}{{ p.organizerId | rl | then:'/' }}{{ p.organizerId | rl }}/onlineMeetings",
+        "query": {
+          "$filter": "JoinWebUrl eq '{{ p.meetingId | rl | replace:\"'\",\"''\" }}'"
+        }
+      }
+    },
+    {
+      "resource": "onlineMeeting",
+      "operation": "get",
+      "title": "Get an online meeting",
+      "method": "GET",
+      "path": "/{{ p.organizerId | rl | then:'users' | default:'me' }}{{ p.organizerId | rl | then:'/' }}{{ p.organizerId | rl }}/onlineMeetings/{{ pres.0.value.0.id | default:(p.meetingId | rl) }}",
+      "fields": [
+        {
+          "key": "organizerId",
+          "label": "Organizer (app-only)",
+          "type": "text",
+          "help": "Only with an Entra app connection: the user whose meetings to manage."
+        },
+        {
+          "key": "meetingId",
+          "label": "Meeting ID",
+          "type": "text",
+          "required": true,
+          "help": "The online meeting's ID, or n8n's locator in url mode with the meeting's join URL (looked up first)."
+        }
+      ],
+      "before": {
+        "when": "{{ p.meetingId.mode | eq:'url' }}",
+        "method": "GET",
+        "path": "/{{ p.organizerId | rl | then:'users' | default:'me' }}{{ p.organizerId | rl | then:'/' }}{{ p.organizerId | rl }}/onlineMeetings",
+        "query": {
+          "$filter": "JoinWebUrl eq '{{ p.meetingId | rl | replace:\"'\",\"''\" }}'"
+        }
+      }
+    },
+    {
+      "resource": "onlineMeeting",
+      "operation": "update",
+      "title": "Update an online meeting",
+      "method": "PATCH",
+      "path": "/{{ p.organizerId | rl | then:'users' | default:'me' }}{{ p.organizerId | rl | then:'/' }}{{ p.organizerId | rl }}/onlineMeetings/{{ pres.0.value.0.id | default:(p.meetingId | rl) }}",
+      "fields": [
+        {
+          "key": "organizerId",
+          "label": "Organizer (app-only)",
+          "type": "text",
+          "help": "Only with an Entra app connection: the user whose meetings to manage."
+        },
+        {
+          "key": "meetingId",
+          "label": "Meeting ID",
+          "type": "text",
+          "required": true,
+          "help": "The online meeting's ID, or n8n's locator in url mode with the meeting's join URL (looked up first)."
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "subject",
+            "startDateTime",
+            "endDateTime",
+            "attendees",
+            "removeAllAttendees",
+            "lobbyBypassScope",
+            "allowAttendeeToEnableCamera",
+            "allowAttendeeToEnableMic",
+            "allowMeetingChat",
+            "allowTeamworkReactions",
+            "allowedPresenters",
+            "isEntryExitAnnounced",
+            "recordAutomatically"
+          ],
+          "help": "Start and end time go together; attendees: {attendee: [{userId, role}]} replaces the list."
+        }
+      ],
+      "before": [
+        {
+          "when": "{{ p.meetingId.mode | eq:'url' }}",
+          "method": "GET",
+          "path": "/{{ p.organizerId | rl | then:'users' | default:'me' }}{{ p.organizerId | rl | then:'/' }}{{ p.organizerId | rl }}/onlineMeetings",
+          "query": {
+            "$filter": "JoinWebUrl eq '{{ p.meetingId | rl | replace:\"'\",\"''\" }}'"
+          }
+        },
+        {
+          "for_each": "{{ p.updateFields.attendees.attendee }}",
+          "method": "GET",
+          "path": "/users/{{ el.userId | rl }}",
+          "query": {
+            "$select": "id,userPrincipalName"
+          }
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields | pick:'allowAttendeeToEnableCamera,allowAttendeeToEnableMic,allowMeetingChat,allowTeamworkReactions,allowedPresenters,isEntryExitAnnounced,recordAutomatically' }}",
+        "lobbyBypassSettings": {
+          "scope": "{{ p.updateFields.lobbyBypassScope }}"
+        },
+        "subject": "{{ p.updateFields.subject }}",
+        "startDateTime": "{{ p.updateFields.startDateTime | date:'YYYY-MM-DDTHH:mm:ssZ' }}",
+        "endDateTime": "{{ p.updateFields.endDateTime | date:'YYYY-MM-DDTHH:mm:ssZ' }}",
+        "participants": {
+          "$when": "{{ p.updateFields.removeAllAttendees | default:p.updateFields.attendees.attendee }}",
+          "!attendees": {
+            "$map": "{{ p.updateFields.attendees.attendee }}",
+            "$to": {
+              "identity": {
+                "user": {
+                  "id": "{{ pre | get:(idx | string) | get:'id' }}"
+                }
+              },
+              "upn": "{{ pre | get:(idx | string) | get:'userPrincipalName' }}",
+              "role": "{{ el.role | default:'attendee' }}"
+            }
+          }
+        }
+      }
+    },
+    {
+      "resource": "task",
+      "operation": "create",
+      "title": "Create a task",
+      "scope_group": "tasks",
+      "method": "POST",
+      "path": "/planner/tasks",
+      "fields": [
+        {
+          "key": "groupId",
+          "label": "Group ID",
+          "type": "text",
+          "help": "Only used to pick the plan in the editor."
+        },
+        {
+          "key": "planId",
+          "label": "Plan ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "bucketId",
+          "label": "Bucket ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "assignedTo",
+            "dueDateTime",
+            "percentComplete"
+          ]
+        }
+      ],
+      "body": {
+        "planId": "{{ p.planId | rl }}",
+        "bucketId": "{{ p.bucketId | rl }}",
+        "title": "{{ p.title }}",
+        "dueDateTime": "{{ p.options.dueDateTime }}",
+        "percentComplete": "{{ p.options.percentComplete }}",
+        "assignments": {
+          "$entries": "{{ p.options.assignedTo | rl | split }}",
+          "$key": "{{ el }}",
+          "$value": {
+            "@odata.type": "microsoft.graph.plannerAssignment",
+            "orderHint": " !"
+          }
+        }
+      }
+    },
+    {
+      "resource": "task",
+      "operation": "deleteTask",
+      "title": "Delete a task",
+      "scope_group": "tasks",
+      "method": "DELETE",
+      "path": "/planner/tasks/{{ p.taskId | rl }}",
+      "fields": [
+        {
+          "key": "taskId",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "before": {
+        "method": "GET",
+        "path": "/planner/tasks/{{ p.taskId | rl }}"
+      },
+      "headers": {
+        "If-Match": "{{ pre | get:'@odata.etag' }}"
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "task",
+      "operation": "get",
+      "title": "Get a task",
+      "scope_group": "tasks",
+      "method": "GET",
+      "path": "/planner/tasks/{{ p.taskId | rl }}",
+      "fields": [
+        {
+          "key": "taskId",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "task",
+      "operation": "getAll",
+      "title": "Get many tasks",
+      "scope_group": "tasks",
+      "method": "GET",
+      "path": "{{ p.tasksFor | eq:'plan' | then:'/planner/plans/' | default:'/users/' }}{{ p.tasksFor | eq:'plan' | then:(p.planId | rl) | default:pre.id }}{{ p.tasksFor | eq:'plan' | then:'/tasks' | default:'/planner/tasks' }}",
+      "fields": [
+        {
+          "key": "tasksFor",
+          "label": "Tasks for",
+          "type": "select",
+          "default": "member",
+          "options": [
+            "member",
+            "plan"
+          ],
+          "help": "member: tasks assigned to you; plan: every task of a plan."
+        },
+        {
+          "key": "groupId",
+          "label": "Group ID",
+          "type": "text",
+          "help": "Only used to pick the plan in the editor."
+        },
+        {
+          "key": "planId",
+          "label": "Plan ID",
+          "type": "text",
+          "help": "With tasks for plan."
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "before": {
+        "when": "{{ p.tasksFor | ne:'plan' }}",
+        "method": "GET",
+        "path": "/me",
+        "query": {
+          "$select": "id"
+        }
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "@odata.nextLink",
+        "results_path": "value"
+      }
+    },
+    {
+      "resource": "task",
+      "operation": "update",
+      "title": "Update a task",
+      "scope_group": "tasks",
+      "method": "PATCH",
+      "path": "/planner/tasks/{{ p.taskId | rl }}",
+      "fields": [
+        {
+          "key": "taskId",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "assignedTo",
+            "bucketId",
+            "dueDateTime",
+            "groupId",
+            "percentComplete",
+            "planId",
+            "title"
+          ]
+        }
+      ],
+      "before": {
+        "method": "GET",
+        "path": "/planner/tasks/{{ p.taskId | rl }}"
+      },
+      "headers": {
+        "If-Match": "{{ pre | get:'@odata.etag' }}"
+      },
+      "body": {
+        "title": "{{ p.updateFields.title }}",
+        "bucketId": "{{ p.updateFields.bucketId | rl }}",
+        "planId": "{{ p.updateFields.planId | rl }}",
+        "dueDateTime": "{{ p.updateFields.dueDateTime }}",
+        "percentComplete": "{{ p.updateFields.percentComplete }}",
+        "assignments": {
+          "$entries": "{{ p.updateFields.assignedTo | rl | split }}",
+          "$key": "{{ el }}",
+          "$value": {
+            "@odata.type": "microsoft.graph.plannerAssignment",
+            "orderHint": " !"
+          }
+        }
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "activityNotification",
+      "operation": "send",
+      "title": "Send an activity notification",
+      "method": "POST",
+      "path": "/users/{{ p.recipientId | rl }}/teamwork/sendActivityNotification",
+      "fields": [
+        {
+          "key": "recipientId",
+          "label": "Recipient",
+          "type": "text",
+          "required": true,
+          "help": "User ID or principal name."
+        },
+        {
+          "key": "headline",
+          "label": "Headline",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "previewText",
+          "label": "Preview text",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "topic",
+          "label": "Topic",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "topicLink",
+          "label": "Topic link",
+          "type": "text",
+          "required": true,
+          "help": "A https Microsoft Teams link."
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "chainId"
+          ]
+        }
+      ],
+      "body": {
+        "topic": {
+          "source": "text",
+          "value": "{{ p.topic }}",
+          "webUrl": "{{ p.topicLink }}"
+        },
+        "activityType": "systemDefault",
+        "previewText": {
+          "content": "{{ p.previewText }}"
+        },
+        "templateParameters": [
+          {
+            "name": "systemDefaultText",
+            "value": "{{ p.headline }}"
+          }
+        ],
+        "chainId": "{{ p.options.chainId | int | ne:'0' | then:(p.options.chainId | int) }}"
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    }
+  ]
+}

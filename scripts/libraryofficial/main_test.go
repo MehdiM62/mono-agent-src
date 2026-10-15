@@ -70,7 +70,11 @@ func TestBuildManifest(t *testing.T) {
 			t.Errorf("incomplete item %+v", it)
 		}
 	}
-	if kinds["automation"] != 7 || kinds["workflow"] != 4 || kinds["org"] < 2 {
+	templates, _ := filepath.Glob(filepath.Join(repoRoot, "internal", "workflow", "templates", "*.json"))
+	if len(templates) == 0 {
+		t.Fatal("no bundled workflow templates found")
+	}
+	if kinds["automation"] != 7 || kinds["workflow"] != len(templates) || kinds["org"] < 2 {
 		t.Fatalf("items per kind = %v", kinds)
 	}
 	if _, err := os.Stat(filepath.Join(out, "manifest.json")); err != nil {

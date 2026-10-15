@@ -29,6 +29,9 @@ var emitLibraryEvent = func(a *App, name string, data interface{}) {
 
 // LibraryStatus returns `library status [--offline]`.
 func (a *App) LibraryStatus(offline bool) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	args := []string{"library", "status"}
 	if offline {
 		args = append(args, "--offline")
@@ -43,25 +46,51 @@ func (a *App) LibraryStatus(offline bool) string {
 
 // LibraryLogin signs in through the browser: AccountLogin, reporting as
 // "library:login" events.
-func (a *App) LibraryLogin() string { return a.runAccountLogin("library:login") }
+func (a *App) LibraryLogin() string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
+	return a.runAccountLogin("library:login")
+}
 
 // LibraryLoginCancel stops a running LibraryLogin or AccountLogin.
-func (a *App) LibraryLoginCancel() string { return a.AccountLoginCancel() }
+func (a *App) LibraryLoginCancel() string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
+	return a.AccountLoginCancel()
+}
 
 // LibraryLoginEmailSend asks monoes.me to email a sign-in code.
-func (a *App) LibraryLoginEmailSend(email string) string { return a.AccountLoginEmailSend(email) }
+func (a *App) LibraryLoginEmailSend(email string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
+	return a.AccountLoginEmailSend(email)
+}
 
 // LibraryLoginEmailVerify trades the emailed code for a session.
 func (a *App) LibraryLoginEmailVerify(email, code string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	return a.AccountLoginEmailVerify(email, code)
 }
 
 // LibraryLogout ends this machine's monoes.me session.
-func (a *App) LibraryLogout() string { return a.AccountLogout() }
+func (a *App) LibraryLogout() string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
+	return a.AccountLogout()
+}
 
 // LibraryList returns `library list` for one kind and scope
 // (official | public | mine).
 func (a *App) LibraryList(kind, scope, search string, page int) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	args := []string{"library", "list"}
 	if kind != "" {
 		args = append(args, "--kind="+kind)
@@ -80,12 +109,18 @@ func (a *App) LibraryList(kind, scope, search string, page int) string {
 
 // LibraryShow returns one item (`library show <id|kind/slug>`).
 func (a *App) LibraryShow(id string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	return a.rawCLI(libraryCLITimeout, "library", "show", "--", id)
 }
 
 // LibraryInstall adds a library item to this machine. rename installs an
 // org under another name; yes confirms replacing what is already there.
 func (a *App) LibraryInstall(kind, id, rename string, yes bool) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	args := []string{"library", "install"}
 	if r := strings.TrimSpace(rename); r != "" {
 		args = append(args, "--rename="+r)
@@ -100,6 +135,9 @@ func (a *App) LibraryInstall(kind, id, rename string, yes bool) string {
 // LibraryPublish packs or exports a local workflow (id), automation (id)
 // or org (name) and uploads it — private unless public is set.
 func (a *App) LibraryPublish(kind, localID string, public bool, name, description, tags, version string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	args := []string{"library", "publish"}
 	if public {
 		args = append(args, "--public")
@@ -116,6 +154,9 @@ func (a *App) LibraryPublish(kind, localID string, public bool, name, descriptio
 // LibraryUpdate re-installs newer versions of items that came from the
 // library (all of them when id is empty).
 func (a *App) LibraryUpdate(id string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	args := []string{"library", "update", "--yes"}
 	if id != "" {
 		args = append(args, "--", id)
@@ -125,6 +166,9 @@ func (a *App) LibraryUpdate(id string) string {
 
 // LibraryInstalled lists what this machine installed from the library.
 func (a *App) LibraryInstalled(kind string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	args := []string{"library", "installed"}
 	if kind != "" {
 		args = append(args, "--kind="+kind)

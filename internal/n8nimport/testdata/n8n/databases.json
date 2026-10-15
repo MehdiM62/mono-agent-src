@@ -1,0 +1,18 @@
+{
+  "name": "Database sync",
+  "nodes": [
+    {"parameters": {"rule": {"interval": [{"field": "days", "triggerAtHour": 6}]}}, "name": "Daily", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [0, 0]},
+    {"parameters": {"operation": "executeQuery", "query": "SELECT id, email FROM users WHERE created_at > $1 AND plan = $2", "options": {"queryReplacement": "={{ $now.toISODate() }},pro"}}, "name": "Postgres", "type": "n8n-nodes-base.postgres", "typeVersion": 2.5, "position": [220, 0], "credentials": {"postgres": {"id": "8", "name": "Prod DB"}}},
+    {"parameters": {"schema": {"__rl": true, "value": "public", "mode": "list"}, "table": {"__rl": true, "value": "audit", "mode": "list"}, "columns": {"mappingMode": "autoMapInputData", "value": {}, "matchingColumns": [], "schema": []}, "options": {}}, "name": "Insert audit", "type": "n8n-nodes-base.postgres", "typeVersion": 2.5, "position": [440, 0], "credentials": {"postgres": {"id": "8", "name": "Prod DB"}}},
+    {"parameters": {"operation": "select", "table": {"__rl": true, "value": "customers", "mode": "list"}, "returnAll": true, "where": {"values": [{"column": "email", "value": "={{ $json.email }}"}]}, "options": {}}, "name": "MySQL", "type": "n8n-nodes-base.mySql", "typeVersion": 2.4, "position": [660, 0], "credentials": {"mySql": {"id": "10", "name": "CRM MySQL"}}},
+    {"parameters": {"collection": "events", "query": "{ \"type\": \"signup\" }", "options": {"limit": 50}}, "name": "MongoDB", "type": "n8n-nodes-base.mongoDb", "typeVersion": 1.1, "position": [880, 0], "credentials": {"mongoDb": {"id": "11", "name": "Mongo"}}},
+    {"parameters": {"operation": "set", "key": "=last_sync:{{ $json.type }}", "value": "={{ $now.toISO() }}", "expire": true, "ttl": 3600}, "name": "Redis", "type": "n8n-nodes-base.redis", "typeVersion": 1, "position": [1100, 0], "credentials": {"redis": {"id": "12", "name": "Redis"}}}
+  ],
+  "connections": {
+    "Daily": {"main": [[{"node": "Postgres", "type": "main", "index": 0}]]},
+    "Postgres": {"main": [[{"node": "Insert audit", "type": "main", "index": 0}]]},
+    "Insert audit": {"main": [[{"node": "MySQL", "type": "main", "index": 0}]]},
+    "MySQL": {"main": [[{"node": "MongoDB", "type": "main", "index": 0}]]},
+    "MongoDB": {"main": [[{"node": "Redis", "type": "main", "index": 0}]]}
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "id": "aggregate-sum",
+  "mode": "both",
+  "workflow_name": "eval-aggregate-sum",
+  "prompt": "Create a workflow named \"eval-aggregate-sum\", run manually, that fetches\n{{FIXTURE_URL}}/products.json (items under \"items\") and uses an Aggregate node\nto sum the \"price\" of all products into a field named \"total\".",
+  "fixtures": [
+    "products.json"
+  ],
+  "checks": [
+    {
+      "type": "validate_ok"
+    },
+    {
+      "type": "dry_run_ok"
+    },
+    {
+      "type": "run_status",
+      "equals": "SUCCESS"
+    },
+    {
+      "type": "node_types",
+      "include": [
+        "core.aggregate"
+      ]
+    },
+    {
+      "type": "output",
+      "node_type": "core.aggregate",
+      "path": "[0].total",
+      "equals": 68
+    }
+  ]
+}

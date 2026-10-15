@@ -1,0 +1,40 @@
+{
+  "id": "hash-field",
+  "mode": "both",
+  "workflow_name": "eval-hash-field",
+  "prompt": "Create a workflow named \"eval-hash-field\", run manually with the input\n{\"text\":\"hello\"}, that stores the SHA-256 hash of \"text\" as lowercase hex in a\nfield named \"digest\" with the crypto node.",
+  "fixtures": [],
+  "checks": [
+    {
+      "type": "validate_ok"
+    },
+    {
+      "type": "dry_run_ok"
+    },
+    {
+      "type": "run_status",
+      "equals": "SUCCESS"
+    },
+    {
+      "type": "mcp_validate_ok"
+    },
+    {
+      "type": "mcp_run_status",
+      "equals": "SUCCESS"
+    },
+    {
+      "type": "node_types",
+      "include": [
+        "data.crypto"
+      ]
+    },
+    {
+      "type": "output",
+      "path": "[0].digest",
+      "equals": "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+    }
+  ],
+  "input": {
+    "text": "hello"
+  }
+}
