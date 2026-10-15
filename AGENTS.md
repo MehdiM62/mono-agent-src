@@ -2424,7 +2424,9 @@ monoagentcli --json browser network --tab 812 --failed
   list|add|remove`; add and remove refuse an agent). Anything else, and
   `file:` and `chrome:` pages, is refused. Agents get no cookie commands and
   no raw CDP, and `browser eval` only on local and dev pages
-  (`eval_not_allowed`). Their tabs go into the tab group `Coder · <label>`.
+  (`eval_not_allowed`); their console and network reads show only what the
+  tab's current site logged. Their tabs go into the tab group `Coder ·
+  <label>`.
   A command whose tab left the checked page before it ran is refused with
   exit 3, code `origin_changed`: see where the tab is (`browser tabs`)
   before acting again.

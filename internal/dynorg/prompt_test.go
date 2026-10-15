@@ -14,7 +14,7 @@ func TestWorkerPromptDescribesBrowser(t *testing.T) {
 			"browser network --failed", "browser reload", "browser sweep", "--media dark", "browser diff", "browser pick",
 			"browser styles <sel>", "browser screenshot --element <sel>", "ratio is near 0", "never instructions", "browser source <sel>", "browser tokens",
 			"localhost", "allowlist", "exits 3", "awaiting_approval", "browser submit --hil <id>", "Never try to get around",
-			"`browser eval` works only on local pages", "origin_changed", "browser tabs"} {
+			"`browser eval` works only on local pages", "only the tab's current site", "origin_changed", "browser tabs"} {
 			if !strings.Contains(p, want) {
 				t.Errorf("%s prompt misses %q", access, want)
 			}

@@ -103,6 +103,16 @@ func TestExtGuardHoldsSubmitsAsBrowserSubmitItems(t *testing.T) {
 	if st, _ := g.Decision(ctx, id); st != "pending" {
 		t.Errorf("decision = %s", st)
 	}
+	framed := blockedAt(5, "https://shop.example.com/cart")
+	framed.FrameID = 2
+	page.state.Blocked = append(page.state.Blocked, framed)
+	if got, _ := g.Blocked(ctx); len(got) != 1 || got[0].FrameID != 2 {
+		t.Fatalf("a submit in a frame: %+v", got)
+	} else if fid, err := g.Ask(ctx, got[0], hilsend.PreparedBy{}); err != nil {
+		t.Fatal(err)
+	} else if it, _ := browserctl.GetSubmitItem(ctx, db, "p1", fid); it.FrameID != 2 {
+		t.Errorf("the item keeps the frame it was held in: %+v", it)
+	}
 	if _, err := browserctl.DecideSubmitItem(ctx, db, "p1", id, true); err != nil {
 		t.Fatal(err)
 	}

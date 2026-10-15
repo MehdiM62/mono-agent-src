@@ -63,7 +63,8 @@ SEEING THE PAGE
       errorText,durationMs,size}],next} — never headers or bodies
       Without --since: what the page the last open, navigate or reload loaded
       logged; --since <next> only what is newer; --since 0 everything buffered.
-      An agent's tabs are recorded from the first load, so its errors are kept.
+      An agent's tabs are recorded from the first load, so its errors are kept;
+      an agent reads only what was recorded on the tab's current site (origin).
   browser a11y [--selector S] [--depth N]   {nodes:[{role,name,value,children}],truncated}
 
 STYLES AND VISUAL CHECKS
