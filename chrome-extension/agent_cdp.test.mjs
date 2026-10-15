@@ -126,8 +126,17 @@ test("agent_cdp.js loads before the modules that register with it, and the dispa
 // ── expectOrigin and the idle release (security review, items 6 and 7) ──
 
 /** commands loads the dispatch with recording stand-ins for the modules it calls. */
-function commands({ tabs = {} } = {}) {
+function commands({ tabs = {}, session = {} } = {}) {
+  const store = { ...session };
+  const messages = [];
   const chrome = {
+    runtime: { id: "ext-id", onMessage: { addListener: (fn) => messages.push(fn) } },
+    storage: {
+      session: {
+        get: async (key) => (key in store ? { [key]: JSON.parse(JSON.stringify(store[key])) } : {}),
+        set: async (obj) => Object.assign(store, JSON.parse(JSON.stringify(obj))),
+      },
+    },
     tabs: {
       get: async (id) => {
         if (!tabs[id]) throw new Error(`No tab with id: ${id}.`);
@@ -149,14 +158,25 @@ function commands({ tabs = {} } = {}) {
     armedTabs: async () => armed,
     handle: async (p) => (did.push(["guard", p.tabId, p.action]), (armed = armed.filter((t) => t !== p.tabId)), {}),
   };
+  let removed = null;
   g.MonoAgentCommands.install({
     attach: async () => {},
     cdp: async () => ({}),
     onDebuggerEvent: () => {},
     onDebuggerDetach: () => {},
+    onTabRemoved: (fn) => (removed = fn),
     detach: async (tabId) => did.push(["detach", tabId]),
   });
-  return { c: g.MonoAgentCommands, cdp: g.MonoAgentCdp, did, arm: (tabId) => armed.push(tabId), emulate: (tabId) => emulating.add(tabId) };
+  return {
+    c: g.MonoAgentCommands,
+    cdp: g.MonoAgentCdp,
+    did,
+    store,
+    arm: (tabId) => armed.push(tabId),
+    emulate: (tabId) => emulating.add(tabId),
+    message: (msg, sender) => messages.forEach((fn) => fn(msg, sender)),
+    removeTab: (tabId) => removed(tabId),
+  };
 }
 
 test("expectOrigin: absent, nothing is checked; given, another origin or a navigation in flight is origin_changed", async () => {
@@ -217,4 +237,48 @@ test("background.js counts every tab's command as use, checks expectOrigin befor
   assert.match(alarm.slice(0, alarm.indexOf("\n});\n")), /MonoAgentCommands\.sweepIdle\(\)/);
   const install = background.slice(background.indexOf("MonoAgentCommands.install({"));
   assert.match(install.slice(0, install.indexOf("\n});")), /detach: \(tabId\) => \(debuggerPinned\.has\(tabId\) \? undefined : detachDebugger\(tabId\)\)/);
+});
+
+test("Stop agent guard, pressed in the page, lets the tab go at once and takes the bar down", async () => {
+  const t = commands();
+  t.cdp.hold(4, "watch");
+  t.arm(4);
+  t.c.touch(4);
+  t.message({ type: "agent_guard_stop" }, { id: "elsewhere", tab: { id: 4 } }); // not this extension's page
+  t.message({ type: "agent_guard_stop" }, { id: "ext-id" }); // no tab
+  await new Promise((r) => setTimeout(r, 10));
+  assert.deepEqual(t.did, []);
+  t.message({ type: "agent_guard_stop" }, { id: "ext-id", tab: { id: 4 } });
+  await new Promise((r) => setTimeout(r, 10));
+  assert.deepEqual(t.did, [["watch", 4, false], ["guard", 4, "disarm"], ["detach", 4], ["guard", 4, "disarm"]]);
+  assert.equal(t.cdp.holds(4), false);
+});
+
+test("the idle clock survives a worker restart: the times are kept in session storage", async () => {
+  const t = commands();
+  t.c.touch(9);
+  await new Promise((r) => setTimeout(r, 10));
+  const kept = t.store.agentLastUsed[9];
+  assert.ok(Number.isFinite(kept), "written at once");
+  // A restarted worker on the same storage, its tab used 14 minutes before the restart.
+  const before = Date.now() - 14 * 60 * 1000;
+  const restarted = commands({ session: { agentLastUsed: { 9: before } } });
+  restarted.arm(9);
+  await restarted.c.sweepIdle(before + restarted.c.IDLE_RELEASE_MS + 1000);
+  assert.deepEqual(restarted.did, [["watch", 9, false], ["guard", 9, "disarm"], ["detach", 9]], "15 minutes after its last use, not after the restart");
+  assert.equal(restarted.store.agentLastUsed[9], undefined, "a released tab is forgotten");
+});
+
+test("touch writes a tab's time at most every 15 seconds, and a closed tab is forgotten", async () => {
+  const t = commands();
+  t.c.touch(3);
+  await new Promise((r) => setTimeout(r, 5));
+  const first = t.store.agentLastUsed[3];
+  t.c.touch(3);
+  await new Promise((r) => setTimeout(r, 5));
+  assert.equal(t.store.agentLastUsed[3], first, "not written again within 15s");
+  t.removeTab(3);
+  t.c.touch(5);
+  await new Promise((r) => setTimeout(r, 5));
+  assert.equal(t.store.agentLastUsed[3], undefined);
 });

@@ -20,7 +20,13 @@
  *     sees no command for IDLE_RELEASE_MS is let go by sweepIdle, on
  *     background.js's keep-alive alarm: unwatched, emulation reset,
  *     disarmed and detached, so a session the agent forgot cannot keep
- *     Chrome's debugging bar up or stop the person's submits for good.
+ *     Chrome's debugging bar up or stop the person's submits for good. The
+ *     times are kept in chrome.storage.session too (at most one write per
+ *     tab every PERSIST_EVERY_MS), so a worker restart does not start the
+ *     clock again.
+ *
+ * The armed tab's "Stop agent guard" button (agent_guard_bar.js) does the
+ * same release at once, for the person.
  */
 
 (function (root) {
@@ -42,21 +48,76 @@
   // How long a held or armed tab may go without a command before it is let go.
   const IDLE_RELEASE_MS = 15 * 60 * 1000;
 
+  const STORE_KEY = "agentLastUsed";
+  const PERSIST_EVERY_MS = 15000;
+  const STOP_MESSAGE = "agent_guard_stop";
+
   let deps = null;
   const lastUsed = new Map(); // tabId -> time of its last command
-  // A tab with no command since this worker started (a restart forgets the
-  // times) gets the full idle time from now.
+  const persistedAt = new Map(); // tabId -> when its time was last written
+  // A tab with no recorded command gets the full idle time from this
+  // worker's start.
   const startedAt = Date.now();
+  let loaded = null;
 
-  /** install hands agent_cdp.js the debugger helpers (plus detach) and starts the submit guard's listeners. */
+  /** loadTimes reads the times an earlier worker kept; what this one set since wins. */
+  function loadTimes() {
+    if (!loaded) {
+      loaded = Promise.resolve()
+        .then(() => chrome.storage.session.get(STORE_KEY))
+        .then(
+          (got) => {
+            const saved = (got && got[STORE_KEY]) || {};
+            for (const [k, t] of Object.entries(saved)) {
+              const tabId = Number(k);
+              if (Number.isInteger(tabId) && Number.isFinite(t) && !lastUsed.has(tabId)) lastUsed.set(tabId, t);
+            }
+          },
+          () => {}
+        );
+    }
+    return loaded;
+  }
+
+  function persist() {
+    try {
+      chrome.storage.session.set({ [STORE_KEY]: Object.fromEntries(lastUsed) }).catch(() => {});
+    } catch {
+      // no session storage: the times live as long as this worker
+    }
+  }
+
+  /** install hands agent_cdp.js the debugger helpers (plus detach), starts the submit guard's listeners and the bar's stop button. */
   function install(d) {
     deps = d;
     root.MonoAgentCdp.install(d);
     root.MonoAgentSubmitGuard.install();
+    chrome.runtime.onMessage.addListener((msg, sender) => {
+      if (!msg || msg.type !== STOP_MESSAGE) return false;
+      const tabId = sender && sender.tab && sender.tab.id;
+      if (!Number.isInteger(tabId) || (sender.id && sender.id !== chrome.runtime.id)) return false;
+      // Disarmed even when this worker thought it was not: the bar goes either way.
+      release(tabId)
+        .then(() => root.MonoAgentSubmitGuard.handle({ tabId, action: "disarm" }))
+        .catch((err) => console.warn("[monoagent] stop agent guard:", err.message));
+      return false;
+    });
+    root.MonoAgentCdp.onLost((tabId, reason) => {
+      if (reason !== "target_closed") return;
+      lastUsed.delete(tabId);
+      persistedAt.delete(tabId);
+    });
+    loadTimes();
   }
 
   function touch(tabId) {
-    if (Number.isInteger(tabId)) lastUsed.set(tabId, Date.now());
+    if (!Number.isInteger(tabId)) return;
+    const now = Date.now();
+    lastUsed.set(tabId, now);
+    if (now - (persistedAt.get(tabId) || 0) >= PERSIST_EVERY_MS) {
+      persistedAt.set(tabId, now);
+      persist();
+    }
   }
 
   function originOf(u) {
@@ -90,6 +151,7 @@
 
   /** sweepIdle lets go of every held or armed tab that has had no command for IDLE_RELEASE_MS. */
   async function sweepIdle(now = Date.now()) {
+    await loadTimes();
     const tabs = new Set([...root.MonoAgentCdp.heldTabs(), ...(await root.MonoAgentSubmitGuard.armedTabs())]);
     for (const tabId of tabs) {
       if (now - (lastUsed.has(tabId) ? lastUsed.get(tabId) : startedAt) < IDLE_RELEASE_MS) continue;
@@ -105,6 +167,8 @@
       await step(root.MonoAgentSubmitGuard.handle({ tabId, action: "disarm" }));
     }
     lastUsed.delete(tabId);
+    persistedAt.delete(tabId);
+    persist();
     if (deps && deps.detach) await step(deps.detach(tabId));
   }
 
