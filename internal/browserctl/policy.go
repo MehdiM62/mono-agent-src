@@ -7,30 +7,43 @@ import (
 	"fmt"
 	"net"
 	"net/url"
-	"sort"
 	"strings"
 )
 
-// The origin policy (plan 2026-10-15-coder-browser, C2). An agent drives
-// local and dev pages, plus the origins the user allowed; a human terminal
-// is unrestricted. It is a courtesy layer against mistakes and page-borne
-// prompt injection, not a sandbox: a full-access agent can read the bridge
-// token and talk to the bridge itself (same stance as internal/orgsign).
+// The origin policy (plan 2026-10-15-coder-browser, C2 and C8). An agent
+// drives what its kind's level allows (permissions.go): local and dev pages
+// at every level but off, other sites by level and by the user's site rules,
+// a block rule winning over every level. A human terminal is unrestricted.
+// It is a courtesy layer against mistakes and page-borne prompt injection,
+// not a sandbox: a full-access agent can read the bridge token and talk to
+// the bridge itself (same stance as internal/orgsign).
 
-// AllowlistSetting is the configs-table row holding the user's allowlist.
+// AllowlistSetting is the configs-table row of the allowlist that came
+// before the permissions; LoadPermissions reads it once as allow rules.
 const AllowlistSetting = "browser_agent_allowlist"
 
 // Policy decides which pages a caller may drive.
 type Policy struct {
-	// Agent: the caller is an agent (IsAgentContext). Nothing is refused
-	// when false.
+	// Agent: the caller is an agent. Nothing is refused when false.
 	Agent bool
-	// Allowlist holds entries as NormalizeAllowEntry returns them:
-	// "scheme://host[:port]" or "*.host".
+	// Kind is the agent's kind and Level its level ("" behaves as dev).
+	Kind  string
+	Level string
+	// Allowlist and Blocklist hold the allow and block rules as
+	// NormalizeAllowEntry returns them: "scheme://host[:port]" or "*.host".
 	Allowlist []string
+	Blocklist []string
 }
 
-// NotAllowedError is a page an agent may not drive.
+func (p Policy) level() string {
+	if p.Level == "" {
+		return LevelDev
+	}
+	return p.Level
+}
+
+// NotAllowedError is a page an agent may not drive (dev level: not local
+// and no allow rule; or not an http(s) page at all).
 type NotAllowedError struct {
 	Origin string
 	Reason string
@@ -39,7 +52,7 @@ type NotAllowedError struct {
 func (e *NotAllowedError) Error() string {
 	msg := fmt.Sprintf("an agent may drive only local and dev pages and the origins the user allowed: %s is not allowed (%s)", e.Origin, e.Reason)
 	if e.Allowable() {
-		msg += fmt.Sprintf(" — the user can allow it with `monoagentcli browser allow add %s`", e.Origin)
+		msg += fmt.Sprintf(" — the user can allow it with `monoagentcli browser allow add %s` or in Settings → Agent browser permissions", e.Origin)
 	}
 	return msg
 }
@@ -49,14 +62,45 @@ func (e *NotAllowedError) Allowable() bool {
 	return strings.HasPrefix(e.Origin, "http://") || strings.HasPrefix(e.Origin, "https://")
 }
 
+// BrowserOffError: the kind's level is off.
+type BrowserOffError struct{ Kind string }
+
+func (e *BrowserOffError) Error() string {
+	return fmt.Sprintf("browser access is off for %s — Settings → Agent browser permissions", strings.ToLower(KindLabel(e.Kind)))
+}
+
+// SiteBlockedError: the user blocked the origin for every agent.
+type SiteBlockedError struct{ Origin string }
+
+func (e *SiteBlockedError) Error() string {
+	return fmt.Sprintf("the user blocked %s for agents — Settings → Agent browser permissions", e.Origin)
+}
+
+// SiteNeedsApprovalError: at level ask, a site with no rule needs the
+// user's yes first. Session turns it into a *SiteApprovalPendingError with
+// the HIL item it raised (AskSite).
+type SiteNeedsApprovalError struct {
+	Origin string
+	URL    string
+	Kind   string
+}
+
+func (e *SiteNeedsApprovalError) Error() string {
+	return fmt.Sprintf("%s is a new site for %s: the user has to allow it first", e.Origin, strings.ToLower(KindLabel(e.Kind)))
+}
+
 // Allowed reports whether the caller may drive a page at rawURL.
 func (p Policy) Allowed(rawURL string) bool { return p.Check(rawURL) == nil }
 
-// Check returns nil when the caller may drive a page at rawURL, else a
-// *NotAllowedError naming the origin.
+// Check returns nil when the caller may drive a page at rawURL, else why
+// not: *BrowserOffError, *SiteBlockedError, *NotAllowedError or
+// *SiteNeedsApprovalError.
 func (p Policy) Check(rawURL string) error {
 	if !p.Agent {
 		return nil
+	}
+	if p.level() == LevelOff {
+		return &BrowserOffError{Kind: p.Kind}
 	}
 	u, err := url.Parse(strings.TrimSpace(rawURL))
 	if err != nil || u.Scheme == "" {
@@ -70,7 +114,16 @@ func (p Policy) Check(rawURL string) error {
 	if u.Hostname() == "" {
 		return &NotAllowedError{Origin: origin, Reason: "no host"}
 	}
+	for _, e := range p.Blocklist {
+		if entryMatches(e, u) {
+			return &SiteBlockedError{Origin: origin}
+		}
+	}
 	if IsLocal(rawURL) {
+		return nil
+	}
+	switch p.level() {
+	case LevelFull, LevelFullNoApprovals:
 		return nil
 	}
 	for _, e := range p.Allowlist {
@@ -78,13 +131,17 @@ func (p Policy) Check(rawURL string) error {
 			return nil
 		}
 	}
+	if p.level() == LevelAsk {
+		return &SiteNeedsApprovalError{Origin: origin, URL: rawURL, Kind: p.Kind}
+	}
 	return &NotAllowedError{Origin: origin, Reason: "not local and not on the allowlist"}
 }
 
 // SubmitGated reports whether a form submit on rawURL waits for a person's
-// approval: an agent on an allowed origin that is not local.
+// approval: an agent on an allowed origin that is not local, unless its
+// level is full-no-approvals.
 func (p Policy) SubmitGated(rawURL string) bool {
-	return p.Agent && p.Allowed(rawURL) && !IsLocal(rawURL)
+	return p.Agent && p.level() != LevelFullNoApprovals && p.Allowed(rawURL) && !IsLocal(rawURL)
 }
 
 // IsLocal reports whether rawURL is an http(s) page on this machine or a
@@ -209,9 +266,18 @@ type allowlistDoc struct {
 	Origins []string `json:"origins"`
 }
 
-// LoadAllowlist reads the user's allowlist; none stored is an empty list.
-// Entries that no longer normalize are dropped.
+// LoadAllowlist is the allow rules of the permissions (LoadPermissions).
 func LoadAllowlist(db *sql.DB) ([]string, error) {
+	p, err := LoadPermissions(db)
+	if err != nil {
+		return nil, err
+	}
+	return p.Sited(RuleAllow), nil
+}
+
+// loadOldAllowlist reads the allowlist setting that came before the
+// permissions; none stored is an empty list.
+func loadOldAllowlist(db *sql.DB) ([]string, error) {
 	var raw string
 	err := db.QueryRow(`SELECT config_data FROM configs WHERE name = ?`, AllowlistSetting).Scan(&raw)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -233,31 +299,24 @@ func LoadAllowlist(db *sql.DB) ([]string, error) {
 	return out, nil
 }
 
-// SaveAllowlist stores entries (normalized, deduplicated, sorted).
+// SaveAllowlist makes entries the permissions' allow rules (block rules
+// are kept; an entry that was blocked becomes allowed).
 func SaveAllowlist(db *sql.DB, entries []string) error {
-	seen := map[string]bool{}
-	doc := allowlistDoc{Origins: []string{}}
-	for _, e := range entries {
-		n, err := NormalizeAllowEntry(e)
-		if err != nil {
-			return err
-		}
-		if !seen[n] {
-			seen[n] = true
-			doc.Origins = append(doc.Origins, n)
-		}
-	}
-	sort.Strings(doc.Origins)
-	b, err := json.Marshal(doc)
+	p, err := LoadPermissions(db)
 	if err != nil {
 		return err
 	}
-	_, err = db.Exec(`INSERT INTO configs (name, config_data, created_at, updated_at)
-		VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-		ON CONFLICT(name) DO UPDATE SET config_data = excluded.config_data, updated_at = excluded.updated_at`,
-		AllowlistSetting, string(b))
-	if err != nil {
-		return fmt.Errorf("saving the browser allowlist: %w", err)
+	kept := []SiteRule{}
+	for _, s := range p.Sites {
+		if s.Rule == RuleBlock {
+			kept = append(kept, s)
+		}
 	}
-	return nil
+	p.Sites = kept
+	for _, e := range entries {
+		if _, _, err := p.SetSite(e, RuleAllow); err != nil {
+			return err
+		}
+	}
+	return SavePermissions(db, p)
 }

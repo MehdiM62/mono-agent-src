@@ -42,6 +42,9 @@ func ContextKey() string {
 	}
 	who, agent := hilsend.Detect()
 	if !agent {
+		if AgentKind() == KindChat {
+			return "chat"
+		}
 		return "human"
 	}
 	if who.Role != "" {

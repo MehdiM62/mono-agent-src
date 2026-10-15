@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+
+	"github.com/monoes/mono-agent/internal/browserctl"
 )
 
 // browser browsers · tabs · open · navigate · reload · close
@@ -28,6 +30,19 @@ func newBrowserBrowsersCmd(cfg *globalConfig) *cobra.Command {
 		Example: "  monoagentcli --json browser browsers",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			if kind := browserctl.AgentKind(); kind != "" {
+				// Machine-wide, but still the browser: refused at level off.
+				off := false
+				if err := withPermissions(cfg, nil, func(p browserctl.Permissions) error {
+					off = p.Level(kind) == browserctl.LevelOff
+					return nil
+				}); err != nil {
+					return err
+				}
+				if off {
+					return browserErr(cmd, cfg, &browserctl.BrowserOffError{Kind: kind})
+				}
+			}
 			sender, err := browserBridge()
 			if err != nil {
 				return browserErr(cmd, cfg, err)

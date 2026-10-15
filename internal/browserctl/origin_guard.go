@@ -1,6 +1,8 @@
 package browserctl
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -89,7 +91,7 @@ func (s *Session) checkTab(id int) (u string, isBlank bool, err error) {
 	if blank(info.URL) {
 		return info.URL, s.policy.Agent, nil
 	}
-	return info.URL, false, s.policy.Check(info.URL)
+	return info.URL, false, s.check(info.URL)
 }
 
 // dropRefused cleans up a tab an agent's command took to a page it may not
@@ -124,4 +126,20 @@ func (s *Session) forget(id int) {
 	if s.tabID == id {
 		s.tabID, s.url, s.blankTab = 0, "", false
 	}
+}
+
+// check applies the policy to rawURL; at level ask, a new site's refusal
+// becomes the HIL item asking the user (AskSite) when the session has a
+// database.
+func (s *Session) check(rawURL string) error {
+	err := s.policy.Check(rawURL)
+	var ask *SiteNeedsApprovalError
+	if errors.As(err, &ask) && s.db != nil {
+		id, aerr := AskSite(context.Background(), s.db, s.profile, ask.Kind, rawURL, nil)
+		if aerr != nil {
+			return fmt.Errorf("%v (and asking the user failed: %v)", err, aerr)
+		}
+		return &SiteApprovalPendingError{HILID: id, Origin: ask.Origin, Kind: ask.Kind, Profile: s.profile}
+	}
+	return err
 }
