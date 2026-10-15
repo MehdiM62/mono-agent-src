@@ -59,7 +59,7 @@ AUTH
 
   Every request needs "Authorization: Bearer <credential>" except GET
   /health. The credential is generated on first start and stored in the
-  active profile's secrets vault (monoagentcli secret list, name
+  serving profile's secrets vault (monoagentcli secret list, name
   "httpapi-token"; monoagentcli secret reveal httpapi-token --reveal to
   print it). Loopback-only bind by default (127.0.0.1:9322) — override
   with --addr or MONOAGENT_HTTPAPI_ADDR.

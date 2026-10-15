@@ -7,7 +7,7 @@ import (
 
 func refPublicationCmd() *cobra.Command {
 	return &cobra.Command{Use: "publication", Short: "Published content history, automatic capture and custom registration", Args: cobra.NoArgs, Run: func(cmd *cobra.Command, args []string) {
-		fmt.Fprintln(cmd.OutOrStdout(), `Publication is the active profile's local history of successfully published content.
+		fmt.Fprintln(cmd.OutOrStdout(), `Publication is a profile's local history of successfully published content.
 It stores posts, comments, replies, articles, videos and shared channel posts with
 their content, destination, live URL/remote ID when returned, timestamp and source.
 

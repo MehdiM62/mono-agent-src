@@ -13,7 +13,7 @@ import (
 // openGatewayDB opens the database for the OpenAI-compatible API on a copy of
 // the configuration. initDB resolves cfg.ProfileID to the active profile when
 // no --profile was given, and the HTTP API server must keep seeing what it
-// always saw, or its own fallback (MONOAGENT_PROFILE) is lost.
+// always saw, or its own fallback (MONOAGENT_PROFILE, being removed) is lost.
 func openGatewayDB(cfg *globalConfig) (*storage.Database, error) {
 	c := *cfg
 	return initDB(&c)

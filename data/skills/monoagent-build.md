@@ -7,10 +7,16 @@ description: Build, test and fix a monoagent workflow end to end — find an exi
 
 `monoagentcli` is a global CLI; all state lives in `~/.monoagent/`, so every
 command works from any directory. Put `--json` **before** the subcommand
-(`monoagentcli --json workflow validate ...`) whenever you will parse the
+(`monoagentcli --profile <profile> --json workflow validate ...`) whenever you will parse the
 output. `monoagentcli ref workflow`, `ref nodes`, `ref node <type>`,
 `ref expressions` and `ref examples` are offline and always match the
 installed version: read them instead of guessing.
+
+Commands that act on a profile take an explicit `--profile <profile>` (an id or
+name; `monoagentcli profile list` shows them, and ask the user which one if
+more than one fits). The examples write it as `--profile <profile>`. There is no
+active profile. Today a scoped command without it still runs with a warning;
+the next release refuses it.
 
 The loop, in order:
 
@@ -25,12 +31,12 @@ The loop, in order:
 ## 1. Find before you build
 
 ```bash
-monoagentcli workflow search [query]          # templates + saved workflows, each with its run command
+monoagentcli --profile <profile> workflow search [query]          # templates + saved workflows, each with its run command
 monoagentcli workflow templates list
 monoagentcli workflow templates show <id>     # inputs, nodes, exact run command
-monoagentcli workflow templates use <id>      # save an editable copy (starts inactive)
-monoagentcli workflow list
-monoagentcli workflow get <id>                # a saved workflow as JSON (the shape `save` reads)
+monoagentcli --profile <profile> workflow templates use <id>      # save an editable copy (starts inactive)
+monoagentcli --profile <profile> workflow list
+monoagentcli --profile <profile> workflow get <id>                # a saved workflow as JSON (the shape `save` reads)
 ```
 
 A template copy or an existing workflow you edit is almost always faster and
@@ -78,31 +84,31 @@ must be set. Branching nodes route by output handle: `core.if` emits on
   (an earlier node's first output item, by its **name**), helpers such as
   `upper`, `default`, `json`, `jsonParse` (see `ref expressions`).
 - Trigger data from `workflow run --input '{...}'` arrives as `$json`;
-  `monoagentcli workflow inputs <id>` lists the fields a workflow reads.
+  `monoagentcli --profile <profile> workflow inputs <id>` lists the fields a workflow reads.
 
 Save it:
 
 ```bash
-monoagentcli workflow save --file wf.json     # no "id": creates; with "id": replaces that workflow
-monoagentcli workflow import --file wf.json   # import a file (bundled automations: --yes)
+monoagentcli --profile <profile> workflow save --file wf.json     # no "id": creates; with "id": replaces that workflow
+monoagentcli --profile <profile> workflow import --file wf.json   # import a file (bundled automations: --yes)
 ```
 
 Or build it step by step:
 
 ```bash
-monoagentcli workflow create "Fetch and tag" --description "..."
-monoagentcli workflow node add <wf-id> --type http.request --name Fetch --config '{"method":"GET","url":"..."}'
-monoagentcli workflow node list <wf-id>
-monoagentcli workflow node set <wf-id> <node-id> --config '{...}'   # or --name, --x/--y
-monoagentcli workflow connect <wf-id> --from <nodeID>:main --to <nodeID>:main
-monoagentcli workflow disconnect <wf-id> <connection-id>
+monoagentcli --profile <profile> workflow create "Fetch and tag" --description "..."
+monoagentcli --profile <profile> workflow node add <wf-id> --type http.request --name Fetch --config '{"method":"GET","url":"..."}'
+monoagentcli --profile <profile> workflow node list <wf-id>
+monoagentcli --profile <profile> workflow node set <wf-id> <node-id> --config '{...}'   # or --name, --x/--y
+monoagentcli --profile <profile> workflow connect <wf-id> --from <nodeID>:main --to <nodeID>:main
+monoagentcli --profile <profile> workflow disconnect <wf-id> <connection-id>
 ```
 
 ## 4. Validate
 
 ```bash
-monoagentcli --json workflow validate --file wf.json   # before saving
-monoagentcli --json workflow validate <wf-id>          # a saved workflow
+monoagentcli --profile <profile> --json workflow validate --file wf.json   # before saving
+monoagentcli --profile <profile> --json workflow validate <wf-id>          # a saved workflow
 ```
 
 Exit 0 valid, 2 not found, 3 invalid. The JSON has `valid`, `errors[]`
@@ -118,35 +124,35 @@ Run one node type on its own with the config you intend to use and a sample
 input item, before wiring it in:
 
 ```bash
-monoagentcli node run http.request --config '{"method":"GET","url":"https://httpbin.org/get"}' --output json
-monoagentcli node run core.set --config '{"assignments":[{"field":"x","value":"{{ $json.a }}"}]}' \
+monoagentcli --profile <profile> node run http.request --config '{"method":"GET","url":"https://httpbin.org/get"}' --output json
+monoagentcli --profile <profile> node run core.set --config '{"assignments":[{"field":"x","value":"{{ $json.a }}"}]}' \
   --input '[{"json":{"a":1}}]' --output json
-echo '{"config":{...},"input":[...]}' | monoagentcli node run <type> --stdin   # keeps secrets out of argv
+echo '{"config":{...},"input":[...]}' | monoagentcli --profile <profile> node run <type> --stdin   # keeps secrets out of argv
 ```
 
 Credentials resolve from saved connections; `--credential <id|platform>`
-overrides. Browser/social nodes need `monoagentcli login <platform>` first.
+overrides. Browser/social nodes need `monoagentcli --profile <profile> login <platform>` first.
 The output items you see here are what the next node gets as `$json`.
 
 ## 6. Dry-run, then run
 
 ```bash
-monoagentcli workflow run <wf-id> --dry-run                    # validate + execution order, nothing runs
-monoagentcli --json workflow run <wf-id> --input '{"url":"https://example.com"}'
-monoagentcli workflow run <wf-id> --no-wait                    # long runs: prints the execution id
-monoagentcli workflow run <wf-id> --timeout 30m
+monoagentcli --profile <profile> workflow run <wf-id> --dry-run                    # validate + execution order, nothing runs
+monoagentcli --profile <profile> --json workflow run <wf-id> --input '{"url":"https://example.com"}'
+monoagentcli --profile <profile> workflow run <wf-id> --no-wait                    # long runs: prints the execution id
+monoagentcli --profile <profile> workflow run <wf-id> --timeout 30m
 ```
 
 `--json` prints the execution record with each node's status and output
 items once the run ends (credential-like values masked; `--full-outputs`
 unmasks). Status `waiting` means a human-in-the-loop node paused it:
-`monoagentcli hil list`.
+`monoagentcli --profile <profile> hil list`.
 
 ## 7. Read the result and fix
 
 ```bash
-monoagentcli --json workflow executions <wf-id> --limit 5
-monoagentcli --json workflow execution <execution-id>
+monoagentcli --profile <profile> --json workflow executions <wf-id> --limit 5
+monoagentcli --profile <profile> --json workflow execution <execution-id>
 ```
 
 `workflow execution` gives `status`, `error_message` and `nodes[]`, each with
@@ -159,7 +165,7 @@ first whose `output_items` are empty or wrong) and fix by its error:
 | missing/required field, invalid config | `node schema <type>`; set the field with `workflow node set <wf-id> <node-id> --config` |
 | unknown node type | `node list` for the exact type; install the automation it needs |
 | template/expression error, `<no value>` | the field is not on `$json`: check the upstream node's `output_items`, use `$node["Name"]` |
-| credential / 401 / 403 / no session | `monoagentcli connect list`, `monoagentcli login <platform>`; pass `--credential` to `node run` to test |
+| credential / 401 / 403 / no session | `monoagentcli --profile <profile> connect list`, `monoagentcli --profile <profile> login <platform>`; pass `--credential` to `node run` to test |
 | timeout | raise the node's timeout field or `--timeout`; test the node alone |
 | rate limit / 429 | slow down (fewer items, a delay node), run again later |
 | empty output, no error | the upstream node returned nothing, or an `if` routed to the other handle |
@@ -167,8 +173,8 @@ first whose `output_items` are empty or wrong) and fix by its error:
 Then validate again (step 4) and re-run. Change one thing at a time and
 re-test that node with `node run` before running the whole workflow.
 
-When it works: `monoagentcli workflow activate <wf-id>` for schedule/webhook
-triggers (and keep `monoagentcli daemon` running).
+When it works: `monoagentcli --profile <profile> workflow activate <wf-id>` for schedule/webhook
+triggers (and keep `monoagentcli --profile <profile> daemon` running).
 
 ## MCP tool equivalents
 
