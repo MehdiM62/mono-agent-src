@@ -2561,7 +2561,7 @@ probabilities, in one ~100–300 ms request. It **never generates text**.
   host). `doctor` reports it as `jev.key`.
 
 ```bash
-printf '%s' "$KEY" | monoagentcli --profile work jev key set          # or: Settings › TypeSafe Jev in the app
+printf '%s' "$KEY" | monoagentcli jev key set          # or: Settings › TypeSafe Jev in the app
 monoagentcli --profile work --json jev status               # key source (never the key), model, surfaces + thresholds
 monoagentcli --profile work jev enable hil [--threshold 0.9] [--yes]
 monoagentcli --profile work jev disable hil                 # today's behaviour returns immediately

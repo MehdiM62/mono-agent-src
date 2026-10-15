@@ -51,6 +51,13 @@ var classes = map[string]string{
 
 	"api config": ClassGlobal,
 
+	// The TypeSafe key is machine-wide: `jev key set` and `jev key remove` act
+	// on the machine vault only. `jev key adopt` is cross-profile by design: it
+	// copies from profile vaults and spells the source by its own
+	// --from-profile (or takes the newest readable one). `jev key test` stays
+	// scoped: it falls back to the caller's profile vault.
+	"jev key set": ClassGlobal, "jev key remove": ClassGlobal, "jev key adopt": ClassGlobal,
+
 	"automation":                      ClassGlobal,
 	"automation list":                 ClassScoped, // login state of the profile's sessions
 	"automation show":                 ClassScoped,

@@ -175,7 +175,7 @@ one for a simple prompt, a stronger one for a hard or long one. It is off until
 you switch it on for the key's profile, and it needs the machine-wide Jev key (one key for all profiles):
 
 ```bash
-printf '%s' "$TYPESAFE_KEY" | monoagentcli --profile work jev key set   # or TYPESAFE_API_KEY in the server's environment
+printf '%s' "$TYPESAFE_KEY" | monoagentcli jev key set   # or TYPESAFE_API_KEY in the server's environment
 monoagentcli --profile work jev enable api_auto    # prints what is sent to TypeSafe, then asks (--yes in a script)
 monoagentcli --profile work api models             # its last line says whether auto works
 ```
