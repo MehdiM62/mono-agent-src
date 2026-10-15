@@ -45,7 +45,8 @@ export function useCoderConversation({ conversationId, create }) {
       let running = ''
       for (const turn of turns) {
         if (cancelled) return
-        built.push({ role: 'user', content: turn.prompt })
+        const user = { role: 'user', content: turn.prompt }
+        built.push(user)
         if (turn.status === 'active' && turn.ownedByThisInstance !== false) {
           // Still running: the live stream (useChatStream) shows it.
           running = turn.id
@@ -53,6 +54,7 @@ export function useCoderConversation({ conversationId, create }) {
         }
         // eslint-disable-next-line no-await-in-loop
         const state = await loadTurnState(conversationId, turn)
+        if (state?.attachments) user.attachments = state.attachments
         if (state) built.push({ role: 'turn', turnId: turn.id, state, ownedByThisInstance: turn.ownedByThisInstance !== false })
       }
       if (cancelled) return
@@ -74,12 +76,15 @@ export function useCoderConversation({ conversationId, create }) {
 
   // send resolves true once the turn started, false when it failed (the
   // error is in the transcript), and null when there was nothing to send or
-  // a turn is already starting or running.
-  const send = useCallback(async (text) => {
+  // a turn is already starting or running. attachments are the composer's
+  // (chatAttachments.js readAttachment): each is saved to the chat spool and
+  // the turn gets their paths.
+  const send = useCallback(async (text, attachments = []) => {
     const prompt = String(text || '').trim()
     if (!prompt || activeRef.current || sending.current) return null
     sending.current = true
-    setMessages(msgs => [...msgs, { role: 'user', content: prompt }])
+    const shown = attachments.map(({ name, mime, size, dataUrl }) => ({ name, mime, size, dataUrl }))
+    setMessages(msgs => [...msgs, shown.length ? { role: 'user', content: prompt, attachments: shown } : { role: 'user', content: prompt }])
     setStopRequested(false)
     try {
       let id = convId
@@ -91,9 +96,16 @@ export function useCoderConversation({ conversationId, create }) {
         if (conv.workspace) setMessages(msgs => [...msgs.slice(0, -1), { role: 'coder-init', workspace: conv.workspace }, ...msgs.slice(-1)])
       }
       const turnId = newTurnId()
+      const paths = []
+      for (const a of attachments) {
+        // eslint-disable-next-line no-await-in-loop
+        paths.push(await api.saveChatAttachment(id, a.name, a.base64))
+      }
       // Coder turns never get monoagent tools: the CLI refuses --tools for
       // a coder conversation.
-      const res = await api.startChatTurn(id, turnId, prompt, false, false)
+      const res = await (paths.length
+        ? api.startChatTurn(id, turnId, prompt, false, false, paths)
+        : api.startChatTurn(id, turnId, prompt, false, false))
       if (res?.ok === false) {
         setMessages(msgs => [...msgs, { role: 'error', content: t('bubbles.couldNotStart', { status: res.status }) }])
         return false
