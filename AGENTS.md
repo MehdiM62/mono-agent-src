@@ -811,7 +811,10 @@ through the same redaction as `workflow run --json` — pass
 the profile in the path in both standalone and daemon-hosted mode: another
 profile's workflow ID returns 404. Legacy workflows with no profile ID
 belong to `default`. The daemon still serves every profile's triggers
-internally. Full endpoint list:
+internally. A standalone `httpapi` starts one engine per profile on that
+profile's first mutating request, but the single webhook port is bound by only
+one of them: other profiles' webhook triggers are served only by `daemon`
+(the server prints a warning saying so at start). Full endpoint list:
 `internal/httpapi/openapi.yaml` (OpenAPI 3, validated in CI); curl
 walkthrough: `examples/httpapi-quickstart.md`; offline copy of this
 section: `monoagentcli ref api`.
