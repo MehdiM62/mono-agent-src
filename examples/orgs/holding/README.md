@@ -23,7 +23,7 @@ monoagentcli --profile work org group init hq
 monoagentcli --profile work org autonomy set sales --decider parent
 monoagentcli --profile work org autonomy set support --decider parent
 
-monoagentcli --profile work daemon &
+monoagentcli daemon &
 monoagentcli --profile work org serve
 monoagentcli --profile work org group start hq --task "A customer asks why their invoice doubled this month."
 monoagentcli --profile work org group status hq      # children, status, cost roll-up

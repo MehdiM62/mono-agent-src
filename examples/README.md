@@ -50,7 +50,7 @@ monoagentcli --profile work workflow run <id> --dry-run
 monoagentcli --profile work workflow activate <id>
 
 # 4. Start the daemon AFTER activation (or restart it) and keep it running:
-monoagentcli --profile work daemon
+monoagentcli daemon
 ```
 
 Note: an activated workflow's triggers are only served by a daemon started
@@ -64,7 +64,7 @@ The daemon serves webhook triggers at `http://127.0.0.1:9321/webhook/<path>`
 `<path>` segment is the trigger node's `path` config value, e.g. `"alerts"`
 below.
 
-First activate the workflow (`monoagentcli workflow activate <id>`), then
+First activate the workflow (`monoagentcli --profile work workflow activate <id>`), then
 run the daemon — triggers activated while a daemon is already running need
 a daemon restart before they fire.
 
@@ -90,7 +90,7 @@ curl -s http://127.0.0.1:9321/webhook/stripe \
 ```
 
 A `{"success":true}` response means the workflow was triggered; check the
-execution with `monoagentcli workflow executions <id>`.
+execution with `monoagentcli --profile work workflow executions <id>`.
 
 ### Binding the webhook server remotely
 
@@ -137,11 +137,11 @@ headers at all, so cross-origin browser requests are blocked outright.
 
 - **Credentials**: nodes with a `credential_id` field need a connection first —
   see `monoagentcli ref connections`. Secrets can be piped in via stdin
-  (`monoagentcli secret add --kind secret --name ...`), never argv.
+  (`monoagentcli --profile work secret add --kind secret --name ...`), never argv.
 - **AI steps**: `agent.ask` runs on a local agent CLI through monomind — no API
   key. Check what you have with `monoagentcli agent scan --installed` and set
   the node's `runtime` to one of them (see "How AI works in Mono Agent" in the
-  root README). `gemini.generate_image` needs `monoagentcli login gemini` once.
+  root README). `gemini.generate_image` needs `monoagentcli --profile work login gemini` once.
 - **Cron format** is 6-field (seconds first): `0 0 7 * * 1-5` = weekdays 07:00.
 - **Docker**: see `docker-compose.yml` in the repo root for running the daemon
   as a container with persistent state.
