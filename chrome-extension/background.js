@@ -57,6 +57,10 @@ importScripts("recorder_privacy.js", "recorder_outbox.js", "recorder_session.js"
 // Asked before every dial; see doConnect. The same module the side panel uses,
 // so "is that really the bridge?" has exactly one implementation.
 importScripts("bridge_health.js");
+// The coder's browser commands (plan C1): agent_cdp.js first, every other
+// agent module registers with it; agent_commands.js, the dispatch, last.
+importScripts("agent_cdp.js", "agent_tabs.js", "agent_screenshot.js", "agent_watch.js", "agent_a11y.js");
+importScripts("agent_submit_page.js", "agent_submit_guard.js", "agent_submit_prompt.js", "agent_commands.js");
 
 // ---------------------------------------------------------------------------
 // State
@@ -162,6 +166,10 @@ const SENSITIVE_COMMANDS = new Set([
   // Raw CDP is the most sensitive of the lot: it bypasses page CSP and can
   // read anything the tab can. Same origin check as the rest.
   "cdp", "cdp_attach", "cdp_detach",
+  // The coder's commands that read the page or change how it behaves
+  // (agent_*.js). list_tabs and tab_group only ask Chrome about tabs.
+  "screenshot", "emulate", "watch_tab", "read_console", "read_network", "a11y_tree",
+  "submit_guard", "submit_prompt",
 ]);
 
 // Commands that mean "the tab the user is looking at" when given no tabId.
@@ -764,6 +772,19 @@ async function handleCommand(cmd) {
         // storage listener below reports it back with a binding frame.
         result = await MonoBrowserBinding.setBinding(chrome.storage.local, params);
         break;
+      // The coder's browser commands (agent_commands.js).
+      case "list_tabs":
+      case "tab_group":
+      case "screenshot":
+      case "emulate":
+      case "watch_tab":
+      case "read_console":
+      case "read_network":
+      case "a11y_tree":
+      case "submit_guard":
+      case "submit_prompt":
+        result = await MonoAgentCommands.handle(cmd.type, params);
+        break;
       default:
         throw new Error(`Unknown command type: ${cmd.type}`);
     }
@@ -985,6 +1006,9 @@ function forgetDebugger(tabId) {
 }
 
 async function detachDebugger(tabId) {
+  // Not under a coder watch or emulation (agent_cdp.js): a capture's or a
+  // relay client's detach would end it. Chrome detaching still does.
+  if (MonoAgentCdp.holds(tabId)) return;
   forgetDebugger(tabId);
   try {
     await chrome.debugger.detach({ tabId });
@@ -998,6 +1022,8 @@ function sweepIdleDebuggers() {
   const now = Date.now();
   for (const tabId of debuggerAttached) {
     if (debuggerPinned.has(tabId)) continue;
+    // A coder watch or emulation holds its tab (agent_cdp.js).
+    if (MonoAgentCdp.holds(tabId)) continue;
     if (now - (debuggerLastUsed.get(tabId) || 0) > DEBUGGER_IDLE_DETACH_MS) {
       console.log("[monoagent] Detaching idle debugger from tab", tabId);
       detachDebugger(tabId);
@@ -1508,6 +1534,17 @@ MonoRecorderWiring.install({
   send: sendFrame,
   isConnected: openAndSignedIn,
   storage: chrome.storage.local,
+});
+
+// The coder's browser commands (agent_*.js) use the same debugger helpers
+// as the capture bridge and the CDP proxy; agent_cdp.js says when a tab is
+// held against the idle sweep.
+MonoAgentCommands.install({
+  attach: (tabId) => ensureDebuggerAttached({ tabId }, tabId),
+  cdp: (tabId, method, params) => debuggerSend({ tabId }, tabId, method, params),
+  onDebuggerEvent: (fn) => chrome.debugger.onEvent.addListener(fn),
+  onDebuggerDetach: (fn) => chrome.debugger.onDetach.addListener(fn),
+  onTabRemoved: (fn) => chrome.tabs.onRemoved.addListener(fn),
 });
 
 // The toolbar button opens the side panel rather than a popup: a panel
