@@ -35,12 +35,12 @@ func wantLoginRequired(t *testing.T, rec *httptest.ResponseRecorder, state, reas
 // state the bearer rules apply as before.
 func TestAuthenticatedRoutesAreRefusedWhileLocked(t *testing.T) {
 	s := newTestServer(t, false)
-	good := testToken(t, s)
+	good := testToken(t, s, "default")
 	for _, c := range doortest.Modes {
 		t.Run(c.Name, func(t *testing.T) {
 			accounttest.Install(t, c.Mode)
 			for _, bearer := range []string{good, "wrong", ""} {
-				rec := doReq(t, s, http.MethodGet, "/workflows", bearer, nil)
+				rec := doReq(t, s, http.MethodGet, "/profiles/default/workflows", bearer, nil)
 				switch {
 				case c.Refused:
 					wantLoginRequired(t, rec, c.State, c.Reason)
@@ -94,7 +94,8 @@ func TestHealthIsOpenInEveryStateAndReportsTheAccount(t *testing.T) {
 // one segment, which is no path under /v1.
 func TestLockedServerRefusesEveryPathButHealth(t *testing.T) {
 	paths := []struct{ method, path string }{
-		{"GET", "/workflows"}, {"POST", "/workflows/x/run"}, {"POST", "/hil/x/approve"}, {"GET", "/nodes/x/schema"},
+		{"GET", "/profiles/default/workflows"}, {"POST", "/profiles/default/workflows/x/run"}, {"POST", "/profiles/default/hil/x/approve"},
+			{"GET", "/profiles/nope/workflows"}, {"GET", "/workflows"}, {"POST", "/workflows/x/run"}, {"POST", "/hil/x/approve"}, {"GET", "/nodes/x/schema"},
 		{"POST", "/org-endpoint/x"}, {"GET", "/nope"}, {"POST", "/health"}, {"GET", "/health/"},
 		{"GET", "//workflows"}, {"GET", "/./workflows"}, {"GET", "/WORKFLOWS"}, {"GET", "/v1x"},
 		{"HEAD", "/nope"}, {"OPTIONS", "/workflows"}, {"OPTIONS", "/health"},
@@ -106,7 +107,7 @@ func TestLockedServerRefusesEveryPathButHealth(t *testing.T) {
 	}{{"read-only", false}, {"mutations allowed", true}} {
 		t.Run(server.name, func(t *testing.T) {
 			s := newTestServer(t, server.mutations)
-			tok := testToken(t, s)
+			tok := testToken(t, s, "default")
 			accounttest.Install(t, accounttest.LockedNoLogin)
 			for _, p := range paths {
 				wantLoginRequired(t, doReq(t, s, p.method, p.path, tok, nil), "locked", "not_logged_in")
@@ -129,7 +130,6 @@ func TestARouteMountedThroughExtraRoutesWithNoDoorIsRefused(t *testing.T) {
 	var reached int
 	s, err := NewServer(Options{
 		DBPath:       filepath.Join(t.TempDir(), "httpapi-test.db"),
-		Profile:      "default",
 		WorkflowsDir: filepath.Join(t.TempDir(), "workflows"),
 		Addr:         "127.0.0.1:0",
 		Version:      "test",
@@ -169,10 +169,10 @@ func TestAuthRefusesALockedAccountBeforeTheVault(t *testing.T) {
 
 	var ran bool
 	rec := httptest.NewRecorder()
-	s.auth(func(http.ResponseWriter, *http.Request) { ran = true }).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/workflows", nil))
+	s.profileAuth(func(http.ResponseWriter, *http.Request) { ran = true }).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/workflows", nil))
 
 	wantLoginRequired(t, rec, "locked", "not_logged_in")
-	entries, err := secrets.List(context.Background(), s.rt.db.DB, s.rt.profileID)
+	entries, err := secrets.List(context.Background(), s.rt.db.DB, "default")
 	if err != nil {
 		t.Fatal(err)
 	}

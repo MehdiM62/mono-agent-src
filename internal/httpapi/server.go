@@ -34,6 +34,9 @@ type Server struct {
 	// handler is mux behind the account gate: what Handler and Serve use.
 	handler http.Handler
 	rt      *runtime
+	// decoyToken is compared against when no profile matches the request, so
+	// an unknown profile costs what a wrong token for a real one does.
+	decoyToken string
 }
 
 // NewServer builds a Server. The runtime (DB, profile, engine) is bootstrapped
@@ -49,7 +52,12 @@ func NewServer(opts Options) (*Server, error) {
 		return nil, err
 	}
 
-	s := &Server{opts: opts, addr: opts.Addr, rt: rt}
+	decoy, err := generateToken()
+	if err != nil {
+		rt.Close()
+		return nil, fmt.Errorf("httpapi: %w", err)
+	}
+	s := &Server{opts: opts, addr: opts.Addr, rt: rt, decoyToken: decoy}
 	s.mux = s.routes()
 	s.handler = accountGate(s.mux)
 	return s, nil
@@ -96,6 +104,7 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 // Serve serves on an already-bound listener until ctx is cancelled, then
 // gracefully shuts down.
 func (s *Server) Serve(ctx context.Context, ln net.Listener) error {
+	s.ensureTokens(ctx)
 	httpSrv := &http.Server{
 		Handler:      s.handler,
 		ReadTimeout:  30 * time.Second,
@@ -123,25 +132,36 @@ func (s *Server) Serve(ctx context.Context, ln net.Listener) error {
 // endpoints are only registered when AllowMutations is set — an
 // unregistered path returns the mux's normal 404, not a 403, so no probe
 // can distinguish "opted out" from "doesn't exist".
+//
+// Everything that acts on a profile lives under /profiles/{profile}/ and is
+// authenticated with that profile's own token (auth.go). /health and /nodes*
+// belong to the machine and stay global.
 func (s *Server) routes() *http.ServeMux {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /health", s.handleHealth) // unauthenticated
 
-	mux.Handle("GET /workflows", s.auth(s.handleWorkflowList))
-	mux.Handle("GET /workflows/{id}", s.auth(s.handleWorkflowGet))
-	mux.Handle("GET /workflows/{id}/executions", s.auth(s.handleWorkflowExecutions))
-	mux.Handle("POST /workflows/{id}/validate", s.auth(s.handleWorkflowValidate))
-	mux.Handle("GET /nodes", s.auth(s.handleNodeList))
-	mux.Handle("GET /nodes/{type}/schema", s.auth(s.handleNodeSchema))
-	mux.Handle("GET /hil", s.auth(s.handleHilList))
+	mux.Handle("GET /profiles/{profile}/workflows", s.profileAuth(s.handleWorkflowList))
+	mux.Handle("GET /profiles/{profile}/workflows/{id}", s.profileAuth(s.handleWorkflowGet))
+	mux.Handle("GET /profiles/{profile}/workflows/{id}/executions", s.profileAuth(s.handleWorkflowExecutions))
+	mux.Handle("POST /profiles/{profile}/workflows/{id}/validate", s.profileAuth(s.handleWorkflowValidate))
+	mux.Handle("GET /nodes", s.anyProfileAuth(s.handleNodeList))
+	mux.Handle("GET /nodes/{type}/schema", s.anyProfileAuth(s.handleNodeSchema))
+	mux.Handle("GET /profiles/{profile}/hil", s.profileAuth(s.handleHilList))
 
 	if s.opts.AllowMutations {
-		mux.Handle("POST /workflows/{id}/run", s.auth(s.handleWorkflowRun))
-		mux.Handle("POST /workflows/{id}/activate", s.auth(s.handleWorkflowActivate))
-		mux.Handle("POST /workflows/{id}/deactivate", s.auth(s.handleWorkflowDeactivate))
-		mux.Handle("POST /hil/{id}/approve", s.auth(s.handleHilApprove))
-		mux.Handle("POST /hil/{id}/reject", s.auth(s.handleHilReject))
+		mux.Handle("POST /profiles/{profile}/workflows/{id}/run", s.profileAuth(s.handleWorkflowRun))
+		mux.Handle("POST /profiles/{profile}/workflows/{id}/activate", s.profileAuth(s.handleWorkflowActivate))
+		mux.Handle("POST /profiles/{profile}/workflows/{id}/deactivate", s.profileAuth(s.handleWorkflowDeactivate))
+		mux.Handle("POST /profiles/{profile}/hil/{id}/approve", s.profileAuth(s.handleHilApprove))
+		mux.Handle("POST /profiles/{profile}/hil/{id}/reject", s.profileAuth(s.handleHilReject))
+	}
+
+	// The routes before profiles were explicit: refused for every method, with
+	// a pointer to where they went. No credential is read and nothing is
+	// looked up, so the answer is the same to everyone.
+	for _, old := range []string{"/workflows", "/workflows/", "/hil", "/hil/"} {
+		mux.HandleFunc(old, handleRemovedRoute)
 	}
 
 	if s.opts.ExtraRoutes != nil {
@@ -151,34 +171,18 @@ func (s *Server) routes() *http.ServeMux {
 	return mux
 }
 
+// handleRemovedRoute answers the unprefixed /workflows and /hil routes, which
+// acted on whichever profile the server had picked at startup.
+func handleRemovedRoute(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusNotFound, map[string]string{
+		"error": "this route was removed: workflows and HIL items are addressed per profile",
+		"hint":  "/profiles/{profile}" + r.URL.Path,
+	})
+}
+
 // authHeaderPrefix precedes the credential value in a standard HTTP
 // Authorization header for this auth scheme.
 const authHeaderPrefix = "Bearer "
-
-// auth wraps h with bearer-credential enforcement. The credential is
-// generated (once, on first server start) and stored in the vault — see
-// token.go.
-func (s *Server) auth(h http.HandlerFunc) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// A locked account is refused before the vault is opened or the bearer is read.
-		if err := account.Require(r.Context()); err != nil {
-			accountdoor.WriteUnauthorized(w, err)
-			return
-		}
-		want, err := ensureToken(r.Context(), s.rt.db.DB, s.rt.profileID)
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, "resolve bearer credential: "+err.Error())
-			return
-		}
-		got := bearerCredential(r)
-		if got == "" || !constantTimeEqual(got, want) {
-			w.Header().Set("WWW-Authenticate", "Bearer realm=monoagentcli-httpapi")
-			writeError(w, http.StatusUnauthorized, "missing or invalid bearer credential")
-			return
-		}
-		h(w, r)
-	})
-}
 
 // accountGate refuses every request but GET and HEAD /health, and the /v1 paths
 // (whose gateway answers in the OpenAI envelope), while the account is locked.
