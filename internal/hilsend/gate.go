@@ -86,11 +86,10 @@ func Enabled(db *sql.DB) bool {
 	return on
 }
 
-func profileOf(ctx context.Context) string {
-	if p := vault.ProfileIDFromContext(ctx); p != "" {
-		return p
-	}
-	return "default"
+// profileOf is the profile the run acts for. There is no implicit "default":
+// a run without one has no queue to wait in.
+func profileOf(ctx context.Context) (string, bool) {
+	return vault.ProfileIDInContext(ctx)
 }
 
 // Guard is the workflow.ExecGuard that queues agent sends. It is installed by
@@ -109,7 +108,12 @@ func Guard(ctx context.Context, nodeType string, in workflow.NodeInput, config m
 		// Fail closed: an agent's send never runs unchecked.
 		return nil, true, fmt.Errorf("%s sends outward, and from an agent it must wait for approval, but there is no database to queue it in", nodeType)
 	}
-	st := Store{DB: db, Profile: profileOf(ctx)}
+	profile, ok := profileOf(ctx)
+	if !ok {
+		// Fail closed: an agent's send never runs unchecked.
+		return nil, true, fmt.Errorf("%s sends outward, and from an agent it must wait for approval, but the run has no profile to queue it in", nodeType)
+	}
+	st := Store{DB: db, Profile: profile}
 	if st.VerifyApproval(ctx, env(EnvApprovalID), env(EnvApprovalProof), nodeType) {
 		return nil, false, nil
 	}
