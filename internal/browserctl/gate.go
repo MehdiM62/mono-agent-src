@@ -53,7 +53,7 @@ type blockedEntry struct {
 
 func (s *Session) guard(action string) (guardStatus, error) {
 	var st guardStatus
-	err := s.Call(CmdSubmitGuard, map[string]interface{}{"action": action}, DefaultTimeout, &st)
+	err := s.Call(extension.CmdSubmitGuard, map[string]interface{}{"action": action}, DefaultTimeout, &st)
 	return st, err
 }
 
@@ -64,7 +64,7 @@ func (s *Session) BeforeAct(ctx context.Context, db *sql.DB) error {
 	if !s.Gated() {
 		return nil
 	}
-	if _, err := s.guard("arm"); err != nil {
+	if _, err := s.guard(extension.SubmitGuardArm); err != nil {
 		return fmt.Errorf("this page needs approval before any form is submitted, and its submit guard could not be armed (update the extension?): %w", err)
 	}
 	return s.takeBlocked(ctx, db)
@@ -89,7 +89,7 @@ func (s *Session) AfterAct(ctx context.Context, db *sql.DB) error {
 // takeBlocked turns guard records newer than the last reported one into
 // HIL items and returns the first as an *AwaitingApproval.
 func (s *Session) takeBlocked(ctx context.Context, db *sql.DB) error {
-	st, err := s.guard("status")
+	st, err := s.guard(extension.SubmitGuardStatus)
 	if err != nil {
 		return fmt.Errorf("reading the page's submit guard: %w", err)
 	}
@@ -230,28 +230,36 @@ func (s *Session) ProbeSubmit(selector string) (SubmitTarget, error) {
 // reached the page, so the approval can be handed back.
 var ErrNotSent = errors.New("nothing was submitted")
 
-// Resubmit performs an approved submit item on the session's tab: the
-// guard lets exactly one submit through, then the recorded submitter is
-// clicked, or the form submitted when there was none.
-func (s *Session) Resubmit(it SubmitItem) error {
-	if it.Form.Submitter == "" && it.Form.Selector == "" {
+// Resubmit performs an approved submit item on the session's tab
+// (ResubmitPage).
+func (s *Session) Resubmit(it SubmitItem) error { return ResubmitPage(s.Page(), it.Form) }
+
+// ResubmitPage repeats a held submit on page p: the guard lets exactly one
+// submit through, then the recorded submitter is clicked, or the form
+// requestSubmit()ted when there was none. A failure wrapping ErrNotSent
+// reached nothing on the page.
+func ResubmitPage(p *extension.ExtensionPage, f FormSummary) error {
+	if f.Submitter == "" && f.Selector == "" {
 		return fmt.Errorf("%w: the held submit recorded neither its submit control nor its form, so it cannot be repeated", ErrNotSent)
 	}
-	if _, err := s.guard("allow_once"); err != nil {
+	if _, err := p.SubmitGuard(extension.SubmitGuardAllowOnce); err != nil {
 		return fmt.Errorf("%w: letting the submit through: %v", ErrNotSent, err)
 	}
-	if it.Form.Submitter != "" {
-		_, err := s.Send(extension.CmdClick, map[string]interface{}{"selector": it.Form.Submitter}, DefaultTimeout)
-		return err
+	if f.Submitter != "" {
+		el, err := p.Element(f.Submitter, 10*time.Second)
+		if err != nil {
+			return err
+		}
+		return el.Click()
 	}
-	sel, _ := json.Marshal(it.Form.Selector)
-	res, err := s.Page().EvalCDP(fmt.Sprintf(`(() => { const f = document.querySelector(%s);
+	sel, _ := json.Marshal(f.Selector)
+	res, err := p.EvalCDP(fmt.Sprintf(`(() => { const f = document.querySelector(%s);
   if (!(f instanceof HTMLFormElement)) return false; f.requestSubmit(); return true; })()`, string(sel)))
 	if err != nil {
 		return err
 	}
 	if ok, _ := res.(bool); !ok {
-		return fmt.Errorf("the form %s is no longer on the page", it.Form.Selector)
+		return fmt.Errorf("the form %s is no longer on the page", f.Selector)
 	}
 	return nil
 }

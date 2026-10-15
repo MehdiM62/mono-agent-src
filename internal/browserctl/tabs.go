@@ -7,21 +7,6 @@ import (
 	"github.com/monoes/mono-agent/internal/extension"
 )
 
-// Bridge command types this package sends that the extension added for it
-// (C1). The older ones are extension.Cmd* constants.
-const (
-	CmdListTabs     = "list_tabs"
-	CmdTabGroup     = "tab_group"
-	CmdScreenshot   = "screenshot"
-	CmdEmulate      = "emulate"
-	CmdWatchTab     = "watch_tab"
-	CmdReadConsole  = "read_console"
-	CmdReadNetwork  = "read_network"
-	CmdA11yTree     = "a11y_tree"
-	CmdSubmitGuard  = "submit_guard"
-	CmdSubmitPrompt = "submit_prompt"
-)
-
 // loadTimeout bounds opening or navigating a tab (the extension waits for
 // the page to load).
 const loadTimeout = 60 * time.Second
@@ -42,7 +27,7 @@ func (s *Session) ListTabs() ([]Tab, error) {
 	var out struct {
 		Tabs []Tab `json:"tabs"`
 	}
-	if err := s.call(0, CmdListTabs, nil, DefaultTimeout, &out); err != nil {
+	if err := s.call(0, extension.CmdListTabs, nil, DefaultTimeout, &out); err != nil {
 		return nil, err
 	}
 	if out.Tabs == nil {
@@ -91,7 +76,7 @@ func (s *Session) OpenTab(url, group string) (int, error) {
 		group = GroupTitle()
 	}
 	if group != "" {
-		if err := s.call(s.tabID, CmdTabGroup, map[string]interface{}{"title": group}, DefaultTimeout, nil); err != nil {
+		if err := s.call(s.tabID, extension.CmdTabGroup, map[string]interface{}{"title": group}, DefaultTimeout, nil); err != nil {
 			return s.tabID, fmt.Errorf("tab %d opened, but grouping it failed: %w", s.tabID, err)
 		}
 	}
@@ -176,7 +161,7 @@ func (s *Session) CloseTab() error {
 
 // Watch turns the tab's console and network buffering on or off.
 func (s *Session) Watch(on bool) error {
-	_, err := s.Send(CmdWatchTab, map[string]interface{}{"on": on}, DefaultTimeout)
+	_, err := s.Send(extension.CmdWatchTab, map[string]interface{}{"on": on}, DefaultTimeout)
 	return err
 }
 
@@ -216,10 +201,10 @@ func (s *Session) markLoad() {
 	var c, n struct {
 		Next int `json:"next"`
 	}
-	if s.Call(CmdReadConsole, map[string]interface{}{"limit": 500}, DefaultTimeout, &c) != nil {
+	if s.Call(extension.CmdReadConsole, map[string]interface{}{"limit": 500}, DefaultTimeout, &c) != nil {
 		return
 	}
-	if s.Call(CmdReadNetwork, map[string]interface{}{"limit": 500}, DefaultTimeout, &n) != nil {
+	if s.Call(extension.CmdReadNetwork, map[string]interface{}{"limit": 500}, DefaultTimeout, &n) != nil {
 		return
 	}
 	if s.state.Loads == nil {
@@ -254,7 +239,7 @@ func (s *Session) Console(since int, levels []string, limit int) ([]ConsoleEntry
 		Entries []ConsoleEntry `json:"entries"`
 		Next    int            `json:"next"`
 	}
-	if err := s.Call(CmdReadConsole, params, DefaultTimeout, &out); err != nil {
+	if err := s.Call(extension.CmdReadConsole, params, DefaultTimeout, &out); err != nil {
 		return nil, 0, err
 	}
 	if out.Entries == nil {
@@ -280,7 +265,7 @@ func (s *Session) Network(since int, failedOnly bool, limit int) ([]NetworkEntry
 		Entries []NetworkEntry `json:"entries"`
 		Next    int            `json:"next"`
 	}
-	if err := s.Call(CmdReadNetwork, params, DefaultTimeout, &out); err != nil {
+	if err := s.Call(extension.CmdReadNetwork, params, DefaultTimeout, &out); err != nil {
 		return nil, 0, err
 	}
 	if out.Entries == nil {

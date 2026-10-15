@@ -33,7 +33,7 @@ func setEnv(t *testing.T, agent bool) {
 var pngBytes = []byte("\x89PNG\r\n\x1a\nfake")
 
 func withScreenshot(f *browserctltest.Fake) {
-	f.On(browserctl.CmdScreenshot, func(*extension.Command) (any, error) {
+	f.On(extension.CmdScreenshot, func(*extension.Command) (any, error) {
 		return map[string]any{"data": base64.StdEncoding.EncodeToString(pngBytes), "mime": "image/png", "width": 800, "height": 600}, nil
 	})
 }
@@ -78,7 +78,7 @@ func TestConsoleStartsAtTheLastLoad(t *testing.T) {
 	setEnv(t, true)
 	f := browserctltest.New()
 	newest := 4 // the first load's messages, replayed when the watch starts
-	f.On(browserctl.CmdReadConsole, func(c *extension.Command) (any, error) {
+	f.On(extension.CmdReadConsole, func(c *extension.Command) (any, error) {
 		since, _ := c.Params["since"].(int)
 		entries := []any{}
 		for seq := since + 1; seq <= newest; seq++ {
@@ -177,7 +177,7 @@ func TestSubmitGateHoldsBlockedSubmitsOnce(t *testing.T) {
 	withScreenshot(f)
 	tab := f.AddTab("https://example.com/new", "Coder · Agent", true)
 	blocked := []any{}
-	f.On(browserctl.CmdSubmitGuard, func(c *extension.Command) (any, error) {
+	f.On(extension.CmdSubmitGuard, func(c *extension.Command) (any, error) {
 		return map[string]any{"armed": true, "blocked": blocked}, nil
 	})
 	s, err := browserctl.Open(browserctl.Options{Sender: f, Allowlist: []string{"https://example.com"}})
@@ -224,7 +224,7 @@ func TestGateFailsClosedWhenTheGuardCannotArm(t *testing.T) {
 	setEnv(t, true)
 	f := browserctltest.New()
 	f.AddTab("https://example.com/", "Coder · Agent", true)
-	f.On(browserctl.CmdSubmitGuard, func(*extension.Command) (any, error) { return nil, errors.New("Unknown command: submit_guard") })
+	f.On(extension.CmdSubmitGuard, func(*extension.Command) (any, error) { return nil, errors.New("Unknown command: submit_guard") })
 	s, err := browserctl.Open(browserctl.Options{Sender: f, Allowlist: []string{"https://example.com"}})
 	if err != nil {
 		t.Fatal(err)
@@ -246,7 +246,7 @@ func TestLocalPagesAreNotGated(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, c := range f.Types() {
-		if c == browserctl.CmdSubmitGuard {
+		if c == extension.CmdSubmitGuard {
 			t.Fatalf("the guard was armed on localhost: %v", f.Types())
 		}
 	}
@@ -261,9 +261,11 @@ func TestResubmitClicksTheRecordedSubmitter(t *testing.T) {
 		t.Fatal(err)
 	}
 	calls := f.Calls()
-	last2 := calls[len(calls)-2:]
-	if last2[0].Type != "submit_guard" || last2[0].Params["action"] != "allow_once" || last2[1].Type != "click" || last2[1].Params["selector"] != "#send" {
-		t.Fatalf("calls = %+v", last2)
+	last := calls[len(calls)-3:]
+	if last[0].Type != extension.CmdSubmitGuard || last[0].Params["action"] != extension.SubmitGuardAllowOnce ||
+		last[1].Type != extension.CmdElement || last[1].Params["selector"] != "#send" ||
+		last[2].Type != extension.CmdClick || last[2].Params["elementId"] != "el:#send" {
+		t.Fatalf("calls = %+v", last)
 	}
 }
 

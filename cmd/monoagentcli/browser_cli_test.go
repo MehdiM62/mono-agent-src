@@ -38,7 +38,7 @@ func newBrowserTest(t *testing.T, agent bool) *browserTest {
 		t.Setenv("CLAUDECODE", "1")
 	}
 	fake := browserctltest.New()
-	fake.On(browserctl.CmdScreenshot, func(*extension.Command) (any, error) {
+	fake.On(extension.CmdScreenshot, func(*extension.Command) (any, error) {
 		return map[string]any{"data": base64.StdEncoding.EncodeToString([]byte("\x89PNG fake")), "mime": "image/png", "width": 375, "height": 812}, nil
 	})
 	old := browserBridge
@@ -158,9 +158,11 @@ func TestBrowserHeldSubmitExits3AndIsApprovedOnce(t *testing.T) {
 	if _, err := bt.run("submit", "--hil", hilID); exitCodeFor(err) != 3 || jsonCode(err) != "submit_pending" {
 		t.Fatalf("submit before approval: %v (%s)", err, jsonCode(err))
 	}
+	t.Setenv("CLAUDECODE", "") // the user approves it
 	if _, err := runHIL(t, bt.cfg, "approve", hilID[:8]); err != nil {
 		t.Fatalf("hil approve: %v", err)
 	}
+	t.Setenv("CLAUDECODE", "1")
 	res := bt.runJSON("submit", "--hil", hilID)
 	if res["status"] != "submitted" || int(res["tabId"].(float64)) != tab {
 		t.Fatalf("submit = %v", res)
@@ -168,8 +170,8 @@ func TestBrowserHeldSubmitExits3AndIsApprovedOnce(t *testing.T) {
 	calls := bt.fake.Calls()
 	var allowOnce, click bool
 	for _, c := range calls {
-		allowOnce = allowOnce || (c.Type == browserctl.CmdSubmitGuard && c.Params["action"] == "allow_once")
-		click = click || (c.Type == extension.CmdClick && c.Params["selector"] == "#send" && allowOnce)
+		allowOnce = allowOnce || (c.Type == extension.CmdSubmitGuard && c.Params["action"] == "allow_once")
+		click = click || (c.Type == extension.CmdClick && c.Params["elementId"] == "el:#send" && allowOnce)
 	}
 	if !allowOnce || !click {
 		t.Fatalf("submit did not let the guard through and click: %v", bt.fake.Types())
@@ -190,7 +192,9 @@ func TestBrowserSubmitHandsTheApprovalBackWhenTheTabMoved(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	db.Exec(`UPDATE hil_pending SET status = 'approved' WHERE id = ?`, it.ID)
+	if _, err := browserctl.DecideSubmitItem(t.Context(), db, "default", it.ID, true); err != nil {
+		t.Fatal(err)
+	}
 	bt.fake.SetURL(tab, "http://localhost:3000/")
 	if _, err := bt.run("submit", "--hil", it.ID); exitCodeFor(err) != 3 {
 		t.Fatalf("submit on a moved tab: %v", err)
@@ -238,7 +242,7 @@ func TestBrowserScreenshotEmulatesForTheShotOnly(t *testing.T) {
 	}
 	var emulate []extension.Command
 	for _, c := range bt.fake.Calls() {
-		if c.Type == browserctl.CmdEmulate {
+		if c.Type == extension.CmdEmulate {
 			emulate = append(emulate, c)
 		}
 	}
@@ -257,7 +261,7 @@ func TestBrowserScreenshotEmulatesForTheShotOnly(t *testing.T) {
 func TestBrowserConsoleWatchesThenReads(t *testing.T) {
 	bt := newBrowserTest(t, false)
 	bt.fake.AddTab("http://localhost:5173/", "", true)
-	bt.fake.On(browserctl.CmdReadConsole, func(c *extension.Command) (any, error) {
+	bt.fake.On(extension.CmdReadConsole, func(c *extension.Command) (any, error) {
 		return map[string]any{"entries": []any{map[string]any{"seq": 3, "level": "error", "text": "boom", "url": "http://localhost:5173/app.js", "line": 9}}, "next": 3}, nil
 	})
 	res := bt.runJSON("console", "--level", "error", "--since", "2")
@@ -266,10 +270,10 @@ func TestBrowserConsoleWatchesThenReads(t *testing.T) {
 		t.Fatalf("console = %v", res)
 	}
 	types := bt.fake.Types()
-	if i := indexOf(types, browserctl.CmdWatchTab); i < 0 || i > indexOf(types, browserctl.CmdReadConsole) {
+	if i := indexOf(types, extension.CmdWatchTab); i < 0 || i > indexOf(types, extension.CmdReadConsole) {
 		t.Fatalf("calls = %v", types)
 	}
-	read := bt.fake.Calls()[indexOf(types, browserctl.CmdReadConsole)]
+	read := bt.fake.Calls()[indexOf(types, extension.CmdReadConsole)]
 	if read.Params["since"] != 2 || len(read.Params["levels"].([]string)) != 1 {
 		t.Fatalf("read_console params = %v", read.Params)
 	}
@@ -292,5 +296,61 @@ func TestBrowserWithoutBridgeOrTab(t *testing.T) {
 	browserBridge = func() (browserctl.Sender, error) { return nil, browserctl.ErrNoBridge }
 	if _, err := bt.run("tabs"); exitCodeFor(err) != 4 {
 		t.Fatalf("no bridge: exit %d: %v", exitCodeFor(err), err)
+	}
+}
+
+// Only the operator decides a held submit: `hil approve|reject` refuse an
+// agent and leave the item pending, and `browser submit` refuses an approval
+// that did not come through them (the MCP server's hil_approve sets the
+// status alone). An approved submit may go through on a page the agent may
+// not otherwise drive.
+func TestBrowserSubmitApprovalIsTheOperators(t *testing.T) {
+	bt := newBrowserTest(t, true)
+	db := bt.db().DB
+	tab := bt.fake.AddTab("https://shop.example/checkout", "Coder · Agent", true)
+	held := func() string {
+		it, err := browserctl.CreateSubmitItem(t.Context(), db, browserctl.SubmitRequest{
+			URL: "https://shop.example/checkout", Via: "guard", TabID: tab, Instance: bt.fake.Instance,
+			Form: browserctl.FormSummary{Submitter: "#pay"},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return it.ID
+	}
+	status := func(id string) string {
+		var s string
+		db.QueryRow(`SELECT status FROM hil_pending WHERE id = ?`, id).Scan(&s)
+		return s
+	}
+
+	id := held()
+	for _, verb := range []string{"approve", "reject"} {
+		if _, err := runHIL(t, bt.cfg, verb, id); exitCodeFor(err) != 3 || status(id) != "pending" {
+			t.Fatalf("agent hil %s: %v, status %s", verb, err, status(id))
+		}
+	}
+
+	t.Setenv("CLAUDECODE", "")
+	if _, err := runHIL(t, bt.cfg, "approve", id[:8]); err != nil || status(id) != "approved" {
+		t.Fatalf("operator approve: %v, status %s", err, status(id))
+	}
+	rejected := held()
+	if _, err := runHIL(t, bt.cfg, "reject", rejected); err != nil || status(rejected) != "rejected" {
+		t.Fatalf("operator reject: %v, status %s", err, status(rejected))
+	}
+
+	t.Setenv("CLAUDECODE", "1")
+	if res := bt.runJSON("submit", "--hil", id); res["status"] != "submitted" {
+		t.Fatalf("agent submit on shop.example after approval: %v", res)
+	}
+	if _, err := bt.run("click", "#pay"); exitCodeFor(err) != 3 || jsonCode(err) != "origin_not_allowed" {
+		t.Fatalf("the approval let the agent keep driving shop.example: %v", err)
+	}
+
+	elsewhere := held()
+	db.Exec(`UPDATE hil_pending SET status = 'approved' WHERE id = ?`, elsewhere)
+	if _, err := bt.run("submit", "--hil", elsewhere); jsonCode(err) != "submit_not_operator_approved" {
+		t.Fatalf("submit of an MCP-style approval: %v (%s)", err, jsonCode(err))
 	}
 }

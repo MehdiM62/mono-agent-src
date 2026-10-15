@@ -52,9 +52,12 @@ func TestSubmitItemLifecycle(t *testing.T) {
 	if _, err := ClaimSubmitItem(ctx, db, "p1", it.ID); !errors.As(err, &se) || se.Status != "pending" {
 		t.Fatalf("claim before approval: %v", err)
 	}
-	// What `hil approve` does.
-	if _, err := db.Exec(`UPDATE hil_pending SET status='approved', edited_data='{}' WHERE id=? AND status='pending' AND profile_id='p1'`, it.ID); err != nil {
-		t.Fatal(err)
+	// What `hil approve` does for the operator.
+	if got, err := DecideSubmitItem(ctx, db, "p1", it.ID, true); err != nil || got.Status != "approved" || got.ApprovedBy != ApprovedByOperator {
+		t.Fatalf("approve: %+v, %v", got, err)
+	}
+	if _, err := DecideSubmitItem(ctx, db, "p1", it.ID, false); !errors.As(err, &se) || se.Status != "approved" {
+		t.Fatalf("second decision: %v", err)
 	}
 	if _, err := ClaimSubmitItem(ctx, db, "p1", it.ID); err != nil {
 		t.Fatalf("claim: %v", err)
@@ -77,6 +80,27 @@ func TestSubmitItemLifecycle(t *testing.T) {
 	}
 }
 
+func TestAnApprovalWithoutTheOperatorsStampCannotBeUsed(t *testing.T) {
+	actAsHuman(t)
+	ctx := context.Background()
+	db := testdb.Open(t).DB
+	it, err := CreateSubmitItem(ctx, db, SubmitRequest{URL: "https://example.com/", Via: "click",
+		RequestedBy: &hilsend.PreparedBy{AgentID: "chat"}})
+	if err != nil || it.RequestedBy.AgentID != "chat" {
+		t.Fatalf("create: %+v, %v", it, err)
+	}
+	// What the MCP server's and the HTTP API's hil_approve do: status only.
+	if _, err := db.Exec(`UPDATE hil_pending SET status='approved' WHERE id=?`, it.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ClaimSubmitItem(ctx, db, "default", it.ID); !errors.Is(err, ErrApprovedElsewhere) {
+		t.Fatalf("claim of an unstamped approval: %v", err)
+	}
+	if got, _ := GetSubmitItem(ctx, db, "default", it.ID); got.Status != "approved" || got.RequestedBy.AgentID != "chat" {
+		t.Fatalf("item = %+v", got)
+	}
+}
+
 func TestRejectedSubmitCannotBeUsed(t *testing.T) {
 	actAsHuman(t)
 	ctx := context.Background()
@@ -85,8 +109,8 @@ func TestRejectedSubmitCannotBeUsed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.Exec(`UPDATE hil_pending SET status='rejected' WHERE id=?`, it.ID); err != nil {
-		t.Fatal(err)
+	if got, err := DecideSubmitItem(ctx, db, "default", it.ID, false); err != nil || got.Status != "rejected" || got.ApprovedBy != "" {
+		t.Fatalf("reject: %+v, %v", got, err)
 	}
 	var se *SubmitStateError
 	if _, err := ClaimSubmitItem(ctx, db, "default", it.ID); !errors.As(err, &se) || se.Status != "rejected" {

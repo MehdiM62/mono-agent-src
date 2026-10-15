@@ -134,7 +134,7 @@ func (f *Fake) builtin(cmd *extension.Command) (any, error) {
 	}
 	str := func(k string) string { s, _ := cmd.Params[k].(string); return s }
 	switch cmd.Type {
-	case browserctl.CmdListTabs:
+	case extension.CmdListTabs:
 		ids := make([]int, 0, len(f.tabs))
 		for id := range f.tabs {
 			ids = append(ids, id)
@@ -169,19 +169,24 @@ func (f *Fake) builtin(cmd *extension.Command) (any, error) {
 		}
 		delete(f.tabs, cmd.TabID)
 		return map[string]any{"tabId": cmd.TabID}, nil
-	case browserctl.CmdTabGroup:
+	case extension.CmdTabGroup:
 		if err := needTab(); err != nil {
 			return nil, err
 		}
 		tab.GroupTitle, tab.GroupID = str("title"), 7
 		return map[string]any{"groupId": 7}, nil
-	case browserctl.CmdWatchTab:
+	case extension.CmdWatchTab:
 		if err := needTab(); err != nil {
 			return nil, err
 		}
 		return map[string]any{"watching": cmd.Params["on"]}, nil
-	case browserctl.CmdSubmitGuard:
+	case extension.CmdSubmitGuard:
 		return map[string]any{"armed": true, "blocked": []any{}}, nil
+	case extension.CmdElement:
+		if err := needTab(); err != nil {
+			return nil, err
+		}
+		return map[string]any{"elementId": "el:" + str("selector")}, nil
 	}
 	return map[string]any{"ok": true}, nil
 }
