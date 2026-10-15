@@ -83,6 +83,37 @@ func UnicodeHost(host string) string {
 	return a
 }
 
+// idnForms is host's xn-- form and the Unicode form it reads as, when host
+// is an internationalized name (the two differ); "", "" otherwise. A HIL
+// card shows both, so a look-alike name can't pass as the real one.
+func idnForms(host string) (ascii, unicode string) {
+	a, ok := canonHost(host)
+	if !ok {
+		return "", ""
+	}
+	if u := UnicodeHost(a); u != a {
+		return a, u
+	}
+	return "", ""
+}
+
+// itemHost is rawURL's host[:port] for a HIL item's name; an
+// internationalized name reads "bücher.example (xn--bcher-kva.example)".
+func itemHost(rawURL string) string {
+	u, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil || u.Host == "" {
+		return "a page"
+	}
+	a, uni := idnForms(u.Hostname())
+	if a == "" {
+		return u.Host
+	}
+	if p := u.Port(); p != "" {
+		uni += ":" + p
+	}
+	return uni + " (" + a + ")"
+}
+
 // plainASCII: only the characters of an ordinary host name, which the
 // browser keeps as they are (IDNA's stricter rules reject some, such as
 // "_" or "--" in the third and fourth place).

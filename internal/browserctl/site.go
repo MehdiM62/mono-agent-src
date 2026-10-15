@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -25,7 +26,9 @@ import (
 //
 //	execution_id  "browser:site:<id>" (no workflow waits on it)
 //	workflow_id   "browser.site"; node_id the same; node_name "Use <host>"
-//	readonly_data {origin,url,kind,requested_by}
+//	readonly_data {origin,url,kind,requested_by,asciiHost?,unicodeHost?}
+//	              (the host's xn-- and Unicode forms when it is an
+//	              internationalized name)
 //	node_config   {kind:"browser.site", agentKind, origin, decidedAt}
 
 // SiteKind marks a site item: its workflow_id, node_id and node_config kind.
@@ -88,6 +91,8 @@ type siteCard struct {
 	URL         string             `json:"url"`
 	Kind        string             `json:"kind"`
 	RequestedBy hilsend.PreparedBy `json:"requested_by"`
+	AsciiHost   string             `json:"asciiHost,omitempty"`
+	UnicodeHost string             `json:"unicodeHost,omitempty"`
 }
 
 type siteRecord struct {
@@ -142,12 +147,16 @@ func AskSite(ctx context.Context, db *sql.DB, profile, kind, rawURL string, by *
 		who = *by
 	}
 	id = uuid.NewString()
-	ro, _ := json.Marshal(siteCard{Origin: origin, URL: rawURL, Kind: kind, RequestedBy: who})
+	card := siteCard{Origin: origin, URL: rawURL, Kind: kind, RequestedBy: who}
+	if u, err := url.Parse(rawURL); err == nil {
+		card.AsciiHost, card.UnicodeHost = idnForms(u.Hostname())
+	}
+	ro, _ := json.Marshal(card)
 	nc, _ := json.Marshal(siteRecord{Kind: SiteKind, AgentKind: kind, Origin: origin})
 	_, err = db.ExecContext(ctx,
 		`INSERT INTO hil_pending (id, execution_id, workflow_id, node_id, node_name, status, readonly_data, editable_data, edited_data, node_config, profile_id)
 		 VALUES (?, ?, ?, ?, ?, 'pending', ?, '{}', '{}', ?, ?)`,
-		id, "browser:site:"+id, SiteKind, SiteKind, "Use "+hostOf(rawURL), string(ro), string(nc), profile)
+		id, "browser:site:"+id, SiteKind, SiteKind, "Use "+itemHost(rawURL), string(ro), string(nc), profile)
 	if err != nil {
 		return "", fmt.Errorf("storing the site approval: %w", err)
 	}

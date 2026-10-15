@@ -26,7 +26,9 @@ import (
 //	workflow_id   "browser.submit"; node_id the same; node_name "Submit on <host>"
 //	status        pending → approved (`hil approve`) or rejected →
 //	              consumed (`browser submit --hil`, once)
-//	readonly_data {origin,url,form,screenshot,requested_by}
+//	readonly_data {origin,url,form,screenshot,requested_by,asciiHost?,unicodeHost?}
+//	              (the host's xn-- and Unicode forms when it is an
+//	              internationalized name)
 //	editable_data {}
 //	node_config   the submit record (kind "browser.submit"): how to re-trigger it
 
@@ -137,6 +139,8 @@ type submitCard struct {
 	Form        FormSummary        `json:"form"`
 	Screenshot  string             `json:"screenshot,omitempty"`
 	RequestedBy hilsend.PreparedBy `json:"requested_by"`
+	AsciiHost   string             `json:"asciiHost,omitempty"`
+	UnicodeHost string             `json:"unicodeHost,omitempty"`
 }
 
 type submitRecord struct {
@@ -185,7 +189,11 @@ func CreateSubmitItem(ctx context.Context, db *sql.DB, req SubmitRequest) (Submi
 		Screenshot: req.Screenshot, RequestedBy: who, Via: req.Via, TabID: req.TabID,
 		Instance: req.Instance, Seq: req.Seq, FrameID: req.FrameID, FormDigest: digest,
 	}
-	ro, err := json.Marshal(submitCard{Origin: it.Origin, URL: it.URL, Form: it.Form, Screenshot: it.Screenshot, RequestedBy: it.RequestedBy})
+	card := submitCard{Origin: it.Origin, URL: it.URL, Form: it.Form, Screenshot: it.Screenshot, RequestedBy: it.RequestedBy}
+	if u, err := url.Parse(req.URL); err == nil {
+		card.AsciiHost, card.UnicodeHost = idnForms(u.Hostname())
+	}
+	ro, err := json.Marshal(card)
 	if err != nil {
 		return it, err
 	}
@@ -197,18 +205,11 @@ func CreateSubmitItem(ctx context.Context, db *sql.DB, req SubmitRequest) (Submi
 	_, err = db.ExecContext(ctx,
 		`INSERT INTO hil_pending (id, execution_id, workflow_id, node_id, node_name, status, readonly_data, editable_data, edited_data, node_config, profile_id)
 		 VALUES (?, ?, ?, ?, ?, 'pending', ?, '{}', '{}', ?, ?)`,
-		it.ID, "browser:"+it.ID, SubmitKind, SubmitKind, "Submit on "+hostOf(req.URL), string(ro), string(nc), req.Profile)
+		it.ID, "browser:"+it.ID, SubmitKind, SubmitKind, "Submit on "+itemHost(req.URL), string(ro), string(nc), req.Profile)
 	if err != nil {
 		return it, fmt.Errorf("storing the submit approval: %w", err)
 	}
 	return it, nil
-}
-
-func hostOf(raw string) string {
-	if u, err := url.Parse(raw); err == nil && u.Host != "" {
-		return u.Host
-	}
-	return "a page"
 }
 
 // GetSubmitItem reads one submit item by id or unique id prefix.
