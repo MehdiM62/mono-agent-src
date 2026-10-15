@@ -60,6 +60,8 @@ type FormFiller interface {
 	Facts(ctx context.Context, profile string, queries []string) ([]FormFact, error)
 	// Complete runs one tool-less model turn and returns its text.
 	Complete(ctx context.Context, runtime, model, prompt string) (string, error)
+	// Info is what the profile's Info page holds (never photos or the card).
+	Info(ctx context.Context, profile string) ([]InfoValue, error)
 }
 
 // FormField is one field as the extension described it.
@@ -245,23 +247,53 @@ func handleFormFill(ctx context.Context, f FormFiller, req *Request) (any, error
 		return &FormFillReply{Values: []FormValue{}, Skipped: skipped}, nil
 	}
 
-	facts, err := f.Facts(ctx, profile, formQueries(fields))
+	// The Info page first, matched field by field with no model: its values
+	// are the person's own and the default for every site. What it does not
+	// answer goes to the model, with the Info and then the profile's documents
+	// as facts.
+	info, err := f.Info(ctx, profile)
 	if err != nil {
+		info = nil // the documents may still answer
+	}
+	exact, rest := matchInfo(fields, info)
+	if len(rest) == 0 {
+		return &FormFillReply{Values: exact, Skipped: skipped}, nil
+	}
+	facts, err := f.Facts(ctx, profile, formQueries(rest))
+	if err != nil && len(exact) == 0 && len(info) == 0 {
 		return nil, Unavailable("cannot search this profile's documents: %v", err)
 	}
-	facts = trimFacts(facts)
-	if len(facts) == 0 {
-		return &FormFillReply{Values: []FormValue{}, Skipped: skipped + len(fields)}, nil
+	facts = append(trimFacts(facts), modelFacts(info)...)
+	values := exact
+	if len(facts) > 0 {
+		text, err := f.Complete(ctx, runtime, model, buildFormPrompt(rest, facts))
+		if err != nil {
+			if len(exact) == 0 {
+				return nil, Unavailable("the model could not fill the form: %v", err)
+			}
+		} else if got, err := parseFormAnswer(text, rest, facts); err == nil {
+			values = append(values, got...)
+		} else if len(exact) == 0 {
+			return nil, Unavailable("the model's answer was not usable")
+		}
 	}
-	text, err := f.Complete(ctx, runtime, model, buildFormPrompt(fields, facts))
-	if err != nil {
-		return nil, Unavailable("the model could not fill the form: %v", err)
-	}
-	values, err := parseFormAnswer(text, fields, facts)
-	if err != nil {
-		return nil, Unavailable("the model's answer was not usable")
-	}
+	values = inFormOrder(fields, values)
 	return &FormFillReply{Values: values, Skipped: skipped + len(fields) - len(values)}, nil
+}
+
+// inFormOrder sorts values into the order of fields.
+func inFormOrder(fields []FormField, values []FormValue) []FormValue {
+	byID := make(map[string]FormValue, len(values))
+	for _, v := range values {
+		byID[v.ID] = v
+	}
+	out := make([]FormValue, 0, len(values))
+	for _, f := range fields {
+		if v, ok := byID[f.ID]; ok {
+			out = append(out, v)
+		}
+	}
+	return out
 }
 
 func trimFacts(in []FormFact) []FormFact {

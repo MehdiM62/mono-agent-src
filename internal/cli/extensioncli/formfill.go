@@ -44,6 +44,32 @@ func (f formFiller) Facts(ctx context.Context, profile string, queries []string)
 	return out, nil
 }
 
+// Info implements extension.FormFiller: the profile's Info page values, minus
+// photos and the card (a card is filled only by its own button, never here).
+func (f formFiller) Info(ctx context.Context, profile string) ([]extension.InfoValue, error) {
+	db, err := capturecli.OpenProfileDB(f.path)
+	if err != nil {
+		return nil, err
+	}
+	defer db.Close()
+	entries, err := profileinfo.Get(ctx, db.DB, profile, true)
+	if err != nil {
+		return nil, err
+	}
+	var out []extension.InfoValue
+	for _, e := range entries {
+		fd := profileinfo.Lookup(e.Key)
+		if fd == nil || fd.Card || fd.Kind == profileinfo.Photo || e.Value == "" {
+			continue
+		}
+		out = append(out, extension.InfoValue{
+			Key: fd.Key, Label: fd.Label, Kind: string(fd.Kind), Autocomplete: fd.Autocomplete,
+			Sensitive: fd.Sensitive, Value: e.Value,
+		})
+	}
+	return out, nil
+}
+
 // Complete implements extension.FormFiller.
 func (f formFiller) Complete(ctx context.Context, runtime, model, prompt string) (string, error) {
 	if runtime == "" {

@@ -282,7 +282,7 @@
       const r = await ask({ type: "form_fill", profile: currentProfile(), windowId: typeof here !== "undefined" ? here.windowId : undefined });
       if (!r.ok) refusal = r.error || "The form could not be filled.";
       else if (r.none) refusal = "No empty fields to fill on this page.";
-      else if (!r.filled) refusal = "Nothing in this profile's documents answers this form.";
+      else if (!r.filled) refusal = "Nothing in this profile's Info or documents answers this form.";
       else {
         const from = r.sources && r.sources.length ? ` from ${r.sources.slice(0, 3).join(", ")}` : "";
         refusal = `Filled ${r.filled} of ${r.found} fields${from}. Check them, then submit yourself.`;
