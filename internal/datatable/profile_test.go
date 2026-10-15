@@ -1,0 +1,55 @@
+package datatable_test
+
+import (
+	"context"
+	"errors"
+	"testing"
+
+	"github.com/monoes/mono-agent/internal/datatable"
+	"github.com/monoes/mono-agent/internal/profiledir"
+	"github.com/monoes/mono-agent/internal/testdb"
+)
+
+// A store built with no profile refuses every call: there is no default
+// profile to fall back on.
+func TestEmptyProfileRefusesEveryMethod(t *testing.T) {
+	ctx := context.Background()
+	s := datatable.New(testdb.Open(t).DB, "")
+	tbl := datatable.Table{ID: "t", Name: "T"}
+	rows := []map[string]interface{}{{"a": 1}}
+	calls := map[string]func() error{
+		"CreateTable": func() error { _, err := s.CreateTable(ctx, "T", nil); return err },
+		"FindTable":   func() error { _, err := s.FindTable(ctx, "T"); return err },
+		"ListTables":  func() error { _, err := s.ListTables(ctx); return err },
+		"CountRows":   func() error { _, err := s.CountRows(ctx, tbl); return err },
+		"RenameTable": func() error { _, err := s.RenameTable(ctx, tbl, "U"); return err },
+		"DeleteTable": func() error { return s.DeleteTable(ctx, tbl) },
+		"ClearTable":  func() error { _, err := s.ClearTable(ctx, tbl); return err },
+		"Select":      func() error { _, err := s.Select(ctx, tbl, datatable.Query{}); return err },
+		"Insert":      func() error { _, err := s.Insert(ctx, &tbl, rows); return err },
+		"Update":      func() error { _, err := s.Update(ctx, &tbl, datatable.Filter{}, rows[0], false); return err },
+		"Upsert":      func() error { _, err := s.Upsert(ctx, &tbl, datatable.Filter{}, rows[0], false); return err },
+		"Delete":      func() error { _, err := s.Delete(ctx, tbl, datatable.Filter{}, false); return err },
+	}
+	for name, call := range calls {
+		if err := call(); !errors.Is(err, profiledir.ErrNoProfile) {
+			t.Errorf("%s with no profile: %v, want ErrNoProfile", name, err)
+		}
+	}
+}
+
+// One profile's tables are invisible to another's.
+func TestTablesAreIsolatedPerProfile(t *testing.T) {
+	ctx := context.Background()
+	db := testdb.Open(t).DB
+	a, b := datatable.New(db, "A"), datatable.New(db, "B")
+	if _, err := a.CreateTable(ctx, "Leads", []datatable.Column{{Name: "name"}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := b.FindTable(ctx, "Leads"); err == nil {
+		t.Error("profile B found profile A's table")
+	}
+	if list, err := b.ListTables(ctx); err != nil || len(list) != 0 {
+		t.Errorf("profile B lists %v, %v", list, err)
+	}
+}
