@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/monoes/mono-agent/internal/browserctl"
+	"github.com/monoes/mono-agent/internal/nodes/browserjev"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -177,5 +179,46 @@ func TestStoppedWaitReportsCancelledRun(t *testing.T) {
 	}
 	if err == nil || err.Error() != "execution e1 was cancelled" {
 		t.Errorf("err = %v, want the run reported cancelled", err)
+	}
+}
+
+// A run an agent starts carries that to the engine that runs it: the
+// daemon adopting a --no-wait run gates browser.jev's submits too.
+func TestRunMarksAnAgentsRun(t *testing.T) {
+	cfg := runDB(t, true)
+	for _, k := range append(browserctl.AgentContextEnv(), browserjev.EnvAICaller) {
+		t.Setenv(k, "")
+	}
+	mark := func() interface{} {
+		t.Helper()
+		out, err := runWorkflowCmdIn(t, cfg, "", "run", "w", "--no-wait", "--input", `{"who":"zed"}`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var rec map[string]string
+		if err := json.Unmarshal([]byte(out), &rec); err != nil {
+			t.Fatal(err)
+		}
+		db, err := openTestDB(cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer db.Close()
+		var raw string
+		if err := db.DB.QueryRow(`SELECT trigger_data FROM workflow_executions WHERE id = ?`, rec["execution_id"]).Scan(&raw); err != nil {
+			t.Fatal(err)
+		}
+		var data map[string]interface{}
+		if err := json.Unmarshal([]byte(raw), &data); err != nil || data["who"] != "zed" {
+			t.Fatalf("trigger data %s: %v", raw, err)
+		}
+		return data[workflow.AICallerKey]
+	}
+	if got := mark(); got != nil {
+		t.Errorf("the user's run is not marked: %v", got)
+	}
+	t.Setenv(browserjev.EnvAICaller, "chat")
+	if got := mark(); got != "chat" {
+		t.Errorf("a chat tool call's run: %v", got)
 	}
 }
