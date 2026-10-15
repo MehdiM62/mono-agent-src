@@ -26,7 +26,7 @@ func newBrowserAllowCmd(cfg *globalConfig) *cobra.Command {
 		Example: "  monoagentcli --json browser allow list",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return withBrowserAllowlist(cfg, func(list []string) ([]string, error) { return nil, nil }, func(list []string) error {
+			return withBrowserAllowlist(cfg, nil, func(list []string) error {
 				return browserOut(cmd, cfg, map[string]any{"origins": list}, func() {
 					if len(list) == 0 {
 						fmt.Fprintln(cmd.OutOrStdout(), "No origins allowed besides local and dev pages.")
@@ -51,7 +51,10 @@ func newBrowserAllowCmd(cfg *globalConfig) *cobra.Command {
 			if err != nil {
 				return errInvalidInput("%v", err)
 			}
-			return withBrowserAllowlist(cfg, func(list []string) ([]string, error) { return append(list, entry), nil }, func(list []string) error {
+			return withBrowserAllowlist(cfg, func(p *browserctl.Permissions) error {
+				_, _, err := p.SetSite(entry, browserctl.RuleAllow)
+				return err
+			}, func(list []string) error {
 				return browserOut(cmd, cfg, map[string]any{"origins": list, "added": entry}, func() {
 					fmt.Fprintf(cmd.OutOrStdout(), "Agents may now drive %s\n", entry)
 				})
@@ -71,17 +74,12 @@ func newBrowserAllowCmd(cfg *globalConfig) *cobra.Command {
 			if err != nil {
 				return errInvalidInput("%v", err)
 			}
-			return withBrowserAllowlist(cfg, func(list []string) ([]string, error) {
-				out := []string{}
-				for _, o := range list {
-					if o != entry {
-						out = append(out, o)
-					}
+			return withBrowserAllowlist(cfg, func(p *browserctl.Permissions) error {
+				if p.Rule(entry) != browserctl.RuleAllow {
+					return errNotFound("%s is not on the list", entry)
 				}
-				if len(out) == len(list) {
-					return nil, errNotFound("%s is not on the list", entry)
-				}
-				return out, nil
+				_, _, err := p.SetSite(entry, "clear")
+				return err
 			}, func(list []string) error {
 				return browserOut(cmd, cfg, map[string]any{"origins": list, "removed": entry}, func() {
 					fmt.Fprintf(cmd.OutOrStdout(), "Agents no longer drive %s\n", entry)
@@ -92,29 +90,23 @@ func newBrowserAllowCmd(cfg *globalConfig) *cobra.Command {
 	return cmd
 }
 
-// withBrowserAllowlist loads the allowlist, lets change return a new one
-// (nil: no change) to save, and hands the result to done.
-func withBrowserAllowlist(cfg *globalConfig, change func([]string) ([]string, error), done func([]string) error) error {
+// withBrowserAllowlist applies change (nil: none) to the permissions
+// atomically (browserctl.UpdatePermissions), and hands the allow rules
+// after it to done.
+func withBrowserAllowlist(cfg *globalConfig, change func(*browserctl.Permissions) error, done func([]string) error) error {
 	db, err := initDB(cfg)
 	if err != nil {
 		return fmt.Errorf("initializing database: %w", err)
 	}
 	defer db.Close()
-	list, err := browserctl.LoadAllowlist(db.DB)
+	var p browserctl.Permissions
+	if change == nil {
+		p, err = browserctl.LoadPermissions(db.DB)
+	} else {
+		p, err = browserctl.UpdatePermissions(db.DB, change)
+	}
 	if err != nil {
 		return err
 	}
-	next, err := change(list)
-	if err != nil {
-		return err
-	}
-	if next != nil {
-		if err := browserctl.SaveAllowlist(db.DB, next); err != nil {
-			return err
-		}
-		if list, err = browserctl.LoadAllowlist(db.DB); err != nil {
-			return err
-		}
-	}
-	return done(list)
+	return done(p.Sited(browserctl.RuleAllow))
 }

@@ -31,7 +31,7 @@ func TestRefBrowserTopic(t *testing.T) {
 		"<width>-<media>.png", "--viewport | --element <sel>", "ratio is near 0", "An AI-started run also follows WHERE AN AGENT MAY GO",
 		"eval_not_allowed", "origin_changed", "submit_changed", "submit_unbound", "tab_blank", "tab's current site",
 		"Pass --profile <id> on every command", "browser permissions", "full-no-approvals", "browser_off", "site_blocked",
-		"site_needs_approval", "never change it", "Defaults: coder and other dev, chat and org full", "monoagentcli --profile <id> --json browser open", "monoagentcli --profile <id> browser submit --hil <id>",
+		"site_needs_approval", "never change it", "Defaults: coder, org and other dev, chat full", "monoagentcli --profile <id> --json browser open", "monoagentcli --profile <id> browser submit --hil <id>",
 	} {
 		if !strings.Contains(out.String(), want) {
 			t.Errorf("`ref browser` misses %q", want)

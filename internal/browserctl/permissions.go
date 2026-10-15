@@ -48,7 +48,7 @@ type LevelInfo struct {
 // GUI shows verbatim.
 func Catalog() []LevelInfo {
 	return []LevelInfo{
-		{LevelFullNoApprovals, "Full access, no approvals", "Any site; form submits go through without asking you."},
+		{LevelFullNoApprovals, "Full access, no approvals", "Any site; form submits go through without asking you, and scripts run on any page, where they can read that site's cookies and storage."},
 		{LevelFull, "Full access", "Any site; a form submit on a real site waits for your approval."},
 		{LevelDev, "Dev pages + allowed sites", "Localhost and dev pages, plus sites you allow; submits on real sites wait for your approval."},
 		{LevelAsk, "Ask for new sites", "Like dev pages + allowed sites, but a new site asks you first instead of being refused."},
@@ -71,8 +71,10 @@ func KindLabel(kind string) string {
 	return kind
 }
 
-// DefaultLevels are the levels of kinds the user did not set.
-var DefaultLevels = map[string]string{KindCoder: LevelDev, KindOrg: LevelFull, KindChat: LevelFull, KindOther: LevelDev}
+// DefaultLevels are the levels of kinds the user did not set: dev pages
+// for every agent shell, as shipped in v0.141.0; the in-app chat keeps any
+// site behind submit approvals, as it had.
+var DefaultLevels = map[string]string{KindCoder: LevelDev, KindOrg: LevelDev, KindChat: LevelFull, KindOther: LevelDev}
 
 // Site rules.
 const (
@@ -80,8 +82,10 @@ const (
 	RuleBlock = "block"
 )
 
-// SiteRule is one site's rule; Origin is as NormalizeAllowEntry returns it
-// (scheme://host[:port] or *.host).
+// SiteRule is one site's rule; Origin is in its canonical stored form
+// (scheme://host[:port] or *.host, and for a block also a bare host). An
+// allow admits exactly that origin (*.host: the host and its subdomains);
+// a block covers the host and its subdomains on every scheme and port.
 type SiteRule struct {
 	Origin string `json:"origin"`
 	Rule   string `json:"rule"`
@@ -124,10 +128,29 @@ func validKind(kind string) bool {
 // default level. With no setting yet, the old allowlist (browser_agent_
 // allowlist) is read as allow rules; the first SavePermissions keeps them.
 func LoadPermissions(db *sql.DB) (Permissions, error) {
-	p := DefaultPermissions()
-	var raw string
-	err := db.QueryRow(`SELECT config_data FROM configs WHERE name = ?`, PermissionsSetting).Scan(&raw)
+	raw, found, err := permissionsRow(db)
+	if err != nil {
+		return DefaultPermissions(), err
+	}
+	return parsePermissions(db, raw, found)
+}
+
+// permissionsRow is the stored setting's text; found is false when there
+// is none yet.
+func permissionsRow(db *sql.DB) (raw string, found bool, err error) {
+	err = db.QueryRow(`SELECT config_data FROM configs WHERE name = ?`, PermissionsSetting).Scan(&raw)
 	if errors.Is(err, sql.ErrNoRows) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, fmt.Errorf("reading the browser permissions: %w", err)
+	}
+	return raw, true, nil
+}
+
+func parsePermissions(db *sql.DB, raw string, found bool) (Permissions, error) {
+	p := DefaultPermissions()
+	if !found {
 		old, err := loadOldAllowlist(db)
 		if err != nil {
 			return p, err
@@ -136,9 +159,6 @@ func LoadPermissions(db *sql.DB) (Permissions, error) {
 			p.Sites = append(p.Sites, SiteRule{Origin: o, Rule: RuleAllow})
 		}
 		return p, nil
-	}
-	if err != nil {
-		return p, fmt.Errorf("reading the browser permissions: %w", err)
 	}
 	var stored Permissions
 	if err := json.Unmarshal([]byte(raw), &stored); err != nil {
@@ -150,49 +170,126 @@ func LoadPermissions(db *sql.DB) (Permissions, error) {
 		}
 	}
 	for _, s := range stored.Sites {
-		if o, err := NormalizeAllowEntry(s.Origin); err == nil && (s.Rule == RuleAllow || s.Rule == RuleBlock) {
-			p.Sites = append(p.Sites, SiteRule{Origin: o, Rule: s.Rule})
+		if c, err := canonSite(s); err == nil {
+			p.Sites = mergeSite(p.Sites, c)
 		}
 	}
 	return p, nil
 }
 
-// SavePermissions stores p (sites sorted, one rule per origin).
+// canonSite checks one rule and puts its origin in canonical form.
+func canonSite(s SiteRule) (SiteRule, error) {
+	if s.Rule != RuleAllow && s.Rule != RuleBlock {
+		return s, fmt.Errorf("%s: a site rule is allow or block, not %q", s.Origin, s.Rule)
+	}
+	o, err := normalizeSiteEntry(s.Origin, s.Rule)
+	if err != nil {
+		return s, err
+	}
+	return SiteRule{Origin: o, Rule: s.Rule}, nil
+}
+
+// mergeSite adds s to sites, one rule per origin: a block wins over an
+// allow stored under the same canonical origin.
+func mergeSite(sites []SiteRule, s SiteRule) []SiteRule {
+	for i, have := range sites {
+		if have.Origin == s.Origin {
+			if s.Rule == RuleBlock {
+				sites[i] = s
+			}
+			return sites
+		}
+	}
+	return append(sites, s)
+}
+
+// SavePermissions stores p (sites sorted, one rule per origin), replacing
+// what is stored. A change to the stored permissions goes through
+// UpdatePermissions, so a concurrent one is never lost.
 func SavePermissions(db *sql.DB, p Permissions) error {
-	out := DefaultPermissions()
-	for k, v := range p.Levels {
-		if !validKind(k) || !validLevel(v) {
-			return fmt.Errorf("%s: %s is not a level for %s", PermissionsSetting, v, k)
-		}
-		out.Levels[k] = v
-	}
-	seen := map[string]bool{}
-	for _, s := range p.Sites {
-		o, err := NormalizeAllowEntry(s.Origin)
-		if err != nil {
-			return err
-		}
-		if s.Rule != RuleAllow && s.Rule != RuleBlock {
-			return fmt.Errorf("%s: a site rule is allow or block, not %q", o, s.Rule)
-		}
-		if !seen[o] {
-			seen[o] = true
-			out.Sites = append(out.Sites, SiteRule{Origin: o, Rule: s.Rule})
-		}
-	}
-	sort.Slice(out.Sites, func(i, j int) bool { return out.Sites[i].Origin < out.Sites[j].Origin })
-	b, err := json.Marshal(out)
+	_, b, err := encodePermissions(p)
 	if err != nil {
 		return err
 	}
 	_, err = db.Exec(`INSERT INTO configs (name, config_data, created_at, updated_at)
 		VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 		ON CONFLICT(name) DO UPDATE SET config_data = excluded.config_data, updated_at = excluded.updated_at`,
-		PermissionsSetting, string(b))
+		PermissionsSetting, b)
 	if err != nil {
 		return fmt.Errorf("saving the browser permissions: %w", err)
 	}
 	return nil
+}
+
+// errPermissionsBusy: other writers kept changing the setting under
+// UpdatePermissions.
+var errPermissionsBusy = errors.New("the browser permissions kept changing while saving: try again")
+
+// afterPermissionsRead runs between UpdatePermissions' read and its write
+// (tests interleave a second writer there).
+var afterPermissionsRead func()
+
+// UpdatePermissions applies change to the stored permissions atomically:
+// it reads them, applies change, and stores the result only if the row
+// still holds what it read (a compare-and-set on the configs row), reading
+// again when another writer got there first. It returns what it stored.
+func UpdatePermissions(db *sql.DB, change func(*Permissions) error) (Permissions, error) {
+	for range 50 {
+		raw, found, err := permissionsRow(db)
+		if err != nil {
+			return Permissions{}, err
+		}
+		p, err := parsePermissions(db, raw, found)
+		if err != nil {
+			return p, err
+		}
+		if err := change(&p); err != nil {
+			return p, err
+		}
+		out, b, err := encodePermissions(p)
+		if err != nil {
+			return p, err
+		}
+		if afterPermissionsRead != nil {
+			afterPermissionsRead()
+		}
+		var res sql.Result
+		if found {
+			res, err = db.Exec(`UPDATE configs SET config_data = ?, updated_at = CURRENT_TIMESTAMP
+				WHERE name = ? AND config_data = ?`, b, PermissionsSetting, raw)
+		} else {
+			res, err = db.Exec(`INSERT INTO configs (name, config_data, created_at, updated_at)
+				VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) ON CONFLICT(name) DO NOTHING`, PermissionsSetting, b)
+		}
+		if err != nil {
+			return p, fmt.Errorf("saving the browser permissions: %w", err)
+		}
+		if n, err := res.RowsAffected(); err == nil && n == 1 {
+			return out, nil
+		}
+	}
+	return Permissions{}, errPermissionsBusy
+}
+
+// encodePermissions checks p and returns its stored form and text.
+func encodePermissions(p Permissions) (Permissions, string, error) {
+	out := DefaultPermissions()
+	for k, v := range p.Levels {
+		if !validKind(k) || !validLevel(v) {
+			return out, "", fmt.Errorf("%s: %s is not a level for %s", PermissionsSetting, v, k)
+		}
+		out.Levels[k] = v
+	}
+	for _, s := range p.Sites {
+		c, err := canonSite(s)
+		if err != nil {
+			return out, "", err
+		}
+		out.Sites = mergeSite(out.Sites, c)
+	}
+	sort.Slice(out.Sites, func(i, j int) bool { return out.Sites[i].Origin < out.Sites[j].Origin })
+	b, err := json.Marshal(out)
+	return out, string(b), err
 }
 
 // Level is kind's level.
@@ -223,14 +320,15 @@ func (p *Permissions) SetLevel(kind, level string) error {
 }
 
 // SetSite sets origin's rule (allow or block), or with "clear" removes it,
-// and returns the origin as stored. found reports whether it had a rule.
+// and returns the origin as stored (canonical). found reports whether it
+// had a rule.
 func (p *Permissions) SetSite(origin, rule string) (stored string, found bool, err error) {
-	o, err := NormalizeAllowEntry(origin)
+	if rule != RuleAllow && rule != RuleBlock && rule != "clear" {
+		return "", false, fmt.Errorf("a site rule is allow, block or clear, not %q", rule)
+	}
+	o, err := normalizeSiteEntry(origin, rule)
 	if err != nil {
 		return "", false, err
-	}
-	if rule != RuleAllow && rule != RuleBlock && rule != "clear" {
-		return o, false, fmt.Errorf("a site rule is allow, block or clear, not %q", rule)
 	}
 	kept := []SiteRule{}
 	for _, s := range p.Sites {
@@ -249,7 +347,7 @@ func (p *Permissions) SetSite(origin, rule string) (stored string, found bool, e
 
 // Rule is origin's stored rule ("" for none).
 func (p Permissions) Rule(origin string) string {
-	o, err := NormalizeAllowEntry(origin)
+	o, err := normalizeSiteEntry(origin, RuleBlock)
 	if err != nil {
 		return ""
 	}
@@ -272,6 +370,13 @@ func (p Permissions) Sited(rule string) []string {
 	return out
 }
 
+// Blocked reports whether a block rule covers rawURL's host (an origin
+// works too).
+func (p Permissions) Blocked(rawURL string) bool {
+	var be *SiteBlockedError
+	return errors.As(Policy{Agent: true, Level: LevelFullNoApprovals, Blocklist: p.Sited(RuleBlock)}.Check(rawURL), &be)
+}
+
 // PolicyFor is the policy for an agent of kind ("" is a human terminal:
 // unrestricted).
 func (p Permissions) PolicyFor(kind string) Policy {
@@ -288,23 +393,31 @@ const (
 )
 
 // AgentKind is the kind of agent running this process, "" for a human
-// terminal. An agent shell (IsAgentContext) is coder when
-// MONOAGENT_AGENT_KIND=coder, org when MONOMIND_ORG_ROLE is set or
-// MONOAGENT_AGENT_KIND=org, else other: a shell is never chat. chat is a
-// process with MONOAGENT_AI_CALLER=chat and no shell markers.
+// terminal. An agent shell (IsAgentContext) is the kind it declares —
+// coder with MONOAGENT_AGENT_KIND=coder, org with MONOAGENT_AGENT_KIND=org
+// or MONOMIND_ORG_ROLE — when a token its spawner issued vouches for it
+// (IssueAgentKind), else other: a shell is never chat. chat is a process
+// with MONOAGENT_AI_CALLER=chat and no shell markers.
 func AgentKind() string {
-	kind := strings.TrimSpace(os.Getenv(EnvAgentKind))
 	if IsAgentContext() {
-		switch {
-		case kind == KindCoder:
-			return KindCoder
-		case kind == KindOrg || strings.TrimSpace(os.Getenv("MONOMIND_ORG_ROLE")) != "":
-			return KindOrg
+		if kind := declaredKind(); kind != "" && kindVouched(kind) {
+			return kind
 		}
 		return KindOther
 	}
 	if strings.TrimSpace(os.Getenv(EnvAICaller)) == KindChat {
 		return KindChat
+	}
+	return ""
+}
+
+// declaredKind is the kind an agent shell's environment claims.
+func declaredKind() string {
+	switch kind := strings.TrimSpace(os.Getenv(EnvAgentKind)); {
+	case kind == KindCoder || kind == KindOrg:
+		return kind
+	case strings.TrimSpace(os.Getenv("MONOMIND_ORG_ROLE")) != "":
+		return KindOrg
 	}
 	return ""
 }

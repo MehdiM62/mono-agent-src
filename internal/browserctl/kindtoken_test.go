@@ -90,3 +90,64 @@ func TestIssueAgentKindWritesARecord(t *testing.T) {
 		t.Errorf("chat is never declared: %q", env)
 	}
 }
+
+// A declared kind counts only with a token its spawner issued: the
+// variable alone, a token for another kind, a removed record, a dead
+// spawner or a token that is not one all leave a shell kind other.
+func TestDeclaredKindNeedsAToken(t *testing.T) {
+	actAsHuman(t)
+	t.Setenv(EnvAICaller, "")
+	t.Setenv("CLAUDECODE", "1")
+	t.Setenv(EnvAgentKind, KindOrg)
+	t.Setenv(EnvAgentKindToken, "")
+	if k := AgentKind(); k != KindOther {
+		t.Fatalf("%s=org with no token: %q", EnvAgentKind, k)
+	}
+	t.Setenv(EnvAgentKind, "")
+	t.Setenv("MONOMIND_ORG_ROLE", "growth")
+	if k := AgentKind(); k != KindOther {
+		t.Fatalf("MONOMIND_ORG_ROLE with no token: %q", k)
+	}
+	t.Setenv("MONOMIND_ORG_ROLE", "")
+
+	env, done := IssueAgentKind(KindOrg)
+	token := strings.TrimPrefix(env[1], EnvAgentKindToken+"=")
+	t.Setenv(EnvAgentKind, KindOrg)
+	t.Setenv(EnvAgentKindToken, token)
+	if k := AgentKind(); k != KindOrg {
+		t.Fatalf("a valid token: %q", k)
+	}
+	t.Setenv(EnvAgentKind, KindCoder)
+	if k := AgentKind(); k != KindOther {
+		t.Fatalf("an org token for coder: %q", k)
+	}
+	t.Setenv(EnvAgentKind, KindOrg)
+	done()
+	if k := AgentKind(); k != KindOther {
+		t.Fatalf("the record removed: %q", k)
+	}
+
+	dead := strings.Repeat("d", 32)
+	writeKindRecord(t, dead, kindRecord{Kind: KindOrg, PID: deadPID(t), Created: time.Now()})
+	t.Setenv(EnvAgentKindToken, dead)
+	if k := AgentKind(); k != KindOther {
+		t.Fatalf("a dead spawner: %q", k)
+	}
+	young, old := strings.Repeat("a", 32), strings.Repeat("b", 32)
+	writeKindRecord(t, young, kindRecord{Kind: KindOrg, Created: time.Now().Add(-time.Hour)})
+	writeKindRecord(t, old, kindRecord{Kind: KindOrg, Created: time.Now().Add(-25 * time.Hour)})
+	t.Setenv(EnvAgentKindToken, young)
+	if k := AgentKind(); k != KindOrg {
+		t.Fatalf("no pid, an hour old: %q", k)
+	}
+	t.Setenv(EnvAgentKindToken, old)
+	if k := AgentKind(); k != KindOther {
+		t.Fatalf("no pid, a day old: %q", k)
+	}
+	for _, bad := range []string{"../" + young, strings.ToUpper(young), young + "x"} {
+		t.Setenv(EnvAgentKindToken, bad)
+		if k := AgentKind(); k != KindOther {
+			t.Fatalf("token %q: %q", bad, k)
+		}
+	}
+}

@@ -67,11 +67,15 @@ func (d Deps) decideIfBrowserSubmit(cmd *cobra.Command, id string, approve bool)
 }
 
 // decisionError reports an item already decided as not found, as `hil
-// approve` does for any item.
+// approve` does for any item, and a site a block covers as invalid input.
 func (d Deps) decisionError(id string, err error) error {
 	var se *browserctl.SubmitStateError
 	if errors.As(err, &se) {
 		return d.NotFound("HIL item %q not found or already resolved", id)
+	}
+	var blocked *browserctl.SiteBlockedDecisionError
+	if errors.As(err, &blocked) {
+		return d.InvalidInput("%s", blocked.Error())
 	}
 	return err
 }
