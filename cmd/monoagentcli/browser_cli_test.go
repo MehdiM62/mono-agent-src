@@ -184,7 +184,7 @@ func TestBrowserSubmitHandsTheApprovalBackWhenTheTabMoved(t *testing.T) {
 	bt := newBrowserTest(t, true)
 	db := bt.db().DB
 	tab := bt.fake.AddTab("https://example.com/compose", "Coder · Agent", true)
-	it, err := browserctl.CreateSubmitItem(t.Context(), db, browserctl.SubmitRequest{
+	it, err := browserctl.CreateSubmitItem(t.Context(), db, browserctl.SubmitRequest{Profile: "default",
 		URL: "https://example.com/compose", Via: "click", TabID: tab, Instance: bt.fake.Instance,
 		Form: browserctl.FormSummary{Submitter: "#send"},
 	})
@@ -314,7 +314,7 @@ func TestBrowserSubmitApprovalIsTheOperators(t *testing.T) {
 	}
 	bt.fake.On("eval_cdp", (&browserctltest.FormPage{Fields: []browserctl.FormField{{Name: "total", Value: "9.99"}}}).Handler())
 	held := func() string {
-		it, err := browserctl.CreateSubmitItem(t.Context(), db, browserctl.SubmitRequest{
+		it, err := browserctl.CreateSubmitItem(t.Context(), db, browserctl.SubmitRequest{Profile: "default",
 			URL: "https://shop.example/checkout", Via: "guard", TabID: tab, Instance: bt.fake.Instance,
 			Form: browserctl.FormSummary{Submitter: "#pay"}, Page: page.Page(),
 		})
