@@ -163,14 +163,14 @@ func TestGroupsAreNotJudged(t *testing.T) {
 func TestACommandWithItsOwnPreRunStillGetsTheGate(t *testing.T) {
 	root := newRootCmd()
 	doctor, _, err := root.Find([]string{"doctor"})
-	if err != nil || doctor == nil || doctor.PersistentPreRun == nil {
+	if err != nil || doctor == nil || doctor.PersistentPreRunE == nil {
 		t.Fatalf("doctor has no pre-run of its own: %v", err)
 	}
 	var errb bytes.Buffer
 	doctor.SetErr(&errb)
 	doctor.SetContext(context.Background())
 	_ = doctor.ParseFlags(nil)
-	doctor.PersistentPreRun(doctor, nil)
+	_ = doctor.PersistentPreRunE(doctor, nil)
 	if !strings.Contains(errb.String(), "--profile") {
 		t.Fatalf("want the warning from doctor's own pre-run, got %q", errb.String())
 	}
