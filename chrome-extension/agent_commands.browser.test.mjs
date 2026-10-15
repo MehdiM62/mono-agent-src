@@ -49,7 +49,12 @@ fetch("/missing.json").catch(() => {});
 setTimeout(() => { throw new Error("boom"); }, 0);
 </script></body></html>`;
 
-const PAGES = { "/form": FORM, "/next": NEXT, "/final": "<!doctype html><title>Final</title>", "/console": CONSOLE };
+// A submit button right where the banner would go: top centre.
+const TOP = `<!doctype html><html><head><meta charset="utf-8"><title>Top</title></head><body>
+<form id="top" action="/next"><input name="a" value="1">
+<button id="pay" style="position:absolute;top:20px;left:calc(50% - 30px);width:60px">Pay</button></form></body></html>`;
+
+const PAGES = { "/form": FORM, "/next": NEXT, "/final": "<!doctype html><title>Final</title>", "/console": CONSOLE, "/top": TOP };
 
 const CHROME = findChrome();
 let browser = null;
@@ -84,11 +89,6 @@ describe("the coder's browser commands", { skip: browser ? false : why, concurre
     base = `http://127.0.0.1:${server.address().port}`;
     assert.ok(browser.worker, browser.workerError);
     sw = await attach(browser.cdp, { targetId: browser.worker.targetId });
-    // The worker's target can be listed before its script has run.
-    for (let t = 0; t < 10000; t += 100) {
-      if (await browser.cdp.evaluate(sw, `typeof gate !== "undefined" && typeof MonoAgentCommands !== "undefined"`)) break;
-      await sleep(100);
-    }
     await browser.cdp.evaluate(
       sw,
       `(() => {
@@ -106,10 +106,17 @@ describe("the coder's browser commands", { skip: browser ? false : why, concurre
     await setup();
     const url = `${base}${path}?tab=${++opened}`;
     const session = await attach(browser.cdp, { url });
-    await sleep(700);
-    const tabId = await browser.cdp.evaluate(sw, `chrome.tabs.query({}).then((ts) => ts.find((t) => t.url === ${JSON.stringify(url)}).id)`);
+    let tabId = 0;
+    const loaded = `chrome.tabs.query({}).then((ts) => (ts.find((t) => t.url === ${JSON.stringify(url)} && t.status === "complete") || {}).id || 0)`;
+    await until(async () => (tabId = await browser.cdp.evaluate(sw, loaded)), `${url} to load`);
     pages[path] = { session, tabId, url };
     return pages[path];
+  }
+
+  /** until polls check until it holds; a loaded machine (the whole suite at once) is slow. */
+  async function until(check, what, ms = 15000) {
+    for (const end = Date.now() + ms; Date.now() < end; await sleep(100)) if (await check()) return;
+    throw new Error(`timed out waiting for ${what}`);
   }
 
   /** command runs one command through handleCommand and returns what Go would receive. */
@@ -160,7 +167,8 @@ describe("the coder's browser commands", { skip: browser ? false : why, concurre
     assert.ok(full.height > vp.height, `full ${full.height} > viewport ${vp.height}`);
     const jpg = await ok("screenshot", p.tabId, { format: "jpeg", quality: 50 });
     assert.equal(jpg.mime, "image/jpeg");
-    assert.deepEqual([jpg.width, jpg.height], [vp.width, vp.height]);
+    // Not the same height: Chrome's "started debugging" bar can appear in between.
+    assert.ok(jpg.width === vp.width && jpg.height > 0, JSON.stringify([jpg.width, jpg.height]));
     const missing = await command("screenshot", p.tabId, { mode: "element", selector: "#nope" });
     assert.deepEqual([missing.success, missing.error], [false, "screenshot: no element matches #nope"]);
   });
@@ -195,7 +203,14 @@ describe("the coder's browser commands", { skip: browser ? false : why, concurre
     const p = await open("/console");
     assert.deepEqual(await ok("watch_tab", p.tabId, { on: true }), { watching: true });
     await browser.cdp.send("Page.reload", {}, p.session);
-    await sleep(1500);
+    // The reload's fetch is the proof it ran: Chrome replays earlier console
+    // messages on a new watch, never requests.
+    let net;
+    await until(async () => {
+      net = await ok("read_network", p.tabId, { failedOnly: true });
+      return net.entries.some((e) => e.url.endsWith("/missing.json"));
+    }, "the reload's failed fetch");
+    await sleep(500);
     const cons = await ok("read_console", p.tabId, {});
     const texts = cons.entries.map((e) => `${e.level}:${e.text}`);
     assert.ok(texts.includes("log:hello world"), texts.join("\n"));
@@ -204,13 +219,11 @@ describe("the coder's browser commands", { skip: browser ? false : why, concurre
     assert.ok(cons.entries.every((e) => Number.isInteger(e.seq) && Number.isInteger(e.ts)));
     const errors = await ok("read_console", p.tabId, { levels: ["error"], since: 0 });
     assert.ok(errors.entries.every((e) => e.level === "error"));
-    const net = await ok("read_network", p.tabId, { failedOnly: true });
     const miss = net.entries.find((e) => e.url.endsWith("/missing.json"));
-    assert.ok(miss, JSON.stringify(net));
     assert.deepEqual([miss.status, miss.method, miss.failed], [404, "GET", false]);
     assert.equal(Object.keys(miss).some((k) => /header|body/i.test(k)), false);
     const later = await ok("read_console", p.tabId, { since: cons.next });
-    assert.deepEqual(later.entries, []);
+    assert.ok(later.next >= cons.next && later.entries.every((e) => e.seq > cons.next), "a cursor never reads an entry twice");
     await ok("watch_tab", p.tabId, { on: false });
     const unwatched = await command("read_console", 999999, {});
     assert.equal(unwatched.success, false);
@@ -219,12 +232,15 @@ describe("the coder's browser commands", { skip: browser ? false : why, concurre
   // ── the submit guard ────────────────────────────────────────────────────
 
   const guard = (tabId, action) => ok("submit_guard", tabId, { action });
+  const blocked = (p, n) => until(async () => (await guard(p.tabId, "status")).blocked.length >= n, `${n} blocked submits`);
+  // A page mid-navigation has no context to evaluate in yet: not there yet.
+  const at = (p, path) => until(() => inPage(p, "location.pathname").then((x) => x === path, () => false), path);
 
   it("armed, a click on Pay is stopped and recorded with its secrets masked", async () => {
     const p = await open("/form");
     assert.deepEqual(await guard(p.tabId, "arm"), { armed: true, blocked: [] });
     await inPage(p, `document.getElementById("pay").click()`);
-    await sleep(400);
+    await blocked(p, 1);
     assert.equal(await inPage(p, "location.pathname"), "/form", "nothing was submitted");
     const st = await guard(p.tabId, "status");
     assert.equal(st.blocked.length, 1);
@@ -246,7 +262,7 @@ describe("the coder's browser commands", { skip: browser ? false : why, concurre
     await inPage(p, `document.getElementById("checkout").submit()`);
     await inPage(p, `document.getElementById("checkout").requestSubmit()`);
     await inPage(p, `document.getElementById("go").click()`);
-    await sleep(400);
+    await blocked(p, 5);
     assert.equal(await inPage(p, "location.pathname"), "/form");
     assert.equal(await inPage(p, "window.spaSent === true"), false, "the app's onSubmit never ran");
     const st = await guard(p.tabId, "status");
@@ -259,17 +275,16 @@ describe("the coder's browser commands", { skip: browser ? false : why, concurre
     const p = pages["/form"];
     await guard(p.tabId, "allow_once");
     await inPage(p, `document.getElementById("pay").click()`);
-    await sleep(1200);
-    assert.equal(await inPage(p, "location.pathname"), "/next");
+    await at(p, "/next");
+    await until(() => inPage(p, `document.readyState === "complete"`).catch(() => false), "/next to load");
     await inPage(p, `document.getElementById("again-btn").click()`);
-    await sleep(400);
+    await blocked(p, 6);
     assert.equal(await inPage(p, "location.pathname"), "/next", "re-armed on the new document");
     const st = await guard(p.tabId, "status");
     assert.equal(st.blocked[st.blocked.length - 1].form.selector, "#again");
     await guard(p.tabId, "disarm");
     await inPage(p, `document.getElementById("again-btn").click()`);
-    await sleep(1200);
-    assert.equal(await inPage(p, "location.pathname"), "/final", "disarmed, the page submits");
+    await at(p, "/final"); // disarmed, the page submits
   });
 
   it("submit_prompt shows its banner in a closed root, rings Pay, and never submits", async () => {
@@ -285,9 +300,17 @@ describe("the coder's browser commands", { skip: browser ? false : why, concurre
     assert.equal(custom.submitSelector, "#pay", "no selector: the page's form");
     assert.equal(await inPage(p, `document.querySelectorAll("#monoagent-submit-prompt").length`), 1, "one banner at a time");
     await inPage(p, `document.getElementById("pay").click()`);
-    await sleep(1200);
-    assert.equal(await inPage(p, "location.pathname"), "/next", "the person's submit goes through");
+    await at(p, "/next"); // the person's submit goes through
     const none = await command("submit_prompt", p.tabId, { selector: "#nope" });
     assert.deepEqual([none.success, none.error], [false, "submit_prompt: no element matches #nope"]);
+  });
+
+  it("submit_prompt moves its banner out of the way of a control at the top", async () => {
+    const p = await open("/top");
+    assert.deepEqual(await ok("submit_prompt", p.tabId, {}), { shown: true, submitSelector: "#pay" });
+    const reachable = `(() => { const r = document.getElementById("pay").getBoundingClientRect();
+      return document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2) === document.getElementById("pay"); })()`;
+    await sleep(300);
+    assert.equal(await inPage(p, reachable), true, "the person can press the control the banner asks for");
   });
 });

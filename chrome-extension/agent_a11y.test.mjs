@@ -20,7 +20,8 @@ const PAGE = [
   { nodeId: "6", ignored: false, role: v("StaticText"), name: v("Sign up"), childIds: ["6a"], parentId: "5", backendDOMNodeId: 6 },
   { nodeId: "6a", ignored: false, role: v("InlineTextBox"), name: v("Sign up"), childIds: [], parentId: "6" },
   { nodeId: "7", ignored: false, role: v("form"), name: v(""), childIds: ["8", "9"], parentId: "4", backendDOMNodeId: 7 },
-  { nodeId: "8", ignored: false, role: v("textbox"), name: v("Email"), value: { type: "string", value: "a@b.c" }, childIds: [], parentId: "7", backendDOMNodeId: 8 },
+  { nodeId: "8", ignored: false, role: v("textbox"), name: v("Email"), value: { type: "string", value: "a@b.c" }, childIds: ["8a"], parentId: "7", backendDOMNodeId: 8 },
+  { nodeId: "8a", ignored: false, role: v("StaticText"), name: v("a@b.c"), childIds: [], parentId: "8" },
   { nodeId: "9", ignored: false, role: v("button"), name: v("Create account"), childIds: ["10"], parentId: "7", backendDOMNodeId: 9 },
   { nodeId: "10", ignored: false, role: v("StaticText"), name: v("Create account"), childIds: [], parentId: "9", backendDOMNodeId: 10 },
 ];
@@ -41,7 +42,7 @@ function load(answers = {}) {
   return { a11y: g.MonoAgentA11y, sent };
 }
 
-test("ignored nodes, inline text boxes, unnamed containers and repeated text are pruned", () => {
+test("ignored nodes, inline text boxes, unnamed containers and text repeating a name or value are pruned", () => {
   const { a11y } = load();
   assert.deepEqual(a11y.prune(PAGE), {
     nodes: [{

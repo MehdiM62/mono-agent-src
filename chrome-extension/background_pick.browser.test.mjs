@@ -59,9 +59,12 @@ describe("pick_element", { skip: browser ? false : why, concurrency: 1 }, () => 
     assert.ok(browser.worker, browser.workerError);
     const worker = browser.worker;
     page = await attach(cdp, { url });
-    await sleep(600);
     sw = await attach(cdp, { targetId: worker.targetId });
-    tabId = await cdp.evaluate(sw, `chrome.tabs.query({}).then((ts) => ts.find((t) => t.url.includes("/app")).id)`);
+    // The tab is listed under its URL, loaded, a while after it is created:
+    // longer on a busy machine (the whole suite at once), so poll for it.
+    const loaded = `chrome.tabs.query({}).then((ts) => (ts.find((t) => t.url.includes("/app") && t.status === "complete") || {}).id || 0)`;
+    for (const end = Date.now() + 15000; !tabId && Date.now() < end; await sleep(100)) tabId = await cdp.evaluate(sw, loaded);
+    assert.ok(tabId, "the fixture page did not load");
     // What Go would receive: collect responses instead of writing to the socket.
     await cdp.evaluate(sw, `(() => { self.__responses = {}; sendResponse = (id, success, data, error) => { self.__responses[id] = { success, data, error }; }; return true; })()`);
   }
@@ -71,7 +74,12 @@ describe("pick_element", { skip: browser ? false : why, concurrency: 1 }, () => 
     await setup();
     const id = `pick-${++n}`;
     await browser.cdp.evaluate(sw, `(handleCommand({ id: ${JSON.stringify(id)}, type: "pick_element", tabId: ${tabId}, params: ${JSON.stringify(params)} }), true)`);
-    await sleep(300); // the overlay is up
+    // Until the overlay is up, or the command has already answered.
+    const answered = `!!self.__responses[${JSON.stringify(id)}]`;
+    for (const end = Date.now() + 10000; Date.now() < end; await sleep(50)) {
+      if (await inPage(`document.querySelectorAll("[data-monoagent-picker]").length > 0`)) break;
+      if (await browser.cdp.evaluate(sw, answered)) break;
+    }
     return async (limit = 8000) => {
       for (let t = 0; t < limit; t += 100) {
         const r = await browser.cdp.evaluate(sw, `JSON.stringify(self.__responses[${JSON.stringify(id)}] || null)`);
