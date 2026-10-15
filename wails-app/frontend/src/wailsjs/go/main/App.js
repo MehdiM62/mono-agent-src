@@ -1058,6 +1058,22 @@ export function PromoteRoleToRoot(arg1, arg2) {
   return window['go']['main']['App']['PromoteRoleToRoot'](arg1, arg2);
 }
 
+export function QueueDismiss(arg1) {
+  return window['go']['main']['App']['QueueDismiss'](arg1);
+}
+
+export function QueueImage(arg1) {
+  return window['go']['main']['App']['QueueImage'](arg1);
+}
+
+export function QueueList() {
+  return window['go']['main']['App']['QueueList']();
+}
+
+export function QueueStart(arg1, arg2) {
+  return window['go']['main']['App']['QueueStart'](arg1, arg2);
+}
+
 export function ReadHILScreenshot(arg1) {
   return window['go']['main']['App']['ReadHILScreenshot'](arg1);
 }

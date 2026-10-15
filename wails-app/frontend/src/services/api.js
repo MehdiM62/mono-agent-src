@@ -275,6 +275,17 @@ export const api = {
     GoApp.CreateCoderConversation(runtimeID, model, effort || '', cwd, newWorkspace).then(parseStreamResult),
   // Native folder picker; resolves '' when cancelled.
   pickCoderFolder:    () => GoApp.PickCoderFolder(),
+  // Queued coder chats (C5): the browser extension queues them, Start here
+  // runs the first turn. `coder queue …` through the CLI, with the same
+  // parseStreamResult contract.
+  coderQueueList:     () => GoApp.QueueList().then(parseStreamResult),
+  coderQueueStart:    (id, cwd = '') => GoApp.QueueStart(id, cwd).then(parseStreamResult),
+  coderQueueDismiss:  (id) => GoApp.QueueDismiss(id).then(parseStreamResult),
+  coderQueueImage:    (id) => GoApp.QueueImage(id).then(parseStreamResult),
+  // coder:queue fires when a chat was queued, started or dismissed (the app
+  // watches the queue folder); the payload is empty, so list again. Returns
+  // the unsubscribe.
+  onCoderQueue:       (callback) => subscribeEvent('coder:queue', callback),
   openPathWithOS:     (path) => GoApp.OpenPathWithOS(path),
   // Orgs (monomind Org Runtime v2)
   listOrgs:           () => GoApp.ListOrgs().then(s => JSON.parse(s)).catch(guard('list orgs', null)),

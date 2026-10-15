@@ -533,6 +533,14 @@ export function PlatformNames():Promise<Record<string, string>>;
 
 export function PromoteRoleToRoot(arg1:string,arg2:string):Promise<string>;
 
+export function QueueDismiss(arg1:string):Promise<string>;
+
+export function QueueImage(arg1:string):Promise<string>;
+
+export function QueueList():Promise<string>;
+
+export function QueueStart(arg1:string,arg2:string):Promise<string>;
+
 export function ReadHILScreenshot(arg1:string):Promise<string>;
 
 export function ReadJSONFile(arg1:string):Promise<Record<string, any>>;
