@@ -54,7 +54,7 @@ func (env *orgEnv) orgWorkflowIn(ctx context.Context, db *storage.Database, prof
 	}
 	owner := wf.ProfileID
 	if owner == "" {
-		owner = "default"
+		return nil, fmt.Errorf("workflow %q has no profile, so it cannot be granted", id)
 	}
 	if owner != profileID {
 		return nil, fmt.Errorf("workflow %q belongs to profile %q, not %q (v1 grants stay inside one profile)", id, owner, profileID)
