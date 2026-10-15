@@ -74,6 +74,7 @@ type FormField struct {
 	Placeholder  string
 	Options      []string
 	Required     bool
+	MaxLength    int
 }
 
 // FormValue is one answer.
@@ -96,7 +97,13 @@ func (s *Server) SetFormFiller(f FormFiller) {
 		delete(s.handlers, MethodFormFill)
 		delete(s.methodTimeouts, MethodFormFill)
 		s.handlerMu.Unlock()
+		s.removeFormAssets()
 		return
+	}
+	if a, ok := f.(FormAssets); ok {
+		s.installFormAssets(a)
+	} else {
+		s.removeFormAssets()
 	}
 	var mu sync.Mutex // one fill at a time: each one starts model and search processes
 	s.HandleRequestWithTimeout(MethodFormFill, func(ctx context.Context, req *Request, _ ProgressFunc) (any, error) {
@@ -120,7 +127,10 @@ var (
 	formFieldID    = regexp.MustCompile(`^[A-Za-z0-9_.:-]{1,64}$`)
 )
 
-func parseFormFields(req *Request) (fields []FormField, skipped int, err error) {
+// parseFormFields reads the fields of a request. A field that holds a secret
+// (a password, a card number, a one-time code) is dropped, unless forCard: the
+// card method wants exactly those, and picks them out itself.
+func parseFormFields(req *Request, forCard bool) (fields []FormField, skipped int, err error) {
 	raw, ok := req.Params["fields"].([]any)
 	if !ok || len(raw) == 0 {
 		return nil, 0, invalidParam("form.fill needs fields")
@@ -144,6 +154,9 @@ func parseFormFields(req *Request) (fields []FormField, skipped int, err error) 
 			Placeholder: str("placeholder", formMaxLabel),
 		}
 		f.Required, _ = m["required"].(bool)
+		if n, ok := m["maxlength"].(float64); ok && n > 0 && n < 1000 {
+			f.MaxLength = int(n)
+		}
 		if !formFieldID.MatchString(f.ID) || seen[f.ID] {
 			return nil, 0, invalidParam("every field needs its own id")
 		}
@@ -158,7 +171,7 @@ func parseFormFields(req *Request) (fields []FormField, skipped int, err error) 
 			}
 		}
 		hay := f.Name + " " + f.Label + " " + f.Placeholder
-		if formSkipTypes[f.Type] || formSecretName.MatchString(hay) || formSecretAuto.MatchString(f.Autocomplete) {
+		if formSkipTypes[f.Type] || (!forCard && (formSecretName.MatchString(hay) || formSecretAuto.MatchString(f.Autocomplete))) {
 			skipped++
 			continue
 		}
@@ -239,7 +252,7 @@ func handleFormFill(ctx context.Context, f FormFiller, req *Request) (any, error
 	if model != "" && (len(model) > chatMaxModelBytes || !safeArgValue(model)) {
 		return nil, invalidParam("invalid model")
 	}
-	fields, skipped, err := parseFormFields(req)
+	fields, skipped, err := parseFormFields(req, false)
 	if err != nil {
 		return nil, err
 	}

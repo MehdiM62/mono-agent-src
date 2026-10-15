@@ -36,6 +36,8 @@
   const stopBtn = el("chat-stop");
   const newBtn = el("chat-new");
   const fillBtn = el("chat-fill");
+  const cardBtn = el("chat-card");
+  const filesBtn = el("chat-files");
   const summarizeBtn = el("chat-summarize");
   const pageChip = el("chat-page");
   const notice = el("chat-notice");
@@ -171,6 +173,8 @@
     stopBtn.disabled = !chat.conversation && !active;
     summarizeBtn.disabled = !ready || busy() || !pageShareable();
     fillBtn.disabled = !ready || busy() || filling || !pageShareable();
+    cardBtn.disabled = fillBtn.disabled;
+    filesBtn.disabled = fillBtn.disabled;
     newBtn.disabled = busy() || (!chat.messages.length && !chat.conversation);
     const shareable = pageShareable();
     pageChip.disabled = !shareable;
@@ -272,35 +276,65 @@
 
   let filling = false;
 
-  /** Fills the active tab's form from the profile; the result is told in the notice line. */
-  async function fillForm() {
+  const FILL_CARD_INTENT = /^\s*(please\s+)?fill(\s+in)?\s+(the\s+|my\s+)?(card|payment)/i;
+  const FILES_INTENT = /^\s*(please\s+)?(attach|upload)\s+(the\s+|my\s+)?(photos?|files?|documents?|ids?|scans?)/i;
+
+  // What each fill reports, in the notice line.
+  const FILLS = {
+    form_fill: {
+      start: "Filling the form…",
+      done: (r) => {
+        if (r.none) return "No empty fields to fill on this page.";
+        if (!r.filled) return "Nothing in this profile's Info or documents answers this form.";
+        const from = r.sources && r.sources.length ? ` from ${r.sources.slice(0, 3).join(", ")}` : "";
+        return `Filled ${r.filled} of ${r.found} fields${from}. Check them, then submit yourself.`;
+      },
+    },
+    card_fill: {
+      start: "Filling the card…",
+      done: (r) => {
+        if (!r.saved) return "No card is saved. Add one on the Info page in the MonoAgent app.";
+        if (!r.filled) return "No card fields found on this page.";
+        return `Filled ${r.filled} card field${r.filled === 1 ? "" : "s"} from your saved card. Check them, then pay yourself.`;
+      },
+    },
+    files_fill: {
+      start: "Attaching files…",
+      done: (r) => {
+        if (!r.found) return "This page has no upload boxes.";
+        if (!r.attached) return "None of your saved photos match this page's upload boxes.";
+        return `Attached ${r.attached} file${r.attached === 1 ? "" : "s"}${r.names && r.names.length ? ` (${r.names.join(", ")})` : ""}. Check them, then continue yourself.`;
+      },
+    },
+  };
+
+  /** Fills the active tab from the profile (form, card or files); the result is told in the notice line. */
+  async function runFill(type) {
     if (filling || busy() || availability !== "ready") return;
     filling = true;
-    refusal = "Filling the form…";
+    refusal = FILLS[type].start;
     drawControls();
     try {
-      const r = await ask({ type: "form_fill", profile: currentProfile(), windowId: typeof here !== "undefined" ? here.windowId : undefined });
-      if (!r.ok) refusal = r.error || "The form could not be filled.";
-      else if (r.none) refusal = "No empty fields to fill on this page.";
-      else if (!r.filled) refusal = "Nothing in this profile's Info or documents answers this form.";
-      else {
-        const from = r.sources && r.sources.length ? ` from ${r.sources.slice(0, 3).join(", ")}` : "";
-        refusal = `Filled ${r.filled} of ${r.found} fields${from}. Check them, then submit yourself.`;
-      }
+      const r = await ask({ type, profile: currentProfile(), windowId: typeof here !== "undefined" ? here.windowId : undefined });
+      refusal = r.ok ? FILLS[type].done(r) : r.error || "That could not be done.";
     } catch (err) {
-      refusal = (err && err.message) || "The form could not be filled.";
+      refusal = (err && err.message) || "That could not be done.";
     } finally {
       filling = false;
       drawControls();
     }
   }
+  const fillForm = () => runFill("form_fill");
 
   async function send(text, forcePage) {
     const message = Core.checkMessage(text);
     if (!message || busy() || availability !== "ready") return;
-    if (FILL_INTENT.test(message)) {
-      input.value = "";
-      return fillForm();
+    // Card first: "fill the card" must not be taken for "fill the form".
+    for (const [re, type] of [[FILL_CARD_INTENT, "card_fill"], [FILES_INTENT, "files_fill"], [FILL_INTENT, "form_fill"]]) {
+      if (re.test(message)) {
+        input.value = "";
+        return runFill(type);
+      }
     }
     const sharing = pageShareable() && (forcePage || usePage);
     const tag = `c${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -394,6 +428,8 @@
   stopBtn.addEventListener("click", stop);
   newBtn.addEventListener("click", newChat);
   fillBtn.addEventListener("click", fillForm);
+  cardBtn.addEventListener("click", () => runFill("card_fill"));
+  filesBtn.addEventListener("click", () => runFill("files_fill"));
   summarizeBtn.addEventListener("click", () => send(SUMMARIZE_PROMPT, true));
   pageChip.addEventListener("click", () => {
     usePage = !usePage;
