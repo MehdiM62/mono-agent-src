@@ -207,7 +207,7 @@ JSON
   parse, is the command parser's exit 1 with no JSON at all.
 
 FROM MCP
-  monoagentcli mcp serves task_list, task_get and task_next in every server (they only
+  The MCP server (monoagentcli --profile <id> mcp) serves task_list, task_get and task_next in every server (they only
   read), and with --allow-mutations task_claim (id, or next: true), task_comment,
   task_finish, task_release and task_add. They act on the server's one profile as the
   agent agent:<client>#<4 hex digits>, named after the MCP client and the session: two

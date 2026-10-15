@@ -65,6 +65,10 @@ var classes = map[string]string{
 
 	"workflow templates list": ClassGlobal, "workflow templates show": ClassGlobal,
 	"workflow convert": ClassGlobal,
+	// workflow migrate copies the SQLite workflows of EVERY profile to the
+	// file store (ListWorkflows with no profile filter): deliberately
+	// cross-profile, so global.
+	"workflow migrate": ClassGlobal,
 
 	"secret keyring": ClassGlobal, "secret encrypt-connections": ClassGlobal,
 

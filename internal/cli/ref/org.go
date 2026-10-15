@@ -24,11 +24,11 @@ profile's folder unless --project is given. Every org command prints JSON.
 PROCESSES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  monoagentcli org serve            start monomind's org daemon for the folder
-  monoagentcli org serve --stop     stop the folder's running orgs and daemon
-  monoagentcli daemon               engine + HTTP API + automation-role endpoint
+  monoagentcli --profile <profile> org serve            start monomind's org daemon for the folder
+  monoagentcli --profile <profile> org serve --stop     stop the folder's running orgs and daemon
+  monoagentcli --profile <profile> daemon               engine + HTTP API + automation-role endpoint
                                     + autonomy decisions (writes a heartbeat)
-  monoagentcli --json status        both daemons' state
+  monoagentcli --profile <profile> --json status        both daemons' state
 
   Without the daemon: granted tools return daemon_required, automation
   roles cannot run, and every org behaves as autonomy level manual.

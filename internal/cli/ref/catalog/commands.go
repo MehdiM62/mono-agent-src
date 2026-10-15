@@ -5,21 +5,21 @@ package catalog
 // cliDocs is the start of the `ref commands` catalogue; catalog.go appends the
 // entries kept in the other commands_*.go files.
 var cliDocs = []cmdDoc{
-	{Name: "publication", Short: "List and register published content in a profile", Usage: "monoagentcli publication list|get|register|stats", Flags: "  list: --search --platform --kind --workflow --agent --since --until --limit --offset\n  register: --stdin-json", Examples: []string{"monoagentcli --json publication list", "monoagentcli --json publication register --stdin-json < publication.json", "monoagentcli ref publication"}},
+	{Name: "publication", Short: "List and register published content in a profile", Usage: "monoagentcli publication list|get|register|stats", Flags: "  list: --search --platform --kind --workflow --agent --since --until --limit --offset\n  register: --stdin-json", Examples: []string{"monoagentcli --profile work --json publication list", "monoagentcli --profile work --json publication register --stdin-json < publication.json", "monoagentcli ref publication"}},
 	{
 		Name:  "login",
 		Short: "Log in to a social platform (opens browser for cookie capture)",
 		Usage: "monoagentcli login <platform>",
 		Examples: []string{
-			"monoagentcli login instagram",
-			"monoagentcli login linkedin",
+			"monoagentcli --profile work login instagram",
+			"monoagentcli --profile work login linkedin",
 		},
 	},
 	{
 		Name:     "logout",
 		Short:    "Remove stored session for a platform",
 		Usage:    "monoagentcli logout <platform>",
-		Examples: []string{"monoagentcli logout instagram"},
+		Examples: []string{"monoagentcli --profile work logout instagram"},
 	},
 	{
 		Name:  "run",
@@ -112,13 +112,13 @@ live under ~/.monoagent/attachments/<message>/.
   messages send-draft <msg-id>      Send a previously-created draft
   messages reject-draft <msg-id>    Discard a draft`,
 		Examples: []string{
-			"monoagentcli people list",
-			"monoagentcli people import leads.csv",
-			"monoagentcli people messages all --source outlook --limit 50",
-			"monoagentcli people messages show <message-id>   # body + source + attachment paths",
-			`monoagentcli people messages compose <person-id> --connection outlook --subject "Hi" --body "..." --draft`,
-			"monoagentcli people messages drafts --json",
-			"monoagentcli people messages send-draft <message-id>",
+			"monoagentcli --profile work people list",
+			"monoagentcli --profile work people import leads.csv",
+			"monoagentcli --profile work people messages all --source outlook --limit 50",
+			"monoagentcli --profile work people messages show <message-id>   # body + source + attachment paths",
+			`monoagentcli --profile work people messages compose <person-id> --connection outlook --subject "Hi" --body "..." --draft`,
+			"monoagentcli --profile work people messages drafts --json",
+			"monoagentcli --profile work people messages send-draft <message-id>",
 		},
 	},
 	{
@@ -129,7 +129,7 @@ live under ~/.monoagent/attachments/<message>/.
   delete <id>            Delete a list
   show <id>               Show list contents`,
 		Examples: []string{
-			`monoagentcli list create --name "my-leads"`,
+			`monoagentcli --profile work list create --name "my-leads"`,
 		},
 	},
 	{
@@ -162,14 +162,14 @@ live under ~/.monoagent/attachments/<message>/.
 		Usage: "monoagentcli export [flags]",
 		Flags: `  --output-dir string   Output directory (defaults to global --output-dir)`,
 		Examples: []string{
-			"monoagentcli export --output-dir ./backup   # writes people_export.json + actions_export.json",
+			"monoagentcli --profile work export --output-dir ./backup   # writes people_export.json + actions_export.json",
 		},
 	},
 	{
 		Name:     "status",
 		Short:    "Show session status and connected platforms",
 		Usage:    "monoagentcli status",
-		Examples: []string{"monoagentcli status"},
+		Examples: []string{"monoagentcli --profile work status"},
 	},
 	{
 		Name:  "workflow",
@@ -203,18 +203,18 @@ saved workflow, no activation step, and each invocation gets its own fresh copy
 — so the same template can run several times side by side (e.g. several image
 generations at once) without the runs interfering.`,
 		Examples: []string{
-			"monoagentcli workflow search image        # what can this already do?",
-			"monoagentcli --json workflow search       # same, machine-readable",
+			"monoagentcli --profile work workflow search image        # what can this already do?",
+			"monoagentcli --profile work --json workflow search       # same, machine-readable",
 			"monoagentcli workflow templates show gemimgmany",
-			"monoagentcli workflow templates use outlook_email_sync",
-			`monoagentcli workflow templates run gemimg --input '{"prompt":"a red bicycle"}'`,
-			`monoagentcli workflow templates run gemimgmany --input '{"prompts":["a wizard","the same wizard on a dragon","the same wizard in a library"]}'`,
-			"monoagentcli workflow list",
-			"monoagentcli workflow run german-news-persian-instagram-v1 --verbose",
-			"monoagentcli workflow get my-workflow",
-			`monoagentcli workflow node add my-workflow --type trigger.schedule --name "Every Hour" --config '{"cron":"0 0 * * * *"}'`,
-			"monoagentcli workflow connect my-workflow --from nodeA:main --to nodeB:main",
-			"monoagentcli workflow activate my-workflow   # requires `monoagentcli daemon` running to actually fire over time",
+			"monoagentcli --profile work workflow templates use outlook_email_sync",
+			`monoagentcli --profile work workflow templates run gemimg --input '{"prompt":"a red bicycle"}'`,
+			`monoagentcli --profile work workflow templates run gemimgmany --input '{"prompts":["a wizard","the same wizard on a dragon","the same wizard in a library"]}'`,
+			"monoagentcli --profile work workflow list",
+			"monoagentcli --profile work workflow run german-news-persian-instagram-v1 --verbose",
+			"monoagentcli --profile work workflow get my-workflow",
+			`monoagentcli --profile work workflow node add my-workflow --type trigger.schedule --name "Every Hour" --config '{"cron":"0 0 * * * *"}'`,
+			"monoagentcli --profile work workflow connect my-workflow --from nodeA:main --to nodeB:main",
+			"monoagentcli --profile work workflow activate my-workflow   # requires `monoagentcli daemon` running to actually fire over time",
 		},
 	},
 	{
@@ -230,16 +230,16 @@ generations at once) without the runs interfering.`,
 		Examples: []string{
 			"monoagentcli node list",
 			"monoagentcli node list --filter outlook",
-			`monoagentcli node run system.rss_read --config '{"url":"https://rss.dw.com/rdf/rss-en-all","limit":5}'`,
+			`monoagentcli --profile work node run system.rss_read --config '{"url":"https://rss.dw.com/rdf/rss-en-all","limit":5}'`,
 			`# Gemini text — NO API KEY needed, uses browser session (run 'monoagentcli login gemini' first)`,
-			`monoagentcli node run gemini.generate_text --config '{"prompt":"Say hello in Persian"}'`,
+			`monoagentcli --profile work node run gemini.generate_text --config '{"prompt":"Say hello in Persian"}'`,
 			`# Gemini persistent chat session — start new, then continue with session_id`,
-			`monoagentcli node run gemini.chat_session --config '{"prompt":"Tell me about Go channels","mode":"text"}'`,
-			`monoagentcli node run gemini.chat_session --config '{"prompt":"Now compare them to goroutines","session_id":"<id from above>","mode":"text"}'`,
+			`monoagentcli --profile work node run gemini.chat_session --config '{"prompt":"Tell me about Go channels","mode":"text"}'`,
+			`monoagentcli --profile work node run gemini.chat_session --config '{"prompt":"Now compare them to goroutines","session_id":"<id from above>","mode":"text"}'`,
 			`# Gemini image — NO API KEY needed, downloads to ~/.monoagent/downloads/`,
-			`monoagentcli node run gemini.generate_image --config '{"prompt":"sunset over a city skyline","downloadDir":"~/.monoagent/downloads"}'`,
+			`monoagentcli --profile work node run gemini.generate_image --config '{"prompt":"sunset over a city skyline","downloadDir":"~/.monoagent/downloads"}'`,
 			`# Gemini image with reference (style transfer) — upload a local image, prompt for a new style`,
-			`monoagentcli node run gemini.generate_image --config '{"prompt":"recreate this in a watercolor painting style","referenceImagePath":"/path/to/photo.jpg","downloadDir":"~/.monoagent/downloads"}'`,
+			`monoagentcli --profile work node run gemini.generate_image --config '{"prompt":"recreate this in a watercolor painting style","referenceImagePath":"/path/to/photo.jpg","downloadDir":"~/.monoagent/downloads"}'`,
 		},
 	},
 	{
@@ -255,13 +255,13 @@ generations at once) without the runs interfering.`,
   remove <id>                            Delete a connection
   set-oauth-client <platform>            Store an OAuth app's client_id/secret (enables silent refresh)`,
 		Examples: []string{
-			"monoagentcli connect outlook",
-			"monoagentcli connect list",
-			"monoagentcli connect list --all",
-			"monoagentcli connect refresh 08ccf6df-3ed2-4d47-85b5-3741cd4f9f25",
-			"monoagentcli connect set-oauth-client outlook --client-id <azure-app-client-id>",
-			"monoagentcli connect oauth salesforce --field environment=sandbox",
-			"monoagentcli connect show generic_oauth1",
+			"monoagentcli --profile work connect outlook",
+			"monoagentcli --profile work connect list",
+			"monoagentcli --profile work connect list --all",
+			"monoagentcli --profile work connect refresh 08ccf6df-3ed2-4d47-85b5-3741cd4f9f25",
+			"monoagentcli --profile work connect set-oauth-client outlook --client-id <azure-app-client-id>",
+			"monoagentcli --profile work connect oauth salesforce --field environment=sandbox",
+			"monoagentcli --profile work connect show generic_oauth1",
 		},
 	},
 	{
@@ -286,7 +286,7 @@ generations at once) without the runs interfering.`,
   --api=false      Don't serve the HTTP API in this process
   --bridge=false   Don't hold the Chrome extension bridge open in this process`,
 		Examples: []string{
-			"monoagentcli daemon",
+			"monoagentcli --profile work daemon",
 			"monoagentcli daemon install     # auto-start at login on this machine or a fresh one — see \"daemon install\" below",
 			"monoagentcli daemon restart     # after \"api config set\"; interrupts what the daemon is running",
 			"monoagentcli daemon uninstall",

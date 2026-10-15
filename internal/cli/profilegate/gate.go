@@ -7,6 +7,14 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// globalWhenFlag lists scoped commands that are machine-pure when one flag is
+// given, keyed by command path (as in classes): `workflow validate --file`
+// reads a file and touches no profile data, while `workflow validate <id>`
+// loads the workflow from a profile.
+var globalWhenFlag = map[string]string{
+	"workflow validate": "file",
+}
+
 // Mode is what the gate does with a scoped command that names no profile.
 type Mode int
 
@@ -30,7 +38,7 @@ type Lister func() ([]ProfileRef, error)
 // silently. A scoped command without the flag returns the warning in ModeWarn
 // and an error in ModeEnforce.
 func Check(c *cobra.Command, flagSet bool, mode Mode, list Lister) (warning string, err error) {
-	if flagSet || exempt(c) || Class(c) == ClassGlobal {
+	if flagSet || exempt(c) || Class(c) == ClassGlobal || globalByFlag(c) {
 		return "", nil
 	}
 	msg := "this command acts on a profile: pass --profile <id|name>"
@@ -45,6 +53,12 @@ func Check(c *cobra.Command, flagSet bool, mode Mode, list Lister) (warning stri
 		return "", fmt.Errorf("%s", msg)
 	}
 	return "warning: " + msg + "; falling back to the active profile, this becomes an error in the next release", nil
+}
+
+// globalByFlag is whether c was given the flag that makes it machine-pure.
+func globalByFlag(c *cobra.Command) bool {
+	flag, ok := globalWhenFlag[CommandKey(c)]
+	return ok && c.Flags().Changed(flag)
 }
 
 // exempt is what the gate never judges: the root, a command that does no work
