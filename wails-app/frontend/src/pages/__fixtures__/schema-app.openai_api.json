@@ -1,0 +1,1057 @@
+{
+ "apipkg": "openai_api",
+ "category": "app",
+ "credential_platform": "openai",
+ "description": "Images, speech, transcription, files, moderation, conversations and video through the OpenAI API with your own key",
+ "docs_url": "https://platform.openai.com/docs/api-reference",
+ "fields": [
+  {
+   "key": "credential_id",
+   "label": "OpenAI API Connection",
+   "required": true,
+   "type": "credential_picker"
+  },
+  {
+   "default": "text",
+   "key": "resource",
+   "label": "Resource",
+   "options": [
+    "text",
+    "image",
+    "audio",
+    "file",
+    "conversation",
+    "video"
+   ],
+   "required": true,
+   "type": "select"
+  },
+  {
+   "default": "classify",
+   "depends_on": {
+    "key": "resource",
+    "values": [
+     "text"
+    ]
+   },
+   "key": "operation",
+   "label": "Text Operation",
+   "options": [
+    "classify"
+   ],
+   "required": true,
+   "type": "select"
+  },
+  {
+   "default": "generate",
+   "depends_on": {
+    "key": "resource",
+    "values": [
+     "image"
+    ]
+   },
+   "key": "operation",
+   "label": "Image Operation",
+   "options": [
+    "generate",
+    "analyze",
+    "edit"
+   ],
+   "required": true,
+   "type": "select"
+  },
+  {
+   "default": "generate",
+   "depends_on": {
+    "key": "resource",
+    "values": [
+     "audio"
+    ]
+   },
+   "key": "operation",
+   "label": "Audio Operation",
+   "options": [
+    "generate",
+    "transcribe",
+    "translate"
+   ],
+   "required": true,
+   "type": "select"
+  },
+  {
+   "default": "upload",
+   "depends_on": {
+    "key": "resource",
+    "values": [
+     "file"
+    ]
+   },
+   "key": "operation",
+   "label": "File Operation",
+   "options": [
+    "upload",
+    "deleteFile",
+    "list"
+   ],
+   "required": true,
+   "type": "select"
+  },
+  {
+   "default": "create",
+   "depends_on": {
+    "key": "resource",
+    "values": [
+     "conversation"
+    ]
+   },
+   "key": "operation",
+   "label": "Conversation Operation",
+   "options": [
+    "create",
+    "get",
+    "remove",
+    "update"
+   ],
+   "required": true,
+   "type": "select"
+  },
+  {
+   "default": "generate",
+   "depends_on": {
+    "key": "resource",
+    "values": [
+     "video"
+    ]
+   },
+   "key": "operation",
+   "label": "Video Operation",
+   "options": [
+    "generate"
+   ],
+   "required": true,
+   "type": "select"
+  },
+  {
+   "default": "",
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "classify",
+     "generate"
+    ]
+   },
+   "key": "input",
+   "label": "Text",
+   "required": true,
+   "type": "textarea",
+   "visible_for": [
+    {
+     "operation": "classify",
+     "resource": "text"
+    },
+    {
+     "operation": "generate",
+     "resource": "audio"
+    }
+   ]
+  },
+  {
+   "default": false,
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "classify",
+     "analyze"
+    ]
+   },
+   "help": "Only return whether the text was flagged.",
+   "key": "simplify",
+   "label": "Simplify",
+   "required": false,
+   "type": "boolean",
+   "visible_for": [
+    {
+     "operation": "classify",
+     "resource": "text"
+    },
+    {
+     "operation": "analyze",
+     "resource": "image"
+    }
+   ]
+  },
+  {
+   "default": {},
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "classify"
+    ]
+   },
+   "help": "useStableModel: text-moderation-stable instead of -latest (legacy models only). Keys: useStableModel",
+   "key": "options",
+   "label": "Options",
+   "language": "json",
+   "required": false,
+   "type": "code",
+   "visible_for": [
+    {
+     "operation": "classify",
+     "resource": "text"
+    }
+   ]
+  },
+  {
+   "default": false,
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "classify"
+    ]
+   },
+   "help": "Use text-moderation-* instead of omni-moderation-latest (n8n node versions before 2.1).",
+   "key": "legacyModeration",
+   "label": "Legacy moderation models",
+   "required": false,
+   "type": "boolean",
+   "visible_for": [
+    {
+     "operation": "classify",
+     "resource": "text"
+    }
+   ]
+  },
+  {
+   "default": "gpt-image-1-mini",
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "generate",
+     "analyze",
+     "edit"
+    ]
+   },
+   "help": "Image model (gpt-image-1, dall-e-3, \u2026). Plain id or n8n model locator.",
+   "key": "modelId",
+   "label": "Model",
+   "required": false,
+   "type": "text",
+   "visible_for": [
+    {
+     "operation": "generate",
+     "resource": "image"
+    },
+    {
+     "operation": "analyze",
+     "resource": "image"
+    },
+    {
+     "operation": "edit",
+     "resource": "image"
+    },
+    {
+     "operation": "generate",
+     "resource": "video"
+    }
+   ]
+  },
+  {
+   "default": "",
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "generate"
+    ]
+   },
+   "help": "Used instead of Model when Legacy model is on; empty means dall-e-3.",
+   "key": "model",
+   "label": "Model (before n8n 2.2)",
+   "required": false,
+   "type": "text",
+   "visible_for": [
+    {
+     "operation": "generate",
+     "resource": "image"
+    }
+   ]
+  },
+  {
+   "default": "",
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "generate",
+     "edit"
+    ]
+   },
+   "key": "prompt",
+   "label": "Prompt",
+   "required": true,
+   "type": "textarea",
+   "visible_for": [
+    {
+     "operation": "generate",
+     "resource": "image"
+    },
+    {
+     "operation": "edit",
+     "resource": "image"
+    },
+    {
+     "operation": "generate",
+     "resource": "video"
+    }
+   ]
+  },
+  {
+   "default": {},
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "generate"
+    ]
+   },
+   "help": "returnImageUrls: answer with URLs (DALL\u00b7E only); binaryPropertyOutput: output binary property (default data). Keys: n, dalleQuality, quality, size, style, returnImageUrls, binaryPropertyOutput",
+   "key": "options",
+   "label": "Options",
+   "language": "json",
+   "required": false,
+   "type": "code",
+   "visible_for": [
+    {
+     "operation": "generate",
+     "resource": "image"
+    }
+   ]
+  },
+  {
+   "default": false,
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "generate"
+    ]
+   },
+   "help": "Read the Model (before n8n 2.2) field.",
+   "key": "legacyImageModel",
+   "label": "Legacy model",
+   "required": false,
+   "type": "boolean",
+   "visible_for": [
+    {
+     "operation": "generate",
+     "resource": "image"
+    }
+   ]
+  },
+  {
+   "default": "What's in this image?",
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "analyze"
+    ]
+   },
+   "key": "text",
+   "label": "Question",
+   "required": true,
+   "type": "textarea",
+   "visible_for": [
+    {
+     "operation": "analyze",
+     "resource": "image"
+    }
+   ]
+  },
+  {
+   "default": "url",
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "analyze"
+    ]
+   },
+   "key": "inputType",
+   "label": "Input",
+   "options": [
+    "url",
+    "base64"
+   ],
+   "required": false,
+   "type": "select",
+   "visible_for": [
+    {
+     "operation": "analyze",
+     "resource": "image"
+    }
+   ]
+  },
+  {
+   "default": "",
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "analyze"
+    ]
+   },
+   "help": "Comma-separated image URLs.",
+   "key": "imageUrls",
+   "label": "Image URLs",
+   "required": false,
+   "type": "text",
+   "visible_for": [
+    {
+     "operation": "analyze",
+     "resource": "image"
+    }
+   ]
+  },
+  {
+   "default": "data",
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "analyze"
+    ]
+   },
+   "help": "Comma-separated binary properties holding the images.",
+   "key": "binaryPropertyName",
+   "label": "Input binary properties",
+   "required": false,
+   "type": "text",
+   "visible_for": [
+    {
+     "operation": "analyze",
+     "resource": "image"
+    }
+   ]
+  },
+  {
+   "default": {},
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "analyze"
+    ]
+   },
+   "help": "Keys: detail, maxTokens",
+   "key": "options",
+   "label": "Options",
+   "language": "json",
+   "required": false,
+   "type": "code",
+   "visible_for": [
+    {
+     "operation": "analyze",
+     "resource": "image"
+    }
+   ]
+  },
+  {
+   "default": "",
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "edit"
+    ]
+   },
+   "help": "Used instead of Model when Legacy model is on; empty means gpt-image-1.",
+   "key": "model",
+   "label": "Model (before n8n 2.3)",
+   "required": false,
+   "type": "text",
+   "visible_for": [
+    {
+     "operation": "edit",
+     "resource": "image"
+    }
+   ]
+  },
+  {
+   "default": {
+    "values": [
+     {
+      "binaryPropertyName": "data"
+     }
+    ]
+   },
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "edit"
+    ]
+   },
+   "help": "values: [{binaryPropertyName}] \u2014 up to 16 input images. Keys: values",
+   "key": "images",
+   "label": "Images (GPT Image)",
+   "language": "json",
+   "required": false,
+   "type": "code",
+   "visible_for": [
+    {
+     "operation": "edit",
+     "resource": "image"
+    }
+   ]
+  },
+  {
+   "default": "data",
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "edit"
+    ]
+   },
+   "key": "binaryPropertyName",
+   "label": "Image binary property (DALL\u00b7E)",
+   "required": false,
+   "type": "text",
+   "visible_for": [
+    {
+     "operation": "edit",
+     "resource": "image"
+    }
+   ]
+  },
+  {
+   "default": 1,
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "edit"
+    ]
+   },
+   "key": "n",
+   "label": "Number of images",
+   "max": 10,
+   "min": 1,
+   "required": false,
+   "type": "number",
+   "visible_for": [
+    {
+     "operation": "edit",
+     "resource": "image"
+    }
+   ]
+  },
+  {
+   "default": "1024x1024",
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "edit"
+    ]
+   },
+   "key": "size",
+   "label": "Size",
+   "options": [
+    "256x256",
+    "512x512",
+    "1024x1024",
+    "1024x1536",
+    "1536x1024",
+    "auto"
+   ],
+   "required": false,
+   "type": "select",
+   "visible_for": [
+    {
+     "operation": "edit",
+     "resource": "image"
+    }
+   ]
+  },
+  {
+   "default": "auto",
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "edit"
+    ]
+   },
+   "key": "quality",
+   "label": "Quality (GPT Image)",
+   "options": [
+    "auto",
+    "high",
+    "medium",
+    "low",
+    "standard"
+   ],
+   "required": false,
+   "type": "select",
+   "visible_for": [
+    {
+     "operation": "edit",
+     "resource": "image"
+    }
+   ]
+  },
+  {
+   "default": "url",
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "edit"
+    ]
+   },
+   "key": "responseFormat",
+   "label": "Response format (DALL\u00b7E)",
+   "options": [
+    "url",
+    "b64_json"
+   ],
+   "required": false,
+   "type": "select",
+   "visible_for": [
+    {
+     "operation": "edit",
+     "resource": "image"
+    }
+   ]
+  },
+  {
+   "default": "png",
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "edit"
+    ]
+   },
+   "key": "outputFormat",
+   "label": "Output format (GPT Image)",
+   "options": [
+    "png",
+    "jpeg",
+    "webp"
+   ],
+   "required": false,
+   "type": "select",
+   "visible_for": [
+    {
+     "operation": "edit",
+     "resource": "image"
+    }
+   ]
+  },
+  {
+   "default": 100,
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "edit"
+    ]
+   },
+   "key": "outputCompression",
+   "label": "Output compression (jpeg/webp)",
+   "max": 100,
+   "min": 0,
+   "required": false,
+   "type": "number",
+   "visible_for": [
+    {
+     "operation": "edit",
+     "resource": "image"
+    }
+   ]
+  },
+  {
+   "default": {},
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "edit"
+    ]
+   },
+   "help": "imageMask: binary property of a PNG mask. Keys: user, background, inputFidelity, imageMask",
+   "key": "options",
+   "label": "Options",
+   "language": "json",
+   "required": false,
+   "type": "code",
+   "visible_for": [
+    {
+     "operation": "edit",
+     "resource": "image"
+    }
+   ]
+  },
+  {
+   "default": false,
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "edit"
+    ]
+   },
+   "help": "Read the Model (before n8n 2.3) field.",
+   "key": "legacyEditModel",
+   "label": "Legacy model",
+   "required": false,
+   "type": "boolean",
+   "visible_for": [
+    {
+     "operation": "edit",
+     "resource": "image"
+    }
+   ]
+  },
+  {
+   "default": "tts-1",
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "generate"
+    ]
+   },
+   "key": "model",
+   "label": "Model",
+   "options": [
+    "tts-1",
+    "tts-1-hd",
+    "gpt-4o-mini-tts"
+   ],
+   "required": false,
+   "type": "select",
+   "visible_for": [
+    {
+     "operation": "generate",
+     "resource": "audio"
+    }
+   ]
+  },
+  {
+   "default": "alloy",
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "generate"
+    ]
+   },
+   "key": "voice",
+   "label": "Voice",
+   "options": [
+    "alloy",
+    "ash",
+    "ballad",
+    "coral",
+    "echo",
+    "fable",
+    "nova",
+    "onyx",
+    "sage",
+    "shimmer"
+   ],
+   "required": false,
+   "type": "select",
+   "visible_for": [
+    {
+     "operation": "generate",
+     "resource": "audio"
+    }
+   ]
+  },
+  {
+   "default": {},
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "generate"
+    ]
+   },
+   "help": "response_format: mp3 (default), opus, aac, flac; speed 0.25\u20134; binaryPropertyOutput: output binary property (default data). Keys: response_format, speed, binaryPropertyOutput",
+   "key": "options",
+   "label": "Options",
+   "language": "json",
+   "required": false,
+   "type": "code",
+   "visible_for": [
+    {
+     "operation": "generate",
+     "resource": "audio"
+    }
+   ]
+  },
+  {
+   "default": "data",
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "transcribe",
+     "translate",
+     "upload"
+    ]
+   },
+   "help": "Item binary property holding the file.",
+   "key": "binaryPropertyName",
+   "label": "Input binary property",
+   "required": false,
+   "type": "text",
+   "visible_for": [
+    {
+     "operation": "transcribe",
+     "resource": "audio"
+    },
+    {
+     "operation": "translate",
+     "resource": "audio"
+    },
+    {
+     "operation": "upload",
+     "resource": "file"
+    }
+   ]
+  },
+  {
+   "default": {},
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "transcribe"
+    ]
+   },
+   "help": "Keys: language, temperature",
+   "key": "options",
+   "label": "Options",
+   "language": "json",
+   "required": false,
+   "type": "code",
+   "visible_for": [
+    {
+     "operation": "transcribe",
+     "resource": "audio"
+    }
+   ]
+  },
+  {
+   "default": {},
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "translate"
+    ]
+   },
+   "help": "Keys: temperature",
+   "key": "options",
+   "label": "Options",
+   "language": "json",
+   "required": false,
+   "type": "code",
+   "visible_for": [
+    {
+     "operation": "translate",
+     "resource": "audio"
+    }
+   ]
+  },
+  {
+   "default": {},
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "upload",
+     "list"
+    ]
+   },
+   "help": "purpose: user_data (default), assistants, fine-tune, vision. Keys: purpose",
+   "key": "options",
+   "label": "Options",
+   "language": "json",
+   "required": false,
+   "type": "code",
+   "visible_for": [
+    {
+     "operation": "upload",
+     "resource": "file"
+    },
+    {
+     "operation": "list",
+     "resource": "file"
+    }
+   ]
+  },
+  {
+   "default": "",
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "deleteFile"
+    ]
+   },
+   "key": "fileId",
+   "label": "File ID",
+   "required": true,
+   "type": "text",
+   "visible_for": [
+    {
+     "operation": "deleteFile",
+     "resource": "file"
+    }
+   ]
+  },
+  {
+   "default": {
+    "values": [
+     {
+      "type": "text"
+     }
+    ]
+   },
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "create"
+    ]
+   },
+   "help": "values: [{role: user|assistant|system, content}] Keys: values",
+   "key": "messages",
+   "label": "Messages",
+   "language": "json",
+   "required": false,
+   "type": "code",
+   "visible_for": [
+    {
+     "operation": "create",
+     "resource": "conversation"
+    }
+   ]
+  },
+  {
+   "default": {},
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "create"
+    ]
+   },
+   "help": "metadata: JSON object of up to 16 key/value pairs. Keys: metadata",
+   "key": "options",
+   "label": "Options",
+   "language": "json",
+   "required": false,
+   "type": "code",
+   "visible_for": [
+    {
+     "operation": "create",
+     "resource": "conversation"
+    }
+   ]
+  },
+  {
+   "default": "",
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "get",
+     "remove",
+     "update"
+    ]
+   },
+   "key": "conversationId",
+   "label": "Conversation ID",
+   "required": true,
+   "type": "text",
+   "visible_for": [
+    {
+     "operation": "get",
+     "resource": "conversation"
+    },
+    {
+     "operation": "remove",
+     "resource": "conversation"
+    },
+    {
+     "operation": "update",
+     "resource": "conversation"
+    }
+   ]
+  },
+  {
+   "default": "{}",
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "update"
+    ]
+   },
+   "help": "JSON object of up to 16 key/value pairs.",
+   "key": "metadata",
+   "label": "Metadata",
+   "language": "json",
+   "required": true,
+   "type": "code",
+   "visible_for": [
+    {
+     "operation": "update",
+     "resource": "conversation"
+    }
+   ]
+  },
+  {
+   "default": 4,
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "generate"
+    ]
+   },
+   "key": "seconds",
+   "label": "Seconds",
+   "required": true,
+   "type": "number",
+   "visible_for": [
+    {
+     "operation": "generate",
+     "resource": "video"
+    }
+   ]
+  },
+  {
+   "default": "1280x720",
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "generate"
+    ]
+   },
+   "key": "size",
+   "label": "Size",
+   "options": [
+    "720x1280",
+    "1280x720",
+    "1024x1792",
+    "1792x1024"
+   ],
+   "required": false,
+   "type": "select",
+   "visible_for": [
+    {
+     "operation": "generate",
+     "resource": "video"
+    }
+   ]
+  },
+  {
+   "default": {},
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "generate"
+    ]
+   },
+   "help": "binaryPropertyNameReference: binary property of a reference image; waitTime: seconds to wait (default 300); fileName: output file name. Keys: binaryPropertyNameReference, waitTime, fileName",
+   "key": "options",
+   "label": "Options",
+   "language": "json",
+   "required": false,
+   "type": "code",
+   "visible_for": [
+    {
+     "operation": "generate",
+     "resource": "video"
+    }
+   ]
+  }
+ ],
+ "title": "OpenAI API"
+}

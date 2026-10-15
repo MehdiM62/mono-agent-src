@@ -1,0 +1,140 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "moonshot_api",
+  "node_type": "app.moonshot_api",
+  "title": "Moonshot Kimi",
+  "description": "Kimi chat (with web search and image attachments) and image analysis through the Moonshot API with your own key",
+  "category": "app",
+  "docs_url": "https://platform.moonshot.ai/docs/api/chat",
+  "n8n_types": [
+    "@n8n/n8n-nodes-langchain.moonshot"
+  ],
+  "base_url": "{{ cred.region | eq:'china' | then:'https://api.moonshot.cn/v1' | default:'https://api.moonshot.ai/v1' }}",
+  "credentials": [
+    {
+      "platform": "moonshot",
+      "name": "Moonshot (Kimi)",
+      "n8n_credential": "moonshotApi",
+      "n8n_field_map": {
+        "apiKey": "api_key",
+        "region": "region"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true,
+          "help": "platform.moonshot.ai → API Keys"
+        },
+        {
+          "key": "region",
+          "label": "Region",
+          "help": "international (api.moonshot.ai, default) or china (api.moonshot.cn)"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.api_key }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "image",
+      "label": "Image"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "image",
+      "operation": "analyze",
+      "title": "Analyze images",
+      "method": "POST",
+      "path": "/chat/completions",
+      "fields": [
+        {
+          "key": "modelId",
+          "label": "Model",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "Kimi model id (kimi-k2.5, …). Plain id or n8n model locator."
+        },
+        {
+          "key": "text",
+          "label": "Question",
+          "type": "textarea",
+          "default": "What's in this image?"
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Input binary properties",
+          "type": "text",
+          "default": "data",
+          "help": "Comma-separated."
+        },
+        {
+          "key": "simplify",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "maxTokens"
+          ],
+          "help": "maxTokens: default 1024."
+        }
+      ],
+      "body": {
+        "model": "{{ p.modelId | rl }}",
+        "max_tokens": "{{ p.options.maxTokens | default:1024 }}",
+        "thinking": {
+          "type": "disabled"
+        },
+        "messages": [
+          {
+            "role": "user",
+            "content": {
+              "$concat": [
+                {
+                  "$map": "{{ bin.files }}",
+                  "$to": {
+                    "type": "image_url",
+                    "image_url": {
+                      "url": "data:{{ el.mime_type }};base64,{{ el.base64 }}"
+                    }
+                  }
+                },
+                [
+                  {
+                    "type": "text",
+                    "!text": "{{ p.text }}"
+                  }
+                ]
+              ]
+            }
+          }
+        ]
+      },
+      "binary": {
+        "properties": "{{ p.binaryPropertyName }}"
+      },
+      "output": {
+        "to_when": "{{ p.simplify | ne:'false' }}",
+        "to": {
+          "!content": "{{ el.choices.0.message.content | default:'' }}"
+        }
+      }
+    }
+  ]
+}

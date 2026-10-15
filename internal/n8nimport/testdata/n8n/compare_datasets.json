@@ -1,0 +1,19 @@
+{
+  "name": "Compare CRM and billing",
+  "nodes": [
+    {"parameters": {}, "name": "Manual", "type": "n8n-nodes-base.manualTrigger", "typeVersion": 1, "position": [0, 0]},
+    {"parameters": {"jsCode": "return [{json: {id: 1, plan: 'pro'}}, {json: {id: 2, plan: 'free'}}, {json: {id: 3, plan: 'pro'}}];"}, "name": "CRM", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [200, -100]},
+    {"parameters": {"jsCode": "return [{json: {id: 1, plan: 'pro'}}, {json: {id: 2, plan: 'pro'}}, {json: {id: 4, plan: 'free'}}];"}, "name": "Billing", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [200, 100]},
+    {"parameters": {"mergeByFields": {"values": [{"field1": "id", "field2": "id"}]}, "options": {}}, "name": "Compare Datasets", "type": "n8n-nodes-base.compareDatasets", "typeVersion": 2.3, "position": [400, 0]},
+    {"parameters": {}, "name": "Only in CRM", "type": "n8n-nodes-base.noOp", "typeVersion": 1, "position": [600, -150]},
+    {"parameters": {}, "name": "Same", "type": "n8n-nodes-base.noOp", "typeVersion": 1, "position": [600, -50]},
+    {"parameters": {}, "name": "Different", "type": "n8n-nodes-base.noOp", "typeVersion": 1, "position": [600, 50]},
+    {"parameters": {}, "name": "Only in billing", "type": "n8n-nodes-base.noOp", "typeVersion": 1, "position": [600, 150]}
+  ],
+  "connections": {
+    "Manual": {"main": [[{"node": "CRM", "type": "main", "index": 0}, {"node": "Billing", "type": "main", "index": 0}]]},
+    "CRM": {"main": [[{"node": "Compare Datasets", "type": "main", "index": 0}]]},
+    "Billing": {"main": [[{"node": "Compare Datasets", "type": "main", "index": 1}]]},
+    "Compare Datasets": {"main": [[{"node": "Only in CRM", "type": "main", "index": 0}], [{"node": "Same", "type": "main", "index": 0}], [{"node": "Different", "type": "main", "index": 0}], [{"node": "Only in billing", "type": "main", "index": 0}]]}
+  }
+}

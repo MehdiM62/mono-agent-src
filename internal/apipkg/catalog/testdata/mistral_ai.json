@@ -1,0 +1,43 @@
+{
+  "document.extractText": {
+    "params": {},
+    "credential": {
+      "api_key": "k"
+    },
+    "input": {
+      "binary": {
+        "data": {
+          "data": "aGVsbG8=",
+          "fileName": "a.pdf",
+          "mimeType": "application/pdf"
+        }
+      }
+    },
+    "response": {
+      "pages": [
+        {
+          "markdown": "# A"
+        },
+        {
+          "markdown": "B"
+        }
+      ],
+      "usage_info": {
+        "pages_processed": 2
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/ocr",
+      "items": 1,
+      "body": {
+        "model": "mistral-ocr-latest",
+        "document": {
+          "type": "document_url",
+          "document_url": "data:application/pdf;base64,aGVsbG8=",
+          "document_name": "a.pdf"
+        }
+      }
+    }
+  }
+}

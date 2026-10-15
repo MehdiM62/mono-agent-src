@@ -7,11 +7,11 @@ import (
 	"time"
 
 	"github.com/monoes/mono-agent/internal/extension"
-	"github.com/rs/zerolog"
+	"github.com/monoes/mono-agent/internal/logging"
 )
 
 func main() {
-	logger := zerolog.New(os.Stderr).Level(zerolog.WarnLevel)
+	logger := logging.Zerolog()
 	srv := extension.NewServer(":9222", logger)
 	srv.StartAsync(context.Background())
 	if err := srv.WaitForConnection(20 * time.Second); err != nil {

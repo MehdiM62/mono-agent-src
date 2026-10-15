@@ -2,6 +2,7 @@ package org
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/monoes/mono-agent/internal/workflow"
@@ -74,5 +75,11 @@ func TestIncomingTraceForWebhookRuns(t *testing.T) {
 	ctx = workflow.WithTrigger(context.Background(), workflow.TriggerNodeTypeWebhook, payloadOnly)
 	if tr := incomingTrace(ctx, workflow.Item{JSON: payloadOnly}); tr.ChainID != "" {
 		t.Fatalf("payload trace continued as a chain: %+v", tr)
+	}
+}
+
+func TestResolveOrgEnvRequiresProfile(t *testing.T) {
+	if _, err := resolveOrgEnv(context.Background(), "org.send"); err == nil || !strings.Contains(err.Error(), "org.send ran without a profile") {
+		t.Fatalf("err = %v, want ran-without-a-profile", err)
 	}
 }

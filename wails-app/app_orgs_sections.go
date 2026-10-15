@@ -30,6 +30,9 @@ func (a *App) mutateOrgDoc(orgName string, fn func(d *orgdesign.Doc) error) stri
 // section they are in). In a plain org the first section takes every
 // non-root role. specJSON: {"members":["id",...]}.
 func (a *App) AddOrgSection(orgName, name, specJSON string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	var spec struct {
 		Members []string `json:"members"`
 	}
@@ -43,6 +46,9 @@ func (a *App) AddOrgSection(orgName, name, specJSON string) string {
 // max_rework_rounds. patchJSON keys present overwrite; "budget_usd" and
 // "max_rework_rounds" set to null remove the value.
 func (a *App) UpdateOrgSection(orgName, name, patchJSON string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	var raw map[string]json.RawMessage
 	if err := json.Unmarshal([]byte(patchJSON), &raw); err != nil {
 		return aiError(fmt.Errorf("invalid patch: %w", err))
@@ -87,16 +93,25 @@ func optField[T any](raw map[string]json.RawMessage, key string, dst **T, clear 
 
 // DeleteOrgSection removes a section; its roles move to moveTo.
 func (a *App) DeleteOrgSection(orgName, name, moveTo string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	return a.mutateOrgDoc(orgName, func(d *orgdesign.Doc) error { return d.DeleteSection(name, moveTo) })
 }
 
 // AssignOrgRole moves a non-root role into a section (membership change).
 func (a *App) AssignOrgRole(orgName, roleID, section string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	return a.mutateOrgDoc(orgName, func(d *orgdesign.Doc) error { return d.AssignRole(roleID, section) })
 }
 
 // AddOrgRoleToSection is AddOrgRole for a role that joins the named section.
 func (a *App) AddOrgRoleToSection(orgName, section, roleJSON string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	var r orgdesign.Role
 	if err := json.Unmarshal([]byte(roleJSON), &r); err != nil {
 		return aiError(fmt.Errorf("invalid role: %w", err))
@@ -109,10 +124,16 @@ func (a *App) AddOrgRoleToSection(orgName, section, roleJSON string) string {
 
 // AddOrgDocumentEdge makes producer's section publish docType to consumer's.
 func (a *App) AddOrgDocumentEdge(orgName, producer, consumer, docType string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	return a.mutateOrgDoc(orgName, func(d *orgdesign.Doc) error { return d.AddDocumentEdge(producer, consumer, docType) })
 }
 
 // RemoveOrgDocumentEdge removes a handoff drawn with AddOrgDocumentEdge.
 func (a *App) RemoveOrgDocumentEdge(orgName, producer, consumer, docType string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	return a.mutateOrgDoc(orgName, func(d *orgdesign.Doc) error { return d.RemoveDocumentEdge(producer, consumer, docType) })
 }

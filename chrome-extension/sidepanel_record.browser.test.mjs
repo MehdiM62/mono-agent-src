@@ -61,6 +61,7 @@ const STUB = `
       onMessage: ev(),
       sendMessage(m, cb) {
         let r = { ok: true };
+        if (m.type === "get_status") r = { signedIn: true };
         if (m.type === "record_analyze") r = window.__draft || ${JSON.stringify(DRAFT)};
         if (m.type === "record_verify") r = window.__verify.shift();
         if (m.type === "record_save") { window.__saveRequests.push(m); r = window.__save.shift(); }

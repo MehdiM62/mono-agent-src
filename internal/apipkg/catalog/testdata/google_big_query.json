@@ -1,0 +1,98 @@
+{
+  "database.executeQuery": {
+    "params": {
+      "projectId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "proj"
+      },
+      "sqlQuery": "SELECT 1 AS x",
+      "options": {
+        "queryParameters": {
+          "namedParameters": [
+            {
+              "name": "a",
+              "value": "1"
+            }
+          ]
+        }
+      }
+    },
+    "responses": [
+      {
+        "jobComplete": false,
+        "jobReference": {
+          "jobId": "j1",
+          "location": "US"
+        }
+      },
+      {
+        "jobComplete": true,
+        "schema": {
+          "fields": [
+            {
+              "name": "x",
+              "type": "INTEGER"
+            }
+          ]
+        },
+        "rows": [
+          {
+            "f": [
+              {
+                "v": "1"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/bigquery/v2/projects/proj/queries",
+      "body": {
+        "query": "SELECT 1 AS x",
+        "useLegacySql": false,
+        "maxResults": 1000,
+        "timeoutMs": 10000,
+        "parameterMode": "NAMED",
+        "queryParameters": [
+          {
+            "name": "a",
+            "parameterType": {
+              "type": "STRING"
+            },
+            "parameterValue": {
+              "value": "1"
+            }
+          }
+        ]
+      },
+      "items": 1
+    }
+  },
+  "database.insert": {
+    "params": {
+      "projectId": "proj",
+      "datasetId": "ds",
+      "tableId": "t"
+    },
+    "input": {
+      "name": "ada"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/bigquery/v2/projects/proj/datasets/ds/tables/t/insertAll",
+      "body": {
+        "rows": [
+          {
+            "json": {
+              "name": "ada"
+            }
+          }
+        ],
+        "traceId": "<any>"
+      }
+    }
+  }
+}

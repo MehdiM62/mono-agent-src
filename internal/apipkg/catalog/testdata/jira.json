@@ -1,0 +1,594 @@
+{
+  "issue.create": {
+    "params": {
+      "project": {
+        "__rl": true,
+        "mode": "list",
+        "value": "10000"
+      },
+      "issueType": "10001",
+      "summary": "Bug",
+      "additionalFields": {
+        "assignee": "acc1",
+        "labels": [
+          "a"
+        ],
+        "description": "d",
+        "customFieldsUi": {
+          "customFieldsValues": [
+            {
+              "fieldId": "customfield_1",
+              "fieldValue": "v"
+            }
+          ]
+        }
+      }
+    },
+    "response": {
+      "id": "1",
+      "key": "P-1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/rest/api/2/issue",
+      "body": {
+        "fields": {
+          "summary": "Bug",
+          "project": {
+            "id": "10000"
+          },
+          "issuetype": {
+            "id": "10001"
+          },
+          "description": "d",
+          "labels": [
+            "a"
+          ],
+          "assignee": {
+            "id": "acc1"
+          },
+          "customfield_1": "v"
+        }
+      },
+      "items": 1
+    },
+    "credential": {
+      "email": "a@x.io",
+      "api_token": "t",
+      "domain": "team.atlassian.net"
+    }
+  },
+  "issue.changelog": {
+    "params": {
+      "issueKey": "P-1",
+      "limit": 5
+    },
+    "response": {
+      "values": [
+        {
+          "id": "1"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/rest/api/2/issue/P-1/changelog",
+      "query": {
+        "startAt": "0",
+        "maxResults": "5"
+      },
+      "items": 1
+    },
+    "credential": {
+      "email": "a@x.io",
+      "api_token": "t",
+      "domain": "team.atlassian.net"
+    }
+  },
+  "issue.delete": {
+    "params": {
+      "issueKey": "P-1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/rest/api/2/issue/P-1",
+      "query": {
+        "deleteSubtasks": "false"
+      },
+      "items": 1
+    },
+    "credential": {
+      "email": "a@x.io",
+      "api_token": "t",
+      "domain": "team.atlassian.net"
+    }
+  },
+  "issue.get": {
+    "params": {
+      "issueKey": "P-1",
+      "additionalFields": {
+        "fields": "summary"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/ex/jira/cloud-1/rest/api/2/issue/P-1",
+      "query": {
+        "fields": "summary"
+      },
+      "items": 1
+    },
+    "credential": {
+      "access_token": "tok"
+    },
+    "responses": [
+      [
+        {
+          "id": "cloud-1",
+          "url": "https://team.atlassian.net"
+        }
+      ],
+      {
+        "key": "P-1"
+      }
+    ]
+  },
+  "issue.getAll": {
+    "params": {
+      "limit": 10,
+      "options": {
+        "jql": "project = P"
+      }
+    },
+    "response": {
+      "issues": [
+        {
+          "key": "P-1"
+        },
+        {
+          "key": "P-2"
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/rest/api/2/search/jql",
+      "body": {
+        "fields": [
+          "*navigable"
+        ],
+        "jql": "project = P",
+        "maxResults": 10
+      },
+      "items": 2
+    },
+    "credential": {
+      "email": "a@x.io",
+      "api_token": "t",
+      "domain": "team.atlassian.net"
+    }
+  },
+  "issue.notify": {
+    "params": {
+      "issueKey": "P-1",
+      "additionalFields": {
+        "subject": "Hi",
+        "textBody": "t"
+      },
+      "notificationRecipientsUi": {
+        "notificationRecipientsValues": {
+          "reporter": true,
+          "users": [
+            "acc1"
+          ]
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/rest/api/2/issue/P-1/notify",
+      "body": {
+        "subject": "Hi",
+        "textBody": "t",
+        "to": {
+          "reporter": true,
+          "users": [
+            {
+              "accountId": "acc1"
+            }
+          ]
+        }
+      },
+      "items": 1
+    },
+    "credential": {
+      "email": "a@x.io",
+      "api_token": "t",
+      "domain": "team.atlassian.net"
+    }
+  },
+  "issue.transitions": {
+    "params": {
+      "issueKey": "P-1"
+    },
+    "response": {
+      "transitions": [
+        {
+          "id": "11"
+        },
+        {
+          "id": "21"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/rest/api/2/issue/P-1/transitions",
+      "items": 2
+    },
+    "credential": {
+      "email": "a@x.io",
+      "api_token": "t",
+      "domain": "team.atlassian.net"
+    }
+  },
+  "issue.update": {
+    "params": {
+      "issueKey": "P-1",
+      "jiraVersion": "server",
+      "updateFields": {
+        "summary": "New",
+        "assignee": "jdoe",
+        "statusId": "31"
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/rest/api/2/issue/P-1",
+      "body": {
+        "fields": {
+          "summary": "New",
+          "assignee": {
+            "name": "jdoe"
+          }
+        }
+      },
+      "items": 1
+    },
+    "expect_requests": [
+      {
+        "method": "POST",
+        "path": "/rest/api/2/issue/P-1/transitions",
+        "body": {
+          "transition": {
+            "id": "31"
+          }
+        }
+      },
+      {
+        "method": "PUT",
+        "path": "/rest/api/2/issue/P-1",
+        "body": {
+          "fields": {
+            "summary": "New",
+            "assignee": {
+              "name": "jdoe"
+            }
+          }
+        }
+      }
+    ],
+    "credential": {
+      "email": "a@x.io",
+      "api_token": "t",
+      "domain": "team.atlassian.net"
+    }
+  },
+  "issueAttachment.add": {
+    "params": {
+      "issueKey": "P-1"
+    },
+    "input": {
+      "data": "aGk=",
+      "file_name": "a.txt"
+    },
+    "response": [
+      {
+        "id": "9"
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/rest/api/3/issue/P-1/attachments",
+      "body": {
+        "file": "file:a.txt:hi"
+      },
+      "items": 1
+    },
+    "credential": {
+      "email": "a@x.io",
+      "api_token": "t",
+      "domain": "team.atlassian.net"
+    }
+  },
+  "issueAttachment.get": {
+    "params": {
+      "attachmentId": "9",
+      "download": true,
+      "binaryProperty": "file"
+    },
+    "response": {
+      "id": "9",
+      "filename": "a.pdf",
+      "mimeType": "application/pdf"
+    },
+    "credential": {
+      "email": "a@x.io",
+      "api_token": "t",
+      "domain": "team.atlassian.net"
+    },
+    "expect_requests": [
+      {
+        "method": "GET",
+        "path": "/rest/api/3/attachment/9"
+      },
+      {
+        "method": "GET",
+        "path": "/rest/api/3/attachment/content/9"
+      }
+    ],
+    "expect": {
+      "items": 1
+    }
+  },
+  "issueAttachment.getAll": {
+    "params": {
+      "issueKey": "P-1",
+      "limit": 1,
+      "download": true
+    },
+    "response": {
+      "fields": {
+        "attachment": [
+          {
+            "id": "9"
+          },
+          {
+            "id": "10"
+          }
+        ]
+      }
+    },
+    "credential": {
+      "email": "a@x.io",
+      "api_token": "t",
+      "domain": "team.atlassian.net"
+    },
+    "expect_requests": [
+      {
+        "method": "GET",
+        "path": "/rest/api/2/issue/P-1"
+      },
+      {
+        "method": "GET",
+        "path": "/rest/api/3/attachment/content/9"
+      }
+    ],
+    "expect": {
+      "items": 1
+    }
+  },
+  "issueAttachment.remove": {
+    "params": {
+      "attachmentId": "9"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/rest/api/3/attachment/9",
+      "items": 1
+    },
+    "credential": {
+      "email": "a@x.io",
+      "api_token": "t",
+      "domain": "team.atlassian.net"
+    }
+  },
+  "issueComment.add": {
+    "params": {
+      "issueKey": "P-1",
+      "comment": "Looks good"
+    },
+    "response": {
+      "id": "c1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/rest/api/3/issue/P-1/comment",
+      "body": {
+        "body": {
+          "type": "doc",
+          "version": 1,
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Looks good"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "items": 1
+    },
+    "credential": {
+      "email": "a@x.io",
+      "api_token": "t",
+      "domain": "team.atlassian.net"
+    }
+  },
+  "issueComment.get": {
+    "params": {
+      "issueKey": "P-1",
+      "commentId": "c1"
+    },
+    "response": {
+      "id": "c1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/rest/api/3/issue/P-1/comment/c1",
+      "items": 1
+    },
+    "credential": {
+      "email": "a@x.io",
+      "api_token": "t",
+      "domain": "team.atlassian.net"
+    }
+  },
+  "issueComment.getAll": {
+    "params": {
+      "issueKey": "P-1",
+      "limit": 5,
+      "options": {
+        "orderBy": "-created"
+      }
+    },
+    "response": {
+      "comments": [
+        {
+          "id": "c1"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/rest/api/3/issue/P-1/comment",
+      "query": {
+        "orderBy": "-created",
+        "startAt": "0",
+        "maxResults": "5"
+      },
+      "items": 1
+    },
+    "credential": {
+      "email": "a@x.io",
+      "api_token": "t",
+      "domain": "team.atlassian.net"
+    }
+  },
+  "issueComment.remove": {
+    "params": {
+      "issueKey": "P-1",
+      "commentId": "c1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/rest/api/3/issue/P-1/comment/c1",
+      "items": 1
+    },
+    "credential": {
+      "email": "a@x.io",
+      "api_token": "t",
+      "domain": "team.atlassian.net"
+    }
+  },
+  "issueComment.update": {
+    "params": {
+      "issueKey": "P-1",
+      "commentId": "c1",
+      "comment": "*bold*",
+      "options": {
+        "wikiMarkup": true
+      }
+    },
+    "response": {
+      "id": "c1"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/rest/api/2/issue/P-1/comment/c1",
+      "body": {
+        "body": "*bold*"
+      },
+      "items": 1
+    },
+    "credential": {
+      "email": "a@x.io",
+      "api_token": "t",
+      "domain": "team.atlassian.net"
+    }
+  },
+  "user.create": {
+    "params": {
+      "username": "ada",
+      "emailAddress": "a@x.io",
+      "displayName": "Ada"
+    },
+    "response": {
+      "accountId": "acc1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/rest/api/3/user",
+      "body": {
+        "name": "ada",
+        "emailAddress": "a@x.io",
+        "displayName": "Ada"
+      },
+      "items": 1
+    },
+    "credential": {
+      "email": "a@x.io",
+      "api_token": "t",
+      "domain": "team.atlassian.net"
+    }
+  },
+  "user.delete": {
+    "params": {
+      "accountId": "acc1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/rest/api/3/user",
+      "query": {
+        "accountId": "acc1"
+      },
+      "items": 1
+    },
+    "credential": {
+      "email": "a@x.io",
+      "api_token": "t",
+      "domain": "team.atlassian.net"
+    }
+  },
+  "user.get": {
+    "params": {
+      "accountId": "acc1",
+      "additionalFields": {
+        "expand": [
+          "groups"
+        ]
+      }
+    },
+    "response": {
+      "accountId": "acc1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/rest/api/3/user",
+      "query": {
+        "accountId": "acc1",
+        "expand": "groups"
+      },
+      "items": 1
+    },
+    "credential": {
+      "email": "a@x.io",
+      "api_token": "t",
+      "domain": "team.atlassian.net"
+    }
+  }
+}

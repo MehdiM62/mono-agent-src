@@ -6,7 +6,7 @@ package mcp
 var docsTopics = map[string]string{
 	"publication": `PUBLICATION HISTORY
 
-The active profile's local history of successful posts, comments, replies,
+A profile's local history of successful posts, comments, replies,
 articles, videos and shared channel posts. Built-in publishing operations register
 success automatically from workflows, direct node runs and agent automations.
 Reads, likes, follows, drafts and private messages are excluded.
@@ -58,17 +58,33 @@ Human-in-the-loop:
 Credentials & profiles:
   connect <platform>         OAuth/API-key connection setup
   secret add --kind secret --name x   (pipe value via stdin; never argv)
-  profile list | profile use <name>   Everything is scoped to the active profile
+  profile list                        Everything is scoped to a profile; pass --profile <id|name>
 
 Exit codes: 0 ok, 1 general, 2 not-found, 3 invalid-input/validation, 4 auth/connection.`,
 
 	"nodes": `NODE TYPES (category.type; full schemas via the node_schema tool)
 
 Core/control: core.set, core.if, core.switch, core.filter, core.sort,
-  core.limit, core.aggregate, core.merge, core.code, core.wait,
-  core.human_in_loop (pauses for approval — pair with hil_list/hil_approve)
-Triggers: trigger.schedule (6-field cron: sec min hour day month weekday),
-  trigger.webhook (path config; POST to the daemon's webhook port)
+  core.limit, core.aggregate, core.merge, core.code, core.noop,
+  core.wait (duration, or resume timeInterval/specificTime),
+  core.remove_duplicates (within a run or across earlier runs),
+  core.split_in_batches (loop: outputs "loop" per batch and "done" at the
+    end; an edge from the loop body back into it continues the loop),
+  core.execute_workflow (run another workflow as a sub-workflow),
+  core.respond_chat (message into a trigger.chat session; sendAndWait),
+  core.respond_webhook (answer a responseNode webhook),
+  core.form (next page or ending of a trigger.form's form),
+  core.human_in_loop (pauses for approval — pair with hil_list/hil_approve;
+    optional "rejected" output)
+Triggers: trigger.schedule (6-field cron: sec min hour day month weekday;
+  overlap, catch_up), trigger.webhook (path config; POST to the daemon's
+  webhook port; response_mode onReceived|lastNode|responseNode),
+  trigger.execute_workflow (called by core.execute_workflow),
+  trigger.evaluation (one run per dataset row in monoagentcli workflow
+    evaluate; core.evaluation records metrics),
+  trigger.error (runs when a workflow naming this one as its error
+  workflow fails), trigger.local_file (path; events add|change|unlink;
+  one run per change while the daemon runs)
 HTTP: http.request (method/url/headers/body; auth modes incl. OAuth2)
 System: system.execute_command, system.rss_read, system.read_write_file
 Data: data.datetime, data.crypto, data.html, data.xml, data.markdown,
@@ -97,13 +113,23 @@ Built-in variables:
   $json                 current item's data map
   $json.field           field on the current item
   $node["NodeName"].json.f   first output item of a previous node (by name)
+  $node["NodeName"].all      every output item of that node (.items: same)
+  $items["NodeName"]    same list as $node["NodeName"].all
+  $now / $today         current time / midnight today; UTC unless
+                        settings.timezone (or MONOAGENT_TIMEZONE) names a zone
+  $trigger.field        the execution's trigger data
+  $vars.name            workflow variables (settings.variables)
+  $runIndex             loop iteration number, 0 outside a loop
+  $prevNode             name of the node that fed this one, when known
   $workflow.id / $execution.id   current run IDs
-  $env.MY_VAR           OS environment variable
+  $env.MY_VAR           OS environment variable (empty unless
+                        MONOAGENT_ALLOW_ENV_TEMPLATES=1)
 
 Encoding:     json <v> | jsonParse <s>
 Conversions:  toString / toInt / toFloat / toBool
-String:       upper, lower, trim, replace, split, join, contains,
-              hasPrefix, hasSuffix, default, truncate
+String:       upper, lower, trim, replace, split, join, default, truncate,
+              contains / startsWith / endsWith / matches <arg> <s>
+              (string last; matches takes a Go regex)
 Math:         add, sub, mul, div, mod
 Logic:        eq, ne, lt, le, gt, ge, and, or, not, len, index
 Time:         now, unix, formatDate
@@ -132,7 +158,8 @@ Example: nested access     {{ $node["Fetch"].json.items }}`,
 Rules enforced by validation (workflow_validate / workflow validate):
   - non-empty name; 1-200 nodes; 0-500 connections
   - unique node IDs; every connection references existing nodes
-  - no cycles (DAG required); non-empty source_handle
+  - no cycles, except a loop: an edge from a core.split_in_batches
+    node's loop body back into it; non-empty source_handle
   - activation additionally requires >=1 trigger.* node, and
     trigger.schedule needs "cron", trigger.webhook needs "path"
 
@@ -158,8 +185,10 @@ collide.`,
 	"connections": `CONNECTIONS, CREDENTIALS & PROFILES
 
 Profiles scope everything (workflows, connections, people, HIL queue,
-secrets). --profile <name> overrides one command; the active profile comes
-from the settings table ("default" initially). A workflow saved under one
+secrets). Every command that acts on a profile takes --profile <id|name>; there
+is no active profile. (This server still serves the profile fixed at start, and
+today falls back to MONOAGENT_PROFILE, which is being removed; a later release
+adds a required profile argument.) A workflow saved under one
 profile cannot run under another.
 
 Connections ('monoagentcli connect <platform>') store OAuth tokens /
@@ -167,7 +196,7 @@ API keys in an encrypted vault (keyring-wrapped key, AES-256-GCM). Nodes
 resolve credentials by:
   1. explicit config field credential_id (connection ID or platform name)
   2. platform name derived from the node type (service.google_sheets ->
-     google_sheets), scoped to the active profile
+     google_sheets), scoped to the profile
 OAuth tokens refresh automatically before expiry.
 
 Secrets for config values: prefer the vault (secret add, value via stdin) —

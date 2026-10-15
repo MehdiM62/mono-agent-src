@@ -75,8 +75,6 @@ type execScript struct {
 	answers map[string]*monomind.TurnResult // model key -> result; missing = ok
 	mu      sync.Mutex
 	calls   []monomind.ExecOptions
-	active  map[string]int // access -> running count
-	maxBy   map[string]int
 	running int32
 	maxRun  int32
 }
@@ -451,7 +449,7 @@ func TestWorkersGetNoCallerTools(t *testing.T) {
 		if len(o.Tools) != 0 || o.OnToolCall != nil {
 			t.Errorf("a worker got caller tools: %+v", o.Tools)
 		}
-		if !strings.Contains(o.SystemPrompt, "Never read, send or change the user's messages or people records") {
+		if !strings.Contains(o.SystemPrompt, "Never read, send or change the user's messages or people records") && !strings.Contains(o.SystemPrompt, "NEVER finalize a send") {
 			t.Error("worker prompt misses the messaging/people rule")
 		}
 	}

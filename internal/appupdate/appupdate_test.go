@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"github.com/monoes/mono-agent/internal/release"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -89,7 +90,9 @@ func linuxTarball(t *testing.T, files map[string]string) []byte {
 }
 
 func testUpdater(srv *httptest.Server, goos, goarch, exe string, started *[]string) Updater {
-	return Updater{Client: srv.Client(), APIURL: srv.URL + "/latest", GOOS: goos, GOARCH: goarch, Exe: exe,
+	// Release: an unkeyed client is unavailable, so the legacy API path under test runs
+	// instead of the live signed manifest.
+	return Updater{Release: &release.Client{}, Client: srv.Client(), APIURL: srv.URL + "/latest", GOOS: goos, GOARCH: goarch, Exe: exe,
 		StartDetached: func(name string, args ...string) error {
 			*started = append(*started, name+" "+strings.Join(args, " "))
 			return nil
@@ -195,7 +198,7 @@ func TestAppUpdateFailsClosed(t *testing.T) {
 
 func TestAppUpdateUnsupportedPlatform(t *testing.T) {
 	var started []string
-	u := Updater{GOOS: "linux", GOARCH: "arm64", StartDetached: func(string, ...string) error {
+	u := Updater{Release: &release.Client{}, GOOS: "linux", GOARCH: "arm64", StartDetached: func(string, ...string) error {
 		started = append(started, "x")
 		return nil
 	}}

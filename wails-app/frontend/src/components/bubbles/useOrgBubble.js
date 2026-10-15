@@ -89,7 +89,7 @@ export function useOrgBubble(orgName) {
     seeded.current = false
     Promise.resolve().then(() => api.getOrgLogs(orgName, '')).catch(() => null).then(res => {
       if (cancelled) return
-      let s = initialOrgBubble({ org: orgName, boss, roles: JSON.parse(rolesKey) })
+      let s = initialOrgBubble({ org: orgName, boss, roles: JSON.parse(rolesKey), prejoin: true })
       for (const ev of logItems(res)) s = applyOrgBusEvent(s, ev)
       for (const ev of buffered.current) s = applyOrgBusEvent(s, ev)
       buffered.current = []

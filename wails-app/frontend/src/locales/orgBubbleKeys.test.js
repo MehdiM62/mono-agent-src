@@ -10,13 +10,14 @@ const flat = (o, p = '') => Object.entries(o).flatMap(([k, v]) => (v && typeof v
 const has = (keys, k) => keys.includes(k) || (keys.includes(`${k}_one`) && keys.includes(`${k}_other`))
 
 const sources = [
-  'bubbles/OrgBubbleOverlay.jsx', 'bubbles/OrgChatView.jsx', 'bubbles/BubbleDock.jsx', 'bubbles/CoderBubbles.jsx', 'OrgsPanel.jsx',
+  'bubbles/OrgBubbleOverlay.jsx', 'bubbles/OrgChatView.jsx', 'bubbles/AskCard.jsx', 'bubbles/BubbleDock.jsx', 'bubbles/CoderBubbles.jsx', 'OrgsPanel.jsx',
 ].map(f => join(__dirname, '..', 'components', f))
 const literal = [...new Set(sources.flatMap(f => [...readFileSync(f, 'utf8').matchAll(/['"`](orgBubble\.[a-zA-Z0-9_.]+)['"`]/g)].map(m => m[1])))]
 const dynamic = [
   ...['running', 'paused', 'stopped', 'crashed', 'neverRun', 'loading'].map(s => `orgBubble.status.${s}`),
-  ...['answered', 'approved', 'denied', 'rejected', 'dismissed'].map(s => `orgBubble.state.${s}`),
+  ...['answered', 'approved', 'denied', 'rejected', 'dismissed', 'sent'].map(s => `orgBubble.state.${s}`),
   ...['pause', 'resume', 'stop'].flatMap(v => [`orgBubble.${v}`, `orgBubble.confirm.${v}Title`, `orgBubble.confirm.${v}Body`]),
+  ...['running', 'ok', 'failed', 'denied'].map(s => `orgBubble.tool.${s}`),
   'stage.status.blocked', 'stage.direction.message',
 ]
 

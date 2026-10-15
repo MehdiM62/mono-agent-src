@@ -1,0 +1,103 @@
+{
+  "push.create": {
+    "params": {
+      "type": "file",
+      "body": "B"
+    },
+    "input": {
+      "data": "aGVsbG8="
+    },
+    "responses": [
+      {
+        "file_name": "f.bin",
+        "file_type": "application/octet-stream",
+        "file_url": "https://dl.test/f.bin",
+        "upload_url": "https://up.test/u"
+      },
+      {},
+      {
+        "iden": "p"
+      }
+    ],
+    "expect_requests": [
+      {
+        "method": "POST",
+        "path": "/v2/upload-request",
+        "body": {
+          "file_name": "data",
+          "file_type": "application/octet-stream"
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/u",
+        "body": {
+          "file": "file:data:hello"
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/v2/pushes",
+        "body": {
+          "type": "file",
+          "body": "B",
+          "file_name": "f.bin",
+          "file_type": "application/octet-stream",
+          "file_url": "https://dl.test/f.bin"
+        }
+      }
+    ]
+  },
+  "push.delete": {
+    "params": {
+      "pushId": "p1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/v2/pushes/p1",
+      "items": 1
+    }
+  },
+  "push.getAll": {
+    "params": {
+      "limit": 5,
+      "filters": {
+        "active": true,
+        "modified_after": "2024-01-01T00:00:00Z"
+      }
+    },
+    "response": {
+      "pushes": [
+        {
+          "iden": "a"
+        },
+        {
+          "iden": "b"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v2/pushes",
+      "query": {
+        "active": "true",
+        "modified_after": "1704067200",
+        "limit": "5"
+      },
+      "items": 2
+    }
+  },
+  "push.update": {
+    "params": {
+      "pushId": "p1",
+      "dismissed": true
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/pushes/p1",
+      "body": {
+        "dismissed": true
+      }
+    }
+  }
+}

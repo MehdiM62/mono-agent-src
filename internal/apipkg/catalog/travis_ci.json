@@ -1,0 +1,201 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "travis_ci",
+  "node_type": "app.travis_ci",
+  "title": "TravisCI",
+  "description": "Read, cancel, restart and trigger Travis CI builds",
+  "category": "app",
+  "docs_url": "https://developer.travis-ci.com/",
+  "n8n_types": [
+    "n8n-nodes-base.travisCi"
+  ],
+  "base_url": "https://api.travis-ci.com",
+  "headers": {
+    "Accept": "application/json",
+    "Travis-API-Version": "3"
+  },
+  "credentials": [
+    {
+      "platform": "travis_ci",
+      "name": "Travis CI",
+      "n8n_credential": "travisCiApi",
+      "n8n_field_map": {
+        "apiToken": "api_token"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "api_token",
+          "label": "API token",
+          "secret": true,
+          "required": true,
+          "help": "Travis CI: Settings → API authentication → Copy token"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "token {{ cred.api_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "build",
+      "label": "Build"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "build",
+      "operation": "cancel",
+      "title": "Cancel a build",
+      "method": "POST",
+      "path": "/build/{{ p.buildId }}/cancel",
+      "fields": [
+        {
+          "key": "buildId",
+          "label": "Build ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "build",
+      "operation": "get",
+      "title": "Get a build",
+      "method": "GET",
+      "path": "/build/{{ p.buildId }}",
+      "query": {
+        "include": "{{ p.additionalFields.include }}"
+      },
+      "fields": [
+        {
+          "key": "buildId",
+          "label": "Build ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "include"
+          ],
+          "help": "include: comma-separated extra attributes to embed, e.g. build.commit"
+        }
+      ]
+    },
+    {
+      "resource": "build",
+      "operation": "getAll",
+      "title": "Get many builds",
+      "method": "GET",
+      "path": "/builds",
+      "query": {
+        "sort_by": {
+          "$join": [
+            "{{ p.additionalFields.sortBy }}",
+            "{{ p.additionalFields.sortBy | then:p.additionalFields.order }}"
+          ],
+          "$sep": ":"
+        },
+        "include": "{{ p.additionalFields.include }}"
+      },
+      "pagination": {
+        "type": "offset",
+        "offset_param": "offset",
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": "builds"
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "include",
+            "order",
+            "sortBy"
+          ],
+          "help": "sortBy: created_at, finished_at, id, number or started_at; order: asc or desc"
+        }
+      ]
+    },
+    {
+      "resource": "build",
+      "operation": "restart",
+      "title": "Restart a build",
+      "method": "POST",
+      "path": "/build/{{ p.buildId }}/restart",
+      "fields": [
+        {
+          "key": "buildId",
+          "label": "Build ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "build",
+      "operation": "trigger",
+      "title": "Trigger a build",
+      "method": "POST",
+      "path": "/repo/{{ p.slug }}/requests",
+      "body": {
+        "request": {
+          "branch": "{{ p.branch }}",
+          "message": "{{ p.additionalFields.message }}",
+          "merge_mode": "{{ p.additionalFields.mergeMode }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "slug",
+          "label": "Repository slug",
+          "type": "text",
+          "required": true,
+          "placeholder": "owner/repo"
+        },
+        {
+          "key": "branch",
+          "label": "Branch",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "message",
+            "mergeMode"
+          ],
+          "help": "mergeMode: deep_merge, deep_merge_append, deep_merge_prepend, merge or replace"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "name": "Todoist tasks from a webhook",
+  "nodes": [
+    {"name": "Manual", "type": "n8n-nodes-base.manualTrigger", "typeVersion": 1, "position": [0, 0], "parameters": {}},
+    {"name": "Create task", "type": "n8n-nodes-base.todoist", "typeVersion": 2.1, "position": [200, 0],
+     "parameters": {
+       "project": {"__rl": true, "value": "2203306141", "mode": "list", "cachedResultName": "Inbox"},
+       "labels": ["home"],
+       "content": "={{ $json.title }}",
+       "options": {"priority": 4, "dueString": "tomorrow"}
+     },
+     "credentials": {"todoistApi": {"id": "7", "name": "My Todoist"}}},
+    {"name": "Close task", "type": "n8n-nodes-base.todoist", "typeVersion": 2.1, "position": [400, 0],
+     "parameters": {"operation": "close", "taskId": "={{ $json.id }}"},
+     "credentials": {"todoistApi": {"id": "7", "name": "My Todoist"}}}
+  ],
+  "connections": {
+    "Manual": {"main": [[{"node": "Create task", "type": "main", "index": 0}]]},
+    "Create task": {"main": [[{"node": "Close task", "type": "main", "index": 0}]]}
+  }
+}

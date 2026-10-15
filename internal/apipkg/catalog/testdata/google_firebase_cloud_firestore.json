@@ -1,0 +1,207 @@
+{
+  "document.get": {
+    "params": {
+      "projectId": "p1",
+      "collection": "users",
+      "documentId": "ada"
+    },
+    "response": [
+      {
+        "found": {
+          "name": "projects/p1/databases/(default)/documents/users/ada",
+          "createTime": "t1",
+          "updateTime": "t2",
+          "fields": {
+            "name": {
+              "stringValue": "Ada"
+            }
+          }
+        }
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/v1/projects/p1/databases/%28default%29/documents:batchGet",
+      "body": {
+        "documents": [
+          "projects/p1/databases/(default)/documents/users/ada"
+        ]
+      },
+      "items": 1
+    }
+  },
+  "document.create": {
+    "params": {
+      "projectId": "p1",
+      "collection": "users",
+      "documentId": "ada",
+      "columns": "name, age"
+    },
+    "input": {
+      "name": "Ada",
+      "age": 36
+    },
+    "response": {
+      "name": "projects/p1/databases/(default)/documents/users/ada",
+      "createTime": "t1",
+      "updateTime": "t2",
+      "fields": {
+        "name": {
+          "stringValue": "Ada"
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/projects/p1/databases/%28default%29/documents/users",
+      "query": {
+        "documentId": "ada"
+      },
+      "body": {
+        "fields": {
+          "name": {
+            "stringValue": "Ada"
+          },
+          "age": {
+            "integerValue": "36"
+          }
+        }
+      },
+      "items": 1
+    }
+  },
+  "document.upsert": {
+    "params": {
+      "projectId": "p1",
+      "collection": "users",
+      "updateKey": "id",
+      "columns": "name"
+    },
+    "input": {
+      "id": "ada",
+      "name": "Ada"
+    },
+    "response": {
+      "writeResults": [
+        {}
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/projects/p1/databases/%28default%29/documents:batchWrite",
+      "body": {
+        "writes": [
+          {
+            "update": {
+              "name": "projects/p1/databases/(default)/documents/users/ada",
+              "fields": {
+                "name": {
+                  "stringValue": "Ada"
+                }
+              }
+            },
+            "updateMask": {
+              "fieldPaths": [
+                "name"
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  "document.delete": {
+    "params": {
+      "projectId": "p1",
+      "collection": "users",
+      "documentId": "ada"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/v1/projects/p1/databases/%28default%29/documents/users/ada"
+    }
+  },
+  "document.getAll": {
+    "params": {
+      "projectId": "p1",
+      "collection": "users",
+      "limit": 5
+    },
+    "response": {
+      "documents": [
+        {
+          "name": "projects/p1/databases/(default)/documents/users/ada",
+          "createTime": "t1",
+          "updateTime": "t2",
+          "fields": {
+            "name": {
+              "stringValue": "Ada"
+            }
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/projects/p1/databases/%28default%29/documents/users",
+      "query": {
+        "pageSize": "5"
+      },
+      "items": 1
+    }
+  },
+  "document.query": {
+    "params": {
+      "projectId": "p1",
+      "query": "{\"structuredQuery\":{\"from\":[{\"collectionId\":\"users\"}]}}"
+    },
+    "response": [
+      {
+        "document": {
+          "name": "projects/p1/databases/(default)/documents/users/ada",
+          "createTime": "t1",
+          "updateTime": "t2",
+          "fields": {
+            "name": {
+              "stringValue": "Ada"
+            }
+          }
+        }
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/v1/projects/p1/databases/%28default%29/documents:runQuery",
+      "body": {
+        "structuredQuery": {
+          "from": [
+            {
+              "collectionId": "users"
+            }
+          ]
+        }
+      },
+      "items": 1
+    }
+  },
+  "collection.getAll": {
+    "params": {
+      "projectId": "p1",
+      "limit": 5
+    },
+    "response": {
+      "collectionIds": [
+        "users",
+        "orders"
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/projects/p1/databases/%28default%29/documents:listCollectionIds",
+      "body": {
+        "pageSize": 5
+      },
+      "items": 2
+    }
+  }
+}

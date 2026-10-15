@@ -1,0 +1,1789 @@
+{
+  "agent.create": {
+    "params": {
+      "email": "7",
+      "firstName": "7",
+      "roles": {
+        "roleProperties": [
+          {
+            "role": 1,
+            "assignment_scope": "specified_groups",
+            "groups": [
+              2
+            ]
+          },
+          {
+            "role": 3,
+            "assignment_scope": "entire_helpdesk",
+            "groups": [
+              4
+            ]
+          }
+        ]
+      }
+    },
+    "response": {
+      "agent": {
+        "id": 7
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/agents",
+      "body": {
+        "email": "7",
+        "first_name": "7",
+        "roles": [
+          {
+            "role_id": 1,
+            "assignment_scope": "specified_groups",
+            "groups": [
+              2
+            ]
+          },
+          {
+            "role_id": 3,
+            "assignment_scope": "entire_helpdesk"
+          }
+        ]
+      },
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "agent.delete": {
+    "params": {
+      "agentId": "7"
+    },
+    "response": {},
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v2/agents/7"
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "agent.get": {
+    "params": {
+      "agentId": "7"
+    },
+    "response": {
+      "agent": {
+        "id": 7
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/agents/7",
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "agent.getAll": {
+    "params": {
+      "limit": 3,
+      "filters": {
+        "email": "a@x",
+        "department_id": "9"
+      }
+    },
+    "response": {
+      "agents": [
+        {
+          "id": 1
+        },
+        {
+          "id": 2
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/agents",
+      "query": {
+        "page": "1",
+        "per_page": "3",
+        "query": "\"department_id:9 AND email:'a@x'\""
+      },
+      "items": 2
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "agent.update": {
+    "params": {
+      "agentId": "7",
+      "updateFields": {
+        "description": "d"
+      }
+    },
+    "response": {
+      "agent": {
+        "id": 7
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v2/agents/7",
+      "body": {
+        "description": "d"
+      },
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "agentGroup.create": {
+    "params": {
+      "name": "7"
+    },
+    "response": {
+      "group": {
+        "id": 7
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/groups",
+      "body": {
+        "name": "7"
+      },
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "agentGroup.delete": {
+    "params": {
+      "agentGroupId": "7"
+    },
+    "response": {},
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v2/groups/7"
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "agentGroup.get": {
+    "params": {
+      "agentGroupId": "7"
+    },
+    "response": {
+      "group": {
+        "id": 7
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/groups/7",
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "agentGroup.getAll": {
+    "params": {
+      "limit": 3
+    },
+    "response": {
+      "groups": [
+        {
+          "id": 1
+        },
+        {
+          "id": 2
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/groups",
+      "query": {
+        "page": "1",
+        "per_page": "3"
+      },
+      "items": 2
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "agentGroup.update": {
+    "params": {
+      "agentGroupId": "7",
+      "updateFields": {
+        "description": "d"
+      }
+    },
+    "response": {
+      "group": {
+        "id": 7
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v2/groups/7",
+      "body": {
+        "description": "d"
+      },
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "agentRole.get": {
+    "params": {
+      "agentRoleId": "7"
+    },
+    "response": {
+      "role": {
+        "id": 7
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/roles/7",
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "agentRole.getAll": {
+    "params": {
+      "limit": 3
+    },
+    "response": {
+      "roles": [
+        {
+          "id": 1
+        },
+        {
+          "id": 2
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/roles",
+      "query": {
+        "page": "1",
+        "per_page": "3"
+      },
+      "items": 2
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "announcement.create": {
+    "params": {
+      "title": "7",
+      "bodyHtml": "7",
+      "visibleFrom": "2024-01-02T03:04:05Z"
+    },
+    "response": {
+      "announcement": {
+        "id": 7
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/announcements",
+      "body": {
+        "title": "7",
+        "body_html": "7",
+        "visibility": "everyone",
+        "visible_from": "2024-01-02T03:04:05Z"
+      },
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "announcement.delete": {
+    "params": {
+      "announcementId": "7"
+    },
+    "response": {},
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v2/announcements/7"
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "announcement.get": {
+    "params": {
+      "announcementId": "7"
+    },
+    "response": {
+      "announcement": {
+        "id": 7
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/announcements/7",
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "announcement.getAll": {
+    "params": {
+      "limit": 3
+    },
+    "response": {
+      "announcements": [
+        {
+          "id": 1
+        },
+        {
+          "id": 2
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/announcements",
+      "query": {
+        "page": "1",
+        "per_page": "3"
+      },
+      "items": 2
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "announcement.update": {
+    "params": {
+      "announcementId": "7",
+      "updateFields": {
+        "description": "d"
+      }
+    },
+    "response": {
+      "announcement": {
+        "id": 7
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v2/announcements/7",
+      "body": {
+        "description": "d"
+      },
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "asset.create": {
+    "params": {
+      "name": "7",
+      "assetTypeId": "7",
+      "assetFieldsUi": {
+        "assetFieldValue": [
+          {
+            "name": "ram",
+            "value": "8"
+          }
+        ]
+      }
+    },
+    "response": {
+      "asset": {
+        "id": 7
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/assets",
+      "body": {
+        "asset_type_id": "7",
+        "name": "7",
+        "type_fields": {
+          "ram": "8"
+        }
+      },
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "asset.delete": {
+    "params": {
+      "assetDisplayId": "7"
+    },
+    "response": {},
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v2/assets/7"
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "asset.get": {
+    "params": {
+      "assetDisplayId": "7"
+    },
+    "response": {
+      "asset": {
+        "id": 7
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/assets/7",
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "asset.getAll": {
+    "params": {
+      "limit": 3
+    },
+    "response": {
+      "assets": [
+        {
+          "id": 1
+        },
+        {
+          "id": 2
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/assets",
+      "query": {
+        "page": "1",
+        "per_page": "3"
+      },
+      "items": 2
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "asset.update": {
+    "params": {
+      "assetDisplayId": "7",
+      "assetFieldsUi": {
+        "assetFieldValue": [
+          {
+            "name": "ram",
+            "value": "8"
+          }
+        ]
+      }
+    },
+    "response": {
+      "asset": {
+        "id": 7
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v2/assets/7",
+      "body": {
+        "type_fields": {
+          "ram": "8"
+        }
+      },
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "assetType.create": {
+    "params": {
+      "name": "7"
+    },
+    "response": {
+      "asset_type": {
+        "id": 7
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/asset_types",
+      "body": {
+        "name": "7"
+      },
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "assetType.delete": {
+    "params": {
+      "assetTypeId": "7"
+    },
+    "response": {},
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v2/asset_types/7"
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "assetType.get": {
+    "params": {
+      "assetTypeId": "7"
+    },
+    "response": {
+      "asset_type": {
+        "id": 7
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/asset_types/7",
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "assetType.getAll": {
+    "params": {
+      "limit": 3
+    },
+    "response": {
+      "asset_types": [
+        {
+          "id": 1
+        },
+        {
+          "id": 2
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/asset_types",
+      "query": {
+        "page": "1",
+        "per_page": "3"
+      },
+      "items": 2
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "assetType.update": {
+    "params": {
+      "assetTypeId": "7",
+      "updateFields": {
+        "description": "d"
+      }
+    },
+    "response": {
+      "asset_type": {
+        "id": 7
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v2/asset_types/7",
+      "body": {
+        "description": "d"
+      },
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "change.create": {
+    "params": {
+      "requesterId": "7",
+      "subject": "7",
+      "plannedStartDate": "2024-01-02T03:04:05Z",
+      "plannedEndDate": "2024-01-02T03:04:05Z"
+    },
+    "response": {
+      "change": {
+        "id": 7
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/changes",
+      "body": {
+        "requester_id": "7",
+        "subject": "7",
+        "planned_start_date": "2024-01-02T03:04:05Z",
+        "planned_end_date": "2024-01-02T03:04:05Z",
+        "status": 1,
+        "priority": 1,
+        "impact": 1,
+        "risk": 1,
+        "change_type": 1
+      },
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "change.delete": {
+    "params": {
+      "changeId": "7"
+    },
+    "response": {},
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v2/changes/7"
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "change.get": {
+    "params": {
+      "changeId": "7"
+    },
+    "response": {
+      "change": {
+        "id": 7
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/changes/7",
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "change.getAll": {
+    "params": {
+      "limit": 3,
+      "filters": {
+        "filter": "closed"
+      }
+    },
+    "response": {
+      "changes": [
+        {
+          "id": 1
+        },
+        {
+          "id": 2
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/changes",
+      "query": {
+        "page": "1",
+        "per_page": "3",
+        "view": "closed"
+      },
+      "items": 2
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "change.update": {
+    "params": {
+      "changeId": "7",
+      "updateFields": {
+        "description": "d"
+      }
+    },
+    "response": {
+      "change": {
+        "id": 7
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v2/changes/7",
+      "body": {
+        "description": "d"
+      },
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "department.create": {
+    "params": {
+      "name": "7"
+    },
+    "response": {
+      "department": {
+        "id": 7
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/departments",
+      "body": {
+        "name": "7"
+      },
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "department.delete": {
+    "params": {
+      "departmentId": "7"
+    },
+    "response": {},
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v2/departments/7"
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "department.get": {
+    "params": {
+      "departmentId": "7"
+    },
+    "response": {
+      "department": {
+        "id": 7
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/departments/7",
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "department.getAll": {
+    "params": {
+      "limit": 3
+    },
+    "response": {
+      "departments": [
+        {
+          "id": 1
+        },
+        {
+          "id": 2
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/departments",
+      "query": {
+        "page": "1",
+        "per_page": "3"
+      },
+      "items": 2
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "department.update": {
+    "params": {
+      "departmentId": "7",
+      "updateFields": {
+        "description": "d"
+      }
+    },
+    "response": {
+      "department": {
+        "id": 7
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v2/departments/7",
+      "body": {
+        "description": "d"
+      },
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "location.create": {
+    "params": {
+      "name": "7"
+    },
+    "response": {
+      "location": {
+        "id": 7
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/locations",
+      "body": {
+        "name": "7"
+      },
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "location.delete": {
+    "params": {
+      "locationId": "7"
+    },
+    "response": {},
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v2/locations/7"
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "location.get": {
+    "params": {
+      "locationId": "7"
+    },
+    "response": {
+      "location": {
+        "id": 7
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/locations/7",
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "location.getAll": {
+    "params": {
+      "limit": 3
+    },
+    "response": {
+      "locations": [
+        {
+          "id": 1
+        },
+        {
+          "id": 2
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/locations",
+      "query": {
+        "page": "1",
+        "per_page": "3"
+      },
+      "items": 2
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "location.update": {
+    "params": {
+      "locationId": "7",
+      "updateFields": {
+        "description": "d"
+      }
+    },
+    "response": {
+      "location": {
+        "id": 7
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v2/locations/7",
+      "body": {
+        "description": "d"
+      },
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "problem.create": {
+    "params": {
+      "subject": "7",
+      "requesterId": "7",
+      "dueBy": "2024-01-02T03:04:05Z"
+    },
+    "response": {
+      "problem": {
+        "id": 7
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/problems",
+      "body": {
+        "subject": "7",
+        "requester_id": "7",
+        "due_by": "2024-01-02T03:04:05Z",
+        "status": 1,
+        "priority": 1,
+        "impact": 1
+      },
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "problem.delete": {
+    "params": {
+      "problemId": "7"
+    },
+    "response": {},
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v2/problems/7"
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "problem.get": {
+    "params": {
+      "problemId": "7"
+    },
+    "response": {
+      "problem": {
+        "id": 7
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/problems/7",
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "problem.getAll": {
+    "params": {
+      "limit": 3
+    },
+    "response": {
+      "problems": [
+        {
+          "id": 1
+        },
+        {
+          "id": 2
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/problems",
+      "query": {
+        "page": "1",
+        "per_page": "3"
+      },
+      "items": 2
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "problem.update": {
+    "params": {
+      "problemId": "7",
+      "updateFields": {
+        "description": "d"
+      }
+    },
+    "response": {
+      "problem": {
+        "id": 7
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v2/problems/7",
+      "body": {
+        "description": "d"
+      },
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "product.create": {
+    "params": {
+      "assetTypeId": "7",
+      "name": "7"
+    },
+    "response": {
+      "product": {
+        "id": 7
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/products",
+      "body": {
+        "asset_type_id": "7",
+        "name": "7"
+      },
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "product.delete": {
+    "params": {
+      "productId": "7"
+    },
+    "response": {},
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v2/products/7"
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "product.get": {
+    "params": {
+      "productId": "7"
+    },
+    "response": {
+      "product": {
+        "id": 7
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/products/7",
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "product.getAll": {
+    "params": {
+      "limit": 3
+    },
+    "response": {
+      "products": [
+        {
+          "id": 1
+        },
+        {
+          "id": 2
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/products",
+      "query": {
+        "page": "1",
+        "per_page": "3"
+      },
+      "items": 2
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "product.update": {
+    "params": {
+      "productId": "7",
+      "updateFields": {
+        "description": "d"
+      }
+    },
+    "response": {
+      "product": {
+        "id": 7
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v2/products/7",
+      "body": {
+        "description": "d"
+      },
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "release.create": {
+    "params": {
+      "subject": "7",
+      "plannedStartDate": "2024-01-02T03:04:05Z",
+      "plannedEndDate": "2024-01-02T03:04:05Z"
+    },
+    "response": {
+      "release": {
+        "id": 7
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/releases",
+      "body": {
+        "subject": "7",
+        "release_type": 1,
+        "status": 1,
+        "priority": 1,
+        "planned_start_date": "2024-01-02T03:04:05Z",
+        "planned_end_date": "2024-01-02T03:04:05Z"
+      },
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "release.delete": {
+    "params": {
+      "releaseId": "7"
+    },
+    "response": {},
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v2/releases/7"
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "release.get": {
+    "params": {
+      "releaseId": "7"
+    },
+    "response": {
+      "release": {
+        "id": 7
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/releases/7",
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "release.getAll": {
+    "params": {
+      "limit": 3
+    },
+    "response": {
+      "releases": [
+        {
+          "id": 1
+        },
+        {
+          "id": 2
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/releases",
+      "query": {
+        "page": "1",
+        "per_page": "3"
+      },
+      "items": 2
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "release.update": {
+    "params": {
+      "releaseId": "7",
+      "updateFields": {
+        "description": "d"
+      }
+    },
+    "response": {
+      "release": {
+        "id": 7
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v2/releases/7",
+      "body": {
+        "description": "d"
+      },
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "requester.create": {
+    "params": {
+      "firstName": "7",
+      "primaryEmail": "7"
+    },
+    "response": {
+      "requester": {
+        "id": 7
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/requesters",
+      "body": {
+        "first_name": "7",
+        "primary_email": "7"
+      },
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "requester.delete": {
+    "params": {
+      "requesterId": "7"
+    },
+    "response": {},
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v2/requesters/7"
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "requester.get": {
+    "params": {
+      "requesterId": "7"
+    },
+    "response": {
+      "requester": {
+        "id": 7
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/requesters/7",
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "requester.getAll": {
+    "params": {
+      "limit": 3
+    },
+    "response": {
+      "requesters": [
+        {
+          "id": 1
+        },
+        {
+          "id": 2
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/requesters",
+      "query": {
+        "page": "1",
+        "per_page": "3"
+      },
+      "items": 2
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "requester.update": {
+    "params": {
+      "requesterId": "7",
+      "updateFields": {
+        "description": "d"
+      }
+    },
+    "response": {
+      "requester": {
+        "id": 7
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v2/requesters/7",
+      "body": {
+        "description": "d"
+      },
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "requesterGroup.create": {
+    "params": {
+      "name": "7"
+    },
+    "response": {
+      "requester_group": {
+        "id": 7
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/requester_groups",
+      "body": {
+        "name": "7"
+      },
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "requesterGroup.delete": {
+    "params": {
+      "requesterGroupId": "7"
+    },
+    "response": {},
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v2/requester_groups/7"
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "requesterGroup.get": {
+    "params": {
+      "requesterGroupId": "7"
+    },
+    "response": {
+      "requester_group": {
+        "id": 7
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/requester_groups/7",
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "requesterGroup.getAll": {
+    "params": {
+      "limit": 3
+    },
+    "response": {
+      "requester_groups": [
+        {
+          "id": 1
+        },
+        {
+          "id": 2
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/requester_groups",
+      "query": {
+        "page": "1",
+        "per_page": "3"
+      },
+      "items": 2
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "requesterGroup.update": {
+    "params": {
+      "requesterGroupId": "7",
+      "updateFields": {
+        "description": "d"
+      }
+    },
+    "response": {
+      "requester_group": {
+        "id": 7
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v2/requester_groups/7",
+      "body": {
+        "description": "d"
+      },
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "software.create": {
+    "params": {
+      "name": "7"
+    },
+    "response": {
+      "application": {
+        "id": 7
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/applications",
+      "body": {
+        "application": {
+          "application_type": "desktop",
+          "name": "7"
+        }
+      },
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "software.delete": {
+    "params": {
+      "softwareId": "7"
+    },
+    "response": {},
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v2/applications/7"
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "software.get": {
+    "params": {
+      "softwareId": "7"
+    },
+    "response": {
+      "application": {
+        "id": 7
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/applications/7",
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "software.getAll": {
+    "params": {
+      "limit": 3
+    },
+    "response": {
+      "applications": [
+        {
+          "id": 1
+        },
+        {
+          "id": 2
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/applications",
+      "query": {
+        "page": "1",
+        "per_page": "3"
+      },
+      "items": 2
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "software.update": {
+    "params": {
+      "softwareId": "7",
+      "updateFields": {
+        "description": "d"
+      }
+    },
+    "response": {
+      "application": {
+        "id": 7
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v2/applications/7",
+      "body": {
+        "application": {
+          "description": "d"
+        }
+      },
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "ticket.create": {
+    "params": {
+      "email": "7",
+      "subject": "7",
+      "description": "7",
+      "additionalFields": {
+        "cc_emails": "a@x, b@x"
+      }
+    },
+    "response": {
+      "ticket": {
+        "id": 7
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/tickets",
+      "body": {
+        "email": "7",
+        "subject": "7",
+        "description": "7",
+        "priority": 1,
+        "status": 2,
+        "cc_emails": [
+          "a@x",
+          "b@x"
+        ]
+      },
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "ticket.delete": {
+    "params": {
+      "ticketId": "7"
+    },
+    "response": {},
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v2/tickets/7"
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "ticket.get": {
+    "params": {
+      "ticketId": "7"
+    },
+    "response": {
+      "ticket": {
+        "id": 7
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/tickets/7",
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "ticket.getAll": {
+    "params": {
+      "limit": 3,
+      "filters": {
+        "status": 2,
+        "agent_id": 5,
+        "created_at": "2024-01-02T03:04:05Z"
+      }
+    },
+    "response": {
+      "tickets": [
+        {
+          "id": 1
+        },
+        {
+          "id": 2
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/tickets/filter",
+      "query": {
+        "page": "1",
+        "per_page": "3",
+        "query": "\"agent_id:5 AND status:2 AND created_at:'2024-01-02'\""
+      },
+      "items": 2
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "ticket.update": {
+    "params": {
+      "ticketId": "7",
+      "updateFields": {
+        "description": "d"
+      }
+    },
+    "response": {
+      "ticket": {
+        "id": 7
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v2/tickets/7",
+      "body": {
+        "description": "d"
+      },
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  }
+}

@@ -17,7 +17,7 @@ func TestValidProfileID(t *testing.T) {
 			t.Errorf("ValidProfileID(%q) = false, want true", id)
 		}
 	}
-	invalid := []string{"", "..", "a/b", `a\b`, "../evil", "evil/..", "a..b", "..a"}
+	invalid := []string{"", "..", "a/b", `a\b`, "../evil", "evil/..", "a..b", "..a", MachineProfileID}
 	for _, id := range invalid {
 		if ValidProfileID(id) {
 			t.Errorf("ValidProfileID(%q) = true, want false", id)

@@ -3,6 +3,8 @@ name: CI
 # JSON runs-on value, e.g. ["self-hosted","linux","x64","monoes-vps"] for the project's own VPS
 # (private repositories get no free hosted minutes to speak of, and 2-core hosted runners are
 # about twice as slow as the 4-core ones public repositories get). macOS and Windows jobs stay hosted.
+# A pull request from a fork always runs on ubuntu-latest, never on the variable's runner: a
+# self-hosted runner keeps its disk and network between jobs, so it must not run code from outside.
 
 # push is limited to master: a branch with a PR already runs this workflow via
 # pull_request, and running both on every commit doubled the queue (each commit
@@ -31,7 +33,7 @@ jobs:
   # publish executes locally the next time this repo's MCP server starts.
   mcp-pin-guard:
     name: Guard .mcp.json version pin
-    runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
+    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_RUNNER || '"ubuntu-latest"') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Reject floating Monomind version
@@ -52,7 +54,7 @@ jobs:
   # error for users. See docs/plans/local-agent-monomind-delegation.md §11.
   monomind-smoke:
     name: Monomind integration smoke test
-    runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
+    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_RUNNER || '"ubuntu-latest"') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -96,10 +98,12 @@ jobs:
   # runs the real `monoagentcli doctor` in a throwaway HOME and asserts its
   # JSON contract — schema v1, a required failure exits 1, `--fix` repairs
   # it over several passes, `doctor fix` streams NDJSON — so a change that
-  # breaks what the GUI's System health section parses fails CI.
+  # breaks what the GUI's System health section parses fails CI. doctor and
+  # setup need a monoes.me sign-in, so the build has the devaccount tag: the
+  # script runs the checks in the warn period and asserts the refusal after it.
   doctor-smoke:
     name: Doctor smoke test
-    runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
+    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_RUNNER || '"ubuntu-latest"') }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -108,9 +112,21 @@ jobs:
           go-version-file: go.mod
           cache: ${{ runner.environment == 'github-hosted' }}
       - name: Build monoagentcli
-        run: go build -o "$RUNNER_TEMP/monoagentcli" ./cmd/monoagentcli
+        run: go build -tags devaccount -o "$RUNNER_TEMP/monoagentcli" ./cmd/monoagentcli
+      # Profile guard (scripts/lib/mono.sh): every scoped monoagentcli call in
+      # these scripts must name its profile. They run each invocation through
+      # mono_guard, which fails the script when stderr carries the gate's
+      # "this command acts on a profile" warning, so a new script line that
+      # forgets --profile turns this job red. The self-test proves the guard
+      # itself still trips.
+      - name: Profile guard self-test
+        run: bash scripts/lib/mono-test.sh
       - name: Run doctor smoke test
         run: scripts/doctor-smoke.sh "$RUNNER_TEMP/monoagentcli"
+      - name: Run tasks MCP smoke test
+        run: scripts/tasks-mcp-smoke.sh "$RUNNER_TEMP/monoagentcli"
+      - name: Run agent eval reference self-test
+        run: scripts/evals/run.sh --bin "$RUNNER_TEMP/monoagentcli" --reference
 
   # The mandatory monoes.me account (docs/mastermind/specs/2026-10-05-monoes-account-gate-design.md,
   # section 11): the real binary, built with the devaccount tag, against a fake monoes.me. Locked,
@@ -119,7 +135,7 @@ jobs:
   # and not for signed-in users. It must pass before release R.
   account-smoke:
     name: Account gate smoke (devaccount)
-    runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
+    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_RUNNER || '"ubuntu-latest"') }}
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -139,7 +155,7 @@ jobs:
   # that the guard passes and fails as it should (spec D11, D24).
   release-guard-test:
     name: Release guard test
-    runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
+    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_RUNNER || '"ubuntu-latest"') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -162,7 +178,7 @@ jobs:
   # above for why this repo never runs an unpinned npm package in CI.
   openapi-lint:
     name: Validate HTTP API OpenAPI spec
-    runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
+    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_RUNNER || '"ubuntu-latest"') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -176,7 +192,7 @@ jobs:
   # dependencies and no install step.
   extension-test:
     name: Chrome extension
-    runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
+    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_RUNNER || '"ubuntu-latest"') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -205,7 +221,7 @@ jobs:
   # Scheduled + on-push dependency vulnerability scanning (MA-06/MA-11).
   vuln-scan:
     name: Vulnerability scan
-    runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
+    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_RUNNER || '"ubuntu-latest"') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -213,7 +229,8 @@ jobs:
           go-version-file: go.mod
           cache: ${{ runner.environment == 'github-hosted' }}
       - name: govulncheck
-        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+        # Exact version, like every other tool CI runs (see mcp-pin-guard).
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '20'
@@ -228,6 +245,22 @@ jobs:
         working-directory: wails-app/frontend
         run: npm audit --omit=dev --audit-level=high
 
+  # INFORMATIONAL (continue-on-error): staticcheck's bug checks (SA*) and
+  # unused code (U1000), so a self-comparison or a dropped error shows up in
+  # review. Not a gate yet; pinned like every other tool.
+  staticcheck:
+    name: staticcheck (informational)
+    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_RUNNER || '"ubuntu-latest"') }}
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: ${{ runner.environment == 'github-hosted' }}
+      - name: staticcheck
+        run: go run honnef.co/go/tools/cmd/staticcheck@v0.8.2 -checks 'SA*,U1000' ./...
+
   # Issue #24: node schemas for a small, growing set of node types are
   # generated from `schema:"..."` struct tags (internal/tools/schemagen)
   # instead of hand-written. This regenerates just those files and fails if
@@ -239,7 +272,7 @@ jobs:
   # hand-written and are not touched by this check.
   schemagen-check:
     name: Generated node schemas up to date
-    runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
+    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_RUNNER || '"ubuntu-latest"') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -251,12 +284,56 @@ jobs:
       - name: Check generated schemas match committed files
         run: go run ./cmd/schemagen -check
 
+  # The suite under -race outgrew one 35-minute job on the hosted runners, so it
+  # runs as shards: cmd/monoagentcli (most of the time) split by test name into
+  # four slices, everything else in "rest". The nosocial "rest" shard tests only
+  # the packages with nosocial-tagged files (cmd/monoagentcli has some, so its
+  # nosocial shards stay); "Build & test (nosocial)" builds and vets everything. "Build & test (default|nosocial)"
+  # below stay the checks that gate a merge: they need every shard.
+  test-shards:
+    name: Test shard (${{ matrix.tags }} ${{ matrix.shard }})
+    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_RUNNER || '"ubuntu-latest"') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        tags: [default, nosocial]
+        shard: [rest, '0', '1', '2', '3']
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: ${{ runner.environment == 'github-hosted' }}
+
+      - name: Test
+        env:
+          SHARD: ${{ matrix.shard }}
+          TAGS: ${{ matrix.tags }}
+        run: |
+          tags=""
+          if [ "$TAGS" = nosocial ]; then tags="-tags nosocial"; fi
+          if [ "$SHARD" = rest ] && [ "$TAGS" = nosocial ]; then
+            # The tag only changes packages that hold nosocial-tagged files;
+            # the rest are already tested in the default shards. The list is
+            # computed so it follows the files.
+            pkgs="$(grep -rl --include='*.go' --exclude-dir=wails-app --exclude-dir=node_modules '//go:build.*nosocial' . | xargs -n1 dirname | sed 's|^\./||' | sort -u | grep -vx 'cmd/monoagentcli' | sed 's|^|./|' || true)"
+            echo "nosocial packages: $pkgs"
+            if [ -n "$pkgs" ]; then go test -timeout 35m $tags $pkgs -race; fi
+          elif [ "$SHARD" = rest ]; then
+            go test -timeout 35m $tags $(go list $tags ./... | grep -v '/cmd/monoagentcli$') -race
+          else
+            names="$(go test $tags ./cmd/monoagentcli -list '^(Test|Example)' | grep -E '^(Test|Example)' | awk -v s="$SHARD" 'NR % 4 == s' | paste -sd'|')"
+            go test -timeout 35m $tags ./cmd/monoagentcli -race -run "^($names)$"
+          fi
+
   # NOTE: no CGO_ENABLED=0 here. `go test -race` requires cgo ("go: -race
   # requires cgo" on Go 1.25), and ubuntu runners ship gcc — the default
   # CGO_ENABLED=1 works for modernc.org/sqlite and everything else we use.
   test:
     name: Build & test (default)
-    runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
+    needs: test-shards
+    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_RUNNER || '"ubuntu-latest"') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -285,7 +362,7 @@ jobs:
           fi
 
       - name: Test
-        run: go test -timeout 80m ./... -race
+        run: echo "the tests ran in the Test shard jobs, which this job needs"
 
   # INFORMATIONAL (continue-on-error): runs internal/account's tests on Windows
   # and macOS, where no other job here does. The package has Windows-only code
@@ -320,7 +397,8 @@ jobs:
   # (-tags nosocial) build compiling and passing.
   test-nosocial:
     name: Build & test (nosocial)
-    runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
+    needs: test-shards
+    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_RUNNER || '"ubuntu-latest"') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -336,7 +414,7 @@ jobs:
         run: go vet -tags nosocial ./...
 
       - name: Test
-        run: go test -timeout 80m -tags nosocial ./... -race
+        run: echo "the tests ran in the Test shard jobs, which this job needs"
 
   # Mirror of the release.yml test gate's Wails steps (minus release/tagging):
   # system deps for GTK/WebKit headers, frontend build (main.go //go:embeds
@@ -345,7 +423,7 @@ jobs:
   # (24.04) has no webkit2gtk-4.0 dev package.
   wails:
     name: Wails GUI module
-    runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
+    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_RUNNER || '"ubuntu-latest"') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 

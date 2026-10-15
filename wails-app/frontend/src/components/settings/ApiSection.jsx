@@ -38,8 +38,11 @@ const SUPERSEDED = Symbol('superseded')
  *   `onNavigate('settings', { section: 'jev' })`, the dashboard's deep link.
  * @param {boolean} isActive Whether Settings is the page on show (the app keeps visited pages mounted, hidden).
  *   Without it, always.
+ * @param {'all'|'machine'} part 'machine' leaves out the API keys, which are the active profile's and have their own
+ *   block (ApiKeysSection); left out, the whole section.
+ * @param {(status: object) => void} onStatus Told each status that was read, for the parts of Settings that need it.
  */
-export default function ApiSection({ onNavigate, isActive = true } = {}) {
+export default function ApiSection({ onNavigate, isActive = true, part = 'all', onStatus } = {}) {
   const { t } = useTranslation()
   const bodyId = useId()
   const [expanded, setExpanded] = useState(false)
@@ -68,13 +71,14 @@ export default function ApiSection({ onNavigate, isActive = true } = {}) {
     try {
       const st = await APIStatus()
       if (mine !== seq.current.status) return SUPERSEDED
-      setStatus(st); setStatusErr(''); return st
+      setStatus(st); setStatusErr(''); onStatus?.(st); return st
     } catch (e) {
       if (mine !== seq.current.status) return SUPERSEDED
       setStatusErr(apiError(e, tRef.current)); return null
     }
   }, [])
   const loadKeys = useCallback(async () => {
+    if (part === 'machine') return
     const mine = ++seq.current.keys
     try {
       const list = await APIKeyList()
@@ -82,7 +86,7 @@ export default function ApiSection({ onNavigate, isActive = true } = {}) {
     } catch (e) {
       if (mine === seq.current.keys) setKeysErr(apiError(e, tRef.current))
     }
-  }, [])
+  }, [part])
   // The models are evaluated for the listener the header describes, so they wait for the status.
   const loadModels = useCallback(async (st) => {
     const mine = ++seq.current.models
@@ -211,7 +215,7 @@ export default function ApiSection({ onNavigate, isActive = true } = {}) {
               {t('settings.api.status.exposureNetwork')}
             </Badge>
           )}
-          {typeof count === 'number' && (
+          {part !== 'machine' && typeof count === 'number' && (
             <Badge data-testid="api-fold-keys" tone={count > 0 ? 'ok' : 'muted'}>
               <KeyRound size={11} /> {t('settings.api.keysChip', { count })}
             </Badge>
@@ -225,10 +229,12 @@ export default function ApiSection({ onNavigate, isActive = true } = {}) {
           <div style={hint}>{t('settings.api.intro')}</div>
           <ApiStatusBlock status={status} err={statusErr} refreshing={refreshing} onRefresh={refresh} onRetry={refresh} />
           <ApiConfigBlock config={config} err={configErr} onRetry={loadConfig} onAdopt={adoptConfig} onReload={reloadConfig} onApplied={afterRestart} />
-          <ApiKeysBlock
-            keys={keys} err={keysErr} contextClasses={contextClasses}
-            onChanged={loadKeys} onRetry={loadKeys}
-          />
+          {part !== 'machine' && (
+            <ApiKeysBlock
+              keys={keys} err={keysErr} contextClasses={contextClasses}
+              onChanged={loadKeys} onRetry={loadKeys}
+            />
+          )}
           <ApiModelsBlock
             models={models} err={modelsErr} status={status} statusErr={statusErr}
             onOpenJev={onNavigate ? () => onNavigate('settings', { section: 'jev' }) : undefined}

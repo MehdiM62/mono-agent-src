@@ -26,19 +26,15 @@ off unless the user turned them on.
 
 ## 1. Which board
 
-A task always sits in one profile. Find out which board the user means: ask,
-or run this once without `--profile`; its first line names the active profile
-(`Profile: <name>`), and `--json` also gives its id (`profile.id`):
+A task always sits in one profile, and every `task` command needs
+`--profile`. Find out which board the user means: ask, or list the profiles
+with `monoagentcli profile list --json`, which gives each one's `id` and
+`name`.
 
-```bash
-monoagentcli task next
-```
-
-Tell the user which board you are working on. From then on pass
-`--profile <profile-id>` on every call, with that id (the name works too, in
-quotes if it has a space): the active profile is global, and the user may
-switch it in the app while you work. When a task is ready, `next` also prints
-the commands to go on with, each with the profile's id.
+Tell the user which board you are working on. Pass `--profile <profile-id>` on
+every call, with that id (the name works too, in quotes if it has a space).
+There is no active profile. When a task is ready, `next` also prints the
+commands to go on with, each with the profile's id.
 
 ## 2. Your name
 
@@ -96,7 +92,8 @@ and names you itself (`agent:<client>#<4 hex digits>`), so you pass neither
 `_untrusted`. Use one server for the whole task: two servers are two
 claimants, and one cannot comment on or finish what the other claimed. If the
 server restarts, you are a new claimant too: a task you held frees itself when
-its lease ends; tell the user. The user registers one server per profile:
+its lease ends; tell the user. The user registers one server per profile (a later release adds a required
+`profile` argument to the tools; when your tools list it, pass it):
 
 ```bash
 claude mcp add monoagent-tasks-<profile> -- monoagentcli --profile <profile-id> mcp --tasks-only --allow-mutations

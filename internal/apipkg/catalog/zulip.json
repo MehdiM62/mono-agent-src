@@ -1,0 +1,544 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "zulip",
+  "title": "Zulip",
+  "description": "Messages, streams and users in Zulip",
+  "category": "app",
+  "docs_url": "https://zulip.com/api/",
+  "n8n_types": [
+    "n8n-nodes-base.zulip"
+  ],
+  "base_url": "{{ cred.url | re:'^(.*?)/?$' }}/api/v1",
+  "credentials": [
+    {
+      "platform": "zulip",
+      "name": "Zulip",
+      "n8n_credential": "zulipApi",
+      "n8n_field_map": {
+        "url": "url",
+        "email": "email",
+        "apiKey": "api_key"
+      },
+      "methods": [
+        "basic"
+      ],
+      "fields": [
+        {
+          "key": "url",
+          "label": "Server URL",
+          "required": true,
+          "help": "e.g. https://chat.example.com"
+        },
+        {
+          "key": "email",
+          "label": "Bot or user email",
+          "required": true
+        },
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "basic": {
+          "username": "{{ cred.email }}",
+          "password": "{{ cred.api_key }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "message",
+      "label": "Message"
+    },
+    {
+      "value": "stream",
+      "label": "Stream"
+    },
+    {
+      "value": "user",
+      "label": "User"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "message",
+      "operation": "sendPrivate",
+      "title": "Send a direct message",
+      "method": "POST",
+      "path": "/messages",
+      "body": {
+        "type": "private",
+        "to": "{{ p.to | split | join:',' }}",
+        "content": "{{ p.content }}"
+      },
+      "body_type": "form",
+      "fields": [
+        {
+          "key": "to",
+          "label": "To (user emails or IDs)",
+          "type": "array",
+          "required": true,
+          "item_type": "text"
+        },
+        {
+          "key": "content",
+          "label": "Content",
+          "type": "textarea",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "message",
+      "operation": "delete",
+      "title": "Delete a message",
+      "method": "DELETE",
+      "path": "/messages/{{ p.messageId }}",
+      "fields": [
+        {
+          "key": "messageId",
+          "label": "Message ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "message",
+      "operation": "get",
+      "title": "Get a message",
+      "method": "GET",
+      "path": "/messages/{{ p.messageId }}",
+      "fields": [
+        {
+          "key": "messageId",
+          "label": "Message ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "message",
+      "operation": "sendStream",
+      "title": "Send a message to a stream",
+      "method": "POST",
+      "path": "/messages",
+      "body": {
+        "type": "stream",
+        "to": "{{ p.stream }}",
+        "topic": "{{ p.topic }}",
+        "content": "{{ p.content }}"
+      },
+      "body_type": "form",
+      "fields": [
+        {
+          "key": "stream",
+          "label": "Stream",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "topic",
+          "label": "Topic",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "content",
+          "label": "Content",
+          "type": "textarea",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "message",
+      "operation": "update",
+      "title": "Update a message",
+      "method": "PATCH",
+      "path": "/messages/{{ p.messageId }}",
+      "body": {
+        "content": "{{ p.updateFields.content }}",
+        "propagate_mode": "{{ p.updateFields.propagateMode | snake }}",
+        "topic": "{{ p.updateFields.topic }}"
+      },
+      "body_type": "form",
+      "fields": [
+        {
+          "key": "messageId",
+          "label": "Message ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "content",
+            "propagateMode",
+            "topic"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "message",
+      "operation": "updateFile",
+      "title": "Upload a file",
+      "method": "POST",
+      "path": "/user_uploads",
+      "body_type": "multipart",
+      "binary": {
+        "upload_field": "dataBinaryProperty",
+        "multipart_field": "file"
+      },
+      "output": {
+        "to": {
+          "$merge": "{{ el }}",
+          "uri": "{{ cred.url | re:'^(.*?)/?$' }}{{ el.uri }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "dataBinaryProperty",
+          "label": "Binary property",
+          "type": "text",
+          "required": true,
+          "default": "data"
+        }
+      ]
+    },
+    {
+      "resource": "stream",
+      "operation": "create",
+      "title": "Subscribe to (and create) streams",
+      "method": "POST",
+      "path": "/users/me/subscriptions",
+      "body": {
+        "subscriptions": "{{ p.subscriptions.properties | json }}",
+        "$merge": "{{ p.jsonParameters | eq:'true' | then:(p.additionalFieldsJson | fromjson) }}",
+        "invite_only": "{{ p.additionalFields.inviteOnly | eq:'true' }}",
+        "principals": "{{ p.additionalFields.principals.properties | pluck:'email' | json }}",
+        "authorization_errors_fatal": "{{ p.additionalFields.authorizationErrorsFatal | eq:'true' }}",
+        "history_public_to_subscribers": "{{ p.additionalFields.historyPublicToSubscribers | eq:'true' }}",
+        "stream_post_policy": "{{ p.additionalFields.streamPostPolicy }}",
+        "announce": "{{ p.additionalFields.announce | eq:'true' }}"
+      },
+      "body_type": "form",
+      "fields": [
+        {
+          "key": "jsonParameters",
+          "label": "JSON parameters",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "subscriptions",
+          "label": "Subscriptions",
+          "type": "collection",
+          "required": true,
+          "default": {},
+          "options": [
+            "properties"
+          ],
+          "help": "{\"properties\": [{\"name\", \"description\"}]}"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "announce",
+            "authorizationErrorsFatal",
+            "historyPublicToSubscribers",
+            "inviteOnly",
+            "principals",
+            "streamPostPolicy"
+          ],
+          "help": "principals: {\"properties\": [{\"email\"}]}"
+        },
+        {
+          "key": "additionalFieldsJson",
+          "label": "Additional fields (JSON)",
+          "type": "json"
+        }
+      ]
+    },
+    {
+      "resource": "stream",
+      "operation": "delete",
+      "title": "Delete a stream",
+      "method": "DELETE",
+      "path": "/streams/{{ p.streamId }}",
+      "fields": [
+        {
+          "key": "streamId",
+          "label": "Stream ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "stream",
+      "operation": "getAll",
+      "title": "Get all streams",
+      "method": "GET",
+      "path": "/streams",
+      "query": {
+        "include_public": "{{ p.additionalFields.includePublic | eq:'true' }}",
+        "include_subscribed": "{{ p.additionalFields.includeSubscribed | eq:'true' }}",
+        "include_all_active": "{{ p.additionalFields.includeAllActive | eq:'true' }}",
+        "include_default": "{{ p.additionalFields.includeDefault | eq:'true' }}",
+        "include_owner_subscribed": "{{ p.additionalFields.includeOwnersubscribed | eq:'true' }}"
+      },
+      "output": {
+        "path": "streams"
+      },
+      "fields": [
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "includeAllActive",
+            "includeDefault",
+            "includeOwnersubscribed",
+            "includePublic",
+            "includeSubscribed"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "stream",
+      "operation": "getSubscribed",
+      "title": "Get subscribed streams",
+      "method": "GET",
+      "path": "/users/me/subscriptions",
+      "query": {
+        "include_subscribers": "{{ p.additionalFields.includeSubscribers | eq:'true' }}"
+      },
+      "output": {
+        "path": "subscriptions"
+      },
+      "fields": [
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "includeSubscribers"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "stream",
+      "operation": "update",
+      "title": "Update a stream",
+      "method": "PATCH",
+      "path": "/streams/{{ p.streamId }}",
+      "body": {
+        "$merge": "{{ p.jsonParameters | eq:'true' | then:(p.additionalFieldsJson | fromjson) }}",
+        "description": "{{ p.additionalFields.description | json }}",
+        "new_name": "{{ p.additionalFields.newName | json }}",
+        "is_private": "{{ p.additionalFields.isPrivate | eq:'true' }}",
+        "is_announcement_only": "{{ p.additionalFields.isAnnouncementOnly | eq:'true' }}",
+        "stream_post_policy": "{{ p.additionalFields.streamPostPolicy }}",
+        "history_public_to_subscribers": "{{ p.additionalFields.historyPublicToSubscribers | eq:'true' }}"
+      },
+      "body_type": "form",
+      "fields": [
+        {
+          "key": "streamId",
+          "label": "Stream ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "jsonParameters",
+          "label": "JSON parameters",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "isAnnouncementOnly",
+            "description",
+            "isPrivate",
+            "historyPublicToSubscribers",
+            "newName",
+            "streamPostPolicy"
+          ]
+        },
+        {
+          "key": "additionalFieldsJson",
+          "label": "Additional fields (JSON)",
+          "type": "json"
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "create",
+      "title": "Create a user",
+      "method": "POST",
+      "path": "/users",
+      "body": {
+        "email": "{{ p.email }}",
+        "password": "{{ p.password }}",
+        "full_name": "{{ p.fullName }}",
+        "short_name": "{{ p.shortName }}"
+      },
+      "body_type": "form",
+      "fields": [
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "fullName",
+          "label": "Full name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "password",
+          "label": "Password",
+          "type": "password",
+          "required": true
+        },
+        {
+          "key": "shortName",
+          "label": "Short name",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "deactivate",
+      "title": "Deactivate a user",
+      "method": "DELETE",
+      "path": "/users/{{ p.userId }}",
+      "fields": [
+        {
+          "key": "userId",
+          "label": "User ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "get",
+      "title": "Get a user",
+      "method": "GET",
+      "path": "/users/{{ p.userId }}",
+      "query": {
+        "client_gravatar": "{{ p.additionalFields.clientGravatar | eq:'true' }}",
+        "include_custom_profile_fields": "{{ p.additionalFields.includeCustomProfileFields | eq:'true' }}"
+      },
+      "fields": [
+        {
+          "key": "userId",
+          "label": "User ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "clientGravatar",
+            "includeCustomProfileFields"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "getAll",
+      "title": "Get all users",
+      "method": "GET",
+      "path": "/users",
+      "query": {
+        "client_gravatar": "{{ p.additionalFields.clientGravatar | eq:'true' }}",
+        "include_custom_profile_fields": "{{ p.additionalFields.includeCustomProfileFields | eq:'true' }}"
+      },
+      "output": {
+        "path": "members"
+      },
+      "fields": [
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "clientGravatar",
+            "includeCustomProfileFields"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "update",
+      "title": "Update a user",
+      "method": "PATCH",
+      "path": "/users/{{ p.userId }}",
+      "body": {
+        "full_name": "{{ p.additionalFields.fullName | json }}",
+        "is_admin": "{{ p.additionalFields.isAdmin | eq:'true' }}",
+        "is_guest": "{{ p.additionalFields.isGuest | eq:'true' }}",
+        "role": "{{ p.additionalFields.role }}",
+        "profile_data": "{{ p.additionalFields.profileData.property | json }}"
+      },
+      "body_type": "form",
+      "fields": [
+        {
+          "key": "userId",
+          "label": "User ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fullName",
+            "isAdmin",
+            "isGuest",
+            "profileData",
+            "role"
+          ],
+          "help": "profileData: {\"property\": [{\"id\", \"value\"}]}"
+        }
+      ]
+    }
+  ]
+}

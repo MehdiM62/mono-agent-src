@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/monoes/mono-agent/internal/apipkg"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -26,6 +27,9 @@ type NotionNode struct{}
 func (n *NotionNode) Type() string { return "service.notion" }
 
 func (n *NotionNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
+	if extensionOwns("service.notion", config) {
+		return apipkg.ExecuteExtension(ctx, "service.notion", input, config)
+	}
 	token := strVal(config, "token")
 	if token == "" {
 		// OAuth connections store the token as access_token; the legacy

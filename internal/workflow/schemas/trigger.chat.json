@@ -1,0 +1,49 @@
+{
+  "credential_platform": null,
+  "fields": [
+    {
+      "help": "The chat is served at /chat/<path> on the webhook server (http://127.0.0.1:9321 by default) while the workflow is active. Each message starts a run with {sessionId, action, chatInput}.",
+      "key": "path",
+      "label": "Chat Path",
+      "placeholder": "support",
+      "required": true,
+      "type": "text"
+    },
+    {
+      "key": "title",
+      "label": "Title",
+      "placeholder": "Hi there!",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "key": "subtitle",
+      "label": "Subtitle",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "help": "Shown at the start of the chat, one message per line.",
+      "key": "initialMessages",
+      "label": "Initial Messages",
+      "required": false,
+      "type": "textarea"
+    },
+    {
+      "key": "inputPlaceholder",
+      "label": "Input Placeholder",
+      "placeholder": "Type your question…",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": "lastNode",
+      "help": "lastNode answers each message with the last node's output (its output or text field); responseNodes leaves the answers to Respond to Chat (core.respond_chat) nodes.",
+      "key": "responseMode",
+      "label": "Response Mode",
+      "options": ["lastNode", "responseNodes"],
+      "required": false,
+      "type": "select"
+    }
+  ]
+}

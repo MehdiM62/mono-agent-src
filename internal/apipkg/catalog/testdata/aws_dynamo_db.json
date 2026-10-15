@@ -1,0 +1,251 @@
+{
+  "item.upsert": {
+    "params": {
+      "tableName": "users",
+      "dataToSend": "autoMapInputData",
+      "inputsToIgnore": "skip",
+      "additionalFields": {
+        "conditionExpression": "attribute_not_exists(id)",
+        "eanUi": {
+          "eanValues": [
+            {
+              "key": "n",
+              "value": "name"
+            }
+          ]
+        }
+      }
+    },
+    "response": {},
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "TableName": "users",
+        "Item": {
+          "id": {
+            "N": "7"
+          },
+          "name": {
+            "S": "Ada"
+          },
+          "ok": {
+            "BOOL": true
+          },
+          "tags": {
+            "S": "[\"a\"]"
+          },
+          "zip": {
+            "S": "x12"
+          }
+        },
+        "ConditionExpression": "attribute_not_exists(id)",
+        "ExpressionAttributeNames": {
+          "#n": "name"
+        }
+      },
+      "headers": {
+        "X-Amz-Target": "DynamoDB_20120810.PutItem"
+      },
+      "items": 1
+    },
+    "input": {
+      "id": "7",
+      "name": "Ada",
+      "ok": true,
+      "tags": [
+        "a"
+      ],
+      "zip": "x12",
+      "skip": 1
+    }
+  },
+  "item.delete": {
+    "params": {
+      "tableName": "users",
+      "returnValues": "ALL_OLD",
+      "keysUi": {
+        "keyValues": [
+          {
+            "key": "id",
+            "type": "N",
+            "value": 7
+          }
+        ]
+      },
+      "additionalFields": {
+        "conditionExpression": "a = :v",
+        "expressionAttributeUi": {
+          "expressionAttributeValues": [
+            {
+              "attribute": "v",
+              "type": "S",
+              "value": "x"
+            }
+          ]
+        }
+      }
+    },
+    "response": {
+      "Attributes": {
+        "id": {
+          "N": "7"
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "TableName": "users",
+        "Key": {
+          "id": {
+            "N": "7"
+          }
+        },
+        "ReturnValues": "ALL_OLD",
+        "ExpressionAttributeValues": {
+          ":v": {
+            "S": "x"
+          }
+        },
+        "ConditionExpression": "a = :v"
+      },
+      "headers": {
+        "X-Amz-Target": "DynamoDB_20120810.DeleteItem"
+      },
+      "items": 1
+    }
+  },
+  "item.get": {
+    "params": {
+      "tableName": "users",
+      "keysUi": {
+        "keyValues": [
+          {
+            "key": "id",
+            "value": "a"
+          }
+        ]
+      },
+      "additionalFields": {
+        "readType": "stronglyConsistentRead"
+      }
+    },
+    "response": {
+      "Item": {
+        "id": {
+          "S": "a"
+        },
+        "n": {
+          "N": "2"
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "TableName": "users",
+        "Key": {
+          "id": {
+            "S": "a"
+          }
+        },
+        "Select": "ALL_ATTRIBUTES",
+        "ConsistentRead": true
+      },
+      "headers": {
+        "X-Amz-Target": "DynamoDB_20120810.GetItem"
+      },
+      "items": 1
+    }
+  },
+  "item.getAll": {
+    "params": {
+      "tableName": "users",
+      "scan": true,
+      "filterExpression": "age > :a",
+      "returnAll": true,
+      "eavUi": {
+        "eavValues": [
+          {
+            "attribute": "a",
+            "type": "N",
+            "value": 30
+          }
+        ]
+      }
+    },
+    "responses": [
+      {
+        "Items": [
+          {
+            "id": {
+              "S": "a"
+            }
+          }
+        ],
+        "LastEvaluatedKey": {
+          "id": {
+            "S": "a"
+          }
+        }
+      },
+      {
+        "Items": [
+          {
+            "id": {
+              "S": "b"
+            }
+          }
+        ]
+      }
+    ],
+    "expect_requests": [
+      {
+        "method": "POST",
+        "path": "/",
+        "headers": {
+          "X-Amz-Target": "DynamoDB_20120810.Scan"
+        },
+        "body": {
+          "TableName": "users",
+          "FilterExpression": "age > :a",
+          "Select": "ALL_ATTRIBUTES",
+          "ExpressionAttributeValues": {
+            ":a": {
+              "N": "30"
+            }
+          },
+          "Limit": 100
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/",
+        "body": {
+          "TableName": "users",
+          "FilterExpression": "age > :a",
+          "Select": "ALL_ATTRIBUTES",
+          "ExpressionAttributeValues": {
+            ":a": {
+              "N": "30"
+            }
+          },
+          "Limit": 100,
+          "ExclusiveStartKey": {
+            "id": {
+              "S": "a"
+            }
+          }
+        }
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "items": 2
+    }
+  }
+}

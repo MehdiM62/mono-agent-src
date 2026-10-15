@@ -1,0 +1,237 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "rocketchat",
+  "node_type": "app.rocketchat",
+  "title": "Rocket.Chat",
+  "description": "Post messages, read subscriptions and direct messages in Rocket.Chat",
+  "category": "app",
+  "docs_url": "https://developer.rocket.chat/apidocs",
+  "n8n_types": [
+    "n8n-nodes-base.rocketchat"
+  ],
+  "base_url": "{{ cred.domain }}",
+  "credentials": [
+    {
+      "platform": "rocketchat",
+      "name": "Rocket.Chat",
+      "n8n_credential": "rocketchatApi",
+      "n8n_field_map": {
+        "userId": "user_id",
+        "authKey": "auth_key",
+        "domain": "domain"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "domain",
+          "label": "Server URL",
+          "required": true,
+          "help": "e.g. https://chat.example.com"
+        },
+        {
+          "key": "user_id",
+          "label": "User ID",
+          "required": true
+        },
+        {
+          "key": "auth_key",
+          "label": "Personal access token",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "headers": {
+          "X-Auth-Token": "{{ cred.auth_key }}",
+          "X-User-Id": "{{ cred.user_id }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "chat",
+      "label": "Chat"
+    },
+    {
+      "value": "subscriptions",
+      "label": "Subscription"
+    },
+    {
+      "value": "dm",
+      "label": "Direct Message"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "chat",
+      "operation": "postMessage",
+      "title": "Post a message",
+      "method": "POST",
+      "path": "/api/v1/chat.postMessage",
+      "fields": [
+        {
+          "key": "channel",
+          "label": "Channel",
+          "type": "text",
+          "required": true,
+          "help": "#channel, @user or a room id"
+        },
+        {
+          "key": "text",
+          "label": "Text",
+          "type": "textarea",
+          "default": ""
+        },
+        {
+          "key": "jsonParameters",
+          "label": "JSON parameters",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "alias",
+            "avatar",
+            "emoji"
+          ]
+        },
+        {
+          "key": "attachments",
+          "label": "Attachments",
+          "type": "json",
+          "default": [],
+          "help": "List of {color, text, ts, messageLink, thumbUrl, collapsed, authorName, authorLink, authorIcon, title, titleLink, titleLinkDownload, imageUrl, audioUrl, videoUrl, fields: {fieldsValues: [{short, title, value}]}}"
+        },
+        {
+          "key": "attachmentsJson",
+          "label": "Attachments (JSON)",
+          "type": "json",
+          "default": "",
+          "help": "Rocket.Chat attachments array as JSON (JSON parameters on)"
+        }
+      ],
+      "body": {
+        "channel": "{{ p.channel }}",
+        "text": "{{ p.text }}",
+        "alias": "{{ p.options.alias }}",
+        "avatar": "{{ p.options.avatar }}",
+        "emoji": "{{ p.options.emoji }}",
+        "attachments": {
+          "$concat": [
+            "{{ p.jsonParameters | bool | eq:'true' | then:(p.attachmentsJson | fromjson) }}",
+            {
+              "$map": "{{ p.jsonParameters | bool | ne:'true' | then:p.attachments }}",
+              "$to": {
+                "color": "{{ el.color }}",
+                "text": "{{ el.text }}",
+                "ts": "{{ el.ts }}",
+                "message_link": "{{ el.messageLinks | default:el.messageLink }}",
+                "thumb_url": "{{ el.thumbUrl }}",
+                "collapsed": "{{ el.collapsed }}",
+                "author_name": "{{ el.authorName }}",
+                "author_link": "{{ el.authorLink }}",
+                "author_icon": "{{ el.authorIcon }}",
+                "title": "{{ el.title }}",
+                "title_link": "{{ el.titleLink }}",
+                "title_link_download": "{{ el.titleLinkDownload }}",
+                "image_url": "{{ el.imageUrl }}",
+                "audio_url": "{{ el.audioUrl }}",
+                "video_url": "{{ el.videoUrl }}",
+                "fields": "{{ el.fields.fieldsValues }}"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "resource": "subscriptions",
+      "operation": "get",
+      "title": "Get many subscriptions",
+      "method": "GET",
+      "path": "/api/v1/subscriptions.get",
+      "fields": [],
+      "output": {
+        "to": {
+          "$concat": [
+            {
+              "$map": "{{ el.update }}",
+              "$to": {
+                "update": "{{ el }}"
+              }
+            },
+            {
+              "$map": "{{ el.remove }}",
+              "$to": {
+                "remove": "{{ el }}"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "resource": "subscriptions",
+      "operation": "read",
+      "title": "Mark a room as read",
+      "method": "POST",
+      "path": "/api/v1/subscriptions.read",
+      "fields": [
+        {
+          "key": "roomId",
+          "label": "Room ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "rid": "{{ p.roomId }}"
+      }
+    },
+    {
+      "resource": "dm",
+      "operation": "messages",
+      "title": "Get direct messages",
+      "method": "GET",
+      "path": "/api/v1/im.messages",
+      "fields": [
+        {
+          "key": "roomId",
+          "label": "Room ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "query": {
+        "roomId": "{{ p.roomId }}"
+      },
+      "pagination": {
+        "type": "offset",
+        "offset_param": "offset",
+        "limit_param": "count",
+        "page_size": 100,
+        "results_path": "messages"
+      }
+    }
+  ]
+}

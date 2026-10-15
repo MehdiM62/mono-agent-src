@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"net/url"
 
+	"github.com/monoes/mono-agent/internal/apipkg"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
-const asanaBaseURL = "https://app.asana.com/api/1.0"
+// asanaBaseURL is a var (not const) so tests can point it at an httptest server.
+var asanaBaseURL = "https://app.asana.com/api/1.0"
 
 // AsanaNode interacts with the Asana REST API.
 // Type: "service.asana"
@@ -17,6 +19,9 @@ type AsanaNode struct{}
 func (n *AsanaNode) Type() string { return "service.asana" }
 
 func (n *AsanaNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
+	if extensionOwns("service.asana", config) {
+		return apipkg.ExecuteExtension(ctx, "service.asana", input, config)
+	}
 	token := strVal(config, "access_token")
 	if token == "" {
 		return nil, fmt.Errorf("service.asana: 'access_token' is required")

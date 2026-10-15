@@ -1,0 +1,21 @@
+//go:build windows
+
+package clicore
+
+import (
+	"os/exec"
+	"syscall"
+)
+
+const (
+	detachedProcess       = 0x00000008
+	createNewProcessGroup = 0x00000200
+	createNoWindow        = 0x08000000
+)
+
+// DetachStart starts cmd detached from this console, without a window, so
+// it outlives this process and the app that ran it.
+func DetachStart(cmd *exec.Cmd) error {
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: detachedProcess | createNewProcessGroup | createNoWindow}
+	return cmd.Start()
+}

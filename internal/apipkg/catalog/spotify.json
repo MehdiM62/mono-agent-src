@@ -1,0 +1,916 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "spotify",
+  "title": "Spotify",
+  "description": "Playback, albums, artists, playlists, tracks and your library on Spotify",
+  "category": "app",
+  "docs_url": "https://developer.spotify.com/documentation/web-api",
+  "n8n_types": [
+    "n8n-nodes-base.spotify"
+  ],
+  "base_url": "https://api.spotify.com/v1",
+  "credentials": [
+    {
+      "platform": "spotify",
+      "name": "Spotify",
+      "n8n_credential": "spotifyOAuth2Api",
+      "methods": [
+        "oauth"
+      ],
+      "fields": [],
+      "oauth": {
+        "auth_url": "https://accounts.spotify.com/authorize",
+        "token_url": "https://accounts.spotify.com/api/token",
+        "scopes": [
+          "user-read-playback-state",
+          "playlist-read-collaborative",
+          "user-modify-playback-state",
+          "playlist-modify-public",
+          "user-read-currently-playing",
+          "playlist-read-private",
+          "user-read-recently-played",
+          "playlist-modify-private",
+          "user-library-read",
+          "user-follow-read"
+        ]
+      },
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "player",
+      "label": "Player"
+    },
+    {
+      "value": "album",
+      "label": "Album"
+    },
+    {
+      "value": "artist",
+      "label": "Artist"
+    },
+    {
+      "value": "library",
+      "label": "Library"
+    },
+    {
+      "value": "myData",
+      "label": "My Data"
+    },
+    {
+      "value": "playlist",
+      "label": "Playlist"
+    },
+    {
+      "value": "track",
+      "label": "Track"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "player",
+      "operation": "addSongToQueue",
+      "title": "Add a song to the queue",
+      "method": "POST",
+      "path": "/me/player/queue",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Track URI",
+          "type": "text",
+          "required": true,
+          "help": "e.g. spotify:track:..."
+        }
+      ],
+      "query": {
+        "uri": "{{ p.id }}"
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "player",
+      "operation": "currentlyPlaying",
+      "title": "Get the currently playing track",
+      "method": "GET",
+      "path": "/me/player/currently-playing",
+      "fields": []
+    },
+    {
+      "resource": "player",
+      "operation": "nextSong",
+      "title": "Skip to the next song",
+      "method": "POST",
+      "path": "/me/player/next",
+      "fields": [],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "player",
+      "operation": "pause",
+      "title": "Pause playback",
+      "method": "PUT",
+      "path": "/me/player/pause",
+      "fields": [],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "player",
+      "operation": "previousSong",
+      "title": "Go back to the previous song",
+      "method": "POST",
+      "path": "/me/player/previous",
+      "fields": [],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "player",
+      "operation": "recentlyPlayed",
+      "title": "Get recently played tracks",
+      "method": "GET",
+      "path": "/me/player/recently-played",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 50
+        }
+      ],
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "next",
+        "limit_param": "limit",
+        "page_size": 50,
+        "results_path": "items"
+      }
+    },
+    {
+      "resource": "player",
+      "operation": "resume",
+      "title": "Resume playback",
+      "method": "PUT",
+      "path": "/me/player/play",
+      "fields": [],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "player",
+      "operation": "volume",
+      "title": "Set the volume",
+      "method": "PUT",
+      "path": "/me/player/volume",
+      "fields": [
+        {
+          "key": "volumePercent",
+          "label": "Volume (%)",
+          "type": "number",
+          "default": 50,
+          "min": 0,
+          "max": 100,
+          "required": true
+        }
+      ],
+      "query": {
+        "volume_percent": "{{ p.volumePercent }}"
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "player",
+      "operation": "startMusic",
+      "title": "Start playing an album, artist or playlist",
+      "method": "PUT",
+      "path": "/me/player/play",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Context URI",
+          "type": "text",
+          "required": true,
+          "help": "e.g. spotify:album:..."
+        }
+      ],
+      "body": {
+        "context_uri": "{{ p.id }}"
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "album",
+      "operation": "get",
+      "title": "Get an album",
+      "method": "GET",
+      "path": "/albums/{{ p.id | replace:'spotify:album:','' }}",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Album URI or ID",
+          "type": "text",
+          "required": true,
+          "help": "Spotify URI or ID"
+        }
+      ]
+    },
+    {
+      "resource": "album",
+      "operation": "getNewReleases",
+      "title": "Get new album releases",
+      "method": "GET",
+      "path": "/browse/new-releases",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 100
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "country"
+          ]
+        }
+      ],
+      "query": {
+        "$merge": "{{ p.filters }}"
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "albums.next",
+        "limit_param": "limit",
+        "page_size": 50,
+        "results_path": "albums.items"
+      }
+    },
+    {
+      "resource": "album",
+      "operation": "getTracks",
+      "title": "Get an album's tracks",
+      "method": "GET",
+      "path": "/albums/{{ p.id | replace:'spotify:album:','' }}/tracks",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Album URI or ID",
+          "type": "text",
+          "required": true,
+          "help": "Spotify URI or ID"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 100
+        }
+      ],
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "next",
+        "limit_param": "limit",
+        "page_size": 50,
+        "results_path": "items"
+      }
+    },
+    {
+      "resource": "album",
+      "operation": "search",
+      "title": "Search albums",
+      "method": "GET",
+      "path": "/search",
+      "fields": [
+        {
+          "key": "query",
+          "label": "Search query",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 100
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "market"
+          ],
+          "help": "market: an ISO 3166-1 country code"
+        }
+      ],
+      "query": {
+        "q": "{{ p.query }}",
+        "type": "album",
+        "$merge": "{{ p.filters }}"
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "albums.next",
+        "limit_param": "limit",
+        "page_size": 50,
+        "results_path": "albums.items"
+      }
+    },
+    {
+      "resource": "artist",
+      "operation": "get",
+      "title": "Get an artist",
+      "method": "GET",
+      "path": "/artists/{{ p.id | replace:'spotify:artist:','' }}",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Artist URI or ID",
+          "type": "text",
+          "required": true,
+          "help": "Spotify URI or ID"
+        }
+      ]
+    },
+    {
+      "resource": "artist",
+      "operation": "getAlbums",
+      "title": "Get an artist's albums",
+      "method": "GET",
+      "path": "/artists/{{ p.id | replace:'spotify:artist:','' }}/albums",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Artist URI or ID",
+          "type": "text",
+          "required": true,
+          "help": "Spotify URI or ID"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 100
+        }
+      ],
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "next",
+        "limit_param": "limit",
+        "page_size": 50,
+        "results_path": "items"
+      }
+    },
+    {
+      "resource": "artist",
+      "operation": "getRelatedArtists",
+      "title": "Get related artists",
+      "method": "GET",
+      "path": "/artists/{{ p.id | replace:'spotify:artist:','' }}/related-artists",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Artist URI or ID",
+          "type": "text",
+          "required": true,
+          "help": "Spotify URI or ID"
+        }
+      ],
+      "output": {
+        "path": "artists"
+      }
+    },
+    {
+      "resource": "artist",
+      "operation": "getTopTracks",
+      "title": "Get an artist's top tracks",
+      "method": "GET",
+      "path": "/artists/{{ p.id | replace:'spotify:artist:','' }}/top-tracks",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Artist URI or ID",
+          "type": "text",
+          "required": true,
+          "help": "Spotify URI or ID"
+        },
+        {
+          "key": "country",
+          "label": "Country",
+          "type": "text",
+          "default": "US",
+          "required": true
+        }
+      ],
+      "query": {
+        "country": "{{ p.country }}"
+      },
+      "output": {
+        "path": "tracks"
+      }
+    },
+    {
+      "resource": "artist",
+      "operation": "search",
+      "title": "Search artists",
+      "method": "GET",
+      "path": "/search",
+      "fields": [
+        {
+          "key": "query",
+          "label": "Search query",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 100
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "market"
+          ],
+          "help": "market: an ISO 3166-1 country code"
+        }
+      ],
+      "query": {
+        "q": "{{ p.query }}",
+        "type": "artist",
+        "$merge": "{{ p.filters }}"
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "artists.next",
+        "limit_param": "limit",
+        "page_size": 50,
+        "results_path": "artists.items"
+      }
+    },
+    {
+      "resource": "playlist",
+      "operation": "add",
+      "title": "Add an item to a playlist",
+      "method": "POST",
+      "path": "/playlists/{{ p.id | replace:'spotify:playlist:','' }}/tracks",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Playlist URI or ID",
+          "type": "text",
+          "required": true,
+          "help": "Spotify URI or ID"
+        },
+        {
+          "key": "trackID",
+          "label": "Track URI",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "position"
+          ]
+        }
+      ],
+      "query": {
+        "uris": "{{ p.trackID }}",
+        "position": "{{ p.additionalFields.position }}"
+      }
+    },
+    {
+      "resource": "playlist",
+      "operation": "create",
+      "title": "Create a playlist",
+      "method": "POST",
+      "path": "/me/playlists",
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "description",
+            "public"
+          ]
+        }
+      ],
+      "body": {
+        "name": "{{ p.name }}",
+        "$merge": "{{ p.additionalFields }}"
+      }
+    },
+    {
+      "resource": "playlist",
+      "operation": "delete",
+      "title": "Remove an item from a playlist",
+      "method": "DELETE",
+      "path": "/playlists/{{ p.id | replace:'spotify:playlist:','' }}/tracks",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Playlist URI or ID",
+          "type": "text",
+          "required": true,
+          "help": "Spotify URI or ID"
+        },
+        {
+          "key": "trackID",
+          "label": "Track URI",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "tracks": [
+          {
+            "uri": "{{ p.trackID }}"
+          }
+        ]
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "playlist",
+      "operation": "get",
+      "title": "Get a playlist",
+      "method": "GET",
+      "path": "/playlists/{{ p.id | replace:'spotify:playlist:','' }}",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Playlist URI or ID",
+          "type": "text",
+          "required": true,
+          "help": "Spotify URI or ID"
+        }
+      ]
+    },
+    {
+      "resource": "playlist",
+      "operation": "getUserPlaylists",
+      "title": "Get your playlists",
+      "method": "GET",
+      "path": "/me/playlists",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 100
+        }
+      ],
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "next",
+        "limit_param": "limit",
+        "page_size": 50,
+        "results_path": "items"
+      }
+    },
+    {
+      "resource": "playlist",
+      "operation": "getTracks",
+      "title": "Get a playlist's tracks",
+      "method": "GET",
+      "path": "/playlists/{{ p.id | replace:'spotify:playlist:','' }}/tracks",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Playlist URI or ID",
+          "type": "text",
+          "required": true,
+          "help": "Spotify URI or ID"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 100
+        }
+      ],
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "next",
+        "limit_param": "limit",
+        "page_size": 50,
+        "results_path": "items"
+      }
+    },
+    {
+      "resource": "playlist",
+      "operation": "search",
+      "title": "Search playlists",
+      "method": "GET",
+      "path": "/search",
+      "fields": [
+        {
+          "key": "query",
+          "label": "Search query",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 100
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "market"
+          ],
+          "help": "market: an ISO 3166-1 country code"
+        }
+      ],
+      "query": {
+        "q": "{{ p.query }}",
+        "type": "playlist",
+        "$merge": "{{ p.filters }}"
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "playlists.next",
+        "limit_param": "limit",
+        "page_size": 50,
+        "results_path": "playlists.items"
+      }
+    },
+    {
+      "resource": "track",
+      "operation": "get",
+      "title": "Get a track",
+      "method": "GET",
+      "path": "/tracks/{{ p.id | replace:'spotify:track:','' }}",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Track URI or ID",
+          "type": "text",
+          "required": true,
+          "help": "Spotify URI or ID"
+        }
+      ]
+    },
+    {
+      "resource": "track",
+      "operation": "getAudioFeatures",
+      "title": "Get a track's audio features",
+      "method": "GET",
+      "path": "/audio-features/{{ p.id | replace:'spotify:track:','' }}",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Track URI or ID",
+          "type": "text",
+          "required": true,
+          "help": "Spotify URI or ID"
+        }
+      ]
+    },
+    {
+      "resource": "track",
+      "operation": "search",
+      "title": "Search tracks",
+      "method": "GET",
+      "path": "/search",
+      "fields": [
+        {
+          "key": "query",
+          "label": "Search query",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 100
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "market"
+          ],
+          "help": "market: an ISO 3166-1 country code"
+        }
+      ],
+      "query": {
+        "q": "{{ p.query }}",
+        "type": "track",
+        "$merge": "{{ p.filters }}"
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "tracks.next",
+        "limit_param": "limit",
+        "page_size": 50,
+        "results_path": "tracks.items"
+      }
+    },
+    {
+      "resource": "library",
+      "operation": "getLikedTracks",
+      "title": "Get your liked tracks",
+      "method": "GET",
+      "path": "/me/tracks",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 100
+        }
+      ],
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "next",
+        "limit_param": "limit",
+        "page_size": 50,
+        "results_path": "items"
+      }
+    },
+    {
+      "resource": "myData",
+      "operation": "getFollowingArtists",
+      "title": "Get the artists you follow",
+      "method": "GET",
+      "path": "/me/following",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 50
+        }
+      ],
+      "query": {
+        "type": "artist"
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "artists.next",
+        "limit_param": "limit",
+        "page_size": 50,
+        "results_path": "artists.items"
+      }
+    }
+  ]
+}

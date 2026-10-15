@@ -1,0 +1,393 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "one_simple_api",
+  "title": "One Simple API",
+  "description": "PDFs, screenshots, SEO data, profiles, exchange rates and utilities from One Simple API",
+  "category": "app",
+  "docs_url": "https://onesimpleapi.com/docs",
+  "n8n_types": [
+    "n8n-nodes-base.oneSimpleApi"
+  ],
+  "base_url": "https://onesimpleapi.com/api",
+  "credentials": [
+    {
+      "platform": "one_simple_api",
+      "name": "One Simple API",
+      "n8n_credential": "oneSimpleApi",
+      "n8n_field_map": {
+        "apiToken": "api_token"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "api_token",
+          "label": "API token",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "query": {
+          "token": "{{ cred.api_token }}",
+          "output": "json"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "website",
+      "label": "Website"
+    },
+    {
+      "value": "socialProfile",
+      "label": "Social profile"
+    },
+    {
+      "value": "information",
+      "label": "Information"
+    },
+    {
+      "value": "utility",
+      "label": "Utility"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "website",
+      "operation": "pdf",
+      "title": "Generate a PDF of a page",
+      "method": "GET",
+      "path": "{{ p.download | eq:'true' | then:pre.url | default:'https://onesimpleapi.com/api/pdf' }}",
+      "before": {
+        "when": "{{ p.download }}",
+        "method": "GET",
+        "path": "/pdf",
+        "query": {
+          "url": "{{ p.link }}",
+          "page": "{{ p.options.page }}",
+          "force": "{{ p.options.force | eq:'true' | then:'yes' | default:'no' }}"
+        }
+      },
+      "query": {
+        "url": "{{ p.download | ne:'true' | then:(p.link) }}",
+        "page": "{{ p.download | ne:'true' | then:(p.options.page) }}",
+        "force": "{{ p.download | ne:'true' | then:(p.options.force | eq:'true' | then:'yes' | default:'no') }}"
+      },
+      "fields": [
+        {
+          "key": "link",
+          "label": "Webpage URL",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "page",
+            "force"
+          ]
+        },
+        {
+          "key": "download",
+          "label": "Download the file",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "output",
+          "label": "Output binary field",
+          "type": "text",
+          "default": "data"
+        }
+      ],
+      "binary": {
+        "download_when": "{{ p.download }}",
+        "property_field": "output"
+      }
+    },
+    {
+      "resource": "website",
+      "operation": "seo",
+      "title": "Get a page's SEO data",
+      "method": "GET",
+      "path": "/page_info",
+      "fields": [
+        {
+          "key": "link",
+          "label": "Webpage URL",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "headers"
+          ]
+        }
+      ],
+      "query": {
+        "url": "{{ p.link }}",
+        "headers": "{{ p.options.headers | eq:'true' | then:'yes' }}"
+      }
+    },
+    {
+      "resource": "website",
+      "operation": "screenshot",
+      "title": "Take a screenshot of a page",
+      "method": "GET",
+      "path": "{{ p.download | eq:'true' | then:pre.url | default:'https://onesimpleapi.com/api/screenshot' }}",
+      "before": {
+        "when": "{{ p.download }}",
+        "method": "GET",
+        "path": "/screenshot",
+        "query": {
+          "url": "{{ p.link }}",
+          "screen": "{{ p.options.screen }}",
+          "fullpage": "{{ p.options.fullpage | eq:'true' | then:'yes' | default:'no' }}",
+          "force": "{{ p.options.force | eq:'true' | then:'yes' | default:'no' }}"
+        }
+      },
+      "query": {
+        "url": "{{ p.download | ne:'true' | then:(p.link) }}",
+        "screen": "{{ p.download | ne:'true' | then:(p.options.screen) }}",
+        "fullpage": "{{ p.download | ne:'true' | then:(p.options.fullpage | eq:'true' | then:'yes' | default:'no') }}",
+        "force": "{{ p.download | ne:'true' | then:(p.options.force | eq:'true' | then:'yes' | default:'no') }}"
+      },
+      "fields": [
+        {
+          "key": "link",
+          "label": "Webpage URL",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "screen",
+            "force",
+            "fullpage"
+          ]
+        },
+        {
+          "key": "download",
+          "label": "Download the file",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "output",
+          "label": "Output binary field",
+          "type": "text",
+          "default": "data"
+        }
+      ],
+      "binary": {
+        "download_when": "{{ p.download }}",
+        "property_field": "output"
+      }
+    },
+    {
+      "resource": "socialProfile",
+      "operation": "instagramProfile",
+      "title": "Get an Instagram profile",
+      "method": "GET",
+      "path": "/instagram_profile",
+      "fields": [
+        {
+          "key": "profileName",
+          "label": "Profile name",
+          "type": "text",
+          "default": "",
+          "required": true
+        }
+      ],
+      "query": {
+        "profile": "{{ p.profileName }}"
+      }
+    },
+    {
+      "resource": "socialProfile",
+      "operation": "spotifyArtistProfile",
+      "title": "Get a Spotify artist profile",
+      "method": "GET",
+      "path": "/spotify_profile",
+      "fields": [
+        {
+          "key": "artistName",
+          "label": "Artist name",
+          "type": "text",
+          "default": "",
+          "required": true
+        }
+      ],
+      "query": {
+        "profile": "{{ p.artistName }}"
+      }
+    },
+    {
+      "resource": "information",
+      "operation": "exchangeRate",
+      "title": "Convert a currency amount",
+      "method": "GET",
+      "path": "/exchange_rate",
+      "fields": [
+        {
+          "key": "value",
+          "label": "Value",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "fromCurrency",
+          "label": "From currency",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "toCurrency",
+          "label": "To currency",
+          "type": "text",
+          "default": "",
+          "required": true
+        }
+      ],
+      "query": {
+        "from_currency": "{{ p.fromCurrency }}",
+        "to_currency": "{{ p.toCurrency }}",
+        "from_value": "{{ p.value }}"
+      }
+    },
+    {
+      "resource": "information",
+      "operation": "imageMetadata",
+      "title": "Get an image's metadata",
+      "method": "GET",
+      "path": "/image_info",
+      "fields": [
+        {
+          "key": "link",
+          "label": "Image URL",
+          "type": "text",
+          "default": "",
+          "required": true
+        }
+      ],
+      "query": {
+        "url": "{{ p.link }}",
+        "raw": true
+      }
+    },
+    {
+      "resource": "utility",
+      "operation": "validateEmail",
+      "title": "Validate an email address",
+      "method": "GET",
+      "path": "/email",
+      "fields": [
+        {
+          "key": "emailAddress",
+          "label": "Email address",
+          "type": "text",
+          "default": "",
+          "required": true
+        }
+      ],
+      "query": {
+        "email": "{{ p.emailAddress }}"
+      }
+    },
+    {
+      "resource": "utility",
+      "operation": "expandURL",
+      "title": "Expand a short URL",
+      "method": "GET",
+      "path": "/unshorten",
+      "fields": [
+        {
+          "key": "link",
+          "label": "URL",
+          "type": "text",
+          "default": "",
+          "required": true
+        }
+      ],
+      "query": {
+        "url": "{{ p.link }}"
+      }
+    },
+    {
+      "resource": "utility",
+      "operation": "qrCode",
+      "title": "Generate a QR code",
+      "method": "GET",
+      "path": "{{ p.download | eq:'true' | then:pre.url | default:'https://onesimpleapi.com/api/qr_code' }}",
+      "before": {
+        "when": "{{ p.download }}",
+        "method": "GET",
+        "path": "/qr_code",
+        "query": {
+          "message": "{{ p.message }}",
+          "size": "{{ p.options.size }}",
+          "format": "{{ p.options.format }}"
+        }
+      },
+      "query": {
+        "message": "{{ p.download | ne:'true' | then:(p.message) }}",
+        "size": "{{ p.download | ne:'true' | then:(p.options.size) }}",
+        "format": "{{ p.download | ne:'true' | then:(p.options.format) }}"
+      },
+      "fields": [
+        {
+          "key": "message",
+          "label": "QR content",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "size",
+            "format"
+          ]
+        },
+        {
+          "key": "download",
+          "label": "Download the file",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "output",
+          "label": "Output binary field",
+          "type": "text",
+          "default": "data"
+        }
+      ],
+      "binary": {
+        "download_when": "{{ p.download }}",
+        "property_field": "output"
+      }
+    }
+  ]
+}

@@ -6,9 +6,12 @@ package autostart
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"html"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -31,8 +34,9 @@ const stopGrace = 35 * time.Second
 type Installer interface {
 	// Install writes the service definition and starts it now, replacing
 	// any previous registration under Label. Safe to call again over an
-	// existing install.
-	Install(ctx context.Context) (Result, error)
+	// existing install. The daemon is registered with --profile profileID,
+	// which is required: a service never relies on the active profile.
+	Install(ctx context.Context, profileID string) (Result, error)
 	// Uninstall stops the service and removes its definition. Safe to call
 	// when nothing is installed.
 	Uninstall(ctx context.Context) error
@@ -60,6 +64,23 @@ func New() Installer {
 	return newPlatformInstaller()
 }
 
+// ServiceLogHint says where the daemon started by the registered login
+// service logs on this OS: a journalctl command on Linux, the log files
+// launchd or the scheduled task write to on macOS and Windows.
+func ServiceLogHint() string {
+	return serviceLogHint()
+}
+
+// FallbackLogPath is the log of a daemon started without a login service
+// (doctor's detached start): ~/.monoagent/logs/daemon.log.
+func FallbackLogPath() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "~/.monoagent/logs/daemon.log"
+	}
+	return filepath.Join(home, ".monoagent", "logs", "daemon.log")
+}
+
 // executablePath resolves the absolute, symlink-free path to the running
 // binary. Every backend needs this: a launchd/systemd/Scheduled Task
 // definition has no shell and no PATH to find "monoagentcli" by name.
@@ -76,6 +97,8 @@ func executablePath() (string, error) {
 
 // logDir returns ~/.monoagent/logs, creating it if needed — where every
 // backend that can redirect stdout/stderr points the installed service.
+//
+//lint:ignore U1000 used by the darwin and windows autostart files
 func logDir() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -86,4 +109,40 @@ func logDir() (string, error) {
 		return "", fmt.Errorf("create %s: %w", dir, err)
 	}
 	return dir, nil
+}
+
+// errNoProfile is what Install returns for an empty profile id.
+var errNoProfile = errors.New("a profile id is required: the registered daemon always runs with --profile <id>")
+
+// RegisteredProfile is the profile the registered service definition starts the daemon with.
+// found is false when the definition names no --profile (an install from before the profile was
+// explicit): such a registration is out of date and `doctor fix` rewrites it. err is set when the
+// definition could not be read at all, which says nothing about its profile.
+func RegisteredProfile() (profile string, found bool, err error) {
+	text, err := registeredDefinition()
+	if err != nil {
+		return "", false, err
+	}
+	profile, found = profileFromDefinition(text)
+	return profile, found, nil
+}
+
+// profileFromDefinition finds the value after --profile in a service definition: a systemd
+// ExecStart line, a launchd plist (one <string> per argument) or a schtasks XML export.
+func profileFromDefinition(text string) (string, bool) {
+	text = html.UnescapeString(text)
+	text = strings.NewReplacer("<string>", " ", "</string>", " ", "<Arguments>", " ", "</Arguments>", " ", "<Command>", " ", "</Command>", " ").Replace(text)
+	words := strings.Fields(text)
+	for i, w := range words {
+		w = strings.Trim(w, `"'`)
+		if w == "--profile" && i+1 < len(words) {
+			if v := strings.Trim(words[i+1], `"'`); v != "" {
+				return v, true
+			}
+		}
+		if v, ok := strings.CutPrefix(w, "--profile="); ok && v != "" {
+			return v, true
+		}
+	}
+	return "", false
 }

@@ -28,6 +28,17 @@ type OAuthResult struct {
 	// alongside the token (e.g. https://yourInstance.salesforce.com). Empty
 	// for every other provider.
 	InstanceURL string `json:"instance_url,omitempty"`
+	// Extra is the whole token response, for OAuthConfig.TokenFields.
+	Extra map[string]any `json:"-"`
+}
+
+// copyTokenFields stores the named extra token-response keys on data.
+func copyTokenFields(data map[string]interface{}, fields []string, extra map[string]any) {
+	for _, f := range fields {
+		if v, ok := extra[f]; ok && v != nil {
+			data[f] = v
+		}
+	}
 }
 
 // RunOAuthFlow opens the browser to the provider's auth URL, starts a local
@@ -211,6 +222,7 @@ func exchangeCode(cfg OAuthConfig, code, redirectURI, codeVerifier string) (*OAu
 	if err := json.Unmarshal(body, &result); err != nil {
 		return nil, fmt.Errorf("decode token response: %w", err)
 	}
+	_ = json.Unmarshal(body, &result.Extra)
 
 	if result.AccessToken == "" {
 		return nil, fmt.Errorf("token response missing access_token")

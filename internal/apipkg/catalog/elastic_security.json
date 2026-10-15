@@ -1,0 +1,737 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "elastic_security",
+  "node_type": "app.elastic_security",
+  "title": "Elastic Security",
+  "description": "Cases, comments, tags and connectors in Elastic Security (Kibana API)",
+  "category": "app",
+  "docs_url": "https://www.elastic.co/guide/en/kibana/current/cases-api.html",
+  "n8n_types": [
+    "n8n-nodes-base.elasticSecurity"
+  ],
+  "base_url": "{{ cred.base_url }}/api",
+  "headers": {
+    "kbn-xsrf": "true"
+  },
+  "credentials": [
+    {
+      "platform": "elastic_security",
+      "name": "Elastic Security",
+      "n8n_credential": "elasticSecurityApi",
+      "n8n_field_map": {
+        "baseUrl": "base_url",
+        "type": "type",
+        "username": "username",
+        "password": "password",
+        "apiKey": "api_key"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "base_url",
+          "label": "Kibana base URL",
+          "required": true,
+          "help": "e.g. https://my-deployment.kb.us-east-1.aws.found.io:9243"
+        },
+        {
+          "key": "type",
+          "label": "Auth type",
+          "help": "basicAuth (default) or apiKey"
+        },
+        {
+          "key": "username",
+          "label": "Username"
+        },
+        {
+          "key": "password",
+          "label": "Password",
+          "secret": true
+        },
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "help": "Used when Auth type is apiKey"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "{{ cred.type | eq:'apiKey' | then:'ApiKey ' | suffix:cred.api_key | default:(cred.username | suffix:':' | suffix:cred.password | base64 | prefix:'Basic ') }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "case",
+      "label": "Case"
+    },
+    {
+      "value": "caseComment",
+      "label": "Case comment"
+    },
+    {
+      "value": "caseTag",
+      "label": "Case tag"
+    },
+    {
+      "value": "connector",
+      "label": "Connector"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "case",
+      "operation": "create",
+      "title": "Create a case",
+      "method": "POST",
+      "path": "/cases",
+      "fields": [
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "connectorId",
+          "label": "Connector ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "connectorType",
+          "label": "Connector type",
+          "type": "select",
+          "default": ".jira",
+          "options": [
+            ".jira",
+            ".servicenow",
+            ".resilient"
+          ]
+        },
+        {
+          "key": "issueType",
+          "label": "Jira issue type",
+          "type": "text",
+          "required": false
+        },
+        {
+          "key": "priority",
+          "label": "Jira priority",
+          "type": "text",
+          "required": false
+        },
+        {
+          "key": "urgency",
+          "label": "ServiceNow urgency",
+          "type": "number",
+          "default": 1,
+          "help": "1 low, 2 medium, 3 high"
+        },
+        {
+          "key": "severity",
+          "label": "ServiceNow severity",
+          "type": "number",
+          "default": 1
+        },
+        {
+          "key": "impact",
+          "label": "ServiceNow impact",
+          "type": "number",
+          "default": 1
+        },
+        {
+          "key": "category",
+          "label": "ServiceNow category",
+          "type": "text",
+          "required": false
+        },
+        {
+          "key": "issueTypes",
+          "label": "Resilient issue types",
+          "type": "text",
+          "required": false,
+          "help": "Comma-separated numeric IDs"
+        },
+        {
+          "key": "severityCode",
+          "label": "Resilient severity code",
+          "type": "number",
+          "default": 1
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "description",
+            "owner",
+            "syncAlerts"
+          ]
+        }
+      ],
+      "before": {
+        "method": "GET",
+        "path": "/actions/connector/{{ p.connectorId }}"
+      },
+      "body": {
+        "title": "{{ p.title }}",
+        "owner": "{{ p.additionalFields.owner | default:'securitySolution' }}",
+        "!description": "{{ p.additionalFields.description | default:'' }}",
+        "!tags": {
+          "$concat": []
+        },
+        "settings": {
+          "syncAlerts": "{{ p.additionalFields.syncAlerts | default:false | bool }}"
+        },
+        "connector": {
+          "id": "{{ pre.id }}",
+          "name": "{{ pre.name }}",
+          "type": "{{ pre.connector_type_id }}",
+          "!fields": {
+            "$merge": [
+              {
+                "$when": "{{ p.connectorType | eq:'.jira' }}",
+                "issueType": "{{ p.issueType }}",
+                "priority": "{{ p.priority }}"
+              },
+              {
+                "$when": "{{ p.connectorType | eq:'.servicenow' }}",
+                "urgency": "{{ p.urgency | string }}",
+                "severity": "{{ p.severity | string }}",
+                "impact": "{{ p.impact | string }}",
+                "category": "{{ p.category }}"
+              },
+              {
+                "$when": "{{ p.connectorType | eq:'.resilient' }}",
+                "issueTypes": "{{ p.issueTypes | split }}",
+                "severityCode": "{{ p.severityCode | string }}"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "resource": "case",
+      "operation": "delete",
+      "title": "Delete a case",
+      "method": "DELETE",
+      "path": "/cases",
+      "fields": [
+        {
+          "key": "caseId",
+          "label": "Case ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "query": {
+        "ids": {
+          "$json": [
+            "{{ p.caseId }}"
+          ]
+        }
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "case",
+      "operation": "get",
+      "title": "Get a case",
+      "method": "GET",
+      "path": "/cases/{{ p.caseId }}",
+      "fields": [
+        {
+          "key": "caseId",
+          "label": "Case ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "case",
+      "operation": "getAll",
+      "title": "Get many cases",
+      "method": "GET",
+      "path": "/cases/_find",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "status",
+            "tags"
+          ],
+          "help": "status: open, in-progress or closed"
+        },
+        {
+          "key": "sortOptions",
+          "label": "Sort",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "sortOptionsProperties"
+          ],
+          "help": "{\"sortOptionsProperties\": {\"sortField\": createdAt|updatedAt, \"sortOrder\": asc|desc}}"
+        }
+      ],
+      "query": {
+        "sortField": "{{ p.sortOptions.sortOptionsProperties.sortField | default:'createdAt' }}",
+        "sortOrder": "{{ p.sortOptions.sortOptionsProperties.sortOrder | default:'asc' }}",
+        "status": "{{ p.filters.status }}",
+        "tags": "{{ p.filters.tags | csv }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "perPage",
+        "page_size": 100,
+        "results_path": "cases"
+      }
+    },
+    {
+      "resource": "case",
+      "operation": "getStatus",
+      "title": "Get case status counts",
+      "method": "GET",
+      "path": "/cases/status"
+    },
+    {
+      "resource": "case",
+      "operation": "update",
+      "title": "Update a case",
+      "method": "PATCH",
+      "path": "/cases",
+      "fields": [
+        {
+          "key": "caseId",
+          "label": "Case ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "description",
+            "status",
+            "syncAlerts",
+            "title",
+            "version"
+          ]
+        }
+      ],
+      "before": {
+        "method": "GET",
+        "path": "/cases/{{ p.caseId }}"
+      },
+      "body": {
+        "cases": [
+          {
+            "id": "{{ p.caseId }}",
+            "version": "{{ p.updateFields.version | default:pre.version }}",
+            "$merge": "{{ p.updateFields | omit:'syncAlerts,version' }}",
+            "settings": {
+              "$when": "{{ p.updateFields.syncAlerts | eq:'true' }}",
+              "syncAlerts": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "resource": "caseComment",
+      "operation": "add",
+      "title": "Add a comment to a case",
+      "method": "POST",
+      "path": "/cases/{{ p.caseId }}/comments",
+      "fields": [
+        {
+          "key": "caseId",
+          "label": "Case ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "comment",
+          "label": "Comment",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "key": "simple",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true,
+          "help": "Return only the new comment instead of the whole case"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "owner"
+          ]
+        }
+      ],
+      "body": {
+        "comment": "{{ p.comment }}",
+        "type": "user",
+        "owner": "{{ p.additionalFields.owner | default:'securitySolution' }}"
+      },
+      "output": {
+        "path": "{{ p.simple | eq:'true' | then:'comments.-1' }}"
+      }
+    },
+    {
+      "resource": "caseComment",
+      "operation": "get",
+      "title": "Get a comment",
+      "method": "GET",
+      "path": "/cases/{{ p.caseId }}/comments/{{ p.commentId }}",
+      "fields": [
+        {
+          "key": "caseId",
+          "label": "Case ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "commentId",
+          "label": "Comment ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "caseComment",
+      "operation": "getAll",
+      "title": "Get many comments",
+      "method": "GET",
+      "path": "/cases/{{ p.caseId }}/comments",
+      "fields": [
+        {
+          "key": "caseId",
+          "label": "Case ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "__single_page__",
+        "results_path": ""
+      }
+    },
+    {
+      "resource": "caseComment",
+      "operation": "remove",
+      "title": "Remove a comment",
+      "method": "DELETE",
+      "path": "/cases/{{ p.caseId }}/comments/{{ p.commentId }}",
+      "fields": [
+        {
+          "key": "caseId",
+          "label": "Case ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "commentId",
+          "label": "Comment ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "caseComment",
+      "operation": "update",
+      "title": "Update a comment",
+      "method": "PATCH",
+      "path": "/cases/{{ p.caseId }}/comments",
+      "fields": [
+        {
+          "key": "caseId",
+          "label": "Case ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "commentId",
+          "label": "Comment ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "comment",
+          "label": "Comment",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "key": "simple",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true,
+          "help": "Return only the new comment instead of the whole case"
+        }
+      ],
+      "before": {
+        "method": "GET",
+        "path": "/cases/{{ p.caseId }}/comments/{{ p.commentId }}"
+      },
+      "body": {
+        "comment": "{{ p.comment }}",
+        "id": "{{ p.commentId }}",
+        "type": "user",
+        "owner": "securitySolution",
+        "version": "{{ pre.version }}"
+      },
+      "output": {
+        "path": "{{ p.simple | eq:'true' | then:'comments.-1' }}"
+      }
+    },
+    {
+      "resource": "caseTag",
+      "operation": "add",
+      "title": "Add a tag to a case",
+      "method": "PATCH",
+      "path": "/cases",
+      "fields": [
+        {
+          "key": "caseId",
+          "label": "Case ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "tag",
+          "label": "Tag",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "before": {
+        "method": "GET",
+        "path": "/cases/{{ p.caseId }}"
+      },
+      "body": {
+        "cases": [
+          {
+            "id": "{{ p.caseId }}",
+            "title": "{{ pre.title }}",
+            "connector": "{{ pre.connector }}",
+            "owner": "{{ pre.owner }}",
+            "!description": "{{ pre.description }}",
+            "settings": "{{ pre.settings }}",
+            "version": "{{ pre.version }}",
+            "tags": {
+              "$concat": [
+                "{{ pre.tags }}",
+                "{{ p.tag }}"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "resource": "caseTag",
+      "operation": "remove",
+      "title": "Remove a tag from a case",
+      "method": "PATCH",
+      "path": "/cases",
+      "fields": [
+        {
+          "key": "caseId",
+          "label": "Case ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "tag",
+          "label": "Tag",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "before": {
+        "method": "GET",
+        "path": "/cases/{{ p.caseId }}"
+      },
+      "body": {
+        "cases": [
+          {
+            "id": "{{ p.caseId }}",
+            "title": "{{ pre.title }}",
+            "connector": "{{ pre.connector }}",
+            "owner": "{{ pre.owner }}",
+            "!description": "{{ pre.description }}",
+            "settings": "{{ pre.settings }}",
+            "version": "{{ pre.version }}",
+            "!tags": {
+              "$map": "{{ pre.tags }}",
+              "$to": "{{ el | ne:p.tag | then:el }}"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "resource": "connector",
+      "operation": "create",
+      "title": "Create a connector",
+      "method": "POST",
+      "path": "/actions/connector",
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "connectorType",
+          "label": "Connector type",
+          "type": "select",
+          "default": ".jira",
+          "options": [
+            ".jira",
+            ".servicenow",
+            ".resilient"
+          ]
+        },
+        {
+          "key": "apiUrl",
+          "label": "API URL",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "email",
+          "label": "Jira email",
+          "type": "text",
+          "required": false
+        },
+        {
+          "key": "apiToken",
+          "label": "Jira API token",
+          "type": "password",
+          "required": false
+        },
+        {
+          "key": "projectKey",
+          "label": "Jira project key",
+          "type": "text",
+          "required": false
+        },
+        {
+          "key": "username",
+          "label": "ServiceNow username",
+          "type": "text",
+          "required": false
+        },
+        {
+          "key": "password",
+          "label": "ServiceNow password",
+          "type": "password",
+          "required": false
+        },
+        {
+          "key": "apiKeyId",
+          "label": "Resilient API key ID",
+          "type": "text",
+          "required": false
+        },
+        {
+          "key": "apiKeySecret",
+          "label": "Resilient API key secret",
+          "type": "password",
+          "required": false
+        },
+        {
+          "key": "orgId",
+          "label": "Resilient organization ID",
+          "type": "text",
+          "required": false
+        }
+      ],
+      "body": {
+        "connector_type_id": "{{ p.connectorType }}",
+        "name": "{{ p.name }}",
+        "config": {
+          "apiUrl": "{{ p.apiUrl }}",
+          "projectKey": "{{ p.connectorType | eq:'.jira' | then:p.projectKey }}",
+          "orgId": "{{ p.connectorType | eq:'.resilient' | then:p.orgId }}"
+        },
+        "secrets": {
+          "$merge": [
+            {
+              "$when": "{{ p.connectorType | eq:'.jira' }}",
+              "email": "{{ p.email }}",
+              "apiToken": "{{ p.apiToken }}"
+            },
+            {
+              "$when": "{{ p.connectorType | eq:'.servicenow' }}",
+              "username": "{{ p.username }}",
+              "password": "{{ p.password }}"
+            },
+            {
+              "$when": "{{ p.connectorType | eq:'.resilient' }}",
+              "apiKeyId": "{{ p.apiKeyId }}",
+              "apiKeySecret": "{{ p.apiKeySecret }}"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

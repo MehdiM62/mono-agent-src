@@ -1,0 +1,314 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "vero",
+  "node_type": "app.vero",
+  "title": "Vero",
+  "description": "Identify users, manage their tags and subscriptions, and track events in Vero",
+  "category": "app",
+  "docs_url": "https://developers.getvero.com/",
+  "n8n_types": [
+    "n8n-nodes-base.vero"
+  ],
+  "base_url": "https://api.getvero.com/api/v2",
+  "credentials": [
+    {
+      "platform": "vero",
+      "name": "Vero",
+      "n8n_credential": "veroApi",
+      "n8n_field_map": {
+        "authToken": "auth_token"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "auth_token",
+          "label": "Auth token",
+          "secret": true,
+          "required": true,
+          "help": "Vero: Settings → API credentials"
+        }
+      ],
+      "inject": {
+        "body": {
+          "auth_token": "{{ cred.auth_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "user",
+      "label": "User"
+    },
+    {
+      "value": "event",
+      "label": "Event"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "user",
+      "operation": "create",
+      "title": "Create or update a user",
+      "method": "POST",
+      "path": "/users/track",
+      "body": {
+        "id": "{{ p.id }}",
+        "email": "{{ p.additionalFields.email }}",
+        "data": {
+          "$merge": [
+            "{{ p.jsonParameters | eq:'true' | then:(p.dataAttributesJson | fromjson) }}",
+            "{{ p.jsonParameters | ne:'true' | then:(p.dataAttributesUi.dataAttributesValues | kv:'key,value') }}"
+          ]
+        }
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "User ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "jsonParameters",
+          "label": "JSON parameters",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "email"
+          ]
+        },
+        {
+          "key": "dataAttributesUi",
+          "label": "Data attributes",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "dataAttributesValues"
+          ],
+          "help": "dataAttributesValues: list of {key, value} rows"
+        },
+        {
+          "key": "dataAttributesJson",
+          "label": "Data attributes (JSON)",
+          "type": "json",
+          "default": ""
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "addTags",
+      "title": "Add tags to a user",
+      "method": "PUT",
+      "path": "/users/tags/edit",
+      "body": {
+        "id": "{{ p.id }}",
+        "add": "{{ p.tags | split | json }}"
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "User ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "tags",
+          "label": "Tags",
+          "type": "text",
+          "required": true,
+          "help": "Comma-separated tag names"
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "alias",
+      "title": "Change a user's ID",
+      "method": "PUT",
+      "path": "/users/reidentify",
+      "body": {
+        "id": "{{ p.id }}",
+        "new_id": "{{ p.newId }}"
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "User ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "newId",
+          "label": "New ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "delete",
+      "title": "Delete a user",
+      "method": "POST",
+      "path": "/users/delete",
+      "body": {
+        "id": "{{ p.id }}"
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "User ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "resubscribe",
+      "title": "Resubscribe a user",
+      "method": "POST",
+      "path": "/users/resubscribe",
+      "body": {
+        "id": "{{ p.id }}"
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "User ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "removeTags",
+      "title": "Remove tags from a user",
+      "method": "PUT",
+      "path": "/users/tags/edit",
+      "body": {
+        "id": "{{ p.id }}",
+        "remove": "{{ p.tags | split | json }}"
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "User ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "tags",
+          "label": "Tags",
+          "type": "text",
+          "required": true,
+          "help": "Comma-separated tag names"
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "unsubscribe",
+      "title": "Unsubscribe a user",
+      "method": "POST",
+      "path": "/users/unsubscribe",
+      "body": {
+        "id": "{{ p.id }}"
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "User ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "event",
+      "operation": "track",
+      "title": "Track an event",
+      "method": "POST",
+      "path": "/events/track",
+      "body": {
+        "identity": {
+          "id": "{{ p.id }}",
+          "email": "{{ p.email }}"
+        },
+        "event_name": "{{ p.eventName }}",
+        "email": "{{ p.email }}",
+        "data": "{{ p.jsonParameters | eq:'true' | then:(p.dataAttributesJson | fromjson | json) | default:(p.dataAttributesUi.dataAttributesValues | kv:'key,value' | json) }}",
+        "extras": "{{ p.jsonParameters | eq:'true' | then:(p.extraAttributesJson | fromjson | json) | default:(p.extraAttributesUi.extraAttributesValues | kv:'key,value' | json) }}"
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "User ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "eventName",
+          "label": "Event name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "jsonParameters",
+          "label": "JSON parameters",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "dataAttributesUi",
+          "label": "Data attributes",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "dataAttributesValues"
+          ],
+          "help": "dataAttributesValues: list of {key, value} rows"
+        },
+        {
+          "key": "extraAttributesUi",
+          "label": "Extra attributes",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "extraAttributesValues"
+          ],
+          "help": "extraAttributesValues: list of {key, value} rows"
+        },
+        {
+          "key": "dataAttributesJson",
+          "label": "Data attributes (JSON)",
+          "type": "json",
+          "default": ""
+        },
+        {
+          "key": "extraAttributesJson",
+          "label": "Extra attributes (JSON)",
+          "type": "json",
+          "default": ""
+        }
+      ]
+    }
+  ]
+}

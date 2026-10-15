@@ -1,0 +1,335 @@
+{
+  "record.create": {
+    "params": {
+      "tableId": "bq1",
+      "columns": "Name, Age"
+    },
+    "input": {
+      "Name": "Ada",
+      "Age": 36,
+      "Other": 1
+    },
+    "responses": [
+      [
+        {
+          "id": 3,
+          "label": "Record ID#"
+        },
+        {
+          "id": 6,
+          "label": "Name"
+        },
+        {
+          "id": 7,
+          "label": "Age"
+        }
+      ],
+      {
+        "data": [
+          {
+            "3": {
+              "value": 1
+            },
+            "6": {
+              "value": "Ada"
+            }
+          }
+        ]
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/v1/records",
+      "body": {
+        "to": "bq1",
+        "data": [
+          {
+            "6": {
+              "value": "Ada"
+            },
+            "7": {
+              "value": 36
+            }
+          }
+        ],
+        "fieldsToReturn": [
+          "3"
+        ]
+      },
+      "items": 1
+    }
+  },
+  "record.delete": {
+    "params": {
+      "tableId": "bq1",
+      "where": "{3.EX.1}"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/v1/records",
+      "body": {
+        "from": "bq1",
+        "where": "{3.EX.1}"
+      }
+    }
+  },
+  "record.getAll": {
+    "params": {
+      "tableId": "bq1",
+      "limit": 2,
+      "options": {
+        "select": [
+          6
+        ],
+        "sortByUi": {
+          "sortByValues": [
+            {
+              "fieldId": 6,
+              "order": "ASC"
+            }
+          ]
+        }
+      }
+    },
+    "response": {
+      "data": [
+        {
+          "6": {
+            "value": "Ada"
+          }
+        }
+      ],
+      "fields": [
+        {
+          "id": 6,
+          "label": "Name"
+        }
+      ],
+      "metadata": {
+        "totalRecords": 1
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/records/query",
+      "body": {
+        "from": "bq1",
+        "select": [
+          6
+        ],
+        "sortBy": [
+          {
+            "fieldId": 6,
+            "order": "ASC"
+          }
+        ],
+        "options": {
+          "skip": 0,
+          "top": 2
+        }
+      },
+      "items": 1
+    }
+  },
+  "record.update": {
+    "params": {
+      "tableId": "bq1",
+      "columns": "Record ID#, Name",
+      "updateKey": "Record ID#"
+    },
+    "input": {
+      "Record ID#": 5,
+      "Name": "Bo"
+    },
+    "responses": [
+      [
+        {
+          "id": 3,
+          "label": "Record ID#"
+        },
+        {
+          "id": 6,
+          "label": "Name"
+        },
+        {
+          "id": 7,
+          "label": "Age"
+        }
+      ],
+      {
+        "data": [
+          {
+            "3": {
+              "value": 5
+            }
+          }
+        ]
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/v1/records",
+      "body": {
+        "to": "bq1",
+        "data": [
+          {
+            "3": {
+              "value": 5
+            },
+            "6": {
+              "value": "Bo"
+            }
+          }
+        ]
+      },
+      "items": 1
+    }
+  },
+  "record.upsert": {
+    "params": {
+      "tableId": "bq1",
+      "columns": "Name",
+      "updateKey": "email",
+      "mergeFieldId": "9"
+    },
+    "input": {
+      "Name": "Bo",
+      "email": "b@x.c"
+    },
+    "responses": [
+      [
+        {
+          "id": 3,
+          "label": "Record ID#"
+        },
+        {
+          "id": 6,
+          "label": "Name"
+        },
+        {
+          "id": 7,
+          "label": "Age"
+        }
+      ],
+      {
+        "data": []
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/v1/records",
+      "body": {
+        "to": "bq1",
+        "mergeFieldId": 9,
+        "data": [
+          {
+            "6": {
+              "value": "Bo"
+            },
+            "9": {
+              "value": "b@x.c"
+            }
+          }
+        ],
+        "fieldsToReturn": [
+          "3"
+        ]
+      }
+    }
+  },
+  "field.getAll": {
+    "params": {
+      "tableId": "bq1",
+      "limit": 2
+    },
+    "response": [
+      {
+        "id": 3,
+        "label": "Record ID#"
+      },
+      {
+        "id": 6,
+        "label": "Name"
+      },
+      {
+        "id": 7,
+        "label": "Age"
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/v1/fields",
+      "query": {
+        "tableId": "bq1"
+      },
+      "items": 2
+    }
+  },
+  "file.download": {
+    "params": {
+      "tableId": "bq1",
+      "recordId": "1",
+      "fieldId": "8",
+      "versionNumber": 2
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/files/bq1/1/8/2"
+    }
+  },
+  "file.delete": {
+    "params": {
+      "tableId": "bq1",
+      "recordId": "1",
+      "fieldId": "8"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/v1/files/bq1/1/8/1"
+    }
+  },
+  "report.get": {
+    "params": {
+      "tableId": "bq1",
+      "reportId": "4"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/reports/4",
+      "query": {
+        "tableId": "bq1"
+      }
+    }
+  },
+  "report.run": {
+    "params": {
+      "tableId": "bq1",
+      "reportId": "4"
+    },
+    "response": {
+      "data": [
+        {
+          "6": {
+            "value": "Ada"
+          }
+        }
+      ],
+      "fields": [
+        {
+          "id": 6,
+          "label": "Name"
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/reports/4/run",
+      "query": {
+        "tableId": "bq1",
+        "skip": "0",
+        "top": "100"
+      },
+      "items": 1
+    }
+  }
+}

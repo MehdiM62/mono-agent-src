@@ -3,6 +3,19 @@
   "credential_platform": null,
   "fields": [
     {
+      "default": "removeDuplicateInputItems",
+      "help": "removeDuplicateInputItems: drop repeats within this run. removeItemsRepeatedWithinPreviousExecutions: keep only items that are new compared with earlier runs of this workflow (see Keep Items Where; e.g. new feed entries on a schedule). clearDeduplicationHistory: forget the stored values and maximums and pass items through.",
+      "key": "operation",
+      "label": "Operation",
+      "options": [
+        "removeDuplicateInputItems",
+        "removeItemsRepeatedWithinPreviousExecutions",
+        "clearDeduplicationHistory"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
       "help": "Items with the same value in this field are deduplicated. Leave empty to deduplicate by the entire item.",
       "key": "field",
       "label": "Deduplicate By Field",
@@ -12,6 +25,12 @@
     },
     {
       "default": "first",
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "removeDuplicateInputItems"
+        ]
+      },
       "help": "Which occurrence to keep when duplicates are found.",
       "key": "keep",
       "label": "Keep",
@@ -21,6 +40,80 @@
       ],
       "required": false,
       "type": "select"
+    },
+    {
+      "default": "removeItemsWithAlreadySeenKeyValues",
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "removeItemsRepeatedWithinPreviousExecutions"
+        ]
+      },
+      "help": "removeItemsWithAlreadySeenKeyValues: the value is new (not in the history). removeItemsUpToStoredIncrementalKey: the value is a number higher than any earlier run's. removeItemsUpToStoredDate: the value is a date later than any earlier run's. The last two store only the maximum.",
+      "key": "logic",
+      "label": "Keep Items Where",
+      "options": [
+        "removeItemsWithAlreadySeenKeyValues",
+        "removeItemsUpToStoredIncrementalKey",
+        "removeItemsUpToStoredDate"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "removeItemsRepeatedWithinPreviousExecutions"
+        ]
+      },
+      "help": "Value compared with earlier runs: an expression evaluated per item or a dot-path field. Empty falls back to the field above,then to the whole item. Items with an empty value fail the node.",
+      "key": "dedupeValue",
+      "label": "Dedupe Value",
+      "placeholder": "{{ $json.link }}",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": "node",
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "removeItemsRepeatedWithinPreviousExecutions",
+          "clearDeduplicationHistory"
+        ]
+      },
+      "help": "node: this node keeps its own history. workflow: every remove-duplicates node of the workflow shares one history.",
+      "key": "scope",
+      "label": "History Scope",
+      "options": [
+        "node",
+        "workflow"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "default": 10000,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "removeItemsRepeatedWithinPreviousExecutions"
+        ]
+      },
+      "help": "Most values remembered (removeItemsWithAlreadySeenKeyValues only); the least recently seen are forgotten first (and could pass again).",
+      "key": "historySize",
+      "label": "History Size",
+      "min": 1,
+      "required": false,
+      "type": "number"
+    }
+  ],
+  "outputs": [
+    {
+      "description": "the input item's fields, passed through",
+      "key": "*",
+      "type": "object"
     }
   ]
 }

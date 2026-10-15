@@ -3,11 +3,11 @@ import {
   Play, Square, RotateCcw, ZoomIn, ZoomOut, Trash2, Search,
   ChevronDown, ChevronRight, X, Settings2, Copy, RefreshCw,
   AlertCircle, CheckCircle, Clock, Loader, Plus,
-  Save, FolderOpen, ToggleLeft, ToggleRight, List,
+  Save, FolderOpen, ToggleLeft, ToggleRight, List, LayoutTemplate,
   Braces, LayoutDashboard, Upload, UploadCloud,
 } from 'lucide-react'
 import * as WailsApp from '../wailsjs/go/main/App'
-import { api, notify, subscribeEvent } from '../services/api.js'
+import { api, notify, reportRunFailure, subscribeEvent } from '../services/api.js'
 import { confirm } from '../components/ConfirmDialog.jsx'
 import ResourcePickerField from '../components/ResourcePickerField.jsx'
 import ImagePickerModal from '../components/ImagePickerModal'
@@ -15,15 +15,23 @@ import {
   NODE_CONFIG_FIELDS, BROWSER_NODE_GENERIC,
   deriveInputs, deriveOutputs, portsDependOnConfig, isCaseListSettled, remapSourceEdges,
   arrayFieldItems, arrayTagLabel, normalizeConfigForSave,
+  canonicalOutputHandle, loopBackEdges, hasForbiddenCycle, loopEdgePath, chooseLoopEdgeY, edgePath, edgePoints,
+  makeIdGen,
 } from './nodeConfigFields.js'
 import { SaveModal, WorkflowsModal, TriggerInputModal } from './NodeRunnerModals.jsx'
 import WorkflowImportDialog from './WorkflowImportDialog.jsx'
 import PublishToMonoesDialog from '../components/library/PublishToMonoesDialog.jsx'
-import { derivePlatformId, isSessionPicker, isMediaField, automationIdsFrom } from './nodeInspectorRules.js'
+import { derivePlatformId, isSessionPicker, isMediaField, automationIdsFrom, credentialPickerMode, connectionLabel, fieldIsVisible, fieldValueFor, configDefaults, configAfterChange, jsonTextError, curlImportConfig, isFormFieldsField } from './nodeInspectorRules.js'
+import { CollectionField, AnyPlatformConnections, CurlImport, FormFieldsEditor } from './NodeInspectorWidgets.jsx'
 import { onAutomationsChanged } from '../lib/appEvents.js'
-import { paletteCategoryLabel, paletteSectionOf, splitPaletteSections } from './paletteSections.js'
+import { arrangePaletteCategories, DEPRECATED, paletteCategoryLabel, paletteSectionOf, splitPaletteSections } from './paletteSections.js'
+import { runProblem } from '../lib/runFailure.js'
+import RunProblemPanel from '../components/RunProblemPanel.jsx'
 import { rememberTriggerInput, rememberedTriggerInput } from './triggerInput.js'
 import { usePageVisibleRef } from '../lib/usePageVisible.js'
+import { fitCamera, placeAfter, autoConnect, panToShow, placeBelow, autoConnectSub } from './canvasPlacement.js'
+import { withAiPorts, isAiEdge, checkSubConnection, subEdge, missingRequired, aiEdgePath, autoLayout, attachedCount } from './aiSubNodes.js'
+import { AI_GROUP_PREFIX } from './paletteSections.js'
 import { isAgentNotSetup, withoutAgentSetupMarker } from '../lib/agentSetup.js'
 import AgentSetupLink from '../components/AgentSetupLink.jsx'
 
@@ -45,6 +53,8 @@ const HEAD_H   = 44
 const PORT_H   = 28
 const PORT_PAD = 8
 const PORT_R   = 6
+// The band along a root's bottom edge holding its AI sub-node ports' labels.
+const SUB_BAND_H = 22
 
 const CAT_COLOR = {
   triggers:       '#7c3aed',
@@ -64,10 +74,26 @@ const CAT_COLOR = {
   producthunt:    '#da552f',
   org:            '#6366f1',
 }
-const catColor = (cat) => CAT_COLOR[cat] || '#00b4d8'
+const AI_COLOR = '#a78bfa'
+const catColor = (cat) => CAT_COLOR[cat] || (String(cat || '').startsWith(AI_GROUP_PREFIX) ? AI_COLOR : '#00b4d8')
+const LOOP_EDGE_COLOR = '#f59e0b'
 
+// hasMainPorts is false for an AI sub-node, which is drawn compact: its
+// header and the port on its top edge.
+const hasMainPorts = n => n.inputs.length > 0 || n.outputs.length > 0 || !n.subOutput
 function nodeH(n) {
-  return HEAD_H + PORT_PAD + Math.max(n.inputs.length, n.outputs.length, 1) * PORT_H + PORT_PAD
+  const main = hasMainPorts(n) ? PORT_PAD + Math.max(n.inputs.length, n.outputs.length, 1) * PORT_H + PORT_PAD : 0
+  return HEAD_H + main + (n.subInputs?.length ? SUB_BAND_H : 0)
+}
+// AI sub-node ports: a root's sub-inputs spread along its bottom edge, a
+// sub-node's sub_output at the middle of its top edge.
+function subInPortPos(n, handle) {
+  const k = n.subInputs?.length || 0
+  const i = Math.max(0, (n.subInputs || []).findIndex(s => s.handle === handle))
+  return { x: n.x + (k ? NODE_W * (i + 1) / (k + 1) : NODE_W / 2), y: n.y + nodeH(n) }
+}
+function subOutPortPos(n) {
+  return { x: n.x + NODE_W / 2, y: n.y }
 }
 function inPortPos(n, i) {
   return { x: n.x, y: n.y + HEAD_H + PORT_PAD + i * PORT_H + PORT_H / 2 }
@@ -75,13 +101,14 @@ function inPortPos(n, i) {
 function outPortPos(n, i) {
   return { x: n.x + NODE_W, y: n.y + HEAD_H + PORT_PAD + i * PORT_H + PORT_H / 2 }
 }
-function edgePath(sx, sy, tx, ty) {
-  const dx = Math.max(60, Math.abs(tx - sx) * 0.5)
-  return `M${sx},${sy} C${sx+dx},${sy} ${tx-dx},${ty} ${tx},${ty}`
-}
 
-let _seq = 1
-const uid = () => `nr${_seq++}`
+// fitView is the camera that frames nodes in the canvas element el.
+const fitView = (nodes, el) => fitCamera(nodes, el?.getBoundingClientRect(), { nodeW: NODE_W, nodeH })
+
+// Canvas ids. Loading a workflow advances the counter past its nr<N> ids;
+// taken (a Set) skips any id already on the canvas.
+const canvasIds = makeIdGen('nr')
+const uid = (taken) => canvasIds.next(taken)
 
 // Parse Go time.String() format: "2026-04-08 19:55:14.260072 +0000 UTC"
 // Also handles SQLite CURRENT_TIMESTAMP: "2026-04-08 19:55:14"
@@ -117,8 +144,53 @@ function NodeStatusBadge({ status, itemCount, durationMs }) {
 }
 
 // ── Single canvas node ────────────────────────────────────────────────────────
-function CanvasNode({ node, selected, zoom, onHeaderMouseDown, onOutputPortMouseDown, onInputPortMouseUp, onClick, onDelete, onConfigure }) {
+// AiSubPorts draws a node's AI sub-node ports: diamonds (main ports are
+// circles) on the bottom edge for its sub-inputs, labelled, and one on the
+// top edge for its sub_output. While a sub-node connection is being dragged
+// (dragKind), the inputs of that kind light up.
+function AiSubPorts({ node, h, counts, dragKind, onSubOutputMouseDown, onSubInputMouseUp }) {
+  const k = node.subInputs?.length || 0
+  const diamond = (active, required) => ({
+    position: 'absolute', width: PORT_R * 2, height: PORT_R * 2,
+    transform: 'rotate(45deg)', background: active ? AI_COLOR : '#1e293b',
+    border: `1.5px solid ${required ? '#f59e0b' : AI_COLOR}`, cursor: 'crosshair', zIndex: 3,
+    boxShadow: active ? `0 0 8px ${AI_COLOR}` : 'none', transition: 'all 100ms',
+  })
+  return <>
+    {(node.subInputs || []).map((s, i) => {
+      const cx = NODE_W * (i + 1) / (k + 1)
+      const n = counts?.[s.handle] || 0
+      const lit = dragKind === s.handle && !(s.max && n >= s.max)
+      return (
+        <div key={s.handle}>
+          <div style={{
+            position: 'absolute', left: cx - 40, width: 80, top: h - SUB_BAND_H, height: SUB_BAND_H - PORT_R,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none',
+            fontFamily: 'var(--font-mono)', fontSize: 9, color: lit ? AI_COLOR : 'var(--text-muted)', whiteSpace: 'nowrap',
+          }}>{s.label}{s.required ? '*' : ''}{n > 1 ? ` ·${n}` : ''}</div>
+          <div
+            data-testid={`sub-in-${node.id}-${s.handle}`}
+            title={`${s.label}${s.required ? ' (required)' : ''}${s.max ? ` · up to ${s.max}` : ''} — drag a ${s.label} node's top port here`}
+            onMouseUp={e => { e.stopPropagation(); onSubInputMouseUp(s.handle) }}
+            style={{ ...diamond(lit, s.required && n === 0), left: cx - PORT_R, top: h - PORT_R }}
+          />
+        </div>
+      )
+    })}
+    {node.subOutput && (
+      <div
+        data-testid={`sub-out-${node.id}`}
+        title={`Drag to connect this ${node.label} to an AI node`}
+        onMouseDown={e => { e.stopPropagation(); onSubOutputMouseDown(e) }}
+        style={{ ...diamond(false, false), left: NODE_W / 2 - PORT_R, top: -PORT_R }}
+      />
+    )}
+  </>
+}
+
+function CanvasNode({ node, selected, zoom, onHeaderMouseDown, onOutputPortMouseDown, onInputPortMouseUp, onClick, onDelete, onConfigure, missing, subCounts, dragKind, onSubOutputMouseDown, onSubInputMouseUp }) {
   const h = nodeH(node)
+  const compact = !hasMainPorts(node)
   const color = node.color || catColor(node.category)
   const status = node.runStatus // 'running' | 'ok' | 'error' | null
   const rows = Math.max(node.inputs.length, node.outputs.length, 1)
@@ -136,6 +208,7 @@ function CanvasNode({ node, selected, zoom, onHeaderMouseDown, onOutputPortMouse
           : '0 6px 20px rgba(0,0,0,.5)',
         userSelect: 'none',
         overflow: 'visible',
+        pointerEvents: 'auto',
         transition: 'border-color 140ms, box-shadow 140ms',
       }}
       onMouseDown={(e) => { e.stopPropagation(); onClick?.() }}
@@ -145,14 +218,29 @@ function CanvasNode({ node, selected, zoom, onHeaderMouseDown, onOutputPortMouse
         itemCount={node.runOutputItems}
         durationMs={node.runDuration}
       />
+      {missing?.length > 0 && (
+        <div
+          role="img"
+          aria-label={`Needs a ${missing.join(', ')} connection`}
+          title={`Needs a ${missing.join(', ')} connection`}
+          data-testid={`missing-sub-${node.id}`}
+          style={{
+            position: 'absolute', top: -9, left: -9, zIndex: 3, width: 18, height: 18, borderRadius: '50%',
+            background: '#f59e0b', color: '#0b0f17', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 0 8px #f59e0b66', cursor: 'help',
+          }}
+        ><AlertCircle size={12} /></div>
+      )}
+      <AiSubPorts node={node} h={h} counts={subCounts} dragKind={dragKind}
+        onSubOutputMouseDown={onSubOutputMouseDown} onSubInputMouseUp={onSubInputMouseUp} />
 
       {/* Header */}
       <div
         style={{
           height: HEAD_H,
           background: `linear-gradient(110deg,${color}1a 0%,${color}0a 100%)`,
-          borderBottom: `1px solid ${color}22`,
-          borderRadius: '9px 9px 0 0',
+          borderBottom: compact ? 'none' : `1px solid ${color}22`,
+          borderRadius: compact ? 9 : '9px 9px 0 0',
           display: 'flex', alignItems: 'center',
           padding: '0 8px 0 10px',
           cursor: 'grab', gap: 6,
@@ -187,7 +275,7 @@ function CanvasNode({ node, selected, zoom, onHeaderMouseDown, onOutputPortMouse
       </div>
 
       {/* Ports */}
-      <div style={{ position: 'relative', padding: `${PORT_PAD}px 0` }}>
+      {!compact && <div style={{ position: 'relative', padding: `${PORT_PAD}px 0` }}>
         {Array.from({ length: rows }).map((_, i) => (
           <div key={i} style={{ height: PORT_H, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative' }}>
             {/* Input port */}
@@ -235,7 +323,7 @@ function CanvasNode({ node, selected, zoom, onHeaderMouseDown, onOutputPortMouse
             ) : <div />}
           </div>
         ))}
-      </div>
+      </div>}
 
       {/* Running pulse */}
       {status === 'running' && (
@@ -253,20 +341,20 @@ function CanvasNode({ node, selected, zoom, onHeaderMouseDown, onOutputPortMouse
 // ── Save workflow modal ───────────────────────────────────────────────────────
 
 // ── Node palette sidebar ──────────────────────────────────────────────────────
-function Palette({ categories, onAdd, onNodeMouseDown }) {
+function Palette({ categories, onAdd, onNodeMouseDown, onBrowseAutomations }) {
   const [search, setSearch] = useState('')
   const [open, setOpen] = useState(() => {
     try { return JSON.parse(localStorage.getItem('nr2-palette-open') || '{}') } catch { return {} }
   })
 
-  const toggle = (id) => setOpen(prev => {
-    const next = { ...prev, [id]: !prev[id] }
+  const toggle = (id, wasOpen) => setOpen(prev => {
+    const next = { ...prev, [id]: !wasOpen }
     try { localStorage.setItem('nr2-palette-open', JSON.stringify(next)) } catch {}
     return next
   })
 
   const q = search.toLowerCase()
-  const filtered = categories.map(cat => ({
+  const filtered = arrangePaletteCategories(categories).map(cat => ({
     ...cat,
     nodes: q ? cat.nodes.filter(n => n.label.toLowerCase().includes(q) || n.subtype.toLowerCase().includes(q) || cat.label.toLowerCase().includes(q)) : cat.nodes,
   })).filter(cat => cat.nodes.length > 0)
@@ -309,16 +397,22 @@ function Palette({ categories, onAdd, onNodeMouseDown }) {
             </div>
             {sec.categories.length === 0 && (
               <div style={{ padding: '2px 10px 8px', fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)', lineHeight: 1.5 }}>
-                {search ? 'No matches' : 'None installed — install web automations from the monoes.me library'}
+                {search ? 'No matches' : <>
+                  None installed —{' '}
+                  <button onClick={onBrowseAutomations} style={{
+                    background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+                    fontFamily: 'var(--font-mono)', fontSize: 10, color: '#00b4d8', textDecoration: 'underline', textAlign: 'left',
+                  }}>browse and install web automations</button>
+                </>}
               </div>
             )}
         {sec.categories.map(cat => {
-          const isOpen = search ? true : (open[cat.id] !== false)
-          const color = catColor(cat.id)
+          const isOpen = search ? true : (open[cat.id] ?? !cat.collapsedByDefault)
+          const color = cat.id === DEPRECATED ? '#6b7280' : catColor(cat.id)
           return (
             <div key={cat.id}>
               <div
-                onClick={() => !search && toggle(cat.id)}
+                onClick={() => !search && toggle(cat.id, isOpen)}
                 style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 10px 5px', cursor: search ? 'default' : 'pointer', userSelect: 'none' }}
               >
                 {!search && (isOpen ? <ChevronDown size={9} color={color} /> : <ChevronRight size={9} color={color} />)}
@@ -329,8 +423,8 @@ function Palette({ categories, onAdd, onNodeMouseDown }) {
               {isOpen && cat.nodes.map(n => (
                 <div
                   key={n.subtype}
-                  onMouseDown={e => { e.preventDefault(); onNodeMouseDown(e, { ...n, category: cat.id }) }}
-                  onClick={() => onAdd({ ...n, category: cat.id })}
+                  onMouseDown={e => { e.preventDefault(); onNodeMouseDown(e, { ...n, category: n.category || cat.id }) }}
+                  onClick={() => onAdd({ ...n, category: n.category || cat.id })}
                   title={`Click or drag to add ${n.label}`}
                   style={{
                     padding: '5px 14px 5px 20px',
@@ -359,14 +453,6 @@ function Palette({ categories, onAdd, onNodeMouseDown }) {
   )
 }
 
-// ── Platforms that require a credential selection ─────────────────────────────
-// ── Field visibility check (depends_on support) ───────────────────────────────
-function fieldIsVisible(field, config) {
-  if (!field.depends_on) return true
-  const depValue = String(config?.[field.depends_on.key] ?? config?.[field.depends_on.field] ?? '')
-  return (field.depends_on.values || []).includes(depValue)
-}
-
 // ── Inspector panel (right side) ──────────────────────────────────────────────
 // liveSchema resolves a node's schema from the node catalog rather than the
 // copy saved inside the workflow. Schemas are code: a workflow file keeps the
@@ -389,23 +475,27 @@ function Inspector({ node, onConfigChange, onClose, onNavigate, liveSchemas, aut
 
   const platformId = derivePlatformId(node, schema, automationIds)
   const isBrowserPlatform = isSessionPicker(node, automationIds)
+  // 'any': a generic HTTP/GraphQL node takes a connection of any platform.
+  const pickerMode = credentialPickerMode(platformId, schema)
 
   useEffect(() => {
-    if (!platformId) { setConnections([]); return }
+    if (!pickerMode) { setConnections([]); return }
     setLoadingCreds(true)
-    api.getConnectionsForPlatform(platformId)
+    const load = pickerMode === 'any' ? api.listConnections('') : api.getConnectionsForPlatform(platformId)
+    load
       .then(list => {
         const conns = Array.isArray(list) ? list : []
         setConnections(conns)
-        // Auto-select the first (or only) credential if none is set
-        if (conns.length > 0 && !node.config?.credential_id) {
+        // Auto-select the first (or only) credential if none is set. Not in
+        // any-platform mode: there a connection is optional and adds auth.
+        if (pickerMode === 'platform' && conns.length > 0 && !node.config?.credential_id) {
           const firstId = String(conns[0].id || conns[0].ID || '')
           if (firstId) onConfigChange(node.id, 'credential_id', firstId)
         }
       })
       .catch(() => setConnections([]))
       .finally(() => setLoadingCreds(false))
-  }, [platformId, node?.id])
+  }, [platformId, pickerMode, node?.id])
 
   useEffect(() => {
     WailsApp.GetVaultImages(50).then(imgs => setVaultImages(imgs || [])).catch(() => {})
@@ -441,9 +531,11 @@ function Inspector({ node, onConfigChange, onClose, onNavigate, liveSchemas, aut
         ><X size={12} /></button>
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '12px' }}>
+      {/* overflowWrap: long unbroken words (option ids in help text) wrap
+          instead of running past the inspector's right edge. */}
+      <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', overflowWrap: 'anywhere', padding: '12px' }}>
         {/* Credential dropdown — shown for platforms that require auth */}
-        {platformId && (
+        {pickerMode && (
           <>
             <Label>{isBrowserPlatform ? 'SESSION' : 'CREDENTIAL'}</Label>
             <div style={{ marginBottom: 10 }}>
@@ -455,12 +547,18 @@ function Inspector({ node, onConfigChange, onClose, onNavigate, liveSchemas, aut
                 disabled={loadingCreds}
               >
                 <option value="">— None —</option>
-                {connections.map(c => {
-                  const id = c.id || c.ID || ''
-                  const label = c.label || c.Label || c.AccountID || c.account_id || c.platform || id
-                  return <option key={id} value={String(id)}>{label}</option>
-                })}
+                {pickerMode === 'any'
+                  ? <AnyPlatformConnections connections={connections} />
+                  : connections.map(c => {
+                    const id = c.id || c.ID || ''
+                    return <option key={id} value={String(id)}>{connectionLabel(c)}</option>
+                  })}
               </select>
+              {pickerMode === 'any' && (
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', marginTop: 4 }}>
+                  Any saved connection, grouped by platform. Optional.
+                </div>
+              )}
               {loadingCreds && (
                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', marginTop: 4 }}>
                   Loading…
@@ -495,15 +593,28 @@ function Inspector({ node, onConfigChange, onClose, onNavigate, liveSchemas, aut
           return (
             <>
               <Label>CONFIG</Label>
+              {node.subtype === 'http.request' && (
+                <CurlImport
+                  inputStyle={inputStyle}
+                  onImport={imported => {
+                    const next = curlImportConfig(fields, node.config, imported)
+                    Object.entries(next).forEach(([k, v]) => onConfigChange(node.id, k, v))
+                  }}
+                />
+              )}
               {fields.map(f => {
-                if (!fieldIsVisible(f, node.config)) return null
+                if (!fieldIsVisible(f, node.config, fields)) return null
                 // Skip credential_id text field when a credential picker is rendered above
-                if (f.key === 'credential_id' && platformId) return null
-                const rawVal0 = node.config?.[f.key] ?? f.default ?? ''
+                if (f.key === 'credential_id' && pickerMode) return null
+                const rawVal0 = fieldValueFor(f, node.config, fields) ?? ''
                 // A list/object value in a text editor (e.g. core.switch cases
                 // edited in the textarea fallback) shows as JSON, not "[object Object]".
                 const val = rawVal0 !== null && typeof rawVal0 === 'object' ? JSON.stringify(rawVal0) : rawVal0
                 const onChange = e => onConfigChange(node.id, f.key, e.target.value)
+                if (isFormFieldsField(f)) {
+                  return <FormFieldsEditor key={`${node.id}:${f.key}`} field={f} value={rawVal0} config={node.config}
+                    onCommit={v => onConfigChange(node.id, f.key, v)} inputStyle={inputStyle} />
+                }
                 let inputEl
                 if (f.type === 'boolean') {
                   const checked = Boolean(node.config?.[f.key] ?? f.default ?? false)
@@ -543,8 +654,21 @@ function Inspector({ node, onConfigChange, onClose, onNavigate, liveSchemas, aut
                         autoCorrect="off"
                         style={{ ...inputStyle, fontFamily: 'var(--font-mono)', fontSize: 11 }}
                       />
+                      {f.language === 'json' && jsonTextError(val) && (
+                        <div role="alert" style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#f87171', marginTop: 4 }}>{jsonTextError(val)}</div>
+                      )}
                       {f.help && <p className="field-help">{f.help}</p>}
                     </div>
+                  )
+                } else if (f.type === 'collection') {
+                  inputEl = (
+                    <CollectionField
+                      key={`${node.id}:${f.key}`}
+                      field={f}
+                      value={node.config?.[f.key]}
+                      onCommit={v => onConfigChange(node.id, f.key, v)}
+                      inputStyle={inputStyle}
+                    />
                   )
                 } else if (f.type === 'select') {
                   inputEl = (
@@ -554,6 +678,11 @@ function Inspector({ node, onConfigChange, onClose, onNavigate, liveSchemas, aut
                       className="select-compact"
                       style={selectStyle}
                     >
+                      {/* A value the options don't list (no default yet, or
+                          an imported one) shows as itself, not as option one. */}
+                      {!(f.options || []).map(String).includes(String(val)) && (
+                        <option value={val}>{val === '' ? '— choose —' : val}</option>
+                      )}
                       {(f.options || []).map(o => <option key={o} value={o}>{o}</option>)}
                     </select>
                   )
@@ -577,7 +706,8 @@ function Inspector({ node, onConfigChange, onClose, onNavigate, liveSchemas, aut
                       style={inputStyle}
                     />
                   )
-                } else if (f.type === 'array') {
+                } else if (f.type === 'array' || f.type === 'tag_list') {
+                  // tag_list (service.youtube tags) is a list of strings too.
                   const rawVal = node.config?.[f.key]
                   const arrValue = arrayFieldItems(rawVal)
                   return (
@@ -959,23 +1089,6 @@ function Label({ children, style }) {
   )
 }
 
-// ── Cycle detection: would adding edge source→target create a loop? ──────────
-// True when target already reaches source through existing edges.
-function wouldCreateCycle(edges, source, target) {
-  const adj = {}
-  edges.forEach(e => { (adj[e.source] = adj[e.source] || []).push(e.target) })
-  const seen = new Set()
-  const stack = [target]
-  while (stack.length) {
-    const id = stack.pop()
-    if (id === source) return true
-    if (seen.has(id)) continue
-    seen.add(id)
-    ;(adj[id] || []).forEach(n => stack.push(n))
-  }
-  return false
-}
-
 // ── Resolve a stored connection handle ('main', 'true', …) to a port index ───
 // Handles are port ids, not indexes; legacy files stored numeric strings.
 function resolvePortIdx(ports, handle) {
@@ -988,9 +1101,7 @@ function resolvePortIdx(ports, handle) {
 
 // Default config a freshly dropped node starts with (mirrors addNode).
 function schemaDefaults(fields) {
-  const d = {}
-  ;(fields || []).forEach(f => { d[f.key] = f.default ?? '' })
-  return d
+  return configDefaults(fields)
 }
 
 // ── Main page ─────────────────────────────────────────────────────────────────
@@ -1026,7 +1137,7 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
   const [wfActive, setWfActive] = useState(false)
   const [saving,        setSaving]       = useState(false)
   const [saveMsg,       setSaveMsg]       = useState(null) // { ok: bool, text: string }
-  const [showWfModal,   setShowWfModal]   = useState(false)
+  const [showWfModal,   setShowWfModal]   = useState(false) // false | 'saved' | 'templates'
   const [showImport,    setShowImport]    = useState(false)
   const [showPublish,   setShowPublish]   = useState(false)
   const [showSaveModal, setShowSaveModal] = useState(false)
@@ -1046,19 +1157,26 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
   const [jsonView, setJsonView] = useState(false)
 
   // ── Execution overlay ───────────────────────────────────────────────────
-  const [execOverlay, setExecOverlay] = useState(null) // { id, status, nodes: [] }
+  const [execOverlay, setExecOverlay] = useState(null) // { id, status, nodes: [], problem }
+  const [problemHidden, setProblemHidden] = useState(false) // the user closed the error panel
   const pollRef = useRef(null) // setInterval id for execution polling
   const pageVisibleRef = usePageVisibleRef() // gates poll ticks while hidden
 
   // Shared: map execution detail → node badges
   const applyExecDetail = (detail) => {
     if (!detail) return
-    setExecOverlay({ id: detail.id, status: detail.status, nodes: detail.nodes || [], hint: detail.hint || null, error: detail.error || '' })
+    // Why a run failed: the execution's error plus each failed node's, with
+    // the node an engine-level error names (e.g. an unknown node type that
+    // never got to execute) marked on the canvas too.
+    const problem = runProblem(detail, nodesRef.current || [])
+    const inferred = new Map((problem?.failed || []).filter(f => f.inferred).map(f => [f.id, f.error]))
+    setExecOverlay({ id: detail.id, status: detail.status, nodes: detail.nodes || [], hint: detail.hint || null, error: detail.error || '', problem })
     setNodes(prev => {
       const byId = {}; const byName = {}
       ;(detail.nodes || []).forEach(en => { byId[en.node_id] = en; byName[en.node_name] = en })
       return prev.map(n => {
         const en = byId[n.id] || byName[n.label]
+        if (!en && inferred.has(n.id)) return { ...n, runStatus: 'error', runError: inferred.get(n.id), runDuration: null, runOutputItems: 0, runInputItems: null, runOutputs: null }
         if (!en) return { ...n, runStatus: null, runError: null, runDuration: null, runOutputItems: 0, runInputItems: null, runOutputs: null }
         const s = (en.status || '').toUpperCase()
         let runStatus = null
@@ -1154,23 +1272,27 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
         const nodeById = {}
         loadedNodes.forEach(n => { nodeById[n.id] = n })
         const loadedEdges = (wf.connections || []).map(c => ({
-          id: c.id, source: c.source_node_id, sourcePortId: c.source_handle,
-          sourcePortIdx: resolvePortIdx(nodeById[c.source_node_id]?.outputs, c.source_handle),
+          id: c.id, source: c.source_node_id, sourcePortId: canonicalOutputHandle(nodeById[c.source_node_id]?.subtype, c.source_handle),
+          sourcePortIdx: resolvePortIdx(nodeById[c.source_node_id]?.outputs, canonicalOutputHandle(nodeById[c.source_node_id]?.subtype, c.source_handle)),
           target: c.target_node_id, targetPortId: c.target_handle,
           targetPortIdx: resolvePortIdx(nodeById[c.target_node_id]?.inputs, c.target_handle),
         }))
         setWfId(wf.id)
         setWfName(wf.name || 'Untitled Workflow')
         setWfActive(!!wf.is_active)
+        canvasIds.advancePast([...loadedNodes, ...loadedEdges].map(x => x.id))
         setNodes(loadedNodes)
         setEdges(loadedEdges)
         setSelectedId(null)
         setIsDirty(false)
-        setCamera({ x: 60, y: 60, zoom: 1 })
+        setCamera(fitView(loadedNodes, wrapperRef.current)); lastAddedRef.current = null
       } catch (e) { console.error('Failed to load workflow from navData', e) }
     })()
     return () => { cancelled = true }
   }, [navData?.workflowId, navData?.executionId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The dashboard's "Get started" sends { openTemplates: true }.
+  useEffect(() => { if (navData?.openTemplates) setShowWfModal('templates') }, [navData])
 
   // When arriving from Dashboard with an executionId, load workflow + overlay
   useEffect(() => {
@@ -1202,19 +1324,20 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
             const nodeById = {}
             loadedNodes.forEach(n => { nodeById[n.id] = n })
             const loadedEdges = (wf.connections || []).map(c => ({
-              id: c.id, source: c.source_node_id, sourcePortId: c.source_handle,
-              sourcePortIdx: resolvePortIdx(nodeById[c.source_node_id]?.outputs, c.source_handle),
+              id: c.id, source: c.source_node_id, sourcePortId: canonicalOutputHandle(nodeById[c.source_node_id]?.subtype, c.source_handle),
+              sourcePortIdx: resolvePortIdx(nodeById[c.source_node_id]?.outputs, canonicalOutputHandle(nodeById[c.source_node_id]?.subtype, c.source_handle)),
               target: c.target_node_id, targetPortId: c.target_handle,
               targetPortIdx: resolvePortIdx(nodeById[c.target_node_id]?.inputs, c.target_handle),
             }))
             setWfId(wf.id)
             setWfName(wf.name || 'Untitled Workflow')
             setWfActive(!!wf.is_active)
+            canvasIds.advancePast([...loadedNodes, ...loadedEdges].map(x => x.id))
             setNodes(loadedNodes)
             setEdges(loadedEdges)
             setSelectedId(null)
             setIsDirty(false)
-            setCamera({ x: 60, y: 60, zoom: 1 })
+            setCamera(fitView(loadedNodes, wrapperRef.current)); lastAddedRef.current = null
           }
         }
         if (cancelled) return
@@ -1254,9 +1377,27 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
   const wrapperRef = useRef(null)
   const dragRef    = useRef(null)
   const nodesRef   = useRef(nodes)
+  const edgesRef   = useRef(edges)
+  const selectedIdRef = useRef(selectedId)
+  const lastAddedRef  = useRef(null)
   const cameraRef  = useRef(camera)
   useEffect(() => { nodesRef.current = nodes }, [nodes])
+  useEffect(() => { edgesRef.current = edges }, [edges])
+  useEffect(() => { selectedIdRef.current = selectedId }, [selectedId])
   useEffect(() => { cameraRef.current = camera }, [camera])
+
+  // AI sub-node ports come from each node's schema (the catalog's, else the
+  // saved copy), so they are applied here for every way a node gets onto the
+  // canvas: a load, a template, the palette, a catalog reload.
+  useEffect(() => {
+    let changed = false
+    const next = nodes.map(n => {
+      const m = withAiPorts(n, resolveSchema(n, liveSchemas))
+      if (m !== n) changed = true
+      return m
+    })
+    if (changed) setNodes(next)
+  }, [nodes, liveSchemas])
 
   // Load node types (and the installed automations, for the session picker)
   // from the backend. Reloaded when automations change elsewhere — an
@@ -1270,7 +1411,7 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
         id,
         label: (paletteCategoryLabel(nodes) || id).toUpperCase(),
         section: paletteSectionOf(nodes),
-        nodes: Array.isArray(nodes) ? nodes.map(n => ({
+        nodes: Array.isArray(nodes) ? nodes.map(n => withAiPorts({
           subtype: n.type,
           label: n.label,
           category: id,
@@ -1279,7 +1420,7 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
           outputs: deriveOutputs(n.type, schemaDefaults(n.schema?.fields ? n.schema.fields : getConfigFields(n.type))),
           schema: n.schema || { credential_platform: null, fields: [] },
           configFields: n.schema?.fields ? n.schema.fields : getConfigFields(n.type),
-        })) : [],
+        }, n.schema)) : [],
       })).filter(c => c.nodes.length > 0)
       setCategories(cats)
     }).catch(() => {})
@@ -1313,7 +1454,7 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
         const cam = cameraRef.current
         const dx = (e.clientX - d.startX) / cam.zoom, dy = (e.clientY - d.startY) / cam.zoom
         setNodes(prev => prev.map(n => n.id === d.nodeId ? { ...n, x: d.nx + dx, y: d.ny + dy } : n))
-      } else if (d.type === 'edge') {
+      } else if (d.type === 'edge' || d.type === 'subEdge') {
         const w = toWorld(e.clientX, e.clientY)
         setPendingEdge(pe => pe ? { ...pe, tx: w.x, ty: w.y } : null)
       }
@@ -1339,7 +1480,7 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
         }
         return
       }
-      if (dragRef.current?.type === 'edge') setPendingEdge(null)
+      if (dragRef.current?.type === 'edge' || dragRef.current?.type === 'subEdge') setPendingEdge(null)
       dragRef.current = null
     }
     document.addEventListener('mousemove', onMove)
@@ -1376,15 +1517,18 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
   }, [selectedId]) // eslint-disable-line
 
   // ── Add node ──────────────────────────────────────────────────────────────
+  // A palette drag drops the node where it was released. A palette click
+  // puts it to the right of the selected (else the last added) node and
+  // wires that node's free main output into it, as n8n does; with neither,
+  // it lands at the centre of the view. An AI sub-node clicked with a node
+  // selected that has a free input of its kind goes in the row under that
+  // node, connected to it.
   const addNode = useCallback((template, worldX, worldY) => {
     const cam = cameraRef.current
     const rect = wrapperRef.current?.getBoundingClientRect() || { width: 900, height: 600 }
-    const x = worldX ?? (rect.width / 2 - cam.x) / cam.zoom - NODE_W / 2 + (Math.random() - .5) * 100
-    const y = worldY ?? (rect.height / 2 - cam.y) / cam.zoom - 60 + (Math.random() - .5) * 80
-    const defaults = {}
-    template.configFields?.forEach(f => { defaults[f.key] = f.default ?? '' })
-    const id = uid()
-    setNodes(prev => [...prev, {
+    const defaults = configDefaults(template.configFields)
+    const id = uid(new Set(nodesRef.current.map(n => n.id)))
+    const node = withAiPorts({
       id, label: template.label, subtype: template.subtype,
       category: template.category,
       color: template.color || catColor(template.category || template.id),
@@ -1393,9 +1537,22 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
       schema: template.schema || { credential_platform: null, fields: [] },
       configFields: template.configFields || [],
       config: defaults,
-      x, y,
       runStatus: null, runInputItems: null, runOutputs: null, runOutputItems: 0, runDuration: null, runError: null,
-    }])
+    }, template.schema)
+    const dropped = worldX != null && worldY != null
+    const anchor = dropped ? null
+      : nodesRef.current.find(n => n.id === selectedIdRef.current) || nodesRef.current.find(n => n.id === lastAddedRef.current)
+    const subEdgeIn = anchor && autoConnectSub(anchor, node, edgesRef.current)
+    if (dropped) Object.assign(node, { x: worldX, y: worldY })
+    else if (subEdgeIn) Object.assign(node, placeBelow(anchor, nodesRef.current, edgesRef.current, node, { nodeW: NODE_W, nodeH }))
+    else if (anchor) Object.assign(node, placeAfter(anchor, nodesRef.current, node, { nodeW: NODE_W, nodeH }))
+    else Object.assign(node, { x: (rect.width / 2 - cam.x) / cam.zoom - NODE_W / 2, y: (rect.height / 2 - cam.y) / cam.zoom - 60 })
+    setNodes(prev => [...prev, node])
+    // Keep a node placed off-screen in view.
+    if (anchor) setCamera(c => panToShow(c, { x: node.x, y: node.y, w: NODE_W, h: nodeH(node) }, rect))
+    const edge = subEdgeIn || (anchor && autoConnect(anchor, node, edgesRef.current))
+    if (edge) setEdges(prev => [...prev, { id: uid(new Set(prev.map(e => e.id))), ...edge }])
+    lastAddedRef.current = id
     setSelectedId(id)
     setIsDirty(true)
   }, [])
@@ -1425,8 +1582,11 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
     // (or drop) this node's outgoing edges by handle id.
     const portsChange = node && portsDependOnConfig(node.subtype, key) && isCaseListSettled(val)
     const outputs = portsChange ? deriveOutputs(node.subtype, { ...node.config, [key]: val }) : null
+    // Fields sharing a key (an operation select per resource) follow the
+    // change: see configAfterChange.
+    const fieldsOf = n => resolveSchema(n, liveSchemas)?.fields || n.configFields
     setNodes(prev => prev.map(n => n.id === nodeId
-      ? { ...n, config: { ...n.config, [key]: val }, ...(outputs ? { outputs } : {}) }
+      ? { ...n, config: configAfterChange(fieldsOf(n), n.config, key, val), ...(outputs ? { outputs } : {}) }
       : n))
     if (outputs) setEdges(prev => remapSourceEdges(prev, nodeId, outputs, node.outputs))
     setIsDirty(true)
@@ -1440,22 +1600,58 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
     setPendingEdge({ sx: pos.x, sy: pos.y, tx: pos.x, ty: pos.y })
   }
 
+  // A sub-node connection is dragged from the sub-node's top port to a root's
+  // bottom port of the same kind.
+  const startSubEdge = (nodeId) => {
+    const node = nodesRef.current.find(n => n.id === nodeId); if (!node?.subOutput) return
+    const pos = subOutPortPos(node)
+    dragRef.current = { type: 'subEdge', sourceNodeId: nodeId, kind: node.subOutput }
+    setPendingEdge({ sx: pos.x, sy: pos.y, tx: pos.x, ty: pos.y, kind: node.subOutput })
+  }
+
+  const completeSubEdge = (targetNodeId, handle) => {
+    const d = dragRef.current
+    dragRef.current = null; setPendingEdge(null)
+    if (!d || (d.type !== 'subEdge' && d.type !== 'edge')) return
+    const tNode = nodesRef.current.find(n => n.id === targetNodeId)
+    const label = (tNode?.subInputs || []).find(x => x.handle === handle)?.label || handle
+    if (d.type === 'edge') {
+      notify('connect nodes', `Connection rejected: the ${label} input takes an AI sub-node; drag from the top port of a ${label} node.`)
+      return
+    }
+    const sNode = nodesRef.current.find(n => n.id === d.sourceNodeId)
+    const check = checkSubConnection(sNode, tNode, handle, edgesRef.current)
+    if (!check.ok) {
+      if (check.reason !== 'duplicate') notify('connect nodes', check.message)
+      return
+    }
+    setEdges(prev => [...prev, { id: uid(new Set(prev.map(e => e.id))), ...subEdge(sNode.id, tNode.id, handle) }])
+    setIsDirty(true)
+  }
+
   const completeEdge = (targetNodeId, targetPortIdx) => {
+    if (dragRef.current?.type === 'subEdge') {
+      dragRef.current = null; setPendingEdge(null)
+      notify('connect nodes', 'Connection rejected: an AI sub-node connects to a matching input on the bottom edge of an AI node, not to a main input.')
+      return
+    }
     if (!dragRef.current || dragRef.current.type !== 'edge') return
     const { sourceNodeId, sourcePortIdx } = dragRef.current
     if (sourceNodeId === targetNodeId) { dragRef.current = null; setPendingEdge(null); return }
     const sNode = nodesRef.current.find(n => n.id === sourceNodeId)
     const tNode = nodesRef.current.find(n => n.id === targetNodeId)
     if (!sNode || !tNode) { dragRef.current = null; setPendingEdge(null); return }
-    if (wouldCreateCycle(edges, sourceNodeId, targetNodeId)) {
-      notify('connect nodes', 'Connection rejected: it would create a cycle')
+    // A cycle is allowed only as a loop closing into a Split In Batches node.
+    const candidate = { source: sourceNodeId, sourcePortIdx, sourcePortId: sNode.outputs[sourcePortIdx]?.id, target: targetNodeId }
+    if (hasForbiddenCycle(nodesRef.current, [...edges, candidate])) {
+      notify('connect nodes', 'Connection rejected: it would create a cycle. Only a loop back into a Split In Batches node may close one.')
       dragRef.current = null; setPendingEdge(null)
       return
     }
     setEdges(prev => {
       if (prev.some(e => e.source === sourceNodeId && e.sourcePortIdx === sourcePortIdx && e.target === targetNodeId && e.targetPortIdx === targetPortIdx)) return prev
       return [...prev, {
-        id: uid(), source: sourceNodeId, sourcePortIdx,
+        id: uid(new Set(prev.map(e => e.id))), source: sourceNodeId, sourcePortIdx,
         sourcePortId: sNode.outputs[sourcePortIdx]?.id,
         target: targetNodeId, targetPortIdx,
         targetPortId: tNode.inputs[targetPortIdx]?.id,
@@ -1510,6 +1706,7 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
     setRunning(true)
     setGlobalStatus(null)
     setExecOverlay(null)
+    setProblemHidden(false)
     setNodes(prev => prev.map(n => ({ ...n, runStatus: null, runInputItems: null, runOutputs: null, runOutputItems: 0, runDuration: null, runError: null })))
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
 
@@ -1531,34 +1728,71 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
       // Listen for the execution ID via Wails event — emitted when CLI prints
       // "Execution started: <id>". subscribeEvent returns a cancel fn that
       // removes only this listener (EventsOff would kill all of them).
+      // A process that exits before naming an execution (workflow:complete
+      // first) resolves null at once instead of waiting out the timeout.
       let offEvent = () => {}
+      let offComplete = () => {}
       let cancelTimeout = () => {}
       const execIdPromise = new Promise((resolve) => {
         offEvent = subscribeEvent('workflow:exec-started', (data) => {
           if (runTokenRef.current !== runToken) return // stale run's listener
           if (data?.execution_id) resolve(data.execution_id)
         })
+        offComplete = subscribeEvent('workflow:complete', (data) => {
+          if (runTokenRef.current !== runToken) return
+          if (data?.workflow_id === currentWfId) resolve(null)
+        })
         const t = setTimeout(() => resolve(null), 60000)
         cancelTimeout = () => clearTimeout(t)
       })
 
       try {
-        await api.runWorkflowWithInput(currentWfId, inputJSON)
+        // A refused run (inactive, already running, bad input) answers at
+        // once: reset the button and say why instead of waiting for an
+        // execution that will never start.
+        const started = await api.runWorkflowWithInput(currentWfId, inputJSON)
+        if (!started?.ok) {
+          if (runTokenRef.current === runToken) setRunning(false)
+          reportRunFailure(started?.error || 'Run failed', {
+            activateAndRun: () => activateAndRun(currentWfId, inputJSON),
+          })
+          return
+        }
         rememberTriggerInput(currentWfId, inputJSON)
         const execId = await execIdPromise
         if (runTokenRef.current !== runToken) return // superseded by a newer run
-        if (!execId) { setRunning(false); return }
+        if (!execId) {
+          setRunning(false)
+          notify('run workflow', 'The run stopped before it started — open Live Logs for the output.')
+          return
+        }
 
         // Start polling execution detail — simple setInterval, no React effects
         startExecPoll(execId)
       } finally {
         cancelTimeout()
         offEvent()
+        offComplete()
       }
     } catch (err) {
       console.error('Run failed', err)
       setRunning(false)
     }
+  }
+  const startRunRef = useRef(startRun)
+  startRunRef.current = startRun
+
+  // The "Activate & run" toast action: the user's click switches the
+  // workflow on, then the same run starts again.
+  const activateAndRun = async (id, inputJSON) => {
+    try {
+      await SetWorkflowActive(id, true)
+    } catch (e) {
+      notify('activate workflow', e?.message || e)
+      return
+    }
+    setWfActive(true)
+    startRunRef.current(inputJSON)
   }
 
   // ── Save workflow ─────────────────────────────────────────────────────────
@@ -1612,7 +1846,9 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
   }, [saving, wfId, wfName, nodes, edges, setShowSaveModal])
 
   // ── Load workflow ─────────────────────────────────────────────────────────
-  const handleLoad = useCallback(async (id) => {
+  // keepModal: the mount-time restore must not close a Templates dialog the
+  // dashboard just asked for.
+  const handleLoad = useCallback(async (id, { keepModal = false } = {}) => {
     // Guard the dirty canvas: Load (modal), template creation and AI-created
     // workflows all funnel through here.
     if (isDirty && !(await confirm('Discard unsaved changes?', { title: 'Load Workflow', confirmLabel: 'Discard & Load' }))) return
@@ -1652,19 +1888,20 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
       const loadedEdges = (wf.connections || []).map(c => ({
         id:           c.id,
         source:       c.source_node_id,
-        sourcePortId: c.source_handle,
-        sourcePortIdx: resolvePortIdx(nodeById[c.source_node_id]?.outputs, c.source_handle),
+        sourcePortId: canonicalOutputHandle(nodeById[c.source_node_id]?.subtype, c.source_handle),
+        sourcePortIdx: resolvePortIdx(nodeById[c.source_node_id]?.outputs, canonicalOutputHandle(nodeById[c.source_node_id]?.subtype, c.source_handle)),
         target:       c.target_node_id,
         targetPortId: c.target_handle,
         targetPortIdx: resolvePortIdx(nodeById[c.target_node_id]?.inputs, c.target_handle),
       }))
+      canvasIds.advancePast([...loadedNodes, ...loadedEdges].map(x => x.id))
       setNodes(loadedNodes)
       setEdges(loadedEdges)
       setSelectedId(null)
       setGlobalStatus(null)
       setIsDirty(false)
-      setCamera({ x: 60, y: 60, zoom: 1 })
-      setShowWfModal(false)
+      setCamera(fitView(loadedNodes, wrapperRef.current)); lastAddedRef.current = null
+      if (!keepModal) setShowWfModal(false)
     } catch (e) {
       console.error('Load failed', e)
     }
@@ -1672,7 +1909,7 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
 
   // ── Auto-load last workflow on mount ──────────────────────────────────────
   useEffect(() => {
-    if (wfId && nodes.length === 0) handleLoad(wfId)
+    if (wfId && nodes.length === 0) handleLoad(wfId, { keepModal: true })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Refresh: force-reload the currently open workflow from the backend ────
@@ -1694,7 +1931,7 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
   const resetCanvas = useCallback(() => {
     setWfId(null); setWfName('Untitled Workflow'); setWfActive(false)
     setNodes([]); setEdges([]); setSelectedId(null); setGlobalStatus(null)
-    setIsDirty(false); setCamera({ x: 60, y: 60, zoom: 1 })
+    setIsDirty(false); setCamera({ x: 60, y: 60, zoom: 1 }); lastAddedRef.current = null
     setExecOverlay(null)
   }, [])
 
@@ -1707,62 +1944,56 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
   }, [nodes.length, isDirty, resetCanvas]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Auto-layout: topological left-to-right layout ─────────────────────────
+  // AI sub-nodes go in a row under the node they attach to (aiSubNodes.js).
   const handleAutoLayout = useCallback(() => {
     if (nodes.length === 0) return
-    const NODE_W = 180, NODE_H = 80, GAP_X = 80, GAP_Y = 60
-    // Build adjacency: nodeId → list of successor nodeIds
-    const successors = {}
-    const predecessors = {}
-    nodes.forEach(n => { successors[n.id] = []; predecessors[n.id] = [] })
-    edges.forEach(e => {
-      if (successors[e.source]) successors[e.source].push(e.target)
-      if (predecessors[e.target]) predecessors[e.target].push(e.source)
+    // Loop back-edges point backwards; following them would never terminate.
+    const positions = autoLayout(nodes, edges, {
+      nodeW: 180, nodeH: 80, gapX: 80, gapY: 60, boxH: nodeH, skip: loopBackEdges(nodes, edges),
     })
-    // Assign column (depth) via BFS from roots
-    const col = {}
-    const roots = nodes.filter(n => predecessors[n.id].length === 0).map(n => n.id)
-    const queue = roots.map(id => ({ id, depth: 0 }))
-    while (queue.length) {
-      const { id, depth } = queue.shift()
-      if (col[id] !== undefined && col[id] >= depth) continue
-      col[id] = depth
-      successors[id].forEach(sid => queue.push({ id: sid, depth: depth + 1 }))
-    }
-    // Nodes with no column (disconnected) go at the end
-    nodes.forEach(n => { if (col[n.id] === undefined) col[n.id] = 0 })
-    // Group nodes by column, assign row within column
-    const byCol = {}
-    nodes.forEach(n => {
-      const c = col[n.id] || 0
-      if (!byCol[c]) byCol[c] = []
-      byCol[c].push(n.id)
-    })
-    // Calculate positions
-    const positions = {}
-    Object.keys(byCol).forEach(c => {
-      const colNodes = byCol[c]
-      colNodes.forEach((id, row) => {
-        positions[id] = {
-          x: 60 + parseInt(c) * (NODE_W + GAP_X),
-          y: 60 + row * (NODE_H + GAP_Y),
-        }
-      })
-    })
-    setNodes(prev => prev.map(n => ({ ...n, x: positions[n.id]?.x ?? n.x, y: positions[n.id]?.y ?? n.y })))
-    setCamera({ x: 40, y: 40, zoom: 1 })
+    const laidOut = nodes.map(n => ({ ...n, x: positions[n.id]?.x ?? n.x, y: positions[n.id]?.y ?? n.y }))
+    setNodes(laidOut)
+    setCamera(fitView(laidOut, wrapperRef.current))
   }, [nodes, edges])
 
   // ── Edge paths ────────────────────────────────────────────────────────────
+  // Loop back-edges run below (or above) their loop's nodes, dashed in
+  // LOOP_EDGE_COLOR.
+  const backEdges = loopBackEdges(nodes, edges)
   const edgePaths = edges.map(edge => {
     const sNode = nodes.find(n => n.id === edge.source)
     const tNode = nodes.find(n => n.id === edge.target)
     if (!sNode || !tNode) return null
+    // AI sub-node connections: dashed, from the sub-node's top port.
+    if (isAiEdge(edge)) {
+      const sp = subOutPortPos(sNode), tp = subInPortPos(tNode, edge.targetPortId)
+      return { ...edge, path: aiEdgePath(sp.x, sp.y, tp.x, tp.y), color: AI_COLOR, ai: true }
+    }
     const sp = outPortPos(sNode, edge.sourcePortIdx)
     const tp = inPortPos(tNode, edge.targetPortIdx)
+    const loopIds = backEdges.get(edge)
+    if (loopIds) {
+      const boxes = nodes.map(n => ({ id: n.id, x: n.x, y: n.y, w: NODE_W, h: nodeH(n) }))
+      // Other edges' curves and the output ports of nodes outside the loop:
+      // the route (below or above the loop) keeps clear of them.
+      const obstacles = []
+      for (const o of edges) {
+        if (o === edge || isAiEdge(o)) continue
+        const os = nodes.find(n => n.id === o.source), ot = nodes.find(n => n.id === o.target)
+        if (!os || !ot) continue
+        const a = outPortPos(os, o.sourcePortIdx), b = inPortPos(ot, o.targetPortIdx)
+        obstacles.push(...edgePoints(a.x, a.y, b.x, b.y))
+      }
+      for (const n of nodes) if (!loopIds.has(n.id)) n.outputs.forEach((_, i) => { const p = outPortPos(n, i); obstacles.push([p.x, p.y]) })
+      const runY = chooseLoopEdgeY({ sx: sp.x, sy: sp.y, tx: tp.x, ty: tp.y, boxes, loopIds, obstacles })
+      return { ...edge, path: loopEdgePath(sp.x, sp.y, tp.x, tp.y, runY), color: LOOP_EDGE_COLOR, loop: true }
+    }
     return { ...edge, path: edgePath(sp.x, sp.y, tp.x, tp.y), color: sNode.color || catColor(sNode.category) }
   }).filter(Boolean)
 
-  const pendingPath = pendingEdge ? edgePath(pendingEdge.sx, pendingEdge.sy, pendingEdge.tx, pendingEdge.ty) : null
+  const pendingPath = !pendingEdge ? null
+    : pendingEdge.kind ? aiEdgePath(pendingEdge.sx, pendingEdge.sy, pendingEdge.tx, pendingEdge.ty)
+    : edgePath(pendingEdge.sx, pendingEdge.sy, pendingEdge.tx, pendingEdge.ty)
   const selectedNode = nodes.find(n => n.id === selectedId) || null
   const canRun = nodes.length > 0 && !running
 
@@ -1862,14 +2093,24 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
             {(execOverlay.status === 'COMPLETED' || execOverlay.status === 'SUCCESS') && <CheckCircle size={10} color="#10b981" />}
             {execOverlay.status === 'FAILED' && <AlertCircle size={10} color="#ef4444" />}
             {execOverlay.status === 'CANCELLED' && <X size={10} color="#6b7280" />}
-            <span style={{
-              fontFamily: 'var(--font-mono)', fontSize: 9,
-              color: execOverlay.status === 'RUNNING' ? 'var(--cyan)' :
-                     execOverlay.status === 'WAITING' ? '#f59e0b' :
-                     execOverlay.status === 'COMPLETED' || execOverlay.status === 'SUCCESS' ? '#10b981' :
-                     execOverlay.status === 'FAILED' ? '#ef4444' : '#6b7280',
-              textTransform: 'uppercase',
-            }}>
+            {execOverlay.status === 'SUCCESS_WITH_ERRORS' && <AlertCircle size={10} color="#fbbf24" />}
+            <span
+              role={execOverlay.problem ? 'button' : undefined}
+              tabIndex={execOverlay.problem ? 0 : undefined}
+              onClick={execOverlay.problem ? () => setProblemHidden(h => !h) : undefined}
+              onKeyDown={execOverlay.problem ? (e) => { if (e.key === 'Enter' || e.key === ' ') setProblemHidden(h => !h) } : undefined}
+              title={execOverlay.problem ? (problemHidden ? 'Show why' : 'Hide the error') : undefined}
+              style={{
+                fontFamily: 'var(--font-mono)', fontSize: 9,
+                color: execOverlay.status === 'RUNNING' ? 'var(--cyan)' :
+                       execOverlay.status === 'WAITING' ? '#f59e0b' :
+                       execOverlay.status === 'COMPLETED' || execOverlay.status === 'SUCCESS' ? '#10b981' :
+                       execOverlay.status === 'FAILED' ? '#ef4444' :
+                       execOverlay.status === 'SUCCESS_WITH_ERRORS' ? '#fbbf24' : '#6b7280',
+                textTransform: 'uppercase',
+                cursor: execOverlay.problem ? 'pointer' : 'default',
+                textDecoration: execOverlay.problem && problemHidden ? 'underline' : 'none',
+              }}>
               Execution: {execOverlay.status}
             </span>
             {execOverlay.status === 'FAILED' && isAgentNotSetup(execOverlay.error) && <AgentSetupLink onNavigate={onNavigate} compact />}
@@ -1910,7 +2151,12 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
         <button style={tbBtn} onClick={handleNew} title="New workflow"><Plus size={13} /></button>
 
         {/* Load */}
-        <button style={tbBtn} onClick={() => setShowWfModal(true)} title="Open saved workflow"><FolderOpen size={13} /></button>
+        <button style={tbBtn} onClick={() => setShowWfModal('saved')} title="Open saved workflow"><FolderOpen size={13} /></button>
+
+        {/* Templates: labelled, so starting from one needs no hunting */}
+        <button style={{ ...tbBtn, gap: 5, fontFamily: 'var(--font-mono)', fontSize: 10 }} onClick={() => setShowWfModal('templates')} title="Start from a template">
+          <LayoutTemplate size={13} /> Templates
+        </button>
 
         {/* Import a workflow file (CLI `workflow import`) */}
         <button style={tbBtn} onClick={() => setShowImport(true)} title="Import workflow" aria-label="Import workflow"><Upload size={13} /></button>
@@ -2051,6 +2297,7 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
 
       {showWfModal && (
         <WorkflowsModal
+          initialTab={showWfModal === 'templates' ? 'templates' : 'saved'}
           currentId={wfId}
           onLoad={handleLoad}
           onLibraryInstalled={() => { onWorkflowsChanged?.(); loadCatalog() }}
@@ -2068,11 +2315,20 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
         />
       )}
 
+      {execOverlay?.problem && !problemHidden && (
+        <RunProblemPanel
+          problem={execOverlay.problem}
+          onSelectNode={(id) => { setSelectedId(id); setInspectorOpen(true) }}
+          onClose={() => setProblemHidden(true)}
+        />
+      )}
+
       {/* ── MAIN LAYOUT ── */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
         {/* Palette */}
-        <Palette categories={categories} onAdd={addNode} onNodeMouseDown={onPaletteNodeMouseDown} />
+        <Palette categories={categories} onAdd={addNode} onNodeMouseDown={onPaletteNodeMouseDown}
+          onBrowseAutomations={() => onNavigate?.('connections')} />
 
         {/* Canvas / JSON view */}
         {jsonView ? (
@@ -2149,8 +2405,11 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
                 pointerEvents: 'none',
               }}>
                 <Plus size={32} style={{ opacity: 0.1 }} />
+                <button className="btn btn-secondary btn-sm" style={{ pointerEvents: 'auto', gap: 6 }} onClick={() => setShowWfModal('templates')}>
+                  <LayoutTemplate size={13} /> Start from a template
+                </button>
                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.8 }}>
-                  Click or drag nodes from the left panel<br />
+                  or click or drag nodes from the left panel<br />
                   Connect output → input ports to chain them<br />
                   Press <kbd style={{ background: 'rgba(0,180,216,0.1)', border: '1px solid rgba(0,180,216,0.2)', borderRadius: 3, padding: '1px 5px' }}>RUN</kbd> to execute
                 </div>
@@ -2162,8 +2421,9 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
               <g transform={`translate(${camera.x} ${camera.y}) scale(${camera.zoom})`}>
                 {edgePaths.map(ep => (
                   <g key={ep.id}>
-                    <path d={ep.path} stroke={ep.color} strokeWidth={1.5} fill="none" strokeOpacity={0.5} />
-                    <path d={ep.path} stroke={ep.color} strokeWidth={4} fill="none" strokeOpacity={0}
+                    <path d={ep.path} stroke={ep.color} strokeWidth={1.5} fill="none"
+                      strokeOpacity={ep.loop || ep.ai ? 0.85 : 0.5} strokeDasharray={ep.loop ? '6 4' : ep.ai ? '4 4' : undefined} />
+                    <path d={ep.path} stroke={ep.color} strokeWidth={12} fill="none" strokeOpacity={0}
                       style={{ pointerEvents: 'stroke', cursor: 'pointer' }}
                       onClick={() => { setEdges(prev => prev.filter(e => e.id !== ep.id)); setIsDirty(true) }}
                     />
@@ -2175,8 +2435,9 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
               </g>
             </svg>
 
-            {/* Nodes */}
-            <div style={{ position: 'absolute', inset: 0, zIndex: 2, transformOrigin: '0 0', transform: `translate(${camera.x}px,${camera.y}px) scale(${camera.zoom})` }}>
+            {/* Nodes — the layer itself lets clicks through to the edges
+                below; each node card takes pointer events back. */}
+            <div style={{ position: 'absolute', inset: 0, zIndex: 2, pointerEvents: 'none', transformOrigin: '0 0', transform: `translate(${camera.x}px,${camera.y}px) scale(${camera.zoom})` }}>
               {nodes.map(node => (
                 <CanvasNode
                   key={node.id}
@@ -2191,6 +2452,11 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
                   }}
                   onOutputPortMouseDown={(e, portIdx) => startEdge(e, node.id, portIdx)}
                   onInputPortMouseUp={(portIdx) => completeEdge(node.id, portIdx)}
+                  missing={missingRequired(node, edges)}
+                  subCounts={node.subInputs?.length ? Object.fromEntries(node.subInputs.map(x => [x.handle, attachedCount(edges, node.id, x.handle)])) : null}
+                  dragKind={pendingEdge?.kind}
+                  onSubOutputMouseDown={() => startSubEdge(node.id)}
+                  onSubInputMouseUp={(handle) => completeSubEdge(node.id, handle)}
                 />
               ))}
             </div>

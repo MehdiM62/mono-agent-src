@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestPositioningTextsAreTrue(t *testing.T) {
 	for _, rel := range []string{
@@ -11,8 +14,15 @@ func TestPositioningTextsAreTrue(t *testing.T) {
 	} {
 		assertNoStaleClaims(t, rel)
 	}
-	assertSays(t, "internal/i18n/locales/en.json", "account login", "ref account")
-	assertSays(t, "internal/i18n/locales/es.json", "account login", "ref account")
+	// The root help is what a signed-out user reads: it points at the way in and
+	// at help that stays open signed out (account --help), never at `ref account`,
+	// which is gated like every ref page.
+	for _, rel := range []string{"internal/i18n/locales/en.json", "internal/i18n/locales/es.json"} {
+		assertSays(t, rel, "account login", "account --help")
+		if strings.Contains(docText(t, rel), "ref account") {
+			t.Errorf("%s sends a signed-out reader to `ref account`, which is closed until sign-in", rel)
+		}
+	}
 	assertSays(t, "docs/COMPARISON.md", "SECURITY.md#network-use-telemetry-and-crash-reporting", "monoes.me sign-in", "24 hours")
 	assertSays(t, "CLAUDE.md", "-tags devaccount")
 }

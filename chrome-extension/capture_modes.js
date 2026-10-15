@@ -62,7 +62,7 @@
         contexts: ["page", "video"],
         documentUrlPatterns: videoPatterns,
       },
-      { id: SELECTION_ID, parentId: ROOT_ID, title: "Save selection to monomind", contexts: ["selection"] },
+      { id: SELECTION_ID, parentId: ROOT_ID, title: "Save selection to MonoAgent", contexts: ["selection"] },
       { id: TASK_IDS.page, parentId: ROOT_ID, title: "Add page as task", contexts: ["page"] },
       { id: TASK_IDS.selection, parentId: ROOT_ID, title: "Add selection as task", contexts: ["selection"] },
     ];

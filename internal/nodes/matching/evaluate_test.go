@@ -12,6 +12,7 @@ import (
 	"github.com/monoes/mono-agent/internal/monomind"
 	matchingnodes "github.com/monoes/mono-agent/internal/nodes/matching"
 	"github.com/monoes/mono-agent/internal/storage"
+	"github.com/monoes/mono-agent/internal/vault"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -59,7 +60,7 @@ func TestEvaluateNodeScoresApplication(t *testing.T) {
 	if node.Type() != "applications.evaluate" {
 		t.Fatalf("expected type applications.evaluate, got %q", node.Type())
 	}
-	outputs, err := node.Execute(context.Background(), workflow.NodeInput{}, map[string]interface{}{"application_id": app.ID})
+	outputs, err := node.Execute(vault.ContextWithProfileID(context.Background(), "default"), workflow.NodeInput{}, map[string]interface{}{"application_id": app.ID})
 	if err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
@@ -99,7 +100,7 @@ func TestEvaluateNodeRuntimeJev(t *testing.T) {
 		t.Fatalf("Create: %v", err)
 	}
 
-	outputs, err := (&matchingnodes.EvaluateNode{}).Execute(context.Background(), workflow.NodeInput{},
+	outputs, err := (&matchingnodes.EvaluateNode{}).Execute(vault.ContextWithProfileID(context.Background(), "default"), workflow.NodeInput{},
 		map[string]interface{}{"application_id": app.ID, "runtime": "jev"})
 	if err != nil {
 		t.Fatalf("Execute: %v", err)

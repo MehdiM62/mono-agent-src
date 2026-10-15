@@ -7,5 +7,5 @@ type TagNodeSchema struct {
 	ID        string `json:"id" schema:"label=Application ID,type=text,required,help=The application to tag."`
 	Tag       string `json:"tag" schema:"label=Tag,type=text,required,help=The tag to add or remove."`
 	Action    string `json:"action" schema:"label=Action,type=select,default=add,options=add|remove,help=Whether to add or remove the tag."`
-	ProfileID string `json:"profile_id" schema:"label=Profile ID,type=text,default=default,help=Which profile owns this application."`
+	ProfileID string `json:"profile_id" schema:"label=Profile ID,type=text,help=Optional. Must match the workflow's profile (leave blank to use it)."`
 }

@@ -33,13 +33,6 @@ func attributionArgs(ctx context.Context, opts ResolveOptions, withRequest bool)
 	return args
 }
 
-// SupportsAttribution reports whether the installed monomind records
-// resolvers itself (M5).
-func SupportsAttribution(ctx context.Context) bool {
-	caps, err := Capabilities(ctx)
-	return err == nil && caps.Has(CapOrgDecisionAttribution)
-}
-
 // OrgApproveWith approves a pending approval, attributed.
 func OrgApproveWith(ctx context.Context, projectRoot, name, role, action string, opts ResolveOptions) (json.RawMessage, error) {
 	args := append([]string{"approve", name, role, action}, attributionArgs(ctx, opts, true)...)

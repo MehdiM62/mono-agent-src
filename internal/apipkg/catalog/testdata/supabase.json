@@ -1,0 +1,187 @@
+{
+  "row.create": {
+    "params": {
+      "tableId": "people",
+      "fieldsUi": {
+        "fieldValues": [
+          {
+            "fieldId": "name",
+            "fieldValue": "Ada"
+          }
+        ]
+      },
+      "useCustomSchema": true,
+      "schema": "crm"
+    },
+    "credential": {
+      "url": "https://abc.supabase.co/",
+      "api_key": "K"
+    },
+    "response": [
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/rest/v1/people",
+      "body": [
+        {
+          "name": "Ada"
+        }
+      ],
+      "headers": {
+        "Content-Profile": "crm",
+        "Prefer": "return=representation"
+      },
+      "items": 1
+    }
+  },
+  "row.delete": {
+    "params": {
+      "tableId": "people",
+      "matchType": "allFilters",
+      "filters": {
+        "conditions": [
+          {
+            "keyName": "name",
+            "condition": "eq",
+            "keyValue": "ada"
+          },
+          {
+            "keyName": "bio",
+            "condition": "fullText",
+            "searchFunction": "wfts",
+            "keyValue": "cat"
+          }
+        ]
+      }
+    },
+    "credential": {
+      "url": "https://abc.supabase.co/",
+      "api_key": "K"
+    },
+    "response": [
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "DELETE",
+      "path": "/rest/v1/people",
+      "query": {
+        "name": "eq.ada",
+        "bio": "wfts.cat"
+      },
+      "items": 1
+    }
+  },
+  "row.get": {
+    "params": {
+      "tableId": "people",
+      "filters": {
+        "conditions": [
+          {
+            "keyName": "id",
+            "keyValue": "1"
+          }
+        ]
+      }
+    },
+    "credential": {
+      "url": "https://abc.supabase.co/",
+      "api_key": "K"
+    },
+    "response": [
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/rest/v1/people",
+      "query": {
+        "id": "eq.1"
+      },
+      "items": 1
+    }
+  },
+  "row.getAll": {
+    "params": {
+      "tableId": "people",
+      "limit": 5,
+      "orderBy": "id.desc",
+      "filters": {
+        "conditions": [
+          {
+            "keyName": "name",
+            "condition": "eq",
+            "keyValue": "ada"
+          },
+          {
+            "keyName": "bio",
+            "condition": "fullText",
+            "searchFunction": "wfts",
+            "keyValue": "cat"
+          }
+        ]
+      }
+    },
+    "credential": {
+      "url": "https://abc.supabase.co/",
+      "api_key": "K"
+    },
+    "response": [
+      {
+        "id": 1
+      },
+      {
+        "id": 2
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/rest/v1/people",
+      "query": {
+        "order": "id.desc",
+        "or": "(name.eq.ada,bio.wfts.cat)",
+        "offset": "0",
+        "limit": "5"
+      },
+      "items": 2
+    }
+  },
+  "row.update": {
+    "params": {
+      "tableId": "people",
+      "filterType": "string",
+      "filterString": "id=eq.7",
+      "dataToSend": "autoMapInputData",
+      "inputsToIgnore": "id"
+    },
+    "input": {
+      "id": 7,
+      "name": "B"
+    },
+    "credential": {
+      "url": "https://abc.supabase.co/",
+      "api_key": "K"
+    },
+    "response": [
+      {
+        "id": 7
+      }
+    ],
+    "expect": {
+      "method": "PATCH",
+      "path": "/rest/v1/people",
+      "query": {
+        "id": "eq.7"
+      },
+      "body": {
+        "name": "B"
+      },
+      "items": 1
+    }
+  }
+}

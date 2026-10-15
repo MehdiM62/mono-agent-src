@@ -1,0 +1,47 @@
+[
+  {
+    "id": "benchWebhookSet1",
+    "name": "bench-webhook-set",
+    "active": false,
+    "nodes": [
+      {
+        "id": "0b6f2b43-7f4c-4a43-9d1f-6a2e8c1d0001",
+        "name": "Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [0, 0],
+        "webhookId": "0b6f2b43-7f4c-4a43-9d1f-6a2e8c1d00aa",
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "bench",
+          "responseMode": "onReceived",
+          "options": {}
+        }
+      },
+      {
+        "id": "0b6f2b43-7f4c-4a43-9d1f-6a2e8c1d0002",
+        "name": "Set",
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [320, 0],
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "0b6f2b43-7f4c-4a43-9d1f-6a2e8c1d0003",
+                "name": "greeting",
+                "value": "=hello {{ $json.body.n }}",
+                "type": "string"
+              }
+            ]
+          },
+          "options": {}
+        }
+      }
+    ],
+    "connections": {
+      "Webhook": { "main": [[{ "node": "Set", "type": "main", "index": 0 }]] }
+    },
+    "settings": { "executionOrder": "v1" }
+  }
+]

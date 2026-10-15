@@ -33,6 +33,21 @@
       "depends_on": {
         "key": "operation",
         "values": [
+          "list_issues"
+        ]
+      },
+      "help": "A Linear IssueFilter object such as {\"state\": {\"type\": {\"eq\": \"started\"}}}. Give an object in the workflow file or an expression that yields one. Team is merged in when set.",
+      "key": "filter",
+      "label": "Issue Filter (JSON object)",
+      "language": "json",
+      "required": false,
+      "rows": 4,
+      "type": "code"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
           "get_issue",
           "update_issue"
         ]
@@ -115,6 +130,13 @@
       "label": "Project",
       "required": false,
       "type": "text"
+    }
+  ],
+  "outputs": [
+    {
+      "description": "the platform API's response object, as returned (fields vary by operation)",
+      "key": "<API response fields>",
+      "type": "object"
     }
   ]
 }

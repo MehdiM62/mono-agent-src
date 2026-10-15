@@ -693,16 +693,16 @@ export default function AIChatPanel({ workflowID, isOpen, onClose, onOpenArtifac
   const agentNotSetup = runtimeUninitialized || (!runtimesLoading && runtimes.length === 0)
 
   // ── Create a coder conversation for the first message ──────────────────
-  // The coder root is set up first (`coder workspace root`) so its path and
-  // init result show in the transcript; the conversation then runs in the
-  // root, or in the folder the user chose.
+  // The active profile's folder is set up first (`coder workspace default`)
+  // so its path and init result show in the transcript; the conversation
+  // then runs in it, or in the folder the user chose.
   const createCoderConversation = useCallback(async () => {
     if (!coderChoice.readyIds.includes(selectedRuntime)) {
       throw new Error(`Coder mode can't run on ${selectedRuntime}: it isn't ready for full access (see Settings → Coder mode)`)
     }
     let cwd = coderWorkspace.kind === 'folder' ? coderWorkspace.path : ''
     if (!cwd) {
-      const ws = await api.coderWorkspaceRoot(selectedRuntime)
+      const ws = await api.coderWorkspaceDefault(selectedRuntime)
       cwd = ws.path
       setMessages(msgs => [...msgs.slice(0, -1), { role: 'coder-init', workspace: ws, runtime: selectedRuntime }, ...msgs.slice(-1)])
     }

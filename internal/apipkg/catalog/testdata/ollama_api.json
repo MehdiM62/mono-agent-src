@@ -1,0 +1,52 @@
+{
+  "image.analyze": {
+    "credential": {
+      "base_url": "http://ollama.local:11434",
+      "api_key": "k2"
+    },
+    "params": {
+      "modelId": "llava",
+      "binaryPropertyName": "a,b",
+      "simplify": false
+    },
+    "input": {
+      "binary": {
+        "a": {
+          "data": "UE5H",
+          "mimeType": "image/png"
+        },
+        "b": {
+          "data": "SlBH",
+          "mimeType": "image/jpeg"
+        }
+      }
+    },
+    "response": {
+      "model": "llama3.2",
+      "message": {
+        "role": "assistant",
+        "content": "hi"
+      },
+      "done": true
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/chat",
+      "body": {
+        "model": "llava",
+        "stream": false,
+        "messages": [
+          {
+            "role": "user",
+            "content": "What's in this image?",
+            "images": [
+              "UE5H",
+              "SlBH"
+            ]
+          }
+        ]
+      },
+      "items": 1
+    }
+  }
+}

@@ -1,0 +1,69 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "open_thesaurus",
+  "title": "OpenThesaurus",
+  "description": "German synonyms from OpenThesaurus",
+  "category": "app",
+  "docs_url": "https://www.openthesaurus.de/about/api",
+  "n8n_types": [
+    "n8n-nodes-base.openThesaurus"
+  ],
+  "base_url": "https://www.openthesaurus.de",
+  "headers": {
+    "User-Agent": "mono-agent"
+  },
+  "credentials": [
+    {
+      "platform": "open_thesaurus",
+      "name": "OpenThesaurus (no key)",
+      "methods": [
+        "none"
+      ],
+      "fields": []
+    }
+  ],
+  "operations": [
+    {
+      "resource": "",
+      "operation": "getSynonyms",
+      "title": "Get synonyms of a word",
+      "method": "GET",
+      "path": "/synonyme/search",
+      "fields": [
+        {
+          "key": "text",
+          "label": "Text",
+          "type": "text",
+          "required": true,
+          "default": "",
+          "help": "The word to look up."
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "baseform",
+            "similar",
+            "startswith",
+            "substring",
+            "substringFromResults",
+            "substringMaxResults",
+            "subsynsets",
+            "supersynsets"
+          ],
+          "help": "Extra search switches, e.g. {\"similar\": true, \"substring\": true, \"substringMaxResults\": 10}."
+        }
+      ],
+      "query": {
+        "q": "{{ p.text }}",
+        "format": "application/json",
+        "$merge": "{{ p.options }}"
+      },
+      "output": {
+        "path": "synsets"
+      }
+    }
+  ]
+}

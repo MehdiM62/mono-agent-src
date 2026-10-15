@@ -1,0 +1,26 @@
+{
+  "shipment.get": {
+    "params": {
+      "trackingNumber": "00340434292135100186",
+      "options": {
+        "recipientPostalCode": "53113"
+      }
+    },
+    "response": {
+      "shipments": [
+        {
+          "id": "00340434292135100186"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/track/shipments",
+      "query": {
+        "trackingNumber": "00340434292135100186",
+        "recipientPostalCode": "53113"
+      },
+      "items": 1
+    }
+  }
+}

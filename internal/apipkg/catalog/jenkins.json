@@ -1,0 +1,312 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "jenkins",
+  "node_type": "app.jenkins",
+  "title": "Jenkins",
+  "description": "Trigger, copy and create jobs, list builds and control a Jenkins instance",
+  "category": "app",
+  "docs_url": "https://www.jenkins.io/doc/book/using/remote-access-api/",
+  "n8n_types": [
+    "n8n-nodes-base.jenkins"
+  ],
+  "base_url": "{{ cred.base_url | re:'^(.*?)/*$' }}",
+  "headers": {
+    "Accept": "application/json"
+  },
+  "credentials": [
+    {
+      "platform": "jenkins",
+      "name": "Jenkins",
+      "n8n_credential": "jenkinsApi",
+      "n8n_field_map": {
+        "username": "username",
+        "apiKey": "api_token",
+        "baseUrl": "base_url"
+      },
+      "methods": [
+        "basic"
+      ],
+      "fields": [
+        {
+          "key": "base_url",
+          "label": "Jenkins URL",
+          "required": true,
+          "help": "e.g. https://jenkins.example.com"
+        },
+        {
+          "key": "username",
+          "label": "Username",
+          "required": true
+        },
+        {
+          "key": "api_token",
+          "label": "API token",
+          "secret": true,
+          "required": true,
+          "help": "User → Configure → API Token"
+        }
+      ],
+      "inject": {
+        "basic": {
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.api_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "job",
+      "label": "Job"
+    },
+    {
+      "value": "build",
+      "label": "Build"
+    },
+    {
+      "value": "instance",
+      "label": "Instance"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "job",
+      "operation": "trigger",
+      "title": "Trigger a job",
+      "method": "POST",
+      "path": "/job/{{ p.job }}/build",
+      "fields": [
+        {
+          "key": "job",
+          "label": "Job name",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "job",
+      "operation": "triggerParams",
+      "title": "Trigger a job with parameters",
+      "method": "POST",
+      "path": "/job/{{ p.job }}/buildWithParameters",
+      "body_type": "form",
+      "fields": [
+        {
+          "key": "job",
+          "label": "Job name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "param",
+          "label": "Parameters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "params"
+          ],
+          "help": "params: list of {name, value}"
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.param.params | kv:'name,value' }}"
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "job",
+      "operation": "copy",
+      "title": "Copy a job",
+      "method": "POST",
+      "path": "/createItem",
+      "fields": [
+        {
+          "key": "job",
+          "label": "Job to copy",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "newJob",
+          "label": "New job name",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "query": {
+        "name": "{{ p.newJob }}",
+        "mode": "copy",
+        "from": "{{ p.job }}"
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "job",
+      "operation": "create",
+      "title": "Create a job from config XML",
+      "method": "POST",
+      "path": "/createItem",
+      "body_type": "raw",
+      "headers": {
+        "Content-Type": "application/xml"
+      },
+      "fields": [
+        {
+          "key": "newJob",
+          "label": "New job name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "xml",
+          "label": "Config XML",
+          "type": "code",
+          "language": "xml",
+          "required": true
+        }
+      ],
+      "query": {
+        "name": "{{ p.newJob }}"
+      },
+      "body": "{{ p.xml }}",
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "build",
+      "operation": "getAll",
+      "title": "Get many builds of a job",
+      "method": "GET",
+      "path": "/job/{{ p.job }}/api/json",
+      "fields": [
+        {
+          "key": "job",
+          "label": "Job name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "query": {
+        "tree": "builds[*]{{ p.returnAll | ne:'true' | then:p.limit | prefix:'{0,' | suffix:'}' }}"
+      },
+      "output": {
+        "path": "builds"
+      }
+    },
+    {
+      "resource": "instance",
+      "operation": "safeRestart",
+      "title": "Restart safely",
+      "description": "Restarts once running builds finish",
+      "method": "POST",
+      "path": "/safeRestart",
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "instance",
+      "operation": "cancelQuietDown",
+      "title": "Cancel quiet down",
+      "method": "POST",
+      "path": "/cancelQuietDown",
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "instance",
+      "operation": "quietDown",
+      "title": "Quiet down",
+      "description": "Stops new builds from starting",
+      "method": "POST",
+      "path": "/quietDown",
+      "fields": [
+        {
+          "key": "reason",
+          "label": "Reason",
+          "type": "text",
+          "default": ""
+        }
+      ],
+      "query": {
+        "reason": "{{ p.reason }}"
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "instance",
+      "operation": "restart",
+      "title": "Restart now",
+      "method": "POST",
+      "path": "/restart",
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "instance",
+      "operation": "safeExit",
+      "title": "Shut down safely",
+      "method": "POST",
+      "path": "/safeExit",
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "instance",
+      "operation": "exit",
+      "title": "Shut down now",
+      "method": "POST",
+      "path": "/exit",
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    }
+  ]
+}

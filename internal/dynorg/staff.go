@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"slices"
-	"sort"
 	"strings"
 
 	"github.com/monoes/mono-agent/internal/agentroster"
@@ -42,7 +41,8 @@ type Library interface {
 type Staffer struct {
 	Roster      []Model // ready models, best first
 	Lead        Model   // the lead's own model
-	ModelPicker string  // PickerLead, PickerJev or PickerLeadThenJev
+	ModelPicker string  // PickerLead or PickerLeadThenJev
+	Router      string  // RouterAuto (default), RouterJev or RouterModel: who picks roles and skills
 	Picker      Picker  // nil = built-in roles only
 	Chooser     Chooser // nil = no Jev: the fallback rules choose
 	Library     Library // nil = built-in roles only
@@ -87,11 +87,6 @@ func (s *Staffer) Staff(ctx context.Context, req SpawnRequest) (Staff, error) {
 }
 
 func (s *Staffer) staffRole(ctx context.Context, req SpawnRequest, st *Staff) error {
-	setBuiltin := func(r builtinRole, why string) {
-		st.Role, st.AgentType, st.Category, st.AgentBody = r.Title, r.ID, r.Category, r.Body
-		st.Access = r.Profile
-		st.Why = append(st.Why, why)
-	}
 	if req.Role != "" {
 		if s.Library != nil {
 			if body, title, cat, err := s.Library.AgentBody(ctx, req.Role); err == nil {
@@ -101,54 +96,29 @@ func (s *Staffer) staffRole(ctx context.Context, req SpawnRequest, st *Staff) er
 			}
 		}
 		if r, ok := builtinByID(req.Role); ok {
-			setBuiltin(r, "lead chose the role")
+			st.setBuiltin(r, "lead chose the role")
 			return nil
 		}
 		return fmt.Errorf("unknown role %q; leave role empty to have one picked, or use one of the roles org_roster lists", req.Role)
 	}
-	if s.Picker != nil && s.Library != nil {
-		list, confident, err := s.Picker.Agents(ctx, req.Brief)
-		if err == nil && len(list) > 0 {
-			pick, why := list[0], "role from monomind pick"
-			if !confident && s.Chooser != nil && len(list) > 1 {
-				opts := map[string]string{}
-				for _, c := range list {
-					opts[c.ID] = strings.TrimSpace(c.Name + ": " + c.Description)
-				}
-				if id, conf, err := s.Chooser.Choose(ctx, map[string]any{"brief": req.Brief}, "Which agent should do this brief?", opts); err == nil {
-					if i := slices.IndexFunc(list, func(c Candidate) bool { return c.ID == id }); i >= 0 {
-						pick, why = list[i], "role from Jev over monomind pick's shortlist"
-						st.JevConf = &conf
-					}
-				}
-			}
-			if body, title, cat, err := s.Library.AgentBody(ctx, pick.ID); err == nil {
-				p := pick.Probability
-				st.Role, st.AgentType, st.Category, st.AgentBody = orElse(title, orElse(pick.Name, pick.ID)), pick.ID, orElse(cat, pick.Category), body
-				st.PickConf = &p
-				st.Why = append(st.Why, why)
-				return nil
-			}
-		}
+	done, err := s.routeRole(ctx, req, st)
+	if err != nil || done {
+		return err
 	}
-	setBuiltin(builtinFor(req.Brief), "built-in role (no monomind agent matched)")
+	st.setBuiltin(builtinFor(req.Brief), "built-in role (no monomind agent matched)")
 	return nil
 }
 
-// staffSkills is the lead's skills, else pick's when it is confident (at
-// most three). A skill the lead names must exist.
+// staffSkills is the lead's skills, else the router's (at most maxSkills,
+// router.go). A skill the lead names must exist.
 func (s *Staffer) staffSkills(ctx context.Context, req SpawnRequest) ([]Skill, error) {
 	names := req.Skills
 	fromLead := len(names) > 0
-	if len(names) == 0 && s.Picker != nil {
-		if list, confident, err := s.Picker.Skills(ctx, req.Brief); err == nil && confident {
-			for _, c := range list {
-				if len(names) == 3 {
-					break
-				}
-				names = append(names, c.ID)
-			}
-		}
+	if len(names) > maxSkills {
+		return nil, fmt.Errorf("at most %d skills per worker (each costs prompt tokens); name the ones it needs", maxSkills)
+	}
+	if len(names) == 0 {
+		names = s.routeSkills(ctx, req.Brief)
 	}
 	out := make([]Skill, 0, len(names))
 	for _, n := range names {
@@ -206,7 +176,7 @@ func (s *Staffer) staffModel(ctx context.Context, req SpawnRequest, st *Staff) e
 				opts[m.Key()] += ", " + trackRecordText(r)
 			}
 		}
-		state := map[string]any{"brief": req.Brief, "role": st.Role, "category": st.Category, "access": st.Access, "lead_model": s.Lead.Key()}
+		state := map[string]any{"brief": req.Brief, "role": st.Role, "category": st.Category, "access": st.Access, "heavy_work": isHeavy(st.Category, st.Access)}
 		if tr := s.trackRecordState(eligible, st.Category); len(tr) > 0 {
 			state["track_record"] = tr
 		}
@@ -224,38 +194,18 @@ func (s *Staffer) staffModel(ctx context.Context, req SpawnRequest, st *Staff) e
 	if len(fits) == 0 {
 		fits = eligible
 	}
-	st.Model = ruleModel(fits, s.Lead, st.Access)
+	heavy := isHeavy(st.Category, st.Access)
+	st.Model = ruleModel(fits, st.Access, heavy, func(m Model) float64 { return s.fitScore(m, st.Category) })
 	st.Fallbacks = without(eligible, st.Model)
-	st.Why = append(st.Why, "model by rule (no Jev answer)")
+	if heavy {
+		st.Why = append(st.Why, "model by rule: best fit for "+orElse(st.Category, "this work")+", strongest among equals")
+	} else {
+		st.Why = append(st.Why, "model by rule: best fit for "+orElse(st.Category, "this work")+", cheapest among equals")
+	}
 	if len(bad) > 0 && len(bad) < len(eligible) {
 		st.Why = append(st.Why, "passed over for a low success rate: "+keys(bad))
 	}
 	return nil
-}
-
-// ruleModel is the model choice without Jev: research goes to the cheapest,
-// fastest ready model that runs read-only (--access read or a read-only
-// sandbox; one that doesn't must hold the write lease), else the cheapest;
-// writing work to the lead's own model when it can, else the priciest (a
-// stand-in for the strongest).
-func ruleModel(eligible []Model, lead Model, access string) Model {
-	sorted := slices.Clone(eligible)
-	sort.SliceStable(sorted, func(i, j int) bool {
-		if sorted[i].CostUSD != sorted[j].CostUSD {
-			return sorted[i].CostUSD < sorted[j].CostUSD
-		}
-		return sorted[i].LatencyMs < sorted[j].LatencyMs
-	})
-	if access == ProfileResearch {
-		if i := slices.IndexFunc(sorted, func(m Model) bool { return m.Read || m.ReadOnlySandbox }); i >= 0 {
-			return sorted[i]
-		}
-		return sorted[0]
-	}
-	if i := slices.IndexFunc(eligible, func(m Model) bool { return m.Key() == lead.Key() }); i >= 0 {
-		return eligible[i]
-	}
-	return sorted[len(sorted)-1]
 }
 
 func (s *Staffer) staffEffort(ctx context.Context, req SpawnRequest, st *Staff) error {
@@ -270,7 +220,14 @@ func (s *Staffer) staffEffort(ctx context.Context, req SpawnRequest, st *Staff) 
 		st.Effort = req.Effort
 		return nil
 	}
-	if len(levels) == 0 || s.Chooser == nil {
+	if len(levels) == 0 {
+		return nil
+	}
+	if s.Chooser == nil {
+		// No Jev: light work gets the least effort the model offers.
+		if !isHeavy(st.Category, st.Access) && slices.Contains(levels, "low") {
+			st.Effort = "low"
+		}
 		return nil
 	}
 	opts := map[string]string{}

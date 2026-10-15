@@ -1,0 +1,1470 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "onfleet",
+  "title": "Onfleet",
+  "description": "Tasks, destinations, recipients, teams, workers, hubs and containers in Onfleet",
+  "category": "app",
+  "docs_url": "https://docs.onfleet.com/reference",
+  "n8n_types": [
+    "n8n-nodes-base.onfleet"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.onfleetTrigger"
+  ],
+  "base_url": "https://onfleet.com/api/v2",
+  "credentials": [
+    {
+      "platform": "onfleet",
+      "name": "Onfleet",
+      "n8n_credential": "onfleetApi",
+      "n8n_field_map": {
+        "apiKey": "api_key",
+        "signingSecret": "signing_secret"
+      },
+      "methods": [
+        "basic"
+      ],
+      "fields": [
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "signing_secret",
+          "label": "Webhook signing secret",
+          "secret": true,
+          "help": "Only for the trigger."
+        }
+      ],
+      "inject": {
+        "basic": {
+          "username": "{{ cred.api_key }}",
+          "password": ""
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "task",
+      "label": "Task"
+    },
+    {
+      "value": "admin",
+      "label": "Administrator"
+    },
+    {
+      "value": "container",
+      "label": "Container"
+    },
+    {
+      "value": "destination",
+      "label": "Destination"
+    },
+    {
+      "value": "hub",
+      "label": "Hub"
+    },
+    {
+      "value": "organization",
+      "label": "Organization"
+    },
+    {
+      "value": "recipient",
+      "label": "Recipient"
+    },
+    {
+      "value": "team",
+      "label": "Team"
+    },
+    {
+      "value": "worker",
+      "label": "Worker"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "task",
+      "operation": "get",
+      "title": "Get a task",
+      "method": "GET",
+      "path": "/tasks{{ p.id | re:'^.{1,8}$()' | then:'L' | default:'S' | eq:'S' | then:'/shortId' }}/{{ p.id }}",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Task ID",
+          "type": "text",
+          "default": "",
+          "required": true
+        }
+      ],
+      "description": "IDs of 8 characters or fewer are looked up as short IDs."
+    },
+    {
+      "resource": "task",
+      "operation": "create",
+      "title": "Create a task",
+      "method": "POST",
+      "path": "/tasks",
+      "fields": [
+        {
+          "key": "destination",
+          "label": "Destination",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "destinationProperties"
+          ],
+          "help": "{\"destinationProperties\": {\"unparsed\": true, \"address\": \"\u2026\"}} or number/street/city/country fields, plus addressName, addressApartment, addressState, addressPostalCode, addressNotes"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "merchant",
+            "executor",
+            "completeAfter",
+            "completeBefore",
+            "pickupTask",
+            "notes",
+            "quantity",
+            "serviceTime",
+            "recipient",
+            "recipientName",
+            "recipientNotes",
+            "recipientSkipSMSNotifications",
+            "useMerchantForProxy"
+          ],
+          "help": "recipient: {\"recipientProperties\": {\"recipientName\": \"Ada\", \"recipientPhone\": \"+1\u2026\", \"recipientNotes\": \"\", \"recipientSkipSMSNotifications\": false}}"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "recipientSkipPhoneNumberValidation"
+          ]
+        }
+      ],
+      "body": {
+        "destination": {
+          "address": {
+            "unparsed": "{{ p.destination.destinationProperties.unparsed | eq:'true' | then:p.destination.destinationProperties.address }}",
+            "number": "{{ p.destination.destinationProperties.unparsed | ne:'true' | then:p.destination.destinationProperties.addressNumber }}",
+            "street": "{{ p.destination.destinationProperties.unparsed | ne:'true' | then:p.destination.destinationProperties.addressStreet }}",
+            "city": "{{ p.destination.destinationProperties.unparsed | ne:'true' | then:p.destination.destinationProperties.addressCity }}",
+            "country": "{{ p.destination.destinationProperties.unparsed | ne:'true' | then:p.destination.destinationProperties.addressCountry }}",
+            "name": "{{ p.destination.destinationProperties.addressName }}",
+            "apartment": "{{ p.destination.destinationProperties.addressApartment }}",
+            "state": "{{ p.destination.destinationProperties.addressState }}",
+            "postalCode": "{{ p.destination.destinationProperties.addressPostalCode }}"
+          },
+          "notes": "{{ p.destination.destinationProperties.addressNotes }}"
+        },
+        "recipients": [
+          {
+            "name": "{{ p.additionalFields.recipient.recipientProperties.recipientName }}",
+            "phone": "{{ p.additionalFields.recipient.recipientProperties.recipientPhone }}",
+            "notes": "{{ p.additionalFields.recipient.recipientProperties.recipientNotes }}",
+            "skipSMSNotifications": "{{ p.additionalFields.recipient.recipientProperties.recipientSkipSMSNotifications }}",
+            "skipPhoneNumberValidation": "{{ p.options.recipientSkipPhoneNumberValidation }}"
+          }
+        ],
+        "completeAfter": "{{ p.additionalFields.completeAfter | epoch_ms }}",
+        "completeBefore": "{{ p.additionalFields.completeBefore | epoch_ms }}",
+        "$merge": "{{ p.additionalFields | pick:'merchant,executor,pickupTask,notes,quantity,serviceTime,useMerchantForProxy' }}"
+      }
+    },
+    {
+      "resource": "task",
+      "operation": "clone",
+      "title": "Clone a task",
+      "method": "POST",
+      "path": "/tasks/{{ p.id }}/clone",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Task ID",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "overrideFields",
+          "label": "Override fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "completeAfter",
+            "completeBefore",
+            "includeBarcodes",
+            "includeDependencies",
+            "includeMetadata",
+            "notes",
+            "pickupTask",
+            "serviceTime"
+          ]
+        }
+      ],
+      "body": {
+        "options": {
+          "includeMetadata": "{{ p.overrideFields.includeMetadata | eq:'true' | then:true }}",
+          "includeBarcodes": "{{ p.overrideFields.includeBarcodes | eq:'true' | then:true }}",
+          "includeDependencies": "{{ p.overrideFields.includeDependencies | eq:'true' | then:true }}",
+          "overrides": {
+            "notes": "{{ p.overrideFields.notes }}",
+            "pickupTask": "{{ p.overrideFields.pickupTask }}",
+            "serviceTime": "{{ p.overrideFields.serviceTime }}",
+            "completeAfter": "{{ p.overrideFields.completeAfter | epoch_ms }}",
+            "completeBefore": "{{ p.overrideFields.completeBefore | epoch_ms }}"
+          }
+        }
+      }
+    },
+    {
+      "resource": "task",
+      "operation": "complete",
+      "title": "Complete a task",
+      "method": "POST",
+      "path": "/tasks/{{ p.id }}/complete",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Task ID",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "success",
+          "label": "Complete as a success",
+          "type": "boolean",
+          "default": true,
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "notes"
+          ]
+        }
+      ],
+      "body": {
+        "completionDetails": {
+          "success": "{{ p.success }}",
+          "notes": "{{ p.additionalFields.notes }}"
+        }
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "task",
+      "operation": "delete",
+      "title": "Delete a task",
+      "method": "DELETE",
+      "path": "/tasks/{{ p.id }}",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Task ID",
+          "type": "text",
+          "default": "",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "task",
+      "operation": "getAll",
+      "title": "Get many tasks",
+      "method": "GET",
+      "path": "/tasks/all",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 64,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "from",
+            "to",
+            "state"
+          ],
+          "help": "from defaults to one week ago; state: list of 0 unassigned, 1 assigned, 2 active, 3 completed, or all."
+        }
+      ],
+      "query": {
+        "from": "{{ p.filters.from | epoch_ms | default:(now | epoch_ms | sub:604800000) }}",
+        "to": "{{ p.filters.to | epoch_ms }}",
+        "state": "{{ p.filters.state | csv | re:'(all)' | eq:'all' | then:'0,1,2,3' | default:(p.filters.state | csv) }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "lastId",
+        "cursor_path": "lastId",
+        "results_path": "tasks"
+      }
+    },
+    {
+      "resource": "task",
+      "operation": "update",
+      "title": "Update a task",
+      "method": "PUT",
+      "path": "/tasks/{{ p.id }}",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Task ID",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "merchant",
+            "executor",
+            "completeAfter",
+            "completeBefore",
+            "pickupTask",
+            "notes",
+            "quantity",
+            "serviceTime"
+          ]
+        }
+      ],
+      "body": {
+        "completeAfter": "{{ p.updateFields.completeAfter | epoch_ms }}",
+        "completeBefore": "{{ p.updateFields.completeBefore | epoch_ms }}",
+        "$merge": "{{ p.updateFields | omit:'completeAfter,completeBefore' }}"
+      }
+    },
+    {
+      "resource": "destination",
+      "operation": "get",
+      "title": "Get a destination",
+      "method": "GET",
+      "path": "/destinations/{{ p.id }}",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Destination ID",
+          "type": "text",
+          "default": "",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "destination",
+      "operation": "create",
+      "title": "Create a destination",
+      "method": "POST",
+      "path": "/destinations",
+      "fields": [
+        {
+          "key": "unparsed",
+          "label": "Unparsed address",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "address",
+          "label": "Address",
+          "type": "text",
+          "default": "",
+          "help": "With Unparsed address on."
+        },
+        {
+          "key": "addressNumber",
+          "label": "Number",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "addressStreet",
+          "label": "Street",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "addressCity",
+          "label": "City",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "addressCountry",
+          "label": "Country",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "addressName",
+            "addressApartment",
+            "addressState",
+            "addressPostalCode",
+            "addressNotes"
+          ]
+        }
+      ],
+      "body": {
+        "address": {
+          "unparsed": "{{ p.unparsed | eq:'true' | then:p.address }}",
+          "number": "{{ p.unparsed | ne:'true' | then:p.addressNumber }}",
+          "street": "{{ p.unparsed | ne:'true' | then:p.addressStreet }}",
+          "city": "{{ p.unparsed | ne:'true' | then:p.addressCity }}",
+          "country": "{{ p.unparsed | ne:'true' | then:p.addressCountry }}",
+          "name": "{{ p.additionalFields.addressName }}",
+          "apartment": "{{ p.additionalFields.addressApartment }}",
+          "state": "{{ p.additionalFields.addressState }}",
+          "postalCode": "{{ p.additionalFields.addressPostalCode }}"
+        },
+        "notes": "{{ p.additionalFields.addressNotes }}"
+      }
+    },
+    {
+      "resource": "recipient",
+      "operation": "get",
+      "title": "Get a recipient",
+      "method": "GET",
+      "path": "/recipients{{ p.getBy | ne:'id' | then:(p.getBy | prefix:'/') | path }}/{{ p.getBy | eq:'id' | then:p.id }}{{ p.getBy | eq:'phone' | then:p.phone }}{{ p.getBy | eq:'name' | then:p.name }}",
+      "fields": [
+        {
+          "key": "getBy",
+          "label": "Get by",
+          "type": "select",
+          "default": "id",
+          "options": [
+            "id",
+            "phone",
+            "name"
+          ]
+        },
+        {
+          "key": "id",
+          "label": "Recipient ID",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "phone",
+          "label": "Phone",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "default": ""
+        }
+      ]
+    },
+    {
+      "resource": "recipient",
+      "operation": "create",
+      "title": "Create a recipient",
+      "method": "POST",
+      "path": "/recipients",
+      "fields": [
+        {
+          "key": "recipientName",
+          "label": "Name",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "recipientPhone",
+          "label": "Phone",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "recipientNotes",
+            "recipientSkipSMSNotifications"
+          ]
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "recipientSkipPhoneNumberValidation"
+          ]
+        }
+      ],
+      "body": {
+        "name": "{{ p.recipientName }}",
+        "phone": "{{ p.recipientPhone }}",
+        "notes": "{{ p.additionalFields.recipientNotes }}",
+        "skipSMSNotifications": "{{ p.additionalFields.recipientSkipSMSNotifications }}",
+        "skipPhoneNumberValidation": "{{ p.options.recipientSkipPhoneNumberValidation | default:false }}"
+      }
+    },
+    {
+      "resource": "recipient",
+      "operation": "update",
+      "title": "Update a recipient",
+      "method": "PUT",
+      "path": "/recipients/{{ p.id }}",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Recipient ID",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "recipientName",
+            "recipientPhone",
+            "notes",
+            "skipSMSNotifications"
+          ]
+        }
+      ],
+      "body": {
+        "name": "{{ p.updateFields.recipientName }}",
+        "phone": "{{ p.updateFields.recipientPhone }}",
+        "$merge": "{{ p.updateFields | omit:'recipientName,recipientPhone' }}"
+      }
+    },
+    {
+      "resource": "admin",
+      "operation": "getAll",
+      "title": "Get many administrators",
+      "method": "GET",
+      "path": "/admins",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 64,
+          "min": 1
+        }
+      ],
+      "output": {
+        "limit": true
+      }
+    },
+    {
+      "resource": "admin",
+      "operation": "create",
+      "title": "Create an administrator",
+      "method": "POST",
+      "path": "/admins",
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "phone",
+            "isReadOnly"
+          ]
+        }
+      ],
+      "body": {
+        "name": "{{ p.name }}",
+        "email": "{{ p.email }}",
+        "$merge": "{{ p.additionalFields }}"
+      }
+    },
+    {
+      "resource": "admin",
+      "operation": "delete",
+      "title": "Delete an administrator",
+      "method": "DELETE",
+      "path": "/admins/{{ p.id }}",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Administrator ID",
+          "type": "text",
+          "default": "",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "admin",
+      "operation": "update",
+      "title": "Update an administrator",
+      "method": "PUT",
+      "path": "/admins/{{ p.id }}",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Administrator ID",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "name",
+            "phone",
+            "isReadOnly"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields }}"
+      }
+    },
+    {
+      "resource": "hub",
+      "operation": "getAll",
+      "title": "Get many hubs",
+      "method": "GET",
+      "path": "/hubs",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 64,
+          "min": 1
+        }
+      ],
+      "output": {
+        "limit": true
+      }
+    },
+    {
+      "resource": "hub",
+      "operation": "create",
+      "title": "Create a hub",
+      "method": "POST",
+      "path": "/hubs",
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "destination",
+          "label": "Destination",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "destinationProperties"
+          ],
+          "help": "{\"destinationProperties\": {\"unparsed\": true, \"address\": \"\u2026\"}} or number/street/city/country fields, plus addressName, addressApartment, addressState, addressPostalCode, addressNotes"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "teams"
+          ]
+        }
+      ],
+      "body": {
+        "name": "{{ p.name }}",
+        "address": {
+          "unparsed": "{{ p.destination.destinationProperties.unparsed | eq:'true' | then:p.destination.destinationProperties.address }}",
+          "number": "{{ p.destination.destinationProperties.unparsed | ne:'true' | then:p.destination.destinationProperties.addressNumber }}",
+          "street": "{{ p.destination.destinationProperties.unparsed | ne:'true' | then:p.destination.destinationProperties.addressStreet }}",
+          "city": "{{ p.destination.destinationProperties.unparsed | ne:'true' | then:p.destination.destinationProperties.addressCity }}",
+          "country": "{{ p.destination.destinationProperties.unparsed | ne:'true' | then:p.destination.destinationProperties.addressCountry }}",
+          "name": "{{ p.destination.destinationProperties.addressName }}",
+          "apartment": "{{ p.destination.destinationProperties.addressApartment }}",
+          "state": "{{ p.destination.destinationProperties.addressState }}",
+          "postalCode": "{{ p.destination.destinationProperties.addressPostalCode }}"
+        },
+        "notes": "{{ p.destination.destinationProperties.addressNotes }}",
+        "$merge": "{{ p.additionalFields }}"
+      }
+    },
+    {
+      "resource": "hub",
+      "operation": "update",
+      "title": "Update a hub",
+      "method": "PUT",
+      "path": "/hubs/{{ p.id }}",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Hub ID",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "destination",
+            "name",
+            "teams"
+          ]
+        }
+      ],
+      "body": {
+        "address": {
+          "unparsed": "{{ p.updateFields.destination.destinationProperties.unparsed | eq:'true' | then:p.updateFields.destination.destinationProperties.address }}",
+          "number": "{{ p.updateFields.destination.destinationProperties.unparsed | ne:'true' | then:p.updateFields.destination.destinationProperties.addressNumber }}",
+          "street": "{{ p.updateFields.destination.destinationProperties.unparsed | ne:'true' | then:p.updateFields.destination.destinationProperties.addressStreet }}",
+          "city": "{{ p.updateFields.destination.destinationProperties.unparsed | ne:'true' | then:p.updateFields.destination.destinationProperties.addressCity }}",
+          "country": "{{ p.updateFields.destination.destinationProperties.unparsed | ne:'true' | then:p.updateFields.destination.destinationProperties.addressCountry }}",
+          "name": "{{ p.updateFields.destination.destinationProperties.addressName }}",
+          "apartment": "{{ p.updateFields.destination.destinationProperties.addressApartment }}",
+          "state": "{{ p.updateFields.destination.destinationProperties.addressState }}",
+          "postalCode": "{{ p.updateFields.destination.destinationProperties.addressPostalCode }}"
+        },
+        "notes": "{{ p.updateFields.destination.destinationProperties.addressNotes }}",
+        "$merge": "{{ p.updateFields | omit:'destination' }}"
+      }
+    },
+    {
+      "resource": "organization",
+      "operation": "get",
+      "title": "Get my organization",
+      "method": "GET",
+      "path": "/organization",
+      "fields": []
+    },
+    {
+      "resource": "organization",
+      "operation": "getDelegatee",
+      "title": "Get a delegatee's details",
+      "method": "GET",
+      "path": "/organizations/{{ p.id }}",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Organization ID",
+          "type": "text",
+          "default": "",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "container",
+      "operation": "get",
+      "title": "Get a container",
+      "method": "GET",
+      "path": "/containers/{{ p.containerType }}/{{ p.containerId }}",
+      "fields": [
+        {
+          "key": "containerType",
+          "label": "Container type",
+          "type": "select",
+          "default": "",
+          "required": true,
+          "options": [
+            "",
+            "organizations",
+            "teams",
+            "workers"
+          ]
+        },
+        {
+          "key": "containerId",
+          "label": "Container ID",
+          "type": "text",
+          "default": "",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "container",
+      "operation": "addTask",
+      "title": "Add tasks to a container",
+      "method": "PUT",
+      "path": "/containers/{{ p.containerType }}/{{ p.containerId }}",
+      "fields": [
+        {
+          "key": "containerType",
+          "label": "Container type",
+          "type": "select",
+          "default": "",
+          "required": true,
+          "options": [
+            "",
+            "organizations",
+            "teams",
+            "workers"
+          ]
+        },
+        {
+          "key": "containerId",
+          "label": "Container ID",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "type",
+          "label": "Insert type",
+          "type": "number",
+          "default": -1,
+          "help": "-1 append, 0 prepend, 1 at Index"
+        },
+        {
+          "key": "index",
+          "label": "Index",
+          "type": "number",
+          "default": 0
+        },
+        {
+          "key": "tasks",
+          "label": "Task IDs",
+          "type": "array",
+          "default": [],
+          "required": true,
+          "item_type": "text"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "considerDependencies"
+          ]
+        }
+      ],
+      "body": {
+        "tasks": {
+          "$concat": [
+            "{{ p.type | eq:'1' | then:p.index | default:p.type }}",
+            "{{ p.tasks }}"
+          ]
+        },
+        "$merge": "{{ p.options }}"
+      }
+    },
+    {
+      "resource": "container",
+      "operation": "updateTask",
+      "title": "Replace a container's tasks",
+      "method": "PUT",
+      "path": "/containers/{{ p.containerType }}/{{ p.containerId }}",
+      "fields": [
+        {
+          "key": "containerType",
+          "label": "Container type",
+          "type": "select",
+          "default": "workers",
+          "options": [
+            "organizations",
+            "teams",
+            "workers"
+          ]
+        },
+        {
+          "key": "containerId",
+          "label": "Container ID",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "tasks",
+          "label": "Task IDs",
+          "type": "array",
+          "default": [],
+          "required": true,
+          "item_type": "text"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "considerDependencies"
+          ]
+        }
+      ],
+      "body": {
+        "!tasks": "{{ p.tasks }}",
+        "$merge": "{{ p.options }}"
+      }
+    },
+    {
+      "resource": "team",
+      "operation": "getAll",
+      "title": "Get many teams",
+      "method": "GET",
+      "path": "/teams",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 64,
+          "min": 1
+        }
+      ],
+      "output": {
+        "limit": true
+      }
+    },
+    {
+      "resource": "team",
+      "operation": "autoDispatch",
+      "title": "Auto-dispatch a team's tasks",
+      "method": "POST",
+      "path": "/teams/{{ p.id }}/dispatch",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Team ID",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "endingRoute",
+            "maxAllowedDelay",
+            "maxTasksPerRoute",
+            "scheduleTimeWindow",
+            "serviceTime",
+            "taskTimeWindow"
+          ],
+          "help": "endingRoute: {\"endingRouteProperties\": {\"routeEnd\": \"hub\", \"hub\": \"<id>\"}}; scheduleTimeWindow / taskTimeWindow: {\"\u2026Properties\": {\"startTime\": \"\u2026\", \"endTime\": \"\u2026\"}}"
+        }
+      ],
+      "body": {
+        "scheduleTimeWindow": [
+          "{{ p.additionalFields.scheduleTimeWindow.scheduleTimeWindowProperties.startTime | epoch }}",
+          "{{ p.additionalFields.scheduleTimeWindow.scheduleTimeWindowProperties.endTime | epoch }}"
+        ],
+        "taskTimeWindow": [
+          "{{ p.additionalFields.taskTimeWindow.taskTimeWindowProperties.startTime | epoch }}",
+          "{{ p.additionalFields.taskTimeWindow.taskTimeWindowProperties.endTime | epoch }}"
+        ],
+        "routeEnd": "{{ p.additionalFields.endingRoute.endingRouteProperties.routeEnd | eq:'hub' | then:(p.additionalFields.endingRoute.endingRouteProperties.hub | prefix:'hub://') }}{{ p.additionalFields.endingRoute.endingRouteProperties.routeEnd | eq:'team_hub' | then:'teams://DEFAULT' }}{{ p.additionalFields.endingRoute.endingRouteProperties.routeEnd | eq:'worker_routing_address' | then:'workers://ROUTING_ADDRESS' }}",
+        "$merge": "{{ p.additionalFields | omit:'endingRoute,scheduleTimeWindow,taskTimeWindow' }}"
+      }
+    },
+    {
+      "resource": "team",
+      "operation": "create",
+      "title": "Create a team",
+      "method": "POST",
+      "path": "/teams",
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "workers",
+          "label": "Worker IDs",
+          "type": "array",
+          "default": [],
+          "required": true,
+          "item_type": "text"
+        },
+        {
+          "key": "managers",
+          "label": "Manager IDs",
+          "type": "array",
+          "default": [],
+          "required": true,
+          "item_type": "text"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "hub",
+            "enableSelfAssignment"
+          ]
+        }
+      ],
+      "body": {
+        "name": "{{ p.name }}",
+        "workers": "{{ p.workers }}",
+        "managers": "{{ p.managers }}",
+        "$merge": "{{ p.additionalFields }}"
+      }
+    },
+    {
+      "resource": "team",
+      "operation": "delete",
+      "title": "Delete a team",
+      "method": "DELETE",
+      "path": "/teams/{{ p.id }}",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Team ID",
+          "type": "text",
+          "default": "",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "team",
+      "operation": "get",
+      "title": "Get a team",
+      "method": "GET",
+      "path": "/teams/{{ p.id }}",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Team ID",
+          "type": "text",
+          "default": "",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "team",
+      "operation": "getTimeEstimates",
+      "title": "Get workers' time estimates",
+      "method": "GET",
+      "path": "/teams/{{ p.id }}/estimate",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Team ID",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "dropOff",
+            "pickUp",
+            "restrictedVehicleTypes",
+            "serviceTime"
+          ],
+          "help": "dropOff: {\"dropOffProperties\": {\"dropOffLongitude\": 0, \"dropOffLatitude\": 0}}; pickUp: {\"pickUpProperties\": {\"pickupLongitude\": 0, \"pickupLatitude\": 0, \"pickupTime\": \"\u2026\"}}"
+        }
+      ],
+      "query": {
+        "pickupLocation": "{{ p.filters.pickUp.pickUpProperties | then:(p.filters.pickUp.pickUpProperties.pickupLongitude | suffix:',') }}{{ p.filters.pickUp.pickUpProperties.pickupLatitude }}",
+        "pickupTime": "{{ p.filters.pickUp.pickUpProperties.pickupTime | epoch }}",
+        "dropoffLocation": "{{ p.filters.dropOff.dropOffProperties | then:(p.filters.dropOff.dropOffProperties.dropOffLongitude | suffix:',') }}{{ p.filters.dropOff.dropOffProperties.dropOffLatitude }}",
+        "restrictedVehicleTypes": "{{ p.filters.restrictedVehicleTypes | csv }}",
+        "serviceTime": "{{ p.filters.serviceTime }}"
+      }
+    },
+    {
+      "resource": "team",
+      "operation": "update",
+      "title": "Update a team",
+      "method": "PUT",
+      "path": "/teams/{{ p.id }}",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Team ID",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "name",
+            "workers",
+            "managers",
+            "hub",
+            "enableSelfAssignment"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields }}"
+      }
+    },
+    {
+      "resource": "worker",
+      "operation": "get",
+      "title": "Get a worker",
+      "method": "GET",
+      "path": "/workers/{{ p.id }}",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Worker ID",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "analytics",
+            "filter"
+          ]
+        }
+      ],
+      "query": {
+        "filter": "{{ p.options.filter | csv }}",
+        "analytics": "{{ p.options.analytics | string }}"
+      }
+    },
+    {
+      "resource": "worker",
+      "operation": "create",
+      "title": "Create a worker",
+      "method": "POST",
+      "path": "/workers",
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "phone",
+          "label": "Phone",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "teams",
+          "label": "Team IDs",
+          "type": "array",
+          "default": [],
+          "required": true,
+          "item_type": "text"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "capacity",
+            "displayName",
+            "vehicle"
+          ],
+          "help": "vehicle: {\"vehicleProperties\": {\"type\": \"CAR\", \"description\": \"\", \"licensePlate\": \"\", \"color\": \"\"}}"
+        }
+      ],
+      "body": {
+        "name": "{{ p.name }}",
+        "phone": "{{ p.phone }}",
+        "teams": "{{ p.teams }}",
+        "vehicle": "{{ p.additionalFields.vehicle.vehicleProperties }}",
+        "$merge": "{{ p.additionalFields | omit:'vehicle' }}"
+      }
+    },
+    {
+      "resource": "worker",
+      "operation": "delete",
+      "title": "Delete a worker",
+      "method": "DELETE",
+      "path": "/workers/{{ p.id }}",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Worker ID",
+          "type": "text",
+          "default": "",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "worker",
+      "operation": "getAll",
+      "title": "Get many workers",
+      "method": "GET",
+      "path": "/workers{{ p.byLocation | eq:'true' | then:'/location' }}",
+      "fields": [
+        {
+          "key": "byLocation",
+          "label": "Search by location",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "longitude",
+          "label": "Longitude",
+          "type": "number",
+          "default": 0
+        },
+        {
+          "key": "latitude",
+          "label": "Latitude",
+          "type": "number",
+          "default": 0
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 64,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "radius",
+            "states",
+            "teams",
+            "phones"
+          ],
+          "help": "radius with Search by location; states / teams / phones otherwise (lists)."
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "filter"
+          ]
+        }
+      ],
+      "query": {
+        "longitude": "{{ p.byLocation | eq:'true' | then:p.longitude }}",
+        "latitude": "{{ p.byLocation | eq:'true' | then:p.latitude }}",
+        "radius": "{{ p.byLocation | eq:'true' | then:p.filters.radius }}",
+        "states": "{{ p.filters.states | csv }}",
+        "teams": "{{ p.filters.teams | csv }}",
+        "phones": "{{ p.filters.phones | csv }}",
+        "filter": "{{ p.byLocation | ne:'true' | then:(p.options.filter | csv) }}"
+      },
+      "output": {
+        "path": "{{ p.byLocation | eq:'true' | then:'workers' }}",
+        "limit": true
+      }
+    },
+    {
+      "resource": "worker",
+      "operation": "getSchedule",
+      "title": "Get a worker's schedule",
+      "method": "GET",
+      "path": "/workers/{{ p.id }}/schedule",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Worker ID",
+          "type": "text",
+          "default": "",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "worker",
+      "operation": "update",
+      "title": "Update a worker",
+      "method": "PUT",
+      "path": "/workers/{{ p.id }}",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Worker ID",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "capacity",
+            "displayName",
+            "name",
+            "teams"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields }}"
+      }
+    }
+  ],
+  "webhook": {
+    "fields": [
+      {
+        "key": "triggerOn",
+        "label": "Trigger on",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "additionalFields",
+        "label": "Additional fields",
+        "type": "collection",
+        "default": {}
+      }
+    ],
+    "create": [
+      {
+        "method": "POST",
+        "path": "/webhooks",
+        "body": {
+          "name": "mono-agent:{{ p.additionalFields.name | default:hook.url }}",
+          "url": "{{ hook.url }}",
+          "trigger": "{{ p.triggerOn | map:'taskStarted=0,taskEta=1,taskArrival=2,taskCompleted=3,taskFailed=4,workerDuty=5,taskCreated=6,taskUpdated=7,taskDeleted=8,taskAssigned=9,taskUnassigned=10,taskDelayed=12,taskCloned=13,smsRecipientResponseMissed=14,workerCreated=15,workerDeleted=16,SMSRecipientOptOut=17' | int }}"
+        }
+      }
+    ],
+    "id": "{{ res.id }}",
+    "delete": [
+      {
+        "method": "DELETE",
+        "path": "/webhooks/{{ hook.id }}"
+      }
+    ],
+    "verify": {
+      "signature": "{{ hdr.X-Onfleet-Signature }}",
+      "alg": "sha512",
+      "secret": "{{ cred.signing_secret }}",
+      "secret_encoding": "hex"
+    }
+  }
+}

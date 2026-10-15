@@ -1,0 +1,340 @@
+{
+  "user.create": {
+    "params": {
+      "identifierType": "email",
+      "idValue": "a@b.co",
+      "additionalFields": {
+        "name": "Ada",
+        "avatar": "https://x/a.png",
+        "companies": [
+          "c1"
+        ]
+      },
+      "customAttributesUi": {
+        "customAttributesValues": [
+          {
+            "name": "plan",
+            "value": "pro"
+          }
+        ]
+      }
+    },
+    "response": {
+      "id": "u1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/users",
+      "body": {
+        "email": "a@b.co",
+        "name": "Ada",
+        "avatar": {
+          "type": "avatar",
+          "image_url": "https://x/a.png"
+        },
+        "companies": [
+          {
+            "company_id": "c1"
+          }
+        ],
+        "custom_attributes": {
+          "plan": "pro"
+        }
+      },
+      "items": 1
+    }
+  },
+  "user.delete": {
+    "params": {
+      "id": "u1"
+    },
+    "response": {
+      "id": "u1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/users/u1",
+      "items": 1
+    }
+  },
+  "user.get": {
+    "params": {
+      "selectBy": "userId",
+      "value": "42"
+    },
+    "response": {
+      "id": "u1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/users",
+      "query": {
+        "user_id": "42"
+      },
+      "items": 1
+    }
+  },
+  "user.getAll": {
+    "params": {
+      "limit": 10,
+      "filters": {
+        "tag_id": "t1"
+      }
+    },
+    "response": {
+      "users": [
+        {
+          "id": 1
+        },
+        {
+          "id": 2
+        }
+      ],
+      "pages": {
+        "next": null
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/users",
+      "query": {
+        "tag_id": "t1",
+        "per_page": "10"
+      },
+      "items": 2
+    }
+  },
+  "user.update": {
+    "params": {
+      "updateBy": "id",
+      "value": "u1",
+      "jsonParameters": true,
+      "customAttributesJson": "{\"tier\":2}",
+      "additionalFields": {
+        "sessionCount": 3
+      }
+    },
+    "response": {
+      "id": "u1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/users",
+      "body": {
+        "id": "u1",
+        "session_count": 3,
+        "custom_attributes": {
+          "tier": 2
+        }
+      },
+      "items": 1
+    }
+  },
+  "lead.create": {
+    "params": {
+      "email": "l@b.co",
+      "additionalFields": {
+        "utmSource": "ads",
+        "unsubscribedFromEmails": true
+      }
+    },
+    "response": {
+      "id": "l1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/contacts",
+      "body": {
+        "email": "l@b.co",
+        "utm_source": "ads",
+        "unsubscribed_from_emails": true
+      },
+      "items": 1
+    }
+  },
+  "lead.delete": {
+    "params": {
+      "deleteBy": "id",
+      "value": "l1"
+    },
+    "response": {
+      "id": "l1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/contacts/l1",
+      "items": 1
+    }
+  },
+  "lead.get": {
+    "params": {
+      "selectBy": "email",
+      "value": "l@b.co"
+    },
+    "response": {
+      "contacts": [
+        {
+          "id": "l1"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/contacts",
+      "query": {
+        "email": "l@b.co"
+      },
+      "items": 1
+    }
+  },
+  "lead.getAll": {
+    "params": {
+      "returnAll": true
+    },
+    "response": {
+      "contacts": [
+        {
+          "id": "l1"
+        }
+      ],
+      "pages": {
+        "next": null
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/contacts",
+      "query": {
+        "per_page": "60"
+      },
+      "items": 1
+    }
+  },
+  "lead.update": {
+    "params": {
+      "updateBy": "userId",
+      "value": "42",
+      "additionalFields": {
+        "name": "Lee"
+      }
+    },
+    "response": {
+      "id": "l1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/contacts",
+      "body": {
+        "user_id": "42",
+        "name": "Lee"
+      },
+      "items": 1
+    }
+  },
+  "company.create": {
+    "params": {
+      "companyId": "acme",
+      "additionalFields": {
+        "name": "Acme",
+        "monthlySpend": "120.5",
+        "size": 30
+      }
+    },
+    "response": {
+      "id": "c1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/companies",
+      "body": {
+        "company_id": "acme",
+        "name": "Acme",
+        "monthly_spend": 120.5,
+        "size": 30
+      },
+      "items": 1
+    }
+  },
+  "company.get": {
+    "params": {
+      "selectBy": "id",
+      "value": "c1"
+    },
+    "response": {
+      "id": "c1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/companies/c1",
+      "items": 1
+    }
+  },
+  "company.getAll": {
+    "params": {
+      "limit": 5
+    },
+    "response": {
+      "companies": [
+        {
+          "id": "c1"
+        }
+      ],
+      "pages": {
+        "next": null
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/companies",
+      "query": {
+        "per_page": "5"
+      },
+      "items": 1
+    }
+  },
+  "company.update": {
+    "params": {
+      "companyId": "acme",
+      "additionalFields": {
+        "plan": "gold"
+      }
+    },
+    "response": {
+      "id": "c1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/companies",
+      "body": {
+        "company_id": "acme",
+        "plan": "gold"
+      },
+      "items": 1
+    }
+  },
+  "company.users": {
+    "params": {
+      "listBy": "id",
+      "value": "c1",
+      "limit": 5
+    },
+    "response": {
+      "users": [
+        {
+          "id": "u1"
+        }
+      ],
+      "pages": {
+        "next": null
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/companies/c1/users",
+      "query": {
+        "per_page": "5"
+      },
+      "items": 1
+    }
+  }
+}

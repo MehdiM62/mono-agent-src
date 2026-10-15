@@ -1,0 +1,1673 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "monica_crm",
+  "node_type": "app.monica_crm",
+  "title": "Monica CRM",
+  "description": "Contacts, activities, calls, notes, reminders, tasks, tags and journal in Monica personal CRM",
+  "category": "app",
+  "docs_url": "https://www.monicahq.com/api",
+  "n8n_types": [
+    "n8n-nodes-base.monicaCrm"
+  ],
+  "base_url": "{{ cred.domain | default:'https://app.monicahq.com' }}/api",
+  "credentials": [
+    {
+      "platform": "monica_crm",
+      "name": "Monica CRM",
+      "n8n_credential": "monicaCrmApi",
+      "n8n_field_map": {
+        "apiToken": "access_token",
+        "domain": "domain"
+      },
+      "methods": [
+        "bearer"
+      ],
+      "fields": [
+        {
+          "key": "access_token",
+          "label": "API token",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "domain",
+          "label": "Self-hosted URL",
+          "help": "e.g. https://monica.example.com; empty for app.monicahq.com"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "contact",
+      "label": "Contact"
+    },
+    {
+      "value": "activity",
+      "label": "Activity"
+    },
+    {
+      "value": "call",
+      "label": "Call"
+    },
+    {
+      "value": "contactField",
+      "label": "ContactField"
+    },
+    {
+      "value": "contactTag",
+      "label": "ContactTag"
+    },
+    {
+      "value": "conversation",
+      "label": "Conversation"
+    },
+    {
+      "value": "conversationMessage",
+      "label": "ConversationMessage"
+    },
+    {
+      "value": "journalEntry",
+      "label": "JournalEntry"
+    },
+    {
+      "value": "note",
+      "label": "Note"
+    },
+    {
+      "value": "reminder",
+      "label": "Reminder"
+    },
+    {
+      "value": "tag",
+      "label": "Tag"
+    },
+    {
+      "value": "task",
+      "label": "Task"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "contact",
+      "operation": "create",
+      "title": "Create a contact",
+      "method": "POST",
+      "path": "/contacts",
+      "fields": [
+        {
+          "key": "firstName",
+          "label": "First name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "genderId",
+          "label": "Gender ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "birthdate",
+            "deceasedDate",
+            "isDeceased",
+            "is_partial",
+            "last_name",
+            "nickname"
+          ]
+        }
+      ],
+      "output": {
+        "path": "data"
+      },
+      "body": {
+        "first_name": "{{ p.firstName }}",
+        "gender_id": "{{ p.genderId }}",
+        "$merge": "{{ p.additionalFields | omit:'birthdate,deceasedDate,isDeceased' }}",
+        "is_birthdate_known": "{{ p.additionalFields.birthdate | then:true | default:false }}",
+        "is_deceased": "{{ p.additionalFields.deceasedDate | then:true | default:p.additionalFields.isDeceased | default:false }}",
+        "is_deceased_date_known": "{{ p.additionalFields.deceasedDate | then:true | default:false }}",
+        "birthdate_day": "{{ p.additionalFields.birthdate | date:'DD' | int }}",
+        "birthdate_month": "{{ p.additionalFields.birthdate | date:'MM' | int }}",
+        "birthdate_year": "{{ p.additionalFields.birthdate | date:'YYYY' | int }}",
+        "deceased_date_day": "{{ p.additionalFields.deceasedDate | date:'DD' | int }}",
+        "deceased_date_month": "{{ p.additionalFields.deceasedDate | date:'MM' | int }}",
+        "deceased_date_year": "{{ p.additionalFields.deceasedDate | date:'YYYY' | int }}"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "delete",
+      "title": "Delete a contact",
+      "method": "DELETE",
+      "path": "/contacts/{{ p.contactId }}",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "get",
+      "title": "Get a contact",
+      "method": "GET",
+      "path": "/contacts/{{ p.contactId }}",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "getAll",
+      "title": "Get many contacts",
+      "method": "GET",
+      "path": "/contacts",
+      "fields": [
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "query",
+            "sort"
+          ],
+          "help": "sort: created_at or -created_at"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "start_page": 1,
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": "data"
+      },
+      "query": {
+        "$merge": "{{ p.filters }}"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "update",
+      "title": "Update a contact",
+      "method": "PUT",
+      "path": "/contacts/{{ p.contactId }}",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "birthdate",
+            "deceased_date",
+            "first_name",
+            "gender_id",
+            "is_deceased",
+            "is_partial",
+            "last_name",
+            "nickname"
+          ]
+        }
+      ],
+      "output": {
+        "path": "data"
+      },
+      "body": {
+        "first_name": "{{ p.updateFields.first_name | default:pre.data.first_name }}",
+        "$merge": "{{ p.updateFields | omit:'birthdate,deceased_date,is_deceased,first_name' }}",
+        "is_birthdate_known": "{{ p.updateFields.birthdate | then:true | default:false }}",
+        "is_deceased": "{{ p.updateFields.deceased_date | then:true | default:p.updateFields.is_deceased | default:false }}",
+        "is_deceased_date_known": "{{ p.updateFields.deceased_date | then:true | default:false }}",
+        "birthdate_day": "{{ p.updateFields.birthdate | date:'DD' | int }}",
+        "birthdate_month": "{{ p.updateFields.birthdate | date:'MM' | int }}",
+        "birthdate_year": "{{ p.updateFields.birthdate | date:'YYYY' | int }}",
+        "deceased_date_day": "{{ p.updateFields.deceased_date | date:'DD' | int }}",
+        "deceased_date_month": "{{ p.updateFields.deceased_date | date:'MM' | int }}",
+        "deceased_date_year": "{{ p.updateFields.deceased_date | date:'YYYY' | int }}"
+      },
+      "before": {
+        "method": "GET",
+        "path": "/contacts/{{ p.contactId }}"
+      }
+    },
+    {
+      "resource": "activity",
+      "operation": "create",
+      "title": "Create a activity",
+      "method": "POST",
+      "path": "/activities",
+      "fields": [
+        {
+          "key": "activityTypeId",
+          "label": "Activity type ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "contacts",
+          "label": "Contact IDs",
+          "type": "text",
+          "required": true,
+          "help": "Comma-separated"
+        },
+        {
+          "key": "happenedAt",
+          "label": "Happened at",
+          "type": "datetime",
+          "required": true
+        },
+        {
+          "key": "summary",
+          "label": "Summary",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "description"
+          ]
+        }
+      ],
+      "output": {
+        "path": "data"
+      },
+      "body": {
+        "activity_type_id": "{{ p.activityTypeId }}",
+        "contacts": "{{ p.contacts | split }}",
+        "happened_at": "{{ p.happenedAt | date:'YYYY-MM-DD' }}",
+        "summary": "{{ p.summary }}",
+        "$merge": "{{ p.additionalFields }}"
+      }
+    },
+    {
+      "resource": "activity",
+      "operation": "delete",
+      "title": "Delete a activity",
+      "method": "DELETE",
+      "path": "/activities/{{ p.activityId }}",
+      "fields": [
+        {
+          "key": "activityId",
+          "label": "Activity ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "activity",
+      "operation": "get",
+      "title": "Get a activity",
+      "method": "GET",
+      "path": "/activities/{{ p.activityId }}",
+      "fields": [
+        {
+          "key": "activityId",
+          "label": "Activity ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "activity",
+      "operation": "getAll",
+      "title": "Get many activitys",
+      "method": "GET",
+      "path": "/activities",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "start_page": 1,
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": "data"
+      }
+    },
+    {
+      "resource": "activity",
+      "operation": "update",
+      "title": "Update a activity",
+      "method": "PUT",
+      "path": "/activities/{{ p.activityId }}",
+      "fields": [
+        {
+          "key": "activityId",
+          "label": "Activity ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "activity_type_id",
+            "contacts",
+            "description",
+            "happened_at",
+            "summary"
+          ]
+        }
+      ],
+      "output": {
+        "path": "data"
+      },
+      "body": {
+        "activity_type_id": "{{ p.updateFields.activity_type_id | default:pre.data.activity_type.id }}",
+        "contacts": "{{ p.updateFields.contacts | split | default:(pre.data.attendees.contacts | pluck:'id') }}",
+        "happened_at": "{{ p.updateFields.happened_at | default:pre.data.happened_at | date:'YYYY-MM-DD' }}",
+        "summary": "{{ p.updateFields.summary | default:pre.data.summary }}",
+        "description": "{{ p.updateFields.description }}"
+      },
+      "before": {
+        "method": "GET",
+        "path": "/activities/{{ p.activityId }}"
+      }
+    },
+    {
+      "resource": "call",
+      "operation": "create",
+      "title": "Create a call",
+      "method": "POST",
+      "path": "/calls",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "calledAt",
+          "label": "Called at",
+          "type": "datetime",
+          "required": true
+        },
+        {
+          "key": "content",
+          "label": "Description",
+          "type": "textarea",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "data"
+      },
+      "body": {
+        "called_at": "{{ p.calledAt }}",
+        "contact_id": "{{ p.contactId }}",
+        "content": "{{ p.content }}"
+      }
+    },
+    {
+      "resource": "call",
+      "operation": "delete",
+      "title": "Delete a call",
+      "method": "DELETE",
+      "path": "/calls/{{ p.callId }}",
+      "fields": [
+        {
+          "key": "callId",
+          "label": "Call ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "call",
+      "operation": "get",
+      "title": "Get a call",
+      "method": "GET",
+      "path": "/calls/{{ p.callId }}",
+      "fields": [
+        {
+          "key": "callId",
+          "label": "Call ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "call",
+      "operation": "getAll",
+      "title": "Get many calls",
+      "method": "GET",
+      "path": "/calls",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "start_page": 1,
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": "data"
+      }
+    },
+    {
+      "resource": "call",
+      "operation": "update",
+      "title": "Update a call",
+      "method": "PUT",
+      "path": "/calls/{{ p.callId }}",
+      "fields": [
+        {
+          "key": "callId",
+          "label": "Call ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "calledAt",
+            "contactId",
+            "content"
+          ]
+        }
+      ],
+      "output": {
+        "path": "data"
+      },
+      "body": {
+        "called_at": "{{ p.updateFields.calledAt | default:pre.data.called_at }}",
+        "contactId": "{{ p.updateFields.contactId }}",
+        "content": "{{ p.updateFields.content }}"
+      },
+      "before": {
+        "method": "GET",
+        "path": "/calls/{{ p.callId }}"
+      }
+    },
+    {
+      "resource": "contactField",
+      "operation": "create",
+      "title": "Create a contact field",
+      "method": "POST",
+      "path": "/contactfields",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "contactFieldTypeId",
+          "label": "Contact field type ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "data",
+          "label": "Value",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "data"
+      },
+      "body": {
+        "contact_field_type_id": "{{ p.contactFieldTypeId }}",
+        "contact_id": "{{ p.contactId }}",
+        "data": "{{ p.data }}"
+      }
+    },
+    {
+      "resource": "contactField",
+      "operation": "delete",
+      "title": "Delete a contact field",
+      "method": "DELETE",
+      "path": "/contactfields/{{ p.contactFieldId }}",
+      "fields": [
+        {
+          "key": "contactFieldId",
+          "label": "Contact field ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "contactField",
+      "operation": "get",
+      "title": "Get a contact field",
+      "method": "GET",
+      "path": "/contactfields/{{ p.contactFieldId }}",
+      "fields": [
+        {
+          "key": "contactFieldId",
+          "label": "Contact field ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "contactField",
+      "operation": "update",
+      "title": "Update a contact field",
+      "method": "PUT",
+      "path": "/contactfields/{{ p.contactFieldId }}",
+      "fields": [
+        {
+          "key": "contactFieldId",
+          "label": "Contact field ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "contactFieldTypeId",
+          "label": "Contact field type ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "data",
+          "label": "Value",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "data"
+      },
+      "body": {
+        "contact_field_type_id": "{{ p.contactFieldTypeId }}",
+        "contact_id": "{{ p.contactId }}",
+        "data": "{{ p.data }}"
+      }
+    },
+    {
+      "resource": "contactTag",
+      "operation": "add",
+      "title": "Add tags to a contact",
+      "method": "POST",
+      "path": "/contacts/{{ p.contactId }}/setTags",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "tagsToAdd",
+          "label": "Tags",
+          "type": "array",
+          "required": true,
+          "item_type": "text"
+        }
+      ],
+      "output": {
+        "path": "data"
+      },
+      "body": {
+        "tags": "{{ p.tagsToAdd }}"
+      }
+    },
+    {
+      "resource": "contactTag",
+      "operation": "remove",
+      "title": "Remove tags from a contact",
+      "method": "POST",
+      "path": "/contacts/{{ p.contactId }}/unsetTag",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "tagsToRemove",
+          "label": "Tag IDs",
+          "type": "array",
+          "required": true,
+          "item_type": "text"
+        }
+      ],
+      "body": {
+        "tags": "{{ p.tagsToRemove }}"
+      }
+    },
+    {
+      "resource": "conversation",
+      "operation": "create",
+      "title": "Create a conversation",
+      "method": "POST",
+      "path": "/conversations",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "contactFieldTypeId",
+          "label": "Contact field type ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "happenedAt",
+          "label": "Happened at",
+          "type": "datetime",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "data"
+      },
+      "body": {
+        "contact_field_type_id": "{{ p.contactFieldTypeId }}",
+        "contact_id": "{{ p.contactId }}",
+        "happened_at": "{{ p.happenedAt }}"
+      }
+    },
+    {
+      "resource": "conversation",
+      "operation": "delete",
+      "title": "Delete a conversation",
+      "method": "DELETE",
+      "path": "/conversations/{{ p.conversationId }}",
+      "fields": [
+        {
+          "key": "conversationId",
+          "label": "Conversation ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "conversation",
+      "operation": "get",
+      "title": "Get a conversation",
+      "method": "GET",
+      "path": "/conversations/{{ p.conversationId }}",
+      "fields": [
+        {
+          "key": "conversationId",
+          "label": "Conversation ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "conversation",
+      "operation": "update",
+      "title": "Update a conversation",
+      "method": "PUT",
+      "path": "/conversations/{{ p.conversationId }}",
+      "fields": [
+        {
+          "key": "conversationId",
+          "label": "Conversation ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "contactFieldTypeId",
+          "label": "Contact field type ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "happenedAt",
+          "label": "Happened at",
+          "type": "datetime",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "data"
+      },
+      "body": {
+        "contact_field_type_id": "{{ p.contactFieldTypeId }}",
+        "happened_at": "{{ p.happenedAt }}"
+      }
+    },
+    {
+      "resource": "conversationMessage",
+      "operation": "add",
+      "title": "Add a message to a conversation",
+      "method": "POST",
+      "path": "/conversations/{{ p.conversationId }}/messages",
+      "fields": [
+        {
+          "key": "conversationId",
+          "label": "Conversation ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "content",
+          "label": "Content",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "key": "writtenAt",
+          "label": "Written at",
+          "type": "datetime",
+          "required": true
+        },
+        {
+          "key": "writtenByMe",
+          "label": "Written by",
+          "type": "select",
+          "default": "true",
+          "options": [
+            "true",
+            "false"
+          ],
+          "help": "true: you; false: the contact"
+        }
+      ],
+      "output": {
+        "path": "data"
+      },
+      "before": {
+        "method": "GET",
+        "path": "/conversations/{{ p.conversationId }}"
+      },
+      "body": {
+        "contact_id": "{{ pre.data.contact.id }}",
+        "content": "{{ p.content }}",
+        "written_at": "{{ p.writtenAt }}",
+        "written_by_me": "{{ p.writtenByMe | bool }}"
+      }
+    },
+    {
+      "resource": "conversationMessage",
+      "operation": "update",
+      "title": "Update a conversation message",
+      "method": "PUT",
+      "path": "/conversations/{{ p.conversationId }}/messages/{{ p.messageId }}",
+      "fields": [
+        {
+          "key": "messageId",
+          "label": "Message ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "conversationId",
+          "label": "Conversation ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "contact_id",
+            "content",
+            "written_at",
+            "written_by_me"
+          ]
+        }
+      ],
+      "output": {
+        "path": "data"
+      },
+      "before": {
+        "method": "GET",
+        "path": "/conversations/{{ p.conversationId }}"
+      },
+      "body": {
+        "contact_id": "{{ p.updateFields.contact_id | default:pre.data.contact.id }}",
+        "content": "{{ p.updateFields.content | default:(pre.data.messages | find:'id',p.messageId | get:'content') }}",
+        "written_at": "{{ p.updateFields.written_at | default:(pre.data.messages | find:'id',p.messageId | get:'written_at') }}",
+        "written_by_me": "{{ p.updateFields.written_by_me | default:(pre.data.messages | find:'id',p.messageId | get:'written_by_me') | bool }}"
+      }
+    },
+    {
+      "resource": "journalEntry",
+      "operation": "create",
+      "title": "Create a journal entry",
+      "method": "POST",
+      "path": "/journal",
+      "fields": [
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "post",
+          "label": "Content",
+          "type": "textarea",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "data"
+      },
+      "body": {
+        "title": "{{ p.title }}",
+        "post": "{{ p.post }}"
+      }
+    },
+    {
+      "resource": "journalEntry",
+      "operation": "delete",
+      "title": "Delete a journal entry",
+      "method": "DELETE",
+      "path": "/journal/{{ p.journalId }}",
+      "fields": [
+        {
+          "key": "journalId",
+          "label": "Journal entry ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "journalEntry",
+      "operation": "get",
+      "title": "Get a journal entry",
+      "method": "GET",
+      "path": "/journal/{{ p.journalId }}",
+      "fields": [
+        {
+          "key": "journalId",
+          "label": "Journal entry ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "journalEntry",
+      "operation": "getAll",
+      "title": "Get many journal entrys",
+      "method": "GET",
+      "path": "/journal",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "start_page": 1,
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": "data"
+      }
+    },
+    {
+      "resource": "journalEntry",
+      "operation": "update",
+      "title": "Update a journal entry",
+      "method": "PUT",
+      "path": "/journal/{{ p.journalId }}",
+      "fields": [
+        {
+          "key": "journalId",
+          "label": "Journal entry ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "post",
+            "title"
+          ]
+        }
+      ],
+      "output": {
+        "path": "data"
+      },
+      "body": {
+        "post": "{{ p.updateFields.post | default:pre.data.post }}",
+        "title": "{{ p.updateFields.title | default:pre.data.title }}"
+      },
+      "before": {
+        "method": "GET",
+        "path": "/journal/{{ p.journalId }}"
+      }
+    },
+    {
+      "resource": "note",
+      "operation": "create",
+      "title": "Create a note",
+      "method": "POST",
+      "path": "/notes",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "body",
+          "label": "Body",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "isFavorited"
+          ]
+        }
+      ],
+      "output": {
+        "path": "data"
+      },
+      "body": {
+        "body": "{{ p.body }}",
+        "contact_id": "{{ p.contactId }}",
+        "is_favorited": "{{ p.additionalFields.isFavorited | default:false }}"
+      }
+    },
+    {
+      "resource": "note",
+      "operation": "delete",
+      "title": "Delete a note",
+      "method": "DELETE",
+      "path": "/notes/{{ p.noteId }}",
+      "fields": [
+        {
+          "key": "noteId",
+          "label": "Note ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "note",
+      "operation": "get",
+      "title": "Get a note",
+      "method": "GET",
+      "path": "/notes/{{ p.noteId }}",
+      "fields": [
+        {
+          "key": "noteId",
+          "label": "Note ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "note",
+      "operation": "getAll",
+      "title": "Get many notes",
+      "method": "GET",
+      "path": "/notes",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "start_page": 1,
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": "data"
+      }
+    },
+    {
+      "resource": "note",
+      "operation": "update",
+      "title": "Update a note",
+      "method": "PUT",
+      "path": "/notes/{{ p.noteId }}",
+      "fields": [
+        {
+          "key": "noteId",
+          "label": "Note ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "body",
+            "contact_id",
+            "is_favorited"
+          ]
+        }
+      ],
+      "output": {
+        "path": "data"
+      },
+      "body": {
+        "body": "{{ p.updateFields.body | default:pre.data.body }}",
+        "contact_id": "{{ p.updateFields.contact_id | default:pre.data.contact.id }}",
+        "is_favorited": "{{ p.updateFields.is_favorited }}"
+      },
+      "before": {
+        "method": "GET",
+        "path": "/notes/{{ p.noteId }}"
+      }
+    },
+    {
+      "resource": "reminder",
+      "operation": "create",
+      "title": "Create a reminder",
+      "method": "POST",
+      "path": "/reminders",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "frequencyType",
+          "label": "Frequency",
+          "type": "select",
+          "required": true,
+          "default": "one_time",
+          "options": [
+            "one_time",
+            "week",
+            "month",
+            "year"
+          ]
+        },
+        {
+          "key": "frequencyNumber",
+          "label": "Every",
+          "type": "number",
+          "default": 1
+        },
+        {
+          "key": "initialDate",
+          "label": "Initial date",
+          "type": "datetime",
+          "required": true
+        },
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "description"
+          ]
+        }
+      ],
+      "output": {
+        "path": "data"
+      },
+      "body": {
+        "contact_id": "{{ p.contactId }}",
+        "frequency_type": "{{ p.frequencyType }}",
+        "frequency_number": "{{ p.frequencyNumber | default:1 }}",
+        "initial_date": "{{ p.initialDate | date:'YYYY-MM-DD' }}",
+        "title": "{{ p.title }}",
+        "$merge": "{{ p.additionalFields }}"
+      }
+    },
+    {
+      "resource": "reminder",
+      "operation": "delete",
+      "title": "Delete a reminder",
+      "method": "DELETE",
+      "path": "/reminders/{{ p.reminderId }}",
+      "fields": [
+        {
+          "key": "reminderId",
+          "label": "Reminder ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "reminder",
+      "operation": "get",
+      "title": "Get a reminder",
+      "method": "GET",
+      "path": "/reminders/{{ p.reminderId }}",
+      "fields": [
+        {
+          "key": "reminderId",
+          "label": "Reminder ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "reminder",
+      "operation": "getAll",
+      "title": "Get many reminders",
+      "method": "GET",
+      "path": "/reminders",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "start_page": 1,
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": "data"
+      }
+    },
+    {
+      "resource": "reminder",
+      "operation": "update",
+      "title": "Update a reminder",
+      "method": "PUT",
+      "path": "/reminders/{{ p.reminderId }}",
+      "fields": [
+        {
+          "key": "reminderId",
+          "label": "Reminder ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "contact_id",
+            "description",
+            "frequency_number",
+            "frequency_type",
+            "initial_data",
+            "title"
+          ]
+        }
+      ],
+      "output": {
+        "path": "data"
+      },
+      "body": {
+        "contact_id": "{{ p.updateFields.contact_id | default:pre.data.contact.id }}",
+        "frequency_type": "{{ p.updateFields.frequency_type | default:pre.data.frequency_type }}",
+        "frequency_number": "{{ p.updateFields.frequency_number | default:pre.data.frequency_number }}",
+        "initial_date": "{{ p.updateFields.initial_data | default:pre.data.initial_date | date:'YYYY-MM-DD' }}",
+        "title": "{{ p.updateFields.title | default:pre.data.title }}",
+        "description": "{{ p.updateFields.description }}"
+      },
+      "before": {
+        "method": "GET",
+        "path": "/reminders/{{ p.reminderId }}"
+      }
+    },
+    {
+      "resource": "tag",
+      "operation": "create",
+      "title": "Create a tag",
+      "method": "POST",
+      "path": "/tags",
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "data"
+      },
+      "body": {
+        "name": "{{ p.name }}"
+      }
+    },
+    {
+      "resource": "tag",
+      "operation": "delete",
+      "title": "Delete a tag",
+      "method": "DELETE",
+      "path": "/tags/{{ p.tagId }}",
+      "fields": [
+        {
+          "key": "tagId",
+          "label": "Tag ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "tag",
+      "operation": "get",
+      "title": "Get a tag",
+      "method": "GET",
+      "path": "/tags/{{ p.tagId }}",
+      "fields": [
+        {
+          "key": "tagId",
+          "label": "Tag ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "tag",
+      "operation": "getAll",
+      "title": "Get many tags",
+      "method": "GET",
+      "path": "/tags",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "start_page": 1,
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": "data"
+      }
+    },
+    {
+      "resource": "tag",
+      "operation": "update",
+      "title": "Update a tag",
+      "method": "PUT",
+      "path": "/tags/{{ p.tagId }}",
+      "fields": [
+        {
+          "key": "tagId",
+          "label": "Tag ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "data"
+      },
+      "body": {
+        "name": "{{ p.name }}"
+      }
+    },
+    {
+      "resource": "task",
+      "operation": "create",
+      "title": "Create a task",
+      "method": "POST",
+      "path": "/tasks",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "description"
+          ]
+        }
+      ],
+      "output": {
+        "path": "data"
+      },
+      "body": {
+        "contact_id": "{{ p.contactId }}",
+        "title": "{{ p.title }}",
+        "$merge": "{{ p.additionalFields }}"
+      }
+    },
+    {
+      "resource": "task",
+      "operation": "delete",
+      "title": "Delete a task",
+      "method": "DELETE",
+      "path": "/tasks/{{ p.taskId }}",
+      "fields": [
+        {
+          "key": "taskId",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "task",
+      "operation": "get",
+      "title": "Get a task",
+      "method": "GET",
+      "path": "/tasks/{{ p.taskId }}",
+      "fields": [
+        {
+          "key": "taskId",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "task",
+      "operation": "getAll",
+      "title": "Get many tasks",
+      "method": "GET",
+      "path": "/tasks",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "start_page": 1,
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": "data"
+      }
+    },
+    {
+      "resource": "task",
+      "operation": "update",
+      "title": "Update a task",
+      "method": "PUT",
+      "path": "/tasks/{{ p.taskId }}",
+      "fields": [
+        {
+          "key": "taskId",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "completed",
+            "contactId",
+            "description",
+            "title"
+          ]
+        }
+      ],
+      "output": {
+        "path": "data"
+      },
+      "body": {
+        "contact_id": "{{ p.updateFields.contactId | default:pre.data.contact.id }}",
+        "title": "{{ p.updateFields.title | default:pre.data.title }}",
+        "completed": "{{ p.updateFields.completed | default:pre.data.completed }}",
+        "description": "{{ p.updateFields.description }}"
+      },
+      "before": {
+        "method": "GET",
+        "path": "/tasks/{{ p.taskId }}"
+      }
+    }
+  ]
+}

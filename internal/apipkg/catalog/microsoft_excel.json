@@ -1,0 +1,1551 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "microsoft_excel",
+  "node_type": "app.microsoft_excel",
+  "title": "Microsoft Excel (OneDrive)",
+  "description": "Workbooks, sheets and tables of Excel files in OneDrive (Microsoft Graph)",
+  "category": "app",
+  "docs_url": "https://learn.microsoft.com/en-us/graph/api/resources/excel",
+  "n8n_types": [
+    "n8n-nodes-base.microsoftExcel"
+  ],
+  "base_url": "https://graph.microsoft.com/v1.0",
+  "credentials": [
+    {
+      "platform": "microsoft",
+      "name": "Microsoft 365 (Excel in OneDrive)",
+      "n8n_credential": "microsoftExcelOAuth2Api",
+      "n8n_credential_alt": [
+        "microsoftOAuth2Api"
+      ],
+      "methods": [
+        "oauth"
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      },
+      "reuse_platform": "microsoft",
+      "scope_group": "files"
+    },
+    {
+      "platform": "microsoft_entra_app",
+      "name": "Microsoft Entra app (app-only Graph)",
+      "n8n_credential": "microsoftEntraServicePrincipalApi",
+      "n8n_field_map": {
+        "tenantId": "tenant_id",
+        "clientId": "client_id",
+        "clientSecret": "client_secret"
+      },
+      "methods": [
+        "client_credentials"
+      ],
+      "fields": [
+        {
+          "key": "tenant_id",
+          "label": "Tenant ID",
+          "required": true,
+          "help": "Directory (tenant) GUID or a verified domain such as contoso.onmicrosoft.com."
+        },
+        {
+          "key": "client_id",
+          "label": "Application (client) ID",
+          "required": true
+        },
+        {
+          "key": "client_secret",
+          "label": "Client secret",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "oauth": {
+        "token_url": "https://login.microsoftonline.com/{{ cred.tenant_id }}/oauth2/v2.0/token",
+        "scopes": [
+          "https://graph.microsoft.com/.default"
+        ]
+      },
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "workbook",
+      "label": "Workbook"
+    },
+    {
+      "value": "worksheet",
+      "label": "Sheet"
+    },
+    {
+      "value": "table",
+      "label": "Table"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "workbook",
+      "operation": "getAll",
+      "title": "Get many workbooks",
+      "method": "GET",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.resourceTarget | eq:'drive' | then:'/drives/' }}{{ p.resourceTarget | eq:'drive' | then:(p.driveTarget | rl) }}{{ p.resourceTarget | ne:'drive' | then:(p.userTarget | rl | prefix:'/users/' | default:'/me') }}{{ p.resourceTarget | ne:'drive' | then:'/drive' }}",
+      "path": "/root/search(q='.xlsx')",
+      "fields": [
+        {
+          "key": "resourceTarget",
+          "label": "App-only target",
+          "type": "select",
+          "default": "user",
+          "options": [
+            "user",
+            "drive"
+          ],
+          "help": "Only with an Entra app connection: act on a user's OneDrive or on a drive by ID."
+        },
+        {
+          "key": "userTarget",
+          "label": "User (app-only)",
+          "type": "text",
+          "help": "Entra app connection: the user's principal name or object ID. Leave empty to use your own OneDrive."
+        },
+        {
+          "key": "driveTarget",
+          "label": "Drive ID (app-only)",
+          "type": "text",
+          "help": "Entra app connection with target drive: the drive's ID."
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1,
+          "max": 500
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fields"
+          ],
+          "help": "fields: $select, comma separated."
+        }
+      ],
+      "query": {
+        "$select": "{{ p.filters.fields }}"
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "@odata.nextLink",
+        "results_path": "value",
+        "limit_param": "$top",
+        "page_size": 100
+      }
+    },
+    {
+      "resource": "workbook",
+      "operation": "addWorksheet",
+      "title": "Add a sheet",
+      "method": "POST",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.resourceTarget | eq:'drive' | then:'/drives/' }}{{ p.resourceTarget | eq:'drive' | then:(p.driveTarget | rl) }}{{ p.resourceTarget | ne:'drive' | then:(p.userTarget | rl | prefix:'/users/' | default:'/me') }}{{ p.resourceTarget | ne:'drive' | then:'/drive' }}",
+      "path": "/items/{{ p.workbook | rl }}/workbook/worksheets/add",
+      "fields": [
+        {
+          "key": "resourceTarget",
+          "label": "App-only target",
+          "type": "select",
+          "default": "user",
+          "options": [
+            "user",
+            "drive"
+          ],
+          "help": "Only with an Entra app connection: act on a user's OneDrive or on a drive by ID."
+        },
+        {
+          "key": "userTarget",
+          "label": "User (app-only)",
+          "type": "text",
+          "help": "Entra app connection: the user's principal name or object ID. Leave empty to use your own OneDrive."
+        },
+        {
+          "key": "driveTarget",
+          "label": "Drive ID (app-only)",
+          "type": "text",
+          "help": "Entra app connection with target drive: the drive's ID."
+        },
+        {
+          "key": "workbook",
+          "label": "Workbook ID",
+          "type": "text",
+          "required": true,
+          "help": "The workbook file's drive item ID."
+        },
+        {
+          "key": "additionalFields",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "name"
+          ],
+          "help": "name: the new sheet's name (Excel picks one when empty)."
+        }
+      ],
+      "body": {
+        "name": "{{ p.additionalFields.name }}"
+      }
+    },
+    {
+      "resource": "workbook",
+      "operation": "deleteWorkbook",
+      "title": "Delete a workbook",
+      "method": "DELETE",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.resourceTarget | eq:'drive' | then:'/drives/' }}{{ p.resourceTarget | eq:'drive' | then:(p.driveTarget | rl) }}{{ p.resourceTarget | ne:'drive' | then:(p.userTarget | rl | prefix:'/users/' | default:'/me') }}{{ p.resourceTarget | ne:'drive' | then:'/drive' }}",
+      "path": "/items/{{ p.workbook | rl }}",
+      "fields": [
+        {
+          "key": "resourceTarget",
+          "label": "App-only target",
+          "type": "select",
+          "default": "user",
+          "options": [
+            "user",
+            "drive"
+          ],
+          "help": "Only with an Entra app connection: act on a user's OneDrive or on a drive by ID."
+        },
+        {
+          "key": "userTarget",
+          "label": "User (app-only)",
+          "type": "text",
+          "help": "Entra app connection: the user's principal name or object ID. Leave empty to use your own OneDrive."
+        },
+        {
+          "key": "driveTarget",
+          "label": "Drive ID (app-only)",
+          "type": "text",
+          "help": "Entra app connection with target drive: the drive's ID."
+        },
+        {
+          "key": "workbook",
+          "label": "Workbook ID",
+          "type": "text",
+          "required": true,
+          "help": "The workbook file's drive item ID."
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "worksheet",
+      "operation": "getAll",
+      "title": "Get many sheets",
+      "method": "GET",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.resourceTarget | eq:'drive' | then:'/drives/' }}{{ p.resourceTarget | eq:'drive' | then:(p.driveTarget | rl) }}{{ p.resourceTarget | ne:'drive' | then:(p.userTarget | rl | prefix:'/users/' | default:'/me') }}{{ p.resourceTarget | ne:'drive' | then:'/drive' }}",
+      "path": "/items/{{ p.workbook | rl }}/workbook/worksheets",
+      "fields": [
+        {
+          "key": "resourceTarget",
+          "label": "App-only target",
+          "type": "select",
+          "default": "user",
+          "options": [
+            "user",
+            "drive"
+          ],
+          "help": "Only with an Entra app connection: act on a user's OneDrive or on a drive by ID."
+        },
+        {
+          "key": "userTarget",
+          "label": "User (app-only)",
+          "type": "text",
+          "help": "Entra app connection: the user's principal name or object ID. Leave empty to use your own OneDrive."
+        },
+        {
+          "key": "driveTarget",
+          "label": "Drive ID (app-only)",
+          "type": "text",
+          "help": "Entra app connection with target drive: the drive's ID."
+        },
+        {
+          "key": "workbook",
+          "label": "Workbook ID",
+          "type": "text",
+          "required": true,
+          "help": "The workbook file's drive item ID."
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1,
+          "max": 500
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fields"
+          ],
+          "help": "fields: $select, comma separated."
+        }
+      ],
+      "query": {
+        "$select": "{{ p.filters.fields }}"
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "@odata.nextLink",
+        "results_path": "value",
+        "limit_param": "$top",
+        "page_size": 100
+      }
+    },
+    {
+      "resource": "worksheet",
+      "operation": "append",
+      "title": "Append a row",
+      "method": "PATCH",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.resourceTarget | eq:'drive' | then:'/drives/' }}{{ p.resourceTarget | eq:'drive' | then:(p.driveTarget | rl) }}{{ p.resourceTarget | ne:'drive' | then:(p.userTarget | rl | prefix:'/users/' | default:'/me') }}{{ p.resourceTarget | ne:'drive' | then:'/drive' }}",
+      "path": "/items/{{ p.workbook | rl }}/workbook/worksheets/{{ p.worksheet | rl }}/range(address='{{ pre.address | re:'!([A-Z]+)' }}{{ pre.address | re:'([0-9]+)$' | int | add:1 }}:{{ p.dataMode | eq:'raw' | then:(pre.address | re:'!([A-Z]+)' | colnum | add:(p.data | fromjson | get:'0' | len | default:1) | sub:1 | colname) | default:(pre.address | re:':([A-Z]+)[0-9]+$') }}{{ pre.address | re:'([0-9]+)$' | int | add:(p.dataMode | eq:'raw' | then:(p.data | fromjson | len) | default:1) }}')",
+      "fields": [
+        {
+          "key": "resourceTarget",
+          "label": "App-only target",
+          "type": "select",
+          "default": "user",
+          "options": [
+            "user",
+            "drive"
+          ],
+          "help": "Only with an Entra app connection: act on a user's OneDrive or on a drive by ID."
+        },
+        {
+          "key": "userTarget",
+          "label": "User (app-only)",
+          "type": "text",
+          "help": "Entra app connection: the user's principal name or object ID. Leave empty to use your own OneDrive."
+        },
+        {
+          "key": "driveTarget",
+          "label": "Drive ID (app-only)",
+          "type": "text",
+          "help": "Entra app connection with target drive: the drive's ID."
+        },
+        {
+          "key": "workbook",
+          "label": "Workbook ID",
+          "type": "text",
+          "required": true,
+          "help": "The workbook file's drive item ID."
+        },
+        {
+          "key": "worksheet",
+          "label": "Sheet ID or name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "dataMode",
+          "label": "Data mode",
+          "type": "select",
+          "default": "define",
+          "options": [
+            "autoMap",
+            "define",
+            "raw"
+          ],
+          "help": "autoMap: item keys matched to the header row; define: the columns in Values to send; raw: Data as an array of row arrays."
+        },
+        {
+          "key": "data",
+          "label": "Data (raw)",
+          "type": "json",
+          "help": "One row as [[\"a\",\"b\"]] — raw mode appends a single row per item."
+        },
+        {
+          "key": "fieldsUi",
+          "label": "Values to send",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "values"
+          ],
+          "help": "{values: [{column, fieldValue}]} — used with data mode define."
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "rawData",
+            "dataProperty",
+            "fields"
+          ],
+          "help": "rawData: return Graph's range object instead of one item per row; fields: $select for the raw object."
+        }
+      ],
+      "description": "Writes one row per input item below the sheet's used range, ordered by its header row (raw mode: every row of Data, starting at the used range's first column).",
+      "before": {
+        "method": "GET",
+        "path": "/items/{{ p.workbook | rl }}/workbook/worksheets/{{ p.worksheet | rl }}/usedRange",
+        "base_url": "https://graph.microsoft.com/v1.0{{ p.resourceTarget | eq:'drive' | then:'/drives/' }}{{ p.resourceTarget | eq:'drive' | then:(p.driveTarget | rl) }}{{ p.resourceTarget | ne:'drive' | then:(p.userTarget | rl | prefix:'/users/' | default:'/me') }}{{ p.resourceTarget | ne:'drive' | then:'/drive' }}"
+      },
+      "body": {
+        "values": {
+          "$concat": [
+            "{{ p.dataMode | eq:'raw' | then:(p.data | fromjson) }}",
+            {
+              "$map": "{{ p.dataMode | ne:'raw' | then:'x' | split }}",
+              "$to": "{{ p.dataMode | eq:'autoMap' | then:(item | row:pre.values) | default:(p.fieldsUi.values | kv:'column,fieldValue' | row:pre.values) }}"
+            }
+          ]
+        }
+      },
+      "output": {
+        "path": "{{ p.options.rawData | default:false | ne:'true' | then:'values' }}",
+        "to": {
+          "$merge": "{{ el | zip:pre.values.0 }}"
+        },
+        "to_when": "{{ p.options.rawData | default:false | ne:'true' }}"
+      }
+    },
+    {
+      "resource": "worksheet",
+      "operation": "upsert",
+      "title": "Append or update a row",
+      "method": "PATCH",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.resourceTarget | eq:'drive' | then:'/drives/' }}{{ p.resourceTarget | eq:'drive' | then:(p.driveTarget | rl) }}{{ p.resourceTarget | ne:'drive' | then:(p.userTarget | rl | prefix:'/users/' | default:'/me') }}{{ p.resourceTarget | ne:'drive' | then:'/drive' }}",
+      "path": "/items/{{ p.workbook | rl }}/workbook/worksheets/{{ p.worksheet | rl }}/range(address='{{ p.dataMode | ne:'raw' | then:(p.options.updateAll | ne:'true') | then:(pre.address | re:'!([A-Z]+)') }}{{ p.dataMode | ne:'raw' | then:(p.options.updateAll | ne:'true') | then:((pre.values | find_row:p.columnToMatchOn,(p.dataMode | eq:'define' | then:p.valueToMatchOn | default:item)) | add:(pre.address | re:'![A-Z]+([0-9]+)' | int) | sub:1 | default:(pre.address | re:'([0-9]+)$' | int | add:1)) }}{{ p.dataMode | ne:'raw' | then:(p.options.updateAll | eq:'true') | then:(pre.address | re:'!([A-Z]+[0-9]+)') }}{{ p.dataMode | ne:'raw' | then:':' }}{{ p.dataMode | ne:'raw' | then:(pre.address | re:':([A-Z]+)[0-9]+$') }}{{ p.dataMode | ne:'raw' | then:(p.options.updateAll | ne:'true') | then:((pre.values | find_row:p.columnToMatchOn,(p.dataMode | eq:'define' | then:p.valueToMatchOn | default:item)) | add:(pre.address | re:'![A-Z]+([0-9]+)' | int) | sub:1 | default:(pre.address | re:'([0-9]+)$' | int | add:1)) }}{{ p.dataMode | ne:'raw' | then:(p.options.updateAll | eq:'true') | then:((pre.address | re:'([0-9]+)$' | int) | add:((pre.values | find_row:p.columnToMatchOn,(p.dataMode | eq:'define' | then:p.valueToMatchOn | default:item)) | then:0 | default:1)) }}{{ p.dataMode | eq:'raw' | then:(p.range | default:(pre.address | re:'!(.*)$')) }}')",
+      "fields": [
+        {
+          "key": "resourceTarget",
+          "label": "App-only target",
+          "type": "select",
+          "default": "user",
+          "options": [
+            "user",
+            "drive"
+          ],
+          "help": "Only with an Entra app connection: act on a user's OneDrive or on a drive by ID."
+        },
+        {
+          "key": "userTarget",
+          "label": "User (app-only)",
+          "type": "text",
+          "help": "Entra app connection: the user's principal name or object ID. Leave empty to use your own OneDrive."
+        },
+        {
+          "key": "driveTarget",
+          "label": "Drive ID (app-only)",
+          "type": "text",
+          "help": "Entra app connection with target drive: the drive's ID."
+        },
+        {
+          "key": "workbook",
+          "label": "Workbook ID",
+          "type": "text",
+          "required": true,
+          "help": "The workbook file's drive item ID."
+        },
+        {
+          "key": "worksheet",
+          "label": "Sheet ID or name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "useRange",
+          "label": "Select a range",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "range",
+          "label": "Range",
+          "type": "text",
+          "help": "A1-style range, e.g. A1:D20; empty = the used range."
+        },
+        {
+          "key": "dataMode",
+          "label": "Data mode",
+          "type": "select",
+          "default": "define",
+          "options": [
+            "autoMap",
+            "define",
+            "raw"
+          ],
+          "help": "autoMap: item keys matched to the header row; define: the columns in Values to send; raw: Data as an array of row arrays."
+        },
+        {
+          "key": "columnToMatchOn",
+          "label": "Column to match on",
+          "type": "text"
+        },
+        {
+          "key": "valueToMatchOn",
+          "label": "Value to match on",
+          "type": "text",
+          "help": "With data mode define; autoMap reads the value from the item."
+        },
+        {
+          "key": "fieldsUi",
+          "label": "Values to send",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "values"
+          ],
+          "help": "{values: [{column, fieldValue}]} — used with data mode define."
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "rawData",
+            "dataProperty",
+            "updateAll",
+            "appendAfterSelectedRange"
+          ],
+          "help": "Updates the first row whose match column equals the value (with updateAll: every such row); when none matches the row is appended below the range."
+        }
+      ],
+      "before": {
+        "method": "GET",
+        "path": "/items/{{ p.workbook | rl }}/workbook/worksheets/{{ p.worksheet | rl }}/{{ p.range | then:'range' | default:'usedRange' }}{{ p.range | then:\"(address='\" }}{{ p.range }}{{ p.range | then:\"')\" }}",
+        "base_url": "https://graph.microsoft.com/v1.0{{ p.resourceTarget | eq:'drive' | then:'/drives/' }}{{ p.resourceTarget | eq:'drive' | then:(p.driveTarget | rl) }}{{ p.resourceTarget | ne:'drive' | then:(p.userTarget | rl | prefix:'/users/' | default:'/me') }}{{ p.resourceTarget | ne:'drive' | then:'/drive' }}"
+      },
+      "body": {
+        "values": {
+          "$concat": [
+            {
+              "$map": "{{ p.dataMode | ne:'raw' | then:(p.options.updateAll | ne:'true') | then:'x' | split }}",
+              "$to": "{{ (pre.values | find_row:p.columnToMatchOn,(p.dataMode | eq:'define' | then:p.valueToMatchOn | default:item)) | then:(p.dataMode | eq:'autoMap' | then:(item | row:pre.values,'null') | default:(p.fieldsUi.values | kv:'column,fieldValue' | row:pre.values,'null')) | default:(p.dataMode | eq:'autoMap' | then:(item | row:pre.values,'null') | default:(p.fieldsUi.values | kv:'column,fieldValue' | set:p.columnToMatchOn,p.valueToMatchOn | row:pre.values,'null')) }}"
+            },
+            {
+              "$map": "{{ p.dataMode | ne:'raw' | then:(p.options.updateAll | eq:'true') | then:pre.values }}",
+              "$to": "{{ el | zip:pre.values.0 | get:p.columnToMatchOn | eq:(p.dataMode | eq:'define' | then:p.valueToMatchOn | default:(item | get:p.columnToMatchOn)) | then:(idx | ne:'0' | then:(p.dataMode | eq:'autoMap' | then:(item | row:pre.values,'null') | default:(p.fieldsUi.values | kv:'column,fieldValue' | row:pre.values,'null'))) | default:el }}"
+            },
+            {
+              "$map": "{{ p.dataMode | ne:'raw' | then:(p.options.updateAll | eq:'true') | then:((pre.values | find_row:p.columnToMatchOn,(p.dataMode | eq:'define' | then:p.valueToMatchOn | default:item)) | not) | then:'x' | split }}",
+              "$to": "{{ p.dataMode | eq:'autoMap' | then:(item | row:pre.values,'null') | default:(p.fieldsUi.values | kv:'column,fieldValue' | set:p.columnToMatchOn,p.valueToMatchOn | row:pre.values,'null') }}"
+            }
+          ]
+        }
+      },
+      "output": {
+        "path": "{{ p.options.rawData | default:false | ne:'true' | then:'values' }}",
+        "to": {
+          "$merge": "{{ el | zip:pre.values.0 }}"
+        },
+        "to_when": "{{ p.options.rawData | default:false | ne:'true' }}",
+        "where": "{{ p.options.updateAll | ne:'true' | default:(p.dataMode | eq:'raw') | default:(p.options.rawData | eq:'true') | default:(el | zip:pre.values.0 | get:p.columnToMatchOn | eq:(p.dataMode | eq:'define' | then:p.valueToMatchOn | default:(item | get:p.columnToMatchOn))) }}"
+      }
+    },
+    {
+      "resource": "worksheet",
+      "operation": "clear",
+      "title": "Clear a sheet or range",
+      "method": "POST",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.resourceTarget | eq:'drive' | then:'/drives/' }}{{ p.resourceTarget | eq:'drive' | then:(p.driveTarget | rl) }}{{ p.resourceTarget | ne:'drive' | then:(p.userTarget | rl | prefix:'/users/' | default:'/me') }}{{ p.resourceTarget | ne:'drive' | then:'/drive' }}",
+      "path": "/items/{{ p.workbook | rl }}/workbook/worksheets/{{ p.worksheet | rl }}/range{{ p.range | then:\"(address='\" }}{{ p.range }}{{ p.range | then:\"')\" }}/clear",
+      "fields": [
+        {
+          "key": "resourceTarget",
+          "label": "App-only target",
+          "type": "select",
+          "default": "user",
+          "options": [
+            "user",
+            "drive"
+          ],
+          "help": "Only with an Entra app connection: act on a user's OneDrive or on a drive by ID."
+        },
+        {
+          "key": "userTarget",
+          "label": "User (app-only)",
+          "type": "text",
+          "help": "Entra app connection: the user's principal name or object ID. Leave empty to use your own OneDrive."
+        },
+        {
+          "key": "driveTarget",
+          "label": "Drive ID (app-only)",
+          "type": "text",
+          "help": "Entra app connection with target drive: the drive's ID."
+        },
+        {
+          "key": "workbook",
+          "label": "Workbook ID",
+          "type": "text",
+          "required": true,
+          "help": "The workbook file's drive item ID."
+        },
+        {
+          "key": "worksheet",
+          "label": "Sheet ID or name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "applyTo",
+          "label": "Apply to",
+          "type": "select",
+          "default": "All",
+          "options": [
+            "All",
+            "Formats",
+            "Contents"
+          ]
+        },
+        {
+          "key": "useRange",
+          "label": "Select a range",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "range",
+          "label": "Range",
+          "type": "text",
+          "help": "A1-style range; empty = the whole sheet."
+        }
+      ],
+      "body": {
+        "applyTo": "{{ p.applyTo }}"
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "worksheet",
+      "operation": "deleteWorksheet",
+      "title": "Delete a sheet",
+      "method": "DELETE",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.resourceTarget | eq:'drive' | then:'/drives/' }}{{ p.resourceTarget | eq:'drive' | then:(p.driveTarget | rl) }}{{ p.resourceTarget | ne:'drive' | then:(p.userTarget | rl | prefix:'/users/' | default:'/me') }}{{ p.resourceTarget | ne:'drive' | then:'/drive' }}",
+      "path": "/items/{{ p.workbook | rl }}/workbook/worksheets/{{ p.worksheet | rl }}",
+      "fields": [
+        {
+          "key": "resourceTarget",
+          "label": "App-only target",
+          "type": "select",
+          "default": "user",
+          "options": [
+            "user",
+            "drive"
+          ],
+          "help": "Only with an Entra app connection: act on a user's OneDrive or on a drive by ID."
+        },
+        {
+          "key": "userTarget",
+          "label": "User (app-only)",
+          "type": "text",
+          "help": "Entra app connection: the user's principal name or object ID. Leave empty to use your own OneDrive."
+        },
+        {
+          "key": "driveTarget",
+          "label": "Drive ID (app-only)",
+          "type": "text",
+          "help": "Entra app connection with target drive: the drive's ID."
+        },
+        {
+          "key": "workbook",
+          "label": "Workbook ID",
+          "type": "text",
+          "required": true,
+          "help": "The workbook file's drive item ID."
+        },
+        {
+          "key": "worksheet",
+          "label": "Sheet ID or name",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "worksheet",
+      "operation": "readRows",
+      "title": "Read rows",
+      "method": "GET",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.resourceTarget | eq:'drive' | then:'/drives/' }}{{ p.resourceTarget | eq:'drive' | then:(p.driveTarget | rl) }}{{ p.resourceTarget | ne:'drive' | then:(p.userTarget | rl | prefix:'/users/' | default:'/me') }}{{ p.resourceTarget | ne:'drive' | then:'/drive' }}",
+      "path": "/items/{{ p.workbook | rl }}/workbook/worksheets/{{ p.worksheet | rl }}/{{ p.range | then:'range' | default:'usedRange' }}{{ p.range | then:\"(address='\" }}{{ p.range }}{{ p.range | then:\"')\" }}",
+      "fields": [
+        {
+          "key": "resourceTarget",
+          "label": "App-only target",
+          "type": "select",
+          "default": "user",
+          "options": [
+            "user",
+            "drive"
+          ],
+          "help": "Only with an Entra app connection: act on a user's OneDrive or on a drive by ID."
+        },
+        {
+          "key": "userTarget",
+          "label": "User (app-only)",
+          "type": "text",
+          "help": "Entra app connection: the user's principal name or object ID. Leave empty to use your own OneDrive."
+        },
+        {
+          "key": "driveTarget",
+          "label": "Drive ID (app-only)",
+          "type": "text",
+          "help": "Entra app connection with target drive: the drive's ID."
+        },
+        {
+          "key": "workbook",
+          "label": "Workbook ID",
+          "type": "text",
+          "required": true,
+          "help": "The workbook file's drive item ID."
+        },
+        {
+          "key": "worksheet",
+          "label": "Sheet ID or name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "useRange",
+          "label": "Select a range",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "range",
+          "label": "Range",
+          "type": "text",
+          "help": "A1-style range, e.g. A1:D20; empty = the used range."
+        },
+        {
+          "key": "keyRow",
+          "label": "Header row",
+          "type": "number",
+          "default": 0,
+          "help": "Only 0 (the range's first row) is supported."
+        },
+        {
+          "key": "dataStartRow",
+          "label": "First data row",
+          "type": "number",
+          "default": 1,
+          "help": "Only 1 is supported."
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "rawData",
+            "dataProperty",
+            "fields"
+          ],
+          "help": "rawData: return Graph's range object instead of one item per row; fields: $select for the raw object."
+        }
+      ],
+      "query": {
+        "$select": "{{ p.options.rawData | then:p.options.fields }}"
+      },
+      "output": {
+        "path": "{{ p.options.rawData | default:false | ne:'true' | then:'values' }}",
+        "header_row": true
+      }
+    },
+    {
+      "resource": "worksheet",
+      "operation": "update",
+      "title": "Update a row",
+      "method": "PATCH",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.resourceTarget | eq:'drive' | then:'/drives/' }}{{ p.resourceTarget | eq:'drive' | then:(p.driveTarget | rl) }}{{ p.resourceTarget | ne:'drive' | then:(p.userTarget | rl | prefix:'/users/' | default:'/me') }}{{ p.resourceTarget | ne:'drive' | then:'/drive' }}",
+      "path": "/items/{{ p.workbook | rl }}/workbook/worksheets/{{ p.worksheet | rl }}/range(address='{{ p.dataMode | ne:'raw' | then:(p.options.updateAll | ne:'true') | then:(pre.address | re:'!([A-Z]+)') }}{{ p.dataMode | ne:'raw' | then:(p.options.updateAll | ne:'true') | then:((pre.values | find_row:p.columnToMatchOn,(p.dataMode | eq:'define' | then:p.valueToMatchOn | default:item) | add:(pre.address | re:'![A-Z]+([0-9]+)' | int) | sub:1)) }}{{ p.dataMode | ne:'raw' | then:(p.options.updateAll | ne:'true') | then:':' }}{{ p.dataMode | ne:'raw' | then:(p.options.updateAll | ne:'true') | then:(pre.address | re:':([A-Z]+)[0-9]+$') }}{{ p.dataMode | ne:'raw' | then:(p.options.updateAll | ne:'true') | then:((pre.values | find_row:p.columnToMatchOn,(p.dataMode | eq:'define' | then:p.valueToMatchOn | default:item) | add:(pre.address | re:'![A-Z]+([0-9]+)' | int) | sub:1)) }}{{ p.dataMode | eq:'raw' | then:(p.range | default:(pre.address | re:'!(.*)$')) }}{{ p.dataMode | ne:'raw' | then:(p.options.updateAll | eq:'true') | then:(pre.address | re:'!(.*)$') }}')",
+      "fields": [
+        {
+          "key": "resourceTarget",
+          "label": "App-only target",
+          "type": "select",
+          "default": "user",
+          "options": [
+            "user",
+            "drive"
+          ],
+          "help": "Only with an Entra app connection: act on a user's OneDrive or on a drive by ID."
+        },
+        {
+          "key": "userTarget",
+          "label": "User (app-only)",
+          "type": "text",
+          "help": "Entra app connection: the user's principal name or object ID. Leave empty to use your own OneDrive."
+        },
+        {
+          "key": "driveTarget",
+          "label": "Drive ID (app-only)",
+          "type": "text",
+          "help": "Entra app connection with target drive: the drive's ID."
+        },
+        {
+          "key": "workbook",
+          "label": "Workbook ID",
+          "type": "text",
+          "required": true,
+          "help": "The workbook file's drive item ID."
+        },
+        {
+          "key": "worksheet",
+          "label": "Sheet ID or name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "useRange",
+          "label": "Select a range",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "range",
+          "label": "Range",
+          "type": "text",
+          "help": "A1-style range, e.g. A1:D20; empty = the used range."
+        },
+        {
+          "key": "dataMode",
+          "label": "Data mode",
+          "type": "select",
+          "default": "define",
+          "options": [
+            "autoMap",
+            "define",
+            "raw"
+          ],
+          "help": "autoMap: item keys matched to the header row; define: the columns in Values to send; raw: Data as an array of row arrays."
+        },
+        {
+          "key": "data",
+          "label": "Data (raw)",
+          "type": "json",
+          "help": "Array of row arrays, e.g. [[\"a\",\"b\"]] — used with data mode raw."
+        },
+        {
+          "key": "columnToMatchOn",
+          "label": "Column to match on",
+          "type": "text"
+        },
+        {
+          "key": "valueToMatchOn",
+          "label": "Value to match on",
+          "type": "text",
+          "help": "With data mode define; autoMap reads the value from the item."
+        },
+        {
+          "key": "fieldsUi",
+          "label": "Values to send",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "values"
+          ],
+          "help": "{values: [{column, fieldValue}]} — used with data mode define."
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "rawData",
+            "dataProperty",
+            "fields",
+            "updateAll"
+          ],
+          "help": "Mapped modes update the first row whose match column equals the value, or with updateAll every such row (the whole range is written back, the updated rows are returned); raw mode writes Data to the range."
+        }
+      ],
+      "before": {
+        "method": "GET",
+        "path": "/items/{{ p.workbook | rl }}/workbook/worksheets/{{ p.worksheet | rl }}/{{ p.range | then:'range' | default:'usedRange' }}{{ p.range | then:\"(address='\" }}{{ p.range }}{{ p.range | then:\"')\" }}",
+        "base_url": "https://graph.microsoft.com/v1.0{{ p.resourceTarget | eq:'drive' | then:'/drives/' }}{{ p.resourceTarget | eq:'drive' | then:(p.driveTarget | rl) }}{{ p.resourceTarget | ne:'drive' | then:(p.userTarget | rl | prefix:'/users/' | default:'/me') }}{{ p.resourceTarget | ne:'drive' | then:'/drive' }}"
+      },
+      "body": {
+        "values": {
+          "$concat": [
+            "{{ p.dataMode | eq:'raw' | then:(p.data | fromjson) }}",
+            {
+              "$map": "{{ p.dataMode | ne:'raw' | then:(p.options.updateAll | ne:'true') | then:'x' | split }}",
+              "$to": "{{ p.dataMode | eq:'autoMap' | then:(item | row:pre.values,'null') | default:(p.fieldsUi.values | kv:'column,fieldValue' | row:pre.values,'null') }}"
+            },
+            {
+              "$map": "{{ p.dataMode | ne:'raw' | then:(p.options.updateAll | eq:'true') | then:pre.values }}",
+              "$to": "{{ el | zip:pre.values.0 | get:p.columnToMatchOn | eq:(p.dataMode | eq:'define' | then:p.valueToMatchOn | default:(item | get:p.columnToMatchOn)) | then:(idx | ne:'0' | then:(p.dataMode | eq:'autoMap' | then:(item | row:pre.values,'null') | default:(p.fieldsUi.values | kv:'column,fieldValue' | row:pre.values,'null'))) | default:el }}"
+            }
+          ]
+        }
+      },
+      "output": {
+        "path": "{{ p.options.rawData | default:false | ne:'true' | then:'values' }}",
+        "to": {
+          "$merge": "{{ el | zip:pre.values.0 }}"
+        },
+        "to_when": "{{ p.options.rawData | default:false | ne:'true' }}",
+        "where": "{{ p.options.updateAll | ne:'true' | default:(p.dataMode | eq:'raw') | default:(p.options.rawData | eq:'true') | default:(el | zip:pre.values.0 | get:p.columnToMatchOn | eq:(p.dataMode | eq:'define' | then:p.valueToMatchOn | default:(item | get:p.columnToMatchOn))) }}"
+      }
+    },
+    {
+      "resource": "table",
+      "operation": "append",
+      "title": "Append rows",
+      "method": "POST",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.resourceTarget | eq:'drive' | then:'/drives/' }}{{ p.resourceTarget | eq:'drive' | then:(p.driveTarget | rl) }}{{ p.resourceTarget | ne:'drive' | then:(p.userTarget | rl | prefix:'/users/' | default:'/me') }}{{ p.resourceTarget | ne:'drive' | then:'/drive' }}",
+      "path": "/items/{{ p.workbook | rl }}/workbook/worksheets/{{ p.worksheet | rl }}/tables/{{ p.table | rl }}/rows/add",
+      "fields": [
+        {
+          "key": "resourceTarget",
+          "label": "App-only target",
+          "type": "select",
+          "default": "user",
+          "options": [
+            "user",
+            "drive"
+          ],
+          "help": "Only with an Entra app connection: act on a user's OneDrive or on a drive by ID."
+        },
+        {
+          "key": "userTarget",
+          "label": "User (app-only)",
+          "type": "text",
+          "help": "Entra app connection: the user's principal name or object ID. Leave empty to use your own OneDrive."
+        },
+        {
+          "key": "driveTarget",
+          "label": "Drive ID (app-only)",
+          "type": "text",
+          "help": "Entra app connection with target drive: the drive's ID."
+        },
+        {
+          "key": "workbook",
+          "label": "Workbook ID",
+          "type": "text",
+          "required": true,
+          "help": "The workbook file's drive item ID."
+        },
+        {
+          "key": "worksheet",
+          "label": "Sheet ID or name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "table",
+          "label": "Table ID or name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "dataMode",
+          "label": "Data mode",
+          "type": "select",
+          "default": "define",
+          "options": [
+            "autoMap",
+            "define",
+            "raw"
+          ],
+          "help": "autoMap: item keys matched to the header row; define: the columns in Values to send; raw: Data as an array of row arrays."
+        },
+        {
+          "key": "data",
+          "label": "Data (raw)",
+          "type": "json",
+          "help": "Array of row arrays, e.g. [[\"a\",\"b\"]] — used with data mode raw."
+        },
+        {
+          "key": "fieldsUi",
+          "label": "Values to send",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "values"
+          ],
+          "help": "{values: [{column, fieldValue}]} — used with data mode define."
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "index",
+            "rawData",
+            "dataProperty"
+          ],
+          "help": "index: insert at this 0-based row position instead of the end."
+        }
+      ],
+      "description": "Adds one row per input item (raw mode: the rows in Data).",
+      "before": {
+        "method": "GET",
+        "path": "/items/{{ p.workbook | rl }}/workbook/worksheets/{{ p.worksheet | rl }}/tables/{{ p.table | rl }}/columns",
+        "base_url": "https://graph.microsoft.com/v1.0{{ p.resourceTarget | eq:'drive' | then:'/drives/' }}{{ p.resourceTarget | eq:'drive' | then:(p.driveTarget | rl) }}{{ p.resourceTarget | ne:'drive' | then:(p.userTarget | rl | prefix:'/users/' | default:'/me') }}{{ p.resourceTarget | ne:'drive' | then:'/drive' }}"
+      },
+      "body": {
+        "index": "{{ p.options.index }}",
+        "values": {
+          "$concat": [
+            "{{ p.dataMode | eq:'raw' | then:(p.data | fromjson) }}",
+            {
+              "$map": "{{ p.dataMode | ne:'raw' | then:'x' | split }}",
+              "$to": "{{ p.dataMode | eq:'autoMap' | then:(item | row:(pre.value | pluck:'name')) | default:(p.fieldsUi.values | kv:'column,fieldValue' | row:(pre.value | pluck:'name')) }}"
+            }
+          ]
+        }
+      },
+      "output": {
+        "path": "{{ p.options.rawData | default:false | ne:'true' | then:'values' }}",
+        "to": {
+          "$merge": "{{ el | zip:(pre.value | pluck:'name') }}"
+        },
+        "to_when": "{{ p.options.rawData | default:false | ne:'true' }}"
+      }
+    },
+    {
+      "resource": "table",
+      "operation": "convertToRange",
+      "title": "Convert a table to a range",
+      "method": "POST",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.resourceTarget | eq:'drive' | then:'/drives/' }}{{ p.resourceTarget | eq:'drive' | then:(p.driveTarget | rl) }}{{ p.resourceTarget | ne:'drive' | then:(p.userTarget | rl | prefix:'/users/' | default:'/me') }}{{ p.resourceTarget | ne:'drive' | then:'/drive' }}",
+      "path": "/items/{{ p.workbook | rl }}/workbook/worksheets/{{ p.worksheet | rl }}/tables/{{ p.table | rl }}/convertToRange",
+      "fields": [
+        {
+          "key": "resourceTarget",
+          "label": "App-only target",
+          "type": "select",
+          "default": "user",
+          "options": [
+            "user",
+            "drive"
+          ],
+          "help": "Only with an Entra app connection: act on a user's OneDrive or on a drive by ID."
+        },
+        {
+          "key": "userTarget",
+          "label": "User (app-only)",
+          "type": "text",
+          "help": "Entra app connection: the user's principal name or object ID. Leave empty to use your own OneDrive."
+        },
+        {
+          "key": "driveTarget",
+          "label": "Drive ID (app-only)",
+          "type": "text",
+          "help": "Entra app connection with target drive: the drive's ID."
+        },
+        {
+          "key": "workbook",
+          "label": "Workbook ID",
+          "type": "text",
+          "required": true,
+          "help": "The workbook file's drive item ID."
+        },
+        {
+          "key": "worksheet",
+          "label": "Sheet ID or name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "table",
+          "label": "Table ID or name",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "table",
+      "operation": "addTable",
+      "title": "Create a table",
+      "method": "POST",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.resourceTarget | eq:'drive' | then:'/drives/' }}{{ p.resourceTarget | eq:'drive' | then:(p.driveTarget | rl) }}{{ p.resourceTarget | ne:'drive' | then:(p.userTarget | rl | prefix:'/users/' | default:'/me') }}{{ p.resourceTarget | ne:'drive' | then:'/drive' }}",
+      "path": "/items/{{ p.workbook | rl }}/workbook/worksheets/{{ p.worksheet | rl }}/tables/add",
+      "fields": [
+        {
+          "key": "resourceTarget",
+          "label": "App-only target",
+          "type": "select",
+          "default": "user",
+          "options": [
+            "user",
+            "drive"
+          ],
+          "help": "Only with an Entra app connection: act on a user's OneDrive or on a drive by ID."
+        },
+        {
+          "key": "userTarget",
+          "label": "User (app-only)",
+          "type": "text",
+          "help": "Entra app connection: the user's principal name or object ID. Leave empty to use your own OneDrive."
+        },
+        {
+          "key": "driveTarget",
+          "label": "Drive ID (app-only)",
+          "type": "text",
+          "help": "Entra app connection with target drive: the drive's ID."
+        },
+        {
+          "key": "workbook",
+          "label": "Workbook ID",
+          "type": "text",
+          "required": true,
+          "help": "The workbook file's drive item ID."
+        },
+        {
+          "key": "worksheet",
+          "label": "Sheet ID or name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "selectRange",
+          "label": "Select range",
+          "type": "select",
+          "default": "auto",
+          "options": [
+            "auto",
+            "manual"
+          ]
+        },
+        {
+          "key": "range",
+          "label": "Range",
+          "type": "text",
+          "help": "A1-style range when Select range is manual."
+        },
+        {
+          "key": "hasHeaders",
+          "label": "Has headers",
+          "type": "boolean",
+          "default": true
+        }
+      ],
+      "before": {
+        "when": "{{ p.selectRange | ne:'manual' }}",
+        "method": "GET",
+        "path": "/items/{{ p.workbook | rl }}/workbook/worksheets/{{ p.worksheet | rl }}/usedRange",
+        "query": {
+          "$select": "address"
+        },
+        "base_url": "https://graph.microsoft.com/v1.0{{ p.resourceTarget | eq:'drive' | then:'/drives/' }}{{ p.resourceTarget | eq:'drive' | then:(p.driveTarget | rl) }}{{ p.resourceTarget | ne:'drive' | then:(p.userTarget | rl | prefix:'/users/' | default:'/me') }}{{ p.resourceTarget | ne:'drive' | then:'/drive' }}"
+      },
+      "body": {
+        "address": "{{ p.selectRange | eq:'manual' | then:p.range | default:(pre.address | re:'!(.*)$') }}",
+        "hasHeaders": "{{ p.hasHeaders }}"
+      }
+    },
+    {
+      "resource": "table",
+      "operation": "deleteTable",
+      "title": "Delete a table",
+      "method": "DELETE",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.resourceTarget | eq:'drive' | then:'/drives/' }}{{ p.resourceTarget | eq:'drive' | then:(p.driveTarget | rl) }}{{ p.resourceTarget | ne:'drive' | then:(p.userTarget | rl | prefix:'/users/' | default:'/me') }}{{ p.resourceTarget | ne:'drive' | then:'/drive' }}",
+      "path": "/items/{{ p.workbook | rl }}/workbook/worksheets/{{ p.worksheet | rl }}/tables/{{ p.table | rl }}",
+      "fields": [
+        {
+          "key": "resourceTarget",
+          "label": "App-only target",
+          "type": "select",
+          "default": "user",
+          "options": [
+            "user",
+            "drive"
+          ],
+          "help": "Only with an Entra app connection: act on a user's OneDrive or on a drive by ID."
+        },
+        {
+          "key": "userTarget",
+          "label": "User (app-only)",
+          "type": "text",
+          "help": "Entra app connection: the user's principal name or object ID. Leave empty to use your own OneDrive."
+        },
+        {
+          "key": "driveTarget",
+          "label": "Drive ID (app-only)",
+          "type": "text",
+          "help": "Entra app connection with target drive: the drive's ID."
+        },
+        {
+          "key": "workbook",
+          "label": "Workbook ID",
+          "type": "text",
+          "required": true,
+          "help": "The workbook file's drive item ID."
+        },
+        {
+          "key": "worksheet",
+          "label": "Sheet ID or name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "table",
+          "label": "Table ID or name",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "table",
+      "operation": "getColumns",
+      "title": "Get columns",
+      "method": "GET",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.resourceTarget | eq:'drive' | then:'/drives/' }}{{ p.resourceTarget | eq:'drive' | then:(p.driveTarget | rl) }}{{ p.resourceTarget | ne:'drive' | then:(p.userTarget | rl | prefix:'/users/' | default:'/me') }}{{ p.resourceTarget | ne:'drive' | then:'/drive' }}",
+      "path": "/items/{{ p.workbook | rl }}/workbook/worksheets/{{ p.worksheet | rl }}/tables/{{ p.table | rl }}/columns",
+      "fields": [
+        {
+          "key": "resourceTarget",
+          "label": "App-only target",
+          "type": "select",
+          "default": "user",
+          "options": [
+            "user",
+            "drive"
+          ],
+          "help": "Only with an Entra app connection: act on a user's OneDrive or on a drive by ID."
+        },
+        {
+          "key": "userTarget",
+          "label": "User (app-only)",
+          "type": "text",
+          "help": "Entra app connection: the user's principal name or object ID. Leave empty to use your own OneDrive."
+        },
+        {
+          "key": "driveTarget",
+          "label": "Drive ID (app-only)",
+          "type": "text",
+          "help": "Entra app connection with target drive: the drive's ID."
+        },
+        {
+          "key": "workbook",
+          "label": "Workbook ID",
+          "type": "text",
+          "required": true,
+          "help": "The workbook file's drive item ID."
+        },
+        {
+          "key": "worksheet",
+          "label": "Sheet ID or name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "table",
+          "label": "Table ID or name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1,
+          "max": 500
+        },
+        {
+          "key": "rawData",
+          "label": "Raw data",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "dataProperty",
+          "label": "Data property",
+          "type": "text",
+          "default": "data"
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fields"
+          ],
+          "help": "fields: $select for raw data."
+        }
+      ],
+      "query": {
+        "$select": "{{ p.rawData | then:p.filters.fields }}"
+      },
+      "pagination": {
+        "type": "offset",
+        "offset_param": "$skip",
+        "limit_param": "$top",
+        "page_size": 100,
+        "results_path": "value"
+      },
+      "output": {
+        "path": "value",
+        "to": {
+          "name": "{{ el.name }}"
+        },
+        "to_when": "{{ p.rawData | default:false | ne:'true' }}"
+      }
+    },
+    {
+      "resource": "table",
+      "operation": "getRows",
+      "title": "Get rows",
+      "method": "GET",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.resourceTarget | eq:'drive' | then:'/drives/' }}{{ p.resourceTarget | eq:'drive' | then:(p.driveTarget | rl) }}{{ p.resourceTarget | ne:'drive' | then:(p.userTarget | rl | prefix:'/users/' | default:'/me') }}{{ p.resourceTarget | ne:'drive' | then:'/drive' }}",
+      "path": "/items/{{ p.workbook | rl }}/workbook/worksheets/{{ p.worksheet | rl }}/tables/{{ p.table | rl }}/rows",
+      "fields": [
+        {
+          "key": "resourceTarget",
+          "label": "App-only target",
+          "type": "select",
+          "default": "user",
+          "options": [
+            "user",
+            "drive"
+          ],
+          "help": "Only with an Entra app connection: act on a user's OneDrive or on a drive by ID."
+        },
+        {
+          "key": "userTarget",
+          "label": "User (app-only)",
+          "type": "text",
+          "help": "Entra app connection: the user's principal name or object ID. Leave empty to use your own OneDrive."
+        },
+        {
+          "key": "driveTarget",
+          "label": "Drive ID (app-only)",
+          "type": "text",
+          "help": "Entra app connection with target drive: the drive's ID."
+        },
+        {
+          "key": "workbook",
+          "label": "Workbook ID",
+          "type": "text",
+          "required": true,
+          "help": "The workbook file's drive item ID."
+        },
+        {
+          "key": "worksheet",
+          "label": "Sheet ID or name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "table",
+          "label": "Table ID or name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1,
+          "max": 500
+        },
+        {
+          "key": "rawData",
+          "label": "Raw data",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "dataProperty",
+          "label": "Data property",
+          "type": "text",
+          "default": "data"
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fields",
+            "column"
+          ],
+          "help": "fields: $select for raw data; column: list of columns to keep."
+        }
+      ],
+      "before": {
+        "method": "GET",
+        "path": "/items/{{ p.workbook | rl }}/workbook/worksheets/{{ p.worksheet | rl }}/tables/{{ p.table | rl }}/columns",
+        "query": {
+          "$select": "name"
+        },
+        "base_url": "https://graph.microsoft.com/v1.0{{ p.resourceTarget | eq:'drive' | then:'/drives/' }}{{ p.resourceTarget | eq:'drive' | then:(p.driveTarget | rl) }}{{ p.resourceTarget | ne:'drive' | then:(p.userTarget | rl | prefix:'/users/' | default:'/me') }}{{ p.resourceTarget | ne:'drive' | then:'/drive' }}"
+      },
+      "query": {
+        "$select": "{{ p.rawData | then:p.filters.fields }}"
+      },
+      "pagination": {
+        "type": "offset",
+        "offset_param": "$skip",
+        "limit_param": "$top",
+        "page_size": 100,
+        "results_path": "value"
+      },
+      "output": {
+        "path": "value",
+        "to": {
+          "$merge": "{{ el.values.0 | zip:(pre.value | pluck:'name') | pick:(p.filters.column | default:(pre.value | pluck:'name')) }}"
+        },
+        "to_when": "{{ p.rawData | default:false | ne:'true' }}"
+      }
+    },
+    {
+      "resource": "table",
+      "operation": "lookup",
+      "title": "Look up a row",
+      "method": "GET",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.resourceTarget | eq:'drive' | then:'/drives/' }}{{ p.resourceTarget | eq:'drive' | then:(p.driveTarget | rl) }}{{ p.resourceTarget | ne:'drive' | then:(p.userTarget | rl | prefix:'/users/' | default:'/me') }}{{ p.resourceTarget | ne:'drive' | then:'/drive' }}",
+      "path": "/items/{{ p.workbook | rl }}/workbook/worksheets/{{ p.worksheet | rl }}/tables/{{ p.table | rl }}/rows",
+      "fields": [
+        {
+          "key": "resourceTarget",
+          "label": "App-only target",
+          "type": "select",
+          "default": "user",
+          "options": [
+            "user",
+            "drive"
+          ],
+          "help": "Only with an Entra app connection: act on a user's OneDrive or on a drive by ID."
+        },
+        {
+          "key": "userTarget",
+          "label": "User (app-only)",
+          "type": "text",
+          "help": "Entra app connection: the user's principal name or object ID. Leave empty to use your own OneDrive."
+        },
+        {
+          "key": "driveTarget",
+          "label": "Drive ID (app-only)",
+          "type": "text",
+          "help": "Entra app connection with target drive: the drive's ID."
+        },
+        {
+          "key": "workbook",
+          "label": "Workbook ID",
+          "type": "text",
+          "required": true,
+          "help": "The workbook file's drive item ID."
+        },
+        {
+          "key": "worksheet",
+          "label": "Sheet ID or name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "table",
+          "label": "Table ID or name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "lookupColumn",
+          "label": "Lookup column",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "lookupValue",
+          "label": "Lookup value",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "returnAllMatches"
+          ],
+          "help": "Returns the first matching row; returnAllMatches: true returns every matching row."
+        }
+      ],
+      "before": {
+        "method": "GET",
+        "path": "/items/{{ p.workbook | rl }}/workbook/worksheets/{{ p.worksheet | rl }}/tables/{{ p.table | rl }}/columns",
+        "base_url": "https://graph.microsoft.com/v1.0{{ p.resourceTarget | eq:'drive' | then:'/drives/' }}{{ p.resourceTarget | eq:'drive' | then:(p.driveTarget | rl) }}{{ p.resourceTarget | ne:'drive' | then:(p.userTarget | rl | prefix:'/users/' | default:'/me') }}{{ p.resourceTarget | ne:'drive' | then:'/drive' }}"
+      },
+      "output": {
+        "path": "value",
+        "to": {
+          "$merge": "{{ el.values.0 | zip:(pre.value | pluck:'name') }}"
+        },
+        "match_after_to": true,
+        "match": {
+          "rows": "{{ p | pick:'lookupColumn,lookupValue' }}",
+          "column": "lookupColumn",
+          "value": "lookupValue",
+          "first": "{{ p.options.returnAllMatches | ne:'true' }}"
+        }
+      }
+    }
+  ]
+}

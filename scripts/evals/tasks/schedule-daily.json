@@ -1,0 +1,35 @@
+{
+  "id": "schedule-daily",
+  "mode": "both",
+  "workflow_name": "eval-schedule-daily",
+  "prompt": "Create a workflow named \"eval-schedule-daily\" that runs every day at 09:00\n(UTC) on a schedule trigger and then fetches {{FIXTURE_URL}}/products.json with\nan HTTP GET. Only save and validate it: do not activate it and do not run it.",
+  "fixtures": [],
+  "checks": [
+    {
+      "type": "validate_ok"
+    },
+    {
+      "type": "dry_run_ok"
+    },
+    {
+      "type": "node_types",
+      "include": [
+        "trigger.schedule",
+        "http.request"
+      ]
+    },
+    {
+      "type": "node_config",
+      "node_type": "trigger.schedule",
+      "key": "cron",
+      "in": [
+        "0 0 9 * * *",
+        "0 0 9 * * ?",
+        "0 0 9 */1 * *"
+      ]
+    },
+    {
+      "type": "inactive"
+    }
+  ]
+}

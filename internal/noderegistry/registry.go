@@ -5,15 +5,20 @@ package noderegistry
 
 import (
 	"database/sql"
+	"sync"
 
 	"github.com/rs/zerolog"
 
 	ainodes "github.com/monoes/mono-agent/internal/ai/nodes"
+	"github.com/monoes/mono-agent/internal/apipkg"
 	cfgpkg "github.com/monoes/mono-agent/internal/config"
+	"github.com/monoes/mono-agent/internal/hilsend"
+	_ "github.com/monoes/mono-agent/internal/n8nimport/n8napps" // n8n import of API package nodes
 	"github.com/monoes/mono-agent/internal/nodes"
 	agentnodes "github.com/monoes/mono-agent/internal/nodes/agent"
 	choosenodes "github.com/monoes/mono-agent/internal/nodes/ai/choose"
 	crawlnodes "github.com/monoes/mono-agent/internal/nodes/ai/crawl"
+	aisubnodes "github.com/monoes/mono-agent/internal/nodes/aisub"
 	applicationsnodes "github.com/monoes/mono-agent/internal/nodes/applications"
 	applynodes "github.com/monoes/mono-agent/internal/nodes/apply"
 	"github.com/monoes/mono-agent/internal/nodes/browserjev"
@@ -23,21 +28,34 @@ import (
 	dbnodes "github.com/monoes/mono-agent/internal/nodes/db"
 	discoverynodes "github.com/monoes/mono-agent/internal/nodes/discovery"
 	documentsnodes "github.com/monoes/mono-agent/internal/nodes/documents"
+	evalnode "github.com/monoes/mono-agent/internal/nodes/evalnode"
+	guardrailsnodes "github.com/monoes/mono-agent/internal/nodes/guardrails"
 	httpnodes "github.com/monoes/mono-agent/internal/nodes/http"
 	imagenodes "github.com/monoes/mono-agent/internal/nodes/image"
 	matchingnodes "github.com/monoes/mono-agent/internal/nodes/matching"
+	mcpnodes "github.com/monoes/mono-agent/internal/nodes/mcp"
 	orgnodes "github.com/monoes/mono-agent/internal/nodes/org"
 	peoplenodes "github.com/monoes/mono-agent/internal/nodes/people"
 	publicationnodes "github.com/monoes/mono-agent/internal/nodes/publication"
 	"github.com/monoes/mono-agent/internal/nodes/service"
 	"github.com/monoes/mono-agent/internal/nodes/system"
 	vaultnodes "github.com/monoes/mono-agent/internal/nodes/vault"
+	vectornodes "github.com/monoes/mono-agent/internal/nodes/vector"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
+
+// buildMu serializes Build: several node packages keep their DB connection
+// in a package-level variable that RegisterAll sets, so concurrent Builds
+// (parallel tests, the GUI and a CLI call in one process) would race on it.
+var buildMu sync.Mutex
 
 // Build creates a registry with all built-in node types registered.
 // If db is non-nil, DB-backed node packages get the connection.
 func Build(db *sql.DB) *workflow.NodeTypeRegistry {
+	buildMu.Lock()
+	defer buildMu.Unlock()
+	// Outbound sends started by an agent wait for approval (internal/hilsend).
+	workflow.SetExecGuard(hilsend.Guard)
 	registry := workflow.NewNodeTypeRegistry()
 	control.RegisterAll(registry)
 	data.RegisterAll(registry)
@@ -56,10 +74,14 @@ func Build(db *sql.DB) *workflow.NodeTypeRegistry {
 
 	// Local AI agent nodes (monomind delegation) — no store needed.
 	agentnodes.RegisterAll(registry)
+	aisubnodes.RegisterAll(registry) // ai.model / ai.memory / ai.output_parser: sub-nodes of agent.ask
+	mcpnodes.RegisterAll(registry)   // mcp.call: MCP client (stdio / Streamable HTTP)
 
 	// Goal-driven browser agent (TypeSafe Jev) in the user's own browser.
 	browserjev.RegisterAll(registry)
-	choosenodes.RegisterAll(registry) // ai.choose: route items by a TypeSafe Jev choice
+	choosenodes.RegisterAll(registry)     // ai.choose: route items by a TypeSafe Jev choice
+	guardrailsnodes.RegisterAll(registry) // ai.guardrails: check or sanitize text (n8n Guardrails)
+	evalnode.RegisterAll(registry)        // core.evaluation: n8n Evaluation (workflow evaluate)
 
 	// Org runtime node (org.run) — kicks off/manages agent orgs from workflows.
 	orgnodes.RegisterAll(registry)
@@ -73,7 +95,9 @@ func Build(db *sql.DB) *workflow.NodeTypeRegistry {
 
 	// Credential vault nodes (vault.secret_save / vault.secret_get)
 	vaultnodes.RegisterAll(registry)
+	vectornodes.RegisterAll(registry) // RAG: vector.embed / split_text / load_document / store
 	publicationnodes.RegisterAll(registry)
+	apipkg.Register(registry) // declarative API packages: app.* node types
 
 	// AI crawl nodes (natural extraction runs on a local agent)
 	crawlnodes.RegisterAll(registry, cfgpkg.NewAgentGenerator(zerolog.Nop()))
@@ -85,7 +109,7 @@ func Build(db *sql.DB) *workflow.NodeTypeRegistry {
 		"jira": "service.jira", "linear": "service.linear", "asana": "service.asana",
 		"stripe": "service.stripe", "shopify": "service.shopify", "salesforce": "service.salesforce",
 		"hubspot": "service.hubspot",
-		"slack":   "comm.slack", "discord": "comm.discord", "telegram": "comm.telegram",
+		"slack":   "comm.slack", "discord": "service.discord", "telegram": "comm.telegram",
 		"twilio": "comm.twilio", "whatsapp": "comm.whatsapp",
 		"email_send": "comm.email_send", "email_read": "comm.email_read",
 		"mysql": "db.mysql", "postgres": "db.postgres", "mongodb": "db.mongodb", "redis": "db.redis",

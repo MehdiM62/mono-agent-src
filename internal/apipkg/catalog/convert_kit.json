@@ -1,0 +1,665 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "convert_kit",
+  "node_type": "app.convert_kit",
+  "title": "ConvertKit",
+  "description": "Forms, sequences, tags, custom fields and subscribers in ConvertKit (Kit)",
+  "category": "app",
+  "docs_url": "https://developers.kit.com/v3",
+  "n8n_types": [
+    "n8n-nodes-base.convertKit"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.convertKitTrigger"
+  ],
+  "base_url": "https://api.convertkit.com/v3",
+  "headers": {
+    "Accept": "application/json"
+  },
+  "credentials": [
+    {
+      "platform": "convertkit",
+      "name": "ConvertKit (Kit)",
+      "n8n_credential": "convertKitApi",
+      "n8n_field_map": {
+        "apiSecret": "api_secret"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "api_secret",
+          "label": "API secret",
+          "secret": true,
+          "required": true,
+          "help": "Kit: Settings → Developer → API secret (v3)"
+        }
+      ],
+      "inject": {
+        "query": {
+          "api_secret": "{{ cred.api_secret }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "form",
+      "label": "Form"
+    },
+    {
+      "value": "customField",
+      "label": "Custom Field"
+    },
+    {
+      "value": "sequence",
+      "label": "Sequence"
+    },
+    {
+      "value": "tag",
+      "label": "Tag"
+    },
+    {
+      "value": "tagSubscriber",
+      "label": "Tag Subscriber"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "form",
+      "operation": "addSubscriber",
+      "title": "Add a subscriber",
+      "method": "POST",
+      "path": "/forms/{{ p.id }}/subscribe",
+      "body": {
+        "email": "{{ p.email }}",
+        "first_name": "{{ p.additionalFields.firstName }}",
+        "fields": {
+          "$merge": [
+            "{{ p.additionalFields.fieldsUi.fieldsValues | kv:'key,value' }}",
+            "{{ p.additionalFields.fields.field | kv:'key,value' }}"
+          ]
+        },
+        "tags": "{{ p.additionalFields.tags }}"
+      },
+      "output": {
+        "path": "subscription"
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "Form ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fieldsUi",
+            "firstName",
+            "tags"
+          ],
+          "help": "fieldsUi: {\"fieldsValues\": [{\"key\": \"last_name\", \"value\": \"Doe\"}]}; tags: list of tag IDs"
+        }
+      ]
+    },
+    {
+      "resource": "form",
+      "operation": "getAll",
+      "title": "Get many forms",
+      "method": "GET",
+      "path": "/forms",
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "page",
+        "cursor_path": "__no_next_page",
+        "results_path": "forms"
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Fetch every page instead of stopping at Limit."
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off."
+        }
+      ]
+    },
+    {
+      "resource": "form",
+      "operation": "getSubscriptions",
+      "title": "Get subscriptions",
+      "method": "GET",
+      "path": "/forms/{{ p.id }}/subscriptions",
+      "query": {
+        "subscriber_state": "{{ p.additionalFields.subscriberState }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "results_path": "subscriptions"
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "Form ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Fetch every page instead of stopping at Limit."
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off."
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "subscriberState"
+          ],
+          "help": "subscriberState: active or cancelled"
+        }
+      ]
+    },
+    {
+      "resource": "sequence",
+      "operation": "addSubscriber",
+      "title": "Add a subscriber",
+      "method": "POST",
+      "path": "/sequences/{{ p.id }}/subscribe",
+      "body": {
+        "email": "{{ p.email }}",
+        "first_name": "{{ p.additionalFields.firstName }}",
+        "fields": {
+          "$merge": [
+            "{{ p.additionalFields.fieldsUi.fieldsValues | kv:'key,value' }}",
+            "{{ p.additionalFields.fields.field | kv:'key,value' }}"
+          ]
+        },
+        "tags": "{{ p.additionalFields.tags }}"
+      },
+      "output": {
+        "path": "subscription"
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "Sequence ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fieldsUi",
+            "firstName",
+            "tags"
+          ],
+          "help": "fieldsUi: {\"fieldsValues\": [{\"key\": \"last_name\", \"value\": \"Doe\"}]}; tags: list of tag IDs"
+        }
+      ]
+    },
+    {
+      "resource": "sequence",
+      "operation": "getAll",
+      "title": "Get many sequences",
+      "method": "GET",
+      "path": "/sequences",
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "page",
+        "cursor_path": "__no_next_page",
+        "results_path": "courses"
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Fetch every page instead of stopping at Limit."
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off."
+        }
+      ]
+    },
+    {
+      "resource": "sequence",
+      "operation": "getSubscriptions",
+      "title": "Get subscriptions",
+      "method": "GET",
+      "path": "/sequences/{{ p.id }}/subscriptions",
+      "query": {
+        "subscriber_state": "{{ p.additionalFields.subscriberState }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "results_path": "subscriptions"
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "Sequence ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Fetch every page instead of stopping at Limit."
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off."
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "subscriberState"
+          ],
+          "help": "subscriberState: active or cancelled"
+        }
+      ]
+    },
+    {
+      "resource": "customField",
+      "operation": "update",
+      "title": "Rename a custom field",
+      "method": "PUT",
+      "path": "/custom_fields/{{ p.id }}",
+      "body": {
+        "label": "{{ p.label }}"
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "Custom field ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "label",
+          "label": "Label",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "customField",
+      "operation": "create",
+      "title": "Create a custom field",
+      "method": "POST",
+      "path": "/custom_fields",
+      "body": {
+        "label": "{{ p.label }}"
+      },
+      "fields": [
+        {
+          "key": "label",
+          "label": "Label",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "customField",
+      "operation": "delete",
+      "title": "Delete a custom field",
+      "method": "DELETE",
+      "path": "/custom_fields/{{ p.id }}",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Custom field ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "customField",
+      "operation": "get",
+      "title": "Get a custom field",
+      "method": "GET",
+      "path": "/custom_fields/{{ p.id }}",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Custom field ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "customField",
+      "operation": "getAll",
+      "title": "Get many custom fields",
+      "method": "GET",
+      "path": "/custom_fields",
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "page",
+        "cursor_path": "__no_next_page",
+        "results_path": "custom_fields"
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Fetch every page instead of stopping at Limit."
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off."
+        }
+      ]
+    },
+    {
+      "resource": "tag",
+      "operation": "create",
+      "title": "Create tags",
+      "method": "POST",
+      "path": "/tags",
+      "body": {
+        "tag": {
+          "$map": "{{ p.name | split }}",
+          "$to": {
+            "name": "{{ el }}"
+          }
+        }
+      },
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true,
+          "help": "Comma-separated to create several tags"
+        }
+      ]
+    },
+    {
+      "resource": "tag",
+      "operation": "getAll",
+      "title": "Get many tags",
+      "method": "GET",
+      "path": "/tags",
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "page",
+        "cursor_path": "__no_next_page",
+        "results_path": "tags"
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Fetch every page instead of stopping at Limit."
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off."
+        }
+      ]
+    },
+    {
+      "resource": "tagSubscriber",
+      "operation": "add",
+      "title": "Add a subscriber",
+      "method": "POST",
+      "path": "/tags/{{ p.tagId }}/subscribe",
+      "body": {
+        "email": "{{ p.email }}",
+        "first_name": "{{ p.additionalFields.firstName }}",
+        "fields": {
+          "$merge": [
+            "{{ p.additionalFields.fieldsUi.fieldsValues | kv:'key,value' }}",
+            "{{ p.additionalFields.fields.field | kv:'key,value' }}"
+          ]
+        }
+      },
+      "output": {
+        "path": "subscription"
+      },
+      "fields": [
+        {
+          "key": "tagId",
+          "label": "Tag ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fieldsUi",
+            "firstName",
+            "fields"
+          ],
+          "help": "fieldsUi: {\"fieldsValues\": [{\"key\": \"last_name\", \"value\": \"Doe\"}]}; tags: list of tag IDs"
+        }
+      ]
+    },
+    {
+      "resource": "tagSubscriber",
+      "operation": "getAll",
+      "title": "Get subscriptions",
+      "method": "GET",
+      "path": "/tags/{{ p.tagId }}/subscriptions",
+      "query": {
+        "subscriber_state": "{{ p.additionalFields.subscriberState }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "results_path": "subscriptions"
+      },
+      "fields": [
+        {
+          "key": "tagId",
+          "label": "Tag ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Fetch every page instead of stopping at Limit."
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off."
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "subscriberState"
+          ],
+          "help": "subscriberState: active or cancelled"
+        }
+      ]
+    },
+    {
+      "resource": "tagSubscriber",
+      "operation": "delete",
+      "title": "Remove a tag from a subscriber",
+      "method": "POST",
+      "path": "/tags/{{ p.tagId }}/unsubscribe",
+      "body": {
+        "email": "{{ p.email }}"
+      },
+      "fields": [
+        {
+          "key": "tagId",
+          "label": "Tag ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": true
+        }
+      ]
+    }
+  ],
+  "webhook": {
+    "fields": [
+      {
+        "key": "event",
+        "label": "Event",
+        "type": "select",
+        "required": true,
+        "options": [
+          "formSubscribe",
+          "linkClick",
+          "productPurchase",
+          "purchaseCreate",
+          "courseComplete",
+          "courseSubscribe",
+          "subscriberActivate",
+          "subscriberUnsubscribe",
+          "tagAdd",
+          "tagRemove"
+        ]
+      },
+      {
+        "key": "formId",
+        "label": "Form ID",
+        "type": "text"
+      },
+      {
+        "key": "courseId",
+        "label": "Sequence ID",
+        "type": "text"
+      },
+      {
+        "key": "link",
+        "label": "Link",
+        "type": "text"
+      },
+      {
+        "key": "productId",
+        "label": "Product ID",
+        "type": "text"
+      },
+      {
+        "key": "tagId",
+        "label": "Tag ID",
+        "type": "text"
+      }
+    ],
+    "create": [
+      {
+        "method": "POST",
+        "path": "/automations/hooks",
+        "body": {
+          "target_url": "{{ hook.url }}",
+          "event": {
+            "name": "{{ p.event | eq:'purchaseCreate' | then:'purchase.purchase_create' | default:(p.event | snake | prefix:'subscriber.') }}",
+            "form_id": "{{ p.event | eq:'formSubscribe' | then:p.formId }}",
+            "sequence_id": "{{ p.event | in:'courseSubscribe,courseComplete' | then:p.courseId }}",
+            "initiator_value": "{{ p.event | eq:'linkClick' | then:p.link }}",
+            "product_id": "{{ p.event | eq:'productPurchase' | then:p.productId }}",
+            "tag_id": "{{ p.event | in:'tagAdd,tagRemove' | then:p.tagId }}"
+          }
+        }
+      }
+    ],
+    "id": "{{ res.rule.id }}",
+    "delete": [
+      {
+        "method": "DELETE",
+        "path": "/automations/hooks/{{ hook.id }}"
+      }
+    ]
+  }
+}

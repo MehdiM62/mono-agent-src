@@ -9,7 +9,7 @@ type CreateNodeSchema struct {
 
 	Title string `json:"title" schema:"label=Title,type=text,required,help=The job title or tender reference/name."`
 
-	ProfileID string `json:"profile_id" schema:"label=Profile ID,type=text,default=default,help=Which profile owns this application. Defaults to 'default'."`
+	ProfileID string `json:"profile_id" schema:"label=Profile ID,type=text,help=Optional. Must match the workflow's profile (leave blank to use it)."`
 
 	Company     string `json:"company" schema:"label=Company,type=text,help=Job kind only: the hiring company (required for kind=job)."`
 	URL         string `json:"url" schema:"label=URL,type=text,required,help=The job posting or tender URL."`

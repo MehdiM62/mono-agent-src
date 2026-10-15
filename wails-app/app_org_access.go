@@ -33,6 +33,9 @@ func orgRoleAccessArgs(root, orgName, roleID, access string) []string {
 // OrgRoleSetAccess grants ("full") or revokes ("scoped") a role's full
 // access: {org, role, access, message}, or the CLI's refusal verbatim.
 func (a *App) OrgRoleSetAccess(orgName, roleID, access string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	return a.setOrgRoleAccess(a.orgProjectRoot(), orgName, roleID, access)
 }
 
@@ -47,6 +50,9 @@ func (a *App) setOrgRoleAccess(root, orgName, roleID, access string) string {
 // warnings}), which includes full-access taint problems. The CLI exits 1 for
 // an invalid org but the report on stdout is still the answer.
 func (a *App) ValidateOrgReport(orgName string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	return a.orgValidateReport(a.orgProjectRoot(), orgName)
 }
 
@@ -72,5 +78,8 @@ func (a *App) orgValidateReport(root, orgName string) string {
 // [{runtime, status: refused|unverified, reason}]}, monomind's own reasons
 // for the runtime picker of a sections org.
 func (a *App) OrgSectionsRuntimes() string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	return a.jsonResult("org", "sections-runtimes")
 }

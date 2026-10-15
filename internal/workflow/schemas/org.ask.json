@@ -6,5 +6,17 @@
     { "key": "question", "label": "Question", "type": "textarea", "required": true, "rows": 5, "default": "{{$json.text}}", "help": "Supports {{$json.field}} placeholders. The run pauses until the role replies." },
     { "key": "timeout_seconds", "label": "Timeout (seconds)", "type": "number", "required": false, "default": 600, "help": "How long to wait for a reply before the node fails." },
     { "key": "output_key", "label": "Output Key", "type": "text", "required": false, "default": "org_reply", "help": "Where the reply is stored on the output item." }
+  ],
+  "outputs": [
+    {
+      "description": "the input item's fields, passed through",
+      "key": "*",
+      "type": "object"
+    },
+    {
+      "description": "the role's reply",
+      "key": "<output_key>",
+      "type": "any"
+    }
   ]
 }

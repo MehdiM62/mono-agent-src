@@ -1,13 +1,21 @@
-import { useRef } from 'react'
-import { Send, Square } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { Send, Square, Paperclip } from 'lucide-react'
+import { AttachmentChips } from './ChatAttachments.jsx'
 
 // ChatComposer is the draft textarea + send/stop control, extracted from
 // AIChatPanel so its own interaction rules (IME composition, auto-resize)
 // are independently testable. Fully controlled — the draft itself lives in
 // the parent's `value` state, so nothing here is lost across a presentation
 // change (docked/expanded/narrow) as long as the parent doesn't unmount.
-export function ChatComposer({ value, onChange, onSend, onStop, streaming, disabled, disabledReason }) {
+//
+// With onAttach (coder chats), files can be pasted, dropped or picked:
+// onAttach(files) gets them, attachments are shown as chips above the
+// draft, and onRemoveAttachment(id) drops one.
+export function ChatComposer({ value, onChange, onSend, onStop, streaming, disabled, disabledReason, attachments = [], onAttach, onRemoveAttachment }) {
   const textareaRef = useRef(null)
+  const fileRef = useRef(null)
+  const [dragging, setDragging] = useState(false)
+  const canAttach = !!onAttach && !disabled
   // Enter must never submit while an IME composition (CJK/etc candidate
   // selection) is in progress — isComposing is the standard signal, but a
   // few browsers still fire one stray keydown with keyCode 229 right as
@@ -22,24 +30,68 @@ export function ChatComposer({ value, onChange, onSend, onStop, streaming, disab
     onSend()
   }
 
+  // A paste with files and no text attaches them; text (even with a
+  // picture of it, as spreadsheets copy) pastes as text.
+  const handlePaste = (e) => {
+    const files = Array.from(e.clipboardData?.files || [])
+    if (!canAttach || files.length === 0 || e.clipboardData.getData('text/plain')) return
+    e.preventDefault()
+    onAttach(files)
+  }
+  const hasFiles = e => Array.from(e.dataTransfer?.types || []).includes('Files')
+  const dropProps = canAttach ? {
+    onDragOver: e => { if (hasFiles(e)) { e.preventDefault(); setDragging(true) } },
+    onDragLeave: () => setDragging(false),
+    onDrop: e => {
+      setDragging(false)
+      const files = Array.from(e.dataTransfer?.files || [])
+      if (files.length === 0) return
+      e.preventDefault()
+      onAttach(files)
+    },
+  } : {}
+
   return (
-    <div style={{
+    <div data-testid="chat-composer" {...dropProps} style={{
       padding: '8px 12px 10px',
       borderTop: '1px solid rgba(0,180,216,0.1)',
       display: 'flex', flexDirection: 'column', gap: 6,
       flexShrink: 0,
+      outline: dragging ? '1px dashed rgba(0,180,216,0.6)' : 'none', outlineOffset: -3,
     }}>
       {disabled && disabledReason && (
         <div style={{ padding: '8px 12px', background: 'rgba(251,191,36,.08)', border: '1px solid rgba(251,191,36,.2)', borderRadius: 'var(--radius)', fontFamily: 'var(--font-mono)', fontSize: 10, color: '#fbbf24' }}>
           {disabledReason}
         </div>
       )}
+      {onAttach && <AttachmentChips attachments={attachments} onRemove={onRemoveAttachment} />}
       <div style={{ display: 'flex', gap: 6 }}>
+        {onAttach && (
+          <>
+            <input ref={fileRef} type="file" multiple hidden data-testid="attach-input"
+              onChange={e => { const files = Array.from(e.target.files || []); e.target.value = ''; if (files.length) onAttach(files) }} />
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              disabled={!canAttach}
+              title="Attach images or files (or paste or drop them here)"
+              aria-label="Attach files"
+              style={{
+                background: 'transparent', border: '1px solid rgba(0,180,216,0.15)', borderRadius: 8,
+                padding: '0 9px', cursor: canAttach ? 'pointer' : 'default',
+                color: canAttach ? '#00b4d8' : 'var(--text-muted)', display: 'flex', alignItems: 'center', flexShrink: 0,
+              }}
+            >
+              <Paperclip size={13} />
+            </button>
+          </>
+        )}
         <textarea
           ref={textareaRef}
           value={value}
           onChange={e => onChange(e.target.value)}
           onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
           onCompositionStart={() => { composingRef.current = true }}
           onCompositionEnd={() => { composingRef.current = false }}
           // Typing is blocked too, not just Send: with no usable backend

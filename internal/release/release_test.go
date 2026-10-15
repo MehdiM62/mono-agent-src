@@ -260,3 +260,16 @@ func TestRevokedKeyIsRejected(t *testing.T) {
 		t.Fatalf("the replacement key: %v", err)
 	}
 }
+
+func TestDefaultClientIsUnkeyedUnderGoTest(t *testing.T) {
+	t.Setenv(LiveReleaseTestEnv, "")
+	c := DefaultClient()
+	if c.Available() || len(c.ManifestURLs) != 0 || c.StatePath != "" {
+		t.Fatalf("DefaultClient under go test = %+v, want an unkeyed client with no URLs or state file", c)
+	}
+	t.Setenv(LiveReleaseTestEnv, "1")
+	c = DefaultClient()
+	if len(c.ManifestURLs) == 0 || c.StatePath == "" || len(c.Keys) != len(PinnedKeys()) {
+		t.Fatalf("DefaultClient with %s=1 = %+v, want the production client", LiveReleaseTestEnv, c)
+	}
+}

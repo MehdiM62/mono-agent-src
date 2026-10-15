@@ -102,5 +102,17 @@
       "required": false,
       "type": "text"
     }
+  ],
+  "outputs": [
+    {
+      "description": "the input item's fields, passed through",
+      "key": "*",
+      "type": "object"
+    },
+    {
+      "description": "path of the adjusted image",
+      "key": "<output_field>",
+      "type": "string"
+    }
   ]
 }

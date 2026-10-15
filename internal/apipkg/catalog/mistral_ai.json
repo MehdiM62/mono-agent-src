@@ -1,0 +1,140 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "mistral_ai",
+  "node_type": "app.mistral_ai",
+  "title": "Mistral AI",
+  "description": "Extract text from documents and images with Mistral OCR",
+  "category": "app",
+  "docs_url": "https://docs.mistral.ai/api/",
+  "n8n_types": [
+    "n8n-nodes-base.mistralAi"
+  ],
+  "base_url": "https://api.mistral.ai",
+  "credentials": [
+    {
+      "platform": "mistral",
+      "reuse_platform": "mistral",
+      "name": "Mistral AI",
+      "n8n_credential": "mistralCloudApi",
+      "n8n_field_map": {
+        "apiKey": "api_key"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.api_key }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "document",
+      "label": "Document"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "document",
+      "operation": "extractText",
+      "title": "Extract text from a document or image (OCR)",
+      "method": "POST",
+      "path": "/v1/ocr",
+      "description": "One OCR request per item; n8n's batch option (Mistral batch jobs) runs the same items one by one",
+      "fields": [
+        {
+          "key": "model",
+          "label": "Model",
+          "type": "select",
+          "default": "mistral-ocr-latest",
+          "options": [
+            "mistral-ocr-latest"
+          ]
+        },
+        {
+          "key": "documentType",
+          "label": "Document type",
+          "type": "select",
+          "default": "document_url",
+          "options": [
+            "document_url",
+            "image_url"
+          ]
+        },
+        {
+          "key": "inputType",
+          "label": "Input",
+          "type": "select",
+          "default": "binary",
+          "options": [
+            "binary",
+            "url"
+          ]
+        },
+        {
+          "key": "binaryProperty",
+          "label": "Binary property",
+          "type": "text",
+          "default": "data"
+        },
+        {
+          "key": "url",
+          "label": "URL",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "batch",
+            "batchSize",
+            "deleteFiles"
+          ],
+          "help": "Accepted for n8n compatibility; items are processed one request each"
+        }
+      ],
+      "body": {
+        "model": "{{ p.model }}",
+        "document": {
+          "type": "{{ p.documentType }}",
+          "$merge": [
+            {
+              "$when": "{{ p.documentType | eq:'document_url' }}",
+              "document_url": "{{ p.inputType | eq:'url' | then:p.url }}{{ p.inputType | ne:'url' | then:'data:' }}{{ bin.mime_type }}{{ p.inputType | ne:'url' | then:';base64,' }}{{ bin.base64 }}",
+              "document_name": "{{ p.inputType | ne:'url' | then:bin.file_name }}"
+            },
+            {
+              "$when": "{{ p.documentType | eq:'image_url' }}",
+              "image_url": "{{ p.inputType | eq:'url' | then:p.url }}{{ p.inputType | ne:'url' | then:'data:' }}{{ bin.mime_type }}{{ p.inputType | ne:'url' | then:';base64,' }}{{ bin.base64 }}"
+            }
+          ]
+        }
+      },
+      "body_type": "json",
+      "binary": {
+        "upload_field": "binaryProperty",
+        "upload_when": "{{ p.inputType | ne:'url' }}"
+      },
+      "output": {
+        "to": {
+          "$merge": "{{ el }}",
+          "extractedText": "{{ el.pages | pluck:'markdown' | join:'\n\n' }}",
+          "pageCount": "{{ el.usage_info.pages_processed }}"
+        }
+      }
+    }
+  ]
+}

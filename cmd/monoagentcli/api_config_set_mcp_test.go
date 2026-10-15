@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	apiconfigcli "github.com/monoes/mono-agent/internal/cli/apiconfig"
 	"github.com/monoes/mono-agent/internal/daemonhb"
 	"github.com/monoes/mono-agent/internal/testdb"
 )
@@ -42,7 +43,7 @@ func (c configCase) cli(yes bool) []string {
 		}
 		sort.Strings(keys)
 		for _, k := range keys {
-			args = append(args, "--"+configFlagOf(k), c.set[k])
+			args = append(args, "--"+apiconfigcli.FlagOf(k), c.set[k])
 		}
 	} else {
 		args = append(args, "unset")

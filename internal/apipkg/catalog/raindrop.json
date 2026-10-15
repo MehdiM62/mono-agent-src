@@ -1,0 +1,489 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "raindrop",
+  "node_type": "app.raindrop",
+  "title": "Raindrop",
+  "description": "Bookmarks, collections, tags and users in Raindrop.io",
+  "category": "app",
+  "docs_url": "https://developer.raindrop.io/",
+  "n8n_types": [
+    "n8n-nodes-base.raindrop"
+  ],
+  "base_url": "https://api.raindrop.io/rest/v1",
+  "credentials": [
+    {
+      "platform": "raindrop",
+      "name": "Raindrop",
+      "n8n_credential": "raindropOAuth2Api",
+      "n8n_field_map": {},
+      "methods": [
+        "oauth",
+        "bearer"
+      ],
+      "fields": [
+        {
+          "key": "access_token",
+          "label": "Test token",
+          "secret": true,
+          "required": true,
+          "help": "An app's test token, or connect with OAuth"
+        }
+      ],
+      "oauth": {
+        "auth_url": "https://raindrop.io/oauth/authorize",
+        "token_url": "https://raindrop.io/oauth/access_token",
+        "scopes": []
+      },
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "collection",
+      "label": "Collection"
+    },
+    {
+      "value": "bookmark",
+      "label": "Bookmark"
+    },
+    {
+      "value": "tag",
+      "label": "Tag"
+    },
+    {
+      "value": "user",
+      "label": "User"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "collection",
+      "operation": "get",
+      "title": "Get a collection",
+      "method": "GET",
+      "path": "/collection/{{ p.collectionId }}",
+      "fields": [
+        {
+          "key": "collectionId",
+          "label": "Collection ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "item"
+      }
+    },
+    {
+      "resource": "collection",
+      "operation": "create",
+      "title": "Create a collection",
+      "method": "POST",
+      "path": "/collection",
+      "fields": [
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "cover",
+            "public",
+            "parentId",
+            "sort",
+            "view"
+          ],
+          "help": "cover: an image URL"
+        }
+      ],
+      "body": {
+        "title": "{{ p.title }}",
+        "cover": [
+          "{{ p.additionalFields.cover }}"
+        ],
+        "public": "{{ p.additionalFields.public }}",
+        "parent.$id": "{{ p.additionalFields.parentId | int }}",
+        "sort": "{{ p.additionalFields.sort }}",
+        "view": "{{ p.additionalFields.view }}"
+      },
+      "output": {
+        "path": "item"
+      }
+    },
+    {
+      "resource": "collection",
+      "operation": "delete",
+      "title": "Delete a collection",
+      "method": "DELETE",
+      "path": "/collection/{{ p.collectionId }}",
+      "fields": [
+        {
+          "key": "collectionId",
+          "label": "Collection ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "collection",
+      "operation": "getAll",
+      "title": "Get many collections",
+      "method": "GET",
+      "path": "{{ p.type | eq:'children' | then:'/collections/childrens' | default:'/collections' }}",
+      "fields": [
+        {
+          "key": "type",
+          "label": "Type",
+          "type": "select",
+          "required": true,
+          "default": "parent",
+          "options": [
+            "parent",
+            "children"
+          ]
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 5,
+          "min": 1,
+          "max": 10
+        }
+      ],
+      "output": {
+        "path": "items",
+        "limit": true
+      }
+    },
+    {
+      "resource": "collection",
+      "operation": "update",
+      "title": "Update a collection",
+      "method": "PUT",
+      "path": "/collection/{{ p.collectionId }}",
+      "fields": [
+        {
+          "key": "collectionId",
+          "label": "Collection ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "cover",
+            "public",
+            "parentId",
+            "sort",
+            "title",
+            "view"
+          ],
+          "help": "cover: input binary property of an image to upload as the cover"
+        }
+      ],
+      "body": {
+        "public": "{{ p.updateFields.public }}",
+        "parent.$id": "{{ p.updateFields.parentId | int }}",
+        "sort": "{{ p.updateFields.sort }}",
+        "title": "{{ p.updateFields.title }}",
+        "view": "{{ p.updateFields.view }}"
+      },
+      "body_type": "json",
+      "binary": {
+        "upload_field": "updateFields",
+        "property": "{{ p.updateFields.cover }}",
+        "upload_when": "false",
+        "multipart_field": "cover"
+      },
+      "also": [
+        {
+          "when": "{{ p.updateFields.cover }}",
+          "upload": true,
+          "body_type": "multipart",
+          "method": "PUT",
+          "path": "/collection/{{ p.collectionId }}/cover"
+        }
+      ],
+      "output": {
+        "path": "item"
+      }
+    },
+    {
+      "resource": "bookmark",
+      "operation": "get",
+      "title": "Get a bookmark",
+      "method": "GET",
+      "path": "/raindrop/{{ p.bookmarkId }}",
+      "fields": [
+        {
+          "key": "bookmarkId",
+          "label": "Bookmark ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "item"
+      }
+    },
+    {
+      "resource": "bookmark",
+      "operation": "create",
+      "title": "Create a bookmark",
+      "method": "POST",
+      "path": "/raindrop",
+      "fields": [
+        {
+          "key": "collectionId",
+          "label": "Collection ID",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "link",
+          "label": "Link",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "important",
+            "order",
+            "pleaseParse",
+            "tags",
+            "title"
+          ],
+          "help": "tags: comma-separated"
+        }
+      ],
+      "body": {
+        "link": "{{ p.link }}",
+        "collection": {
+          "$id": "{{ p.collectionId | numeric }}"
+        },
+        "important": "{{ p.additionalFields.important }}",
+        "order": "{{ p.additionalFields.order }}",
+        "pleaseParse": {
+          "$when": "{{ p.additionalFields.pleaseParse | bool }}"
+        },
+        "tags": "{{ p.additionalFields.tags | split }}",
+        "title": "{{ p.additionalFields.title }}"
+      },
+      "output": {
+        "path": "item"
+      }
+    },
+    {
+      "resource": "bookmark",
+      "operation": "delete",
+      "title": "Delete a bookmark",
+      "method": "DELETE",
+      "path": "/raindrop/{{ p.bookmarkId }}",
+      "fields": [
+        {
+          "key": "bookmarkId",
+          "label": "Bookmark ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "bookmark",
+      "operation": "getAll",
+      "title": "Get many bookmarks",
+      "method": "GET",
+      "path": "/raindrops/{{ p.collectionId }}",
+      "fields": [
+        {
+          "key": "collectionId",
+          "label": "Collection ID",
+          "type": "text",
+          "required": true,
+          "help": "0 = all, -1 = unsorted, -99 = trash"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 5,
+          "min": 1,
+          "max": 10
+        }
+      ],
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "start_page": 0,
+        "limit_param": "perpage",
+        "page_size": 50,
+        "results_path": "items"
+      }
+    },
+    {
+      "resource": "bookmark",
+      "operation": "update",
+      "title": "Update a bookmark",
+      "method": "PUT",
+      "path": "/raindrop/{{ p.bookmarkId }}",
+      "fields": [
+        {
+          "key": "bookmarkId",
+          "label": "Bookmark ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "collectionId",
+            "important",
+            "order",
+            "pleaseParse",
+            "tags",
+            "title"
+          ]
+        }
+      ],
+      "body": {
+        "collection": {
+          "$id": "{{ p.updateFields.collectionId | numeric }}"
+        },
+        "important": "{{ p.updateFields.important }}",
+        "order": "{{ p.updateFields.order }}",
+        "pleaseParse": {
+          "$when": "{{ p.updateFields.pleaseParse | bool }}"
+        },
+        "tags": "{{ p.updateFields.tags | split }}",
+        "title": "{{ p.updateFields.title }}"
+      },
+      "output": {
+        "path": "item"
+      }
+    },
+    {
+      "resource": "tag",
+      "operation": "getAll",
+      "title": "Get many tags",
+      "method": "GET",
+      "path": "/tags{{ p.filters.collectionId | then:'/' }}{{ p.filters.collectionId }}",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 5,
+          "min": 1,
+          "max": 10
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "collectionId"
+          ]
+        }
+      ],
+      "output": {
+        "path": "items",
+        "limit": true
+      }
+    },
+    {
+      "resource": "tag",
+      "operation": "delete",
+      "title": "Delete tags",
+      "method": "DELETE",
+      "path": "/tags{{ p.additionalFields.collectionId | then:'/' }}{{ p.additionalFields.collectionId }}",
+      "fields": [
+        {
+          "key": "tags",
+          "label": "Tags",
+          "type": "text",
+          "required": true,
+          "help": "Comma-separated"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "collectionId"
+          ]
+        }
+      ],
+      "body": {
+        "tags": "{{ p.tags | split }}"
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "get",
+      "title": "Get a user",
+      "method": "GET",
+      "path": "/user{{ p.self | bool | ne:'true' | then:'/' }}{{ p.self | bool | ne:'true' | then:p.userId }}",
+      "fields": [
+        {
+          "key": "self",
+          "label": "Myself",
+          "type": "boolean",
+          "required": true,
+          "default": true
+        },
+        {
+          "key": "userId",
+          "label": "User ID",
+          "type": "text",
+          "default": "",
+          "help": "When Myself is off"
+        }
+      ],
+      "output": {
+        "path": "user"
+      }
+    }
+  ]
+}

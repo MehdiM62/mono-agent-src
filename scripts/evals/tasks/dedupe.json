@@ -1,0 +1,37 @@
+{
+  "id": "dedupe",
+  "mode": "both",
+  "workflow_name": "eval-dedupe",
+  "prompt": "Create a workflow named \"eval-dedupe\", run manually, that fetches\n{{FIXTURE_URL}}/contacts.json (the contacts are under \"contacts\", each with\n\"email\" and \"name\"), turns them into one item per contact, and removes\nduplicate contacts by email, keeping the first occurrence.",
+  "fixtures": [
+    "contacts.json"
+  ],
+  "checks": [
+    {
+      "type": "validate_ok"
+    },
+    {
+      "type": "dry_run_ok"
+    },
+    {
+      "type": "run_status",
+      "equals": "SUCCESS"
+    },
+    {
+      "type": "node_types",
+      "include": [
+        "core.remove_duplicates"
+      ]
+    },
+    {
+      "type": "output",
+      "node_type": "core.remove_duplicates",
+      "path": "[*].name",
+      "equals": [
+        "Ann",
+        "Bob",
+        "Cy"
+      ]
+    }
+  ]
+}

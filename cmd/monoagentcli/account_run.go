@@ -37,7 +37,7 @@ func reportGateRefusal(args []string, err error, stdout, stderr io.Writer) {
 }
 
 // argsWantJSON reports whether --json is among the arguments. The value of a
-// global value flag is skipped, as wantsJSONError does, so `--profile --json`
+// global value flag is skipped, so `--profile --json`
 // names a profile.
 func argsWantJSON(args []string) bool {
 	for i := 0; i < len(args); i++ {

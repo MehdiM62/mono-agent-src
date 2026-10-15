@@ -1,0 +1,174 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "gotify",
+  "node_type": "app.gotify",
+  "title": "Gotify",
+  "description": "Send, list and delete push messages on a self-hosted Gotify server",
+  "category": "app",
+  "docs_url": "https://gotify.net/api-docs",
+  "n8n_types": [
+    "n8n-nodes-base.gotify"
+  ],
+  "base_url": "{{ cred.url }}",
+  "headers": {
+    "Accept": "application/json"
+  },
+  "credentials": [
+    {
+      "platform": "gotify",
+      "name": "Gotify",
+      "n8n_credential": "gotifyApi",
+      "n8n_field_map": {
+        "appApiToken": "app_token",
+        "clientApiToken": "client_token",
+        "url": "url",
+        "ignoreSSLIssues": "allow_unauthorized_certs"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "url",
+          "label": "Server URL",
+          "required": true,
+          "help": "e.g. https://push.example.com (no trailing slash)"
+        },
+        {
+          "key": "app_token",
+          "label": "Application token",
+          "secret": true,
+          "help": "Used to send messages"
+        },
+        {
+          "key": "client_token",
+          "label": "Client token",
+          "secret": true,
+          "help": "Used to list and delete messages"
+        },
+        {
+          "key": "allow_unauthorized_certs",
+          "label": "Ignore SSL issues",
+          "help": "true to accept self-signed or invalid TLS certificates (self-hosted servers)"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "X-Gotify-Key": "{{ p.message | then:cred.app_token | default:cred.client_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "message",
+      "label": "Message"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "message",
+      "operation": "create",
+      "title": "Send a message",
+      "method": "POST",
+      "path": "/message",
+      "fields": [
+        {
+          "key": "message",
+          "label": "Message",
+          "type": "textarea",
+          "required": true,
+          "help": "Use the Markdown content type option for Markdown"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "priority",
+            "title"
+          ]
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "contentType",
+            "clickUrl",
+            "bigImageUrl",
+            "intentUrl"
+          ],
+          "help": "contentType: text/plain or text/markdown"
+        }
+      ],
+      "body": {
+        "message": "{{ p.message }}",
+        "priority": "{{ p.additionalFields.priority }}",
+        "title": "{{ p.additionalFields.title }}",
+        "extras": {
+          "client::display": {
+            "contentType": "{{ p.options.contentType }}"
+          },
+          "client::notification": {
+            "click": {
+              "url": "{{ p.options.clickUrl }}"
+            },
+            "bigImageUrl": "{{ p.options.bigImageUrl }}"
+          },
+          "android::action": {
+            "onReceive": {
+              "intentUrl": "{{ p.options.intentUrl }}"
+            }
+          }
+        }
+      }
+    },
+    {
+      "resource": "message",
+      "operation": "delete",
+      "title": "Delete a message",
+      "method": "DELETE",
+      "path": "/message/{{ p.messageId }}",
+      "fields": [
+        {
+          "key": "messageId",
+          "label": "Message ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "message",
+      "operation": "getAll",
+      "title": "Get many messages",
+      "method": "GET",
+      "path": "/message",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 20,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "paging.next",
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": "messages"
+      }
+    }
+  ]
+}

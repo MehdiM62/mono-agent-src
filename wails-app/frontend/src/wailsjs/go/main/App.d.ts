@@ -97,6 +97,8 @@ export function BindBrowser(arg1:string,arg2:string):Promise<main.BrowserRow>;
 
 export function CancelHealthRun(arg1:string):Promise<string>;
 
+export function CancelPlatformOAuth(arg1:string):Promise<string>;
+
 export function CancelWorkflow(arg1:string):Promise<void>;
 
 export function CheckForUpdate():Promise<main.UpdateInfo>;
@@ -123,6 +125,8 @@ export function CoderStatus():Promise<string>;
 
 export function CoderStopBackground(arg1:string,arg2:string):Promise<string>;
 
+export function CoderWorkspaceDefault(arg1:string):Promise<string>;
+
 export function CoderWorkspaceList():Promise<string>;
 
 export function CoderWorkspaceRoot(arg1:string):Promise<string>;
@@ -132,6 +136,8 @@ export function ComposePersonMessage(arg1:string,arg2:string,arg3:string,arg4:st
 export function ConfirmSocialLogin(arg1:string):Promise<string>;
 
 export function ConnectPlatformOAuth(arg1:string):Promise<string>;
+
+export function ConnectPlatformOAuthFields(arg1:string,arg2:Array<string>,arg3:string):Promise<string>;
 
 export function ControlOrg(arg1:string,arg2:string):Promise<string>;
 
@@ -232,6 +238,8 @@ export function GetDraftPersonMessages():Promise<Array<storage.PersonMessageWith
 export function GetEffectiveTools(arg1:string,arg2:string):Promise<string>;
 
 export function GetExecutionDetail(arg1:string):Promise<Record<string, any>>;
+
+export function GetExtensionStatus():Promise<string>;
 
 export function GetGlobalOrgSummary(arg1:boolean):Promise<string>;
 
@@ -345,7 +353,35 @@ export function GetWorkflowNodeTypes():Promise<Record<string, any>>;
 
 export function GetWorkflowTriggerInputs(arg1:string):Promise<string>;
 
+export function HILAttachment(arg1:string,arg2:number):Promise<string>;
+
+export function HILList():Promise<string>;
+
+export function HILResolve(arg1:string,arg2:boolean,arg3:string,arg4:string):Promise<string>;
+
 export function HasGeneratedDocuments(arg1:string):Promise<boolean>;
+
+export function HilSendAllowAdd(arg1:string,arg2:string,arg3:string,arg4:string):Promise<string>;
+
+export function HilSendAllowList():Promise<string>;
+
+export function HilSendAllowRemove(arg1:string):Promise<string>;
+
+export function HilSendAttachment(arg1:string,arg2:number):Promise<string>;
+
+export function HilSendAttachmentData(arg1:string,arg2:number):Promise<string>;
+
+export function HilSendEdit(arg1:string,arg2:string,arg3:string):Promise<string>;
+
+export function HilSendList(arg1:string):Promise<string>;
+
+export function HilSendRecipient(arg1:string):Promise<string>;
+
+export function HilSendResolve(arg1:string,arg2:boolean,arg3:string,arg4:string,arg5:boolean):Promise<string>;
+
+export function HilSendSetApproval(arg1:boolean):Promise<string>;
+
+export function HilSendShow(arg1:string):Promise<string>;
 
 export function ImportVaultAll(arg1:string,arg2:string):Promise<main.VaultImportResult>;
 
@@ -461,6 +497,8 @@ export function MarkPersonMessagesRead(arg1:string,arg2:Array<string>):Promise<v
 
 export function MoveProfileFolder(arg1:string,arg2:string):Promise<void>;
 
+export function NodeConfigFromCurl(arg1:string):Promise<main.CurlImport>;
+
 export function OpenAnyFilePicker(arg1:string):Promise<string>;
 
 export function OpenJSONFilePicker(arg1:string):Promise<string>;
@@ -485,13 +523,29 @@ export function OrgSignatureReview(arg1:string):Promise<string>;
 
 export function OrgSignatureStatus(arg1:string):Promise<string>;
 
+export function PairExtension():Promise<string>;
+
 export function PauseOrgAutonomy(arg1:string,arg2:string):Promise<string>;
 
 export function PickCoderFolder():Promise<string>;
 
+export function PlatformNames():Promise<Record<string, string>>;
+
 export function PromoteRoleToRoot(arg1:string,arg2:string):Promise<string>;
 
+export function QueueDismiss(arg1:string):Promise<string>;
+
+export function QueueImage(arg1:string):Promise<string>;
+
+export function QueueList():Promise<string>;
+
+export function QueueStart(arg1:string,arg2:string):Promise<string>;
+
+export function ReadHILScreenshot(arg1:string):Promise<string>;
+
 export function ReadJSONFile(arg1:string):Promise<Record<string, any>>;
+
+export function ReadWorkspaceImage(arg1:string,arg2:string):Promise<string>;
 
 export function RejectDraftPersonMessage(arg1:string):Promise<void>;
 
@@ -538,6 +592,8 @@ export function RunOrg(arg1:string,arg2:string):Promise<string>;
 export function RunWorkflow(arg1:string):Promise<void>;
 
 export function RunWorkflowWithInput(arg1:string,arg2:string):Promise<void>;
+
+export function SaveChatAttachment(arg1:string,arg2:string,arg3:string):Promise<string>;
 
 export function SaveConnectionDirect(arg1:string,arg2:string,arg3:string):Promise<string>;
 
@@ -587,11 +643,13 @@ export function SetWorkflowActive(arg1:string,arg2:boolean):Promise<void>;
 
 export function ShowAutomation(arg1:string):Promise<string>;
 
+export function ShowPlatform(arg1:string):Promise<string>;
+
 export function ShowRecording(arg1:string):Promise<string>;
 
 export function StartAgentValidation(arg1:Array<string>,arg2:Array<string>,arg3:boolean):Promise<string>;
 
-export function StartChatTurn(arg1:string,arg2:string,arg3:string,arg4:boolean,arg5:boolean):Promise<string>;
+export function StartChatTurn(arg1:string,arg2:string,arg3:string,arg4:boolean,arg5:boolean,arg6:Array<string>):Promise<string>;
 
 export function StartOrgGroup(arg1:string):Promise<string>;
 

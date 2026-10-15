@@ -1,0 +1,574 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "wise",
+  "title": "Wise",
+  "description": "Balances, statements, exchange rates, quotes, recipients and transfers in Wise (TransferWise)",
+  "category": "app",
+  "docs_url": "https://docs.wise.com/api-docs/api-reference",
+  "n8n_types": [
+    "n8n-nodes-base.wise"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.wiseTrigger"
+  ],
+  "base_url": "{{ cred.environment | eq:'test' | then:'https://api.wise-sandbox.com' | default:'https://api.wise.com' }}",
+  "credentials": [
+    {
+      "platform": "wise",
+      "name": "Wise",
+      "n8n_credential": "wiseApi",
+      "n8n_field_map": {
+        "apiToken": "access_token",
+        "environment": "environment",
+        "privateKey": "private_key"
+      },
+      "methods": [
+        "bearer"
+      ],
+      "fields": [
+        {
+          "key": "access_token",
+          "label": "API token",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "environment",
+          "label": "Environment",
+          "help": "live (default) or test (sandbox)"
+        },
+        {
+          "key": "private_key",
+          "label": "Private key (SCA)",
+          "secret": true,
+          "help": "Not used yet: requests that need Strong Customer Authentication fail with HTTP 403"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "account",
+      "label": "Account"
+    },
+    {
+      "value": "exchangeRate",
+      "label": "Exchange rate"
+    },
+    {
+      "value": "profile",
+      "label": "Profile"
+    },
+    {
+      "value": "quote",
+      "label": "Quote"
+    },
+    {
+      "value": "recipient",
+      "label": "Recipient"
+    },
+    {
+      "value": "transfer",
+      "label": "Transfer"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "account",
+      "operation": "getBalances",
+      "title": "Get balances",
+      "method": "GET",
+      "path": "/v1/borderless-accounts",
+      "query": {
+        "profileId": "{{ p.profileId }}"
+      },
+      "fields": [
+        {
+          "key": "profileId",
+          "label": "Profile ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "account",
+      "operation": "getCurrencies",
+      "title": "Get currencies",
+      "method": "GET",
+      "path": "/v1/borderless-accounts/balance-currencies",
+      "fields": []
+    },
+    {
+      "resource": "account",
+      "operation": "getStatement",
+      "title": "Get a statement",
+      "method": "GET",
+      "path": "/v3/profiles/{{ p.profileId }}/borderless-accounts/{{ p.borderlessAccountId }}/statement.{{ p.format }}",
+      "query": {
+        "currency": "{{ p.currency }}",
+        "type": "{{ p.additionalFields.lineStyle }}",
+        "intervalStart": "{{ p.additionalFields.range.rangeProperties.intervalStart | date:'YYYY-MM-DDTHH:mm:ssZ' | default:(now | epoch | sub:2592000 | date:'YYYY-MM-DDTHH:mm:ssZ') }}",
+        "intervalEnd": "{{ p.additionalFields.range.rangeProperties.intervalEnd | date:'YYYY-MM-DDTHH:mm:ssZ' | default:(now | date:'YYYY-MM-DDTHH:mm:ssZ') }}"
+      },
+      "binary": {
+        "download_when": "{{ p.format | ne:'json' }}",
+        "property_field": "binaryProperty",
+        "file_name": "{{ p.fileName }}"
+      },
+      "fields": [
+        {
+          "key": "profileId",
+          "label": "Profile ID",
+          "type": "text"
+        },
+        {
+          "key": "borderlessAccountId",
+          "label": "Borderless account ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "currency",
+          "label": "Currency",
+          "type": "text",
+          "help": "ISO code, e.g. EUR"
+        },
+        {
+          "key": "format",
+          "label": "Format",
+          "type": "select",
+          "default": "json",
+          "options": [
+            "json",
+            "csv",
+            "pdf",
+            "xml"
+          ]
+        },
+        {
+          "key": "binaryProperty",
+          "label": "Binary property",
+          "type": "text",
+          "default": "data",
+          "help": "Output property for csv/pdf/xml statements"
+        },
+        {
+          "key": "fileName",
+          "label": "File name",
+          "type": "text",
+          "help": "For csv/pdf/xml statements"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "lineStyle",
+            "range"
+          ],
+          "help": "range: {\"rangeProperties\": {\"intervalStart\": …, \"intervalEnd\": …}}; default the last month"
+        }
+      ]
+    },
+    {
+      "resource": "exchangeRate",
+      "operation": "get",
+      "title": "Get exchange rates",
+      "method": "GET",
+      "path": "/v1/rates",
+      "query": {
+        "source": "{{ p.source }}",
+        "target": "{{ p.target }}",
+        "group": "{{ p.additionalFields.interval }}",
+        "time": "{{ p.additionalFields.time }}",
+        "from": "{{ p.additionalFields.time | default:'' | eq:'' | then:(p.additionalFields.range.rangeProperties.from | date:'YYYY-MM-DDTHH:mm:ssZ' | default:(now | epoch | sub:2592000 | date:'YYYY-MM-DDTHH:mm:ssZ')) }}",
+        "to": "{{ p.additionalFields.time | default:'' | eq:'' | then:(p.additionalFields.range.rangeProperties.to | date:'YYYY-MM-DDTHH:mm:ssZ' | default:(now | date:'YYYY-MM-DDTHH:mm:ssZ')) }}"
+      },
+      "fields": [
+        {
+          "key": "source",
+          "label": "Source currency",
+          "type": "text"
+        },
+        {
+          "key": "target",
+          "label": "Target currency",
+          "type": "text"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "interval",
+            "range",
+            "time"
+          ],
+          "help": "time: one moment; range: {\"rangeProperties\": {\"from\", \"to\"}}; default the last month"
+        }
+      ]
+    },
+    {
+      "resource": "profile",
+      "operation": "get",
+      "title": "Get a profile",
+      "method": "GET",
+      "path": "/v1/profiles/{{ p.profileId }}",
+      "fields": [
+        {
+          "key": "profileId",
+          "label": "Profile ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "profile",
+      "operation": "getAll",
+      "title": "Get all profiles",
+      "method": "GET",
+      "path": "/v1/profiles",
+      "fields": []
+    },
+    {
+      "resource": "quote",
+      "operation": "get",
+      "title": "Get a quote",
+      "method": "GET",
+      "path": "/v2/quotes/{{ p.quoteId }}",
+      "fields": [
+        {
+          "key": "quoteId",
+          "label": "Quote ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "quote",
+      "operation": "create",
+      "title": "Create a quote",
+      "method": "POST",
+      "path": "/v2/quotes",
+      "body": {
+        "profile": "{{ p.profileId }}",
+        "sourceCurrency": "{{ p.sourceCurrency | upper }}",
+        "targetCurrency": "{{ p.targetCurrency | upper }}",
+        "sourceAmount": "{{ p.amountType | eq:'source' | then:p.amount }}",
+        "targetAmount": "{{ p.amountType | eq:'target' | then:p.amount }}"
+      },
+      "fields": [
+        {
+          "key": "profileId",
+          "label": "Profile ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "targetAccountId",
+          "label": "Recipient account ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "amountType",
+          "label": "Amount type",
+          "type": "select",
+          "default": "source",
+          "options": [
+            "source",
+            "target"
+          ]
+        },
+        {
+          "key": "amount",
+          "label": "Amount",
+          "type": "number",
+          "default": 1
+        },
+        {
+          "key": "sourceCurrency",
+          "label": "Source currency",
+          "type": "text"
+        },
+        {
+          "key": "targetCurrency",
+          "label": "Target currency",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "resource": "recipient",
+      "operation": "getAll",
+      "title": "Get many recipients",
+      "method": "GET",
+      "path": "/v1/accounts",
+      "output": {
+        "limit": true
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 5,
+          "min": 1
+        }
+      ]
+    },
+    {
+      "resource": "transfer",
+      "operation": "get",
+      "title": "Get a transfer",
+      "method": "GET",
+      "path": "/v1/transfers/{{ p.transferId }}{{ p.downloadReceipt | eq:'true' | then:'/receipt.pdf' }}",
+      "binary": {
+        "download_when": "{{ p.downloadReceipt }}",
+        "property_field": "binaryProperty",
+        "file_name": "{{ p.fileName }}"
+      },
+      "fields": [
+        {
+          "key": "transferId",
+          "label": "Transfer ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "downloadReceipt",
+          "label": "Download receipt",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "binaryProperty",
+          "label": "Binary property",
+          "type": "text",
+          "default": "data"
+        },
+        {
+          "key": "fileName",
+          "label": "File name",
+          "type": "text",
+          "help": "For the receipt PDF"
+        }
+      ]
+    },
+    {
+      "resource": "transfer",
+      "operation": "create",
+      "title": "Create a transfer",
+      "method": "POST",
+      "path": "/v1/transfers",
+      "body": {
+        "quoteUuid": "{{ p.quoteId }}",
+        "targetAccount": "{{ p.targetAccountId }}",
+        "customerTransactionId": "{{ uuid }}",
+        "details": {
+          "reference": "{{ p.additionalFields.reference }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "profileId",
+          "label": "Profile ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "quoteId",
+          "label": "Quote ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "targetAccountId",
+          "label": "Recipient account ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "reference"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "transfer",
+      "operation": "delete",
+      "title": "Cancel a transfer",
+      "method": "PUT",
+      "path": "/v1/transfers/{{ p.transferId }}/cancel",
+      "fields": [
+        {
+          "key": "transferId",
+          "label": "Transfer ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "transfer",
+      "operation": "execute",
+      "title": "Fund a transfer from the balance",
+      "method": "POST",
+      "path": "/v3/profiles/{{ p.profileId }}/transfers/{{ p.transferId }}/payments",
+      "body": {
+        "type": "BALANCE"
+      },
+      "also": [
+        {
+          "when": "{{ cred.environment | eq:'test' }}",
+          "method": "GET",
+          "path": "/v1/simulation/transfers/{{ p.transferId }}/processing"
+        },
+        {
+          "when": "{{ cred.environment | eq:'test' }}",
+          "method": "GET",
+          "path": "/v1/simulation/transfers/{{ p.transferId }}/funds_converted"
+        },
+        {
+          "when": "{{ cred.environment | eq:'test' }}",
+          "method": "GET",
+          "path": "/v1/simulation/transfers/{{ p.transferId }}/outgoing_payment_sent"
+        }
+      ],
+      "fields": [
+        {
+          "key": "profileId",
+          "label": "Profile ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "transferId",
+          "label": "Transfer ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "transfer",
+      "operation": "getAll",
+      "title": "Get many transfers",
+      "method": "GET",
+      "path": "/v1/transfers",
+      "query": {
+        "profile": "{{ p.profileId }}",
+        "sourceCurrency": "{{ p.filters.sourceCurrency }}",
+        "targetCurrency": "{{ p.filters.targetCurrency }}",
+        "status": "{{ p.filters.status }}",
+        "createdDateStart": "{{ p.filters.range.rangeProperties.createdDateStart | date:'YYYY-MM-DDTHH:mm:ssZ' | default:(now | epoch | sub:2592000 | date:'YYYY-MM-DDTHH:mm:ssZ') }}",
+        "createdDateEnd": "{{ p.filters.range.rangeProperties.createdDateEnd | date:'YYYY-MM-DDTHH:mm:ssZ' | default:(now | date:'YYYY-MM-DDTHH:mm:ssZ') }}"
+      },
+      "pagination": {
+        "type": "offset",
+        "offset_param": "offset",
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": ""
+      },
+      "fields": [
+        {
+          "key": "profileId",
+          "label": "Profile ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 5,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "range",
+            "sourceCurrency",
+            "status",
+            "targetCurrency"
+          ],
+          "help": "range: {\"rangeProperties\": {\"createdDateStart\", \"createdDateEnd\"}}; default the last month"
+        }
+      ]
+    }
+  ],
+  "webhook": {
+    "fields": [
+      {
+        "key": "profileId",
+        "label": "Profile ID",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "event",
+        "label": "Event",
+        "type": "select",
+        "required": true,
+        "options": [
+          "balanceCredit",
+          "balanceUpdate",
+          "transferActiveCases",
+          "tranferStateChange"
+        ]
+      }
+    ],
+    "create": [
+      {
+        "method": "POST",
+        "path": "/v3/profiles/{{ p.profileId }}/subscriptions",
+        "body": {
+          "name": "mono-agent webhook",
+          "trigger_on": "{{ p.event | map:'tranferStateChange=transfers#state-change,transferActiveCases=transfers#active-cases,balanceCredit=balances#credit,balanceUpdate=balances#update' }}",
+          "delivery": {
+            "version": "2.0.0",
+            "url": "{{ hook.url }}"
+          }
+        }
+      }
+    ],
+    "id": "{{ res.id }}",
+    "delete": [
+      {
+        "method": "DELETE",
+        "path": "/v3/profiles/{{ p.profileId }}/subscriptions/{{ hook.id }}"
+      }
+    ]
+  }
+}

@@ -1,0 +1,173 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "mocean",
+  "node_type": "app.mocean",
+  "title": "Mocean",
+  "description": "Send SMS and text-to-speech voice calls through Mocean",
+  "category": "app",
+  "docs_url": "https://moceanapi.com/docs/",
+  "n8n_types": [
+    "n8n-nodes-base.mocean"
+  ],
+  "base_url": "https://rest.moceanapi.com",
+  "credentials": [
+    {
+      "platform": "mocean",
+      "name": "Mocean",
+      "n8n_credential": "moceanApi",
+      "n8n_field_map": {
+        "mocean-api-key": "api_key",
+        "mocean-api-secret": "api_secret"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "api_key",
+          "label": "API key",
+          "required": true
+        },
+        {
+          "key": "api_secret",
+          "label": "API secret",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "query": {
+          "mocean-api-key": "{{ cred.api_key }}",
+          "mocean-api-secret": "{{ cred.api_secret }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "sms",
+      "label": "SMS"
+    },
+    {
+      "value": "voice",
+      "label": "Voice"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "sms",
+      "operation": "send",
+      "title": "Send an SMS",
+      "method": "POST",
+      "path": "/rest/2/sms",
+      "body_type": "form",
+      "fields": [
+        {
+          "key": "from",
+          "label": "From",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "to",
+          "label": "To",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "message",
+          "label": "Message",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "dlrUrl"
+          ],
+          "help": "dlrUrl: URL that receives delivery reports"
+        }
+      ],
+      "body": {
+        "mocean-from": "{{ p.from }}",
+        "mocean-to": "{{ p.to }}",
+        "mocean-text": "{{ p.message }}",
+        "mocean-resp-format": "JSON",
+        "mocean-dlr-url": "{{ p.options.dlrUrl }}",
+        "mocean-dlr-mask": "{{ p.options.dlrUrl | then:'1' }}"
+      },
+      "output": {
+        "path": "messages",
+        "to": {
+          "$merge": "{{ el }}",
+          "type": "sms"
+        }
+      }
+    },
+    {
+      "resource": "voice",
+      "operation": "send",
+      "title": "Make a text-to-speech call",
+      "method": "POST",
+      "path": "/rest/2/voice/dial",
+      "body_type": "form",
+      "fields": [
+        {
+          "key": "from",
+          "label": "From",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "to",
+          "label": "To",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "language",
+          "label": "Language",
+          "type": "select",
+          "default": "en-US",
+          "options": [
+            "cmn-CN",
+            "en-GB",
+            "en-US",
+            "ja-JP",
+            "ko-KR"
+          ]
+        },
+        {
+          "key": "message",
+          "label": "Message",
+          "type": "textarea",
+          "required": true
+        }
+      ],
+      "body": {
+        "mocean-from": "{{ p.from }}",
+        "mocean-to": "{{ p.to }}",
+        "mocean-resp-format": "JSON",
+        "mocean-command": {
+          "$json": [
+            {
+              "action": "say",
+              "language": "{{ p.language }}",
+              "text": "{{ p.message }}"
+            }
+          ]
+        }
+      },
+      "output": {
+        "path": "voice",
+        "to": {
+          "$merge": "{{ el }}",
+          "type": "voice"
+        }
+      }
+    }
+  ]
+}

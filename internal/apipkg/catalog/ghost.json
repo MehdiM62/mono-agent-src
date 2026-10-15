@@ -1,0 +1,407 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "ghost",
+  "node_type": "app.ghost",
+  "title": "Ghost",
+  "description": "Read posts through the Ghost Content API and create, update and delete them through the Admin API",
+  "category": "app",
+  "docs_url": "https://ghost.org/docs/admin-api/",
+  "n8n_types": [
+    "n8n-nodes-base.ghost"
+  ],
+  "base_url": "{{ cred.url }}",
+  "headers": {
+    "Accept": "application/json"
+  },
+  "credentials": [
+    {
+      "platform": "ghost_content",
+      "name": "Ghost Content API",
+      "n8n_credential": "ghostContentApi",
+      "n8n_field_map": {
+        "url": "url",
+        "apiKey": "content_key"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "url",
+          "label": "Site URL",
+          "required": true,
+          "help": "e.g. https://blog.example.com (no trailing slash)"
+        },
+        {
+          "key": "content_key",
+          "label": "Content API key",
+          "secret": true,
+          "required": true,
+          "help": "Ghost Admin → Integrations → custom integration"
+        }
+      ],
+      "inject": {
+        "query": {
+          "key": "{{ cred.content_key }}"
+        }
+      }
+    },
+    {
+      "platform": "ghost_admin",
+      "name": "Ghost Admin API",
+      "n8n_credential": "ghostAdminApi",
+      "n8n_field_map": {
+        "url": "url",
+        "apiKey": "admin_key"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "url",
+          "label": "Site URL",
+          "required": true,
+          "help": "e.g. https://blog.example.com (no trailing slash)"
+        },
+        {
+          "key": "admin_key",
+          "label": "Admin API key",
+          "secret": true,
+          "required": true,
+          "help": "Format <id>:<secret>, from a custom integration"
+        }
+      ],
+      "inject": {
+        "jwt": {
+          "header": "Authorization",
+          "prefix": "Ghost ",
+          "alg": "HS256",
+          "secret": "{{ cred.admin_key | split:':' | get:'1' }}",
+          "secret_encoding": "hex",
+          "kid": "{{ cred.admin_key | split:':' | get:'0' }}",
+          "claims": {
+            "aud": "/admin/"
+          },
+          "ttl_s": 300
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "post",
+      "label": "Post"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "post",
+      "operation": "get",
+      "title": "Get a post",
+      "method": "GET",
+      "path": "/ghost/api/{{ p.source | eq:'adminApi' | then:'v2/admin' | default:'v3/content' }}/posts/{{ p.by | eq:'slug' | then:'slug/' }}{{ p.identifier }}",
+      "fields": [
+        {
+          "key": "source",
+          "label": "API",
+          "type": "select",
+          "default": "contentApi",
+          "options": [
+            "contentApi",
+            "adminApi"
+          ],
+          "help": "Use the connection that matches: Content API key or Admin API key"
+        },
+        {
+          "key": "by",
+          "label": "Find by",
+          "type": "select",
+          "default": "id",
+          "options": [
+            "id",
+            "slug"
+          ]
+        },
+        {
+          "key": "identifier",
+          "label": "ID or slug",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fields",
+            "formats"
+          ],
+          "help": "formats: html, plaintext (content) or html, mobiledoc, lexical (admin)"
+        }
+      ],
+      "query": {
+        "fields": "{{ p.options.fields }}",
+        "formats": "{{ p.options.formats | csv }}"
+      },
+      "output": {
+        "path": "posts"
+      }
+    },
+    {
+      "resource": "post",
+      "operation": "getAll",
+      "title": "Get many posts",
+      "method": "GET",
+      "path": "/ghost/api/{{ p.source | eq:'adminApi' | then:'v2/admin' | default:'v3/content' }}/posts",
+      "fields": [
+        {
+          "key": "source",
+          "label": "API",
+          "type": "select",
+          "default": "contentApi",
+          "options": [
+            "contentApi",
+            "adminApi"
+          ]
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "include",
+            "fields",
+            "formats"
+          ],
+          "help": "include: authors, tags"
+        }
+      ],
+      "query": {
+        "include": "{{ p.options.include | csv }}",
+        "fields": "{{ p.options.fields }}",
+        "formats": "{{ p.options.formats | csv }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "limit",
+        "page_size": 50,
+        "results_path": "posts"
+      }
+    },
+    {
+      "resource": "post",
+      "operation": "create",
+      "title": "Create a post (Admin API)",
+      "method": "POST",
+      "path": "/ghost/api/v2/admin/posts",
+      "fields": [
+        {
+          "key": "source",
+          "label": "API",
+          "type": "select",
+          "default": "adminApi",
+          "options": [
+            "adminApi"
+          ]
+        },
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "contentFormat",
+          "label": "Content format",
+          "type": "select",
+          "default": "html",
+          "options": [
+            "html",
+            "mobileDoc",
+            "lexical"
+          ]
+        },
+        {
+          "key": "content",
+          "label": "Content",
+          "type": "textarea",
+          "help": "HTML, or Mobiledoc / Lexical JSON"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "authors",
+            "canonical_url",
+            "codeinjection_foot",
+            "codeinjection_head",
+            "featured",
+            "meta_description",
+            "meta_title",
+            "og_description",
+            "og_image",
+            "og_title",
+            "published_at",
+            "slug",
+            "status",
+            "tags",
+            "twitter_description",
+            "twitter_image",
+            "twitter_title"
+          ],
+          "help": "status: draft, published or scheduled (scheduled needs published_at)"
+        }
+      ],
+      "query": {
+        "source": "{{ p.contentFormat | eq:'html' | then:'html' }}"
+      },
+      "body": {
+        "posts": [
+          {
+            "title": "{{ p.title }}",
+            "html": "{{ p.contentFormat | eq:'html' | then:p.content }}",
+            "lexical": "{{ p.contentFormat | eq:'lexical' | then:p.content }}",
+            "mobiledoc": "{{ p.contentFormat | eq:'mobileDoc' | then:p.content }}",
+            "$merge": "{{ p.additionalFields }}",
+            "published_at": "{{ p.additionalFields.published_at | date:'YYYY-MM-DDTHH:mm:ssZ' }}"
+          }
+        ]
+      },
+      "output": {
+        "path": "posts"
+      }
+    },
+    {
+      "resource": "post",
+      "operation": "delete",
+      "title": "Delete a post (Admin API)",
+      "method": "DELETE",
+      "path": "/ghost/api/v2/admin/posts/{{ p.postId }}",
+      "fields": [
+        {
+          "key": "source",
+          "label": "API",
+          "type": "select",
+          "default": "adminApi",
+          "options": [
+            "adminApi"
+          ]
+        },
+        {
+          "key": "postId",
+          "label": "Post ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "post",
+      "operation": "update",
+      "title": "Update a post (Admin API)",
+      "method": "PUT",
+      "path": "/ghost/api/v2/admin/posts/{{ p.postId }}",
+      "fields": [
+        {
+          "key": "source",
+          "label": "API",
+          "type": "select",
+          "default": "adminApi",
+          "options": [
+            "adminApi"
+          ]
+        },
+        {
+          "key": "postId",
+          "label": "Post ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "contentFormat",
+          "label": "Content format",
+          "type": "select",
+          "default": "html",
+          "options": [
+            "html",
+            "mobileDoc",
+            "lexical"
+          ]
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "authors",
+            "canonical_url",
+            "codeinjection_foot",
+            "codeinjection_head",
+            "content",
+            "contentJson",
+            "featured",
+            "meta_description",
+            "meta_title",
+            "og_description",
+            "og_image",
+            "og_title",
+            "published_at",
+            "slug",
+            "status",
+            "tags",
+            "title",
+            "twitter_description",
+            "twitter_image",
+            "twitter_title"
+          ],
+          "help": "content for HTML; contentJson for Mobiledoc / Lexical"
+        }
+      ],
+      "before": {
+        "method": "GET",
+        "path": "/ghost/api/v2/admin/posts/{{ p.postId }}",
+        "query": {
+          "fields": "id, updated_at"
+        }
+      },
+      "query": {
+        "source": "{{ p.contentFormat | eq:'html' | then:'html' }}"
+      },
+      "body": {
+        "posts": [
+          {
+            "$merge": "{{ p.updateFields | omit:'content,contentJson' }}",
+            "html": "{{ p.contentFormat | eq:'html' | then:p.updateFields.content }}",
+            "lexical": "{{ p.contentFormat | eq:'lexical' | then:p.updateFields.contentJson }}",
+            "mobiledoc": "{{ p.contentFormat | eq:'mobileDoc' | then:p.updateFields.contentJson }}",
+            "published_at": "{{ p.updateFields.published_at | date:'YYYY-MM-DDTHH:mm:ssZ' }}",
+            "updated_at": "{{ pre.posts.0.updated_at }}"
+          }
+        ]
+      },
+      "output": {
+        "path": "posts"
+      }
+    }
+  ]
+}

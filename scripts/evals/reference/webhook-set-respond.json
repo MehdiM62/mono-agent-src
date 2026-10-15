@@ -1,0 +1,58 @@
+{
+  "name": "eval-webhook-set-respond",
+  "description": "",
+  "version": 1,
+  "is_active": false,
+  "nodes": [
+    {
+      "id": "hook",
+      "type": "trigger.webhook",
+      "name": "hook",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "config": {
+        "path": "eval-orders",
+        "method": "POST"
+      }
+    },
+    {
+      "id": "set",
+      "type": "core.set",
+      "name": "set",
+      "position": {
+        "x": 260,
+        "y": 0
+      },
+      "config": {
+        "assignments": [
+          {
+            "field": "status",
+            "value": "received",
+            "type": "string"
+          },
+          {
+            "field": "total",
+            "value": "{{ mul $json.quantity $json.unit_price }}",
+            "type": "number"
+          },
+          {
+            "field": "greeting",
+            "value": "Thanks, {{ $json.customer }}!",
+            "type": "string"
+          }
+        ]
+      }
+    }
+  ],
+  "connections": [
+    {
+      "id": "c1",
+      "source": "hook",
+      "source_handle": "main",
+      "target": "set",
+      "target_handle": "main"
+    }
+  ]
+}

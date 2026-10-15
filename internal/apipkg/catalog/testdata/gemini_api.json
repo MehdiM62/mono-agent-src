@@ -1,0 +1,756 @@
+{
+  "audio.transcribe": {
+    "credential": {
+      "api_key": "gk-test",
+      "host": ""
+    },
+    "params": {
+      "modelId": "models/gemini-2.5-flash",
+      "inputType": "binary",
+      "options": {
+        "startTime": "00:15"
+      }
+    },
+    "input": {
+      "binary": {
+        "data": {
+          "data": "UklGRg==",
+          "mimeType": "audio/wav",
+          "fileName": "a.wav"
+        }
+      }
+    },
+    "response": {
+      "candidates": [
+        {
+          "content": {
+            "role": "model",
+            "parts": [
+              {
+                "text": "Hel"
+              },
+              {
+                "text": "lo"
+              }
+            ]
+          },
+          "finishReason": "STOP"
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1beta/models/gemini-2.5-flash:generateContent",
+      "body": {
+        "contents": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "inlineData": {
+                  "mimeType": "audio/wav",
+                  "data": "UklGRg=="
+                }
+              },
+              {
+                "text": "Generate a transcript of the speech from 00:15"
+              }
+            ]
+          }
+        ]
+      },
+      "items": 1
+    }
+  },
+  "audio.analyze": {
+    "credential": {
+      "api_key": "gk-test",
+      "host": ""
+    },
+    "params": {
+      "modelId": "gemini-2.5-flash",
+      "audioUrls": "https://generativelanguage.googleapis.com/v1beta/files/abc, https://example.com/a.mp3"
+    },
+    "responses": [
+      "RIFF",
+      {
+        "candidates": [
+          {
+            "content": {
+              "role": "model",
+              "parts": [
+                {
+                  "text": "Hel"
+                },
+                {
+                  "text": "lo"
+                }
+              ]
+            },
+            "finishReason": "STOP"
+          }
+        ]
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/v1beta/models/gemini-2.5-flash:generateContent",
+      "body": {
+        "contents": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "fileData": {
+                  "fileUri": "https://generativelanguage.googleapis.com/v1beta/files/abc"
+                }
+              },
+              {
+                "inlineData": {
+                  "mimeType": "application/json",
+                  "data": "IlJJRkYi"
+                }
+              },
+              {
+                "text": "What's in this audio?"
+              }
+            ]
+          }
+        ],
+        "generationConfig": {
+          "maxOutputTokens": 300
+        }
+      },
+      "items": 1
+    }
+  },
+  "document.analyze": {
+    "credential": {
+      "api_key": "gk-test",
+      "host": ""
+    },
+    "params": {
+      "modelId": "models/gemini-2.5-pro",
+      "inputType": "binary",
+      "simplify": false,
+      "text": "Summarise",
+      "options": {
+        "maxOutputTokens": 50
+      }
+    },
+    "input": {
+      "binary": {
+        "data": {
+          "data": "JVBERi0=",
+          "mimeType": "application/pdf",
+          "fileName": "a.pdf"
+        }
+      }
+    },
+    "response": {
+      "candidates": [
+        {
+          "content": {
+            "role": "model",
+            "parts": [
+              {
+                "text": "Hel"
+              },
+              {
+                "text": "lo"
+              }
+            ]
+          },
+          "finishReason": "STOP"
+        },
+        {
+          "content": {
+            "role": "model",
+            "parts": [
+              {
+                "text": "Hel"
+              },
+              {
+                "text": "lo"
+              }
+            ]
+          },
+          "finishReason": "STOP"
+        }
+      ],
+      "usageMetadata": {
+        "promptTokenCount": 3
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1beta/models/gemini-2.5-pro:generateContent",
+      "body": {
+        "contents": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "inlineData": {
+                  "mimeType": "application/pdf",
+                  "data": "JVBERi0="
+                }
+              },
+              {
+                "text": "Summarise"
+              }
+            ]
+          }
+        ],
+        "generationConfig": {
+          "maxOutputTokens": 50
+        }
+      },
+      "items": 1
+    }
+  },
+  "file.upload": {
+    "credential": {
+      "api_key": "gk-test",
+      "host": ""
+    },
+    "params": {
+      "inputType": "binary"
+    },
+    "input": {
+      "binary": {
+        "data": {
+          "data": "aGVsbG8=",
+          "mimeType": "text/plain",
+          "fileName": "notes.txt"
+        }
+      }
+    },
+    "response_headers": {
+      "X-Goog-Upload-Url": "https://upload.example.test/resumable?upload_id=u1"
+    },
+    "responses": [
+      {},
+      {
+        "file": {
+          "name": "files/abc",
+          "state": "ACTIVE",
+          "uri": "https://generativelanguage.googleapis.com/v1beta/files/abc",
+          "mimeType": "text/plain"
+        }
+      }
+    ],
+    "expect_requests": [
+      {
+        "method": "POST",
+        "path": "/upload/v1beta/files",
+        "query": {},
+        "headers": {
+          "X-Goog-Upload-Protocol": "resumable",
+          "X-Goog-Upload-Command": "start",
+          "X-Goog-Upload-Header-Content-Length": "5",
+          "X-Goog-Upload-Header-Content-Type": "text/plain"
+        },
+        "body": {
+          "file": {
+            "display_name": "notes.txt"
+          }
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/resumable",
+        "query": {
+          "upload_id": "u1"
+        },
+        "headers": {
+          "X-Goog-Upload-Offset": "0",
+          "X-Goog-Upload-Command": "upload, finalize"
+        },
+        "body": "hello"
+      }
+    ],
+    "expect": {
+      "items": 1
+    }
+  },
+  "fileSearch.createStore": {
+    "credential": {
+      "api_key": "gk-test",
+      "host": ""
+    },
+    "params": {
+      "displayName": "Docs"
+    },
+    "response": {
+      "name": "fileSearchStores/docs-1",
+      "displayName": "Docs"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1beta/fileSearchStores",
+      "body": {
+        "displayName": "Docs"
+      },
+      "items": 1
+    }
+  },
+  "fileSearch.deleteStore": {
+    "credential": {
+      "api_key": "gk-test",
+      "host": ""
+    },
+    "params": {
+      "fileSearchStoreName": "fileSearchStores/docs-1",
+      "force": true
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/v1beta/fileSearchStores/docs-1",
+      "query": {
+        "force": "true"
+      },
+      "items": 1
+    }
+  },
+  "fileSearch.listStores": {
+    "credential": {
+      "api_key": "gk-test",
+      "host": ""
+    },
+    "params": {
+      "pageSize": 5
+    },
+    "response": {
+      "fileSearchStores": [
+        {
+          "name": "fileSearchStores/a"
+        }
+      ],
+      "nextPageToken": "n"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1beta/fileSearchStores",
+      "query": {
+        "pageSize": "5"
+      },
+      "items": 1
+    }
+  },
+  "fileSearch.uploadToStore": {
+    "credential": {
+      "api_key": "gk-test",
+      "host": ""
+    },
+    "params": {
+      "fileSearchStoreName": "fileSearchStores/docs-1",
+      "displayName": "Notes",
+      "inputType": "binary"
+    },
+    "input": {
+      "binary": {
+        "data": {
+          "data": "aGVsbG8=",
+          "mimeType": "text/plain",
+          "fileName": "notes.txt"
+        }
+      }
+    },
+    "response_headers": {
+      "X-Goog-Upload-Url": "https://upload.example.test/resumable?upload_id=u2"
+    },
+    "responses": [
+      {},
+      {
+        "name": "fileSearchStores/docs-1/operations/op1"
+      },
+      {
+        "name": "fileSearchStores/docs-1/operations/op1",
+        "done": true,
+        "response": {
+          "documentName": "fileSearchStores/docs-1/documents/d1"
+        }
+      }
+    ],
+    "expect_requests": [
+      {
+        "method": "POST",
+        "path": "/upload/v1beta/fileSearchStores/docs-1:uploadToFileSearchStore",
+        "query": {},
+        "headers": {
+          "X-Goog-Upload-Protocol": "resumable",
+          "X-Goog-Upload-Command": "start"
+        },
+        "body": {
+          "displayName": "Notes",
+          "mimeType": "text/plain"
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/resumable",
+        "query": {
+          "upload_id": "u2"
+        },
+        "body": "hello"
+      },
+      {
+        "method": "GET",
+        "path": "/v1beta/fileSearchStores/docs-1/operations/op1",
+        "query": {}
+      }
+    ],
+    "expect": {
+      "items": 1
+    }
+  },
+  "image.generate": {
+    "credential": {
+      "api_key": "gk-test",
+      "host": ""
+    },
+    "params": {
+      "modelId": {
+        "__rl": true,
+        "mode": "list",
+        "value": "models/gemini-2.5-flash-image"
+      },
+      "prompt": "a cat",
+      "options": {
+        "binaryPropertyOutput": "img"
+      }
+    },
+    "response": {
+      "candidates": [
+        {
+          "content": {
+            "parts": [
+              {
+                "text": "here"
+              },
+              {
+                "inlineData": {
+                  "mimeType": "image/png",
+                  "data": "UE5H"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "content": {
+            "parts": [
+              {
+                "inlineData": {
+                  "mimeType": "image/jpeg",
+                  "data": "SlBH"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1beta/models/gemini-2.5-flash-image:generateContent",
+      "body": {
+        "contents": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "text": "a cat"
+              }
+            ]
+          }
+        ],
+        "generationConfig": {
+          "responseModalities": [
+            "IMAGE",
+            "TEXT"
+          ]
+        }
+      },
+      "items": 2
+    }
+  },
+  "image.analyze": {
+    "credential": {
+      "api_key": "gk-test",
+      "host": ""
+    },
+    "params": {
+      "modelId": "models/gemini-2.5-flash",
+      "inputType": "binary",
+      "binaryPropertyName": "a, b"
+    },
+    "input": {
+      "binary": {
+        "a": {
+          "data": "UE5H",
+          "mimeType": "image/png",
+          "fileName": "a.png"
+        },
+        "b": {
+          "data": "SlBH",
+          "mimeType": "image/jpeg",
+          "fileName": "b.jpg"
+        }
+      }
+    },
+    "response": {
+      "candidates": [
+        {
+          "content": {
+            "role": "model",
+            "parts": [
+              {
+                "text": "Hel"
+              },
+              {
+                "text": "lo"
+              }
+            ]
+          },
+          "finishReason": "STOP"
+        },
+        {
+          "content": {
+            "role": "model",
+            "parts": [
+              {
+                "text": "Hel"
+              },
+              {
+                "text": "lo"
+              }
+            ]
+          },
+          "finishReason": "STOP"
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1beta/models/gemini-2.5-flash:generateContent",
+      "body": {
+        "contents": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "inlineData": {
+                  "mimeType": "image/png",
+                  "data": "UE5H"
+                }
+              },
+              {
+                "inlineData": {
+                  "mimeType": "image/jpeg",
+                  "data": "SlBH"
+                }
+              },
+              {
+                "text": "What's in this image?"
+              }
+            ]
+          }
+        ],
+        "generationConfig": {
+          "maxOutputTokens": 300
+        }
+      },
+      "items": 2
+    }
+  },
+  "image.edit": {
+    "credential": {
+      "api_key": "gk-test",
+      "host": ""
+    },
+    "params": {
+      "prompt": "make it blue",
+      "images": {
+        "values": [
+          {
+            "binaryPropertyName": "data"
+          }
+        ]
+      }
+    },
+    "input": {
+      "binary": {
+        "data": {
+          "data": "UE5H",
+          "mimeType": "image/png",
+          "fileName": "a.png"
+        }
+      }
+    },
+    "response": {
+      "candidates": [
+        {
+          "content": {
+            "parts": [
+              {
+                "inlineData": {
+                  "mimeType": "image/png",
+                  "data": "UE5HMg=="
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1beta/models/gemini-2.5-flash-image-preview:generateContent",
+      "body": {
+        "contents": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "inlineData": {
+                  "mimeType": "image/png",
+                  "data": "UE5H"
+                }
+              },
+              {
+                "text": "make it blue"
+              }
+            ]
+          }
+        ],
+        "generationConfig": {
+          "responseModalities": [
+            "IMAGE"
+          ]
+        }
+      },
+      "items": 1
+    }
+  },
+  "video.generate": {
+    "credential": {
+      "api_key": "gk-test",
+      "host": ""
+    },
+    "params": {
+      "modelId": "models/veo-3.0-generate-001",
+      "prompt": "a cat",
+      "returnAs": "url",
+      "options": {
+        "aspectRatio": "9:16",
+        "durationSeconds": 8
+      }
+    },
+    "responses": [
+      {
+        "name": "models/veo-3.0-generate-001/operations/op1",
+        "done": true,
+        "response": {
+          "generateVideoResponse": {
+            "generatedSamples": [
+              {
+                "video": {
+                  "uri": "https://generativelanguage.googleapis.com/v1beta/files/v1:download?alt=media"
+                }
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/v1beta/models/veo-3.0-generate-001:predictLongRunning",
+      "body": {
+        "instances": [
+          {
+            "prompt": "a cat"
+          }
+        ],
+        "parameters": {
+          "aspectRatio": "9:16",
+          "sampleCount": 1,
+          "durationSeconds": 8
+        }
+      },
+      "items": 1
+    }
+  },
+  "video.analyze": {
+    "credential": {
+      "api_key": "gk-test",
+      "host": ""
+    },
+    "params": {
+      "modelId": "models/gemini-2.5-flash",
+      "videoUrls": "https://generativelanguage.googleapis.com/v1beta/files/vid"
+    },
+    "response": {
+      "candidates": [
+        {
+          "content": {
+            "role": "model",
+            "parts": [
+              {
+                "text": "Hel"
+              },
+              {
+                "text": "lo"
+              }
+            ]
+          },
+          "finishReason": "STOP"
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1beta/models/gemini-2.5-flash:generateContent",
+      "body": {
+        "contents": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "fileData": {
+                  "fileUri": "https://generativelanguage.googleapis.com/v1beta/files/vid"
+                }
+              },
+              {
+                "text": "What's in this video?"
+              }
+            ]
+          }
+        ],
+        "generationConfig": {
+          "maxOutputTokens": 300
+        }
+      },
+      "items": 1
+    }
+  },
+  "video.download": {
+    "credential": {
+      "api_key": "gk-test",
+      "host": ""
+    },
+    "params": {
+      "url": "https://generativelanguage.googleapis.com/v1beta/files/v1:download?alt=media"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1beta/files/v1:download",
+      "query": {
+        "alt": "media"
+      },
+      "items": 1
+    }
+  }
+}

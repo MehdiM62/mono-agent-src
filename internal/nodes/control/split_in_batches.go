@@ -2,26 +2,43 @@ package control
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
-// SplitInBatchesNode splits the input items into batches of size N.
-// Each batch is emitted as a separate NodeOutput on handle "batch".
-// A final empty NodeOutput on handle "done" is always added.
+// SplitInBatchesNode is "Loop Over Items": each run emits the next batch of
+// its input on the "loop" output (also emitted as "batch", the handle name
+// older workflows are wired to). Wire the end of the loop body back into
+// this node; every item fed back is collected, and once no batch is left
+// the node emits all collected items on "done". The engine re-runs the body
+// once per batch (see workflow.LoopNodeType).
+//
 // Config fields:
 //
-//	"batch_size" (int/float, required): items per batch, 1–1000
-//	"reset" (bool, optional): if true, reset internal counter (not used at node level, stateless here)
+//	"batch_size" (number, required; n8n's "batchSize" also accepted): items per batch, 1–1000
+//	"reset" (bool, optional; or "options": {"reset": true}): treat this
+//	    run's input as a new set instead of continuing the current one
 type SplitInBatchesNode struct{}
 
 func (n *SplitInBatchesNode) Type() string { return "core.split_in_batches" }
 
-func (n *SplitInBatchesNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
-	var batchSize int
+// batchState is the node's progress through one set, kept in the
+// execution's node state between runs.
+type batchState struct {
+	Remaining []workflow.Item `json:"remaining"`
+	Processed []workflow.Item `json:"processed"`
+}
 
-	switch v := config["batch_size"].(type) {
+func (n *SplitInBatchesNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
+	raw, ok := config["batch_size"]
+	if !ok {
+		raw = config["batchSize"]
+	}
+	var batchSize int
+	switch v := raw.(type) {
 	case int:
 		batchSize = v
 	case int64:
@@ -38,28 +55,52 @@ func (n *SplitInBatchesNode) Execute(ctx context.Context, input workflow.NodeInp
 		return nil, fmt.Errorf("split_in_batches: batch_size must be between 1 and 1000, got %d", batchSize)
 	}
 
-	items := input.Items
-	var outputs []workflow.NodeOutput
-
-	for len(items) > 0 {
-		end := batchSize
-		if end > len(items) {
-			end = len(items)
+	var st *batchState
+	if prev := workflow.NodeStateFromContext(ctx); prev != nil && !resetRequested(config) {
+		st = &batchState{}
+		if err := json.Unmarshal(prev, st); err != nil {
+			return nil, fmt.Errorf("split_in_batches: decode loop state: %w", err)
 		}
-		batch := make([]workflow.Item, end)
-		copy(batch, items[:end])
-		outputs = append(outputs, workflow.NodeOutput{
-			Handle: "batch",
-			Items:  batch,
-		})
-		items = items[end:]
+		// A continuing run: what the body fed back has been processed.
+		st.Processed = append(st.Processed, input.Items...)
+	} else {
+		// The first run of a set: everything is still to do.
+		st = &batchState{Remaining: append([]workflow.Item(nil), input.Items...), Processed: []workflow.Item{}}
 	}
 
-	// Always append a final "done" output with no items.
-	outputs = append(outputs, workflow.NodeOutput{
-		Handle: "done",
-		Items:  []workflow.Item{},
-	})
+	if len(st.Remaining) == 0 {
+		if err := workflow.SetNodeState(ctx, nil); err != nil && !errors.Is(err, workflow.ErrNodeStateUnavailable) {
+			return nil, err
+		}
+		return []workflow.NodeOutput{{Handle: "done", Items: st.Processed}}, nil
+	}
 
-	return outputs, nil
+	end := batchSize
+	if end > len(st.Remaining) {
+		end = len(st.Remaining)
+	}
+	batch := append([]workflow.Item(nil), st.Remaining[:end]...)
+	st.Remaining = st.Remaining[end:]
+	// Outside an execution (no state slot) the node is a one-shot that
+	// emits the first batch.
+	if err := workflow.SetNodeState(ctx, st); err != nil && !errors.Is(err, workflow.ErrNodeStateUnavailable) {
+		return nil, err
+	}
+	return []workflow.NodeOutput{
+		{Handle: "loop", Items: batch},
+		{Handle: "batch", Items: batch},
+	}, nil
+}
+
+// resetRequested reports n8n's "reset" option, at the top level or under
+// "options".
+func resetRequested(config map[string]interface{}) bool {
+	if v, ok := config["reset"].(bool); ok {
+		return v
+	}
+	if opts, ok := config["options"].(map[string]interface{}); ok {
+		v, _ := opts["reset"].(bool)
+		return v
+	}
+	return false
 }

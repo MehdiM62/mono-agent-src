@@ -1,0 +1,34 @@
+{
+  "preview": {
+    "params": {
+      "url": "https://example.com"
+    },
+    "response": {
+      "url": "https://example.com"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "link": "https://example.com"
+      },
+      "items": 1
+    }
+  },
+  "isAvailable": {
+    "params": {
+      "url": "https://example.com"
+    },
+    "response": {
+      "isAvailable": true
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/is-available/",
+      "body": {
+        "link": "https://example.com"
+      },
+      "items": 1
+    }
+  }
+}

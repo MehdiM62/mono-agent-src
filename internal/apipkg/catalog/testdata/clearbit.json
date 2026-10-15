@@ -1,0 +1,54 @@
+{
+  "company.enrich": {
+    "params": {
+      "domain": "acme.com",
+      "additionalFields": {
+        "companyName": "Acme"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v2/companies/find",
+      "query": {
+        "domain": "acme.com",
+        "company_name": "Acme"
+      }
+    }
+  },
+  "company.autocomplete": {
+    "params": {
+      "name": "acm"
+    },
+    "response": [
+      {
+        "name": "Acme"
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/v1/companies/suggest",
+      "query": {
+        "query": "acm"
+      },
+      "items": 1
+    }
+  },
+  "person.enrich": {
+    "params": {
+      "email": "a@acme.com",
+      "additionalFields": {
+        "givenName": "Ada",
+        "linkedIn": "ada"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v2/people/find",
+      "query": {
+        "email": "a@acme.com",
+        "given_name": "Ada",
+        "linkedin": "ada"
+      }
+    }
+  }
+}

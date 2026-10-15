@@ -1,0 +1,50 @@
+{
+  "sms.send": {
+    "params": {
+      "from": "Acme",
+      "to": "+4912345",
+      "message": "Hi",
+      "options": {
+        "flash": true,
+        "ttl": 60
+      }
+    },
+    "response": {
+      "success": "100"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/sms",
+      "body": {
+        "from": "Acme",
+        "to": "+4912345",
+        "text": "Hi",
+        "flash": "true",
+        "ttl": "60"
+      },
+      "items": 1
+    }
+  },
+  "voice.send": {
+    "params": {
+      "to": "+4912345",
+      "message": "Hello",
+      "options": {
+        "from": "+49999"
+      }
+    },
+    "response": {
+      "success": "100"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/voice",
+      "body": {
+        "to": "+4912345",
+        "text": "Hello",
+        "from": "+49999"
+      },
+      "items": 1
+    }
+  }
+}

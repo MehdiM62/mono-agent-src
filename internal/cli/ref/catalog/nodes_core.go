@@ -1,0 +1,306 @@
+package catalog
+
+// Node reference entries (`monoagentcli ref node <type>`), one variable per
+// category; catalog.go joins them into NodeDocs.
+
+// nodeDocsTrigger is the "trigger" category of the node catalogue.
+var nodeDocsTrigger = []nodeDoc{
+	{
+		Type:     "trigger.schedule",
+		Category: "trigger",
+		Short:    "Run workflow on a cron schedule",
+		Description: `Starts the workflow at a recurring time. Uses a 6-field cron expression
+(seconds minute hour day month weekday) as required by robfig/cron v3.`,
+		Config: `{
+  "cron": "0 0 9 * * *"   // every day at 09:00:00
+}`,
+		Inputs:  "none",
+		Outputs: "one item: trigger_type (\"schedule\"), timestamp (RFC 3339 UTC), catch_up (true on a catch-up run)",
+		Notes:   `6-field cron: sec min hour day month weekday. The workflow must be "activate"d and "monoagentcli daemon" must be running for this trigger to actually fire over time.`,
+	},
+}
+
+// nodeDocsSystem is the "system" category of the node catalogue.
+var nodeDocsSystem = []nodeDoc{
+	{
+		Type:     "system.rss_read",
+		Category: "system",
+		Short:    "Fetch items from an RSS / Atom feed",
+		Description: `Downloads and parses an RSS or Atom feed, emitting one item per entry.
+Commonly used to pull news, blog posts, or podcast episodes.`,
+		Config: `{
+  "url":            "https://rss.dw.com/rdf/rss-en-all",
+  "limit":          15,
+  "since_last_run": false,  // true: emit only entries newer than the previous run saw
+  "baseline":       false   // with since_last_run: the first run records the feed and emits nothing
+}`,
+		Inputs:  "none (URL comes from config)",
+		Outputs: "title, description, link, pubDate, guid, author, categories",
+	},
+	{
+		Type:     "system.execute_command",
+		Category: "system",
+		Short:    "Run a shell command and capture output",
+		Config: `{
+  "command": "echo hello",
+  "timeout": 30
+}`,
+		Inputs:  "none",
+		Outputs: "stdout, stderr, exit_code",
+	},
+}
+
+// nodeDocsCore is the "core" category of the node catalogue.
+var nodeDocsCore = []nodeDoc{
+	{
+		Type:     "core.merge",
+		Category: "core",
+		Short:    "Merge items from multiple upstream nodes",
+		Description: `Collects all items from every connected input and passes them on together.
+Use this after branching (e.g. three parallel RSS reads) to rejoin the stream.`,
+		Config:  `{}   // no config required`,
+		Inputs:  "any number of upstream items",
+		Outputs: "all items combined into one stream",
+	},
+	{
+		Type:     "core.aggregate",
+		Category: "core",
+		Short:    "Collect items into arrays (group by)",
+		Description: `Collects a field from every incoming item into a single array output.
+Useful for building a list of titles or descriptions for a batch prompt.`,
+		Config: `{
+  "operations": [
+    { "field": "title",       "operation": "array", "output_field": "titles" },
+    { "field": "description", "operation": "array", "output_field": "descriptions" }
+  ]
+}`,
+		Inputs:  "many items with the aggregated fields",
+		Outputs: "one item containing the collected arrays",
+	},
+	{
+		Type:     "core.set",
+		Category: "core",
+		Short:    "Compute / set fields on each item",
+		Description: `Evaluates template expressions and assigns their results as new fields.
+Use to build prompts, format strings, or reshape data before the next node.`,
+		Config: `{
+  "assignments": [
+    {
+      "field": "my_prompt",
+      "value": "Summarise: {{ index $json.titles 0 }}",
+      "type":  "string"
+    },
+    {
+      "field": "count",
+      "value": "{{ len $json.items }}",
+      "type":  "string"
+    }
+  ]
+}`,
+		Inputs:  "any item",
+		Outputs: "same item with new fields added / overwritten",
+	},
+	{
+		Type:     "core.filter",
+		Category: "core",
+		Short:    "Pass only items that satisfy a condition",
+		Config: `{
+  "condition": "{{ gt (len $json.title) 5 }}"
+}`,
+		Inputs:  "any items",
+		Outputs: "items where condition evaluates to true",
+	},
+	{
+		Type:     "core.if",
+		Category: "core",
+		Short:    "Branch on a boolean condition (true / false outputs)",
+		Config: `{
+  "condition": "{{ eq $json.status \"active\" }}"
+}`,
+		Inputs:  "any item",
+		Outputs: "true branch or false branch",
+	},
+	{
+		Type:     "core.switch",
+		Category: "core",
+		Short:    "Multi-branch switch on a value",
+		Config: `{
+  "field":  "$json.platform",
+  "cases":  ["instagram", "linkedin"],
+  "default": "other"
+}`,
+		Inputs:  "any item",
+		Outputs: "one output per case + default",
+	},
+	{
+		Type:     "core.split_in_batches",
+		Category: "core",
+		Short:    "Split a large stream into fixed-size batches",
+		Config:   `{ "batch_size": 10 }`,
+		Inputs:   "stream of items",
+		Outputs:  "items in groups of batch_size",
+	},
+	{
+		Type:     "core.remove_duplicates",
+		Category: "core",
+		Short:    "Deduplicate items by a field, within a run or across runs",
+		Description: `operation "removeDuplicateInputItems" (default) drops duplicates within this
+run's input. "removeItemsRepeatedWithinPreviousExecutions" compares with earlier
+runs of this workflow (state stored per node, or per workflow with scope
+"workflow"), by logic: "removeItemsWithAlreadySeenKeyValues" (default) keeps
+items whose dedupeValue no earlier run saw (historySize caps the stored values);
+"removeItemsUpToStoredIncrementalKey" keeps items whose dedupeValue is a number
+higher than any earlier run's; "removeItemsUpToStoredDate" keeps items whose
+dedupeValue is a date later than any earlier run's (those two store only the
+maximum; the first run keeps everything). "clearDeduplicationHistory" empties
+the history and maximums and passes items through.`,
+		Config: `{
+  "field":       "url",                                          // within-run key
+  "operation":   "removeItemsRepeatedWithinPreviousExecutions",  // optional
+  "logic":       "removeItemsWithAlreadySeenKeyValues",          // | removeItemsUpToStoredIncrementalKey | removeItemsUpToStoredDate
+  "dedupeValue": "{{ $json.url }}",                              // across runs: value to remember / compare
+  "scope":       "node",                                         // node | workflow
+  "historySize": 10000
+}`,
+		Inputs:  "items possibly containing duplicates",
+		Outputs: "items with duplicates removed",
+	},
+	{
+		Type:     "core.sort",
+		Category: "core",
+		Short:    "Sort items by a field",
+		Config:   `{ "field": "pubDate", "order": "desc" }`,
+		Inputs:   "unsorted items",
+		Outputs:  "sorted items",
+	},
+	{
+		Type:     "core.limit",
+		Category: "core",
+		Short:    "Keep only the first N items",
+		Config:   `{ "limit": 5 }`,
+		Inputs:   "any items",
+		Outputs:  "first N items",
+	},
+	{
+		Type:     "core.wait",
+		Category: "core",
+		Short:    "Pause for a time, or until a resume URL is called or its form answered",
+		Config:   `{ "duration": 5 }  |  { "resume": "webhook", "httpMethod": "POST" }  |  { "resume": "form", "formFields": [{ "fieldLabel": "Name", "requiredField": true }] }`,
+		Inputs:   "any items (passed through unchanged)",
+		Outputs:  "same items after a time wait; webhook: the call (body, query, headers, method); form: the answers + submittedAt",
+		Description: `resume duration|timeInterval|specificTime waits for a time. resume webhook
+waits for a call to {{ $execution.resumeUrl }}; resume form serves a form
+there (same URL, $execution.resumeFormUrl). Send the URL out before the wait
+(e.g. in a message). The run pauses durably and holds no slot; the call wakes
+it at once. Links are http://127.0.0.1:9321/reply/... unless
+MONOAGENT_PUBLIC_URL names how the webhook server is reached from outside.
+limitWaitTime with limitType afterTimeInterval (resumeAmount, resumeUnit) or
+atSpecifiedTime (maxDateAndTime) gives up and passes the input items on.`,
+	},
+	{
+		Type:     "core.form",
+		Category: "core",
+		Short:    "Show the next page, or the ending, of a trigger.form's form",
+		Config:   `{ "operation": "page", "formTitle": "Step 2", "formFields": [{ "fieldLabel": "Phone" }] }  |  { "operation": "completion", "respondWith": "text", "completionTitle": "Thanks!", "completionMessage": "We will be in touch." }`,
+		Inputs:   "any items",
+		Outputs:  "page: the page's answers + submittedAt and formMode; completion: the input items",
+		Description: `Place after a trigger.form: the submission is held until the run reaches
+the next core.form, and the browser is sent to that page (on the
+execution's resume URL). Each page's answers resume the run; IF/Switch nodes
+between pages choose the next page. operation completion ends the form:
+respondWith text (completionTitle, completionMessage), redirect
+(redirectUrl) or showText (responseText, HTML shown as the page). A run that
+ends without a completion shows the default confirmation. limitWaitTime
+(as on core.wait) gives up on a page and passes the input items on.`,
+	},
+	{
+		Type:     "core.stop_error",
+		Category: "core",
+		Short:    "Abort workflow with an error message",
+		Config:   `{ "message": "{{ $json.error_detail }}" }`,
+		Inputs:   "any item",
+		Outputs:  "never (throws error)",
+	},
+	{
+		Type:     "core.code",
+		Category: "core",
+		Short:    "Run custom JavaScript or Python logic on items",
+		Config: `{
+  "code": "(function () { return $input.all().map(item => ({ ...item, extra: 'hello' })); })()"
+}`,
+		Inputs:  "any items",
+		Outputs: "items returned by the code",
+		Notes: `$input has all(), first(), last() and item; $json is the first item;
+$('Node Name') gives another node's output with the same accessors. Code
+may return a promise, and code with a top-level return or await runs as an
+async function body (n8n style): return $input.all().map(...)
+"language": "python" runs the code with the system python3 (MONOAGENT_PYTHON
+overrides it) as n8n's Python Code node: _items (all items, each
+{"json": ...}), or _item once per item with "mode": "runOnceForEachItem";
+_input.all()/first()/last()/item, _json and _('Node Name').all() also work,
+and items read as attributes too (item.json.x). Return a list of dicts (or
+one dict per item, None to drop it); print() goes to stderr.`,
+	},
+	{
+		Type:     "core.data_table",
+		Category: "core",
+		Short:    "Keep rows across runs in a data table (n8n Data tables)",
+		Config: `{
+  "operation": "upsert",
+  "table": "Leads",
+  "filters": [{"column": "email", "condition": "eq", "value": "{{ $json.email }}"}],
+  "values": {"email": "{{ $json.email }}", "score": "{{ $json.score }}"}
+}`,
+		Inputs:  "any items (each item runs the operation once)",
+		Outputs: "the rows written or found; rowExists/rowNotExists pass the matching input items",
+		Notes: `Tables belong to the profile; manage them with monoagentcli table
+list|create|show|rows|delete, or resource "table" (create, list, update to
+rename, clear, delete). Row operations: insert, get, update, upsert,
+deleteRows, rowExists, rowNotExists. "table" is a name or id; "values"
+(or "columns_mode": "auto" for the item's JSON) and "filters" are resolved
+per item. Columns are typed string, number, boolean or date; a value for a
+column the table lacks adds that column. Conditions: eq, neq, gt, gte, lt,
+lte, like/ilike (% wildcard), isEmpty, isNotEmpty, isTrue, isFalse; "match":
+"all" requires every one (default any). Rows carry id, createdAt and
+updatedAt; "dry_run" shows before/after without writing.`,
+	},
+	{
+		Type:     "core.evaluation",
+		Category: "core",
+		Short:    "Record an evaluation case's inputs, outputs and metrics (n8n Evaluation)",
+		Config: `{
+  "operation": "setMetrics",
+  "metric": "stringSimilarity",
+  "expected_answer": "{{ $('When fetching a dataset row').item.json.expected }}",
+  "actual_answer": "{{ $json.output }}"
+}`,
+		Inputs:  "any items",
+		Outputs: "setMetrics: one item per input with the metric by name; checkIfEvaluating: evaluation / normal; the others pass items on",
+		Notes: `Only in a run of "monoagentcli workflow evaluate" (a trigger.evaluation
+run) does setInputs record the case's inputs, setOutputs write its outputs
+into the dataset row ("table", default the trigger's table; or a sheet with
+"source": "googleSheets") and setMetrics record the first item's metrics;
+elsewhere they pass items on. Metrics: stringSimilarity (0-1, edit
+distance), categorization (1 on an exact match), toolsUsed (share of
+"expected_tools" found in "intermediate_steps"), customMetrics ("metrics":
+[{name, value}], numbers), and correctness / helpfulness, scored 1-5 by a
+local agent runtime ("runtime"/"model", or an attached ai.model). inputs and
+outputs are [{name, value}] lists; "metric_name" renames a metric.`,
+	},
+	{
+		Type:     "core.noop",
+		Category: "core",
+		Short:    "Pass items through unchanged",
+		Config:   `{}`,
+		Inputs:   "any items",
+		Outputs:  "the same items",
+	},
+	{
+		Type:     "core.compare_datasets",
+		Category: "core",
+		Short:    "Compare two datasets and emit differences",
+		Config:   `{ "key": "id" }`,
+		Inputs:   "two item streams",
+		Outputs:  "added, removed, changed items",
+	},
+}

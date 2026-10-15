@@ -1,0 +1,78 @@
+{
+  "text.detectDominantLanguage": {
+    "params": {
+      "text": "hola"
+    },
+    "response": {
+      "Languages": [
+        {
+          "LanguageCode": "es",
+          "Score": 0.9
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "Text": "hola"
+      },
+      "headers": {
+        "X-Amz-Target": "Comprehend_20171127.DetectDominantLanguage"
+      },
+      "items": 1
+    }
+  },
+  "text.detectEntities": {
+    "params": {
+      "text": "Ada in Paris",
+      "additionalFields": {
+        "endpointArn": "arn:e"
+      }
+    },
+    "response": {
+      "Entities": [
+        {
+          "Text": "Ada"
+        },
+        {
+          "Text": "Paris"
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "Text": "Ada in Paris",
+        "LanguageCode": "en",
+        "EndpointArn": "arn:e"
+      },
+      "headers": {
+        "X-Amz-Target": "Comprehend_20171127.DetectEntities"
+      },
+      "items": 2
+    }
+  },
+  "text.detectSentiment": {
+    "params": {
+      "text": "great",
+      "languageCode": "fr"
+    },
+    "response": {
+      "Sentiment": "POSITIVE"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "Text": "great",
+        "LanguageCode": "fr"
+      },
+      "headers": {
+        "X-Amz-Target": "Comprehend_20171127.DetectSentiment"
+      },
+      "items": 1
+    }
+  }
+}

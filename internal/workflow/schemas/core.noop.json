@@ -1,0 +1,11 @@
+{
+  "credential_platform": null,
+  "fields": [],
+  "outputs": [
+    {
+      "description": "the input items, unchanged",
+      "key": "<input>",
+      "type": "any"
+    }
+  ]
+}

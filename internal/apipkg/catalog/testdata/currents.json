@@ -1,0 +1,446 @@
+{
+  "action.getAll": {
+    "params": {
+      "projectId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "pj1"
+      },
+      "filters": {
+        "status": [
+          "active",
+          "expired"
+        ]
+      }
+    },
+    "response": {
+      "data": [
+        {
+          "id": 1
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/actions",
+      "query": {
+        "projectId": "pj1",
+        "status[]": [
+          "active",
+          "expired"
+        ]
+      },
+      "items": 1
+    }
+  },
+  "action.create": {
+    "params": {
+      "projectId": "pj1",
+      "name": "Q",
+      "actionType": "tag",
+      "actionTags": "a, b",
+      "matcherType": "specEquals",
+      "matcherValue": "x.spec.ts"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/actions",
+      "query": {
+        "projectId": "pj1"
+      },
+      "body": {
+        "name": "Q",
+        "action": [
+          {
+            "op": "tag",
+            "details": {
+              "tags": [
+                "a",
+                "b"
+              ]
+            }
+          }
+        ],
+        "matcher": {
+          "op": "AND",
+          "cond": [
+            {
+              "type": "file",
+              "op": "eq",
+              "value": "x.spec.ts"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "action.delete": {
+    "params": {
+      "actionId": "a1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/v1/actions/a1",
+      "query": {}
+    }
+  },
+  "action.disable": {
+    "params": {
+      "actionId": "a1"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/v1/actions/a1/disable",
+      "query": {}
+    }
+  },
+  "action.enable": {
+    "params": {
+      "actionId": "a1"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/v1/actions/a1/enable",
+      "query": {}
+    }
+  },
+  "action.get": {
+    "params": {
+      "actionId": "a1"
+    },
+    "response": {
+      "data": {
+        "id": "a1"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/actions/a1",
+      "query": {},
+      "items": 1
+    }
+  },
+  "action.update": {
+    "params": {
+      "actionId": "a1",
+      "updateFields": {
+        "name": "N"
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/v1/actions/a1",
+      "query": {},
+      "body": {
+        "name": "N"
+      }
+    }
+  },
+  "instance.get": {
+    "params": {
+      "instanceId": "i1"
+    },
+    "response": {
+      "data": {
+        "id": "i1"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/instances/i1",
+      "query": {},
+      "items": 1
+    }
+  },
+  "project.getAll": {
+    "params": {},
+    "response": {
+      "data": [
+        {
+          "id": 1
+        },
+        {
+          "id": 2
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/projects",
+      "query": {
+        "limit": "10"
+      },
+      "items": 2
+    }
+  },
+  "project.get": {
+    "params": {
+      "projectId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "pj1"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/projects/pj1",
+      "query": {}
+    }
+  },
+  "project.getInsights": {
+    "params": {
+      "projectId": "pj1",
+      "filters": {
+        "branches": "main,dev"
+      },
+      "options": {
+        "resolution": "1d"
+      },
+      "dateStart": "2024-01-01",
+      "dateEnd": "2024-02-01"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/projects/pj1/insights",
+      "query": {
+        "date_start": "2024-01-01",
+        "date_end": "2024-02-01",
+        "resolution": "1d",
+        "branches[]": [
+          "main",
+          "dev"
+        ]
+      }
+    }
+  },
+  "run.getAll": {
+    "params": {
+      "projectId": "pj1",
+      "filters": {
+        "completionState": [
+          "COMPLETE"
+        ],
+        "tags": "smoke"
+      }
+    },
+    "response": {
+      "data": [
+        {
+          "runId": "r"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/projects/pj1/runs",
+      "query": {
+        "projectId": "pj1",
+        "limit": "10",
+        "completion_state[]": "COMPLETE",
+        "tags[]": "smoke"
+      },
+      "items": 1
+    }
+  },
+  "run.cancel": {
+    "params": {
+      "runId": "r1"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/v1/runs/r1/cancel",
+      "query": {}
+    }
+  },
+  "run.cancelGithub": {
+    "params": {
+      "githubRunId": "99",
+      "githubRunAttempt": 2,
+      "cancelGithubOptions": {
+        "ciBuildId": "b"
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/v1/runs/cancel-ci/github",
+      "query": {},
+      "body": {
+        "githubRunId": "99",
+        "githubRunAttempt": 2,
+        "ciBuildId": "b"
+      }
+    }
+  },
+  "run.delete": {
+    "params": {
+      "runId": "r1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/v1/runs/r1",
+      "query": {}
+    }
+  },
+  "run.find": {
+    "params": {
+      "projectId": "pj1",
+      "filters": {
+        "branch": "main"
+      }
+    },
+    "response": {
+      "data": {
+        "runId": "r"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/runs/find",
+      "query": {
+        "projectId": "pj1",
+        "branch": "main"
+      },
+      "items": 1
+    }
+  },
+  "run.get": {
+    "params": {
+      "runId": "r1"
+    },
+    "response": {
+      "data": {
+        "runId": "r1"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/runs/r1",
+      "query": {},
+      "items": 1
+    }
+  },
+  "run.reset": {
+    "params": {
+      "runId": "r1",
+      "machineIds": "m1, m2"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/v1/runs/r1/reset",
+      "query": {},
+      "body": {
+        "machineId": [
+          "m1",
+          "m2"
+        ]
+      }
+    }
+  },
+  "signature.generate": {
+    "params": {
+      "projectId": "pj1",
+      "specFilePath": "a.spec.ts",
+      "testTitle": "works"
+    },
+    "response": {
+      "data": {
+        "signature": "s"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/signature/test",
+      "query": {},
+      "body": {
+        "projectId": "pj1",
+        "specFilePath": "a.spec.ts",
+        "testTitle": "works"
+      },
+      "items": 1
+    }
+  },
+  "specFile.getAll": {
+    "params": {
+      "projectId": "pj1",
+      "options": {
+        "order": "flakeRate",
+        "dir": "desc"
+      },
+      "dateStart": "2024-01-01",
+      "dateEnd": "2024-02-01"
+    },
+    "response": {
+      "data": [
+        {
+          "spec": "a"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/spec-files/pj1",
+      "query": {
+        "date_start": "2024-01-01",
+        "date_end": "2024-02-01",
+        "limit": "50",
+        "order": "flakeRate",
+        "dir": "desc"
+      },
+      "items": 1
+    }
+  },
+  "test.getAll": {
+    "params": {
+      "projectId": "pj1",
+      "filters": {
+        "testState": [
+          "failed"
+        ]
+      },
+      "dateStart": "2024-01-01",
+      "dateEnd": "2024-02-01"
+    },
+    "response": {
+      "data": [
+        {
+          "t": 1
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/tests/pj1",
+      "query": {
+        "date_start": "2024-01-01",
+        "date_end": "2024-02-01",
+        "limit": "50",
+        "test_state[]": "failed"
+      },
+      "items": 1
+    }
+  },
+  "testResult.getAll": {
+    "params": {
+      "signature": "sig",
+      "dateStart": "2024-01-01",
+      "dateEnd": "2024-02-01"
+    },
+    "response": {
+      "data": [
+        {
+          "t": 1
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/test-results/sig",
+      "query": {
+        "date_start": "2024-01-01",
+        "date_end": "2024-02-01",
+        "limit": "10"
+      },
+      "items": 1
+    }
+  }
+}

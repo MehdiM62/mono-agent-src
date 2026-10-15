@@ -1,0 +1,411 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "aws_elb",
+  "node_type": "app.aws_elb",
+  "title": "AWS ELB",
+  "description": "Application and network load balancers in Elastic Load Balancing",
+  "category": "app",
+  "docs_url": "https://docs.aws.amazon.com/elasticloadbalancing/latest/APIReference/API_Operations.html",
+  "n8n_types": [
+    "n8n-nodes-base.awsElb"
+  ],
+  "base_url": "https://elasticloadbalancing.{{ cred.region | default:'us-east-1' }}.amazonaws.com{{ cred.region | matches:'^cn-' | then:'.cn' }}",
+  "credentials": [
+    {
+      "platform": "aws",
+      "reuse_platform": "aws",
+      "name": "AWS",
+      "n8n_credential": "aws",
+      "n8n_field_map": {
+        "accessKeyId": "access_key_id",
+        "secretAccessKey": "secret_access_key",
+        "sessionToken": "session_token",
+        "region": "region",
+        "stsAccessKeyId": "access_key_id",
+        "stsSecretAccessKey": "secret_access_key",
+        "stsSessionToken": "session_token",
+        "roleArn": "role_arn",
+        "externalId": "external_id",
+        "roleSessionName": "role_session_name"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "access_key_id",
+          "label": "Access key ID",
+          "required": true
+        },
+        {
+          "key": "secret_access_key",
+          "label": "Secret access key",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "region",
+          "label": "Region",
+          "help": "Default us-east-1"
+        },
+        {
+          "key": "session_token",
+          "label": "Session token",
+          "secret": true,
+          "help": "Only for temporary credentials"
+        }
+      ],
+      "inject": {
+        "aws_sigv4": {
+          "service": "elasticloadbalancing",
+          "region": "{{ cred.region | default:'us-east-1' }}"
+        }
+      },
+      "n8n_credential_alt": [
+        "awsAssumeRole"
+      ]
+    }
+  ],
+  "resources": [
+    {
+      "value": "loadBalancer",
+      "label": "Load Balancer"
+    },
+    {
+      "value": "listenerCertificate",
+      "label": "Listener Certificate"
+    }
+  ],
+  "headers": {
+    "Accept": "text/xml"
+  },
+  "operations": [
+    {
+      "resource": "loadBalancer",
+      "operation": "create",
+      "title": "Create a load balancer",
+      "method": "POST",
+      "path": "/",
+      "body_type": "form",
+      "body": {
+        "Action": "CreateLoadBalancer",
+        "Version": "2015-12-01",
+        "IpAddressType": "{{ p.ipAddressType }}",
+        "Name": "{{ p.name }}",
+        "Scheme": "{{ p.schema }}",
+        "Type": "{{ p.type }}",
+        "$merge": [
+          {
+            "$entries": "{{ p.subnets }}",
+            "$key": "Subnets.member.{{ idx | add:1 }}",
+            "$value": "{{ el }}"
+          },
+          {
+            "$entries": "{{ p.additionalFields.securityGroups }}",
+            "$key": "SecurityGroups.member.{{ idx | add:1 }}",
+            "$value": "{{ el }}"
+          },
+          {
+            "$entries": "{{ p.additionalFields.tagsUi.tagValues }}",
+            "$key": "Tags.member.{{ idx | add:1 }}.Key",
+            "$value": "{{ el.key }}"
+          },
+          {
+            "$entries": "{{ p.additionalFields.tagsUi.tagValues }}",
+            "$key": "Tags.member.{{ idx | add:1 }}.Value",
+            "$value": "{{ el.value }}"
+          }
+        ]
+      },
+      "fields": [
+        {
+          "key": "ipAddressType",
+          "label": "IP address type",
+          "type": "select",
+          "default": "ipv4",
+          "options": [
+            "ipv4",
+            "dualstack"
+          ]
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "schema",
+          "label": "Scheme",
+          "type": "select",
+          "default": "internet-facing",
+          "options": [
+            "internal",
+            "internet-facing"
+          ]
+        },
+        {
+          "key": "type",
+          "label": "Type",
+          "type": "select",
+          "default": "application",
+          "options": [
+            "application",
+            "network"
+          ]
+        },
+        {
+          "key": "subnets",
+          "label": "Subnet IDs",
+          "type": "array",
+          "required": true,
+          "item_type": "text",
+          "default": []
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "securityGroups",
+            "tagsUi"
+          ],
+          "help": "securityGroups: list of IDs; tagsUi: {tagValues: [{key, value}]}"
+        }
+      ],
+      "output": {
+        "path": "CreateLoadBalancerResponse.CreateLoadBalancerResult.LoadBalancers.member"
+      }
+    },
+    {
+      "resource": "loadBalancer",
+      "operation": "delete",
+      "title": "Delete a load balancer",
+      "method": "POST",
+      "path": "/",
+      "body_type": "form",
+      "body": {
+        "Action": "DeleteLoadBalancer",
+        "Version": "2015-12-01",
+        "LoadBalancerArn": "{{ p.loadBalancerId }}"
+      },
+      "fields": [
+        {
+          "key": "loadBalancerId",
+          "label": "Load balancer ARN",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "loadBalancer",
+      "operation": "get",
+      "title": "Get a load balancer",
+      "method": "POST",
+      "path": "/",
+      "body_type": "form",
+      "body": {
+        "Action": "DescribeLoadBalancers",
+        "Version": "2015-12-01",
+        "LoadBalancerArns.member.1": "{{ p.loadBalancerId }}"
+      },
+      "fields": [
+        {
+          "key": "loadBalancerId",
+          "label": "Load balancer ARN",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "DescribeLoadBalancersResponse.DescribeLoadBalancersResult.LoadBalancers.member"
+      }
+    },
+    {
+      "resource": "loadBalancer",
+      "operation": "getMany",
+      "title": "Get many load balancers",
+      "method": "POST",
+      "path": "/",
+      "body_type": "form",
+      "body": {
+        "Action": "DescribeLoadBalancers",
+        "Version": "2015-12-01",
+        "$merge": {
+          "$entries": "{{ p.filters.names | split }}",
+          "$key": "Names.member.{{ idx | add:1 }}",
+          "$value": "{{ el }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "names"
+          ],
+          "help": "names: comma-separated load balancer names"
+        }
+      ],
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "Marker",
+        "cursor_path": "DescribeLoadBalancersResponse.DescribeLoadBalancersResult.NextMarker",
+        "limit_param": "PageSize",
+        "page_size": 400,
+        "param_in": "body",
+        "results_path": "DescribeLoadBalancersResponse.DescribeLoadBalancersResult.LoadBalancers.member"
+      }
+    },
+    {
+      "resource": "listenerCertificate",
+      "operation": "add",
+      "title": "Add a certificate to a listener",
+      "method": "POST",
+      "path": "/",
+      "body_type": "form",
+      "body": {
+        "Action": "AddListenerCertificates",
+        "Version": "2015-12-01",
+        "ListenerArn": "{{ p.listenerId }}",
+        "Certificates.member.1.CertificateArn": "{{ p.certificateId }}"
+      },
+      "fields": [
+        {
+          "key": "loadBalancerId",
+          "label": "Load balancer ARN",
+          "type": "text",
+          "required": true,
+          "help": "Only used to pick the listener"
+        },
+        {
+          "key": "listenerId",
+          "label": "Listener ARN",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "certificateId",
+          "label": "Certificate ARN",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "AddListenerCertificatesResponse.AddListenerCertificatesResult.Certificates.member"
+      }
+    },
+    {
+      "resource": "listenerCertificate",
+      "operation": "getMany",
+      "title": "Get many listener certificates",
+      "method": "POST",
+      "path": "/",
+      "body_type": "form",
+      "body": {
+        "Action": "DescribeListenerCertificates",
+        "Version": "2015-12-01",
+        "ListenerArn": "{{ p.listenerId }}"
+      },
+      "fields": [
+        {
+          "key": "loadBalancerId",
+          "label": "Load balancer ARN",
+          "type": "text",
+          "required": true,
+          "help": "Only used to pick the listener"
+        },
+        {
+          "key": "listenerId",
+          "label": "Listener ARN",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "Marker",
+        "cursor_path": "DescribeListenerCertificatesResponse.DescribeListenerCertificatesResult.NextMarker",
+        "limit_param": "PageSize",
+        "page_size": 400,
+        "param_in": "body",
+        "results_path": "DescribeListenerCertificatesResponse.DescribeListenerCertificatesResult.Certificates.member"
+      }
+    },
+    {
+      "resource": "listenerCertificate",
+      "operation": "remove",
+      "title": "Remove a certificate from a listener",
+      "method": "POST",
+      "path": "/",
+      "body_type": "form",
+      "body": {
+        "Action": "RemoveListenerCertificates",
+        "Version": "2015-12-01",
+        "ListenerArn": "{{ p.listenerId }}",
+        "Certificates.member.1.CertificateArn": "{{ p.certificateId }}"
+      },
+      "fields": [
+        {
+          "key": "loadBalancerId",
+          "label": "Load balancer ARN",
+          "type": "text",
+          "required": true,
+          "help": "Only used to pick the listener"
+        },
+        {
+          "key": "listenerId",
+          "label": "Listener ARN",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "certificateId",
+          "label": "Certificate ARN",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    }
+  ]
+}

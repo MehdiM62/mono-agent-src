@@ -201,12 +201,7 @@ func TestExportImport_SystemEntryRoundTripsWithMetaAndRematerializes(t *testing.
 	db := newExportTestDB(t)
 	ctx := context.Background()
 
-	if _, err := db.DB.Exec(`CREATE TABLE connections (
-		id TEXT PRIMARY KEY, platform TEXT, method TEXT, label TEXT, account_id TEXT,
-		data TEXT, status TEXT, last_tested TEXT, profile_id TEXT, vault_ref TEXT, created_at TEXT, updated_at TEXT
-	)`); err != nil {
-		t.Fatalf("creating connections table: %v", err)
-	}
+	// connections comes from migration 095.
 
 	token := "PLACEHOLDER-one"
 	vaultID, err := PutSystemEntry(ctx, db.DB, "default", "connection", "", "GitHub — work",
@@ -215,7 +210,7 @@ func TestExportImport_SystemEntryRoundTripsWithMetaAndRematerializes(t *testing.
 		t.Fatalf("PutSystemEntry: %v", err)
 	}
 	if _, err := db.DB.Exec(
-		`INSERT INTO connections (id, platform, method, label, account_id, profile_id, vault_ref) VALUES ('conn-1', 'github', 'oauth', 'work', 'acct-1', 'default', ?)`,
+		`INSERT INTO connections (id, platform, method, label, account_id, profile_id, vault_ref, created_at, updated_at) VALUES ('conn-1', 'github', 'oauth', 'work', 'acct-1', 'default', ?, 't', 't')`,
 		vaultID); err != nil {
 		t.Fatalf("seeding connections row: %v", err)
 	}
@@ -231,18 +226,13 @@ func TestExportImport_SystemEntryRoundTripsWithMetaAndRematerializes(t *testing.
 
 	// Simulate a fresh machine: a brand-new db with no connections row at all.
 	dst := newExportTestDB(t)
-	if _, err := dst.DB.Exec(`CREATE TABLE connections (
-		id TEXT PRIMARY KEY, platform TEXT, method TEXT, label TEXT, account_id TEXT,
-		data TEXT, status TEXT, last_tested TEXT, profile_id TEXT, vault_ref TEXT, created_at TEXT, updated_at TEXT
-	)`); err != nil {
-		t.Fatalf("creating destination connections table: %v", err)
-	}
+	// connections comes from migration 095.
 
 	var rematerializedMeta map[string]string
 	rematerializeConnection := func(ctx context.Context, db *sql.DB, profileID, vaultID, name string, meta map[string]string) error {
 		rematerializedMeta = meta
 		_, err := db.ExecContext(ctx,
-			`INSERT INTO connections (id, platform, method, label, account_id, profile_id, vault_ref) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			`INSERT INTO connections (id, platform, method, label, account_id, profile_id, vault_ref, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 't', 't')`,
 			"conn-imported", meta["platform"], meta["method"], meta["label"], meta["account_id"], profileID, vaultID)
 		return err
 	}
@@ -279,12 +269,7 @@ func TestImport_NilRematerializerSkipsGracefully(t *testing.T) {
 	db := newExportTestDB(t)
 	ctx := context.Background()
 
-	if _, err := db.DB.Exec(`CREATE TABLE connections (
-		id TEXT PRIMARY KEY, platform TEXT, method TEXT, label TEXT, account_id TEXT,
-		data TEXT, status TEXT, last_tested TEXT, profile_id TEXT, vault_ref TEXT, created_at TEXT, updated_at TEXT
-	)`); err != nil {
-		t.Fatalf("creating connections table: %v", err)
-	}
+	// connections comes from migration 095.
 	token := "PLACEHOLDER-a"
 	if _, err := PutSystemEntry(ctx, db.DB, "default", "connection", "", "GitHub", map[string]string{"access_token": token}, "", ""); err != nil {
 		t.Fatalf("PutSystemEntry: %v", err)

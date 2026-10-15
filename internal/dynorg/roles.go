@@ -1,6 +1,9 @@
 package dynorg
 
-import "strings"
+import (
+	"slices"
+	"strings"
+)
 
 // builtinRole is a role used when monomind's agent registry offers nothing
 // for a brief (a folder without `.monomind/registry.json`, or no match).
@@ -9,7 +12,7 @@ type builtinRole struct {
 	keywords                           []string
 }
 
-var builtinRoles = []builtinRole{
+var coreRoles = []builtinRole{
 	{ID: "reviewer", Title: "Reviewer", Category: "review", Profile: ProfileResearch,
 		keywords: []string{"review", "audit", "check", "inspect", "critique", "security"},
 		Body:     "You review code and changes. Read carefully, find real defects (bugs, races, security holes, missing error handling), and report each with file:line, why it is wrong and a concrete fix. Do not edit files."},
@@ -23,26 +26,54 @@ var builtinRoles = []builtinRole{
 		keywords: []string{"plan", "design", "architecture", "break down", "spec"},
 		Body:     "You plan. Read the relevant code, then return a short, ordered plan with the files to change and the risks. Do not edit files."},
 	{ID: "coder", Title: "Coder", Category: "engineering", Profile: ProfileCoding,
-		Body: "You implement. Make the change the brief asks for with the smallest correct diff, following the code around it, and run the relevant tests."},
+		keywords: []string{"implement", "fix", "refactor", "build", "add ", "write code", "change"},
+		Body:     "You implement. Make the change the brief asks for with the smallest correct diff, following the code around it, and run the relevant tests."},
+}
+
+// builtinRoles is the fallback roster: the core roles, then the app-aware
+// ones (roles_app.go).
+var builtinRoles = append(append([]builtinRole{}, coreRoles...), appRoles...)
+
+func (r builtinRole) hits(brief string) int {
+	b, n := strings.ToLower(brief), 0
+	for _, k := range r.keywords {
+		if strings.Contains(b, k) {
+			n++
+		}
+	}
+	return n
 }
 
 // builtinFor picks the built-in role whose keywords the brief mentions
-// most; the coder when none match.
+// most (an app role wins a tie, then the first listed); the coder when
+// none match.
 func builtinFor(brief string) builtinRole {
-	b := strings.ToLower(brief)
-	best, bestHits := builtinRoles[len(builtinRoles)-1], 0
-	for _, r := range builtinRoles {
-		hits := 0
-		for _, k := range r.keywords {
-			if strings.Contains(b, k) {
-				hits++
-			}
-		}
-		if hits > bestHits {
-			best, bestHits = r, hits
+	best, bestHits := coreRoles[len(coreRoles)-1], 0
+	for _, r := range slices.Concat(appRoles, coreRoles) { // the specific app roles win ties
+		if n := r.hits(brief); n > bestHits {
+			best, bestHits = r, n
 		}
 	}
 	return best
+}
+
+// appRoleFor is the app-aware built-in role the brief clearly names (at
+// least one keyword), for surfaces monomind has no agent for.
+func appRoleFor(brief string) (builtinRole, bool) {
+	best, bestHits := builtinRole{}, 0
+	for _, r := range appRoles {
+		if n := r.hits(brief); n > bestHits {
+			best, bestHits = r, n
+		}
+	}
+	return best, bestHits > 0
+}
+
+// setBuiltin staffs a worker with a built-in role.
+func (st *Staff) setBuiltin(r builtinRole, why string) {
+	st.Role, st.AgentType, st.Category, st.AgentBody = r.Title, r.ID, r.Category, r.Body
+	st.Access = r.Profile
+	st.Why = append(st.Why, why)
 }
 
 func builtinByID(id string) (builtinRole, bool) {
@@ -58,8 +89,8 @@ func builtinByID(id string) (builtinRole, bool) {
 func profileForCategory(category, id string) string {
 	s := strings.ToLower(category + " " + id)
 	switch {
-	case containsAny(s, "automation", "workflow"):
-		return ProfileAutomation
+	case containsAny(s, "automation", "workflow", "browser-operator", "task-manager", "people-", "vault"):
+		return ProfileWorkspace
 	case containsAny(s, "qa", "testing", "tester", "e2e", "browser", "accessibility", "evidence"):
 		return ProfileQA
 	case containsAny(s, "research", "review", "audit", "analysis", "planning", "planner", "architect", "docs", "writer"):

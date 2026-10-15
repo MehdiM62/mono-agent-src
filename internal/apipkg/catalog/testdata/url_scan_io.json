@@ -1,0 +1,79 @@
+{
+  "scan.perform": {
+    "params": {
+      "url": "https://example.com",
+      "additionalFields": {
+        "visibility": "public",
+        "tags": "a, b"
+      }
+    },
+    "response": {
+      "uuid": "u1",
+      "message": "ok"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/scan",
+      "body": {
+        "url": "https://example.com",
+        "visibility": "public",
+        "tags": [
+          "a",
+          "b"
+        ]
+      },
+      "items": 1
+    }
+  },
+  "scan.get": {
+    "params": {
+      "scanId": "u1"
+    },
+    "response": {
+      "task": {
+        "uuid": "u1"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/result/u1",
+      "items": 1
+    }
+  },
+  "scan.getAll": {
+    "params": {
+      "limit": 2,
+      "filters": {
+        "query": "domain:example.com"
+      }
+    },
+    "response": {
+      "results": [
+        {
+          "_id": "a",
+          "sort": [
+            1,
+            "a"
+          ]
+        },
+        {
+          "_id": "b",
+          "sort": [
+            2,
+            "b"
+          ]
+        }
+      ],
+      "has_more": true
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/search",
+      "query": {
+        "q": "domain:example.com",
+        "size": "2"
+      },
+      "items": 2
+    }
+  }
+}

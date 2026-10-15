@@ -1,0 +1,316 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "sendy",
+  "title": "Sendy",
+  "description": "Campaigns and list subscribers on a self-hosted Sendy install",
+  "category": "app",
+  "docs_url": "https://sendy.co/api",
+  "n8n_types": [
+    "n8n-nodes-base.sendy"
+  ],
+  "base_url": "{{ cred.url }}",
+  "credentials": [
+    {
+      "platform": "sendy",
+      "name": "Sendy",
+      "n8n_credential": "sendyApi",
+      "n8n_field_map": {
+        "url": "url",
+        "apiKey": "api_key"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "url",
+          "label": "Installation URL",
+          "required": true,
+          "help": "e.g. https://newsletter.example.com"
+        },
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true,
+          "help": "Sendy → Settings"
+        }
+      ],
+      "inject": {
+        "body": {
+          "api_key": "{{ cred.api_key }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "campaign",
+      "label": "Campaign"
+    },
+    {
+      "value": "subscriber",
+      "label": "Subscriber"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "campaign",
+      "operation": "create",
+      "title": "Create a campaign",
+      "method": "POST",
+      "path": "/api/campaigns/create.php",
+      "body_type": "form",
+      "fields": [
+        {
+          "key": "fromName",
+          "label": "From name",
+          "type": "text"
+        },
+        {
+          "key": "fromEmail",
+          "label": "From email",
+          "type": "text"
+        },
+        {
+          "key": "replyTo",
+          "label": "Reply-to",
+          "type": "text"
+        },
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text"
+        },
+        {
+          "key": "subject",
+          "label": "Subject",
+          "type": "text"
+        },
+        {
+          "key": "htmlText",
+          "label": "HTML",
+          "type": "textarea"
+        },
+        {
+          "key": "sendCampaign",
+          "label": "Send now",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "brandId",
+          "label": "Brand ID",
+          "type": "text",
+          "help": "Needed when the campaign is not sent now"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "excludeListIds",
+            "excludeSegmentIds",
+            "listIds",
+            "plainText",
+            "queryString",
+            "segmentIds",
+            "trackClicks",
+            "trackOpens"
+          ]
+        }
+      ],
+      "body": {
+        "from_name": "{{ p.fromName }}",
+        "from_email": "{{ p.fromEmail }}",
+        "reply_to": "{{ p.replyTo }}",
+        "title": "{{ p.title }}",
+        "subject": "{{ p.subject }}",
+        "send_campaign": "{{ p.sendCampaign | eq:'true' | then:1 | default:0 }}",
+        "html_text": "{{ p.htmlText }}",
+        "brand_id": "{{ p.sendCampaign | ne:'true' | then:p.brandId }}",
+        "plain_text": "{{ p.additionalFields.plainText }}",
+        "list_ids": "{{ p.additionalFields.listIds }}",
+        "segment_ids": "{{ p.additionalFields.segmentIds }}",
+        "exclude_list_ids": "{{ p.additionalFields.excludeListIds }}",
+        "exclude_segments_ids": "{{ p.additionalFields.excludeSegmentIds }}",
+        "query_string": "{{ p.additionalFields.queryString }}",
+        "track_opens": "{{ p.additionalFields.trackOpens | eq:'true' | then:1 }}",
+        "track_clicks": "{{ p.additionalFields.trackClicks | eq:'true' | then:1 }}"
+      },
+      "output": {
+        "to": {
+          "message": "{{ el.data }}"
+        }
+      }
+    },
+    {
+      "resource": "subscriber",
+      "operation": "add",
+      "title": "Subscribe an email to a list",
+      "method": "POST",
+      "path": "/subscribe",
+      "body_type": "form",
+      "fields": [
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "listId",
+          "label": "List ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "country",
+            "gdpr",
+            "hp",
+            "ipaddress",
+            "name",
+            "referrer",
+            "silent"
+          ]
+        }
+      ],
+      "body": {
+        "email": "{{ p.email }}",
+        "list": "{{ p.listId }}",
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "output": {
+        "to": {
+          "success": "{{ el.data | eq:'1' | then:true | default:false }}",
+          "message": "{{ el.data }}"
+        }
+      }
+    },
+    {
+      "resource": "subscriber",
+      "operation": "count",
+      "title": "Count active subscribers of a list",
+      "method": "POST",
+      "path": "/api/subscribers/active-subscriber-count.php",
+      "body_type": "form",
+      "fields": [
+        {
+          "key": "listId",
+          "label": "List ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "list_id": "{{ p.listId }}"
+      },
+      "output": {
+        "to": {
+          "count": "{{ el.data }}"
+        }
+      }
+    },
+    {
+      "resource": "subscriber",
+      "operation": "delete",
+      "title": "Delete a subscriber from a list",
+      "method": "POST",
+      "path": "/api/subscribers/delete.php",
+      "body_type": "form",
+      "fields": [
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "listId",
+          "label": "List ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "email": "{{ p.email }}",
+        "list_id": "{{ p.listId }}"
+      },
+      "output": {
+        "to": {
+          "success": "{{ el.data | eq:'1' | then:true | default:false }}",
+          "message": "{{ el.data }}"
+        }
+      }
+    },
+    {
+      "resource": "subscriber",
+      "operation": "remove",
+      "title": "Unsubscribe an email from a list",
+      "method": "POST",
+      "path": "/unsubscribe",
+      "body_type": "form",
+      "fields": [
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "listId",
+          "label": "List ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "email": "{{ p.email }}",
+        "list": "{{ p.listId }}"
+      },
+      "output": {
+        "to": {
+          "success": "{{ el.data | eq:'1' | then:true | default:false }}",
+          "message": "{{ el.data }}"
+        }
+      }
+    },
+    {
+      "resource": "subscriber",
+      "operation": "status",
+      "title": "Get a subscriber's status",
+      "method": "POST",
+      "path": "/api/subscribers/subscription-status.php",
+      "body_type": "form",
+      "fields": [
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "listId",
+          "label": "List ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "email": "{{ p.email }}",
+        "list_id": "{{ p.listId }}"
+      },
+      "output": {
+        "to": {
+          "status": "{{ el.data }}"
+        }
+      }
+    }
+  ]
+}

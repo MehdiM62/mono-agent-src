@@ -1,0 +1,39 @@
+{
+  "analyzeExpense": {
+    "params": {
+      "binaryPropertyName": "data"
+    },
+    "response": {
+      "ExpenseDocuments": [
+        {
+          "SummaryFields": [
+            {
+              "Type": {
+                "Text": "TOTAL"
+              },
+              "ValueDetection": {
+                "Text": "9.99"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "Document": {
+          "Bytes": "aGVsbG8="
+        }
+      },
+      "headers": {
+        "X-Amz-Target": "Textract.AnalyzeExpense"
+      },
+      "items": 1
+    },
+    "input": {
+      "data": "aGVsbG8="
+    }
+  }
+}

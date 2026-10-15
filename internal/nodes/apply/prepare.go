@@ -14,6 +14,7 @@ import (
 
 	"github.com/monoes/mono-agent/internal/apply"
 	"github.com/monoes/mono-agent/internal/documents"
+	"github.com/monoes/mono-agent/internal/nodes/nodeprofile"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -45,9 +46,9 @@ func (n *PrepareNode) Execute(ctx context.Context, input workflow.NodeInput, con
 	if applicationID == "" {
 		return nil, fmt.Errorf("applications.prepare: config \"application_id\" is required")
 	}
-	profileID, _ := config["profile_id"].(string)
-	if profileID == "" {
-		profileID = "default"
+	profileID, err := nodeprofile.Require(ctx, "applications.prepare", config)
+	if err != nil {
+		return nil, err
 	}
 
 	cvRaw, _ := config["cv_data"].(map[string]interface{})

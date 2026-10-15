@@ -13,6 +13,7 @@ import (
 
 	"github.com/monoes/mono-agent/internal/action"
 	"github.com/monoes/mono-agent/internal/automation"
+	"github.com/monoes/mono-agent/internal/statedir"
 )
 
 // Step statuses of a verify report (contracts §5).
@@ -293,7 +294,7 @@ func PromoteHealed(dir string, obs []Observation) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	return promoted, os.WriteFile(path, append(out, '\n'), 0o644)
+	return promoted, statedir.WriteFile(path, append(out, '\n'))
 }
 
 // redact masks every supplied input value (they may be secrets) in the

@@ -1,0 +1,280 @@
+{
+  "user.create": {
+    "params": {
+      "firstName": "Ada",
+      "lastName": "L",
+      "password": "pw",
+      "username": "ada",
+      "domain": "ex.com",
+      "additionalFields": {
+        "changePasswordAtNextLogin": true,
+        "customFields": {
+          "fieldValues": [
+            {
+              "schemaName": "hr",
+              "fieldName": "team",
+              "value": "core"
+            }
+          ]
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/admin/directory/v1/users",
+      "body": {
+        "name": {
+          "givenName": "Ada",
+          "familyName": "L"
+        },
+        "password": "pw",
+        "primaryEmail": "ada@ex.com",
+        "changePasswordAtNextLogin": true,
+        "customSchemas": {
+          "hr": {
+            "team": "core"
+          }
+        }
+      }
+    }
+  },
+  "user.addToGroup": {
+    "params": {
+      "userId": "123",
+      "groupId": "g@ex.com"
+    },
+    "responses": [
+      {
+        "primaryEmail": "ada@ex.com"
+      },
+      {}
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/admin/directory/v1/groups/g@ex.com/members",
+      "body": {
+        "email": "ada@ex.com",
+        "role": "MEMBER"
+      }
+    }
+  },
+  "user.delete": {
+    "params": {
+      "userId": "123"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/admin/directory/v1/users/123"
+    }
+  },
+  "user.get": {
+    "params": {
+      "userId": "123",
+      "output": "select",
+      "fields": [
+        "name"
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/admin/directory/v1/users/123",
+      "query": {
+        "projection": "basic",
+        "fields": "name,id"
+      }
+    }
+  },
+  "user.getAll": {
+    "params": {
+      "limit": 5,
+      "filter": {
+        "query": "name:Ada"
+      }
+    },
+    "response": {
+      "users": [
+        {
+          "id": "1"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/admin/directory/v1/users",
+      "query": {
+        "customer": "my_customer",
+        "query": "name:Ada",
+        "projection": "basic",
+        "maxResults": "5"
+      },
+      "items": 1
+    }
+  },
+  "user.removeFromGroup": {
+    "params": {
+      "userId": "123",
+      "groupId": "g1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/admin/directory/v1/groups/g1/members/123"
+    }
+  },
+  "user.update": {
+    "params": {
+      "userId": "123",
+      "updateFields": {
+        "firstName": "Ada",
+        "suspendUi": false
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/admin/directory/v1/users/123",
+      "body": {
+        "name": {
+          "givenName": "Ada"
+        },
+        "suspended": false
+      }
+    }
+  },
+  "group.create": {
+    "params": {
+      "name": "Eng",
+      "email": "eng@ex.com",
+      "additionalFields": {
+        "description": "d"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/admin/directory/v1/groups",
+      "body": {
+        "name": "Eng",
+        "email": "eng@ex.com",
+        "description": "d"
+      }
+    }
+  },
+  "group.delete": {
+    "params": {
+      "groupId": "g1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/admin/directory/v1/groups/g1"
+    }
+  },
+  "group.get": {
+    "params": {
+      "groupId": "g1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/admin/directory/v1/groups/g1"
+    }
+  },
+  "group.getAll": {
+    "params": {
+      "limit": 5,
+      "filter": {
+        "userId": "u1"
+      }
+    },
+    "response": {
+      "groups": [
+        {
+          "id": "g"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/admin/directory/v1/groups",
+      "query": {
+        "userKey": "u1",
+        "maxResults": "5"
+      },
+      "items": 1
+    }
+  },
+  "group.update": {
+    "params": {
+      "groupId": "g1",
+      "updateFields": {
+        "name": "Eng 2"
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/admin/directory/v1/groups/g1",
+      "body": {
+        "name": "Eng 2"
+      }
+    }
+  },
+  "device.get": {
+    "params": {
+      "deviceId": "d1",
+      "projection": "full"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/admin/directory/v1/customer/my_customer/devices/chromeos/d1",
+      "query": {
+        "projection": "full"
+      }
+    }
+  },
+  "device.getAll": {
+    "params": {
+      "limit": 5
+    },
+    "response": {
+      "chromeosdevices": [
+        {
+          "deviceId": "d"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/admin/directory/v1/customer/my_customer/devices/chromeos",
+      "query": {
+        "projection": "basic",
+        "includeChildOrgunits": "false",
+        "maxResults": "5"
+      },
+      "items": 1
+    }
+  },
+  "device.update": {
+    "params": {
+      "deviceId": "d1",
+      "updateOptions": {
+        "notes": "n"
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/admin/directory/v1/customer/my_customer/devices/chromeos/d1",
+      "body": {
+        "notes": "n"
+      }
+    }
+  },
+  "device.changeStatus": {
+    "params": {
+      "deviceId": "d1",
+      "action": "disable"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/admin/directory/v1/customer/my_customer/devices/chromeos/d1/action",
+      "body": {
+        "action": "disable"
+      }
+    }
+  }
+}

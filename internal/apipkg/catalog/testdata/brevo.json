@@ -1,0 +1,327 @@
+{
+  "email.send": {
+    "params": {
+      "subject": "Hi",
+      "textContent": "Body",
+      "sender": "Ada Lovelace <ada@x.io>",
+      "recipients": "bob@x.io, \"Cy D\" <cy@x.io>",
+      "additionalFields": {
+        "recipientsCC": {
+          "recipientCc": {
+            "cc": "cc@x.io"
+          }
+        },
+        "emailTags": {
+          "tags": {
+            "tag": "a, b"
+          }
+        }
+      }
+    },
+    "response": {
+      "messageId": "m"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v3/smtp/email",
+      "body": {
+        "sender": {
+          "email": "ada@x.io",
+          "name": "Ada Lovelace"
+        },
+        "to": [
+          {
+            "email": "bob@x.io"
+          },
+          {
+            "email": "cy@x.io",
+            "name": "Cy D"
+          }
+        ],
+        "cc": [
+          {
+            "email": "cc@x.io"
+          }
+        ],
+        "subject": "Hi",
+        "textContent": "Body",
+        "tags": [
+          "a",
+          "b"
+        ]
+      },
+      "items": 1
+    }
+  },
+  "email.sendTemplate": {
+    "params": {
+      "templateId": "7",
+      "receipients": "bob@x.io",
+      "additionalFields": {
+        "templateParameters": {
+          "parameterValues": {
+            "parameters": "name=Ada,plan=pro"
+          }
+        },
+        "emailAttachments": {
+          "attachment": {
+            "binaryPropertyName": "data, data2"
+          }
+        }
+      }
+    },
+    "input": {
+      "binary": {
+        "data": {
+          "data": "aGk=",
+          "fileName": "a.txt",
+          "mimeType": "text/plain"
+        },
+        "data2": {
+          "data": "eW8=",
+          "fileName": "b.pdf",
+          "mimeType": "application/pdf"
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v3/smtp/email",
+      "body": {
+        "templateId": 7,
+        "to": [
+          {
+            "email": "bob@x.io"
+          }
+        ],
+        "params": {
+          "name": "Ada",
+          "plan": "pro"
+        },
+        "attachment": [
+          {
+            "content": "aGk=",
+            "name": "a.txt"
+          },
+          {
+            "content": "eW8=",
+            "name": "b.pdf"
+          }
+        ]
+      }
+    }
+  },
+  "contact.create": {
+    "params": {
+      "email": "a@x.io",
+      "createContactAttributes": {
+        "attributesValues": [
+          {
+            "fieldName": "FIRSTNAME",
+            "fieldValue": "Ada"
+          }
+        ]
+      }
+    },
+    "response": {
+      "id": 1
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v3/contacts",
+      "body": {
+        "email": "a@x.io",
+        "attributes": {
+          "FIRSTNAME": "Ada"
+        }
+      }
+    }
+  },
+  "contact.upsert": {
+    "params": {
+      "email": "a@x.io"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v3/contacts",
+      "body": {
+        "email": "a@x.io",
+        "updateEnabled": true
+      }
+    }
+  },
+  "contact.delete": {
+    "params": {
+      "identifier": "a@x.io"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/v3/contacts/a@x.io"
+    }
+  },
+  "contact.get": {
+    "params": {
+      "identifier": "a@x.io"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v3/contacts/a@x.io"
+    }
+  },
+  "contact.getAll": {
+    "params": {
+      "limit": 5,
+      "options": {
+        "sort": "asc"
+      }
+    },
+    "response": {
+      "contacts": [
+        {
+          "id": 1
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v3/contacts",
+      "query": {
+        "sort": "asc",
+        "offset": "0",
+        "limit": "5"
+      },
+      "items": 1
+    }
+  },
+  "contact.update": {
+    "params": {
+      "identifier": "5",
+      "updateAttributes": {
+        "updateAttributesValues": [
+          {
+            "fieldName": "LASTNAME",
+            "fieldValue": "L"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/v3/contacts/5",
+      "body": {
+        "attributes": {
+          "LASTNAME": "L"
+        }
+      }
+    }
+  },
+  "attribute.create": {
+    "params": {
+      "attributeCategory": "category",
+      "attributeName": "TIER",
+      "attributeCategoryList": {
+        "categoryEnumeration": {
+          "attributesValues": [
+            {
+              "attributeCategoryValue": 1,
+              "attributeCategoryLabel": "Gold"
+            }
+          ]
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v3/contacts/attributes/category/TIER",
+      "body": {
+        "type": "category",
+        "enumeration": [
+          {
+            "value": 1,
+            "label": "Gold"
+          }
+        ]
+      }
+    }
+  },
+  "attribute.update": {
+    "params": {
+      "updateAttributeName": "X",
+      "updateAttributeValue": "1+1"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/v3/contacts/attributes/calculated/X",
+      "body": {
+        "value": "1+1"
+      }
+    }
+  },
+  "attribute.delete": {
+    "params": {
+      "deleteAttributeName": "X"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/v3/contacts/attributes/normal/X"
+    }
+  },
+  "attribute.getAll": {
+    "params": {
+      "limit": 1
+    },
+    "response": {
+      "attributes": [
+        {
+          "name": "a"
+        },
+        {
+          "name": "b"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v3/contacts/attributes",
+      "items": 1
+    }
+  },
+  "sender.create": {
+    "params": {
+      "name": "N",
+      "email": "n@x.io"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v3/senders",
+      "body": {
+        "name": "N",
+        "email": "n@x.io"
+      }
+    }
+  },
+  "sender.delete": {
+    "params": {
+      "id": "3"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/v3/senders/3"
+    }
+  },
+  "sender.getAll": {
+    "params": {},
+    "response": {
+      "senders": [
+        {
+          "id": 1
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v3/senders",
+      "items": 1
+    }
+  }
+}

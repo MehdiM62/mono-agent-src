@@ -18,8 +18,16 @@ package control
 //     keys (execution timeout default 30s clamped to 1-600; goja memory
 //     limit default 512MB) that had no field in the hand-written schema at
 //     all.
+//
+// "language" is back as a real key: "python" runs the code with the system
+// python3 (code_python.go), with "mode" choosing n8n's all-items or
+// per-item run.
 type CodeNodeSchema struct {
-	Code string `json:"code" schema:"label=Code,type=code,required,language=javascript,help=Return an array of objects. Each object becomes an output item. Access input via $input.all() or $json (first item)."`
+	Language string `json:"language" schema:"label=Language,type=select,options=javascript|python,default=javascript,help=python runs the code with the system python3 (or MONOAGENT_PYTHON) with n8n's Python names: _items in all-items mode or _item per item; also _input.all()/first()/last() and _json and _('Node Name').all(). Return a list of dicts (or one dict per item)."`
+
+	Mode string `json:"mode" schema:"label=Mode,type=select,options=runOnceForAllItems|runOnceForEachItem,default=runOnceForAllItems,help=Python only: run once with all items or once per item.,depends_on_key=language,depends_on_values=python"`
+
+	Code string `json:"code" schema:"label=Code,type=code,required,language=javascript,help=Return an array of objects. Each object becomes an output item. Access input via $input.all() or $json (first item) and another node's output via $('Node Name').all(). A top-level return or await runs the code as an async function."`
 
 	TimeoutSeconds float64 `json:"timeout_seconds" schema:"label=Timeout (seconds),type=number,default=30,min=1,max=600,help=Execution timeout in seconds."`
 

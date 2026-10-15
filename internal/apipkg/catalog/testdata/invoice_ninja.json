@@ -1,0 +1,828 @@
+{
+  "bank_transaction.create": {
+    "params": {
+      "additionalFields": {
+        "amount": 10,
+        "baseType": "CREDIT",
+        "description": "x"
+      }
+    },
+    "response": {
+      "data": {
+        "id": "b1"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/bank_transactions",
+      "body": {
+        "amount": 10,
+        "base_type": "CREDIT",
+        "description": "x"
+      },
+      "items": 1
+    },
+    "credential": {
+      "url": "https://inv.example.com",
+      "api_token": "tok",
+      "secret": "sec"
+    }
+  },
+  "bank_transaction.delete": {
+    "params": {
+      "bankTransactionId": "b1"
+    },
+    "response": {
+      "data": {
+        "id": "b1"
+      }
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v1/bank_transactions/b1",
+      "items": 1
+    },
+    "credential": {
+      "url": "https://inv.example.com",
+      "api_token": "tok",
+      "secret": "sec"
+    }
+  },
+  "bank_transaction.get": {
+    "params": {
+      "bankTransactionId": "b1"
+    },
+    "response": {
+      "data": {
+        "id": "b1"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/bank_transactions/b1",
+      "items": 1
+    },
+    "credential": {
+      "url": "https://inv.example.com",
+      "api_token": "tok",
+      "secret": "sec"
+    }
+  },
+  "bank_transaction.getAll": {
+    "params": {
+      "limit": 5
+    },
+    "response": {
+      "data": [
+        {
+          "id": "b1"
+        }
+      ],
+      "meta": {}
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/bank_transactions",
+      "query": {
+        "per_page": "5"
+      },
+      "items": 1
+    },
+    "credential": {
+      "url": "https://inv.example.com",
+      "api_token": "tok",
+      "secret": "sec"
+    }
+  },
+  "bank_transaction.matchPayment": {
+    "params": {
+      "bankTransactionId": "b1",
+      "paymentId": "p1"
+    },
+    "response": {
+      "data": []
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/bank_transactions/match",
+      "body": {
+        "transactions": [
+          {
+            "id": "b1",
+            "payment_id": "p1"
+          }
+        ]
+      }
+    },
+    "credential": {
+      "url": "https://inv.example.com",
+      "api_token": "tok",
+      "secret": "sec"
+    }
+  },
+  "client.create": {
+    "params": {
+      "additionalFields": {
+        "clientName": "Acme",
+        "vatNumber": "V1"
+      },
+      "contactsUi": {
+        "contacstValues": [
+          {
+            "firstName": "Ada",
+            "email": "a@x.io"
+          }
+        ]
+      },
+      "billingAddressUi": {
+        "billingAddressValue": {
+          "city": "Rome",
+          "countryCode": "380"
+        }
+      }
+    },
+    "response": {
+      "data": {
+        "id": "c1"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/clients",
+      "body": {
+        "name": "Acme",
+        "vat_number": "V1",
+        "contacts": [
+          {
+            "first_name": "Ada",
+            "email": "a@x.io"
+          }
+        ],
+        "city": "Rome",
+        "country_id": 380
+      },
+      "items": 1
+    },
+    "credential": {
+      "url": "https://inv.example.com",
+      "api_token": "tok",
+      "secret": "sec"
+    }
+  },
+  "client.delete": {
+    "params": {
+      "clientId": "c1"
+    },
+    "response": {
+      "data": {
+        "id": "c1"
+      }
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v1/clients/c1",
+      "items": 1
+    },
+    "credential": {
+      "url": "https://inv.example.com",
+      "api_token": "tok",
+      "secret": "sec"
+    }
+  },
+  "client.get": {
+    "params": {
+      "clientId": "c1",
+      "options": {
+        "include": "invoices"
+      }
+    },
+    "response": {
+      "data": {
+        "id": "c1"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/clients/c1",
+      "query": {
+        "include": "invoices"
+      },
+      "items": 1
+    },
+    "credential": {
+      "url": "https://inv.example.com",
+      "api_token": "tok",
+      "secret": "sec"
+    }
+  },
+  "client.getAll": {
+    "params": {
+      "limit": 5,
+      "options": {
+        "status": "active",
+        "isDeleted": true
+      }
+    },
+    "response": {
+      "data": [
+        {
+          "id": "c1"
+        },
+        {
+          "id": "c2"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/clients",
+      "query": {
+        "status": "active",
+        "is_deleted": "true",
+        "per_page": "5"
+      },
+      "items": 2
+    },
+    "credential": {
+      "url": "https://inv.example.com",
+      "api_token": "tok",
+      "secret": "sec"
+    }
+  },
+  "expense.create": {
+    "params": {
+      "additionalFields": {
+        "amount": 5,
+        "billable": true,
+        "vendor": "v1"
+      }
+    },
+    "response": {
+      "data": {
+        "id": "e1"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/expenses",
+      "body": {
+        "amount": 5,
+        "should_be_invoiced": true,
+        "vendor_id": "v1"
+      },
+      "items": 1
+    },
+    "credential": {
+      "url": "https://inv.example.com",
+      "api_token": "tok",
+      "secret": "sec"
+    }
+  },
+  "expense.delete": {
+    "params": {
+      "expenseId": "e1"
+    },
+    "response": {
+      "data": {
+        "id": "e1"
+      }
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v1/expenses/e1",
+      "items": 1
+    },
+    "credential": {
+      "url": "https://inv.example.com",
+      "api_token": "tok",
+      "secret": "sec"
+    }
+  },
+  "expense.get": {
+    "params": {
+      "expenseId": "e1"
+    },
+    "response": {
+      "data": {
+        "id": "e1"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/expenses/e1",
+      "items": 1
+    },
+    "credential": {
+      "url": "https://inv.example.com",
+      "api_token": "tok",
+      "secret": "sec"
+    }
+  },
+  "expense.getAll": {
+    "params": {
+      "returnAll": true
+    },
+    "response": {
+      "data": [
+        {
+          "id": "e1"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/expenses",
+      "query": {
+        "per_page": "100"
+      },
+      "items": 1
+    },
+    "credential": {
+      "url": "https://inv.example.com",
+      "api_token": "tok",
+      "secret": "sec"
+    }
+  },
+  "invoice.create": {
+    "params": {
+      "additionalFields": {
+        "client": "c1",
+        "invoiceNumber": "INV-1",
+        "paid": 5,
+        "markSent": true
+      },
+      "invoiceItemsUi": {
+        "invoiceItemsValues": [
+          {
+            "service": "Dev",
+            "cost": 100,
+            "hours": 2
+          }
+        ]
+      }
+    },
+    "response": {
+      "data": {
+        "id": "i1"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/invoices",
+      "query": {
+        "amount_paid": "5",
+        "mark_sent": "true"
+      },
+      "body": {
+        "client_id": "c1",
+        "number": "INV-1",
+        "line_items": [
+          {
+            "product_key": "Dev",
+            "cost": 100,
+            "quantity": 2
+          }
+        ]
+      },
+      "items": 1
+    },
+    "credential": {
+      "url": "https://inv.example.com",
+      "api_token": "tok",
+      "secret": "sec"
+    }
+  },
+  "invoice.email": {
+    "params": {
+      "invoiceId": "i1"
+    },
+    "response": {
+      "data": {
+        "id": "i1"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/invoices/i1/email",
+      "items": 1
+    },
+    "credential": {
+      "url": "https://inv.example.com",
+      "api_token": "tok",
+      "secret": "sec"
+    }
+  },
+  "invoice.delete": {
+    "params": {
+      "invoiceId": "i1"
+    },
+    "response": {
+      "data": {
+        "id": "i1"
+      }
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v1/invoices/i1",
+      "items": 1
+    },
+    "credential": {
+      "url": "https://inv.example.com",
+      "api_token": "tok",
+      "secret": "sec"
+    }
+  },
+  "invoice.get": {
+    "params": {
+      "invoiceId": "i1"
+    },
+    "response": {
+      "data": {
+        "id": "i1"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/invoices/i1",
+      "items": 1
+    },
+    "credential": {
+      "url": "https://inv.example.com",
+      "api_token": "tok",
+      "secret": "sec"
+    }
+  },
+  "invoice.getAll": {
+    "params": {
+      "apiVersion": "v4",
+      "limit": 5,
+      "options": {
+        "invoiceNumber": "0001"
+      }
+    },
+    "response": {
+      "data": [
+        {
+          "id": "i1"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/invoices",
+      "query": {
+        "invoice_number": "0001",
+        "per_page": "5"
+      },
+      "items": 1
+    },
+    "credential": {
+      "url": "https://inv.example.com",
+      "api_token": "tok",
+      "secret": "sec"
+    }
+  },
+  "payment.create": {
+    "params": {
+      "invoice": "i1",
+      "amount": 50,
+      "additionalFields": {
+        "paymentType": "1"
+      }
+    },
+    "responses": [
+      {
+        "data": {
+          "id": "i1",
+          "client_id": "c9"
+        }
+      },
+      {
+        "data": {
+          "id": "p1"
+        }
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/payments",
+      "body": {
+        "amount": 50,
+        "client_id": "c9",
+        "invoices": [
+          {
+            "invoice_id": "i1",
+            "amount": 50
+          }
+        ],
+        "type_id": "1"
+      },
+      "items": 1
+    },
+    "credential": {
+      "url": "https://inv.example.com",
+      "api_token": "tok",
+      "secret": "sec"
+    }
+  },
+  "payment.delete": {
+    "params": {
+      "paymentId": "p1"
+    },
+    "response": {
+      "data": {
+        "id": "p1"
+      }
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v1/payments/p1",
+      "items": 1
+    },
+    "credential": {
+      "url": "https://inv.example.com",
+      "api_token": "tok",
+      "secret": "sec"
+    }
+  },
+  "payment.get": {
+    "params": {
+      "paymentId": "p1"
+    },
+    "response": {
+      "data": {
+        "id": "p1"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/payments/p1",
+      "items": 1
+    },
+    "credential": {
+      "url": "https://inv.example.com",
+      "api_token": "tok",
+      "secret": "sec"
+    }
+  },
+  "payment.getAll": {
+    "params": {
+      "limit": 5
+    },
+    "response": {
+      "data": [
+        {
+          "id": "p1"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/payments",
+      "query": {
+        "per_page": "5"
+      },
+      "items": 1
+    },
+    "credential": {
+      "url": "https://inv.example.com",
+      "api_token": "tok",
+      "secret": "sec"
+    }
+  },
+  "quote.create": {
+    "params": {
+      "apiVersion": "v4",
+      "additionalFields": {
+        "client": "c1",
+        "quoteNumber": "Q-1"
+      },
+      "invoiceItemsUi": {
+        "invoiceItemsValues": [
+          {
+            "service": "Dev",
+            "cost": 100,
+            "hours": 2
+          }
+        ]
+      }
+    },
+    "response": {
+      "data": {
+        "id": "q1"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/invoices",
+      "body": {
+        "is_quote": true,
+        "client_id": "c1",
+        "invoice_number": "Q-1",
+        "invoice_items": [
+          {
+            "product_key": "Dev",
+            "cost": 100,
+            "qty": 2
+          }
+        ]
+      },
+      "items": 1
+    },
+    "credential": {
+      "url": "https://inv.example.com",
+      "api_token": "tok",
+      "secret": "sec"
+    }
+  },
+  "quote.email": {
+    "params": {
+      "apiVersion": "v4",
+      "quoteId": "q1"
+    },
+    "response": {
+      "message": "ok"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/email_invoice",
+      "body": {
+        "id": "q1"
+      },
+      "items": 1
+    },
+    "credential": {
+      "url": "https://inv.example.com",
+      "api_token": "tok",
+      "secret": "sec"
+    }
+  },
+  "quote.delete": {
+    "params": {
+      "quoteId": "q1"
+    },
+    "response": {
+      "data": {
+        "id": "q1"
+      }
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v1/quotes/q1",
+      "items": 1
+    },
+    "credential": {
+      "url": "https://inv.example.com",
+      "api_token": "tok",
+      "secret": "sec"
+    }
+  },
+  "quote.get": {
+    "params": {
+      "quoteId": "q1"
+    },
+    "response": {
+      "data": {
+        "id": "q1"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/quotes/q1",
+      "items": 1
+    },
+    "credential": {
+      "url": "https://inv.example.com",
+      "api_token": "tok",
+      "secret": "sec"
+    }
+  },
+  "quote.getAll": {
+    "params": {
+      "limit": 5
+    },
+    "response": {
+      "data": [
+        {
+          "id": "q1"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/quotes",
+      "query": {
+        "per_page": "5"
+      },
+      "items": 1
+    },
+    "credential": {
+      "url": "https://inv.example.com",
+      "api_token": "tok",
+      "secret": "sec"
+    }
+  },
+  "task.create": {
+    "params": {
+      "additionalFields": {
+        "description": "Work"
+      },
+      "timeLogsUi": {
+        "timeLogsValues": [
+          {
+            "startDate": "2026-01-02T00:00:00Z",
+            "duration": 2
+          }
+        ]
+      }
+    },
+    "response": {
+      "data": {
+        "id": "t1"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/tasks",
+      "body": {
+        "description": "Work",
+        "time_log": "[[1767312000,1767319200]]"
+      },
+      "items": 1
+    },
+    "credential": {
+      "url": "https://inv.example.com",
+      "api_token": "tok",
+      "secret": "sec"
+    }
+  },
+  "task.delete": {
+    "params": {
+      "taskId": "t1"
+    },
+    "response": {
+      "data": {
+        "id": "t1"
+      }
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v1/tasks/t1",
+      "items": 1
+    },
+    "credential": {
+      "url": "https://inv.example.com",
+      "api_token": "tok",
+      "secret": "sec"
+    }
+  },
+  "task.get": {
+    "params": {
+      "taskId": "t1"
+    },
+    "response": {
+      "data": {
+        "id": "t1"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/tasks/t1",
+      "items": 1
+    },
+    "credential": {
+      "url": "https://inv.example.com",
+      "api_token": "tok",
+      "secret": "sec"
+    }
+  },
+  "task.getAll": {
+    "params": {
+      "limit": 5,
+      "options": {
+        "include": "client"
+      }
+    },
+    "response": {
+      "data": [
+        {
+          "id": "t1"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/tasks",
+      "query": {
+        "include": "client",
+        "per_page": "5"
+      },
+      "items": 1
+    },
+    "credential": {
+      "url": "https://inv.example.com",
+      "api_token": "tok",
+      "secret": "sec"
+    }
+  }
+}

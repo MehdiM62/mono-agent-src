@@ -1,0 +1,35 @@
+{
+  "message.push": {
+    "params": {
+      "userKey": "u1",
+      "message": "hi",
+      "priority": 2,
+      "expire": 600,
+      "additionalFields": {
+        "html": true,
+        "title": "T",
+        "timestamp": "2024-01-01T00:00:00Z"
+      },
+      "retryInterval": 60
+    },
+    "response": {
+      "status": 1
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/1/messages.json",
+      "body": {
+        "token": "test-api_key",
+        "user": "u1",
+        "message": "hi",
+        "priority": "2",
+        "retry": "60",
+        "expire": "600",
+        "html": "1",
+        "title": "T",
+        "timestamp": "1704067200"
+      },
+      "items": 1
+    }
+  }
+}
