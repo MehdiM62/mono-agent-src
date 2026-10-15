@@ -15,9 +15,12 @@ import (
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 
+	"github.com/monoes/mono-agent/internal/browserctl"
 	hilcli "github.com/monoes/mono-agent/internal/cli/hil"
 	"github.com/monoes/mono-agent/internal/hilsend"
+	"github.com/monoes/mono-agent/internal/orgsign"
 	"github.com/monoes/mono-agent/internal/storage"
+	"github.com/monoes/mono-agent/internal/workflow"
 )
 
 // `hil` lives in internal/cli/hil; this is its adapter: the CLI's globals and helpers handed
@@ -94,15 +97,40 @@ func hilSendStore(cfg *globalConfig, db *sql.DB) hilsend.Store {
 	return hilsend.Store{DB: db, Profile: cfg.ProfileID}
 }
 
-// requireOperator refuses an agent: it may prepare a send, never decide one.
+// requireOperator refuses whatever is not the operator's own terminal: it
+// may prepare a send, never decide one, nor approve what agents asked for.
 func requireOperator(what string) error {
 	if _, err := callerFor("").operator(what); err != nil {
 		return err
 	}
-	if _, agent := hilsend.Detect(); agent {
-		return operatorOnlyError("%s is set, so an agent is running this command: only the operator can %s; run it in your own terminal", hilsend.EnvAgentContext, what)
+	if why := notOperator(); why != "" {
+		return operatorOnlyError("%s: only the operator can %s; run it in your own terminal", why, what)
 	}
 	return nil
+}
+
+// notOperator says why this process is not the operator's own terminal, or
+// "": an agent (hilsend.Detect), a process of any kind of agent
+// (browserctl.AgentKind, the chat's runs included), a chat tool call's
+// `workflow run` (MONOAGENT_AI_CALLER), or a process a workflow node started
+// (MONOAGENT_WORKFLOW_RUN), which a chat or an org can have built.
+func notOperator() string {
+	switch {
+	case os.Getenv(workflow.EnvWorkflowRun) != "":
+		return workflow.EnvWorkflowRun + " is set, so a workflow run is running this command"
+	case os.Getenv(browserctl.EnvAICaller) != "":
+		return browserctl.EnvAICaller + " is set, so the chat is running this command"
+	}
+	if _, agent := hilsend.Detect(); agent || browserctl.AgentKind() != "" {
+		marker := orgsign.AgentContextMarker()
+		for _, k := range []string{hilsend.EnvAgentContext, "MONOAGENT_ACTOR", browserctl.EnvAgentKind} {
+			if marker == "" && os.Getenv(k) != "" {
+				marker = k
+			}
+		}
+		return marker + " is set, so an agent is running this command"
+	}
+	return ""
 }
 
 // requirePublicationApproval gates `publication register` from an agent: a

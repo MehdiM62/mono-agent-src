@@ -395,3 +395,18 @@ func TestHTTPErrorStatus(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+// The server process carries the run's marker, whatever the node's env
+// says: what a workflow runs is never the operator.
+func TestStdioServerMarksTheWorkflowRun(t *testing.T) {
+	t.Setenv(workflow.EnvWorkflowRun, "")
+	cfg := stdioConfig(map[string]interface{}{"tool": "run"})
+	cfg["env"] = map[string]interface{}{fakeServerEnv: "1", workflow.EnvWorkflowRun: ""}
+	outs, err := (&CallNode{}).Execute(context.Background(), workflow.NodeInput{ExecutionID: "exec-7"}, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := outs[0].Items[0].JSON["result"]; got != "exec-7" {
+		t.Errorf("the server saw %#v, want exec-7", got)
+	}
+}

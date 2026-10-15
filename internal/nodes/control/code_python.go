@@ -83,7 +83,7 @@ func runPython(ctx context.Context, input workflow.NodeInput, config map[string]
 	runCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	cmd := exec.CommandContext(runCtx, bin, "-c", pythonBootstrap)
-	cmd.Env = nodemgr.UserEnv(os.Environ())
+	cmd.Env = workflow.RunEnv(nodemgr.UserEnv(os.Environ()), input.ExecutionID) // what a workflow runs is never the operator
 	nodemgr.Isolate(cmd)
 	cmd.Stdin = bytes.NewReader(stdin)
 	var stdout, stderr bytes.Buffer

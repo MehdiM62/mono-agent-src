@@ -111,6 +111,11 @@ func (n *CallNode) Execute(ctx context.Context, input workflow.NodeInput, config
 		failOnToolError = b
 	}
 
+	// What a workflow runs is never the operator (workflow.EnvWorkflowRun).
+	if srv.Env == nil {
+		srv.Env = map[string]string{}
+	}
+	srv.Env[workflow.EnvWorkflowRun] = workflow.RunMarker(input.ExecutionID)
 	t, err := connect(srv)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", NodeType, err)

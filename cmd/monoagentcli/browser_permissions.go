@@ -81,7 +81,7 @@ func newBrowserPermissionsCmd(cfg *globalConfig) *cobra.Command {
 		Example: "  monoagentcli browser permissions set chat dev",
 		Args:    cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if browserctl.AgentKind() != "" {
+			if notOperator() != "" {
 				return operatorOnlyError("an agent may not change browser permissions: ask the user to run `monoagentcli browser permissions set %s %s` or use Settings → Agent browser permissions", args[0], args[1])
 			}
 			return withPermissions(cfg, func(p *browserctl.Permissions) error {
@@ -98,7 +98,7 @@ func newBrowserPermissionsCmd(cfg *globalConfig) *cobra.Command {
 		Example: "  monoagentcli browser permissions site https://github.com allow\n  monoagentcli browser permissions site '*.bank.example' block",
 		Args:    cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if browserctl.AgentKind() != "" {
+			if notOperator() != "" {
 				return operatorOnlyError("an agent may not change browser permissions: ask the user to run `monoagentcli browser permissions site %s %s` or use Settings → Agent browser permissions", args[0], args[1])
 			}
 			return withPermissions(cfg, func(p *browserctl.Permissions) error {
