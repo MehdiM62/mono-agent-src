@@ -30,7 +30,7 @@ The `core.human_in_loop` node pauses a workflow and puts each pending item in
 a durable approval queue (stored in SQLite — it survives restarts). A person
 can review the data, edit any field, and approve or reject each item.
 Rejection stops that branch; approval resumes it with the edited data.
-Approvals can also be handled from the CLI (`monoagentcli hil list` /
+Approvals can also be handled from the CLI (`monoagentcli --profile <name> hil list` /
 `hil approve` / `hil reject`) or by an AI agent acting on your instruction.
 
 **We strongly recommend putting a human-in-the-loop node in front of anything

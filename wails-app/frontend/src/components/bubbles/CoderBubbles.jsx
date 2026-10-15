@@ -5,6 +5,7 @@ import { confirm } from '../ConfirmDialog.jsx'
 import { BubbleDock } from './BubbleDock.jsx'
 import { CoderChatOverlay } from './CoderChatOverlay.jsx'
 import { OrgBubbleOverlay } from './OrgBubbleOverlay.jsx'
+import { QueuedCoderStack, useQueuedCoderChats } from './QueuedCoderBubble.jsx'
 import { isOrgBubble } from '../../lib/coderBubbles.js'
 import { useCoderStatus } from '../chat/useCoderMode.js'
 
@@ -66,6 +67,31 @@ export default function CoderBubbles({ store, onNavigate, onCloseOrg }) {
     else store.collapse()
   }, [store])
 
+  // Queued coder chats (C5): Start creates the conversation in the CLI,
+  // runs its first turn with the page context attached, and opens it as a
+  // bubble. A turn that won't start leaves its prompt as the bubble's draft.
+  const queue = useQueuedCoderChats()
+  const startQueued = useCallback(async (item, cwd) => {
+    const res = await api.coderQueueStart(item.id, cwd || '')
+    queue.drop(item.id)
+    let failure = ''
+    try {
+      const started = await api.startChatTurn(res.conversationId, res.turnId, res.prompt, false, false, res.attachments || [])
+      if (started?.ok === false) failure = t('bubbles.couldNotStart', { status: started.status })
+    } catch (err) {
+      failure = String(err?.message || err)
+    }
+    const key = store.openConversation({ id: res.conversationId, cwd: res.cwd, model: res.model, runtime: res.runtime })
+    if (failure) {
+      store.setView(key, { draft: res.prompt })
+      notify('chat', failure)
+    }
+  }, [store, queue, t])
+  const dismissQueued = useCallback(async (item) => {
+    await api.coderQueueDismiss(item.id)
+    queue.drop(item.id)
+  }, [queue])
+
   collapseRef.current = collapse
   const expanded = store.bubbles.find(b => b.key === store.expandedKey)
   const originRect = expanded ? bubbleEls.current[expanded.key]?.getBoundingClientRect() : null
@@ -94,6 +120,7 @@ export default function CoderBubbles({ store, onNavigate, onCloseOrg }) {
           onNavigate={(page) => { collapse(); onNavigate?.(page) }}
         />
       )}
+      {!expanded && <QueuedCoderStack items={queue.items} side={store.side} onStart={startQueued} onDismiss={dismissQueued} />}
       <BubbleDock store={store} onOpen={open} onClose={closeChat} registerEl={registerEl} canCreate={!!status?.enabled} />
     </>
   )

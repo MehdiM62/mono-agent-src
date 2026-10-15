@@ -108,7 +108,7 @@ func TestApp_StartChatTurn_RunsTheCLITurnAndRelaysItsEvents(t *testing.T) {
 	a, emitter := newCLIChatApp(t, bin)
 	a.setActiveProfileID("work")
 
-	r := decodeStart(t, a.StartChatTurn("conv-1", "turn-1", "hello world", true, true))
+	r := decodeStart(t, a.StartChatTurn("conv-1", "turn-1", "hello world", true, true, nil))
 	if !r.OK || r.TurnID != "turn-1" || r.Status != "active" {
 		t.Fatalf("Start = %+v", r)
 	}
@@ -134,14 +134,14 @@ func TestApp_StartChatTurn_BusyAndDuplicateResponsesIncludeTurnID_ThenStop(t *te
 	)
 	a, emitter := newCLIChatApp(t, bin)
 
-	if r := decodeStart(t, a.StartChatTurn("conv-1", "turn-1", "hi", false, false)); !r.OK || r.Status != "active" {
+	if r := decodeStart(t, a.StartChatTurn("conv-1", "turn-1", "hi", false, false, nil)); !r.OK || r.Status != "active" {
 		t.Fatalf("first Start = %+v", r)
 	}
-	r2 := decodeStart(t, a.StartChatTurn("conv-1", "turn-2", "hi again", false, false))
+	r2 := decodeStart(t, a.StartChatTurn("conv-1", "turn-2", "hi again", false, false, nil))
 	if r2.OK || r2.Status != "busy" || r2.TurnID != "turn-2" {
 		t.Errorf("Start of another turn while turn-1 runs = %+v, want ok=false status=busy turnId=turn-2", r2)
 	}
-	r3 := decodeStart(t, a.StartChatTurn("conv-1", "turn-1", "hi", false, false))
+	r3 := decodeStart(t, a.StartChatTurn("conv-1", "turn-1", "hi", false, false, nil))
 	if !r3.OK || r3.Status != "active" || r3.TurnID != "turn-1" {
 		t.Errorf("duplicate Start = %+v, want ok=true status=active turnId=turn-1", r3)
 	}
@@ -165,7 +165,7 @@ func TestApp_StartChatTurn_BusyAndDuplicateResponsesIncludeTurnID_ThenStop(t *te
 func TestApp_StartChatTurn_RetriedFinishedTurnReportsItsStatus(t *testing.T) {
 	bin, _ := chatFakeCLI(t, fakeChatReply{match: "chat --conversation", stdout: lines(admissionLine("conv-1", "turn-1", "completed", true))})
 	a, emitter := newCLIChatApp(t, bin)
-	r := decodeStart(t, a.StartChatTurn("conv-1", "turn-1", "hi", false, false))
+	r := decodeStart(t, a.StartChatTurn("conv-1", "turn-1", "hi", false, false, nil))
 	if !r.OK || r.Status != "completed" || r.TurnID != "turn-1" {
 		t.Errorf("retried Start = %+v, want ok=true status=completed", r)
 	}
@@ -192,7 +192,7 @@ func TestApp_StartChatTurn_CLIRefusalsAreErrorsAndReleaseTheSlot(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			bin, _ := chatFakeCLI(t, fakeChatReply{match: "chat --conversation", stderr: tc.stderr, code: tc.code})
 			a, emitter := newCLIChatApp(t, bin)
-			r := decodeStart(t, a.StartChatTurn("conv-1", "turn-1", "hi", false, false))
+			r := decodeStart(t, a.StartChatTurn("conv-1", "turn-1", "hi", false, false, nil))
 			if r.OK || !strings.Contains(r.Error, tc.want) {
 				t.Errorf("Start = %+v, want an error containing %q", r, tc.want)
 			}
@@ -223,7 +223,7 @@ func TestApp_StartChatTurn_RefusalKeepsTheCLIErrorCode(t *testing.T) {
 		Error string `json:"error"`
 		Code  string `json:"code"`
 	}
-	if err := json.Unmarshal([]byte(a.StartChatTurn("conv-1", "turn-1", "hi", false, false)), &r); err != nil {
+	if err := json.Unmarshal([]byte(a.StartChatTurn("conv-1", "turn-1", "hi", false, false, nil)), &r); err != nil {
 		t.Fatal(err)
 	}
 	if r.Code != "agent_not_setup" || !strings.Contains(r.Error, "monomind not found") {
@@ -254,7 +254,7 @@ func TestApp_TurnProcessDyingUnfinished_IsFinishedThroughTheCLI(t *testing.T) {
 				finishReply("conv-1", "turn-1", chatevents.TurnStatus(tc.wantStatus), 2),
 			)
 			a, emitter := newCLIChatApp(t, bin)
-			if r := decodeStart(t, a.StartChatTurn("conv-1", "turn-1", "hi", false, false)); !r.OK {
+			if r := decodeStart(t, a.StartChatTurn("conv-1", "turn-1", "hi", false, false, nil)); !r.OK {
 				t.Fatalf("Start = %+v", r)
 			}
 			finished := waitForType(t, emitter, chatevents.EventTurnFinished, 5*time.Second)
@@ -282,7 +282,7 @@ func TestApp_FinishFailure_EmitsLiveOnlyTurnFinished(t *testing.T) {
 		fakeChatReply{match: "chat history finish", code: 1, stderr: "database is locked\n"},
 	)
 	a, emitter := newCLIChatApp(t, bin)
-	if r := decodeStart(t, a.StartChatTurn("conv-1", "turn-1", "hi", false, false)); !r.OK {
+	if r := decodeStart(t, a.StartChatTurn("conv-1", "turn-1", "hi", false, false, nil)); !r.OK {
 		t.Fatalf("Start = %+v", r)
 	}
 	finished := waitForType(t, emitter, chatevents.EventTurnFinished, 5*time.Second)
@@ -300,7 +300,7 @@ func TestApp_StopAll_KillsRunningTurnsAndWaitsForTheirFinish(t *testing.T) {
 		finishReply("conv-1", "turn-1", chatevents.StatusCancelled, 1),
 	)
 	a, emitter := newCLIChatApp(t, bin)
-	if r := decodeStart(t, a.StartChatTurn("conv-1", "turn-1", "hi", false, false)); !r.OK {
+	if r := decodeStart(t, a.StartChatTurn("conv-1", "turn-1", "hi", false, false, nil)); !r.OK {
 		t.Fatalf("Start = %+v", r)
 	}
 	a.chatSup.stopAll()

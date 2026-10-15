@@ -166,17 +166,15 @@ read → sync (direction=outbound). This is exactly what the bundled
 'monoagentcli workflow templates use outlook_email_sync' to get both
 branches pre-wired instead of building them by hand.
 
-"profile_id" defaults to "default" if omitted — this is EASY to get wrong:
-it is NOT inherited from the workflow's own profile automatically. A
-workflow belonging to profile X whose sync node has no explicit profile_id
-will silently attribute all synced people/messages to the "default"
-profile instead of X. Always set profile_id explicitly to match the
-workflow's profile (monoagentcli profile list to find the ID).`,
+The profile comes from the workflow run: synced people/messages are
+attributed to the profile the workflow runs under. "profile_id" is
+optional; when set it must match that profile or the node fails. A legacy
+"default" left over from older workflows is ignored with a warning.`,
 		Config: `// Inbound (received mail) — sender becomes the person
-{ "source": "outlook", "direction": "inbound", "profile_id": "680bc228-81c9-40e6-aedc-52b6fdb261e0" }
+{ "source": "outlook", "direction": "inbound" }
 
 // Outbound (sent mail) — recipient(s) become the person
-{ "source": "outlook", "direction": "outbound", "profile_id": "680bc228-81c9-40e6-aedc-52b6fdb261e0" }`,
+{ "source": "outlook", "direction": "outbound" }`,
 		Inputs:  "items from service.outlook_mail's list_messages output (id, subject, from, toRecipients, body/bodyPreview, receivedDateTime, plus its _source and attachments)",
 		Outputs: "one item per synced person/message: {person_id, email, message_id}",
 		Notes: "Stores each message's provenance (_source: system, account, folder, id there, web link, " +

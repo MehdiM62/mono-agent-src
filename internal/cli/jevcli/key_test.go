@@ -78,7 +78,7 @@ func TestJevKeySetStatusTestRemove(t *testing.T) {
 		t.Fatalf("second set: %v %s", err, out)
 	}
 	db := openJevDB(t, cfg)
-	entries, _ := secrets.List(t.Context(), db, "default")
+	entries, _ := secrets.List(t.Context(), db, jevconf.VaultScope)
 	n := 0
 	for _, e := range entries {
 		if e.Name == "typesafe" {
@@ -97,20 +97,62 @@ func TestJevKeySetStatusTestRemove(t *testing.T) {
 	}
 }
 
-// A key already stored under a natural name is updated in place.
-func TestJevKeySetUpdatesNaturallyNamedEntry(t *testing.T) {
+// `key set` writes the machine key and leaves a profile vault's naturally named entry alone.
+func TestJevKeySetIgnoresProfileEntry(t *testing.T) {
 	cfg := jevKeyTestCfg(t)
 	db := openJevDB(t, cfg)
 	if _, err := secrets.Add(t.Context(), db, "default", "secret", "Jev Api key", map[string]string{"value": "old"}, "", "", ""); err != nil {
 		t.Fatal(err)
 	}
 	out, _, err := runJev(t, cfg, "new-key", "key", "set")
-	if err != nil || !strings.Contains(out, `"key_entry": "Jev Api key"`) || !strings.Contains(out, `"replaced": true`) {
+	if err != nil || !strings.Contains(out, `"key_entry": "typesafe"`) || !strings.Contains(out, `"replaced": false`) {
 		t.Fatalf("set: %v %s", err, out)
 	}
 	key, src, err := jevconf.ResolveKey(t.Context(), db, "default", "")
 	if err != nil || key != "new-key" || src != "vault" {
 		t.Fatalf("resolve = %q %q %v", key, src, err)
+	}
+}
+
+// `key adopt` copies the newest (or the named) profile key to the machine
+// vault, keeps the profile's entry, and refuses to replace a machine key.
+func TestJevKeyAdopt(t *testing.T) {
+	cfg := jevKeyTestCfg(t)
+	db := openJevDB(t, cfg)
+	if _, _, err := runJev(t, cfg, "", "key", "adopt"); clicore.ExitCodeFor(err) == 0 {
+		t.Fatal("adopt with no profile key should fail")
+	}
+	add := func(profile, key, updated string) {
+		id, err := secrets.Add(t.Context(), db, profile, "secret", "typesafe", map[string]string{"secret": key}, "", "", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.Exec(`UPDATE vault_secrets SET updated_at = ? WHERE id = ?`, updated, id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := db.Exec(`INSERT INTO profiles (id, name) VALUES ('p-alice', 'Alice'), ('p-bob', 'Bob')`); err != nil {
+		t.Fatal(err)
+	}
+	add("p-alice", "alice-key", "2026-01-01T00:00:00Z")
+	add("p-bob", "bob-key", "2026-06-01T00:00:00Z")
+
+	// The profile may be named by its name, not only its id.
+	out, _, err := runJev(t, cfg, "", "key", "adopt", "--from-profile", "alice")
+	if err != nil || !strings.Contains(out, `"from_profile": "p-alice"`) {
+		t.Fatalf("adopt: %v %s", err, out)
+	}
+	if key, src, err := jevconf.ResolveKey(t.Context(), db, "", ""); err != nil || key != "alice-key" || src != "vault" {
+		t.Fatalf("resolve = %q %q %v", key, src, err)
+	}
+	if es, _ := secrets.List(t.Context(), db, "p-alice"); len(es) != 1 {
+		t.Fatalf("alice's entry was removed: %+v", es)
+	}
+	if _, _, err = runJev(t, cfg, "", "key", "adopt", "--from-profile", "nobody"); clicore.ExitCodeFor(err) == 0 {
+		t.Fatal("an unknown profile name must fail")
+	}
+	if _, _, err = runJev(t, cfg, "", "key", "adopt"); clicore.ExitCodeFor(err) == 0 {
+		t.Fatal("adopt must not replace an existing machine key")
 	}
 }
 

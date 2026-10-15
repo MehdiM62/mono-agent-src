@@ -36,6 +36,9 @@ Rules:
 
 CLI_HINT = """You act through the `monoagentcli` tool, which runs the
 monoagentcli binary with the argument list you give (no shell, no pipes).
+Commands that act on a profile (workflow, node run, ...) need `--profile eval`,
+for example `workflow import --profile eval --file <name>`; the grader reads
+the workflows of that profile.
 `monoagentcli ref` is the built-in documentation (ref workflow, ref nodes,
 ref node <type>, ref expressions). Use write_file to create a JSON file in the
 working directory and pass its file name to commands such as
@@ -171,7 +174,7 @@ class Agent:
             argv = [str(a) for a in (args.get("args") or [])]
             if argv and argv[0] in ("monoagentcli", "monoagent"):
                 argv = argv[1:]
-            r = sb.cli(argv, stdin=args.get("stdin"), timeout=120)
+            r = sb.cli(argv, stdin=args.get("stdin"), timeout=120, agent=True)
             return _clip("exit %d\n--- stdout\n%s\n--- stderr\n%s" % (r.code, r.stdout, _strip_logs(r.stderr)))
         return "error: unknown tool %s" % name
 

@@ -74,12 +74,14 @@ services:
     #   # Never copy /data/.monoagent/account/ or bake it into an image.
     #   # HEALTHCHECK version is liveness only, not account readiness:
     #   docker exec monoagent monoagentcli account status --offline
+    #   # name the profile the workflows belong to (once):
+    #   docker exec monoagent monoagentcli profile create main
     #   # import a workflow from the repo checkout:
-    #   docker exec monoagent monoagentcli workflow import --file /dev/stdin \
+    #   docker exec monoagent monoagentcli workflow import --profile main --file /dev/stdin \
     #     < examples/http-to-slack.json
     #   # (or mount ./examples into the container and import from there)
     #   # activate its triggers (kept alive by the daemon):
-    #   docker exec monoagent monoagentcli workflow activate <id>
+    #   docker exec monoagent monoagentcli workflow activate --profile main <id>
 
 volumes:
   monoagent-data:

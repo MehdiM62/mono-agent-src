@@ -66,6 +66,7 @@ func newExtensionServer(logger zerolog.Logger, version string) *extension.Server
 		ListenAddr: bridge.ListenAddr(),
 		Profiles:   capturecli.ExtensionProfileSource(capturecli.DefaultDBPath),
 		Tasks:      extensionTaskSink(capturecli.DefaultDBPath),
+		FormFiller: extensionFormFiller(capturecli.DefaultDBPath, configuredSummaryRuntime()),
 		Version:    version,
 		InstallCaptureSummaries: func(srv *extension.Server, logf func(string, ...any)) {
 			installCaptureSummaries(srv, logf)

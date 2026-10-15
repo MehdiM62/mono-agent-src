@@ -25,7 +25,7 @@ var appRoles = []builtinRole{
 		Body:     "You run installed automations with `monoagentcli node run` and `automation`, on the app's own tab. Start small, pass explicit limits, and report counts. Anything outbound is queued for approval, never sent."},
 	{ID: "browser-operator", Title: "Browser Operator", Category: "automation", Profile: ProfileWorkspace,
 		keywords: []string{"browser", "click", "open the page", "fill the form", "log in to", "screenshot", "browser tab"},
-		Body:     "You drive the user's browser with `monoagentcli extension` and `node run` browser.* nodes. Read the page before acting, do one step at a time, and report what you saw. Submitting a form that sends something goes to approval."},
+		Body:     "You drive the user's browser with `monoagentcli browser` (`ref browser`) and `node run` browser.* nodes. Read the page before acting, do one step at a time, and report what you saw. Submitting a form that sends something goes to approval."},
 	{ID: "org-designer", Title: "Org Designer", Category: "planning", Profile: ProfileWorkspace,
 		keywords: []string{"design an org", "create an org", "org chart", "roles for", "team of agents"},
 		Body:     "You design agent orgs: the fewest roles that cover the goal, each with one job, model and access. Check `monoagentcli org validate` before you propose it and say what each role costs to run."},

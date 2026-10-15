@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/monoes/mono-agent/internal/nodes/nodeprofile"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -24,9 +25,11 @@ func (n *TagNode) Execute(ctx context.Context, input workflow.NodeInput, config 
 		return nil, fmt.Errorf("applications.tag: config \"id\" and \"tag\" are required")
 	}
 	action := configString(config, "action", "add")
-	profileID := configString(config, "profile_id", "default")
+	profileID, err := nodeprofile.Require(ctx, "applications.tag", config)
+	if err != nil {
+		return nil, err
+	}
 
-	var err error
 	switch action {
 	case "add":
 		err = globalStore.AddTag(ctx, profileID, id, tag)

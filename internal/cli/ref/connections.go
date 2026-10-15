@@ -21,25 +21,30 @@ PROFILES — the isolation boundary
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 A profile fully isolates people, messages, connections, and workflows
-from every other profile. There's always a "default" profile; create
-more with 'monoagentcli profile create <name>'.
+from every other profile. Create one with 'monoagentcli profile create
+<name>'; 'monoagentcli profile list' shows the ones you have.
 
-  monoagentcli profile list                 list profiles + which is active
+  monoagentcli profile list                 list profiles
   monoagentcli profile create <name>        make a new one
-  monoagentcli profile switch <name>        change the active default
-  monoagentcli --profile <name-or-id> ...   override for a single command
+  monoagentcli --profile <name-or-id> ...   name the profile a command acts on
+
+Every command that acts on a profile takes --profile. There is no active
+profile, no 'profile switch' and no MONOAGENT_PROFILE variable. (Today a
+scoped command without --profile still runs, prints a warning and uses the
+legacy active profile; the next release refuses it.)
 
 --profile accepts EITHER a profile's display name OR its ID — resolved to
 the canonical ID before anything runs. Passing a name that matches no real
 profile errors out; it does not silently fall back to "default".
 
-Every read/write in this CLI is scoped to a profile — mostly the ACTIVE
-one, overridable per-command with --profile. When writing a NEW workflow
-node by hand (not via 'workflow templates use', which already does this),
-double-check any node that takes its own "profile_id" config field (e.g.
-people.sync_outlook_message) — it does NOT inherit the workflow's profile
-automatically and defaults to "default" if you leave it unset. See
-'monoagentcli ref node people.sync_outlook_message' for the specific gotcha.
+Every read/write in this CLI that is not machine-wide (version, update,
+config, message-template, agent, account, db, node list/schema, api config,
+profile list/create/get, ...) is scoped to the profile you name with
+--profile. A workflow node acts on the profile the workflow runs under;
+a node's own "profile_id" config field (e.g. people.sync_outlook_message)
+is optional and, when set, must match that profile or the node fails. A
+legacy "default" saved by older workflows is ignored with a warning. See
+'monoagentcli ref node people.sync_outlook_message'.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 CONNECTIONS — one external account, one row
@@ -51,7 +56,7 @@ have their own connection for the SAME platform (e.g. two different
 Outlook accounts) — nothing links them beyond both being "outlook".
 
   monoagentcli connect <platform>               interactive connect (OAuth or API key)
-  monoagentcli connect list                     connections for the ACTIVE profile
+  monoagentcli connect list                     connections for the --profile profile
   monoagentcli connect list --all               every platform this CLI supports, connected or not
   monoagentcli connect show <platform>          a platform's methods, fields, OAuth connect fields, commands
   monoagentcli connect oauth <platform>         browser OAuth (2.0, or 1.0a) without prompts; --field key=value
@@ -84,12 +89,12 @@ be:
   • an EXACT connection ID (from 'connect list')      — unambiguous, always
                                                           correct, verified
                                                           to belong to the
-                                                          active --profile
+                                                          --profile profile
   • a PLATFORM NAME (e.g. "outlook", "slack")          — resolved to that
                                                           platform's active
                                                           connection WITHIN
-                                                          THE ACTIVE PROFILE
-                                                          ONLY
+                                                          THE --profile
+                                                          PROFILE ONLY
 
 Prefer the exact connection ID in scripts, agents, or workflow node
 configs that must be unambiguous — especially once more than one profile

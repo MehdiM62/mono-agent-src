@@ -28,7 +28,7 @@ func (a *App) rawCLI(timeout time.Duration, args ...string) string {
 	}
 	ctx, cancel := context.WithTimeout(a.ctx, timeout)
 	defer cancel()
-	full := append([]string{"--profile", a.getActiveProfileID(), "--json"}, args...)
+	full := scopedCLIArgs(a.getActiveProfileID(), args...)
 	cmd := exec.CommandContext(ctx, cliBin, full...)
 	suppressConsole(cmd)
 	out, err := cmd.Output()

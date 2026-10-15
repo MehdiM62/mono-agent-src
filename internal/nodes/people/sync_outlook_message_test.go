@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/monoes/mono-agent/internal/vault"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -89,7 +90,7 @@ func runSync(t *testing.T, db *sql.DB, msg map[string]interface{}, config map[st
 	SetGlobalPeopleDB(db)
 	node := &SyncOutlookMessageNode{}
 	input := workflow.NodeInput{Items: []workflow.Item{workflow.NewItem(msg)}}
-	if _, err := node.Execute(context.Background(), input, config); err != nil {
+	if _, err := node.Execute(vault.ContextWithProfileID(context.Background(), "default"), input, config); err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
 }

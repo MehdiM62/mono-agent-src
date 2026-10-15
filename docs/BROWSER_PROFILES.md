@@ -47,7 +47,7 @@ The desktop dashboard has a **This profile / All profiles** toggle. All
 profiles adds up every profile's counts, labels each workflow, run and
 account with its profile, and adds a Profiles card with a **Switch** button
 for each. Rows from other profiles are read-only (run, stop and open act on
-the active profile); **Switch** takes you there.
+the profile the app is showing); **Switch** takes you there.
 
 The CLI side is `--all-profiles` on `summary`, `workflow list`,
 `workflow executions --all` and `org summary`.

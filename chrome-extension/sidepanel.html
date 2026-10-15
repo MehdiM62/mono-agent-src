@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="sidepanel.css" />
   <link rel="stylesheet" href="sidepanel_ai.css" />
   <link rel="stylesheet" href="sidepanel_chat.css" />
+  <link rel="stylesheet" href="sidepanel_coder.css" />
 </head>
 <body>
   <!--
@@ -129,6 +130,7 @@
         </div>
         <div class="chat-tools">
           <button type="button" id="chat-summarize" class="btn-secondary btn-tiny">Summarize this page</button>
+          <button type="button" id="chat-fill" class="btn-secondary btn-tiny" title="Fill this page's form from your profile's documents. Nothing is submitted.">Fill form</button>
           <button type="button" id="chat-new" class="btn-secondary btn-tiny">New chat</button>
         </div>
         <button type="button" id="chat-page" class="chip chat-page" aria-pressed="true"></button>
@@ -221,6 +223,89 @@
     </section>
 
     <div class="panels">
+      <!-- C6: hand work about this page to a coder chat in MonoAgent. Queued
+           only: the person starts it in the MonoAgent app. The right-click
+           items and the highlight panel open this section filled in.
+           sidepanel_coder.js; the requests run in the worker (coder_bridge.js). -->
+      <details class="panel coder" id="coder-panel">
+        <summary><span>Send to coder</span><span id="coder-count" class="panel-count"></span></summary>
+        <div class="panel-body">
+          <p id="coder-notice" class="chat-notice" role="status" hidden></p>
+          <div class="field">
+            <label for="coder-kind">What should the coder do?</label>
+            <select id="coder-kind" class="coder-select">
+              <option value="copy-style">Copy this element's style into my project</option>
+              <option value="tokens">Extract this page's design tokens</option>
+              <option value="fix-element">Fix this element in my project</option>
+              <option value="bug-report">Fix a bug on this page</option>
+              <option value="integration">Build an integration from this page's requests</option>
+              <option value="ask">Ask about this page</option>
+            </select>
+            <!-- bug-report only: MonoAgent reloads the tab while it listens, so
+                 the errors and failed requests of the page's load are caught. -->
+            <label class="check coder-reload" id="coder-reload-row" for="coder-reload" hidden>
+              <input type="checkbox" id="coder-reload" checked />
+              Reload the page to capture console and network
+            </label>
+          </div>
+          <div class="field">
+            <span class="label" id="coder-selector-label">Element</span>
+            <div class="coder-target">
+              <code id="coder-selector" class="coder-selector" aria-labelledby="coder-selector-label"></code>
+              <button type="button" id="coder-pick" class="btn-secondary btn-tiny">Pick element</button>
+              <button type="button" id="coder-clear" class="btn-secondary btn-tiny" hidden>Clear</button>
+            </div>
+          </div>
+          <div class="field">
+            <label for="coder-note">Note</label>
+            <textarea id="coder-note" class="coder-text" rows="3" maxlength="4000" placeholder="What should change, or what to look at?"></textarea>
+          </div>
+          <div class="field">
+            <label for="coder-cwd">Project folder</label>
+            <select id="coder-cwd" class="coder-select"></select>
+          </div>
+          <div class="row row-start">
+            <button type="button" id="coder-queue" class="btn-secondary">Queue for the coder</button>
+          </div>
+          <p id="coder-why" class="note-line" hidden></p>
+          <div id="coder-msg" class="msg" role="status" aria-live="polite"></div>
+          <p class="note-line">
+            Only the tab, the element's selector, your note and the folder are
+            sent; MonoAgent reads the page itself. The coder starts only when
+            you press Start in the MonoAgent app.
+          </p>
+
+          <!-- What MonoAgent has: hidden while it cannot be asked. -->
+          <div id="coder-lists" class="coder-lists" hidden>
+            <div class="rec-sub">Queued</div>
+            <ul id="coder-queued" class="queue-list"></ul>
+            <p id="coder-queued-empty" class="note-line">Nothing queued.</p>
+            <div class="rec-sub">Coder chats</div>
+            <ul id="coder-convs" class="queue-list"></ul>
+            <p id="coder-convs-empty" class="note-line">No coder chats yet.</p>
+          </div>
+
+          <div id="coder-mirror" class="coder-mirror" hidden>
+            <div class="coder-mirror-head">
+              <span id="coder-mirror-title" class="coder-mirror-title"></span>
+              <button type="button" id="coder-mirror-close" class="btn-secondary btn-tiny">Close</button>
+            </div>
+            <div id="coder-log" class="chat-log" role="log" aria-label="Coder conversation" tabindex="0"></div>
+            <div id="coder-follow" class="field" hidden>
+              <label for="coder-follow-text">Follow-up</label>
+              <textarea id="coder-follow-text" class="coder-text" rows="2" maxlength="16000" placeholder="Tell the coder what to do next. Cmd or Ctrl+Enter sends."></textarea>
+              <div class="row row-start">
+                <button type="button" id="coder-send" class="btn-secondary" disabled>Send</button>
+              </div>
+            </div>
+            <div class="row row-start">
+              <button type="button" id="coder-stop" class="btn-secondary" hidden>Stop</button>
+            </div>
+            <div id="coder-mirror-msg" class="msg" role="status" aria-live="polite"></div>
+          </div>
+        </div>
+      </details>
+
       <!-- Task board (spec 11.1): a task for the profile the header shows,
            filed in its Inbox. The add-task shortcut opens this section. -->
       <details class="panel" id="task-panel">
@@ -459,5 +544,8 @@
   <script src="chat_core.js"></script>
   <script src="chat_render.js"></script>
   <script src="sidepanel_chat.js"></script>
+  <!-- The Coder section. After sidepanel.js and the chat's two renderers. -->
+  <script src="coder_mirror.js"></script>
+  <script src="sidepanel_coder.js"></script>
 </body>
 </html>

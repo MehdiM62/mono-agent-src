@@ -192,12 +192,12 @@ func newClient(ctx context.Context, raw map[string]interface{}) (*jev.Client, er
 		return client, nil
 	}
 	if errors.Is(err, jev.ErrNoAPIKey) {
-		name := jevconf.SecretName
 		if ref, ok := strings.CutPrefix(keyCfg, "@secret:"); ok && ref != "" {
-			name = ref
+			return nil, fmt.Errorf("%w: %s needs a TypeSafe API key — vault entry %q is in neither the machine-wide vault nor the profile's vault (add it with `monoagentcli secret add --kind secret --name %s`, or store the machine-wide key with `monoagentcli jev key set`) and TYPESAFE_API_KEY is unset",
+				workflow.ErrInvalidConfig, NodeType, ref, ref)
 		}
-		return nil, fmt.Errorf("%w: %s needs a TypeSafe API key — vault entry %q is missing (add it with `monoagentcli secret add --kind secret --name %s`) and TYPESAFE_API_KEY is unset",
-			workflow.ErrInvalidConfig, NodeType, name, name)
+		return nil, fmt.Errorf("%w: %s needs a TypeSafe API key — store the machine-wide key with `monoagentcli jev key set` (key on stdin) or set TYPESAFE_API_KEY",
+			workflow.ErrInvalidConfig, NodeType)
 	}
 	return nil, fmt.Errorf("%w: %s: %v", workflow.ErrInvalidConfig, NodeType, err)
 }

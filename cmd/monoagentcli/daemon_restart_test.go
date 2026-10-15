@@ -196,7 +196,7 @@ type fakeAutostart struct {
 	onRestart  func()
 }
 
-func (f *fakeAutostart) Install(context.Context) (autostart.Result, error) {
+func (f *fakeAutostart) Install(context.Context, string) (autostart.Result, error) {
 	return autostart.Result{}, nil
 }
 func (f *fakeAutostart) Uninstall(context.Context) error { return nil }

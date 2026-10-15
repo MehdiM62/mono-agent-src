@@ -206,8 +206,17 @@ export const api = {
   // normal value for the caller to branch on.
   createChatConversation: (workflowID, runtimeID, model, effort = '') =>
     GoApp.CreateChatConversation(workflowID, runtimeID, model, effort).then(parseStreamResult),
-  startChatTurn: (conversationID, turnID, message, tools, allowRuns) =>
-    GoApp.StartChatTurn(conversationID, turnID, message, tools, allowRuns).then(parseStreamResult),
+  // attachments: file paths for a coder turn (see saveChatAttachment).
+  startChatTurn: (conversationID, turnID, message, tools, allowRuns, attachments = []) =>
+    GoApp.StartChatTurn(conversationID, turnID, message, tools, allowRuns, attachments || []).then(parseStreamResult),
+  // A coder chat's attachment, base64 (≤ 20 MB) → a spool file path; and an
+  // image inside the chat's folder (≤ 10 MB) → a data URL. Both reject on
+  // error.
+  saveChatAttachment: (conversationID, name, base64) => GoApp.SaveChatAttachment(conversationID, name, base64),
+  readWorkspaceImage: (conversationID, path) => GoApp.ReadWorkspaceImage(conversationID, path),
+  // A browser submit approval's screenshot (under ~/.monoagent/browser/hil/)
+  // → a data URL; rejects for anything else.
+  readHILScreenshot: (path) => GoApp.ReadHILScreenshot(path),
   stopChatTurn: (conversationID, turnID) =>
     GoApp.StopChatTurn(conversationID, turnID).then(parseStreamResult),
   // One worker of a dynamic-org turn; the lead and the other workers keep
@@ -266,6 +275,17 @@ export const api = {
     GoApp.CreateCoderConversation(runtimeID, model, effort || '', cwd, newWorkspace).then(parseStreamResult),
   // Native folder picker; resolves '' when cancelled.
   pickCoderFolder:    () => GoApp.PickCoderFolder(),
+  // Queued coder chats (C5): the browser extension queues them, Start here
+  // runs the first turn. `coder queue …` through the CLI, with the same
+  // parseStreamResult contract.
+  coderQueueList:     () => GoApp.QueueList().then(parseStreamResult),
+  coderQueueStart:    (id, cwd = '') => GoApp.QueueStart(id, cwd).then(parseStreamResult),
+  coderQueueDismiss:  (id) => GoApp.QueueDismiss(id).then(parseStreamResult),
+  coderQueueImage:    (id) => GoApp.QueueImage(id).then(parseStreamResult),
+  // coder:queue fires when a chat was queued, started or dismissed (the app
+  // watches the queue folder); the payload is empty, so list again. Returns
+  // the unsubscribe.
+  onCoderQueue:       (callback) => subscribeEvent('coder:queue', callback),
   openPathWithOS:     (path) => GoApp.OpenPathWithOS(path),
   // Orgs (monomind Org Runtime v2)
   listOrgs:           () => GoApp.ListOrgs().then(s => JSON.parse(s)).catch(guard('list orgs', null)),

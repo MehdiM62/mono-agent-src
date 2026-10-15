@@ -63,7 +63,7 @@ func (a *App) taskCLI(stdin string, args ...string) string {
 	}
 	ctx, cancel := context.WithTimeout(parent, taskCLITimeout)
 	defer cancel()
-	full := append([]string{"--profile", a.getActiveProfileID(), "--json", "task"}, args...)
+	full := scopedCLIArgs(a.getActiveProfileID(), append([]string{"task"}, args...)...)
 	cmd := exec.CommandContext(ctx, cliBin, full...)
 	suppressConsole(cmd)
 	if stdin != "" {

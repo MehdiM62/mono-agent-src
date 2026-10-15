@@ -43,6 +43,11 @@ const (
 	CapAgentTestSandbox         = "agent-test-sandbox"
 	CapAgentExecCostNull        = "agent-exec-cost-null"
 	CapAgentModelsAliasOf       = "agent-models-alias-of"
+
+	// `agent exec --attach FILE`: files handed to the model with the prompt
+	// (claude as image/document blocks, codex as -i, other runtimes as paths
+	// in the prompt).
+	CapAgentExecAttachments = "agent-exec-attachments"
 )
 
 // ErrFeatureNeedsMonomind reports that the installed monomind lacks a

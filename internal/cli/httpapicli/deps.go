@@ -14,7 +14,7 @@ import (
 type Deps struct {
 	// OpenGatewayDB opens (and migrates) the database the OpenAI-compatible API reads its keys
 	// and roster from. It must leave ProfileID as the user gave it: the HTTP API server
-	// resolves an empty profile itself (MONOAGENT_PROFILE, then the active one).
+	// resolves an empty profile itself (MONOAGENT_PROFILE, being removed, then the active one).
 	OpenGatewayDB func() (*storage.Database, error)
 	// DBPath is the global --db-path flag.
 	DBPath func() string

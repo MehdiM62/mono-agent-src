@@ -392,3 +392,41 @@ func TestGrantRunExposesArgumentsAtTheTopLevel(t *testing.T) {
 		t.Fatalf("rendered %q, %v", got, err)
 	}
 }
+
+// --profile takes an id or a name (as everywhere in the CLI); the grant's
+// profile check must compare ids, so a grant for profile "work" is served to
+// `--profile work` and still refused to any other profile.
+func TestGrantScopeResolvesProfileNames(t *testing.T) {
+	f := newGrantFixture(t, orggrant.Tool{})
+	ctx := context.Background()
+	const workID, homeID = "6f1c2a9e-0000-4000-8000-00000000a001", "6f1c2a9e-0000-4000-8000-00000000a002"
+	for _, p := range [][2]string{{workID, "work"}, {homeID, "home"}} {
+		if _, err := f.db.DB.Exec(`INSERT INTO profiles (id, name, created_at) VALUES (?, ?, '2026-01-01')`, p[0], p[1]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	g, err := f.store.UpsertGrant(ctx, orggrant.GrantInput{
+		ProfileID: workID, OrgName: "growth", RoleID: "writer",
+		Tool: orggrant.Tool{Alias: "publish", WorkflowID: "wf-pub"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	scope := func(profile string) error {
+		s := NewServer(Options{DBPath: f.server.opts.DBPath, Profile: profile, WorkflowsDir: f.server.opts.WorkflowsDir, Grant: g.ID})
+		defer s.closeRuntime()
+		_, _, err := s.grantScope(ctx)
+		return err
+	}
+	for _, ok := range []string{"work", workID} {
+		if err := scope(ok); err != nil {
+			t.Errorf("--profile %s: %v", ok, err)
+		}
+	}
+	for _, bad := range []string{"home", homeID, "nosuch"} {
+		if err := scope(bad); err == nil {
+			t.Errorf("--profile %s was served a grant of profile work", bad)
+		} else if bad != "nosuch" && !strings.HasPrefix(err.Error(), codeRefusedGrant) {
+			t.Errorf("--profile %s: %v", bad, err)
+		}
+	}
+}

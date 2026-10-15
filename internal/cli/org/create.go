@@ -64,7 +64,7 @@ func (env *orgEnv) newOrgValidateCmd(root func() string) *cobra.Command {
 // still runs monomind's real `org validate` afterward so the response
 // reflects the same schema/structural checks every other org gets.
 func newOrgCreateJSONCmd(env *orgEnv) *cobra.Command {
-	root := env.Root
+	root := env.root
 	var jsonBlob string
 	c := &cobra.Command{
 		Use:   "create-json <name>",

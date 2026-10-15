@@ -40,9 +40,10 @@ func captureDeps(cfg *globalConfig) capturecli.Deps {
 		LifetimeHint:       func(b browserpkg.ExtensionBridge) string { return bridgeLifetimeHint(b) },
 		CheckSummaryChoice: checkSummaryChoice,
 	}
-	d.OrgRoot = func(project string) (string, func()) {
+	d.OrgRoot = func(project string) (string, func(), error) {
 		env := &orgEnv{cfg: cfg, projectFlag: project}
-		return env.Root(), env.Close
+		root, err := env.RootErr()
+		return root, env.Close, err
 	}
 	return d
 }
