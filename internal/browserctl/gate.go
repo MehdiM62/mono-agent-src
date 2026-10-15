@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -225,19 +226,23 @@ func (s *Session) ProbeSubmit(selector string) (SubmitTarget, error) {
 	return t, nil
 }
 
+// ErrNotSent wraps a Resubmit failure that happened before anything
+// reached the page, so the approval can be handed back.
+var ErrNotSent = errors.New("nothing was submitted")
+
 // Resubmit performs an approved submit item on the session's tab: the
 // guard lets exactly one submit through, then the recorded submitter is
 // clicked, or the form submitted when there was none.
 func (s *Session) Resubmit(it SubmitItem) error {
+	if it.Form.Submitter == "" && it.Form.Selector == "" {
+		return fmt.Errorf("%w: the held submit recorded neither its submit control nor its form, so it cannot be repeated", ErrNotSent)
+	}
 	if _, err := s.guard("allow_once"); err != nil {
-		return fmt.Errorf("letting the submit through: %w", err)
+		return fmt.Errorf("%w: letting the submit through: %v", ErrNotSent, err)
 	}
 	if it.Form.Submitter != "" {
 		_, err := s.Send(extension.CmdClick, map[string]interface{}{"selector": it.Form.Submitter}, DefaultTimeout)
 		return err
-	}
-	if it.Form.Selector == "" {
-		return fmt.Errorf("the held submit recorded neither its submit control nor its form, so it cannot be repeated")
 	}
 	sel, _ := json.Marshal(it.Form.Selector)
 	res, err := s.Page().EvalCDP(fmt.Sprintf(`(() => { const f = document.querySelector(%s);

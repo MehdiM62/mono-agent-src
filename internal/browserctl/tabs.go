@@ -147,6 +147,9 @@ func (s *Session) Reload(hard bool) error {
 	if _, err := s.Page().CDP("Page.reload", map[string]interface{}{"ignoreCache": true}); err != nil {
 		return err
 	}
+	// Page.reload returns before the tab starts loading; until then
+	// wait_load would see the old page complete.
+	time.Sleep(250 * time.Millisecond)
 	_, err := s.Send(extension.CmdWaitLoad, map[string]interface{}{"timeout": loadTimeout.Milliseconds()}, loadTimeout+5*time.Second)
 	return err
 }
