@@ -44,10 +44,11 @@ func coderSystemPrompt(cwd string) string {
 }
 
 // coderLeadSystemPrompt is the lead's whole system prompt for a turn in cwd:
-// the coder preamble, the active profile's context (who the chat works for,
-// what that profile holds; secrets never), and the publication rules.
+// the coder preamble, how to use the user's browser, the active profile's
+// context (who the chat works for, what that profile holds; secrets never),
+// and the publication rules.
 func coderLeadSystemPrompt(ctx context.Context, db *sql.DB, cfg *Deps, cwd string) string {
-	parts := []string{coderSystemPrompt(cwd)}
+	parts := []string{coderSystemPrompt(cwd), coderBrowserPrompt()}
 	if block := profilectx.Block(ctx, db, cfg.ProfileID()); block != "" {
 		parts = append(parts, block)
 	}
