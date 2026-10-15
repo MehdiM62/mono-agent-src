@@ -300,7 +300,7 @@ func (a *App) runProfileMove(args ...string) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	full := append([]string{"--profile", a.getActiveProfileID(), "--json", "profile", "move"}, args...)
+	full := scopedCLIArgs(a.getActiveProfileID(), append([]string{"profile", "move"}, args...)...)
 	cmd := exec.CommandContext(ctx, cliBin, full...)
 	suppressConsole(cmd)
 	if _, err := cmd.Output(); err != nil {

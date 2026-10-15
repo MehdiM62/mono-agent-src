@@ -67,7 +67,7 @@ func (a *App) runVaultCLI(stdin string, result interface{}, args ...string) erro
 	if err != nil {
 		return err
 	}
-	fullArgs := append([]string{"--profile", a.getActiveProfileID(), "--json", "secret"}, args...)
+	fullArgs := scopedCLIArgs(a.getActiveProfileID(), append([]string{"secret"}, args...)...)
 	cmd := exec.CommandContext(a.ctx, cliBin, fullArgs...)
 	suppressConsole(cmd)
 	if stdin != "" {

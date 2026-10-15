@@ -200,10 +200,7 @@ func (a *App) cliValidate(root, name string) error {
 		// authoritative for structure even without this second check.
 		return nil
 	}
-	args := []string{"org", "validate", name}
-	if root != "" {
-		args = append(args, "--project", root)
-	}
+	args := orgCLIRunArgs(a.getActiveProfileID(), root, "validate", name)
 	cmd := exec.Command(cliBin, args...)
 	suppressConsole(cmd)
 	var stdout, stderr bytes.Buffer
