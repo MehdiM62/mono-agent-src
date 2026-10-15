@@ -64,8 +64,8 @@ func newBrowserTabsCmd(cfg *globalConfig) *cobra.Command {
 	return &cobra.Command{
 		Use:   "tabs",
 		Short: "List the browser's tabs (an agent sees its own group's and allowed pages' tabs)",
-		Example: `  monoagentcli browser tabs
-  monoagentcli --json browser tabs --browser "Edge Work"`,
+		Example: `  monoagentcli --profile <id> browser tabs
+  monoagentcli --profile <id> --json browser tabs --browser "Edge Work"`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			r, err := openBrowser(cmd, cfg, true)
@@ -112,8 +112,8 @@ func newBrowserOpenCmd(cfg *globalConfig) *cobra.Command {
 		Long: "Open a URL in a new tab and make it this context's tab. An agent's tabs go into its\n" +
 			"own tab group (\"Coder · <title>\") and their console and network are recorded from\n" +
 			"the first load (the page is loaded again once recording is on).",
-		Example: `  monoagentcli --json browser open http://localhost:3000
-  monoagentcli browser open https://example.com --group Research`,
+		Example: `  monoagentcli --profile <id> --json browser open http://localhost:3000
+  monoagentcli --profile <id> browser open https://example.com --group Research`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			r, err := openBrowser(cmd, cfg, true)
@@ -138,7 +138,7 @@ func newBrowserNavigateCmd(cfg *globalConfig) *cobra.Command {
 	return &cobra.Command{
 		Use:     "navigate <url>",
 		Short:   "Load a URL in the tab",
-		Example: "  monoagentcli browser navigate http://localhost:3000/settings",
+		Example: "  monoagentcli --profile <id> browser navigate http://localhost:3000/settings",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			r, err := openBrowser(cmd, cfg, false)
@@ -162,7 +162,7 @@ func newBrowserReloadCmd(cfg *globalConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "reload",
 		Short:   "Reload the tab",
-		Example: "  monoagentcli browser reload --hard",
+		Example: "  monoagentcli --profile <id> browser reload --hard",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			r, err := openBrowser(cmd, cfg, false)
@@ -184,7 +184,7 @@ func newBrowserCloseCmd(cfg *globalConfig) *cobra.Command {
 	return &cobra.Command{
 		Use:     "close",
 		Short:   "Close the tab",
-		Example: "  monoagentcli browser close --tab 1234",
+		Example: "  monoagentcli --profile <id> browser close --tab 1234",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			r, err := openBrowser(cmd, cfg, false)

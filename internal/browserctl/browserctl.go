@@ -35,7 +35,7 @@ var _ Sender = (*extension.RemoteSender)(nil)
 // Errors Open and the Session methods return.
 var (
 	ErrNoBridge = errors.New("no browser bridge is running: start the daemon or `monoagentcli extension serve`, and open a browser that has the MonoAgent Bridge extension")
-	ErrNoTab    = errors.New("no tab to act on: open one with `monoagentcli browser open <url>`, or pass --tab (see `monoagentcli browser tabs`)")
+	ErrNoTab    = errors.New("no tab to act on: open one with `monoagentcli --profile <id> browser open <url>`, or pass --tab (see `monoagentcli --profile <id> browser tabs`)")
 )
 
 // BrowserNotFoundError is a --browser that matches no attached browser.
