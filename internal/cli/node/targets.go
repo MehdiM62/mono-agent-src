@@ -49,7 +49,10 @@ func firstTargetURL(config map[string]interface{}) string {
 // saved by list_user_posts). Progress goes to w.
 func autoSaveComments(ctx context.Context, db *sql.DB, nodeType string, config map[string]interface{}, items []workflow.Item, profileID string, w io.Writer) {
 	platform := strings.ToUpper(strings.SplitN(nodeType, ".", 2)[0])
-	profileID = postsProfile(profileID)
+	if profileID == "" {
+		fmt.Fprintf(w, "  Warning: comments not saved — no profile selected (pass --profile)\n")
+		return
+	}
 	postID := ""
 	if shortcode := extractPostShortcode(firstTargetURL(config)); shortcode != "" {
 		_ = db.QueryRowContext(ctx,

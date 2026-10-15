@@ -3,12 +3,17 @@ package people
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 
 	"github.com/monoes/mono-agent/internal/storage"
 	"github.com/spf13/cobra"
 )
+
+// errNoProfile is returned when a message query names no profile: there is no
+// implicit "default".
+var errNoProfile = errors.New("people: no profile selected; pass --profile <id|name>")
 
 // newPeopleMessagesDraftsCmd lists draft messages awaiting confirmation —
 // the same set shown in the GUI's Human in Loop page.
@@ -190,7 +195,7 @@ func (d Deps) newPeopleMessagesRejectDraftCmd() *cobra.Command {
 // by one profile could be sent or discarded from another.
 func assertMessageInProfile(db *sql.DB, msgID, profileID string) error {
 	if profileID == "" {
-		profileID = "default"
+		return errNoProfile
 	}
 	var owner string
 	err := db.QueryRow("SELECT profile_id FROM person_messages WHERE id = ?", msgID).Scan(&owner)

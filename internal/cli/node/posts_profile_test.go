@@ -58,9 +58,9 @@ func TestPostsAreProfileScoped(t *testing.T) {
 	}
 }
 
-// A run with no resolved profile saves posts and comments under the same
-// profile ("default"), so the comments find their post.
-func TestEmptyProfileAgreesBetweenPostsAndComments(t *testing.T) {
+// A run with no resolved profile stores no posts and no comments: there is no
+// implicit "default" profile to put them in.
+func TestEmptyProfileSavesNothing(t *testing.T) {
 	t.Parallel()
 	db, err := storage.NewDatabase(filepath.Join(t.TempDir(), "p.db"))
 	if err != nil {
@@ -74,13 +74,17 @@ func TestEmptyProfileAgreesBetweenPostsAndComments(t *testing.T) {
 
 	const post = "https://www.instagram.com/p/EMPTY12/"
 	items := []workflow.Item{{JSON: map[string]interface{}{"url": post, "shortcode": "EMPTY12"}}}
-	if saved, _, failed := savePostsToDB(ctx, db.DB, items, "instagram.list_user_posts", map[string]interface{}{}, ""); saved != 1 || failed != 0 {
-		t.Fatalf("saved=%d failed=%d", saved, failed)
+	if saved, _, failed := savePostsToDB(ctx, db.DB, items, "instagram.list_user_posts", map[string]interface{}{}, ""); saved != 0 || failed != 1 {
+		t.Fatalf("saved=%d failed=%d, want 0 saved and 1 failed", saved, failed)
 	}
 	var out bytes.Buffer
 	comment := []workflow.Item{{JSON: map[string]interface{}{"author": "u", "text": "hi", "timestamp": "t"}}}
 	autoSaveComments(ctx, db.DB, "instagram.list_post_comments", map[string]interface{}{"targets": []interface{}{post}}, comment, "", &out)
-	if !bytes.Contains(out.Bytes(), []byte("Saved 1 comment(s)")) {
-		t.Fatalf("comments did not find the post: %s", out.String())
+	if !bytes.Contains(out.Bytes(), []byte("no profile selected")) {
+		t.Fatalf("want a no-profile warning, got: %s", out.String())
+	}
+	var n int
+	if err := db.DB.QueryRow(`SELECT COUNT(*) FROM posts`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("posts rows = %d (%v), want 0", n, err)
 	}
 }

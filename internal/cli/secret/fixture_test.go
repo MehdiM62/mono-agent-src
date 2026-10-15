@@ -23,7 +23,7 @@ type notFound struct{ msg string }
 
 func (e *notFound) Error() string { return e.msg }
 
-// testDeps runs the commands against the database at dbPath, in profile ("" is "default"),
+// testDeps runs the commands against the database at dbPath, in profile,
 // with --json when jsonOut is set.
 func testDeps(dbPath, profile string, jsonOut bool) Deps {
 	return Deps{
@@ -76,7 +76,7 @@ func newSecretCLITestDB(t *testing.T) string {
 // runSecretCmd runs `secret <args>` as --json and returns its stdout.
 func runSecretCmd(t *testing.T, dbPath string, args ...string) (string, error) {
 	t.Helper()
-	cmd := NewCommand(testDeps(dbPath, "", true))
+	cmd := NewCommand(testDeps(dbPath, "p1", true))
 	cmd.SetArgs(args)
 	var out bytes.Buffer
 	cmd.SetOut(&out)

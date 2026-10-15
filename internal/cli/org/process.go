@@ -157,9 +157,6 @@ func orgNameInUse(db *sql.DB, name, exceptProfile string) (string, error) {
 		}
 	}
 	rows.Close()
-	if !containsString(ids, "default") {
-		ids = append(ids, "default")
-	}
 	for _, id := range ids {
 		if id == exceptProfile {
 			continue

@@ -47,7 +47,7 @@ func (s *AIStore) CreateConversationModeEffort(profileID, backend, workflowConte
 		return Conversation{}, fmt.Errorf("create conversation: unknown mode %q", mode)
 	}
 	if profileID == "" {
-		profileID = "default"
+		return Conversation{}, ErrProfileRequired
 	}
 	now := nowRFC3339()
 	c := Conversation{
@@ -81,7 +81,7 @@ func (s *AIStore) CreateConversationModeEffort(profileID, backend, workflowConte
 // owner" from "doesn't exist".
 func (s *AIStore) GetConversation(id, profileID string) (Conversation, error) {
 	if profileID == "" {
-		profileID = "default"
+		return Conversation{}, ErrProfileRequired
 	}
 	const q = `SELECT id, profile_id, backend, workflow_context, runtime_id, provider_id, model, session_id, mode, cwd, history_key, created_at, updated_at, effort, org_mode
 		FROM ai_chat_conversations WHERE id = ? AND profile_id = ?`
@@ -103,7 +103,7 @@ func (s *AIStore) GetConversation(id, profileID string) (Conversation, error) {
 // empty starts from the top. Returns the next cursor, or "" when exhausted.
 func (s *AIStore) ListConversations(profileID, cursor string, limit int) ([]Conversation, string, error) {
 	if profileID == "" {
-		profileID = "default"
+		return nil, "", ErrProfileRequired
 	}
 	if limit <= 0 || limit > 200 {
 		limit = 50
@@ -158,7 +158,7 @@ func (s *AIStore) SetConversationOrgMode(id, profileID, mode string) error {
 		return fmt.Errorf("org mode must be %q or %q, got %q", OrgModeSolo, OrgModeDynamic, mode)
 	}
 	if profileID == "" {
-		profileID = "default"
+		return ErrProfileRequired
 	}
 	res, err := s.db.Exec(`UPDATE ai_chat_conversations SET org_mode = ?, updated_at = ? WHERE id = ? AND profile_id = ?`,
 		mode, nowRFC3339(), id, profileID)
@@ -177,7 +177,7 @@ func (s *AIStore) SetConversationOrgMode(id, profileID, mode string) error {
 // this only ever updates an existing conversation's own binding.
 func (s *AIStore) BindConversationSession(id, profileID, runtimeID, sessionID string) error {
 	if profileID == "" {
-		profileID = "default"
+		return ErrProfileRequired
 	}
 	res, err := s.db.Exec(
 		`UPDATE ai_chat_conversations SET runtime_id = ?, session_id = ?, updated_at = ? WHERE id = ? AND profile_id = ?`,
@@ -231,7 +231,7 @@ func (s *AIStore) BindConversationSession(id, profileID, runtimeID, sessionID st
 // exercises both layers together.
 func (s *AIStore) DeleteConversation(id, profileID string) error {
 	if profileID == "" {
-		profileID = "default"
+		return ErrProfileRequired
 	}
 	ctx := context.Background()
 

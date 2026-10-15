@@ -32,7 +32,7 @@ func (d Deps) newSecretExportCmd() *cobra.Command {
 
 			profileID := d.ProfileID()
 			if profileID == "" {
-				profileID = "default"
+				return ErrProfileRequired
 			}
 
 			path := output
@@ -98,7 +98,7 @@ func (d Deps) newSecretImportCmd() *cobra.Command {
 
 			profileID := d.ProfileID()
 			if profileID == "" {
-				profileID = "default"
+				return ErrProfileRequired
 			}
 
 			imported, skipped, err := secrets.Import(cmd.Context(), db.DB, profileID, passphrase, data,

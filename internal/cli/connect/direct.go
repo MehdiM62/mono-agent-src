@@ -55,7 +55,11 @@ func (d Deps) newConnectSaveCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			conn, err := mgr.SaveFields(cmd.Context(), args[0], connections.AuthMethod(method), fields, d.profileOrDefault())
+			pid, perr := d.requireProfile()
+			if perr != nil {
+				return perr
+			}
+			conn, err := mgr.SaveFields(cmd.Context(), args[0], connections.AuthMethod(method), fields, pid)
 			if err != nil {
 				return d.AuthFailed("%s", d.ScrubSecrets(err, d.ConnectionSecrets(&connections.Connection{Data: fields})...))
 			}
@@ -102,7 +106,10 @@ func (d Deps) newConnectGetOAuthClientCmd() *cobra.Command {
 			}
 			defer db.Close()
 
-			profileID := d.profileOrDefault()
+			profileID, perr := d.requireProfile()
+			if perr != nil {
+				return perr
+			}
 			clientID, clientSecret := connections.NewStore(db.DB).GetOAuthClient(cmd.Context(), args[0], profileID)
 			if clientID == "" && clientSecret == "" {
 				return d.NotFound("no OAuth client stored for %s (profile: %s)", args[0], profileID)
@@ -193,7 +200,11 @@ func (d Deps) newConnectForNodeCmd() *cobra.Command {
 				return err
 			}
 			platform := nodeCredentialPlatform(args[0])
-			conns, err := mgr.ListUsable(cmd.Context(), platform, d.profileOrDefault())
+			pid, perr := d.requireProfile()
+			if perr != nil {
+				return perr
+			}
+			conns, err := mgr.ListUsable(cmd.Context(), platform, pid)
 			if err != nil {
 				return err
 			}
@@ -315,7 +326,10 @@ func (d Deps) newConnectOAuthCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			profileID := d.profileOrDefault()
+			profileID, perr := d.requireProfile()
+			if perr != nil {
+				return perr
+			}
 			errOut := cmd.ErrOrStderr()
 			progress := func(msg, kind string) {
 				if d.JSONOutput() {

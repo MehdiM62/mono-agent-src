@@ -58,7 +58,7 @@ func TestConnectOAuthRunsOAuth1Flow(t *testing.T) {
 	t.Cleanup(func() { delete(connections.Registry, "oauth1-cli-test") })
 
 	e := newSessionsTestEnv(t)
-	out, errOut, code := e.run(t, "", "--json", "connect", "oauth", "oauth1-cli-test",
+	out, errOut, code := e.run(t, "", "--profile", "p1", "--json", "connect", "oauth", "oauth1-cli-test",
 		"--field", "consumer_key=ck-1", "--field", "consumer_secret="+secret)
 	if code != 4 || !strings.Contains(errOut, "oauth1 request token") {
 		t.Fatalf("code %d, stderr %s", code, errOut)
@@ -84,7 +84,7 @@ func TestConnectOAuthStdinJSON(t *testing.T) {
 
 	e := newSessionsTestEnv(t)
 	stdin := `{"consumer_key":"ck-stdin","consumer_secret":"` + secret + `","request_token_url":"` + prov.URL + `/request"}`
-	out, errOut, code := e.run(t, stdin, "--json", "connect", "oauth", "generic_oauth1", "--stdin-json",
+	out, errOut, code := e.run(t, stdin, "--profile", "p1", "--json", "connect", "oauth", "generic_oauth1", "--stdin-json",
 		"--field", "consumer_key=ck-flag", "--field", "authorization_url="+prov.URL+"/authorize",
 		"--field", "access_token_url="+prov.URL+"/access")
 	if code != 4 || !strings.Contains(errOut, "oauth1 request token") {
@@ -159,5 +159,13 @@ func TestConnectListAllCarriesOAuthDetails(t *testing.T) {
 	}
 	if _, ok := byID["generic_oauth1"]["OAuth1"].(map[string]any); !ok {
 		t.Errorf("generic_oauth1 = %v", byID["generic_oauth1"])
+	}
+}
+
+func TestConnectRemoveRefusesAMissingProfile(t *testing.T) {
+	e := newSessionsTestEnv(t)
+	_, errOut, code := e.run(t, "", "--json", "connect", "remove", "anything")
+	if code == 0 || !strings.Contains(errOut, "no profile selected") {
+		t.Fatalf("code %d, stderr %s; want a no-profile error", code, errOut)
 	}
 }

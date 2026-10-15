@@ -13,7 +13,7 @@ type CoderWorkspace struct {
 // first.
 func (s *AIStore) ListCoderWorkspaces(profileID string, limit int) ([]CoderWorkspace, error) {
 	if profileID == "" {
-		profileID = "default"
+		return nil, ErrProfileRequired
 	}
 	if limit <= 0 || limit > 200 {
 		limit = 50

@@ -13,13 +13,17 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// profileOrDefault is the profile a command acts on: --profile (or the
-// active one OpenDB resolved), "default" when neither is set.
-func (d Deps) profileOrDefault() string {
+// ErrProfileRequired is returned when a session command runs without a
+// profile: there is no implicit "default".
+var ErrProfileRequired = errors.New("login: no profile selected; pass --profile <id|name>")
+
+// requireProfile is the profile a command acts on (--profile, as OpenDB
+// resolved it), or ErrProfileRequired.
+func (d Deps) requireProfile() (string, error) {
 	if d.ProfileID() == "" {
-		return "default"
+		return "", ErrProfileRequired
 	}
-	return d.ProfileID()
+	return d.ProfileID(), nil
 }
 
 // sessionByID loads one of the active profile's browser sessions. The
@@ -71,7 +75,11 @@ func (d Deps) newLoginTestCmd() *cobra.Command {
 			}
 			defer db.Close()
 
-			s, hasCookies, err := d.sessionByID(cmd.Context(), db.DB, d.profileOrDefault(), id)
+			pid, perr := d.requireProfile()
+			if perr != nil {
+				return perr
+			}
+			s, hasCookies, err := d.sessionByID(cmd.Context(), db.DB, pid, id)
 			if err != nil {
 				return err
 			}
@@ -111,7 +119,11 @@ func (d Deps) newLoginDeleteCmd() *cobra.Command {
 			}
 			defer db.Close()
 
-			n, err := deleteSessions(cmd.Context(), db.DB, d.profileOrDefault(), "id = ?", id)
+			pid, perr := d.requireProfile()
+			if perr != nil {
+				return perr
+			}
+			n, err := deleteSessions(cmd.Context(), db.DB, pid, "id = ?", id)
 			if err != nil {
 				return err
 			}

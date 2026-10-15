@@ -354,7 +354,9 @@ platform name to override. Token refresh is handled automatically for OAuth conn
 				for _, o := range outputs {
 					allItems = append(allItems, o.Items...)
 				}
-				if len(allItems) > 0 {
+				if len(allItems) > 0 && d.ProfileID() == "" {
+					fmt.Fprintln(os.Stderr, "  Warning: posts not saved — no profile selected (pass --profile)")
+				} else if len(allItems) > 0 {
 					saved, skipped, failed := savePostsToDB(ctx, rawDB, allItems, nodeType, config, d.ProfileID())
 					fmt.Fprintf(os.Stderr, "  Saved %d post(s) to posts table (%d skipped, %d failed)\n", saved, skipped, failed)
 				}
