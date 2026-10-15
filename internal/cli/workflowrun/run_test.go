@@ -221,4 +221,8 @@ func TestRunMarksAnAgentsRun(t *testing.T) {
 	if got := mark(); got != "chat" {
 		t.Errorf("a chat tool call's run: %v", got)
 	}
+	t.Setenv("CLAUDECODE", "1")
+	if got := mark(); got != "agent" {
+		t.Errorf("an agent shell's run (even with the chat's variable set): %v", got)
+	}
 }

@@ -243,7 +243,10 @@ localhost/dev, it becomes a browser.submit Human-in-Loop item, and the run
 waits. Approved, it is sent and the goal goes on; rejected, status blocked;
 still waiting at the timeout, status awaiting_approval with hil_id and
 tab_id, the tab left open for "monoagentcli browser submit --hil <id>". A run
-you start yourself is not gated. See "monoagentcli ref browser".`,
+an agent's shell started also keeps to local/dev pages and the user's
+browser allowlist ("monoagentcli browser allow add <origin>"), on its start
+URL and every page it reaches. A run you start yourself is not gated. See
+"monoagentcli ref browser".`,
 	},
 	{
 		Type:     "ai.choose",

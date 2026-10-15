@@ -145,9 +145,42 @@ func (n *Node) run(ctx context.Context, cfg runConfig, client *jev.Client, write
 	defer cancel()
 	started := time.Now()
 
+	// An agent's shell drives only the pages `monoagentcli browser` lets it:
+	// the start URL and every page the run reaches.
+	who, aiStarted := aiCaller(ctx)
+	allowed := func(string) error { return nil }
+	if who.shell {
+		pol, err := shellPolicy(ctx)
+		if err != nil {
+			return nil, err
+		}
+		allowed = func(u string) error {
+			if u == "" || u == "about:blank" {
+				return nil
+			}
+			if err := pol.Check(u); err != nil {
+				return fmt.Errorf("%s started this run: %w", who.name, err)
+			}
+			return nil
+		}
+		if err := allowed(cfg.url); err != nil {
+			return nil, err
+		}
+	}
+
 	drv, closeTab, err := open(ctx, cfg.url)
 	if err != nil {
 		return nil, err
+	}
+	observe := func() (*jevpick.PageState, error) {
+		p, err := drv.Observe(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if err := allowed(p.URL); err != nil {
+			return nil, err // none of a page the caller may not read reaches the output
+		}
+		return p, nil
 	}
 	// A run an AI caller started may not submit a form on a real site
 	// without the user's approval (gate.go); the tab of a submit still
@@ -159,7 +192,6 @@ func (n *Node) run(ctx context.Context, cfg runConfig, client *jev.Client, write
 			closeTab()
 		}
 	}()
-	who, aiStarted := aiCaller(ctx)
 	if aiStarted {
 		g, ok := drv.(guardable)
 		if !ok {
@@ -218,7 +250,7 @@ func (n *Node) run(ctx context.Context, cfg runConfig, client *jev.Client, write
 			result, err = finish("timeout", fmt.Sprintf("stopped after %s", cfg.timeout)), nil
 		}
 	}()
-	if page, err = drv.Observe(ctx); err != nil {
+	if page, err = observe(); err != nil {
 		return nil, err
 	}
 
@@ -232,7 +264,7 @@ func (n *Node) run(ctx context.Context, cfg runConfig, client *jev.Client, write
 		if ok, err := drv.Fresh(page, nil); err != nil {
 			return nil, err
 		} else if !ok {
-			if page, err = drv.Observe(ctx); err != nil {
+			if page, err = observe(); err != nil {
 				return nil, err
 			}
 		}
@@ -306,7 +338,7 @@ func (n *Node) run(ctx context.Context, cfg runConfig, client *jev.Client, write
 		}
 
 		if err := drv.Act(ctx, page, a, text); errors.Is(err, jevpick.ErrStale) {
-			if page, err = drv.Observe(ctx); err != nil {
+			if page, err = observe(); err != nil {
 				return nil, err
 			}
 			continue
@@ -334,7 +366,7 @@ func (n *Node) run(ctx context.Context, cfg runConfig, client *jev.Client, write
 			}
 		}
 		before := page.Fingerprint
-		if page, err = drv.Observe(ctx); err != nil {
+		if page, err = observe(); err != nil {
 			return nil, err
 		}
 		changed := page.Fingerprint != before
