@@ -10,8 +10,9 @@
  * person presses Start there.
  *
  * Below the form: what is queued, the coder conversations, and a live mirror
- * of one of them, polled every 1.5 s while the section is open and the panel
- * visible. Replies are drawn by chat_render.js (Markdown to DOM nodes, no
+ * of one of them, polled while the section is open and the panel visible:
+ * every 1.5 s while a turn runs, every 6 s otherwise (each poll costs
+ * MonoAgent a CLI run or two). Replies are drawn by chat_render.js (Markdown to DOM nodes, no
  * innerHTML), tools as small cards, screenshots from the data URLs the bridge
  * sends (coder_mirror.js). The follow-up box shows only for a conversation MonoAgent says may
  * take one from here; Stop shows while a turn runs.
@@ -31,7 +32,8 @@
   const Mirror = globalThis.MonoCoderMirror;
   const el = (id) => document.getElementById(id);
 
-  const POLL_MS = 1500;
+  const POLL_MS = 1500; // a turn is running: its reply is coming in
+  const IDLE_POLL_MS = 6000; // nothing running: only a new turn to notice
   const LIST_MS = 5000;
   const PREFILL_KEY = "coderPrefill";
   const PREFILL_FRESH_MS = 60000;
@@ -365,7 +367,7 @@
         drawMirror();
       }
     }
-    if (watching === w && visible()) pollTimer = setTimeout(poll, POLL_MS);
+    if (watching === w && visible()) pollTimer = setTimeout(poll, w.running ? POLL_MS : IDLE_POLL_MS);
   }
 
   function watch(id) {
@@ -406,6 +408,7 @@
   function schedule() {
     clearInterval(listTimer);
     listTimer = null;
+    clearTimeout(pollTimer);
     if (!visible() || !ready()) return;
     listTimer = setInterval(loadLists, LIST_MS);
     if (watching) poll();
