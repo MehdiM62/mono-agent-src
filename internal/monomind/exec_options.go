@@ -38,6 +38,9 @@ type ExecOptions struct {
 	Timeout time.Duration
 	// BudgetUSD is the optional spend cap (--budget-usd).
 	BudgetUSD float64
+	// Attach passes each file as `--attach`; only a monomind with
+	// CapAgentExecAttachments takes it, which the caller checks.
+	Attach []string
 	// Env adds KEY=VALUE entries to the monomind process environment.
 	Env map[string]string
 	// Bin overrides the monomind binary (tests); empty = discovery.
