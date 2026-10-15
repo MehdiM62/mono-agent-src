@@ -33,10 +33,13 @@ var unguarded = map[string]bool{extension.CmdPageInfo: true, extension.CmdWaitLo
 var blankOK = map[string]bool{extension.CmdNavigate: true, extension.CmdCloseTab: true}
 
 // BlankTabError is an agent's command to a tab that has no page yet.
-type BlankTabError struct{ TabID int }
+type BlankTabError struct {
+	TabID   int
+	Profile string
+}
 
 func (e *BlankTabError) Error() string {
-	return fmt.Sprintf("tab %d has no page yet: open one with `monoagentcli browser navigate <url>` first", e.TabID)
+	return fmt.Sprintf("tab %d has no page yet: open one with `monoagentcli %s browser navigate <url>` first", e.TabID, ProfileFlag(e.Profile))
 }
 
 // guardCmd prepares an agent's command to its own tab: refused on a blank
@@ -49,7 +52,7 @@ func (s *Session) guardCmd(cmd *extension.Command) error {
 		if blankOK[cmd.Type] {
 			return nil
 		}
-		return &BlankTabError{TabID: s.tabID}
+		return &BlankTabError{TabID: s.tabID, Profile: s.profile}
 	}
 	if s.url == "" {
 		return nil

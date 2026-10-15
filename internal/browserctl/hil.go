@@ -43,14 +43,15 @@ var (
 
 // SubmitStateError is a submit item that cannot be used in its state.
 type SubmitStateError struct {
-	ID     string
-	Status string
+	ID      string
+	Status  string
+	Profile string
 }
 
 func (e *SubmitStateError) Error() string {
 	switch e.Status {
 	case "pending":
-		return fmt.Sprintf("submit %s is not approved yet: a person approves it with `monoagentcli hil approve %s` or on the Human in Loop page", e.ID, e.ID)
+		return fmt.Sprintf("submit %s is not approved yet: a person approves it with `monoagentcli %s hil approve %s` or on the Human in Loop page", e.ID, ProfileFlag(e.Profile), e.ID)
 	case "rejected":
 		return fmt.Sprintf("submit %s was rejected", e.ID)
 	case "consumed":
@@ -276,7 +277,7 @@ func DecideSubmitItem(ctx context.Context, db *sql.DB, profile, id string, appro
 		return it, err
 	}
 	if it.Status != "pending" {
-		return it, &SubmitStateError{ID: it.ID, Status: it.Status}
+		return it, &SubmitStateError{ID: it.ID, Status: it.Status, Profile: profile}
 	}
 	to := "rejected"
 	if approve {
@@ -302,7 +303,7 @@ func ClaimSubmitItem(ctx context.Context, db *sql.DB, profile, id string) (Submi
 		return it, err
 	}
 	if it.Status != "approved" {
-		return it, &SubmitStateError{ID: it.ID, Status: it.Status}
+		return it, &SubmitStateError{ID: it.ID, Status: it.Status, Profile: profile}
 	}
 	if rec.ApprovedBy != ApprovedByOperator {
 		return it, ErrApprovedElsewhere
@@ -310,7 +311,7 @@ func ClaimSubmitItem(ctx context.Context, db *sql.DB, profile, id string) (Submi
 	rec.ConsumedAt = time.Now().UTC().Format(time.RFC3339)
 	if err := updateSubmit(ctx, db, profile, it.ID, "approved", "consumed", rec); err != nil {
 		if errors.Is(err, errRaced) {
-			return it, &SubmitStateError{ID: it.ID, Status: "consumed"}
+			return it, &SubmitStateError{ID: it.ID, Status: "consumed", Profile: profile}
 		}
 		return it, err
 	}

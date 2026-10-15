@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/monoes/mono-agent/internal/browserctl"
+	"github.com/monoes/mono-agent/internal/cli/profilegate"
 	"github.com/monoes/mono-agent/internal/extension"
 )
 
@@ -74,5 +75,26 @@ func TestBrowserSubmitRefusesAChangedForm(t *testing.T) {
 	amount = "10"
 	if res := bt.runJSON("submit", "--hil", id); res["status"] != "submitted" {
 		t.Fatalf("submit of the approved form: %v", res)
+	}
+}
+
+// The machine-wide browser and coder commands need no --profile; every
+// other browser command drives a profile's browser and does.
+func TestBrowserProfileGateClasses(t *testing.T) {
+	root := newRootCmd()
+	for path, wantWarning := range map[string]bool{
+		"browser allow list": false, "browser allow add": false, "browser browsers": false, "browser diff": false,
+		"coder projects list": false, "coder projects map": false,
+		"browser tabs": true, "browser open": true, "browser click": true, "browser screenshot": true,
+		"browser submit": true, "browser styles": true, "coder queue list": true,
+	} {
+		c, _, err := root.Find(strings.Fields(path))
+		if err != nil || c == nil || c.Name() != strings.Fields(path)[len(strings.Fields(path))-1] {
+			t.Fatalf("%s: not found (%v)", path, err)
+		}
+		warning, err := profilegate.Check(c, false, profilegate.ModeWarn, nil)
+		if err != nil || (warning != "") != wantWarning {
+			t.Errorf("%s without --profile: warning %q, want one: %v", path, warning, wantWarning)
+		}
 	}
 }

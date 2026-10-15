@@ -29,11 +29,22 @@ type AwaitingApproval struct {
 	Origin string `json:"origin"`
 	URL    string `json:"url"`
 	Via    string `json:"via"`
+	// Profile is the profile the item is in, for the commands to run.
+	Profile string `json:"profile,omitempty"`
 }
 
 func (a *AwaitingApproval) Error() string {
-	return fmt.Sprintf("the form submit on %s waits for a person's approval (HIL item %s): ask the user to approve it with `monoagentcli hil approve %s` or on the Human in Loop page, then run `monoagentcli browser submit --hil %s`",
-		a.Origin, a.HILID, a.HILID, a.HILID)
+	return fmt.Sprintf("the form submit on %s waits for a person's approval (HIL item %s): ask the user to approve it with `monoagentcli %s hil approve %s` or on the Human in Loop page, then run `monoagentcli %s browser submit --hil %s`",
+		a.Origin, a.HILID, ProfileFlag(a.Profile), a.HILID, ProfileFlag(a.Profile), a.HILID)
+}
+
+// ProfileFlag is the --profile part of a command to copy: profile, or a
+// placeholder when it is not known.
+func ProfileFlag(profile string) string {
+	if profile == "" {
+		profile = "<id>"
+	}
+	return "--profile " + profile
 }
 
 // Gated reports whether the gate applies to the session's tab now.
@@ -181,7 +192,7 @@ func (s *Session) Hold(ctx context.Context, db *sql.DB, pageURL string, form For
 		it.Screenshot = path
 		_ = setSubmitScreenshot(ctx, db, s.profile, it.ID, path)
 	}
-	return &AwaitingApproval{HILID: it.ID, Origin: it.Origin, URL: it.URL, Via: via}, nil
+	return &AwaitingApproval{HILID: it.ID, Origin: it.Origin, URL: it.URL, Via: via, Profile: s.profile}, nil
 }
 
 // cardScreenshot saves the tab's viewport for a HIL card under
