@@ -214,6 +214,9 @@ export const api = {
   // error.
   saveChatAttachment: (conversationID, name, base64) => GoApp.SaveChatAttachment(conversationID, name, base64),
   readWorkspaceImage: (conversationID, path) => GoApp.ReadWorkspaceImage(conversationID, path),
+  // A browser submit approval's screenshot (under ~/.monoagent/browser/hil/)
+  // → a data URL; rejects for anything else.
+  readHILScreenshot: (path) => GoApp.ReadHILScreenshot(path),
   stopChatTurn: (conversationID, turnID) =>
     GoApp.StopChatTurn(conversationID, turnID).then(parseStreamResult),
   // One worker of a dynamic-org turn; the lead and the other workers keep

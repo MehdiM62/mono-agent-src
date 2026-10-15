@@ -1058,6 +1058,10 @@ export function PromoteRoleToRoot(arg1, arg2) {
   return window['go']['main']['App']['PromoteRoleToRoot'](arg1, arg2);
 }
 
+export function ReadHILScreenshot(arg1) {
+  return window['go']['main']['App']['ReadHILScreenshot'](arg1);
+}
+
 export function ReadJSONFile(arg1) {
   return window['go']['main']['App']['ReadJSONFile'](arg1);
 }

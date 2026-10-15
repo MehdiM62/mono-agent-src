@@ -47,7 +47,7 @@ func TestWorkspaceImageIsConfinedToTheFolder(t *testing.T) {
 
 	want := "data:image/png;base64," + base64.StdEncoding.EncodeToString(pngBytes)
 	for _, p := range []string{shot, ".monoagent/screenshots/a.png"} {
-		if got, err := workspaceImageDataURL(cwd, p); err != nil || got != want {
+		if got, err := imageDataURLIn(cwd, p); err != nil || got != want {
 			t.Errorf("%s: %.40q, %v", p, got, err)
 		}
 	}
@@ -62,12 +62,9 @@ func TestWorkspaceImageIsConfinedToTheFolder(t *testing.T) {
 		"too big":          big,
 		"folder":           filepath.Join(cwd, ".monoagent"),
 	} {
-		if got, err := workspaceImageDataURL(cwd, p); err == nil {
+		if got, err := imageDataURLIn(cwd, p); err == nil {
 			t.Errorf("%s (%s) was served: %.40q", name, p, got)
 		}
-	}
-	if _, err := workspaceImageDataURL("", shot); err == nil {
-		t.Error("a chat without a folder served an image")
 	}
 }
 
