@@ -32,10 +32,8 @@ func taskDeps(cfg *globalConfig) taskcli.Deps {
 	d.WithJSONErrors = func(cmd *cobra.Command) { withJSONErrors(cfg, cmd) }
 	d.StdinIsTerminal = func() bool { return agentsAllowStdinIsTerminal() }
 	d.DBPath = func() string { return cfg.DBPath }
-	d.OpenDBActive = func() (*storage.Database, string, error) {
-		open := &globalConfig{DBPath: cfg.DBPath}
-		db, err := initDB(open)
-		return db, open.ProfileID, err
+	d.OpenDBUnresolved = func() (*storage.Database, error) {
+		return initDB(&globalConfig{DBPath: cfg.DBPath})
 	}
 	return d
 }

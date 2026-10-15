@@ -34,8 +34,8 @@ func TestDBMigrateJSON(t *testing.T) {
 	if first.Applied == 0 || first.SchemaVersion == 0 {
 		t.Fatalf("first run applied nothing: %+v", first)
 	}
-	if first.ActiveProfile != "default" || !slices.Contains(first.Profiles, "default") {
-		t.Fatalf("profiles = %+v, active %q", first.Profiles, first.ActiveProfile)
+	if !slices.Contains(first.Profiles, "default") {
+		t.Fatalf("profiles = %+v", first.Profiles)
 	}
 	if len(first.Errors) != 0 {
 		t.Fatalf("errors: %v", first.Errors)

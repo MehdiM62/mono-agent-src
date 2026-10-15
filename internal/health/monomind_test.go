@@ -123,6 +123,7 @@ func TestMonomindProfileInitCheckAndFix(t *testing.T) {
 	root := t.TempDir()
 	var initRoot string
 	env := &Env{
+		ProfileID:   "p1",
 		ProfileRoot: func(string) string { return root },
 		InitMonomindProfile: func(_ context.Context, r string, _ func(string)) error {
 			initRoot = r

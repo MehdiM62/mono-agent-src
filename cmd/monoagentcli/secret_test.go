@@ -37,7 +37,7 @@ func newSecretCLITestDB(t *testing.T) string {
 
 func runSecretCmd(t *testing.T, dbPath string, args ...string) (string, error) {
 	t.Helper()
-	cfg := &globalConfig{DBPath: dbPath, JSONOutput: true}
+	cfg := &globalConfig{DBPath: dbPath, JSONOutput: true, ProfileID: "default"}
 	cmd := newSecretCmd(cfg)
 	cmd.SetArgs(args)
 	var out bytes.Buffer
@@ -53,7 +53,7 @@ func runSecretCmd(t *testing.T, dbPath string, args ...string) (string, error) {
 // the args list.
 func runSecretCmdText(t *testing.T, dbPath string, args ...string) (string, error) {
 	t.Helper()
-	cfg := &globalConfig{DBPath: dbPath, JSONOutput: false}
+	cfg := &globalConfig{DBPath: dbPath, JSONOutput: false, ProfileID: "default"}
 	cmd := newSecretCmd(cfg)
 	cmd.SetArgs(args)
 	var out bytes.Buffer

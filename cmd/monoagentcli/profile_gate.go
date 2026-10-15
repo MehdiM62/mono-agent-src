@@ -14,10 +14,10 @@ import (
 )
 
 // The profile gate (internal/cli/profilegate): a command that acts on a
-// profile must be told which one with --profile. It runs in warn mode for one
-// release: the warning goes to stderr and the command runs as before.
-// profileGateMode becomes ModeEnforce when the gate is turned on.
-var profileGateMode = profilegate.ModeWarn
+// profile must be told which one with --profile, or it is refused (exit 3). The
+// gate enforces: there is no active profile and no fallback. ModeWarn stays for
+// the gate package's own tests.
+var profileGateMode = profilegate.ModeEnforce
 
 // installProfileGate makes every command run the gate before it runs. The gate
 // reads whether --profile was given from the parsed flags, so it must come

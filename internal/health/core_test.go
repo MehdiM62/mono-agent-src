@@ -87,7 +87,7 @@ func TestVaultCheckMapsStates(t *testing.T) {
 		"keyring-unavailable": StatusFail, "key-missing": StatusFail, "key-mismatch": StatusFail, "": StatusFail,
 	}
 	for state, st := range want {
-		env := &Env{VaultState: func(context.Context, string) (string, error) { return state, nil }}
+		env := &Env{ProfileID: "p1", VaultState: func(context.Context, string) (string, error) { return state, nil }}
 		if res := checkVault(context.Background(), env); res.Status != st {
 			t.Errorf("state %q: %q, want %q", state, res.Status, st)
 		}

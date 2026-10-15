@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-// GroupAccounts covers the credentials the active profile has saved.
+// GroupAccounts covers the credentials the named profile has saved.
 const GroupAccounts = "accounts"
 
 const (

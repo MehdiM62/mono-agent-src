@@ -209,7 +209,7 @@ func rejectUnknownSubcommands(cmd *cobra.Command) {
 func expandPath(path string) string { return clicore.ExpandPath(path) }
 
 // initDB creates and returns a database connection, applying migrations.
-// It also resolves cfg.ProfileID: if not set via --profile, reads it from the settings table.
+// It also resolves cfg.ProfileID from --profile (id or name); without the flag it stays empty.
 func initDB(cfg *globalConfig) (*storage.Database, error) {
 	dbPath := expandPath(cfg.DBPath)
 	if err := os.MkdirAll(filepath.Dir(dbPath), 0700); err != nil {
@@ -241,20 +241,12 @@ func initDB(cfg *globalConfig) (*storage.Database, error) {
 		fmt.Fprintf(os.Stderr, "warning: retiring AI provider keys: %v\n", err)
 	}
 	migrateProfilesToPerProfileKeys(db)
-	// Resolve active profile if not overridden on the command line.
-	if cfg.ProfileID == "" {
-		var id string
-		_ = db.DB.QueryRow(`SELECT value FROM settings WHERE key = 'active_profile_id'`).Scan(&id)
-		if id == "" {
-			id = "default"
-		}
-		cfg.ProfileID = id
-	} else {
+	// A profile is only ever named with --profile: there is no active profile
+	// and no fallback. Scoped commands without the flag are refused by the
+	// profile gate before this runs; a global command leaves cfg.ProfileID empty.
+	if cfg.ProfileID != "" {
 		// --profile accepts either a profile's ID or its display name; resolve
-		// to the canonical ID. Without this, --profile <name> silently scoped
-		// every read/write to a profile_id string that matched no real
-		// profile (data landed in "default" instead), since a name and its
-		// ID only coincide for the "default" profile.
+		// to the canonical ID.
 		resolved, err := resolveProfileID(db.DB, cfg.ProfileID)
 		if err != nil {
 			db.Close()

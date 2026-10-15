@@ -42,7 +42,7 @@ func coreChecks() []Check {
 		{ID: CheckHome, Group: GroupCore, Title: "Data folder", Required: true, Run: checkHome},
 		{ID: CheckDB, Group: GroupCore, Title: "Database", Required: true, DependsOn: []string{CheckHome}, Run: checkDB},
 		permsCheck(),
-		{ID: CheckProfile, Group: GroupCore, Title: "Active profile", Required: true, DependsOn: []string{CheckDB}, Run: checkProfile},
+		{ID: CheckProfile, Group: GroupCore, Title: "Profile", Required: true, DependsOn: []string{CheckDB}, Run: checkProfile},
 		{ID: CheckVault, Group: GroupCore, Title: "Secrets vault", Features: []string{"credentials", "connections"}, DependsOn: []string{CheckProfile}, Run: checkVault},
 		{ID: CheckPath, Group: GroupCore, Title: "Login shell PATH", Features: []string{"tools installed via nvm/Homebrew/mise"}, Run: checkPath},
 		{ID: CheckDisk, Group: GroupCore, Title: "Disk space", DependsOn: []string{CheckHome}, Run: checkDisk},
@@ -127,17 +127,31 @@ func fixDBMigrate(ctx context.Context, env *Env, progress func(string)) error {
 	return env.Migrate(ctx, progress)
 }
 
+// noProfile is the result of a per-profile check run without --profile: the
+// machine checks still run, these wait for a profile to be named.
+func noProfile() Result {
+	return Result{Status: StatusSkip, Summary: "no profile given: pass --profile <id|name> to check one"}
+}
+
+// profileRoot is the folder of the profile being checked, "" when none was named.
+func (env *Env) profileRoot() string {
+	if env.ProfileID == "" || env.ProfileRoot == nil {
+		return ""
+	}
+	return env.ProfileRoot(env.ProfileID)
+}
+
 func checkProfile(ctx context.Context, env *Env) Result {
 	id := env.ProfileID
 	if id == "" {
-		id = "default"
+		return noProfile()
 	}
 	if env.DB != nil {
 		var n int
 		if err := env.DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM profiles`).Scan(&n); err == nil && n > 0 {
 			var name string
 			if err := env.DB.QueryRowContext(ctx, `SELECT COALESCE(name, id) FROM profiles WHERE id = ?`, id).Scan(&name); err != nil {
-				return Result{Status: StatusFail, Summary: fmt.Sprintf("active profile %q does not exist", id),
+				return Result{Status: StatusFail, Summary: fmt.Sprintf("profile %q does not exist", id),
 					Detail: "list profiles with: monoagentcli profile list"}
 			}
 			id = fmt.Sprintf("%s (%s)", name, id)
@@ -146,9 +160,9 @@ func checkProfile(ctx context.Context, env *Env) Result {
 	if env.ProfileRoot == nil {
 		return Result{Status: StatusOK, Summary: id}
 	}
-	root := env.ProfileRoot(env.profileID())
+	root := env.profileRoot()
 	if root == "" {
-		return Result{Status: StatusFail, Summary: fmt.Sprintf("profile id %q is not usable as a folder name", env.profileID())}
+		return Result{Status: StatusFail, Summary: fmt.Sprintf("profile id %q is not usable as a folder name", env.ProfileID)}
 	}
 	if info, err := os.Stat(root); err != nil || !info.IsDir() {
 		return Result{Status: StatusWarn, Summary: id + " — folder missing: " + root, FixID: FixProfileLayout}
@@ -160,22 +174,21 @@ func fixProfileLayout(_ context.Context, env *Env, progress func(string)) error 
 	if env.EnsureProfile == nil {
 		return fmt.Errorf("profile setup is not available here")
 	}
-	progress("creating profile folder for " + env.profileID())
-	return env.EnsureProfile(env.profileID())
-}
-
-func (env *Env) profileID() string {
 	if env.ProfileID == "" {
-		return "default"
+		return fmt.Errorf("pass --profile <id|name> to say which profile")
 	}
-	return env.ProfileID
+	progress("creating profile folder for " + env.ProfileID)
+	return env.EnsureProfile(env.ProfileID)
 }
 
 func checkVault(ctx context.Context, env *Env) Result {
 	if env.VaultState == nil {
 		return Result{Status: StatusSkip, Summary: "not available"}
 	}
-	state, err := env.VaultState(ctx, env.profileID())
+	if env.ProfileID == "" {
+		return noProfile()
+	}
+	state, err := env.VaultState(ctx, env.ProfileID)
 	detail := ""
 	if err != nil {
 		detail = err.Error()

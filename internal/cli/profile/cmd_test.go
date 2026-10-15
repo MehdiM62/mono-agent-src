@@ -47,13 +47,13 @@ func exitCodeOf(t *testing.T, err error) int {
 	return ce.code
 }
 
-func TestProfileCreateListGetSwitch(t *testing.T) {
+func TestProfileCreateListGet(t *testing.T) {
 	dbPath := newProfileDocsCLITestDB(t)
 	custom := filepath.Join(t.TempDir(), "work-folder")
 
 	var created profileCreateResult
 	mustProfileJSON(t, dbPath, &created, "create", "Work", "--root-dir", custom, "--icon", "fox")
-	if created.ID == "" || created.Name != "Work" || created.RootDir != custom || created.Icon != "fox" || created.Active || created.CreatedAt == "" || created.LayoutError != "" {
+	if created.ID == "" || created.Name != "Work" || created.RootDir != custom || created.Icon != "fox" || created.CreatedAt == "" || created.LayoutError != "" {
 		t.Fatalf("create = %+v", created)
 	}
 	for _, dir := range []string{filepath.Join(custom, ".monoagent", "vault"), filepath.Join(custom, ".monomind")} {
@@ -69,15 +69,17 @@ func TestProfileCreateListGetSwitch(t *testing.T) {
 	}
 	byID := map[string]map[string]interface{}{}
 	for _, p := range list {
-		for _, k := range []string{"id", "name", "created_at", "root_dir", "icon", "active"} {
+		for _, k := range []string{"id", "name", "created_at", "root_dir", "icon"} {
 			if _, ok := p[k]; !ok {
 				t.Errorf("list row %v missing %q", p, k)
 			}
 		}
 		byID[p["id"].(string)] = p
 	}
-	if byID["default"]["active"] != true || byID[created.ID]["active"] != false {
-		t.Errorf("active flags = %+v", list)
+	for _, p := range list {
+		if _, ok := p["active"]; ok {
+			t.Errorf("list row %v still carries an active flag: there is no active profile", p)
+		}
 	}
 	if byID[created.ID]["root_dir"] != custom || byID[created.ID]["icon"] != "fox" {
 		t.Errorf("created row = %+v", byID[created.ID])
@@ -86,22 +88,19 @@ func TestProfileCreateListGetSwitch(t *testing.T) {
 		t.Errorf("default root_dir = %v, want the default location", byID["default"]["root_dir"])
 	}
 
-	var switched map[string]string
-	mustProfileJSON(t, dbPath, &switched, "switch", created.ID)
-	if switched["id"] != created.ID {
-		t.Fatalf("switch = %+v", switched)
-	}
 	var got profileJSON
 	mustProfileJSON(t, dbPath, &got, "get", created.ID)
-	if got.ID != created.ID || !got.Active || got.RootDir != custom || got.Icon != "fox" {
+	if got.ID != created.ID || got.RootDir != custom || got.Icon != "fox" {
 		t.Fatalf("get = %+v", got)
 	}
 
-	_, err := runProfileJSON(t, dbPath, "switch", "no-such-profile")
-	if err == nil || exitCodeOf(t, err) != 2 {
-		t.Fatalf("switch to a missing profile: %v", err)
+	// switch and current are gone: nothing is "the" profile.
+	for _, sub := range []string{"switch", "current"} {
+		if _, err := runProfileJSON(t, dbPath, sub, created.ID); err == nil {
+			t.Errorf("profile %s still exists", sub)
+		}
 	}
-	_, err = runProfileJSON(t, dbPath, "get", "no-such-profile")
+	_, err := runProfileJSON(t, dbPath, "get", "no-such-profile")
 	if err == nil || exitCodeOf(t, err) != 2 {
 		t.Fatalf("get of a missing profile: %v", err)
 	}
@@ -126,17 +125,17 @@ func TestProfileCreateAllowsMachineAsName(t *testing.T) {
 	}
 }
 
-func TestProfileSwitchPrefersIDOverName(t *testing.T) {
+func TestProfileGetPrefersIDOverName(t *testing.T) {
 	dbPath := newProfileDocsCLITestDB(t)
 	var a profileCreateResult
 	mustProfileJSON(t, dbPath, &a, "create", "Alpha")
 	var b profileCreateResult
 	mustProfileJSON(t, dbPath, &b, "create", a.ID) // named after Alpha's id
 
-	var switched map[string]string
-	mustProfileJSON(t, dbPath, &switched, "switch", a.ID)
-	if switched["id"] != a.ID {
-		t.Fatalf("switch %q picked %q (the profile named after it), want the id match", a.ID, switched["id"])
+	var got profileJSON
+	mustProfileJSON(t, dbPath, &got, "get", a.ID)
+	if got.ID != a.ID {
+		t.Fatalf("get %q picked %q (the profile named after it), want the id match", a.ID, got.ID)
 	}
 }
 

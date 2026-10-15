@@ -162,9 +162,7 @@ func NewHealthEnv(d EnvDeps, projects []string) (*health.Env, func()) {
 			}
 			closeFn = func() { db.Close() }
 			if env.ProfileID == "" {
-				var id string
-				_ = db.DB.QueryRow(`SELECT value FROM settings WHERE key = ?`, profiledir.ActiveProfileSetting).Scan(&id)
-				env.ProfileID = id
+				// No profile named: the machine checks run, the per-profile ones are skipped.
 			} else if id, ok := resolveProfileID(db.DB, env.ProfileID); ok {
 				// --profile takes a name or an id, as it does for every other
 				// command; one that matches neither is left for the profile
@@ -174,9 +172,6 @@ func NewHealthEnv(d EnvDeps, projects []string) (*health.Env, func()) {
 		}
 	} else if !os.IsNotExist(err) {
 		env.DBErr = err
-	}
-	if env.ProfileID == "" {
-		env.ProfileID = "default"
 	}
 	if env.DB != nil {
 		addAccountHooks(env, env.DB)
@@ -276,10 +271,13 @@ func samePath(a, b string) bool {
 	return filepath.Clean(a) == filepath.Clean(b)
 }
 
-// profileProjects lists the monomind projects inside the active profile's
+// profileProjects lists the monomind projects inside the named profile's
 // folder, relative to it, narrowed to filter (relative paths or folder
 // names) when given.
 func profileProjects(env *health.Env, filter []string) []string {
+	if env.ProfileID == "" || env.ProfileRoot == nil {
+		return nil
+	}
 	root := env.ProfileRoot(env.ProfileID)
 	if root == "" {
 		return nil

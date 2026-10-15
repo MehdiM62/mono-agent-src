@@ -53,7 +53,7 @@ func TestAutomationFixtureFullRunPostsForm(t *testing.T) {
 		var out strings.Builder
 		root.SetOut(&out)
 		root.SetErr(&strings.Builder{})
-		root.SetArgs(append([]string{"automation", "test", dir, "--json", "--db-path", filepath.Join(home, "x.db")}, args...))
+		root.SetArgs(withTestProfile(append([]string{"automation", "test", dir, "--json", "--db-path", filepath.Join(home, "x.db")}, args...)))
 		_ = root.Execute()
 		var res struct {
 			Results []fixtureResult `json:"results"`
