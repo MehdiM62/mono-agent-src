@@ -41,7 +41,7 @@ func newBrowserClickCmd(cfg *globalConfig) *cobra.Command {
 						return errNotFound("no element matches %s", sel)
 					}
 					if t.Submit {
-						aw, err := r.s.Hold(cmd.Context(), r.db.DB, r.s.URL(), t.Form, "click", 0)
+						aw, err := r.s.Hold(cmd.Context(), r.db.DB, r.s.URL(), t.Form, "click", 0, 0)
 						if err != nil {
 							return err
 						}
