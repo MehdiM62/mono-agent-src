@@ -17,6 +17,7 @@ import (
 	"os"
 
 	"github.com/monoes/mono-agent/internal/jev"
+	"github.com/monoes/mono-agent/internal/profiledir"
 )
 
 // Surface names an implicit integration point that needs `jev enable`.
@@ -96,6 +97,9 @@ var DefaultThreshold = map[Surface]float64{
 // call is recorded in jev_usage under profileID and surface s (db may be nil:
 // no recording).
 func NewClient(ctx context.Context, db *sql.DB, profileID, explicitKey, model string, s Surface) (*jev.Client, error) {
+	if profileID == "" {
+		return nil, fmt.Errorf("jev: %w", profiledir.ErrNoProfile)
+	}
 	key, _, err := ResolveKey(ctx, db, profileID, explicitKey)
 	if err != nil {
 		return nil, err
@@ -131,11 +135,11 @@ func Recorder(db *sql.DB, profileID string, s Surface) func(*jev.Request, *jev.R
 
 func envKey() string { return os.Getenv("TYPESAFE_API_KEY") }
 
-func settingKey(profileID string, s Surface, name string) string {
+func settingKey(profileID string, s Surface, name string) (string, error) {
 	if profileID == "" {
-		profileID = "default"
+		return "", profiledir.ErrNoProfile
 	}
-	return "jev." + profileID + "." + string(s) + "." + name
+	return "jev." + profileID + "." + string(s) + "." + name, nil
 }
 
 func getSetting(db *sql.DB, key string) (string, bool) {
@@ -168,7 +172,11 @@ func Known(s Surface) bool {
 // Enabled reports whether the profile switched surface s on. Off by default;
 // a nil db means off.
 func Enabled(db *sql.DB, profileID string, s Surface) bool {
-	v, ok := getSetting(db, settingKey(profileID, s, "enabled"))
+	key, err := settingKey(profileID, s, "enabled")
+	if err != nil {
+		return false // no profile: nothing is switched on
+	}
+	v, ok := getSetting(db, key)
 	return ok && v == "true"
 }
 
@@ -177,12 +185,20 @@ func SetEnabled(db *sql.DB, profileID string, s Surface, on bool) error {
 	if !Known(s) {
 		return fmt.Errorf("jev: unknown surface %q", s)
 	}
-	return setSetting(db, settingKey(profileID, s, "enabled"), strconv.FormatBool(on))
+	key, err := settingKey(profileID, s, "enabled")
+	if err != nil {
+		return fmt.Errorf("jev: %w", err)
+	}
+	return setSetting(db, key, strconv.FormatBool(on))
 }
 
 // Threshold returns the profile's gate value for s, else def.
 func Threshold(db *sql.DB, profileID string, s Surface, def float64) float64 {
-	v, ok := getSetting(db, settingKey(profileID, s, "threshold"))
+	key, err := settingKey(profileID, s, "threshold")
+	if err != nil {
+		return def
+	}
+	v, ok := getSetting(db, key)
 	if !ok {
 		return def
 	}
@@ -201,7 +217,11 @@ func SetThreshold(db *sql.DB, profileID string, s Surface, v float64) error {
 	if v <= 0 || v > 1 {
 		return fmt.Errorf("jev: threshold %v must be in (0,1]", v)
 	}
-	return setSetting(db, settingKey(profileID, s, "threshold"), strconv.FormatFloat(v, 'f', -1, 64))
+	key, err := settingKey(profileID, s, "threshold")
+	if err != nil {
+		return fmt.Errorf("jev: %w", err)
+	}
+	return setSetting(db, key, strconv.FormatFloat(v, 'f', -1, 64))
 }
 
 // SaveSuggestion caches v (JSON-encoded) as the latest suggestion for subject.
