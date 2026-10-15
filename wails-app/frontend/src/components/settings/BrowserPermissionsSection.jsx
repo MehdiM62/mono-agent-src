@@ -97,10 +97,10 @@ export default function BrowserPermissionsSection() {
               value={k.level}
               disabled={!!busy}
               onChange={e => run(`kind:${k.kind}`, () => api.setBrowserPermission(k.kind, e.target.value))}
-              style={{ minWidth: 200, maxWidth: 260 }}
+              style={{ minWidth: 230 }}
             >
               {catalog.map(c => (
-                <option key={c.id} value={c.id}>{c.id === RISKIEST_LEVEL ? '⚠ ' : ''}{c.label} — {c.description}</option>
+                <option key={c.id} value={c.id} title={c.description}>{c.id === RISKIEST_LEVEL ? '⚠ ' : ''}{c.label}</option>
               ))}
               {!level && <option value={k.level}>{k.level}</option>}
             </select>

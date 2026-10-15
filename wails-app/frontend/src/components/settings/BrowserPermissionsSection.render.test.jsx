@@ -28,13 +28,14 @@ describe('BrowserPermissionsSection', () => {
     render(<BrowserPermissionsSection />)
     expect(await screen.findByText('Coder chats')).toBeInTheDocument()
     expect(['coder', 'org', 'chat', 'other'].map(k => within(kindRow(k)).getByRole('combobox').value)).toEqual(['dev', 'full', 'full', 'ask'])
-    const options = within(kindRow('coder')).getAllByRole('option').map(o => o.textContent)
+    // The picker shows the labels; each description is the option's title.
+    const options = within(kindRow('coder')).getAllByRole('option').map(o => [o.textContent, o.title])
     expect(options).toEqual([
-      '⚠ Full access, no approvals — Any site; form submits go through without asking you.',
-      'Full access — Any site; a form submit on a real site waits for your approval.',
-      'Dev pages + allowed sites — Localhost and dev pages, plus sites you allow; submits on real sites wait for your approval.',
-      'Ask for new sites — Like dev pages + allowed sites, but a new site asks you first instead of being refused.',
-      "Off — This kind of agent can't use the browser.",
+      ['⚠ Full access, no approvals', 'Any site; form submits go through without asking you.'],
+      ['Full access', 'Any site; a form submit on a real site waits for your approval.'],
+      ['Dev pages + allowed sites', 'Localhost and dev pages, plus sites you allow; submits on real sites wait for your approval.'],
+      ['Ask for new sites', 'Like dev pages + allowed sites, but a new site asks you first instead of being refused.'],
+      ['Off', "This kind of agent can't use the browser."],
     ])
     expect(within(kindRow('coder')).getByText('Localhost and dev pages, plus sites you allow; submits on real sites wait for your approval.')).toBeInTheDocument()
     expect(screen.getByText(/Allow opens a site to agents at Dev pages \+ allowed sites or Ask for new sites/)).toBeInTheDocument()
