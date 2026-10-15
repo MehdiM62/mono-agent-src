@@ -1,0 +1,138 @@
+{
+  "bookshelf.get": {
+    "params": {
+      "userId": "u1",
+      "shelfId": "2"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/books/v1/users/u1/bookshelves/2"
+    }
+  },
+  "bookshelf.getAll": {
+    "params": {
+      "myLibrary": true,
+      "returnAll": true
+    },
+    "response": {
+      "items": [
+        {
+          "id": 0
+        },
+        {
+          "id": 1
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/books/v1/mylibrary/bookshelves",
+      "items": 2
+    }
+  },
+  "bookshelfVolume.getAll": {
+    "params": {
+      "myLibrary": true,
+      "shelfId": "2",
+      "limit": 5
+    },
+    "response": {
+      "items": [
+        {
+          "id": "v"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/books/v1/mylibrary/bookshelves/2/volumes",
+      "query": {
+        "startIndex": "0",
+        "maxResults": "5"
+      },
+      "items": 1
+    }
+  },
+  "bookshelfVolume.add": {
+    "params": {
+      "shelfId": "2",
+      "volumeId": "V"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/books/v1/mylibrary/bookshelves/2/addVolume",
+      "query": {
+        "volumeId": "V"
+      }
+    }
+  },
+  "bookshelfVolume.clear": {
+    "params": {
+      "shelfId": "2"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/books/v1/mylibrary/bookshelves/2/clearVolumes"
+    }
+  },
+  "bookshelfVolume.move": {
+    "params": {
+      "shelfId": "2",
+      "volumeId": "V",
+      "volumePosition": "0"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/books/v1/mylibrary/bookshelves/2/moveVolume",
+      "query": {
+        "volumeId": "V",
+        "volumePosition": "0"
+      }
+    }
+  },
+  "bookshelfVolume.remove": {
+    "params": {
+      "shelfId": "2",
+      "volumeId": "V"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/books/v1/mylibrary/bookshelves/2/removeVolume",
+      "query": {
+        "volumeId": "V"
+      }
+    }
+  },
+  "volume.get": {
+    "params": {
+      "volumeId": "V"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/books/v1/volumes/V"
+    }
+  },
+  "volume.getAll": {
+    "params": {
+      "searchQuery": "dune",
+      "limit": 10
+    },
+    "response": {
+      "items": [
+        {
+          "id": "a"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/books/v1/volumes",
+      "query": {
+        "q": "dune",
+        "startIndex": "0",
+        "maxResults": "10"
+      },
+      "items": 1
+    }
+  }
+}

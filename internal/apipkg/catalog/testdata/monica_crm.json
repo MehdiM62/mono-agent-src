@@ -1,0 +1,1488 @@
+{
+  "contact.create": {
+    "params": {
+      "firstName": "Ada",
+      "genderId": "1",
+      "additionalFields": {
+        "last_name": "L",
+        "birthdate": "1990-03-05T00:00:00Z"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/contacts",
+      "body": {
+        "first_name": "Ada",
+        "gender_id": "1",
+        "last_name": "L",
+        "is_birthdate_known": true,
+        "is_deceased": false,
+        "is_deceased_date_known": false,
+        "birthdate_day": 5,
+        "birthdate_month": 3,
+        "birthdate_year": 1990
+      }
+    },
+    "response": {
+      "data": {
+        "id": 1
+      }
+    }
+  },
+  "contact.delete": {
+    "params": {
+      "contactId": "1"
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/contacts/1"
+    },
+    "response": {
+      "data": {
+        "id": 1
+      }
+    }
+  },
+  "contact.get": {
+    "params": {
+      "contactId": "1"
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/contacts/1"
+    },
+    "response": {
+      "data": {
+        "id": 1
+      }
+    }
+  },
+  "contact.getAll": {
+    "params": {
+      "limit": 5,
+      "filters": {
+        "query": "ada"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/contacts",
+      "query": {
+        "page": "1",
+        "limit": "5",
+        "query": "ada"
+      },
+      "items": 1
+    },
+    "response": {
+      "data": [
+        {
+          "id": 1
+        }
+      ]
+    }
+  },
+  "contact.update": {
+    "params": {
+      "contactId": "1",
+      "updateFields": {
+        "nickname": "N"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/contacts/1",
+      "body": {
+        "first_name": "Old",
+        "nickname": "N",
+        "is_birthdate_known": false,
+        "is_deceased": false,
+        "is_deceased_date_known": false
+      }
+    },
+    "responses": [
+      {
+        "data": {
+          "id": 9,
+          "contact": {
+            "id": 4
+          },
+          "title": "old",
+          "post": "old",
+          "body": "old",
+          "first_name": "Old",
+          "activity_type": {
+            "id": 2
+          },
+          "attendees": {
+            "contacts": [
+              {
+                "id": 4
+              }
+            ]
+          },
+          "happened_at": "2024-01-01T00:00:00Z",
+          "summary": "s",
+          "called_at": "2024-01-01",
+          "frequency_type": "week",
+          "frequency_number": 2,
+          "initial_date": "2024-02-03T00:00:00Z",
+          "completed": false,
+          "messages": [
+            {
+              "id": 1,
+              "content": "hi",
+              "written_at": "2024-01-01",
+              "written_by_me": true
+            }
+          ]
+        }
+      },
+      {
+        "data": {
+          "id": 1
+        }
+      }
+    ]
+  },
+  "activity.create": {
+    "params": {
+      "activityTypeId": "1",
+      "contacts": "1,2",
+      "happenedAt": "2024-05-06T10:00:00Z",
+      "summary": "1"
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/activities",
+      "body": {
+        "activity_type_id": "1",
+        "contacts": [
+          "1",
+          "2"
+        ],
+        "happened_at": "2024-05-06",
+        "summary": "1"
+      }
+    },
+    "response": {
+      "data": {
+        "id": 1
+      }
+    }
+  },
+  "activity.delete": {
+    "params": {
+      "activityId": "1"
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/activities/1"
+    },
+    "response": {
+      "data": {
+        "id": 1
+      }
+    }
+  },
+  "activity.get": {
+    "params": {
+      "activityId": "1"
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/activities/1"
+    },
+    "response": {
+      "data": {
+        "id": 1
+      }
+    }
+  },
+  "activity.getAll": {
+    "params": {
+      "limit": 5
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/activities",
+      "query": {
+        "page": "1",
+        "limit": "5"
+      },
+      "items": 1
+    },
+    "response": {
+      "data": [
+        {
+          "id": 1
+        }
+      ]
+    }
+  },
+  "activity.update": {
+    "params": {
+      "activityId": "1",
+      "updateFields": {
+        "summary": "new"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/activities/1",
+      "body": {
+        "activity_type_id": 2,
+        "contacts": [
+          4
+        ],
+        "happened_at": "2024-01-01",
+        "summary": "new"
+      }
+    },
+    "responses": [
+      {
+        "data": {
+          "id": 9,
+          "contact": {
+            "id": 4
+          },
+          "title": "old",
+          "post": "old",
+          "body": "old",
+          "first_name": "Old",
+          "activity_type": {
+            "id": 2
+          },
+          "attendees": {
+            "contacts": [
+              {
+                "id": 4
+              }
+            ]
+          },
+          "happened_at": "2024-01-01T00:00:00Z",
+          "summary": "s",
+          "called_at": "2024-01-01",
+          "frequency_type": "week",
+          "frequency_number": 2,
+          "initial_date": "2024-02-03T00:00:00Z",
+          "completed": false,
+          "messages": [
+            {
+              "id": 1,
+              "content": "hi",
+              "written_at": "2024-01-01",
+              "written_by_me": true
+            }
+          ]
+        }
+      },
+      {
+        "data": {
+          "id": 1
+        }
+      }
+    ]
+  },
+  "call.create": {
+    "params": {
+      "contactId": "1",
+      "calledAt": "1",
+      "content": "1"
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/calls",
+      "body": {
+        "called_at": "1",
+        "contact_id": "1",
+        "content": "1"
+      }
+    },
+    "response": {
+      "data": {
+        "id": 1
+      }
+    }
+  },
+  "call.delete": {
+    "params": {
+      "callId": "1"
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/calls/1"
+    },
+    "response": {
+      "data": {
+        "id": 1
+      }
+    }
+  },
+  "call.get": {
+    "params": {
+      "callId": "1"
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/calls/1"
+    },
+    "response": {
+      "data": {
+        "id": 1
+      }
+    }
+  },
+  "call.getAll": {
+    "params": {
+      "limit": 5
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/calls",
+      "query": {
+        "page": "1",
+        "limit": "5"
+      },
+      "items": 1
+    },
+    "response": {
+      "data": [
+        {
+          "id": 1
+        }
+      ]
+    }
+  },
+  "call.update": {
+    "params": {
+      "callId": "1",
+      "updateFields": {
+        "content": "c"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/calls/1",
+      "body": {
+        "called_at": "2024-01-01",
+        "content": "c"
+      }
+    },
+    "responses": [
+      {
+        "data": {
+          "id": 9,
+          "contact": {
+            "id": 4
+          },
+          "title": "old",
+          "post": "old",
+          "body": "old",
+          "first_name": "Old",
+          "activity_type": {
+            "id": 2
+          },
+          "attendees": {
+            "contacts": [
+              {
+                "id": 4
+              }
+            ]
+          },
+          "happened_at": "2024-01-01T00:00:00Z",
+          "summary": "s",
+          "called_at": "2024-01-01",
+          "frequency_type": "week",
+          "frequency_number": 2,
+          "initial_date": "2024-02-03T00:00:00Z",
+          "completed": false,
+          "messages": [
+            {
+              "id": 1,
+              "content": "hi",
+              "written_at": "2024-01-01",
+              "written_by_me": true
+            }
+          ]
+        }
+      },
+      {
+        "data": {
+          "id": 1
+        }
+      }
+    ]
+  },
+  "contactField.create": {
+    "params": {
+      "contactId": "1",
+      "contactFieldTypeId": "1",
+      "data": "1"
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/contactfields",
+      "body": {
+        "contact_field_type_id": "1",
+        "contact_id": "1",
+        "data": "1"
+      }
+    },
+    "response": {
+      "data": {
+        "id": 1
+      }
+    }
+  },
+  "contactField.delete": {
+    "params": {
+      "contactFieldId": "1"
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/contactfields/1"
+    },
+    "response": {
+      "data": {
+        "id": 1
+      }
+    }
+  },
+  "contactField.get": {
+    "params": {
+      "contactFieldId": "1"
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/contactfields/1"
+    },
+    "response": {
+      "data": {
+        "id": 1
+      }
+    }
+  },
+  "contactField.update": {
+    "params": {
+      "contactFieldId": "1",
+      "contactId": "1",
+      "contactFieldTypeId": "1",
+      "data": "1"
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/contactfields/1",
+      "body": {
+        "contact_field_type_id": "1",
+        "contact_id": "1",
+        "data": "1"
+      }
+    },
+    "response": {
+      "data": {
+        "id": 1
+      }
+    }
+  },
+  "contactTag.add": {
+    "params": {
+      "contactId": "1",
+      "tagsToAdd": [
+        "a"
+      ]
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/contacts/1/setTags",
+      "body": {
+        "tags": [
+          "a"
+        ]
+      }
+    },
+    "response": {
+      "data": {
+        "id": 1
+      }
+    }
+  },
+  "contactTag.remove": {
+    "params": {
+      "contactId": "1",
+      "tagsToRemove": [
+        "3"
+      ]
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/contacts/1/unsetTag",
+      "body": {
+        "tags": [
+          "3"
+        ]
+      }
+    },
+    "response": {
+      "data": {
+        "id": 1
+      }
+    }
+  },
+  "conversation.create": {
+    "params": {
+      "contactId": "1",
+      "contactFieldTypeId": "1",
+      "happenedAt": "1"
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/conversations",
+      "body": {
+        "contact_field_type_id": "1",
+        "contact_id": "1",
+        "happened_at": "1"
+      }
+    },
+    "response": {
+      "data": {
+        "id": 1
+      }
+    }
+  },
+  "conversation.delete": {
+    "params": {
+      "conversationId": "1"
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/conversations/1"
+    },
+    "response": {
+      "data": {
+        "id": 1
+      }
+    }
+  },
+  "conversation.get": {
+    "params": {
+      "conversationId": "1"
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/conversations/1"
+    },
+    "response": {
+      "data": {
+        "id": 1
+      }
+    }
+  },
+  "conversation.update": {
+    "params": {
+      "conversationId": "1",
+      "contactFieldTypeId": "1",
+      "happenedAt": "1"
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/conversations/1",
+      "body": {
+        "contact_field_type_id": "1",
+        "happened_at": "1"
+      }
+    },
+    "response": {
+      "data": {
+        "id": 1
+      }
+    }
+  },
+  "conversationMessage.add": {
+    "params": {
+      "conversationId": "1",
+      "content": "1",
+      "writtenAt": "1"
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/conversations/1/messages",
+      "body": {
+        "contact_id": 4,
+        "content": "1",
+        "written_at": "1",
+        "written_by_me": true
+      }
+    },
+    "responses": [
+      {
+        "data": {
+          "id": 9,
+          "contact": {
+            "id": 4
+          },
+          "title": "old",
+          "post": "old",
+          "body": "old",
+          "first_name": "Old",
+          "activity_type": {
+            "id": 2
+          },
+          "attendees": {
+            "contacts": [
+              {
+                "id": 4
+              }
+            ]
+          },
+          "happened_at": "2024-01-01T00:00:00Z",
+          "summary": "s",
+          "called_at": "2024-01-01",
+          "frequency_type": "week",
+          "frequency_number": 2,
+          "initial_date": "2024-02-03T00:00:00Z",
+          "completed": false,
+          "messages": [
+            {
+              "id": 1,
+              "content": "hi",
+              "written_at": "2024-01-01",
+              "written_by_me": true
+            }
+          ]
+        }
+      },
+      {
+        "data": {
+          "id": 1
+        }
+      }
+    ]
+  },
+  "conversationMessage.update": {
+    "params": {
+      "messageId": "1",
+      "conversationId": "1",
+      "updateFields": {
+        "content": "edited"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/conversations/1/messages/1",
+      "body": {
+        "contact_id": 4,
+        "content": "edited",
+        "written_at": "2024-01-01",
+        "written_by_me": true
+      }
+    },
+    "responses": [
+      {
+        "data": {
+          "id": 9,
+          "contact": {
+            "id": 4
+          },
+          "title": "old",
+          "post": "old",
+          "body": "old",
+          "first_name": "Old",
+          "activity_type": {
+            "id": 2
+          },
+          "attendees": {
+            "contacts": [
+              {
+                "id": 4
+              }
+            ]
+          },
+          "happened_at": "2024-01-01T00:00:00Z",
+          "summary": "s",
+          "called_at": "2024-01-01",
+          "frequency_type": "week",
+          "frequency_number": 2,
+          "initial_date": "2024-02-03T00:00:00Z",
+          "completed": false,
+          "messages": [
+            {
+              "id": 1,
+              "content": "hi",
+              "written_at": "2024-01-01",
+              "written_by_me": true
+            }
+          ]
+        }
+      },
+      {
+        "data": {
+          "id": 1
+        }
+      }
+    ]
+  },
+  "journalEntry.create": {
+    "params": {
+      "title": "1",
+      "post": "1"
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/journal",
+      "body": {
+        "title": "1",
+        "post": "1"
+      }
+    },
+    "response": {
+      "data": {
+        "id": 1
+      }
+    }
+  },
+  "journalEntry.delete": {
+    "params": {
+      "journalId": "1"
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/journal/1"
+    },
+    "response": {
+      "data": {
+        "id": 1
+      }
+    }
+  },
+  "journalEntry.get": {
+    "params": {
+      "journalId": "1"
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/journal/1"
+    },
+    "response": {
+      "data": {
+        "id": 1
+      }
+    }
+  },
+  "journalEntry.getAll": {
+    "params": {
+      "limit": 5
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/journal",
+      "query": {
+        "page": "1",
+        "limit": "5"
+      },
+      "items": 1
+    },
+    "response": {
+      "data": [
+        {
+          "id": 1
+        }
+      ]
+    }
+  },
+  "journalEntry.update": {
+    "params": {
+      "journalId": "1",
+      "updateFields": {
+        "title": "T"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/journal/1",
+      "body": {
+        "title": "T",
+        "post": "old"
+      }
+    },
+    "responses": [
+      {
+        "data": {
+          "id": 9,
+          "contact": {
+            "id": 4
+          },
+          "title": "old",
+          "post": "old",
+          "body": "old",
+          "first_name": "Old",
+          "activity_type": {
+            "id": 2
+          },
+          "attendees": {
+            "contacts": [
+              {
+                "id": 4
+              }
+            ]
+          },
+          "happened_at": "2024-01-01T00:00:00Z",
+          "summary": "s",
+          "called_at": "2024-01-01",
+          "frequency_type": "week",
+          "frequency_number": 2,
+          "initial_date": "2024-02-03T00:00:00Z",
+          "completed": false,
+          "messages": [
+            {
+              "id": 1,
+              "content": "hi",
+              "written_at": "2024-01-01",
+              "written_by_me": true
+            }
+          ]
+        }
+      },
+      {
+        "data": {
+          "id": 1
+        }
+      }
+    ]
+  },
+  "note.create": {
+    "params": {
+      "contactId": "1",
+      "body": "1"
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/notes",
+      "body": {
+        "body": "1",
+        "contact_id": "1",
+        "is_favorited": false
+      }
+    },
+    "response": {
+      "data": {
+        "id": 1
+      }
+    }
+  },
+  "note.delete": {
+    "params": {
+      "noteId": "1"
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/notes/1"
+    },
+    "response": {
+      "data": {
+        "id": 1
+      }
+    }
+  },
+  "note.get": {
+    "params": {
+      "noteId": "1"
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/notes/1"
+    },
+    "response": {
+      "data": {
+        "id": 1
+      }
+    }
+  },
+  "note.getAll": {
+    "params": {
+      "limit": 5
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/notes",
+      "query": {
+        "page": "1",
+        "limit": "5"
+      },
+      "items": 1
+    },
+    "response": {
+      "data": [
+        {
+          "id": 1
+        }
+      ]
+    }
+  },
+  "note.update": {
+    "params": {
+      "noteId": "1",
+      "updateFields": {
+        "is_favorited": true
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/notes/1",
+      "body": {
+        "body": "old",
+        "contact_id": 4,
+        "is_favorited": true
+      }
+    },
+    "responses": [
+      {
+        "data": {
+          "id": 9,
+          "contact": {
+            "id": 4
+          },
+          "title": "old",
+          "post": "old",
+          "body": "old",
+          "first_name": "Old",
+          "activity_type": {
+            "id": 2
+          },
+          "attendees": {
+            "contacts": [
+              {
+                "id": 4
+              }
+            ]
+          },
+          "happened_at": "2024-01-01T00:00:00Z",
+          "summary": "s",
+          "called_at": "2024-01-01",
+          "frequency_type": "week",
+          "frequency_number": 2,
+          "initial_date": "2024-02-03T00:00:00Z",
+          "completed": false,
+          "messages": [
+            {
+              "id": 1,
+              "content": "hi",
+              "written_at": "2024-01-01",
+              "written_by_me": true
+            }
+          ]
+        }
+      },
+      {
+        "data": {
+          "id": 1
+        }
+      }
+    ]
+  },
+  "reminder.create": {
+    "params": {
+      "contactId": "1",
+      "frequencyType": "1",
+      "initialDate": "2024-07-08T09:00:00Z",
+      "title": "1"
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/reminders",
+      "body": {
+        "contact_id": "1",
+        "frequency_type": "1",
+        "frequency_number": 1,
+        "initial_date": "2024-07-08",
+        "title": "1"
+      }
+    },
+    "response": {
+      "data": {
+        "id": 1
+      }
+    }
+  },
+  "reminder.delete": {
+    "params": {
+      "reminderId": "1"
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/reminders/1"
+    },
+    "response": {
+      "data": {
+        "id": 1
+      }
+    }
+  },
+  "reminder.get": {
+    "params": {
+      "reminderId": "1"
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/reminders/1"
+    },
+    "response": {
+      "data": {
+        "id": 1
+      }
+    }
+  },
+  "reminder.getAll": {
+    "params": {
+      "limit": 5
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/reminders",
+      "query": {
+        "page": "1",
+        "limit": "5"
+      },
+      "items": 1
+    },
+    "response": {
+      "data": [
+        {
+          "id": 1
+        }
+      ]
+    }
+  },
+  "reminder.update": {
+    "params": {
+      "reminderId": "1",
+      "updateFields": {
+        "title": "R"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/reminders/1",
+      "body": {
+        "contact_id": 4,
+        "frequency_type": "week",
+        "frequency_number": 2,
+        "initial_date": "2024-02-03",
+        "title": "R"
+      }
+    },
+    "responses": [
+      {
+        "data": {
+          "id": 9,
+          "contact": {
+            "id": 4
+          },
+          "title": "old",
+          "post": "old",
+          "body": "old",
+          "first_name": "Old",
+          "activity_type": {
+            "id": 2
+          },
+          "attendees": {
+            "contacts": [
+              {
+                "id": 4
+              }
+            ]
+          },
+          "happened_at": "2024-01-01T00:00:00Z",
+          "summary": "s",
+          "called_at": "2024-01-01",
+          "frequency_type": "week",
+          "frequency_number": 2,
+          "initial_date": "2024-02-03T00:00:00Z",
+          "completed": false,
+          "messages": [
+            {
+              "id": 1,
+              "content": "hi",
+              "written_at": "2024-01-01",
+              "written_by_me": true
+            }
+          ]
+        }
+      },
+      {
+        "data": {
+          "id": 1
+        }
+      }
+    ]
+  },
+  "tag.create": {
+    "params": {
+      "name": "1"
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/tags",
+      "body": {
+        "name": "1"
+      }
+    },
+    "response": {
+      "data": {
+        "id": 1
+      }
+    }
+  },
+  "tag.delete": {
+    "params": {
+      "tagId": "1"
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/tags/1"
+    },
+    "response": {
+      "data": {
+        "id": 1
+      }
+    }
+  },
+  "tag.get": {
+    "params": {
+      "tagId": "1"
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/tags/1"
+    },
+    "response": {
+      "data": {
+        "id": 1
+      }
+    }
+  },
+  "tag.getAll": {
+    "params": {
+      "limit": 5
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/tags",
+      "query": {
+        "page": "1",
+        "limit": "5"
+      },
+      "items": 1
+    },
+    "response": {
+      "data": [
+        {
+          "id": 1
+        }
+      ]
+    }
+  },
+  "tag.update": {
+    "params": {
+      "tagId": "1",
+      "name": "1"
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/tags/1",
+      "body": {
+        "name": "1"
+      }
+    },
+    "response": {
+      "data": {
+        "id": 1
+      }
+    }
+  },
+  "task.create": {
+    "params": {
+      "contactId": "1",
+      "title": "1"
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/tasks",
+      "body": {
+        "contact_id": "1",
+        "title": "1"
+      }
+    },
+    "response": {
+      "data": {
+        "id": 1
+      }
+    }
+  },
+  "task.delete": {
+    "params": {
+      "taskId": "1"
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/tasks/1"
+    },
+    "response": {
+      "data": {
+        "id": 1
+      }
+    }
+  },
+  "task.get": {
+    "params": {
+      "taskId": "1"
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/tasks/1"
+    },
+    "response": {
+      "data": {
+        "id": 1
+      }
+    }
+  },
+  "task.getAll": {
+    "params": {
+      "limit": 5
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/tasks",
+      "query": {
+        "page": "1",
+        "limit": "5"
+      },
+      "items": 1
+    },
+    "response": {
+      "data": [
+        {
+          "id": 1
+        }
+      ]
+    }
+  },
+  "task.update": {
+    "params": {
+      "taskId": "1",
+      "updateFields": {
+        "completed": true
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/tasks/1",
+      "body": {
+        "contact_id": 4,
+        "title": "old",
+        "completed": true
+      }
+    },
+    "responses": [
+      {
+        "data": {
+          "id": 9,
+          "contact": {
+            "id": 4
+          },
+          "title": "old",
+          "post": "old",
+          "body": "old",
+          "first_name": "Old",
+          "activity_type": {
+            "id": 2
+          },
+          "attendees": {
+            "contacts": [
+              {
+                "id": 4
+              }
+            ]
+          },
+          "happened_at": "2024-01-01T00:00:00Z",
+          "summary": "s",
+          "called_at": "2024-01-01",
+          "frequency_type": "week",
+          "frequency_number": 2,
+          "initial_date": "2024-02-03T00:00:00Z",
+          "completed": false,
+          "messages": [
+            {
+              "id": 1,
+              "content": "hi",
+              "written_at": "2024-01-01",
+              "written_by_me": true
+            }
+          ]
+        }
+      },
+      {
+        "data": {
+          "id": 1
+        }
+      }
+    ]
+  }
+}

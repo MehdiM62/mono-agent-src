@@ -41,7 +41,7 @@ func statusOf(t *testing.T, db *sql.DB, ref string) string {
 
 func TestQueueDMCreatesPersonAndPendingRow(t *testing.T) {
 	db, ctx := testDB(t), context.Background()
-	res, err := Queue(ctx, db, Item{HilRef: "h1", Source: "instagram", Action: "dm", Account: Account{Platform: "instagram", Handle: "acme"},
+	res, err := Queue(ctx, db, Item{Profile: "default", HilRef: "h1", Source: "instagram", Action: "dm", Account: Account{Platform: "instagram", Handle: "acme"},
 		Recipient: Recipient{Name: "Ada", ProfileURL: "https://www.instagram.com/ada/"}, Text: "Hi Ada"})
 	if err != nil {
 		t.Fatal(err)
@@ -64,7 +64,7 @@ func TestQueueDMCreatesPersonAndPendingRow(t *testing.T) {
 
 func TestQueueIsIdempotent(t *testing.T) {
 	db, ctx := testDB(t), context.Background()
-	it := Item{HilRef: "h1", Source: "x", Action: "dm", Recipient: Recipient{Handle: "ada"}, Text: "a"}
+	it := Item{Profile: "default", HilRef: "h1", Source: "x", Action: "dm", Recipient: Recipient{Handle: "ada"}, Text: "a"}
 	a, _ := Queue(ctx, db, it)
 	b, err := Queue(ctx, db, it)
 	if err != nil || a.MessageID != b.MessageID {
@@ -80,7 +80,7 @@ func TestQueueIsIdempotent(t *testing.T) {
 
 func TestQueueCompanyRecipient(t *testing.T) {
 	db, ctx := testDB(t), context.Background()
-	res, err := Queue(ctx, db, Item{HilRef: "h2", Source: "linkedin", Action: "dm",
+	res, err := Queue(ctx, db, Item{Profile: "default", HilRef: "h2", Source: "linkedin", Action: "dm",
 		Recipient: Recipient{Name: "Acme Inc", ProfileURL: "https://www.linkedin.com/company/acme-inc/"}, Text: "hello"})
 	if err != nil {
 		t.Fatal(err)
@@ -94,7 +94,7 @@ func TestQueueCompanyRecipient(t *testing.T) {
 
 func TestQueuePostLinksOwnAccount(t *testing.T) {
 	db, ctx := testDB(t), context.Background()
-	res, err := Queue(ctx, db, Item{HilRef: "h3", Source: "x", Action: "post", Account: Account{Platform: "x", Handle: "acme"}, Text: "launch!"})
+	res, err := Queue(ctx, db, Item{Profile: "default", HilRef: "h3", Source: "x", Action: "post", Account: Account{Platform: "x", Handle: "acme"}, Text: "launch!"})
 	if err != nil || !res.Own {
 		t.Fatalf("%v %+v", err, res)
 	}
@@ -103,11 +103,11 @@ func TestQueuePostLinksOwnAccount(t *testing.T) {
 	if user != "acme" || kind != "person" || details != `{"own_account":true}` {
 		t.Fatalf("own = %s %s %s", user, kind, details)
 	}
-	res2, _ := Queue(ctx, db, Item{HilRef: "h4", Source: "x", Action: "post", Account: Account{Platform: "x", Handle: "acme"}, Text: "again"})
+	res2, _ := Queue(ctx, db, Item{Profile: "default", HilRef: "h4", Source: "x", Action: "post", Account: Account{Platform: "x", Handle: "acme"}, Text: "again"})
 	if res2.PersonID != res.PersonID {
 		t.Fatal("own account duplicated")
 	}
-	res3, err := Queue(ctx, db, Item{HilRef: "h5", Source: "linkedin", Action: "post", Text: "x"})
+	res3, err := Queue(ctx, db, Item{Profile: "default", HilRef: "h5", Source: "linkedin", Action: "post", Text: "x"})
 	if err != nil || res3.PersonID == "" {
 		t.Fatalf("no handle: %v", err)
 	}
@@ -116,7 +116,7 @@ func TestQueuePostLinksOwnAccount(t *testing.T) {
 func TestQueueKeepsExistingPersonFields(t *testing.T) {
 	db, ctx := testDB(t), context.Background()
 	db.Exec(`INSERT INTO people (id, platform_username, platform, full_name, category, introduction, profile_id) VALUES ('p1','ada','INSTAGRAM','Ada L','approved','draft dm','default')`)
-	res, _ := Queue(ctx, db, Item{HilRef: "h6", Source: "instagram", Action: "dm", Recipient: Recipient{Handle: "ada", Name: "Other"}, Text: "x"})
+	res, _ := Queue(ctx, db, Item{Profile: "default", HilRef: "h6", Source: "instagram", Action: "dm", Recipient: Recipient{Handle: "ada", Name: "Other"}, Text: "x"})
 	if res.PersonID != "p1" {
 		t.Fatalf("matched %s", res.PersonID)
 	}
@@ -129,7 +129,7 @@ func TestQueueKeepsExistingPersonFields(t *testing.T) {
 
 func TestStatusLifecycleAndGuard(t *testing.T) {
 	db, ctx := testDB(t), context.Background()
-	Queue(ctx, db, Item{HilRef: "h", Source: "x", Action: "dm", Recipient: Recipient{Handle: "a"}, Text: "t"})
+	Queue(ctx, db, Item{Profile: "default", HilRef: "h", Source: "x", Action: "dm", Recipient: Recipient{Handle: "a"}, Text: "t"})
 	for _, to := range []Status{Approved, Sending, Sent} {
 		if err := SetStatus(ctx, db, "h", to, Detail{}); err != nil {
 			t.Fatalf("-> %s: %v", to, err)
@@ -162,7 +162,7 @@ func TestStatusLifecycleAndGuard(t *testing.T) {
 func TestStatusRejectedFailedExpired(t *testing.T) {
 	db, ctx := testDB(t), context.Background()
 	for _, ref := range []string{"r", "f", "e"} {
-		Queue(ctx, db, Item{HilRef: ref, Source: "x", Action: "dm", Recipient: Recipient{Handle: ref}, Text: "t"})
+		Queue(ctx, db, Item{Profile: "default", HilRef: ref, Source: "x", Action: "dm", Recipient: Recipient{Handle: ref}, Text: "t"})
 	}
 	SetStatus(ctx, db, "r", Rejected, Detail{})
 	SetStatus(ctx, db, "e", Expired, Detail{})
@@ -191,7 +191,7 @@ func TestStatusRejectedFailedExpired(t *testing.T) {
 
 func TestEditedTextUpdatesBody(t *testing.T) {
 	db, ctx := testDB(t), context.Background()
-	Queue(ctx, db, Item{HilRef: "h", Source: "x", Action: "post", Text: "old", TextField: "text"})
+	Queue(ctx, db, Item{Profile: "default", HilRef: "h", Source: "x", Action: "post", Text: "old", TextField: "text"})
 	if err := SetStatus(ctx, db, "h", Approved, Detail{Edited: map[string]interface{}{"text": "new"}}); err != nil {
 		t.Fatal(err)
 	}
@@ -204,7 +204,7 @@ func queueTargeted(t *testing.T, db *sql.DB, exec, ref string) {
 	t.Helper()
 	ctx := context.Background()
 	db.Exec(`INSERT INTO hil_pending (id, execution_id, workflow_id, node_id, node_name, status) VALUES (?, ?, 'w', 'hil', 'Approve', 'approved')`, ref, exec)
-	Queue(ctx, db, Item{HilRef: ref, Source: "x", Action: "post", Text: "t", Meta: map[string]interface{}{
+	Queue(ctx, db, Item{Profile: "default", HilRef: ref, Source: "x", Action: "post", Text: "t", Meta: map[string]interface{}{
 		"workflow": map[string]interface{}{"target_nodes": []string{"pub"}}}})
 	SetStatus(ctx, db, ref, Approved, Detail{})
 }
@@ -237,7 +237,7 @@ func TestNodeHooksSendOnceAndFail(t *testing.T) {
 func TestBulkRejectForExecution(t *testing.T) {
 	db, ctx := testDB(t), context.Background()
 	db.Exec(`INSERT INTO hil_pending (id, execution_id, workflow_id, node_id, node_name, status) VALUES ('z', 'ex9', 'w', 'hil', 'n', 'rejected')`)
-	Queue(ctx, db, Item{HilRef: "z", Source: "x", Action: "post", Text: "t"})
+	Queue(ctx, db, Item{Profile: "default", HilRef: "z", Source: "x", Action: "post", Text: "t"})
 	if err := SetStatusForExecution(ctx, db, "ex9", Rejected); err != nil {
 		t.Fatal(err)
 	}
@@ -248,7 +248,7 @@ func TestBulkRejectForExecution(t *testing.T) {
 
 func TestLinkForFindsThePersonOfAQueuedItem(t *testing.T) {
 	db, ctx := testDB(t), context.Background()
-	res, err := Queue(ctx, db, Item{HilRef: "h9", Source: "instagram", Action: "dm", Account: Account{Platform: "instagram", Handle: "acme"},
+	res, err := Queue(ctx, db, Item{Profile: "default", HilRef: "h9", Source: "instagram", Action: "dm", Account: Account{Platform: "instagram", Handle: "acme"},
 		Recipient: Recipient{Name: "Ada", ProfileURL: "https://www.instagram.com/ada/"}, Text: "Hi"})
 	if err != nil {
 		t.Fatal(err)

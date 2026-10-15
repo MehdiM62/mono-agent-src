@@ -1,0 +1,116 @@
+{
+  "subscriber.create": {
+    "params": {
+      "email": "a@x.io",
+      "additionalFields": {
+        "status": "active",
+        "customFieldsUi": {
+          "customFieldsValues": [
+            {
+              "fieldId": "city",
+              "value": "Oslo"
+            }
+          ]
+        }
+      }
+    },
+    "credential": {
+      "api_key": "k"
+    },
+    "response": {
+      "data": {
+        "id": "1"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/subscribers",
+      "headers": {
+        "Authorization": "Bearer k"
+      },
+      "body": {
+        "email": "a@x.io",
+        "status": "active",
+        "fields": {
+          "city": "Oslo"
+        }
+      },
+      "items": 1
+    }
+  },
+  "subscriber.get": {
+    "params": {
+      "subscriberId": "1"
+    },
+    "credential": {
+      "api_key": "k"
+    },
+    "response": {
+      "data": {
+        "id": "1"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/subscribers/1",
+      "items": 1
+    }
+  },
+  "subscriber.getAll": {
+    "params": {
+      "limit": 5,
+      "filters": {
+        "status": "active"
+      }
+    },
+    "credential": {
+      "api_key": "k"
+    },
+    "response": {
+      "data": [
+        {
+          "id": "1"
+        }
+      ],
+      "meta": {
+        "next_cursor": null
+      },
+      "links": {
+        "next": null
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/subscribers",
+      "query": {
+        "filter[status]": "active",
+        "limit": "5"
+      },
+      "items": 1
+    }
+  },
+  "subscriber.update": {
+    "params": {
+      "subscriberId": "1",
+      "updateFields": {
+        "name": "Ada",
+        "type": "active"
+      }
+    },
+    "credential": {
+      "api_key": "k",
+      "classic_api": "true"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v2/subscribers/1",
+      "headers": {
+        "X-MailerLite-ApiKey": "k"
+      },
+      "body": {
+        "name": "Ada",
+        "type": "active"
+      }
+    }
+  }
+}

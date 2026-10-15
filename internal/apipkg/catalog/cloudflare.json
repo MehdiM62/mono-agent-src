@@ -1,0 +1,187 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "cloudflare",
+  "node_type": "app.cloudflare",
+  "title": "Cloudflare",
+  "description": "Zone client certificates (authenticated origin pulls) on Cloudflare",
+  "category": "app",
+  "docs_url": "https://developers.cloudflare.com/api/",
+  "n8n_types": [
+    "n8n-nodes-base.cloudflare"
+  ],
+  "base_url": "https://api.cloudflare.com/client/v4",
+  "headers": {
+    "Accept": "application/json"
+  },
+  "credentials": [
+    {
+      "platform": "cloudflare",
+      "name": "Cloudflare",
+      "n8n_credential": "cloudflareApi",
+      "n8n_field_map": {
+        "apiToken": "access_token"
+      },
+      "methods": [
+        "bearer"
+      ],
+      "fields": [
+        {
+          "key": "access_token",
+          "label": "API token",
+          "secret": true,
+          "required": true,
+          "help": "Cloudflare dashboard: My Profile → API Tokens"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "zoneCertificate",
+      "label": "Zone Certificate"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "zoneCertificate",
+      "operation": "upload",
+      "title": "Upload a zone certificate",
+      "method": "POST",
+      "path": "/zones/{{ p.zoneId }}/origin_tls_client_auth",
+      "body": {
+        "certificate": "{{ p.certificate }}",
+        "private_key": "{{ p.privateKey }}"
+      },
+      "output": {
+        "path": "result"
+      },
+      "fields": [
+        {
+          "key": "zoneId",
+          "label": "Zone ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "certificate",
+          "label": "Certificate (PEM)",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "key": "privateKey",
+          "label": "Private key (PEM)",
+          "type": "textarea",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "zoneCertificate",
+      "operation": "delete",
+      "title": "Delete a zone certificate",
+      "method": "DELETE",
+      "path": "/zones/{{ p.zoneId }}/origin_tls_client_auth/{{ p.certificateId }}",
+      "output": {
+        "path": "result"
+      },
+      "fields": [
+        {
+          "key": "zoneId",
+          "label": "Zone ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "certificateId",
+          "label": "Certificate ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "zoneCertificate",
+      "operation": "get",
+      "title": "Get a zone certificate",
+      "method": "GET",
+      "path": "/zones/{{ p.zoneId }}/origin_tls_client_auth/{{ p.certificateId }}",
+      "output": {
+        "path": "result"
+      },
+      "fields": [
+        {
+          "key": "zoneId",
+          "label": "Zone ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "certificateId",
+          "label": "Certificate ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "zoneCertificate",
+      "operation": "getMany",
+      "title": "Get many zone certificates",
+      "method": "GET",
+      "path": "/zones/{{ p.zoneId }}/origin_tls_client_auth",
+      "query": {
+        "status": "{{ p.filters.status }}"
+      },
+      "output": {
+        "path": "result"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "per_page",
+        "page_size": 50,
+        "results_path": "result"
+      },
+      "fields": [
+        {
+          "key": "zoneId",
+          "label": "Zone ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Fetch every page instead of stopping at Limit."
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 25,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off.",
+          "max": 50
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "status"
+          ],
+          "help": "status: active, expired, deleted or pending"
+        }
+      ]
+    }
+  ]
+}

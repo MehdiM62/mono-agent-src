@@ -11,7 +11,7 @@ const humanInLoopType = "core.human_in_loop"
 // dagHasHIL reports whether the workflow has a Human-in-Loop node, i.e.
 // whether any node's run can matter to a queued Communications message.
 func dagHasHIL(dag *DAG) bool {
-	for _, n := range dag.AllNodes() {
+	for _, n := range dag.nodes {
 		if n.Type == humanInLoopType {
 			return true
 		}

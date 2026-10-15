@@ -21,11 +21,11 @@ from a build that includes it).
 ## 1. Create a key
 
 ```bash
-monoagentcli api key create --name my-app
+monoagentcli --profile work api key create --name my-app
 # sk-ma-…            ← printed once; only its SHA-256 is stored
 ```
 
-A key belongs to the active profile (`--profile`, or `profile switch`): its
+A key belongs to the profile you name with `--profile`: its
 requests run as that profile, add only that profile's knowledge and work in that
 profile's folder (what a runtime can read on the machine is set by its
 confinement class: see `SECURITY.md`). The commands below read the key from
@@ -34,7 +34,7 @@ is unique among a profile's active keys: use this form or the one above, not
 both):
 
 ```bash
-KEY=$(monoagentcli api key create --name my-app) && export KEY
+KEY=$(monoagentcli --profile work api key create --name my-app) && export KEY
 ```
 
 Add `--context` to give requests made with the key excerpts of the profile's
@@ -52,7 +52,7 @@ GUI and no keyring are needed.
 ## 2. Start the server
 
 ```bash
-monoagentcli httpapi        # or: monoagentcli daemon
+monoagentcli --profile work httpapi        # or: monoagentcli --profile work daemon
 ```
 
 The API is served at `http://127.0.0.1:9322/v1` while the HTTP API listener
@@ -63,8 +63,8 @@ a second `daemon` is refused outright (one daemon per home). Check what it
 serves:
 
 ```bash
-monoagentcli api status     # listeners, key count, whether they answer
-monoagentcli api models     # every model, with its confinement class
+monoagentcli --profile work api status     # listeners, key count, whether they answer
+monoagentcli --profile work api models     # every model, with its confinement class
 ```
 
 `api models` prints the policy, a note on whose settings those are, and then
@@ -73,7 +73,7 @@ list, so yours will differ):
 
 ```
 Confinement policy for a loopback listener: any (keys created with --context: chat-only)
-From this shell's flags, environment and saved settings: a running server may be set up differently (`monoagentcli api status` shows what a running daemon applies).
+From this shell's flags, environment and saved settings: a running server may be set up differently (`monoagentcli --profile work api status` shows what a running daemon applies).
 
 MODEL                    CONFINEMENT  VALIDATED  SERVED  CONTEXT KEY  AUTO  IMAGES
 claude/default           chat-only    false      yes     yes          yes   no
@@ -175,9 +175,9 @@ one for a simple prompt, a stronger one for a hard or long one. It is off until
 you switch it on for the key's profile, and it needs that profile's Jev key:
 
 ```bash
-printf '%s' "$TYPESAFE_KEY" | monoagentcli jev key set   # or TYPESAFE_API_KEY in the server's environment
-monoagentcli jev enable api_auto    # prints what is sent to TypeSafe, then asks (--yes in a script)
-monoagentcli api models             # its last line says whether auto works
+printf '%s' "$TYPESAFE_KEY" | monoagentcli --profile work jev key set   # or TYPESAFE_API_KEY in the server's environment
+monoagentcli --profile work jev enable api_auto    # prints what is sent to TypeSafe, then asks (--yes in a script)
+monoagentcli --profile work api models             # its last line says whether auto works
 ```
 
 On a headless server, where the vault needs the file keyring and its passphrase
@@ -534,7 +534,7 @@ and, off loopback, is TLS only:
 ```bash
 export MONOAGENT_API_TLS_CERT=/etc/monoagent/fullchain.pem
 export MONOAGENT_API_TLS_KEY=/etc/monoagent/privkey.pem
-monoagentcli daemon --v1-addr 0.0.0.0:9443
+monoagentcli --profile work daemon --v1-addr 0.0.0.0:9443
 ```
 
 - Without a certificate in the environment, a self-signed one valid for
@@ -684,7 +684,7 @@ model that can use them can have a workflow run `--yes` as you. To give a model
 the API's tools and nothing else, start the server with `--api-only`:
 
 ```bash
-monoagentcli mcp --api-only --allow-mutations --allow-api-exposure
+monoagentcli --profile work mcp --api-only --allow-mutations --allow-api-exposure
 ```
 
 It serves the ten `api_*` tools and no workflow, vault, secret, person, org or

@@ -29,7 +29,7 @@ func (f *fakeInstaller) Status(context.Context) (bool, string) {
 func (f *fakeInstaller) Restart(context.Context) error { f.restartCalls++; return f.restartErr }
 
 // Install, Uninstall and Start are never called by the documents.
-func (f *fakeInstaller) Install(context.Context) (autostart.Result, error) {
+func (f *fakeInstaller) Install(context.Context, string) (autostart.Result, error) {
 	f.otherCallsMade++
 	return autostart.Result{}, nil
 }

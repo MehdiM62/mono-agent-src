@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/monoes/mono-agent/internal/apipkg"
 	"github.com/monoes/mono-agent/internal/fsconfine"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
@@ -45,6 +46,9 @@ type EmailSendNode struct{}
 func (n *EmailSendNode) Type() string { return "comm.email_send" }
 
 func (n *EmailSendNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
+	if extensionOwns("comm.email_send", config) {
+		return apipkg.ExecuteExtension(ctx, "comm.email_send", input, config)
+	}
 	smtpHost, _ := config["smtp_host"].(string)
 	if smtpHost == "" {
 		return nil, fmt.Errorf("comm.email_send: smtp_host is required")

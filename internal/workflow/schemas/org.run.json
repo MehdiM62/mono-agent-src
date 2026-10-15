@@ -6,5 +6,22 @@
     { "key": "output_key", "label": "Output Key", "type": "text", "required": false, "default": "org_result", "help": "Where the org's run report is stored on the output item once the boss role signals completion." },
     { "key": "wait", "label": "Wait For Completion", "type": "boolean", "required": false, "default": true, "help": "Off: continue as soon as the run has started." },
     { "key": "exclusive", "label": "Exclusive", "type": "boolean", "required": false, "default": false, "help": "On: fail instead of joining when the org is already running a run this workflow did not start." }
+  ],
+  "outputs": [
+    {
+      "description": "the input item's fields, passed through",
+      "key": "*",
+      "type": "object"
+    },
+    {
+      "description": "the org's run report (or {org, started, status} when not waiting)",
+      "key": "<output_key>",
+      "type": "object"
+    },
+    {
+      "description": "what closed the run",
+      "key": "_org_closed_by",
+      "type": "string"
+    }
   ]
 }

@@ -42,9 +42,9 @@ func TestNewRequiresItsDependencies(t *testing.T) {
 // A profile's folders are named by a hash of its id: the id is an arbitrary
 // string and must never steer a path.
 func TestProfileFolderIsStableDistinctAndSafe(t *testing.T) {
-	if profileFolder("alice") != profileFolder("alice") || profileFolder("alice") == profileFolder("bob") {
-		t.Errorf("a profile must always get the same folder and two profiles different ones: %q %q %q",
-			profileFolder("alice"), profileFolder("alice"), profileFolder("bob"))
+	alice, again, bob := profileFolder("alice"), profileFolder(strings.Clone("alice")), profileFolder("bob")
+	if alice != again || alice == bob {
+		t.Errorf("a profile must always get the same folder and two profiles different ones: %q %q %q", alice, again, bob)
 	}
 	shape := regexp.MustCompile(`^p-[0-9a-f]{16}$`)
 	for _, id := range []string{"alice", "", "..", ".", "../../etc", "a/b", `a\b`, "with space", "ünï", strings.Repeat("x", 500)} {

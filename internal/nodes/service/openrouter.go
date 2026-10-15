@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 
+	"github.com/monoes/mono-agent/internal/apipkg"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -17,6 +18,9 @@ type OpenRouterNode struct{}
 
 func (n *OpenRouterNode) Type() string { return "service.openrouter" }
 
-func (n *OpenRouterNode) Execute(_ context.Context, _ workflow.NodeInput, _ map[string]interface{}) ([]workflow.NodeOutput, error) {
+func (n *OpenRouterNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
+	if extensionOwns("service.openrouter", config) {
+		return apipkg.ExecuteExtension(ctx, "service.openrouter", input, config)
+	}
 	return nil, workflow.DeprecatedNodeError(n.Type())
 }

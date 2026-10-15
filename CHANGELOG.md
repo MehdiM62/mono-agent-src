@@ -7,6 +7,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Coder chats can use your browser.** `monoagentcli browser …` drives the browsers that have the MonoAgent extension attached: tabs, open/navigate/reload, click/type/press/wait, `screenshot` (viewport, full page, element; any width, light or dark), `console` and `network` (errors and failed requests, secrets in URLs masked), `a11y`, and `pick` (asks you to click the element you mean). `browser styles <sel>` writes a bundle a coder can rebuild an element from (computed styles, matched rules, CSS variables, fonts, hover/focus states, sanitized HTML, a screenshot), `browser tokens` extracts a site's design tokens, `browser source <sel>` maps an element to its React/Vue/Svelte source file, and `browser diff` / `browser sweep` compare screenshots and shoot several widths in light and dark. Coder chats and their workers are told how to use it (`monoagentcli ref browser`), and coder turns now take attachments (`chat --attach`, and paste or drop images in the coder bubble); tool cards show the screenshots a tool names.
+- **Agents stay on your dev pages unless you allow more.** An agent (coder chat, org role, coding agent) may only open localhost and dev hosts plus the sites you add with `browser allow add <origin>`; `browser eval` on a real site is refused, and every command is checked against the tab's current site in the extension itself. A form submit an agent makes on a real site is held as a Human-in-Loop item with the form's fields (secrets masked) and a screenshot; only you can approve it (`hil approve` or the Human in Loop page), the approval is bound to that exact page and form, and it allows one submit. While an agent guards a tab, the page shows a bar with a *Stop agent guard* button; an idle agent tab is released after 15 minutes. The same gate applies to `browser.jev` runs an AI starts. This is a safety layer against mistakes and instructions planted in pages, not a sandbox: a full-access agent can still reach the bridge directly.
+- **Send page work to a coder from the extension.** *Send to coder* in the highlight panel, the element picker and the right-click menu, and a Coder section in the side panel: copy an element's style into your project, fix an element on your local site, extract design tokens, report a bug (optionally reloading the page to capture its console and network), build an integration, or ask. MonoAgent builds the context from the page itself and queues the chat; it starts only when you press *Start* on the queued bubble in the desktop app. The side panel then mirrors the chat and takes follow-ups. Map a site to a project folder with `coder projects map <origin> <dir>`. After the extension fills a form it asks you to press Submit yourself. Extension 1.8.0: reload it after updating.
+- **n8n parity and import.** `workflow import --from n8n` (and `workflow convert`) brings in n8n workflows with an unmapped-node report that runs `workflow validate`. About 458 n8n node types and 3,650 operations are covered, mostly through declarative API packages (`apipkg.v1`, also generated from OpenAPI with `integration import-openapi`). All 115 n8n trigger types import, and 63 of 71 vendor webhooks register themselves when a workflow is activated. A short list of n8n-internal or discontinued nodes stays unsupported, each with a reason.
+- **Engine building blocks:**
+  - n8n-style loops through `core.split_in_batches`
+  - `core.wait` that survives restarts (long waits pause and free their slot)
+  - sub-workflows (`core.execute_workflow`)
+  - error workflows (`trigger.error`)
+  - a REJECTED status and output for human-in-the-loop rejections
+  - version history with pinned runs
+  - opt-in parallel branches, schedule overlap policy, node timeouts and per-item retries
+  - queue, database, SSE and polling triggers in the daemon
+  - send-and-wait replies, form triggers and pages, and webhook response modes
+  - `workflow retry <execution-id>`
+- **Agent surfaces:**
+  - MCP authoring tools (connect, disconnect, update, delete, save, search, templates, node run)
+  - saved workflows served as `wf_` MCP tools
+  - an `mcp.call` node
+  - `agent.ask` with JSON output schemas, `runtime: auto` and per-item concurrency
+  - conversation memory, guardrails, AI sub-nodes (model, memory, output parser, tools) and retrieval chains
+  - `workflow generate "<description>"`
+  - schema-aware `workflow validate` with error classes and fix hints
+  - run memory in the knowledge graph
+  - Jev selector repairs that stick
+  - an agent eval suite (`scripts/evals`)
+- **Integrations:**
+  - full `http.request` options, including saved-connection auth, pagination and cURL import, plus `http.graphql`
+  - one Google and one Microsoft account for all their nodes
+  - Google Calendar, Docs and Forms; Microsoft Excel, Teams and OneDrive
+  - form and lead intake nodes
+  - vector stores and embeddings
+  - recorder capture of a site's API calls into HTTP presets, and recorded replay with an AI fallback
+- **Desktop app and CLI:**
+  - a first-run checklist, and extension pairing from the app
+  - editor support for loop back-edges, AI ports and a visual form builder
+  - clearer run errors
+  - `extension install`, and installing without sudo
+  - one shared logger with `--log-level` and a run id across processes
+  - JSON errors under `--json`
+
+### Changed
+- **`doctor` registers the MCP server with `--allow-mutations`** for Claude Code, Codex, Gemini and opencode, so connected agents can build and run workflows.
+- **Each run executes exactly once.** A run waiting for a free slot could be picked up twice; the daemon also follows activations and edits made from the app or CLI without a restart.
+- **Old operation and field names keep working** through aliases where nodes moved to n8n-style names.
+- **The database is snapshotted before pending migrations**, and `doctor` reports a database newer than the binary. `~/.monoagent` and its files are created private to your user.
+- **The task board no longer limits agents to 20 new tasks an hour.**
+- **Nothing works before you sign in to monoes.me.** Signed out, only `account` (login, logout, status), `library login|logout|status`, `help`/`--help`, `version` and `update` run; `ref`, `doctor`, `setup`, `release` and shell completion now need a sign-in too (exit 4, `login_required`). The daemon arms no trigger and runs nothing while signed out, and cancels the executions in flight when the session ends for any reason (expired, logged out, refused, never signed in). The desktop app shows only the sign-in screen, and the browser extension only a sign-in panel; captures, tasks and recordings it already holds are kept and sent once you sign in. **Update the CLI and its bridge together with the extension:** this release's extension shows itself signed out against a bridge from an older release (one that does not report the account), until you run `monoagentcli update` and restart the bridge (`extension serve`, or the daemon that runs it).
+- **`workflow validate` checks node settings against each node's schema.** Workflows with a missing required field, an unknown option or a dangling `$node[...]` reference now fail validation where they used to pass. Saving, activating and running are unchanged; scripts that check validate's exit code may start failing.
+- **`install.sh` installs to `~/.local/bin` when `/usr/local/bin` needs sudo**, and warns if an older copy elsewhere on your PATH would run instead.
+
 ### Security
 - **Go standard library and `golang.org/x/net` updated.** The pinned toolchain moves from go1.26.6 to go1.26.9 and `golang.org/x/net` from v0.59.0 to v0.60.0, which fixes 12 standard-library advisories (net/http, crypto/tls, mime/multipart, html/template, os; GO-2026-6599 through GO-2026-6617) that `govulncheck` reported against released binaries. The vulnerability scan is clean again.
 
@@ -19,7 +71,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Tasks page cards** show the source, age, `#id`, lease countdown and a Question/Result tag; cards no longer nest buttons in a button (the title is the control; the move keys work from it). A card stays where you moved it if the next board read fails, archiving from the drawer closes it only once the CLI agrees (a refusal shows in the drawer), and a hidden window stops reading, ticking and pulsing.
 
 ### Added
-- **A monoes.me sign-in is required since 2026-10-11 (UTC).** (Release R. `account status` shows the date as `enforce_from`; the production signing key is pinned, so a production sign-in is verified on the machine.) Sign in with `monoagentcli account login` (browser) or `account login --email you@example.com` (a code by email, for a machine with no browser); `account status [--json]` and `account logout` complete the set, and `library login|logout|status` are aliases of the same machine session, kept in `~/.monoagent/account/`. A gated command with no valid sign-in exits 4 with `login_required` and does nothing else. `version`, `help`, `completion`, `ref`, `update`, `doctor`, `setup`, `release`, the `account` commands and `library login|logout|status` always work. The serving commands (`daemon`, `httpapi`, `mcp`, `extension serve`) start even when locked and refuse their work.
+- **A monoes.me sign-in is required since 2026-10-11 (UTC).** (Release R. `account status` shows the date as `enforce_from`; the production signing key is pinned, so a production sign-in is verified on the machine.) Sign in with `monoagentcli account login` (browser) or `account login --email you@example.com` (a code by email, for a machine with no browser); `account status [--json]` and `account logout` complete the set, and `library login|logout|status` are aliases of the same machine session, kept in `~/.monoagent/account/`. A gated command with no valid sign-in exits 4 with `login_required` and does nothing else. Only `version`, `help`, `update`, the `account` commands and `library login|logout|status` work without a sign-in. The serving commands (`daemon`, `httpapi`, `mcp`, `extension serve`) start even when locked and refuse their work.
   - **Where it is checked:** before any command, inside every workflow execution, agent turn and browser action, and at every door of a running process: the HTTP API and `/v1` (401 `login_required`), the webhook server (503), the extension bridge (`account_locked`), MCP (a tool error) and the daemon, which stays up, starts nothing new and resumes when you sign in.
   - **Older library logins:** the first gated command exchanges a monoes.me library login left by an older release for the machine sign-in when monoes.me allows it; otherwise `account status` says to sign in.
   - **Offline:** a sign-in keeps working for 24 hours after the last contact with monoes.me. A blocked account is locked at the next refresh, within about an hour; only `invalid_grant` answered to a refresh counts as a refusal, every other failure keeps the grace.
@@ -41,6 +93,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Tasks tab:** a desktop board of the active profile's tasks (Inbox, Ready, In progress, Review, Done) with drag and keyboard moves, search, quick add, a detail drawer with history and comments, and a sidebar badge for what waits on a person. It only renders; every change runs through `monoagentcli task`. Cards slide to their new place (off under reduced motion), and a "How to capture" note and empty-column hints say how tasks arrive.
 
 ### Fixed
+- **Pending outbound sends no longer vanish.** The hourly prune deleted Human-in-Loop items that belong to no workflow run, which removed pending send approvals. Items still waiting, approved or sending are kept now; finished ones are pruned after 7 days.
 - **Extension chat: the page sent with a message is no longer shown as a second message.** The panel hid the daemon's wrapper by searching for a line the wrapper stopped ending with in v0.131.0, so after sending a message with page context the transcript showed the whole wrapper (and the page text) as a second bubble, live and when the panel was reopened. The wrapper now ends with a fixed line, `[the person's message follows]`, which no page field can write, and the panel shows what comes after it; a golden file written by the Go tests is read by the extension tests, so the two cannot drift again. Older daemons are handled too (everything before the old marker is hidden). The "Summarize this page" button and replayed turns show only the typed or clicked text. Extension 1.7.1.
 - **Extension chat: a video page is answered from its captions.** On a YouTube video page (the pages "Save video summary" supports) the chat now reads the video's captions with the same reader, from the tab, and sends them with the channel, description and video id as untrusted page data (compact plain text, at most 24 KiB: the beginning in full, then cues sampled evenly over the rest of the video). The chip says "(with captions)" when they were sent; with no captions, or when they do not arrive in time, the page text is sent and the model is told the transcript is unavailable. Nothing is read or sent when "Not sharing this page" is on.
 - **Extension chat: the model keeps the page's identity in its address.** The address is no longer cut to scheme, host and path (a YouTube video reached the model as `https://www.youtube.com/watch`). The query is kept, and the value of a parameter is replaced by `REDACTED` when its name looks sensitive (token, code, key, secret, session, signature, state, ...) or the value is longer than 16 characters under a name that is not one of a short list of identifiers (`v`, `list`, `q`, `page`, `id`, ...); credentials in the address are dropped, and a fragment is kept only as a plain anchor. Parameters split on `&` and `;`, long opaque values are redacted even under allowlisted names, opaque path segments and token-like fragments are redacted, and the address is redacted before it is cut. Lines of page text inside the fence now start with `| `. The same rules run in the extension and again in MonoAgent (shared test vectors). A secret in a parameter with an innocent name and a short value can still reach the model; turn page sharing off for such a page. See SECURITY.md.

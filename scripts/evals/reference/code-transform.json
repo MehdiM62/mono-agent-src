@@ -1,0 +1,60 @@
+{
+  "name": "eval-code-transform",
+  "description": "",
+  "version": 1,
+  "is_active": false,
+  "nodes": [
+    {
+      "id": "trigger",
+      "type": "trigger.manual",
+      "name": "trigger",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "config": {}
+    },
+    {
+      "id": "fetch",
+      "type": "http.request",
+      "name": "fetch",
+      "position": {
+        "x": 260,
+        "y": 0
+      },
+      "config": {
+        "url": "{{FIXTURE_URL}}/products.json",
+        "method": "GET"
+      }
+    },
+    {
+      "id": "code",
+      "type": "core.code",
+      "name": "code",
+      "position": {
+        "x": 520,
+        "y": 0
+      },
+      "config": {
+        "language": "javascript",
+        "code": "$json.body.items.map(function (p) { return {name: p.name.toUpperCase(), value: p.price * p.qty}; })"
+      }
+    }
+  ],
+  "connections": [
+    {
+      "id": "c1",
+      "source": "trigger",
+      "source_handle": "main",
+      "target": "fetch",
+      "target_handle": "main"
+    },
+    {
+      "id": "c2",
+      "source": "fetch",
+      "source_handle": "main",
+      "target": "code",
+      "target_handle": "main"
+    }
+  ]
+}

@@ -9,6 +9,7 @@ import { api, notify } from '../services/api.js'
 import { usePageVisibleRef, useVisibleCatchUp } from '../lib/usePageVisible.js'
 import { CommsLinks } from '../components/CommsLinks.jsx'
 import { emitCommsChanged } from '../lib/commsStatus.js'
+import { BrowserSubmitDetails, isBrowserSubmit } from '../components/hil/BrowserSubmitDetails.jsx'
 
 const GetHILItems          = WailsApp.GetHILItems          ?? (async () => [])
 const ApproveHIL           = WailsApp.ApproveHIL           ?? (async () => {})
@@ -230,7 +231,7 @@ function HILCard({ item, onApprove, onReject, onProfile, onNavigate }) {
           padding: '2px 8px', borderRadius: 10,
           background: 'rgba(0,180,216,0.12)', color: '#00b4d8',
           fontSize: 11, fontFamily: 'var(--font-mono)', flexShrink: 0,
-        }}>workflow</span>
+        }}>{isBrowserSubmit(item) ? 'browser' : 'workflow'}</span>
         {suggestionOf(item) && (
           <SuggestionChip
             choice={suggestionOf(item).choice}
@@ -248,7 +249,7 @@ function HILCard({ item, onApprove, onReject, onProfile, onNavigate }) {
       )}
       {expanded && (
         <div style={{ padding: 16 }}>
-          {readonlyKeys.length > 0 && (
+          {isBrowserSubmit(item) ? <BrowserSubmitDetails item={item} /> : readonlyKeys.length > 0 && (
             <div style={{ marginBottom: 20 }}>
               <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10, paddingBottom: 6, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
                 Context Info

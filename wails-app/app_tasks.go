@@ -63,7 +63,7 @@ func (a *App) taskCLI(stdin string, args ...string) string {
 	}
 	ctx, cancel := context.WithTimeout(parent, taskCLITimeout)
 	defer cancel()
-	full := append([]string{"--profile", a.getActiveProfileID(), "--json", "task"}, args...)
+	full := scopedCLIArgs(a.getActiveProfileID(), append([]string{"task"}, args...)...)
 	cmd := exec.CommandContext(ctx, cliBin, full...)
 	suppressConsole(cmd)
 	if stdin != "" {
@@ -85,6 +85,9 @@ func (a *App) taskCLI(stdin string, args ...string) string {
 // the CLI takes it, would leave that tab with a refusal in place of its
 // board. Every action below runs the CLI, whose guard refuses it there.
 func (a *App) TaskBoard(doneLimit int) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	if a.db == nil {
 		return aiError(errors.New("the database is not open yet"))
 	}
@@ -115,6 +118,9 @@ func boardLimit(n int) int {
 
 // TaskShow is `task show ID`: one task with its history.
 func (a *App) TaskShow(id int64) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	if id <= 0 {
 		return taskRefusal("a task id is a positive number")
 	}
@@ -135,6 +141,9 @@ type taskAddSpec struct {
 // so a title that starts with a dash stays a title, or text on standard
 // input with --stdin.
 func (a *App) TaskAdd(spec string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	var s taskAddSpec
 	if err := json.Unmarshal([]byte(spec), &s); err != nil {
 		return taskRefusal("the task is not valid JSON: " + err.Error())
@@ -173,6 +182,9 @@ type taskEditSpec struct {
 // TaskEdit is `task edit ID --title=T --notes=N`, in the = form so a value
 // that starts with a dash stays a value.
 func (a *App) TaskEdit(id int64, spec string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	if id <= 0 {
 		return taskRefusal("a task id is a positive number")
 	}
@@ -200,6 +212,9 @@ func (a *App) TaskEdit(id int64, spec string) string {
 // (the column's default), "top", "bottom", "before" or "after", the last two
 // with ref, another card of that column.
 func (a *App) TaskMove(id int64, status, where string, ref int64) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	if id <= 0 {
 		return taskRefusal("a task id is a positive number")
 	}
@@ -241,6 +256,9 @@ func taskIDArgs(ids []int64) ([]string, bool) {
 // TaskApprove is `task approve ID…`: Inbox to the bottom of Ready, or the
 // top with top.
 func (a *App) TaskApprove(ids []int64, top bool) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	args, ok := taskIDArgs(ids)
 	if !ok {
 		return taskRefusal("give the ids of the tasks to approve")
@@ -254,6 +272,9 @@ func (a *App) TaskApprove(ids []int64, top bool) string {
 
 // TaskArchive is `task archive ID…`.
 func (a *App) TaskArchive(ids []int64) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	args, ok := taskIDArgs(ids)
 	if !ok {
 		return taskRefusal("give the ids of the tasks to archive")
@@ -263,6 +284,9 @@ func (a *App) TaskArchive(ids []int64) string {
 
 // TaskUnarchive is `task unarchive ID…`: each back to the column it left.
 func (a *App) TaskUnarchive(ids []int64) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	args, ok := taskIDArgs(ids)
 	if !ok {
 		return taskRefusal("give the ids of the tasks to restore")
@@ -272,6 +296,9 @@ func (a *App) TaskUnarchive(ids []int64) string {
 
 // TaskComment is the operator's `task comment ID -- TEXT`.
 func (a *App) TaskComment(id int64, text string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	if id <= 0 {
 		return taskRefusal("a task id is a positive number")
 	}
@@ -290,6 +317,9 @@ func (a *App) TaskComment(id int64, text string) string {
 // agent that gave no name); an empty value is as good as none, as the markers
 // are read.
 func (a *App) TaskAgentShell() string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	if m := orgsign.AgentContextMarker(); m != "" {
 		return m
 	}

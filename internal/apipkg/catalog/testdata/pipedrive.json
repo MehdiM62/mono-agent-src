@@ -1,0 +1,917 @@
+{
+  "deal.get": {
+    "params": {
+      "dealId": "5"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/deals/5",
+      "items": 1
+    },
+    "response": {
+      "data": {
+        "id": 5
+      }
+    }
+  },
+  "deal.delete": {
+    "params": {
+      "dealId": "5"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v2/deals/5",
+      "items": 1
+    }
+  },
+  "activity.get": {
+    "params": {
+      "activityId": "5"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/activities/5",
+      "items": 1
+    },
+    "response": {
+      "data": {
+        "id": 5
+      }
+    }
+  },
+  "activity.delete": {
+    "params": {
+      "activityId": "5"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v2/activities/5",
+      "items": 1
+    }
+  },
+  "file.get": {
+    "params": {
+      "fileId": "5"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/files/5",
+      "items": 1
+    },
+    "response": {
+      "data": {
+        "id": 5
+      }
+    }
+  },
+  "file.delete": {
+    "params": {
+      "fileId": "5"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/v1/files/5",
+      "items": 1
+    }
+  },
+  "lead.get": {
+    "params": {
+      "leadId": "5"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/leads/5",
+      "items": 1
+    },
+    "response": {
+      "data": {
+        "id": 5
+      }
+    }
+  },
+  "lead.delete": {
+    "params": {
+      "leadId": "5"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/v1/leads/5",
+      "items": 1
+    }
+  },
+  "note.get": {
+    "params": {
+      "noteId": "5"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/notes/5",
+      "items": 1
+    },
+    "response": {
+      "data": {
+        "id": 5
+      }
+    }
+  },
+  "note.delete": {
+    "params": {
+      "noteId": "5"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/v1/notes/5",
+      "items": 1
+    }
+  },
+  "organization.get": {
+    "params": {
+      "organizationId": "5"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/organizations/5",
+      "items": 1
+    },
+    "response": {
+      "data": {
+        "id": 5
+      }
+    }
+  },
+  "organization.delete": {
+    "params": {
+      "organizationId": "5"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v2/organizations/5",
+      "items": 1
+    }
+  },
+  "person.get": {
+    "params": {
+      "personId": "5"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/persons/5",
+      "items": 1
+    },
+    "response": {
+      "data": {
+        "id": 5
+      }
+    }
+  },
+  "person.delete": {
+    "params": {
+      "personId": "5"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v2/persons/5",
+      "items": 1
+    }
+  },
+  "product.get": {
+    "params": {
+      "productId": "5"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/products/5",
+      "items": 1
+    },
+    "response": {
+      "data": {
+        "id": 5
+      }
+    }
+  },
+  "product.delete": {
+    "params": {
+      "productId": "5"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v2/products/5",
+      "items": 1
+    }
+  },
+  "deal.search": {
+    "params": {
+      "term": "acme",
+      "limit": 5,
+      "additionalFields": {
+        "fields": [
+          "name"
+        ]
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/deals/search",
+      "query": {
+        "term": "acme",
+        "exact_match": "false",
+        "fields": "name",
+        "start": "0",
+        "limit": "5"
+      },
+      "items": 1
+    },
+    "response": {
+      "data": {
+        "items": [
+          {
+            "result_score": 0.9,
+            "item": {
+              "id": 1
+            }
+          }
+        ]
+      }
+    }
+  },
+  "organization.search": {
+    "params": {
+      "term": "acme",
+      "limit": 5,
+      "additionalFields": {
+        "fields": [
+          "name"
+        ]
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/organizations/search",
+      "query": {
+        "term": "acme",
+        "exact_match": "false",
+        "fields": "name",
+        "start": "0",
+        "limit": "5"
+      },
+      "items": 1
+    },
+    "response": {
+      "data": {
+        "items": [
+          {
+            "result_score": 0.9,
+            "item": {
+              "id": 1
+            }
+          }
+        ]
+      }
+    }
+  },
+  "person.search": {
+    "params": {
+      "term": "acme",
+      "limit": 5,
+      "additionalFields": {
+        "fields": [
+          "name"
+        ]
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/persons/search",
+      "query": {
+        "term": "acme",
+        "exact_match": "false",
+        "fields": "name",
+        "start": "0",
+        "limit": "5"
+      },
+      "items": 1
+    },
+    "response": {
+      "data": {
+        "items": [
+          {
+            "result_score": 0.9,
+            "item": {
+              "id": 1
+            }
+          }
+        ]
+      }
+    }
+  },
+  "product.search": {
+    "params": {
+      "term": "acme",
+      "limit": 5,
+      "additionalFields": {
+        "fields": [
+          "name"
+        ]
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/products/search",
+      "query": {
+        "term": "acme",
+        "exact_match": "false",
+        "fields": "name",
+        "start": "0",
+        "limit": "5"
+      },
+      "items": 1
+    },
+    "response": {
+      "data": {
+        "items": [
+          {
+            "result_score": 0.9,
+            "item": {
+              "id": 1
+            }
+          }
+        ]
+      }
+    }
+  },
+  "deal.getAll": {
+    "params": {
+      "limit": 2
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/deals",
+      "query": {
+        "limit": "2"
+      },
+      "items": 2
+    },
+    "response": {
+      "data": [
+        {
+          "id": 1
+        },
+        {
+          "id": 2
+        }
+      ],
+      "additional_data": {}
+    }
+  },
+  "organization.getAll": {
+    "params": {
+      "limit": 2
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/organizations",
+      "query": {
+        "limit": "2"
+      },
+      "items": 2
+    },
+    "response": {
+      "data": [
+        {
+          "id": 1
+        },
+        {
+          "id": 2
+        }
+      ],
+      "additional_data": {}
+    }
+  },
+  "person.getAll": {
+    "params": {
+      "limit": 2
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/persons",
+      "query": {
+        "limit": "2"
+      },
+      "items": 2
+    },
+    "response": {
+      "data": [
+        {
+          "id": 1
+        },
+        {
+          "id": 2
+        }
+      ],
+      "additional_data": {}
+    }
+  },
+  "product.getAll": {
+    "params": {
+      "limit": 2
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/products",
+      "query": {
+        "limit": "2"
+      },
+      "items": 2
+    },
+    "response": {
+      "data": [
+        {
+          "id": 1
+        },
+        {
+          "id": 2
+        }
+      ],
+      "additional_data": {}
+    }
+  },
+  "deal.create": {
+    "params": {
+      "title": "Big",
+      "associateWith": "person",
+      "person_id": 7,
+      "additionalFields": {
+        "user_id": 3,
+        "value": "100",
+        "expected_close_date": "2024-05-01T10:00:00Z",
+        "visible_to": "3",
+        "customFields": {
+          "property": [
+            {
+              "name": "abc123",
+              "value": "x"
+            }
+          ]
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/deals",
+      "body": {
+        "title": "Big",
+        "person_id": 7,
+        "owner_id": 3,
+        "value": 100,
+        "expected_close_date": "2024-05-01",
+        "visible_to": 3,
+        "custom_fields": {
+          "abc123": "x"
+        }
+      }
+    }
+  },
+  "deal.duplicate": {
+    "params": {
+      "dealId": "5"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/deals/5/duplicate"
+    }
+  },
+  "deal.update": {
+    "params": {
+      "dealId": "5",
+      "updateFields": {
+        "status": "won",
+        "probability": 50
+      }
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/api/v2/deals/5",
+      "body": {
+        "status": "won",
+        "probability": 50
+      }
+    }
+  },
+  "activity.create": {
+    "params": {
+      "subject": "Call",
+      "type": "call",
+      "additionalFields": {
+        "person_id": 9,
+        "due_date": "2024-01-02T00:00:00Z"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/activities",
+      "body": {
+        "subject": "Call",
+        "done": false,
+        "type": "call",
+        "participants": [
+          {
+            "person_id": 9,
+            "primary": true
+          }
+        ],
+        "due_date": "2024-01-02"
+      }
+    }
+  },
+  "activity.getAll": {
+    "params": {
+      "limit": 10,
+      "filters": {
+        "done": false,
+        "type": [
+          "call",
+          "email"
+        ]
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/activities",
+      "query": {
+        "limit": "10",
+        "done": "0",
+        "type": "call,email"
+      }
+    },
+    "response": {
+      "data": []
+    }
+  },
+  "activity.update": {
+    "params": {
+      "activityId": "5",
+      "updateFields": {
+        "done": true,
+        "subject": "S"
+      }
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/api/v2/activities/5",
+      "body": {
+        "done": true,
+        "subject": "S"
+      }
+    }
+  },
+  "dealProduct.add": {
+    "params": {
+      "dealId": "5",
+      "productId": "2",
+      "item_price": "9.5",
+      "quantity": 2,
+      "additionalFields": {
+        "discount": 10
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/deals/5/products",
+      "body": {
+        "product_id": 2,
+        "item_price": 9.5,
+        "quantity": 2,
+        "discount": 10
+      }
+    }
+  },
+  "dealProduct.getAll": {
+    "params": {
+      "dealId": "5",
+      "returnAll": true
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/deals/5/products",
+      "query": {
+        "limit": "500"
+      },
+      "items": 1
+    },
+    "response": {
+      "data": [
+        {
+          "id": 1
+        }
+      ]
+    }
+  },
+  "dealProduct.remove": {
+    "params": {
+      "dealId": "5",
+      "productAttachmentId": "8"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v2/deals/5/products/8"
+    }
+  },
+  "dealProduct.update": {
+    "params": {
+      "dealId": "5",
+      "productAttachmentId": "8",
+      "updateFields": {
+        "quantity": 3
+      }
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/api/v2/deals/5/products/8",
+      "body": {
+        "quantity": 3
+      }
+    }
+  },
+  "file.create": {
+    "params": {
+      "binaryPropertyName": "data",
+      "additionalFields": {
+        "deal_id": 5
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/files",
+      "body": {
+        "deal_id": "5",
+        "file": "file:data:hi"
+      }
+    },
+    "input": {
+      "data": "aGk="
+    }
+  },
+  "file.download": {
+    "params": {
+      "fileId": "5"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/files/5/download"
+    }
+  },
+  "file.update": {
+    "params": {
+      "fileId": "5",
+      "updateFields": {
+        "name": "n"
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/v1/files/5",
+      "body": {
+        "name": "n"
+      }
+    }
+  },
+  "lead.create": {
+    "params": {
+      "title": "L",
+      "organization_id": 4,
+      "additionalFields": {
+        "value": {
+          "valueProperties": {
+            "amount": 10,
+            "currency": "EUR"
+          }
+        },
+        "was_seen": true
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/leads",
+      "body": {
+        "title": "L",
+        "organization_id": 4,
+        "value": {
+          "amount": 10,
+          "currency": "EUR"
+        },
+        "was_seen": true
+      }
+    }
+  },
+  "lead.getAll": {
+    "params": {
+      "limit": 3,
+      "filters": {
+        "archived_status": "archived"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/leads",
+      "query": {
+        "archived_status": "archived",
+        "start": "0",
+        "limit": "3"
+      }
+    },
+    "response": {
+      "data": []
+    }
+  },
+  "lead.update": {
+    "params": {
+      "leadId": "abc",
+      "updateFields": {
+        "title": "T2"
+      }
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/v1/leads/abc",
+      "body": {
+        "title": "T2"
+      }
+    }
+  },
+  "note.create": {
+    "params": {
+      "content": "hello",
+      "additionalFields": {
+        "deal_id": 5,
+        "pinned_to_deal_flag": true
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/notes",
+      "body": {
+        "content": "hello",
+        "deal_id": 5,
+        "pinned_to_deal_flag": 1
+      }
+    }
+  },
+  "note.getAll": {
+    "params": {
+      "limit": 3,
+      "filters": {
+        "pinned_to_person_flag": false,
+        "sort": "id"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/notes",
+      "query": {
+        "pinned_to_person_flag": "0",
+        "sort": "id",
+        "start": "0",
+        "limit": "3"
+      }
+    },
+    "response": {
+      "data": []
+    }
+  },
+  "note.update": {
+    "params": {
+      "noteId": "5",
+      "updateFields": {
+        "content": "c"
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/v1/notes/5",
+      "body": {
+        "content": "c"
+      }
+    }
+  },
+  "organization.create": {
+    "params": {
+      "name": "Acme",
+      "additionalFields": {
+        "owner_id": 2
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/organizations",
+      "body": {
+        "name": "Acme",
+        "owner_id": 2
+      }
+    }
+  },
+  "organization.update": {
+    "params": {
+      "organizationId": "5",
+      "updateFields": {
+        "name": "A2"
+      }
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/api/v2/organizations/5",
+      "body": {
+        "name": "A2"
+      }
+    }
+  },
+  "person.create": {
+    "params": {
+      "name": "Ada",
+      "additionalFields": {
+        "emails": {
+          "emailProperties": [
+            {
+              "value": "a@b.c",
+              "primary": true,
+              "label": "work"
+            }
+          ]
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/persons",
+      "body": {
+        "name": "Ada",
+        "emails": [
+          {
+            "value": "a@b.c",
+            "primary": true,
+            "label": "work"
+          }
+        ]
+      }
+    }
+  },
+  "person.update": {
+    "params": {
+      "personId": "5",
+      "updateFields": {
+        "name": "Bo"
+      }
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/api/v2/persons/5",
+      "body": {
+        "name": "Bo"
+      }
+    }
+  },
+  "product.create": {
+    "params": {
+      "name": "P",
+      "additionalFields": {
+        "prices": {
+          "pricesValues": [
+            {
+              "price": 5,
+              "currency": "USD",
+              "cost": 1
+            }
+          ]
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/products",
+      "body": {
+        "name": "P",
+        "prices": [
+          {
+            "price": 5,
+            "currency": "USD",
+            "cost": 1
+          }
+        ]
+      }
+    }
+  },
+  "product.update": {
+    "params": {
+      "productId": "5",
+      "updateFields": {
+        "unit": "kg"
+      }
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/api/v2/products/5",
+      "body": {
+        "unit": "kg"
+      }
+    }
+  }
+}

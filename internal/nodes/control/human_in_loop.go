@@ -14,6 +14,7 @@ import (
 	"github.com/monoes/mono-agent/internal/commsync"
 	"github.com/monoes/mono-agent/internal/hilsuggest"
 	"github.com/monoes/mono-agent/internal/jev/jevconf"
+	"github.com/monoes/mono-agent/internal/nodes/nodeprofile"
 	"github.com/monoes/mono-agent/internal/vault"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
@@ -28,6 +29,10 @@ import (
 //	"timeout_minutes"  (float64, optional): max wait time, default 0 = unlimited
 //	"auto_decide"      (object, optional): {policy, approve_above, reject_above} —
 //	                   TypeSafe Jev settles confident items (surface "hil" only)
+//
+// Outputs: "main" carries approved items. Rejected items go to the opt-in
+// "rejected" output when an edge is wired from it; otherwise a rejection
+// fails the node with workflow.ErrRejected and the run ends REJECTED.
 type HumanInLoopNode struct{}
 
 func (n *HumanInLoopNode) Type() string { return "core.human_in_loop" }
@@ -38,9 +43,9 @@ func (n *HumanInLoopNode) Execute(ctx context.Context, input workflow.NodeInput,
 		return nil, fmt.Errorf("human_in_loop: database not available in context")
 	}
 
-	profileID := vault.ProfileIDFromContext(ctx)
-	if profileID == "" {
-		profileID = "default"
+	profileID, err := nodeprofile.Require(ctx, "core.human_in_loop", config)
+	if err != nil {
+		return nil, err
 	}
 
 	// Optional timeout: pending items older than this are auto-rejected.
@@ -58,8 +63,11 @@ func (n *HumanInLoopNode) Execute(ctx context.Context, input workflow.NodeInput,
 	// and pause the execution (ErrNodePaused) — the engine persists resume state
 	// and suspends without holding a goroutine. On resume, this node re-runs and
 	// evaluates the (now possibly resolved) rows. Idempotent by (execution,
-	// node): duplicate rows are never created.
-	existing, err := loadHILRows(ctx, db, input.ExecutionID, input.NodeID)
+	// node): duplicate rows are never created. Rows an earlier run of the node
+	// already used (a loop's earlier iterations) are skipped, so each run
+	// asks about its own items.
+	consumed := hilConsumed(ctx)
+	existing, err := loadHILRows(ctx, db, input.ExecutionID, input.NodeID, consumed)
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +82,7 @@ func (n *HumanInLoopNode) Execute(ctx context.Context, input workflow.NodeInput,
 		}
 		// auto_decide settled some rows: evaluate them exactly as if a
 		// person had (all approved ⇒ no pause; any rejected ⇒ fail).
-		if existing, err = loadHILRows(ctx, db, input.ExecutionID, input.NodeID); err != nil {
+		if existing, err = loadHILRows(ctx, db, input.ExecutionID, input.NodeID, consumed); err != nil {
 			return nil, err
 		}
 	}
@@ -91,7 +99,7 @@ func (n *HumanInLoopNode) Execute(ctx context.Context, input workflow.NodeInput,
 			`UPDATE hil_pending SET status='rejected', updated_at=CURRENT_TIMESTAMP
 			 WHERE execution_id=? AND node_id=? AND status='pending' AND created_at < datetime('now', ?)`,
 			input.ExecutionID, input.NodeID, fmt.Sprintf("-%d minutes", int(timeoutMinutes)))
-		if existing, err = loadHILRows(ctx, db, input.ExecutionID, input.NodeID); err != nil {
+		if existing, err = loadHILRows(ctx, db, input.ExecutionID, input.NodeID, consumed); err != nil {
 			return nil, err
 		}
 	}
@@ -105,26 +113,24 @@ func (n *HumanInLoopNode) Execute(ctx context.Context, input workflow.NodeInput,
 			anyRejected = true
 		}
 	}
-	if anyRejected {
-		return nil, fmt.Errorf("human_in_loop: item rejected by human reviewer")
+	// A rejection fails the node at once unless a `rejected` edge is wired;
+	// then the node waits for every decision and routes rejected items there.
+	if anyRejected && !rejectedEdgeWired(ctx, db, input) {
+		return nil, fmt.Errorf("human_in_loop: %w", workflow.ErrRejected)
 	}
 	if anyPending {
 		return nil, workflow.ErrNodePaused // still awaiting approval
 	}
 
-	// All approved — emit each input item with its row's edited_data applied.
-	// Rows are ordered by insertion, matching the input item order.
-	var approvedItems []workflow.Item
-	for i, item := range input.Items {
-		out := copyMap(item.JSON)
-		if i < len(existing) {
-			for k, v := range existing[i].edited {
-				out[k] = v
-			}
-		}
-		approvedItems = append(approvedItems, workflow.NewItem(out))
+	// Approved items go to main with their row's edited_data applied.
+	approvedItems, rejectedItems := splitDecided(input.Items, existing)
+	// Outside an execution there is no state to keep: nothing runs again.
+	_ = workflow.SetNodeState(ctx, hilState{Consumed: consumed + len(existing)})
+	outputs := []workflow.NodeOutput{{Handle: "main", Items: approvedItems}}
+	if len(rejectedItems) > 0 {
+		outputs = append(outputs, workflow.NodeOutput{Handle: RejectedHandle, Items: rejectedItems})
 	}
-	return []workflow.NodeOutput{{Handle: "main", Items: approvedItems}}, nil
+	return outputs, nil
 }
 
 type hilRow struct {
@@ -132,8 +138,24 @@ type hilRow struct {
 	edited map[string]interface{}
 }
 
-// loadHILRows returns the HIL rows for one (execution, node) in insertion order.
-func loadHILRows(ctx context.Context, db *sql.DB, executionID, nodeID string) ([]hilRow, error) {
+// hilState is the node's state across its runs in one execution: how many
+// of its rows (in insertion order) earlier runs already used.
+type hilState struct {
+	Consumed int `json:"consumed"`
+}
+
+// hilConsumed reads hilState.Consumed from the node's state (0 for none).
+func hilConsumed(ctx context.Context) int {
+	var st hilState
+	if raw := workflow.NodeStateFromContext(ctx); raw != nil {
+		_ = json.Unmarshal(raw, &st)
+	}
+	return st.Consumed
+}
+
+// loadHILRows returns the HIL rows for one (execution, node) in insertion
+// order, skipping the first skip rows (used by earlier runs).
+func loadHILRows(ctx context.Context, db *sql.DB, executionID, nodeID string, skip int) ([]hilRow, error) {
 	rows, err := db.QueryContext(ctx,
 		`SELECT status, edited_data FROM hil_pending WHERE execution_id=? AND node_id=? ORDER BY rowid`,
 		executionID, nodeID)
@@ -153,7 +175,10 @@ func loadHILRows(ctx context.Context, db *sql.DB, executionID, nodeID string) ([
 		}
 		out = append(out, r)
 	}
-	return out, rows.Err()
+	if skip >= len(out) {
+		return nil, rows.Err()
+	}
+	return out[skip:], rows.Err()
 }
 
 // createRows inserts one HIL row per input item, in input order. Rows are

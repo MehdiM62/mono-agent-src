@@ -13,11 +13,16 @@ import (
 	"strings"
 )
 
+// MachineProfileID is the reserved vault scope that holds machine-wide secrets
+// (the TypeSafe key). It is never a profile's id.
+const MachineProfileID = "_machine"
+
 // ValidProfileID reports whether profileID is safe to embed in a filesystem
-// path: non-empty, and free of path separators and parent-directory
-// components, so it can never escape ~/.monoagent/profiles/ via a join.
+// path: non-empty, not the reserved MachineProfileID, and free of path
+// separators and parent-directory components, so it can never escape
+// ~/.monoagent/profiles/ via a join.
 func ValidProfileID(profileID string) bool {
-	if profileID == "" || strings.ContainsAny(profileID, `/\`) {
+	if profileID == "" || profileID == MachineProfileID || strings.ContainsAny(profileID, `/\`) {
 		return false
 	}
 	if strings.Contains(profileID, "..") {

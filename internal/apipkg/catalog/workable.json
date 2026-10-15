@@ -1,0 +1,88 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "workable",
+  "title": "Workable",
+  "description": "Workable recruiting (trigger only: candidate created or moved)",
+  "category": "app",
+  "docs_url": "https://workable.readme.io/reference",
+  "n8n_trigger_types": [
+    "n8n-nodes-base.workableTrigger"
+  ],
+  "base_url": "https://{{ cred.subdomain }}.workable.com/spi/v3",
+  "credentials": [
+    {
+      "platform": "workable",
+      "name": "Workable",
+      "n8n_credential": "workableApi",
+      "n8n_field_map": {
+        "subdomain": "subdomain",
+        "accessToken": "access_token"
+      },
+      "methods": [
+        "bearer"
+      ],
+      "fields": [
+        {
+          "key": "subdomain",
+          "label": "Subdomain",
+          "required": true,
+          "help": "The part before .workable.com"
+        },
+        {
+          "key": "access_token",
+          "label": "Access token",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "operations": [],
+  "webhook": {
+    "fields": [
+      {
+        "key": "triggerOn",
+        "label": "Trigger on",
+        "type": "select",
+        "required": true,
+        "options": [
+          "candidateCreated",
+          "candidateMoved"
+        ]
+      },
+      {
+        "key": "filters",
+        "label": "Filters",
+        "type": "collection",
+        "default": {}
+      }
+    ],
+    "create": [
+      {
+        "method": "POST",
+        "path": "/subscriptions",
+        "body": {
+          "target": "{{ hook.url }}",
+          "event": "{{ p.triggerOn | snake | lower }}",
+          "args": {
+            "account_id": "{{ cred.subdomain }}",
+            "job_shortcode": "{{ p.filters.job }}",
+            "stage_slug": "{{ p.filters.stage }}"
+          }
+        }
+      }
+    ],
+    "id": "{{ res.id }}",
+    "delete": [
+      {
+        "method": "DELETE",
+        "path": "/subscriptions/{{ hook.id }}"
+      }
+    ]
+  }
+}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 
+	"github.com/monoes/mono-agent/internal/apipkg"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -22,6 +23,9 @@ func hubspotObjectPath(objectType string) string {
 }
 
 func (n *HubSpotNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
+	if extensionOwns("service.hubspot", config) {
+		return apipkg.ExecuteExtension(ctx, "service.hubspot", input, config)
+	}
 	accessToken := strVal(config, "access_token")
 	if accessToken == "" {
 		return nil, fmt.Errorf("hubspot: access_token is required")

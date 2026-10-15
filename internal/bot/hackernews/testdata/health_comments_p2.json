@@ -1,0 +1,10 @@
+{
+  "comments": [
+    {"id": "103", "author": "", "text": "", "depth": 0, "parentId": "100", "age": "2026-10-01T10:06:00", "deleted": true},
+    {"id": "104", "author": "carol", "text": "Reply under the deleted comment", "depth": 1, "parentId": "103", "age": "2026-10-01T11:00:00", "deleted": false},
+    {"id": "105", "author": "dave", "text": "Second top-level", "depth": 0, "parentId": "100", "age": "2026-10-01T12:00:00", "deleted": false}
+  ],
+  "stack": ["105"],
+  "next": "https://evil.example/item?id=100&p=3",
+  "found": true
+}

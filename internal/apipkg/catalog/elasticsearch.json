@@ -1,0 +1,688 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "elasticsearch",
+  "node_type": "app.elasticsearch",
+  "title": "Elasticsearch",
+  "description": "Documents and indices in Elasticsearch",
+  "category": "app",
+  "docs_url": "https://www.elastic.co/guide/en/elasticsearch/reference/current/rest-apis.html",
+  "n8n_types": [
+    "n8n-nodes-base.elasticsearch"
+  ],
+  "base_url": "{{ cred.base_url }}",
+  "credentials": [
+    {
+      "platform": "elasticsearch",
+      "name": "Elasticsearch",
+      "n8n_credential": "elasticsearchApi",
+      "n8n_field_map": {
+        "username": "username",
+        "password": "password",
+        "baseUrl": "base_url",
+        "ignoreSSLIssues": "allow_unauthorized_certs"
+      },
+      "methods": [
+        "basic"
+      ],
+      "fields": [
+        {
+          "key": "username",
+          "label": "Username",
+          "required": true
+        },
+        {
+          "key": "password",
+          "label": "Password",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "base_url",
+          "label": "Base URL",
+          "required": true,
+          "help": "e.g. https://my-deployment.es.us-east-1.aws.found.io:9243"
+        },
+        {
+          "key": "allow_unauthorized_certs",
+          "label": "Ignore SSL issues",
+          "help": "true to accept self-signed or invalid TLS certificates (self-hosted servers)"
+        }
+      ],
+      "inject": {
+        "basic": {
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "document",
+      "label": "Document"
+    },
+    {
+      "value": "index",
+      "label": "Index"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "document",
+      "operation": "get",
+      "title": "Get a document",
+      "method": "GET",
+      "path": "/{{ p.indexId }}/_doc/{{ p.documentId }}",
+      "fields": [
+        {
+          "key": "indexId",
+          "label": "Index ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "documentId",
+          "label": "Document ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "simple",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true,
+          "help": "Return _id plus the document source"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "_source_excludes",
+            "_source_includes",
+            "stored_fields"
+          ]
+        }
+      ],
+      "query": {
+        "$merge": "{{ p.options }}",
+        "_source": "{{ p.options | then:true }}"
+      },
+      "output": {
+        "to": {
+          "_id": "{{ el._id }}",
+          "$merge": "{{ el._source }}"
+        },
+        "to_when": "{{ p.simple }}"
+      }
+    },
+    {
+      "resource": "document",
+      "operation": "create",
+      "title": "Index (create) a document",
+      "method": "POST",
+      "path": "/{{ p.indexId }}/_doc{{ p.additionalFields.documentId | then:'/' }}{{ p.additionalFields.documentId }}",
+      "fields": [
+        {
+          "key": "indexId",
+          "label": "Index ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "dataToSend",
+          "label": "Data to send",
+          "type": "select",
+          "default": "defineBelow",
+          "options": [
+            "defineBelow",
+            "autoMapInputData"
+          ]
+        },
+        {
+          "key": "inputsToIgnore",
+          "label": "Input fields to ignore",
+          "type": "text",
+          "default": "",
+          "help": "Comma-separated (auto-map)"
+        },
+        {
+          "key": "fieldsUi",
+          "label": "Fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fieldValues"
+          ],
+          "help": "{\"fieldValues\": [{\"fieldId\", \"fieldValue\"}]}"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "documentId",
+            "routing",
+            "timeout"
+          ]
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "bulkOperation",
+            "pipeline",
+            "refresh"
+          ],
+          "help": "refresh: true, wait_for or false. bulkOperation: send the items in one _bulk request per 50 (one output item per bulk result)"
+        }
+      ],
+      "query": {
+        "$merge": "{{ p.additionalFields | omit:'documentId' }}",
+        "pipeline": "{{ p.options.pipeline }}",
+        "refresh": "{{ p.options.refresh }}"
+      },
+      "body": {
+        "$merge": [
+          "{{ p.dataToSend | eq:'autoMapInputData' | then:(item | omit:(p.inputsToIgnore | split)) }}",
+          "{{ p.fieldsUi.fieldValues | kv:'fieldId,fieldValue' }}"
+        ]
+      },
+      "bulk": {
+        "when": "{{ p.options.bulkOperation }}",
+        "size": 50,
+        "method": "POST",
+        "path": "/_bulk",
+        "body_type": "ndjson",
+        "body": {
+          "$map": "{{ batch }}",
+          "$to": {
+            "$list": [
+              {
+                "index": {
+                  "_index": "{{ el.p.indexId }}",
+                  "_id": "{{ el.p.additionalFields.documentId }}"
+                }
+              },
+              {
+                "$merge": [
+                  "{{ el.p.dataToSend | eq:'autoMapInputData' | then:(el.item | omit:(el.p.inputsToIgnore | split)) }}",
+                  "{{ el.p.fieldsUi.fieldValues | kv:'fieldId,fieldValue' }}"
+                ]
+              }
+            ]
+          }
+        },
+        "output": {
+          "path": "items",
+          "to": {
+            "$merge": [
+              "{{ el.index }}",
+              "{{ el.create }}",
+              "{{ el.update }}",
+              "{{ el.delete }}"
+            ]
+          }
+        },
+        "error_when": "{{ res.errors }}",
+        "error_message": "{{ res.items | pluck:'index.error' | default:(res.items | pluck:'create.error') | default:(res.items | pluck:'update.error') | default:(res.items | pluck:'delete.error') | get:'0' | pick:'type,reason' | json }}"
+      }
+    },
+    {
+      "resource": "document",
+      "operation": "delete",
+      "title": "Delete a document",
+      "method": "DELETE",
+      "path": "/{{ p.indexId }}/_doc/{{ p.documentId }}",
+      "fields": [
+        {
+          "key": "indexId",
+          "label": "Index ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "documentId",
+          "label": "Document ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "bulkOperation"
+          ],
+          "help": "bulkOperation: send the items in one _bulk request per 50 (one output item per bulk result)"
+        }
+      ],
+      "bulk": {
+        "when": "{{ p.options.bulkOperation }}",
+        "size": 50,
+        "method": "POST",
+        "path": "/_bulk",
+        "body_type": "ndjson",
+        "body": {
+          "$map": "{{ batch }}",
+          "$to": {
+            "delete": {
+              "_index": "{{ el.p.indexId }}",
+              "_id": "{{ el.p.documentId }}"
+            }
+          }
+        },
+        "output": {
+          "path": "items",
+          "to": {
+            "$merge": [
+              "{{ el.index }}",
+              "{{ el.create }}",
+              "{{ el.update }}",
+              "{{ el.delete }}"
+            ]
+          }
+        },
+        "error_when": "{{ res.errors }}",
+        "error_message": "{{ res.items | pluck:'index.error' | default:(res.items | pluck:'create.error') | default:(res.items | pluck:'update.error') | default:(res.items | pluck:'delete.error') | get:'0' | pick:'type,reason' | json }}"
+      }
+    },
+    {
+      "resource": "document",
+      "operation": "getAll",
+      "title": "Search documents",
+      "method": "POST",
+      "path": "/{{ p.returnAll | eq:'true' | then:p.options.sort | not | then:p.indexId }}{{ p.returnAll | eq:'true' | then:p.options.sort | not | then:'/' }}_search",
+      "fields": [
+        {
+          "key": "indexId",
+          "label": "Index ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Without a sort: up to 10,000 hits in one request"
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "simple",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true,
+          "help": "Return _id plus the document source"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "allow_no_indices",
+            "allow_partial_search_results",
+            "batched_reduce_size",
+            "ccs_minimize_roundtrips",
+            "docvalue_fields",
+            "expand_wildcards",
+            "explain",
+            "ignore_throttled",
+            "ignore_unavailable",
+            "max_concurrent_shard_requests",
+            "pre_filter_shard_size",
+            "query",
+            "queryParameters",
+            "request_cache",
+            "routing",
+            "search_type",
+            "seq_no_primary_term",
+            "sort",
+            "_source_excludes",
+            "_source_includes",
+            "stats",
+            "stored_fields",
+            "terminate_after",
+            "timeout",
+            "track_scores",
+            "track_total_hits",
+            "version"
+          ],
+          "help": "query: Elasticsearch query DSL as JSON, e.g. {\"query\": {\"match\": {\"title\": \"$1\"}}}; queryParameters: a JSON array whose values replace $1, $2, \u2026 where a whole value or key is that placeholder; sort with Return all pages with a point in time; other keys are search URL parameters"
+        }
+      ],
+      "query": {
+        "$merge": "{{ p.options | omit:'query,queryParameters' }}",
+        "_source": "{{ p.options | then:true }}",
+        "size": "{{ p.returnAll | eq:'true' | then:10000 | default:p.limit }}"
+      },
+      "body": {
+        "$merge": "{{ p.options.query | fromjson | bind:p.options.queryParameters }}",
+        "size": "{{ p.returnAll | eq:'true' | then:p.options.sort | then:10000 }}",
+        "pit": {
+          "id": "{{ p.returnAll | eq:'true' | then:p.options.sort | then:pre.id }}",
+          "keep_alive": "{{ p.returnAll | eq:'true' | then:p.options.sort | then:'1m' }}"
+        },
+        "track_total_hits": "{{ p.returnAll | eq:'true' | then:p.options.sort | then:false }}"
+      },
+      "description": "With Return all and a sort, pages through every hit with a point in time and search_after (closed at the end).",
+      "before": {
+        "when": "{{ p.returnAll | eq:'true' | then:p.options.sort }}",
+        "method": "POST",
+        "path": "/{{ p.indexId }}/_pit",
+        "query": {
+          "keep_alive": "1m"
+        }
+      },
+      "pagination": {
+        "when": "{{ p.returnAll | eq:'true' | then:p.options.sort }}",
+        "type": "cursor",
+        "cursor_path": "hits.hits.-1.sort",
+        "results_path": "hits.hits",
+        "next": {
+          "method": "POST",
+          "path": "/_search",
+          "query": {
+            "$merge": "{{ p.options | omit:'query,queryParameters' }}",
+            "_source": "{{ p.options | then:true }}",
+            "size": "{{ p.returnAll | eq:'true' | then:10000 | default:p.limit }}"
+          },
+          "body": {
+            "$merge": "{{ p.options.query | fromjson | bind:p.options.queryParameters }}",
+            "size": 10000,
+            "pit": {
+              "id": "{{ res.pit_id }}",
+              "keep_alive": "1m"
+            },
+            "track_total_hits": false,
+            "search_after": "{{ page.cursor }}"
+          }
+        }
+      },
+      "also": [
+        {
+          "when": "{{ p.returnAll | eq:'true' | then:p.options.sort }}",
+          "method": "DELETE",
+          "path": "/_pit",
+          "body": {
+            "id": "{{ res.pit_id | default:pre.id }}"
+          }
+        }
+      ],
+      "output": {
+        "to": {
+          "_id": "{{ el._id }}",
+          "$merge": "{{ el._source }}"
+        },
+        "to_when": "{{ p.simple }}",
+        "path": "hits.hits"
+      }
+    },
+    {
+      "resource": "document",
+      "operation": "update",
+      "title": "Update a document",
+      "method": "POST",
+      "path": "/{{ p.indexId }}/_update/{{ p.documentId }}",
+      "fields": [
+        {
+          "key": "indexId",
+          "label": "Index ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "documentId",
+          "label": "Document ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "dataToSend",
+          "label": "Data to send",
+          "type": "select",
+          "default": "defineBelow",
+          "options": [
+            "defineBelow",
+            "autoMapInputData"
+          ]
+        },
+        {
+          "key": "inputsToIgnore",
+          "label": "Input fields to ignore",
+          "type": "text",
+          "default": "",
+          "help": "Comma-separated (auto-map)"
+        },
+        {
+          "key": "fieldsUi",
+          "label": "Fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fieldValues"
+          ],
+          "help": "{\"fieldValues\": [{\"fieldId\", \"fieldValue\"}]}"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "bulkOperation",
+            "refresh"
+          ],
+          "help": "bulkOperation: send the items in one _bulk request per 50 (one output item per bulk result)"
+        }
+      ],
+      "query": {
+        "refresh": "{{ p.options.refresh }}"
+      },
+      "body": {
+        "doc": {
+          "$merge": [
+            "{{ p.dataToSend | eq:'autoMapInputData' | then:(item | omit:(p.inputsToIgnore | split)) }}",
+            "{{ p.fieldsUi.fieldValues | kv:'fieldId,fieldValue' }}"
+          ]
+        }
+      },
+      "bulk": {
+        "when": "{{ p.options.bulkOperation }}",
+        "size": 50,
+        "method": "POST",
+        "path": "/_bulk",
+        "body_type": "ndjson",
+        "body": {
+          "$map": "{{ batch }}",
+          "$to": {
+            "$list": [
+              {
+                "update": {
+                  "_index": "{{ el.p.indexId }}",
+                  "_id": "{{ el.p.documentId }}"
+                }
+              },
+              {
+                "!doc": {
+                  "$merge": [
+                    "{{ el.p.dataToSend | eq:'autoMapInputData' | then:(el.item | omit:(el.p.inputsToIgnore | split)) }}",
+                    "{{ el.p.fieldsUi.fieldValues | kv:'fieldId,fieldValue' }}"
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        "output": {
+          "path": "items",
+          "to": {
+            "$merge": [
+              "{{ el.index }}",
+              "{{ el.create }}",
+              "{{ el.update }}",
+              "{{ el.delete }}"
+            ]
+          }
+        },
+        "error_when": "{{ res.errors }}",
+        "error_message": "{{ res.items | pluck:'index.error' | default:(res.items | pluck:'create.error') | default:(res.items | pluck:'update.error') | default:(res.items | pluck:'delete.error') | get:'0' | pick:'type,reason' | json }}"
+      }
+    },
+    {
+      "resource": "index",
+      "operation": "create",
+      "title": "Create an index",
+      "method": "PUT",
+      "path": "/{{ p.indexId }}",
+      "fields": [
+        {
+          "key": "indexId",
+          "label": "Index ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "aliases",
+            "include_type_name",
+            "mappings",
+            "master_timeout",
+            "settings",
+            "timeout",
+            "wait_for_active_shards"
+          ],
+          "help": "aliases, mappings, settings: JSON such as {\"settings\": {\"index\": {\"number_of_shards\": 3}}}"
+        }
+      ],
+      "query": {
+        "$merge": "{{ p.additionalFields | omit:'aliases,mappings,settings' }}"
+      },
+      "body": {
+        "$merge": [
+          "{{ p.additionalFields.aliases | fromjson }}",
+          "{{ p.additionalFields.mappings | fromjson }}",
+          "{{ p.additionalFields.settings | fromjson }}"
+        ]
+      },
+      "output": {
+        "to": {
+          "id": "{{ p.indexId }}",
+          "$merge": "{{ el | omit:'index' }}"
+        }
+      }
+    },
+    {
+      "resource": "index",
+      "operation": "delete",
+      "title": "Delete an index",
+      "method": "DELETE",
+      "path": "/{{ p.indexId }}",
+      "fields": [
+        {
+          "key": "indexId",
+          "label": "Index ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "index",
+      "operation": "get",
+      "title": "Get an index",
+      "method": "GET",
+      "path": "/{{ p.indexId }}",
+      "fields": [
+        {
+          "key": "indexId",
+          "label": "Index ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "allow_no_indices",
+            "expand_wildcards",
+            "flat_settings",
+            "ignore_unavailable",
+            "include_defaults",
+            "local",
+            "master_timeout"
+          ]
+        }
+      ],
+      "query": {
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "output": {
+        "path": "{{ p.indexId }}",
+        "to": {
+          "id": "{{ p.indexId }}",
+          "$merge": "{{ el }}"
+        }
+      }
+    },
+    {
+      "resource": "index",
+      "operation": "getAll",
+      "title": "Get many indices",
+      "method": "GET",
+      "path": "/_cat/indices",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "query": {
+        "format": "json",
+        "h": "index"
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "__single_page__",
+        "results_path": ""
+      },
+      "output": {
+        "to": {
+          "indexId": "{{ el.index }}"
+        }
+      }
+    }
+  ]
+}

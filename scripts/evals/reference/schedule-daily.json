@@ -1,0 +1,43 @@
+{
+  "name": "eval-schedule-daily",
+  "description": "",
+  "version": 1,
+  "is_active": false,
+  "nodes": [
+    {
+      "id": "daily",
+      "type": "trigger.schedule",
+      "name": "daily",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "config": {
+        "cron": "0 0 9 * * *",
+        "timezone": "UTC"
+      }
+    },
+    {
+      "id": "fetch",
+      "type": "http.request",
+      "name": "fetch",
+      "position": {
+        "x": 260,
+        "y": 0
+      },
+      "config": {
+        "url": "{{FIXTURE_URL}}/products.json",
+        "method": "GET"
+      }
+    }
+  ],
+  "connections": [
+    {
+      "id": "c1",
+      "source": "daily",
+      "source_handle": "main",
+      "target": "fetch",
+      "target_handle": "main"
+    }
+  ]
+}

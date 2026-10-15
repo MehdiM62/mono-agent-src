@@ -1,0 +1,609 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "cisco_webex",
+  "node_type": "app.cisco_webex",
+  "title": "Webex by Cisco",
+  "description": "Messages and meetings on Webex",
+  "category": "app",
+  "docs_url": "https://developer.webex.com/docs/api/getting-started",
+  "n8n_types": [
+    "n8n-nodes-base.ciscoWebex"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.ciscoWebexTrigger"
+  ],
+  "base_url": "https://webexapis.com/v1",
+  "headers": {
+    "Accept": "application/json"
+  },
+  "credentials": [
+    {
+      "platform": "cisco_webex",
+      "name": "Webex by Cisco",
+      "n8n_credential": "ciscoWebexOAuth2Api",
+      "methods": [
+        "oauth",
+        "bearer"
+      ],
+      "fields": [
+        {
+          "key": "access_token",
+          "label": "Access token",
+          "secret": true,
+          "required": true,
+          "help": "A bot or personal access token from developer.webex.com, or connect with OAuth"
+        }
+      ],
+      "oauth": {
+        "auth_url": "https://webexapis.com/v1/authorize",
+        "token_url": "https://webexapis.com/v1/access_token",
+        "scopes": [
+          "spark:memberships_read",
+          "meeting:recordings_read",
+          "spark:kms",
+          "meeting:schedules_read",
+          "spark:rooms_read",
+          "spark:messages_write",
+          "spark:memberships_write",
+          "meeting:recordings_write",
+          "meeting:preferences_read",
+          "spark:messages_read",
+          "meeting:schedules_write"
+        ],
+        "pkce": true
+      },
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "message",
+      "label": "Message"
+    },
+    {
+      "value": "meeting",
+      "label": "Meeting"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "message",
+      "operation": "create",
+      "title": "Send a message",
+      "method": "POST",
+      "path": "/messages",
+      "body": {
+        "roomId": "{{ p.destination | eq:'room' | then:p.roomId }}",
+        "toPersonId": "{{ p.destination | eq:'person' | then:p.specifyPersonBy | eq:'id' | then:p.toPersonId }}",
+        "toPersonEmail": "{{ p.destination | eq:'person' | then:p.specifyPersonBy | ne:'id' | then:p.toPersonEmail }}",
+        "text": "{{ p.text }}",
+        "markdown": "{{ p.additionalFields.markdown }}",
+        "attachments": {
+          "$map": "{{ p.additionalFields.attachmentsUi.attachmentValues }}",
+          "$to": {
+            "contentType": "application/vnd.microsoft.card.adaptive",
+            "content": {
+              "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+              "type": "AdaptiveCard",
+              "version": "1.2",
+              "!body": {
+                "$map": "{{ el.elementsUi.elementValues }}",
+                "$to": {
+                  "type": "{{ el.type | eq:'textBlock' | then:'TextBlock' }}{{ el.type | eq:'inputText' | then:'Input.Text' }}",
+                  "$merge": "{{ el | omit:'type' }}"
+                }
+              },
+              "!actions": {
+                "$map": "{{ el.actionsUi.actionValues }}",
+                "$to": {
+                  "type": "{{ el.type | eq:'execute' | then:'Action.Execute' }}{{ el.type | eq:'openUrl' | then:'Action.OpenUrl' }}{{ el.type | eq:'submit' | then:'Action.Submit' }}",
+                  "$merge": "{{ el | omit:'type' }}"
+                }
+              }
+            }
+          }
+        },
+        "files": "{{ p.additionalFields.fileUi.fileValue.fileLocation | eq:'url' | then:p.additionalFields.fileUi.fileValue.url }}"
+      },
+      "fields": [
+        {
+          "key": "destination",
+          "label": "Send to",
+          "type": "select",
+          "required": true,
+          "options": [
+            "room",
+            "person"
+          ],
+          "default": "room"
+        },
+        {
+          "key": "roomId",
+          "label": "Room ID",
+          "type": "text",
+          "help": "With Send to = room"
+        },
+        {
+          "key": "specifyPersonBy",
+          "label": "Person by",
+          "type": "select",
+          "options": [
+            "email",
+            "id"
+          ],
+          "default": "email"
+        },
+        {
+          "key": "toPersonId",
+          "label": "Person ID",
+          "type": "text"
+        },
+        {
+          "key": "toPersonEmail",
+          "label": "Person email",
+          "type": "text"
+        },
+        {
+          "key": "text",
+          "label": "Text",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "attachmentsUi",
+            "fileUi",
+            "markdown"
+          ],
+          "help": "attachmentsUi: {\"attachmentValues\": [{\"elementsUi\": {\"elementValues\": [{\"type\": \"textBlock\", \"text\": \"Hi\"}]}, \"actionsUi\": {\"actionValues\": [{\"type\": \"openUrl\", \"title\": \"Open\", \"url\": \"https://x\"}]}}]}; fileUi: {\"fileValue\": {\"fileLocation\": \"url\", \"url\": \"https://...\"}} or {\"fileValue\": {\"fileLocation\": \"binaryData\", \"binaryPropertyName\": \"data\"}} to upload the input binary"
+        }
+      ],
+      "body_type": "multipart",
+      "binary": {
+        "upload_field": "additionalFields",
+        "property": "{{ p.additionalFields.fileUi.fileValue.binaryPropertyName | default:'data' }}",
+        "upload_when": "{{ p.additionalFields.fileUi.fileValue.fileLocation | eq:'binaryData' }}",
+        "multipart_field": "files",
+        "fallback_body_type": "json"
+      }
+    },
+    {
+      "resource": "message",
+      "operation": "delete",
+      "title": "Delete a message",
+      "method": "DELETE",
+      "path": "/messages/{{ p.messageId }}",
+      "fields": [
+        {
+          "key": "messageId",
+          "label": "Message ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "message",
+      "operation": "get",
+      "title": "Get a message",
+      "method": "GET",
+      "path": "/messages/{{ p.messageId }}",
+      "fields": [
+        {
+          "key": "messageId",
+          "label": "Message ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "message",
+      "operation": "getAll",
+      "title": "Get many messages",
+      "method": "GET",
+      "path": "/messages",
+      "query": {
+        "roomId": "{{ p.roomId }}",
+        "$merge": "{{ p.filters }}"
+      },
+      "pagination": {
+        "type": "link_header",
+        "limit_param": "max",
+        "page_size": 100,
+        "results_path": "items"
+      },
+      "fields": [
+        {
+          "key": "roomId",
+          "label": "Room ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Fetch every page instead of stopping at Limit."
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off."
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "before",
+            "beforeMessage",
+            "parentId",
+            "mentionedPeople"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "message",
+      "operation": "update",
+      "title": "Edit a message",
+      "method": "PUT",
+      "path": "/messages/{{ p.messageId }}",
+      "before": {
+        "method": "GET",
+        "path": "/messages/{{ p.messageId }}"
+      },
+      "body": {
+        "roomId": "{{ pre.roomId }}",
+        "text": "{{ p.markdown | ne:'true' | then:p.text }}",
+        "markdown": "{{ p.markdown | eq:'true' | then:p.markdownText }}"
+      },
+      "fields": [
+        {
+          "key": "messageId",
+          "label": "Message ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "markdown",
+          "label": "Markdown",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "text",
+          "label": "Text",
+          "type": "text",
+          "help": "With Markdown off"
+        },
+        {
+          "key": "markdownText",
+          "label": "Markdown text",
+          "type": "text",
+          "help": "With Markdown on"
+        }
+      ]
+    },
+    {
+      "resource": "meeting",
+      "operation": "create",
+      "title": "Create a meeting",
+      "method": "POST",
+      "path": "/meetings",
+      "body": {
+        "title": "{{ p.title }}",
+        "start": "{{ p.start }}",
+        "end": "{{ p.end }}",
+        "$merge": "{{ p.additionalFields | omit:'inviteesUi,requireRegistrationInfo' }}",
+        "invitees": "{{ p.additionalFields.inviteesUi.inviteeValues }}",
+        "registration": {
+          "$entries": "{{ p.additionalFields.requireRegistrationInfo }}",
+          "$key": "{{ el }}",
+          "$value": true
+        }
+      },
+      "fields": [
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "start",
+          "label": "Start",
+          "type": "datetime",
+          "required": true
+        },
+        {
+          "key": "end",
+          "label": "End",
+          "type": "datetime",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "agenda",
+            "allowAnyUserToBeCoHost",
+            "allowAuthenticatedDevices",
+            "allowFirstUserToBeCoHost",
+            "autoAcceptRequest",
+            "enableConnectAudioBeforeHost",
+            "enabledAutoRecordMeeting",
+            "enabledJoinBeforeHost",
+            "excludePassword",
+            "hostEmail",
+            "integrationTags",
+            "inviteesUi",
+            "joinBeforeHostMinutes",
+            "publicMeeting",
+            "recurrence",
+            "requireRegistrationInfo",
+            "reminderTime",
+            "sendEmail",
+            "siteUrl"
+          ],
+          "help": "inviteesUi: {\"inviteeValues\": [{\"email\": \"a@b.c\", \"displayName\": \"\", \"coHost\": false}]}; requireRegistrationInfo: list such as [\"requireFirstName\", \"requireEmail\"]; times ISO 8601"
+        }
+      ]
+    },
+    {
+      "resource": "meeting",
+      "operation": "delete",
+      "title": "Delete a meeting",
+      "method": "DELETE",
+      "path": "/meetings/{{ p.meetingId }}",
+      "query": {
+        "$merge": "{{ p.options }}"
+      },
+      "fields": [
+        {
+          "key": "meetingId",
+          "label": "Meeting ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "hostEmail",
+            "sendEmail"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "meeting",
+      "operation": "get",
+      "title": "Get a meeting",
+      "method": "GET",
+      "path": "/meetings/{{ p.meetingId }}",
+      "query": {
+        "hostEmail": "{{ p.options.hostEmail }}",
+        "sendEmail": "{{ p.options.sendEmail }}"
+      },
+      "headers": {
+        "password": "{{ p.options.password }}"
+      },
+      "fields": [
+        {
+          "key": "meetingId",
+          "label": "Meeting ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "hostEmail",
+            "password",
+            "sendEmail"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "meeting",
+      "operation": "getAll",
+      "title": "Get many meetings",
+      "method": "GET",
+      "path": "/meetings",
+      "query": {
+        "$merge": "{{ p.filters }}"
+      },
+      "pagination": {
+        "type": "link_header",
+        "limit_param": "max",
+        "page_size": 100,
+        "results_path": "items"
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Fetch every page instead of stopping at Limit."
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off."
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "from",
+            "hostEmail",
+            "integrationTag",
+            "current",
+            "meetingNumber",
+            "meetingType",
+            "participantEmail",
+            "siteUrl",
+            "state",
+            "to",
+            "webLink"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "meeting",
+      "operation": "update",
+      "title": "Update a meeting",
+      "method": "PUT",
+      "path": "/meetings/{{ p.meetingId }}",
+      "before": {
+        "method": "GET",
+        "path": "/meetings/{{ p.meetingId }}"
+      },
+      "body": {
+        "$merge": "{{ p.updateFields | omit:'inviteesUi,requireRegistrationInfo' }}",
+        "invitees": "{{ p.updateFields.inviteesUi.inviteeValues }}",
+        "registration": {
+          "$entries": "{{ p.updateFields.requireRegistrationInfo }}",
+          "$key": "{{ el }}",
+          "$value": true
+        },
+        "title": "{{ p.updateFields.title | default:pre.title }}",
+        "password": "{{ p.updateFields.password | default:pre.password }}",
+        "start": "{{ p.updateFields.start | default:pre.start }}",
+        "end": "{{ p.updateFields.end | default:pre.end }}"
+      },
+      "fields": [
+        {
+          "key": "meetingId",
+          "label": "Meeting ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "agenda",
+            "allowAnyUserToBeCoHost",
+            "allowAuthenticatedDevices",
+            "allowFirstUserToBeCoHost",
+            "enableConnectAudioBeforeHost",
+            "enabledAutoRecordMeeting",
+            "enabledJoinBeforeHost",
+            "end",
+            "excludePassword",
+            "hostEmail",
+            "inviteesUi",
+            "joinBeforeHostMinutes",
+            "password",
+            "publicMeeting",
+            "recurrence",
+            "reminderTime",
+            "requireRegistrationInfo",
+            "sendEmail",
+            "siteUrl",
+            "start",
+            "title"
+          ],
+          "help": "inviteesUi: {\"inviteeValues\": [{\"email\": \"a@b.c\", \"displayName\": \"\", \"coHost\": false}]}; requireRegistrationInfo: list such as [\"requireFirstName\", \"requireEmail\"]; times ISO 8601"
+        }
+      ]
+    }
+  ],
+  "webhook": {
+    "fields": [
+      {
+        "key": "resource",
+        "label": "Resource",
+        "type": "select",
+        "required": true,
+        "default": "meeting",
+        "options": [
+          "all",
+          "attachmentAction",
+          "meeting",
+          "membership",
+          "message",
+          "recording",
+          "room",
+          "telephonyCall"
+        ]
+      },
+      {
+        "key": "event",
+        "label": "Event",
+        "type": "text",
+        "required": true,
+        "default": "*"
+      },
+      {
+        "key": "filters",
+        "label": "Filters",
+        "type": "collection",
+        "default": {}
+      }
+    ],
+    "create": [
+      {
+        "method": "POST",
+        "path": "/webhooks",
+        "body": {
+          "name": "mono-agent:{{ hook.url }}",
+          "targetUrl": "{{ hook.url }}",
+          "event": "{{ p.event }}",
+          "resource": "{{ p.resource | map:'attachmentAction=attachmentActions,membership=memberships,message=messages,room=rooms,meeting=meetings,recording=recordings,telephonyCall=telephony_calls' }}",
+          "ownedBy": "{{ p.filters.ownedBy }}",
+          "secret": "{{ hook.secret }}",
+          "filter": "{{ p.filters | omit:'ownedBy' | urlencode }}"
+        }
+      }
+    ],
+    "id": "{{ res.id }}",
+    "delete": [
+      {
+        "method": "DELETE",
+        "path": "/webhooks/{{ hook.id }}"
+      }
+    ],
+    "check": {
+      "method": "GET",
+      "path": "/webhooks/{{ hook.id }}"
+    },
+    "verify": {
+      "signature": "{{ hdr.X-Spark-Signature }}",
+      "alg": "sha1"
+    }
+  }
+}

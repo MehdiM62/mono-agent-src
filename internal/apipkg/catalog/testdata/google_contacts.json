@@ -1,0 +1,170 @@
+{
+  "contact.create": {
+    "params": {
+      "givenName": "Ada",
+      "familyName": "Lovelace",
+      "additionalFields": {
+        "birthday": "1815-12-10T00:00:00Z",
+        "emailsUi": {
+          "emailsValues": [
+            {
+              "type": "work",
+              "value": "ada@example.com"
+            }
+          ]
+        },
+        "group": [
+          "contactGroups/friends"
+        ],
+        "biographies": "Mathematician"
+      }
+    },
+    "response": {
+      "resourceName": "people/c1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/people:createContact",
+      "body": {
+        "names": [
+          {
+            "givenName": "Ada",
+            "familyName": "Lovelace"
+          }
+        ],
+        "birthdays": [
+          {
+            "date": {
+              "day": 10,
+              "month": 12,
+              "year": 1815
+            }
+          }
+        ],
+        "emailAddresses": [
+          {
+            "type": "work",
+            "value": "ada@example.com"
+          }
+        ],
+        "memberships": [
+          {
+            "contactGroupMembership": {
+              "contactGroupResourceName": "contactGroups/friends"
+            }
+          }
+        ],
+        "biographies": [
+          {
+            "value": "Mathematician",
+            "contentType": "TEXT_PLAIN"
+          }
+        ]
+      },
+      "items": 1
+    }
+  },
+  "contact.delete": {
+    "params": {
+      "contactId": "c1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/v1/people/c1:deleteContact"
+    }
+  },
+  "contact.get": {
+    "params": {
+      "contactId": "c1",
+      "fields": [
+        "names",
+        "emailAddresses"
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/people/c1",
+      "query": {
+        "personFields": "names,emailAddresses"
+      }
+    }
+  },
+  "contact.getAll": {
+    "params": {
+      "limit": 10,
+      "fields": [
+        "names"
+      ],
+      "useQuery": true,
+      "query": "ada"
+    },
+    "response": {
+      "results": [
+        {
+          "person": {
+            "resourceName": "people/1"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/people:searchContacts",
+      "query": {
+        "readMask": "names",
+        "query": "ada",
+        "pageSize": "10"
+      },
+      "items": 1
+    }
+  },
+  "contact.update": {
+    "responses": [
+      {
+        "etag": "e1"
+      },
+      {
+        "resourceName": "people/c1"
+      }
+    ],
+    "params": {
+      "contactId": "c1",
+      "fields": [
+        "names"
+      ],
+      "updateFields": {
+        "givenName": "Ada",
+        "phoneUi": {
+          "phoneValues": [
+            {
+              "type": "mobile",
+              "value": "+1"
+            }
+          ]
+        }
+      }
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/v1/people/c1:updateContact",
+      "query": {
+        "personFields": "names",
+        "updatePersonFields": "phoneNumbers,names"
+      },
+      "body": {
+        "etag": "e1",
+        "names": [
+          {
+            "givenName": "Ada"
+          }
+        ],
+        "phoneNumbers": [
+          {
+            "type": "mobile",
+            "value": "+1"
+          }
+        ]
+      }
+    }
+  }
+}

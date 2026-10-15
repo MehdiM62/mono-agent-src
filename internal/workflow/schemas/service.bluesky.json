@@ -17,7 +17,8 @@
         "get_timeline",
         "get_profile",
         "like_post",
-        "repost"
+        "repost",
+        "get_post_metrics"
       ],
       "required": true,
       "type": "select"
@@ -90,6 +91,19 @@
       "type": "text"
     },
     {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "get_post_metrics"
+        ]
+      },
+      "help": "The post to read like/repost/reply counts for.",
+      "key": "post_uri",
+      "label": "Post URI (at://...)",
+      "required": false,
+      "type": "text"
+    },
+    {
       "help": "Bluesky handle. Resolved from the saved connection when omitted.",
       "key": "identifier",
       "label": "Handle",
@@ -102,6 +116,13 @@
       "label": "App Password",
       "required": false,
       "type": "text"
+    }
+  ],
+  "outputs": [
+    {
+      "description": "the platform API's response object, as returned (fields vary by operation)",
+      "key": "<API response fields>",
+      "type": "object"
     }
   ]
 }

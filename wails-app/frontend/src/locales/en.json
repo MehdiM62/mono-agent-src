@@ -237,6 +237,26 @@
       "switchTo": "Switch to {{name}}",
       "chipTitle": "From profile {{name}}",
       "line": "{{active}} active · {{running}} running · {{failed}} failed (24h) · {{waiting}} waiting for you"
+    },
+    "getStarted": {
+      "title": "Get started",
+      "progress": "{{done}} of {{total}} done",
+      "dismiss": "Hide this checklist",
+      "optional": "optional",
+      "done": "Done",
+      "signIn": "Sign in to monoes.me",
+      "signInWhy": "MonoAgent needs a monoes.me account before anything runs.",
+      "signInAction": "Sign in",
+      "firstRun": "Run your first workflow",
+      "firstRunWhy": "Start from a template and press Run.",
+      "firstRunAction": "Pick a template",
+      "extension": "Connect the browser extension",
+      "extensionWhy": "Web automations run in your own browser through the extension.",
+      "extensionWhyUnpaired": "The bridge is running but doesn't accept this app yet. Pair it with the button.",
+      "extensionAction": "Set up",
+      "daemon": "Keep workflows running in the background",
+      "daemonWhy": "Schedules and webhooks need the background service.",
+      "daemonAction": "Open setup"
     }
   },
   "agentSetup": {
@@ -260,7 +280,17 @@
     "language": {
       "sectionTitle": "Language",
       "label": "UI language",
-      "hint": "Pilot: English and Spanish only — see docs/i18n.md"
+      "hint": "Pilot: English and Spanish only"
+    },
+    "browsers": {
+      "notPaired": "This browser isn't paired with MonoAgent yet.",
+      "notPairedWhy": "Pair it so automations can run in it. The extension pairs itself from a page the button opens.",
+      "pair": "Pair browser",
+      "pairing": "Pairing…",
+      "pairOpened": "Opened the pairing page in your browser.",
+      "pairNotOpened": "Couldn't open the pairing page.",
+      "pairRestart": "The running bridge uses a different pairing token than this app.",
+      "details": "Details"
     },
     "health": {
       "sectionTitle": "System health",
@@ -627,6 +657,19 @@
           "done": "The saved settings were reset. Every setting is back to its environment variable or its default."
         }
       }
+    },
+    "scope": {
+      "globalTitle": "All profiles",
+      "globalLine": "Applies to this whole machine, every profile.",
+      "profileTitle": "This profile",
+      "profileLine": "Applies only to the profile {{name}}. Other profiles keep their own.",
+      "profileLineNoName": "Applies only to the active profile. Other profiles keep their own."
+    },
+    "jev": {
+      "keyProfileVault": "Set (this profile, will be shared)",
+      "featuresTitle": "TypeSafe Jev features",
+      "consent": "Turning a feature on is a choice for this profile only: it lets this profile send data to TypeSafe. Other profiles stay off until they turn it on themselves.",
+      "adoptHint": "This key is still only in this profile's vault. To share it with every profile, run:"
     }
   },
   "orgs": {
@@ -1569,5 +1612,27 @@
     "commsPending": "{{count}} pending",
     "filterLabel": "Filter by status",
     "onePerson": "One person only"
+  },
+  "coderQueue": {
+    "kind": {
+      "copy-style": "Copy style",
+      "tokens": "Design tokens",
+      "fix-element": "Fix element",
+      "bug-report": "Bug report",
+      "integration": "Integration",
+      "ask": "Question"
+    },
+    "label": "Queued coder chat: {{kind}}",
+    "fromBrowser": "from the browser",
+    "dismiss": "Dismiss",
+    "dismissNamed": "Dismiss {{kind}}",
+    "screenshot": "Screenshot of the page",
+    "coderRoot": "coder root",
+    "changeFolder": "Change",
+    "start": "Start",
+    "stackLabel": "Queued coder chats",
+    "showFewer": "Show fewer",
+    "more_one": "+{{count}} more queued",
+    "more_other": "+{{count}} more queued"
   }
 }

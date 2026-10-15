@@ -1,0 +1,479 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "supabase",
+  "title": "Supabase",
+  "description": "Create, read, update and delete rows of a Supabase (PostgREST) table",
+  "category": "app",
+  "docs_url": "https://supabase.com/docs/guides/api",
+  "n8n_types": [
+    "n8n-nodes-base.supabase"
+  ],
+  "base_url": "{{ cred.url | re:'^(.*?)/*$' }}/rest/v1",
+  "credentials": [
+    {
+      "platform": "supabase",
+      "reuse_platform": "supabase",
+      "name": "Supabase",
+      "n8n_credential": "supabaseApi",
+      "n8n_field_map": {
+        "host": "url",
+        "serviceRole": "api_key"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "url",
+          "label": "Project URL",
+          "required": true
+        },
+        {
+          "key": "api_key",
+          "label": "Service role / secret key",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "headers": {
+          "apikey": "{{ cred.api_key }}",
+          "Authorization": "Bearer {{ cred.api_key }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "row",
+      "label": "Row"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "row",
+      "operation": "create",
+      "title": "Create a row",
+      "method": "POST",
+      "path": "/{{ p.tableId }}",
+      "headers": {
+        "Prefer": "return=representation",
+        "Content-Profile": "{{ p.useCustomSchema | eq:'true' | then:p.schema }}"
+      },
+      "fields": [
+        {
+          "key": "tableId",
+          "label": "Table",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "dataToSend",
+          "label": "Data to send",
+          "type": "select",
+          "options": [
+            "defineBelow",
+            "autoMapInputData"
+          ],
+          "default": "defineBelow"
+        },
+        {
+          "key": "inputsToIgnore",
+          "label": "Input fields to ignore",
+          "type": "text",
+          "help": "Comma separated; with autoMapInputData"
+        },
+        {
+          "key": "fieldsUi",
+          "label": "Fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fieldValues"
+          ],
+          "help": "{\"fieldValues\": [{\"fieldId\": \"name\", \"fieldValue\": \"Ada\"}]}"
+        },
+        {
+          "key": "useCustomSchema",
+          "label": "Use a custom schema",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "schema",
+          "label": "Schema",
+          "type": "text",
+          "default": "public"
+        }
+      ],
+      "body": [
+        {
+          "$merge": [
+            "{{ p.dataToSend | eq:'autoMapInputData' | then:(item | omit:(p.inputsToIgnore | split)) }}",
+            "{{ p.dataToSend | ne:'autoMapInputData' | then:(p.fieldsUi.fieldValues | kv:'fieldId,fieldValue') }}"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "row",
+      "operation": "delete",
+      "title": "Delete rows",
+      "method": "DELETE",
+      "path": "{{ cred.url | re:'^(.*?)/*$' | suffix:'/rest/v1/' | suffix:(p.tableId) | suffix:(p.filterType | eq:'string' | then:(p.filterString | prefix:'?')) }}",
+      "headers": {
+        "Prefer": "return=representation",
+        "Content-Profile": "{{ p.useCustomSchema | eq:'true' | then:p.schema }}"
+      },
+      "fields": [
+        {
+          "key": "tableId",
+          "label": "Table",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "filterType",
+          "label": "Select type",
+          "type": "select",
+          "options": [
+            "manual",
+            "string"
+          ],
+          "default": "manual"
+        },
+        {
+          "key": "matchType",
+          "label": "Must match",
+          "type": "select",
+          "options": [
+            "anyFilter",
+            "allFilters"
+          ],
+          "default": "anyFilter"
+        },
+        {
+          "key": "filters",
+          "label": "Conditions",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "conditions"
+          ],
+          "help": "{\"conditions\": [{\"keyName\": \"id\", \"condition\": \"eq|neq|gt|gte|lt|lte|like|ilike|is|fullText\", \"searchFunction\": \"fts|plfts|phfts|wfts\", \"keyValue\": \"1\"}]}"
+        },
+        {
+          "key": "filterString",
+          "label": "Filter string",
+          "type": "text",
+          "help": "PostgREST query string, e.g. name=eq.ada&age=gt.30 (with Select type = string)"
+        },
+        {
+          "key": "useCustomSchema",
+          "label": "Use a custom schema",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "schema",
+          "label": "Schema",
+          "type": "text",
+          "default": "public"
+        }
+      ],
+      "query": {
+        "$merge": {
+          "$entries": "{{ p.filterType | eq:'manual' | then:(p.matchType | eq:'allFilters' | then:p.filters.conditions) }}",
+          "$key": "{{ el.keyName }}",
+          "$value": "{{ el.condition | eq:'fullText' | then:el.searchFunction | default:el.condition }}.{{ el.keyValue }}"
+        },
+        "or": {
+          "$join": {
+            "$map": "{{ p.filterType | eq:'manual' | then:(p.matchType | eq:'anyFilter' | then:p.filters.conditions) }}",
+            "$to": "{{ el.keyName }}.{{ el.condition | eq:'fullText' | then:el.searchFunction | default:el.condition }}.{{ el.keyValue }}"
+          },
+          "$sep": ",",
+          "$prefix": "(",
+          "$suffix": ")"
+        }
+      }
+    },
+    {
+      "resource": "row",
+      "operation": "get",
+      "title": "Get a row",
+      "method": "GET",
+      "path": "/{{ p.tableId }}",
+      "headers": {
+        "Prefer": "return=representation",
+        "Accept-Profile": "{{ p.useCustomSchema | eq:'true' | then:p.schema }}"
+      },
+      "fields": [
+        {
+          "key": "tableId",
+          "label": "Table",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "filters",
+          "label": "Select conditions",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "conditions"
+          ],
+          "help": "{\"conditions\": [{\"keyName\": \"id\", \"keyValue\": \"1\"}]} (all must equal)"
+        },
+        {
+          "key": "useCustomSchema",
+          "label": "Use a custom schema",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "schema",
+          "label": "Schema",
+          "type": "text",
+          "default": "public"
+        }
+      ],
+      "query": {
+        "$merge": {
+          "$entries": "{{ p.filters.conditions }}",
+          "$key": "{{ el.keyName }}",
+          "$value": "eq.{{ el.keyValue }}"
+        }
+      }
+    },
+    {
+      "resource": "row",
+      "operation": "getAll",
+      "title": "Get many rows",
+      "method": "GET",
+      "path": "{{ cred.url | re:'^(.*?)/*$' | suffix:'/rest/v1/' | suffix:(p.tableId) | suffix:(p.filterType | eq:'string' | then:(p.filterString | prefix:'?')) }}",
+      "headers": {
+        "Prefer": "return=representation",
+        "Accept-Profile": "{{ p.useCustomSchema | eq:'true' | then:p.schema }}"
+      },
+      "fields": [
+        {
+          "key": "tableId",
+          "label": "Table",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "orderBy",
+          "label": "Order by",
+          "type": "text",
+          "help": "e.g. created_at.desc"
+        },
+        {
+          "key": "filterType",
+          "label": "Select type",
+          "type": "select",
+          "options": [
+            "manual",
+            "string"
+          ],
+          "default": "manual"
+        },
+        {
+          "key": "matchType",
+          "label": "Must match",
+          "type": "select",
+          "options": [
+            "anyFilter",
+            "allFilters"
+          ],
+          "default": "anyFilter"
+        },
+        {
+          "key": "filters",
+          "label": "Conditions",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "conditions"
+          ],
+          "help": "{\"conditions\": [{\"keyName\": \"id\", \"condition\": \"eq|neq|gt|gte|lt|lte|like|ilike|is|fullText\", \"searchFunction\": \"fts|plfts|phfts|wfts\", \"keyValue\": \"1\"}]}"
+        },
+        {
+          "key": "filterString",
+          "label": "Filter string",
+          "type": "text",
+          "help": "PostgREST query string, e.g. name=eq.ada&age=gt.30 (with Select type = string)"
+        },
+        {
+          "key": "useCustomSchema",
+          "label": "Use a custom schema",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "schema",
+          "label": "Schema",
+          "type": "text",
+          "default": "public"
+        }
+      ],
+      "query": {
+        "order": "{{ p.orderBy }}",
+        "and": {
+          "$join": {
+            "$map": "{{ p.filterType | eq:'manual' | then:(p.matchType | eq:'allFilters' | then:p.filters.conditions) }}",
+            "$to": "{{ el.keyName }}.{{ el.condition | eq:'fullText' | then:el.searchFunction | default:el.condition }}.{{ el.keyValue }}"
+          },
+          "$sep": ",",
+          "$prefix": "(",
+          "$suffix": ")"
+        },
+        "or": {
+          "$join": {
+            "$map": "{{ p.filterType | eq:'manual' | then:(p.matchType | eq:'anyFilter' | then:p.filters.conditions) }}",
+            "$to": "{{ el.keyName }}.{{ el.condition | eq:'fullText' | then:el.searchFunction | default:el.condition }}.{{ el.keyValue }}"
+          },
+          "$sep": ",",
+          "$prefix": "(",
+          "$suffix": ")"
+        }
+      },
+      "pagination": {
+        "type": "offset",
+        "offset_param": "offset",
+        "limit_param": "limit",
+        "page_size": 1000,
+        "results_path": ""
+      }
+    },
+    {
+      "resource": "row",
+      "operation": "update",
+      "title": "Update rows",
+      "method": "PATCH",
+      "path": "{{ cred.url | re:'^(.*?)/*$' | suffix:'/rest/v1/' | suffix:(p.tableId) | suffix:(p.filterType | eq:'string' | then:(p.filterString | prefix:'?')) }}",
+      "headers": {
+        "Prefer": "return=representation",
+        "Content-Profile": "{{ p.useCustomSchema | eq:'true' | then:p.schema }}"
+      },
+      "fields": [
+        {
+          "key": "tableId",
+          "label": "Table",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "filterType",
+          "label": "Select type",
+          "type": "select",
+          "options": [
+            "manual",
+            "string"
+          ],
+          "default": "manual"
+        },
+        {
+          "key": "matchType",
+          "label": "Must match",
+          "type": "select",
+          "options": [
+            "anyFilter",
+            "allFilters"
+          ],
+          "default": "anyFilter"
+        },
+        {
+          "key": "filters",
+          "label": "Conditions",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "conditions"
+          ],
+          "help": "{\"conditions\": [{\"keyName\": \"id\", \"condition\": \"eq|neq|gt|gte|lt|lte|like|ilike|is|fullText\", \"searchFunction\": \"fts|plfts|phfts|wfts\", \"keyValue\": \"1\"}]}"
+        },
+        {
+          "key": "filterString",
+          "label": "Filter string",
+          "type": "text",
+          "help": "PostgREST query string, e.g. name=eq.ada&age=gt.30 (with Select type = string)"
+        },
+        {
+          "key": "dataToSend",
+          "label": "Data to send",
+          "type": "select",
+          "options": [
+            "defineBelow",
+            "autoMapInputData"
+          ],
+          "default": "defineBelow"
+        },
+        {
+          "key": "inputsToIgnore",
+          "label": "Input fields to ignore",
+          "type": "text",
+          "help": "Comma separated; with autoMapInputData"
+        },
+        {
+          "key": "fieldsUi",
+          "label": "Fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fieldValues"
+          ],
+          "help": "{\"fieldValues\": [{\"fieldId\": \"name\", \"fieldValue\": \"Ada\"}]}"
+        },
+        {
+          "key": "useCustomSchema",
+          "label": "Use a custom schema",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "schema",
+          "label": "Schema",
+          "type": "text",
+          "default": "public"
+        }
+      ],
+      "query": {
+        "$merge": {
+          "$entries": "{{ p.filterType | eq:'manual' | then:(p.matchType | eq:'allFilters' | then:p.filters.conditions) }}",
+          "$key": "{{ el.keyName }}",
+          "$value": "{{ el.condition | eq:'fullText' | then:el.searchFunction | default:el.condition }}.{{ el.keyValue }}"
+        },
+        "or": {
+          "$join": {
+            "$map": "{{ p.filterType | eq:'manual' | then:(p.matchType | eq:'anyFilter' | then:p.filters.conditions) }}",
+            "$to": "{{ el.keyName }}.{{ el.condition | eq:'fullText' | then:el.searchFunction | default:el.condition }}.{{ el.keyValue }}"
+          },
+          "$sep": ",",
+          "$prefix": "(",
+          "$suffix": ")"
+        }
+      },
+      "body": {
+        "$merge": [
+          "{{ p.dataToSend | eq:'autoMapInputData' | then:(item | omit:(p.inputsToIgnore | split)) }}",
+          "{{ p.dataToSend | ne:'autoMapInputData' | then:(p.fieldsUi.fieldValues | kv:'fieldId,fieldValue') }}"
+        ]
+      }
+    }
+  ]
+}

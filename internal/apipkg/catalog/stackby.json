@@ -1,0 +1,209 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "stackby",
+  "title": "Stackby",
+  "description": "Append, read, list and delete rows in Stackby tables",
+  "category": "app",
+  "docs_url": "https://stackby.com/developers",
+  "n8n_types": [
+    "n8n-nodes-base.stackby"
+  ],
+  "base_url": "https://stackby.com/api/betav1",
+  "credentials": [
+    {
+      "platform": "stackby",
+      "name": "Stackby",
+      "n8n_credential": "stackbyApi",
+      "n8n_field_map": {
+        "apiKey": "api_key"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true,
+          "help": "Account → API key"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "api-key": "{{ cred.api_key }}"
+        }
+      }
+    }
+  ],
+  "operations": [
+    {
+      "resource": "",
+      "operation": "append",
+      "title": "Append rows",
+      "description": "Sends one request with a row per input item, using the listed columns of each item",
+      "method": "POST",
+      "path": "/rowcreate/{{ p.stackId }}/{{ p.table }}",
+      "batch": true,
+      "fields": [
+        {
+          "key": "stackId",
+          "label": "Stack ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "table",
+          "label": "Table",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "columns",
+          "label": "Columns",
+          "type": "text",
+          "required": true,
+          "help": "Comma separated input fields to send as columns"
+        }
+      ],
+      "body": {
+        "records": {
+          "$map": "{{ items }}",
+          "$to": {
+            "field": "{{ el | pick:(p.columns | split) }}"
+          }
+        }
+      },
+      "output": {
+        "each": "field"
+      }
+    },
+    {
+      "resource": "",
+      "operation": "delete",
+      "title": "Delete a row",
+      "method": "DELETE",
+      "path": "/rowdelete/{{ p.stackId }}/{{ p.table }}",
+      "fields": [
+        {
+          "key": "stackId",
+          "label": "Stack ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "table",
+          "label": "Table",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "id",
+          "label": "Row ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "query": {
+        "rowIds": [
+          "{{ p.id }}"
+        ]
+      },
+      "output": {
+        "path": "records"
+      }
+    },
+    {
+      "resource": "",
+      "operation": "list",
+      "title": "List rows",
+      "method": "GET",
+      "path": "/rowlist/{{ p.stackId }}/{{ p.table }}",
+      "fields": [
+        {
+          "key": "stackId",
+          "label": "Stack ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "table",
+          "label": "Table",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 1000,
+          "min": 1,
+          "max": 1000
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "view"
+          ]
+        }
+      ],
+      "query": {
+        "view": "{{ p.additionalFields.view }}"
+      },
+      "pagination": {
+        "type": "offset",
+        "offset_param": "offset",
+        "limit_param": "maxrecord",
+        "page_size": 100,
+        "results_path": ""
+      },
+      "output": {
+        "each": "field"
+      }
+    },
+    {
+      "resource": "",
+      "operation": "read",
+      "title": "Read a row",
+      "method": "GET",
+      "path": "/rowlist/{{ p.stackId }}/{{ p.table }}",
+      "fields": [
+        {
+          "key": "stackId",
+          "label": "Stack ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "table",
+          "label": "Table",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "id",
+          "label": "Row ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "query": {
+        "rowIds": [
+          "{{ p.id }}"
+        ]
+      },
+      "output": {
+        "each": "field"
+      }
+    }
+  ]
+}

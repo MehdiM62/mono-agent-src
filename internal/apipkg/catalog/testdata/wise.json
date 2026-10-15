@@ -1,0 +1,326 @@
+{
+  "account.getBalances": {
+    "params": {
+      "profileId": "1"
+    },
+    "credential": {
+      "access_token": "tok",
+      "environment": "live"
+    },
+    "response": [
+      {
+        "id": 1
+      },
+      {
+        "id": 2
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/v1/borderless-accounts",
+      "query": {
+        "profileId": "1"
+      },
+      "items": 2
+    }
+  },
+  "account.getCurrencies": {
+    "params": {},
+    "credential": {
+      "access_token": "tok",
+      "environment": "live"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/borderless-accounts/balance-currencies",
+      "query": {}
+    }
+  },
+  "account.getStatement": {
+    "params": {
+      "profileId": "1",
+      "borderlessAccountId": "2",
+      "currency": "EUR",
+      "additionalFields": {
+        "lineStyle": "FLAT",
+        "range": {
+          "rangeProperties": {
+            "intervalStart": "2024-01-01T00:00:00Z",
+            "intervalEnd": "2024-02-01T10:00:00Z"
+          }
+        }
+      }
+    },
+    "credential": {
+      "access_token": "tok",
+      "environment": "live"
+    },
+    "response": {
+      "transactions": []
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v3/profiles/1/borderless-accounts/2/statement.json",
+      "query": {
+        "currency": "EUR",
+        "type": "FLAT",
+        "intervalStart": "2024-01-01T00:00:00Z",
+        "intervalEnd": "2024-02-01T10:00:00Z"
+      },
+      "items": 1
+    }
+  },
+  "exchangeRate.get": {
+    "params": {
+      "source": "EUR",
+      "target": "USD",
+      "additionalFields": {
+        "interval": "hour"
+      }
+    },
+    "credential": {
+      "access_token": "tok",
+      "environment": "live"
+    },
+    "response": [
+      {
+        "rate": 1.1
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/v1/rates",
+      "query": {
+        "source": "EUR",
+        "target": "USD",
+        "group": "hour",
+        "from": "<any>",
+        "to": "<any>"
+      },
+      "items": 1
+    }
+  },
+  "profile.get": {
+    "params": {
+      "profileId": "1"
+    },
+    "credential": {
+      "access_token": "tok",
+      "environment": "live"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/profiles/1"
+    }
+  },
+  "profile.getAll": {
+    "params": {},
+    "credential": {
+      "access_token": "tok",
+      "environment": "live"
+    },
+    "response": [
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/v1/profiles",
+      "items": 1
+    }
+  },
+  "quote.get": {
+    "params": {
+      "quoteId": "q1"
+    },
+    "credential": {
+      "access_token": "tok",
+      "environment": "live"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v2/quotes/q1"
+    }
+  },
+  "quote.create": {
+    "params": {
+      "profileId": "1",
+      "targetAccountId": "9",
+      "amountType": "target",
+      "amount": 100,
+      "sourceCurrency": "eur",
+      "targetCurrency": "usd"
+    },
+    "credential": {
+      "access_token": "tok",
+      "environment": "test"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/quotes",
+      "body": {
+        "profile": "1",
+        "sourceCurrency": "EUR",
+        "targetCurrency": "USD",
+        "targetAmount": 100
+      }
+    }
+  },
+  "recipient.getAll": {
+    "params": {},
+    "credential": {
+      "access_token": "tok",
+      "environment": "live"
+    },
+    "response": [
+      {
+        "id": 1
+      },
+      {
+        "id": 2
+      },
+      {
+        "id": 3
+      },
+      {
+        "id": 4
+      },
+      {
+        "id": 5
+      },
+      {
+        "id": 6
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/v1/accounts",
+      "items": 5
+    }
+  },
+  "transfer.get": {
+    "params": {
+      "transferId": "7",
+      "downloadReceipt": true,
+      "fileName": "r.pdf"
+    },
+    "credential": {
+      "access_token": "tok",
+      "environment": "live"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/transfers/7/receipt.pdf",
+      "items": 1
+    }
+  },
+  "transfer.create": {
+    "params": {
+      "profileId": "1",
+      "quoteId": "q1",
+      "targetAccountId": "9",
+      "additionalFields": {
+        "reference": "inv 1"
+      }
+    },
+    "credential": {
+      "access_token": "tok",
+      "environment": "live"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/transfers",
+      "body": {
+        "quoteUuid": "q1",
+        "targetAccount": "9",
+        "customerTransactionId": "<any>",
+        "details": {
+          "reference": "inv 1"
+        }
+      }
+    }
+  },
+  "transfer.delete": {
+    "params": {
+      "transferId": "7"
+    },
+    "credential": {
+      "access_token": "tok",
+      "environment": "live"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/v1/transfers/7/cancel"
+    }
+  },
+  "transfer.execute": {
+    "params": {
+      "profileId": "1",
+      "transferId": "7"
+    },
+    "credential": {
+      "access_token": "tok",
+      "environment": "test"
+    },
+    "expect_requests": [
+      {
+        "method": "POST",
+        "path": "/v3/profiles/1/transfers/7/payments",
+        "body": {
+          "type": "BALANCE"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/v1/simulation/transfers/7/processing"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/simulation/transfers/7/funds_converted"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/simulation/transfers/7/outgoing_payment_sent"
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/v3/profiles/1/transfers/7/payments",
+      "body": {
+        "type": "BALANCE"
+      }
+    }
+  },
+  "transfer.getAll": {
+    "params": {
+      "profileId": "1",
+      "limit": 5,
+      "filters": {
+        "status": "processing"
+      }
+    },
+    "credential": {
+      "access_token": "tok",
+      "environment": "live"
+    },
+    "response": [
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/v1/transfers",
+      "query": {
+        "profile": "1",
+        "status": "processing",
+        "createdDateStart": "<any>",
+        "createdDateEnd": "<any>",
+        "offset": "0",
+        "limit": "5"
+      },
+      "items": 1
+    }
+  }
+}

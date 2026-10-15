@@ -1,0 +1,1098 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "youtube_more",
+  "extends": "service.youtube",
+  "title": "YouTube (n8n operations)",
+  "description": "n8n YouTube operations (channels, playlists, playlist items, videos, categories) on the native YouTube node",
+  "category": "app",
+  "docs_url": "https://developers.google.com/youtube/v3/docs",
+  "n8n_types": [
+    "n8n-nodes-base.youTube"
+  ],
+  "base_url": "https://www.googleapis.com/youtube/v3",
+  "credentials": [
+    {
+      "platform": "google",
+      "name": "Google (YouTube scope group)",
+      "n8n_credential": "youTubeOAuth2Api",
+      "n8n_credential_alt": [
+        "googleOAuth2Api"
+      ],
+      "methods": [
+        "oauth"
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      },
+      "reuse_platform": "google",
+      "scope_group": "youtube"
+    }
+  ],
+  "resources": [
+    {
+      "value": "channel",
+      "label": "Channel"
+    },
+    {
+      "value": "playlist",
+      "label": "Playlist"
+    },
+    {
+      "value": "playlistItem",
+      "label": "Playlist item"
+    },
+    {
+      "value": "video",
+      "label": "Video"
+    },
+    {
+      "value": "videoCategory",
+      "label": "Video category"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "channel",
+      "operation": "getAll",
+      "title": "Get many channels",
+      "method": "GET",
+      "path": "/channels",
+      "fields": [
+        {
+          "key": "part",
+          "label": "Fields (parts)",
+          "type": "multiselect",
+          "options": [
+            "*",
+            "brandingSettings",
+            "contentDetails",
+            "contentOwnerDetails",
+            "id",
+            "localizations",
+            "snippet",
+            "statistics",
+            "status",
+            "topicDetails"
+          ],
+          "default": [
+            "*"
+          ],
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 25,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "categoryId",
+            "forUsername",
+            "id",
+            "managedByMe"
+          ]
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "hl",
+            "onBehalfOfContentOwner"
+          ]
+        }
+      ],
+      "query": {
+        "part": "{{ p.part | csv | eq:'*' | then:'brandingSettings,contentDetails,contentOwnerDetails,id,localizations,snippet,statistics,status,topicDetails' }}{{ p.part | csv | ne:'*' | then:(p.part | csv) }}",
+        "mine": "{{ p.filters | default:'none' | eq:'none' }}",
+        "categoryId": "{{ p.filters.categoryId }}",
+        "forUsername": "{{ p.filters.forUsername }}",
+        "id": "{{ p.filters.id }}",
+        "managedByMe": "{{ p.filters.managedByMe }}",
+        "hl": "{{ p.options.hl }}",
+        "onBehalfOfContentOwner": "{{ p.options.onBehalfOfContentOwner }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "pageToken",
+        "cursor_path": "nextPageToken",
+        "limit_param": "maxResults",
+        "page_size": 50,
+        "results_path": "items"
+      }
+    },
+    {
+      "resource": "channel",
+      "operation": "get",
+      "title": "Get a channel",
+      "method": "GET",
+      "path": "/channels",
+      "fields": [
+        {
+          "key": "channelId",
+          "label": "Channel ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "part",
+          "label": "Fields (parts)",
+          "type": "multiselect",
+          "options": [
+            "*",
+            "brandingSettings",
+            "contentDetails",
+            "contentOwnerDetails",
+            "id",
+            "localizations",
+            "snippet",
+            "statistics",
+            "status",
+            "topicDetails"
+          ],
+          "default": [
+            "*"
+          ],
+          "required": true
+        }
+      ],
+      "query": {
+        "part": "{{ p.part | csv | eq:'*' | then:'brandingSettings,contentDetails,contentOwnerDetails,id,localizations,snippet,statistics,status,topicDetails' }}{{ p.part | csv | ne:'*' | then:(p.part | csv) }}",
+        "id": "{{ p.channelId }}"
+      },
+      "output": {
+        "path": "items"
+      }
+    },
+    {
+      "resource": "channel",
+      "operation": "update",
+      "title": "Update a channel",
+      "method": "PUT",
+      "path": "/channels",
+      "fields": [
+        {
+          "key": "channelId",
+          "label": "Channel ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "brandingSettingsUi",
+            "onBehalfOfContentOwner"
+          ],
+          "help": "brandingSettingsUi.channelSettingsValues.channel: {country, description, defaultLanguage, defaultTab, featuredChannelsTitle, featuredChannelsUrls, keywords, moderateComments, profileColor, showRelatedChannels, showBrowseView, trackingAnalyticsAccountId, unsubscribedTrailer}; imageSettingsValues.image: {bannerExternalUrl, trackingImageUrl, watchIconImageUrl}."
+        }
+      ],
+      "query": {
+        "part": "brandingSettings",
+        "onBehalfOfContentOwner": "{{ p.updateFields.onBehalfOfContentOwner }}"
+      },
+      "body": {
+        "id": "{{ p.channelId }}",
+        "brandingSettings": {
+          "channel": "{{ p.updateFields.brandingSettingsUi.channelSettingsValues.channel }}",
+          "image": "{{ p.updateFields.brandingSettingsUi.imageSettingsValues.image }}"
+        }
+      }
+    },
+    {
+      "resource": "channel",
+      "operation": "uploadBanner",
+      "title": "Upload a channel banner",
+      "method": "POST",
+      "base_url": "https://www.googleapis.com/upload/youtube/v3",
+      "path": "/channelBanners/insert",
+      "description": "Uploads the image, then sets it as the channel's banner.",
+      "fields": [
+        {
+          "key": "channelId",
+          "label": "Channel ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "binaryProperty",
+          "label": "Input binary field",
+          "type": "text",
+          "default": "data",
+          "required": true
+        }
+      ],
+      "binary": {
+        "upload_field": "binaryProperty",
+        "mime_type": "image/jpeg"
+      },
+      "also": [
+        {
+          "method": "PUT",
+          "path": "/channels",
+          "query": {
+            "part": "brandingSettings"
+          },
+          "body": {
+            "id": "{{ p.channelId }}",
+            "brandingSettings": {
+              "image": {
+                "bannerExternalUrl": "{{ res.url }}"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "resource": "playlist",
+      "operation": "getAll",
+      "title": "Get many playlists",
+      "method": "GET",
+      "path": "/playlists",
+      "fields": [
+        {
+          "key": "part",
+          "label": "Fields (parts)",
+          "type": "multiselect",
+          "options": [
+            "*",
+            "contentDetails",
+            "id",
+            "localizations",
+            "player",
+            "snippet",
+            "status"
+          ],
+          "default": [
+            "*"
+          ],
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 25,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "channelId",
+            "id"
+          ]
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "hl",
+            "onBehalfOfContentOwner",
+            "onBehalfOfContentOwnerChannel"
+          ]
+        }
+      ],
+      "query": {
+        "part": "{{ p.part | csv | eq:'*' | then:'contentDetails,id,localizations,player,snippet,status' }}{{ p.part | csv | ne:'*' | then:(p.part | csv) }}",
+        "mine": "{{ p.filters | default:'none' | eq:'none' }}",
+        "channelId": "{{ p.filters.channelId }}",
+        "id": "{{ p.filters.id }}",
+        "hl": "{{ p.options.hl }}",
+        "onBehalfOfContentOwner": "{{ p.options.onBehalfOfContentOwner }}",
+        "onBehalfOfContentOwnerChannel": "{{ p.options.onBehalfOfContentOwnerChannel }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "pageToken",
+        "cursor_path": "nextPageToken",
+        "limit_param": "maxResults",
+        "page_size": 50,
+        "results_path": "items"
+      }
+    },
+    {
+      "resource": "playlist",
+      "operation": "create",
+      "title": "Create a playlist",
+      "method": "POST",
+      "path": "/playlists",
+      "fields": [
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "description",
+            "privacyStatus",
+            "tags",
+            "defaultLanguage",
+            "onBehalfOfContentOwnerChannel",
+            "onBehalfOfContentOwner"
+          ]
+        }
+      ],
+      "query": {
+        "part": "snippet,status",
+        "onBehalfOfContentOwner": "{{ p.options.onBehalfOfContentOwner }}",
+        "onBehalfOfContentOwnerChannel": "{{ p.options.onBehalfOfContentOwnerChannel }}"
+      },
+      "body": {
+        "snippet": {
+          "title": "{{ p.title }}",
+          "description": "{{ p.options.description }}",
+          "tags": "{{ p.options.tags | split }}",
+          "defaultLanguage": "{{ p.options.defaultLanguage }}"
+        },
+        "status": {
+          "privacyStatus": "{{ p.options.privacyStatus }}"
+        }
+      }
+    },
+    {
+      "resource": "playlist",
+      "operation": "delete",
+      "title": "Delete a playlist",
+      "method": "DELETE",
+      "path": "/playlists",
+      "fields": [
+        {
+          "key": "playlistId",
+          "label": "Playlist ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "onBehalfOfContentOwner"
+          ]
+        }
+      ],
+      "query": {
+        "id": "{{ p.playlistId }}",
+        "onBehalfOfContentOwner": "{{ p.options.onBehalfOfContentOwner }}"
+      }
+    },
+    {
+      "resource": "playlist",
+      "operation": "get",
+      "title": "Get a playlist",
+      "method": "GET",
+      "path": "/playlists",
+      "fields": [
+        {
+          "key": "playlistId",
+          "label": "Playlist ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "part",
+          "label": "Fields (parts)",
+          "type": "multiselect",
+          "options": [
+            "*",
+            "contentDetails",
+            "id",
+            "localizations",
+            "player",
+            "snippet",
+            "status"
+          ],
+          "default": [
+            "*"
+          ],
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "onBehalfOfContentOwner",
+            "onBehalfOfContentOwnerChannel"
+          ]
+        }
+      ],
+      "query": {
+        "part": "{{ p.part | csv | eq:'*' | then:'contentDetails,id,localizations,player,snippet,status' }}{{ p.part | csv | ne:'*' | then:(p.part | csv) }}",
+        "id": "{{ p.playlistId }}",
+        "onBehalfOfContentOwner": "{{ p.options.onBehalfOfContentOwner }}",
+        "onBehalfOfContentOwnerChannel": "{{ p.options.onBehalfOfContentOwnerChannel }}"
+      },
+      "output": {
+        "path": "items"
+      }
+    },
+    {
+      "resource": "playlist",
+      "operation": "update",
+      "title": "Update a playlist",
+      "method": "PUT",
+      "path": "/playlists",
+      "fields": [
+        {
+          "key": "playlistId",
+          "label": "Playlist ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "defaultLanguage",
+            "description",
+            "onBehalfOfContentOwner",
+            "privacyStatus",
+            "tags"
+          ]
+        }
+      ],
+      "query": {
+        "part": "snippet,status",
+        "onBehalfOfContentOwner": "{{ p.updateFields.onBehalfOfContentOwner }}"
+      },
+      "body": {
+        "id": "{{ p.playlistId }}",
+        "snippet": {
+          "title": "{{ p.title }}",
+          "description": "{{ p.updateFields.description }}",
+          "tags": "{{ p.updateFields.tags | split }}",
+          "defaultLanguage": "{{ p.updateFields.defaultLanguage }}"
+        },
+        "status": {
+          "privacyStatus": "{{ p.updateFields.privacyStatus }}"
+        }
+      }
+    },
+    {
+      "resource": "playlistItem",
+      "operation": "add",
+      "title": "Add a video to a playlist",
+      "method": "POST",
+      "path": "/playlistItems",
+      "fields": [
+        {
+          "key": "playlistId",
+          "label": "Playlist ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "videoId",
+          "label": "Video ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "endAt",
+            "note",
+            "onBehalfOfContentOwner",
+            "position",
+            "startAt"
+          ]
+        }
+      ],
+      "query": {
+        "part": "snippet,contentDetails",
+        "onBehalfOfContentOwner": "{{ p.options.onBehalfOfContentOwner }}"
+      },
+      "body": {
+        "snippet": {
+          "playlistId": "{{ p.playlistId }}",
+          "resourceId": {
+            "kind": "youtube#video",
+            "videoId": "{{ p.videoId }}"
+          },
+          "position": "{{ p.options.position | int }}"
+        },
+        "contentDetails": {
+          "note": "{{ p.options.note }}",
+          "startAt": "{{ p.options.startAt }}",
+          "endAt": "{{ p.options.endAt }}"
+        }
+      }
+    },
+    {
+      "resource": "playlistItem",
+      "operation": "delete",
+      "title": "Delete a playlist item",
+      "method": "DELETE",
+      "path": "/playlistItems",
+      "fields": [
+        {
+          "key": "playlistItemId",
+          "label": "Playlist item ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "onBehalfOfContentOwner"
+          ]
+        }
+      ],
+      "query": {
+        "id": "{{ p.playlistItemId }}",
+        "onBehalfOfContentOwner": "{{ p.options.onBehalfOfContentOwner }}"
+      }
+    },
+    {
+      "resource": "playlistItem",
+      "operation": "get",
+      "title": "Get a playlist item",
+      "method": "GET",
+      "path": "/playlistItems",
+      "fields": [
+        {
+          "key": "playlistItemId",
+          "label": "Playlist item ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "part",
+          "label": "Fields (parts)",
+          "type": "multiselect",
+          "options": [
+            "*",
+            "contentDetails",
+            "id",
+            "snippet",
+            "status"
+          ],
+          "default": [
+            "*"
+          ],
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "onBehalfOfContentOwner"
+          ]
+        }
+      ],
+      "query": {
+        "part": "{{ p.part | csv | eq:'*' | then:'contentDetails,id,snippet,status' }}{{ p.part | csv | ne:'*' | then:(p.part | csv) }}",
+        "id": "{{ p.playlistItemId }}",
+        "onBehalfOfContentOwner": "{{ p.options.onBehalfOfContentOwner }}"
+      },
+      "output": {
+        "path": "items"
+      }
+    },
+    {
+      "resource": "playlistItem",
+      "operation": "getAll",
+      "title": "Get many playlist items",
+      "method": "GET",
+      "path": "/playlistItems",
+      "fields": [
+        {
+          "key": "playlistId",
+          "label": "Playlist ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "part",
+          "label": "Fields (parts)",
+          "type": "multiselect",
+          "options": [
+            "*",
+            "contentDetails",
+            "id",
+            "snippet",
+            "status"
+          ],
+          "default": [
+            "*"
+          ],
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 25,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "onBehalfOfContentOwner"
+          ]
+        }
+      ],
+      "query": {
+        "part": "{{ p.part | csv | eq:'*' | then:'contentDetails,id,snippet,status' }}{{ p.part | csv | ne:'*' | then:(p.part | csv) }}",
+        "playlistId": "{{ p.playlistId }}",
+        "onBehalfOfContentOwner": "{{ p.options.onBehalfOfContentOwner }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "pageToken",
+        "cursor_path": "nextPageToken",
+        "limit_param": "maxResults",
+        "page_size": 50,
+        "results_path": "items"
+      }
+    },
+    {
+      "resource": "video",
+      "operation": "getAll",
+      "title": "Search videos",
+      "method": "GET",
+      "path": "/search",
+      "description": "Searches videos (your own when no filter is set).",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 25,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "channelId",
+            "forDeveloper",
+            "publishedAfter",
+            "publishedBefore",
+            "q",
+            "regionCode",
+            "relatedToVideoId",
+            "videoCategoryId",
+            "videoSyndicated",
+            "videoType"
+          ]
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "order",
+            "safeSearch"
+          ]
+        }
+      ],
+      "query": {
+        "part": "snippet",
+        "type": "video",
+        "forMine": "{{ p.filters | default:'none' | eq:'none' }}",
+        "$merge": "{{ p.filters }}",
+        "order": "{{ p.options.order }}",
+        "safeSearch": "{{ p.options.safeSearch }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "pageToken",
+        "cursor_path": "nextPageToken",
+        "limit_param": "maxResults",
+        "page_size": 50,
+        "results_path": "items"
+      }
+    },
+    {
+      "resource": "video",
+      "operation": "delete",
+      "title": "Delete a video",
+      "method": "DELETE",
+      "path": "/videos",
+      "fields": [
+        {
+          "key": "videoId",
+          "label": "Video ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "onBehalfOfContentOwner"
+          ]
+        }
+      ],
+      "query": {
+        "id": "{{ p.videoId }}",
+        "onBehalfOfContentOwner": "{{ p.options.onBehalfOfContentOwner }}"
+      }
+    },
+    {
+      "resource": "video",
+      "operation": "get",
+      "title": "Get a video",
+      "method": "GET",
+      "path": "/videos",
+      "fields": [
+        {
+          "key": "videoId",
+          "label": "Video ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "part",
+          "label": "Fields (parts)",
+          "type": "multiselect",
+          "options": [
+            "*",
+            "contentDetails",
+            "id",
+            "liveStreamingDetails",
+            "localizations",
+            "player",
+            "recordingDetails",
+            "snippet",
+            "statistics",
+            "status",
+            "topicDetails"
+          ],
+          "default": [
+            "*"
+          ],
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "onBehalfOfContentOwner"
+          ]
+        }
+      ],
+      "query": {
+        "part": "{{ p.part | csv | eq:'*' | then:'contentDetails,id,liveStreamingDetails,localizations,player,recordingDetails,snippet,statistics,status,topicDetails' }}{{ p.part | csv | ne:'*' | then:(p.part | csv) }}",
+        "id": "{{ p.videoId }}",
+        "onBehalfOfContentOwner": "{{ p.options.onBehalfOfContentOwner }}"
+      },
+      "output": {
+        "path": "items"
+      }
+    },
+    {
+      "resource": "video",
+      "operation": "rate",
+      "title": "Rate a video",
+      "method": "POST",
+      "path": "/videos/rate",
+      "fields": [
+        {
+          "key": "videoId",
+          "label": "Video ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "rating",
+          "label": "Rating",
+          "type": "select",
+          "options": [
+            "like",
+            "dislike",
+            "none"
+          ],
+          "required": true
+        }
+      ],
+      "query": {
+        "id": "{{ p.videoId }}",
+        "rating": "{{ p.rating }}"
+      }
+    },
+    {
+      "resource": "video",
+      "operation": "update",
+      "title": "Update a video",
+      "method": "PUT",
+      "path": "/videos",
+      "fields": [
+        {
+          "key": "videoId",
+          "label": "Video ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "regionCode",
+          "label": "Region code",
+          "type": "text"
+        },
+        {
+          "key": "categoryId",
+          "label": "Category ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "defaultLanguage",
+            "description",
+            "embeddable",
+            "license",
+            "notifySubscribers",
+            "privacyStatus",
+            "publicStatsViewable",
+            "publishAt",
+            "recordingDate",
+            "selfDeclaredMadeForKids",
+            "tags"
+          ]
+        }
+      ],
+      "query": {
+        "part": "snippet,status,recordingDetails"
+      },
+      "body": {
+        "id": "{{ p.videoId }}",
+        "snippet": {
+          "title": "{{ p.title }}",
+          "categoryId": "{{ p.categoryId }}",
+          "description": "{{ p.updateFields.description }}",
+          "tags": "{{ p.updateFields.tags | split }}",
+          "defaultLanguage": "{{ p.updateFields.defaultLanguage }}"
+        },
+        "status": {
+          "privacyStatus": "{{ p.updateFields.privacyStatus }}",
+          "embeddable": "{{ p.updateFields.embeddable }}",
+          "publicStatsViewable": "{{ p.updateFields.publicStatsViewable }}",
+          "publishAt": "{{ p.updateFields.publishAt }}",
+          "selfDeclaredMadeForKids": "{{ p.updateFields.selfDeclaredMadeForKids }}",
+          "license": "{{ p.updateFields.license }}"
+        },
+        "recordingDetails": {
+          "recordingDate": "{{ p.updateFields.recordingDate }}"
+        }
+      }
+    },
+    {
+      "resource": "video",
+      "operation": "upload",
+      "title": "Upload a video",
+      "method": "POST",
+      "base_url": "https://www.googleapis.com/upload/youtube/v3",
+      "path": "/videos",
+      "description": "Uploads the video bytes, then sets its title, category and options.",
+      "fields": [
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "regionCode",
+          "label": "Region code",
+          "type": "text"
+        },
+        {
+          "key": "categoryId",
+          "label": "Category ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "binaryProperty",
+          "label": "Input binary field",
+          "type": "text",
+          "default": "data",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "defaultLanguage",
+            "description",
+            "embeddable",
+            "license",
+            "notifySubscribers",
+            "privacyStatus",
+            "publicStatsViewable",
+            "publishAt",
+            "recordingDate",
+            "selfDeclaredMadeForKids",
+            "tags"
+          ]
+        }
+      ],
+      "query": {
+        "uploadType": "media",
+        "part": "snippet,status",
+        "notifySubscribers": "{{ p.options.notifySubscribers | default:false }}"
+      },
+      "binary": {
+        "upload_field": "binaryProperty",
+        "mime_type": "video/*"
+      },
+      "also": [
+        {
+          "method": "PUT",
+          "path": "/videos",
+          "query": {
+            "part": "snippet,status,recordingDetails"
+          },
+          "body": {
+            "id": "{{ res.id }}",
+            "snippet": {
+              "title": "{{ p.title }}",
+              "categoryId": "{{ p.categoryId }}",
+              "description": "{{ p.options.description }}",
+              "tags": "{{ p.options.tags | split }}",
+              "defaultLanguage": "{{ p.options.defaultLanguage }}"
+            },
+            "status": {
+              "privacyStatus": "{{ p.options.privacyStatus }}",
+              "embeddable": "{{ p.options.embeddable }}",
+              "publicStatsViewable": "{{ p.options.publicStatsViewable }}",
+              "publishAt": "{{ p.options.publishAt }}",
+              "selfDeclaredMadeForKids": "{{ p.options.selfDeclaredMadeForKids }}",
+              "license": "{{ p.options.license }}"
+            },
+            "recordingDetails": {
+              "recordingDate": "{{ p.options.recordingDate }}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "resource": "videoCategory",
+      "operation": "getAll",
+      "title": "Get video categories",
+      "method": "GET",
+      "path": "/videoCategories",
+      "fields": [
+        {
+          "key": "regionCode",
+          "label": "Region code",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 25,
+          "min": 1
+        }
+      ],
+      "query": {
+        "part": "snippet",
+        "regionCode": "{{ p.regionCode }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "pageToken",
+        "cursor_path": "nextPageToken",
+        "results_path": "items"
+      }
+    }
+  ]
+}

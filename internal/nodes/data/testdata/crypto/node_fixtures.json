@@ -1,0 +1,28 @@
+{
+  "n8n_aes256gcm": {
+    "passphrase": "pass phrase",
+    "cipher": "aes-256-gcm",
+    "plaintext": "hello n8n",
+    "value": "AQEBAQEBAQEBAQEBAQEBAQECAgICAgICAgICAgI4Owr/bl7+Sg02kGCuqI3icf0BmcXNc2WE"
+  },
+  "n8n_chacha": {
+    "passphrase": "pass phrase",
+    "cipher": "chacha20-poly1305",
+    "plaintext": "hello chacha",
+    "value": "AQEBAQEBAQEBAQEBAQEBAQECAgICAgICAgICAgK2VbX6GlKFa6gtgwoKnDgYPErXympt+QvJzrIq"
+  },
+  "ripemd160_abc": "8eb208f7e05d987a9b044a8e98c6b087f15a0bfc",
+  "sha3_256_abc": "3a985da74fe225b2045c172d6bd390bd855f086e3e9d525b46bfe24511431532",
+  "jwt_hs256": {
+    "secret": "s3cret",
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwiaWF0IjoxNzAwMDAwMDAwLCJleHAiOjQxMDI0NDQ4MDB9.coKkMBS-k3eLCiW_5WVyPoULuJ8eFIVSKiUYexG5QFo"
+  },
+  "jwt_es256": {
+    "public_key": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEJGOlRpba8q6a0h11wIvZotJG2YqS\neNuZV1XdAtiKUZDZAdaaw1sKnx94u+0RyAm9/Re/7LR0VjL58FCrtXXWog==\n-----END PUBLIC KEY-----\n",
+    "token": "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyIiwiaWF0IjoxNzAwMDAwMDAwfQ.LK5GQQejUTEU0MqH_3xF4hvHz1iGwRnaa9N2Q-fQibLBV1Gj67M5rSrtQk_nigjqJFwZhgWhu6tOUGHQZ_SkHw"
+  },
+  "jwt_rs256": {
+    "public_key": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAquZXRZQnYQH4k3q0y7J5\nipGP61KdG9HsWHIvz3x5sXZZa8I7A8izur2rMuY+Q1nuaWSZFZeEWYUKOB5Wpq4A\nJCv59J65lE+yxVapdJaheZkb4/u7VLqSxUSJQe6ib/OJSW12CsgnIXPSilHsHylp\n8FYINY837oQPwZdmYlhN9ljTYksllGud5pt3DbHS/OZBH8B/NBprv6ZrMP3F7QEr\nFZuUQbfkKnjg8Q8M8QmQ6KorR6mvNIVL7qZa/EJcJYrVsDLFM6GX0Umt4KMOpSjB\npVbLbgiKmm5X4Q28fy48vrdGUj8XE0DAPTyh/JsXSMQyr8xtDUXDZ7tOOBRAK/kO\nYQIDAQAB\n-----END PUBLIC KEY-----\n",
+    "token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIzIn0.Fq1kXRozUh-IN-upvRL8EyUoxmNzpmxDeUf9Ow-eVn5jsNwoCo08iL5Fl3vlVazY9O6i_8Bz11NeKSUFwcrT1zRJzPrvkQolGlzMDK_esmtRvHye7quUScBVFR4bCt_j6YA78i_9Uy9n3r6kTMBUrRmxLWpt4HAeQ9_6H6xx8efNbu3K4ogtQwmZBvjLQunS7hamzSEZcuDVxwELDMp6msry25wDW4SDLWMKYonQ63ZfzFViavAnWg8p5ePVltuH5BNUnfNkl74JK3ObtG5cZE2oz36nww3UweZ7V17lddxQja66cBlj6-IgwoOFnqdFIGZUFsNBavY-9trxXmEMPQ"
+  }
+}

@@ -25,5 +25,17 @@
       "required": false,
       "type": "text"
     }
+  ],
+  "outputs": [
+    {
+      "description": "the input item's fields, passed through",
+      "key": "*",
+      "type": "object"
+    },
+    {
+      "description": "the new Image Vault id (e.g. img-001)",
+      "key": "<output_field>",
+      "type": "string"
+    }
   ]
 }

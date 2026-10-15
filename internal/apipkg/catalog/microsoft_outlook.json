@@ -1,0 +1,2562 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "microsoft_outlook",
+  "extends": "service.outlook_mail",
+  "title": "Microsoft Outlook",
+  "description": "Messages, drafts, folders, attachments, calendars, contacts and events in Outlook (n8n operations, Microsoft Graph)",
+  "category": "app",
+  "docs_url": "https://learn.microsoft.com/en-us/graph/api/resources/mail-api-overview",
+  "n8n_types": [
+    "n8n-nodes-base.microsoftOutlook"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.microsoftOutlookTrigger"
+  ],
+  "base_url": "https://graph.microsoft.com/v1.0/me",
+  "credentials": [
+    {
+      "platform": "microsoft",
+      "name": "Microsoft 365 (Outlook mail)",
+      "n8n_credential": "microsoftOutlookOAuth2Api",
+      "n8n_credential_alt": [
+        "microsoftOAuth2Api"
+      ],
+      "methods": [
+        "oauth"
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      },
+      "reuse_platform": "microsoft",
+      "scope_group": "mail"
+    },
+    {
+      "platform": "microsoft_entra_app",
+      "name": "Microsoft Entra app (app-only Graph)",
+      "n8n_credential": "microsoftEntraServicePrincipalApi",
+      "n8n_field_map": {
+        "tenantId": "tenant_id",
+        "clientId": "client_id",
+        "clientSecret": "client_secret"
+      },
+      "methods": [
+        "client_credentials"
+      ],
+      "fields": [
+        {
+          "key": "tenant_id",
+          "label": "Tenant ID",
+          "required": true,
+          "help": "Directory (tenant) GUID or a verified domain such as contoso.onmicrosoft.com."
+        },
+        {
+          "key": "client_id",
+          "label": "Application (client) ID",
+          "required": true
+        },
+        {
+          "key": "client_secret",
+          "label": "Client secret",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "oauth": {
+        "token_url": "https://login.microsoftonline.com/{{ cred.tenant_id }}/oauth2/v2.0/token",
+        "scopes": [
+          "https://graph.microsoft.com/.default"
+        ]
+      },
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "message",
+      "label": "Message"
+    },
+    {
+      "value": "messageAttachment",
+      "label": "Message attachment"
+    },
+    {
+      "value": "draft",
+      "label": "Draft"
+    },
+    {
+      "value": "folder",
+      "label": "Folder"
+    },
+    {
+      "value": "folderMessage",
+      "label": "Folder message"
+    },
+    {
+      "value": "calendar",
+      "label": "Calendar"
+    },
+    {
+      "value": "contact",
+      "label": "Contact"
+    },
+    {
+      "value": "event",
+      "label": "Event"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "message",
+      "operation": "send",
+      "title": "Send a message",
+      "method": "POST",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
+      "path": "/sendMail",
+      "fields": [
+        {
+          "key": "mailbox",
+          "label": "Mailbox (app-only)",
+          "type": "text",
+          "help": "Only with an Entra app connection: the mailbox's principal name or object ID. Leave empty for your own."
+        },
+        {
+          "key": "toRecipients",
+          "label": "To",
+          "type": "text",
+          "required": true,
+          "help": "Comma-separated addresses."
+        },
+        {
+          "key": "subject",
+          "label": "Subject",
+          "type": "text"
+        },
+        {
+          "key": "bodyContent",
+          "label": "Body",
+          "type": "textarea"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "attachments",
+            "bccRecipients",
+            "categories",
+            "ccRecipients",
+            "internetMessageHeaders",
+            "from",
+            "importance",
+            "bodyContentType",
+            "isReadReceiptRequested",
+            "replyTo",
+            "saveToSentItems"
+          ],
+          "help": "attachments: {attachments: [{binaryPropertyName}]}; recipients are comma-separated; internetMessageHeaders: {headers: [{name, value}]}."
+        }
+      ],
+      "body": {
+        "message": {
+          "$merge": "{{ p.additionalFields | omit:'bodyContent,bodyContentType,internetMessageHeaders,bccRecipients,ccRecipients,replyTo,sender,toRecipients,from,attachments,saveToSentItems,folderId' }}",
+          "internetMessageHeaders": "{{ p.additionalFields.internetMessageHeaders.headers }}",
+          "toRecipients": {
+            "$map": "{{ p.toRecipients | split }}",
+            "$to": {
+              "emailAddress": {
+                "address": "{{ el }}"
+              }
+            }
+          },
+          "ccRecipients": {
+            "$map": "{{ p.additionalFields.ccRecipients | split }}",
+            "$to": {
+              "emailAddress": {
+                "address": "{{ el }}"
+              }
+            }
+          },
+          "bccRecipients": {
+            "$map": "{{ p.additionalFields.bccRecipients | split }}",
+            "$to": {
+              "emailAddress": {
+                "address": "{{ el }}"
+              }
+            }
+          },
+          "replyTo": {
+            "$map": "{{ p.additionalFields.replyTo | split }}",
+            "$to": {
+              "emailAddress": {
+                "address": "{{ el }}"
+              }
+            }
+          },
+          "from": {
+            "emailAddress": {
+              "address": "{{ p.additionalFields.from }}"
+            }
+          },
+          "body": {
+            "content": "{{ p.bodyContent | default:' ' }}",
+            "contentType": "{{ p.additionalFields.bodyContentType }}"
+          },
+          "subject": "{{ p.subject }}",
+          "attachments": {
+            "$map": "{{ bin.files }}",
+            "$to": {
+              "@odata.type": "#microsoft.graph.fileAttachment",
+              "name": "{{ el.file_name }}",
+              "contentBytes": "{{ el.base64 }}"
+            }
+          }
+        },
+        "saveToSentItems": "{{ p.additionalFields.saveToSentItems | default:true }}"
+      },
+      "binary": {
+        "properties": "{{ p.additionalFields.attachments.attachments | pluck:'binaryPropertyName' }}"
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "message",
+      "operation": "delete",
+      "title": "Delete a message",
+      "method": "DELETE",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
+      "path": "/messages/{{ p.messageId | rl }}",
+      "fields": [
+        {
+          "key": "mailbox",
+          "label": "Mailbox (app-only)",
+          "type": "text",
+          "help": "Only with an Entra app connection: the mailbox's principal name or object ID. Leave empty for your own."
+        },
+        {
+          "key": "messageId",
+          "label": "Message ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "message",
+      "operation": "get",
+      "title": "Get a message",
+      "method": "GET",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
+      "path": "/messages/{{ p.messageId | rl }}",
+      "fields": [
+        {
+          "key": "mailbox",
+          "label": "Mailbox (app-only)",
+          "type": "text",
+          "help": "Only with an Entra app connection: the mailbox's principal name or object ID. Leave empty for your own."
+        },
+        {
+          "key": "messageId",
+          "label": "Message ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "output",
+          "label": "Output",
+          "type": "select",
+          "default": "simple",
+          "options": [
+            "simple",
+            "raw",
+            "fields"
+          ]
+        },
+        {
+          "key": "fields",
+          "label": "Fields",
+          "type": "array",
+          "item_type": "text",
+          "default": [],
+          "help": "Properties to return when Output is fields."
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "attachmentsPrefix",
+            "downloadAttachments",
+            "getMimeContent"
+          ],
+          "help": "downloadAttachments puts each attachment on the item as binary <attachmentsPrefix><n> (attachment_0, …); getMimeContent adds the message's MIME source (.eml) under its binaryPropertyName (default data)."
+        }
+      ],
+      "query": {
+        "$select": "{{ p.output | eq:'simple' | then:'id,conversationId,subject,bodyPreview,from,toRecipients,categories,hasAttachments' | default:(p.output | eq:'fields' | then:(p.fields | csv)) }}"
+      },
+      "output": {
+        "to": {
+          "id": "{{ el.id }}",
+          "conversationId": "{{ el.conversationId }}",
+          "subject": "{{ el.subject }}",
+          "bodyPreview": "{{ el.bodyPreview }}",
+          "from": "{{ el.from.emailAddress.address }}",
+          "to": "{{ el.toRecipients | pluck:'emailAddress.address' }}",
+          "categories": "{{ el.categories }}",
+          "hasAttachments": "{{ el.hasAttachments }}"
+        },
+        "to_when": "{{ p.output | eq:'simple' }}",
+        "expand": {
+          "when": "{{ p.options.downloadAttachments | then:el.hasAttachments }}",
+          "method": "GET",
+          "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
+          "path": "/messages/{{ el.id }}/attachments",
+          "query": {
+            "$select": "id,name,contentType"
+          }
+        },
+        "expand_merge_key": "attachments",
+        "expand_merge_path": "value",
+        "download": {
+          "method": "GET",
+          "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
+          "path": "{{ el.path | path }}",
+          "files": {
+            "$concat": [
+              {
+                "$map": "{{ p.options.downloadAttachments | then:el.attachments }}",
+                "$to": {
+                  "path": "/messages/{{ up.id }}/attachments/{{ el.id }}/$value",
+                  "property": "{{ p.options.attachmentsPrefix | default:'attachment_' }}{{ idx }}",
+                  "file_name": "{{ el.name }}",
+                  "mime_type": "{{ el.contentType }}"
+                }
+              },
+              {
+                "$when": "{{ p.options.getMimeContent }}",
+                "path": "/messages/{{ el.id }}/$value",
+                "property": "{{ p.options.getMimeContent.values.binaryPropertyName | default:'data' }}",
+                "file_name": "{{ p.options.getMimeContent.values.outputFileName | default:el.id }}.eml",
+                "mime_type": ""
+              }
+            ]
+          },
+          "property": "{{ el.property }}",
+          "file_name": "{{ el.file_name }}",
+          "mime_type": "{{ el.mime_type }}"
+        }
+      }
+    },
+    {
+      "resource": "message",
+      "operation": "getAll",
+      "title": "Get many messages",
+      "method": "GET",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
+      "path": "/messages",
+      "fields": [
+        {
+          "key": "mailbox",
+          "label": "Mailbox (app-only)",
+          "type": "text",
+          "help": "Only with an Entra app connection: the mailbox's principal name or object ID. Leave empty for your own."
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "output",
+          "label": "Output",
+          "type": "select",
+          "default": "simple",
+          "options": [
+            "simple",
+            "raw",
+            "fields"
+          ]
+        },
+        {
+          "key": "fields",
+          "label": "Fields",
+          "type": "array",
+          "item_type": "text",
+          "default": [],
+          "help": "Properties to return when Output is fields."
+        },
+        {
+          "key": "filtersUI",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "values"
+          ],
+          "help": "{values: {filterBy: filters|search, search, filters: {custom, foldersToInclude, foldersToExclude, hasAttachments, readStatus (read|unread|both), receivedAfter, receivedBefore, sender}}}"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "attachmentsPrefix",
+            "downloadAttachments"
+          ],
+          "help": "downloadAttachments puts each attachment on the item as binary <attachmentsPrefix><n> (attachment_0, …)."
+        }
+      ],
+      "query": {
+        "$select": "{{ p.output | eq:'simple' | then:'id,conversationId,subject,bodyPreview,from,toRecipients,categories,hasAttachments' | default:(p.output | eq:'fields' | then:(p.fields | csv)) }}",
+        "$filter": {
+          "$join": [
+            {
+              "$join": {
+                "$map": "{{ p.filtersUI.values.filters.foldersToInclude }}",
+                "$to": "parentFolderId eq '{{ el | replace:\"'\",\"''\" }}'"
+              },
+              "$sep": " or ",
+              "$prefix": "(",
+              "$suffix": ")"
+            },
+            {
+              "$join": {
+                "$map": "{{ p.filtersUI.values.filters.foldersToExclude }}",
+                "$to": "parentFolderId ne '{{ el | replace:\"'\",\"''\" }}'"
+              },
+              "$sep": " and "
+            },
+            {
+              "$join": {
+                "$map": "{{ p.filtersUI.values.filters.sender | replace:\"'\",\"''\" | split:'\\n' }}",
+                "$to": "(from/emailAddress/address eq '{{ el }}' or from/emailAddress/name eq '{{ el }}')"
+              },
+              "$sep": " and "
+            },
+            "{{ p.filtersUI.values.filters.hasAttachments | then:'hasAttachments eq ' }}{{ p.filtersUI.values.filters.hasAttachments | then:'true' }}",
+            "{{ p.filtersUI.values.filters.readStatus | in:'read,unread' | then:'isRead eq ' }}{{ p.filtersUI.values.filters.readStatus | eq:'read' | then:'true' }}{{ p.filtersUI.values.filters.readStatus | eq:'unread' | then:'false' }}",
+            "{{ p.filtersUI.values.filters.receivedAfter | then:'receivedDateTime ge ' }}{{ p.filtersUI.values.filters.receivedAfter | date:'YYYY-MM-DDTHH:mm:ssZ' }}",
+            "{{ p.filtersUI.values.filters.receivedBefore | then:'receivedDateTime le ' }}{{ p.filtersUI.values.filters.receivedBefore | date:'YYYY-MM-DDTHH:mm:ssZ' }}",
+            "{{ p.filtersUI.values.filters.custom }}"
+          ],
+          "$sep": " and "
+        },
+        "$search": "{{ p.filtersUI.values.filterBy | eq:'search' | then:p.filtersUI.values.search | prefix:'\"' | suffix:'\"' }}"
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "@odata.nextLink",
+        "results_path": "value",
+        "limit_param": "$top",
+        "page_size": 100
+      },
+      "output": {
+        "to": {
+          "id": "{{ el.id }}",
+          "conversationId": "{{ el.conversationId }}",
+          "subject": "{{ el.subject }}",
+          "bodyPreview": "{{ el.bodyPreview }}",
+          "from": "{{ el.from.emailAddress.address }}",
+          "to": "{{ el.toRecipients | pluck:'emailAddress.address' }}",
+          "categories": "{{ el.categories }}",
+          "hasAttachments": "{{ el.hasAttachments }}"
+        },
+        "to_when": "{{ p.output | eq:'simple' }}",
+        "expand": {
+          "when": "{{ p.options.downloadAttachments | then:el.hasAttachments }}",
+          "method": "GET",
+          "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
+          "path": "/messages/{{ el.id }}/attachments",
+          "query": {
+            "$select": "id,name,contentType"
+          }
+        },
+        "expand_merge_key": "attachments",
+        "expand_merge_path": "value",
+        "download": {
+          "method": "GET",
+          "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
+          "path": "{{ el.path | path }}",
+          "files": {
+            "$concat": [
+              {
+                "$map": "{{ p.options.downloadAttachments | then:el.attachments }}",
+                "$to": {
+                  "path": "/messages/{{ up.id }}/attachments/{{ el.id }}/$value",
+                  "property": "{{ p.options.attachmentsPrefix | default:'attachment_' }}{{ idx }}",
+                  "file_name": "{{ el.name }}",
+                  "mime_type": "{{ el.contentType }}"
+                }
+              }
+            ]
+          },
+          "property": "{{ el.property }}",
+          "file_name": "{{ el.file_name }}",
+          "mime_type": "{{ el.mime_type }}"
+        }
+      }
+    },
+    {
+      "resource": "message",
+      "operation": "move",
+      "title": "Move a message",
+      "method": "POST",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
+      "path": "/messages/{{ p.messageId | rl }}/move",
+      "fields": [
+        {
+          "key": "mailbox",
+          "label": "Mailbox (app-only)",
+          "type": "text",
+          "help": "Only with an Entra app connection: the mailbox's principal name or object ID. Leave empty for your own."
+        },
+        {
+          "key": "messageId",
+          "label": "Message ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "folderId",
+          "label": "Destination folder ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "destinationId": "{{ p.folderId | rl }}"
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "message",
+      "operation": "reply",
+      "title": "Reply to a message",
+      "method": "POST",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
+      "path": "/messages/{{ p.messageId | rl }}/{{ p.replyToSenderOnly | then:'createReply' | default:'createReplyAll' }}",
+      "fields": [
+        {
+          "key": "mailbox",
+          "label": "Mailbox (app-only)",
+          "type": "text",
+          "help": "Only with an Entra app connection: the mailbox's principal name or object ID. Leave empty for your own."
+        },
+        {
+          "key": "messageId",
+          "label": "Message ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "replyToSenderOnly",
+          "label": "Reply to sender only",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "message",
+          "label": "Message",
+          "type": "textarea"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "attachments",
+            "bccRecipients",
+            "categories",
+            "ccRecipients",
+            "internetMessageHeaders",
+            "from",
+            "importance",
+            "bodyContentType",
+            "isReadReceiptRequested",
+            "replyTo",
+            "subject",
+            "toRecipients"
+          ]
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "saveAsDraft"
+          ],
+          "help": "saveAsDraft: keep the reply as a draft instead of sending it."
+        }
+      ],
+      "body": {
+        "comment": "{{ p.replyToSenderOnly | default:false | ne:'true' | then:p.message }}",
+        "message": {
+          "$when": "{{ p.replyToSenderOnly }}",
+          "$merge": [
+            {
+              "$merge": "{{ p.additionalFields | omit:'bodyContent,bodyContentType,internetMessageHeaders,bccRecipients,ccRecipients,replyTo,sender,toRecipients,from,attachments,saveToSentItems,folderId' }}",
+              "internetMessageHeaders": "{{ p.additionalFields.internetMessageHeaders.headers }}",
+              "toRecipients": {
+                "$map": "{{ p.additionalFields.toRecipients | split }}",
+                "$to": {
+                  "emailAddress": {
+                    "address": "{{ el }}"
+                  }
+                }
+              },
+              "ccRecipients": {
+                "$map": "{{ p.additionalFields.ccRecipients | split }}",
+                "$to": {
+                  "emailAddress": {
+                    "address": "{{ el }}"
+                  }
+                }
+              },
+              "bccRecipients": {
+                "$map": "{{ p.additionalFields.bccRecipients | split }}",
+                "$to": {
+                  "emailAddress": {
+                    "address": "{{ el }}"
+                  }
+                }
+              },
+              "replyTo": {
+                "$map": "{{ p.additionalFields.replyTo | split }}",
+                "$to": {
+                  "emailAddress": {
+                    "address": "{{ el }}"
+                  }
+                }
+              },
+              "from": {
+                "emailAddress": {
+                  "address": "{{ p.additionalFields.from }}"
+                }
+              },
+              "body": {
+                "content": "{{ p.message }}",
+                "contentType": "{{ p.additionalFields.bodyContentType }}"
+              }
+            }
+          ]
+        }
+      },
+      "binary": {
+        "properties": "{{ p.additionalFields.attachments.attachments | pluck:'binaryPropertyName' }}"
+      },
+      "also": [
+        {
+          "for_each": "{{ bin.files }}",
+          "method": "POST",
+          "path": "/messages/{{ res.id }}/attachments",
+          "body": {
+            "@odata.type": "#microsoft.graph.fileAttachment",
+            "name": "{{ el.file_name }}",
+            "contentBytes": "{{ el.base64 }}"
+          },
+          "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}"
+        },
+        {
+          "when": "{{ p.options.saveAsDraft | default:false | ne:'true' }}",
+          "method": "POST",
+          "path": "/messages/{{ res.id }}/send",
+          "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}"
+        }
+      ]
+    },
+    {
+      "resource": "message",
+      "operation": "update",
+      "title": "Update a message",
+      "method": "PATCH",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
+      "path": "/messages/{{ p.messageId | rl }}",
+      "fields": [
+        {
+          "key": "mailbox",
+          "label": "Mailbox (app-only)",
+          "type": "text",
+          "help": "Only with an Entra app connection: the mailbox's principal name or object ID. Leave empty for your own."
+        },
+        {
+          "key": "messageId",
+          "label": "Message ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "bccRecipients",
+            "categories",
+            "ccRecipients",
+            "internetMessageHeaders",
+            "importance",
+            "isRead",
+            "bodyContent",
+            "bodyContentType",
+            "isReadReceiptRequested",
+            "toRecipients",
+            "replyTo",
+            "subject",
+            "folderId"
+          ],
+          "help": "folderId moves the message after the update."
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields | omit:'bodyContent,bodyContentType,internetMessageHeaders,bccRecipients,ccRecipients,replyTo,sender,toRecipients,from,attachments,saveToSentItems,folderId' }}",
+        "internetMessageHeaders": "{{ p.updateFields.internetMessageHeaders.headers }}",
+        "toRecipients": {
+          "$map": "{{ p.updateFields.toRecipients | split }}",
+          "$to": {
+            "emailAddress": {
+              "address": "{{ el }}"
+            }
+          }
+        },
+        "ccRecipients": {
+          "$map": "{{ p.updateFields.ccRecipients | split }}",
+          "$to": {
+            "emailAddress": {
+              "address": "{{ el }}"
+            }
+          }
+        },
+        "bccRecipients": {
+          "$map": "{{ p.updateFields.bccRecipients | split }}",
+          "$to": {
+            "emailAddress": {
+              "address": "{{ el }}"
+            }
+          }
+        },
+        "replyTo": {
+          "$map": "{{ p.updateFields.replyTo | split }}",
+          "$to": {
+            "emailAddress": {
+              "address": "{{ el }}"
+            }
+          }
+        },
+        "from": {
+          "emailAddress": {
+            "address": "{{ p.updateFields.from }}"
+          }
+        },
+        "body": {
+          "content": "{{ p.updateFields.bodyContent }}",
+          "contentType": "{{ p.updateFields.bodyContentType }}"
+        }
+      },
+      "also": [
+        {
+          "when": "{{ p.updateFields.folderId }}",
+          "method": "POST",
+          "path": "/messages/{{ p.messageId | rl }}/move",
+          "body": {
+            "destinationId": "{{ p.updateFields.folderId | rl }}"
+          },
+          "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}"
+        }
+      ]
+    },
+    {
+      "resource": "messageAttachment",
+      "operation": "add",
+      "title": "Add an attachment",
+      "method": "POST",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
+      "path": "/messages/{{ p.messageId | rl }}/attachments",
+      "fields": [
+        {
+          "key": "mailbox",
+          "label": "Mailbox (app-only)",
+          "type": "text",
+          "help": "Only with an Entra app connection: the mailbox's principal name or object ID. Leave empty for your own."
+        },
+        {
+          "key": "messageId",
+          "label": "Message ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Input binary field",
+          "type": "text",
+          "default": "data",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fileName"
+          ]
+        }
+      ],
+      "description": "Attaches files up to 3 MB (Graph's limit for a single request).",
+      "body": {
+        "@odata.type": "#microsoft.graph.fileAttachment",
+        "name": "{{ p.options.fileName | default:bin.file_name }}",
+        "contentBytes": "{{ bin.base64 }}"
+      },
+      "binary": {
+        "upload_field": "binaryPropertyName",
+        "upload_when": "true"
+      },
+      "body_type": "json"
+    },
+    {
+      "resource": "messageAttachment",
+      "operation": "download",
+      "title": "Download an attachment",
+      "method": "GET",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
+      "path": "/messages/{{ p.messageId | rl }}/attachments/{{ p.attachmentId | rl }}/$value",
+      "fields": [
+        {
+          "key": "mailbox",
+          "label": "Mailbox (app-only)",
+          "type": "text",
+          "help": "Only with an Entra app connection: the mailbox's principal name or object ID. Leave empty for your own."
+        },
+        {
+          "key": "messageId",
+          "label": "Message ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "attachmentId",
+          "label": "Attachment ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Output binary field",
+          "type": "text",
+          "default": "data",
+          "required": true
+        }
+      ],
+      "before": {
+        "method": "GET",
+        "path": "/messages/{{ p.messageId | rl }}/attachments/{{ p.attachmentId | rl }}",
+        "query": {
+          "$select": "id,name,contentType"
+        },
+        "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}"
+      },
+      "binary": {
+        "download": true,
+        "property_field": "binaryPropertyName",
+        "file_name": "{{ pre.name }}",
+        "mime_type": "{{ pre.contentType }}"
+      }
+    },
+    {
+      "resource": "messageAttachment",
+      "operation": "get",
+      "title": "Get an attachment",
+      "method": "GET",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
+      "path": "/messages/{{ p.messageId | rl }}/attachments/{{ p.attachmentId | rl }}",
+      "fields": [
+        {
+          "key": "mailbox",
+          "label": "Mailbox (app-only)",
+          "type": "text",
+          "help": "Only with an Entra app connection: the mailbox's principal name or object ID. Leave empty for your own."
+        },
+        {
+          "key": "messageId",
+          "label": "Message ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "attachmentId",
+          "label": "Attachment ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fields"
+          ]
+        }
+      ],
+      "query": {
+        "$select": "{{ p.options.fields | csv | default:'id,lastModifiedDateTime,name,contentType,size,isInline' }}"
+      }
+    },
+    {
+      "resource": "messageAttachment",
+      "operation": "getAll",
+      "title": "Get many attachments",
+      "method": "GET",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
+      "path": "/messages/{{ p.messageId | rl }}/attachments",
+      "fields": [
+        {
+          "key": "mailbox",
+          "label": "Mailbox (app-only)",
+          "type": "text",
+          "help": "Only with an Entra app connection: the mailbox's principal name or object ID. Leave empty for your own."
+        },
+        {
+          "key": "messageId",
+          "label": "Message ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fields"
+          ]
+        }
+      ],
+      "query": {
+        "$select": "{{ p.options.fields | csv | default:'id,lastModifiedDateTime,name,contentType,size,isInline' }}"
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "@odata.nextLink",
+        "results_path": "value",
+        "limit_param": "$top",
+        "page_size": 100
+      }
+    },
+    {
+      "resource": "draft",
+      "operation": "create",
+      "title": "Create a draft",
+      "method": "POST",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
+      "path": "/messages",
+      "fields": [
+        {
+          "key": "mailbox",
+          "label": "Mailbox (app-only)",
+          "type": "text",
+          "help": "Only with an Entra app connection: the mailbox's principal name or object ID. Leave empty for your own."
+        },
+        {
+          "key": "subject",
+          "label": "Subject",
+          "type": "text"
+        },
+        {
+          "key": "bodyContent",
+          "label": "Body",
+          "type": "textarea"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "attachments",
+            "bccRecipients",
+            "categories",
+            "ccRecipients",
+            "internetMessageHeaders",
+            "from",
+            "importance",
+            "bodyContentType",
+            "isReadReceiptRequested",
+            "replyTo",
+            "toRecipients"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.additionalFields | omit:'bodyContent,bodyContentType,internetMessageHeaders,bccRecipients,ccRecipients,replyTo,sender,toRecipients,from,attachments,saveToSentItems,folderId' }}",
+        "internetMessageHeaders": "{{ p.additionalFields.internetMessageHeaders.headers }}",
+        "toRecipients": {
+          "$map": "{{ p.additionalFields.toRecipients | split }}",
+          "$to": {
+            "emailAddress": {
+              "address": "{{ el }}"
+            }
+          }
+        },
+        "ccRecipients": {
+          "$map": "{{ p.additionalFields.ccRecipients | split }}",
+          "$to": {
+            "emailAddress": {
+              "address": "{{ el }}"
+            }
+          }
+        },
+        "bccRecipients": {
+          "$map": "{{ p.additionalFields.bccRecipients | split }}",
+          "$to": {
+            "emailAddress": {
+              "address": "{{ el }}"
+            }
+          }
+        },
+        "replyTo": {
+          "$map": "{{ p.additionalFields.replyTo | split }}",
+          "$to": {
+            "emailAddress": {
+              "address": "{{ el }}"
+            }
+          }
+        },
+        "from": {
+          "emailAddress": {
+            "address": "{{ p.additionalFields.from }}"
+          }
+        },
+        "body": {
+          "content": "{{ p.bodyContent | default:' ' }}",
+          "contentType": "{{ p.additionalFields.bodyContentType }}"
+        },
+        "subject": "{{ p.subject }}",
+        "attachments": {
+          "$map": "{{ bin.files }}",
+          "$to": {
+            "@odata.type": "#microsoft.graph.fileAttachment",
+            "name": "{{ el.file_name }}",
+            "contentBytes": "{{ el.base64 }}"
+          }
+        }
+      },
+      "binary": {
+        "properties": "{{ p.additionalFields.attachments.attachments | pluck:'binaryPropertyName' }}"
+      }
+    },
+    {
+      "resource": "draft",
+      "operation": "delete",
+      "title": "Delete a draft",
+      "method": "DELETE",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
+      "path": "/messages/{{ p.draftId | rl }}",
+      "fields": [
+        {
+          "key": "mailbox",
+          "label": "Mailbox (app-only)",
+          "type": "text",
+          "help": "Only with an Entra app connection: the mailbox's principal name or object ID. Leave empty for your own."
+        },
+        {
+          "key": "draftId",
+          "label": "Draft ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "draft",
+      "operation": "get",
+      "title": "Get a draft",
+      "method": "GET",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
+      "path": "/messages/{{ p.draftId | rl }}",
+      "fields": [
+        {
+          "key": "mailbox",
+          "label": "Mailbox (app-only)",
+          "type": "text",
+          "help": "Only with an Entra app connection: the mailbox's principal name or object ID. Leave empty for your own."
+        },
+        {
+          "key": "draftId",
+          "label": "Draft ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "output",
+          "label": "Output",
+          "type": "select",
+          "default": "simple",
+          "options": [
+            "simple",
+            "raw",
+            "fields"
+          ]
+        },
+        {
+          "key": "fields",
+          "label": "Fields",
+          "type": "array",
+          "item_type": "text",
+          "default": [],
+          "help": "Properties to return when Output is fields."
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "attachmentsPrefix",
+            "downloadAttachments"
+          ],
+          "help": "downloadAttachments puts each attachment on the item as binary <attachmentsPrefix><n> (attachment_0, …)."
+        }
+      ],
+      "query": {
+        "$select": "{{ p.output | eq:'simple' | then:'id,conversationId,subject,bodyPreview,from,toRecipients,categories,hasAttachments' | default:(p.output | eq:'fields' | then:(p.fields | csv)) }}"
+      },
+      "output": {
+        "to": {
+          "id": "{{ el.id }}",
+          "conversationId": "{{ el.conversationId }}",
+          "subject": "{{ el.subject }}",
+          "bodyPreview": "{{ el.bodyPreview }}",
+          "from": "{{ el.from.emailAddress.address }}",
+          "to": "{{ el.toRecipients | pluck:'emailAddress.address' }}",
+          "categories": "{{ el.categories }}",
+          "hasAttachments": "{{ el.hasAttachments }}"
+        },
+        "to_when": "{{ p.output | eq:'simple' }}",
+        "expand": {
+          "when": "{{ p.options.downloadAttachments | then:el.hasAttachments }}",
+          "method": "GET",
+          "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
+          "path": "/messages/{{ el.id }}/attachments",
+          "query": {
+            "$select": "id,name,contentType"
+          }
+        },
+        "expand_merge_key": "attachments",
+        "expand_merge_path": "value",
+        "download": {
+          "method": "GET",
+          "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
+          "path": "{{ el.path | path }}",
+          "files": {
+            "$concat": [
+              {
+                "$map": "{{ p.options.downloadAttachments | then:el.attachments }}",
+                "$to": {
+                  "path": "/messages/{{ up.id }}/attachments/{{ el.id }}/$value",
+                  "property": "{{ p.options.attachmentsPrefix | default:'attachment_' }}{{ idx }}",
+                  "file_name": "{{ el.name }}",
+                  "mime_type": "{{ el.contentType }}"
+                }
+              }
+            ]
+          },
+          "property": "{{ el.property }}",
+          "file_name": "{{ el.file_name }}",
+          "mime_type": "{{ el.mime_type }}"
+        }
+      }
+    },
+    {
+      "resource": "draft",
+      "operation": "send",
+      "title": "Send a draft",
+      "method": "POST",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
+      "path": "/messages/{{ p.draftId | rl }}/send",
+      "fields": [
+        {
+          "key": "mailbox",
+          "label": "Mailbox (app-only)",
+          "type": "text",
+          "help": "Only with an Entra app connection: the mailbox's principal name or object ID. Leave empty for your own."
+        },
+        {
+          "key": "draftId",
+          "label": "Draft ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "to",
+          "label": "To",
+          "type": "text",
+          "help": "Comma-separated addresses that replace the draft's recipients."
+        }
+      ],
+      "before": {
+        "when": "{{ p.to }}",
+        "method": "PATCH",
+        "path": "/messages/{{ p.draftId | rl }}",
+        "body": {
+          "toRecipients": {
+            "$map": "{{ p.to | split }}",
+            "$to": {
+              "emailAddress": {
+                "address": "{{ el }}"
+              }
+            }
+          }
+        },
+        "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}"
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "draft",
+      "operation": "update",
+      "title": "Update a draft",
+      "method": "PATCH",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
+      "path": "/messages/{{ p.draftId | rl }}",
+      "fields": [
+        {
+          "key": "mailbox",
+          "label": "Mailbox (app-only)",
+          "type": "text",
+          "help": "Only with an Entra app connection: the mailbox's principal name or object ID. Leave empty for your own."
+        },
+        {
+          "key": "draftId",
+          "label": "Draft ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "bccRecipients",
+            "categories",
+            "ccRecipients",
+            "internetMessageHeaders",
+            "from",
+            "importance",
+            "isRead",
+            "bodyContent",
+            "bodyContentType",
+            "isReadReceiptRequested",
+            "replyTo",
+            "subject",
+            "toRecipients"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields | omit:'bodyContent,bodyContentType,internetMessageHeaders,bccRecipients,ccRecipients,replyTo,sender,toRecipients,from,attachments,saveToSentItems,folderId' }}",
+        "internetMessageHeaders": "{{ p.updateFields.internetMessageHeaders.headers }}",
+        "toRecipients": {
+          "$map": "{{ p.updateFields.toRecipients | split }}",
+          "$to": {
+            "emailAddress": {
+              "address": "{{ el }}"
+            }
+          }
+        },
+        "ccRecipients": {
+          "$map": "{{ p.updateFields.ccRecipients | split }}",
+          "$to": {
+            "emailAddress": {
+              "address": "{{ el }}"
+            }
+          }
+        },
+        "bccRecipients": {
+          "$map": "{{ p.updateFields.bccRecipients | split }}",
+          "$to": {
+            "emailAddress": {
+              "address": "{{ el }}"
+            }
+          }
+        },
+        "replyTo": {
+          "$map": "{{ p.updateFields.replyTo | split }}",
+          "$to": {
+            "emailAddress": {
+              "address": "{{ el }}"
+            }
+          }
+        },
+        "from": {
+          "emailAddress": {
+            "address": "{{ p.updateFields.from }}"
+          }
+        },
+        "body": {
+          "content": "{{ p.updateFields.bodyContent }}",
+          "contentType": "{{ p.updateFields.bodyContentType }}"
+        }
+      }
+    },
+    {
+      "resource": "folder",
+      "operation": "create",
+      "title": "Create a folder",
+      "method": "POST",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
+      "path": "/mailFolders{{ p.options.folderId | rl | then:'/' }}{{ p.options.folderId | rl }}{{ p.options.folderId | rl | then:'/childFolders' }}",
+      "fields": [
+        {
+          "key": "mailbox",
+          "label": "Mailbox (app-only)",
+          "type": "text",
+          "help": "Only with an Entra app connection: the mailbox's principal name or object ID. Leave empty for your own."
+        },
+        {
+          "key": "displayName",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "folderId"
+          ],
+          "help": "folderId: create inside this folder."
+        }
+      ],
+      "body": {
+        "displayName": "{{ p.displayName }}"
+      }
+    },
+    {
+      "resource": "folder",
+      "operation": "delete",
+      "title": "Delete a folder",
+      "method": "DELETE",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
+      "path": "/mailFolders/{{ p.folderId | rl }}",
+      "fields": [
+        {
+          "key": "mailbox",
+          "label": "Mailbox (app-only)",
+          "type": "text",
+          "help": "Only with an Entra app connection: the mailbox's principal name or object ID. Leave empty for your own."
+        },
+        {
+          "key": "folderId",
+          "label": "Folder ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "folder",
+      "operation": "get",
+      "title": "Get a folder",
+      "method": "GET",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
+      "path": "/mailFolders/{{ p.folderId | rl }}",
+      "fields": [
+        {
+          "key": "mailbox",
+          "label": "Mailbox (app-only)",
+          "type": "text",
+          "help": "Only with an Entra app connection: the mailbox's principal name or object ID. Leave empty for your own."
+        },
+        {
+          "key": "folderId",
+          "label": "Folder ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fields",
+            "filter"
+          ]
+        }
+      ],
+      "query": {
+        "$select": "{{ p.options.fields | csv }}",
+        "$filter": "{{ p.options.filter }}"
+      }
+    },
+    {
+      "resource": "folder",
+      "operation": "getAll",
+      "title": "Get many folders",
+      "method": "GET",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
+      "path": "/mailFolders{{ p.options.folderId | rl | then:'/' }}{{ p.options.folderId | rl }}{{ p.options.folderId | rl | then:'/childFolders' }}",
+      "fields": [
+        {
+          "key": "mailbox",
+          "label": "Mailbox (app-only)",
+          "type": "text",
+          "help": "Only with an Entra app connection: the mailbox's principal name or object ID. Leave empty for your own."
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "filter"
+          ]
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fields",
+            "folderId",
+            "includeChildFolders"
+          ],
+          "help": "includeChildFolders adds every folder below the listed ones (all levels) after them."
+        }
+      ],
+      "query": {
+        "$select": "{{ p.options.fields | csv }}",
+        "$filter": "{{ p.filters.filter }}"
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "@odata.nextLink",
+        "results_path": "value",
+        "limit_param": "$top",
+        "page_size": 100
+      },
+      "output": {
+        "walk": {
+          "when": "{{ p.options.includeChildFolders }}",
+          "start": {
+            "$map": "{{ res }}",
+            "$to": "{{ el.childFolderCount | ne:'0' | then:el.childFolderCount | then:el.id }}"
+          },
+          "request": {
+            "method": "GET",
+            "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
+            "path": "/mailFolders/{{ el }}/childFolders"
+          },
+          "pagination": {
+            "type": "next_url",
+            "next_url_path": "@odata.nextLink"
+          },
+          "results_path": "value",
+          "descend": "{{ el.childFolderCount }}"
+        }
+      }
+    },
+    {
+      "resource": "folder",
+      "operation": "update",
+      "title": "Rename a folder",
+      "method": "PATCH",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
+      "path": "/mailFolders/{{ p.folderId | rl }}",
+      "fields": [
+        {
+          "key": "mailbox",
+          "label": "Mailbox (app-only)",
+          "type": "text",
+          "help": "Only with an Entra app connection: the mailbox's principal name or object ID. Leave empty for your own."
+        },
+        {
+          "key": "folderId",
+          "label": "Folder ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "displayName",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "displayName": "{{ p.displayName }}"
+      }
+    },
+    {
+      "resource": "folderMessage",
+      "operation": "getAll",
+      "title": "Get many messages in a folder",
+      "method": "GET",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
+      "path": "/mailFolders/{{ p.folderId | rl }}/messages",
+      "fields": [
+        {
+          "key": "mailbox",
+          "label": "Mailbox (app-only)",
+          "type": "text",
+          "help": "Only with an Entra app connection: the mailbox's principal name or object ID. Leave empty for your own."
+        },
+        {
+          "key": "folderId",
+          "label": "Folder ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "output",
+          "label": "Output",
+          "type": "select",
+          "default": "simple",
+          "options": [
+            "simple",
+            "raw",
+            "fields"
+          ]
+        },
+        {
+          "key": "fields",
+          "label": "Fields",
+          "type": "array",
+          "item_type": "text",
+          "default": [],
+          "help": "Properties to return when Output is fields."
+        },
+        {
+          "key": "filtersUI",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "values"
+          ],
+          "help": "{values: {filterBy: filters|search, search, filters: {custom, foldersToInclude, foldersToExclude, hasAttachments, readStatus (read|unread|both), receivedAfter, receivedBefore, sender}}}"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "attachmentsPrefix",
+            "downloadAttachments"
+          ],
+          "help": "downloadAttachments puts each attachment on the item as binary <attachmentsPrefix><n> (attachment_0, …)."
+        }
+      ],
+      "query": {
+        "$select": "{{ p.output | eq:'simple' | then:'id,conversationId,subject,bodyPreview,from,toRecipients,categories,hasAttachments' | default:(p.output | eq:'fields' | then:(p.fields | csv)) }}",
+        "$filter": {
+          "$join": [
+            {
+              "$join": {
+                "$map": "{{ p.filtersUI.values.filters.foldersToInclude }}",
+                "$to": "parentFolderId eq '{{ el | replace:\"'\",\"''\" }}'"
+              },
+              "$sep": " or ",
+              "$prefix": "(",
+              "$suffix": ")"
+            },
+            {
+              "$join": {
+                "$map": "{{ p.filtersUI.values.filters.foldersToExclude }}",
+                "$to": "parentFolderId ne '{{ el | replace:\"'\",\"''\" }}'"
+              },
+              "$sep": " and "
+            },
+            {
+              "$join": {
+                "$map": "{{ p.filtersUI.values.filters.sender | replace:\"'\",\"''\" | split:'\\n' }}",
+                "$to": "(from/emailAddress/address eq '{{ el }}' or from/emailAddress/name eq '{{ el }}')"
+              },
+              "$sep": " and "
+            },
+            "{{ p.filtersUI.values.filters.hasAttachments | then:'hasAttachments eq ' }}{{ p.filtersUI.values.filters.hasAttachments | then:'true' }}",
+            "{{ p.filtersUI.values.filters.readStatus | in:'read,unread' | then:'isRead eq ' }}{{ p.filtersUI.values.filters.readStatus | eq:'read' | then:'true' }}{{ p.filtersUI.values.filters.readStatus | eq:'unread' | then:'false' }}",
+            "{{ p.filtersUI.values.filters.receivedAfter | then:'receivedDateTime ge ' }}{{ p.filtersUI.values.filters.receivedAfter | date:'YYYY-MM-DDTHH:mm:ssZ' }}",
+            "{{ p.filtersUI.values.filters.receivedBefore | then:'receivedDateTime le ' }}{{ p.filtersUI.values.filters.receivedBefore | date:'YYYY-MM-DDTHH:mm:ssZ' }}",
+            "{{ p.filtersUI.values.filters.custom }}"
+          ],
+          "$sep": " and "
+        },
+        "$search": "{{ p.filtersUI.values.filterBy | eq:'search' | then:p.filtersUI.values.search | prefix:'\"' | suffix:'\"' }}"
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "@odata.nextLink",
+        "results_path": "value",
+        "limit_param": "$top",
+        "page_size": 100
+      },
+      "output": {
+        "to": {
+          "id": "{{ el.id }}",
+          "conversationId": "{{ el.conversationId }}",
+          "subject": "{{ el.subject }}",
+          "bodyPreview": "{{ el.bodyPreview }}",
+          "from": "{{ el.from.emailAddress.address }}",
+          "to": "{{ el.toRecipients | pluck:'emailAddress.address' }}",
+          "categories": "{{ el.categories }}",
+          "hasAttachments": "{{ el.hasAttachments }}"
+        },
+        "to_when": "{{ p.output | eq:'simple' }}",
+        "expand": {
+          "when": "{{ p.options.downloadAttachments | then:el.hasAttachments }}",
+          "method": "GET",
+          "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
+          "path": "/messages/{{ el.id }}/attachments",
+          "query": {
+            "$select": "id,name,contentType"
+          }
+        },
+        "expand_merge_key": "attachments",
+        "expand_merge_path": "value",
+        "download": {
+          "method": "GET",
+          "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
+          "path": "{{ el.path | path }}",
+          "files": {
+            "$concat": [
+              {
+                "$map": "{{ p.options.downloadAttachments | then:el.attachments }}",
+                "$to": {
+                  "path": "/messages/{{ up.id }}/attachments/{{ el.id }}/$value",
+                  "property": "{{ p.options.attachmentsPrefix | default:'attachment_' }}{{ idx }}",
+                  "file_name": "{{ el.name }}",
+                  "mime_type": "{{ el.contentType }}"
+                }
+              }
+            ]
+          },
+          "property": "{{ el.property }}",
+          "file_name": "{{ el.file_name }}",
+          "mime_type": "{{ el.mime_type }}"
+        }
+      }
+    },
+    {
+      "resource": "calendar",
+      "operation": "getAll",
+      "title": "Get many calendars",
+      "scope_group": "calendar",
+      "method": "GET",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
+      "path": "/calendars",
+      "fields": [
+        {
+          "key": "mailbox",
+          "label": "Mailbox (app-only)",
+          "type": "text",
+          "help": "Only with an Entra app connection: the mailbox's principal name or object ID. Leave empty for your own."
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "custom"
+          ]
+        }
+      ],
+      "query": {
+        "$filter": "{{ p.filters.custom }}"
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "@odata.nextLink",
+        "results_path": "value",
+        "limit_param": "$top",
+        "page_size": 100
+      }
+    },
+    {
+      "resource": "calendar",
+      "operation": "create",
+      "title": "Create a calendar",
+      "scope_group": "calendar",
+      "method": "POST",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
+      "path": "{{ p.additionalFields.calendarGroup | rl | then:'/calendarGroups/' }}{{ p.additionalFields.calendarGroup | rl }}/calendars",
+      "fields": [
+        {
+          "key": "mailbox",
+          "label": "Mailbox (app-only)",
+          "type": "text",
+          "help": "Only with an Entra app connection: the mailbox's principal name or object ID. Leave empty for your own."
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "calendarGroup",
+            "color"
+          ]
+        }
+      ],
+      "body": {
+        "name": "{{ p.name }}",
+        "$merge": "{{ p.additionalFields | omit:'calendarGroup' }}"
+      }
+    },
+    {
+      "resource": "calendar",
+      "operation": "delete",
+      "title": "Delete a calendar",
+      "scope_group": "calendar",
+      "method": "DELETE",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
+      "path": "/calendars/{{ p.calendarId | rl }}",
+      "fields": [
+        {
+          "key": "mailbox",
+          "label": "Mailbox (app-only)",
+          "type": "text",
+          "help": "Only with an Entra app connection: the mailbox's principal name or object ID. Leave empty for your own."
+        },
+        {
+          "key": "calendarId",
+          "label": "Calendar ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "calendar",
+      "operation": "get",
+      "title": "Get a calendar",
+      "scope_group": "calendar",
+      "method": "GET",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
+      "path": "/calendars/{{ p.calendarId | rl }}",
+      "fields": [
+        {
+          "key": "mailbox",
+          "label": "Mailbox (app-only)",
+          "type": "text",
+          "help": "Only with an Entra app connection: the mailbox's principal name or object ID. Leave empty for your own."
+        },
+        {
+          "key": "calendarId",
+          "label": "Calendar ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "calendar",
+      "operation": "update",
+      "title": "Update a calendar",
+      "scope_group": "calendar",
+      "method": "PATCH",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
+      "path": "/calendars/{{ p.calendarId | rl }}",
+      "fields": [
+        {
+          "key": "mailbox",
+          "label": "Mailbox (app-only)",
+          "type": "text",
+          "help": "Only with an Entra app connection: the mailbox's principal name or object ID. Leave empty for your own."
+        },
+        {
+          "key": "calendarId",
+          "label": "Calendar ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "color",
+            "isDefaultCalendar",
+            "name"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields }}"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "getAll",
+      "title": "Get many contacts",
+      "scope_group": "contacts",
+      "method": "GET",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
+      "path": "/contacts",
+      "fields": [
+        {
+          "key": "mailbox",
+          "label": "Mailbox (app-only)",
+          "type": "text",
+          "help": "Only with an Entra app connection: the mailbox's principal name or object ID. Leave empty for your own."
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "output",
+          "label": "Output",
+          "type": "select",
+          "default": "simple",
+          "options": [
+            "simple",
+            "raw",
+            "fields"
+          ]
+        },
+        {
+          "key": "fields",
+          "label": "Fields",
+          "type": "array",
+          "item_type": "text",
+          "default": [],
+          "help": "Properties to return when Output is fields."
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "custom",
+            "emailAddress"
+          ],
+          "help": "emailAddress: comma-separated addresses."
+        }
+      ],
+      "query": {
+        "$select": "{{ p.output | eq:'simple' | then:'id,displayName,emailAddresses,businessPhones,mobilePhone' | default:(p.output | eq:'fields' | then:(p.fields | csv)) }}",
+        "$filter": {
+          "$join": [
+            {
+              "$join": {
+                "$map": "{{ p.filters.emailAddress | split }}",
+                "$to": "emailAddresses/any(a:a/address eq '{{ el | replace:\"'\",\"''\" }}')"
+              },
+              "$sep": " and "
+            },
+            "{{ p.filters.custom }}"
+          ],
+          "$sep": " and "
+        }
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "@odata.nextLink",
+        "results_path": "value",
+        "limit_param": "$top",
+        "page_size": 100
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "create",
+      "title": "Create a contact",
+      "scope_group": "contacts",
+      "method": "POST",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
+      "path": "/contacts",
+      "fields": [
+        {
+          "key": "mailbox",
+          "label": "Mailbox (app-only)",
+          "type": "text",
+          "help": "Only with an Entra app connection: the mailbox's principal name or object ID. Leave empty for your own."
+        },
+        {
+          "key": "givenName",
+          "label": "First name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "surname",
+          "label": "Last name",
+          "type": "text"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "assistantName",
+            "birthday",
+            "businessAddress",
+            "businessHomePage",
+            "businessPhones",
+            "categories",
+            "children",
+            "companyName",
+            "department",
+            "displayName",
+            "emailAddresses",
+            "fileAs",
+            "homeAddress",
+            "homePhones",
+            "imAddresses",
+            "initials",
+            "jobTitle",
+            "manager",
+            "middleName",
+            "mobilePhone",
+            "givenName",
+            "nickName",
+            "officeLocation",
+            "otherAddress",
+            "personalNotes",
+            "profession",
+            "spouseName",
+            "surname",
+            "title"
+          ],
+          "help": "Phones/categories/children/imAddresses: comma-separated; addresses: {values: {street, city, state, postalCode, countryOrRegion}}; emailAddresses: {values: [{name, address}]}."
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.additionalFields | omit:'businessPhones,categories,children,homePhones,imAddresses,businessAddress,emailAddresses,homeAddress,otherAddress' }}",
+        "businessPhones": "{{ p.additionalFields.businessPhones | split }}",
+        "categories": "{{ p.additionalFields.categories | split }}",
+        "children": "{{ p.additionalFields.children | split }}",
+        "homePhones": "{{ p.additionalFields.homePhones | split }}",
+        "imAddresses": "{{ p.additionalFields.imAddresses | split }}",
+        "businessAddress": "{{ p.additionalFields.businessAddress.values }}",
+        "homeAddress": "{{ p.additionalFields.homeAddress.values }}",
+        "otherAddress": "{{ p.additionalFields.otherAddress.values }}",
+        "emailAddresses": "{{ p.additionalFields.emailAddresses.values }}",
+        "givenName": "{{ p.givenName }}",
+        "surname": "{{ p.surname }}"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "delete",
+      "title": "Delete a contact",
+      "scope_group": "contacts",
+      "method": "DELETE",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
+      "path": "/contacts/{{ p.contactId | rl }}",
+      "fields": [
+        {
+          "key": "mailbox",
+          "label": "Mailbox (app-only)",
+          "type": "text",
+          "help": "Only with an Entra app connection: the mailbox's principal name or object ID. Leave empty for your own."
+        },
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "get",
+      "title": "Get a contact",
+      "scope_group": "contacts",
+      "method": "GET",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
+      "path": "/contacts/{{ p.contactId | rl }}",
+      "fields": [
+        {
+          "key": "mailbox",
+          "label": "Mailbox (app-only)",
+          "type": "text",
+          "help": "Only with an Entra app connection: the mailbox's principal name or object ID. Leave empty for your own."
+        },
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "output",
+          "label": "Output",
+          "type": "select",
+          "default": "simple",
+          "options": [
+            "simple",
+            "raw",
+            "fields"
+          ]
+        },
+        {
+          "key": "fields",
+          "label": "Fields",
+          "type": "array",
+          "item_type": "text",
+          "default": [],
+          "help": "Properties to return when Output is fields."
+        }
+      ],
+      "query": {
+        "$select": "{{ p.output | eq:'simple' | then:'id,displayName,emailAddresses,businessPhones,mobilePhone' | default:(p.output | eq:'fields' | then:(p.fields | csv)) }}"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "update",
+      "title": "Update a contact",
+      "scope_group": "contacts",
+      "method": "PATCH",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
+      "path": "/contacts/{{ p.contactId | rl }}",
+      "fields": [
+        {
+          "key": "mailbox",
+          "label": "Mailbox (app-only)",
+          "type": "text",
+          "help": "Only with an Entra app connection: the mailbox's principal name or object ID. Leave empty for your own."
+        },
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "assistantName",
+            "birthday",
+            "businessAddress",
+            "businessHomePage",
+            "businessPhones",
+            "categories",
+            "children",
+            "companyName",
+            "department",
+            "displayName",
+            "emailAddresses",
+            "fileAs",
+            "homeAddress",
+            "homePhones",
+            "imAddresses",
+            "initials",
+            "jobTitle",
+            "manager",
+            "middleName",
+            "mobilePhone",
+            "givenName",
+            "nickName",
+            "officeLocation",
+            "otherAddress",
+            "personalNotes",
+            "profession",
+            "spouseName",
+            "surname",
+            "title"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.additionalFields | omit:'businessPhones,categories,children,homePhones,imAddresses,businessAddress,emailAddresses,homeAddress,otherAddress' }}",
+        "businessPhones": "{{ p.additionalFields.businessPhones | split }}",
+        "categories": "{{ p.additionalFields.categories | split }}",
+        "children": "{{ p.additionalFields.children | split }}",
+        "homePhones": "{{ p.additionalFields.homePhones | split }}",
+        "imAddresses": "{{ p.additionalFields.imAddresses | split }}",
+        "businessAddress": "{{ p.additionalFields.businessAddress.values }}",
+        "homeAddress": "{{ p.additionalFields.homeAddress.values }}",
+        "otherAddress": "{{ p.additionalFields.otherAddress.values }}",
+        "emailAddresses": "{{ p.additionalFields.emailAddresses.values }}"
+      }
+    },
+    {
+      "resource": "event",
+      "operation": "getAll",
+      "title": "Get many events",
+      "scope_group": "calendar",
+      "method": "GET",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
+      "path": "{{ p.fromAllCalendars | string | eq:'false' | then:'/calendars/' }}{{ p.fromAllCalendars | string | eq:'false' | then:(p.calendarId | rl) }}{{ p.includeRecurringInstances | then:'/calendarView' | default:'/events' }}",
+      "fields": [
+        {
+          "key": "mailbox",
+          "label": "Mailbox (app-only)",
+          "type": "text",
+          "help": "Only with an Entra app connection: the mailbox's principal name or object ID. Leave empty for your own."
+        },
+        {
+          "key": "fromAllCalendars",
+          "label": "From all calendars",
+          "type": "boolean",
+          "default": true,
+          "help": "Off: only the calendar in Calendar ID. On reads the mailbox's events."
+        },
+        {
+          "key": "calendarId",
+          "label": "Calendar ID",
+          "type": "text"
+        },
+        {
+          "key": "includeRecurringInstances",
+          "label": "Include recurring instances",
+          "type": "boolean",
+          "default": false,
+          "help": "Expands series into occurrences between the start and end times."
+        },
+        {
+          "key": "startDateTime",
+          "label": "Start",
+          "type": "datetime"
+        },
+        {
+          "key": "endDateTime",
+          "label": "End",
+          "type": "datetime"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "output",
+          "label": "Output",
+          "type": "select",
+          "default": "simple",
+          "options": [
+            "simple",
+            "raw",
+            "fields"
+          ]
+        },
+        {
+          "key": "fields",
+          "label": "Fields",
+          "type": "array",
+          "item_type": "text",
+          "default": [],
+          "help": "Properties to return when Output is fields."
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "custom"
+          ]
+        }
+      ],
+      "query": {
+        "$select": "{{ p.output | eq:'simple' | then:'id,subject,bodyPreview,start,end,organizer,attendees,webLink' | default:(p.output | eq:'fields' | then:(p.fields | csv)) }}",
+        "startDateTime": "{{ p.includeRecurringInstances | then:p.startDateTime }}",
+        "endDateTime": "{{ p.includeRecurringInstances | then:p.endDateTime }}",
+        "$filter": "{{ p.includeRecurringInstances | ne:'true' | then:p.filters.custom }}"
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "@odata.nextLink",
+        "results_path": "value",
+        "limit_param": "$top",
+        "page_size": 100
+      }
+    },
+    {
+      "resource": "event",
+      "operation": "create",
+      "title": "Create an event",
+      "scope_group": "calendar",
+      "method": "POST",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
+      "path": "/calendars/{{ p.calendarId | rl }}/events",
+      "fields": [
+        {
+          "key": "mailbox",
+          "label": "Mailbox (app-only)",
+          "type": "text",
+          "help": "Only with an Entra app connection: the mailbox's principal name or object ID. Leave empty for your own."
+        },
+        {
+          "key": "calendarId",
+          "label": "Calendar ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "subject",
+          "label": "Subject",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "startDateTime",
+          "label": "Start",
+          "type": "datetime",
+          "required": true
+        },
+        {
+          "key": "endDateTime",
+          "label": "End",
+          "type": "datetime",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "attendees",
+            "body",
+            "categories",
+            "bodyPreview",
+            "hideAttendees",
+            "importance",
+            "isAllDay",
+            "isCancelled",
+            "isDraft",
+            "isOnlineMeeting",
+            "location",
+            "sensitivity",
+            "showAs",
+            "timeZone",
+            "type"
+          ],
+          "help": "attendees: {values: [{email, name, type (required|optional|resource)}]}; timeZone defaults to UTC; body is HTML."
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.additionalFields | omit:'attendees,body,location,timeZone,start,end' }}",
+        "body": {
+          "$when": "{{ p.additionalFields.body }}",
+          "content": "{{ p.additionalFields.body }}",
+          "contentType": "html"
+        },
+        "location": {
+          "displayName": "{{ p.additionalFields.location }}"
+        },
+        "attendees": {
+          "$map": "{{ p.additionalFields.attendees.values }}",
+          "$to": {
+            "emailAddress": {
+              "address": "{{ el.email }}",
+              "name": "{{ el.name }}"
+            },
+            "type": "{{ el.type }}"
+          }
+        },
+        "subject": "{{ p.subject }}",
+        "start": {
+          "dateTime": "{{ p.additionalFields.isAllDay | then:(p.startDateTime | date:'YYYY-MM-DD') | default:p.startDateTime }}",
+          "timeZone": "{{ p.additionalFields.timeZone | default:'UTC' }}"
+        },
+        "end": {
+          "dateTime": "{{ p.additionalFields.isAllDay | then:(p.endDateTime | date:'YYYY-MM-DD') | default:p.endDateTime }}",
+          "timeZone": "{{ p.additionalFields.timeZone | default:'UTC' }}"
+        }
+      }
+    },
+    {
+      "resource": "event",
+      "operation": "delete",
+      "title": "Delete an event",
+      "scope_group": "calendar",
+      "method": "DELETE",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
+      "path": "/calendar/events/{{ p.eventId | rl }}",
+      "fields": [
+        {
+          "key": "mailbox",
+          "label": "Mailbox (app-only)",
+          "type": "text",
+          "help": "Only with an Entra app connection: the mailbox's principal name or object ID. Leave empty for your own."
+        },
+        {
+          "key": "eventId",
+          "label": "Event ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "event",
+      "operation": "get",
+      "title": "Get an event",
+      "scope_group": "calendar",
+      "method": "GET",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
+      "path": "/calendar/events/{{ p.eventId | rl }}",
+      "fields": [
+        {
+          "key": "mailbox",
+          "label": "Mailbox (app-only)",
+          "type": "text",
+          "help": "Only with an Entra app connection: the mailbox's principal name or object ID. Leave empty for your own."
+        },
+        {
+          "key": "eventId",
+          "label": "Event ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "output",
+          "label": "Output",
+          "type": "select",
+          "default": "simple",
+          "options": [
+            "simple",
+            "raw",
+            "fields"
+          ]
+        },
+        {
+          "key": "fields",
+          "label": "Fields",
+          "type": "array",
+          "item_type": "text",
+          "default": [],
+          "help": "Properties to return when Output is fields."
+        }
+      ],
+      "query": {
+        "$select": "{{ p.output | eq:'simple' | then:'id,subject,bodyPreview,start,end,organizer,attendees,webLink' | default:(p.output | eq:'fields' | then:(p.fields | csv)) }}"
+      }
+    },
+    {
+      "resource": "event",
+      "operation": "update",
+      "title": "Update an event",
+      "scope_group": "calendar",
+      "method": "PATCH",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
+      "path": "/calendar/events/{{ p.eventId | rl }}",
+      "fields": [
+        {
+          "key": "mailbox",
+          "label": "Mailbox (app-only)",
+          "type": "text",
+          "help": "Only with an Entra app connection: the mailbox's principal name or object ID. Leave empty for your own."
+        },
+        {
+          "key": "eventId",
+          "label": "Event ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "attendees",
+            "body",
+            "categories",
+            "bodyPreview",
+            "hideAttendees",
+            "importance",
+            "isAllDay",
+            "isCancelled",
+            "isDraft",
+            "isOnlineMeeting",
+            "location",
+            "sensitivity",
+            "showAs",
+            "timeZone",
+            "type",
+            "start",
+            "end",
+            "subject"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.additionalFields | omit:'attendees,body,location,timeZone,start,end' }}",
+        "body": {
+          "$when": "{{ p.additionalFields.body }}",
+          "content": "{{ p.additionalFields.body }}",
+          "contentType": "html"
+        },
+        "location": {
+          "displayName": "{{ p.additionalFields.location }}"
+        },
+        "attendees": {
+          "$map": "{{ p.additionalFields.attendees.values }}",
+          "$to": {
+            "emailAddress": {
+              "address": "{{ el.email }}",
+              "name": "{{ el.name }}"
+            },
+            "type": "{{ el.type }}"
+          }
+        },
+        "start": {
+          "$when": "{{ p.additionalFields.start }}",
+          "dateTime": "{{ p.additionalFields.isAllDay | then:(p.additionalFields.start | date:'YYYY-MM-DD') | default:p.additionalFields.start }}",
+          "timeZone": "{{ p.additionalFields.timeZone | default:'UTC' }}"
+        },
+        "end": {
+          "$when": "{{ p.additionalFields.end }}",
+          "dateTime": "{{ p.additionalFields.isAllDay | then:(p.additionalFields.end | date:'YYYY-MM-DD') | default:p.additionalFields.end }}",
+          "timeZone": "{{ p.additionalFields.timeZone | default:'UTC' }}"
+        }
+      }
+    }
+  ]
+}

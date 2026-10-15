@@ -20,8 +20,11 @@ import (
 // commsStore is the part of a workflow store a run needs, in memory.
 type commsStore struct {
 	workflow.WorkflowStore
+	db    *sql.DB
 	state string
 }
+
+func (s *commsStore) RawDB() *sql.DB { return s.db }
 
 func (s *commsStore) CreateExecutionNode(context.Context, *workflow.WorkflowExecutionNode) error {
 	return nil
@@ -73,7 +76,7 @@ func newCommsRig(t *testing.T, sendType string, sendConfig map[string]interface{
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { d.DB.Close() })
-	r := &commsRig{t: t, db: d.DB, ctx: vault.ContextWithDB(context.Background(), d.DB), store: &commsStore{}}
+	r := &commsRig{t: t, db: d.DB, ctx: vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), d.DB), "default"), store: &commsStore{db: d.DB}}
 	r.reg = workflow.NewNodeTypeRegistry()
 	r.reg.Register("core.human_in_loop", func() workflow.NodeExecutor { return &HumanInLoopNode{} })
 	r.reg.Register(sendType, func() workflow.NodeExecutor { return fakeSend{typ: sendType, calls: &r.calls, err: sendErr} })
@@ -99,7 +102,7 @@ func newCommsRig(t *testing.T, sendType string, sendConfig map[string]interface{
 
 func (r *commsRig) run(resume string) error {
 	r.t.Helper()
-	exec := &workflow.WorkflowExecution{ID: "ex1", WorkflowID: "wf1", TriggerNodeID: "t", TriggerData: r.trigger, ResumeState: resume}
+	exec := &workflow.WorkflowExecution{ID: "ex1", ProfileID: "default", WorkflowID: "wf1", TriggerNodeID: "t", TriggerData: r.trigger, ResumeState: resume}
 	return workflow.RunExecution(r.ctx, exec, r.wf, r.dag, r.reg, r.store, nil, workflow.NewExpressionEngine(), zerolog.Nop())
 }
 

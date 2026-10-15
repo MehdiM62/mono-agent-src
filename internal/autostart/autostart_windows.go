@@ -19,7 +19,15 @@ type windowsInstaller struct{}
 
 const taskName = "MonoAgentDaemon"
 
-func (windowsInstaller) Install(ctx context.Context) (Result, error) {
+// serviceLogHint is where the scheduled task's >> redirect writes.
+func serviceLogHint() string {
+	return `%USERPROFILE%\.monoagent\logs\daemon.log`
+}
+
+func (windowsInstaller) Install(ctx context.Context, profileID string) (Result, error) {
+	if profileID == "" {
+		return Result{}, errNoProfile
+	}
 	exe, err := executablePath()
 	if err != nil {
 		return Result{}, err
@@ -34,7 +42,7 @@ func (windowsInstaller) Install(ctx context.Context) (Result, error) {
 	// StandardOutPath or systemd's journal), so the task runs a cmd
 	// wrapper that appends both streams to a file instead. /rl limited
 	// avoids requiring admin rights for a per-user task.
-	trArg := fmt.Sprintf(`cmd /c ""%s" daemon >> "%s" 2>&1"`, exe, logPath)
+	trArg := taskCommand(exe, logPath, profileID)
 
 	cmd := exec.CommandContext(ctx, "schtasks", "/create", "/tn", taskName,
 		"/sc", "onlogon", "/rl", "limited", "/f", "/tr", trArg)
@@ -44,6 +52,7 @@ func (windowsInstaller) Install(ctx context.Context) (Result, error) {
 
 	// /create only schedules it for the next logon; start it now too so
 	// install has the same "running immediately" effect on every platform.
+	rotateDaemonLogs("daemon.log")
 	_ = exec.CommandContext(ctx, "schtasks", "/run", "/tn", taskName).Run()
 
 	return Result{Description: fmt.Sprintf(
@@ -94,10 +103,19 @@ var waitDaemonStopped = func(ctx context.Context) error {
 // Restart ends the task, waits for the daemon to stop and runs the task again: the task has
 // a logon trigger and no keep-alive, so a /run that raced the old process would leave no daemon.
 func (windowsInstaller) Restart(ctx context.Context) error {
-	return endThenRun(ctx, schtasks, waitDaemonStopped, taskName)
+	// The log is rotated once the old daemon has let go of it.
+	stoppedThenRotate := func(ctx context.Context) error {
+		if err := waitDaemonStopped(ctx); err != nil {
+			return err
+		}
+		rotateDaemonLogs("daemon.log")
+		return nil
+	}
+	return endThenRun(ctx, schtasks, stoppedThenRotate, taskName)
 }
 
 func (windowsInstaller) Start(ctx context.Context) error {
+	rotateDaemonLogs("daemon.log")
 	out, err := exec.CommandContext(ctx, "schtasks", "/run", "/tn", taskName).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("schtasks /run: %w: %s", err, string(out))
@@ -107,3 +125,14 @@ func (windowsInstaller) Start(ctx context.Context) error {
 
 // MainPID: a scheduled task does not report its process in a form that is checked here.
 func (windowsInstaller) MainPID(context.Context) (int, error) { return 0, ErrPIDUnverifiable }
+
+// taskCommand is the Scheduled Task's command line: the daemon with its profile, output appended to logPath.
+func taskCommand(exe, logPath, profileID string) string {
+	return fmt.Sprintf(`cmd /c ""%s" daemon --profile "%s" >> "%s" 2>&1"`, exe, profileID, logPath)
+}
+
+// registeredDefinition is the task's XML export (schtasks /query /xml).
+func registeredDefinition() (string, error) {
+	out, err := exec.Command("schtasks", "/query", "/tn", taskName, "/xml").Output()
+	return string(out), err
+}

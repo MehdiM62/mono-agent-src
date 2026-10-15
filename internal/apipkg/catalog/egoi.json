@@ -1,0 +1,331 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "egoi",
+  "node_type": "app.egoi",
+  "title": "E-goi",
+  "description": "Contacts in E-goi lists",
+  "category": "app",
+  "docs_url": "https://developers.e-goi.com/api/v3/",
+  "n8n_types": [
+    "n8n-nodes-base.egoi"
+  ],
+  "base_url": "https://api.egoiapp.com",
+  "credentials": [
+    {
+      "platform": "egoi",
+      "name": "E-goi",
+      "n8n_credential": "egoiApi",
+      "n8n_field_map": {
+        "apiKey": "api_key"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Apikey": "{{ cred.api_key }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "contact",
+      "label": "Contact"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "contact",
+      "operation": "create",
+      "title": "Create a contact",
+      "method": "POST",
+      "path": "/lists/{{ p.list }}/contacts",
+      "fields": [
+        {
+          "key": "list",
+          "label": "List ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "resolveData",
+          "label": "Resolve data",
+          "type": "boolean",
+          "default": true,
+          "help": "Return the full contact instead of only its ID"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "birth_date",
+            "cellphone",
+            "extraFieldsUi",
+            "first_name",
+            "last_name",
+            "status",
+            "tagIds"
+          ],
+          "help": "birth_date: a date; status: unconfirmed, active, inactive or removed; extraFieldsUi: {\"extraFieldValues\": [{\"field_id\", \"value\"}]}; tagIds: list of tag IDs"
+        }
+      ],
+      "body": {
+        "base": {
+          "$merge": "{{ p.additionalFields | omit:'extraFieldsUi,tagIds' }}",
+          "birth_date": "{{ p.additionalFields.birth_date | date:'YYYY-MM-DD' }}",
+          "email": "{{ p.email }}"
+        },
+        "!extra": {
+          "$concat": [
+            "{{ p.additionalFields.extraFieldsUi.extraFieldValues }}"
+          ]
+        }
+      },
+      "also": [
+        {
+          "method": "POST",
+          "path": "/lists/{{ p.list }}/contacts/actions/attach-tag",
+          "body": {
+            "tag_id": "{{ el }}",
+            "contacts": [
+              "{{ res.contact_id }}"
+            ]
+          },
+          "for_each": "{{ p.additionalFields.tagIds }}"
+        }
+      ],
+      "output": {
+        "expand": {
+          "when": "{{ p.resolveData }}",
+          "method": "GET",
+          "path": "/lists/{{ p.list }}/contacts/{{ el.contact_id }}"
+        }
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "get",
+      "title": "Get a contact",
+      "method": "GET",
+      "path": "/lists/{{ p.list }}/contacts{{ p.by | ne:'email' | then:'/' }}{{ p.by | ne:'email' | then:p.contactId }}",
+      "fields": [
+        {
+          "key": "list",
+          "label": "List ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "by",
+          "label": "Find by",
+          "type": "select",
+          "default": "id",
+          "options": [
+            "id",
+            "email"
+          ]
+        },
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "simple",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true,
+          "help": "Flatten base and extra fields into one object"
+        }
+      ],
+      "query": {
+        "email": "{{ p.by | eq:'email' | then:p.email }}"
+      },
+      "before": {
+        "when": "{{ p.simple }}",
+        "method": "GET",
+        "path": "/lists/{{ p.list }}/fields"
+      },
+      "output": {
+        "path": "{{ p.by | eq:'email' | then:'items' }}",
+        "to": {
+          "$merge": [
+            "{{ el.base }}",
+            {
+              "$entries": "{{ el.extra }}",
+              "$key": "{{ pre | find:'field_id',el.field_id | get:'name' }}",
+              "$value": "{{ el.value }}"
+            }
+          ],
+          "tags": "{{ el.tags }}",
+          "email_stats": "{{ el.email_stats }}",
+          "sms_stats": "{{ el.sms_stats }}",
+          "push_stats": "{{ el.push_stats }}",
+          "webpush_stats": "{{ el.webpush_stats }}",
+          "voice_stats": "{{ el.voice_stats }}"
+        },
+        "to_when": "{{ p.simple }}"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "getAll",
+      "title": "Get many contacts",
+      "method": "GET",
+      "path": "/lists/{{ p.list }}/contacts",
+      "fields": [
+        {
+          "key": "list",
+          "label": "List ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1,
+          "max": 500
+        },
+        {
+          "key": "simple",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true
+        }
+      ],
+      "before": {
+        "when": "{{ p.simple }}",
+        "method": "GET",
+        "path": "/lists/{{ p.list }}/fields"
+      },
+      "pagination": {
+        "type": "offset",
+        "offset_param": "offset",
+        "limit_param": "limit",
+        "page_size": 500,
+        "results_path": "items"
+      },
+      "output": {
+        "to": {
+          "$merge": [
+            "{{ el.base }}",
+            {
+              "$entries": "{{ el.extra }}",
+              "$key": "{{ pre | find:'field_id',el.field_id | get:'name' }}",
+              "$value": "{{ el.value }}"
+            }
+          ],
+          "tags": "{{ el.tags }}"
+        },
+        "to_when": "{{ p.simple }}"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "update",
+      "title": "Update a contact",
+      "method": "PATCH",
+      "path": "/lists/{{ p.list }}/contacts/{{ p.contactId }}",
+      "fields": [
+        {
+          "key": "list",
+          "label": "List ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "resolveData",
+          "label": "Resolve data",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "email",
+            "birth_date",
+            "cellphone",
+            "extraFieldsUi",
+            "first_name",
+            "last_name",
+            "status",
+            "tagIds"
+          ],
+          "help": "birth_date: a date; status: unconfirmed, active, inactive or removed; extraFieldsUi: {\"extraFieldValues\": [{\"field_id\", \"value\"}]}; tagIds: list of tag IDs"
+        }
+      ],
+      "body": {
+        "base": {
+          "$merge": "{{ p.updateFields | omit:'extraFieldsUi,tagIds' }}",
+          "birth_date": "{{ p.updateFields.birth_date | date:'YYYY-MM-DD' }}"
+        },
+        "!extra": {
+          "$concat": [
+            "{{ p.updateFields.extraFieldsUi.extraFieldValues }}"
+          ]
+        }
+      },
+      "also": [
+        {
+          "method": "POST",
+          "path": "/lists/{{ p.list }}/contacts/actions/attach-tag",
+          "body": {
+            "tag_id": "{{ el }}",
+            "contacts": [
+              "{{ p.contactId }}"
+            ]
+          },
+          "for_each": "{{ p.updateFields.tagIds }}"
+        }
+      ],
+      "output": {
+        "expand": {
+          "when": "{{ p.resolveData }}",
+          "method": "GET",
+          "path": "/lists/{{ p.list }}/contacts/{{ el.contact_id }}"
+        }
+      }
+    }
+  ]
+}

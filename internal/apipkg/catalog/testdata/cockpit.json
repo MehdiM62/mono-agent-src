@@ -1,0 +1,134 @@
+{
+  "collection.getAll": {
+    "credential": {
+      "url": "https://cms.test",
+      "access_token": "tk"
+    },
+    "params": {
+      "collection": "posts",
+      "limit": 10,
+      "options": {
+        "fields": "title, body",
+        "filter": "{\"published\":true}",
+        "rawData": true
+      }
+    },
+    "response": [
+      {
+        "title": "a"
+      },
+      {
+        "title": "b"
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/api/collections/get/posts",
+      "query": {},
+      "body": {
+        "fields": {
+          "_id": false,
+          "title": true,
+          "body": true
+        },
+        "filter": {
+          "published": true
+        },
+        "limit": 10,
+        "simple": false
+      },
+      "items": 2
+    }
+  },
+  "collection.create": {
+    "credential": {
+      "url": "https://cms.test",
+      "access_token": "tk"
+    },
+    "params": {
+      "collection": "posts",
+      "dataFieldsUi": {
+        "field": [
+          {
+            "name": "title",
+            "value": "Hi"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/collections/save/posts",
+      "query": {},
+      "body": {
+        "data": {
+          "title": "Hi"
+        }
+      }
+    }
+  },
+  "collection.update": {
+    "credential": {
+      "url": "https://cms.test",
+      "access_token": "tk"
+    },
+    "params": {
+      "collection": "posts",
+      "id": "e1",
+      "jsonDataFields": true,
+      "dataFieldsJson": "{\"title\":\"New\"}"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/collections/save/posts",
+      "query": {},
+      "body": {
+        "data": {
+          "_id": "e1",
+          "title": "New"
+        }
+      }
+    }
+  },
+  "form.submit": {
+    "credential": {
+      "url": "https://cms.test",
+      "access_token": "tk"
+    },
+    "params": {
+      "form": "contact",
+      "dataFieldsUi": {
+        "field": [
+          {
+            "name": "email",
+            "value": "a@b.c"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/forms/submit/contact",
+      "query": {},
+      "body": {
+        "form": {
+          "email": "a@b.c"
+        }
+      }
+    }
+  },
+  "singleton.get": {
+    "credential": {
+      "url": "https://cms.test",
+      "access_token": "tk"
+    },
+    "params": {
+      "singleton": "settings"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/singletons/get/settings",
+      "query": {}
+    }
+  }
+}

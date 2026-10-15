@@ -18,6 +18,9 @@ func scheduleAuditArgs(org string) ([]string, error) {
 // GetOrgScheduleAudit returns `org schedule-audit <org>`'s JSON
 // (orgbridge.ScheduleAuditView) or {"error"}.
 func (a *App) GetOrgScheduleAudit(org string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	sub, err := scheduleAuditArgs(org)
 	return a.runOrgSub("schedule-audit", sub, err)
 }
@@ -26,6 +29,9 @@ func (a *App) GetOrgScheduleAudit(org string) string {
 // "15m", "2h". Allowed on a sections org too: monomind starts every tick as a
 // fresh run. Returns the saved org like UpdateOrgRole, or {"error"}.
 func (a *App) SetOrgSchedule(org, schedule string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	root := a.orgDesignRoot()
 	d, err := orgdesign.Load(root, org)
 	if err != nil {

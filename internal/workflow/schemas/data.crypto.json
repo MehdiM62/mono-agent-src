@@ -4,6 +4,7 @@
   "fields": [
     {
       "default": "hash_sha256",
+      "help": "hash/hmac/sign/generate/encrypt/decrypt are the n8n Crypto actions: they read value and write data_property_name.",
       "key": "operation",
       "label": "Operation",
       "options": [
@@ -14,7 +15,13 @@
         "uuid",
         "random_bytes",
         "base64_encode",
-        "base64_decode"
+        "base64_decode",
+        "hash",
+        "hmac",
+        "sign",
+        "generate",
+        "encrypt",
+        "decrypt"
       ],
       "required": true,
       "type": "select"
@@ -42,13 +49,262 @@
       "depends_on": {
         "key": "operation",
         "values": [
-          "hmac_sha256"
+          "hash",
+          "hmac",
+          "sign",
+          "encrypt",
+          "decrypt"
+        ]
+      },
+      "help": "Value to process (evaluated per item).",
+      "key": "value",
+      "label": "Value",
+      "placeholder": "{{ $json.password }}",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": "SHA256",
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "hash",
+          "hmac"
+        ]
+      },
+      "key": "type",
+      "label": "Hash Type",
+      "options": [
+        "MD5",
+        "SHA1",
+        "SHA224",
+        "SHA256",
+        "SHA384",
+        "SHA512",
+        "SHA3-224",
+        "SHA3-256",
+        "SHA3-384",
+        "SHA3-512",
+        "RIPEMD160"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "default": false,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "hash",
+          "hmac"
+        ]
+      },
+      "help": "Hash a binary property instead of value.",
+      "key": "binary_data",
+      "label": "Hash Binary Data",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "default": "data",
+      "depends_on": {
+        "key": "binary_data",
+        "values": [
+          "true"
+        ]
+      },
+      "key": "binary_property_name",
+      "label": "Binary Property",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "hmac_sha256",
+          "hmac"
         ]
       },
       "key": "secret",
       "label": "HMAC Secret",
       "required": false,
       "type": "password"
+    },
+    {
+      "default": "RSA-SHA256",
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "sign"
+        ]
+      },
+      "help": "Digest used with the private key (RSA PKCS#1 v1.5 or ECDSA; Ed25519 keys ignore it).",
+      "key": "algorithm",
+      "label": "Signing Algorithm",
+      "options": [
+        "RSA-SHA256",
+        "RSA-SHA384",
+        "RSA-SHA512",
+        "RSA-SHA1",
+        "RSA-SHA224",
+        "RSA-RIPEMD160",
+        "sha256",
+        "sha384",
+        "sha512"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "sign",
+          "decrypt"
+        ]
+      },
+      "help": "Key for sign, and for asymmetric decrypt (RSA).",
+      "key": "private_key",
+      "label": "Private Key (PEM)",
+      "required": false,
+      "rows": 4,
+      "type": "textarea"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "encrypt"
+        ]
+      },
+      "help": "RSA key for asymmetric encrypt.",
+      "key": "public_key",
+      "label": "Public Key (PEM)",
+      "required": false,
+      "rows": 4,
+      "type": "textarea"
+    },
+    {
+      "default": "symmetric",
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "encrypt",
+          "decrypt"
+        ]
+      },
+      "help": "symmetric: passphrase + cipher (n8n-compatible payload). asymmetric: RSA-OAEP.",
+      "key": "mode",
+      "label": "Mode",
+      "options": [
+        "symmetric",
+        "asymmetric"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "depends_on": {
+        "key": "mode",
+        "values": [
+          "symmetric"
+        ]
+      },
+      "key": "passphrase",
+      "label": "Passphrase",
+      "required": false,
+      "type": "password"
+    },
+    {
+      "default": "aes-256-gcm",
+      "depends_on": {
+        "key": "mode",
+        "values": [
+          "symmetric"
+        ]
+      },
+      "key": "cipher",
+      "label": "Cipher",
+      "options": [
+        "aes-256-gcm",
+        "aes-192-gcm",
+        "aes-128-gcm",
+        "chacha20-poly1305"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "default": "sha256",
+      "depends_on": {
+        "key": "mode",
+        "values": [
+          "asymmetric"
+        ]
+      },
+      "key": "oaep_hash",
+      "label": "OAEP Hash",
+      "options": [
+        "sha256",
+        "sha1"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "default": "uuid",
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "generate"
+        ]
+      },
+      "key": "encoding_type",
+      "label": "Generate Type",
+      "options": [
+        "uuid",
+        "ascii",
+        "base64",
+        "hex"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "default": 32,
+      "depends_on": {
+        "key": "encoding_type",
+        "values": [
+          "ascii",
+          "base64",
+          "hex"
+        ]
+      },
+      "key": "string_length",
+      "label": "String Length",
+      "min": 1,
+      "required": false,
+      "type": "number"
+    },
+    {
+      "default": "data",
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "hash",
+          "hmac",
+          "sign",
+          "generate",
+          "encrypt",
+          "decrypt"
+        ]
+      },
+      "help": "Field the result is written to (dot paths allowed).",
+      "key": "data_property_name",
+      "label": "Property Name",
+      "required": false,
+      "type": "text"
     },
     {
       "help": "Defaults to the input field, overwriting it.",
@@ -66,7 +322,10 @@
           "hash_sha256",
           "hash_sha512",
           "hmac_sha256",
-          "random_bytes"
+          "random_bytes",
+          "hash",
+          "hmac",
+          "sign"
         ]
       },
       "help": "Encoding used for hash/hmac/random_bytes output.",
@@ -91,6 +350,18 @@
       "label": "Random Byte Count",
       "required": false,
       "type": "number"
+    }
+  ],
+  "outputs": [
+    {
+      "description": "the input item's fields, passed through",
+      "key": "*",
+      "type": "object"
+    },
+    {
+      "description": "the hash, HMAC, encoding or generated value",
+      "key": "<output_field|field>",
+      "type": "string"
     }
   ]
 }

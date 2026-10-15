@@ -38,7 +38,7 @@ type Recipient struct {
 // Item is one outbound item waiting for approval.
 type Item struct {
 	HilRef  string // hil_pending.id
-	Profile string // profile id, "default" when empty
+	Profile string // profile id; required
 	// Source is the message source: the channel the item goes out on
 	// (linkedin, x, instagram, email, outlook, gmail, ...).
 	Source string
@@ -80,7 +80,7 @@ func Queue(ctx context.Context, db *sql.DB, it Item) (Result, error) {
 	}
 	profile := it.Profile
 	if profile == "" {
-		profile = "default"
+		return res, errors.New("commsync: an item needs its profile")
 	}
 	platform := strings.ToLower(firstNonEmpty(it.Platform, it.Source, it.Account.Platform))
 	source := strings.ToLower(firstNonEmpty(it.Source, platform, "unknown"))
@@ -149,7 +149,7 @@ func resolvePerson(ctx context.Context, db *sql.DB, profile, platform string, it
 	r := it.Recipient
 	if r.PersonID != "" {
 		var n int
-		if db.QueryRowContext(ctx, `SELECT 1 FROM people WHERE id = ? AND COALESCE(profile_id,'default') = ?`, r.PersonID, profile).Scan(&n) == nil {
+		if db.QueryRowContext(ctx, `SELECT 1 FROM people WHERE id = ? AND profile_id = ?`, r.PersonID, profile).Scan(&n) == nil {
 			return r.PersonID, false, nil
 		}
 	}
@@ -186,7 +186,7 @@ type personSpec struct {
 func upsertPerson(ctx context.Context, db *sql.DB, p personSpec) (string, error) {
 	var id string
 	err := db.QueryRowContext(ctx, `SELECT id FROM people
-		WHERE COALESCE(profile_id,'default') = ? AND LOWER(platform) = LOWER(?) AND LOWER(platform_username) = LOWER(?) LIMIT 1`,
+		WHERE profile_id = ? AND LOWER(platform) = LOWER(?) AND LOWER(platform_username) = LOWER(?) LIMIT 1`,
 		p.profile, p.platform, p.username).Scan(&id)
 	if errors.Is(err, sql.ErrNoRows) {
 		id = uuid.NewString()

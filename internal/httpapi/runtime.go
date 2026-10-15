@@ -18,10 +18,9 @@ import (
 
 	"net/http"
 
-	"github.com/rs/zerolog"
-
 	cfgpkg "github.com/monoes/mono-agent/internal/config"
 	"github.com/monoes/mono-agent/internal/connections"
+	"github.com/monoes/mono-agent/internal/logging"
 	"github.com/monoes/mono-agent/internal/noderegistry"
 	"github.com/monoes/mono-agent/internal/nodes"
 	"github.com/monoes/mono-agent/internal/scheduler"
@@ -276,7 +275,7 @@ func (rt *runtime) ensureEngine(ctx context.Context) error {
 	if rt.engine != nil {
 		return nil
 	}
-	logger := zerolog.New(os.Stderr).With().Timestamp().Logger().Level(zerolog.WarnLevel)
+	logger := logging.Zerolog()
 
 	registry := noderegistry.Build(rt.db.DB)
 	nodes.SetGlobalCredentialStore(connections.NewStore(rt.db.DB))

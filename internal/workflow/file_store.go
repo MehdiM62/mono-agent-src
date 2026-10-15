@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/monoes/mono-agent/internal/statedir"
 )
 
 // WorkflowFile is the on-disk JSON representation of a workflow.
@@ -26,6 +27,9 @@ type WorkflowFile struct {
 	UpdatedAt   time.Time          `json:"updated_at"`
 	Nodes       []WorkflowFileNode `json:"nodes"`
 	Connections []WorkflowFileEdge `json:"connections"`
+
+	// Settings are workflow-level execution options (Workflow.Settings).
+	Settings map[string]interface{} `json:"settings,omitempty"`
 }
 
 // WorkflowFileNode is a node as stored in the JSON file.
@@ -71,7 +75,7 @@ type WorkflowFileStore struct {
 // NewWorkflowFileStore creates a WorkflowFileStore backed by the given directory.
 // The directory is created if it does not exist.
 func NewWorkflowFileStore(dir string) (*WorkflowFileStore, error) {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := statedir.MkdirAll(dir); err != nil {
 		return nil, fmt.Errorf("file_store: create dir %s: %w", dir, err)
 	}
 	return &WorkflowFileStore{dir: dir, cache: make(map[string]fileCacheEntry)}, nil
@@ -111,6 +115,7 @@ func (s *WorkflowFileStore) SaveWorkflow(ctx context.Context, wf *Workflow) erro
 		ProfileID:   wf.ProfileID,
 		CreatedAt:   wf.CreatedAt,
 		UpdatedAt:   wf.UpdatedAt,
+		Settings:    wf.Settings,
 	}
 
 	for _, n := range wf.Nodes {
@@ -136,6 +141,7 @@ func (s *WorkflowFileStore) SaveWorkflow(ctx context.Context, wf *Workflow) erro
 		wfFile.Nodes = append(wfFile.Nodes, fn)
 	}
 
+	NormalizeConnectionHandles(wf.Connections)
 	for _, c := range wf.Connections {
 		wfFile.Connections = append(wfFile.Connections, WorkflowFileEdge{
 			ID:           c.ID,
@@ -157,7 +163,7 @@ func (s *WorkflowFileStore) SaveWorkflow(ctx context.Context, wf *Workflow) erro
 	// Write atomically: write to a temp file then rename over the target, so a
 	// crash mid-write cannot truncate/corrupt an existing workflow definition.
 	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+	if err := statedir.WriteFile(tmp, data); err != nil {
 		return fmt.Errorf("file_store: write %s: %w", wf.ID, err)
 	}
 	if err := os.Rename(tmp, path); err != nil {
@@ -165,6 +171,48 @@ func (s *WorkflowFileStore) SaveWorkflow(ctx context.Context, wf *Workflow) erro
 		return fmt.Errorf("file_store: rename %s: %w", wf.ID, err)
 	}
 	s.invalidate(path)
+	return nil
+}
+
+// readRaw returns the workflow file's bytes as they are on disk, and whether
+// the file exists — what restoreRaw needs to undo a SaveWorkflow.
+func (s *WorkflowFileStore) readRaw(id string) ([]byte, bool, error) {
+	path, err := s.filePath(id)
+	if err != nil {
+		return nil, false, err
+	}
+	data, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, fmt.Errorf("file_store: read %s: %w", id, err)
+	}
+	return data, true, nil
+}
+
+// restoreRaw puts back a workflow file captured by readRaw: the previous
+// bytes when it existed, no file when it did not.
+func (s *WorkflowFileStore) restoreRaw(id string, data []byte, existed bool) error {
+	path, err := s.filePath(id)
+	if err != nil {
+		return err
+	}
+	defer s.invalidate(path)
+	if !existed {
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("file_store: remove %s: %w", id, err)
+		}
+		return nil
+	}
+	tmp := path + ".tmp"
+	if err := statedir.WriteFile(tmp, data); err != nil {
+		return fmt.Errorf("file_store: write %s: %w", id, err)
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+		return fmt.Errorf("file_store: rename %s: %w", id, err)
+	}
 	return nil
 }
 
@@ -288,6 +336,7 @@ func parseWorkflowFile(data []byte) (*Workflow, error) {
 		ProfileID:   wfFile.ProfileID,
 		CreatedAt:   wfFile.CreatedAt,
 		UpdatedAt:   wfFile.UpdatedAt,
+		Settings:    wfFile.Settings,
 	}
 	for _, fn := range wfFile.Nodes {
 		n := WorkflowNode{
@@ -316,5 +365,21 @@ func parseWorkflowFile(data []byte) (*Workflow, error) {
 			TargetHandle: fe.TargetHandle,
 		})
 	}
+	NormalizeConnectionHandles(wf.Connections)
 	return wf, nil
+}
+
+// NormalizeConnectionHandles defaults empty connection handles to "main",
+// the port every node without named outputs reads and writes. A workflow
+// file may leave source_handle/target_handle out; the engine routes only on
+// exact handle names, so an empty one would silently skip its target.
+func NormalizeConnectionHandles(conns []WorkflowConnection) {
+	for i := range conns {
+		if conns[i].SourceHandle == "" {
+			conns[i].SourceHandle = "main"
+		}
+		if conns[i].TargetHandle == "" {
+			conns[i].TargetHandle = "main"
+		}
+	}
 }

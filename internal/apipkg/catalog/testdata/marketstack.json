@@ -1,0 +1,75 @@
+{
+  "endOfDayData.getAll": {
+    "params": {
+      "symbols": "AAPL",
+      "limit": 5,
+      "filters": {
+        "dateFrom": "2024-01-01",
+        "dateTo": "2024-02-01T00:00:00Z",
+        "sort": "ASC"
+      }
+    },
+    "credential": {
+      "api_key": "k",
+      "use_https": "true"
+    },
+    "response": {
+      "pagination": {
+        "count": 2
+      },
+      "data": [
+        {
+          "symbol": "AAPL"
+        },
+        {
+          "symbol": "AAPL"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/eod",
+      "query": {
+        "symbols": "AAPL",
+        "sort": "ASC",
+        "date_from": "2024-01-01",
+        "date_to": "2024-02-01",
+        "offset": "0",
+        "limit": "5"
+      },
+      "items": 2
+    }
+  },
+  "exchange.get": {
+    "params": {
+      "exchange": "XNAS"
+    },
+    "credential": {
+      "api_key": "k"
+    },
+    "response": {
+      "mic": "XNAS"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/exchanges/XNAS",
+      "items": 1
+    }
+  },
+  "ticker.get": {
+    "params": {
+      "symbol": "MSFT"
+    },
+    "credential": {
+      "api_key": "k"
+    },
+    "response": {
+      "symbol": "MSFT"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/tickers/MSFT",
+      "items": 1
+    }
+  }
+}

@@ -142,7 +142,9 @@ function eventPatch(state, ev) {
   }
   switch (ev.type) {
     case 'turn.started':
-      return { startedAt: ev.at }
+      // A coder turn's attachments (copies in its folder) are kept for the
+      // message's thumbnails.
+      return payload.attachments?.length ? { startedAt: ev.at, attachments: payload.attachments } : { startedAt: ev.at }
 
     case 'session.bound':
       return { session: { runtime: payload.runtime, sessionId: payload.sessionId } }

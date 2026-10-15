@@ -1,0 +1,36 @@
+{
+  "_generated": true,
+  "credential_platform": null,
+  "fields": [
+    {
+      "help": "JSON array of {current_key, new_key}. Dot paths rename nested keys (a.b.c). Applied in order before the regex replacements.",
+      "key": "keys",
+      "label": "Keys (JSON)",
+      "placeholder": "[\n  { \"current_key\": \"fname\", \"new_key\": \"first_name\" }\n]",
+      "required": false,
+      "rows": 4,
+      "type": "textarea"
+    },
+    {
+      "help": "JSON array of {search_regex, replace_regex, case_insensitive, depth}. Renames every key matching search_regex (first match per key); $1 refers to a capture group. depth -1 = all levels, 0 = top level only.",
+      "key": "regex_replacements",
+      "label": "Regex Replacements (JSON)",
+      "placeholder": "[\n  { \"search_regex\": \"^old_\", \"replace_regex\": \"new_\", \"case_insensitive\": false, \"depth\": -1 }\n]",
+      "required": false,
+      "rows": 4,
+      "type": "textarea"
+    }
+  ],
+  "outputs": [
+    {
+      "description": "the input item's fields, with the configured keys renamed",
+      "key": "*",
+      "type": "object"
+    },
+    {
+      "description": "each renamed key, holding the value of its current_key",
+      "key": "<keys[].new_key>",
+      "type": "any"
+    }
+  ]
+}

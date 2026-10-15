@@ -1,0 +1,66 @@
+{
+  "sms.send": {
+    "params": {
+      "from": "Acme",
+      "to": "60123456789",
+      "message": "hi",
+      "options": {
+        "dlrUrl": "https://x.io/d"
+      }
+    },
+    "credential": {
+      "api_key": "k",
+      "api_secret": "s"
+    },
+    "response": {
+      "messages": [
+        {
+          "status": 0,
+          "receiver": "60123456789"
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/rest/2/sms",
+      "items": 1,
+      "body": {
+        "mocean-from": "Acme",
+        "mocean-to": "60123456789",
+        "mocean-text": "hi",
+        "mocean-resp-format": "JSON",
+        "mocean-dlr-url": "https://x.io/d",
+        "mocean-dlr-mask": "1"
+      }
+    }
+  },
+  "voice.send": {
+    "params": {
+      "from": "Acme",
+      "to": "60123456789",
+      "message": "hello"
+    },
+    "credential": {
+      "api_key": "k",
+      "api_secret": "s"
+    },
+    "response": {
+      "voice": [
+        {
+          "status": 0
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/rest/2/voice/dial",
+      "items": 1,
+      "body": {
+        "mocean-from": "Acme",
+        "mocean-to": "60123456789",
+        "mocean-resp-format": "JSON",
+        "mocean-command": "[{\"action\":\"say\",\"language\":\"en-US\",\"text\":\"hello\"}]"
+      }
+    }
+  }
+}

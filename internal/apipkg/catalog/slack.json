@@ -1,0 +1,1930 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "slack",
+  "extends": "comm.slack",
+  "title": "Slack",
+  "description": "Channels, messages, files, reactions, stars, users and user groups in Slack (n8n operations)",
+  "category": "app",
+  "docs_url": "https://api.slack.com/methods",
+  "n8n_types": [
+    "n8n-nodes-base.slack"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.slackTrigger"
+  ],
+  "base_url": "https://slack.com/api",
+  "error_when": "{{ res.ok | eq:'false' }}",
+  "error_message": "{{ res.error }}",
+  "credentials": [
+    {
+      "platform": "slack",
+      "reuse_platform": "slack",
+      "name": "Slack",
+      "n8n_credential": "slackApi",
+      "n8n_credential_alt": [
+        "slackOAuth2Api"
+      ],
+      "n8n_field_map": {
+        "accessToken": "access_token"
+      },
+      "methods": [
+        "oauth",
+        "bearer"
+      ],
+      "fields": [
+        {
+          "key": "access_token",
+          "label": "Bot or user token",
+          "secret": true,
+          "required": true,
+          "help": "xoxb-… or xoxp-…"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "message",
+      "label": "Message"
+    },
+    {
+      "value": "channel",
+      "label": "Channel"
+    },
+    {
+      "value": "file",
+      "label": "File"
+    },
+    {
+      "value": "reaction",
+      "label": "Reaction"
+    },
+    {
+      "value": "star",
+      "label": "Star"
+    },
+    {
+      "value": "user",
+      "label": "User"
+    },
+    {
+      "value": "userGroup",
+      "label": "User Group"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "message",
+      "operation": "post",
+      "title": "Send a message",
+      "method": "POST",
+      "path": "/chat.{{ p.otherOptions.ephemeral | then:'postEphemeral' | default:'postMessage' }}",
+      "fields": [
+        {
+          "key": "select",
+          "label": "Send to",
+          "type": "select",
+          "options": [
+            "channel",
+            "user"
+          ],
+          "default": "channel"
+        },
+        {
+          "key": "channelId",
+          "label": "Channel",
+          "type": "text",
+          "required": false,
+          "help": "Channel ID (or a resource locator)"
+        },
+        {
+          "key": "user",
+          "label": "User",
+          "type": "text",
+          "help": "User ID (or a resource locator), when sending to a user"
+        },
+        {
+          "key": "messageType",
+          "label": "Message type",
+          "type": "select",
+          "options": [
+            "text",
+            "block",
+            "attachment"
+          ],
+          "default": "text"
+        },
+        {
+          "key": "text",
+          "label": "Text",
+          "type": "textarea",
+          "help": "Message text (with block: notification fallback text)"
+        },
+        {
+          "key": "blocksUi",
+          "label": "Blocks",
+          "type": "json",
+          "help": "Block Kit JSON: {\"blocks\": [...]}"
+        },
+        {
+          "key": "attachments",
+          "label": "Attachments",
+          "type": "json",
+          "help": "List of legacy attachments; fields as {\"item\": [{\"title\", \"value\", \"short\"}]}"
+        },
+        {
+          "key": "otherOptions",
+          "label": "Other options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "botProfile",
+            "ephemeral",
+            "link_names",
+            "mrkdwn",
+            "sendAsUser",
+            "thread_ts",
+            "unfurl_links",
+            "unfurl_media",
+            "includeLinkToWorkflow"
+          ],
+          "help": "thread_ts: {\"replyValues\": {\"thread_ts\", \"reply_broadcast\"}}; botProfile: {\"imageValues\": {\"profilePhotoType\": \"image|emoji\", \"icon_url\", \"icon_emoji\"}}; ephemeral: {\"ephemeralValues\": {\"user\": \"U123\"}} (channel) or true (user)"
+        }
+      ],
+      "body": {
+        "$merge": [
+          "{{ p.messageType | eq:'block' | then:(p.blocksUi | fromjson) }}",
+          "{{ p.otherOptions | omit:'includeLinkToWorkflow,ephemeral,thread_ts,botProfile,sendAsUser' }}"
+        ],
+        "thread_ts": "{{ p.otherOptions.thread_ts.replyValues.thread_ts | string }}",
+        "reply_broadcast": "{{ p.otherOptions.thread_ts.replyValues.reply_broadcast }}",
+        "icon_url": "{{ p.otherOptions.botProfile.imageValues.profilePhotoType | eq:'image' | then:p.otherOptions.botProfile.imageValues.icon_url }}",
+        "icon_emoji": "{{ p.otherOptions.botProfile.imageValues.profilePhotoType | ne:'image' | then:p.otherOptions.botProfile.imageValues.icon_emoji }}",
+        "username": "{{ p.otherOptions.sendAsUser }}",
+        "text": "{{ p.messageType | ne:'attachment' | then:p.text }}",
+        "attachments": {
+          "$map": "{{ p.messageType | eq:'attachment' | then:p.attachments }}",
+          "$to": {
+            "$merge": "{{ el | omit:'fields' }}",
+            "fields": "{{ el.fields.item }}"
+          }
+        },
+        "channel": "{{ p.select | eq:'user' | then:(p.user | rl) | default:(p.channelId | rl) }}",
+        "user": "{{ p.otherOptions.ephemeral | then:(p.select | eq:'user' | then:(p.user | rl) | default:(p.otherOptions.ephemeral.ephemeralValues.user | rl)) }}"
+      }
+    },
+    {
+      "resource": "message",
+      "operation": "delete",
+      "title": "Delete a message",
+      "method": "POST",
+      "path": "/chat.delete",
+      "fields": [
+        {
+          "key": "select",
+          "label": "Send to",
+          "type": "select",
+          "options": [
+            "channel",
+            "user"
+          ],
+          "default": "channel"
+        },
+        {
+          "key": "channelId",
+          "label": "Channel",
+          "type": "text",
+          "required": false,
+          "help": "Channel ID (or a resource locator)"
+        },
+        {
+          "key": "user",
+          "label": "User",
+          "type": "text",
+          "help": "User ID (or a resource locator), when sending to a user"
+        },
+        {
+          "key": "timestamp",
+          "label": "Message timestamp",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "channel": "{{ p.select | eq:'user' | then:(p.user | rl) | default:(p.channelId | rl) }}",
+        "ts": "{{ p.timestamp | string }}"
+      }
+    },
+    {
+      "resource": "message",
+      "operation": "deleteScheduled",
+      "title": "Delete a scheduled message",
+      "method": "POST",
+      "path": "/chat.deleteScheduledMessage",
+      "fields": [
+        {
+          "key": "channelId",
+          "label": "Channel",
+          "type": "text",
+          "required": true,
+          "help": "Channel ID (or a resource locator)"
+        },
+        {
+          "key": "scheduledMessageId",
+          "label": "Scheduled message ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "channel": "{{ p.channelId | rl }}",
+        "scheduled_message_id": "{{ p.scheduledMessageId }}"
+      }
+    },
+    {
+      "resource": "message",
+      "operation": "getManyScheduled",
+      "title": "Get many scheduled messages",
+      "method": "GET",
+      "path": "/chat.scheduledMessages.list",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 100
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "channelId",
+            "latest",
+            "oldest"
+          ]
+        }
+      ],
+      "query": {
+        "channel": "{{ p.filters.channelId | rl }}",
+        "latest": "{{ p.filters.latest | epoch }}",
+        "oldest": "{{ p.filters.oldest | epoch }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "cursor",
+        "cursor_path": "response_metadata.next_cursor",
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": "scheduled_messages"
+      }
+    },
+    {
+      "resource": "message",
+      "operation": "getPermalink",
+      "title": "Get a message permalink",
+      "method": "GET",
+      "path": "/chat.getPermalink",
+      "fields": [
+        {
+          "key": "channelId",
+          "label": "Channel",
+          "type": "text",
+          "required": true,
+          "help": "Channel ID (or a resource locator)"
+        },
+        {
+          "key": "timestamp",
+          "label": "Message timestamp",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "query": {
+        "channel": "{{ p.channelId | rl }}",
+        "message_ts": "{{ p.timestamp | string }}"
+      }
+    },
+    {
+      "resource": "message",
+      "operation": "schedule",
+      "title": "Schedule a message",
+      "method": "POST",
+      "path": "/chat.scheduleMessage",
+      "fields": [
+        {
+          "key": "select",
+          "label": "Send to",
+          "type": "select",
+          "options": [
+            "channel",
+            "user"
+          ],
+          "default": "channel"
+        },
+        {
+          "key": "channelId",
+          "label": "Channel",
+          "type": "text",
+          "required": false,
+          "help": "Channel ID (or a resource locator)"
+        },
+        {
+          "key": "user",
+          "label": "User",
+          "type": "text",
+          "help": "User ID (or a resource locator), when sending to a user"
+        },
+        {
+          "key": "messageType",
+          "label": "Message type",
+          "type": "select",
+          "options": [
+            "text",
+            "block",
+            "attachment"
+          ],
+          "default": "text"
+        },
+        {
+          "key": "text",
+          "label": "Text",
+          "type": "textarea",
+          "help": "Message text (with block: notification fallback text)"
+        },
+        {
+          "key": "blocksUi",
+          "label": "Blocks",
+          "type": "json",
+          "help": "Block Kit JSON: {\"blocks\": [...]}"
+        },
+        {
+          "key": "attachments",
+          "label": "Attachments",
+          "type": "json",
+          "help": "List of legacy attachments; fields as {\"item\": [{\"title\", \"value\", \"short\"}]}"
+        },
+        {
+          "key": "postAt",
+          "label": "Send at",
+          "type": "datetime",
+          "required": true
+        },
+        {
+          "key": "otherOptions",
+          "label": "Other options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "botProfile",
+            "ephemeral",
+            "link_names",
+            "mrkdwn",
+            "sendAsUser",
+            "thread_ts",
+            "unfurl_links",
+            "unfurl_media",
+            "includeLinkToWorkflow"
+          ],
+          "help": "thread_ts: {\"replyValues\": {\"thread_ts\", \"reply_broadcast\"}}; botProfile: {\"imageValues\": {\"profilePhotoType\": \"image|emoji\", \"icon_url\", \"icon_emoji\"}}; ephemeral: {\"ephemeralValues\": {\"user\": \"U123\"}} (channel) or true (user)"
+        }
+      ],
+      "body": {
+        "$merge": [
+          "{{ p.messageType | eq:'block' | then:(p.blocksUi | fromjson) }}",
+          "{{ p.otherOptions | omit:'includeLinkToWorkflow,ephemeral,thread_ts,botProfile,sendAsUser' }}"
+        ],
+        "thread_ts": "{{ p.otherOptions.thread_ts.replyValues.thread_ts | string }}",
+        "reply_broadcast": "{{ p.otherOptions.thread_ts.replyValues.reply_broadcast }}",
+        "icon_url": "{{ p.otherOptions.botProfile.imageValues.profilePhotoType | eq:'image' | then:p.otherOptions.botProfile.imageValues.icon_url }}",
+        "icon_emoji": "{{ p.otherOptions.botProfile.imageValues.profilePhotoType | ne:'image' | then:p.otherOptions.botProfile.imageValues.icon_emoji }}",
+        "username": "{{ p.otherOptions.sendAsUser }}",
+        "text": "{{ p.messageType | ne:'attachment' | then:p.text }}",
+        "attachments": {
+          "$map": "{{ p.messageType | eq:'attachment' | then:p.attachments }}",
+          "$to": {
+            "$merge": "{{ el | omit:'fields' }}",
+            "fields": "{{ el.fields.item }}"
+          }
+        },
+        "channel": "{{ p.select | eq:'user' | then:(p.user | rl) | default:(p.channelId | rl) }}",
+        "post_at": "{{ p.postAt | epoch }}"
+      }
+    },
+    {
+      "resource": "message",
+      "operation": "search",
+      "title": "Search messages",
+      "method": "GET",
+      "path": "/search.messages",
+      "description": "Uses search.messages (needs a user token)",
+      "fields": [
+        {
+          "key": "query",
+          "label": "Search query",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "sort",
+          "label": "Sort",
+          "type": "select",
+          "options": [
+            "desc",
+            "asc",
+            "relevance"
+          ],
+          "default": "desc"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 25,
+          "min": 1,
+          "max": 50
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "searchChannel"
+          ],
+          "help": "searchChannel: list of channel names to search in"
+        }
+      ],
+      "query": {
+        "query": {
+          "$join": [
+            "{{ p.query }}",
+            {
+              "$join": {
+                "$map": "{{ p.options.searchChannel }}",
+                "$to": "in:{{ el }}"
+              },
+              "$sep": " "
+            }
+          ],
+          "$sep": " "
+        },
+        "sort": "{{ p.sort | eq:'relevance' | then:'score' | default:'timestamp' }}",
+        "sort_dir": "{{ p.sort | eq:'asc' | then:'asc' | default:'desc' }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "count",
+        "page_size": 100,
+        "results_path": "messages.matches"
+      }
+    },
+    {
+      "resource": "message",
+      "operation": "update",
+      "title": "Update a message",
+      "method": "POST",
+      "path": "/chat.update",
+      "fields": [
+        {
+          "key": "channelId",
+          "label": "Channel",
+          "type": "text",
+          "required": true,
+          "help": "Channel ID (or a resource locator)"
+        },
+        {
+          "key": "ts",
+          "label": "Message timestamp",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "messageType",
+          "label": "Message type",
+          "type": "select",
+          "options": [
+            "text",
+            "block",
+            "attachment"
+          ],
+          "default": "text"
+        },
+        {
+          "key": "text",
+          "label": "Text",
+          "type": "textarea",
+          "help": "Message text (with block: notification fallback text)"
+        },
+        {
+          "key": "blocksUi",
+          "label": "Blocks",
+          "type": "json",
+          "help": "Block Kit JSON: {\"blocks\": [...]}"
+        },
+        {
+          "key": "attachments",
+          "label": "Attachments",
+          "type": "json",
+          "help": "List of legacy attachments; fields as {\"item\": [{\"title\", \"value\", \"short\"}]}"
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "link_names",
+            "parse"
+          ]
+        },
+        {
+          "key": "otherOptions",
+          "label": "Other options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "includeLinkToWorkflow"
+          ]
+        }
+      ],
+      "body": {
+        "text": "{{ p.messageType | ne:'attachment' | then:p.text }}",
+        "attachments": {
+          "$map": "{{ p.messageType | eq:'attachment' | then:p.attachments }}",
+          "$to": {
+            "$merge": "{{ el | omit:'fields' }}",
+            "fields": "{{ el.fields.item }}"
+          }
+        },
+        "channel": "{{ p.channelId | rl }}",
+        "ts": "{{ p.ts | string }}",
+        "$merge": [
+          "{{ p.messageType | eq:'block' | then:(p.blocksUi | fromjson) }}",
+          "{{ p.updateFields }}"
+        ]
+      }
+    },
+    {
+      "resource": "channel",
+      "operation": "create",
+      "title": "Create a channel",
+      "method": "POST",
+      "path": "/conversations.create",
+      "fields": [
+        {
+          "key": "channelId",
+          "label": "Channel",
+          "type": "text",
+          "required": true,
+          "help": "Channel ID (or a resource locator)"
+        },
+        {
+          "key": "channelVisibility",
+          "label": "Visibility",
+          "type": "select",
+          "options": [
+            "public",
+            "private"
+          ],
+          "default": "public"
+        }
+      ],
+      "body": {
+        "name": "{{ p.channelId | rl | replace:'#','' }}",
+        "is_private": "{{ p.channelVisibility | eq:'private' | then:true | default:false }}"
+      },
+      "output": {
+        "path": "channel"
+      }
+    },
+    {
+      "resource": "channel",
+      "operation": "archive",
+      "title": "Archive a channel",
+      "method": "POST",
+      "path": "/conversations.archive",
+      "fields": [
+        {
+          "key": "channelId",
+          "label": "Channel",
+          "type": "text",
+          "required": true,
+          "help": "Channel ID (or a resource locator)"
+        }
+      ],
+      "body": {
+        "channel": "{{ p.channelId | rl }}"
+      }
+    },
+    {
+      "resource": "channel",
+      "operation": "close",
+      "title": "Close a direct message or multi-person direct message",
+      "method": "POST",
+      "path": "/conversations.close",
+      "fields": [
+        {
+          "key": "channelId",
+          "label": "Channel",
+          "type": "text",
+          "required": true,
+          "help": "Channel ID (or a resource locator)"
+        }
+      ],
+      "body": {
+        "channel": "{{ p.channelId | rl }}"
+      }
+    },
+    {
+      "resource": "channel",
+      "operation": "get",
+      "title": "Get a channel",
+      "method": "POST",
+      "path": "/conversations.info",
+      "fields": [
+        {
+          "key": "channelId",
+          "label": "Channel",
+          "type": "text",
+          "required": true,
+          "help": "Channel ID (or a resource locator)"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "includeNumMembers"
+          ]
+        }
+      ],
+      "query": {
+        "channel": "{{ p.channelId | rl }}",
+        "include_num_members": "{{ p.options.includeNumMembers }}"
+      },
+      "output": {
+        "path": "channel"
+      }
+    },
+    {
+      "resource": "channel",
+      "operation": "getAll",
+      "title": "Get many channels",
+      "method": "GET",
+      "path": "/conversations.list",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 100
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "excludeArchived",
+            "types"
+          ],
+          "help": "types: list of public_channel, private_channel, mpim, im"
+        }
+      ],
+      "query": {
+        "types": "{{ p.filters.types | csv }}",
+        "exclude_archived": "{{ p.filters.excludeArchived | eq:'true' | then:'true' }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "cursor",
+        "cursor_path": "response_metadata.next_cursor",
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": "channels"
+      }
+    },
+    {
+      "resource": "channel",
+      "operation": "history",
+      "title": "Get a channel's message history",
+      "method": "GET",
+      "path": "/conversations.history",
+      "fields": [
+        {
+          "key": "channelId",
+          "label": "Channel",
+          "type": "text",
+          "required": true,
+          "help": "Channel ID (or a resource locator)"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 100
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "inclusive",
+            "latest",
+            "oldest"
+          ]
+        }
+      ],
+      "query": {
+        "inclusive": "{{ p.filters.inclusive }}",
+        "latest": "{{ p.filters.latest | epoch }}",
+        "oldest": "{{ p.filters.oldest | epoch }}",
+        "channel": "{{ p.channelId | rl }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "cursor",
+        "cursor_path": "response_metadata.next_cursor",
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": "messages"
+      }
+    },
+    {
+      "resource": "channel",
+      "operation": "invite",
+      "title": "Invite users to a channel",
+      "method": "POST",
+      "path": "/conversations.invite",
+      "fields": [
+        {
+          "key": "channelId",
+          "label": "Channel",
+          "type": "text",
+          "required": true,
+          "help": "Channel ID (or a resource locator)"
+        },
+        {
+          "key": "userIds",
+          "label": "User IDs",
+          "type": "array",
+          "item_type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "channel": "{{ p.channelId | rl }}",
+        "users": "{{ p.userIds | csv }}"
+      },
+      "output": {
+        "path": "channel"
+      }
+    },
+    {
+      "resource": "channel",
+      "operation": "join",
+      "title": "Join a channel",
+      "method": "POST",
+      "path": "/conversations.join",
+      "fields": [
+        {
+          "key": "channelId",
+          "label": "Channel",
+          "type": "text",
+          "required": true,
+          "help": "Channel ID (or a resource locator)"
+        }
+      ],
+      "body": {
+        "channel": "{{ p.channelId | rl }}"
+      },
+      "output": {
+        "path": "channel"
+      }
+    },
+    {
+      "resource": "channel",
+      "operation": "kick",
+      "title": "Remove a user from a channel",
+      "method": "POST",
+      "path": "/conversations.kick",
+      "fields": [
+        {
+          "key": "channelId",
+          "label": "Channel",
+          "type": "text",
+          "required": true,
+          "help": "Channel ID (or a resource locator)"
+        },
+        {
+          "key": "userId",
+          "label": "User ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "channel": "{{ p.channelId | rl }}",
+        "user": "{{ p.userId }}"
+      }
+    },
+    {
+      "resource": "channel",
+      "operation": "leave",
+      "title": "Leave a channel",
+      "method": "POST",
+      "path": "/conversations.leave",
+      "fields": [
+        {
+          "key": "channelId",
+          "label": "Channel",
+          "type": "text",
+          "required": true,
+          "help": "Channel ID (or a resource locator)"
+        }
+      ],
+      "body": {
+        "channel": "{{ p.channelId | rl }}"
+      }
+    },
+    {
+      "resource": "channel",
+      "operation": "member",
+      "title": "List the members of a channel",
+      "method": "GET",
+      "path": "/conversations.members",
+      "fields": [
+        {
+          "key": "channelId",
+          "label": "Channel",
+          "type": "text",
+          "required": true,
+          "help": "Channel ID (or a resource locator)"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1,
+          "max": 1000
+        },
+        {
+          "key": "resolveData",
+          "label": "Resolve user details",
+          "type": "boolean",
+          "default": false
+        }
+      ],
+      "query": {
+        "channel": "{{ p.channelId | rl }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "cursor",
+        "cursor_path": "response_metadata.next_cursor",
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": "members"
+      },
+      "output": {
+        "expand": {
+          "when": "{{ p.resolveData }}",
+          "method": "GET",
+          "path": "/users.info",
+          "query": {
+            "user": "{{ el }}"
+          }
+        },
+        "to": {
+          "$merge": "{{ el.user }}",
+          "member": "{{ p.resolveData | ne:'true' | then:el }}"
+        }
+      }
+    },
+    {
+      "resource": "channel",
+      "operation": "open",
+      "title": "Open or resume a direct message",
+      "method": "POST",
+      "path": "/conversations.open",
+      "fields": [
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "channelId",
+            "returnIm",
+            "users"
+          ]
+        }
+      ],
+      "body": {
+        "channel": "{{ p.options.channelId }}",
+        "return_im": "{{ p.options.returnIm }}",
+        "users": "{{ p.options.users | csv }}"
+      },
+      "output": {
+        "path": "channel"
+      }
+    },
+    {
+      "resource": "channel",
+      "operation": "rename",
+      "title": "Rename a channel",
+      "method": "POST",
+      "path": "/conversations.rename",
+      "fields": [
+        {
+          "key": "channelId",
+          "label": "Channel",
+          "type": "text",
+          "required": true,
+          "help": "Channel ID (or a resource locator)"
+        },
+        {
+          "key": "name",
+          "label": "New name",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "channel": "{{ p.channelId | rl }}",
+        "name": "{{ p.name }}"
+      },
+      "output": {
+        "path": "channel"
+      }
+    },
+    {
+      "resource": "channel",
+      "operation": "replies",
+      "title": "Get a thread's replies",
+      "method": "GET",
+      "path": "/conversations.replies",
+      "fields": [
+        {
+          "key": "channelId",
+          "label": "Channel",
+          "type": "text",
+          "required": true,
+          "help": "Channel ID (or a resource locator)"
+        },
+        {
+          "key": "ts",
+          "label": "Thread timestamp",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 100
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "inclusive",
+            "latest",
+            "oldest"
+          ]
+        }
+      ],
+      "query": {
+        "inclusive": "{{ p.filters.inclusive }}",
+        "latest": "{{ p.filters.latest | epoch }}",
+        "oldest": "{{ p.filters.oldest | epoch }}",
+        "channel": "{{ p.channelId | rl }}",
+        "ts": "{{ p.ts | string }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "cursor",
+        "cursor_path": "response_metadata.next_cursor",
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": "messages"
+      }
+    },
+    {
+      "resource": "channel",
+      "operation": "setPurpose",
+      "title": "Set a channel's purpose",
+      "method": "POST",
+      "path": "/conversations.setPurpose",
+      "fields": [
+        {
+          "key": "channelId",
+          "label": "Channel",
+          "type": "text",
+          "required": true,
+          "help": "Channel ID (or a resource locator)"
+        },
+        {
+          "key": "purpose",
+          "label": "Purpose",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "channel": "{{ p.channelId | rl }}",
+        "purpose": "{{ p.purpose }}"
+      },
+      "output": {
+        "path": "channel"
+      }
+    },
+    {
+      "resource": "channel",
+      "operation": "setTopic",
+      "title": "Set a channel's topic",
+      "method": "POST",
+      "path": "/conversations.setTopic",
+      "fields": [
+        {
+          "key": "channelId",
+          "label": "Channel",
+          "type": "text",
+          "required": true,
+          "help": "Channel ID (or a resource locator)"
+        },
+        {
+          "key": "topic",
+          "label": "Topic",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "channel": "{{ p.channelId | rl }}",
+        "topic": "{{ p.topic }}"
+      },
+      "output": {
+        "path": "channel"
+      }
+    },
+    {
+      "resource": "channel",
+      "operation": "unarchive",
+      "title": "Unarchive a channel",
+      "method": "POST",
+      "path": "/conversations.unarchive",
+      "fields": [
+        {
+          "key": "channelId",
+          "label": "Channel",
+          "type": "text",
+          "required": true,
+          "help": "Channel ID (or a resource locator)"
+        }
+      ],
+      "body": {
+        "channel": "{{ p.channelId | rl }}"
+      }
+    },
+    {
+      "resource": "file",
+      "operation": "upload",
+      "title": "Upload a file",
+      "method": "GET",
+      "path": "/files.getUploadURLExternal",
+      "description": "Uses Slack's external upload flow: get an upload URL, send the bytes, then complete the upload (text content is uploaded as a file)",
+      "fields": [
+        {
+          "key": "binaryData",
+          "label": "Upload binary data",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "fileContent",
+          "label": "File content",
+          "type": "textarea",
+          "help": "Text to upload when Upload binary data is off"
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Input binary property",
+          "type": "text",
+          "default": "data"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "channelIds",
+            "channelId",
+            "fileName",
+            "initialComment",
+            "threadTs",
+            "title"
+          ]
+        }
+      ],
+      "query": {
+        "filename": "{{ p.options.fileName | default:bin.file_name }}",
+        "length": "{{ bin.file_size }}"
+      },
+      "binary": {
+        "upload_field": "binaryPropertyName",
+        "upload_text": "{{ p.binaryData | ne:'true' | then:p.fileContent }}",
+        "upload_when": "false"
+      },
+      "also": [
+        {
+          "upload": true,
+          "method": "POST",
+          "path": "{{ res.upload_url }}"
+        },
+        {
+          "method": "POST",
+          "path": "/files.completeUploadExternal",
+          "body": {
+            "files": [
+              {
+                "id": "{{ res.file_id }}",
+                "title": "{{ p.options.title | default:bin.file_name }}"
+              }
+            ],
+            "channels": "{{ p.options.channelIds | csv }}",
+            "channel_id": "{{ p.options.channelId }}",
+            "initial_comment": "{{ p.options.initialComment }}",
+            "thread_ts": "{{ p.options.threadTs }}"
+          }
+        }
+      ],
+      "output": {
+        "to": {
+          "file_id": "{{ el.file_id }}",
+          "upload_url": "{{ el.upload_url }}"
+        }
+      }
+    },
+    {
+      "resource": "file",
+      "operation": "get",
+      "title": "Get a file",
+      "method": "GET",
+      "path": "/files.info",
+      "fields": [
+        {
+          "key": "fileId",
+          "label": "File ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "query": {
+        "file": "{{ p.fileId }}"
+      },
+      "output": {
+        "path": "file"
+      }
+    },
+    {
+      "resource": "file",
+      "operation": "getAll",
+      "title": "Get many files",
+      "method": "GET",
+      "path": "/files.list",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 100
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "channelId",
+            "showFilesHidden",
+            "tsFrom",
+            "tsTo",
+            "types",
+            "userId"
+          ]
+        }
+      ],
+      "query": {
+        "channel": "{{ p.filters.channelId }}",
+        "show_files_hidden_by_limit": "{{ p.filters.showFilesHidden }}",
+        "ts_from": "{{ p.filters.tsFrom }}",
+        "ts_to": "{{ p.filters.tsTo }}",
+        "types": "{{ p.filters.types | csv }}",
+        "user": "{{ p.filters.userId }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "count",
+        "page_size": 100,
+        "results_path": "files"
+      }
+    },
+    {
+      "resource": "reaction",
+      "operation": "add",
+      "title": "Add a reaction",
+      "method": "POST",
+      "path": "/reactions.add",
+      "fields": [
+        {
+          "key": "channelId",
+          "label": "Channel",
+          "type": "text",
+          "required": true,
+          "help": "Channel ID (or a resource locator)"
+        },
+        {
+          "key": "timestamp",
+          "label": "Message timestamp",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "name",
+          "label": "Emoji name",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "channel": "{{ p.channelId | rl }}",
+        "name": "{{ p.name }}",
+        "timestamp": "{{ p.timestamp | string }}"
+      }
+    },
+    {
+      "resource": "reaction",
+      "operation": "get",
+      "title": "Get a message's reactions",
+      "method": "GET",
+      "path": "/reactions.get",
+      "fields": [
+        {
+          "key": "channelId",
+          "label": "Channel",
+          "type": "text",
+          "required": true,
+          "help": "Channel ID (or a resource locator)"
+        },
+        {
+          "key": "timestamp",
+          "label": "Message timestamp",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "query": {
+        "channel": "{{ p.channelId | rl }}",
+        "timestamp": "{{ p.timestamp | string }}"
+      }
+    },
+    {
+      "resource": "reaction",
+      "operation": "remove",
+      "title": "Remove a reaction",
+      "method": "POST",
+      "path": "/reactions.remove",
+      "fields": [
+        {
+          "key": "channelId",
+          "label": "Channel",
+          "type": "text",
+          "required": true,
+          "help": "Channel ID (or a resource locator)"
+        },
+        {
+          "key": "timestamp",
+          "label": "Message timestamp",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "name",
+          "label": "Emoji name",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "channel": "{{ p.channelId | rl }}",
+        "name": "{{ p.name }}",
+        "timestamp": "{{ p.timestamp | string }}"
+      }
+    },
+    {
+      "resource": "star",
+      "operation": "add",
+      "title": "Star an item",
+      "method": "POST",
+      "path": "/stars.add",
+      "fields": [
+        {
+          "key": "target",
+          "label": "Target",
+          "type": "select",
+          "options": [
+            "message",
+            "file"
+          ],
+          "default": "message"
+        },
+        {
+          "key": "channelId",
+          "label": "Channel",
+          "type": "text",
+          "required": false,
+          "help": "Channel ID (or a resource locator)"
+        },
+        {
+          "key": "fileId",
+          "label": "File ID",
+          "type": "text"
+        },
+        {
+          "key": "timestamp",
+          "label": "Message timestamp",
+          "type": "text"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fileComment"
+          ]
+        }
+      ],
+      "body": {
+        "channel": "{{ p.channelId | rl }}",
+        "timestamp": "{{ p.target | ne:'file' | then:(p.timestamp | string) }}",
+        "file": "{{ p.target | eq:'file' | then:p.fileId }}",
+        "file_comment": "{{ p.options.fileComment }}"
+      }
+    },
+    {
+      "resource": "star",
+      "operation": "delete",
+      "title": "Remove a star",
+      "method": "POST",
+      "path": "/stars.remove",
+      "fields": [
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "channelId",
+            "fileId",
+            "fileComment",
+            "timestamp"
+          ]
+        }
+      ],
+      "body": {
+        "channel": "{{ p.options.channelId }}",
+        "file": "{{ p.options.fileId }}",
+        "file_comment": "{{ p.options.fileComment }}",
+        "timestamp": "{{ p.options.timestamp | string }}"
+      }
+    },
+    {
+      "resource": "star",
+      "operation": "getAll",
+      "title": "Get starred items",
+      "method": "GET",
+      "path": "/stars.list",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 100
+        }
+      ],
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "cursor",
+        "cursor_path": "response_metadata.next_cursor",
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": "items"
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "info",
+      "title": "Get a user",
+      "method": "GET",
+      "path": "/users.info",
+      "fields": [
+        {
+          "key": "user",
+          "label": "User",
+          "type": "text",
+          "required": true,
+          "help": "User ID (or a resource locator)"
+        }
+      ],
+      "query": {
+        "user": "{{ p.user | rl }}"
+      },
+      "output": {
+        "path": "user"
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "getAll",
+      "title": "Get many users",
+      "method": "GET",
+      "path": "/users.list",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 100
+        }
+      ],
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "cursor",
+        "cursor_path": "response_metadata.next_cursor",
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": "members"
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "getProfile",
+      "title": "Get a user's profile",
+      "method": "GET",
+      "path": "/users.profile.get",
+      "fields": [
+        {
+          "key": "user",
+          "label": "User",
+          "type": "text",
+          "required": true,
+          "help": "User ID (or a resource locator)"
+        }
+      ],
+      "query": {
+        "user": "{{ p.user | rl }}"
+      },
+      "output": {
+        "path": "profile"
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "getPresence",
+      "title": "Get a user's presence",
+      "method": "GET",
+      "path": "/users.getPresence",
+      "fields": [
+        {
+          "key": "user",
+          "label": "User",
+          "type": "text",
+          "required": true,
+          "help": "User ID (or a resource locator)"
+        }
+      ],
+      "query": {
+        "user": "{{ p.user | rl }}"
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "lookupByEmail",
+      "title": "Find a user by email",
+      "method": "GET",
+      "path": "/users.lookupByEmail",
+      "fields": [
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "query": {
+        "email": "{{ p.email }}"
+      },
+      "output": {
+        "path": "user"
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "updateProfile",
+      "title": "Update a user's profile",
+      "method": "POST",
+      "path": "/users.profile.set",
+      "fields": [
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "customFieldUi",
+            "email",
+            "first_name",
+            "last_name",
+            "status",
+            "user"
+          ],
+          "help": "status: {\"set_status\": [{\"status_emoji\", \"status_text\", \"status_expiration\"}]}; customFieldUi: {\"customFieldValues\": [{\"id\", \"value\", \"alt\"}]}"
+        }
+      ],
+      "body": {
+        "user": "{{ p.options.user }}",
+        "profile": {
+          "$merge": "{{ p.options | omit:'status,customFieldUi,user' }}",
+          "status_emoji": "{{ p.options.status.set_status.0.status_emoji }}",
+          "status_text": "{{ p.options.status.set_status.0.status_text }}",
+          "status_expiration": "{{ p.options.status | then:(p.options.status.set_status.0.status_expiration | epoch | default:0) }}",
+          "fields": {
+            "$entries": "{{ p.options.customFieldUi.customFieldValues }}",
+            "$key": "{{ el.id }}",
+            "$value": "{{ el | pick:'value,alt' }}"
+          }
+        }
+      },
+      "output": {
+        "path": "profile"
+      }
+    },
+    {
+      "resource": "userGroup",
+      "operation": "create",
+      "title": "Create a user group",
+      "method": "POST",
+      "path": "/usergroups.create",
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "Options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "channelIds",
+            "description",
+            "handle",
+            "include_count"
+          ]
+        }
+      ],
+      "body": {
+        "name": "{{ p.name }}",
+        "$merge": "{{ p.Options | omit:'channelIds' }}",
+        "channels": "{{ p.Options.channelIds | csv }}"
+      },
+      "output": {
+        "path": "usergroup"
+      }
+    },
+    {
+      "resource": "userGroup",
+      "operation": "disable",
+      "title": "Disable a user group",
+      "method": "POST",
+      "path": "/usergroups.disable",
+      "fields": [
+        {
+          "key": "userGroupId",
+          "label": "User group ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "include_count"
+          ]
+        }
+      ],
+      "body": {
+        "usergroup": "{{ p.userGroupId }}",
+        "$merge": "{{ p.options }}"
+      },
+      "output": {
+        "path": "usergroup"
+      }
+    },
+    {
+      "resource": "userGroup",
+      "operation": "enable",
+      "title": "Enable a user group",
+      "method": "POST",
+      "path": "/usergroups.enable",
+      "fields": [
+        {
+          "key": "userGroupId",
+          "label": "User group ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "option",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "include_count"
+          ]
+        }
+      ],
+      "body": {
+        "usergroup": "{{ p.userGroupId }}",
+        "$merge": "{{ p.option }}"
+      },
+      "output": {
+        "path": "usergroup"
+      }
+    },
+    {
+      "resource": "userGroup",
+      "operation": "getAll",
+      "title": "Get many user groups",
+      "method": "GET",
+      "path": "/usergroups.list",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1,
+          "max": 500
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "include_count",
+            "include_disabled",
+            "include_users"
+          ]
+        }
+      ],
+      "query": {
+        "$merge": "{{ p.options }}"
+      },
+      "output": {
+        "path": "usergroups",
+        "limit": true
+      }
+    },
+    {
+      "resource": "userGroup",
+      "operation": "getUsers",
+      "title": "Get the users of a user group",
+      "method": "GET",
+      "path": "/usergroups.list",
+      "fields": [
+        {
+          "key": "userGroupId",
+          "label": "User group ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "resolveData"
+          ],
+          "help": "resolveData (default true): return full user objects"
+        }
+      ],
+      "query": {
+        "include_users": "true",
+        "usergroup": "{{ p.userGroupId }}"
+      },
+      "output": {
+        "from": "{{ res.usergroups | find:'id',p.userGroupId | get:'users' }}",
+        "expand": {
+          "when": "{{ p.options.resolveData | default:true }}",
+          "method": "GET",
+          "path": "/users.info",
+          "query": {
+            "user": "{{ el }}"
+          }
+        },
+        "to": {
+          "$merge": "{{ el.user }}",
+          "id": "{{ p.options.resolveData | default:true | ne:'true' | then:el }}"
+        }
+      }
+    },
+    {
+      "resource": "userGroup",
+      "operation": "update",
+      "title": "Update a user group",
+      "method": "POST",
+      "path": "/usergroups.update",
+      "fields": [
+        {
+          "key": "userGroupId",
+          "label": "User group ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "channels",
+            "description",
+            "handle",
+            "include_count",
+            "name"
+          ]
+        }
+      ],
+      "body": {
+        "usergroup": "{{ p.userGroupId }}",
+        "$merge": "{{ p.updateFields | omit:'channels' }}",
+        "channels": "{{ p.updateFields.channels | csv }}"
+      },
+      "output": {
+        "path": "usergroup"
+      }
+    },
+    {
+      "resource": "userGroup",
+      "operation": "updateUsers",
+      "title": "Add users to a user group",
+      "description": "Keeps the current members and adds the given users",
+      "method": "POST",
+      "path": "/usergroups.users.update",
+      "fields": [
+        {
+          "key": "userGroupId",
+          "label": "User group ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "users",
+          "label": "User IDs",
+          "type": "array",
+          "item_type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "include_count"
+          ]
+        }
+      ],
+      "before": {
+        "method": "GET",
+        "path": "/usergroups.list",
+        "query": {
+          "include_users": "true",
+          "usergroup": "{{ p.userGroupId }}"
+        }
+      },
+      "body": {
+        "usergroup": "{{ p.userGroupId }}",
+        "users": {
+          "$join": [
+            "{{ pre.usergroups | find:'id',p.userGroupId | get:'users' | csv }}",
+            "{{ p.users | csv }}"
+          ],
+          "$sep": ","
+        },
+        "$merge": "{{ p.options }}"
+      },
+      "output": {
+        "path": "usergroup"
+      }
+    }
+  ]
+}

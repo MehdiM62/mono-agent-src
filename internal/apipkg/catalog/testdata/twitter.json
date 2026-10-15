@@ -1,0 +1,190 @@
+{
+  "tweet.create": {
+    "params": {
+      "text": "hello",
+      "additionalFields": {
+        "inReplyToStatusId": {
+          "__rl": true,
+          "mode": "url",
+          "value": "https://x.com/a/status/123"
+        }
+      }
+    },
+    "response": {
+      "data": {
+        "id": "9"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/2/tweets",
+      "body": {
+        "text": "hello",
+        "reply": {
+          "in_reply_to_tweet_id": "123"
+        }
+      },
+      "items": 1
+    }
+  },
+  "tweet.delete": {
+    "params": {
+      "tweetDeleteId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "55"
+      }
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/2/tweets/55"
+    }
+  },
+  "tweet.like": {
+    "params": {
+      "tweetId": "55"
+    },
+    "responses": [
+      {
+        "data": {
+          "id": "u1"
+        }
+      },
+      {
+        "data": {
+          "liked": true
+        }
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/2/users/u1/likes",
+      "body": {
+        "tweet_id": "55"
+      },
+      "items": 1
+    }
+  },
+  "tweet.retweet": {
+    "params": {
+      "tweetId": "55"
+    },
+    "responses": [
+      {
+        "data": {
+          "id": "u1"
+        }
+      },
+      {
+        "data": {
+          "retweeted": true
+        }
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/2/users/u1/retweets",
+      "body": {
+        "tweet_id": "55"
+      }
+    }
+  },
+  "tweet.search": {
+    "params": {
+      "searchText": "golang",
+      "limit": 20,
+      "additionalFields": {
+        "tweetFieldsObject": [
+          "author_id",
+          "lang"
+        ]
+      }
+    },
+    "response": {
+      "data": [
+        {
+          "id": "1"
+        },
+        {
+          "id": "2"
+        }
+      ],
+      "meta": {}
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/2/tweets/search/recent",
+      "query": {
+        "query": "golang",
+        "tweet.fields": "author_id,lang",
+        "max_results": "20"
+      },
+      "items": 2
+    }
+  },
+  "user.searchUser": {
+    "params": {
+      "user": {
+        "__rl": true,
+        "mode": "username",
+        "value": "@jack"
+      }
+    },
+    "response": {
+      "data": {
+        "id": "12"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/2/users/by/username/jack",
+      "items": 1
+    }
+  },
+  "list.add": {
+    "params": {
+      "list": "77",
+      "user": {
+        "__rl": true,
+        "mode": "username",
+        "value": "jack"
+      }
+    },
+    "responses": [
+      {
+        "data": {
+          "id": "12"
+        }
+      },
+      {
+        "data": {
+          "is_member": true
+        }
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/2/lists/77/members",
+      "body": {
+        "user_id": "12"
+      }
+    }
+  },
+  "directMessage.create": {
+    "params": {
+      "user": {
+        "__rl": true,
+        "mode": "id",
+        "value": "12"
+      },
+      "text": "hi"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/2/dm_conversations/with/12/messages",
+      "body": {
+        "text": "hi"
+      }
+    }
+  }
+}

@@ -74,7 +74,10 @@ func (a *App) AccountStatus() string {
 	if errors.As(runErr, &ee) {
 		stderr = string(ee.Stderr)
 	}
-	return classifyAccountStatus(out, stderr, runErr, ctx.Err() != nil)
+	status := classifyAccountStatus(out, stderr, runErr, ctx.Err() != nil)
+	a.followSession(status)
+	a.retryDBMigrateAfterLogin(status)
+	return status
 }
 
 // classifyAccountStatus decides what the page is told about one run: the

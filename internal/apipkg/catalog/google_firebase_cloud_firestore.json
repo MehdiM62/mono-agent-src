@@ -1,0 +1,401 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "google_firebase_cloud_firestore",
+  "node_type": "app.google_firebase_cloud_firestore",
+  "title": "Google Firebase Cloud Firestore",
+  "description": "Documents and collections in Cloud Firestore",
+  "category": "app",
+  "docs_url": "https://firebase.google.com/docs/firestore/reference/rest",
+  "n8n_types": [
+    "n8n-nodes-base.googleFirebaseCloudFirestore"
+  ],
+  "base_url": "https://firestore.googleapis.com/v1/projects",
+  "credentials": [
+    {
+      "platform": "google",
+      "name": "Google (Firestore)",
+      "n8n_credential": "googleFirebaseCloudFirestoreOAuth2Api",
+      "n8n_credential_alt": [
+        "googleApi",
+        "googleOAuth2Api"
+      ],
+      "methods": [
+        "oauth"
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      },
+      "reuse_platform": "google"
+    }
+  ],
+  "resources": [
+    {
+      "value": "document",
+      "label": "Document"
+    },
+    {
+      "value": "collection",
+      "label": "Collection"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "document",
+      "operation": "get",
+      "title": "Get a document",
+      "method": "POST",
+      "path": "/{{ p.projectId }}/databases/{{ p.database }}/documents:batchGet",
+      "fields": [
+        {
+          "key": "projectId",
+          "label": "Project ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "database",
+          "label": "Database",
+          "type": "text",
+          "default": "(default)"
+        },
+        {
+          "key": "collection",
+          "label": "Collection",
+          "type": "text",
+          "required": true,
+          "help": "Collection path, e.g. users or users/ada/orders."
+        },
+        {
+          "key": "documentId",
+          "label": "Document ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "simple",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true,
+          "help": "Decode Firestore typed values into plain JSON."
+        }
+      ],
+      "body": {
+        "documents": [
+          "projects/{{ p.projectId }}/databases/{{ p.database }}/documents/{{ p.collection | path }}/{{ p.documentId }}"
+        ]
+      },
+      "output": {
+        "path": "",
+        "each": "found",
+        "firestore": "{{ p.simple }}"
+      }
+    },
+    {
+      "resource": "document",
+      "operation": "create",
+      "title": "Create a document",
+      "method": "POST",
+      "path": "/{{ p.projectId }}/databases/{{ p.database }}/documents/{{ p.collection | path }}",
+      "fields": [
+        {
+          "key": "projectId",
+          "label": "Project ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "database",
+          "label": "Database",
+          "type": "text",
+          "default": "(default)"
+        },
+        {
+          "key": "collection",
+          "label": "Collection",
+          "type": "text",
+          "required": true,
+          "help": "Collection path, e.g. users or users/ada/orders."
+        },
+        {
+          "key": "documentId",
+          "label": "Document ID",
+          "type": "text",
+          "help": "Empty for an auto-generated ID."
+        },
+        {
+          "key": "columns",
+          "label": "Columns",
+          "type": "text",
+          "required": true,
+          "help": "Comma-separated input-item keys to write as fields."
+        },
+        {
+          "key": "simple",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true,
+          "help": "Decode Firestore typed values into plain JSON."
+        }
+      ],
+      "query": {
+        "documentId": "{{ p.documentId }}"
+      },
+      "body": {
+        "fields": "{{ item | firestore_fields:p.columns }}"
+      },
+      "output": {
+        "firestore": "{{ p.simple }}"
+      }
+    },
+    {
+      "resource": "document",
+      "operation": "upsert",
+      "title": "Create or update documents",
+      "method": "POST",
+      "path": "/{{ p.projectId }}/databases/{{ p.database }}/documents:batchWrite",
+      "batch": true,
+      "description": "Writes every input item in one batch; the document ID comes from the item's updateKey field.",
+      "fields": [
+        {
+          "key": "projectId",
+          "label": "Project ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "database",
+          "label": "Database",
+          "type": "text",
+          "default": "(default)"
+        },
+        {
+          "key": "collection",
+          "label": "Collection",
+          "type": "text",
+          "required": true,
+          "help": "Collection path, e.g. users or users/ada/orders."
+        },
+        {
+          "key": "updateKey",
+          "label": "Document ID key",
+          "type": "text",
+          "required": true,
+          "help": "Input-item key holding the document ID."
+        },
+        {
+          "key": "columns",
+          "label": "Columns",
+          "type": "text",
+          "required": true,
+          "help": "Comma-separated input-item keys to write as fields."
+        }
+      ],
+      "body": {
+        "writes": {
+          "$map": "{{ items }}",
+          "$to": {
+            "update": {
+              "name": "projects/{{ p.projectId }}/databases/{{ p.database }}/documents/{{ p.collection }}/{{ el | get:p.updateKey }}",
+              "fields": "{{ el | firestore_fields:p.columns }}"
+            },
+            "updateMask": {
+              "fieldPaths": "{{ p.columns | split }}"
+            }
+          }
+        }
+      },
+      "output": {
+        "path": "writeResults"
+      }
+    },
+    {
+      "resource": "document",
+      "operation": "delete",
+      "title": "Delete a document",
+      "method": "DELETE",
+      "path": "/{{ p.projectId }}/databases/{{ p.database }}/documents/{{ p.collection | path }}/{{ p.documentId }}",
+      "fields": [
+        {
+          "key": "projectId",
+          "label": "Project ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "database",
+          "label": "Database",
+          "type": "text",
+          "default": "(default)"
+        },
+        {
+          "key": "collection",
+          "label": "Collection",
+          "type": "text",
+          "required": true,
+          "help": "Collection path, e.g. users or users/ada/orders."
+        },
+        {
+          "key": "documentId",
+          "label": "Document ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "document",
+      "operation": "getAll",
+      "title": "Get many documents",
+      "method": "GET",
+      "path": "/{{ p.projectId }}/databases/{{ p.database }}/documents/{{ p.collection | path }}",
+      "fields": [
+        {
+          "key": "projectId",
+          "label": "Project ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "database",
+          "label": "Database",
+          "type": "text",
+          "default": "(default)"
+        },
+        {
+          "key": "collection",
+          "label": "Collection",
+          "type": "text",
+          "required": true,
+          "help": "Collection path, e.g. users or users/ada/orders."
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "simple",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true,
+          "help": "Decode Firestore typed values into plain JSON."
+        }
+      ],
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "pageToken",
+        "cursor_path": "nextPageToken",
+        "limit_param": "pageSize",
+        "page_size": 300
+      },
+      "output": {
+        "path": "documents",
+        "firestore": "{{ p.simple }}"
+      }
+    },
+    {
+      "resource": "document",
+      "operation": "query",
+      "title": "Run a query",
+      "method": "POST",
+      "path": "/{{ p.projectId }}/databases/{{ p.database }}/documents:runQuery",
+      "description": "Sends the structured query JSON as is ($1-style query parameters are not substituted).",
+      "fields": [
+        {
+          "key": "projectId",
+          "label": "Project ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "database",
+          "label": "Database",
+          "type": "text",
+          "default": "(default)"
+        },
+        {
+          "key": "query",
+          "label": "Query (JSON)",
+          "type": "json",
+          "required": true,
+          "help": "A runQuery body, e.g. {\"structuredQuery\": {...}}."
+        },
+        {
+          "key": "queryParameters",
+          "label": "Query parameters",
+          "type": "json",
+          "default": []
+        },
+        {
+          "key": "simple",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true,
+          "help": "Decode Firestore typed values into plain JSON."
+        }
+      ],
+      "body": "{{ p.query | fromjson }}",
+      "output": {
+        "path": "",
+        "each": "document",
+        "firestore": "{{ p.simple }}"
+      }
+    },
+    {
+      "resource": "collection",
+      "operation": "getAll",
+      "title": "Get many collections",
+      "method": "POST",
+      "path": "/{{ p.projectId }}/databases/{{ p.database }}/documents:listCollectionIds",
+      "fields": [
+        {
+          "key": "projectId",
+          "label": "Project ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "database",
+          "label": "Database",
+          "type": "text",
+          "default": "(default)"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "pageToken",
+        "cursor_path": "nextPageToken",
+        "limit_param": "pageSize",
+        "page_size": 300,
+        "param_in": "body"
+      },
+      "body": {},
+      "output": {
+        "path": "collectionIds"
+      }
+    }
+  ]
+}

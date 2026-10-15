@@ -1,0 +1,2874 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "salesforce",
+  "extends": "service.salesforce",
+  "title": "Salesforce",
+  "description": "Accounts, attachments, cases, contacts, custom objects, documents, flows, leads, opportunities, SOQL search, tasks and users in Salesforce (n8n operations)",
+  "category": "app",
+  "docs_url": "https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/",
+  "n8n_types": [
+    "n8n-nodes-base.salesforce"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.salesforceTrigger"
+  ],
+  "base_url": "{{ cred.instance_url }}/services/data/v59.0",
+  "credentials": [
+    {
+      "platform": "salesforce",
+      "reuse_platform": "salesforce",
+      "name": "Salesforce",
+      "n8n_credential": "salesforceOAuth2Api",
+      "n8n_credential_alt": [
+        "salesforceJwtApi"
+      ],
+      "n8n_field_map": {
+        "accessToken": "access_token",
+        "instanceUrl": "instance_url"
+      },
+      "methods": [
+        "oauth",
+        "bearer"
+      ],
+      "fields": [
+        {
+          "key": "access_token",
+          "label": "Access token",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "lead",
+      "label": "Lead"
+    },
+    {
+      "value": "account",
+      "label": "Account"
+    },
+    {
+      "value": "attachment",
+      "label": "Attachment"
+    },
+    {
+      "value": "case",
+      "label": "Case"
+    },
+    {
+      "value": "contact",
+      "label": "Contact"
+    },
+    {
+      "value": "customObject",
+      "label": "Custom Object"
+    },
+    {
+      "value": "document",
+      "label": "Document"
+    },
+    {
+      "value": "flow",
+      "label": "Flow"
+    },
+    {
+      "value": "opportunity",
+      "label": "Opportunity"
+    },
+    {
+      "value": "search",
+      "label": "Search"
+    },
+    {
+      "value": "task",
+      "label": "Task"
+    },
+    {
+      "value": "user",
+      "label": "User"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "lead",
+      "operation": "create",
+      "title": "Create a lead",
+      "method": "POST",
+      "path": "/sobjects/lead",
+      "fields": [
+        {
+          "key": "company",
+          "label": "Company",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "lastname",
+          "label": "Last name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "annualRevenue",
+            "city",
+            "country",
+            "description",
+            "email",
+            "fax",
+            "firstname",
+            "hasOptedOutOfEmail",
+            "hasOptedOutOfFax",
+            "industry",
+            "isUnreadByOwner",
+            "jigsaw",
+            "leadSource",
+            "mobilePhone",
+            "numberOfEmployees",
+            "owner",
+            "phone",
+            "postalCode",
+            "rating",
+            "recordTypeId",
+            "salutation",
+            "state",
+            "status",
+            "street",
+            "title",
+            "website",
+            "customFieldsUi"
+          ],
+          "help": "customFieldsUi: {customFieldsValues: [{fieldId, value}]}; owner: user id"
+        }
+      ],
+      "body": {
+        "Company": "{{ p.company }}",
+        "LastName": "{{ p.lastname }}",
+        "HasOptedOutOfEmail": "{{ p.additionalFields.hasOptedOutOfEmail }}",
+        "HasOptedOutOfFax": "{{ p.additionalFields.hasOptedOutOfFax }}",
+        "Email": "{{ p.additionalFields.email }}",
+        "City": "{{ p.additionalFields.city }}",
+        "Phone": "{{ p.additionalFields.phone }}",
+        "State": "{{ p.additionalFields.state }}",
+        "Title": "{{ p.additionalFields.title }}",
+        "Jigsaw": "{{ p.additionalFields.jigsaw }}",
+        "Rating": "{{ p.additionalFields.rating }}",
+        "Status": "{{ p.additionalFields.status }}",
+        "Street": "{{ p.additionalFields.street }}",
+        "Country": "{{ p.additionalFields.country }}",
+        "Website": "{{ p.additionalFields.website }}",
+        "Industry": "{{ p.additionalFields.industry }}",
+        "Fax": "{{ p.additionalFields.fax }}",
+        "FirstName": "{{ p.additionalFields.firstname }}",
+        "LeadSource": "{{ p.additionalFields.leadSource }}",
+        "PostalCode": "{{ p.additionalFields.postalCode }}",
+        "Salutation": "{{ p.additionalFields.salutation }}",
+        "Description": "{{ p.additionalFields.description }}",
+        "AnnualRevenue": "{{ p.additionalFields.annualRevenue }}",
+        "IsUnreadByOwner": "{{ p.additionalFields.isUnreadByOwner }}",
+        "NumberOfEmployees": "{{ p.additionalFields.numberOfEmployees }}",
+        "MobilePhone": "{{ p.additionalFields.mobilePhone }}",
+        "RecordTypeId": "{{ p.additionalFields.recordTypeId }}",
+        "OwnerId": "{{ p.additionalFields.owner | rl }}",
+        "$merge": "{{ p.additionalFields.customFieldsUi.customFieldsValues | kv:'fieldId,value' }}"
+      }
+    },
+    {
+      "resource": "lead",
+      "operation": "upsert",
+      "title": "Create or update a lead",
+      "method": "PATCH",
+      "path": "/sobjects/lead/{{ p.externalId }}/{{ p.externalIdValue }}",
+      "fields": [
+        {
+          "key": "externalId",
+          "label": "External ID field",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "externalIdValue",
+          "label": "External ID value",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "company",
+          "label": "Company",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "lastname",
+          "label": "Last name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "annualRevenue",
+            "city",
+            "country",
+            "description",
+            "email",
+            "fax",
+            "firstname",
+            "hasOptedOutOfEmail",
+            "hasOptedOutOfFax",
+            "industry",
+            "isUnreadByOwner",
+            "jigsaw",
+            "leadSource",
+            "mobilePhone",
+            "numberOfEmployees",
+            "owner",
+            "phone",
+            "postalCode",
+            "rating",
+            "recordTypeId",
+            "salutation",
+            "state",
+            "status",
+            "street",
+            "title",
+            "website",
+            "customFieldsUi"
+          ],
+          "help": "customFieldsUi: {customFieldsValues: [{fieldId, value}]}; owner: user id"
+        }
+      ],
+      "body": {
+        "Company": "{{ p.company }}",
+        "LastName": "{{ p.lastname }}",
+        "HasOptedOutOfEmail": "{{ p.additionalFields.hasOptedOutOfEmail }}",
+        "HasOptedOutOfFax": "{{ p.additionalFields.hasOptedOutOfFax }}",
+        "Email": "{{ p.additionalFields.email }}",
+        "City": "{{ p.additionalFields.city }}",
+        "Phone": "{{ p.additionalFields.phone }}",
+        "State": "{{ p.additionalFields.state }}",
+        "Title": "{{ p.additionalFields.title }}",
+        "Jigsaw": "{{ p.additionalFields.jigsaw }}",
+        "Rating": "{{ p.additionalFields.rating }}",
+        "Status": "{{ p.additionalFields.status }}",
+        "Street": "{{ p.additionalFields.street }}",
+        "Country": "{{ p.additionalFields.country }}",
+        "Website": "{{ p.additionalFields.website }}",
+        "Industry": "{{ p.additionalFields.industry }}",
+        "Fax": "{{ p.additionalFields.fax }}",
+        "FirstName": "{{ p.additionalFields.firstname }}",
+        "LeadSource": "{{ p.additionalFields.leadSource }}",
+        "PostalCode": "{{ p.additionalFields.postalCode }}",
+        "Salutation": "{{ p.additionalFields.salutation }}",
+        "Description": "{{ p.additionalFields.description }}",
+        "AnnualRevenue": "{{ p.additionalFields.annualRevenue }}",
+        "IsUnreadByOwner": "{{ p.additionalFields.isUnreadByOwner }}",
+        "NumberOfEmployees": "{{ p.additionalFields.numberOfEmployees }}",
+        "MobilePhone": "{{ p.additionalFields.mobilePhone }}",
+        "RecordTypeId": "{{ p.additionalFields.recordTypeId }}",
+        "OwnerId": "{{ p.additionalFields.owner | rl }}",
+        "$merge": "{{ p.additionalFields.customFieldsUi.customFieldsValues | kv:'fieldId,value' | omit:p.externalId }}"
+      }
+    },
+    {
+      "resource": "lead",
+      "operation": "update",
+      "title": "Update a lead",
+      "method": "PATCH",
+      "path": "/sobjects/lead/{{ p.leadId }}",
+      "fields": [
+        {
+          "key": "leadId",
+          "label": "Lead ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "annualRevenue",
+            "city",
+            "company",
+            "country",
+            "description",
+            "email",
+            "fax",
+            "firstname",
+            "hasOptedOutOfEmail",
+            "hasOptedOutOfFax",
+            "industry",
+            "isUnreadByOwner",
+            "jigsaw",
+            "lastname",
+            "leadSource",
+            "mobilePhone",
+            "numberOfEmployees",
+            "owner",
+            "phone",
+            "postalCode",
+            "rating",
+            "recordTypeId",
+            "salutation",
+            "state",
+            "status",
+            "street",
+            "title",
+            "website",
+            "customFieldsUi"
+          ],
+          "help": "customFieldsUi: {customFieldsValues: [{fieldId, value}]}"
+        }
+      ],
+      "body": {
+        "HasOptedOutOfEmail": "{{ p.updateFields.hasOptedOutOfEmail }}",
+        "hasOptedOutOfFax": "{{ p.updateFields.hasOptedOutOfFax }}",
+        "LastName": "{{ p.updateFields.lastname }}",
+        "Company": "{{ p.updateFields.company }}",
+        "Email": "{{ p.updateFields.email }}",
+        "City": "{{ p.updateFields.city }}",
+        "Phone": "{{ p.updateFields.phone }}",
+        "State": "{{ p.updateFields.state }}",
+        "Title": "{{ p.updateFields.title }}",
+        "Jigsaw": "{{ p.updateFields.jigsaw }}",
+        "Rating": "{{ p.updateFields.rating }}",
+        "Status": "{{ p.updateFields.status }}",
+        "Street": "{{ p.updateFields.street }}",
+        "Country": "{{ p.updateFields.country }}",
+        "Website": "{{ p.updateFields.website }}",
+        "Industry": "{{ p.updateFields.industry }}",
+        "FirstName": "{{ p.updateFields.firstname }}",
+        "Fax": "{{ p.updateFields.fax }}",
+        "LeadSource": "{{ p.updateFields.leadSource }}",
+        "PostalCode": "{{ p.updateFields.postalCode }}",
+        "Salutation": "{{ p.updateFields.salutation }}",
+        "Description": "{{ p.updateFields.description }}",
+        "AnnualRevenue": "{{ p.updateFields.annualRevenue }}",
+        "IsUnreadByOwner": "{{ p.updateFields.isUnreadByOwner }}",
+        "NumberOfEmployees": "{{ p.updateFields.numberOfEmployees }}",
+        "MobilePhone": "{{ p.updateFields.mobilePhone }}",
+        "RecordTypeId": "{{ p.updateFields.recordTypeId }}",
+        "OwnerId": "{{ p.updateFields.owner | rl }}",
+        "$merge": "{{ p.updateFields.customFieldsUi.customFieldsValues | kv:'fieldId,value' }}"
+      }
+    },
+    {
+      "resource": "lead",
+      "operation": "get",
+      "title": "Get a lead",
+      "method": "GET",
+      "path": "/sobjects/lead/{{ p.leadId }}",
+      "fields": [
+        {
+          "key": "leadId",
+          "label": "Lead ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "lead",
+      "operation": "getAll",
+      "title": "Get many leads",
+      "method": "GET",
+      "path": "/query",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "conditionsUi",
+            "fields"
+          ],
+          "help": "fields: list or comma-separated; conditionsUi: {conditionValues: [{field, operation, value}]} (string values are quoted; date literals such as TODAY, LAST_N_DAYS:7 and ISO dates are not)"
+        }
+      ],
+      "query": {
+        "q": {
+          "$join": [
+            "SELECT {{ p.options.fields | csv | default:'id,company,firstname,lastname,street,postalCode,city,email,status,LastModifiedDate' }} FROM Lead",
+            {
+              "$join": {
+                "$map": "{{ p.options.conditionsUi.conditionValues }}",
+                "$to": "{{ el.field }} {{ el.operation | upper | replace:'EQUAL','=' }} {{ el.value | string | upper | matches:'^(YESTERDAY|TODAY|TOMORROW|(LAST|THIS|NEXT)_(WEEK|MONTH|QUARTER|YEAR|FISCAL_QUARTER|FISCAL_YEAR)|(LAST|NEXT)_90_DAYS|(LAST|NEXT)_N_(DAYS|WEEKS|MONTHS|QUARTERS|YEARS|FISCAL_QUARTERS|FISCAL_YEARS):[0-9]+|N_(DAYS|WEEKS|MONTHS|QUARTERS|YEARS|FISCAL_QUARTERS|FISCAL_YEARS)_AGO:[0-9]+|[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9](T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]([.][0-9][0-9][0-9])?(Z|[+-][0-9][0-9]:[0-9][0-9])?)?)$' | then:(el.value | upper) | default:(el.value | json | replace:\"'\",\"\\'\" | replace:'\"',\"'\") }}"
+              },
+              "$sep": " AND ",
+              "$prefix": "WHERE "
+            },
+            "{{ p.returnAll | bool | ne:'true' | then:'LIMIT ' }}{{ p.returnAll | bool | ne:'true' | then:p.limit }}"
+          ],
+          "$sep": " "
+        }
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "nextRecordsUrl",
+        "results_path": "records"
+      }
+    },
+    {
+      "resource": "lead",
+      "operation": "delete",
+      "title": "Delete a lead",
+      "method": "DELETE",
+      "path": "/sobjects/lead/{{ p.leadId }}",
+      "fields": [
+        {
+          "key": "leadId",
+          "label": "Lead ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "lead",
+      "operation": "getSummary",
+      "title": "Get lead metadata summary",
+      "method": "GET",
+      "path": "/sobjects/lead",
+      "fields": []
+    },
+    {
+      "resource": "lead",
+      "operation": "addToCampaign",
+      "title": "Add a lead to a campaign",
+      "method": "POST",
+      "path": "/sobjects/CampaignMember",
+      "fields": [
+        {
+          "key": "leadId",
+          "label": "Lead ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "campaignId",
+          "label": "Campaign ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "status"
+          ]
+        }
+      ],
+      "body": {
+        "LeadId": "{{ p.leadId }}",
+        "CampaignId": "{{ p.campaignId }}",
+        "Status": "{{ p.options.status }}"
+      }
+    },
+    {
+      "resource": "lead",
+      "operation": "addNote",
+      "title": "Add a note to a lead",
+      "method": "POST",
+      "path": "/sobjects/note",
+      "fields": [
+        {
+          "key": "leadId",
+          "label": "Lead ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "body",
+            "isPrivate",
+            "owner"
+          ]
+        }
+      ],
+      "body": {
+        "Title": "{{ p.title }}",
+        "ParentId": "{{ p.leadId }}",
+        "Body": "{{ p.options.body }}",
+        "IsPrivate": "{{ p.options.isPrivate }}",
+        "OwnerId": "{{ p.options.owner | rl }}"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "create",
+      "title": "Create a contact",
+      "method": "POST",
+      "path": "/sobjects/contact",
+      "fields": [
+        {
+          "key": "lastname",
+          "label": "Last name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "acconuntId",
+            "assistantName",
+            "assistantPhone",
+            "birthdate",
+            "department",
+            "description",
+            "email",
+            "emailBouncedDate",
+            "emailBouncedReason",
+            "fax",
+            "firstName",
+            "genderIdentity",
+            "hasOptedOutOfEmail",
+            "homePhone",
+            "jigsaw",
+            "leadSource",
+            "mailingCity",
+            "mailingCountry",
+            "mailingPostalCode",
+            "mailingState",
+            "mailingStreet",
+            "middleName",
+            "mobilePhone",
+            "otherCity",
+            "otherCountry",
+            "otherPhone",
+            "otherPostalCode",
+            "otherState",
+            "otherStreet",
+            "owner",
+            "phone",
+            "pronouns",
+            "recordTypeId",
+            "salutation",
+            "suffix",
+            "title",
+            "customFieldsUi"
+          ],
+          "help": "customFieldsUi: {customFieldsValues: [{fieldId, value}]}; owner: user id"
+        }
+      ],
+      "body": {
+        "LastName": "{{ p.lastname }}",
+        "Fax": "{{ p.additionalFields.fax }}",
+        "Email": "{{ p.additionalFields.email }}",
+        "Phone": "{{ p.additionalFields.phone }}",
+        "Title": "{{ p.additionalFields.title }}",
+        "Jigsaw": "{{ p.additionalFields.jigsaw }}",
+        "RecordTypeId": "{{ p.additionalFields.recordTypeId }}",
+        "Birthdate": "{{ p.additionalFields.birthdate }}",
+        "FirstName": "{{ p.additionalFields.firstName }}",
+        "HomePhone": "{{ p.additionalFields.homePhone }}",
+        "OtherCity": "{{ p.additionalFields.otherCity }}",
+        "Department": "{{ p.additionalFields.department }}",
+        "LeadSource": "{{ p.additionalFields.leadSource }}",
+        "OtherPhone": "{{ p.additionalFields.otherPhone }}",
+        "OtherState": "{{ p.additionalFields.otherState }}",
+        "Salutation": "{{ p.additionalFields.salutation }}",
+        "Description": "{{ p.additionalFields.description }}",
+        "MailingCity": "{{ p.additionalFields.mailingCity }}",
+        "MobilePhone": "{{ p.additionalFields.mobilePhone }}",
+        "OtherStreet": "{{ p.additionalFields.otherStreet }}",
+        "MailingState": "{{ p.additionalFields.mailingState }}",
+        "OtherCountry": "{{ p.additionalFields.otherCountry }}",
+        "AssistantName": "{{ p.additionalFields.assistantName }}",
+        "MailingStreet": "{{ p.additionalFields.mailingStreet }}",
+        "AssistantPhone": "{{ p.additionalFields.assistantPhone }}",
+        "MailingCountry": "{{ p.additionalFields.mailingCountry }}",
+        "OtherPostalCode": "{{ p.additionalFields.otherPostalCode }}",
+        "EmailBouncedDate": "{{ p.additionalFields.emailBouncedDate }}",
+        "MailingPostalCode": "{{ p.additionalFields.mailingPostalCode }}",
+        "EmailBouncedReason": "{{ p.additionalFields.emailBouncedReason }}",
+        "MiddleName": "{{ p.additionalFields.middleName }}",
+        "Suffix": "{{ p.additionalFields.suffix }}",
+        "HasOptedOutOfEmail": "{{ p.additionalFields.hasOptedOutOfEmail }}",
+        "Pronouns": "{{ p.additionalFields.pronouns }}",
+        "GenderIdentity": "{{ p.additionalFields.genderIdentity }}",
+        "OwnerId": "{{ p.additionalFields.owner | rl }}",
+        "AccountId": "{{ p.additionalFields.acconuntId | rl }}",
+        "$merge": "{{ p.additionalFields.customFieldsUi.customFieldsValues | kv:'fieldId,value' }}"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "upsert",
+      "title": "Create or update a contact",
+      "method": "PATCH",
+      "path": "/sobjects/contact/{{ p.externalId }}/{{ p.externalIdValue }}",
+      "fields": [
+        {
+          "key": "externalId",
+          "label": "External ID field",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "externalIdValue",
+          "label": "External ID value",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "lastname",
+          "label": "Last name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "acconuntId",
+            "assistantName",
+            "assistantPhone",
+            "birthdate",
+            "department",
+            "description",
+            "email",
+            "emailBouncedDate",
+            "emailBouncedReason",
+            "fax",
+            "firstName",
+            "genderIdentity",
+            "hasOptedOutOfEmail",
+            "homePhone",
+            "jigsaw",
+            "leadSource",
+            "mailingCity",
+            "mailingCountry",
+            "mailingPostalCode",
+            "mailingState",
+            "mailingStreet",
+            "middleName",
+            "mobilePhone",
+            "otherCity",
+            "otherCountry",
+            "otherPhone",
+            "otherPostalCode",
+            "otherState",
+            "otherStreet",
+            "owner",
+            "phone",
+            "pronouns",
+            "recordTypeId",
+            "salutation",
+            "suffix",
+            "title",
+            "customFieldsUi"
+          ],
+          "help": "customFieldsUi: {customFieldsValues: [{fieldId, value}]}; owner: user id"
+        }
+      ],
+      "body": {
+        "LastName": "{{ p.lastname }}",
+        "Fax": "{{ p.additionalFields.fax }}",
+        "Email": "{{ p.additionalFields.email }}",
+        "Phone": "{{ p.additionalFields.phone }}",
+        "Title": "{{ p.additionalFields.title }}",
+        "Jigsaw": "{{ p.additionalFields.jigsaw }}",
+        "RecordTypeId": "{{ p.additionalFields.recordTypeId }}",
+        "Birthdate": "{{ p.additionalFields.birthdate }}",
+        "FirstName": "{{ p.additionalFields.firstName }}",
+        "HomePhone": "{{ p.additionalFields.homePhone }}",
+        "OtherCity": "{{ p.additionalFields.otherCity }}",
+        "Department": "{{ p.additionalFields.department }}",
+        "LeadSource": "{{ p.additionalFields.leadSource }}",
+        "OtherPhone": "{{ p.additionalFields.otherPhone }}",
+        "OtherState": "{{ p.additionalFields.otherState }}",
+        "Salutation": "{{ p.additionalFields.salutation }}",
+        "Description": "{{ p.additionalFields.description }}",
+        "MailingCity": "{{ p.additionalFields.mailingCity }}",
+        "MobilePhone": "{{ p.additionalFields.mobilePhone }}",
+        "OtherStreet": "{{ p.additionalFields.otherStreet }}",
+        "MailingState": "{{ p.additionalFields.mailingState }}",
+        "OtherCountry": "{{ p.additionalFields.otherCountry }}",
+        "AssistantName": "{{ p.additionalFields.assistantName }}",
+        "MailingStreet": "{{ p.additionalFields.mailingStreet }}",
+        "AssistantPhone": "{{ p.additionalFields.assistantPhone }}",
+        "MailingCountry": "{{ p.additionalFields.mailingCountry }}",
+        "OtherPostalCode": "{{ p.additionalFields.otherPostalCode }}",
+        "EmailBouncedDate": "{{ p.additionalFields.emailBouncedDate }}",
+        "MailingPostalCode": "{{ p.additionalFields.mailingPostalCode }}",
+        "EmailBouncedReason": "{{ p.additionalFields.emailBouncedReason }}",
+        "MiddleName": "{{ p.additionalFields.middleName }}",
+        "Suffix": "{{ p.additionalFields.suffix }}",
+        "HasOptedOutOfEmail": "{{ p.additionalFields.hasOptedOutOfEmail }}",
+        "Pronouns": "{{ p.additionalFields.pronouns }}",
+        "GenderIdentity": "{{ p.additionalFields.genderIdentity }}",
+        "OwnerId": "{{ p.additionalFields.owner | rl }}",
+        "AccountId": "{{ p.additionalFields.acconuntId | rl }}",
+        "$merge": "{{ p.additionalFields.customFieldsUi.customFieldsValues | kv:'fieldId,value' | omit:p.externalId }}"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "update",
+      "title": "Update a contact",
+      "method": "PATCH",
+      "path": "/sobjects/contact/{{ p.contactId }}",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "acconuntId",
+            "assistantName",
+            "assistantPhone",
+            "birthdate",
+            "department",
+            "description",
+            "email",
+            "emailBouncedDate",
+            "emailBouncedReason",
+            "fax",
+            "firstName",
+            "genderIdentity",
+            "hasOptedOutOfEmail",
+            "homePhone",
+            "jigsaw",
+            "lastName",
+            "leadSource",
+            "mailingCity",
+            "mailingCountry",
+            "mailingPostalCode",
+            "mailingState",
+            "mailingStreet",
+            "middleName",
+            "mobilePhone",
+            "otherCity",
+            "otherCountry",
+            "otherPhone",
+            "otherPostalCode",
+            "otherState",
+            "otherStreet",
+            "owner",
+            "phone",
+            "pronouns",
+            "recordTypeId",
+            "salutation",
+            "suffix",
+            "title",
+            "customFieldsUi"
+          ],
+          "help": "customFieldsUi: {customFieldsValues: [{fieldId, value}]}"
+        }
+      ],
+      "body": {
+        "LastName": "{{ p.updateFields.lastName }}",
+        "Fax": "{{ p.updateFields.fax }}",
+        "Email": "{{ p.updateFields.email }}",
+        "RecordTypeId": "{{ p.updateFields.recordTypeId }}",
+        "Phone": "{{ p.updateFields.phone }}",
+        "Title": "{{ p.updateFields.title }}",
+        "Jigsaw": "{{ p.updateFields.jigsaw }}",
+        "Birthdate": "{{ p.updateFields.birthdate }}",
+        "FirstName": "{{ p.updateFields.firstName }}",
+        "HomePhone": "{{ p.updateFields.homePhone }}",
+        "OtherCity": "{{ p.updateFields.otherCity }}",
+        "Department": "{{ p.updateFields.department }}",
+        "LeadSource": "{{ p.updateFields.leadSource }}",
+        "OtherPhone": "{{ p.updateFields.otherPhone }}",
+        "OtherState": "{{ p.updateFields.otherState }}",
+        "Salutation": "{{ p.updateFields.salutation }}",
+        "Description": "{{ p.updateFields.description }}",
+        "MailingCity": "{{ p.updateFields.mailingCity }}",
+        "MobilePhone": "{{ p.updateFields.mobilePhone }}",
+        "OtherStreet": "{{ p.updateFields.otherStreet }}",
+        "MailingState": "{{ p.updateFields.mailingState }}",
+        "OtherCountry": "{{ p.updateFields.otherCountry }}",
+        "AssistantName": "{{ p.updateFields.assistantName }}",
+        "MailingStreet": "{{ p.updateFields.mailingStreet }}",
+        "AssistantPhone": "{{ p.updateFields.assistantPhone }}",
+        "MailingCountry": "{{ p.updateFields.mailingCountry }}",
+        "OtherPostalCode": "{{ p.updateFields.otherPostalCode }}",
+        "EmailBouncedDate": "{{ p.updateFields.emailBouncedDate }}",
+        "MailingPostalCode": "{{ p.updateFields.mailingPostalCode }}",
+        "EmailBouncedReason": "{{ p.updateFields.emailBouncedReason }}",
+        "MiddleName": "{{ p.updateFields.middleName }}",
+        "Suffix": "{{ p.updateFields.suffix }}",
+        "HasOptedOutOfEmail": "{{ p.updateFields.hasOptedOutOfEmail }}",
+        "Pronouns": "{{ p.updateFields.pronouns }}",
+        "GenderIdentity": "{{ p.updateFields.genderIdentity }}",
+        "OwnerId": "{{ p.updateFields.owner | rl }}",
+        "AccountId": "{{ p.updateFields.acconuntId | rl }}",
+        "$merge": "{{ p.updateFields.customFieldsUi.customFieldsValues | kv:'fieldId,value' }}"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "get",
+      "title": "Get a contact",
+      "method": "GET",
+      "path": "/sobjects/contact/{{ p.contactId }}",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "contact",
+      "operation": "getAll",
+      "title": "Get many contacts",
+      "method": "GET",
+      "path": "/query",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "conditionsUi",
+            "fields"
+          ],
+          "help": "fields: list or comma-separated; conditionsUi: {conditionValues: [{field, operation, value}]} (string values are quoted; date literals such as TODAY, LAST_N_DAYS:7 and ISO dates are not)"
+        }
+      ],
+      "query": {
+        "q": {
+          "$join": [
+            "SELECT {{ p.options.fields | csv | default:'id,firstname,lastname,email,LastModifiedDate' }} FROM Contact",
+            {
+              "$join": {
+                "$map": "{{ p.options.conditionsUi.conditionValues }}",
+                "$to": "{{ el.field }} {{ el.operation | upper | replace:'EQUAL','=' }} {{ el.value | string | upper | matches:'^(YESTERDAY|TODAY|TOMORROW|(LAST|THIS|NEXT)_(WEEK|MONTH|QUARTER|YEAR|FISCAL_QUARTER|FISCAL_YEAR)|(LAST|NEXT)_90_DAYS|(LAST|NEXT)_N_(DAYS|WEEKS|MONTHS|QUARTERS|YEARS|FISCAL_QUARTERS|FISCAL_YEARS):[0-9]+|N_(DAYS|WEEKS|MONTHS|QUARTERS|YEARS|FISCAL_QUARTERS|FISCAL_YEARS)_AGO:[0-9]+|[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9](T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]([.][0-9][0-9][0-9])?(Z|[+-][0-9][0-9]:[0-9][0-9])?)?)$' | then:(el.value | upper) | default:(el.value | json | replace:\"'\",\"\\'\" | replace:'\"',\"'\") }}"
+              },
+              "$sep": " AND ",
+              "$prefix": "WHERE "
+            },
+            "{{ p.returnAll | bool | ne:'true' | then:'LIMIT ' }}{{ p.returnAll | bool | ne:'true' | then:p.limit }}"
+          ],
+          "$sep": " "
+        }
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "nextRecordsUrl",
+        "results_path": "records"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "delete",
+      "title": "Delete a contact",
+      "method": "DELETE",
+      "path": "/sobjects/contact/{{ p.contactId }}",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "contact",
+      "operation": "getSummary",
+      "title": "Get contact metadata summary",
+      "method": "GET",
+      "path": "/sobjects/contact",
+      "fields": []
+    },
+    {
+      "resource": "contact",
+      "operation": "addToCampaign",
+      "title": "Add a contact to a campaign",
+      "method": "POST",
+      "path": "/sobjects/CampaignMember",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "campaignId",
+          "label": "Campaign ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "status"
+          ]
+        }
+      ],
+      "body": {
+        "ContactId": "{{ p.contactId }}",
+        "CampaignId": "{{ p.campaignId }}",
+        "Status": "{{ p.options.status }}"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "addNote",
+      "title": "Add a note to a contact",
+      "method": "POST",
+      "path": "/sobjects/note",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "body",
+            "isPrivate",
+            "owner"
+          ]
+        }
+      ],
+      "body": {
+        "Title": "{{ p.title }}",
+        "ParentId": "{{ p.contactId }}",
+        "Body": "{{ p.options.body }}",
+        "IsPrivate": "{{ p.options.isPrivate }}",
+        "OwnerId": "{{ p.options.owner | rl }}"
+      }
+    },
+    {
+      "resource": "opportunity",
+      "operation": "create",
+      "title": "Create a opportunity",
+      "method": "POST",
+      "path": "/sobjects/opportunity",
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "closeDate",
+          "label": "Close date",
+          "type": "datetime",
+          "required": true
+        },
+        {
+          "key": "stageName",
+          "label": "Stage",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "accountId",
+            "amount",
+            "campaignId",
+            "description",
+            "forecastCategoryName",
+            "leadSource",
+            "nextStep",
+            "owner",
+            "pricebook2Id",
+            "probability",
+            "type",
+            "customFieldsUi"
+          ],
+          "help": "customFieldsUi: {customFieldsValues: [{fieldId, value}]}; owner: user id"
+        }
+      ],
+      "body": {
+        "Name": "{{ p.name }}",
+        "CloseDate": "{{ p.closeDate }}",
+        "StageName": "{{ p.stageName }}",
+        "Type": "{{ p.additionalFields.type }}",
+        "Amount": "{{ p.additionalFields.amount }}",
+        "NextStep": "{{ p.additionalFields.nextStep }}",
+        "CampaignId": "{{ p.additionalFields.campaignId }}",
+        "LeadSource": "{{ p.additionalFields.leadSource }}",
+        "Description": "{{ p.additionalFields.description }}",
+        "Probability": "{{ p.additionalFields.probability }}",
+        "Pricebook2Id": "{{ p.additionalFields.pricebook2Id }}",
+        "ForecastCategoryName": "{{ p.additionalFields.forecastCategoryName }}",
+        "OwnerId": "{{ p.additionalFields.owner | rl }}",
+        "AccountId": "{{ p.additionalFields.accountId | rl }}",
+        "$merge": "{{ p.additionalFields.customFieldsUi.customFieldsValues | kv:'fieldId,value' }}"
+      }
+    },
+    {
+      "resource": "opportunity",
+      "operation": "upsert",
+      "title": "Create or update a opportunity",
+      "method": "PATCH",
+      "path": "/sobjects/opportunity/{{ p.externalId }}/{{ p.externalIdValue }}",
+      "fields": [
+        {
+          "key": "externalId",
+          "label": "External ID field",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "externalIdValue",
+          "label": "External ID value",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "closeDate",
+          "label": "Close date",
+          "type": "datetime",
+          "required": true
+        },
+        {
+          "key": "stageName",
+          "label": "Stage",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "accountId",
+            "amount",
+            "campaignId",
+            "description",
+            "forecastCategoryName",
+            "leadSource",
+            "nextStep",
+            "owner",
+            "pricebook2Id",
+            "probability",
+            "type",
+            "customFieldsUi"
+          ],
+          "help": "customFieldsUi: {customFieldsValues: [{fieldId, value}]}; owner: user id"
+        }
+      ],
+      "body": {
+        "Name": "{{ p.name }}",
+        "CloseDate": "{{ p.closeDate }}",
+        "StageName": "{{ p.stageName }}",
+        "Type": "{{ p.additionalFields.type }}",
+        "Amount": "{{ p.additionalFields.amount }}",
+        "NextStep": "{{ p.additionalFields.nextStep }}",
+        "CampaignId": "{{ p.additionalFields.campaignId }}",
+        "LeadSource": "{{ p.additionalFields.leadSource }}",
+        "Description": "{{ p.additionalFields.description }}",
+        "Probability": "{{ p.additionalFields.probability }}",
+        "Pricebook2Id": "{{ p.additionalFields.pricebook2Id }}",
+        "ForecastCategoryName": "{{ p.additionalFields.forecastCategoryName }}",
+        "OwnerId": "{{ p.additionalFields.owner | rl }}",
+        "AccountId": "{{ p.additionalFields.accountId | rl }}",
+        "$merge": "{{ p.additionalFields.customFieldsUi.customFieldsValues | kv:'fieldId,value' | omit:p.externalId }}"
+      }
+    },
+    {
+      "resource": "opportunity",
+      "operation": "update",
+      "title": "Update a opportunity",
+      "method": "PATCH",
+      "path": "/sobjects/opportunity/{{ p.opportunityId }}",
+      "fields": [
+        {
+          "key": "opportunityId",
+          "label": "Opportunity ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "accountId",
+            "amount",
+            "campaignId",
+            "closeDate",
+            "description",
+            "forecastCategoryName",
+            "leadSource",
+            "name",
+            "nextStep",
+            "owner",
+            "pricebook2Id",
+            "probability",
+            "stageName",
+            "type",
+            "customFieldsUi"
+          ],
+          "help": "customFieldsUi: {customFieldsValues: [{fieldId, value}]}"
+        }
+      ],
+      "body": {
+        "Name": "{{ p.updateFields.name }}",
+        "CloseDate": "{{ p.updateFields.closeDate }}",
+        "StageName": "{{ p.updateFields.stageName }}",
+        "Type": "{{ p.updateFields.type }}",
+        "Amount": "{{ p.updateFields.amount }}",
+        "NextStep": "{{ p.updateFields.nextStep }}",
+        "CampaignId": "{{ p.updateFields.campaignId }}",
+        "LeadSource": "{{ p.updateFields.leadSource }}",
+        "Description": "{{ p.updateFields.description }}",
+        "Probability": "{{ p.updateFields.probability }}",
+        "Pricebook2Id": "{{ p.updateFields.pricebook2Id }}",
+        "ForecastCategoryName": "{{ p.updateFields.forecastCategoryName }}",
+        "OwnerId": "{{ p.updateFields.owner | rl }}",
+        "AccountId": "{{ p.updateFields.accountId | rl }}",
+        "$merge": "{{ p.updateFields.customFieldsUi.customFieldsValues | kv:'fieldId,value' }}"
+      }
+    },
+    {
+      "resource": "opportunity",
+      "operation": "get",
+      "title": "Get a opportunity",
+      "method": "GET",
+      "path": "/sobjects/opportunity/{{ p.opportunityId }}",
+      "fields": [
+        {
+          "key": "opportunityId",
+          "label": "Opportunity ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "opportunity",
+      "operation": "getAll",
+      "title": "Get many opportunitys",
+      "method": "GET",
+      "path": "/query",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "conditionsUi",
+            "fields"
+          ],
+          "help": "fields: list or comma-separated; conditionsUi: {conditionValues: [{field, operation, value}]} (string values are quoted; date literals such as TODAY, LAST_N_DAYS:7 and ISO dates are not)"
+        }
+      ],
+      "query": {
+        "q": {
+          "$join": [
+            "SELECT {{ p.options.fields | csv | default:'id,accountId,amount,probability,type,LastModifiedDate' }} FROM Opportunity",
+            {
+              "$join": {
+                "$map": "{{ p.options.conditionsUi.conditionValues }}",
+                "$to": "{{ el.field }} {{ el.operation | upper | replace:'EQUAL','=' }} {{ el.value | string | upper | matches:'^(YESTERDAY|TODAY|TOMORROW|(LAST|THIS|NEXT)_(WEEK|MONTH|QUARTER|YEAR|FISCAL_QUARTER|FISCAL_YEAR)|(LAST|NEXT)_90_DAYS|(LAST|NEXT)_N_(DAYS|WEEKS|MONTHS|QUARTERS|YEARS|FISCAL_QUARTERS|FISCAL_YEARS):[0-9]+|N_(DAYS|WEEKS|MONTHS|QUARTERS|YEARS|FISCAL_QUARTERS|FISCAL_YEARS)_AGO:[0-9]+|[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9](T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]([.][0-9][0-9][0-9])?(Z|[+-][0-9][0-9]:[0-9][0-9])?)?)$' | then:(el.value | upper) | default:(el.value | json | replace:\"'\",\"\\'\" | replace:'\"',\"'\") }}"
+              },
+              "$sep": " AND ",
+              "$prefix": "WHERE "
+            },
+            "{{ p.returnAll | bool | ne:'true' | then:'LIMIT ' }}{{ p.returnAll | bool | ne:'true' | then:p.limit }}"
+          ],
+          "$sep": " "
+        }
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "nextRecordsUrl",
+        "results_path": "records"
+      }
+    },
+    {
+      "resource": "opportunity",
+      "operation": "delete",
+      "title": "Delete a opportunity",
+      "method": "DELETE",
+      "path": "/sobjects/opportunity/{{ p.opportunityId }}",
+      "fields": [
+        {
+          "key": "opportunityId",
+          "label": "Opportunity ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "opportunity",
+      "operation": "getSummary",
+      "title": "Get opportunity metadata summary",
+      "method": "GET",
+      "path": "/sobjects/opportunity",
+      "fields": []
+    },
+    {
+      "resource": "opportunity",
+      "operation": "addNote",
+      "title": "Add a note to a opportunity",
+      "method": "POST",
+      "path": "/sobjects/note",
+      "fields": [
+        {
+          "key": "opportunityId",
+          "label": "Opportunity ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "body",
+            "isPrivate",
+            "owner"
+          ]
+        }
+      ],
+      "body": {
+        "Title": "{{ p.title }}",
+        "ParentId": "{{ p.opportunityId }}",
+        "Body": "{{ p.options.body }}",
+        "IsPrivate": "{{ p.options.isPrivate }}",
+        "OwnerId": "{{ p.options.owner | rl }}"
+      }
+    },
+    {
+      "resource": "account",
+      "operation": "create",
+      "title": "Create a account",
+      "method": "POST",
+      "path": "/sobjects/account",
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "accountNumber",
+            "accountSource",
+            "annualRevenue",
+            "billingCity",
+            "billingCountry",
+            "billingPostalCode",
+            "billingState",
+            "billingStreet",
+            "description",
+            "fax",
+            "industry",
+            "jigsaw",
+            "numberOfEmployees",
+            "owner",
+            "parentId",
+            "phone",
+            "recordTypeId",
+            "shippingCity",
+            "shippingCountry",
+            "shippingPostalCode",
+            "shippingState",
+            "shippingStreet",
+            "sicDesc",
+            "type",
+            "website",
+            "customFieldsUi"
+          ],
+          "help": "customFieldsUi: {customFieldsValues: [{fieldId, value}]}; owner: user id"
+        }
+      ],
+      "body": {
+        "Name": "{{ p.name }}",
+        "Fax": "{{ p.additionalFields.fax }}",
+        "Type": "{{ p.additionalFields.type }}",
+        "Jigsaw": "{{ p.additionalFields.jigsaw }}",
+        "Phone": "{{ p.additionalFields.phone }}",
+        "SicDesc": "{{ p.additionalFields.sicDesc }}",
+        "Website": "{{ p.additionalFields.website }}",
+        "Industry": "{{ p.additionalFields.industry }}",
+        "ParentId": "{{ p.additionalFields.parentId }}",
+        "BillingCity": "{{ p.additionalFields.billingCity }}",
+        "Description": "{{ p.additionalFields.description }}",
+        "BillingState": "{{ p.additionalFields.billingState }}",
+        "ShippingCity": "{{ p.additionalFields.shippingCity }}",
+        "AccountNumber": "{{ p.additionalFields.accountNumber }}",
+        "AccountSource": "{{ p.additionalFields.accountSource }}",
+        "AnnualRevenue": "{{ p.additionalFields.annualRevenue }}",
+        "BillingStreet": "{{ p.additionalFields.billingStreet }}",
+        "ShippingState": "{{ p.additionalFields.shippingState }}",
+        "BillingCountry": "{{ p.additionalFields.billingCountry }}",
+        "ShippingStreet": "{{ p.additionalFields.shippingStreet }}",
+        "ShippingCountry": "{{ p.additionalFields.shippingCountry }}",
+        "BillingPostalCode": "{{ p.additionalFields.billingPostalCode }}",
+        "NumberOfEmployees": "{{ p.additionalFields.numberOfEmployees }}",
+        "ShippingPostalCode": "{{ p.additionalFields.shippingPostalCode }}",
+        "RecordTypeId": "{{ p.additionalFields.recordTypeId }}",
+        "OwnerId": "{{ p.additionalFields.owner | rl }}",
+        "$merge": "{{ p.additionalFields.customFieldsUi.customFieldsValues | kv:'fieldId,value' }}"
+      }
+    },
+    {
+      "resource": "account",
+      "operation": "upsert",
+      "title": "Create or update a account",
+      "method": "PATCH",
+      "path": "/sobjects/account/{{ p.externalId }}/{{ p.externalIdValue }}",
+      "fields": [
+        {
+          "key": "externalId",
+          "label": "External ID field",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "externalIdValue",
+          "label": "External ID value",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "accountNumber",
+            "accountSource",
+            "annualRevenue",
+            "billingCity",
+            "billingCountry",
+            "billingPostalCode",
+            "billingState",
+            "billingStreet",
+            "description",
+            "fax",
+            "industry",
+            "jigsaw",
+            "numberOfEmployees",
+            "owner",
+            "parentId",
+            "phone",
+            "recordTypeId",
+            "shippingCity",
+            "shippingCountry",
+            "shippingPostalCode",
+            "shippingState",
+            "shippingStreet",
+            "sicDesc",
+            "type",
+            "website",
+            "customFieldsUi"
+          ],
+          "help": "customFieldsUi: {customFieldsValues: [{fieldId, value}]}; owner: user id"
+        }
+      ],
+      "body": {
+        "Name": "{{ p.name }}",
+        "Fax": "{{ p.additionalFields.fax }}",
+        "Type": "{{ p.additionalFields.type }}",
+        "Jigsaw": "{{ p.additionalFields.jigsaw }}",
+        "Phone": "{{ p.additionalFields.phone }}",
+        "SicDesc": "{{ p.additionalFields.sicDesc }}",
+        "Website": "{{ p.additionalFields.website }}",
+        "Industry": "{{ p.additionalFields.industry }}",
+        "ParentId": "{{ p.additionalFields.parentId }}",
+        "BillingCity": "{{ p.additionalFields.billingCity }}",
+        "Description": "{{ p.additionalFields.description }}",
+        "BillingState": "{{ p.additionalFields.billingState }}",
+        "ShippingCity": "{{ p.additionalFields.shippingCity }}",
+        "AccountNumber": "{{ p.additionalFields.accountNumber }}",
+        "AccountSource": "{{ p.additionalFields.accountSource }}",
+        "AnnualRevenue": "{{ p.additionalFields.annualRevenue }}",
+        "BillingStreet": "{{ p.additionalFields.billingStreet }}",
+        "ShippingState": "{{ p.additionalFields.shippingState }}",
+        "BillingCountry": "{{ p.additionalFields.billingCountry }}",
+        "ShippingStreet": "{{ p.additionalFields.shippingStreet }}",
+        "ShippingCountry": "{{ p.additionalFields.shippingCountry }}",
+        "BillingPostalCode": "{{ p.additionalFields.billingPostalCode }}",
+        "NumberOfEmployees": "{{ p.additionalFields.numberOfEmployees }}",
+        "ShippingPostalCode": "{{ p.additionalFields.shippingPostalCode }}",
+        "RecordTypeId": "{{ p.additionalFields.recordTypeId }}",
+        "OwnerId": "{{ p.additionalFields.owner | rl }}",
+        "$merge": "{{ p.additionalFields.customFieldsUi.customFieldsValues | kv:'fieldId,value' | omit:p.externalId }}"
+      }
+    },
+    {
+      "resource": "account",
+      "operation": "update",
+      "title": "Update a account",
+      "method": "PATCH",
+      "path": "/sobjects/account/{{ p.accountId }}",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "accountNumber",
+            "accountSource",
+            "annualRevenue",
+            "billingCity",
+            "billingCountry",
+            "billingPostalCode",
+            "billingState",
+            "billingStreet",
+            "description",
+            "fax",
+            "industry",
+            "jigsaw",
+            "name",
+            "numberOfEmployees",
+            "ownerId",
+            "parentId",
+            "phone",
+            "recordTypeId",
+            "shippingCity",
+            "shippingCountry",
+            "shippingPostalCode",
+            "shippingState",
+            "shippingStreet",
+            "sicDesc",
+            "type",
+            "website",
+            "customFieldsUi"
+          ],
+          "help": "customFieldsUi: {customFieldsValues: [{fieldId, value}]}"
+        }
+      ],
+      "body": {
+        "Name": "{{ p.updateFields.name }}",
+        "Fax": "{{ p.updateFields.fax }}",
+        "Type": "{{ p.updateFields.type }}",
+        "Jigsaw": "{{ p.updateFields.jigsaw }}",
+        "Phone": "{{ p.updateFields.phone }}",
+        "SicDesc": "{{ p.updateFields.sicDesc }}",
+        "RecordTypeId": "{{ p.updateFields.recordTypeId }}",
+        "Website": "{{ p.updateFields.website }}",
+        "Industry": "{{ p.updateFields.industry }}",
+        "ParentId": "{{ p.updateFields.parentId }}",
+        "BillingCity": "{{ p.updateFields.billingCity }}",
+        "Description": "{{ p.updateFields.description }}",
+        "BillingState": "{{ p.updateFields.billingState }}",
+        "ShippingCity": "{{ p.updateFields.shippingCity }}",
+        "AccountNumber": "{{ p.updateFields.accountNumber }}",
+        "AccountSource": "{{ p.updateFields.accountSource }}",
+        "AnnualRevenue": "{{ p.updateFields.annualRevenue }}",
+        "BillingStreet": "{{ p.updateFields.billingStreet }}",
+        "ShippingState": "{{ p.updateFields.shippingState }}",
+        "BillingCountry": "{{ p.updateFields.billingCountry }}",
+        "ShippingStreet": "{{ p.updateFields.shippingStreet }}",
+        "ShippingCountry": "{{ p.updateFields.shippingCountry }}",
+        "BillingPostalCode": "{{ p.updateFields.billingPostalCode }}",
+        "NumberOfEmployees": "{{ p.updateFields.numberOfEmployees }}",
+        "ShippingPostalCode": "{{ p.updateFields.shippingPostalCode }}",
+        "OwnerId": "{{ p.updateFields.ownerId | rl }}",
+        "$merge": "{{ p.updateFields.customFieldsUi.customFieldsValues | kv:'fieldId,value' }}"
+      }
+    },
+    {
+      "resource": "account",
+      "operation": "get",
+      "title": "Get a account",
+      "method": "GET",
+      "path": "/sobjects/account/{{ p.accountId }}",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "account",
+      "operation": "getAll",
+      "title": "Get many accounts",
+      "method": "GET",
+      "path": "/query",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "conditionsUi",
+            "fields"
+          ],
+          "help": "fields: list or comma-separated; conditionsUi: {conditionValues: [{field, operation, value}]} (string values are quoted; date literals such as TODAY, LAST_N_DAYS:7 and ISO dates are not)"
+        }
+      ],
+      "query": {
+        "q": {
+          "$join": [
+            "SELECT {{ p.options.fields | csv | default:'id,name,type,LastModifiedDate' }} FROM Account",
+            {
+              "$join": {
+                "$map": "{{ p.options.conditionsUi.conditionValues }}",
+                "$to": "{{ el.field }} {{ el.operation | upper | replace:'EQUAL','=' }} {{ el.value | string | upper | matches:'^(YESTERDAY|TODAY|TOMORROW|(LAST|THIS|NEXT)_(WEEK|MONTH|QUARTER|YEAR|FISCAL_QUARTER|FISCAL_YEAR)|(LAST|NEXT)_90_DAYS|(LAST|NEXT)_N_(DAYS|WEEKS|MONTHS|QUARTERS|YEARS|FISCAL_QUARTERS|FISCAL_YEARS):[0-9]+|N_(DAYS|WEEKS|MONTHS|QUARTERS|YEARS|FISCAL_QUARTERS|FISCAL_YEARS)_AGO:[0-9]+|[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9](T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]([.][0-9][0-9][0-9])?(Z|[+-][0-9][0-9]:[0-9][0-9])?)?)$' | then:(el.value | upper) | default:(el.value | json | replace:\"'\",\"\\'\" | replace:'\"',\"'\") }}"
+              },
+              "$sep": " AND ",
+              "$prefix": "WHERE "
+            },
+            "{{ p.returnAll | bool | ne:'true' | then:'LIMIT ' }}{{ p.returnAll | bool | ne:'true' | then:p.limit }}"
+          ],
+          "$sep": " "
+        }
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "nextRecordsUrl",
+        "results_path": "records"
+      }
+    },
+    {
+      "resource": "account",
+      "operation": "delete",
+      "title": "Delete a account",
+      "method": "DELETE",
+      "path": "/sobjects/account/{{ p.accountId }}",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "account",
+      "operation": "getSummary",
+      "title": "Get account metadata summary",
+      "method": "GET",
+      "path": "/sobjects/account",
+      "fields": []
+    },
+    {
+      "resource": "account",
+      "operation": "addNote",
+      "title": "Add a note to a account",
+      "method": "POST",
+      "path": "/sobjects/note",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "body",
+            "isPrivate",
+            "ownerId"
+          ]
+        }
+      ],
+      "body": {
+        "Title": "{{ p.title }}",
+        "ParentId": "{{ p.accountId }}",
+        "Body": "{{ p.options.body }}",
+        "IsPrivate": "{{ p.options.isPrivate }}",
+        "OwnerId": "{{ p.options.ownerId | rl }}"
+      }
+    },
+    {
+      "resource": "case",
+      "operation": "create",
+      "title": "Create a case",
+      "method": "POST",
+      "path": "/sobjects/case",
+      "fields": [
+        {
+          "key": "type",
+          "label": "Type",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "ParentId",
+            "accountId",
+            "contactId",
+            "description",
+            "isEscalated",
+            "origin",
+            "owner",
+            "priority",
+            "reason",
+            "recordTypeId",
+            "status",
+            "subject",
+            "suppliedCompany",
+            "suppliedEmail",
+            "suppliedName",
+            "suppliedPhone",
+            "customFieldsUi"
+          ],
+          "help": "customFieldsUi: {customFieldsValues: [{fieldId, value}]}; owner: user id"
+        }
+      ],
+      "body": {
+        "Type": "{{ p.type }}",
+        "Origin": "{{ p.additionalFields.origin }}",
+        "Reason": "{{ p.additionalFields.reason }}",
+        "Status": "{{ p.additionalFields.status }}",
+        "Subject": "{{ p.additionalFields.subject }}",
+        "ParentId": "{{ p.additionalFields.ParentId }}",
+        "Priority": "{{ p.additionalFields.priority }}",
+        "AccountId": "{{ p.additionalFields.accountId }}",
+        "ContactId": "{{ p.additionalFields.contactId }}",
+        "Description": "{{ p.additionalFields.description }}",
+        "IsEscalated": "{{ p.additionalFields.isEscalated }}",
+        "SuppliedName": "{{ p.additionalFields.suppliedName }}",
+        "SuppliedEmail": "{{ p.additionalFields.suppliedEmail }}",
+        "SuppliedPhone": "{{ p.additionalFields.suppliedPhone }}",
+        "SuppliedCompany": "{{ p.additionalFields.suppliedCompany }}",
+        "RecordTypeId": "{{ p.additionalFields.recordTypeId }}",
+        "OwnerId": "{{ p.additionalFields.owner | rl }}",
+        "$merge": "{{ p.additionalFields.customFieldsUi.customFieldsValues | kv:'fieldId,value' }}"
+      }
+    },
+    {
+      "resource": "case",
+      "operation": "update",
+      "title": "Update a case",
+      "method": "PATCH",
+      "path": "/sobjects/case/{{ p.caseId }}",
+      "fields": [
+        {
+          "key": "caseId",
+          "label": "Case ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "ParentId",
+            "accountId",
+            "contactId",
+            "description",
+            "isEscalated",
+            "origin",
+            "owner",
+            "priority",
+            "reason",
+            "recordTypeId",
+            "status",
+            "subject",
+            "suppliedCompany",
+            "suppliedEmail",
+            "suppliedName",
+            "suppliedPhone",
+            "type",
+            "customFieldsUi"
+          ],
+          "help": "customFieldsUi: {customFieldsValues: [{fieldId, value}]}"
+        }
+      ],
+      "body": {
+        "Type": "{{ p.updateFields.type }}",
+        "Origin": "{{ p.updateFields.origin }}",
+        "Reason": "{{ p.updateFields.reason }}",
+        "Status": "{{ p.updateFields.status }}",
+        "Subject": "{{ p.updateFields.subject }}",
+        "ParentId": "{{ p.updateFields.ParentId }}",
+        "Priority": "{{ p.updateFields.priority }}",
+        "AccountId": "{{ p.updateFields.accountId }}",
+        "RecordTypeId": "{{ p.updateFields.recordTypeId }}",
+        "ContactId": "{{ p.updateFields.contactId }}",
+        "Description": "{{ p.updateFields.description }}",
+        "IsEscalated": "{{ p.updateFields.isEscalated }}",
+        "SuppliedName": "{{ p.updateFields.suppliedName }}",
+        "SuppliedEmail": "{{ p.updateFields.suppliedEmail }}",
+        "SuppliedPhone": "{{ p.updateFields.suppliedPhone }}",
+        "SuppliedCompany": "{{ p.updateFields.suppliedCompany }}",
+        "OwnerId": "{{ p.updateFields.owner | rl }}",
+        "$merge": "{{ p.updateFields.customFieldsUi.customFieldsValues | kv:'fieldId,value' }}"
+      }
+    },
+    {
+      "resource": "case",
+      "operation": "get",
+      "title": "Get a case",
+      "method": "GET",
+      "path": "/sobjects/case/{{ p.caseId }}",
+      "fields": [
+        {
+          "key": "caseId",
+          "label": "Case ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "case",
+      "operation": "getAll",
+      "title": "Get many cases",
+      "method": "GET",
+      "path": "/query",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "conditionsUi",
+            "fields"
+          ],
+          "help": "fields: list or comma-separated; conditionsUi: {conditionValues: [{field, operation, value}]} (string values are quoted; date literals such as TODAY, LAST_N_DAYS:7 and ISO dates are not)"
+        }
+      ],
+      "query": {
+        "q": {
+          "$join": [
+            "SELECT {{ p.options.fields | csv | default:'id,accountId,contactId,priority,status,subject,type,LastModifiedDate' }} FROM Case",
+            {
+              "$join": {
+                "$map": "{{ p.options.conditionsUi.conditionValues }}",
+                "$to": "{{ el.field }} {{ el.operation | upper | replace:'EQUAL','=' }} {{ el.value | string | upper | matches:'^(YESTERDAY|TODAY|TOMORROW|(LAST|THIS|NEXT)_(WEEK|MONTH|QUARTER|YEAR|FISCAL_QUARTER|FISCAL_YEAR)|(LAST|NEXT)_90_DAYS|(LAST|NEXT)_N_(DAYS|WEEKS|MONTHS|QUARTERS|YEARS|FISCAL_QUARTERS|FISCAL_YEARS):[0-9]+|N_(DAYS|WEEKS|MONTHS|QUARTERS|YEARS|FISCAL_QUARTERS|FISCAL_YEARS)_AGO:[0-9]+|[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9](T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]([.][0-9][0-9][0-9])?(Z|[+-][0-9][0-9]:[0-9][0-9])?)?)$' | then:(el.value | upper) | default:(el.value | json | replace:\"'\",\"\\'\" | replace:'\"',\"'\") }}"
+              },
+              "$sep": " AND ",
+              "$prefix": "WHERE "
+            },
+            "{{ p.returnAll | bool | ne:'true' | then:'LIMIT ' }}{{ p.returnAll | bool | ne:'true' | then:p.limit }}"
+          ],
+          "$sep": " "
+        }
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "nextRecordsUrl",
+        "results_path": "records"
+      }
+    },
+    {
+      "resource": "case",
+      "operation": "delete",
+      "title": "Delete a case",
+      "method": "DELETE",
+      "path": "/sobjects/case/{{ p.caseId }}",
+      "fields": [
+        {
+          "key": "caseId",
+          "label": "Case ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "case",
+      "operation": "getSummary",
+      "title": "Get case metadata summary",
+      "method": "GET",
+      "path": "/sobjects/case",
+      "fields": []
+    },
+    {
+      "resource": "case",
+      "operation": "addComment",
+      "title": "Add a comment to a case",
+      "method": "POST",
+      "path": "/sobjects/casecomment",
+      "fields": [
+        {
+          "key": "caseId",
+          "label": "Case ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "commentBody",
+            "isPublished"
+          ]
+        }
+      ],
+      "body": {
+        "ParentId": "{{ p.caseId }}",
+        "CommentBody": "{{ p.options.commentBody }}",
+        "IsPublished": "{{ p.options.isPublished }}"
+      }
+    },
+    {
+      "resource": "task",
+      "operation": "create",
+      "title": "Create a task",
+      "method": "POST",
+      "path": "/sobjects/task",
+      "fields": [
+        {
+          "key": "status",
+          "label": "Status",
+          "type": "text",
+          "required": true,
+          "help": "e.g. Not Started, Completed"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "activityDate",
+            "callDisposition",
+            "callDurationInSeconds",
+            "callObject",
+            "callType",
+            "description",
+            "isReminderSet",
+            "owner",
+            "priority",
+            "recurrenceDayOfMonth",
+            "recurrenceDayOfWeekMask",
+            "recurrenceEndDateOnly",
+            "recurrenceInstance",
+            "recurrenceInterval",
+            "recurrenceMonthOfYear",
+            "recurrenceRegeneratedType",
+            "recurrenceStartDateOnly",
+            "recurrenceTimeZoneSidKey",
+            "recurrenceType",
+            "reminderDateTime",
+            "subject",
+            "type",
+            "whatId",
+            "whoId",
+            "customFieldsUi"
+          ],
+          "help": "customFieldsUi: {customFieldsValues: [{fieldId, value}]}; owner: user id"
+        }
+      ],
+      "body": {
+        "Status": "{{ p.status }}",
+        "TaskSubtype": "{{ p.additionalFields.type }}",
+        "WhoId": "{{ p.additionalFields.whoId }}",
+        "WhatId": "{{ p.additionalFields.whatId }}",
+        "Subject": "{{ p.additionalFields.subject }}",
+        "CallType": "{{ p.additionalFields.callType }}",
+        "Priority": "{{ p.additionalFields.priority }}",
+        "CallObject": "{{ p.additionalFields.callObject }}",
+        "Description": "{{ p.additionalFields.description }}",
+        "ActivityDate": "{{ p.additionalFields.activityDate }}",
+        "IsReminderSet": "{{ p.additionalFields.isReminderSet }}",
+        "RecurrenceType": "{{ p.additionalFields.recurrenceType }}",
+        "CallDisposition": "{{ p.additionalFields.callDisposition }}",
+        "ReminderDateTime": "{{ p.additionalFields.reminderDateTime }}",
+        "RecurrenceInstance": "{{ p.additionalFields.recurrenceInstance }}",
+        "RecurrenceInterval": "{{ p.additionalFields.recurrenceInterval }}",
+        "RecurrenceDayOfMonth": "{{ p.additionalFields.recurrenceDayOfMonth }}",
+        "CallDurationInSeconds": "{{ p.additionalFields.callDurationInSeconds }}",
+        "RecurrenceEndDateOnly": "{{ p.additionalFields.recurrenceEndDateOnly }}",
+        "RecurrenceMonthOfYear": "{{ p.additionalFields.recurrenceMonthOfYear }}",
+        "RecurrenceDayOfWeekMask": "{{ p.additionalFields.recurrenceDayOfWeekMask }}",
+        "RecurrenceStartDateOnly": "{{ p.additionalFields.recurrenceStartDateOnly }}",
+        "RecurrenceTimeZoneSidKey": "{{ p.additionalFields.recurrenceTimeZoneSidKey }}",
+        "RecurrenceRegeneratedType": "{{ p.additionalFields.recurrenceRegeneratedType }}",
+        "OwnerId": "{{ p.additionalFields.owner | rl }}",
+        "$merge": "{{ p.additionalFields.customFieldsUi.customFieldsValues | kv:'fieldId,value' }}"
+      }
+    },
+    {
+      "resource": "task",
+      "operation": "update",
+      "title": "Update a task",
+      "method": "PATCH",
+      "path": "/sobjects/task/{{ p.taskId }}",
+      "fields": [
+        {
+          "key": "taskId",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "activityDate",
+            "callDisposition",
+            "callDurationInSeconds",
+            "callObject",
+            "callType",
+            "description",
+            "isReminderSet",
+            "owner",
+            "priority",
+            "recurrenceDayOfMonth",
+            "recurrenceDayOfWeekMask",
+            "recurrenceEndDateOnly",
+            "recurrenceInstance",
+            "recurrenceInterval",
+            "recurrenceMonthOfYear",
+            "recurrenceRegeneratedType",
+            "recurrenceStartDateOnly",
+            "recurrenceTimeZoneSidKey",
+            "recurrenceType",
+            "reminderDateTime",
+            "status",
+            "subject",
+            "type",
+            "whatId",
+            "whoId",
+            "customFieldsUi"
+          ],
+          "help": "customFieldsUi: {customFieldsValues: [{fieldId, value}]}"
+        }
+      ],
+      "body": {
+        "TaskSubtype": "{{ p.updateFields.type }}",
+        "WhoId": "{{ p.updateFields.whoId }}",
+        "Status": "{{ p.updateFields.status }}",
+        "WhatId": "{{ p.updateFields.whatId }}",
+        "Subject": "{{ p.updateFields.subject }}",
+        "CallType": "{{ p.updateFields.callType }}",
+        "Priority": "{{ p.updateFields.priority }}",
+        "CallObject": "{{ p.updateFields.callObject }}",
+        "Description": "{{ p.updateFields.description }}",
+        "ActivityDate": "{{ p.updateFields.activityDate }}",
+        "IsReminderSet": "{{ p.updateFields.isReminderSet }}",
+        "RecurrenceType": "{{ p.updateFields.recurrenceType }}",
+        "CallDisposition": "{{ p.updateFields.callDisposition }}",
+        "ReminderDateTime": "{{ p.updateFields.reminderDateTime }}",
+        "RecurrenceInstance": "{{ p.updateFields.recurrenceInstance }}",
+        "RecurrenceInterval": "{{ p.updateFields.recurrenceInterval }}",
+        "RecurrenceDayOfMonth": "{{ p.updateFields.recurrenceDayOfMonth }}",
+        "CallDurationInSeconds": "{{ p.updateFields.callDurationInSeconds }}",
+        "RecurrenceEndDateOnly": "{{ p.updateFields.recurrenceEndDateOnly }}",
+        "RecurrenceMonthOfYear": "{{ p.updateFields.recurrenceMonthOfYear }}",
+        "RecurrenceDayOfWeekMask": "{{ p.updateFields.recurrenceDayOfWeekMask }}",
+        "RecurrenceStartDateOnly": "{{ p.updateFields.recurrenceStartDateOnly }}",
+        "RecurrenceTimeZoneSidKey": "{{ p.updateFields.recurrenceTimeZoneSidKey }}",
+        "RecurrenceRegeneratedType": "{{ p.updateFields.recurrenceRegeneratedType }}",
+        "OwnerId": "{{ p.updateFields.owner | rl }}",
+        "$merge": "{{ p.updateFields.customFieldsUi.customFieldsValues | kv:'fieldId,value' }}"
+      }
+    },
+    {
+      "resource": "task",
+      "operation": "get",
+      "title": "Get a task",
+      "method": "GET",
+      "path": "/sobjects/task/{{ p.taskId }}",
+      "fields": [
+        {
+          "key": "taskId",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "task",
+      "operation": "getAll",
+      "title": "Get many tasks",
+      "method": "GET",
+      "path": "/query",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "conditionsUi",
+            "fields"
+          ],
+          "help": "fields: list or comma-separated; conditionsUi: {conditionValues: [{field, operation, value}]} (string values are quoted; date literals such as TODAY, LAST_N_DAYS:7 and ISO dates are not)"
+        }
+      ],
+      "query": {
+        "q": {
+          "$join": [
+            "SELECT {{ p.options.fields | csv | default:'id,subject,status,priority,LastModifiedDate' }} FROM Task",
+            {
+              "$join": {
+                "$map": "{{ p.options.conditionsUi.conditionValues }}",
+                "$to": "{{ el.field }} {{ el.operation | upper | replace:'EQUAL','=' }} {{ el.value | string | upper | matches:'^(YESTERDAY|TODAY|TOMORROW|(LAST|THIS|NEXT)_(WEEK|MONTH|QUARTER|YEAR|FISCAL_QUARTER|FISCAL_YEAR)|(LAST|NEXT)_90_DAYS|(LAST|NEXT)_N_(DAYS|WEEKS|MONTHS|QUARTERS|YEARS|FISCAL_QUARTERS|FISCAL_YEARS):[0-9]+|N_(DAYS|WEEKS|MONTHS|QUARTERS|YEARS|FISCAL_QUARTERS|FISCAL_YEARS)_AGO:[0-9]+|[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9](T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]([.][0-9][0-9][0-9])?(Z|[+-][0-9][0-9]:[0-9][0-9])?)?)$' | then:(el.value | upper) | default:(el.value | json | replace:\"'\",\"\\'\" | replace:'\"',\"'\") }}"
+              },
+              "$sep": " AND ",
+              "$prefix": "WHERE "
+            },
+            "{{ p.returnAll | bool | ne:'true' | then:'LIMIT ' }}{{ p.returnAll | bool | ne:'true' | then:p.limit }}"
+          ],
+          "$sep": " "
+        }
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "nextRecordsUrl",
+        "results_path": "records"
+      }
+    },
+    {
+      "resource": "task",
+      "operation": "delete",
+      "title": "Delete a task",
+      "method": "DELETE",
+      "path": "/sobjects/task/{{ p.taskId }}",
+      "fields": [
+        {
+          "key": "taskId",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "task",
+      "operation": "getSummary",
+      "title": "Get task metadata summary",
+      "method": "GET",
+      "path": "/sobjects/task",
+      "fields": []
+    },
+    {
+      "resource": "attachment",
+      "operation": "create",
+      "title": "Create an attachment",
+      "method": "POST",
+      "path": "/sobjects/attachment",
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "parentId",
+          "label": "Parent ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Binary property",
+          "type": "text",
+          "required": true,
+          "default": "data"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "description",
+            "isPrivate",
+            "owner"
+          ]
+        }
+      ],
+      "body": {
+        "Name": "{{ p.name }}",
+        "ParentId": "{{ p.parentId }}",
+        "Body": "{{ bin.base64 }}",
+        "ContentType": "{{ bin.mime_type }}",
+        "Description": "{{ p.additionalFields.description }}",
+        "IsPrivate": "{{ p.additionalFields.isPrivate }}",
+        "OwnerId": "{{ p.additionalFields.owner | rl }}"
+      },
+      "body_type": "json",
+      "binary": {
+        "upload_field": "binaryPropertyName",
+        "upload_when": "false"
+      }
+    },
+    {
+      "resource": "attachment",
+      "operation": "update",
+      "title": "Update an attachment",
+      "method": "PATCH",
+      "path": "/sobjects/attachment/{{ p.attachmentId }}",
+      "fields": [
+        {
+          "key": "attachmentId",
+          "label": "Attachment ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "description",
+            "isPrivate",
+            "name",
+            "owner",
+            "binaryPropertyName"
+          ]
+        }
+      ],
+      "body": {
+        "Body": "{{ p.updateFields.binaryPropertyName | then:bin.base64 }}",
+        "ContentType": "{{ p.updateFields.binaryPropertyName | then:bin.mime_type }}",
+        "Name": "{{ p.updateFields.name }}",
+        "Description": "{{ p.updateFields.description }}",
+        "IsPrivate": "{{ p.updateFields.isPrivate }}",
+        "OwnerId": "{{ p.updateFields.owner | rl }}"
+      },
+      "body_type": "json",
+      "binary": {
+        "upload_field": "updateFields",
+        "property": "{{ p.updateFields.binaryPropertyName }}",
+        "upload_when": "false"
+      }
+    },
+    {
+      "resource": "attachment",
+      "operation": "get",
+      "title": "Get an attachment",
+      "method": "GET",
+      "path": "/sobjects/attachment/{{ p.attachmentId }}",
+      "fields": [
+        {
+          "key": "attachmentId",
+          "label": "Attachment ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "attachment",
+      "operation": "getAll",
+      "title": "Get many attachments",
+      "method": "GET",
+      "path": "/query",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "conditionsUi",
+            "fields"
+          ],
+          "help": "fields: list or comma-separated; conditionsUi: {conditionValues: [{field, operation, value}]} (string values are quoted; date literals such as TODAY, LAST_N_DAYS:7 and ISO dates are not)"
+        }
+      ],
+      "query": {
+        "q": {
+          "$join": [
+            "SELECT {{ p.options.fields | csv | default:'id,name,LastModifiedDate' }} FROM Attachment",
+            {
+              "$join": {
+                "$map": "{{ p.options.conditionsUi.conditionValues }}",
+                "$to": "{{ el.field }} {{ el.operation | upper | replace:'EQUAL','=' }} {{ el.value | string | upper | matches:'^(YESTERDAY|TODAY|TOMORROW|(LAST|THIS|NEXT)_(WEEK|MONTH|QUARTER|YEAR|FISCAL_QUARTER|FISCAL_YEAR)|(LAST|NEXT)_90_DAYS|(LAST|NEXT)_N_(DAYS|WEEKS|MONTHS|QUARTERS|YEARS|FISCAL_QUARTERS|FISCAL_YEARS):[0-9]+|N_(DAYS|WEEKS|MONTHS|QUARTERS|YEARS|FISCAL_QUARTERS|FISCAL_YEARS)_AGO:[0-9]+|[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9](T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]([.][0-9][0-9][0-9])?(Z|[+-][0-9][0-9]:[0-9][0-9])?)?)$' | then:(el.value | upper) | default:(el.value | json | replace:\"'\",\"\\'\" | replace:'\"',\"'\") }}"
+              },
+              "$sep": " AND ",
+              "$prefix": "WHERE "
+            },
+            "{{ p.returnAll | bool | ne:'true' | then:'LIMIT ' }}{{ p.returnAll | bool | ne:'true' | then:p.limit }}"
+          ],
+          "$sep": " "
+        }
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "nextRecordsUrl",
+        "results_path": "records"
+      }
+    },
+    {
+      "resource": "attachment",
+      "operation": "delete",
+      "title": "Delete an attachment",
+      "method": "DELETE",
+      "path": "/sobjects/attachment/{{ p.attachmentId }}",
+      "fields": [
+        {
+          "key": "attachmentId",
+          "label": "Attachment ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "attachment",
+      "operation": "getSummary",
+      "title": "Get attachment metadata summary",
+      "method": "GET",
+      "path": "/sobjects/attachment",
+      "fields": []
+    },
+    {
+      "resource": "customObject",
+      "operation": "create",
+      "title": "Create a custom object record",
+      "method": "POST",
+      "path": "/sobjects/{{ p.customObject }}",
+      "fields": [
+        {
+          "key": "customObject",
+          "label": "Custom object",
+          "type": "text",
+          "required": true,
+          "help": "API name, e.g. Invoice__c"
+        },
+        {
+          "key": "customFieldsUi",
+          "label": "Fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "customFieldsValues"
+          ],
+          "help": "{customFieldsValues: [{fieldId, value}]}"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "recordTypeId"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.customFieldsUi.customFieldsValues | kv:'fieldId,value' }}",
+        "RecordTypeId": "{{ p.additionalFields.recordTypeId }}"
+      }
+    },
+    {
+      "resource": "customObject",
+      "operation": "upsert",
+      "title": "Create or update a custom object record",
+      "method": "PATCH",
+      "path": "/sobjects/{{ p.customObject }}/{{ p.externalId }}/{{ p.externalIdValue }}",
+      "fields": [
+        {
+          "key": "customObject",
+          "label": "Custom object",
+          "type": "text",
+          "required": true,
+          "help": "API name, e.g. Invoice__c"
+        },
+        {
+          "key": "externalId",
+          "label": "External ID field",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "externalIdValue",
+          "label": "External ID value",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "customFieldsUi",
+          "label": "Fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "customFieldsValues"
+          ],
+          "help": "{customFieldsValues: [{fieldId, value}]}"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "recordTypeId"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.customFieldsUi.customFieldsValues | kv:'fieldId,value' | omit:p.externalId }}",
+        "RecordTypeId": "{{ p.additionalFields.recordTypeId }}"
+      }
+    },
+    {
+      "resource": "customObject",
+      "operation": "update",
+      "title": "Update a custom object record",
+      "method": "PATCH",
+      "path": "/sobjects/{{ p.customObject }}/{{ p.recordId }}",
+      "fields": [
+        {
+          "key": "customObject",
+          "label": "Custom object",
+          "type": "text",
+          "required": true,
+          "help": "API name, e.g. Invoice__c"
+        },
+        {
+          "key": "recordId",
+          "label": "Record ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "customFieldsUi",
+          "label": "Fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "customFieldsValues"
+          ],
+          "help": "{customFieldsValues: [{fieldId, value}]}"
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "recordTypeId"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.customFieldsUi.customFieldsValues | kv:'fieldId,value' }}",
+        "RecordTypeId": "{{ p.updateFields.recordTypeId }}"
+      }
+    },
+    {
+      "resource": "customObject",
+      "operation": "get",
+      "title": "Get a custom object record",
+      "method": "GET",
+      "path": "/sobjects/{{ p.customObject }}/{{ p.recordId }}",
+      "fields": [
+        {
+          "key": "customObject",
+          "label": "Custom object",
+          "type": "text",
+          "required": true,
+          "help": "API name, e.g. Invoice__c"
+        },
+        {
+          "key": "recordId",
+          "label": "Record ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "customObject",
+      "operation": "getAll",
+      "title": "Get many customObjects",
+      "method": "GET",
+      "path": "/query",
+      "fields": [
+        {
+          "key": "customObject",
+          "label": "Custom object",
+          "type": "text",
+          "required": true,
+          "help": "API name, e.g. Invoice__c"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "conditionsUi",
+            "fields"
+          ],
+          "help": "fields: list or comma-separated; conditionsUi: {conditionValues: [{field, operation, value}]} (string values are quoted; date literals such as TODAY, LAST_N_DAYS:7 and ISO dates are not)"
+        }
+      ],
+      "query": {
+        "q": {
+          "$join": [
+            "SELECT {{ p.options.fields | csv | default:'id,LastModifiedDate' }} FROM {{ p.customObject }}",
+            {
+              "$join": {
+                "$map": "{{ p.options.conditionsUi.conditionValues }}",
+                "$to": "{{ el.field }} {{ el.operation | upper | replace:'EQUAL','=' }} {{ el.value | string | upper | matches:'^(YESTERDAY|TODAY|TOMORROW|(LAST|THIS|NEXT)_(WEEK|MONTH|QUARTER|YEAR|FISCAL_QUARTER|FISCAL_YEAR)|(LAST|NEXT)_90_DAYS|(LAST|NEXT)_N_(DAYS|WEEKS|MONTHS|QUARTERS|YEARS|FISCAL_QUARTERS|FISCAL_YEARS):[0-9]+|N_(DAYS|WEEKS|MONTHS|QUARTERS|YEARS|FISCAL_QUARTERS|FISCAL_YEARS)_AGO:[0-9]+|[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9](T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]([.][0-9][0-9][0-9])?(Z|[+-][0-9][0-9]:[0-9][0-9])?)?)$' | then:(el.value | upper) | default:(el.value | json | replace:\"'\",\"\\'\" | replace:'\"',\"'\") }}"
+              },
+              "$sep": " AND ",
+              "$prefix": "WHERE "
+            },
+            "{{ p.returnAll | bool | ne:'true' | then:'LIMIT ' }}{{ p.returnAll | bool | ne:'true' | then:p.limit }}"
+          ],
+          "$sep": " "
+        }
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "nextRecordsUrl",
+        "results_path": "records"
+      }
+    },
+    {
+      "resource": "customObject",
+      "operation": "delete",
+      "title": "Delete a custom object record",
+      "method": "DELETE",
+      "path": "/sobjects/{{ p.customObject }}/{{ p.recordId }}",
+      "fields": [
+        {
+          "key": "customObject",
+          "label": "Custom object",
+          "type": "text",
+          "required": true,
+          "help": "API name, e.g. Invoice__c"
+        },
+        {
+          "key": "recordId",
+          "label": "Record ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "document",
+      "operation": "upload",
+      "title": "Upload a document",
+      "method": "POST",
+      "path": "/sobjects/ContentVersion",
+      "fields": [
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Binary property",
+          "type": "text",
+          "required": true,
+          "default": "data"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fileExtension",
+            "linkToObjectId",
+            "ownerId"
+          ]
+        }
+      ],
+      "body": {
+        "entity_content": {
+          "$json": {
+            "Title": "{{ p.title }}",
+            "ContentLocation": "S",
+            "ownerId": "{{ p.additionalFields.ownerId | rl }}",
+            "FirstPublishLocationId": "{{ p.additionalFields.linkToObjectId }}",
+            "PathOnClient": "{{ p.title }}.{{ p.additionalFields.fileExtension | default:bin.file_extension }}"
+          }
+        }
+      },
+      "body_type": "multipart",
+      "binary": {
+        "upload_field": "binaryPropertyName",
+        "multipart_field": "VersionData",
+        "file_name": "{{ p.title }}.{{ p.additionalFields.fileExtension | default:bin.file_extension }}"
+      }
+    },
+    {
+      "resource": "flow",
+      "operation": "invoke",
+      "title": "Invoke a flow",
+      "method": "POST",
+      "path": "/actions/custom/flow/{{ p.apiName }}",
+      "fields": [
+        {
+          "key": "apiName",
+          "label": "Flow API name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "jsonParameters",
+          "label": "JSON parameters",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "variablesJson",
+          "label": "Variables (JSON)",
+          "type": "json",
+          "default": ""
+        },
+        {
+          "key": "variablesUi",
+          "label": "Variables",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "variablesValues"
+          ],
+          "help": "{variablesValues: [{name, value}]}"
+        }
+      ],
+      "body": {
+        "!inputs": [
+          {
+            "$merge": [
+              "{{ p.jsonParameters | bool | eq:'true' | then:(p.variablesJson | fromjson) }}",
+              "{{ p.jsonParameters | bool | ne:'true' | then:(p.variablesUi.variablesValues | kv:'name,value') }}"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "resource": "flow",
+      "operation": "getAll",
+      "title": "Get many flows",
+      "method": "GET",
+      "path": "/actions/custom/flow",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "output": {
+        "path": "actions",
+        "limit": true
+      }
+    },
+    {
+      "resource": "search",
+      "operation": "query",
+      "title": "Run a SOQL query",
+      "method": "GET",
+      "path": "/query",
+      "fields": [
+        {
+          "key": "query",
+          "label": "SOQL query",
+          "type": "textarea",
+          "required": true
+        }
+      ],
+      "query": {
+        "q": "{{ p.query }}"
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "nextRecordsUrl",
+        "results_path": "records"
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "get",
+      "title": "Get a user",
+      "method": "GET",
+      "path": "/sobjects/user/{{ p.userId }}",
+      "fields": [
+        {
+          "key": "userId",
+          "label": "User ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "getAll",
+      "title": "Get many users",
+      "method": "GET",
+      "path": "/query",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "conditionsUi",
+            "fields"
+          ],
+          "help": "fields: list or comma-separated; conditionsUi: {conditionValues: [{field, operation, value}]} (string values are quoted; date literals such as TODAY, LAST_N_DAYS:7 and ISO dates are not)"
+        }
+      ],
+      "query": {
+        "q": {
+          "$join": [
+            "SELECT {{ p.options.fields | csv | default:'id,name,email,LastModifiedDate' }} FROM User",
+            {
+              "$join": {
+                "$map": "{{ p.options.conditionsUi.conditionValues }}",
+                "$to": "{{ el.field }} {{ el.operation | upper | replace:'EQUAL','=' }} {{ el.value | string | upper | matches:'^(YESTERDAY|TODAY|TOMORROW|(LAST|THIS|NEXT)_(WEEK|MONTH|QUARTER|YEAR|FISCAL_QUARTER|FISCAL_YEAR)|(LAST|NEXT)_90_DAYS|(LAST|NEXT)_N_(DAYS|WEEKS|MONTHS|QUARTERS|YEARS|FISCAL_QUARTERS|FISCAL_YEARS):[0-9]+|N_(DAYS|WEEKS|MONTHS|QUARTERS|YEARS|FISCAL_QUARTERS|FISCAL_YEARS)_AGO:[0-9]+|[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9](T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]([.][0-9][0-9][0-9])?(Z|[+-][0-9][0-9]:[0-9][0-9])?)?)$' | then:(el.value | upper) | default:(el.value | json | replace:\"'\",\"\\'\" | replace:'\"',\"'\") }}"
+              },
+              "$sep": " AND ",
+              "$prefix": "WHERE "
+            },
+            "{{ p.returnAll | bool | ne:'true' | then:'LIMIT ' }}{{ p.returnAll | bool | ne:'true' | then:p.limit }}"
+          ],
+          "$sep": " "
+        }
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "nextRecordsUrl",
+        "results_path": "records"
+      }
+    }
+  ]
+}

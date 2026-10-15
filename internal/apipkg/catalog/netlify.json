@@ -1,0 +1,264 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "netlify",
+  "node_type": "app.netlify",
+  "title": "Netlify",
+  "description": "Sites and deploys on Netlify",
+  "category": "app",
+  "docs_url": "https://open-api.netlify.com/",
+  "n8n_types": [
+    "n8n-nodes-base.netlify"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.netlifyTrigger"
+  ],
+  "base_url": "https://api.netlify.com/api/v1",
+  "credentials": [
+    {
+      "platform": "netlify",
+      "name": "Netlify",
+      "n8n_credential": "netlifyApi",
+      "n8n_field_map": {
+        "accessToken": "access_token"
+      },
+      "methods": [
+        "bearer"
+      ],
+      "fields": [
+        {
+          "key": "access_token",
+          "label": "Personal access token",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "deploy",
+      "label": "Deploy"
+    },
+    {
+      "value": "site",
+      "label": "Site"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "deploy",
+      "operation": "getAll",
+      "title": "Get many deploys",
+      "method": "GET",
+      "path": "/sites/{{ p.siteId }}/deploys",
+      "fields": [
+        {
+          "key": "siteId",
+          "label": "Site ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "link_header",
+        "limit_param": "per_page",
+        "page_size": 100
+      }
+    },
+    {
+      "resource": "deploy",
+      "operation": "cancel",
+      "title": "Cancel a deploy",
+      "method": "POST",
+      "path": "/deploys/{{ p.deployId }}/cancel",
+      "fields": [
+        {
+          "key": "deployId",
+          "label": "Deploy ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "deploy",
+      "operation": "create",
+      "title": "Create a deploy",
+      "method": "POST",
+      "path": "/sites/{{ p.siteId }}/deploys",
+      "fields": [
+        {
+          "key": "siteId",
+          "label": "Site ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "branch",
+            "title"
+          ]
+        }
+      ],
+      "query": {
+        "title": "{{ p.additionalFields.title }}"
+      },
+      "body": {
+        "$merge": "{{ p.additionalFields | omit:'title' }}"
+      }
+    },
+    {
+      "resource": "deploy",
+      "operation": "get",
+      "title": "Get a deploy",
+      "method": "GET",
+      "path": "/sites/{{ p.siteId }}/deploys/{{ p.deployId }}",
+      "fields": [
+        {
+          "key": "siteId",
+          "label": "Site ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "deployId",
+          "label": "Deploy ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "site",
+      "operation": "delete",
+      "title": "Delete a site",
+      "method": "DELETE",
+      "path": "/sites/{{ p.siteId }}",
+      "fields": [
+        {
+          "key": "siteId",
+          "label": "Site ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "site",
+      "operation": "get",
+      "title": "Get a site",
+      "method": "GET",
+      "path": "/sites/{{ p.siteId }}",
+      "fields": [
+        {
+          "key": "siteId",
+          "label": "Site ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "site",
+      "operation": "getAll",
+      "title": "Get many sites",
+      "method": "GET",
+      "path": "/sites",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "query": {
+        "filter": "all"
+      },
+      "pagination": {
+        "type": "link_header",
+        "limit_param": "per_page",
+        "page_size": 100
+      }
+    }
+  ],
+  "webhook": {
+    "fields": [
+      {
+        "key": "siteId",
+        "label": "Site ID",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "event",
+        "label": "Event",
+        "type": "select",
+        "required": true,
+        "options": [
+          "deployBuilding",
+          "deployFailed",
+          "deployCreated",
+          "submissionCreated"
+        ]
+      },
+      {
+        "key": "formId",
+        "label": "Form ID",
+        "type": "text",
+        "default": "*"
+      }
+    ],
+    "create": [
+      {
+        "method": "POST",
+        "path": "/hooks",
+        "body": {
+          "event": "{{ p.event | snake }}",
+          "site_id": "{{ p.siteId }}",
+          "data": {
+            "url": "{{ hook.url }}",
+            "signature_secret": "{{ hook.secret }}"
+          },
+          "form_id": "{{ p.event | eq:'submissionCreated' | then:(p.formId | ne:'*' | then:p.formId) }}"
+        }
+      }
+    ],
+    "id": "{{ res.id }}",
+    "delete": [
+      {
+        "method": "DELETE",
+        "path": "/hooks/{{ hook.id }}"
+      }
+    ]
+  }
+}

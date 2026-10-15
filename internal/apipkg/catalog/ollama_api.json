@@ -1,0 +1,179 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "ollama_api",
+  "node_type": "app.ollama_api",
+  "title": "Ollama",
+  "description": "Chat and image analysis with models on your Ollama server (/api/chat)",
+  "category": "app",
+  "docs_url": "https://github.com/ollama/ollama/blob/main/docs/api.md",
+  "n8n_types": [
+    "@n8n/n8n-nodes-langchain.ollama"
+  ],
+  "base_url": "{{ cred.base_url | default:'http://localhost:11434' | re:'^(.*[^/])/*$' }}",
+  "credentials": [
+    {
+      "platform": "ollama",
+      "reuse_platform": "ollama",
+      "name": "Ollama",
+      "n8n_credential": "ollamaApi",
+      "n8n_field_map": {
+        "baseUrl": "base_url",
+        "apiKey": "api_key"
+      },
+      "methods": [
+        "api_key",
+        "none"
+      ],
+      "fields": [
+        {
+          "key": "base_url",
+          "label": "Base URL",
+          "help": "Defaults to http://localhost:11434"
+        },
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "help": "Only for an Ollama behind an authenticating proxy."
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.api_key }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "image",
+      "label": "Image"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "image",
+      "operation": "analyze",
+      "title": "Analyze images",
+      "description": "/api/chat with the images base64-encoded (URLs are fetched first)",
+      "method": "POST",
+      "path": "/api/chat",
+      "fields": [
+        {
+          "key": "modelId",
+          "label": "Model",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "Model name (llama3.2, llava, …). Plain name or n8n model locator."
+        },
+        {
+          "key": "text",
+          "label": "Question",
+          "type": "textarea",
+          "default": "What's in this image?"
+        },
+        {
+          "key": "inputType",
+          "label": "Input",
+          "type": "select",
+          "default": "binary",
+          "options": [
+            "binary",
+            "url"
+          ]
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Input binary properties",
+          "type": "text",
+          "default": "data",
+          "help": "Comma-separated binary properties (Input binary)."
+        },
+        {
+          "key": "imageUrls",
+          "label": "Image URLs",
+          "type": "text",
+          "default": "",
+          "help": "Comma-separated URLs (Input url)."
+        },
+        {
+          "key": "simplify",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "system",
+            "temperature",
+            "think",
+            "top_p",
+            "top_k",
+            "num_predict",
+            "frequency_penalty",
+            "presence_penalty",
+            "repeat_penalty",
+            "num_ctx",
+            "repeat_last_n",
+            "min_p",
+            "seed",
+            "stop",
+            "keep_alive",
+            "low_vram",
+            "main_gpu",
+            "num_batch",
+            "num_gpu",
+            "num_thread",
+            "penalize_newline",
+            "use_mlock",
+            "use_mmap",
+            "vocab_only",
+            "format"
+          ],
+          "help": "system: system message; think: separate thinking (supported models); stop: comma-separated; format: '' or json; keep_alive: e.g. 5m; the rest are Ollama model options."
+        }
+      ],
+      "body": {
+        "model": "{{ p.modelId | rl }}",
+        "messages": [
+          {
+            "$when": "{{ p.options.system }}",
+            "role": "system",
+            "content": "{{ p.options.system }}"
+          },
+          {
+            "role": "user",
+            "!content": "{{ p.text }}",
+            "images": {
+              "$map": "{{ bin.files }}",
+              "$to": "{{ el.base64 }}"
+            }
+          }
+        ],
+        "stream": false,
+        "options": {
+          "$merge": "{{ p.options | omit:'think,system,stop,format,keep_alive' }}",
+          "stop": "{{ p.options.stop | split }}"
+        },
+        "think": "{{ p.options.think }}",
+        "format": "{{ p.options.format }}",
+        "keep_alive": "{{ p.options.keep_alive }}"
+      },
+      "binary": {
+        "properties": "{{ p.inputType | ne:'url' | then:p.binaryPropertyName }}",
+        "upload_urls": "{{ p.inputType | eq:'url' | then:p.imageUrls }}"
+      },
+      "output": {
+        "to_when": "{{ p.simplify | ne:'false' }}",
+        "to": {
+          "!content": "{{ el.message.content }}"
+        }
+      }
+    }
+  ]
+}

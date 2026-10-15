@@ -1,0 +1,177 @@
+{
+  "event.track": {
+    "params": {
+      "name": "purchase",
+      "additionalFields": {
+        "email": "a@b.co",
+        "campaignId": "12",
+        "createdAt": "2026-01-02T00:00:00Z",
+        "dataFieldsUi": {
+          "dataFieldValues": [
+            {
+              "key": "sku",
+              "value": "X1"
+            }
+          ]
+        }
+      }
+    },
+    "response": {
+      "code": "Success"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/events/track",
+      "body": {
+        "eventName": "purchase",
+        "email": "a@b.co",
+        "campaignId": 12,
+        "createdAt": 1767312000,
+        "dataFields": {
+          "sku": "X1"
+        }
+      },
+      "items": 1
+    },
+    "credential": {
+      "api_key": "k",
+      "region": ""
+    }
+  },
+  "user.upsert": {
+    "params": {
+      "identifier": "userId",
+      "value": "u1",
+      "preferUserId": true,
+      "additionalFields": {
+        "mergeNestedObjects": true,
+        "dataFieldsUi": {
+          "dataFieldValues": [
+            {
+              "key": "plan",
+              "value": "pro"
+            }
+          ]
+        }
+      }
+    },
+    "credential": {
+      "api_key": "k",
+      "region": "https://api.eu.iterable.com"
+    },
+    "response": {
+      "code": "Success"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/users/update",
+      "body": {
+        "userId": "u1",
+        "preferUserId": true,
+        "dataFields": {
+          "plan": "pro"
+        },
+        "mergeNestedObjects": true
+      },
+      "items": 1
+    }
+  },
+  "user.delete": {
+    "params": {
+      "by": "userId",
+      "userId": "u 1"
+    },
+    "response": {
+      "code": "Success"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/users/byUserId/u%201",
+      "items": 1
+    },
+    "credential": {
+      "api_key": "k",
+      "region": ""
+    }
+  },
+  "user.get": {
+    "params": {
+      "email": "a@b.co"
+    },
+    "response": {
+      "user": {
+        "email": "a@b.co"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/users/getByEmail",
+      "query": {
+        "email": "a@b.co"
+      },
+      "items": 1
+    },
+    "credential": {
+      "api_key": "k",
+      "region": ""
+    }
+  },
+  "userList.add": {
+    "params": {
+      "listId": "42",
+      "identifier": "email",
+      "value": "a@b.co"
+    },
+    "response": {
+      "successCount": 1
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/lists/subscribe",
+      "body": {
+        "listId": 42,
+        "subscribers": [
+          {
+            "email": "a@b.co"
+          }
+        ]
+      },
+      "items": 1
+    },
+    "credential": {
+      "api_key": "k",
+      "region": ""
+    }
+  },
+  "userList.remove": {
+    "params": {
+      "listId": "42",
+      "identifier": "userId",
+      "value": "u1",
+      "additionalFields": {
+        "channelUnsubscribe": true
+      }
+    },
+    "response": {
+      "successCount": 1
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/lists/unsubscribe",
+      "body": {
+        "listId": 42,
+        "subscribers": [
+          {
+            "userId": "u1"
+          }
+        ],
+        "channelUnsubscribe": true
+      },
+      "items": 1
+    },
+    "credential": {
+      "api_key": "k",
+      "region": ""
+    }
+  }
+}

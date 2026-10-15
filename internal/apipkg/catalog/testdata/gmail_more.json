@@ -1,0 +1,470 @@
+{
+  "message.send": {
+    "params": {
+      "sendTo": "a@example.com, b@example.com",
+      "subject": "Hi",
+      "message": "<b>Hello</b>",
+      "options": {
+        "ccList": "c@example.com",
+        "replyTo": "r@example.com",
+        "senderName": "Ada"
+      }
+    },
+    "responses": [
+      {
+        "emailAddress": "me@example.com"
+      },
+      {
+        "id": "m1"
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/upload/gmail/v1/users/me/messages/send",
+      "query": {
+        "uploadType": "media"
+      },
+      "headers": {
+        "Content-Type": "message/rfc822"
+      },
+      "body": "From: Ada <me@example.com>\r\nTo: a@example.com, b@example.com\r\nCc: c@example.com\r\nReply-To: r@example.com\r\nSubject: =?UTF-8?B?SGk=?=\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\nPGI+SGVsbG88L2I+\r\n",
+      "items": 1
+    }
+  },
+  "message.reply": {
+    "params": {
+      "messageId": "m1",
+      "message": "ok",
+      "options": {
+        "replyToSenderOnly": true
+      }
+    },
+    "responses": [
+      {
+        "threadId": "t1",
+        "payload": {
+          "headers": [
+            {
+              "name": "Subject",
+              "value": "Q"
+            },
+            {
+              "name": "From",
+              "value": "Bob <bob@example.com>"
+            },
+            {
+              "name": "To",
+              "value": "me@example.com"
+            },
+            {
+              "name": "Message-Id",
+              "value": "<abc@mail>"
+            }
+          ]
+        }
+      },
+      {
+        "emailAddress": "me@example.com"
+      },
+      {
+        "id": "m2"
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/upload/gmail/v1/users/me/messages/send",
+      "query": {
+        "uploadType": "multipart"
+      },
+      "body": "--monoagent_mime_boundary\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n{\"threadId\":\"t1\"}\r\n--monoagent_mime_boundary\r\nContent-Type: message/rfc822\r\n\r\nTo: Bob <bob@example.com>\r\nIn-Reply-To: <abc@mail>\r\nReferences: <abc@mail>\r\nSubject: =?UTF-8?B?UQ==?=\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\nb2s=\r\n--monoagent_mime_boundary--\r\n",
+      "items": 1
+    }
+  },
+  "message.get": {
+    "params": {
+      "messageId": "m1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/gmail/v1/users/me/messages/m1",
+      "query": {
+        "format": "metadata",
+        "metadataHeaders": [
+          "From",
+          "To",
+          "Cc",
+          "Bcc",
+          "Subject"
+        ]
+      }
+    }
+  },
+  "message.getAll": {
+    "params": {
+      "limit": 5,
+      "simple": false,
+      "filters": {
+        "q": "invoice",
+        "sender": "x@example.com",
+        "readStatus": "unread",
+        "labelIds": [
+          "INBOX"
+        ]
+      }
+    },
+    "response": {
+      "messages": [
+        {
+          "id": "a"
+        },
+        {
+          "id": "b"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/gmail/v1/users/me/messages",
+      "query": {
+        "q": "invoice from:x@example.com is:unread",
+        "labelIds": "INBOX",
+        "maxResults": "5"
+      },
+      "items": 2
+    }
+  },
+  "message.delete": {
+    "params": {
+      "messageId": "m1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/gmail/v1/users/me/messages/m1"
+    }
+  },
+  "message.markAsRead": {
+    "params": {
+      "messageId": "m1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/gmail/v1/users/me/messages/m1/modify",
+      "body": {
+        "removeLabelIds": [
+          "UNREAD"
+        ]
+      }
+    }
+  },
+  "message.markAsUnread": {
+    "params": {
+      "messageId": "m1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/gmail/v1/users/me/messages/m1/modify",
+      "body": {
+        "addLabelIds": [
+          "UNREAD"
+        ]
+      }
+    }
+  },
+  "message.addLabels": {
+    "params": {
+      "messageId": "m1",
+      "labelIds": [
+        "L1"
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/gmail/v1/users/me/messages/m1/modify",
+      "body": {
+        "addLabelIds": [
+          "L1"
+        ]
+      }
+    }
+  },
+  "message.removeLabels": {
+    "params": {
+      "messageId": "m1",
+      "labelIds": [
+        "L1"
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/gmail/v1/users/me/messages/m1/modify",
+      "body": {
+        "removeLabelIds": [
+          "L1"
+        ]
+      }
+    }
+  },
+  "label.getAll": {
+    "params": {
+      "returnAll": true
+    },
+    "response": {
+      "labels": [
+        {
+          "id": "INBOX"
+        },
+        {
+          "id": "L1"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/gmail/v1/users/me/labels",
+      "items": 2
+    }
+  },
+  "label.create": {
+    "params": {
+      "name": "Clients"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/gmail/v1/users/me/labels",
+      "body": {
+        "name": "Clients",
+        "labelListVisibility": "labelShow",
+        "messageListVisibility": "show"
+      }
+    }
+  },
+  "label.delete": {
+    "params": {
+      "labelId": "L1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/gmail/v1/users/me/labels/L1"
+    }
+  },
+  "label.get": {
+    "params": {
+      "labelId": "L1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/gmail/v1/users/me/labels/L1"
+    }
+  },
+  "draft.create": {
+    "params": {
+      "subject": "Draft",
+      "message": "body",
+      "options": {
+        "sendTo": "a@example.com",
+        "threadId": "t9"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/upload/gmail/v1/users/me/drafts",
+      "query": {
+        "uploadType": "multipart"
+      },
+      "headers": {
+        "Content-Type": "multipart/related; boundary=monoagent_mime_boundary"
+      },
+      "body": "--monoagent_mime_boundary\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n{\"message\":{\"threadId\":\"t9\"}}\r\n--monoagent_mime_boundary\r\nContent-Type: message/rfc822\r\n\r\nTo: a@example.com\r\nSubject: =?UTF-8?B?RHJhZnQ=?=\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\nYm9keQ==\r\n--monoagent_mime_boundary--\r\n"
+    }
+  },
+  "draft.delete": {
+    "params": {
+      "messageId": "d1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/gmail/v1/users/me/drafts/d1"
+    }
+  },
+  "draft.get": {
+    "params": {
+      "messageId": "d1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/gmail/v1/users/me/drafts/d1",
+      "query": {
+        "format": "full"
+      }
+    }
+  },
+  "draft.getAll": {
+    "params": {
+      "limit": 3
+    },
+    "response": {
+      "drafts": [
+        {
+          "id": "d1"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/gmail/v1/users/me/drafts",
+      "query": {
+        "maxResults": "3"
+      },
+      "items": 1
+    }
+  },
+  "thread.getAll": {
+    "params": {
+      "limit": 3,
+      "filters": {
+        "readStatus": "both",
+        "receivedAfter": "2026-01-01T00:00:00Z"
+      }
+    },
+    "response": {
+      "threads": [
+        {
+          "id": "t1"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/gmail/v1/users/me/threads",
+      "query": {
+        "q": " after:1767225600",
+        "maxResults": "3"
+      },
+      "items": 1
+    }
+  },
+  "thread.addLabels": {
+    "params": {
+      "threadId": "t1",
+      "labelIds": [
+        "L1"
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/gmail/v1/users/me/threads/t1/modify",
+      "body": {
+        "addLabelIds": [
+          "L1"
+        ]
+      }
+    }
+  },
+  "thread.delete": {
+    "params": {
+      "threadId": "t1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/gmail/v1/users/me/threads/t1"
+    }
+  },
+  "thread.get": {
+    "params": {
+      "threadId": "t1",
+      "simple": false
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/gmail/v1/users/me/threads/t1",
+      "query": {
+        "format": "full"
+      }
+    }
+  },
+  "thread.removeLabels": {
+    "params": {
+      "threadId": "t1",
+      "labelIds": [
+        "L1"
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/gmail/v1/users/me/threads/t1/modify",
+      "body": {
+        "removeLabelIds": [
+          "L1"
+        ]
+      }
+    }
+  },
+  "thread.reply": {
+    "params": {
+      "threadId": "t1",
+      "messageId": "m1",
+      "message": "ok",
+      "options": {
+        "replyToSenderOnly": true
+      }
+    },
+    "responses": [
+      {
+        "threadId": "t1",
+        "payload": {
+          "headers": [
+            {
+              "name": "Subject",
+              "value": "Q"
+            },
+            {
+              "name": "From",
+              "value": "Bob <bob@example.com>"
+            },
+            {
+              "name": "To",
+              "value": "me@example.com"
+            },
+            {
+              "name": "Message-Id",
+              "value": "<abc@mail>"
+            }
+          ]
+        }
+      },
+      {
+        "emailAddress": "me@example.com"
+      },
+      {
+        "id": "m2"
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/upload/gmail/v1/users/me/messages/send",
+      "query": {
+        "uploadType": "multipart"
+      },
+      "body": "--monoagent_mime_boundary\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n{\"threadId\":\"t1\"}\r\n--monoagent_mime_boundary\r\nContent-Type: message/rfc822\r\n\r\nTo: Bob <bob@example.com>\r\nIn-Reply-To: <abc@mail>\r\nReferences: <abc@mail>\r\nSubject: =?UTF-8?B?UQ==?=\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\nb2s=\r\n--monoagent_mime_boundary--\r\n",
+      "items": 1
+    }
+  },
+  "thread.trash": {
+    "params": {
+      "threadId": "t1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/gmail/v1/users/me/threads/t1/trash"
+    }
+  },
+  "thread.untrash": {
+    "params": {
+      "threadId": "t1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/gmail/v1/users/me/threads/t1/untrash"
+    }
+  }
+}

@@ -1,0 +1,776 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "uptime_robot",
+  "node_type": "app.uptime_robot",
+  "title": "UptimeRobot",
+  "description": "Monitors, alert contacts, maintenance windows and status pages in UptimeRobot",
+  "category": "app",
+  "docs_url": "https://uptimerobot.com/api/",
+  "n8n_types": [
+    "n8n-nodes-base.uptimeRobot"
+  ],
+  "base_url": "https://api.uptimerobot.com/v2",
+  "credentials": [
+    {
+      "platform": "uptime_robot",
+      "name": "UptimeRobot",
+      "n8n_credential": "uptimeRobotApi",
+      "n8n_field_map": {
+        "apiKey": "api_key"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true,
+          "help": "UptimeRobot: My Settings → API settings (main API key)"
+        }
+      ],
+      "inject": {
+        "body": {
+          "api_key": "{{ cred.api_key }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "account",
+      "label": "Account"
+    },
+    {
+      "value": "alertContact",
+      "label": "Alert contact"
+    },
+    {
+      "value": "maintenanceWindow",
+      "label": "Maintenance window"
+    },
+    {
+      "value": "monitor",
+      "label": "Monitor"
+    },
+    {
+      "value": "publicStatusPage",
+      "label": "Public status page"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "account",
+      "operation": "get",
+      "title": "Get account details",
+      "method": "POST",
+      "path": "/getAccountDetails",
+      "body_type": "form",
+      "fields": [],
+      "output": {
+        "path": "account"
+      }
+    },
+    {
+      "resource": "alertContact",
+      "operation": "getAll",
+      "title": "Get many alert contacts",
+      "method": "POST",
+      "path": "/getAlertContacts",
+      "body_type": "form",
+      "body": {
+        "alert_contacts": "{{ p.filters.alert_contacts }}"
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "alert_contacts"
+          ],
+          "help": "alert_contacts: dash-separated IDs"
+        }
+      ],
+      "output": {
+        "path": "alert_contacts"
+      },
+      "pagination": {
+        "type": "offset",
+        "offset_param": "offset",
+        "limit_param": "limit",
+        "page_size": 50,
+        "param_in": "body",
+        "results_path": "alert_contacts"
+      }
+    },
+    {
+      "resource": "alertContact",
+      "operation": "create",
+      "title": "Create an alert contact",
+      "method": "POST",
+      "path": "/newAlertContact",
+      "body_type": "form",
+      "body": {
+        "friendly_name": "{{ p.friendlyName }}",
+        "value": "{{ p.value }}",
+        "type": "{{ p.type }}"
+      },
+      "fields": [
+        {
+          "key": "friendlyName",
+          "label": "Friendly name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "type",
+          "label": "Type",
+          "type": "number",
+          "required": true,
+          "help": "1 SMS, 2 email, 3 Twitter DM, 4 Boxcar, 5 webhook, 6 Pushbullet, 9 Pushover"
+        },
+        {
+          "key": "value",
+          "label": "Value",
+          "type": "text",
+          "required": true,
+          "help": "Address, number or URL of the contact"
+        }
+      ],
+      "output": {
+        "path": "alertcontact"
+      }
+    },
+    {
+      "resource": "alertContact",
+      "operation": "delete",
+      "title": "Delete an alert contact",
+      "method": "POST",
+      "path": "/deleteAlertContact",
+      "body_type": "form",
+      "body": {
+        "id": "{{ p.id }}"
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "alert_contact"
+      }
+    },
+    {
+      "resource": "alertContact",
+      "operation": "get",
+      "title": "Get an alert contact",
+      "method": "POST",
+      "path": "/getAlertContacts",
+      "body_type": "form",
+      "body": {
+        "alert_contacts": "{{ p.id }}"
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "alert_contacts"
+      }
+    },
+    {
+      "resource": "alertContact",
+      "operation": "update",
+      "title": "Update an alert contact",
+      "method": "POST",
+      "path": "/editAlertContact",
+      "body_type": "form",
+      "body": {
+        "id": "{{ p.id }}",
+        "$merge": "{{ p.updateFields }}"
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "friendly_name",
+            "value"
+          ]
+        }
+      ],
+      "output": {
+        "path": "alert_contact"
+      }
+    },
+    {
+      "resource": "maintenanceWindow",
+      "operation": "getAll",
+      "title": "Get many maintenance windows",
+      "method": "POST",
+      "path": "/getMWindows",
+      "body_type": "form",
+      "body": {
+        "mwindows": "{{ p.filters.mwindow }}"
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "mwindow"
+          ],
+          "help": "mwindow: dash-separated IDs"
+        }
+      ],
+      "output": {
+        "path": "mwindows"
+      },
+      "pagination": {
+        "type": "offset",
+        "offset_param": "offset",
+        "limit_param": "limit",
+        "page_size": 50,
+        "param_in": "body",
+        "results_path": "mwindows"
+      }
+    },
+    {
+      "resource": "maintenanceWindow",
+      "operation": "create",
+      "title": "Create a maintenance window",
+      "method": "POST",
+      "path": "/newMWindow",
+      "body_type": "form",
+      "body": {
+        "duration": "{{ p.duration }}",
+        "friendly_name": "{{ p.friendlyName }}",
+        "type": "{{ p.type }}",
+        "start_time": "{{ p.type | eq:'1' | then:(p.start_time | epoch) | default:(p.start_time | date:'HH:mm') }}",
+        "value": "{{ p.type | eq:'3' | then:p.weekDay | default:(p.type | eq:'4' | then:p.monthDay) }}"
+      },
+      "fields": [
+        {
+          "key": "duration",
+          "label": "Duration (minutes)",
+          "type": "number",
+          "required": true,
+          "default": 1
+        },
+        {
+          "key": "friendlyName",
+          "label": "Friendly name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "type",
+          "label": "Type",
+          "type": "number",
+          "required": true,
+          "help": "1 once, 2 daily, 3 weekly, 4 monthly"
+        },
+        {
+          "key": "weekDay",
+          "label": "Week day",
+          "type": "number",
+          "help": "Weekly windows: 1 Monday … 7 Sunday"
+        },
+        {
+          "key": "monthDay",
+          "label": "Month day",
+          "type": "number",
+          "default": 1,
+          "help": "Monthly windows: day of the month"
+        },
+        {
+          "key": "start_time",
+          "label": "Start time",
+          "type": "datetime",
+          "required": true,
+          "help": "Once: full date and time (UTC); otherwise the time of day is used"
+        }
+      ],
+      "output": {
+        "path": "mwindow"
+      }
+    },
+    {
+      "resource": "maintenanceWindow",
+      "operation": "delete",
+      "title": "Delete a maintenance window",
+      "method": "POST",
+      "path": "/deleteMWindow",
+      "body_type": "form",
+      "body": {
+        "id": "{{ p.id }}"
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "status": "{{ el.message }}"
+        }
+      }
+    },
+    {
+      "resource": "maintenanceWindow",
+      "operation": "get",
+      "title": "Get a maintenance window",
+      "method": "POST",
+      "path": "/getMWindows",
+      "body_type": "form",
+      "body": {
+        "mwindows": "{{ p.id }}"
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "mwindows"
+      }
+    },
+    {
+      "resource": "maintenanceWindow",
+      "operation": "update",
+      "title": "Update a maintenance window",
+      "method": "POST",
+      "path": "/editMWindow",
+      "body_type": "form",
+      "body": {
+        "id": "{{ p.id }}",
+        "duration": "{{ p.duration }}",
+        "friendly_name": "{{ p.updateFields.friendly_name }}",
+        "type": "{{ p.updateFields.type }}",
+        "start_time": "{{ p.updateFields.type | eq:'1' | then:(p.updateFields.start_time | epoch) | default:(p.updateFields.start_time | date:'HH:mm') }}",
+        "value": "{{ p.updateFields.type | eq:'3' | then:p.updateFields.weekDay | default:(p.updateFields.type | eq:'4' | then:p.updateFields.monthDay) }}"
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "duration",
+          "label": "Duration (minutes)",
+          "type": "number",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "friendly_name",
+            "start_time",
+            "type",
+            "weekDay",
+            "monthDay"
+          ],
+          "help": "type: 1 once, 2 daily, 3 weekly, 4 monthly"
+        }
+      ],
+      "output": {
+        "path": "mwindow"
+      }
+    },
+    {
+      "resource": "monitor",
+      "operation": "getAll",
+      "title": "Get many monitors",
+      "method": "POST",
+      "path": "/getMonitors",
+      "body_type": "form",
+      "body": {
+        "monitors": "{{ p.filters.monitors }}",
+        "search": "{{ p.filters.search }}",
+        "statuses": "{{ p.filters.statuses | join:'-' }}",
+        "types": "{{ p.filters.types | join:'-' }}",
+        "alert_contacts": "{{ p.filters.alert_contacts | eq:'true' | then:1 }}",
+        "logs": "{{ p.filters.logs | eq:'true' | then:1 }}",
+        "mwindows": "{{ p.filters.mwindow | eq:'true' | then:1 }}",
+        "response_times": "{{ p.filters.response_times | eq:'true' | then:1 }}"
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "alert_contacts",
+            "logs",
+            "mwindow",
+            "monitors",
+            "response_times",
+            "search",
+            "statuses",
+            "types"
+          ],
+          "help": "monitors: dash-separated IDs; statuses: 0 paused, 1 not checked, 2 up, 8 seems down, 9 down; types: 1 HTTP(S), 2 keyword, 3 ping, 4 port, 5 heartbeat"
+        }
+      ],
+      "output": {
+        "path": "monitors"
+      },
+      "pagination": {
+        "type": "offset",
+        "offset_param": "offset",
+        "limit_param": "limit",
+        "page_size": 50,
+        "param_in": "body",
+        "results_path": "monitors"
+      }
+    },
+    {
+      "resource": "monitor",
+      "operation": "create",
+      "title": "Create a monitor",
+      "method": "POST",
+      "path": "/newMonitor",
+      "body_type": "form",
+      "body": {
+        "friendly_name": "{{ p.friendlyName }}",
+        "url": "{{ p.url }}",
+        "type": "{{ p.type }}"
+      },
+      "fields": [
+        {
+          "key": "friendlyName",
+          "label": "Friendly name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "type",
+          "label": "Type",
+          "type": "number",
+          "required": true,
+          "help": "1 HTTP(S), 2 keyword, 3 ping, 4 port, 5 heartbeat"
+        },
+        {
+          "key": "url",
+          "label": "URL or IP",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "monitor"
+      }
+    },
+    {
+      "resource": "monitor",
+      "operation": "delete",
+      "title": "Delete a monitor",
+      "method": "POST",
+      "path": "/deleteMonitor",
+      "body_type": "form",
+      "body": {
+        "id": "{{ p.id }}"
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "monitor"
+      }
+    },
+    {
+      "resource": "monitor",
+      "operation": "get",
+      "title": "Get a monitor",
+      "method": "POST",
+      "path": "/getMonitors",
+      "body_type": "form",
+      "body": {
+        "monitors": "{{ p.id }}"
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "monitors"
+      }
+    },
+    {
+      "resource": "monitor",
+      "operation": "reset",
+      "title": "Reset a monitor's stats",
+      "method": "POST",
+      "path": "/resetMonitor",
+      "body_type": "form",
+      "body": {
+        "id": "{{ p.id }}"
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "monitor"
+      }
+    },
+    {
+      "resource": "monitor",
+      "operation": "update",
+      "title": "Update a monitor",
+      "method": "POST",
+      "path": "/editMonitor",
+      "body_type": "form",
+      "body": {
+        "id": "{{ p.id }}",
+        "$merge": "{{ p.updateFields }}"
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "friendly_name",
+            "http_auth_type",
+            "http_method",
+            "http_password",
+            "http_username",
+            "interval",
+            "port",
+            "status",
+            "sub_type",
+            "url"
+          ]
+        }
+      ],
+      "output": {
+        "path": "monitor"
+      }
+    },
+    {
+      "resource": "publicStatusPage",
+      "operation": "getAll",
+      "title": "Get many public status pages",
+      "method": "POST",
+      "path": "/getPSPs",
+      "body_type": "form",
+      "body": {
+        "psps": "{{ p.filters.psps }}"
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "psps"
+          ],
+          "help": "psps: dash-separated IDs"
+        }
+      ],
+      "output": {
+        "path": "psps"
+      },
+      "pagination": {
+        "type": "offset",
+        "offset_param": "offset",
+        "limit_param": "limit",
+        "page_size": 50,
+        "param_in": "body",
+        "results_path": "psps"
+      }
+    },
+    {
+      "resource": "publicStatusPage",
+      "operation": "create",
+      "title": "Create a public status page",
+      "method": "POST",
+      "path": "/newPSP",
+      "body_type": "form",
+      "body": {
+        "friendly_name": "{{ p.friendlyName }}",
+        "monitors": "{{ p.monitors }}",
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "fields": [
+        {
+          "key": "friendlyName",
+          "label": "Friendly name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "monitors",
+          "label": "Monitor IDs",
+          "type": "text",
+          "required": true,
+          "help": "Dash-separated IDs, or 0 for all monitors"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "custom_domain",
+            "password",
+            "sort"
+          ]
+        }
+      ],
+      "output": {
+        "path": "psp"
+      }
+    },
+    {
+      "resource": "publicStatusPage",
+      "operation": "delete",
+      "title": "Delete a public status page",
+      "method": "POST",
+      "path": "/deletePSP",
+      "body_type": "form",
+      "body": {
+        "id": "{{ p.id }}"
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "psp"
+      }
+    },
+    {
+      "resource": "publicStatusPage",
+      "operation": "get",
+      "title": "Get a public status page",
+      "method": "POST",
+      "path": "/getPSPs",
+      "body_type": "form",
+      "body": {
+        "psps": "{{ p.id }}"
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "psps"
+      }
+    }
+  ]
+}

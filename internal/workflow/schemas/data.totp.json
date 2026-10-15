@@ -1,0 +1,79 @@
+{
+  "_generated": true,
+  "credential_platform": null,
+  "fields": [
+    {
+      "default": "generate_secret",
+      "help": "Generates the current one-time code (n8n calls this operation Generate Secret).",
+      "key": "operation",
+      "label": "Operation",
+      "options": [
+        "generate_secret"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "help": "The shared base32 secret. Use an @secret: reference.",
+      "key": "secret",
+      "label": "Secret (Base32)",
+      "required": true,
+      "type": "password"
+    },
+    {
+      "help": "Optional issuer:username.",
+      "key": "label",
+      "label": "Label",
+      "placeholder": "GitHub:octocat",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": "SHA1",
+      "key": "algorithm",
+      "label": "Algorithm",
+      "options": [
+        "SHA1",
+        "SHA224",
+        "SHA256",
+        "SHA384",
+        "SHA512",
+        "SHA3-224",
+        "SHA3-256",
+        "SHA3-384",
+        "SHA3-512"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "default": 6,
+      "key": "digits",
+      "label": "Digits",
+      "max": 10,
+      "min": 1,
+      "required": false,
+      "type": "number"
+    },
+    {
+      "default": 30,
+      "key": "period",
+      "label": "Period (seconds)",
+      "min": 1,
+      "required": false,
+      "type": "number"
+    }
+  ],
+  "outputs": [
+    {
+      "description": "the current TOTP code",
+      "key": "token",
+      "type": "string"
+    },
+    {
+      "description": "seconds until the code changes",
+      "key": "secondsRemaining",
+      "type": "number"
+    }
+  ]
+}

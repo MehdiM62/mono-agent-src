@@ -30,12 +30,28 @@
       "type": "text"
     },
     {
-      "default": "default",
-      "help": "Which profile owns the generated document.",
+      "help": "Optional. Must match the workflow's profile (leave blank to use it).",
       "key": "profile_id",
       "label": "Profile ID",
       "required": false,
       "type": "text"
+    }
+  ],
+  "outputs": [
+    {
+      "description": "the HTML document",
+      "key": "html_document_id",
+      "type": "string"
+    },
+    {
+      "description": "the PDF document",
+      "key": "pdf_document_id",
+      "type": "string"
+    },
+    {
+      "description": "document type",
+      "key": "doc_type",
+      "type": "string"
     }
   ]
 }

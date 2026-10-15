@@ -1,0 +1,80 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "wufoo",
+  "title": "Wufoo",
+  "description": "Wufoo forms (trigger only: new form entry)",
+  "category": "app",
+  "docs_url": "https://wufoo.github.io/docs/",
+  "n8n_trigger_types": [
+    "n8n-nodes-base.wufooTrigger"
+  ],
+  "base_url": "https://{{ cred.subdomain }}.wufoo.com/api/v3",
+  "credentials": [
+    {
+      "platform": "wufoo",
+      "name": "Wufoo",
+      "n8n_credential": "wufooApi",
+      "n8n_field_map": {
+        "apiKey": "api_key",
+        "subdomain": "subdomain"
+      },
+      "methods": [
+        "basic"
+      ],
+      "fields": [
+        {
+          "key": "subdomain",
+          "label": "Subdomain",
+          "required": true,
+          "help": "The part before .wufoo.com"
+        },
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "basic": {
+          "username": "{{ cred.api_key }}",
+          "password": "not-needed"
+        }
+      }
+    }
+  ],
+  "operations": [],
+  "webhook": {
+    "fields": [
+      {
+        "key": "form",
+        "label": "Form hash",
+        "type": "text",
+        "required": true
+      }
+    ],
+    "create": [
+      {
+        "method": "PUT",
+        "path": "/forms/{{ p.form }}/webhooks.json",
+        "body": {
+          "url": "{{ hook.url }}",
+          "handshakeKey": "{{ hook.secret }}",
+          "metadata": "true"
+        },
+        "body_type": "form"
+      }
+    ],
+    "id": "{{ res.WebHookPutResult.Hash }}",
+    "delete": [
+      {
+        "method": "DELETE",
+        "path": "/forms/{{ p.form }}/webhooks/{{ hook.id }}.json"
+      }
+    ],
+    "verify": {
+      "signature": "{{ req.body | re:'(?:^|&)HandshakeKey=([^&]*)' }}",
+      "alg": "token"
+    }
+  }
+}

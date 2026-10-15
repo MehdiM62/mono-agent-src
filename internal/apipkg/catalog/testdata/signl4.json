@@ -1,0 +1,58 @@
+{
+  "alert.send": {
+    "params": {
+      "message": "Disk full",
+      "additionalFields": {
+        "title": "Disk",
+        "locationFieldsUi": {
+          "locationFieldsValues": {
+            "latitude": "52.1",
+            "longitude": "13.4"
+          }
+        },
+        "attachmentsUi": {
+          "attachmentsBinary": {
+            "property": "img"
+          }
+        }
+      }
+    },
+    "input": {
+      "img": "aGk=",
+      "file_name": "a.png"
+    },
+    "credential": {
+      "team_secret": "S3"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/webhook/S3",
+      "body": {
+        "message": "Disk full",
+        "title": "Disk",
+        "X-S4-Location": "52.1,13.4",
+        "X-S4-Status": "new",
+        "X-S4-SourceSystem": "mono-agent",
+        "attachment": "file:a.png:hi"
+      },
+      "items": 1
+    }
+  },
+  "alert.resolve": {
+    "params": {
+      "externalId": "e1"
+    },
+    "credential": {
+      "team_secret": "S3"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/webhook/S3",
+      "body": {
+        "X-S4-ExternalID": "e1",
+        "X-S4-Status": "resolved",
+        "X-S4-SourceSystem": "mono-agent"
+      }
+    }
+  }
+}

@@ -29,12 +29,28 @@
       "type": "select"
     },
     {
-      "default": "default",
-      "help": "Which profile owns this application.",
+      "help": "Optional. Must match the workflow's profile (leave blank to use it).",
       "key": "profile_id",
       "label": "Profile ID",
       "required": false,
       "type": "text"
+    }
+  ],
+  "outputs": [
+    {
+      "description": "Application id",
+      "key": "id",
+      "type": "string"
+    },
+    {
+      "description": "the tag",
+      "key": "tag",
+      "type": "string"
+    },
+    {
+      "description": "add or remove",
+      "key": "action",
+      "type": "string"
     }
   ]
 }

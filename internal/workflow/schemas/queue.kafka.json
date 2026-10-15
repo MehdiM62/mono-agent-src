@@ -1,0 +1,95 @@
+{
+  "credential_platform": "kafka",
+  "fields": [
+    {
+      "key": "topic",
+      "label": "Topic",
+      "required": true,
+      "type": "text"
+    },
+    {
+      "default": true,
+      "help": "Send the item as JSON; off sends Message.",
+      "key": "send_input_data",
+      "label": "Send Input Data",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "depends_on": {
+        "key": "send_input_data",
+        "values": [
+          "false"
+        ]
+      },
+      "key": "message",
+      "label": "Message",
+      "required": false,
+      "rows": 3,
+      "type": "textarea"
+    },
+    {
+      "help": "Optional partitioning key.",
+      "key": "message_key",
+      "label": "Message Key",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "key": "headers",
+      "label": "Headers (JSON object)",
+      "placeholder": "{ \"source\": \"monoagent\" }",
+      "required": false,
+      "rows": 2,
+      "type": "textarea"
+    },
+    {
+      "help": "acks=all instead of leader-only.",
+      "key": "acks",
+      "label": "Wait for All Replicas",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "key": "compression",
+      "label": "Compression",
+      "options": [
+        "none",
+        "gzip",
+        "snappy",
+        "lz4",
+        "zstd"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "key": "timeout",
+      "label": "Timeout (ms)",
+      "required": false,
+      "type": "number"
+    }
+  ],
+  "outputs": [
+    {
+      "description": "true once the record is produced",
+      "key": "success",
+      "type": "boolean"
+    },
+    {
+      "description": "topic the record was written to",
+      "key": "topic",
+      "type": "string"
+    },
+    {
+      "description": "partition the record was written to",
+      "key": "partition",
+      "type": "number"
+    },
+    {
+      "description": "offset of the produced record",
+      "key": "offset",
+      "type": "number"
+    }
+  ]
+}

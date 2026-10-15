@@ -95,8 +95,8 @@ func MigrateActionsToWorkflows(ctx context.Context, db *sql.DB) error {
 		}
 		if a.contentBlobURLs != "" {
 			// "blob_urls" matches the key name attached-media action JSON
-			// definitions already expect (see storage.Action's
-			// content_blob_urls handling) — preserved so migrated
+			// definitions already expect for the legacy actions table's
+			// content_blob_urls column — preserved so migrated
 			// image/attachment-bearing actions don't silently lose them.
 			config["blob_urls"] = a.contentBlobURLs
 		}

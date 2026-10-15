@@ -6,293 +6,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
-	"slices"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/monoes/mono-agent/internal/logging"
 )
-
-// ToolHandler executes one bridged tool call (protocol §4). The returned
-// string is what the agent sees; an error becomes an ok:false frame.
-type ToolHandler func(ctx context.Context, name string, args json.RawMessage) (string, error)
-
-// ExecOptions configures one `monomind agent exec` turn (protocol §3.1).
-type ExecOptions struct {
-	Runtime string
-	Prompt  string
-	Model   string
-	// Effort sets the reasoning effort level (e.g. "low", "medium", "high", "xhigh", "max").
-	Effort string
-	// EffortFlag passes Effort as `--effort` (monomind has
-	// CapAgentExecEffort, which maps it per runtime); otherwise only claude
-	// gets it, through the CLAUDE_EFFORT env.
-	EffortFlag bool
-	Cwd        string
-	Resume     string
-	// SystemPrompt, when set, is written to a temp file and passed via
-	// --system-file (avoids argv limits).
-	SystemPrompt string
-	// Tools enables the stdio bridge (§4); empty passes --tools none
-	// explicitly so the turn never inherits monomind's default toolset.
-	Tools []ToolSpec
-	// OnToolCall executes bridged tool calls; required when Tools is set.
-	OnToolCall ToolHandler
-	// ToolTimeout bounds each tool round-trip (--tool-timeout).
-	ToolTimeout time.Duration
-	// Timeout is the overall wall-clock cap (--timeout); zero = none.
-	Timeout time.Duration
-	// BudgetUSD is the optional spend cap (--budget-usd).
-	BudgetUSD float64
-	// Env adds KEY=VALUE entries to the monomind process environment.
-	Env map[string]string
-	// Bin overrides the monomind binary (tests); empty = discovery.
-	Bin string
-	// AllowBashPrefixes lets the underlying agent's own Bash tool run
-	// commands starting with one of these prefixes (e.g. "monomind",
-	// "monoagentcli"), on top of whatever Tools are wired — scoped, not a
-	// blanket Bash grant (see agent-exec.ts's canUseTool). Real shell
-	// access to a well-known CLI is far more reliable for the model to
-	// actually use than a large custom tool surface alone.
-	AllowBashPrefixes []string
-	// Access "full" runs the turn with the runner's own tools unrestricted
-	// (monomind#355); "" keeps monomind's scoped default. Needs Cwd.
-	Access string
-	// Settings lists the Claude Code setting sources the turn loads
-	// ("user", "project", "local"; monomind#356). Empty loads none.
-	Settings []string
-	// MaxTurns caps agent turns (--max-turns); zero keeps monomind's default.
-	MaxTurns int
-	// Sandbox asks for a sandbox mode (TurnSandboxMode); SandboxArgs
-	// decides what that means for this runtime and monomind. A monomind
-	// that can do neither runs the turn exactly as without it. "" asks for
-	// nothing (coder mode, which has its own full-access contract).
-	Sandbox string
-	// RequireSandbox fails closed: when Sandbox is set but this runtime and
-	// monomind can't apply it now (SandboxArgs' verdict isn't
-	// SandboxStatusSandboxed), Exec starts nothing and returns
-	// ErrSandboxRequired instead of running the turn unconfined. A caller
-	// that decided from an older scan (a dynamic-org research worker) relies
-	// on it.
-	RequireSandbox bool
-	// WorkspacePurpose names the SandboxWorkspaceDir a sandboxed turn with
-	// no Cwd runs in, so workspace-write has a real folder. Ignored when
-	// no sandbox args are passed, when Cwd is set, and for the claude runtime:
-	// claude is restricted by --access scoped rather than a folder, and
-	// keys its resumable sessions by folder, so moving it would orphan
-	// every existing conversation.
-	WorkspacePurpose string
-	// TempDir is where the prompt, system-prompt and tools files Exec writes for
-	// monomind are created. Empty means a private folder of the monoagent home
-	// (see execTempDir), not the system temp directory, which a turn in a
-	// workspace-write sandbox may write: another turn could rewrite the files
-	// between their creation and monomind reading them. A caller that runs
-	// such turns itself gives each its own folder.
-	TempDir string
-	// Stderr receives monomind's diagnostics; nil means os.Stderr.
-	Stderr io.Writer
-}
-
-// TurnResult is the terminal state of one exec turn.
-type TurnResult struct {
-	ExitCode   int
-	SessionID  string
-	ResultText string
-	// StopReason is the last result event's stop_reason (protocol §3.2:
-	// end_turn/max_turns/tool_round_cap/cancelled/timeout), "" if no result
-	// event was ever seen. max_turns/tool_round_cap mean the turn hit a
-	// limit, not that it succeeded normally — callers must not display
-	// those as plain success.
-	StopReason string
-	// InputTokens/OutputTokens/CostUSD mirror the last usage/result event's
-	// reported metrics; Has* reports whether that metric was ever actually
-	// present in any event this turn (see Event.HasCostUSD etc.) — false
-	// means genuinely unavailable, not zero.
-	InputTokens     int64
-	OutputTokens    int64
-	CostUSD         float64
-	HasInputTokens  bool
-	HasOutputTokens bool
-	HasCostUSD      bool
-	// Sandbox is the start event's sandbox report, and SandboxStatus the
-	// verdict (SandboxStatus* constants); "" when the turn asked for none.
-	Sandbox       SandboxFields
-	SandboxStatus string
-	// SawDone reports whether a terminal `done` event was ever observed.
-	// false with Err == nil means the process/stream ended (EOF, ctx
-	// cancellation notwithstanding) without ever giving terminal protocol
-	// evidence — callers must treat that as interrupted, not completed.
-	SawDone bool
-	Err     *ProtocolError
-
-	// incremental is the start event's streams_incrementally: assistant
-	// events are deltas of one reply, not whole messages.
-	incremental bool
-	// streamed holds the deltas since the last tool call, and resultText
-	// whether a result event supplied its own text (which then wins).
-	streamed   []byte
-	resultText bool
-	// warning is the last non-fatal error event: the cause a later nonzero
-	// done reports (Claude Code's "Not logged in" arrives this way).
-	warning *ProtocolError
-}
-
-// ApplyEventToResult updates res's terminal-state fields (SessionID,
-// ResultText, StopReason, usage, SawDone, ExitCode, Err) from one protocol
-// event, applying exactly the same precedence Exec's own loop uses below.
-// It deliberately does NOT handle tool_call/tool_result bridging (§4) —
-// that requires writing a reply frame to the subprocess's stdin, which only
-// the process actually holding that pipe can do.
-//
-// Exported so a caller watching the identical event stream one process
-// layer removed — a GUI supervisor reading `monoagentcli chat`'s stdout,
-// which is byte-for-byte this same JSON passed through from onEvent below —
-// can accumulate an equivalent TurnResult without re-deriving this
-// precedence logic itself (internal/ai/chatevents cannot own this instead:
-// it already imports monomind for TurnResult/Event, so monomind importing
-// chatevents back would cycle).
-func ApplyEventToResult(res *TurnResult, ev Event) {
-	switch ev.Type {
-	case EventSession:
-		if ev.SessionID != "" {
-			res.SessionID = ev.SessionID
-		}
-	case EventStart:
-		res.incremental = ev.StreamsIncrementally
-		if ev.Sandbox != "" || ev.SandboxUnsupported || ev.SandboxStatus != "" {
-			res.Sandbox = ev.SandboxFields
-		}
-		if ev.SandboxStatus != "" {
-			res.SandboxStatus = ev.SandboxStatus
-		}
-	case EventAssistant:
-		// Fallback source for ResultText: monomind's result event often has
-		// no text (only assistant events do), so ResultText would otherwise
-		// come back empty. An incremental runtime (start's
-		// streams_incrementally) sends the reply as deltas, so they are
-		// joined; otherwise each event is a whole message and the latest one
-		// is the answer. A result event with its own text still wins. A
-		// native subagent's text (parent_tool_use_id, monomind#387) is not
-		// the agent's answer.
-		if ev.Text == "" || res.resultText || ev.ParentToolUseID != "" {
-			break
-		}
-		if res.incremental {
-			res.streamed = append(res.streamed, ev.Text...)
-			res.ResultText = string(res.streamed)
-		} else {
-			res.ResultText = ev.Text
-		}
-	case EventToolCall:
-		// Text before a tool call is narration; the answer is the text
-		// after the last tool round.
-		res.streamed = res.streamed[:0]
-	case EventUsage:
-		// A snapshot, not a delta (protocol §3.2): overwrite, never
-		// accumulate — the plan is explicit that summing without verified
-		// delta semantics would double-count.
-		applyUsage(res, ev)
-	case EventResult:
-		if ev.Text != "" {
-			res.ResultText = ev.Text
-			res.resultText = true
-		}
-		if ev.StopReason != "" {
-			res.StopReason = ev.StopReason
-		}
-		applyUsage(res, ev)
-		// A result explicitly marked is_error is a failure even when the
-		// process later exits 0 and still sends done — e.g. the runtime
-		// reported the model's answer as an error result but terminated
-		// its own subprocess cleanly regardless. Only set this if nothing
-		// already recorded a (fatal) error, so a fatal `error` event's own
-		// code/message — richer than a bare "result reported is_error" —
-		// still wins.
-		if ev.IsError && res.Err == nil {
-			res.Err = &ProtocolError{
-				Code:    ErrRunnerError,
-				Message: fmt.Sprintf("result reported is_error (stop_reason=%q)", ev.StopReason),
-			}
-		}
-	case EventError:
-		// Only a fatal error terminates the turn (protocol §3.4): a
-		// non-fatal error (fatal:false) is a recoverable, mid-stream
-		// hiccup — the golden fixture testdata/fixtures/bad-frame.ndjson
-		// demonstrates a non-fatal error followed by a full successful
-		// recovery (tool_result, assistant text, a success result, and
-		// done exit_code:0), and TestFixtureExitCodesMatchContract already
-		// asserts exit code 0 is correct for that fixture. Setting res.Err
-		// here unconditionally would make both CLI callers (chat.go,
-		// agent.go) treat that successful recovery as a hard failure and
-		// discard the good ResultText. The event has already been
-		// forwarded to onEvent by Exec's own loop, so callers that care
-		// about non-fatal errors as they stream by still see them; only a
-		// fatal error (or a later done/process exit with no success
-		// signal) should surface as the turn's terminal res.Err.
-		if ev.Fatal {
-			res.Err = &ProtocolError{Code: ev.Code, Message: ev.ErrMessage, Fatal: ev.Fatal}
-		} else {
-			res.warning = &ProtocolError{Code: ev.Code, Message: ev.ErrMessage}
-		}
-	case EventDone:
-		res.SawDone = true
-		res.ExitCode = ev.ExitCode
-		// A fatal error event carries no exit code of its own (protocol
-		// §3.4: only done does); without this the turn's error would exit 0.
-		if res.Err != nil && res.Err.ExitCode == 0 {
-			res.Err.ExitCode = ev.ExitCode
-		}
-		// A nonzero protocol exit_code is a failure signal on its own,
-		// independent of the OS process's own exit status — the two can
-		// disagree (protocol says failure, process still exits 0). Only
-		// set if nothing already recorded a more specific error.
-		// A non-fatal error just before it is the likelier cause, and
-		// says more than the exit code alone.
-		if ev.ExitCode != 0 && res.Err == nil {
-			res.Err = &ProtocolError{
-				Code:     ErrRunnerError,
-				Message:  fmt.Sprintf("done reported nonzero exit_code %d", ev.ExitCode),
-				ExitCode: ev.ExitCode,
-			}
-			if w := res.warning; w != nil && w.Message != "" {
-				res.Err.Code, res.Err.Message = w.Code, w.Message
-			}
-		}
-	}
-}
-
-// applyUsage overwrites res's usage snapshot from ev's metrics, field by
-// field — each field only if ev actually reported it (Has*), so a usage
-// event that reports tokens but omits cost does not clobber a cost figure
-// captured from an earlier event in the same turn.
-func applyUsage(res *TurnResult, ev Event) {
-	if ev.HasInputTokens {
-		res.InputTokens = ev.InputTokens
-		res.HasInputTokens = true
-	}
-	if ev.HasOutputTokens {
-		res.OutputTokens = ev.OutputTokens
-		res.HasOutputTokens = true
-	}
-	if ev.HasCostUSD {
-		res.CostUSD = ev.CostUSD
-		res.HasCostUSD = true
-	}
-}
-
-// toolResultFrame is the client→monomind reply for a tool_call (§4.3).
-type toolResultFrame struct {
-	V      int    `json:"v"`
-	Type   string `json:"type"`
-	ID     string `json:"id"`
-	OK     bool   `json:"ok"`
-	Result struct {
-		Text string `json:"text"`
-	} `json:"result"`
-}
 
 // KillGrace bounds the window between a graceful cancel (cancel frame +
 // stdin EOF) and the process-group kill on ctx cancellation. Overridable
@@ -408,6 +130,9 @@ func Exec(ctx context.Context, opts ExecOptions, onEvent func(Event)) (*TurnResu
 	if opts.ToolTimeout > 0 {
 		args = append(args, "--tool-timeout", formatDuration(opts.ToolTimeout))
 	}
+	for _, p := range opts.Attach {
+		args = append(args, "--attach", p)
+	}
 
 	cleanup := []func(){}
 	defer func() {
@@ -487,7 +212,12 @@ func Exec(ctx context.Context, opts ExecOptions, onEvent func(Event)) (*TurnResu
 	// them here means every chat/agent turn gets a clean environment
 	// regardless of what launched monoagentcli.
 	cmd.Env = PinEnvIn(append(FilteredEnviron(), envSlice(opts.Env)...), bin, opts.Cwd)
+	cmd.Env = SelfFirstOnPath(cmd.Env) // `monoagentcli` in the agent's shell is this build
+	// The run this turn belongs to (a workflow execution, an org run) goes
+	// to monomind as MONOAGENT_RUN_ID, so its lines can be joined with ours.
+	cmd.Env = logging.ChildEnv(ctx, cmd.Env)
 	setProcessGroup(cmd)
+	logging.FromContext(ctx).Debug("monomind exec", "runtime", opts.Runtime, "model", opts.Model, "cwd", cwd)
 
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
@@ -667,76 +397,6 @@ func Exec(ctx context.Context, opts ExecOptions, onEvent func(Event)) (*TurnResu
 		}
 		return res, nil
 	}
-}
-
-// sessionMarkerEnvVars are Claude Code's own session-identity env vars —
-// see the comment at Exec's cmd.Env construction for why these must never
-// reach a spawned `claude` CLI invocation.
-var sessionMarkerEnvVars = []string{
-	"CLAUDECODE",
-	"CLAUDE_PID",
-	"CLAUDE_EFFORT",
-}
-
-// sessionMarkerEnvPrefixes catches every CLAUDE_CODE_* variant without
-// needing to enumerate them (new ones can be added by Claude Code itself
-// without this list going stale), and every MONOMIND_* scoping override
-// (notably MONOMIND_CWD): those are per-call configuration, set
-// explicitly via opts.Env / individual command builders — an ambient value
-// inherited from whatever launched this process must not reach the child,
-// where a duplicate entry could shadow the intended per-profile scoping.
-var sessionMarkerEnvPrefixes = []string{
-	"CLAUDE_CODE_",
-	"MONOMIND_",
-}
-
-// operatorEnvVars are MONOMIND_* settings the operator sets on purpose
-// (monomind 2.24): they are not per-call scoping, so they pass through.
-var operatorEnvVars = []string{
-	"MONOMIND_CLAUDE_PATH",
-	"MONOMIND_CODER_MAX_AGENTS",
-	"MONOMIND_CODER_MAX_REVIEW_AGENTS",
-}
-
-// FilteredEnviron returns the current process environment with Claude
-// Code's session-marker variables and ambient MONOMIND_* overrides
-// removed. Exported so command builders outside this package (e.g. the
-// chat KG tools) build children with the identical stripped base before
-// appending their own explicit MONOMIND_* values.
-func FilteredEnviron() []string {
-	env := os.Environ()
-	out := make([]string, 0, len(env))
-	for _, kv := range env {
-		key, _, _ := strings.Cut(kv, "=")
-		if slices.Contains(sessionMarkerEnvVars, key) {
-			continue
-		}
-		if slices.Contains(operatorEnvVars, key) {
-			out = append(out, kv)
-			continue
-		}
-		skip := false
-		for _, prefix := range sessionMarkerEnvPrefixes {
-			if strings.HasPrefix(key, prefix) {
-				skip = true
-				break
-			}
-		}
-		if skip {
-			continue
-		}
-		out = append(out, kv)
-	}
-	return out
-}
-
-// envSlice flattens a map into KEY=VALUE strings.
-func envSlice(m map[string]string) []string {
-	out := make([]string, 0, len(m))
-	for k, v := range m {
-		out = append(out, k+"="+v)
-	}
-	return out
 }
 
 // formatDuration renders a duration in the protocol's duration syntax

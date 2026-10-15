@@ -3,6 +3,7 @@ import React from 'react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import '@testing-library/jest-dom/vitest'
 import { render, screen, fireEvent, waitFor, cleanup, within } from '@testing-library/react'
+import '../../i18n.js'
 
 // The section imports the generated bindings, which call window.go.main.App.
 const App = {}
@@ -48,6 +49,30 @@ describe('JevSection', () => {
     await mount(status('vault', 'Jev Api key'))
     expect(screen.getByTestId('jev-key-chip')).toHaveTextContent('Vault entry "Jev Api key"')
     expect(screen.getByRole('button', { name: 'Remove' })).toBeInTheDocument()
+  })
+
+  it('shows a key still in the profile vault as shared-to-be, with Test, no Remove and the adopt command', async () => {
+    await mount(status('profile-vault', 'typesafe'))
+    expect(screen.getByTestId('jev-key-chip')).toHaveTextContent('Set (this profile, will be shared)')
+    expect(screen.getByRole('button', { name: 'Test' })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: 'Remove' })).not.toBeInTheDocument()
+    expect(screen.getByTestId('jev-adopt-hint')).toHaveTextContent('monoagentcli jev key adopt')
+  })
+
+  it('splits into the machine half (key) and the profile half (features, usage)', async () => {
+    App.JevStatus.mockResolvedValue(status('vault', 'typesafe'))
+    App.JevUsage.mockResolvedValue(emptyUsage)
+    const { default: JevSection } = await import('./JevSection.jsx')
+    const { unmount } = render(<JevSection part="machine" />)
+    await screen.findByTestId('jev-key-chip')
+    expect(screen.queryByText('Features')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Usage · last 7 days/)).not.toBeInTheDocument()
+    unmount()
+    render(<JevSection part="profile" />)
+    await screen.findByText('Features')
+    expect(screen.getByText(/Usage · last 7 days/)).toBeInTheDocument()
+    expect(screen.getByText(/for this profile only/)).toBeInTheDocument()
+    expect(screen.queryByTestId('jev-key-chip')).not.toBeInTheDocument()
   })
 
   it('shows the environment variable source without Remove', async () => {

@@ -4,12 +4,275 @@
   "fields": [
     {
       "default": 5,
+      "depends_on": {
+        "key": "resume",
+        "values": [
+          "duration",
+          ""
+        ]
+      },
       "key": "duration",
       "label": "Wait Duration (seconds)",
-      "max": 3600,
       "min": 1,
-      "required": true,
+      "required": false,
       "type": "number"
+    },
+    {
+      "default": "duration",
+      "help": "duration waits Wait Duration seconds; timeInterval waits Amount × Unit; specificTime waits until Date and Time; webhook waits for a call to $execution.resumeUrl; form waits for the form at that URL to be answered.",
+      "key": "resume",
+      "label": "Resume",
+      "options": [
+        "duration",
+        "timeInterval",
+        "specificTime",
+        "webhook",
+        "form"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "default": 1,
+      "depends_on": {
+        "key": "resume",
+        "values": [
+          "timeInterval"
+        ]
+      },
+      "key": "amount",
+      "label": "Amount",
+      "min": 0,
+      "required": false,
+      "type": "number"
+    },
+    {
+      "default": "hours",
+      "depends_on": {
+        "key": "resume",
+        "values": [
+          "timeInterval"
+        ]
+      },
+      "key": "unit",
+      "label": "Unit",
+      "options": [
+        "seconds",
+        "minutes",
+        "hours",
+        "days"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "depends_on": {
+        "key": "resume",
+        "values": [
+          "specificTime"
+        ]
+      },
+      "help": "RFC 3339 or local YYYY-MM-DD HH:MM.",
+      "key": "dateTime",
+      "label": "Date and Time",
+      "placeholder": "2026-12-31T09:00:00Z",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "resume",
+        "values": [
+          "webhook"
+        ]
+      },
+      "help": "The method the resume call must use; empty accepts any.",
+      "key": "httpMethod",
+      "label": "HTTP Method",
+      "options": [
+        "",
+        "GET",
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "depends_on": {
+        "key": "resume",
+        "values": [
+          "form"
+        ]
+      },
+      "key": "formTitle",
+      "label": "Form Title",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "resume",
+        "values": [
+          "form"
+        ]
+      },
+      "key": "formDescription",
+      "label": "Form Description",
+      "required": false,
+      "type": "textarea"
+    },
+    {
+      "depends_on": {
+        "key": "resume",
+        "values": [
+          "form"
+        ]
+      },
+      "help": "A list of {fieldLabel, fieldName, fieldType (text|textarea|number|email|password|date|dropdown|radio|checkbox), requiredField, placeholder, fieldOptions: {values: [{option}]}, multiselect}.",
+      "key": "formFields",
+      "label": "Form Fields",
+      "language": "json",
+      "placeholder": "[{\"fieldLabel\": \"Name\", \"requiredField\": true}]",
+      "required": false,
+      "rows": 6,
+      "type": "code"
+    },
+    {
+      "depends_on": {
+        "key": "resume",
+        "values": [
+          "form"
+        ]
+      },
+      "key": "buttonLabel",
+      "label": "Button Label",
+      "placeholder": "Submit",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": false,
+      "depends_on": {
+        "key": "resume",
+        "values": [
+          "webhook",
+          "form"
+        ]
+      },
+      "help": "Give up waiting after a while and continue with the input items.",
+      "key": "limitWaitTime",
+      "label": "Limit Wait Time",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "default": "afterTimeInterval",
+      "depends_on": {
+        "key": "resume",
+        "values": [
+          "webhook",
+          "form"
+        ]
+      },
+      "help": "Used when Limit Wait Time is on.",
+      "key": "limitType",
+      "label": "Limit Type",
+      "options": [
+        "afterTimeInterval",
+        "atSpecifiedTime"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "default": 1,
+      "depends_on": {
+        "key": "resume",
+        "values": [
+          "webhook",
+          "form"
+        ]
+      },
+      "help": "Used with limit type afterTimeInterval.",
+      "key": "resumeAmount",
+      "label": "Limit Amount",
+      "min": 0,
+      "required": false,
+      "type": "number"
+    },
+    {
+      "default": "hours",
+      "depends_on": {
+        "key": "resume",
+        "values": [
+          "webhook",
+          "form"
+        ]
+      },
+      "key": "resumeUnit",
+      "label": "Limit Unit",
+      "options": [
+        "seconds",
+        "minutes",
+        "hours",
+        "days"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "depends_on": {
+        "key": "resume",
+        "values": [
+          "webhook",
+          "form"
+        ]
+      },
+      "help": "Used with limit type atSpecifiedTime.",
+      "key": "maxDateAndTime",
+      "label": "Limit Date and Time",
+      "placeholder": "2026-12-31T09:00:00Z",
+      "required": false,
+      "type": "text"
+    }
+  ],
+  "outputs": [
+    {
+      "description": "the input item's fields, passed through (time waits, and a webhook or form wait whose limit passed)",
+      "key": "*",
+      "type": "object"
+    },
+    {
+      "description": "resume webhook: the resume call's parsed body",
+      "key": "body",
+      "type": "object"
+    },
+    {
+      "description": "resume webhook: the resume call's query string",
+      "key": "query",
+      "type": "object"
+    },
+    {
+      "description": "resume webhook: the resume call's headers, keys lower-cased",
+      "key": "headers",
+      "type": "object"
+    },
+    {
+      "description": "resume webhook: the resume call's HTTP method",
+      "key": "method",
+      "type": "string"
+    },
+    {
+      "description": "resume form: each answer, keyed by its fieldName or fieldLabel",
+      "key": "<field>"
+    },
+    {
+      "description": "resume form: when the form was answered (RFC 3339)",
+      "key": "submittedAt",
+      "type": "string"
     }
   ]
 }

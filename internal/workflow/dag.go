@@ -1,23 +1,50 @@
 package workflow
 
-import "strings"
+import (
+	"errors"
+	"fmt"
+	"strings"
+)
+
+// ErrSubNodeWiring is a node attached as an AI sub-node that is also wired
+// into the main flow.
+var ErrSubNodeWiring = errors.New("workflow: an AI sub-node cannot also be wired into the main flow")
 
 // DAG represents the directed acyclic graph of a workflow.
+//
+// The one permitted kind of cycle is a loop: an edge from a loop node's
+// body back into the loop node (LoopNodeType, see dag_loop.go). Such
+// back-edges are kept for routing but left out of the topological order and
+// of the forward in-degree used for merge waiting.
 type DAG struct {
 	nodes       map[string]*WorkflowNode // nodeID → node
 	connections []WorkflowConnection
 	outEdges    map[string][]WorkflowConnection // sourceNodeID → connections
 	inEdges     map[string][]WorkflowConnection // targetNodeID → connections
+	loops       loopIndex
+	// AI sub-node edges (source handle "ai_…", n8n's ai_languageModel,
+	// ai_memory, ai_tool, …) attach a sub-node to the root node that uses it.
+	// They are not part of the main flow: sub-nodes never run as steps and
+	// these edges are left out of the order, the in-degrees and skip logic.
+	subEdges map[string][]WorkflowConnection // root node ID → its sub-node edges
+	subNodes map[string]bool                 // IDs of nodes attached as sub-nodes
 }
 
+// IsSubNodeHandle reports whether a connection handle attaches an AI
+// sub-node ("ai_languageModel", "ai_tool", …) rather than carrying items.
+func IsSubNodeHandle(h string) bool { return strings.HasPrefix(h, "ai_") }
+
 // BuildDAG constructs a DAG from nodes and connections.
-// Returns ErrCycleDetected if the graph has a cycle.
+// Returns ErrCycleDetected if the graph has a cycle other than a loop
+// back-edge into a loop node.
 func BuildDAG(nodes []WorkflowNode, connections []WorkflowConnection) (*DAG, error) {
 	d := &DAG{
 		nodes:       make(map[string]*WorkflowNode, len(nodes)),
 		connections: make([]WorkflowConnection, len(connections)),
 		outEdges:    make(map[string][]WorkflowConnection),
 		inEdges:     make(map[string][]WorkflowConnection),
+		subEdges:    make(map[string][]WorkflowConnection),
+		subNodes:    make(map[string]bool),
 	}
 
 	for i := range nodes {
@@ -26,11 +53,27 @@ func BuildDAG(nodes []WorkflowNode, connections []WorkflowConnection) (*DAG, err
 	}
 
 	copy(d.connections, connections)
+	NormalizeConnectionHandles(d.connections)
 
-	for _, c := range connections {
+	for _, c := range d.connections {
+		if IsSubNodeHandle(c.SourceHandle) || IsSubNodeHandle(c.TargetHandle) {
+			d.subEdges[c.TargetNodeID] = append(d.subEdges[c.TargetNodeID], c)
+			d.subNodes[c.SourceNodeID] = true
+			continue
+		}
 		d.outEdges[c.SourceNodeID] = append(d.outEdges[c.SourceNodeID], c)
 		d.inEdges[c.TargetNodeID] = append(d.inEdges[c.TargetNodeID], c)
 	}
+	for id, n := range d.nodes {
+		if declaresSubOutput(*n) {
+			d.subNodes[id] = true
+		}
+	}
+	if err := d.checkSubNodes(); err != nil {
+		return nil, err
+	}
+
+	d.loops = buildLoopIndex(d)
 
 	// Eagerly detect cycles at construction time.
 	if _, err := d.TopologicalSort(); err != nil {
@@ -42,12 +85,16 @@ func BuildDAG(nodes []WorkflowNode, connections []WorkflowConnection) (*DAG, err
 
 // TopologicalSort returns nodes in execution order using Kahn's BFS algorithm.
 // Trigger nodes (NodeType starts with "trigger.") appear first in the initial queue.
-// Returns ErrCycleDetected if the graph contains a cycle.
+// Loop back-edges are ignored. Returns ErrCycleDetected if the graph
+// contains any other cycle.
 func (d *DAG) TopologicalSort() ([]WorkflowNode, error) {
 	// Step 1: compute in-degree for all nodes.
 	inDegree := make(map[string]int, len(d.nodes))
 	for id := range d.nodes {
-		inDegree[id] = len(d.inEdges[id])
+		if d.subNodes[id] {
+			continue // run by its root, never as a step
+		}
+		inDegree[id] = d.forwardInDegree(id)
 	}
 
 	// Step 2: seed the queue — trigger nodes first, then other zero-in-degree nodes.
@@ -76,6 +123,9 @@ func (d *DAG) TopologicalSort() ([]WorkflowNode, error) {
 		result = append(result, current)
 
 		for _, conn := range d.outEdges[current.ID] {
+			if d.isBackEdge(conn) {
+				continue
+			}
 			inDegree[conn.TargetNodeID]--
 			if inDegree[conn.TargetNodeID] == 0 {
 				next := *d.nodes[conn.TargetNodeID]
@@ -85,7 +135,7 @@ func (d *DAG) TopologicalSort() ([]WorkflowNode, error) {
 	}
 
 	// Step 4: cycle check.
-	if len(result) < len(d.nodes) {
+	if len(result) < len(d.nodes)-len(d.subNodes) {
 		return nil, ErrCycleDetected
 	}
 
@@ -145,16 +195,6 @@ func (d *DAG) InDegree(nodeID string) int {
 	return len(d.inEdges[nodeID])
 }
 
-// ConnectionsFrom returns all connections where source is nodeID.
-func (d *DAG) ConnectionsFrom(nodeID string) []WorkflowConnection {
-	return append([]WorkflowConnection(nil), d.outEdges[nodeID]...)
-}
-
-// ConnectionsTo returns all connections where target is nodeID.
-func (d *DAG) ConnectionsTo(nodeID string) []WorkflowConnection {
-	return append([]WorkflowConnection(nil), d.inEdges[nodeID]...)
-}
-
 // Node returns a node by ID. The returned pointer is a copy; mutations do not
 // affect the DAG's internal state.
 func (d *DAG) Node(nodeID string) (*WorkflowNode, bool) {
@@ -166,11 +206,64 @@ func (d *DAG) Node(nodeID string) (*WorkflowNode, bool) {
 	return &cp, true
 }
 
-// AllNodes returns all nodes in the DAG (order is non-deterministic).
-func (d *DAG) AllNodes() []WorkflowNode {
-	out := make([]WorkflowNode, 0, len(d.nodes))
-	for _, n := range d.nodes {
-		out = append(out, *n)
+// SubNodeEdge is one AI sub-node attached to a root node.
+type SubNodeEdge struct {
+	Kind string // the connection handle, e.g. "ai_languageModel"
+	Node WorkflowNode
+}
+
+// SubNodes returns the sub-nodes attached to nodeID, in connection order.
+func (d *DAG) SubNodes(nodeID string) []SubNodeEdge {
+	var out []SubNodeEdge
+	for _, c := range d.subEdges[nodeID] {
+		if n, ok := d.nodes[c.SourceNodeID]; ok {
+			kind := c.SourceHandle
+			if !IsSubNodeHandle(kind) {
+				kind = c.TargetHandle
+			}
+			out = append(out, SubNodeEdge{Kind: kind, Node: *n})
+		}
 	}
 	return out
+}
+
+// IsSubNode reports whether nodeID is attached to a root as an AI sub-node.
+func (d *DAG) IsSubNode(nodeID string) bool { return d.subNodes[nodeID] }
+
+// checkSubNodes rejects a sub-node that is also wired into the main flow
+// (sub-nodes have no main ports) and a cycle among sub-node edges.
+func (d *DAG) checkSubNodes() error {
+	for id := range d.subNodes {
+		if len(d.inEdges[id]) > 0 || len(d.outEdges[id]) > 0 {
+			name := id
+			if n, ok := d.nodes[id]; ok && n.Name != "" {
+				name = n.Name
+			}
+			return fmt.Errorf("%w: node %q", ErrSubNodeWiring, name)
+		}
+	}
+	state := map[string]int{} // 1 visiting, 2 done
+	var visit func(id string) bool
+	visit = func(id string) bool {
+		switch state[id] {
+		case 1:
+			return false
+		case 2:
+			return true
+		}
+		state[id] = 1
+		for _, c := range d.subEdges[id] {
+			if !visit(c.SourceNodeID) {
+				return false
+			}
+		}
+		state[id] = 2
+		return true
+	}
+	for id := range d.subEdges {
+		if !visit(id) {
+			return ErrCycleDetected
+		}
+	}
+	return nil
 }

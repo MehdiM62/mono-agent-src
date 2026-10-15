@@ -1,0 +1,39 @@
+{
+  "sms.send": {
+    "params": {
+      "from": "+1555",
+      "to": "+1666",
+      "toWhatsapp": true,
+      "message": "hi",
+      "options": {
+        "statusCallback": "https://cb"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/2010-04-01/Accounts/test-account_sid/Messages.json",
+      "body": {
+        "From": "whatsapp:+1555",
+        "To": "whatsapp:+1666",
+        "Body": "hi",
+        "StatusCallback": "https://cb"
+      }
+    }
+  },
+  "call.make": {
+    "params": {
+      "from": "+1555",
+      "to": "+1666",
+      "message": "Tom & Jerry"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/2010-04-01/Accounts/test-account_sid/Calls.json",
+      "body": {
+        "From": "+1555",
+        "To": "+1666",
+        "Twiml": "<Response><Say>Tom &amp; Jerry</Say></Response>"
+      }
+    }
+  }
+}

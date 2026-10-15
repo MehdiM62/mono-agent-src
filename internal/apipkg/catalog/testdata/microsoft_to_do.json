@@ -1,0 +1,83 @@
+{
+  "task.get": {
+    "params": { "taskListId": "L1", "taskId": "T1" },
+    "response": { "id": "T1" },
+    "expect": { "method": "GET", "path": "/v1.0/me/todo/lists/L1/tasks/T1", "items": 1 }
+  },
+  "task.create": {
+    "params": { "taskListId": "L1", "title": "Buy milk", "additionalFields": { "content": "<b>2l</b>", "dueDateTime": "2026-10-20T09:00:00Z", "importance": "high" } },
+    "response": { "id": "T1" },
+    "expect": {
+      "method": "POST", "path": "/v1.0/me/todo/lists/L1/tasks",
+      "body": {
+        "title": "Buy milk", "importance": "high",
+        "body": { "content": "<b>2l</b>", "contentType": "html" },
+        "dueDateTime": { "dateTime": "2026-10-20T09:00:00", "timeZone": "UTC" }
+      },
+      "items": 1
+    }
+  },
+  "task.delete": {
+    "params": { "userTarget": { "__rl": true, "mode": "id", "value": "jane@contoso.com" }, "taskListId": "L1", "taskId": "T1" },
+    "response_status": 204,
+    "expect": { "method": "DELETE", "path": "/v1.0/users/jane@contoso.com/todo/lists/L1/tasks/T1" }
+  },
+  "task.getAll": {
+    "params": { "taskListId": "L1", "limit": 5 },
+    "response": { "value": [ { "id": "a" }, { "id": "b" } ] },
+    "expect": { "method": "GET", "path": "/v1.0/me/todo/lists/L1/tasks", "query": { "$top": "5" }, "items": 2 }
+  },
+  "task.update": {
+    "params": { "taskListId": "L1", "taskId": "T1", "updateFields": { "status": "completed", "reminderDateTime": "2026-10-21T08:30:00Z" } },
+    "response": { "id": "T1" },
+    "expect": {
+      "method": "PATCH", "path": "/v1.0/me/todo/lists/L1/tasks/T1",
+      "body": { "status": "completed", "reminderDateTime": { "dateTime": "2026-10-21T08:30:00", "timeZone": "UTC" }, "isReminderOn": true }
+    }
+  },
+  "linkedResource.get": {
+    "params": { "taskListId": "L1", "taskId": "T1", "linkedResourceId": "R1" },
+    "expect": { "method": "GET", "path": "/v1.0/me/todo/lists/L1/tasks/T1/linkedResources/R1" }
+  },
+  "linkedResource.create": {
+    "params": { "taskListId": "L1", "taskId": "T1", "displayName": "Ticket 42", "applicationName": "Tracker", "additionalFields": { "webUrl": "https://t.example/42" } },
+    "expect": {
+      "method": "POST", "path": "/v1.0/me/todo/lists/L1/tasks/T1/linkedResources",
+      "body": { "applicationName": "Tracker", "displayName": "Ticket 42", "webUrl": "https://t.example/42" }
+    }
+  },
+  "linkedResource.delete": {
+    "params": { "taskListId": "L1", "taskId": "T1", "linkedResourceId": "R1" },
+    "expect": { "method": "DELETE", "path": "/v1.0/me/todo/lists/L1/tasks/T1/linkedResources/R1" }
+  },
+  "linkedResource.getAll": {
+    "params": { "taskListId": "L1", "taskId": "T1", "returnAll": true },
+    "response": { "value": [ { "id": "R1" } ] },
+    "expect": { "method": "GET", "path": "/v1.0/me/todo/lists/L1/tasks/T1/linkedResources", "query": { "$top": "100" }, "items": 1 }
+  },
+  "linkedResource.update": {
+    "params": { "taskListId": "L1", "taskId": "T1", "linkedResourceId": "R1", "updateFields": { "externalId": "x-42" } },
+    "expect": { "method": "PATCH", "path": "/v1.0/me/todo/lists/L1/tasks/T1/linkedResources/R1", "body": { "externalId": "x-42" } }
+  },
+  "list.get": {
+    "params": { "listId": "L1" },
+    "expect": { "method": "GET", "path": "/v1.0/me/todo/lists/L1" }
+  },
+  "list.create": {
+    "params": { "displayName": "Groceries" },
+    "expect": { "method": "POST", "path": "/v1.0/me/todo/lists", "body": { "displayName": "Groceries" } }
+  },
+  "list.delete": {
+    "params": { "listId": "L1" },
+    "expect": { "method": "DELETE", "path": "/v1.0/me/todo/lists/L1" }
+  },
+  "list.getAll": {
+    "params": {},
+    "response": { "value": [ { "id": "L1" }, { "id": "L2" } ] },
+    "expect": { "method": "GET", "path": "/v1.0/me/todo/lists", "query": { "$top": "50" }, "items": 2 }
+  },
+  "list.update": {
+    "params": { "listId": "L1", "displayName": "Shopping" },
+    "expect": { "method": "PATCH", "path": "/v1.0/me/todo/lists/L1", "body": { "displayName": "Shopping" } }
+  }
+}

@@ -1,0 +1,193 @@
+{
+  "getAll": {
+    "params": {
+      "docId": "d",
+      "tableId": "T",
+      "limit": 5,
+      "additionalOptions": {
+        "sort": {
+          "sortProperties": [
+            {
+              "field": "Name",
+              "direction": "desc"
+            },
+            {
+              "field": "Age",
+              "direction": "asc"
+            }
+          ]
+        },
+        "filter": {
+          "filterProperties": [
+            {
+              "field": "Age",
+              "values": "30"
+            }
+          ]
+        }
+      }
+    },
+    "response": {
+      "records": [
+        {
+          "id": 1,
+          "fields": {
+            "Name": "A"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/docs/d/tables/T/records",
+      "query": {
+        "limit": "5",
+        "sort": "-Name,Age",
+        "filter": "{\"Age\":[30]}"
+      },
+      "items": 1
+    },
+    "credential": {
+      "access_token": "k",
+      "url": "https://docs.grist.test/api/"
+    }
+  },
+  "create": {
+    "params": {
+      "docId": "d",
+      "tableId": "T",
+      "fieldsToSend": {
+        "properties": [
+          {
+            "fieldId": "Name",
+            "fieldValue": "Ada"
+          }
+        ]
+      }
+    },
+    "response": {
+      "records": [
+        {
+          "id": 7
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/docs/d/tables/T/records",
+      "body": {
+        "records": [
+          {
+            "fields": {
+              "Name": "Ada"
+            }
+          }
+        ]
+      },
+      "items": 1
+    },
+    "credential": {
+      "access_token": "k",
+      "url": "https://docs.grist.test/api/"
+    }
+  },
+  "delete": {
+    "params": {
+      "docId": "d",
+      "tableId": "T",
+      "rowId": "1, 2"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/docs/d/tables/T/data/delete",
+      "body": [
+        1,
+        2
+      ],
+      "items": 1
+    },
+    "credential": {
+      "access_token": "k",
+      "url": "https://docs.grist.test/api/"
+    }
+  },
+  "update": {
+    "params": {
+      "docId": "d",
+      "tableId": "T",
+      "rowId": "3",
+      "dataToSend": "autoMapInputs",
+      "inputsToIgnore": "skip"
+    },
+    "input": {
+      "Name": "Bo",
+      "skip": 1
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/api/docs/d/tables/T/records",
+      "body": {
+        "records": [
+          {
+            "id": 3,
+            "fields": {
+              "Name": "Bo"
+            }
+          }
+        ]
+      },
+      "items": 1
+    },
+    "credential": {
+      "access_token": "k",
+      "url": "https://docs.grist.test/api/"
+    }
+  },
+  "upsert": {
+    "params": {
+      "docId": "d",
+      "tableId": "T",
+      "onMany": "all",
+      "upsertCriteria": {
+        "properties": [
+          {
+            "fieldId": "Email",
+            "fieldValue": "a@b"
+          }
+        ]
+      },
+      "fieldsToSend": {
+        "properties": [
+          {
+            "fieldId": "Name",
+            "fieldValue": "Ada"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/docs/d/tables/T/records",
+      "query": {
+        "onmany": "all"
+      },
+      "body": {
+        "records": [
+          {
+            "require": {
+              "Email": "a@b"
+            },
+            "fields": {
+              "Name": "Ada"
+            }
+          }
+        ]
+      },
+      "items": 1
+    },
+    "credential": {
+      "access_token": "k",
+      "url": "https://docs.grist.test/api/"
+    }
+  }
+}

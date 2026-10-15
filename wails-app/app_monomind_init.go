@@ -45,6 +45,9 @@ func isMonomindInitializedAt(root string) bool {
 // already been set up by `monomind init` — a direct file check, not a
 // subprocess call, since this is checked on every Orgs/Agents tab load.
 func (a *App) IsMonomindInitialized() bool {
+	if a.signedOut() != nil {
+		return false
+	}
 	return isMonomindInitializedAt(profiledir.Root(a.db, a.getActiveProfileID()))
 }
 
@@ -67,6 +70,9 @@ func (a *App) emitMonomindInitEvent(kind, message string) {
 // minutes). A failure to start is both returned and emitted, since the
 // frontend waits for the event.
 func (a *App) InitializeMonomindProfile() string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	fail := func(err error) string {
 		a.emitMonomindInitEvent("error", err.Error())
 		return aiError(err)

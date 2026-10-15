@@ -8,6 +8,7 @@ import (
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
+	"github.com/monoes/mono-agent/internal/apipkg"
 	"github.com/monoes/mono-agent/internal/fsconfine"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
@@ -28,6 +29,9 @@ type TelegramNode struct{}
 func (n *TelegramNode) Type() string { return "comm.telegram" }
 
 func (n *TelegramNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
+	if extensionOwns("comm.telegram", config) {
+		return apipkg.ExecuteExtension(ctx, "comm.telegram", input, config)
+	}
 	token, _ := config["bot_token"].(string)
 	if token == "" {
 		token, _ = config["token"].(string)

@@ -41,7 +41,7 @@ func hilInput() workflow.NodeInput {
 
 func TestHIL_PausesThenResumesOnApproval(t *testing.T) {
 	db := newHILTestDB(t)
-	ctx := vault.ContextWithDB(context.Background(), db)
+	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db), "default")
 	n := &HumanInLoopNode{}
 
 	// First run: creates a pending row and pauses.
@@ -84,7 +84,7 @@ func TestHIL_PausesThenResumesOnApproval(t *testing.T) {
 
 func TestHIL_RejectReturnsError(t *testing.T) {
 	db := newHILTestDB(t)
-	ctx := vault.ContextWithDB(context.Background(), db)
+	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db), "default")
 	n := &HumanInLoopNode{}
 
 	if _, err := n.Execute(ctx, hilInput(), map[string]interface{}{}); !errors.Is(err, workflow.ErrNodePaused) {

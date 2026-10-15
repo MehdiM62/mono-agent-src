@@ -1,0 +1,89 @@
+{
+  "user.getAll": {
+    "params": { "limit": 10, "filter": "startswith(displayName,'a')" },
+    "response": { "value": [ { "id": "u1" }, { "id": "u2" } ] },
+    "expect": {
+      "method": "GET", "path": "/v1.0/users",
+      "query": { "$filter": "startswith(displayName,'a')", "$select": "id,createdDateTime,displayName,userPrincipalName,mail,mailNickname,securityIdentifier", "$top": "10" },
+      "items": 2
+    }
+  },
+  "user.addGroup": {
+    "params": { "group": { "__rl": true, "mode": "id", "value": "g1" }, "user": "u1" },
+    "response_status": 204,
+    "expect": {
+      "method": "POST", "path": "/v1.0/groups/g1/members/$ref",
+      "body": { "@odata.id": "https://graph.microsoft.com/v1.0/directoryObjects/u1" }, "items": 1
+    }
+  },
+  "user.create": {
+    "params": {
+      "displayName": "Jane Doe", "userPrincipalName": "jane@contoso.com", "mailNickname": "jane", "password": "S3cret!x",
+      "additionalFields": { "aboutMe": "hi", "city": "Berlin", "businessPhones": "+49 1", "passwordPolicies": ["DisablePasswordExpiration"], "forceChangePassword": "forceChangePasswordNextSignIn", "employeeOrgData": { "employeeOrgValues": { "division": "R&D" } } }
+    },
+    "responses": [ { "id": "u9" }, {}, {} ],
+    "expect_requests": [
+      {
+        "method": "POST", "path": "/v1.0/users",
+        "body": { "accountEnabled": true, "displayName": "Jane Doe", "userPrincipalName": "jane@contoso.com", "mailNickname": "jane", "passwordProfile": { "password": "S3cret!x" } }
+      },
+      { "method": "PATCH", "path": "/v1.0/users/u9", "body": { "aboutMe": "hi" } },
+      {
+        "method": "PATCH", "path": "/v1.0/users/u9",
+        "body": { "city": "Berlin", "businessPhones": ["+49 1"], "employeeOrgData": { "division": "R&D" }, "passwordPolicies": "DisablePasswordExpiration", "passwordProfile": { "forceChangePasswordNextSignIn": true } }
+      }
+    ]
+  },
+  "user.delete": {
+    "params": { "user": "u1" },
+    "response_status": 204,
+    "expect": { "method": "DELETE", "path": "/v1.0/users/u1", "items": 1 }
+  },
+  "user.get": {
+    "params": { "user": "u1", "output": "fields", "fields": ["mail", "jobTitle"] },
+    "expect": { "method": "GET", "path": "/v1.0/users/u1", "query": { "$select": "mail,jobTitle,id" } }
+  },
+  "user.removeGroup": {
+    "params": { "group": "g1", "user": "u1" },
+    "response_status": 204,
+    "expect": { "method": "DELETE", "path": "/v1.0/groups/g1/members/u1/$ref" }
+  },
+  "user.update": {
+    "params": { "user": "u1", "updateFields": { "jobTitle": "CTO", "skills": ["go"], "password": "N3w!pass" } },
+    "response_status": 204,
+    "expect_requests": [
+      { "method": "PATCH", "path": "/v1.0/users/u1", "body": { "jobTitle": "CTO", "passwordProfile": { "password": "N3w!pass" } } },
+      { "method": "PATCH", "path": "/v1.0/users/u1", "body": { "skills": ["go"] } }
+    ]
+  },
+  "group.getAll": {
+    "params": { "returnAll": true, "output": "raw" },
+    "response": { "value": [ { "id": "g1" } ] },
+    "expect": { "method": "GET", "path": "/v1.0/groups", "query": { "$top": "100" }, "items": 1 }
+  },
+  "group.create": {
+    "params": { "groupType": "Unified", "displayName": "Team", "mailNickname": "team", "mailEnabled": true, "securityEnabled": false, "additionalFields": { "visibility": "Private", "membershipRule": "" } },
+    "responses": [ { "id": "g9" }, {} ],
+    "expect_requests": [
+      { "method": "POST", "path": "/v1.0/groups", "body": { "displayName": "Team", "mailNickname": "team", "mailEnabled": true, "securityEnabled": false, "groupTypes": ["Unified"] } },
+      { "method": "PATCH", "path": "/v1.0/groups/g9", "body": { "visibility": "Private" } }
+    ]
+  },
+  "group.delete": {
+    "params": { "group": "g1" },
+    "response_status": 204,
+    "expect": { "method": "DELETE", "path": "/v1.0/groups/g1" }
+  },
+  "group.get": {
+    "params": { "group": "g1", "output": "raw", "options": { "includeMembers": true } },
+    "expect": { "method": "GET", "path": "/v1.0/groups/g1", "query": { "$expand": "members($select=id,accountEnabled,createdDateTime,displayName,employeeId,mail,securityIdentifier,userPrincipalName,userType)" } }
+  },
+  "group.update": {
+    "params": { "group": "g1", "updateFields": { "description": "d", "autoSubscribeNewMembers": false } },
+    "response_status": 204,
+    "expect_requests": [
+      { "method": "PATCH", "path": "/v1.0/groups/g1", "body": { "description": "d" } },
+      { "method": "PATCH", "path": "/v1.0/groups/g1", "body": { "autoSubscribeNewMembers": false } }
+    ]
+  }
+}

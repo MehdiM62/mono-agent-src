@@ -1,0 +1,181 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "plivo",
+  "node_type": "app.plivo",
+  "title": "Plivo",
+  "description": "Send SMS and MMS messages and place voice calls with Plivo",
+  "category": "app",
+  "docs_url": "https://www.plivo.com/docs/",
+  "n8n_types": [
+    "n8n-nodes-base.plivo"
+  ],
+  "base_url": "https://api.plivo.com/v1/Account/{{ cred.auth_id }}",
+  "credentials": [
+    {
+      "platform": "plivo",
+      "name": "Plivo",
+      "n8n_credential": "plivoApi",
+      "n8n_field_map": {
+        "authId": "auth_id",
+        "authToken": "auth_token"
+      },
+      "methods": [
+        "basic"
+      ],
+      "fields": [
+        {
+          "key": "auth_id",
+          "label": "Auth ID",
+          "required": true
+        },
+        {
+          "key": "auth_token",
+          "label": "Auth token",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "basic": {
+          "username": "{{ cred.auth_id }}",
+          "password": "{{ cred.auth_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "sms",
+      "label": "SMS"
+    },
+    {
+      "value": "call",
+      "label": "Call"
+    },
+    {
+      "value": "mms",
+      "label": "MMS"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "sms",
+      "operation": "send",
+      "title": "Send an SMS",
+      "method": "POST",
+      "path": "/Message/",
+      "fields": [
+        {
+          "key": "from",
+          "label": "From",
+          "type": "text",
+          "required": true,
+          "help": "Sender number in E.164 format"
+        },
+        {
+          "key": "to",
+          "label": "To",
+          "type": "text",
+          "required": true,
+          "help": "Recipient number(s); separate several with <"
+        },
+        {
+          "key": "message",
+          "label": "Message",
+          "type": "textarea",
+          "required": true
+        }
+      ],
+      "body": {
+        "src": "{{ p.from }}",
+        "dst": "{{ p.to }}",
+        "text": "{{ p.message }}"
+      }
+    },
+    {
+      "resource": "call",
+      "operation": "make",
+      "title": "Make a call",
+      "method": "POST",
+      "path": "/Call/",
+      "fields": [
+        {
+          "key": "from",
+          "label": "From",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "to",
+          "label": "To",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "answer_method",
+          "label": "Answer method",
+          "type": "select",
+          "default": "POST",
+          "options": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "key": "answer_url",
+          "label": "Answer URL",
+          "type": "text",
+          "required": true,
+          "help": "URL Plivo fetches XML instructions from when the call is answered"
+        }
+      ],
+      "body": {
+        "from": "{{ p.from }}",
+        "to": "{{ p.to }}",
+        "answer_url": "{{ p.answer_url }}",
+        "answer_method": "{{ p.answer_method }}"
+      }
+    },
+    {
+      "resource": "mms",
+      "operation": "send",
+      "title": "Send an MMS",
+      "method": "POST",
+      "path": "/Message/",
+      "fields": [
+        {
+          "key": "from",
+          "label": "From",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "to",
+          "label": "To",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "message",
+          "label": "Message",
+          "type": "textarea",
+          "default": ""
+        },
+        {
+          "key": "media_urls",
+          "label": "Media URLs",
+          "type": "text",
+          "required": true,
+          "help": "Comma-separated URLs of the media to attach"
+        }
+      ],
+      "body": {
+        "src": "{{ p.from }}",
+        "dst": "{{ p.to }}",
+        "text": "{{ p.message }}",
+        "type": "mms",
+        "media_urls": "{{ p.media_urls | split }}"
+      }
+    }
+  ]
+}

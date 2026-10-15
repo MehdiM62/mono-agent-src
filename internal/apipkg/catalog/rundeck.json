@@ -1,0 +1,112 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "rundeck",
+  "node_type": "app.rundeck",
+  "title": "Rundeck",
+  "description": "Run Rundeck jobs and read their metadata",
+  "category": "app",
+  "docs_url": "https://docs.rundeck.com/docs/api/",
+  "n8n_types": [
+    "n8n-nodes-base.rundeck"
+  ],
+  "base_url": "{{ cred.url }}",
+  "credentials": [
+    {
+      "platform": "rundeck",
+      "name": "Rundeck",
+      "n8n_credential": "rundeckApi",
+      "n8n_field_map": {
+        "url": "url",
+        "token": "token"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "url",
+          "label": "Rundeck URL",
+          "required": true,
+          "help": "e.g. https://rundeck.example.com:4440"
+        },
+        {
+          "key": "token",
+          "label": "API token",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "headers": {
+          "X-Rundeck-Auth-Token": "{{ cred.token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "job",
+      "label": "Job"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "job",
+      "operation": "execute",
+      "title": "Run a job",
+      "method": "POST",
+      "path": "/api/14/job/{{ p.jobid }}/run",
+      "fields": [
+        {
+          "key": "jobid",
+          "label": "Job ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "arguments",
+          "label": "Arguments",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "arguments"
+          ],
+          "help": "{arguments: [{name, value}]} → -name value"
+        },
+        {
+          "key": "filter",
+          "label": "Node filter",
+          "type": "text",
+          "default": ""
+        }
+      ],
+      "query": {
+        "filter": "{{ p.filter }}"
+      },
+      "body": {
+        "!argString": {
+          "$join": {
+            "$map": "{{ p.arguments.arguments }}",
+            "$to": "-{{ el.name }} {{ el.value }}"
+          },
+          "$sep": " "
+        }
+      }
+    },
+    {
+      "resource": "job",
+      "operation": "getMetadata",
+      "title": "Get job metadata",
+      "method": "GET",
+      "path": "/api/18/job/{{ p.jobid }}/info",
+      "fields": [
+        {
+          "key": "jobid",
+          "label": "Job ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    }
+  ]
+}

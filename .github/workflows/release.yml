@@ -27,16 +27,52 @@ jobs:
   # ─── 0. Test gate — vet/test both Go modules and the frontend. Nothing else
   # in this workflow runs (not even tag creation) until this passes, since
   # every push to master otherwise auto-releases regardless of test outcome.
+  #
+  # The root module's vet and tests are skipped when CI already passed for the
+  # same code: a CI run on this SHA, or -- for a PR merge commit -- the PR's CI
+  # run on its head (the second parent) that started after the first parent
+  # landed on master. That run tested the PR merged into exactly that parent,
+  # which is this commit. Anything else runs them as before.
   test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+
+      - name: Did CI already pass for this code?
+        id: ci
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          passed=false
+          runs() { gh api "repos/$REPO/actions/workflows/ci.yml/runs?head_sha=$1&$2&per_page=50" --jq "$3" || true; }
+          if [ -n "$(runs "$SHA" status=success '.workflow_runs[].id')" ]; then
+            echo "CI passed on $SHA"; passed=true
+          elif p1=$(git rev-parse -q --verify "$SHA^1") && p2=$(git rev-parse -q --verify "$SHA^2"); then
+            pr=$(gh api "repos/$REPO/commits/$SHA/pulls" --jq ".[] | select(.merge_commit_sha == \"$SHA\" and .base.ref == \"$BRANCH\" and .head.sha == \"$p2\") | .number" || true)
+            landed=$(runs "$p1" event=push '[.workflow_runs[].created_at] | min // empty')
+            if [ -n "$pr" ] && [ -n "$landed" ] &&
+              [ -n "$(runs "$p2" 'event=pull_request&status=success' ".workflow_runs[] | select(.created_at > \"$landed\") | .id")" ]; then
+              echo "CI passed on PR #$pr merged into $p1 (on $BRANCH since $landed), which is $SHA"; passed=true
+            fi
+          fi
+          [ "$passed" = true ] || echo "no successful CI run for this code: running vet and tests here"
+          echo "passed=$passed" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
 
       - name: Vet and test core (root module)
+        if: steps.ci.outputs.passed != 'true'
         run: |
           go vet ./...
           go test -timeout 25m ./...
@@ -789,10 +825,10 @@ jobs:
               echo "::error::Signing key ${keyid} is already pinned in internal/release/keys.go, but RELEASE_SIGNING_BOOTSTRAP is still true. Owner: delete the variable (gh variable delete RELEASE_SIGNING_BOOTSTRAP) and re-run."
               exit 1
             fi
-            go run ./cmd/monoagentcli release verify signed/manifest.json signed/manifest.json.sig
+            MONOAGENT_DEV_ENFORCE_FROM=2099-01-01T00:00:00Z go run -tags devaccount ./cmd/monoagentcli release verify signed/manifest.json signed/manifest.json.sig
           elif [ "${BOOTSTRAP}" = "true" ]; then
             echo "::warning::Bootstrap: signing key ${keyid} is NOT pinned in internal/release/keys.go; verifying against the key derived from the secret. Unset RELEASE_SIGNING_BOOTSTRAP after this release."
-            go run ./cmd/monoagentcli release verify --pubkey "$(cat signed/signing-pubkey.txt)" signed/manifest.json signed/manifest.json.sig
+            MONOAGENT_DEV_ENFORCE_FROM=2099-01-01T00:00:00Z go run -tags devaccount ./cmd/monoagentcli release verify --pubkey "$(cat signed/signing-pubkey.txt)" signed/manifest.json signed/manifest.json.sig
           else
             echo "::error::Signing key ${keyid} is not pinned in internal/release/keys.go, so no client would trust this signature. Pin it, or (first release only) set the repository variable RELEASE_SIGNING_BOOTSTRAP=true."
             exit 1
@@ -863,7 +899,10 @@ jobs:
             [ -f "${signed}/${f}" ] || { echo "::error::signed-manifest artifact lacks ${f}; refusing to publish."; exit 1; }
           done
           go build -o "${RUNNER_TEMP}/release-manifest" ./cmd/release-manifest
-          go build -o "${RUNNER_TEMP}/monoagentcli" ./cmd/monoagentcli
+          # `release` needs a monoes.me sign-in like every other command; CI has none, so this
+          # verifier is a devaccount build run in the warn period (release keys are the same).
+          go build -tags devaccount -o "${RUNNER_TEMP}/monoagentcli-verify" ./cmd/monoagentcli
+          export MONOAGENT_DEV_ENFORCE_FROM=2099-01-01T00:00:00Z
 
           keyid=$(cut -d' ' -f1 "${signed}/manifest.json.sig")
           if grep -q "\"${keyid} " internal/release/keys.go; then
@@ -871,10 +910,10 @@ jobs:
               echo "::error::Signing key ${keyid} is already pinned in internal/release/keys.go, but RELEASE_SIGNING_BOOTSTRAP is still true. Owner: delete the variable (gh variable delete RELEASE_SIGNING_BOOTSTRAP) and re-run."
               exit 1
             fi
-            "${RUNNER_TEMP}/monoagentcli" release verify "${signed}/manifest.json" "${signed}/manifest.json.sig"
+            "${RUNNER_TEMP}/monoagentcli-verify" release verify "${signed}/manifest.json" "${signed}/manifest.json.sig"
           elif [ "${BOOTSTRAP}" = "true" ]; then
             echo "::warning::Bootstrap: key ${keyid} is not pinned; verifying against the key derived by sign-manifest."
-            "${RUNNER_TEMP}/monoagentcli" release verify --pubkey "$(cat "${signed}/signing-pubkey.txt")" "${signed}/manifest.json" "${signed}/manifest.json.sig"
+            "${RUNNER_TEMP}/monoagentcli-verify" release verify --pubkey "$(cat "${signed}/signing-pubkey.txt")" "${signed}/manifest.json" "${signed}/manifest.json.sig"
           else
             echo "::error::Signing key ${keyid} is not pinned in internal/release/keys.go and RELEASE_SIGNING_BOOTSTRAP is not true."
             exit 1

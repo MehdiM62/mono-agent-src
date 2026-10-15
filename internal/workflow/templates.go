@@ -3,7 +3,6 @@ package workflow
 import (
 	"embed"
 	"encoding/json"
-	"regexp"
 	"sort"
 	"strings"
 )
@@ -14,52 +13,57 @@ var templateFS embed.FS
 // Template describes a bundled, ready-to-use workflow definition that a user
 // can instantiate with one command/click instead of building it node-by-node.
 type Template struct {
-	ID          string   `json:"id"`
-	Name        string   `json:"name"`
-	Description string   `json:"description"`
-	Inputs      []string `json:"inputs"` // trigger-data keys the template reads, e.g. ["prompts"]
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	// Summary is one plain sentence for app users: what the template does,
+	// with no CLI syntax. Description stays the CLI-oriented text.
+	Summary string   `json:"summary,omitempty"`
+	Inputs  []string `json:"inputs"` // trigger-data keys the template reads, e.g. ["prompts"]
 }
 
-// triggerInputPattern matches references to trigger data in node configs —
-// {{ $json.prompt }} and the ($node["Trigger"].json.prompts) form the
-// multi-node templates use.
-var triggerInputPattern = regexp.MustCompile(`\$(?:json|node\[[^\]]*\])\.json\.([A-Za-z_][A-Za-z0-9_]*)|\$json\.([A-Za-z_][A-Za-z0-9_]*)`)
+// templateMeta holds the template-only keys of a bundled template file —
+// keys a saved workflow does not have, so WorkflowFile does not carry them.
+type templateMeta struct {
+	Summary string `json:"summary"`
+	// Order pins a template ahead of the alphabetical rest: templates with
+	// an order > 0 are listed first, lowest order first.
+	Order int `json:"order"`
+}
 
 // templateInputs returns the trigger-data keys a template reads, sorted and
 // deduplicated. These are exactly the keys that belong in
 // `workflow templates run <id> --input '{...}'`, derived from the template
-// itself so the docs can never drift from the definition.
+// itself so the docs can never drift from the definition. The rule is
+// TriggerInputs': $json counts only in a node the trigger feeds directly.
 func templateInputs(wf WorkflowFile) []string {
-	seen := map[string]bool{}
+	nodes := make([]WorkflowNode, 0, len(wf.Nodes))
 	for _, n := range wf.Nodes {
-		raw, err := json.Marshal(n.Config)
-		if err != nil {
-			continue
-		}
-		for _, m := range triggerInputPattern.FindAllStringSubmatch(string(raw), -1) {
-			for _, group := range m[1:] {
-				if group != "" {
-					seen[group] = true
-				}
-			}
-		}
+		nodes = append(nodes, WorkflowNode{ID: n.ID, Type: n.Type, Name: n.Name, Config: n.Config})
 	}
-	out := make([]string, 0, len(seen))
-	for k := range seen {
-		out = append(out, k)
+	conns := make([]WorkflowConnection, 0, len(wf.Connections))
+	for _, c := range wf.Connections {
+		conns = append(conns, WorkflowConnection{SourceNodeID: c.Source, TargetNodeID: c.Target})
+	}
+	noSchemas := func(string) (*NodeSchema, error) { return nil, nil }
+	fields := TriggerInputs(nodes, conns, noSchemas)
+	out := make([]string, 0, len(fields))
+	for _, f := range fields {
+		out = append(out, f.Name)
 	}
 	sort.Strings(out)
 	return out
 }
 
-var templateFiles = loadTemplateFiles()
+var templateFiles, templateMetas = loadTemplateFiles()
 
-func loadTemplateFiles() map[string]WorkflowFile {
+func loadTemplateFiles() (map[string]WorkflowFile, map[string]templateMeta) {
 	entries, err := templateFS.ReadDir("templates")
 	if err != nil {
-		return nil
+		return nil, nil
 	}
 	out := make(map[string]WorkflowFile, len(entries))
+	metas := make(map[string]templateMeta, len(entries))
 	for _, e := range entries {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
 			continue
@@ -72,13 +76,19 @@ func loadTemplateFiles() map[string]WorkflowFile {
 		if err := json.Unmarshal(data, &wf); err != nil {
 			continue
 		}
+		var meta templateMeta
+		if err := json.Unmarshal(data, &meta); err != nil {
+			continue
+		}
 		id := strings.TrimSuffix(e.Name(), ".json")
 		out[id] = wf
+		metas[id] = meta
 	}
-	return out
+	return out, metas
 }
 
-// ListTemplates returns metadata for all bundled workflow templates, sorted by name.
+// ListTemplates returns metadata for all bundled workflow templates: those
+// with an explicit order first (lowest first), then the rest by name.
 func ListTemplates() []Template {
 	out := make([]Template, 0, len(templateFiles))
 	for id, wf := range templateFiles {
@@ -86,11 +96,32 @@ func ListTemplates() []Template {
 			ID:          id,
 			Name:        wf.Name,
 			Description: wf.Description,
+			Summary:     templateMetas[id].Summary,
 			Inputs:      templateInputs(wf),
 		})
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	sort.Slice(out, func(i, j int) bool {
+		oi, oj := templateMetas[out[i].ID].Order, templateMetas[out[j].ID].Order
+		if (oi > 0) != (oj > 0) {
+			return oi > 0
+		}
+		if oi != oj {
+			return oi < oj
+		}
+		return out[i].Name < out[j].Name
+	})
 	return out
+}
+
+// SavedTemplateDescription is the description a workflow made from template
+// templateID is saved with: the template's Summary, which reads as plain
+// text in the app, else its CLI-oriented Description ("Run with: workflow
+// templates run …" means nothing on a saved copy). "" for an unknown id.
+func SavedTemplateDescription(templateID string) string {
+	if s := templateMetas[templateID].Summary; s != "" {
+		return s
+	}
+	return templateFiles[templateID].Description
 }
 
 // GetTemplate returns the workflow definition for a bundled template, keyed by

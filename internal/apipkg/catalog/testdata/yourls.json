@@ -1,0 +1,68 @@
+{
+  "url.shorten": {
+    "params": {
+      "url": "https://example.com/long",
+      "additionalFields": {
+        "keyword": "ex"
+      }
+    },
+    "credential": {
+      "url": "https://sho.rt",
+      "signature": "sig"
+    },
+    "response": {
+      "status": "success",
+      "shorturl": "https://sho.rt/ex"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/yourls-api.php",
+      "query": {
+        "action": "shorturl",
+        "url": "https://example.com/long",
+        "keyword": "ex"
+      },
+      "items": 1
+    }
+  },
+  "url.expand": {
+    "params": {
+      "shortUrl": "https://sho.rt/ex"
+    },
+    "credential": {
+      "url": "https://sho.rt",
+      "signature": "sig"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/yourls-api.php",
+      "query": {
+        "action": "expand",
+        "shorturl": "https://sho.rt/ex"
+      }
+    }
+  },
+  "url.stats": {
+    "params": {
+      "shortUrl": "https://sho.rt/ex"
+    },
+    "credential": {
+      "url": "https://sho.rt",
+      "signature": "sig"
+    },
+    "response": {
+      "link": {
+        "clicks": "3"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/yourls-api.php",
+      "query": {
+        "action": "url-stats",
+        "shorturl": "https://sho.rt/ex"
+      },
+      "items": 1
+    }
+  }
+}

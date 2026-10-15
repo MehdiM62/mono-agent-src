@@ -1,0 +1,755 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "aws_s3",
+  "node_type": "app.aws_s3",
+  "title": "AWS S3",
+  "description": "Buckets, folders and files in Amazon S3 (path-style; the bucket's region is looked up first)",
+  "category": "app",
+  "docs_url": "https://docs.aws.amazon.com/AmazonS3/latest/API/",
+  "n8n_types": [
+    "n8n-nodes-base.awsS3"
+  ],
+  "base_url": "https://s3.{{ cred.region | default:'us-east-1' }}.amazonaws.com{{ cred.region | matches:'^cn-' | then:'.cn' }}",
+  "credentials": [
+    {
+      "platform": "aws",
+      "reuse_platform": "aws",
+      "name": "AWS",
+      "n8n_credential": "aws",
+      "n8n_field_map": {
+        "accessKeyId": "access_key_id",
+        "secretAccessKey": "secret_access_key",
+        "sessionToken": "session_token",
+        "region": "region",
+        "stsAccessKeyId": "access_key_id",
+        "stsSecretAccessKey": "secret_access_key",
+        "stsSessionToken": "session_token",
+        "roleArn": "role_arn",
+        "externalId": "external_id",
+        "roleSessionName": "role_session_name"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "access_key_id",
+          "label": "Access key ID",
+          "required": true
+        },
+        {
+          "key": "secret_access_key",
+          "label": "Secret access key",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "region",
+          "label": "Region",
+          "help": "Default us-east-1"
+        },
+        {
+          "key": "session_token",
+          "label": "Session token",
+          "secret": true,
+          "help": "Only for temporary credentials"
+        }
+      ],
+      "inject": {
+        "aws_sigv4": {
+          "service": "s3",
+          "region": "{{ p.additionalFields.region | default:(pres.0 | then:(pres.0.LocationConstraint | eq:'EU' | then:'eu-west-1' | default:pres.0.LocationConstraint | default:'us-east-1')) | default:cred.region | default:'us-east-1' }}"
+        }
+      },
+      "n8n_credential_alt": [
+        "awsAssumeRole"
+      ]
+    }
+  ],
+  "resources": [
+    {
+      "value": "file",
+      "label": "File"
+    },
+    {
+      "value": "bucket",
+      "label": "Bucket"
+    },
+    {
+      "value": "folder",
+      "label": "Folder"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "file",
+      "operation": "download",
+      "title": "Download a file",
+      "method": "GET",
+      "path": "/{{ p.bucketName }}/{{ p.fileKey | path }}",
+      "fields": [
+        {
+          "key": "bucketName",
+          "label": "Bucket",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "fileKey",
+          "label": "File key",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Binary property",
+          "type": "text",
+          "default": "data"
+        }
+      ],
+      "binary": {
+        "download": true,
+        "property_field": "binaryPropertyName",
+        "file_name": "{{ p.fileKey | split:'/' | get:'-1' }}"
+      },
+      "base_url": "https://s3.{{ (pres.0 | then:(pres.0.LocationConstraint | eq:'EU' | then:'eu-west-1' | default:pres.0.LocationConstraint | default:'us-east-1')) | default:cred.region | default:'us-east-1' }}.amazonaws.com{{ cred.region | matches:'^cn-' | then:'.cn' }}",
+      "before": [
+        {
+          "method": "GET",
+          "path": "/{{ p.bucketName }}",
+          "query": {
+            "!location": ""
+          }
+        }
+      ]
+    },
+    {
+      "resource": "file",
+      "operation": "copy",
+      "title": "Copy a file",
+      "method": "PUT",
+      "path": "{{ p.destinationPath | path }}",
+      "fields": [
+        {
+          "key": "sourcePath",
+          "label": "Source path",
+          "type": "text",
+          "required": true,
+          "help": "/bucket/key"
+        },
+        {
+          "key": "destinationPath",
+          "label": "Destination path",
+          "type": "text",
+          "required": true,
+          "help": "/bucket/key"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "acl",
+            "lockLegalHold",
+            "lockMode",
+            "lockRetainUntilDate",
+            "requesterPays",
+            "serverSideEncryption",
+            "serverSideEncryptionContext",
+            "encryptionAwsKmsKeyId",
+            "serversideEncryptionCustomerAlgorithm",
+            "serversideEncryptionCustomerKey",
+            "serversideEncryptionCustomerKeyMD5",
+            "storageClass",
+            "metadataDirective",
+            "taggingDirective"
+          ]
+        }
+      ],
+      "headers": {
+        "x-amz-request-payer": "{{ p.additionalFields.requesterPays | bool | eq:'true' | then:'requester' }}",
+        "x-amz-storage-class": "{{ p.additionalFields.storageClass | replace:'IA','_IA' | replace:'Archive','_Archive' | replace:'Tiering','_Tiering' | replace:'RecudedRedundancy','REDUCED_REDUNDANCY' | upper }}",
+        "x-amz-acl": "{{ p.additionalFields.acl | replace:'Read','-read' | replace:'Exec','-exec' | replace:'Owner','-owner' | replace:'Full','-full' | replace:'Control','-control' | replace:'Write','-write' | lower }}",
+        "x-amz-object-lock-legal-hold": "{{ p.additionalFields.lockLegalHold | bool | eq:'true' | then:'ON' }}",
+        "x-amz-object-lock-mode": "{{ p.additionalFields.lockMode | upper }}",
+        "x-amz-object-lock-retain-until-date": "{{ p.additionalFields.lockRetainUntilDate }}",
+        "x-amz-server-side-encryption": "{{ p.additionalFields.serverSideEncryption }}",
+        "x-amz-server-side-encryption-aws-kms-key-id": "{{ p.additionalFields.encryptionAwsKmsKeyId }}",
+        "x-amz-server-side-encryption-context": "{{ p.additionalFields.serverSideEncryptionContext }}",
+        "x-amz-server-side-encryption-customer-algorithm": "{{ p.additionalFields.serversideEncryptionCustomerAlgorithm }}",
+        "x-amz-server-side-encryption-customer-key": "{{ p.additionalFields.serversideEncryptionCustomerKey }}",
+        "x-amz-server-side-encryption-customer-key-MD5": "{{ p.additionalFields.serversideEncryptionCustomerKeyMD5 }}",
+        "x-amz-copy-source": "{{ p.sourcePath }}",
+        "x-amz-tagging-directive": "{{ p.additionalFields.taggingDirective | upper }}",
+        "x-amz-metadata-directive": "{{ p.additionalFields.metadataDirective | upper }}"
+      },
+      "output": {
+        "path": "CopyObjectResult"
+      },
+      "base_url": "https://s3.{{ (pres.0 | then:(pres.0.LocationConstraint | eq:'EU' | then:'eu-west-1' | default:pres.0.LocationConstraint | default:'us-east-1')) | default:cred.region | default:'us-east-1' }}.amazonaws.com{{ cred.region | matches:'^cn-' | then:'.cn' }}",
+      "before": [
+        {
+          "method": "GET",
+          "path": "/{{ p.destinationPath | re:'^/?([^/]+)' }}",
+          "query": {
+            "!location": ""
+          }
+        }
+      ]
+    },
+    {
+      "resource": "file",
+      "operation": "delete",
+      "title": "Delete a file",
+      "method": "DELETE",
+      "path": "/{{ p.bucketName }}/{{ p.fileKey | path }}",
+      "fields": [
+        {
+          "key": "bucketName",
+          "label": "Bucket",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "fileKey",
+          "label": "File key",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "versionId"
+          ]
+        }
+      ],
+      "query": {
+        "versionId": "{{ p.options.versionId }}"
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      },
+      "base_url": "https://s3.{{ (pres.0 | then:(pres.0.LocationConstraint | eq:'EU' | then:'eu-west-1' | default:pres.0.LocationConstraint | default:'us-east-1')) | default:cred.region | default:'us-east-1' }}.amazonaws.com{{ cred.region | matches:'^cn-' | then:'.cn' }}",
+      "before": [
+        {
+          "method": "GET",
+          "path": "/{{ p.bucketName }}",
+          "query": {
+            "!location": ""
+          }
+        }
+      ]
+    },
+    {
+      "resource": "file",
+      "operation": "getAll",
+      "title": "Get many files",
+      "method": "GET",
+      "path": "/{{ p.bucketName }}",
+      "fields": [
+        {
+          "key": "bucketName",
+          "label": "Bucket",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fetchOwner",
+            "folderKey"
+          ]
+        }
+      ],
+      "query": {
+        "list-type": "2",
+        "delimiter": "/",
+        "prefix": "{{ p.options.folderKey }}",
+        "fetch-owner": "{{ p.options.fetchOwner }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "continuation-token",
+        "cursor_path": "ListBucketResult.NextContinuationToken",
+        "limit_param": "max-keys",
+        "page_size": 1000,
+        "results_path": "ListBucketResult.Contents"
+      },
+      "base_url": "https://s3.{{ (pres.0 | then:(pres.0.LocationConstraint | eq:'EU' | then:'eu-west-1' | default:pres.0.LocationConstraint | default:'us-east-1')) | default:cred.region | default:'us-east-1' }}.amazonaws.com{{ cred.region | matches:'^cn-' | then:'.cn' }}",
+      "before": [
+        {
+          "method": "GET",
+          "path": "/{{ p.bucketName }}",
+          "query": {
+            "!location": ""
+          }
+        }
+      ]
+    },
+    {
+      "resource": "file",
+      "operation": "upload",
+      "title": "Upload a file",
+      "method": "PUT",
+      "path": "/{{ p.bucketName }}/{{ p.additionalFields.parentFolderKey | then:p.additionalFields.parentFolderKey | path }}{{ p.additionalFields.parentFolderKey | then:'/' }}{{ p.fileName | default:bin.file_name }}",
+      "fields": [
+        {
+          "key": "bucketName",
+          "label": "Bucket",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "fileName",
+          "label": "File name",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "binaryData",
+          "label": "Binary file",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "fileContent",
+          "label": "File content",
+          "type": "textarea",
+          "default": ""
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Binary property",
+          "type": "text",
+          "default": "data"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "acl",
+            "lockLegalHold",
+            "lockMode",
+            "lockRetainUntilDate",
+            "requesterPays",
+            "serverSideEncryption",
+            "serverSideEncryptionContext",
+            "encryptionAwsKmsKeyId",
+            "serversideEncryptionCustomerAlgorithm",
+            "serversideEncryptionCustomerKey",
+            "serversideEncryptionCustomerKeyMD5",
+            "storageClass",
+            "parentFolderKey"
+          ]
+        },
+        {
+          "key": "tagsUi",
+          "label": "Tags",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "tagsValues"
+          ],
+          "help": "{tagsValues: [{key, value}]}"
+        }
+      ],
+      "headers": {
+        "x-amz-request-payer": "{{ p.additionalFields.requesterPays | bool | eq:'true' | then:'requester' }}",
+        "x-amz-storage-class": "{{ p.additionalFields.storageClass | replace:'IA','_IA' | replace:'Archive','_Archive' | replace:'Tiering','_Tiering' | replace:'RecudedRedundancy','REDUCED_REDUNDANCY' | upper }}",
+        "x-amz-acl": "{{ p.additionalFields.acl | replace:'Read','-read' | replace:'Exec','-exec' | replace:'Owner','-owner' | replace:'Full','-full' | replace:'Control','-control' | replace:'Write','-write' | lower }}",
+        "x-amz-object-lock-legal-hold": "{{ p.additionalFields.lockLegalHold | bool | eq:'true' | then:'ON' }}",
+        "x-amz-object-lock-mode": "{{ p.additionalFields.lockMode | upper }}",
+        "x-amz-object-lock-retain-until-date": "{{ p.additionalFields.lockRetainUntilDate }}",
+        "x-amz-server-side-encryption": "{{ p.additionalFields.serverSideEncryption }}",
+        "x-amz-server-side-encryption-aws-kms-key-id": "{{ p.additionalFields.encryptionAwsKmsKeyId }}",
+        "x-amz-server-side-encryption-context": "{{ p.additionalFields.serverSideEncryptionContext }}",
+        "x-amz-server-side-encryption-customer-algorithm": "{{ p.additionalFields.serversideEncryptionCustomerAlgorithm }}",
+        "x-amz-server-side-encryption-customer-key": "{{ p.additionalFields.serversideEncryptionCustomerKey }}",
+        "x-amz-server-side-encryption-customer-key-MD5": "{{ p.additionalFields.serversideEncryptionCustomerKeyMD5 }}",
+        "x-amz-tagging": "{{ p.tagsUi.tagsValues | kv:'key,value' | json | replace:'{\"','' | replace:'\":\"','=' | replace:'\",\"','&' | replace:'\"}','' }}"
+      },
+      "body_type": "raw",
+      "binary": {
+        "upload_field": "binaryPropertyName",
+        "upload_text": "{{ p.binaryData | bool | ne:'true' | then:p.fileContent }}"
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      },
+      "base_url": "https://s3.{{ (pres.0 | then:(pres.0.LocationConstraint | eq:'EU' | then:'eu-west-1' | default:pres.0.LocationConstraint | default:'us-east-1')) | default:cred.region | default:'us-east-1' }}.amazonaws.com{{ cred.region | matches:'^cn-' | then:'.cn' }}",
+      "before": [
+        {
+          "method": "GET",
+          "path": "/{{ p.bucketName }}",
+          "query": {
+            "!location": ""
+          }
+        }
+      ]
+    },
+    {
+      "resource": "bucket",
+      "operation": "create",
+      "title": "Create a bucket",
+      "method": "PUT",
+      "path": "/{{ p.name }}",
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "acl",
+            "bucketObjectLockEnabled",
+            "region"
+          ]
+        }
+      ],
+      "headers": {
+        "x-amz-acl": "{{ p.additionalFields.acl | replace:'Read','-read' | replace:'Exec','-exec' | replace:'Owner','-owner' | replace:'Full','-full' | replace:'Control','-control' | replace:'Write','-write' | lower }}",
+        "x-amz-bucket-object-lock-enabled": "{{ p.additionalFields.bucketObjectLockEnabled | bool | eq:'true' | then:'true' }}",
+        "Content-Type": "application/xml"
+      },
+      "body_type": "raw",
+      "body": "{{ p.additionalFields.region | default:cred.region | default:'us-east-1' | ne:'us-east-1' | then:'<CreateBucketConfiguration xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\"><LocationConstraint>' }}{{ p.additionalFields.region | default:cred.region | default:'us-east-1' | ne:'us-east-1' | then:(p.additionalFields.region | default:cred.region | default:'us-east-1') }}{{ p.additionalFields.region | default:cred.region | default:'us-east-1' | ne:'us-east-1' | then:'</LocationConstraint></CreateBucketConfiguration>' }}",
+      "output": {
+        "to": {
+          "success": true
+        }
+      },
+      "base_url": "https://s3.{{ p.additionalFields.region | default:(pres.0 | then:(pres.0.LocationConstraint | eq:'EU' | then:'eu-west-1' | default:pres.0.LocationConstraint | default:'us-east-1')) | default:cred.region | default:'us-east-1' }}.amazonaws.com{{ cred.region | matches:'^cn-' | then:'.cn' }}"
+    },
+    {
+      "resource": "bucket",
+      "operation": "delete",
+      "title": "Delete a bucket",
+      "method": "DELETE",
+      "path": "/{{ p.name }}",
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      },
+      "base_url": "https://s3.{{ (pres.0 | then:(pres.0.LocationConstraint | eq:'EU' | then:'eu-west-1' | default:pres.0.LocationConstraint | default:'us-east-1')) | default:cred.region | default:'us-east-1' }}.amazonaws.com{{ cred.region | matches:'^cn-' | then:'.cn' }}"
+    },
+    {
+      "resource": "bucket",
+      "operation": "getAll",
+      "title": "Get many buckets",
+      "method": "GET",
+      "path": "/",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        }
+      ],
+      "output": {
+        "path": "ListAllMyBucketsResult.Buckets.Bucket",
+        "limit": true
+      },
+      "base_url": "https://s3.{{ (pres.0 | then:(pres.0.LocationConstraint | eq:'EU' | then:'eu-west-1' | default:pres.0.LocationConstraint | default:'us-east-1')) | default:cred.region | default:'us-east-1' }}.amazonaws.com{{ cred.region | matches:'^cn-' | then:'.cn' }}"
+    },
+    {
+      "resource": "bucket",
+      "operation": "search",
+      "title": "Search a bucket",
+      "method": "GET",
+      "path": "/{{ p.bucketName }}",
+      "fields": [
+        {
+          "key": "bucketName",
+          "label": "Bucket",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "delimiter",
+            "encodingType",
+            "fetchOwner",
+            "prefix",
+            "requesterPays",
+            "startAfter",
+            "includeCommonPrefixes"
+          ]
+        }
+      ],
+      "query": {
+        "list-type": "2",
+        "prefix": "{{ p.additionalFields.prefix }}",
+        "encoding-type": "{{ p.additionalFields.encodingType }}",
+        "delimiter": "{{ p.additionalFields.delimiter }}",
+        "fetch-owner": "{{ p.additionalFields.fetchOwner }}",
+        "start-after": "{{ p.additionalFields.startAfter }}"
+      },
+      "headers": {
+        "x-amz-request-payer": "{{ p.additionalFields.requesterPays | bool | eq:'true' | then:'requester' }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "continuation-token",
+        "cursor_path": "ListBucketResult.NextContinuationToken",
+        "limit_param": "max-keys",
+        "page_size": 1000
+      },
+      "base_url": "https://s3.{{ (pres.0 | then:(pres.0.LocationConstraint | eq:'EU' | then:'eu-west-1' | default:pres.0.LocationConstraint | default:'us-east-1')) | default:cred.region | default:'us-east-1' }}.amazonaws.com{{ cred.region | matches:'^cn-' | then:'.cn' }}",
+      "before": [
+        {
+          "method": "GET",
+          "path": "/{{ p.bucketName }}",
+          "query": {
+            "!location": ""
+          }
+        }
+      ],
+      "output": {
+        "path": "{{ p.additionalFields.delimiter | then:(p.additionalFields.includeCommonPrefixes | then:'ListBucketResult.CommonPrefixes') | default:'ListBucketResult.Contents' }}"
+      }
+    },
+    {
+      "resource": "folder",
+      "operation": "create",
+      "title": "Create a folder",
+      "method": "PUT",
+      "path": "/{{ p.bucketName }}/{{ p.additionalFields.parentFolderKey | path }}{{ p.folderName | path }}/",
+      "fields": [
+        {
+          "key": "bucketName",
+          "label": "Bucket",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "folderName",
+          "label": "Folder name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "parentFolderKey",
+            "requesterPays",
+            "storageClass"
+          ],
+          "help": "parentFolderKey must end with /"
+        }
+      ],
+      "headers": {
+        "x-amz-request-payer": "{{ p.additionalFields.requesterPays | bool | eq:'true' | then:'requester' }}",
+        "x-amz-storage-class": "{{ p.additionalFields.storageClass | replace:'IA','_IA' | replace:'Archive','_Archive' | replace:'Tiering','_Tiering' | replace:'RecudedRedundancy','REDUCED_REDUNDANCY' | upper }}"
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      },
+      "base_url": "https://s3.{{ (pres.0 | then:(pres.0.LocationConstraint | eq:'EU' | then:'eu-west-1' | default:pres.0.LocationConstraint | default:'us-east-1')) | default:cred.region | default:'us-east-1' }}.amazonaws.com{{ cred.region | matches:'^cn-' | then:'.cn' }}",
+      "before": [
+        {
+          "method": "GET",
+          "path": "/{{ p.bucketName }}",
+          "query": {
+            "!location": ""
+          }
+        }
+      ]
+    },
+    {
+      "resource": "folder",
+      "operation": "delete",
+      "title": "Delete a folder",
+      "description": "Deletes the folder marker and every object under it",
+      "method": "DELETE",
+      "path": "/{{ p.bucketName }}/{{ p.folderKey | path }}",
+      "fields": [
+        {
+          "key": "bucketName",
+          "label": "Bucket",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "folderKey",
+          "label": "Folder key",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "before": [
+        {
+          "method": "GET",
+          "path": "/{{ p.bucketName }}",
+          "query": {
+            "!location": ""
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/{{ p.bucketName }}",
+          "query": {
+            "list-type": "2",
+            "prefix": "{{ p.folderKey }}"
+          }
+        }
+      ],
+      "also": [
+        {
+          "for_each": "{{ pres.1.ListBucketResult.Contents }}",
+          "when": "{{ el.Key | ne:p.folderKey }}",
+          "method": "DELETE",
+          "path": "/{{ p.bucketName }}/{{ el.Key | path }}"
+        }
+      ],
+      "output": {
+        "to": {
+          "deleted": [
+            {
+              "Key": "{{ p.folderKey }}"
+            }
+          ]
+        }
+      },
+      "base_url": "https://s3.{{ (pres.0 | then:(pres.0.LocationConstraint | eq:'EU' | then:'eu-west-1' | default:pres.0.LocationConstraint | default:'us-east-1')) | default:cred.region | default:'us-east-1' }}.amazonaws.com{{ cred.region | matches:'^cn-' | then:'.cn' }}"
+    },
+    {
+      "resource": "folder",
+      "operation": "getAll",
+      "title": "Get many folders",
+      "method": "GET",
+      "path": "/{{ p.bucketName }}",
+      "fields": [
+        {
+          "key": "bucketName",
+          "label": "Bucket",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fetchOwner",
+            "folderKey"
+          ]
+        }
+      ],
+      "query": {
+        "list-type": "2",
+        "delimiter": "/",
+        "prefix": "{{ p.options.folderKey }}",
+        "fetch-owner": "{{ p.options.fetchOwner }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "continuation-token",
+        "cursor_path": "ListBucketResult.NextContinuationToken",
+        "limit_param": "max-keys",
+        "page_size": 1000,
+        "results_path": "ListBucketResult.CommonPrefixes"
+      },
+      "base_url": "https://s3.{{ (pres.0 | then:(pres.0.LocationConstraint | eq:'EU' | then:'eu-west-1' | default:pres.0.LocationConstraint | default:'us-east-1')) | default:cred.region | default:'us-east-1' }}.amazonaws.com{{ cred.region | matches:'^cn-' | then:'.cn' }}",
+      "before": [
+        {
+          "method": "GET",
+          "path": "/{{ p.bucketName }}",
+          "query": {
+            "!location": ""
+          }
+        }
+      ],
+      "output": {
+        "to": {
+          "Key": "{{ el.Prefix }}",
+          "Prefix": "{{ el.Prefix }}"
+        }
+      }
+    }
+  ]
+}

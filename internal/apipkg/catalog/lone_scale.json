@@ -1,0 +1,412 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "lone_scale",
+  "node_type": "app.lone_scale",
+  "title": "LoneScale",
+  "description": "Lists, list items, contact enrichment and sourcing, and company search in LoneScale",
+  "category": "app",
+  "docs_url": "https://public-api.lonescale.com/",
+  "n8n_types": [
+    "n8n-nodes-base.loneScale"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.loneScaleTrigger"
+  ],
+  "base_url": "https://public-api.lonescale.com",
+  "headers": {
+    "Accept": "application/json"
+  },
+  "credentials": [
+    {
+      "platform": "lone_scale",
+      "name": "LoneScale",
+      "n8n_credential": "loneScaleApi",
+      "n8n_field_map": {
+        "apiKey": "api_key"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "headers": {
+          "X-API-KEY": "{{ cred.api_key }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "list",
+      "label": "List"
+    },
+    {
+      "value": "item",
+      "label": "Item"
+    },
+    {
+      "value": "contact",
+      "label": "Contact"
+    },
+    {
+      "value": "company",
+      "label": "Company"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "list",
+      "operation": "create",
+      "title": "Create a list",
+      "method": "POST",
+      "path": "/lists",
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "type",
+          "label": "Type",
+          "type": "select",
+          "options": [
+            "COMPANY",
+            "PEOPLE"
+          ],
+          "default": "COMPANY"
+        }
+      ],
+      "body": {
+        "name": "{{ p.name }}",
+        "entity": "{{ p.type }}"
+      }
+    },
+    {
+      "resource": "item",
+      "operation": "add",
+      "title": "Add an item to a list",
+      "method": "POST",
+      "path": "/lists/{{ p.list }}/item",
+      "fields": [
+        {
+          "key": "type",
+          "label": "Type",
+          "type": "select",
+          "options": [
+            "COMPANY",
+            "PEOPLE"
+          ],
+          "default": "PEOPLE"
+        },
+        {
+          "key": "list",
+          "label": "List ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "first_name",
+          "label": "First name",
+          "type": "text",
+          "default": "",
+          "help": "Contact items"
+        },
+        {
+          "key": "last_name",
+          "label": "Last name",
+          "type": "text",
+          "default": "",
+          "help": "Contact items"
+        },
+        {
+          "key": "company_name",
+          "label": "Company name",
+          "type": "text",
+          "default": "",
+          "help": "Company items"
+        },
+        {
+          "key": "peopleAdditionalFields",
+          "label": "Contact fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "full_name",
+            "email",
+            "company_name",
+            "current_position",
+            "domain",
+            "linkedin_url",
+            "location",
+            "contact_id"
+          ]
+        },
+        {
+          "key": "companyAdditionalFields",
+          "label": "Company fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "linkedin_url",
+            "domain",
+            "location",
+            "contact_id"
+          ]
+        }
+      ],
+      "body": {
+        "first_name": "{{ p.type | eq:'PEOPLE' | then:p.first_name }}",
+        "last_name": "{{ p.type | eq:'PEOPLE' | then:p.last_name }}",
+        "$merge": [
+          "{{ p.type | eq:'PEOPLE' | then:p.peopleAdditionalFields }}",
+          "{{ p.type | eq:'COMPANY' | then:p.companyAdditionalFields }}"
+        ],
+        "company_name": "{{ p.type | eq:'COMPANY' | then:p.company_name }}"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "enrich",
+      "title": "Enrich a contact",
+      "method": "POST",
+      "path": "/trigger/enrich/sync",
+      "fields": [
+        {
+          "key": "enrichmentType",
+          "label": "Enrichment type",
+          "type": "multiselect",
+          "options": [
+            "email",
+            "phone",
+            "profile"
+          ],
+          "default": [
+            "email"
+          ],
+          "required": true
+        },
+        {
+          "key": "firstName",
+          "label": "First name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "lastName",
+          "label": "Last name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "enrichCompanyName",
+          "label": "Company name",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "enrichCompanyDomain",
+          "label": "Company domain",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "detectJobChange",
+          "label": "Detect job change",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "enrichAdditionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "email",
+            "contactId",
+            "jobTitle",
+            "linkedinUrl"
+          ]
+        }
+      ],
+      "body": {
+        "enrichment_type": "{{ p.enrichmentType }}",
+        "contacts": [
+          {
+            "firstname": "{{ p.firstName }}",
+            "lastname": "{{ p.lastName }}",
+            "company_name": "{{ p.enrichCompanyName }}",
+            "domain": "{{ p.enrichCompanyDomain }}",
+            "email": "{{ p.enrichAdditionalFields.email }}",
+            "job_title": "{{ p.enrichAdditionalFields.jobTitle }}",
+            "linkedin_url": "{{ p.enrichAdditionalFields.linkedinUrl }}",
+            "custom": {
+              "contact_id": "{{ p.enrichAdditionalFields.contactId }}"
+            }
+          }
+        ],
+        "detect_job_change": "{{ p.detectJobChange | eq:'true' | then:true }}"
+      },
+      "output": {
+        "path": "contacts"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "source",
+      "title": "Source contacts at a company",
+      "method": "POST",
+      "path": "/trigger/contact-sourcing/sync",
+      "fields": [
+        {
+          "key": "sourceCompanyDomain",
+          "label": "Company domain",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "sourceCompanyName",
+          "label": "Company name",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "sourceCompanyLinkedinUrl",
+          "label": "Company LinkedIn URL",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "personas",
+          "label": "Personas",
+          "type": "collection",
+          "default": {},
+          "required": true,
+          "options": [
+            "persona"
+          ],
+          "help": "persona: list of {name, jobTitles, excludeJobTitles}; titles are comma-separated"
+        },
+        {
+          "key": "sourceAdditionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "disableCompanyInfo",
+            "includedLocations",
+            "maxResults",
+            "seniorityLevels"
+          ]
+        }
+      ],
+      "body": {
+        "company_domain": "{{ p.sourceCompanyDomain }}",
+        "company_name": "{{ p.sourceCompanyName }}",
+        "company_linkedin_url": "{{ p.sourceCompanyLinkedinUrl }}",
+        "personas": {
+          "$map": "{{ p.personas.persona }}",
+          "$to": {
+            "name": "{{ el.name }}",
+            "job_titles": "{{ el.jobTitles | split }}",
+            "exclude_job_titles": "{{ el.excludeJobTitles | split }}"
+          }
+        },
+        "limit": "{{ p.sourceAdditionalFields.maxResults }}",
+        "included_locations": "{{ p.sourceAdditionalFields.includedLocations | split }}",
+        "seniority_levels": "{{ p.sourceAdditionalFields.seniorityLevels }}",
+        "disable_company_info": "{{ p.sourceAdditionalFields.disableCompanyInfo | eq:'true' | then:true }}"
+      },
+      "output": {
+        "path": "contacts"
+      }
+    },
+    {
+      "resource": "company",
+      "operation": "search",
+      "title": "Search companies",
+      "method": "GET",
+      "path": "/companies/search",
+      "fields": [
+        {
+          "key": "searchDomain",
+          "label": "Domain",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "searchLinkedinId",
+          "label": "LinkedIn ID",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "searchSlug",
+          "label": "Slug",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "searchName",
+          "label": "Name",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "searchEnrich",
+          "label": "Enrich",
+          "type": "boolean",
+          "default": false
+        }
+      ],
+      "query": {
+        "domain": "{{ p.searchDomain }}",
+        "linkedin_id": "{{ p.searchLinkedinId }}",
+        "slug": "{{ p.searchSlug }}",
+        "name": "{{ p.searchName }}",
+        "enrich": "{{ p.searchEnrich | eq:'true' | then:'true' }}"
+      },
+      "output": {
+        "path": "results"
+      }
+    }
+  ],
+  "webhook": {
+    "fields": [
+      {
+        "key": "workflow",
+        "label": "Workflow ID",
+        "type": "text",
+        "required": true
+      }
+    ],
+    "create": [
+      {
+        "method": "POST",
+        "path": "/workflows/{{ p.workflow }}/hook",
+        "body": {
+          "type": "n8n",
+          "target_url": "{{ hook.url }}"
+        }
+      }
+    ],
+    "id": "{{ res.webhook_id }}",
+    "delete": [
+      {
+        "method": "DELETE",
+        "path": "/workflows/{{ p.workflow }}/hook",
+        "query": {
+          "type": "n8n"
+        }
+      }
+    ]
+  }
+}

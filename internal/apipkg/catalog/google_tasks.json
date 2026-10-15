@@ -1,0 +1,246 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "google_tasks",
+  "node_type": "app.google_tasks",
+  "title": "Google Tasks",
+  "description": "Tasks in Google Tasks lists",
+  "category": "app",
+  "docs_url": "https://developers.google.com/tasks/reference/rest",
+  "n8n_types": [
+    "n8n-nodes-base.googleTasks"
+  ],
+  "base_url": "https://tasks.googleapis.com/tasks/v1",
+  "credentials": [
+    {
+      "platform": "google",
+      "name": "Google (Tasks scope group)",
+      "n8n_credential": "googleTasksOAuth2Api",
+      "n8n_credential_alt": [
+        "googleApi",
+        "googleOAuth2Api"
+      ],
+      "methods": [
+        "oauth"
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      },
+      "reuse_platform": "google",
+      "scope_group": "tasks"
+    }
+  ],
+  "resources": [
+    {
+      "value": "task",
+      "label": "Task"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "task",
+      "operation": "create",
+      "title": "Create a task",
+      "method": "POST",
+      "path": "/lists/{{ p.task }}/tasks",
+      "fields": [
+        {
+          "key": "task",
+          "label": "Task list ID",
+          "type": "text",
+          "required": true,
+          "help": "The task list's ID (@default for the default list)."
+        },
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "completed",
+            "deleted",
+            "dueDate",
+            "notes",
+            "parent",
+            "previous",
+            "status"
+          ],
+          "help": "status: needsAction or completed; parent/previous position the task under/after another task."
+        }
+      ],
+      "query": {
+        "parent": "{{ p.additionalFields.parent }}",
+        "previous": "{{ p.additionalFields.previous }}"
+      },
+      "body": {
+        "title": "{{ p.title }}",
+        "status": "{{ p.additionalFields.status }}",
+        "notes": "{{ p.additionalFields.notes }}",
+        "due": "{{ p.additionalFields.dueDate }}",
+        "completed": "{{ p.additionalFields.completed }}",
+        "deleted": "{{ p.additionalFields.deleted | then:true }}"
+      }
+    },
+    {
+      "resource": "task",
+      "operation": "delete",
+      "title": "Delete a task",
+      "method": "DELETE",
+      "path": "/lists/{{ p.task }}/tasks/{{ p.taskId }}",
+      "fields": [
+        {
+          "key": "task",
+          "label": "Task list ID",
+          "type": "text",
+          "required": true,
+          "help": "The task list's ID (@default for the default list)."
+        },
+        {
+          "key": "taskId",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "task",
+      "operation": "get",
+      "title": "Get a task",
+      "method": "GET",
+      "path": "/lists/{{ p.task }}/tasks/{{ p.taskId }}",
+      "fields": [
+        {
+          "key": "task",
+          "label": "Task list ID",
+          "type": "text",
+          "required": true,
+          "help": "The task list's ID (@default for the default list)."
+        },
+        {
+          "key": "taskId",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "task",
+      "operation": "getAll",
+      "title": "Get many tasks",
+      "method": "GET",
+      "path": "/lists/{{ p.task }}/tasks",
+      "fields": [
+        {
+          "key": "task",
+          "label": "Task list ID",
+          "type": "text",
+          "required": true,
+          "help": "The task list's ID (@default for the default list)."
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 20,
+          "min": 1
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "completedMax",
+            "completedMin",
+            "dueMin",
+            "dueMax",
+            "showCompleted",
+            "showDeleted",
+            "showHidden",
+            "updatedMin"
+          ]
+        }
+      ],
+      "query": {
+        "completedMax": "{{ p.additionalFields.completedMax }}",
+        "completedMin": "{{ p.additionalFields.completedMin }}",
+        "dueMin": "{{ p.additionalFields.dueMin }}",
+        "dueMax": "{{ p.additionalFields.dueMax }}",
+        "showCompleted": "{{ p.additionalFields.showCompleted | default:true }}",
+        "showDeleted": "{{ p.additionalFields.showDeleted | default:false }}",
+        "showHidden": "{{ p.additionalFields.showHidden | default:false }}",
+        "updatedMin": "{{ p.additionalFields.updatedMin }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "pageToken",
+        "cursor_path": "nextPageToken",
+        "limit_param": "maxResults",
+        "page_size": 100,
+        "results_path": "items"
+      }
+    },
+    {
+      "resource": "task",
+      "operation": "update",
+      "title": "Update a task",
+      "method": "PATCH",
+      "path": "/lists/{{ p.task }}/tasks/{{ p.taskId }}",
+      "fields": [
+        {
+          "key": "task",
+          "label": "Task list ID",
+          "type": "text",
+          "required": true,
+          "help": "The task list's ID (@default for the default list)."
+        },
+        {
+          "key": "taskId",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "completed",
+            "deleted",
+            "dueDate",
+            "notes",
+            "previous",
+            "status",
+            "title"
+          ]
+        }
+      ],
+      "query": {
+        "previous": "{{ p.updateFields.previous }}"
+      },
+      "body": {
+        "title": "{{ p.updateFields.title }}",
+        "status": "{{ p.updateFields.status }}",
+        "notes": "{{ p.updateFields.notes }}",
+        "due": "{{ p.updateFields.dueDate }}",
+        "completed": "{{ p.updateFields.completed }}",
+        "deleted": "{{ p.updateFields.deleted | then:true }}"
+      }
+    }
+  ]
+}

@@ -1,0 +1,135 @@
+{
+  "contact.get": {
+    "params": {
+      "contactId": "c1",
+      "options": {
+        "fields": "name,email"
+      }
+    },
+    "response": {
+      "contactId": "c1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v3/contacts/c1",
+      "query": {
+        "fields": "name,email"
+      },
+      "items": 1
+    }
+  },
+  "contact.create": {
+    "params": {
+      "email": "a@b.test",
+      "campaignId": "L1",
+      "additionalFields": {
+        "name": "Ada",
+        "tags": [
+          "t1"
+        ],
+        "customFieldsUi": {
+          "customFieldValues": [
+            {
+              "customFieldId": "f1",
+              "value": "x, y"
+            }
+          ]
+        }
+      }
+    },
+    "response": {},
+    "expect": {
+      "method": "POST",
+      "path": "/v3/contacts",
+      "body": {
+        "email": "a@b.test",
+        "campaign": {
+          "campaignId": "L1"
+        },
+        "name": "Ada",
+        "tags": [
+          {
+            "tagId": "t1"
+          }
+        ],
+        "customFieldValues": [
+          {
+            "customFieldId": "f1",
+            "value": [
+              "x",
+              "y"
+            ]
+          }
+        ]
+      },
+      "items": 1
+    }
+  },
+  "contact.delete": {
+    "params": {
+      "contactId": "c1",
+      "options": {
+        "messageId": "m"
+      }
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/v3/contacts/c1",
+      "query": {
+        "messageId": "m"
+      }
+    }
+  },
+  "contact.getAll": {
+    "params": {
+      "limit": 5,
+      "options": {
+        "name": "ada",
+        "createdOnFrom": "2024-01-02T03:04:05Z",
+        "sortBy": "email",
+        "exactMatch": true
+      }
+    },
+    "response": [
+      {
+        "contactId": "1"
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/v3/contacts",
+      "query": {
+        "query[name]": "ada",
+        "query[createdOn][from]": "2024-01-02T03:04:05+00:00",
+        "sort[email]": "ASC",
+        "additionalFlags": "exactMatch",
+        "page": "1",
+        "perPage": "5"
+      },
+      "items": 1
+    }
+  },
+  "contact.update": {
+    "params": {
+      "contactId": "c1",
+      "updateFields": {
+        "note": "n",
+        "campaignId": "L2"
+      }
+    },
+    "response": {
+      "contactId": "c1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v3/contacts/c1",
+      "body": {
+        "note": "n",
+        "campaign": {
+          "campaignId": "L2"
+        }
+      },
+      "items": 1
+    }
+  }
+}

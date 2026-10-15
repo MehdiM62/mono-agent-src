@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os/exec"
@@ -22,6 +23,9 @@ const nodePaletteTimeout = 30 * time.Second
 // grouped by category, each with a label, description and schema. An empty
 // palette when the CLI fails — the palette just shows nothing.
 func (a *App) GetWorkflowNodeTypes() map[string]interface{} {
+	if a.signedOut() != nil {
+		return nil
+	}
 	palette := map[string]interface{}{}
 	if err := a.cliJSON(nodePaletteTimeout, &palette, "node", "palette"); err != nil {
 		a.emitLog("SYSTEM", "WARN", "node palette: "+err.Error())
@@ -80,6 +84,9 @@ var legacyNodeTypes = map[string]string{
 }
 
 func (a *App) RunNode(req NodeRunRequest) NodeRunResult {
+	if a.signedOut() != nil {
+		return NodeRunResult{}
+	}
 	if mapped, ok := legacyNodeTypes[req.NodeType]; ok {
 		req.NodeType = mapped
 	}
@@ -196,6 +203,9 @@ func (a *App) RunNode(req NodeRunRequest) NodeRunResult {
 // (NodeRunResult.run_id). The interrupted RunNode call returns with its Error
 // field set to the kill signal.
 func (a *App) StopNodeRun(runID string) error {
+	if err := a.signedOut(); err != nil {
+		return err
+	}
 	runKey := "noderun:" + runID
 	a.runningMu.Lock()
 	cmd, ok := a.runningCmds[runKey]
@@ -210,4 +220,61 @@ func (a *App) StopNodeRun(runID string) error {
 		return fmt.Errorf("stop node run %s: %w", runID, err)
 	}
 	return nil
+}
+
+// nodeCurlTimeout bounds `node curl`, which only parses its input.
+const nodeCurlTimeout = 15 * time.Second
+
+// CurlImport is `node curl`'s http.request config for a curl command, the
+// notes it printed about what it could not carry over, or an error.
+type CurlImport struct {
+	Config map[string]interface{} `json:"config"`
+	Notes  []string               `json:"notes"`
+	Error  string                 `json:"error,omitempty"`
+}
+
+// NodeConfigFromCurl turns a curl command into an http.request node config
+// (`node curl -`, the command on stdin). No global flags: `node curl`
+// passes everything after its name to the curl parser.
+func (a *App) NodeConfigFromCurl(command string) CurlImport {
+	if a.signedOut() != nil {
+		return CurlImport{}
+	}
+	res := CurlImport{Notes: []string{}}
+	cliBin, err := findMonoAgentCLI()
+	if err != nil {
+		res.Error = err.Error()
+		return res
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), nodeCurlTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, cliBin, "node", "curl", "-")
+	suppressConsole(cmd)
+	cmd.Stdin = strings.NewReader(command)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	runErr := cmd.Run()
+	var lines []string
+	for _, l := range strings.Split(stderr.String(), "\n") {
+		if l = strings.TrimSpace(l); l != "" {
+			lines = append(lines, l)
+		}
+	}
+	if runErr != nil {
+		res.Error = runErr.Error()
+		if len(lines) > 0 {
+			res.Error = lines[len(lines)-1]
+		}
+		return res
+	}
+	for _, l := range lines {
+		if n, ok := strings.CutPrefix(l, "note: "); ok {
+			res.Notes = append(res.Notes, n)
+		}
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &res.Config); err != nil {
+		res.Error = "could not read node curl output: " + err.Error()
+	}
+	return res
 }

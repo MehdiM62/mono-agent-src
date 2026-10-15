@@ -25,26 +25,46 @@ type MySQLNode struct{}
 
 func (n *MySQLNode) Type() string { return "db.mysql" }
 
+// PerItemConfigFields declares sqlPerItemFields (see its doc comment).
+func (n *MySQLNode) PerItemConfigFields() []string { return sqlPerItemFields }
+
+// openMySQL opens a MySQL handle from a connection string; tests swap it.
+var openMySQL = func(dsn string) (*sql.DB, error) {
+	connector, err := parseMySQLDSN(dsn)
+	if err != nil {
+		return nil, fmt.Errorf("invalid connection_string: %w", err)
+	}
+	return sql.OpenDB(newMySQLConnector(connector)), nil
+}
+
 func (n *MySQLNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
+	dsn, _ := config["connection_string"].(string)
+	if dsn == "" {
+		return nil, fmt.Errorf("db.mysql: 'connection_string' is required")
+	}
+	n8nMode := isN8nSQLConfig(config)
+	if !n8nMode {
+		var err error
+		if config, err = resolveForItem(ctx, config, sqlPerItemFields, firstItem(input), input); err != nil {
+			return nil, fmt.Errorf("db.mysql: %w", err)
+		}
+	}
 	operation, _ := config["operation"].(string)
 	if operation == "" {
 		operation = "select"
 	}
 
-	dsn, _ := config["connection_string"].(string)
-	if dsn == "" {
-		return nil, fmt.Errorf("db.mysql: 'connection_string' is required")
-	}
-	connector, err := parseMySQLDSN(dsn)
+	db, err := openMySQL(dsn)
 	if err != nil {
-		return nil, fmt.Errorf("db.mysql: invalid connection_string: %w", err)
+		return nil, fmt.Errorf("db.mysql: %w", err)
 	}
-
-	db := sql.OpenDB(newMySQLConnector(connector))
 	defer db.Close()
 
 	if err := db.PingContext(ctx); err != nil {
 		return nil, fmt.Errorf("db.mysql: ping failed: %w", err)
+	}
+	if n8nMode {
+		return runSQLOps(ctx, "db.mysql", mysqlDialect, dbRunner{db}, input, config)
 	}
 
 	query, _ := config["query"].(string)

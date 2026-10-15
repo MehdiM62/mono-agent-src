@@ -21,8 +21,7 @@
       "type": "text"
     },
     {
-      "default": "default",
-      "help": "Which profile owns this application. Defaults to 'default'.",
+      "help": "Optional. Must match the workflow's profile (leave blank to use it).",
       "key": "profile_id",
       "label": "Profile ID",
       "required": false,
@@ -147,6 +146,38 @@
       "label": "Published At",
       "required": false,
       "type": "text"
+    }
+  ],
+  "outputs": [
+    {
+      "description": "Application id",
+      "key": "id",
+      "type": "string"
+    },
+    {
+      "description": "job or tender",
+      "key": "kind",
+      "type": "string"
+    },
+    {
+      "description": "\"pending\"",
+      "key": "status",
+      "type": "string"
+    },
+    {
+      "description": "profile",
+      "key": "profile_id",
+      "type": "string"
+    },
+    {
+      "description": "created",
+      "key": "created_at",
+      "type": "string"
+    },
+    {
+      "description": "updated",
+      "key": "updated_at",
+      "type": "string"
     }
   ]
 }

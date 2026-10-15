@@ -1,0 +1,201 @@
+{
+  "issue.create": {
+    "params": {
+      "teamId": "T1",
+      "title": "Bug",
+      "additionalFields": {
+        "priorityId": 2
+      }
+    },
+    "response": {
+      "data": {
+        "issueCreate": {
+          "success": true,
+          "issue": {
+            "id": "i1"
+          }
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/graphql",
+      "body": {
+        "query": "mutation IssueCreate($title: String!, $teamId: String!, $description: String, $assigneeId: String, $priorityId: Int, $stateId: String) { issueCreate(input: {title: $title, teamId: $teamId, description: $description, assigneeId: $assigneeId, priority: $priorityId, stateId: $stateId}) { success issue { id identifier title priority archivedAt createdAt description dueDate assignee { id displayName email } creator { id displayName email } state { id name } team { id name } cycle { id name } } } }",
+        "variables": {
+          "teamId": "T1",
+          "title": "Bug",
+          "priorityId": 2
+        }
+      },
+      "items": 1
+    }
+  },
+  "issue.addLink": {
+    "params": {
+      "issueId": "i1",
+      "link": "https://x.io"
+    },
+    "response": {
+      "data": {
+        "attachmentLinkURL": {
+          "success": true
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/graphql",
+      "body": {
+        "query": "mutation AttachmentLinkURL($url: String!, $issueId: String!) { attachmentLinkURL(url: $url, issueId: $issueId) { success } }",
+        "variables": {
+          "issueId": "i1",
+          "url": "https://x.io"
+        }
+      },
+      "items": 1
+    }
+  },
+  "issue.delete": {
+    "params": {
+      "issueId": "i1"
+    },
+    "response": {
+      "data": {
+        "issueDelete": {
+          "success": true
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/graphql",
+      "body": {
+        "query": "mutation IssueDelete($issueId: String!) { issueDelete(id: $issueId) { success } }",
+        "variables": {
+          "issueId": "i1"
+        }
+      },
+      "items": 1
+    }
+  },
+  "issue.get": {
+    "params": {
+      "issueId": "i1"
+    },
+    "response": {
+      "data": {
+        "issue": {
+          "id": "i1"
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/graphql",
+      "body": {
+        "query": "query Issue($issueId: String!) { issue(id: $issueId) { id identifier title priority archivedAt createdAt description dueDate assignee { id displayName email } creator { id displayName email } state { id name } team { id name } cycle { id name } } }",
+        "variables": {
+          "issueId": "i1"
+        }
+      },
+      "items": 1
+    }
+  },
+  "issue.getAll": {
+    "params": {
+      "limit": 5
+    },
+    "response": {
+      "data": {
+        "issues": {
+          "nodes": [
+            {
+              "id": "i1"
+            },
+            {
+              "id": "i2"
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "endCursor": "c"
+          }
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/graphql",
+      "body": {
+        "query": "query Issues($first: Int, $after: String) { issues(first: $first, after: $after) { nodes { id identifier title priority archivedAt createdAt description dueDate assignee { id displayName email } creator { id displayName email } state { id name } team { id name } cycle { id name } } pageInfo { hasNextPage endCursor } } }",
+        "variables": {
+          "first": 5
+        }
+      },
+      "items": 2
+    }
+  },
+  "issue.update": {
+    "params": {
+      "issueId": "i1",
+      "updateFields": {
+        "stateId": "s2"
+      }
+    },
+    "response": {
+      "data": {
+        "issueUpdate": {
+          "success": true,
+          "issue": {
+            "id": "i1"
+          }
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/graphql",
+      "body": {
+        "query": "mutation IssueUpdate($issueId: String!, $title: String, $teamId: String, $description: String, $assigneeId: String, $priorityId: Int, $stateId: String) { issueUpdate(id: $issueId, input: {title: $title, teamId: $teamId, description: $description, assigneeId: $assigneeId, priority: $priorityId, stateId: $stateId}) { success issue { id identifier title priority archivedAt createdAt description dueDate assignee { id displayName email } creator { id displayName email } state { id name } team { id name } cycle { id name } } } }",
+        "variables": {
+          "issueId": "i1",
+          "stateId": "s2"
+        }
+      },
+      "items": 1
+    }
+  },
+  "comment.addComment": {
+    "params": {
+      "issueId": "i1",
+      "comment": "Hi",
+      "additionalFields": {
+        "parentId": " c0 "
+      }
+    },
+    "response": {
+      "data": {
+        "commentCreate": {
+          "success": true,
+          "comment": {
+            "id": "c1"
+          }
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/graphql",
+      "body": {
+        "query": "mutation CommentCreate($issueId: String!, $body: String!, $parentId: String) { commentCreate(input: {issueId: $issueId, body: $body, parentId: $parentId}) { success comment { id } } }",
+        "variables": {
+          "issueId": "i1",
+          "body": "Hi",
+          "parentId": "c0"
+        }
+      },
+      "items": 1
+    }
+  }
+}

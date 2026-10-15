@@ -1,0 +1,69 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "mailcheck",
+  "node_type": "app.mailcheck",
+  "title": "Mailcheck",
+  "description": "Check whether an email address is deliverable with Mailcheck",
+  "category": "app",
+  "docs_url": "https://www.mailcheck.co/api",
+  "n8n_types": [
+    "n8n-nodes-base.mailcheck"
+  ],
+  "base_url": "https://api.mailcheck.co/v1",
+  "headers": {
+    "Accept": "application/json"
+  },
+  "credentials": [
+    {
+      "platform": "mailcheck",
+      "name": "Mailcheck",
+      "n8n_credential": "mailcheckApi",
+      "n8n_field_map": {
+        "apiKey": "access_token"
+      },
+      "methods": [
+        "bearer"
+      ],
+      "fields": [
+        {
+          "key": "access_token",
+          "label": "API key",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "email",
+      "label": "Email"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "email",
+      "operation": "check",
+      "title": "Check an email address",
+      "method": "POST",
+      "path": "/singleEmail:check",
+      "fields": [
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": true,
+          "placeholder": "name@example.com"
+        }
+      ],
+      "body": {
+        "email": "{{ p.email }}"
+      }
+    }
+  ]
+}

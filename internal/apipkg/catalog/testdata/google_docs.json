@@ -1,0 +1,154 @@
+{
+  "document.create": {
+    "params": {
+      "driveId": "myDrive",
+      "folderId": "fold1",
+      "title": "Notes"
+    },
+    "response": {
+      "id": "doc1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/drive/v3/files",
+      "query": {
+        "supportsAllDrives": "true"
+      },
+      "body": {
+        "name": "Notes",
+        "mimeType": "application/vnd.google-apps.document",
+        "parents": [
+          "fold1"
+        ]
+      },
+      "items": 1
+    }
+  },
+  "document.get": {
+    "params": {
+      "documentURL": "https://docs.google.com/document/d/1AbCdEfGhIjK_doc/edit"
+    },
+    "response": {
+      "documentId": "doc1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/documents/1AbCdEfGhIjK_doc",
+      "items": 1
+    }
+  },
+  "document.update": {
+    "params": {
+      "documentURL": "doc1",
+      "actionsUi": {
+        "actionFields": [
+          {
+            "object": "text",
+            "action": "replaceAll",
+            "text": "{name}",
+            "replaceText": "Ada",
+            "matchCase": false
+          },
+          {
+            "object": "text",
+            "action": "insert",
+            "text": "Hello",
+            "locationChoice": "location",
+            "insertSegment": "body",
+            "index": 1
+          },
+          {
+            "object": "text",
+            "action": "insert",
+            "text": "Bye"
+          },
+          {
+            "object": "tableRow",
+            "action": "delete",
+            "rowIndex": 0,
+            "columnIndex": 1,
+            "insertSegment": "body",
+            "index": 5
+          },
+          {
+            "object": "namedRange",
+            "action": "delete",
+            "namedRangeReference": "name",
+            "value": "intro"
+          },
+          {
+            "object": "footer",
+            "action": "delete",
+            "footerId": "f1"
+          }
+        ]
+      },
+      "updateFields": {
+        "writeControlObject": {
+          "control": "targetRevisionId",
+          "value": "rev9"
+        }
+      }
+    },
+    "response": {
+      "replies": [
+        {}
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/documents/doc1:batchUpdate",
+      "body": {
+        "requests": [
+          {
+            "replaceAllText": {
+              "replaceText": "Ada",
+              "containsText": {
+                "text": "{name}",
+                "matchCase": false
+              }
+            }
+          },
+          {
+            "insertText": {
+              "text": "Hello",
+              "location": {
+                "index": 1
+              }
+            }
+          },
+          {
+            "insertText": {
+              "text": "Bye",
+              "endOfSegmentLocation": {}
+            }
+          },
+          {
+            "deleteTableRow": {
+              "tableCellLocation": {
+                "rowIndex": 0,
+                "columnIndex": 1,
+                "tableStartLocation": {
+                  "index": 5
+                }
+              }
+            }
+          },
+          {
+            "deleteNamedRange": {
+              "name": "intro"
+            }
+          },
+          {
+            "deleteFooter": {
+              "footerId": "f1"
+            }
+          }
+        ],
+        "writeControl": {
+          "targetRevisionId": "rev9"
+        }
+      }
+    }
+  }
+}

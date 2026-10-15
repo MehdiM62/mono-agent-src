@@ -1,0 +1,61 @@
+{
+  "image.analyze": {
+    "params": {
+      "type": "detectText",
+      "bucket": "b",
+      "name": "k.png",
+      "additionalFields": {
+        "version": "3",
+        "maxLabels": 4,
+        "wordFilterUi": {
+          "MinConfidence": 60
+        },
+        "regionsOfInterestUi": {
+          "regionsOfInterestValues": [
+            {
+              "height": 0.5,
+              "left": 0,
+              "top": 0.1,
+              "width": 0.5
+            }
+          ]
+        }
+      }
+    },
+    "response": {
+      "TextDetections": []
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "Image": {
+          "S3Object": {
+            "Bucket": "b",
+            "Name": "k.png",
+            "Version": "3"
+          }
+        },
+        "Filters": {
+          "RegionsOfInterest": [
+            {
+              "BoundingBox": {
+                "Height": 0.5,
+                "Left": 0,
+                "Top": 0.1,
+                "Width": 0.5
+              }
+            }
+          ],
+          "WordFilter": {
+            "MinConfidence": 60
+          }
+        }
+      },
+      "headers": {
+        "X-Amz-Target": "RekognitionService.DetectText"
+      },
+      "items": 1
+    }
+  }
+}

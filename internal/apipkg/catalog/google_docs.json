@@ -1,0 +1,295 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "google_docs",
+  "node_type": "app.google_docs",
+  "title": "Google Docs",
+  "description": "Create, read and edit Google Docs documents",
+  "category": "app",
+  "docs_url": "https://developers.google.com/docs/api/reference/rest",
+  "n8n_types": [
+    "n8n-nodes-base.googleDocs"
+  ],
+  "base_url": "https://docs.googleapis.com/v1",
+  "credentials": [
+    {
+      "platform": "google",
+      "name": "Google (Docs scope group)",
+      "n8n_credential": "googleDocsOAuth2Api",
+      "n8n_credential_alt": [
+        "googleApi",
+        "googleOAuth2Api"
+      ],
+      "methods": [
+        "oauth"
+      ],
+      "scope_group": "docs",
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      },
+      "reuse_platform": "google"
+    }
+  ],
+  "resources": [
+    {
+      "value": "document",
+      "label": "Document"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "document",
+      "operation": "create",
+      "title": "Create a document",
+      "description": "Creates an empty Google Doc through the Drive API (needs the drive scope group too).",
+      "method": "POST",
+      "base_url": "https://www.googleapis.com/drive/v3",
+      "path": "/files",
+      "query": {
+        "supportsAllDrives": "true"
+      },
+      "fields": [
+        {
+          "key": "driveId",
+          "label": "Drive",
+          "type": "text",
+          "default": "myDrive",
+          "help": "myDrive, or a shared drive ID (the folder decides where the file goes)."
+        },
+        {
+          "key": "folderId",
+          "label": "Folder ID",
+          "type": "text",
+          "default": "",
+          "help": "Parent folder ID; empty or default for the drive root."
+        },
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "name": "{{ p.title }}",
+        "mimeType": "application/vnd.google-apps.document",
+        "parents": [
+          "{{ p.folderId | ne:'default' | then:p.folderId }}"
+        ]
+      }
+    },
+    {
+      "resource": "document",
+      "operation": "get",
+      "title": "Get a document",
+      "description": "Returns the full document structure (body.content holds the paragraphs).",
+      "method": "GET",
+      "path": "/documents/{{ p.documentURL | gid }}",
+      "fields": [
+        {
+          "key": "documentURL",
+          "label": "Document ID or URL",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "simple",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true,
+          "help": "Accepted for n8n compatibility; the full document is returned."
+        }
+      ]
+    },
+    {
+      "resource": "document",
+      "operation": "update",
+      "title": "Update a document",
+      "description": "Applies the listed actions in one batchUpdate call.",
+      "method": "POST",
+      "path": "/documents/{{ p.documentURL | gid }}:batchUpdate",
+      "fields": [
+        {
+          "key": "documentURL",
+          "label": "Document ID or URL",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "simple",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true,
+          "help": "Accepted for n8n compatibility; the batchUpdate response is returned."
+        },
+        {
+          "key": "actionsUi",
+          "label": "Actions",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "actionFields"
+          ],
+          "help": "actionFields is a list of {object, action, …}. object: text (insert, replaceAll), pageBreak/table (insert), footer/header (create, delete), tableColumn/tableRow (insert, delete), paragraphBullets/namedRange (create, delete), positionedObject (delete). Location keys: insertSegment (body|header|footer), segmentId, locationChoice (endOfSegmentLocation|location), index."
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "writeControlObject"
+          ],
+          "help": "writeControlObject: {control: requiredRevisionId|targetRevisionId, value}."
+        }
+      ],
+      "body": {
+        "requests": {
+          "$map": "{{ p.actionsUi.actionFields }}",
+          "$to": {
+            "replaceAllText": {
+              "replaceText": "{{ el.object | default:'text' | eq:'text' | then:el.action | eq:'replaceAll' | then:el.replaceText }}",
+              "containsText": {
+                "text": "{{ el.object | default:'text' | eq:'text' | then:el.action | eq:'replaceAll' | then:el.text }}",
+                "matchCase": "{{ el.object | default:'text' | eq:'text' | then:el.action | eq:'replaceAll' | then:el.matchCase }}"
+              }
+            },
+            "insertText": {
+              "$when": "{{ el.object | default:'text' | eq:'text' | then:el.action | eq:'insert' }}",
+              "text": "{{ el.object | default:'text' | eq:'text' | then:el.action | eq:'insert' | then:el.text }}",
+              "location": {
+                "segmentId": "{{ el.object | default:'text' | eq:'text' | then:el.action | eq:'insert' | then:el.locationChoice | eq:'location' | then:el.insertSegment | ne:'body' | then:el.segmentId }}",
+                "index": "{{ el.object | default:'text' | eq:'text' | then:el.action | eq:'insert' | then:el.locationChoice | eq:'location' | then:el.index }}"
+              },
+              "endOfSegmentLocation": {
+                "$when": "{{ el.locationChoice | default:'endOfSegmentLocation' | eq:'endOfSegmentLocation' }}",
+                "segmentId": "{{ el.locationChoice | default:'endOfSegmentLocation' | eq:'endOfSegmentLocation' | then:el.insertSegment | ne:'body' | then:el.segmentId }}"
+              }
+            },
+            "deletePositionedObject": {
+              "objectId": "{{ el.object | default:'text' | eq:'positionedObject' | then:el.action | eq:'delete' | then:el.objectId }}"
+            },
+            "insertPageBreak": {
+              "$when": "{{ el.object | default:'text' | eq:'pageBreak' | then:el.action | eq:'insert' }}",
+              "location": {
+                "segmentId": "{{ el.object | default:'text' | eq:'pageBreak' | then:el.action | eq:'insert' | then:el.locationChoice | eq:'location' | then:el.insertSegment | ne:'body' | then:el.segmentId }}",
+                "index": "{{ el.object | default:'text' | eq:'pageBreak' | then:el.action | eq:'insert' | then:el.locationChoice | eq:'location' | then:el.index }}"
+              },
+              "endOfSegmentLocation": {
+                "$when": "{{ el.locationChoice | default:'endOfSegmentLocation' | eq:'endOfSegmentLocation' }}",
+                "segmentId": "{{ el.locationChoice | default:'endOfSegmentLocation' | eq:'endOfSegmentLocation' | then:el.insertSegment | ne:'body' | then:el.segmentId }}"
+              }
+            },
+            "insertTable": {
+              "$when": "{{ el.object | default:'text' | eq:'table' | then:el.action | eq:'insert' }}",
+              "rows": "{{ el.object | default:'text' | eq:'table' | then:el.action | eq:'insert' | then:el.rows }}",
+              "columns": "{{ el.object | default:'text' | eq:'table' | then:el.action | eq:'insert' | then:el.columns }}",
+              "location": {
+                "segmentId": "{{ el.object | default:'text' | eq:'table' | then:el.action | eq:'insert' | then:el.locationChoice | eq:'location' | then:el.insertSegment | ne:'body' | then:el.segmentId }}",
+                "index": "{{ el.object | default:'text' | eq:'table' | then:el.action | eq:'insert' | then:el.locationChoice | eq:'location' | then:el.index }}"
+              },
+              "endOfSegmentLocation": {
+                "$when": "{{ el.locationChoice | default:'endOfSegmentLocation' | eq:'endOfSegmentLocation' }}",
+                "segmentId": "{{ el.locationChoice | default:'endOfSegmentLocation' | eq:'endOfSegmentLocation' | then:el.insertSegment | ne:'body' | then:el.segmentId }}"
+              }
+            },
+            "createFooter": {
+              "type": "{{ el.object | default:'text' | eq:'footer' | then:el.action | eq:'create' | then:'DEFAULT' }}",
+              "sectionBreakLocation": {
+                "segmentId": "{{ el.object | default:'text' | eq:'footer' | then:el.action | eq:'create' | then:el.insertSegment | default:'body' | ne:'body' | then:el.segmentId }}",
+                "index": "{{ el.object | default:'text' | eq:'footer' | then:el.action | eq:'create' | then:el.locationChoice | eq:'location' | then:el.index }}"
+              }
+            },
+            "deleteFooter": {
+              "footerId": "{{ el.object | default:'text' | eq:'footer' | then:el.action | eq:'delete' | then:el.footerId }}"
+            },
+            "createHeader": {
+              "type": "{{ el.object | default:'text' | eq:'header' | then:el.action | eq:'create' | then:'DEFAULT' }}",
+              "sectionBreakLocation": {
+                "segmentId": "{{ el.object | default:'text' | eq:'header' | then:el.action | eq:'create' | then:el.insertSegment | default:'body' | ne:'body' | then:el.segmentId }}",
+                "index": "{{ el.object | default:'text' | eq:'header' | then:el.action | eq:'create' | then:el.locationChoice | eq:'location' | then:el.index }}"
+              }
+            },
+            "deleteHeader": {
+              "headerId": "{{ el.object | default:'text' | eq:'header' | then:el.action | eq:'delete' | then:el.headerId }}"
+            },
+            "insertTableColumn": {
+              "insertRight": "{{ el.object | default:'text' | eq:'tableColumn' | then:el.action | eq:'insert' | then:el.insertPosition }}",
+              "tableCellLocation": {
+                "rowIndex": "{{ el.object | default:'text' | eq:'tableColumn' | then:el.action | eq:'insert' | then:el.rowIndex }}",
+                "columnIndex": "{{ el.object | default:'text' | eq:'tableColumn' | then:el.action | eq:'insert' | then:el.columnIndex }}",
+                "tableStartLocation": {
+                  "segmentId": "{{ el.object | default:'text' | eq:'tableColumn' | then:el.action | eq:'insert' | then:el.insertSegment | default:'body' | ne:'body' | then:el.segmentId }}",
+                  "index": "{{ el.object | default:'text' | eq:'tableColumn' | then:el.action | eq:'insert' | then:el.index }}"
+                }
+              }
+            },
+            "deleteTableColumn": {
+              "tableCellLocation": {
+                "rowIndex": "{{ el.object | default:'text' | eq:'tableColumn' | then:el.action | eq:'delete' | then:el.rowIndex }}",
+                "columnIndex": "{{ el.object | default:'text' | eq:'tableColumn' | then:el.action | eq:'delete' | then:el.columnIndex }}",
+                "tableStartLocation": {
+                  "segmentId": "{{ el.object | default:'text' | eq:'tableColumn' | then:el.action | eq:'delete' | then:el.insertSegment | default:'body' | ne:'body' | then:el.segmentId }}",
+                  "index": "{{ el.object | default:'text' | eq:'tableColumn' | then:el.action | eq:'delete' | then:el.index }}"
+                }
+              }
+            },
+            "insertTableRow": {
+              "insertBelow": "{{ el.object | default:'text' | eq:'tableRow' | then:el.action | eq:'insert' | then:el.insertPosition }}",
+              "tableCellLocation": {
+                "rowIndex": "{{ el.object | default:'text' | eq:'tableRow' | then:el.action | eq:'insert' | then:el.rowIndex }}",
+                "columnIndex": "{{ el.object | default:'text' | eq:'tableRow' | then:el.action | eq:'insert' | then:el.columnIndex }}",
+                "tableStartLocation": {
+                  "segmentId": "{{ el.object | default:'text' | eq:'tableRow' | then:el.action | eq:'insert' | then:el.insertSegment | default:'body' | ne:'body' | then:el.segmentId }}",
+                  "index": "{{ el.object | default:'text' | eq:'tableRow' | then:el.action | eq:'insert' | then:el.index }}"
+                }
+              }
+            },
+            "deleteTableRow": {
+              "tableCellLocation": {
+                "rowIndex": "{{ el.object | default:'text' | eq:'tableRow' | then:el.action | eq:'delete' | then:el.rowIndex }}",
+                "columnIndex": "{{ el.object | default:'text' | eq:'tableRow' | then:el.action | eq:'delete' | then:el.columnIndex }}",
+                "tableStartLocation": {
+                  "segmentId": "{{ el.object | default:'text' | eq:'tableRow' | then:el.action | eq:'delete' | then:el.insertSegment | default:'body' | ne:'body' | then:el.segmentId }}",
+                  "index": "{{ el.object | default:'text' | eq:'tableRow' | then:el.action | eq:'delete' | then:el.index }}"
+                }
+              }
+            },
+            "createParagraphBullets": {
+              "bulletPreset": "{{ el.object | default:'text' | eq:'paragraphBullets' | then:el.action | eq:'create' | then:el.bulletPreset }}",
+              "range": {
+                "segmentId": "{{ el.object | default:'text' | eq:'paragraphBullets' | then:el.action | eq:'create' | then:el.insertSegment | default:'body' | ne:'body' | then:el.segmentId }}",
+                "startIndex": "{{ el.object | default:'text' | eq:'paragraphBullets' | then:el.action | eq:'create' | then:el.startIndex }}",
+                "endIndex": "{{ el.object | default:'text' | eq:'paragraphBullets' | then:el.action | eq:'create' | then:el.endIndex }}"
+              }
+            },
+            "deleteParagraphBullets": {
+              "range": {
+                "segmentId": "{{ el.object | default:'text' | eq:'paragraphBullets' | then:el.action | eq:'delete' | then:el.insertSegment | default:'body' | ne:'body' | then:el.segmentId }}",
+                "startIndex": "{{ el.object | default:'text' | eq:'paragraphBullets' | then:el.action | eq:'delete' | then:el.startIndex }}",
+                "endIndex": "{{ el.object | default:'text' | eq:'paragraphBullets' | then:el.action | eq:'delete' | then:el.endIndex }}"
+              }
+            },
+            "createNamedRange": {
+              "name": "{{ el.object | default:'text' | eq:'namedRange' | then:el.action | eq:'create' | then:el.name }}",
+              "range": {
+                "segmentId": "{{ el.object | default:'text' | eq:'namedRange' | then:el.action | eq:'create' | then:el.insertSegment | default:'body' | ne:'body' | then:el.segmentId }}",
+                "startIndex": "{{ el.object | default:'text' | eq:'namedRange' | then:el.action | eq:'create' | then:el.startIndex }}",
+                "endIndex": "{{ el.object | default:'text' | eq:'namedRange' | then:el.action | eq:'create' | then:el.endIndex }}"
+              }
+            },
+            "deleteNamedRange": {
+              "namedRangeId": "{{ el.object | default:'text' | eq:'namedRange' | then:el.action | eq:'delete' | then:el.namedRangeReference | default:'namedRangeId' | eq:'namedRangeId' | then:el.value }}",
+              "name": "{{ el.object | default:'text' | eq:'namedRange' | then:el.action | eq:'delete' | then:el.namedRangeReference | eq:'name' | then:el.value }}"
+            }
+          }
+        },
+        "writeControl": {
+          "requiredRevisionId": "{{ p.updateFields.writeControlObject.control | default:'requiredRevisionId' | eq:'requiredRevisionId' | then:p.updateFields.writeControlObject.value }}",
+          "targetRevisionId": "{{ p.updateFields.writeControlObject.control | eq:'targetRevisionId' | then:p.updateFields.writeControlObject.value }}"
+        }
+      }
+    }
+  ]
+}

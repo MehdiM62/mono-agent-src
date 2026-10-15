@@ -1,0 +1,169 @@
+{
+  "website.pdf": {
+    "params": {
+      "link": "https://x.io",
+      "options": {
+        "page": "A4"
+      }
+    },
+    "response": {
+      "url": "https://cdn/x.pdf"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/pdf",
+      "query": {
+        "url": "https://x.io",
+        "page": "A4",
+        "force": "no"
+      },
+      "items": 1
+    }
+  },
+  "website.seo": {
+    "params": {
+      "link": "https://x.io",
+      "options": {
+        "headers": true
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/page_info",
+      "query": {
+        "url": "https://x.io",
+        "headers": "yes"
+      }
+    }
+  },
+  "website.screenshot": {
+    "params": {
+      "link": "https://x.io",
+      "download": true,
+      "options": {
+        "fullpage": true
+      }
+    },
+    "responses": [
+      {
+        "url": "https://cdn.example.com/s.png"
+      },
+      {}
+    ],
+    "expect_requests": [
+      {
+        "method": "GET",
+        "path": "/api/screenshot",
+        "query": {
+          "url": "https://x.io",
+          "fullpage": "yes",
+          "force": "no"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/s.png",
+        "query": {}
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/s.png",
+      "query": {},
+      "items": 1
+    }
+  },
+  "socialProfile.instagramProfile": {
+    "params": {
+      "profileName": "nasa"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/instagram_profile",
+      "query": {
+        "profile": "nasa"
+      }
+    }
+  },
+  "socialProfile.spotifyArtistProfile": {
+    "params": {
+      "artistName": "Bjork"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/spotify_profile",
+      "query": {
+        "profile": "Bjork"
+      }
+    }
+  },
+  "information.exchangeRate": {
+    "params": {
+      "value": "10",
+      "fromCurrency": "EUR",
+      "toCurrency": "USD"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/exchange_rate",
+      "query": {
+        "from_currency": "EUR",
+        "to_currency": "USD",
+        "from_value": "10"
+      }
+    }
+  },
+  "information.imageMetadata": {
+    "params": {
+      "link": "https://x.io/a.png"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/image_info",
+      "query": {
+        "url": "https://x.io/a.png",
+        "raw": "true"
+      }
+    }
+  },
+  "utility.validateEmail": {
+    "params": {
+      "emailAddress": "a@b.io"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/email",
+      "query": {
+        "email": "a@b.io"
+      }
+    }
+  },
+  "utility.expandURL": {
+    "params": {
+      "link": "https://bit.ly/x"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/unshorten",
+      "query": {
+        "url": "https://bit.ly/x"
+      }
+    }
+  },
+  "utility.qrCode": {
+    "params": {
+      "message": "hi",
+      "options": {
+        "size": "Large"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/qr_code",
+      "query": {
+        "message": "hi",
+        "size": "Large"
+      }
+    }
+  }
+}
