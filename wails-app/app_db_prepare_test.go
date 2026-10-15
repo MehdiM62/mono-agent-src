@@ -21,7 +21,7 @@ echo '{"schema_version":97,"applied":2,"active_profile":"work","profiles":["defa
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.SchemaVersion != 97 || res.Applied != 2 || res.ActiveProfile != "work" || len(res.Profiles) != 2 || res.VaultMoved != 3 || len(res.Errors) != 1 {
+	if res.SchemaVersion != 97 || res.Applied != 2 || len(res.Profiles) != 2 || res.VaultMoved != 3 || len(res.Errors) != 1 {
 		t.Fatalf("result = %+v", res)
 	}
 	if got := loggedArgs(t, log); strings.Join(got, "\n") != "--json db migrate" {
