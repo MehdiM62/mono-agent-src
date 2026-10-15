@@ -378,8 +378,10 @@ func TestOrgChatDismiss(t *testing.T) {
 	if _, err := runOrgChat(t, cfg, "dismiss", "acme", "q-nope"); exitCodeFor(err) != 2 {
 		t.Errorf("unknown question: %v", err)
 	}
+	// A stopped org still takes a dismissal: monomind queues the note.
 	fake.status = "stopped"
-	if _, err := runOrgChat(t, cfg, "dismiss", "acme", "q-0900-zz99"); exitCodeFor(err) != 3 {
-		t.Errorf("stopped org: %v", err)
+	out, err = runOrgChat(t, cfg, "dismiss", "acme", "q-0900-zz99")
+	if err != nil || !strings.Contains(out, `"state":"dismissed"`) {
+		t.Errorf("stopped org dismiss: %v %s", err, out)
 	}
 }

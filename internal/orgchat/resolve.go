@@ -123,7 +123,10 @@ func running(ctx context.Context, c Client, root, org string) (bool, string, err
 // Resolve resolves one item, at most once. Under a per-org lock it reads
 // the item: one already resolved returns its state with Already and sends
 // nothing, so a retried or doubled click is harmless; a pending one is
-// resolved only while the org runs (NotRunningError otherwise).
+// resolved only while the org runs (NotRunningError otherwise). Dismissing a
+// question is the exception: monomind records it and queues a note for the
+// asking role when the org is stopped, so a question left over from the
+// last run can be cleared without starting the org.
 func Resolve(ctx context.Context, c Client, root string, req Request) (*Result, error) {
 	if !orgdesign.ValidOrgName(req.Org) {
 		return nil, fmt.Errorf("orgchat: invalid org name %q", req.Org)
@@ -232,12 +235,14 @@ func Resolve(ctx context.Context, c Client, root string, req Request) (*Result, 
 		act = func() error { return c.Approve(ctx, root, req.Org, a.RoleID, a.Action, req.Approve, requestID) }
 	}
 
-	live, status, err := running(ctx, c, root, req.Org)
-	if err != nil {
-		return nil, err
-	}
-	if !live {
-		return nil, &NotRunningError{Org: req.Org, Status: status}
+	if !req.Dismiss {
+		live, status, err := running(ctx, c, root, req.Org)
+		if err != nil {
+			return nil, err
+		}
+		if !live {
+			return nil, &NotRunningError{Org: req.Org, Status: status}
+		}
 	}
 	if err := act(); err != nil {
 		return nil, err
