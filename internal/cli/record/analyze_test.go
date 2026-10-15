@@ -168,7 +168,9 @@ func TestRecordAnalyzeSaveActionAndWorkflow(t *testing.T) {
 	}
 
 	dbPath := filepath.Join(t.TempDir(), "wf.db")
-	cmd := NewCommand(testDeps(true, dbPath))
+	deps := testDeps(true, dbPath)
+	deps.ProfileID = func() string { return "default" } // a saved workflow needs an owner
+	cmd := NewCommand(deps)
 	var buf bytes.Buffer
 	cmd.SetOut(&buf)
 	cmd.SetErr(io.Discard)
