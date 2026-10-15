@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/monoes/mono-agent/internal/extension"
@@ -40,7 +41,10 @@ func (s *Session) Gated() bool { return s.tabID > 0 && s.policy.SubmitGated(s.ur
 
 // guardStatus is submit_guard's answer.
 type guardStatus struct {
-	Armed   bool           `json:"armed"`
+	Armed bool `json:"armed"`
+	// Origin is the origin the guard was armed on; its records belong to
+	// it, and the extension drops them when the top page leaves it.
+	Origin  string         `json:"origin"`
 	Blocked []blockedEntry `json:"blocked"`
 }
 
@@ -65,10 +69,32 @@ func (s *Session) BeforeAct(ctx context.Context, db *sql.DB) error {
 	if !s.Gated() {
 		return nil
 	}
-	if _, err := s.guard(extension.SubmitGuardArm); err != nil {
-		return fmt.Errorf("this page needs approval before any form is submitted, and its submit guard could not be armed (update the extension?): %w", err)
+	if err := s.arm(); err != nil {
+		return err
 	}
 	return s.takeBlocked(ctx, db)
+}
+
+// arm arms the tab's submit guard; it is armed again before every action,
+// since the extension disarms a tab whose top page changes origin. A tab
+// still navigating is given time to load, re-read (it may have left the
+// allowed pages) and armed once more.
+func (s *Session) arm() error {
+	_, err := s.guard(extension.SubmitGuardArm)
+	if err != nil && strings.Contains(err.Error(), "navigating") {
+		_, _ = s.sendRaw(s.tabID, extension.CmdWaitLoad, map[string]interface{}{"timeout": loadTimeout.Milliseconds()}, loadTimeout+5*time.Second)
+		if err := s.UseTab(s.tabID); err != nil {
+			return err
+		}
+		if !s.Gated() {
+			return nil
+		}
+		_, err = s.guard(extension.SubmitGuardArm)
+	}
+	if err != nil {
+		return fmt.Errorf("this page needs approval before any form is submitted, and its submit guard could not be armed: %w", err)
+	}
+	return nil
 }
 
 // AfterAct reports a submit the guard blocked during the action. The
@@ -97,7 +123,9 @@ func (s *Session) takeBlocked(ctx context.Context, db *sql.DB) error {
 	if err != nil {
 		return fmt.Errorf("reading the page's submit guard: %w", err)
 	}
-	key := tabKey(s.info.Instance, s.tabID)
+	// Per origin: the records of another origin were dropped, and seqs may
+	// start over.
+	key := tabKey(s.info.Instance, s.tabID) + "|" + st.Origin
 	last := s.state.Reported[key]
 	maxSeq := 0
 	for _, b := range st.Blocked {

@@ -2,6 +2,7 @@ package browserctl
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/monoes/mono-agent/internal/extension"
@@ -109,8 +110,13 @@ func (s *Session) forget(id int) {
 	if s.state.TabID == id {
 		s.state.TabID = 0
 	}
-	delete(s.state.Reported, tabKey(s.info.Instance, id))
-	delete(s.state.Loads, tabKey(s.info.Instance, id))
+	key := tabKey(s.info.Instance, id)
+	for k := range s.state.Reported {
+		if k == key || strings.HasPrefix(k, key+"|") {
+			delete(s.state.Reported, k)
+		}
+	}
+	delete(s.state.Loads, key)
 	_ = s.saveState()
 	if s.tabID == id {
 		s.tabID, s.url, s.blankTab = 0, "", false
