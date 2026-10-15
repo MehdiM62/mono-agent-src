@@ -50,6 +50,7 @@ echo $! > "$E2E_WORK/pids/chrome"
 for _ in $(seq 1 40); do busy "$E2E_CDP_PORT" && break; sleep 0.5; done
 sleep 2
 
+ensure_profile m
 node "$E2E_DIR/browser.mjs" pair
 node "$E2E_DIR/browser.mjs" login >/dev/null
 echo "e2e stack up: bridge :$E2E_BRIDGE_PORT, browser CDP :$E2E_CDP_PORT, fixture $E2E_SITE, HOME $E2E_HOME"
