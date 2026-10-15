@@ -1,5 +1,5 @@
 // Package ref is `monoagentcli ref`: the built-in reference — the topics (templates, workflow,
-// connections, expressions, examples, crawling, api, org, publication, tasks, account), `ref
+// connections, expressions, examples, crawling, api, org, publication, tasks, account, browser), `ref
 // commands`, and `ref nodes` / `ref node <type>`, which layer the hand-written node catalogue
 // over each node type's schema. The catalogues and the node registry stay in the CLI and come
 // in through Deps.
