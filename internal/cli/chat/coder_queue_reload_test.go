@@ -43,7 +43,7 @@ func TestCoderQueueBugReportReload(t *testing.T) {
 	fb := withFakeBrowser(t)
 
 	it := queueAdd(t, dbPath, "--kind", "bug-report", "--reload")
-	if got := browserSubs(fb.calls); !slices.Equal(got, []string{"eval", "screenshot", "console", "reload", "console", "network"}) {
+	if got := browserSubs(fb.calls); !slices.Equal(got, []string{"tabs", "screenshot", "console", "reload", "console", "network"}) {
 		t.Fatalf("calls = %v", got)
 	}
 	if !it.Reloaded || !it.LogsEmpty {

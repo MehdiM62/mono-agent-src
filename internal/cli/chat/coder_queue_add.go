@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -18,7 +17,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode"
 	"unicode/utf8"
 
 	"github.com/spf13/cobra"
@@ -139,9 +137,6 @@ func queueSteps(kind, sel string, reload bool) []queueStep {
 // queueAttachments are the images the first turn attaches, element first.
 var queueAttachments = []string{"styles/element.png", "element.png", "page.png"}
 
-// pageInfoJS reads the tab's address and title.
-const pageInfoJS = `JSON.stringify({url: location.href, title: document.title})`
-
 type queueAddInput struct {
 	kind, selector, note, cwd, browser string
 	tab                                int
@@ -192,7 +187,7 @@ func newCoderQueueAddCmd(cfg *Deps) *cobra.Command {
 	f := cmd.Flags()
 	f.StringVar(&in.kind, "kind", "", "copy-style, tokens, fix-element, bug-report, integration or ask")
 	f.StringVar(&in.browser, "browser", "", "Browser instance or label (default: the profile's browser)")
-	f.IntVar(&in.tab, "tab", 0, "Tab id (default: the browser commands' current tab)")
+	f.IntVar(&in.tab, "tab", 0, "Tab id (default: the browser's active tab)")
 	f.StringVar(&in.selector, "selector", "", "CSS selector of the element (copy-style and fix-element need one)")
 	f.StringVar(&in.note, "note", "", "What you want done")
 	f.StringVar(&in.cwd, "cwd", "", "Folder the chat works in (default: the folder mapped to the page's origin, else the coder root)")
@@ -261,9 +256,6 @@ func addQueueItem(cmd *cobra.Command, cfg *Deps, in queueAddInput) (queueItem, e
 
 	base := []string{"--json", "--db-path=" + cfg.DBPath(), "--profile=" + it.Profile, "browser"}
 	common := []string{}
-	if in.tab > 0 {
-		common = append(common, "--tab="+strconv.Itoa(in.tab))
-	}
 	if in.browser != "" {
 		common = append(common, "--browser="+in.browser)
 	}
@@ -274,19 +266,21 @@ func addQueueItem(cmd *cobra.Command, cfg *Deps, in queueAddInput) (queueItem, e
 		return queueRunner.Run(ctx, append(args, sub[1:]...))
 	}
 
-	out, err := run([]string{"eval", "--", pageInfoJS})
+	// The tab and its address come from the browser (coder_queue_page.go),
+	// and every later command names that tab.
+	out, err := run([]string{"tabs"})
 	if err != nil {
-		return queueItem{}, fmt.Errorf("reading the tab's address: %w", err)
+		return queueItem{}, fmt.Errorf("reading the browser's tabs: %w", err)
 	}
-	pageURL, title := parsePageInfo(out)
-	u, err := url.Parse(pageURL)
-	if err != nil || u.Scheme == "" {
-		return queueItem{}, fmt.Errorf("reading the tab's address: got %q", pageURL)
+	tab, err := pickQueueTab(out, in.tab)
+	if err != nil {
+		return queueItem{}, err
 	}
-	it.Origin, it.Path, it.Title = u.Scheme+"://"+u.Host, u.Path, cleanTitle(title)
-	if it.Path == "" {
-		it.Path = "/"
+	if it.Origin, it.Path, err = pageOf(tab.URL); err != nil {
+		return queueItem{}, err
 	}
+	it.TabID, it.Title = tab.TabID, cleanTitle(tab.Title)
+	common = append(common, "--tab="+strconv.Itoa(tab.TabID))
 
 	for _, s := range queueSteps(in.kind, in.selector, in.reload) {
 		target := filepath.Join(tmp, filepath.FromSlash(s.file))
@@ -347,32 +341,6 @@ func newQueueID(now time.Time) string {
 	b := make([]byte, 3)
 	_, _ = rand.Read(b)
 	return now.UTC().Format("20060102-150405") + "-" + hex.EncodeToString(b)
-}
-
-// parsePageInfo reads `browser eval`'s {result} for pageInfoJS: a JSON
-// string, or the object itself.
-func parsePageInfo(out []byte) (pageURL, title string) {
-	var res struct {
-		Result json.RawMessage `json:"result"`
-	}
-	_ = json.Unmarshal(out, &res)
-	raw := res.Result
-	var s string
-	if json.Unmarshal(raw, &s) == nil {
-		raw = json.RawMessage(s)
-	}
-	var info struct{ URL, Title string }
-	_ = json.Unmarshal(raw, &info)
-	return info.URL, info.Title
-}
-
-// cleanTitle is a page title as one short line.
-func cleanTitle(s string) string {
-	s = strings.Join(strings.FieldsFunc(s, func(r rune) bool { return unicode.IsSpace(r) || unicode.IsControl(r) }), " ")
-	if utf8.RuneCountInString(s) > queueMaxTitle {
-		s = string([]rune(s)[:queueMaxTitle]) + "…"
-	}
-	return s
 }
 
 // queueCwd is --cwd, else the folder mapped to origin, else the coder root.
