@@ -23,8 +23,16 @@ func (d Deps) NewMCPCommand() *cobra.Command {
 		Long: `Run a Model Context Protocol server over stdin/stdout
 (newline-delimited JSON-RPC 2.0).
 
-Register this command as a stdio MCP server in any MCP client. Read-only
-tools are always exposed: workflow_list, workflow_get, workflow_validate,
+Register this command as a stdio MCP server in any MCP client. One server
+serves every profile: it holds no profile, and every tool that acts on a profile
+takes a required "profile" argument (the profile's id or name) on each call. A
+call without it, or naming an unknown or ambiguous profile, is refused with the
+list of profiles. Only node_list, node_schema, docs, workflow_template_list,
+workflow_template_show, template_list, api_config_get, api_config_set and
+api_config_apply act on the machine and take no profile. The exception is
+--grant, which serves the one profile of its grant and needs --profile.
+
+Read-only tools are always exposed: workflow_list, workflow_get, workflow_validate,
 workflow_status, node_list, node_schema, hil_list, vault_item_list,
 vault_item_get_path, profile_document_search, secret_list, person_list,
 person_get, message_list, message_get, social_list_list, template_list,
@@ -81,21 +89,23 @@ documentation tool. It is for an agent that is to work the board and nothing
 else: --allow-mutations, which task_claim, task_comment, task_finish,
 task_release and task_add need, also serves workflow tools that can run a
 command as you, and with --tasks-only it does not. The task tools act on the
-server's one profile as the agent agent:<client>#<4 hex digits>, named after the
-MCP client and the session; no tool approves, edits, moves or archives a task. A
-host that has tools of its own, such as a shell tool, is not stopped by it.
-Register one server per profile:
+profile each call names, as the agent agent:<client>#<4 hex digits>, named after
+the MCP client and the session; no tool approves, edits, moves or archives a task.
+A host that has tools of its own, such as a shell tool, is not stopped by it.
+Register one server for all profiles; the agent passes "profile" on each call:
 
-  claude mcp add monoagent-tasks-<profile> -- monoagentcli --profile <id or name> mcp --tasks-only --allow-mutations
+  claude mcp add monoagent-tasks -- monoagentcli mcp --tasks-only --allow-mutations
 
 It cannot be combined with --api-only or --grant.
 
 --workflow-tools (or MONOAGENT_MCP_WORKFLOW_TOOLS=1) also serves each active
-workflow of the profile as a tool of its own, wf_<slug>, named after the workflow
+workflow of every profile as a tool of its own, wf_<slug>, named after the workflow
 (lowercase a-z, 0-9 and _, at most 64 characters; a second workflow with the same
 name gets a short id suffix). --workflow-tools=<id or name>,... serves only those.
 A tool's arguments are the workflow's trigger input, the fields "workflow inputs"
-lists, plus _timeout_seconds; calling it runs the workflow and waits, as
+lists, plus _timeout_seconds and the required "profile" (not part of the trigger
+input): a workflow tool belongs to its workflow's own profile, and a call that
+names another profile does not find the workflow. Calling it runs the workflow and waits, as
 workflow_run does, with the same result. They are mutating tools, so they need
 --allow-mutations too. Workflows are read at every tools/list, so one saved later
 is served without a restart. It cannot be combined with --api-only, --tasks-only
@@ -107,8 +117,8 @@ on a server started with --allow-api-exposure too (what leaves the machine is th
 operator's decision: prompts then go to TypeSafe) and with acknowledge_egress:
 true; switching it off needs neither. It never creates or reads the Jev key.
 
-Serves the profile named by the global --profile flag (the server also reads
-MONOAGENT_PROFILE today, which is being removed) and honors --db-path.`,
+Honors --db-path. Neither MONOAGENT_PROFILE nor an active profile is read: --profile is
+needed only with --grant.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// A process monomind spawned for an org role may only serve a
 			// grant: a hand-added provider running plain `mcp` would give
@@ -137,9 +147,19 @@ MONOAGENT_PROFILE today, which is being removed) and honors --db-path.`,
 			if tasksOnly && apiOnly {
 				return mcp.ErrTasksOnlyWithAPIOnly
 			}
+			// The server holds no profile; only a grant server is given one, to check
+			// it against its grant.
+			grantProfile := ""
+			if grant != "" {
+				profileFlag := cmd.Flag("profile")
+				if profileFlag == nil || !profileFlag.Changed || profileFlag.Value.String() == "" {
+					return fmt.Errorf("--grant needs --profile <id|name>: the profile the grant belongs to (grant mode serves exactly that profile)")
+				}
+				grantProfile = profileFlag.Value.String()
+			}
 			return d.RunMCP(mcp.Options{
 				DBPath:           d.DBPath(),
-				Profile:          d.ProfileID(),
+				Profile:          grantProfile,
 				Version:          d.Version,
 				AllowMutations:   allowMutations,
 				AllowAPIExposure: allowAPIExposure,

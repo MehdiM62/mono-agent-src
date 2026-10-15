@@ -23,6 +23,7 @@ func runMCPCommand(t *testing.T, args ...string) (*mcp.Options, error) {
 	t.Cleanup(func() { runMCP = was })
 
 	cmd := newMCPCmd(&globalConfig{DBPath: "x.db", ProfileID: "default"})
+	cmd.Flags().String("profile", "", "stands in for the root's global --profile flag")
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	cmd.SetErr(&out)
@@ -59,7 +60,7 @@ func TestMCPCommandRefusesGrantModeWithTheExposureFlag(t *testing.T) {
 	if err == nil || got != nil || !strings.Contains(err.Error(), "--allow-api-exposure") {
 		t.Errorf("--grant with --allow-api-exposure: options %v, error %v", got, err)
 	}
-	if got, err := runMCPCommand(t, "--grant", "grt_x"); err != nil || got == nil || got.Grant != "grt_x" {
+	if got, err := runMCPCommand(t, "--grant", "grt_x", "--profile", "default"); err != nil || got == nil || got.Grant != "grt_x" {
 		t.Errorf("--grant alone: %v, %v", got, err)
 	}
 }
@@ -226,5 +227,26 @@ func TestMCPCommandDocumentsTheExposureFlag(t *testing.T) {
 		if !strings.Contains(oneLine(text), finalWideningRules) {
 			t.Errorf("%s does not say what api_config_set refuses in the words of the gate:\nwant %s", name, finalWideningRules)
 		}
+	}
+}
+
+// The server holds no profile: `mcp` needs no --profile, and passes none on. Only a grant server is
+// given one, and it must be told which: the grant fixes the profile.
+func TestMCPCommandNeedsAProfileOnlyInGrantMode(t *testing.T) {
+	got, err := runMCPCommand(t)
+	if err != nil || got == nil || got.Profile != "" {
+		t.Fatalf("mcp without --profile: options %v, error %v, want it served with no profile", got, err)
+	}
+	got, err = runMCPCommand(t, "--profile", "work")
+	if err != nil || got == nil || got.Profile != "" {
+		t.Errorf("mcp --profile work: options %v, error %v, want the profile not handed to a server that holds none", got, err)
+	}
+	got, err = runMCPCommand(t, "--grant", "grt_x")
+	if err == nil || got != nil || !strings.Contains(err.Error(), "--grant needs --profile") {
+		t.Errorf("--grant without --profile: options %v, error %v", got, err)
+	}
+	got, err = runMCPCommand(t, "--grant", "grt_x", "--profile", "work")
+	if err != nil || got == nil || got.Profile != "work" || got.Grant != "grt_x" {
+		t.Errorf("--grant with --profile: options %v, error %v", got, err)
 	}
 }

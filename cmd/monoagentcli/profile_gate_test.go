@@ -24,14 +24,14 @@ var mustBeGlobal = []string{
 	"automation test", "automation new", "extension status", "library status", "library login",
 	"workflow templates list", "secret keyring status", "coder status", "daemon install",
 	"account status", "ref commands", "init", "nodejs status", "db migrate", "integration list", "chat history reconcile",
-	"secret encrypt-connections",
+	"secret encrypt-connections", "mcp",
 }
 
 var mustBeScoped = []string{
 	"people list", "workflow run", "workflow list", "workflow validate", "secret get", "secret add",
 	"task add", "org list", "hil list", "connect list", "library logout", "library install",
 	"automation list", "automation rerecord", "api key list", "api status", "daemon", "doctor",
-	"status", "login status", "chat history list", "jev status", "node run", "mcp",
+	"status", "login status", "chat history list", "jev status", "node run",
 }
 
 func findCommand(t *testing.T, root *cobra.Command, key string) *cobra.Command {

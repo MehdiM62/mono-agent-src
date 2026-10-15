@@ -36,6 +36,11 @@ var classes = map[string]string{
 	"account": ClassGlobal, "agent": ClassGlobal, "config": ClassGlobal,
 	"message-template": ClassGlobal, "db": ClassGlobal,
 
+	// mcp serves every profile and holds none: its tools take a profile argument
+	// per call. Only `mcp --grant` is bound to one profile, and it checks its own
+	// --profile (internal/cli/integrations/mcp.go).
+	"mcp": ClassGlobal,
+
 	// `extension bind <browser> <profile>` takes its profile positionally.
 	"extension": ClassGlobal,
 
