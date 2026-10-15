@@ -21,16 +21,23 @@ MONO_GUARD_NEEDLE='this command acts on a profile'
 export MONO_GUARD_LOG
 
 mono_guard() {
-  local errf rc=0
+  local errf rc=0 oldtraps
   errf="$(mktemp "${TMPDIR:-/tmp}/mono-stderr.XXXXXX")"
-  "$@" 2>"$errf" || rc=$?
-  cat "$errf" >&2
+  # Do not leave the capture file behind when the call is interrupted.
+  oldtraps="$(trap -p INT TERM HUP)"
+  trap 'rm -f "$errf"; exit 130' INT TERM HUP
+  # stderr goes through tee: it is shown as the command writes it (a server
+  # that runs for minutes is not silent) and captured for the check below.
+  # stdout is carried around the pipe on fd 3.
+  { "$@" 2>&1 1>&3 3>&- | tee "$errf" >&2; rc="${PIPESTATUS[0]}"; } 3>&1
   if grep -q "$MONO_GUARD_NEEDLE" "$errf"; then
     printf '%s\n' "$*" >>"$MONO_GUARD_LOG"
     echo "::error::profile guard: this call named no profile: $*" >&2
     rc=97
   fi
   rm -f "$errf"
+  trap - INT TERM HUP
+  [ -z "$oldtraps" ] || eval "$oldtraps"
   return "$rc"
 }
 

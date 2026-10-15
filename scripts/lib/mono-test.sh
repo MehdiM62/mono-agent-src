@@ -49,4 +49,30 @@ if run_case scan "mono_scan_log '$work/bg.log'; mono_check_clean"; then fail "a 
 echo "quiet" >"$work/ok.log"
 run_case scanok "mono_scan_log '$work/ok.log'; mono_check_clean" || fail "a clean log was flagged"
 
+# stderr is streamed while the wrapped command is still running, not held
+# until it exits, and a killed call leaves no capture file behind.
+cat >"$work/slow" <<'EOF'
+#!/bin/sh
+echo "early line" >&2
+echo "out"
+sleep 5
+EOF
+chmod +x "$work/slow"
+mkdir "$work/tmp"
+TMPDIR="$work/tmp" bash -c ". '$here/mono.sh'; mono_guard '$work/slow' --profile p" >"$work/slow.out" 2>"$work/slow.err" &
+slow=$!
+seen=""
+for _ in $(seq 1 30); do
+  if grep -q "early line" "$work/slow.err"; then seen=1; break; fi
+  sleep 0.1
+done
+kill -0 "$slow" 2>/dev/null || fail "the slow command ended before the stream could be checked"
+[ -n "$seen" ] || fail "stderr was not shown while the command was still running"
+grep -q out "$work/slow.out" || fail "stdout of the slow command did not pass through"
+kill -TERM "$slow"
+wait "$slow" 2>/dev/null || true
+sleep 0.3
+leftover="$(find "$work/tmp" -name 'mono-stderr.*' | head -1)"
+[ -z "$leftover" ] || fail "a killed call left $leftover behind"
+
 echo "mono-test: ok"
