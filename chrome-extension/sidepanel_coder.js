@@ -62,6 +62,8 @@
   const pickBtn = el("coder-pick");
   const clearBtn = el("coder-clear");
   const noteBox = el("coder-note");
+  const reloadRow = el("coder-reload-row");
+  const reloadBox = el("coder-reload");
   const cwdSel = el("coder-cwd");
   const queueBtn = el("coder-queue");
   const whyEl = el("coder-why");
@@ -169,7 +171,8 @@
     notice.textContent = shown;
     const on = usable();
     lists.hidden = !on;
-    for (const c of [kindSel, noteBox, cwdSel]) c.disabled = !on;
+    for (const c of [kindSel, noteBox, cwdSel, reloadBox]) c.disabled = !on;
+    reloadRow.hidden = kindSel.value !== "bug-report";
     selectorEl.textContent = target && target.selector ? target.selector : "The whole page";
     selectorEl.dataset.empty = String(!(target && target.selector));
     pickBtn.disabled = !on || !pageOk() || picking;
@@ -203,6 +206,8 @@
         type: "coder_queue",
         kind: kindSel.value,
         tabId: p.tabId,
+        // Only a bug report reloads the tab; an older bridge ignores the field.
+        ...(kindSel.value === "bug-report" ? { reload: reloadBox.checked } : {}),
         selector: target && target.tabId === p.tabId ? target.selector : "",
         note: noteBox.value,
         cwd: cwdSel.value,

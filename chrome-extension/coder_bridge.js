@@ -20,7 +20,8 @@
  * Messages (all answered {ok, ...}; failures carry error and code):
  *   coder_ready       -> {state: "ready" | "offline" | "update"}
  *   coder_projects    -> {projects, recent}
- *   coder_queue       {kind, tabId, selector?, note?, cwd?, profile?} -> {item}
+ *   coder_queue       {kind, tabId, selector?, note?, cwd?, reload?, profile?} -> {item}
+ *                     reload: bug-report only, reload the tab to catch its load's errors
  *   coder_queue_list  -> {items}
  *   coder_list        -> {conversations}
  *   coder_events      {conversationId, turn?, since?} -> {turn, events, turn_active, images}
@@ -117,6 +118,7 @@
     const cwd = str(msg.cwd).trim();
     if (cwd.length > CWD_CAP) throw fail("that folder path is too long", "invalid");
     if (cwd) params.cwd = cwd;
+    if (kind === "bug-report" && typeof msg.reload === "boolean") params.reload = msg.reload;
     return withProfile(params, msg);
   }
 

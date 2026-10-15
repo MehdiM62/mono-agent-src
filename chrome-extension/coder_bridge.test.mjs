@@ -232,3 +232,21 @@ test("promptUserToSubmit asks the page to show its banner, and never fails the c
   t.sandbox.MonoAgentSubmitPrompt = { show: async () => { throw new Error("tab closed"); } };
   assert.deepEqual(await t.B.promptUserToSubmit(42), { shown: false });
 });
+
+test("reload is sent for a bug report only, as a boolean, and still with none of the page", async () => {
+  const t = setup();
+  const base = { type: "coder_queue", tabId: 42, text: PAGE_TEXT, context: { text: PAGE_TEXT } };
+  await t.send({ ...base, kind: "bug-report", reload: true });
+  await t.send({ ...base, kind: "bug-report", reload: false });
+  await t.send({ ...base, kind: "bug-report", reload: "yes" });
+  await t.send({ ...base, kind: "copy-style", reload: true });
+  await t.send({ ...base, kind: "tokens", reload: false });
+  assert.deepEqual(t.ask.calls.map((c) => c.params), [
+    { kind: "bug-report", tabId: 42, reload: true },
+    { kind: "bug-report", tabId: 42, reload: false },
+    { kind: "bug-report", tabId: 42 },
+    { kind: "copy-style", tabId: 42 },
+    { kind: "tokens", tabId: 42 },
+  ]);
+  assert.ok(!JSON.stringify(t.ask.calls).includes("SECRET"), "page text was sent");
+});

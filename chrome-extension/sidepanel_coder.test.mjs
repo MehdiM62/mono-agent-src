@@ -39,7 +39,7 @@ class Node_ {
 }
 
 const IDS = [
-  "coder-panel", "coder-count", "coder-notice", "coder-kind", "coder-selector", "coder-pick", "coder-clear", "coder-note",
+  "coder-panel", "coder-count", "coder-notice", "coder-kind", "coder-reload-row", "coder-reload", "coder-selector", "coder-pick", "coder-clear", "coder-note",
   "coder-cwd", "coder-queue", "coder-why", "coder-msg", "coder-lists", "coder-queued", "coder-queued-empty", "coder-convs",
   "coder-convs-empty", "coder-mirror", "coder-mirror-title", "coder-mirror-close", "coder-log", "coder-follow",
   "coder-follow-text", "coder-send", "coder-stop", "coder-mirror-msg",
@@ -83,6 +83,7 @@ function setup({ replies = {}, session = {}, pageNow = PAGE(), windowId = 1, tab
   const els = {};
   for (const id of IDS) els[id] = new Node_(id);
   els["coder-kind"].value = "copy-style";
+  els["coder-reload"].checked = true; // as the markup has it
   const docListeners = {};
   const doc = {
     visibilityState: "visible",
@@ -438,4 +439,30 @@ test("coder mode off, said by coder.queue, becomes the section's notice", async 
   assert.equal(t.els["coder-notice"].hidden, false);
   assert.equal(t.els["coder-msg"].textContent, "", "said once");
   assert.equal(t.els["coder-queue"].disabled, true);
+});
+
+test("the reload checkbox shows for a bug report only, and its answer goes with that kind alone", async () => {
+  const t = setup({ replies: { coder_queue: { ok: true, item: { id: "q" } } } });
+  await settle();
+  const kind = (k) => {
+    t.els["coder-kind"].value = k;
+    t.els["coder-kind"].fire("change");
+  };
+  assert.equal(t.els["coder-reload-row"].hidden, true, "shown for copy-style");
+  kind("bug-report");
+  assert.equal(t.els["coder-reload-row"].hidden, false);
+  assert.equal(t.els["coder-reload"].checked, true, "checked by default");
+  t.els["coder-queue"].fire("click");
+  await settle();
+  t.els["coder-reload"].checked = false;
+  t.els["coder-queue"].fire("click");
+  await settle();
+  kind("tokens");
+  assert.equal(t.els["coder-reload-row"].hidden, true, "shown for tokens");
+  t.els["coder-queue"].fire("click");
+  await settle();
+  const sent = t.of("coder_queue").map(({ kind: k, reload }) => [k, reload]);
+  assert.deepEqual(sent, [["bug-report", true], ["bug-report", false], ["tokens", undefined]]);
+  assert.ok(!("reload" in t.of("coder_queue")[2]), "reload went with another kind");
+  assert.ok(!JSON.stringify(t.sent).includes("SECRET"), "the page's title went out");
 });
