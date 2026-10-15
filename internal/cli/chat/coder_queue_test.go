@@ -21,8 +21,9 @@ var fakePNG = []byte("\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDRfake")
 // fakeBrowser stands in for the `browser …` commands: it records each argv
 // and writes what the real command would at --out.
 type fakeBrowser struct {
-	calls [][]string
-	fail  string // a subcommand that fails
+	calls   [][]string
+	fail    string // a subcommand that fails
+	console string // what `browser console` prints (default: no entries)
 }
 
 func (f *fakeBrowser) Run(_ context.Context, args []string) ([]byte, error) {
@@ -54,6 +55,9 @@ func (f *fakeBrowser) Run(_ context.Context, args []string) ([]byte, error) {
 		}
 		_ = os.WriteFile(filepath.Join(out, "bundle.json"), []byte(`{"selector":".cta"}`), 0o600)
 		return []byte(`{"dir":"` + out + `"}`), os.WriteFile(filepath.Join(out, "element.png"), fakePNG, 0o600)
+	}
+	if sub == "console" && f.console != "" {
+		return []byte(f.console), nil
 	}
 	return []byte(`{"entries":[],"next":0}`), nil
 }

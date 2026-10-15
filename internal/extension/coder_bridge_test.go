@@ -125,8 +125,8 @@ func TestCoderQueueArgvCarriesNoPageText(t *testing.T) {
 	if !slices.Equal(c.args, want) {
 		t.Errorf("argv = %v\nwant %v", c.args, want)
 	}
-	var in map[string]string
-	if json.Unmarshal([]byte(c.stdin), &in) != nil || in["selector"] != sel || in["note"] != note {
+	var in map[string]any
+	if json.Unmarshal([]byte(c.stdin), &in) != nil || in["selector"] != sel || in["note"] != note || in["reload"] != false {
 		t.Errorf("stdin = %q", c.stdin)
 	}
 	for _, a := range c.args {
@@ -148,6 +148,23 @@ func TestCoderQueueArgvCarriesNoPageText(t *testing.T) {
 	}
 	if len(f.calls) != 1 {
 		t.Errorf("invalid requests reached the CLI: %d calls", len(f.calls))
+	}
+}
+
+// reload rides stdin with the rest; argv does not change.
+func TestCoderQueueReload(t *testing.T) {
+	f := &fakeCoderCLI{reply: func([]string) (string, error) { return `{"id":"20261015-120000-abcdef","kind":"bug-report"}`, nil }}
+	srv, _ := coderSrv(f)
+	if _, err := callCoder(t, srv, MethodCoderQueue, map[string]any{"kind": "bug-report", "tabId": float64(5), "reload": true}, ConnInfo{}); err != nil {
+		t.Fatal(err)
+	}
+	c := f.calls[0]
+	var in map[string]any
+	if json.Unmarshal([]byte(c.stdin), &in) != nil || in["reload"] != true {
+		t.Errorf("stdin = %q", c.stdin)
+	}
+	if slices.ContainsFunc(c.args, func(a string) bool { return strings.Contains(a, "reload") }) {
+		t.Errorf("argv = %v", c.args)
 	}
 }
 

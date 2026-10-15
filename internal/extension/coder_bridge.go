@@ -26,7 +26,8 @@ import (
 // binary's own CLI, page text and the person's text travel on stdin, and
 // argv carries only ids, numbers and a folder the person picked.
 //
-//	coder.queue      {kind, tabId, selector?, note?, cwd?, profile?} -> {item}
+//	coder.queue      {kind, tabId, selector?, note?, cwd?, reload?, profile?} -> {item}
+//	                 reload (bug-report): capture console and network across a reload
 //	coder.queue.list {profile?}                                     -> {items}
 //	coder.projects   {profile?}                                     -> {projects, recent}
 //	coder.list       {profile?}                                     -> {conversations}
@@ -170,7 +171,8 @@ func (cb *coderBridge) handleQueue(ctx context.Context, req *Request, _ Progress
 		}
 		args = append(args, "--cwd="+cwd)
 	}
-	stdin, _ := json.Marshal(map[string]string{"selector": selector, "note": note})
+	reload, _ := req.Params["reload"].(bool)
+	stdin, _ := json.Marshal(map[string]any{"selector": selector, "note": note, "reload": reload})
 	item, err := cb.runJSON(ctx, string(stdin), args...)
 	if err != nil {
 		return nil, err

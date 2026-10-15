@@ -61,6 +61,26 @@ func queueTask(it queueItem) string {
 		"Answer the user. Change code in this project only if they asked for it."
 }
 
+// queueLogsLine says what a bug report's logs are missing, or "".
+func queueLogsLine(it queueItem) string {
+	switch {
+	case !it.LogsEmpty && it.NetworkEmpty && !it.Reloaded:
+		// The console replays its messages when capture starts; the network
+		// log only has what came after.
+		return "Network requests made before console and network capture started were not recorded. " +
+			"`monoagentcli browser reload` then `monoagentcli browser network --failed` lists the failed ones."
+	case !it.LogsEmpty:
+		return ""
+	case it.Reloaded:
+		return "The tab was reloaded with console and network capture on, and it logged no errors or warnings and no " +
+			"request failed: the bug may need steps after the page loads. Reproduce them, then read `monoagentcli browser " +
+			"console --level error,warning` and `monoagentcli browser network --failed`."
+	}
+	return "Console and network logs were not captured: the tab was not being watched when the bug happened. " +
+		"Reproduce it first: `monoagentcli browser reload`, then `monoagentcli browser console --level error,warning` " +
+		"and `monoagentcli browser network --failed`."
+}
+
 // queuePrompt is the first turn's prompt.
 func queuePrompt(it queueItem) string {
 	var b strings.Builder
@@ -78,6 +98,9 @@ func queuePrompt(it queueItem) string {
 	}
 	b.WriteString(queueTask(it))
 	b.WriteString("\n")
+	if line := queueLogsLine(it); line != "" {
+		b.WriteString("\n" + line + "\n")
+	}
 	return b.String()
 }
 
@@ -108,6 +131,12 @@ func queueReadme(it queueItem) string {
 	}
 	if it.Selector != "" {
 		fmt.Fprintf(&b, "- Element selector: `%s`\n", strings.ReplaceAll(it.Selector, "`", "\\`"))
+	}
+	if it.Reloaded {
+		b.WriteString("- The tab was reloaded with console and network capture on before the logs were read\n")
+	}
+	if line := queueLogsLine(it); line != "" {
+		b.WriteString("- " + line + "\n")
 	}
 	b.WriteString("\n## Files\n\n")
 	for _, f := range it.Files {

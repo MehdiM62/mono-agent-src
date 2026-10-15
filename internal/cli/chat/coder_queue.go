@@ -66,6 +66,12 @@ type queueItem struct {
 	Selector    string      `json:"selector,omitempty"`
 	Browser     string      `json:"browser,omitempty"`
 	TabID       int         `json:"tabId,omitempty"`
+	// A bug report's logs: Reloaded says the tab was reloaded with capture
+	// on (--reload), LogsEmpty that console.json and network.json hold
+	// nothing, NetworkEmpty that network.json does.
+	Reloaded     bool `json:"reloaded,omitempty"`
+	LogsEmpty    bool `json:"logsEmpty,omitempty"`
+	NetworkEmpty bool `json:"networkEmpty,omitempty"`
 	// Set by `start`.
 	ConversationID string `json:"conversationId,omitempty"`
 	TurnID         string `json:"turnId,omitempty"`

@@ -90,15 +90,24 @@ func withoutAgentMarkers(env []string) []string {
 
 // queueStep is one command of an item's context: its output lands at file
 // (bundle-relative), through --out or, when stdout, as the command's JSON.
+// A step with no file only acts on the tab; settle waits queueReloadSettle
+// after it.
 type queueStep struct {
 	file   string
 	args   []string // after `browser`; "{out}" is replaced by file's path
 	stdout bool
+	settle bool
 }
 
+// queueReloadSettle is how long a reloaded tab gets after its load event to
+// log what it logs while it starts (late requests, errors in timers).
+var queueReloadSettle = 2 * time.Second
+
 // queueSteps is what each kind gathers. A selector goes after `--` or as
-// --flag=value, so it never reads as a flag.
-func queueSteps(kind, sel string) []queueStep {
+// --flag=value, so it never reads as a flag. reload (bug-report only) turns
+// the tab's console and network capture on and reloads it before the logs
+// are read: a tab nobody watched has none.
+func queueSteps(kind, sel string, reload bool) []queueStep {
 	steps := []queueStep{{file: "page.png", args: []string{"screenshot", "--out", "{out}"}}}
 	element := queueStep{file: "element.png", args: []string{"screenshot", "--element=" + sel, "--out", "{out}"}}
 	switch kind {
@@ -109,6 +118,11 @@ func queueSteps(kind, sel string) []queueStep {
 	case "fix-element":
 		steps = append(steps, element, queueStep{file: "source.json", args: []string{"source", "--", sel}, stdout: true})
 	case "bug-report":
+		if reload {
+			// Reading the console turns the capture on (browserctl's Console).
+			steps = append(steps, queueStep{args: []string{"console", "--limit", "1"}},
+				queueStep{args: []string{"reload"}, settle: true})
+		}
 		steps = append(steps,
 			queueStep{file: "console.json", args: []string{"console", "--level", "error,warning"}, stdout: true},
 			queueStep{file: "network.json", args: []string{"network", "--failed"}, stdout: true})
@@ -131,6 +145,7 @@ const pageInfoJS = `JSON.stringify({url: location.href, title: document.title})`
 type queueAddInput struct {
 	kind, selector, note, cwd, browser string
 	tab                                int
+	reload                             bool
 }
 
 func newCoderQueueAddCmd(cfg *Deps) *cobra.Command {
@@ -141,7 +156,7 @@ func newCoderQueueAddCmd(cfg *Deps) *cobra.Command {
 		Short: "Queue a coder chat about a browser tab (refused inside an agent)",
 		Long: "Gathers the tab's context with the `browser` commands (a screenshot always; styles, design tokens, " +
 			"source mapping, console errors or network calls as --kind needs) into a queued chat the desktop app " +
-			"starts on your click. --stdin-json reads {\"selector\",\"note\"} from stdin instead of the flags " +
+			"starts on your click. --stdin-json reads {\"selector\",\"note\",\"reload\"} from stdin instead of the flags " +
 			"(what the extension bridge passes, so page text never reaches argv). Kinds: " +
 			strings.Join(queueKinds, ", ") + ".",
 		Args: cobra.NoArgs,
@@ -153,12 +168,15 @@ func newCoderQueueAddCmd(cfg *Deps) *cobra.Command {
 				if cmd.Flags().Changed("selector") || cmd.Flags().Changed("note") {
 					return clicore.InvalidInput("--stdin-json replaces --selector and --note")
 				}
-				var v struct{ Selector, Note string }
+				var v struct {
+					Selector, Note string
+					Reload         bool
+				}
 				b, err := io.ReadAll(io.LimitReader(cmd.InOrStdin(), 64*1024))
 				if err != nil || json.Unmarshal(b, &v) != nil {
 					return clicore.InvalidInput("--stdin-json: stdin must be a JSON object {\"selector\",\"note\"}")
 				}
-				in.selector, in.note = v.Selector, v.Note
+				in.selector, in.note, in.reload = v.Selector, v.Note, in.reload || v.Reload
 			}
 			it, err := addQueueItem(cmd, cfg, in)
 			if err != nil {
@@ -178,7 +196,8 @@ func newCoderQueueAddCmd(cfg *Deps) *cobra.Command {
 	f.StringVar(&in.selector, "selector", "", "CSS selector of the element (copy-style and fix-element need one)")
 	f.StringVar(&in.note, "note", "", "What you want done")
 	f.StringVar(&in.cwd, "cwd", "", "Folder the chat works in (default: the folder mapped to the page's origin, else the coder root)")
-	f.BoolVar(&stdinJSON, "stdin-json", false, "Read {\"selector\",\"note\"} from stdin")
+	f.BoolVar(&in.reload, "reload", false, "bug-report: turn the tab's console and network capture on, reload it, and read the logs after it loads")
+	f.BoolVar(&stdinJSON, "stdin-json", false, "Read {\"selector\",\"note\",\"reload\"} from stdin")
 	return cmd
 }
 
@@ -269,7 +288,7 @@ func addQueueItem(cmd *cobra.Command, cfg *Deps, in queueAddInput) (queueItem, e
 		it.Path = "/"
 	}
 
-	for _, s := range queueSteps(in.kind, in.selector) {
+	for _, s := range queueSteps(in.kind, in.selector, in.reload) {
 		target := filepath.Join(tmp, filepath.FromSlash(s.file))
 		sub := make([]string, len(s.args))
 		for i, a := range s.args {
@@ -279,6 +298,9 @@ func addQueueItem(cmd *cobra.Command, cfg *Deps, in queueAddInput) (queueItem, e
 		if err != nil {
 			return queueItem{}, fmt.Errorf("browser %s: %w", s.args[0], err)
 		}
+		if s.settle {
+			time.Sleep(queueReloadSettle)
+		}
 		if s.stdout {
 			if err := os.WriteFile(target, out, 0o600); err != nil {
 				return queueItem{}, err
@@ -286,6 +308,13 @@ func addQueueItem(cmd *cobra.Command, cfg *Deps, in queueAddInput) (queueItem, e
 		}
 	}
 
+	if in.kind == "bug-report" {
+		console, cok := logCount(tmp, "console.json")
+		network, nok := logCount(tmp, "network.json")
+		it.Reloaded = in.reload
+		it.LogsEmpty = cok && nok && console == 0 && network == 0
+		it.NetworkEmpty = nok && network == 0
+	}
 	if it.Cwd, err = queueCwd(in.cwd, it.Origin, projects, settings); err != nil {
 		return queueItem{}, err
 	}
@@ -359,6 +388,20 @@ func queueCwd(flag, origin string, projects []coderProject, s coderSettings) (st
 		return dir, nil
 	}
 	return expandHome(s.WorkspaceRoot), nil
+}
+
+// logCount is how many entries a bug report's console.json or network.json
+// holds; ok is false when it can't be read, and the prompt then says
+// nothing about it.
+func logCount(dir, name string) (n int, ok bool) {
+	var v struct {
+		Entries *[]json.RawMessage `json:"entries"`
+	}
+	b, err := os.ReadFile(filepath.Join(dir, name))
+	if err != nil || json.Unmarshal(b, &v) != nil || v.Entries == nil {
+		return 0, false
+	}
+	return len(*v.Entries), true
 }
 
 // queueFiles lists dir's files (not item.json), slash-separated.
