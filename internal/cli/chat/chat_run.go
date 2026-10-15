@@ -178,8 +178,7 @@ func runChat(cfg *Deps, cmd *cobra.Command, args []string, f *chatFlags) (retErr
 		}
 
 		if effectiveCanvasID != "" {
-			canvas = aichat.NewCanvasTools(db.DB)
-			canvas.SetProfileID(profileID)
+			canvas = aichat.NewCanvasTools(db.DB, profileID)
 			nodeTypes = registryNodeTypes(db.DB)
 			canvas.SetNodeTypes(nodeTypes)
 			if err := canvas.CheckWorkflowOwnership(effectiveCanvasID); err != nil {
@@ -194,8 +193,7 @@ func runChat(cfg *Deps, cmd *cobra.Command, args []string, f *chatFlags) (retErr
 			// that tool just reports itself unavailable if
 			// os.Executable() fails, everything else still works.
 			selfBin, _ := os.Executable()
-			monoTools = aichat.NewMonoagentTools(db.DB, selfBin)
-			monoTools.SetProfileID(profileID)
+			monoTools = aichat.NewMonoagentTools(db.DB, selfBin, profileID)
 			// Workflows the editor or `workflow save` wrote live as files:
 			// activate and delete must reach those, not only the rows.
 			if home, err := os.UserHomeDir(); err == nil {

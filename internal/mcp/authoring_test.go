@@ -17,7 +17,7 @@ func callNamed(t *testing.T, s *Server, name string, args interface{}) (string, 
 	if err != nil {
 		t.Fatal(err)
 	}
-	return callTool(context.Background(), s, name, b)
+	return callToolIn(context.Background(), s, serverTestProfile(s), name, b)
 }
 
 // callInto is callNamed that fails the test on a tool error and decodes the

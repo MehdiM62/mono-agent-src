@@ -107,7 +107,7 @@ func TestWorkflowRunReportsProgressWhenAskedTo(t *testing.T) {
 	}}, &saved)
 
 	req := request(7, "tools/call", map[string]interface{}{
-		"name": "workflow_run", "arguments": map[string]interface{}{"id": saved.ID, "timeout_seconds": 30},
+		"name": "workflow_run", "arguments": map[string]interface{}{"id": saved.ID, "timeout_seconds": 30, "profile": testProfile},
 		"_meta": map[string]interface{}{"progressToken": "run-7"},
 	})
 	var progress []map[string]interface{}

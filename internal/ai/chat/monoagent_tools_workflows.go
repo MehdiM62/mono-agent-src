@@ -2,6 +2,7 @@ package chat
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"os/exec"
@@ -396,8 +397,14 @@ type templateSummary struct {
 }
 
 func (mt *MonoagentTools) listTemplates(string) (string, error) {
-	// Templates are not profile-scoped (shared across the install).
-	rows, err := mt.db.Query(`SELECT id, name, COALESCE(subject,'') FROM templates ORDER BY name`)
+	return ListMessageTemplates(mt.db)
+}
+
+// ListMessageTemplates is the list_templates result: the message templates,
+// which are not profile-scoped (shared across the install), so it needs no
+// tool set and no profile.
+func ListMessageTemplates(db *sql.DB) (string, error) {
+	rows, err := db.Query(`SELECT id, name, COALESCE(subject,'') FROM templates ORDER BY name`)
 	if err != nil {
 		return "", fmt.Errorf("query templates: %w", err)
 	}

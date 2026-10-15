@@ -6,7 +6,7 @@ import (
 )
 
 // grantRuntime is the grant-mode runtime: database and workflow store only.
-// The profile comes from the grant row, checked in grantScope.
+// The profile comes from the grant row; --profile is checked against it in grantScope.
 func grantRuntime(db *storage.Database, opts Options) (*runtime, error) {
 	wfDir := opts.WorkflowsDir
 	if wfDir == "" {
@@ -17,8 +17,7 @@ func grantRuntime(db *storage.Database, opts Options) (*runtime, error) {
 		fileStore = nil
 	}
 	return &runtime{
-		db:        db,
-		profileID: opts.Profile,
-		store:     workflow.NewHybridWorkflowStore(fileStore, workflow.NewSQLiteWorkflowStore(db.DB)),
+		db:    db,
+		store: workflow.NewHybridWorkflowStore(fileStore, workflow.NewSQLiteWorkflowStore(db.DB)),
 	}, nil
 }

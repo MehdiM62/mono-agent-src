@@ -66,7 +66,7 @@ func callAPITool(t *testing.T, s *Server, name string, args map[string]any) (str
 		}
 		raw = b
 	}
-	return callTool(context.Background(), s, name, raw)
+	return callToolIn(context.Background(), s, serverTestProfile(s), name, raw)
 }
 
 // mustCall is callAPITool for a call that must succeed.

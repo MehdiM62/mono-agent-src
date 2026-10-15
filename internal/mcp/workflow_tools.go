@@ -13,7 +13,7 @@ import (
 )
 
 // Workflow tools: with --workflow-tools (or MONOAGENT_MCP_WORKFLOW_TOOLS) every
-// saved workflow of the server's profile, or the ones named, is served as a tool
+// saved workflow of the call's profile, or the ones named, is served as a tool
 // of its own, wf_<slug>, whose arguments are the workflow's trigger input (the
 // fields `workflow inputs` finds) and whose call runs the workflow and waits, as
 // workflow_run does. They are mutating, so they also need --allow-mutations.
@@ -224,7 +224,7 @@ func (s *Server) workflowTools() []tool {
 		fmt.Fprintf(os.Stderr, "mcp: workflow tools: %v\n", err)
 		return nil
 	}
-	wfs, err := rt.store.ListWorkflows(ctx, rt.profileID)
+	wfs, err := listAllProfilesWorkflows(ctx, rt)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "mcp: workflow tools: list workflows: %v\n", err)
 		return nil
@@ -255,7 +255,7 @@ func (s *Server) workflowTools() []tool {
 		id := wf.ID
 		out = append(out, tool{
 			name:        toolNames[id],
-			description: workflowToolDescription(wf),
+			description: workflowToolDescription(wf) + workflowToolProfileNote(wf),
 			schema:      workflowInputSchema(workflow.TriggerInputs(wf.Nodes, wf.Connections, workflow.LoadDefaultSchema)),
 			annotations: map[string]bool{"readOnlyHint": false},
 			mutating:    true,
@@ -265,7 +265,43 @@ func (s *Server) workflowTools() []tool {
 		})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].name < out[j].name })
-	return out
+	return scoped(out)
+}
+
+// listAllProfilesWorkflows is the workflows of every profile, one profile at a
+// time: --workflow-tools serves a workflow tool for each, and the tool is bound
+// to the workflow's own profile (a call whose profile argument names another is
+// not found), so one server serves them all without choosing a profile. A
+// workflow with no owner recorded (a legacy file) appears once and answers to
+// every profile, as it does for every by-id tool.
+func listAllProfilesWorkflows(ctx context.Context, rt *runtime) ([]workflow.Workflow, error) {
+	rows, err := rt.db.DB.QueryContext(ctx, `SELECT id FROM profiles ORDER BY created_at, id`)
+	if err != nil {
+		return nil, err
+	}
+	var ids []string
+	for rows.Next() {
+		var id string
+		if rows.Scan(&id) == nil {
+			ids = append(ids, id)
+		}
+	}
+	rows.Close()
+	var all []workflow.Workflow
+	seen := map[string]bool{}
+	for _, id := range ids {
+		wfs, err := rt.listWorkflows(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		for _, wf := range wfs {
+			if !seen[wf.ID] {
+				seen[wf.ID] = true
+				all = append(all, wf)
+			}
+		}
+	}
+	return all, nil
 }
 
 // runWorkflowTool runs workflow id with the call's arguments as its trigger
@@ -297,3 +333,11 @@ func runWorkflowTool(ctx context.Context, s *Server, id string, args json.RawMes
 // ErrWorkflowToolsWithNarrowMode refuses --workflow-tools with --api-only or
 // --tasks-only: those serve one family of tools and no workflow tool.
 var ErrWorkflowToolsWithNarrowMode = errors.New("--workflow-tools serves saved workflows as tools and cannot be combined with --api-only or --tasks-only (MONOAGENT_MCP_WORKFLOW_TOOLS, MONOAGENT_MCP_API_ONLY=1 and MONOAGENT_MCP_TASKS_ONLY=1 count as the flags)")
+
+// workflowToolProfileNote tells a caller which profile the argument must name.
+func workflowToolProfileNote(wf *workflow.Workflow) string {
+	if wf.ProfileID == "" {
+		return " The profile argument may name any profile."
+	}
+	return fmt.Sprintf(" It belongs to profile %s: the profile argument must name it.", wf.ProfileID)
+}

@@ -186,10 +186,10 @@ collide.`,
 
 Profiles scope everything (workflows, connections, people, HIL queue,
 secrets). Every command that acts on a profile takes --profile <id|name>; there
-is no active profile. (This server still serves the profile fixed at start, and
-today falls back to MONOAGENT_PROFILE, which is being removed; a later release
-adds a required profile argument.) A workflow saved under one
-profile cannot run under another.
+is no active profile. This server holds no profile either: every tool that acts
+on a profile takes a required "profile" argument (id or name) on each call, and
+a call without it is refused with the list of profiles. A workflow saved under
+one profile cannot run under another, and another profile's records are not found.
 
 Connections ('monoagentcli connect <platform>') store OAuth tokens /
 API keys in an encrypted vault (keyring-wrapped key, AES-256-GCM). Nodes

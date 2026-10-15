@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"strings"
 
+	aichat "github.com/monoes/mono-agent/internal/ai/chat"
 	"github.com/monoes/mono-agent/internal/orgdesign"
 )
 
@@ -23,7 +24,9 @@ func chatToolHandler(chatName string) toolHandler {
 		if len(args) > 0 {
 			argsStr = string(args)
 		}
-		result, err := rt.chatTools().ExecuteContext(ctx, chatName, argsStr)
+		mt := rt.chatTools(profileOf(ctx))
+		result, err := mt.ExecuteContext(ctx, chatName, argsStr)
+		rt.shareUntrusted(mt)
 		if err != nil {
 			return nil, err
 		}
@@ -262,16 +265,27 @@ func monoagentAdaptedTools() []tool {
 		},
 		{
 			name:        "template_list",
+			global:      true, // reads no profile data
 			description: "List message templates (outreach message texts), not workflow templates: those are workflow_template_list.",
 			schema:      objSchema(nil),
 			annotations: map[string]bool{"readOnlyHint": true},
-			handler:     chatToolHandler("list_templates"),
+			handler: func(ctx context.Context, s *Server, args json.RawMessage) (interface{}, error) {
+				rt, err := s.runtime()
+				if err != nil {
+					return nil, err
+				}
+				out, err := aichat.ListMessageTemplates(rt.db.DB)
+				if err != nil {
+					return nil, err
+				}
+				return json.RawMessage(out), nil
+			},
 		},
 
 		// Agent organizations (Org Runtime v2 designs).
 		{
 			name:        "org_list",
-			description: "List the agent organizations saved in the active profile, with each org's goal, current status, schedule, and role count.",
+			description: "List the agent organizations saved in the call's profile, with each org's goal, current status, schedule, and role count.",
 			schema:      objSchema(nil),
 			annotations: map[string]bool{"readOnlyHint": true},
 			handler:     chatToolHandler("list_orgs"),

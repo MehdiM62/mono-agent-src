@@ -16,9 +16,8 @@ func TestPublicationDeleteRedactOperatorOnly(t *testing.T) {
 		t.Setenv(m, "")
 	}
 	db := newMonoagentTestDB(t)
-	mt := NewMonoagentTools(db.DB, "")
-	other := NewMonoagentTools(db.DB, "")
-	other.SetProfileID("other")
+	mt := NewMonoagentTools(db.DB, "", "default")
+	other := NewMonoagentTools(db.DB, "", "other")
 	ctx := context.Background()
 	reg := func(tools *MonoagentTools, title string) publication.Entry {
 		raw, err := tools.ExecuteContext(ctx, "register_publication", `{"platform":"blog","kind":"article","title":"`+title+`","body":"text"}`)
@@ -51,7 +50,7 @@ func TestPublicationDeleteRedactOperatorOnly(t *testing.T) {
 	if _, err := mt.ExecuteContext(ctx, "redact_publication", `{"id":"`+a.ID+`"}`); err == nil {
 		t.Fatal("redact allowed after untrusted communications")
 	}
-	fresh := NewMonoagentTools(db.DB, "")
+	fresh := NewMonoagentTools(db.DB, "", "default")
 	raw, err := fresh.ExecuteContext(ctx, "redact_publication", `{"id":"`+a.ID+`","title":true}`)
 	if err != nil || !strings.Contains(raw, "[redacted]") || strings.Contains(raw, "mine") {
 		t.Fatalf("redact: %s %v", raw, err)
