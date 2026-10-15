@@ -9,6 +9,9 @@ config key matches that schema's fields. Values marked
 `REPLACE_WITH_*` (and empty `credential_id`s) must be filled in before a run
 will succeed — `workflow import` and `--dry-run` work without them.
 
+The commands here pass `--profile work`; use the name of one of your own
+profiles (`monoagentcli profile list`).
+
 ## Catalog
 
 | File | What it does | Trigger | Nodes |
@@ -37,17 +40,17 @@ copies identical.
 
 ```bash
 # 1. Import any example (prints the new workflow id):
-monoagentcli workflow import --file examples/http-to-slack.json
+monoagentcli --profile work workflow import --file examples/http-to-slack.json
 
 # 2. Check it without running anything:
-monoagentcli workflow validate --file examples/http-to-slack.json
-monoagentcli workflow run <id> --dry-run
+monoagentcli --profile work workflow validate --file examples/http-to-slack.json
+monoagentcli --profile work workflow run <id> --dry-run
 
 # 3. Activate the workflow so its triggers are served:
-monoagentcli workflow activate <id>
+monoagentcli --profile work workflow activate <id>
 
 # 4. Start the daemon AFTER activation (or restart it) and keep it running:
-monoagentcli daemon
+monoagentcli --profile work daemon
 ```
 
 Note: an activated workflow's triggers are only served by a daemon started
