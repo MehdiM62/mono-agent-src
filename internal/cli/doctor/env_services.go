@@ -117,7 +117,6 @@ func addServiceHooks(env *health.Env, d EnvDeps) {
 	env.RegisterMCP = integrations.RegisterAgentsMCP
 }
 
-
 // startDaemon starts `monoagentcli daemon` through its login service when
 // one is registered (idempotent), otherwise as a detached background
 // process logging to ~/.monoagent/logs/daemon.log. The daemon gets
