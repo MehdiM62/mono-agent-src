@@ -72,12 +72,13 @@ func TestStatusNeedsTheJobLoaded(t *testing.T) {
 	}
 }
 
-func TestThePlistCarriesTheProfile(t *testing.T) {
-	plist, err := renderPlist("/usr/local/bin/monoagentcli", "/Users/ada/.monoagent/logs", "default")
+// The daemon serves every profile, so the job names none.
+func TestThePlistNamesNoProfile(t *testing.T) {
+	plist, err := renderPlist("/usr/local/bin/monoagentcli", "/Users/ada/.monoagent/logs")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, ok := profileFromDefinition(plist); !ok || got != "default" {
-		t.Fatalf("profileFromDefinition = %q, %v\n%s", got, ok, plist)
+	if strings.Contains(plist, "--profile") || !strings.Contains(plist, "<string>daemon</string>") {
+		t.Fatalf("the plist should run plain `daemon`:\n%s", plist)
 	}
 }
