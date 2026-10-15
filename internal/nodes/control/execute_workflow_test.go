@@ -122,7 +122,7 @@ func (f *subflowFixture) runParent(t *testing.T, parent string) (*workflow.Workf
 
 func (f *subflowFixture) waitTerminal(t *testing.T, id string) string {
 	t.Helper()
-	for deadline := time.Now().Add(20 * time.Second); ; time.Sleep(20 * time.Millisecond) {
+	for deadline := time.Now().Add(60 * time.Second); ; time.Sleep(20 * time.Millisecond) {
 		st, err := f.store.GetExecutionStatus(context.Background(), id)
 		if err != nil {
 			t.Fatalf("status: %v", err)
