@@ -91,7 +91,7 @@ func newChatCmd(cfg *Deps) *cobra.Command {
 	cmd.Flags().StringVar(&f.instanceID, "instance", "", "App instance id recorded as the turn's owner (used with --conversation)")
 	cmd.Flags().StringVar(&f.mode, "mode", "", "Set to coder for a full-access turn (see the coder command); needs --cwd, --profile-folder, --coder-root or --new-workspace")
 	cmd.Flags().StringVar(&f.coderCwd, "cwd", "", "Coder mode: the folder the agent works in")
-	cmd.Flags().BoolVar(&f.profileFold, "profile-folder", false, "Coder mode: work in the active profile's own folder")
+	cmd.Flags().BoolVar(&f.profileFold, "profile-folder", false, "Coder mode: work in the folder of the profile named by --profile")
 	cmd.Flags().BoolVar(&f.coderRoot, "coder-root", false, "Coder mode: work in the coder root folder itself")
 	cmd.Flags().BoolVar(&f.newWorkspace, "new-workspace", false, "Coder mode: work in a fresh, randomly named test folder")
 	cmd.AddCommand(newChatHistoryCmd(cfg))

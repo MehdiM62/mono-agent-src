@@ -27,7 +27,7 @@ func newOrgServeCmd(env *orgEnv) *cobra.Command {
 	var foreground, stop bool
 	c := &cobra.Command{
 		Use:   "serve",
-		Short: "Start the org daemon (monomind org serve) for the active profile's folder",
+		Short: "Start the org daemon (monomind org serve) for the folder of the profile named by --profile",
 		Long: "One org daemon per profile folder runs every org, delivers messages between them, and fires " +
 			"scheduled orgs. Without --foreground it starts in the background (log: <folder>/.monomind/serve.log) " +
 			"unless one is already running. --stop asks every org running out of the folder to stop, then stops " +

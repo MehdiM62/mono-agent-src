@@ -23,7 +23,7 @@ func (d Deps) newConnectSaveCmd() *cobra.Command {
 		Use:   "save <platform> --method <method> --stdin-json",
 		Short: "Validate and save a connection from field values given as JSON on stdin",
 		Long: "Reads the credential fields as one JSON object on stdin, validates them against the " +
-			"platform and saves the connection under the active profile. Field values are never " +
+			"platform and saves the connection under the profile named by --profile. Field values are never " +
 			"printed; --json prints the saved connection without its credentials. Exit code 3 for an " +
 			"unknown platform or malformed input, 4 when the platform rejects the credentials.",
 		Example: `  printf '%s' '{"api_key":"..."}' | monoagentcli connect save linear --method apikey --stdin-json`,
@@ -95,7 +95,7 @@ func (d Deps) newConnectGetOAuthClientCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "get-oauth-client <platform>",
 		Short: "Show a platform's stored OAuth client ID (and, with --reveal, its secret)",
-		Long: "Prints the OAuth client_id stored for a platform under the active profile (see " +
+		Long: "Prints the OAuth client_id stored for a platform under the profile named by --profile (see " +
 			"set-oauth-client). The client_secret is printed only with --reveal. Exit code 2 when " +
 			"nothing is stored.",
 		Args: cobra.ExactArgs(1),
@@ -249,7 +249,7 @@ func (d Deps) newConnectOAuthCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "oauth <platform>",
 		Short: "Connect a platform through its browser OAuth (2.0 or 1.0a) flow, without prompts",
-		Long: "Runs the platform's browser OAuth flow and saves the connection under the active profile.\n\n" +
+		Long: "Runs the platform's browser OAuth flow and saves the connection under the profile named by --profile.\n\n" +
 			"--field key=value (repeatable) gives the values the flow needs before the browser opens: an " +
 			"OAuth 2.0 platform's connect fields (a tenant subdomain, a Salesforce environment — a reconnect " +
 			"keeps the earlier values of the ones not given), or an OAuth 1.0a platform's form (consumer_key, " +

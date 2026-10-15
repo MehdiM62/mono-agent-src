@@ -266,7 +266,7 @@ func (d Deps) newConnectTestCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "test <id>",
 		Short: "Test a saved connection by re-validating credentials",
-		Long: "Re-validates a saved connection of the active profile (an expired OAuth token is silently " +
+		Long: "Re-validates a saved connection of the profile named by --profile (an expired OAuth token is silently " +
 			"refreshed first). Exit code 2 when the id is unknown, 4 when validation fails.",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -306,7 +306,7 @@ func (d Deps) newConnectRemoveCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "remove <id>",
 		Short: "Remove a saved connection",
-		Long:  "Removes a saved connection of the active profile and its vault entry. Exit code 2 when the id is unknown.",
+		Long:  "Removes a saved connection of the profile named by --profile and its vault entry. Exit code 2 when the id is unknown.",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			db, err := d.OpenDB()

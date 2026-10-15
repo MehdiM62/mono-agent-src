@@ -62,7 +62,7 @@ func (d Deps) newLoginTestCmd() *cobra.Command {
 		Use:   "test <session-id>",
 		Short: "Check a saved browser session (exists, not expired, cookies stored)",
 		Long: "Checks a session from `login status` without opening a browser: exit code 2 when the id " +
-			"is unknown in the active profile, 4 when it is expired or has no cookies stored.",
+			"is unknown in the profile named by --profile, 4 when it is expired or has no cookies stored.",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id, err := d.parseSessionID(args[0])
