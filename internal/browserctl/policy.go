@@ -52,7 +52,7 @@ type NotAllowedError struct {
 func (e *NotAllowedError) Error() string {
 	msg := fmt.Sprintf("an agent may drive only local and dev pages and the origins the user allowed: %s is not allowed (%s)", e.Origin, e.Reason)
 	if e.Allowable() {
-		msg += fmt.Sprintf(" — the user can allow it with `monoagentcli browser permissions site %s allow` or in Settings → Agent browser permissions", e.Origin)
+		msg += fmt.Sprintf(" — the user can allow it with `monoagentcli browser allow add %s` or in Settings → Agent browser permissions", e.Origin)
 	}
 	return msg
 }
