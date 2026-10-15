@@ -80,8 +80,10 @@ const (
 	RuleBlock = "block"
 )
 
-// SiteRule is one site's rule; Origin is as NormalizeAllowEntry returns it
-// (scheme://host[:port] or *.host).
+// SiteRule is one site's rule; Origin is in its canonical stored form
+// (scheme://host[:port] or *.host, and for a block also a bare host). An
+// allow admits exactly that origin (*.host: the host and its subdomains);
+// a block covers the host and its subdomains on every scheme and port.
 type SiteRule struct {
 	Origin string `json:"origin"`
 	Rule   string `json:"rule"`
@@ -150,11 +152,37 @@ func LoadPermissions(db *sql.DB) (Permissions, error) {
 		}
 	}
 	for _, s := range stored.Sites {
-		if o, err := NormalizeAllowEntry(s.Origin); err == nil && (s.Rule == RuleAllow || s.Rule == RuleBlock) {
-			p.Sites = append(p.Sites, SiteRule{Origin: o, Rule: s.Rule})
+		if c, err := canonSite(s); err == nil {
+			p.Sites = mergeSite(p.Sites, c)
 		}
 	}
 	return p, nil
+}
+
+// canonSite checks one rule and puts its origin in canonical form.
+func canonSite(s SiteRule) (SiteRule, error) {
+	if s.Rule != RuleAllow && s.Rule != RuleBlock {
+		return s, fmt.Errorf("%s: a site rule is allow or block, not %q", s.Origin, s.Rule)
+	}
+	o, err := normalizeSiteEntry(s.Origin, s.Rule)
+	if err != nil {
+		return s, err
+	}
+	return SiteRule{Origin: o, Rule: s.Rule}, nil
+}
+
+// mergeSite adds s to sites, one rule per origin: a block wins over an
+// allow stored under the same canonical origin.
+func mergeSite(sites []SiteRule, s SiteRule) []SiteRule {
+	for i, have := range sites {
+		if have.Origin == s.Origin {
+			if s.Rule == RuleBlock {
+				sites[i] = s
+			}
+			return sites
+		}
+	}
+	return append(sites, s)
 }
 
 // SavePermissions stores p (sites sorted, one rule per origin).
@@ -166,19 +194,12 @@ func SavePermissions(db *sql.DB, p Permissions) error {
 		}
 		out.Levels[k] = v
 	}
-	seen := map[string]bool{}
 	for _, s := range p.Sites {
-		o, err := NormalizeAllowEntry(s.Origin)
+		c, err := canonSite(s)
 		if err != nil {
 			return err
 		}
-		if s.Rule != RuleAllow && s.Rule != RuleBlock {
-			return fmt.Errorf("%s: a site rule is allow or block, not %q", o, s.Rule)
-		}
-		if !seen[o] {
-			seen[o] = true
-			out.Sites = append(out.Sites, SiteRule{Origin: o, Rule: s.Rule})
-		}
+		out.Sites = mergeSite(out.Sites, c)
 	}
 	sort.Slice(out.Sites, func(i, j int) bool { return out.Sites[i].Origin < out.Sites[j].Origin })
 	b, err := json.Marshal(out)
@@ -223,14 +244,15 @@ func (p *Permissions) SetLevel(kind, level string) error {
 }
 
 // SetSite sets origin's rule (allow or block), or with "clear" removes it,
-// and returns the origin as stored. found reports whether it had a rule.
+// and returns the origin as stored (canonical). found reports whether it
+// had a rule.
 func (p *Permissions) SetSite(origin, rule string) (stored string, found bool, err error) {
-	o, err := NormalizeAllowEntry(origin)
+	if rule != RuleAllow && rule != RuleBlock && rule != "clear" {
+		return "", false, fmt.Errorf("a site rule is allow, block or clear, not %q", rule)
+	}
+	o, err := normalizeSiteEntry(origin, rule)
 	if err != nil {
 		return "", false, err
-	}
-	if rule != RuleAllow && rule != RuleBlock && rule != "clear" {
-		return o, false, fmt.Errorf("a site rule is allow, block or clear, not %q", rule)
 	}
 	kept := []SiteRule{}
 	for _, s := range p.Sites {
@@ -249,7 +271,7 @@ func (p *Permissions) SetSite(origin, rule string) (stored string, found bool, e
 
 // Rule is origin's stored rule ("" for none).
 func (p Permissions) Rule(origin string) string {
-	o, err := NormalizeAllowEntry(origin)
+	o, err := normalizeSiteEntry(origin, RuleBlock)
 	if err != nil {
 		return ""
 	}

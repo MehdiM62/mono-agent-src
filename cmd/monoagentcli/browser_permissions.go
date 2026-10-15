@@ -64,7 +64,9 @@ func newBrowserPermissionsCmd(cfg *globalConfig) *cobra.Command {
 			"  dev                localhost and dev pages plus allowed sites (the default for coder chats)\n" +
 			"  ask                like dev, but a new site asks you first instead of being refused\n" +
 			"  off                no browser at all\n" +
-			"Site rules apply to every kind: allow (for dev and ask) or block (wins at every level).\n" +
+			"Site rules apply to every kind: allow (for dev and ask) admits exactly one origin\n" +
+			"(scheme, host and port; *.host for a host and its subdomains); block covers a host and its\n" +
+			"subdomains on every scheme and port, and wins at every level.\n" +
 			"Your own terminal is never restricted. Agents may read this; only you change it.",
 		Example: `  monoagentcli --json browser permissions
   monoagentcli browser permissions set coder ask
@@ -93,9 +95,9 @@ func newBrowserPermissionsCmd(cfg *globalConfig) *cobra.Command {
 		},
 	})
 	cmd.AddCommand(&cobra.Command{
-		Use:     "site <origin> <allow|block|clear>",
+		Use:     "site <origin|host> <allow|block|clear>",
 		Short:   "Allow or block a site for every kind of agent, or clear its rule",
-		Example: "  monoagentcli browser permissions site https://github.com allow\n  monoagentcli browser permissions site '*.bank.example' block",
+		Example: "  monoagentcli browser permissions site https://github.com allow\n  monoagentcli browser permissions site bank.example block",
 		Args:    cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if browserctl.AgentKind() != "" {

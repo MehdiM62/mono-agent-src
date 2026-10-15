@@ -117,3 +117,22 @@ func TestBrowserPermissionRefusals(t *testing.T) {
 		t.Fatalf("open after the user allowed it: %v", res)
 	}
 }
+
+// A block takes a bare host, rules are stored canonical, and `allow add`
+// stores the xn-- form of a Unicode host.
+func TestBrowserPermissionsSiteForms(t *testing.T) {
+	bt := newBrowserTest(t, false)
+	bt.runJSON("permissions", "site", "--", "Bank.Example.", "block")
+	bt.runJSON("allow", "add", "HTTPS://Bücher.example:443")
+	doc := bt.runJSON("permissions")
+	got := map[string]string{}
+	for _, s := range doc["sites"].([]any) {
+		got[s.(map[string]any)["origin"].(string)] = s.(map[string]any)["rule"].(string)
+	}
+	if len(got) != 2 || got["bank.example"] != "block" || got["https://xn--bcher-kva.example"] != "allow" {
+		t.Fatalf("sites = %v", got)
+	}
+	if _, err := bt.run("permissions", "site", "--", "github.com", "allow"); exitCodeFor(err) != 3 {
+		t.Fatalf("an allow on a bare host: %v", err)
+	}
+}
