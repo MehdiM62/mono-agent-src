@@ -46,7 +46,7 @@ func TestDataTableImportsAndRuns(t *testing.T) {
 	if save := node(t, wf, "Save"); save.Config["table"] != "Leads" {
 		t.Errorf("table by cached name: %v", save.Config)
 	}
-	ctx := vault.ContextWithDB(context.Background(), testdb.Open(t).DB)
+	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), testdb.Open(t).DB), "default")
 	run := func(name string, items ...map[string]interface{}) []map[string]interface{} {
 		t.Helper()
 		in := workflow.NodeInput{}

@@ -560,7 +560,7 @@ func TestSecretImport_RematerializesConnectionOnFreshMachine(t *testing.T) {
 	seedFields := map[string]interface{}{}
 	seedFields["access_token"] = credA
 	seedFields["refresh_token"] = credB
-	conn := &connections.Connection{Platform: "github", Method: connections.MethodOAuth, Label: "work", Data: seedFields}
+	conn := &connections.Connection{ProfileID: "default", Platform: "github", Method: connections.MethodOAuth, Label: "work", Data: seedFields}
 	if err := store.Save(ctx, conn); err != nil {
 		t.Fatalf("seeding source connection: %v", err)
 	}
@@ -613,7 +613,7 @@ func TestSecretImport_RematerializesConnection_PreservesNonSecretDataOnUpdate(t 
 		t.Fatalf("creating source connections table: %v", err)
 	}
 	srcConn := &connections.Connection{
-		Platform: "github", Method: connections.MethodOAuth, Label: "work",
+		ProfileID: "default", Platform: "github", Method: connections.MethodOAuth, Label: "work",
 		Data: map[string]interface{}{"access_token": "PLACEHOLDER-new-one"},
 	}
 	if err := connections.NewStore(src.DB).Save(ctx, srcConn); err != nil {
