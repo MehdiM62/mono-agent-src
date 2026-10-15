@@ -194,18 +194,28 @@ func newChatSupervisor(launcher chatProcessLauncher, emit chatEventEmitter, find
 	}
 }
 
-// cli runs `monoagentcli [--profile P] --json <args>` and decodes its stdout
-// into result (when non-nil). profileID "" leaves --profile off.
+// cli runs `monoagentcli --profile P --json <args>` and decodes its stdout
+// into result (when non-nil). An empty profileID is errNoProfile.
 func (sup *chatSupervisor) cli(profileID string, result any, args ...string) error {
+	full, err := scopedCLIArgs(profileID, args...)
+	if err != nil {
+		return err
+	}
+	return sup.runCLI(full, result, args)
+}
+
+// globalCLI runs a machine-wide `monoagentcli --json <args>` (no profile).
+func (sup *chatSupervisor) globalCLI(result any, args ...string) error {
+	return sup.runCLI(unscopedCLIArgs(args...), result, args)
+}
+
+// runCLI runs full and decodes its stdout into result; args only name the
+// command in error messages.
+func (sup *chatSupervisor) runCLI(full []string, result any, args []string) error {
 	bin, err := sup.findCLI()
 	if err != nil {
 		return err
 	}
-	full := []string{"--json"}
-	if profileID != "" {
-		full = []string{"--profile", profileID, "--json"}
-	}
-	full = append(full, args...)
 	ctx, cancel := context.WithTimeout(context.Background(), chatCLITimeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, bin, full...)
@@ -237,7 +247,7 @@ func (sup *chatSupervisor) cli(profileID string, result any, args ...string) err
 // instance as interrupted, via `chat history reconcile`. This instance's
 // own turns are skipped, so it may run concurrently with the first Start.
 func (sup *chatSupervisor) reconcileOrphanedTurns() []error {
-	if err := sup.cli("", nil, "chat", "history", "reconcile", "--except-owner", sup.instanceID); err != nil {
+	if err := sup.globalCLI(nil, "chat", "history", "reconcile", "--except-owner", sup.instanceID); err != nil {
 		return []error{err}
 	}
 	return nil

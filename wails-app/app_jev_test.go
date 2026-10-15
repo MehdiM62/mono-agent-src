@@ -43,7 +43,7 @@ func TestJevFuncsShellOutToCLI(t *testing.T) {
 	argsLog, stdinLog := fakeJevCLI(t)
 	a := newTestApp(t)
 	a.ctx = context.Background()
-	a.setActiveProfileID("work")
+	a.selectForTest("work")
 
 	st, err := a.JevStatus()
 	if err != nil || st.KeySource != "vault" || st.KeyEntry != "typesafe" || len(st.Surfaces) != 1 ||

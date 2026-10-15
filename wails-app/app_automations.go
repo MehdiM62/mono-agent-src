@@ -47,7 +47,14 @@ func (a *App) runAutomationCLI(timeout time.Duration, sub []string, buildErr err
 	}
 	ctx, cancel := context.WithTimeout(parent, timeout)
 	defer cancel()
-	fullArgs := automationCLIArgs(a.getActiveProfileID(), sub...)
+	pid, err := a.profileID()
+	if err != nil {
+		return aiError(err)
+	}
+	fullArgs, err := automationCLIArgs(pid, sub...)
+	if err != nil {
+		return aiError(err)
+	}
 	label := strings.Join(redactArgs(sub), " ")
 	a.emitLog("AUTOMATION", "INFO", fmt.Sprintf("$ %s %s", cliBin, strings.Join(redactArgs(fullArgs), " ")))
 	startedAt := time.Now()

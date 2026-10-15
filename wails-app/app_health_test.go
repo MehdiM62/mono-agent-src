@@ -21,24 +21,24 @@ func TestHealthArgs(t *testing.T) {
 			t.Fatalf("healthArgs(%s) = %v, %v; want %v", mode, got, err, want)
 		}
 	}
-	if got, want := mustHealthArgs(t, "", "local"), []string{"--json", "doctor"}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("healthArgs = %v, want %v", got, want)
+	if _, err := healthArgs("", "local"); !errors.Is(err, errNoProfile) {
+		t.Fatalf("no profile: %v, want errNoProfile", err)
 	}
-	if _, err := healthArgs("", "--deep"); err == nil {
+	if _, err := healthArgs("p1", "--deep"); err == nil {
 		t.Fatal("an unknown mode must be refused")
 	}
-	if got, want := healthFixArgs("p1", "runtimes.install:claude"), []string{"--profile", "p1", "--json", "doctor", "fix", "--", "runtimes.install:claude"}; !reflect.DeepEqual(got, want) {
+	if got, want := mustArgs(t)(healthFixArgs("p1", "runtimes.install:claude")), []string{"--profile", "p1", "--json", "doctor", "fix", "--", "runtimes.install:claude"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("healthFixArgs = %v, want %v", got, want)
 	}
 }
 
 func TestAgentInstallArgs(t *testing.T) {
 	// No --yes: a script install approves only the URL the person was shown.
-	if got, want := agentInstallArgs("p1", "hermes", true, "https://hermes.example/install.sh"), []string{"--profile", "p1", "--json", "agent", "install", "--force", "--approve-script", "https://hermes.example/install.sh", "--", "hermes"}; !reflect.DeepEqual(got, want) {
+	if got, want := mustArgs(t)(agentInstallArgs("p1", "hermes", true, "https://hermes.example/install.sh")), []string{"--profile", "p1", "--json", "agent", "install", "--force", "--approve-script", "https://hermes.example/install.sh", "--", "hermes"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("agentInstallArgs = %v, want %v", got, want)
 	}
-	if got, want := agentInstallArgs("", "codex", false, ""), []string{"--json", "agent", "install", "--", "codex"}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("agentInstallArgs = %v, want %v", got, want)
+	if _, err := agentInstallArgs("", "codex", false, ""); !errors.Is(err, errNoProfile) {
+		t.Fatalf("no profile: %v, want errNoProfile", err)
 	}
 }
 

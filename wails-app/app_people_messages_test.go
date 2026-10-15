@@ -21,7 +21,7 @@ esac
 `))
 	a := newTestApp(t)
 	a.ctx = context.Background()
-	a.setActiveProfileID("work")
+	a.selectForTest("work")
 	if m := a.GetPersonMessages("p1"); len(m) != 1 || m[0].ID != "m1" || m[0].ReadAt != nil {
 		t.Fatalf("GetPersonMessages = %+v", m)
 	}

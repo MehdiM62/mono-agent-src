@@ -133,8 +133,12 @@ func (a *App) RunNode(req NodeRunRequest) NodeRunResult {
 	}
 
 	start := time.Now()
+	pid, err := a.profileID()
+	if err != nil {
+		return NodeRunResult{Error: err.Error()}
+	}
 	args := []string{
-		"--profile", a.getActiveProfileID(),
+		"--profile", pid,
 		"node", "run", req.NodeType,
 		"--stdin",
 		"--output", "json",
