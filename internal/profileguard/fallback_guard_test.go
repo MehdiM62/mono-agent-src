@@ -35,12 +35,7 @@ var allow = []struct {
 	path   string
 	rules  []string
 	reason string
-}{
-	// TODO(Phase 5): the doctor still reports a missing profile as "default".
-	{"internal/cli/doctor/env.go", []string{"profile-literal-default"}, "doctor environment report falls back to default"},
-	// TODO(Phase 5, GUI selection): the GUI picks its own profile.
-	{"wails-app/", []string{"profile-literal-default"}, "GUI profile selection (app_account_gate.go, main.go)"},
-}
+}{}
 
 func repoRoot(t *testing.T) string {
 	t.Helper()
