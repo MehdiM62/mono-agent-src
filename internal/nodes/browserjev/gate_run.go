@@ -129,6 +129,21 @@ func (g *runGate) askSite(ctx context.Context, pageURL, origin string) error {
 	}
 }
 
+// errNoRunProfile: the run's context names no profile, so the approvals the
+// gate would raise have nowhere to go.
+var errNoRunProfile = errors.New("this run names no profile, so the approvals it may need have nowhere to go: run it with --profile <id>")
+
+// runProfile is the profile the run belongs to, as the engine (the
+// execution's profile) and `node run` (--profile) put it in the run's
+// context. The gate's approvals are that profile's; a run that names none
+// is refused rather than given a guessed one.
+func runProfile(ctx context.Context) (string, error) {
+	if id, ok := vault.ExplicitProfileID(ctx); ok {
+		return id, nil
+	}
+	return "", errNoRunProfile
+}
+
 // siteAsker raises and reads browser.site items; tests replace it.
 type siteAsker interface {
 	Ask(ctx context.Context, kind, pageURL string, by *hilsend.PreparedBy) (hilID string, err error)
@@ -152,7 +167,11 @@ func (s dbSites) Ask(ctx context.Context, kind, pageURL string, by *hilsend.Prep
 	if err != nil {
 		return "", err
 	}
-	return browserctl.AskSite(ctx, db, vault.ProfileIDFromContext(ctx), kind, pageURL, by)
+	profile, err := runProfile(ctx)
+	if err != nil {
+		return "", err
+	}
+	return browserctl.AskSite(ctx, db, profile, kind, pageURL, by)
 }
 
 func (s dbSites) Decision(ctx context.Context, id string) (string, error) {
@@ -160,7 +179,11 @@ func (s dbSites) Decision(ctx context.Context, id string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	it, err := browserctl.GetSiteItem(ctx, db, vault.ProfileIDFromContext(ctx), id)
+	profile, err := runProfile(ctx)
+	if err != nil {
+		return "", err
+	}
+	it, err := browserctl.GetSiteItem(ctx, db, profile, id)
 	return it.Status, err
 }
 
@@ -175,7 +198,9 @@ func (g *runGate) arm(ctx context.Context, drv driver) error {
 		return fmt.Errorf("%s started this run, and this browser can't hold its form submits for the user's approval", g.who.name)
 	}
 	var err error
-	if g.guard, err = gd.ArmSubmitGuard(ctx); err != nil {
+	if g.guard, err = gd.ArmSubmitGuard(ctx); errors.Is(err, errNoRunProfile) {
+		return fmt.Errorf("%s started this run: %w", g.who.name, err)
+	} else if err != nil {
 		return fmt.Errorf("%s started this run, and the guard that holds its form submits for approval failed (update the extension?): %w", g.who.name, err)
 	}
 	return nil

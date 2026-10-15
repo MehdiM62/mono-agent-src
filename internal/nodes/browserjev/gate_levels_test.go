@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/monoes/mono-agent/internal/browserctl"
+	"github.com/monoes/mono-agent/internal/hilsend"
 	"github.com/monoes/mono-agent/internal/vault"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
@@ -132,4 +133,42 @@ func TestAskLevelWaitsForTheUser(t *testing.T) {
 
 func withOrgTrigger(ctx context.Context) context.Context {
 	return workflow.WithTrigger(ctx, workflow.TriggerTypeOrgTool, map[string]interface{}{"org": map[string]interface{}{"name": "growth", "role": "writer"}})
+}
+
+// The gate's approvals belong to the run's own profile, never a guessed
+// one: a run of profile p-9 asks under p-9; a run that names no profile is
+// refused before anything is asked or armed.
+func TestApprovalsBelongToTheRunsProfile(t *testing.T) {
+	t.Setenv("CLAUDECODE", "1")
+	ctx := permissionsDB(t, browserctl.KindOther, browserctl.LevelAsk)
+	db := vault.DBFromContext(ctx)
+	p9 := vault.ContextWithProfileID(ctx, "p-9")
+	res, _, _, err := levelRun(t, p9, "https://shop.example.com/", "", 1)
+	if err != nil || res["status"] != "site_needs_approval" {
+		t.Fatalf("p-9: %v %v", res, err)
+	}
+	var profile string
+	if err := db.QueryRow(`SELECT profile_id FROM hil_pending WHERE id = ?`, res["hil_id"]).Scan(&profile); err != nil || profile != "p-9" {
+		t.Errorf("the site item is p-9's: %q %v", profile, err)
+	}
+	g, err := armGuard(p9, &fakeGuardPage{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, err := g.Ask(p9, blockedSubmit{Seq: 1, URL: "https://shop.example.com/cart"}, hilsend.PreparedBy{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if it, err := browserctl.GetSubmitItem(p9, db, "p-9", id); err != nil || it.ID != id {
+		t.Errorf("the submit item is p-9's: %+v %v", it, err)
+	}
+
+	noProfile := vault.ContextWithDB(context.Background(), db)
+	if _, _, opened, err := levelRun(t, noProfile, "https://shop.example.com/", "", 1); err == nil || opened || !strings.Contains(err.Error(), "names no profile") {
+		t.Fatalf("no profile at ask: opened=%v err=%v", opened, err)
+	}
+	page := &fakeGuardPage{}
+	if _, err := armGuard(noProfile, page); err == nil || !strings.Contains(err.Error(), "--profile") || len(page.actions) != 0 {
+		t.Errorf("no profile: no guard is armed: %v %v", err, page.actions)
+	}
 }

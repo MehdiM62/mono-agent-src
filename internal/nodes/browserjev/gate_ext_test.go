@@ -142,7 +142,7 @@ func TestExtGuardHoldsSubmitsAsBrowserSubmitItems(t *testing.T) {
 func TestExtGuardIgnoresApprovalsMadeElsewhere(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	db := testdb.Open(t).DB
-	ctx := vault.ContextWithDB(context.Background(), db)
+	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db), "default")
 	g, err := armGuard(ctx, &fakeGuardPage{})
 	if err != nil {
 		t.Fatal(err)
@@ -162,7 +162,7 @@ func TestExtGuardIgnoresApprovalsMadeElsewhere(t *testing.T) {
 func TestExtGuardRearmsAndRecoversRecords(t *testing.T) {
 	fakeResubmit(t)
 	db := testdb.Open(t).DB
-	ctx := vault.ContextWithDB(context.Background(), db)
+	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db), "default")
 	page := &fakeGuardPage{}
 	g, err := armGuard(ctx, page)
 	if err != nil {
@@ -193,7 +193,7 @@ func TestExtGuardHandsBackAnUnsentApproval(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	fakeResubmit(t)
 	db := testdb.Open(t).DB
-	ctx := vault.ContextWithDB(context.Background(), db)
+	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db), "default")
 	page := &fakeGuardPage{}
 	g, err := armGuard(ctx, page)
 	if err != nil {
@@ -229,7 +229,7 @@ func TestExtGuardHandsBackAnUnsentApproval(t *testing.T) {
 // on it: the extension disarms a tab whose top page changes origin.
 func TestExtGuardFollowsTheTabToANewOrigin(t *testing.T) {
 	db := testdb.Open(t).DB
-	ctx := vault.ContextWithDB(context.Background(), db)
+	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db), "default")
 	page := &fakeGuardPage{origin: "https://a.example.com"}
 	g, err := armGuard(ctx, page)
 	if err != nil {
@@ -286,7 +286,7 @@ func TestRunRearmsTheGuardAfterACrossOriginNavigation(t *testing.T) {
 	var log []string
 	drv := &navDriver{fakeDriver: &fakeDriver{}, page: &fakeGuardPage{origin: "https://a.example.com", log: &log}, log: &log}
 	n := &Node{writer: zurich, open: func(context.Context, string) (driver, func(), error) { return drv, func() {}, nil }}
-	ctx := vault.ContextWithDB(context.Background(), testdb.Open(t).DB)
+	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), testdb.Open(t).DB), "default")
 	out, err := n.Execute(ctx, workflow.NodeInput{}, map[string]interface{}{"url": "https://a.example.com/", "goal": "Search for zurich", "api_key": "k"})
 	if err != nil || out[0].Items[0].JSON["status"] != "done" {
 		t.Fatalf("run: %v %v", out, err)
@@ -322,7 +322,7 @@ func (b *bridgeStub) SendCommand(cmd *extension.Command, _ time.Duration) (*exte
 func TestExtGuardRefusesASubmitHeldInAFrame(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	db := testdb.Open(t).DB
-	ctx := vault.ContextWithDB(context.Background(), db)
+	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db), "default")
 	stub := &bridgeStub{}
 	g, err := armGuard(ctx, extension.NewExtensionPage(stub, 41))
 	if err != nil {
