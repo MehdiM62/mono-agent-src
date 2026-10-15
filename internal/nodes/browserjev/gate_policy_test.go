@@ -72,7 +72,7 @@ func permissionsDB(t *testing.T, kind, level string, sites ...string) context.Co
 	if err := browserctl.SavePermissions(db, p); err != nil {
 		t.Fatal(err)
 	}
-	return vault.ContextWithDB(context.Background(), db)
+	return vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db), "default")
 }
 
 // An agent's shell (kind other, level dev by default) drives with browser.jev

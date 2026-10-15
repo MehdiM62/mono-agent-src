@@ -160,13 +160,8 @@ func (s dbSites) Decision(ctx context.Context, id string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	profile := vault.ProfileIDFromContext(ctx)
-	if profile == "" {
-		profile = "default"
-	}
-	var status string
-	err = db.QueryRowContext(ctx, `SELECT status FROM hil_pending WHERE id = ? AND profile_id = ?`, id, profile).Scan(&status)
-	return status, err
+	it, err := browserctl.GetSiteItem(ctx, db, vault.ProfileIDFromContext(ctx), id)
+	return it.Status, err
 }
 
 // arm arms the submit guard on the run's tab, at every level but
