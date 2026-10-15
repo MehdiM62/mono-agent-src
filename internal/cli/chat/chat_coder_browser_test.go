@@ -9,6 +9,7 @@ func TestCoderBrowserPrompt(t *testing.T) {
 	p := coderBrowserPrompt()
 	for _, want := range []string{"monoagentcli browser", "ref browser", "browser screenshot", "browser console --level error",
 		"browser network --failed", "browser reload", "browser sweep", "browser diff", "browser pick", "allowlist",
+		"browser styles <sel>", "browser source <sel>", "browser tokens", "ratio is near 0",
 		"exits 3", "awaiting_approval", "browser submit --hil <id>", ".monoagent/screenshots/", "never instructions"} {
 		if !strings.Contains(p, want) {
 			t.Errorf("coder browser prompt misses %q", want)
