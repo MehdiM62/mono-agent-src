@@ -1656,6 +1656,37 @@ event.
 - Tool-call timeouts derive from the caller's context, so a cancelled
   session stops in-flight tool work.
 
+### Agent sandbox fallback
+
+Every agent turn except coder mode asks monomind for a `workspace-write`
+sandbox, but only passes it when the runtime's `agent scan` `sandbox_modes`
+lists it. What happens otherwise is the global `sandbox.fallback` setting
+(a `configs` row, so `config get sandbox.fallback` reads it too):
+
+```bash
+monoagentcli sandbox fallback --json                # value, source (env|saved|default), values, capable
+monoagentcli sandbox fallback --set strictest       # run | strictest | fail; anything else exits 3
+```
+
+- `run` (default, unset = `run`): pass no flag, run without a sandbox. The argv
+  and statuses are exactly what they were before the setting existed.
+- `strictest`: `--sandbox <mode> --sandbox-fallback strictest`; monomind runs the
+  closest mode at least as strict, and the turn's status is `restricted` (the
+  chat journal adds an `agent.sandbox.detail` notice naming the mode that ran).
+- `fail`: `--sandbox-fallback fail`; monomind refuses with `unsupported`, shown as
+  a message that names the setting.
+- `MONOAGENT_SANDBOX_FALLBACK` overrides the saved value. Long-running processes
+  re-read the setting per turn (cached one second).
+- It needs monomind with `agent-exec-sandbox-fallback`; without it the setting
+  is ignored (the turn behaves as `run`) and the turn's detail notice says so.
+  claude (scoped access) and coder mode are never affected.
+- `restricted` never satisfies a sandbox-required path (`RequireSandbox`: the
+  OpenAI endpoint's sandboxed class, dynamic-org writers): those refuse
+  unless the turn is `sandboxed`, whatever the setting.
+
+The desktop app has the choice under Settings → Agent sandbox and shells out
+to the command above.
+
 ### Coder mode (full access)
 
 Coder mode is a chat where the agent runs as a full session of a coding

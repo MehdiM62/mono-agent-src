@@ -88,6 +88,9 @@ var classes = map[string]string{
 	// profile). Its siblings (list, show, turns, ...) stay scoped.
 	"chat history reconcile": ClassGlobal,
 
+	// The sandbox fallback is one machine-wide setting (the sandbox.fallback config).
+	"sandbox": ClassGlobal,
+
 	"coder status": ClassGlobal, "coder enable": ClassGlobal, "coder disable": ClassGlobal, "coder set": ClassGlobal,
 	// The origin→folder map is the machine-wide coder_projects setting.
 	"coder projects": ClassGlobal,

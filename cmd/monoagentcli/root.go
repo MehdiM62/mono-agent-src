@@ -35,8 +35,18 @@ type globalConfig struct {
 	Lang       string // UI locale; see internal/i18n and docs/i18n.md
 }
 
-func newRootCmd() *cobra.Command {
+func newRootCmd() *cobra.Command { return buildRootCmd(true) }
+
+// newProbeRootCmd is a throwaway tree used to find a command or parse flags
+// before the real one runs; it must not install process-wide hooks (the real
+// tree's provider would be replaced by one bound to the probe's config).
+func newProbeRootCmd() *cobra.Command { return buildRootCmd(false) }
+
+func buildRootCmd(installProvider bool) *cobra.Command {
 	cfg := &globalConfig{}
+	if installProvider {
+		installSandboxFallbackProvider(cfg)
+	}
 
 	cmd := &cobra.Command{
 		Use:           "monoagentcli",
@@ -114,6 +124,7 @@ func newRootCmd() *cobra.Command {
 		newAgentCmd(cfg),
 		newChatCmd(cfg),
 		newCoderCmd(cfg),
+		newSandboxCmd(cfg),
 		newOrgCmd(cfg),
 		newMCPCmd(cfg),
 		newHTTPAPICmd(cfg),

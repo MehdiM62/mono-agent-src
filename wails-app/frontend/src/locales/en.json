@@ -277,6 +277,17 @@
     "connectionsDesc": "Manage accounts, OAuth, API keys",
     "aiAgentsDesc": "Install and use Claude Code, Codex and other agent runtimes",
     "aiAgentsTitle": "AI agents",
+    "sandboxFallback": {
+      "sectionTitle": "Agent sandbox",
+      "label": "When an agent runtime has no sandbox",
+      "hint": "Agent turns ask for a sandbox that can write only their working folder. Some runtimes have none; this decides what happens then. A turn that requires a sandbox is always refused without one.",
+      "run": "Run without a sandbox (default)",
+      "strictest": "Use the strictest sandbox the runtime has",
+      "fail": "Refuse the turn",
+      "unavailable": "The installed monomind can't apply this setting yet, so turns run without a sandbox. Update monomind to use it.",
+      "envOverride": "The {{env}} environment variable is set and overrides this choice.",
+      "saveError": "Couldn't save: {{message}}"
+    },
     "language": {
       "sectionTitle": "Language",
       "label": "UI language",
@@ -1045,6 +1056,8 @@
     "unsupported": "no sandbox (runtime unsupported)",
     "needsMonomind": "no sandbox (update monomind)",
     "off": "no sandbox",
+    "restricted": "stricter sandbox",
+    "restrictedTitle": "This turn ran in monomind's closest stricter sandbox: {{applied}}.",
     "sandboxedTitle": "This turn ran in the agent runtime's sandbox: it could write only its working folder.",
     "unsupportedTitle": "This agent runtime has no sandbox mode, so the turn ran without one.",
     "needsMonomindTitle": "The installed monomind can't sandbox agent turns yet, so the turn ran without one. Update monomind to turn it on.",

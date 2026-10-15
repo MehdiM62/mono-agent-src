@@ -271,6 +271,9 @@ export const api = {
   hilSendSetApproval:  (on) => GoApp.HilSendSetApproval(on).then(parseStreamResult),
   coderWorkspaceRoot: (runtimeID = '') => GoApp.CoderWorkspaceRoot(runtimeID).then(parseStreamResult),
   coderWorkspaceList: () => GoApp.CoderWorkspaceList().then(parseStreamResult),
+  // Sandbox fallback setting: `monoagentcli sandbox fallback`; a bad value rejects with the CLI's message.
+  sandboxFallbackGet: () => GoApp.SandboxFallbackGet().then(parseStreamResult),
+  sandboxFallbackSet: (value) => GoApp.SandboxFallbackSet(value).then(parseStreamResult),
   createCoderConversation: (runtimeID, model, effort, cwd, newWorkspace = false) =>
     GoApp.CreateCoderConversation(runtimeID, model, effort || '', cwd, newWorkspace).then(parseStreamResult),
   // Native folder picker; resolves '' when cancelled.
