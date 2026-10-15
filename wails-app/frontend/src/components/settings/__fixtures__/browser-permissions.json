@@ -1,18 +1,18 @@
 {
   "levels": {
+    "chat": "full",
     "coder": "dev",
     "org": "full",
-    "chat": "full",
     "other": "ask"
   },
   "sites": [
     {
-      "origin": "https://github.com",
-      "rule": "allow"
-    },
-    {
       "origin": "https://bank.example.com",
       "rule": "block"
+    },
+    {
+      "origin": "https://github.com",
+      "rule": "allow"
     }
   ],
   "kinds": [
@@ -70,6 +70,6 @@
   ],
   "you": {
     "kind": "human",
-    "level": ""
+    "level": "unrestricted"
   }
 }
