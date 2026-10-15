@@ -71,7 +71,14 @@ func (s *Session) OpenTab(url, group string) (int, error) {
 	if created.TabID == 0 {
 		return 0, fmt.Errorf("create_tab: the extension answered without a tab id")
 	}
-	s.tabID = created.TabID
+	// Where it landed (a redirect), checked before anything else touches it.
+	if err := s.UseTab(created.TabID); err != nil {
+		if s.policy.Agent {
+			_, _ = s.sendRaw(created.TabID, extension.CmdCloseTab, nil, DefaultTimeout)
+			s.forget(created.TabID)
+		}
+		return 0, err
+	}
 	if group == "" && s.policy.Agent {
 		group = GroupTitle()
 	}
@@ -91,9 +98,14 @@ func (s *Session) OpenTab(url, group string) (int, error) {
 			return s.tabID, err
 		}
 	}
-	// The page may have redirected while it loaded.
+	// The page may have redirected while it loaded again.
 	if err := s.UseTab(s.tabID); err != nil {
-		return s.tabID, err
+		if s.policy.Agent {
+			id := s.tabID
+			_, _ = s.sendRaw(id, extension.CmdCloseTab, nil, DefaultTimeout)
+			s.forget(id)
+		}
+		return 0, err
 	}
 	return s.tabID, nil
 }
@@ -104,7 +116,8 @@ func (s *Session) Navigate(url string) (string, error) {
 	if err := s.policy.Check(url); err != nil {
 		return "", err
 	}
-	if s.policy.Agent && !blank(s.url) {
+	wasBlank := blank(s.url)
+	if s.policy.Agent && !wasBlank {
 		if err := s.Watch(true); err != nil {
 			return "", err
 		}
@@ -116,13 +129,18 @@ func (s *Session) Navigate(url string) (string, error) {
 	if err := s.Call(extension.CmdNavigate, map[string]interface{}{"url": url}, loadTimeout, &out); err != nil {
 		return "", err
 	}
-	if s.policy.Agent && blank(s.url) {
+	// Where it landed (a redirect), checked before anything else touches it.
+	id := s.tabID
+	if err := s.UseTab(id); err != nil {
+		if s.policy.Agent {
+			s.dropRefused(id)
+		}
+		return "", err
+	}
+	if s.policy.Agent && wasBlank {
 		if err := s.Watch(true); err != nil {
 			return "", err
 		}
-	}
-	if err := s.UseTab(s.tabID); err != nil {
-		return out.URL, err
 	}
 	return s.url, nil
 }
@@ -149,13 +167,7 @@ func (s *Session) CloseTab() error {
 	if _, err := s.Send(extension.CmdCloseTab, nil, DefaultTimeout); err != nil {
 		return err
 	}
-	if s.state.TabID == s.tabID {
-		s.state.TabID = 0
-		delete(s.state.Reported, tabKey(s.info.Instance, s.tabID))
-		delete(s.state.Loads, tabKey(s.info.Instance, s.tabID))
-		_ = s.saveState()
-	}
-	s.tabID, s.url = 0, ""
+	s.forget(s.tabID)
 	return nil
 }
 
