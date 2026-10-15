@@ -2,6 +2,7 @@ package browserjev
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -130,6 +131,11 @@ type submitGuard interface {
 	// Submit lets b through, exactly once, then the guard holds again; with
 	// hilID, the approved item is used up by it.
 	Submit(ctx context.Context, b blockedSubmit, hilID string) error
+	// Follow re-arms the guard when pageURL is on another origin than the
+	// one it was armed on: the extension disarms a tab whose top page moves
+	// to another origin, so a submit there would go unguarded until the next
+	// Blocked.
+	Follow(ctx context.Context, pageURL string) error
 	// TabID is the tab it guards (0 when the page can't say).
 	TabID() int
 }
@@ -187,7 +193,13 @@ func settleSubmits(ctx context.Context, g submitGuard, c caller) (*gateEnd, erro
 		}
 		switch status {
 		case "approved":
-			return nil, g.Submit(ctx, b, id)
+			var changed *browserctl.SubmitChangedError
+			if err := g.Submit(ctx, b, id); errors.As(err, &changed) {
+				return &gateEnd{"blocked", fmt.Sprintf("%v (Human-in-Loop item %s, handed back)", changed, id), id}, nil
+			} else if err != nil {
+				return nil, err
+			}
+			return nil, nil
 		case "consumed":
 			return nil, nil
 		case "rejected":

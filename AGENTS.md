@@ -2423,7 +2423,11 @@ monoagentcli --json browser network --tab 812 --failed
   private-network (RFC 1918) hosts and the user's allowlist (`browser allow
   list|add|remove`; add and remove refuse an agent). Anything else, and
   `file:` and `chrome:` pages, is refused. Agents get no cookie commands and
-  no raw CDP; their tabs go into the tab group `Coder · <label>`.
+  no raw CDP, and `browser eval` only on local and dev pages
+  (`eval_not_allowed`). Their tabs go into the tab group `Coder · <label>`.
+  A command whose tab left the checked page before it ran is refused with
+  exit 3, code `origin_changed`: see where the tab is (`browser tabs`)
+  before acting again.
 - **Form submits.** On an allowed page that is not local, the extension's
   submit guard is armed before an agent acts. A click on a submit-like
   control, or a submit the guard blocked (Enter, script), becomes a
@@ -2431,15 +2435,17 @@ monoagentcli --json browser network --tab 812 --failed
   `{"status":"awaiting_approval","hil_id":…}`. Only the user's approval
   counts (`hil approve` or the Human in Loop page, which refuse an agent).
   Then `browser submit --hil <id>` sends exactly that submit, once, from the
-  same tab and origin.
-- **browser.jev** arms the same guard when an AI caller started its run: an
+  same tab, only while it still shows the same page and form contents.
+- **browser.jev** arms the same guard (again whenever the page moves to
+  another origin, before acting there) when an AI caller started its run: an
   agent's shell, a chat tool call (`run_workflow` starts `workflow run` with
   `MONOAGENT_AI_CALLER=chat`), a `workflow run` either of them started (its
   trigger data carries `_ai_caller`, so a daemon that adopts a `--no-wait`
   run or resumes a paused one sees it; workflows never see the field), or the
   org side (granted calls, automation roles, `trigger.org`). A blocked submit
   on a page that is not local becomes a `browser.submit` item and the run
-  waits: approved, it is sent and the goal goes on; rejected, status
+  waits: approved, it is sent (if the page still shows the approved form,
+  else status `blocked`) and the goal goes on; rejected, status
   `blocked`; still pending at the node's timeout, status `awaiting_approval`
   with `hil_id` and `tab_id`, and the tab stays open for `browser submit
   --hil`. A run that can't arm the guard fails. Runs the user starts behave

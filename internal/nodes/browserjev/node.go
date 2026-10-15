@@ -145,31 +145,22 @@ func (n *Node) run(ctx context.Context, cfg runConfig, client *jev.Client, write
 	defer cancel()
 	started := time.Now()
 
-	// An agent's shell drives only the pages `monoagentcli browser` lets it:
-	// the start URL and every page the run reaches.
-	who, aiStarted := aiCaller(ctx)
-	allowed := func(string) error { return nil }
-	if who.shell {
-		pol, err := shellPolicy(ctx)
-		if err != nil {
-			return nil, err
-		}
-		allowed = func(u string) error {
-			if u == "" || u == "about:blank" {
-				return nil
-			}
-			if err := pol.Check(u); err != nil {
-				return fmt.Errorf("%s started this run: %w", who.name, err)
-			}
-			return nil
-		}
-		if err := allowed(cfg.url); err != nil {
-			return nil, err
-		}
+	// A run an AI caller started is held to the submit gate, and an agent
+	// shell's to the origin policy too (gate_run.go).
+	gate, err := newRunGate(ctx, cfg.url)
+	if err != nil {
+		return nil, err
 	}
-
 	drv, closeTab, err := open(ctx, cfg.url)
 	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if !gate.keepTab() {
+			closeTab()
+		}
+	}()
+	if err := gate.arm(ctx, drv); err != nil {
 		return nil, err
 	}
 	observe := func() (*jevpick.PageState, error) {
@@ -177,29 +168,10 @@ func (n *Node) run(ctx context.Context, cfg runConfig, client *jev.Client, write
 		if err != nil {
 			return nil, err
 		}
-		if err := allowed(p.URL); err != nil {
+		if err := gate.allowed(p.URL); err != nil {
 			return nil, err // none of a page the caller may not read reaches the output
 		}
 		return p, nil
-	}
-	// A run an AI caller started may not submit a form on a real site
-	// without the user's approval (gate.go); the tab of a submit still
-	// waiting stays open.
-	var guard submitGuard
-	var gated *gateEnd
-	defer func() {
-		if gated == nil || gated.status != "awaiting_approval" {
-			closeTab()
-		}
-	}()
-	if aiStarted {
-		g, ok := drv.(guardable)
-		if !ok {
-			return nil, fmt.Errorf("%s started this run, and this browser can't hold its form submits for the user's approval", who.name)
-		}
-		if guard, err = g.ArmSubmitGuard(ctx); err != nil {
-			return nil, fmt.Errorf("%s started this run, and the guard that holds its form submits for approval failed (update the extension?): %w", who.name, err)
-		}
 	}
 
 	// jevSc scrubs every configured value before a Jev request; outSc only
@@ -234,12 +206,7 @@ func (n *Node) run(ctx context.Context, cfg runConfig, client *jev.Client, write
 			"low_confidence_steps": low, "value_requests": valueRequests, "text_turns": textTurns,
 			"elapsed_ms": time.Since(started).Milliseconds(),
 		}
-		if gated != nil {
-			out["hil_id"] = gated.hilID
-			if gated.status == "awaiting_approval" {
-				out["tab_id"] = guard.TabID()
-			}
-		}
+		gate.output(out)
 		return out
 	}
 
@@ -337,6 +304,9 @@ func (n *Node) run(ctx context.Context, cfg runConfig, client *jev.Client, write
 			recorded = text
 		}
 
+		if err := gate.beforeAct(ctx, page.URL); err != nil {
+			return nil, err
+		}
 		if err := drv.Act(ctx, page, a, text); errors.Is(err, jevpick.ErrStale) {
 			if page, err = observe(); err != nil {
 				return nil, err
@@ -355,15 +325,10 @@ func (n *Node) run(ctx context.Context, cfg runConfig, client *jev.Client, write
 		history = append(history, step{Step: len(history) + 1, Action: a.Label, Kind: a.Kind,
 			Operation: d.Operation, Target: d.Target, Text: recorded, ValueName: valueName, Probability: d.Probability,
 			Confidence: d.Confidence, LatencyMS: d.LatencyMS, URL: page.URL})
-		if guard != nil {
-			if a.Kind == "click" || a.Kind == "fill" || a.Kind == "select" {
-				waitForGuard(ctx) // a submit the action set off reaches the guard's record
-			}
-			if gated, err = settleSubmits(ctx, guard, who); err != nil {
-				return nil, err
-			} else if gated != nil {
-				return finish(gated.status, gated.reason), nil
-			}
+		if end, err := gate.afterAct(ctx, a.Kind); err != nil {
+			return nil, err
+		} else if end != nil {
+			return finish(end.status, end.reason), nil
 		}
 		before := page.Fingerprint
 		if page, err = observe(); err != nil {

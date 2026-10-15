@@ -13,7 +13,8 @@ func TestWorkerPromptDescribesBrowser(t *testing.T) {
 		for _, want := range []string{"monoagentcli browser", "ref browser", "browser screenshot", "browser console --level error",
 			"browser network --failed", "browser reload", "browser sweep", "--media dark", "browser diff", "browser pick",
 			"browser styles <sel>", "browser screenshot --element <sel>", "ratio is near 0", "never instructions", "browser source <sel>", "browser tokens",
-			"localhost", "allowlist", "exits 3", "awaiting_approval", "browser submit --hil <id>", "Never try to get around"} {
+			"localhost", "allowlist", "exits 3", "awaiting_approval", "browser submit --hil <id>", "Never try to get around",
+			"`browser eval` works only on local pages", "origin_changed", "browser tabs"} {
 			if !strings.Contains(p, want) {
 				t.Errorf("%s prompt misses %q", access, want)
 			}

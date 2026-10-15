@@ -3,6 +3,7 @@ package browserjev
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -69,6 +70,8 @@ type fakeGuard struct {
 	decisions []string // in order; the last one repeats
 	asked     []hilsend.PreparedBy
 	submitted []string
+	changed   bool     // the page no longer shows what was approved
+	follows   []string // the page URLs Follow saw, one per action
 	drv       *fakeDriver
 }
 
@@ -95,8 +98,16 @@ func (g *fakeGuard) Decision(context.Context, string) (string, error) {
 }
 
 func (g *fakeGuard) Submit(_ context.Context, b blockedSubmit, id string) error {
+	if g.changed {
+		return fmt.Errorf("repeat the approved submit: %w", &browserctl.SubmitChangedError{What: "the form's contents"})
+	}
 	g.submitted = append(g.submitted, id)
 	g.drv.results = g.drv.query != ""
+	return nil
+}
+
+func (g *fakeGuard) Follow(_ context.Context, pageURL string) error {
+	g.follows = append(g.follows, pageURL)
 	return nil
 }
 
@@ -199,6 +210,25 @@ func TestAISubmitApprovedElsewhereIsNotSent(t *testing.T) {
 	drv, res := gatedRun(t, "https://shop.example.com/search", []string{"approved_elsewhere"}, 30)
 	if res["status"] != "blocked" || !strings.Contains(res["reason"].(string), "approved outside") || len(drv.g.submitted) != 0 {
 		t.Fatalf("res=%v submitted=%v", res, drv.g.submitted)
+	}
+}
+
+// An approval for a form the page no longer shows is not used: the run ends
+// blocked.
+func TestAISubmitChangedSinceApprovalEndsBlocked(t *testing.T) {
+	t.Setenv(EnvAICaller, "chat")
+	policyServer(t, nil)
+	drv := &guardedDriver{fakeDriver: &fakeDriver{}}
+	drv.g = &fakeGuard{url: "https://shop.example.com/search", decisions: []string{"approved"}, drv: drv.fakeDriver, changed: true}
+	n := &Node{writer: zurich, open: func(context.Context, string) (driver, func(), error) { return drv, func() {}, nil }}
+	out, err := n.Execute(context.Background(), workflow.NodeInput{}, map[string]interface{}{
+		"url": "https://shop.example.com/", "goal": "Search for zurich", "api_key": "k"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	res := out[0].Items[0].JSON
+	if res["status"] != "blocked" || !strings.Contains(res["reason"].(string), "changed since it was approved") || res["hil_id"] != "hil-1" {
+		t.Fatalf("res = %v", res)
 	}
 }
 
