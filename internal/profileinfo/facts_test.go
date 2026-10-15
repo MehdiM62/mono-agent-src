@@ -1,4 +1,4 @@
-package extensioncli
+package profileinfo
 
 import (
 	"context"
