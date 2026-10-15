@@ -12,12 +12,12 @@
 -- aborting the migration (and with it startup). Idempotent: a second run
 -- finds no NULL/'' rows.
 --
--- vault_keys (the only nullable profile_id) is not stamped here: a drifted
--- database may still have the singleton shape with no profile_id column, which
--- would abort this file. ReconcileSchema stamps it in Go once the column exists.
+-- vault_keys (the only nullable profile_id) and ai_chat_messages are not
+-- stamped here: their profile_id column may not exist yet (a singleton-shape
+-- vault_keys, a pre-095 ai_chat_messages), which would abort this file.
+-- ReconcileSchema stamps them in Go once the column exists.
 
 UPDATE OR IGNORE agent_usage SET profile_id = (SELECT id FROM profiles ORDER BY (id = 'default') DESC, created_at ASC, id ASC LIMIT 1) WHERE (profile_id IS NULL OR profile_id = '') AND EXISTS (SELECT 1 FROM profiles);
-UPDATE OR IGNORE ai_chat_messages SET profile_id = (SELECT id FROM profiles ORDER BY (id = 'default') DESC, created_at ASC, id ASC LIMIT 1) WHERE (profile_id IS NULL OR profile_id = '') AND EXISTS (SELECT 1 FROM profiles);
 UPDATE OR IGNORE applications SET profile_id = (SELECT id FROM profiles ORDER BY (id = 'default') DESC, created_at ASC, id ASC LIMIT 1) WHERE (profile_id IS NULL OR profile_id = '') AND EXISTS (SELECT 1 FROM profiles);
 UPDATE OR IGNORE chat_memory_messages SET profile_id = (SELECT id FROM profiles ORDER BY (id = 'default') DESC, created_at ASC, id ASC LIMIT 1) WHERE (profile_id IS NULL OR profile_id = '') AND EXISTS (SELECT 1 FROM profiles);
 UPDATE OR IGNORE connections SET profile_id = (SELECT id FROM profiles ORDER BY (id = 'default') DESC, created_at ASC, id ASC LIMIT 1) WHERE (profile_id IS NULL OR profile_id = '') AND EXISTS (SELECT 1 FROM profiles);

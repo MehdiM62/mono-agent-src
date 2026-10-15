@@ -46,30 +46,7 @@ func (d *Database) ReconcileSchema(ctx context.Context) error {
 	if err := d.reconcileExecutionProfiles(ctx); err != nil {
 		return err
 	}
-	return d.reconcileVaultKeyOwners(ctx)
-}
-
-// reconcileVaultKeyOwners stamps a vault_keys row whose profile_id is NULL or
-// empty (the only nullable profile_id column) with the same owner migration 099
-// gives every other legacy row: the profile 'default' if it exists, else the
-// oldest. It runs here, not in 099, because a drifted database may not have
-// the column yet when 099 runs. Idempotent; a no-op without profiles. A row
-// that would collide with the stamp profile's own key stays as it was.
-func (d *Database) reconcileVaultKeyOwners(ctx context.Context) error {
-	has, err := d.columnExists(ctx, "vault_keys", "profile_id")
-	if err != nil {
-		return fmt.Errorf("storage: reconcile: inspecting vault_keys: %w", err)
-	}
-	if !has {
-		return nil
-	}
-	if _, err := d.DB.ExecContext(ctx, `
-		UPDATE OR IGNORE vault_keys
-		SET profile_id = (SELECT id FROM profiles ORDER BY (id = 'default') DESC, created_at ASC, id ASC LIMIT 1)
-		WHERE (profile_id IS NULL OR profile_id = '') AND EXISTS (SELECT 1 FROM profiles)`); err != nil {
-		return fmt.Errorf("storage: reconcile: stamping vault_keys owner: %w", err)
-	}
-	return nil
+	return d.reconcileLegacyOwners(ctx)
 }
 
 // reconcileVaultKeys moves an old singleton-shape vault_keys (no profile_id
@@ -267,6 +244,42 @@ func (d *Database) reconcileProfilesIcon(ctx context.Context) error {
 		return fmt.Errorf("storage: reconcile: commit: %w", err)
 	}
 	committed = true
+	return nil
+}
+
+// legacyOwnerTables are the tables migration 099 cannot stamp in SQL because
+// their profile_id column may not exist yet when it runs: vault_keys (the
+// per-profile shape is created by reconcile) and ai_chat_messages (profile_id
+// is added by reconcileAddedColumns).
+var legacyOwnerTables = []string{"vault_keys", "ai_chat_messages"}
+
+// reconcileLegacyOwners gives a legacyOwnerTables row with a NULL or empty
+// profile_id the same owner migration 099 gives every other legacy row: the
+// profile 'default' if it exists, else the oldest. Idempotent; a no-op
+// without profiles. A row that would collide with the stamp profile's own row
+// stays as it was.
+func (d *Database) reconcileLegacyOwners(ctx context.Context) error {
+	profiles, err := d.tableExists(ctx, "profiles")
+	if err != nil {
+		return fmt.Errorf("storage: reconcile: checking profiles: %w", err)
+	}
+	if !profiles {
+		return nil
+	}
+	for _, table := range legacyOwnerTables {
+		has, err := d.columnExists(ctx, table, "profile_id")
+		if err != nil {
+			return fmt.Errorf("storage: reconcile: inspecting %s: %w", table, err)
+		}
+		if !has {
+			continue
+		}
+		if _, err := d.DB.ExecContext(ctx, `UPDATE OR IGNORE `+table+`
+			SET profile_id = (SELECT id FROM profiles ORDER BY (id = 'default') DESC, created_at ASC, id ASC LIMIT 1)
+			WHERE (profile_id IS NULL OR profile_id = '') AND EXISTS (SELECT 1 FROM profiles)`); err != nil {
+			return fmt.Errorf("storage: reconcile: stamping %s owner: %w", table, err)
+		}
+	}
 	return nil
 }
 

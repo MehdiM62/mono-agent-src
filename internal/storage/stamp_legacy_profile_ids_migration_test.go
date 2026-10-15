@@ -11,7 +11,7 @@ import (
 
 // stampedTables are the tables migration 099 stamps.
 var stampedTables = []string{
-	"agent_usage", "ai_chat_messages", "applications", "chat_memory_messages",
+	"agent_usage", "applications", "chat_memory_messages",
 	"connections", "crawler_sessions", "data_tables", "evaluation_runs",
 	"hil_pending", "jev_usage", "people", "person_links", "person_messages",
 	"person_status_updates", "platform_oauth_credentials", "publications",
@@ -207,9 +207,9 @@ func TestApplyMigration099_IdempotentAndDropsTheExpressionIndex(t *testing.T) {
 	}
 }
 
-// vault_keys is the one nullable profile_id; ReconcileSchema (not the SQL
-// file, which a drifted database could abort) stamps it.
-func TestReconcileStampsAnOwnerlessVaultKey(t *testing.T) {
+// vault_keys (the one nullable profile_id) and ai_chat_messages are stamped by
+// ReconcileSchema, not the SQL file, which a drifted database could abort.
+func TestReconcileStampsOwnerlessVaultKeyAndChatMessages(t *testing.T) {
 	db, err := NewDatabase(filepath.Join(t.TempDir(), "vk.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -222,6 +222,7 @@ func TestReconcileStampsAnOwnerlessVaultKey(t *testing.T) {
 		`DELETE FROM profiles`,
 		`INSERT INTO profiles (id, name, created_at) VALUES ('newer', 'N', '2026-05-01 00:00:00'), ('oldest', 'O', '2026-01-01 00:00:00')`,
 		`INSERT INTO vault_keys (profile_id, wrapped_dek, wrapped_nonce, created_at) VALUES (NULL, x'01', x'02', 't'), ('newer', x'03', x'04', 't')`,
+		`INSERT INTO ai_chat_messages (id, workflow_id, role, content, created_at, profile_id) VALUES ('m1', 'c', 'user', 'x', 't', ''), ('m2', 'c', 'user', 'x', 't', 'newer')`,
 	} {
 		if _, err := db.DB.Exec(stmt); err != nil {
 			t.Fatalf("%q: %v", stmt, err)
@@ -232,11 +233,15 @@ func TestReconcileStampsAnOwnerlessVaultKey(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	var n int
-	if err := db.DB.QueryRow(`SELECT COUNT(*) FROM vault_keys WHERE profile_id = 'oldest'`).Scan(&n); err != nil || n != 1 {
-		t.Fatalf("ownerless key stamped to oldest: n=%d err=%v", n, err)
-	}
-	if err := db.DB.QueryRow(`SELECT COUNT(*) FROM vault_keys WHERE profile_id = 'newer'`).Scan(&n); err != nil || n != 1 {
-		t.Fatalf("owned key must stay: n=%d err=%v", n, err)
+	for _, q := range []string{
+		`SELECT COUNT(*) FROM vault_keys WHERE profile_id = 'oldest'`,
+		`SELECT COUNT(*) FROM vault_keys WHERE profile_id = 'newer'`,
+		`SELECT COUNT(*) FROM ai_chat_messages WHERE id = 'm1' AND profile_id = 'oldest'`,
+		`SELECT COUNT(*) FROM ai_chat_messages WHERE id = 'm2' AND profile_id = 'newer'`,
+	} {
+		var n int
+		if err := db.DB.QueryRow(q).Scan(&n); err != nil || n != 1 {
+			t.Errorf("%s: n=%d err=%v, want 1", q, n, err)
+		}
 	}
 }

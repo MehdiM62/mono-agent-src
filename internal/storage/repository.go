@@ -15,8 +15,8 @@ import (
 // ---------------------------------------------------------------------------
 
 // UpsertPerson inserts a new person or updates an existing one matched by
-// platform_username + platform + profile_id (person.ProfileID; defaults to
-// "default" if unset).
+// platform_username + platform + profile_id (person.ProfileID; an empty
+// ProfileID is refused with ErrNoProfile).
 // personKGDisplayName returns the best available human-readable name for a
 // knowledge-graph node representing a person.
 func personKGDisplayName(p *Person) string {
@@ -43,8 +43,8 @@ func (d *Database) UpsertPerson(person *Person) error {
 	if person.ID == "" {
 		person.ID = NewID()
 	}
-	if person.ProfileID == "" {
-		person.ProfileID = "default"
+	if err := requireProfile(person.ProfileID); err != nil {
+		return err
 	}
 	now := time.Now().UTC()
 
@@ -136,8 +136,8 @@ func (d *Database) GetPerson(id string) (*Person, error) {
 // platform, profileID), the same unique key UpsertPerson conflicts on.
 // Returns nil when not found.
 func (d *Database) GetPersonByUsername(platformUsername, platform, profileID string) (*Person, error) {
-	if profileID == "" {
-		profileID = "default"
+	if err := requireProfile(profileID); err != nil {
+		return nil, err
 	}
 	p := &Person{}
 	var fullName, imageURL, contactDetails, website, followerCount sql.NullString
@@ -276,6 +276,11 @@ func (d *Database) BatchUpsertPeople(people []*Person) error {
 	if len(people) == 0 {
 		return nil
 	}
+	for _, p := range people {
+		if err := requireProfile(p.ProfileID); err != nil {
+			return err
+		}
+	}
 
 	tx, err := d.DB.Begin()
 	if err != nil {
@@ -313,9 +318,6 @@ func (d *Database) BatchUpsertPeople(people []*Person) error {
 	for _, p := range people {
 		if p.ID == "" {
 			p.ID = NewID()
-		}
-		if p.ProfileID == "" {
-			p.ProfileID = "default"
 		}
 		if _, err := stmt.Exec(
 			p.ID, p.PlatformUsername, p.Platform,
