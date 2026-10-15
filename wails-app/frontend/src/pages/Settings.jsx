@@ -8,6 +8,7 @@ import RefreshButton from '../components/RefreshButton.jsx'
 import HealthSection from '../components/settings/HealthSection.jsx'
 import BrowserBindingsSection from '../components/settings/BrowserBindingsSection.jsx'
 import JevSection from '../components/settings/JevSection.jsx'
+import { useJevData } from '../components/settings/useJevData.js'
 import ApiSection from '../components/settings/ApiSection.jsx'
 import VaultKeyringSection from '../components/settings/VaultKeyringSection.jsx'
 import CoderModeSection from '../components/settings/CoderModeSection.jsx'
@@ -316,6 +317,7 @@ export default function Settings({ onNavigate, navData, isActive = true }) {
   const [refreshing, setRefreshing] = useState(false)
   const [profile, setProfile] = useState({ id: '', name: '' })
   const [apiStatus, setApiStatus] = useState(null) // the API section's status, shared with the keys block
+  const jev = useJevData({ withUsage: true }) // one JevStatus + one JevUsage for both Jev parts
 
   const load = useCallback(async () => {
     api.getDBPath().then(p => setDbPath(p || ''))
@@ -406,7 +408,7 @@ export default function Settings({ onNavigate, navData, isActive = true }) {
           <CoderModeSection />
 
           <div ref={sectionRefs.jev} data-section="jev">
-            <JevSection part="machine" collapsible defaultExpanded={section === 'jev'} expandToken={section === 'jev' ? navData : null} />
+            <JevSection part="machine" jev={jev} collapsible defaultExpanded={section === 'jev'} expandToken={section === 'jev' ? navData : null} />
           </div>
 
           <ApiSection part="machine" onNavigate={onNavigate} isActive={isActive} onStatus={setApiStatus} />
@@ -471,7 +473,7 @@ export default function Settings({ onNavigate, navData, isActive = true }) {
 
           <BrowserBindingsSection />
 
-          <JevSection part="profile" />
+          <JevSection part="profile" jev={jev} />
 
           <ApiKeysSection isActive={isActive} status={apiStatus} profileId={profile.id} />
 

@@ -75,6 +75,21 @@ describe('JevSection', () => {
     expect(screen.queryByTestId('jev-key-chip')).not.toBeInTheDocument()
   })
 
+  it('reads the status and the usage once when it mounts alone', async () => {
+    await mount(status('vault', 'typesafe'))
+    expect(App.JevStatus).toHaveBeenCalledTimes(1)
+    expect(App.JevUsage).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not read the usage for the machine half on its own', async () => {
+    App.JevStatus.mockResolvedValue(status('vault', 'typesafe'))
+    const { default: JevSection } = await import('./JevSection.jsx')
+    render(<JevSection part="machine" />)
+    await screen.findByTestId('jev-key-chip')
+    expect(App.JevStatus).toHaveBeenCalledTimes(1)
+    expect(App.JevUsage).not.toHaveBeenCalled()
+  })
+
   it('shows the environment variable source without Remove', async () => {
     await mount(status('env'))
     expect(screen.getByTestId('jev-key-chip')).toHaveTextContent('Environment variable')
