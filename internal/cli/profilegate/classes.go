@@ -70,7 +70,9 @@ var classes = map[string]string{
 
 	"coder status": ClassGlobal, "coder enable": ClassGlobal, "coder disable": ClassGlobal, "coder set": ClassGlobal,
 
-	"daemon install": ClassGlobal, "daemon uninstall": ClassGlobal, "daemon restart": ClassGlobal,
+	// daemon and httpapi serve every profile: each workflow runs under its own
+	// profile and each HTTP request names its profile in the path.
+	"daemon": ClassGlobal, "httpapi": ClassGlobal,
 }
 
 // CommandKey is c's path below the root: "workflow templates list".

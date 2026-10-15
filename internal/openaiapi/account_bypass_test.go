@@ -54,7 +54,7 @@ func TestNoSpellingOfARequestReachesWorkWhileLocked(t *testing.T) {
 	})
 	key := h.key(t, "default", "app", false)
 	srv, err := httpapi.NewServer(httpapi.Options{
-		DB: h.db, Profile: "default", Version: "bypass-test", AllowMutations: true,
+		DB: h.db, Version: "bypass-test", AllowMutations: true,
 		ExtraRoutes: func(mux *http.ServeMux) {
 			mux.HandleFunc("POST /org-endpoint/{id}", func(w http.ResponseWriter, _ *http.Request) { org.Add(1) })
 			h.g.Mount(mux, anyPolicy)
