@@ -58,3 +58,25 @@ test("URLs inside free text are masked: console lines, stack frames", () => {
   assert.equal(R.text("no urls here"), "no urls here");
   assert.equal(R.text(undefined), "");
 });
+
+test("sensitiveField is the submit guard's rule: type, autocomplete, name or id, or a card number in the value", () => {
+  const masked = [
+    { type: "password", value: "x" },
+    { type: "HIDDEN", value: "x" },
+    { autocomplete: "cc-number", value: "x" },
+    { autocomplete: "section-pay current-password", value: "x" },
+    { autocomplete: "one-time-code", value: "x" },
+    { name: "cardholder", value: "Ann" },
+    { id: "cvc", value: "123" },
+    { name: "user_pin", value: "1" },
+    { name: "memo", value: "card 4111-1111-1111-1111 exp 12/29" },
+  ];
+  for (const f of masked) assert.equal(R.sensitiveField(f), true, JSON.stringify(f));
+  const kept = [
+    { type: "email", name: "email", value: "ann@example.com" },
+    { name: "order", value: "1234567812345678" },
+    { name: "shipping", value: "1 Main St" },
+    { type: "text", name: "q", value: "pins and needles" },
+  ];
+  for (const f of kept) assert.equal(R.sensitiveField(f), false, JSON.stringify(f));
+});

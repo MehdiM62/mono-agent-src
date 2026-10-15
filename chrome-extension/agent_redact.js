@@ -12,6 +12,10 @@
  *
  * SENSITIVE_NAMES is internal/extension/chat_context.go's urlSensitiveNames,
  * spelled the same (agent_redact.test.mjs compares the two).
+ *
+ * sensitiveField is the submit guard's masking rule (agent_submit_page.js's
+ * sensitive(), which runs in the page and cannot share code with the
+ * worker), for a11y_tree: a field whose value is never handed out.
  */
 
 (function (root) {
@@ -79,5 +83,37 @@
     });
   }
 
-  root.MonoAgentRedact = { url, text, SENSITIVE_NAMES, MASK };
+  function luhn(digits) {
+    let sum = 0;
+    for (let i = 0; i < digits.length; i++) {
+      let d = Number(digits[digits.length - 1 - i]);
+      if (i % 2 === 1) {
+        d *= 2;
+        if (d > 9) d -= 9;
+      }
+      sum += d;
+    }
+    return sum % 10 === 0;
+  }
+
+  /** cardNumberIn finds a card number anywhere in a value: 13 to 19 digits, spaced or dashed, that pass Luhn. */
+  function cardNumberIn(value) {
+    const runs = String(value || "").match(/\d(?:[ -]?\d){12,18}/g) || [];
+    return runs.some((run) => luhn(run.replace(/[ -]/g, "")));
+  }
+
+  /**
+   * sensitiveField says whether a field's value must be masked: {type,
+   * autocomplete, name, id, value} as the element has them.
+   */
+  function sensitiveField(f) {
+    const type = String(f.type || "").toLowerCase();
+    if (type === "password" || type === "hidden") return true;
+    if (/(^|\s)(cc-|current-password|new-password|one-time-code)/.test(String(f.autocomplete || "").toLowerCase())) return true;
+    const named = `${f.name || ""} ${f.id || ""}`.toLowerCase();
+    if (/card|cc[-_]?(num|number|exp|csc|cvv)|cvv|cvc|csc|iban|ssn|secret|token|passw|otp|(^|[^a-z])pin([^a-z]|$)/.test(named)) return true;
+    return cardNumberIn(f.value);
+  }
+
+  root.MonoAgentRedact = { url, text, sensitiveField, cardNumberIn, SENSITIVE_NAMES, MASK };
 })(globalThis);

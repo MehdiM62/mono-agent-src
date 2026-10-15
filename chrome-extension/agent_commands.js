@@ -67,7 +67,11 @@
     }
   }
 
-  /** checkOrigin refuses a command whose tab is not on params.expectOrigin (when given). */
+  /**
+   * checkOrigin refuses a command whose tab is not on params.expectOrigin
+   * (when given), compared with `new URL(tab.url).origin`: scheme://host and
+   * a port only when it is not the scheme's default.
+   */
   async function checkOrigin(params) {
     const expect = params && params.expectOrigin;
     if (expect === undefined || expect === null || expect === "") return;
@@ -77,8 +81,11 @@
     if (tab.pendingUrl) {
       throw new Error(`origin_changed: the tab is navigating to ${originOf(tab.pendingUrl) || "another page"}, not settled on ${expect}`);
     }
+    // URL.origin of the committed page; about:blank, data: and an empty tab
+    // ("null" or "") match nothing, not even an expectOrigin of "null".
     const now = originOf(tab.url);
-    if (now !== expect) throw new Error(`origin_changed: the tab is on ${now || "no web page"}, not ${expect}`);
+    if (!now || now === "null") throw new Error(`origin_changed: the tab is on no web page, not ${expect}`);
+    if (now !== expect) throw new Error(`origin_changed: the tab is on ${now}, not ${expect}`);
   }
 
   /** sweepIdle lets go of every held or armed tab that has had no command for IDLE_RELEASE_MS. */

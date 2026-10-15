@@ -273,3 +273,64 @@ func TestAgentReadsKeepToTheTabsOrigin(t *testing.T) {
 		t.Fatalf("origin params = %v", got)
 	}
 }
+
+// The extension refuses to arm a tab that is still navigating: BeforeAct
+// waits for the page, checks where it landed, and arms again.
+func TestArmingWaitsForANavigatingTab(t *testing.T) {
+	setEnv(t, true)
+	db := testdb.Open(t).DB
+	f := browserctltest.New()
+	tab := f.AddTab("https://shop.example/cart", "Coder · Agent", true)
+	arms := 0
+	f.On(extension.CmdSubmitGuard, func(c *extension.Command) (any, error) {
+		if c.Params["action"] == extension.SubmitGuardArm {
+			arms++
+			if arms == 1 {
+				return nil, errors.New("submit_guard: the tab is navigating; arm it once the page has loaded")
+			}
+		}
+		return map[string]any{"armed": true, "origin": "https://shop.example", "blocked": []any{}}, nil
+	})
+	s, _ := browserctl.Open(browserctl.Options{Sender: f, Allowlist: []string{"https://shop.example"}})
+	if err := s.BeforeAct(context.Background(), db); err != nil || arms != 2 || indexOfType(f, extension.CmdWaitLoad) < 0 {
+		t.Fatalf("before act: %v, %d arms, calls %v", err, arms, f.Types())
+	}
+
+	// The navigation it waited for left the allowed pages: refused, not armed.
+	arms = 0
+	f.SetURL(tab, "https://evil.example/")
+	s2 := s
+	if err := s2.BeforeAct(context.Background(), db); !errors.As(err, new(*browserctl.NotAllowedError)) || arms != 1 {
+		t.Fatalf("before act after leaving: %v, %d arms", err, arms)
+	}
+}
+
+// Guard records are per origin: a block on the next origin with a seq the
+// last one already reported is still held.
+func TestBlockedSubmitsAreTrackedPerOrigin(t *testing.T) {
+	setEnv(t, true)
+	ctx := context.Background()
+	db := testdb.Open(t).DB
+	f := browserctltest.New()
+	withScreenshot(f)
+	f.AddTab("https://a.example/", "Coder · Agent", true)
+	origin := "https://a.example"
+	f.On(extension.CmdSubmitGuard, func(c *extension.Command) (any, error) {
+		return map[string]any{"armed": true, "origin": origin, "blocked": []any{map[string]any{"seq": 1, "url": origin + "/",
+			"frameId": 0, "form": map[string]any{"action": origin + "/post", "method": "post", "fields": []any{}}}}}, nil
+	})
+	allow := []string{"https://a.example", "https://b.example"}
+	s, _ := browserctl.Open(browserctl.Options{Sender: f, Allowlist: allow})
+	if err := s.BeforeAct(ctx, db); !errors.As(err, new(*browserctl.AwaitingApproval)) {
+		t.Fatalf("first block on a: %v", err)
+	}
+	if err := s.BeforeAct(ctx, db); err != nil {
+		t.Fatalf("the same block reported twice: %v", err)
+	}
+	origin = "https://b.example"
+	f.SetURL(s.TabID(), "https://b.example/")
+	s2, _ := browserctl.Open(browserctl.Options{Sender: f, Allowlist: allow})
+	if err := s2.BeforeAct(ctx, db); !errors.As(err, new(*browserctl.AwaitingApproval)) {
+		t.Fatalf("seq 1 on b was taken for a's: %v", err)
+	}
+}
