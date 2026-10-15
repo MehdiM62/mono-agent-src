@@ -47,10 +47,12 @@ func Check(c *cobra.Command, flagSet bool, mode Mode, list Lister) (warning stri
 	return "warning: " + msg + "; falling back to the active profile, this becomes an error in the next release", nil
 }
 
-// exempt is the root and cobra's own help and completion commands, which cobra
+// exempt is what the gate never judges: the root, a command that does no work
+// (a group that only prints help or rejects an unknown subcommand, or one that
+// is not runnable), and cobra's own help and completion commands, which cobra
 // adds while a command runs, so the classification table never sees them.
 func exempt(c *cobra.Command) bool {
-	if !c.HasParent() {
+	if !c.HasParent() || !c.Runnable() || c.Annotations[GroupAnnotation] != "" {
 		return true
 	}
 	for ; c != nil && c.HasParent(); c = c.Parent() {

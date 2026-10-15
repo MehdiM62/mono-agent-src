@@ -50,6 +50,28 @@ func TestScopedWithProfilePasses(t *testing.T) {
 	}
 }
 
+func TestGroupsAndNonRunnableCommandsAreNotJudged(t *testing.T) {
+	root := tree()
+	group := &cobra.Command{Use: "grp", Annotations: map[string]string{GroupAnnotation: "true"}, RunE: func(*cobra.Command, []string) error { return nil }}
+	group.AddCommand(&cobra.Command{Use: "leaf", Run: func(*cobra.Command, []string) {}})
+	notRunnable := &cobra.Command{Use: "empty"}
+	root.AddCommand(group, notRunnable)
+	for _, c := range []*cobra.Command{group, notRunnable} {
+		for _, mode := range []Mode{ModeWarn, ModeEnforce} {
+			if w, err := Check(c, false, mode, nil); err != nil || w != "" {
+				t.Fatalf("%s mode %d: got %q / %v", c.Name(), mode, w, err)
+			}
+		}
+	}
+	// A runnable command that also has subcommands (doctor, daemon) is still judged.
+	worker := &cobra.Command{Use: "worker", Run: func(*cobra.Command, []string) {}}
+	worker.AddCommand(&cobra.Command{Use: "sub", Run: func(*cobra.Command, []string) {}})
+	root.AddCommand(worker)
+	if w, _ := Check(worker, false, ModeWarn, nil); w == "" {
+		t.Fatal("a command that does work must be judged even with subcommands")
+	}
+}
+
 func TestHelpCompletionAndTheRootNeverNeedAProfile(t *testing.T) {
 	root := tree()
 	var completion *cobra.Command
