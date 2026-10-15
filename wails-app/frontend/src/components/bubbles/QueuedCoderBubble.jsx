@@ -105,8 +105,8 @@ export function QueuedCoderBubble({ item, onStart, onDismiss }) {
         <span aria-hidden="true" style={{ width: 22, height: 22, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--cyan-glow-strong)', color: 'var(--cyan-bright)', flexShrink: 0 }}>
           <Icon size={12} />
         </span>
-        <span style={{ fontFamily: 'var(--font-display)', fontSize: 11.5, fontWeight: 600, color: 'var(--text)' }}>{kind}</span>
-        <span style={{ fontSize: 9, color: 'var(--text-dim)', border: '1px solid var(--border)', borderRadius: 999, padding: '0 6px' }}>
+        <span style={{ fontFamily: 'var(--font-display)', fontSize: 11.5, fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap' }}>{kind}</span>
+        <span style={{ fontSize: 9, color: 'var(--text-dim)', border: '1px solid var(--border)', borderRadius: 999, padding: '0 6px', whiteSpace: 'nowrap' }}>
           {t('coderQueue.fromBrowser', { defaultValue: 'from the browser' })}
         </span>
         <span style={{ flex: 1 }} />
@@ -122,7 +122,7 @@ export function QueuedCoderBubble({ item, onStart, onDismiss }) {
       <div title={`${item.origin || ''}${item.path || ''}`} style={{ color: 'var(--cyan)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pagePlace(item)}</div>
       {thumb && (
         <img src={thumb} alt={t('coderQueue.screenshot', { defaultValue: 'Screenshot of the page' })}
-          style={{ width: '100%', maxHeight: 120, objectFit: 'cover', objectPosition: 'top', borderRadius: 6, border: '1px solid var(--border)' }} />
+          style={{ width: '100%', height: 84, objectFit: 'cover', objectPosition: 'top', borderRadius: 6, border: '1px solid var(--border)' }} />
       )}
       {item.note && (
         <div style={{ color: 'var(--text-muted)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>“{item.note}”</div>
