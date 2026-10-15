@@ -836,8 +836,9 @@ through the same redaction as `workflow run --json` — pass
 `X-Full-Outputs: 1` to opt out per request, mirroring
 `workflow run --full-outputs`. Workflow reads and mutations are scoped to
 the profile in the path in both standalone and daemon-hosted mode: another
-profile's workflow ID returns 404. Legacy workflows with no profile ID
-belong to `default`. The daemon still serves every profile's triggers
+profile's workflow ID returns 404. A workflow with no profile ID belongs
+to nobody (404 for every profile); legacy rows and files are stamped by
+migration 099 and the file stamp. The daemon still serves every profile's triggers
 internally. A standalone `httpapi` starts one engine per profile on that
 profile's first mutating request, but the single webhook port is bound by only
 one of them: other profiles' webhook triggers are served only by `daemon`

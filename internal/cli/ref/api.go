@@ -90,8 +90,9 @@ AUTH
 
   Workflow reads and mutations are scoped to the profile in the path,
   including when the daemon hosts this API. Another profile's workflow
-  ID returns 404. Legacy workflows with no profile ID belong to default.
-  The daemon's own triggers serve all profiles.
+  ID returns 404. A workflow with no profile ID belongs to nobody (404 for
+  every profile); legacy rows and files are stamped by migration 099 and
+  the file stamp. The daemon's own triggers serve all profiles.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 OPENAI-COMPATIBLE API (/v1)
