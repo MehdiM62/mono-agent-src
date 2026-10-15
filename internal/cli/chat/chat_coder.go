@@ -13,6 +13,7 @@ import (
 
 	"github.com/monoes/mono-agent/internal/ai"
 	"github.com/monoes/mono-agent/internal/ai/chatevents"
+	"github.com/monoes/mono-agent/internal/browserctl"
 	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/hilsend"
 	"github.com/monoes/mono-agent/internal/monomind"
@@ -267,9 +268,11 @@ func createCoderConversation(cmd *cobra.Command, cfg *Deps, runtimeID, model, ef
 
 // agentSendEnv marks the agent's process so an outbound send it starts
 // waits for approval (internal/hilsend) and is tagged to this chat and
-// role, which is what puts the approval card in the right bubble.
+// role, which is what puts the approval card in the right bubble. It also
+// names the kind of agent, coder, whose browser permissions apply
+// (browserctl.AgentKind).
 func agentSendEnv(journal *turnJournal, role, agentID string) map[string]string {
-	env := map[string]string{hilsend.EnvAgentContext: "1", hilsend.EnvAgentRole: role}
+	env := map[string]string{hilsend.EnvAgentContext: "1", hilsend.EnvAgentRole: role, browserctl.EnvAgentKind: browserctl.KindCoder}
 	if agentID != "" {
 		env[hilsend.EnvAgentID] = agentID
 	}
