@@ -25,6 +25,8 @@ type Options struct {
 	Profiles extension.ProfileSource
 	// Tasks files the extension's task entries into the board (task.add).
 	Tasks extension.TaskSink
+	// FormFiller answers the side panel's form.fill (the profile's documents).
+	FormFiller extension.FormFiller
 	// Version is this build, reported in the bridge's status.
 	Version string
 	// InstallCaptureSummaries wires the capture summaries and indexing into
@@ -52,6 +54,8 @@ func NewServer(logger zerolog.Logger, o Options) *extension.Server {
 	// same `chat --conversation --turn` child the desktop app runs
 	// (internal/extension/chat.go). Read-mostly tools only, never runs.
 	srv.SetChatBackend(extension.NewCLIChatBackend())
+	// form.fill: fill the page's form from the profile's own documents.
+	srv.SetFormFiller(o.FormFiller)
 	srv.SetVersion(o.Version)
 	// Every bridge that owns the connection writes the summaries its
 	// captures ask for. `extension serve` re-installs this with its own
