@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"fmt"
+	"github.com/monoes/mono-agent/internal/vault"
 	"sync"
 	"time"
 )
@@ -58,15 +59,10 @@ var fetchDEK = fetchOrCreateDEK
 // forever with a stale transient error (e.g. a momentarily locked keychain
 // or a SQLITE_BUSY on vault_keys).
 func getOrCreateDEK(ctx context.Context, db *sql.DB, profileID string) ([]byte, error) {
-	// Single normalization point for profile IDs at the DEK boundary: an
-	// empty profile ID (a caller that resolved no profile) maps onto the
-	// "default" profile. Without this, "" silently created its own "kek-"
-	// keychain entry and an empty-profile vault_keys row that no later query
-	// scoping to "default" would ever find. Everything downstream — kekAccount,
-	// the file-keyring fallback paths, vault_keys rows, the memo key — sees
-	// the normalized value, so callers keep working unchanged.
+	// An empty profile ID is refused: "" would create its own "kek-" keychain
+	// entry and an empty-profile vault_keys row that nothing else finds.
 	if profileID == "" {
-		profileID = "default"
+		return nil, vault.ErrNoProfile
 	}
 	key := dekKey{db: db, profileID: profileID}
 	dekEntriesMu.Lock()

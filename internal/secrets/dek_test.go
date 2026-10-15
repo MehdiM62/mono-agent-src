@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/monoes/mono-agent/internal/storage"
+	"github.com/monoes/mono-agent/internal/vault"
 
 	"github.com/zalando/go-keyring"
 )
@@ -336,37 +337,25 @@ func TestFetchOrCreateDEK_ConcurrentColdBootstrapIsRaceFree(t *testing.T) {
 	}
 }
 
-// TestGetOrCreateDEK_EmptyProfileIDNormalizesToDefault pins the DEK
-// boundary normalization: an empty profile ID must land on the "default"
-// profile — one vault_keys row, one "kek-default" keychain entry — instead
-// of silently forking an empty-profile identity nothing else can find.
-func TestGetOrCreateDEK_EmptyProfileIDNormalizesToDefault(t *testing.T) {
+// TestGetOrCreateDEK_EmptyProfileIDIsRefused pins the DEK boundary: an empty
+// profile ID is an error, never a silent "default" -- no vault_keys row and
+// no bare "kek-" keychain entry may appear.
+func TestGetOrCreateDEK_EmptyProfileIDIsRefused(t *testing.T) {
 	keyring.MockInit()
 	db := newDEKTestDB(t)
-	ctx := context.Background()
 
-	dek, err := getOrCreateDEK(ctx, db.DB, "")
-	if err != nil {
-		t.Fatalf("getOrCreateDEK with empty profile: %v", err)
+	if _, err := getOrCreateDEK(context.Background(), db.DB, ""); !errors.Is(err, vault.ErrNoProfile) {
+		t.Fatalf("getOrCreateDEK with empty profile err = %v, want vault.ErrNoProfile", err)
 	}
 
 	var n int
-	if err := db.DB.QueryRow(`SELECT COUNT(*) FROM vault_keys WHERE profile_id = 'default'`).Scan(&n); err != nil || n != 1 {
-		t.Fatalf("vault_keys row under 'default': n=%d err=%v", n, err)
+	if err := db.DB.QueryRow(`SELECT COUNT(*) FROM vault_keys`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("vault_keys rows after a refused call: n=%d err=%v", n, err)
 	}
-	if err := db.DB.QueryRow(`SELECT COUNT(*) FROM vault_keys WHERE profile_id = ''`).Scan(&n); err != nil || n != 0 {
-		t.Fatalf("vault_keys row under '': n=%d err=%v", n, err)
-	}
-
 	if _, err := keyring.Get(keyringService, "kek-"); err != keyring.ErrNotFound {
 		t.Fatalf("expected no bare kek- keychain entry, got err=%v", err)
 	}
-
-	dekExplicit, err := getOrCreateDEK(ctx, db.DB, "default")
-	if err != nil {
-		t.Fatalf("getOrCreateDEK explicit default: %v", err)
-	}
-	if string(dek) != string(dekExplicit) {
-		t.Fatal("empty-profile DEK differs from the default profile's DEK")
+	if _, err := CheckVault(context.Background(), db.DB, ""); !errors.Is(err, vault.ErrNoProfile) {
+		t.Fatalf("CheckVault with empty profile err = %v, want vault.ErrNoProfile", err)
 	}
 }

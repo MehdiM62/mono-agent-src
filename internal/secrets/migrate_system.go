@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"github.com/monoes/mono-agent/internal/vault"
 	"os"
 )
 
@@ -17,7 +18,7 @@ import (
 // than aborting the batch, idempotent.
 func MigrateSessionsToVault(ctx context.Context, db *sql.DB) (migrated, total int, err error) {
 	rows, err := db.QueryContext(ctx,
-		`SELECT id, username, platform, cookies_json, COALESCE(profile_id,'default') FROM crawler_sessions WHERE COALESCE(vault_ref,'') = '' AND cookies_json != ''`)
+		`SELECT id, username, platform, cookies_json, COALESCE(profile_id,'') FROM crawler_sessions WHERE COALESCE(vault_ref,'') = '' AND cookies_json != ''`)
 	if err != nil {
 		return 0, 0, fmt.Errorf("secrets.MigrateSessionsToVault: listing unmigrated rows: %w", err)
 	}
@@ -44,6 +45,10 @@ func MigrateSessionsToVault(ctx context.Context, db *sql.DB) (migrated, total in
 	}
 
 	for _, r := range toMigrate {
+		if r.profileID == "" {
+			fmt.Fprintf(os.Stderr, "warning: skipping session migration for %s/%s: %v\n", r.platform, r.username, vault.ErrNoProfile)
+			continue
+		}
 		// Pre-dates per-profile keys entirely (written before any vault
 		// entry existed for it) — always under the legacy singleton DEK,
 		// regardless of which profile now owns the row.
