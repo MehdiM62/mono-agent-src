@@ -1,0 +1,130 @@
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
+import { Sparkles, ChevronDown, ChevronRight, Lock, AlertTriangle, CheckCircle2 } from 'lucide-react'
+import * as WailsApp from '../wailsjs/go/main/App'
+import { useReloadOnActivate } from '../lib/useReloadOnActivate'
+import InfoField from '../components/info/InfoField.jsx'
+import { groupCatalog, entryMap, hasValue, leftEmpty, errorText } from '../components/info/infoModel.js'
+import '../components/info/info.css'
+
+export default function Info({ isActive = true }) {
+  const { t } = useTranslation()
+  const [catalog, setCatalog] = useState(null)
+  const [entries, setEntries] = useState([])
+  const [loadError, setLoadError] = useState('')
+  const [collapsed, setCollapsed] = useState(() => new Set())
+  const [aiBusy, setAiBusy] = useState(false)
+  const [aiResult, setAiResult] = useState(null) // { ok, text }
+  const busyRef = useRef(false)
+
+  const loadEntries = useCallback(async () => {
+    const info = await WailsApp.GetProfileInfo()
+    setEntries(info?.entries || [])
+    return info?.entries || []
+  }, [])
+
+  const load = useCallback(async () => {
+    try {
+      const [cat] = await Promise.all([WailsApp.GetProfileInfoFields(), loadEntries()])
+      setCatalog(cat)
+      setLoadError('')
+    } catch (e) {
+      setLoadError(t('info.loadFailed', { message: errorText(e) }))
+    }
+  }, [loadEntries, t])
+
+  useEffect(() => { load() }, [load])
+  useReloadOnActivate(isActive, () => { if (!busyRef.current) load() })
+
+  const groups = useMemo(() => groupCatalog(catalog), [catalog])
+  const byKey = useMemo(() => entryMap(entries), [entries])
+  const secretKeys = useMemo(() => new Set((catalog?.fields || []).filter(f => f.sensitive || f.card).map(f => f.key)), [catalog])
+
+  // Saves one field. A user edit makes the value the user's. A secret's
+  // masked form comes from the CLI, so those re-read instead of echoing.
+  const save = useCallback(async (key, value) => {
+    await WailsApp.SetProfileInfo(key, value)
+    if (secretKeys.has(key)) { await loadEntries(); return }
+    setEntries(cur => {
+      const rest = cur.filter(e => e.key !== key)
+      return value === '' ? rest : [...rest, { key, value, masked: false, source: 'user', origin: '', updated_at: new Date().toISOString() }]
+    })
+  }, [secretKeys, loadEntries])
+
+  const runAIFill = async () => {
+    busyRef.current = true
+    setAiBusy(true); setAiResult(null)
+    try {
+      const res = await WailsApp.AIFillProfileInfo('', '')
+      const fresh = await loadEntries()
+      const empty = leftEmpty(catalog, fresh)
+      const n = res?.filled?.length || 0
+      setAiResult({ ok: true, text: n > 0 ? t('info.aiDone', { count: n, empty }) : t('info.aiNothing', { empty }) })
+    } catch (e) {
+      setAiResult({ ok: false, text: t('info.aiFailed', { message: errorText(e) }) })
+    } finally {
+      busyRef.current = false
+      setAiBusy(false)
+    }
+  }
+
+  const toggle = (id) => setCollapsed(cur => {
+    const next = new Set(cur)
+    if (next.has(id)) next.delete(id); else next.add(id)
+    return next
+  })
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+      <div className="page-header">
+        <div className="page-header-left"><h2 className="page-title" style={{ margin: 0 }}>{t('info.title')}</h2></div>
+        <div className="page-header-right">
+          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t('info.aiFillHint')}</span>
+          <button type="button" className="btn btn-primary" onClick={runAIFill} disabled={aiBusy || !catalog} aria-busy={aiBusy}>
+            {aiBusy ? <div className="spinner" style={{ width: 13, height: 13, borderColor: 'rgba(4,6,10,0.25)', borderTopColor: 'var(--void)' }} /> : <Sparkles size={14} />}
+            {aiBusy ? t('info.aiFilling') : t('info.aiFill')}
+          </button>
+        </div>
+      </div>
+      <div className="page-body">
+        <p className="info-lead">{t('info.subtitle')}</p>
+        <div role="status" aria-live="polite">
+          {aiResult && (
+            <div className={`info-banner ${aiResult.ok ? 'is-ok' : 'is-error'}`}>
+              {aiResult.ok ? <CheckCircle2 size={14} color="var(--green)" /> : <AlertTriangle size={14} color="var(--red)" />}
+              <span>{aiResult.text}</span>
+            </div>
+          )}
+        </div>
+        {loadError && <div className="info-banner is-error" role="alert"><AlertTriangle size={14} color="var(--red)" /><span>{loadError}</span></div>}
+        {!catalog && !loadError && <div className="info-lead">{t('info.loading')}</div>}
+        {catalog && groups.length === 0 && <div className="info-lead">{t('info.empty')}</div>}
+        {groups.map(g => {
+          const open = !collapsed.has(g.id)
+          const filled = g.fields.filter(f => hasValue(byKey.get(f.key))).length
+          const isCard = g.fields.some(f => f.card)
+          const Chevron = open ? ChevronDown : ChevronRight
+          return (
+            <section key={g.id} className="info-section" aria-labelledby={`info-h-${g.id}`}>
+              <h3 style={{ margin: 0 }}>
+                <button type="button" className="info-section-head" id={`info-h-${g.id}`} aria-expanded={open} aria-controls={`info-p-${g.id}`} onClick={() => toggle(g.id)}>
+                  <Chevron size={14} aria-hidden="true" />
+                  {g.label}
+                  <span className="info-section-count">{t('info.sectionCount', { filled, total: g.fields.length })}</span>
+                </button>
+              </h3>
+              <div id={`info-p-${g.id}`} hidden={!open}>
+                {isCard && <p className="info-card-note"><Lock size={11} style={{ verticalAlign: -1, marginRight: 5 }} />{t('info.cardNote')}</p>}
+                <div className="info-grid">
+                  {g.fields.map(f => (
+                    <InfoField key={f.key} field={f} entry={byKey.get(f.key)} onSave={save} onChanged={loadEntries} />
+                  ))}
+                </div>
+              </div>
+            </section>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
