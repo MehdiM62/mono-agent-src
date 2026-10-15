@@ -23,43 +23,40 @@ const EnvAICaller = "MONOAGENT_AI_CALLER"
 // caller is who started a run when it was not the user.
 type caller struct {
 	name string             // for the run's errors: "chat", "an agent (CLAUDECODE)", "org growth"
-	by   hilsend.PreparedBy // for the approval card
-	// shell: an agent's own shell, held to `monoagentcli browser`'s origin
-	// policy too (local and dev pages and the user's allowlist). The chat
-	// and the org side keep real sites, behind the submit gate only.
-	shell bool
+	by   hilsend.PreparedBy // for the approval cards
+	// kind is the kind of agent (browserctl.Kind*), whose level in the
+	// user's browser permissions the run follows.
+	kind string
 }
 
-// Values of a run's AI-caller mark (workflow.AICallerKey).
-const (
-	markAgent = "agent" // an agent's shell
-	markChat  = "chat"  // a chat tool call
-)
-
-// aiCaller reports who started this run when it was not the user: a chat
-// tool call (EnvAICaller), an agent's process (a coder chat, an org role's
-// shell, a coding agent's shell or MCP server: browserctl.IsAgentContext,
-// the test `monoagentcli browser` holds agents to), a run either of them
-// started with `workflow run` (workflow.AICallerKey), or the org side (a
-// granted call, a message to an automation role, a trigger.org event). A run the user started from the
-// app, a terminal, a schedule or a webhook is none of these.
+// aiCaller reports who started this run when it was not the user, and its
+// kind: an agent's process (a coder chat or its worker, an org role's shell,
+// any other agent shell or MCP server: browserctl.AgentKind), a chat tool
+// call (EnvAICaller: chat), a run either of them started with `workflow run`
+// (workflow.AICallerKey, the kind it was marked with), or the org side (a
+// granted call, a message to an automation role, a trigger.org event: org).
+// A run the user started from the app, a terminal, a schedule or a webhook
+// is none of these.
 func aiCaller(ctx context.Context) (caller, bool) {
 	if c, ok := envCaller(); ok {
 		return c, true
 	}
 	// A run this process didn't start: the AI caller's `workflow run` marked
-	// it (MarkAICaller). Any mark but the chat's is a shell's.
+	// it with its kind (MarkAICaller); an unknown mark ("agent") is other.
 	if v, _ := workflow.TriggerDataFrom(ctx)[workflow.AICallerKey].(string); strings.TrimSpace(v) != "" {
-		if v == markChat {
-			return caller{name: markChat, by: hilsend.PreparedBy{AgentID: markChat}}, true
+		switch v {
+		case browserctl.KindChat:
+			return caller{name: "chat", by: hilsend.PreparedBy{AgentID: v}, kind: v}, true
+		case browserctl.KindCoder, browserctl.KindOrg:
+			return caller{name: "an agent", by: hilsend.PreparedBy{AgentID: v}, kind: v}, true
 		}
-		return caller{name: "an agent", by: hilsend.PreparedBy{AgentID: markAgent}, shell: true}, true
+		return caller{name: "an agent", by: hilsend.PreparedBy{AgentID: browserctl.KindOther}, kind: browserctl.KindOther}, true
 	}
 	switch workflow.TriggerTypeFrom(ctx) {
 	case workflow.TriggerTypeOrgTool, workflow.TriggerTypeOrgMessage, workflow.TriggerNodeTypeOrg:
 		src := workflow.PublicationSource(ctx, workflow.NodeInput{})
 		return caller{name: strings.TrimSpace("org " + src.OrgID),
-			by: hilsend.PreparedBy{Org: src.OrgID, Role: src.RoleID, AgentID: src.AgentID}}, true
+			by: hilsend.PreparedBy{Org: src.OrgID, Role: src.RoleID, AgentID: src.AgentID}, kind: browserctl.KindOrg}, true
 	}
 	return caller{}, false
 }
@@ -73,41 +70,40 @@ func envCaller() (caller, bool) {
 		if m := orgsign.AgentContextMarker(); m != "" {
 			name += " (" + m + ")"
 		}
-		return caller{name: name, by: browserctl.RequestedBy(), shell: true}, true
+		return caller{name: name, by: browserctl.RequestedBy(), kind: browserctl.AgentKind()}, true
 	}
 	if v := strings.TrimSpace(os.Getenv(EnvAICaller)); v != "" {
-		return caller{name: v, by: hilsend.PreparedBy{AgentID: v}}, true
+		kind := browserctl.KindChat
+		if v != browserctl.KindChat {
+			kind = browserctl.KindOther
+		}
+		return caller{name: v, by: hilsend.PreparedBy{AgentID: v}, kind: kind}, true
 	}
 	return caller{}, false
 }
 
-// MarkAICaller marks a run's trigger data when an AI caller starts it from
-// this process (`workflow run`): "agent" for a shell, "chat" for the chat,
-// so the engine that runs it — this one, or a daemon that adopts a
-// --no-wait run or resumes a paused one — holds it to the same rules.
+// MarkAICaller marks a run's trigger data with the kind of the AI caller
+// that starts it from this process (`workflow run`), so the engine that runs
+// it — this one, or a daemon that adopts a --no-wait run or resumes a paused
+// one — holds it to the same level.
 func MarkAICaller(data map[string]interface{}) {
-	c, ok := envCaller()
-	if !ok || data == nil {
-		return
-	}
-	data[workflow.AICallerKey] = markChat
-	if c.shell {
-		data[workflow.AICallerKey] = markAgent
+	if c, ok := envCaller(); ok && data != nil {
+		data[workflow.AICallerKey] = c.kind
 	}
 }
 
-// shellPolicy is the origin policy `monoagentcli browser` holds an agent
-// to, with the user's allowlist.
-func shellPolicy(ctx context.Context) (browserctl.Policy, error) {
-	p := browserctl.Policy{Agent: true}
+// policyFor is the policy the user set for agents of kind (Settings → Agent
+// browser permissions), with the site rules. Without a database the
+// defaults apply.
+func policyFor(ctx context.Context, kind string) (browserctl.Policy, error) {
+	p := browserctl.DefaultPermissions()
 	if db := vault.DBFromContext(ctx); db != nil {
-		allow, err := browserctl.LoadAllowlist(db)
-		if err != nil {
-			return p, fmt.Errorf("read the browser allowlist: %w", err)
+		var err error
+		if p, err = browserctl.LoadPermissions(db); err != nil {
+			return browserctl.Policy{}, fmt.Errorf("read the browser permissions: %w", err)
 		}
-		p.Allowlist = allow
 	}
-	return p, nil
+	return p.PolicyFor(kind), nil
 }
 
 // blockedSubmit is one submit the guard stopped (C1 submit_guard's blocked[]).
