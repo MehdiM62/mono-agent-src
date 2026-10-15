@@ -25,7 +25,9 @@ const BrowserRules = "The user's browser: `monoagentcli browser` (`monoagentcli 
 	"`browser source <sel>` gives an element's file and line, `browser tokens` the page's design tokens. " +
 	"To have the user point at an element: `browser pick`. " +
 	"A form submit on a real site exits 3 with `awaiting_approval` and a hil_id: wait until the user approves it, " +
-	"then run `browser submit --hil <id>`. Never try to get around that."
+	"then run `browser submit --hil <id>`. Never try to get around that. " +
+	"`browser eval` works only on local pages. Exit 3 with code `origin_changed` means the tab moved: " +
+	"check where it is (`browser tabs`) before acting again."
 
 // profileRules is what each access profile tells the worker it may do.
 var profileRules = map[string]string{

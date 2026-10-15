@@ -48,7 +48,9 @@ ACTING ON THE PAGE
   browser type <selector> <text>
   browser press <key>
   browser wait <selector> [--timeout 10s]
-  browser eval <js>                         {result}
+  browser eval <js>                         {result}; an agent only on local and dev pages
+                                            (eval_not_allowed elsewhere: a script could
+                                            send a form around the approval it needs)
 
 SEEING THE PAGE
   browser screenshot [--full | --element <sel>] [--width W --height H] [--media dark|light] [--out FILE]
@@ -137,6 +139,17 @@ FORM SUBMITS ON A REAL SITE (EXIT 3)
   up) also follows WHERE AN AGENT MAY GO: its start URL and every page it
   reaches; anything else fails the run. A chat tool call's or the org's run
   keeps real sites, behind the submit gate only.
+
+ERRORS AN AGENT ACTS ON (exit 3; --json prints {"error","code"})
+  awaiting_approval    a submit waits for the user (above)
+  origin_not_allowed   not local and not on the allowlist
+  eval_not_allowed     browser eval on a page that is not local
+  origin_changed       the tab left the page the command was checked for (a
+                       redirect, a script, the user); nothing ran. See where it
+                       is (browser tabs) before acting again
+  submit_changed       the page or form changed since the approval; ask again
+  submit_unbound       the held submit can't be repeated; ask again
+  tab_blank            the tab has no page yet: browser navigate <url>
 
 EXAMPLE: DEBUG LOOP (a dev server on localhost)
   monoagentcli --json browser open http://localhost:5173      # {"tabId":812,...}
