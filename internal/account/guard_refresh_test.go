@@ -131,7 +131,7 @@ func TestInvalidGrantLocksDeletesTheRefreshTokenAndCancelsWork(t *testing.T) {
 	}
 	select {
 	case <-got:
-	case <-time.After(2 * time.Second):
+	case <-time.After(testWait):
 		t.Fatal("OnRefused did not fire")
 	}
 	settle()
@@ -437,7 +437,7 @@ func TestRefreshFiresEveryOnRefusedCallbackEvenWhileDormant(t *testing.T) {
 	for i, ch := range []chan account.Status{first, second} {
 		select {
 		case <-ch:
-		case <-time.After(2 * time.Second):
+		case <-time.After(testWait):
 			t.Fatalf("callback %d did not fire", i+1)
 		}
 	}

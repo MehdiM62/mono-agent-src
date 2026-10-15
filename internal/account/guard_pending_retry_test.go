@@ -410,7 +410,7 @@ func TestAProcessKilledMidCallLeavesTheMarkerForTheNextOne(t *testing.T) {
 			}()
 			select {
 			case <-rotated:
-			case <-time.After(3 * time.Second):
+			case <-time.After(testWait):
 				t.Fatal("the grant never went out")
 			}
 			if got := r.e.pendingOn(); !got.Equal(r.t0) {
