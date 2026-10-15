@@ -191,6 +191,9 @@ func browserErr(cmd *cobra.Command, cfg *globalConfig, err error) error {
 	if strings.Contains(msg, "Element not found") || strings.Contains(msg, "Timed out waiting for element") {
 		return errNotFound("%s", strings.TrimPrefix(msg, "extension error: "))
 	}
+	if strings.Contains(msg, "Unknown command type") {
+		return fmt.Errorf("%s: the MonoAgent extension in that browser is older than this command — update it, or reload it from the browser's extensions page", strings.TrimPrefix(msg, "extension error: "))
+	}
 	if strings.Contains(msg, "No tab with id") {
 		return errNotFound("%s — see `monoagentcli browser tabs`", strings.TrimPrefix(msg, "extension error: "))
 	}
