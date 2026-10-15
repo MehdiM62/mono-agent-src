@@ -90,11 +90,11 @@ If this host has monoagent's task tools (`task_next`, `task_claim`,
 pass `profile` on every call, the id of the board you chose in section 1 (the
 name works too). A call without it is refused with the list of profiles. The
 server names you itself (`agent:<client>#<4 hex digits>`), so you pass no name,
-and every text comes back in a field ending in `_untrusted`. Use one server for
-the whole task: two servers are two claimants, and one cannot comment on or
-finish what the other claimed. If the server restarts, you are a new claimant
-too: a task you held frees itself when its lease ends; tell the user. The user
-registers one server for all profiles:
+and every text comes back in a field ending in `_untrusted`.
+Use one server for the whole task: two servers are two claimants, and one cannot
+comment on or finish what the other claimed. If the server restarts, you are a
+new claimant too: a task you held frees itself when its lease ends; tell the
+user. The user registers one server for all profiles:
 
 ```bash
 claude mcp add monoagent-tasks -- monoagentcli mcp --tasks-only --allow-mutations
