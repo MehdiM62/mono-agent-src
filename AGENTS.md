@@ -784,24 +784,31 @@ here; MCP is just a second transport onto the same tool implementations.
 ## HTTP API
 
 ```bash
-monoagentcli --profile work httpapi    # REST/JSON server (default 127.0.0.1:9322)
+monoagentcli httpapi    # REST/JSON server for every profile (default 127.0.0.1:9322)
 ```
 
 For agents that can't speak stdio JSON-RPC. Same surface as the MCP tools
 (`internal/httpapi/` mirrors `internal/mcp/`'s conventions), plus
-`GET /workflows/{id}/executions` and `POST /workflows/{id}/activate` /
-`deactivate`. Read-only by default; mutating endpoints
+`GET /profiles/{profile}/workflows/{id}/executions` and
+`POST /profiles/{profile}/workflows/{id}/activate` / `deactivate`. The server
+picks no profile: workflows and HIL items live under `/profiles/{profile}/...`
+(`{profile}` is a profile's id or name; the old unprefixed `/workflows*` and
+`/hil*` routes are gone and answer 404 with a hint). Read-only by default; mutating endpoints
 (`run`/`activate`/`deactivate`/`hil approve`/`hil reject`) are only
 registered when started with `--allow-mutations` or
 `MONOAGENT_HTTPAPI_ALLOW_MUTATIONS=1` — otherwise those paths 404 rather
 than 403, so a probe can't distinguish "opted out" from "doesn't exist".
 Every request needs `Authorization: Bearer <token>` except `GET /health`;
-the token is generated on first start and stored in the serving profile's
-secrets vault (`secret list`, name `httpapi-token`). Output items go
+each profile has its own token, created when the server starts and stored in
+that profile's secrets vault (`--profile <p> secret list`, name
+`httpapi-token`). A token authorizes only the profile in the request path:
+another profile's token, an unknown profile and a missing token all get the
+same 401, so a caller cannot learn which profiles exist (`/nodes*` takes any
+profile's token). Output items go
 through the same redaction as `workflow run --json` — pass
 `X-Full-Outputs: 1` to opt out per request, mirroring
 `workflow run --full-outputs`. Workflow reads and mutations are scoped to
-the server's profile in both standalone and daemon-hosted mode: another
+the profile in the path in both standalone and daemon-hosted mode: another
 profile's workflow ID returns 404. Legacy workflows with no profile ID
 belong to `default`. The daemon still serves every profile's triggers
 internally. Full endpoint list:
