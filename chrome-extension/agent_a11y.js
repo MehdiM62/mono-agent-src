@@ -8,7 +8,7 @@
  * Accessibility.getFullAXTree, then pruned to what carries meaning: ignored
  * nodes, inline text boxes and unnamed generic containers go, and their
  * children move up to the nearest kept ancestor. Text that only repeats its
- * parent's name is dropped too. The main frame only; an iframe's content is
+ * parent's name or value is dropped too. The main frame only; an iframe's content is
  * not in Chrome's tree for this frame.
  *
  * Node-tested on canned trees (agent_a11y.test.mjs).
@@ -42,7 +42,8 @@
     let count = 0;
     let truncated = false;
 
-    function visit(n, level, parentName, out) {
+    // parent: the kept ancestor's name and value, which its text children repeat.
+    function visit(n, level, parent, out) {
       if (count >= maxNodes) {
         truncated = true;
         return;
@@ -52,23 +53,23 @@
       const kids = (n.childIds || []).map((id) => byId.get(id)).filter(Boolean);
       const lift = n.ignored || role === "InlineTextBox" || (FLATTEN.has(role) && !name);
       if (lift) {
-        for (const k of kids) visit(k, level, parentName, out);
+        for (const k of kids) visit(k, level, parent, out);
         return;
       }
-      if (role === "StaticText" && name === parentName) return;
-      const node = { role, name };
       const value = text(n.value);
+      if (role === "StaticText" && parent.includes(name)) return;
+      const node = { role, name };
       if (value) node.value = value;
       count++;
       out.push(node);
       if (depth && level >= depth) return;
       const children = [];
-      for (const k of kids) visit(k, level + 1, name, children);
+      for (const k of kids) visit(k, level + 1, [name, value], children);
       if (children.length) node.children = children;
     }
 
     const nodes = [];
-    visit(start, 1, null, nodes);
+    visit(start, 1, [], nodes);
     const result = { nodes };
     if (truncated) result.truncated = true;
     return result;

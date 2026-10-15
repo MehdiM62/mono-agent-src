@@ -121,14 +121,16 @@ type ConsolePage struct {
 	Next    int64          `json:"next"`
 }
 
-// NetworkQuery are read_network's params.
+// NetworkQuery are read_network's params. FailedOnly keeps requests that
+// failed and HTTP 4xx/5xx answers.
 type NetworkQuery struct {
 	Since      int64 `json:"since,omitempty"`
 	Limit      int   `json:"limit,omitempty"`
 	FailedOnly bool  `json:"failedOnly,omitempty"`
 }
 
-// NetworkEntry is one finished or failed request. Never headers or bodies.
+// NetworkEntry is one finished or failed request; a request still in flight
+// is not listed yet. Never headers or bodies.
 type NetworkEntry struct {
 	Seq        int64  `json:"seq"`
 	TS         int64  `json:"ts"`
@@ -281,6 +283,8 @@ func (ep *ExtensionPage) WatchTab(on bool) (bool, error) {
 }
 
 // ReadConsole reads this tab's buffered console entries (WatchTab first).
+// The buffers live in the extension's service worker: a restart of it clears
+// them, and the next read fails saying the tab is not watched.
 func (ep *ExtensionPage) ReadConsole(q ConsoleQuery) (*ConsolePage, error) {
 	var out ConsolePage
 	if err := ep.agentCall(CmdReadConsole, q, 0, &out); err != nil {

@@ -121,18 +121,32 @@ test("an image too large for the bridge is refused with what to do instead", asy
 
 test("emulate sets exactly the metrics named, holds the tab, and reset lets it go", async () => {
   const t = setup();
+  const emulation = () => t.sent.filter(([m]) => m.startsWith("Emulation."));
   assert.deepEqual(await t.shot.emulate({ tabId: 5, width: 375, height: 812, deviceScaleFactor: 3, mobile: true }), { ok: true });
-  assert.deepEqual(t.sent, [["Emulation.setDeviceMetricsOverride", { width: 375, height: 812, deviceScaleFactor: 3, mobile: true }]]);
+  assert.deepEqual(emulation(), [["Emulation.setDeviceMetricsOverride", { width: 375, height: 812, deviceScaleFactor: 3, mobile: true }]]);
   assert.equal(t.cdp.holds(5), true, "the override lasts only while the debugger stays attached");
   await t.shot.emulate({ tabId: 5, media: { prefersColorScheme: "dark" } });
-  assert.deepEqual(t.sent[1], ["Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "dark" }, { name: "prefers-reduced-motion", value: "" }] }]);
-  assert.equal(t.sent.length, 2, "media alone leaves the metrics as they are");
+  assert.deepEqual(emulation()[1], ["Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "dark" }, { name: "prefers-reduced-motion", value: "" }] }]);
+  assert.equal(emulation().length, 2, "media alone leaves the metrics as they are");
   await t.shot.emulate({ tabId: 5, reset: true });
-  assert.deepEqual(t.sent.slice(2), [
+  assert.deepEqual(emulation().slice(2), [
     ["Emulation.clearDeviceMetricsOverride", {}],
     ["Emulation.setEmulatedMedia", { media: "", features: [] }],
   ]);
   assert.equal(t.cdp.holds(5), false);
+});
+
+test("emulate answers once the page has drawn with the change, or after a second at most", async () => {
+  const t = setup();
+  await t.shot.emulate({ tabId: 5, reset: true });
+  const [method, params] = t.sent[t.sent.length - 1];
+  assert.equal(method, "Runtime.evaluate");
+  assert.equal(params.awaitPromise, true);
+  assert.match(params.expression, /requestAnimationFrame\(\(\) => requestAnimationFrame/);
+  const stuck = setup({ "Runtime.evaluate": () => new Promise(() => {}) });
+  const started = Date.now();
+  assert.deepEqual(await stuck.shot.emulate({ tabId: 5, width: 375 }), { ok: true });
+  assert.ok(Date.now() - started < 1500, "a tab that never draws does not hang the command");
 });
 
 test("emulate with media cleared and no metrics lets the tab go", async () => {
