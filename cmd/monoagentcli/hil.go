@@ -15,12 +15,10 @@ import (
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 
-	"github.com/monoes/mono-agent/internal/browserctl"
 	hilcli "github.com/monoes/mono-agent/internal/cli/hil"
 	"github.com/monoes/mono-agent/internal/hilsend"
-	"github.com/monoes/mono-agent/internal/orgsign"
+	"github.com/monoes/mono-agent/internal/operator"
 	"github.com/monoes/mono-agent/internal/storage"
-	"github.com/monoes/mono-agent/internal/workflow"
 )
 
 // `hil` lives in internal/cli/hil; this is its adapter: the CLI's globals and helpers handed
@@ -110,28 +108,9 @@ func requireOperator(what string) error {
 }
 
 // notOperator says why this process is not the operator's own terminal, or
-// "": an agent (hilsend.Detect), a process of any kind of agent
-// (browserctl.AgentKind, the chat's runs included), a chat tool call's
-// `workflow run` (MONOAGENT_AI_CALLER), or a process a workflow node started
-// (MONOAGENT_WORKFLOW_RUN), which a chat or an org can have built.
-func notOperator() string {
-	switch {
-	case os.Getenv(workflow.EnvWorkflowRun) != "":
-		return workflow.EnvWorkflowRun + " is set, so a workflow run is running this command"
-	case os.Getenv(browserctl.EnvAICaller) != "":
-		return browserctl.EnvAICaller + " is set, so the chat is running this command"
-	}
-	if _, agent := hilsend.Detect(); agent || browserctl.AgentKind() != "" {
-		marker := orgsign.AgentContextMarker()
-		for _, k := range []string{hilsend.EnvAgentContext, "MONOAGENT_ACTOR", browserctl.EnvAgentKind} {
-			if marker == "" && os.Getenv(k) != "" {
-				marker = k
-			}
-		}
-		return marker + " is set, so an agent is running this command"
-	}
-	return ""
-}
+// "" (internal/operator): an agent, a process of any kind of agent, a chat
+// tool call's run, or a process a workflow node started.
+func notOperator() string { return operator.Refusal() }
 
 // requirePublicationApproval gates `publication register` from an agent: a
 // publication it claims must be one the operator approved. approvalID names the

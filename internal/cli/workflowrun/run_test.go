@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/monoes/mono-agent/internal/browserctl"
+	"github.com/monoes/mono-agent/internal/browserctl/browserctltest"
 	"github.com/monoes/mono-agent/internal/nodes/browserjev"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
@@ -225,7 +226,7 @@ func TestRunMarksAnAgentsRun(t *testing.T) {
 	if got := mark(); got != "other" {
 		t.Errorf("an agent shell's run (even with the chat's variable set) is marked with its kind: %v", got)
 	}
-	t.Setenv(browserctl.EnvAgentKind, "coder")
+	browserctltest.AsAgentKind(t, browserctl.KindCoder) // what a coder turn's spawner gives its shell
 	if got := mark(); got != "coder" {
 		t.Errorf("a coder chat's run: %v", got)
 	}

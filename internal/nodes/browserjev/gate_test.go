@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/monoes/mono-agent/internal/browserctl"
+	"github.com/monoes/mono-agent/internal/browserctl/browserctltest"
 	"github.com/monoes/mono-agent/internal/hilsend"
 	"github.com/monoes/mono-agent/internal/jevpick"
 	"github.com/monoes/mono-agent/internal/vault"
@@ -60,13 +61,14 @@ func TestAICaller(t *testing.T) {
 	if c, ok := aiCaller(ctx); !ok || c.name != "an agent (CLAUDECODE)" || c.by.Role != "qa" || c.kind != browserctl.KindOther {
 		t.Errorf("an agent's shell: %+v %v", c, ok)
 	}
-	t.Setenv(browserctl.EnvAgentKind, "coder")
+	browserctltest.AsAgentKind(t, browserctl.KindCoder) // what a coder turn's spawner gives its shell
 	if c, _ := aiCaller(ctx); c.kind != browserctl.KindCoder {
 		t.Errorf("a coder chat's shell: %+v", c)
 	}
 	if MarkAICaller(data); data[workflow.AICallerKey] != "coder" {
 		t.Errorf("a coder shell's run is marked coder: %v", data)
 	}
+	browserctltest.AsAgentKind(t, browserctl.KindOrg)
 	t.Setenv(browserctl.EnvAgentKind, "")
 	t.Setenv("MONOMIND_ORG_ROLE", "writer")
 	if c, _ := aiCaller(ctx); c.kind != browserctl.KindOrg {

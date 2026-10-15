@@ -6,6 +6,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/monoes/mono-agent/internal/monomind"
+	"github.com/monoes/mono-agent/internal/operator"
 )
 
 func (env *orgEnv) newOrgRoleCmd(root func() string) *cobra.Command {
@@ -26,8 +27,10 @@ func (env *orgEnv) newOrgRoleCmd(root func() string) *cobra.Command {
 				return env.d.InvalidInput("access must be full or scoped, got %q", access)
 			}
 			if access == monomind.AccessFull {
-				if m := monomind.AgentContextMarker(); m != "" {
-					return env.d.InvalidInput("granting full access is human-only and this looks like an agent (%s is set); run it yourself from a terminal or the app", m)
+				// Not an agent, nor anything a workflow node runs (a chat or an
+				// org can build that workflow): internal/operator.
+				if why := operator.Refusal(); why != "" {
+					return env.d.InvalidInput("granting full access is human-only: %s; run it yourself from a terminal or the app", why)
 				}
 				if !yes {
 					return env.d.InvalidInput("full access lets role %q run any command and change any file without asking; pass --yes-i-understand to grant it", role)
