@@ -329,11 +329,11 @@ func TestTriggerChecksAndSubmitsInOneStep(t *testing.T) {
 func TestHeldDigestCoversFieldsWithoutNames(t *testing.T) {
 	base := holdDigest(t, "", "#login", "#send")
 	for name, setup := range map[string]string{
-		"nameless input":    `nameless.value = "other state";`,
-		"input with an id":  `bySel["#note"].value = "ring twice";`,
-		"rich-text editor":  `bySel["#rich"].innerText = "edited";`,
-		"unchecked box":     `bySel["#gift"].checked = true;`,
-		"nameless select":   `size.selectedOptions = [{ value: "l", text: "Large" }];`,
+		"nameless input":   `nameless.value = "other state";`,
+		"input with an id": `bySel["#note"].value = "ring twice";`,
+		"rich-text editor": `bySel["#rich"].innerText = "edited";`,
+		"unchecked box":    `bySel["#gift"].checked = true;`,
+		"nameless select":  `size.selectedOptions = [{ value: "l", text: "Large" }];`,
 	} {
 		if got := holdDigest(t, setup, "#login", "#send"); got == base {
 			t.Errorf("%s: the digest did not change", name)
