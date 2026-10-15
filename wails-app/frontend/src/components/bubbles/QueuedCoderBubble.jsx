@@ -54,7 +54,15 @@ export function useQueuedCoderChats() {
 // path, as the browser reported them), shown in full so the person sees
 // which site the agent will be told about before pressing Start.
 function pageAddress(item) {
-  return `${item.origin || ''}${item.path || ''}`
+  return cleanLine(`${item.origin || ''}${item.path || ''}`)
+}
+
+// cleanLine shows page text the way the CLI stores it (cleanLine in
+// internal/cli/chat/coder_queue_page.go): format characters (bidi controls,
+// zero-width characters: \p{Cf}) dropped, so a page can't reorder what the
+// card shows, and runs of spaces and control characters as one space.
+export function cleanLine(s) {
+  return String(s || '').replace(/\p{Cf}/gu, '').replace(/[\s\p{Cc}]+/gu, ' ').trim()
 }
 
 // QueuedCoderBubble is one queued chat: its kind, the page, a screenshot,
@@ -70,6 +78,7 @@ export function QueuedCoderBubble({ item, onStart, onDismiss }) {
   const Icon = kindIcon[item.kind] || MessageCircleQuestion
   const kind = t(`coderQueue.kind.${item.kind}`, { defaultValue: kindLabel[item.kind] || item.kind })
   const folder = cwd || item.cwd || ''
+  const title = cleanLine(item.title)
 
   useEffect(() => {
     let live = true
@@ -118,8 +127,8 @@ export function QueuedCoderBubble({ item, onStart, onDismiss }) {
           <X size={12} />
         </button>
       </div>
-      {item.title && (
-        <div title={item.title} style={{ fontSize: 11, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</div>
+      {title && (
+        <div data-testid="queued-title" title={title} style={{ fontSize: 11, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</div>
       )}
       <div data-testid="queued-page" style={{ color: 'var(--cyan)', overflowWrap: 'anywhere', wordBreak: 'break-all', lineHeight: 1.35 }}>{pageAddress(item)}</div>
       {thumb && (

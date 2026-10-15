@@ -158,6 +158,21 @@ describe('queued coder chats', () => {
     expect(page.style.whiteSpace).toBe('')
   })
 
+  it('drops bidi and zero-width characters from the title and address', async () => {
+    const format = ['\u202A', '\u202B', '\u202C', '\u202D', '\u202E', '\u2066', '\u2067', '\u2068', '\u2069',
+      '\u200E', '\u200F', '\u061C', '\u200B', '\u200C', '\u200D', '\uFEFF']
+    api.coderQueueList.mockResolvedValue({ items: [item({
+      title: 'Invoice \u202Eexe.fdp\u202C \u2066x\u2069\u200B', origin: 'http://localhost:3000', path: '/a\u202Eb',
+    })] })
+    render(<Harness />)
+    await waitFor(() => expect(card()).toBeInTheDocument())
+    const title = within(card()).getByTestId('queued-title')
+    expect(title.textContent).toBe('Invoice exe.fdp x')
+    expect(title.getAttribute('title')).toBe('Invoice exe.fdp x')
+    expect(within(card()).getByTestId('queued-page').textContent).toBe('http://localhost:3000/ab')
+    for (const ch of format) expect(card().textContent.includes(ch)).toBe(false)
+  })
+
   it('shows two at a time and the rest behind +N more', async () => {
     api.coderQueueList.mockResolvedValue({ items: [1, 2, 3, 4].map(n => item({ id: `20261015-12000${n}-abcdef`, title: `Page ${n}` })) })
     render(<Harness />)
