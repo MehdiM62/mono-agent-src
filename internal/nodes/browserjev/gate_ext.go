@@ -3,7 +3,6 @@ package browserjev
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -22,7 +21,16 @@ import (
 type guardPage interface {
 	SubmitGuard(action string) (*extension.SubmitGuardState, error)
 	Screenshot(o extension.ScreenshotOptions) (*extension.Screenshot, error)
-	EvalCDP(js string) (interface{}, error)
+}
+
+// resubmitPage repeats an approved submit on the page
+// (browserctl.ResubmitPage, as `browser submit --hil` does); tests replace it.
+var resubmitPage = func(p guardPage, f browserctl.FormSummary) error {
+	ep, ok := p.(*extension.ExtensionPage)
+	if !ok {
+		return fmt.Errorf("%w: a %T page can't repeat a submit", browserctl.ErrNotSent, p)
+	}
+	return browserctl.ResubmitPage(ep, f)
 }
 
 // ArmSubmitGuard arms the extension's submit guard (C1 submit_guard) on the
@@ -97,14 +105,20 @@ func formSummary(f extension.SubmitForm) browserctl.FormSummary {
 }
 
 func (g *extGuard) Ask(ctx context.Context, b blockedSubmit, by hilsend.PreparedBy) (string, error) {
-	it, err := browserctl.CreateSubmitItem(ctx, g.db, browserctl.SubmitRequest{
+	it, err := browserctl.CreateSubmitItem(ctx, g.db, browserctl.SubmitRequest{RequestedBy: &by,
 		Profile: g.profile, URL: b.URL, Form: b.Form, Screenshot: g.cardScreenshot(), Via: "guard", TabID: g.TabID(), Seq: b.Seq,
 	})
 	return it.ID, err
 }
 
+// Decision reads the item. Only the user's own approval counts (`hil
+// approve` or the HIL page, which refuse an agent): one set another way is
+// approved_elsewhere.
 func (g *extGuard) Decision(ctx context.Context, hilID string) (string, error) {
 	it, err := browserctl.GetSubmitItem(ctx, g.db, g.profile, hilID)
+	if it.Status == "approved" && it.ApprovedBy != browserctl.ApprovedByOperator {
+		return "approved_elsewhere", err
+	}
 	return it.Status, err
 }
 
@@ -118,38 +132,19 @@ func (g *extGuard) Submit(ctx context.Context, b blockedSubmit, hilID string) er
 			return err
 		}
 	}
-	err := g.resubmit(b.Form)
-	if hilID != "" {
+	err := resubmitPage(g.page, b.Form)
+	if err != nil {
+		_, _ = g.page.SubmitGuard(extension.SubmitGuardArm) // drop an unused allow_once
+		err = fmt.Errorf("repeat the approved submit: %w", err)
+	}
+	switch {
+	case hilID == "":
+	case errors.Is(err, browserctl.ErrNotSent):
+		_ = browserctl.ReleaseSubmitItem(ctx, g.db, g.profile, hilID) // nothing reached the page
+	default:
 		_ = browserctl.FinishSubmitItem(ctx, g.db, g.profile, hilID, err)
 	}
 	return err
-}
-
-// resubmitJS clicks the recorded submit control, else submits the form.
-const resubmitJS = `((sub, form) => {
-  const s = sub && document.querySelector(sub);
-  if (s) { s.click(); return true; }
-  const f = form && document.querySelector(form);
-  if (f instanceof HTMLFormElement) { f.requestSubmit(); return true; }
-  return false;
-})(%s, %s)`
-
-// resubmit lets exactly one submit through and repeats the held one.
-func (g *extGuard) resubmit(f browserctl.FormSummary) error {
-	if _, err := g.page.SubmitGuard(extension.SubmitGuardAllowOnce); err != nil {
-		return fmt.Errorf("let the approved submit through: %w", err)
-	}
-	sub, _ := json.Marshal(f.Submitter)
-	form, _ := json.Marshal(f.Selector)
-	res, err := g.page.EvalCDP(fmt.Sprintf(resubmitJS, sub, form))
-	if ok, _ := res.(bool); err == nil && !ok {
-		err = errors.New("its form is no longer on the page")
-	}
-	if err != nil {
-		_, _ = g.page.SubmitGuard(extension.SubmitGuardArm) // hold the next submit again
-		return fmt.Errorf("repeat the approved submit: %w", err)
-	}
-	return nil
 }
 
 // TabID is the guarded tab, for the item and the run's output.

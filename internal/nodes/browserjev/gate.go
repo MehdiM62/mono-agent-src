@@ -64,8 +64,9 @@ type submitGuard interface {
 	Blocked(ctx context.Context) ([]blockedSubmit, error)
 	// Ask makes the browser.submit Human-in-Loop item for b.
 	Ask(ctx context.Context, b blockedSubmit, by hilsend.PreparedBy) (hilID string, err error)
-	// Decision is the item's status: pending, approved, rejected, or
-	// consumed (`browser submit --hil` already sent it).
+	// Decision is the item's status: pending, approved, rejected,
+	// consumed (`browser submit --hil` already sent it), or
+	// approved_elsewhere (not by the user, so it can't be used).
 	Decision(ctx context.Context, hilID string) (string, error)
 	// Submit lets b through, exactly once, then the guard holds again; with
 	// hilID, the approved item is used up by it.
@@ -132,6 +133,9 @@ func settleSubmits(ctx context.Context, g submitGuard, c caller) (*gateEnd, erro
 			return nil, nil
 		case "rejected":
 			return &gateEnd{"blocked", fmt.Sprintf("the user rejected the form submit on %s (Human-in-Loop item %s)", origin, id), id}, nil
+		case "approved_elsewhere":
+			return &gateEnd{"blocked", fmt.Sprintf("the form submit on %s (Human-in-Loop item %s) was approved outside "+
+				"`monoagentcli hil approve` and the Human in Loop page, so it was not sent", origin, id), id}, nil
 		}
 		select {
 		case <-ctx.Done():

@@ -173,6 +173,14 @@ func TestAISubmitConsumedElsewhereGoesOn(t *testing.T) {
 	}
 }
 
+func TestAISubmitApprovedElsewhereIsNotSent(t *testing.T) {
+	t.Setenv(EnvAICaller, "chat")
+	drv, res := gatedRun(t, "https://shop.example.com/search", []string{"approved_elsewhere"}, 30)
+	if res["status"] != "blocked" || !strings.Contains(res["reason"].(string), "approved outside") || len(drv.g.submitted) != 0 {
+		t.Fatalf("res=%v submitted=%v", res, drv.g.submitted)
+	}
+}
+
 func TestAISubmitOnADevPageNeedsNoApproval(t *testing.T) {
 	t.Setenv(EnvAICaller, "chat")
 	drv, res := gatedRun(t, "http://localhost:5173/search", []string{"rejected"}, 30)

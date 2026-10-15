@@ -118,7 +118,9 @@ FORM SUBMITS ON A REAL SITE (EXIT 3)
   and who asked. Wait for the user to approve it (` + "`monoagentcli --json hil list`" + `
   shows it), then:
       monoagentcli browser submit --hil <id>
-  lets exactly that submit through. A rejected item is final: tell the user.
+  lets exactly that submit through. Only the user's approval counts
+  (` + "`hil approve`" + ` or the Human in Loop page, which refuse an agent); an
+  approval set any other way is not used. A rejected item is final: tell the user.
   Never try to get around the guard. It catches form submits, not pages that
   send with fetch or XHR alone; it guards against mistakes and instructions a
   page plants, it is not a sandbox.
