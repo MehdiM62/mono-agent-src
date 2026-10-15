@@ -55,7 +55,7 @@ func TestAgentOpenTabGoesIntoItsGroupAndIsWatched(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"create_tab", "tab_group", "watch_tab", "read_console", "read_network", "reload", "page_info"}
+	want := []string{"create_tab", "page_info", "tab_group", "watch_tab", "read_console", "read_network", "reload", "page_info"}
 	if got := f.Types(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("commands = %v, want %v", got, want)
 	}
@@ -257,7 +257,9 @@ func TestResubmitClicksTheRecordedSubmitter(t *testing.T) {
 	f := browserctltest.New()
 	f.AddTab("https://example.com/", "Coder · Agent", true)
 	s, _ := browserctl.Open(browserctl.Options{Sender: f, Allowlist: []string{"https://example.com"}})
-	if err := s.Resubmit(browserctl.SubmitItem{Form: browserctl.FormSummary{Submitter: "#send"}}); err != nil {
+	it := browserctl.SubmitItem{URL: "https://example.com/", Form: browserctl.FormSummary{Submitter: "#send"},
+		FormDigest: browserctl.FormDigest(browserctl.FormSummary{})}
+	if err := s.Resubmit(it); err != nil {
 		t.Fatal(err)
 	}
 	calls := f.Calls()

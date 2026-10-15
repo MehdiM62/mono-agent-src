@@ -2,7 +2,6 @@ package browserctl
 
 import (
 	"encoding/json"
-	"fmt"
 	"testing"
 
 	"github.com/dop251/goja"
@@ -73,10 +72,14 @@ field(form, "textarea", { name: "body" }, { type: "textarea", value: "hello" });
 field(form, "input", { name: "pw" }, { type: "password", value: "hunter2" });
 field(form, "input", { name: "card_number" }, { type: "text", value: "4111111111111111" });
 field(form, "input", { name: "agree" }, { type: "checkbox", checked: true, value: "yes" });
+// Card numbers in fields named nothing like a card: one passes the Luhn check, one does not.
+field(form, "input", { name: "ref" }, { type: "text", value: "4242 4242-4242 4242" });
+field(form, "input", { name: "order_no" }, { type: "text", value: "1234567890123" });
 field(form, "input", { name: "color" }, { type: "radio", checked: false, value: "red" });
 const send = field(form, "button", { type: "submit", id: "send" }, { type: "submit" });
 bySel["#send span"] = send.add(new El("span", {}, { innerText: "Send" }));
 bySel["#send"] = send;
+bySel["form#login"] = form;
 bySel["#toggle"] = field(form, "button", { type: "button", id: "toggle" }, { type: "button", innerText: "Show password" });
 bySel["#menu"] = body.add(new El("button", { id: "menu" }, { innerText: "Open menu" }));
 bySel["#publish"] = body.add(new El("a", { id: "publish" }, { innerText: "Publish now" }));
@@ -90,8 +93,7 @@ func runProbe(t *testing.T, selector string) SubmitTarget {
 	if _, err := vm.RunString(probeDOM); err != nil {
 		t.Fatalf("dom: %v", err)
 	}
-	sel, _ := json.Marshal(selector)
-	v, err := vm.RunString(fmt.Sprintf(probeSubmitJS, string(sel)))
+	v, err := vm.RunString(withSelector(probeSubmitJS, selector))
 	if err != nil {
 		t.Fatalf("probe %s: %v", selector, err)
 	}
@@ -138,7 +140,8 @@ func TestProbeSubmitSummarizesTheFormWithSecretsMasked(t *testing.T) {
 	for _, fl := range f.Fields {
 		values[fl.Name] = fl.Value
 	}
-	want := map[string]string{"action": "•••", "body": "hello", "pw": "•••", "card_number": "•••", "agree": "yes"}
+	want := map[string]string{"action": "•••", "body": "hello", "pw": "•••", "card_number": "•••", "agree": "yes",
+		"ref": "•••", "order_no": "1234567890123"}
 	for k, v := range want {
 		if values[k] != v {
 			t.Errorf("field %s = %q, want %q (all: %v)", k, values[k], v, values)
@@ -152,5 +155,42 @@ func TestProbeSubmitSummarizesTheFormWithSecretsMasked(t *testing.T) {
 	}
 	if got := runProbe(t, "#menu"); got.Form.Selector != "" || len(got.Form.Fields) != 0 {
 		t.Errorf("a control outside a form has a form: %+v", got.Form)
+	}
+}
+
+// summarizeFormJS reads a form by its own selector the way the probe reads
+// it through a control, so a held submit's digest can be checked again.
+func TestSummarizeFormMatchesTheProbe(t *testing.T) {
+	vm := goja.New()
+	if _, err := vm.RunString(probeDOM); err != nil {
+		t.Fatal(err)
+	}
+	v, err := vm.RunString(withSelector(summarizeFormJS, "form#login"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := json.Marshal(v.Export())
+	var got struct {
+		Found bool        `json:"found"`
+		Form  FormSummary `json:"form"`
+	}
+	if err := json.Unmarshal(raw, &got); err != nil || !got.Found {
+		t.Fatalf("summary %s: %v", raw, err)
+	}
+	probe := runProbe(t, "#send")
+	if FormDigest(got.Form) != FormDigest(probe.Form) {
+		t.Fatalf("digests differ:\n%+v\n%+v", got.Form, probe.Form)
+	}
+	changed := got.Form
+	changed.Fields = append([]FormField(nil), got.Form.Fields...)
+	changed.Fields[1].Value = "hello!"
+	if FormDigest(changed) == FormDigest(got.Form) {
+		t.Fatal("a changed value keeps the digest")
+	}
+	relabelled := got.Form
+	relabelled.Fields = append([]FormField(nil), got.Form.Fields...)
+	relabelled.Fields[1].Label = "Message"
+	if FormDigest(relabelled) != FormDigest(got.Form) {
+		t.Fatal("a label changes the digest")
 	}
 }

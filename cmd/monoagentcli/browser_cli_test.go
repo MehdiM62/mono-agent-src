@@ -308,10 +308,15 @@ func TestBrowserSubmitApprovalIsTheOperators(t *testing.T) {
 	bt := newBrowserTest(t, true)
 	db := bt.db().DB
 	tab := bt.fake.AddTab("https://shop.example/checkout", "Coder · Agent", true)
+	// The page the submit was held on, read by CreateSubmitItem to bind it.
+	page, err := browserctl.Open(browserctl.Options{Sender: bt.fake, Tab: tab, Allowlist: []string{"https://shop.example"}})
+	if err != nil {
+		t.Fatal(err)
+	}
 	held := func() string {
 		it, err := browserctl.CreateSubmitItem(t.Context(), db, browserctl.SubmitRequest{
 			URL: "https://shop.example/checkout", Via: "guard", TabID: tab, Instance: bt.fake.Instance,
-			Form: browserctl.FormSummary{Submitter: "#pay"},
+			Form: browserctl.FormSummary{Submitter: "#pay"}, Page: page.Page(),
 		})
 		if err != nil {
 			t.Fatal(err)

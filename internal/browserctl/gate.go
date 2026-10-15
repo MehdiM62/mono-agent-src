@@ -80,6 +80,9 @@ func (s *Session) AfterAct(ctx context.Context, db *sql.DB) error {
 	if _, err := s.Refresh(); err != nil {
 		return nil // the tab went away or is navigating; the next command checks again
 	}
+	if !s.policy.Allowed(s.url) {
+		return nil // the action took the tab off the allowed pages: nothing more is sent to it
+	}
 	if !was && !s.Gated() {
 		return nil
 	}
@@ -139,6 +142,7 @@ func (s *Session) takeBlocked(ctx context.Context, db *sql.DB) error {
 func (s *Session) Hold(ctx context.Context, db *sql.DB, pageURL string, form FormSummary, via string, seq int) (*AwaitingApproval, error) {
 	it, err := CreateSubmitItem(ctx, db, SubmitRequest{
 		Profile: s.profile, URL: pageURL, Form: form, Via: via, TabID: s.tabID, Instance: s.info.Instance, Seq: seq,
+		Page: s.Page(),
 	})
 	if err != nil {
 		return nil, err
@@ -207,8 +211,7 @@ type SubmitTarget struct {
 // apply. The form it would send is summarized with sensitive values masked.
 func (s *Session) ProbeSubmit(selector string) (SubmitTarget, error) {
 	var t SubmitTarget
-	sel, _ := json.Marshal(selector)
-	res, err := s.Page().EvalCDP(fmt.Sprintf(probeSubmitJS, string(sel)))
+	res, err := s.Page().EvalCDP(withSelector(probeSubmitJS, selector))
 	if err != nil {
 		return t, err
 	}
@@ -230,14 +233,15 @@ func (s *Session) ProbeSubmit(selector string) (SubmitTarget, error) {
 // reached the page, so the approval can be handed back.
 var ErrNotSent = errors.New("nothing was submitted")
 
-// Resubmit performs an approved submit item on the session's tab
-// (ResubmitPage).
-func (s *Session) Resubmit(it SubmitItem) error { return ResubmitPage(s.Page(), it.Form) }
+// Resubmit performs an approved submit item on the session's tab once the
+// page still shows what was approved (ResubmitItem).
+func (s *Session) Resubmit(it SubmitItem) error { return ResubmitItem(s.Page(), it) }
 
 // ResubmitPage repeats a held submit on page p: the guard lets exactly one
 // submit through, then the recorded submitter is clicked, or the form
 // requestSubmit()ted when there was none. A failure wrapping ErrNotSent
-// reached nothing on the page.
+// reached nothing on the page. It checks nothing about the page: callers
+// repeating an approved item use ResubmitItem.
 func ResubmitPage(p *extension.ExtensionPage, f FormSummary) error {
 	if f.Submitter == "" && f.Selector == "" {
 		return fmt.Errorf("%w: the held submit recorded neither its submit control nor its form, so it cannot be repeated", ErrNotSent)
