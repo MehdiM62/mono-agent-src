@@ -252,7 +252,7 @@ func TestLocalPagesAreNotGated(t *testing.T) {
 	}
 }
 
-func TestResubmitChecksAndSubmitsInOneEvaluation(t *testing.T) {
+func TestResubmitChecksAndSubmitsInOneIsolatedEvaluation(t *testing.T) {
 	setEnv(t, true)
 	f := browserctltest.New()
 	f.AddTab("https://example.com/", "Coder · Agent", true)
@@ -267,12 +267,16 @@ func TestResubmitChecksAndSubmitsInOneEvaluation(t *testing.T) {
 	if err := s.Resubmit(it); err != nil || fp.Triggered != 1 {
 		t.Fatalf("resubmit: %v (%d submits)", err, fp.Triggered)
 	}
+	// arm, allow_once, then the check-and-submit in an isolated world.
 	calls := f.Calls()
-	last := calls[len(calls)-3:]
+	last := calls[len(calls)-5:]
+	eval, _ := last[4].Params["params"].(map[string]interface{})
+	expr, _ := eval["expression"].(string)
 	if last[0].Type != extension.CmdSubmitGuard || last[0].Params["action"] != extension.SubmitGuardArm ||
 		last[1].Type != extension.CmdSubmitGuard || last[1].Params["action"] != extension.SubmitGuardAllowOnce || last[1].Params["frameId"] != 0 ||
-		last[2].Type != "eval_cdp" || !strings.HasPrefix(last[2].Params["expression"].(string), "/*mono:trigger*/") ||
-		!strings.Contains(last[2].Params["expression"].(string), it.FormDigest) {
+		last[2].Params["method"] != "Page.getFrameTree" || last[3].Params["method"] != "Page.createIsolatedWorld" ||
+		last[4].Params["method"] != "Runtime.evaluate" || eval["contextId"] != 7 ||
+		!strings.HasPrefix(expr, "/*mono:trigger*/") || !strings.Contains(expr, it.FormDigest) {
 		t.Fatalf("calls = %+v", last)
 	}
 }

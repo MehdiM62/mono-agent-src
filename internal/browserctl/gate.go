@@ -252,7 +252,7 @@ type SubmitTarget struct {
 // apply. The form it would send is summarized with sensitive values masked.
 func (s *Session) ProbeSubmit(selector string) (SubmitTarget, error) {
 	var t SubmitTarget
-	res, err := s.Page().EvalCDP(pageScript(probeSubmitJS, "", selector, ""))
+	res, err := evalIsolated(s.Page(), pageScript(probeSubmitJS, "", selector, ""))
 	if err != nil {
 		return t, err
 	}
@@ -306,7 +306,7 @@ func resubmit(p *extension.ExtensionPage, f FormSummary, frameID int, expect str
 		_, _ = p.SubmitGuard(extension.SubmitGuardDisarm)
 		_, _ = p.SubmitGuard(extension.SubmitGuardArm)
 	}
-	res, err := p.EvalCDP(pageScript(triggerJS, f.Selector, f.Submitter, expect))
+	res, err := evalIsolated(p, pageScript(triggerJS, f.Selector, f.Submitter, expect))
 	if err != nil {
 		reclose()
 		return err
