@@ -24,7 +24,10 @@ type guardPage interface {
 	TabID() int
 }
 
-var _ guardPage = (*extension.ExtensionPage)(nil)
+var (
+	_ guardPage                             = (*extension.ExtensionPage)(nil)
+	_ interface{ GetURL() (string, error) } = (*extension.ExtensionPage)(nil) // TabURL
+)
 
 // resubmitPage repeats a held submit on a local or dev page, which needs no
 // approval (browserctl.ResubmitPage); tests replace it.
@@ -45,6 +48,16 @@ var resubmitItem = func(p guardPage, it browserctl.SubmitItem) error {
 		return fmt.Errorf("%w: a %T page can't repeat a submit", browserctl.ErrNotSent, p)
 	}
 	return browserctl.ResubmitItem(ep, it)
+}
+
+// TabURL is the tab's URL from the browser (page_info: chrome.tabs), not the
+// page's own location.
+func (d extDriver) TabURL() (string, error) {
+	u, ok := d.page.(interface{ GetURL() (string, error) })
+	if !ok {
+		return "", errors.New("the page can't say its address (it needs the extension bridge)")
+	}
+	return u.GetURL()
 }
 
 // ArmSubmitGuard arms the extension's submit guard (C1 submit_guard) on the

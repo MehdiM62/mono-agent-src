@@ -47,6 +47,28 @@ func (g *runGate) allowed(pageURL string) error {
 	return nil
 }
 
+// tabURLer reports the tab's URL as the browser has it (chrome.tabs), which
+// a page can't rewrite the way it can the location its snapshot reads.
+type tabURLer interface{ TabURL() (string, error) }
+
+// checkPage holds an agent shell's run to the origin policy on the page it
+// observed: the tab's URL from the browser, and the snapshot's too.
+func (g *runGate) checkPage(drv driver, snapshotURL string) error {
+	if g.pol == nil {
+		return nil
+	}
+	if t, ok := drv.(tabURLer); ok {
+		u, err := t.TabURL()
+		if err != nil {
+			return fmt.Errorf("%s started this run, and the tab's address could not be read: %w", g.who.name, err)
+		}
+		if err := g.allowed(u); err != nil {
+			return err
+		}
+	}
+	return g.allowed(snapshotURL)
+}
+
 // arm arms the submit guard on the run's tab; a run that can't is refused.
 func (g *runGate) arm(ctx context.Context, drv driver) error {
 	if !g.ai {
