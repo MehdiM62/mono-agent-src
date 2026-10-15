@@ -533,6 +533,8 @@ export function PlatformNames():Promise<Record<string, string>>;
 
 export function PromoteRoleToRoot(arg1:string,arg2:string):Promise<string>;
 
+export function ReadHILScreenshot(arg1:string):Promise<string>;
+
 export function ReadJSONFile(arg1:string):Promise<Record<string, any>>;
 
 export function ReadWorkspaceImage(arg1:string,arg2:string):Promise<string>;

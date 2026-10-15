@@ -133,7 +133,10 @@ func (a *App) ReadWorkspaceImage(conversationID, path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return workspaceImageDataURL(cwd, path)
+	if cwd == "" {
+		return "", errors.New("this chat has no folder to show images from")
+	}
+	return imageDataURLIn(cwd, path)
 }
 
 // conversationCwd is a coder conversation's folder, from `chat history
@@ -160,17 +163,17 @@ var workspaceImageExts = map[string]bool{".png": true, ".jpg": true, ".jpeg": tr
 
 var workspaceImageTypes = map[string]bool{"image/png": true, "image/jpeg": true, "image/webp": true, "image/gif": true}
 
-func workspaceImageDataURL(cwd, p string) (string, error) {
-	if cwd == "" {
-		return "", errors.New("this chat has no folder to show images from")
-	}
+// imageDataURLIn reads image p (relative paths from root) as a data URL,
+// only when it resolves inside root: a PNG, JPEG, WebP or GIF file (by its
+// content) of at most 10 MB.
+func imageDataURLIn(root, p string) (string, error) {
 	notImage := fmt.Errorf("%s is not a PNG, JPEG, WebP or GIF image", p)
 	if !workspaceImageExts[strings.ToLower(filepath.Ext(p))] {
 		return "", notImage
 	}
-	resolved, err := fsconfine.Path(fsconfine.WithRoot(context.Background(), cwd), p)
+	resolved, err := fsconfine.Path(fsconfine.WithRoot(context.Background(), root), p)
 	if errors.Is(err, fsconfine.ErrOutsideWorkdir) {
-		return "", fmt.Errorf("%s is outside this chat's folder %s", p, cwd)
+		return "", fmt.Errorf("%s is outside %s", p, root)
 	}
 	if err != nil {
 		return "", err
