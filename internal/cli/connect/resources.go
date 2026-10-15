@@ -19,7 +19,7 @@ func (d Deps) newConnectResourcesCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "resources <credential-id>",
 		Short: "List a connection's external resources (Drive files, Gmail labels, Slack channels/users)",
-		Long: "Lists the resources of --type on --platform through a saved connection of the active profile, " +
+		Long: "Lists the resources of --type on --platform through a saved connection of the profile named by --profile, " +
 			"silently refreshing an OAuth token that expires within 60 seconds first. Types: google_sheets/" +
 			"google_drive spreadsheets|folders (--query filters by name), gmail labels, slack channels|users. " +
 			"--json prints {\"items\":[{\"id\",\"name\",\"description\",\"metadata\"}]}. Exit code 2 when the " +
@@ -65,7 +65,7 @@ func (d Deps) newConnectResourcesCreateCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "create <credential-id>",
 		Short: "Create an external resource (a Google Sheet or a Drive folder)",
-		Long: "Creates a resource named --name through a saved connection of the active profile: a spreadsheet " +
+		Long: "Creates a resource named --name through a saved connection of the profile named by --profile: a spreadsheet " +
 			"on google_sheets, a folder on google_drive. --json prints {\"item\":{\"id\",\"name\"}}. Exit codes " +
 			"as for `connect resources`.",
 		Example: "  monoagentcli --json connect resources create 3f2a… --platform google_sheets --type spreadsheets --name Budget",

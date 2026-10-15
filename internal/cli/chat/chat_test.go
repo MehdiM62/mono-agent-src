@@ -135,7 +135,7 @@ func TestWorkspaceConventionPromptListsTaxonomyAndForbidsDotFolders(t *testing.T
 // ToolDefs(), or its required params dropped, every one of those tests
 // would keep passing while the model never saw the tool existed.
 func TestMonoagentToolSpecsAdvertisesSaveDocument(t *testing.T) {
-	mt := aichat.NewMonoagentTools(nil, "")
+	mt := aichat.NewMonoagentTools(nil, "", "default")
 	specs := monoagentToolSpecs(mt)
 
 	var found *monomind.ToolSpec

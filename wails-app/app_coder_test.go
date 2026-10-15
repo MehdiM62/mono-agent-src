@@ -22,7 +22,7 @@ func TestApp_CoderSettings_ShellOutAndReturnTheCLIJSON(t *testing.T) {
 		fakeChatReply{match: "coder workspace list", stdout: `[{"path":"/w/a","lastUsed":"2026-09-27T10:00:00Z","conversations":3,"exists":true}]`},
 	)
 	a, _ := newCLIChatApp(t, bin)
-	a.setActiveProfileID("work")
+	a.selectForTest("work")
 
 	for name, got := range map[string]string{
 		"CoderStatus":  a.CoderStatus(),

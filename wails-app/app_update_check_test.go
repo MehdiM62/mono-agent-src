@@ -18,7 +18,7 @@ echo '{"current_version":"`+version+`","latest_version":"v9.9.9","update_availab
 `))
 	a := newTestApp(t)
 	a.ctx = context.Background()
-	a.setActiveProfileID("work")
+	a.selectForTest("work")
 	info := a.CheckForUpdate()
 	if !info.UpdateAvailable || info.LatestVersion != "v9.9.9" || info.ReleaseURL != "https://example.test/r" || info.Error != "" {
 		t.Fatalf("info = %+v", info)

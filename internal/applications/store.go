@@ -36,10 +36,11 @@ func nullBool(b *bool) interface{} {
 }
 
 // validateAndDefault checks kind/detail consistency and required per-kind
-// fields, defaulting ProfileID. It does not touch the database.
+// fields. A missing ProfileID is an error: there is no implicit profile. It
+// does not touch the database.
 func validateAndDefault(app *Application) error {
 	if app.ProfileID == "" {
-		app.ProfileID = "default"
+		return fmt.Errorf("%w: profile_id is required", ErrInvalidInput)
 	}
 	switch app.Kind {
 	case KindJob:

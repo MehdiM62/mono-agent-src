@@ -41,7 +41,7 @@ func MigrateProfileBlobs(ctx context.Context, db *sql.DB, profileID string) (mig
 
 func migrateConnectionsData(ctx context.Context, db *sql.DB, profileID string) (migrated int, errs []error) {
 	rows, err := db.QueryContext(ctx,
-		`SELECT id, data FROM connections WHERE COALESCE(profile_id,'default') = ?`, profileID)
+		`SELECT id, data FROM connections WHERE profile_id = ?`, profileID)
 	if err != nil {
 		return 0, []error{fmt.Errorf("connections.MigrateProfileBlobs: listing connections: %w", err)}
 	}
@@ -89,7 +89,7 @@ func migrateConnectionsData(ctx context.Context, db *sql.DB, profileID string) (
 
 func migrateOAuthClientSecrets(ctx context.Context, db *sql.DB, profileID string) (migrated int, errs []error) {
 	rows, err := db.QueryContext(ctx,
-		`SELECT platform, client_secret FROM platform_oauth_credentials WHERE COALESCE(profile_id,'default') = ? AND client_secret != ''`, profileID)
+		`SELECT platform, client_secret FROM platform_oauth_credentials WHERE profile_id = ? AND client_secret != ''`, profileID)
 	if err != nil {
 		// Table may not exist yet on a fresh install — not an error.
 		return 0, nil

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/monoes/mono-agent/internal/profiledir"
 	"github.com/monoes/mono-agent/internal/secrets"
 )
 
@@ -29,7 +30,7 @@ type ConnectOptions struct {
 	Method       AuthMethod // force a specific method (zero = prompt if multiple)
 	OAuthTimeout time.Duration
 	FieldValues  map[string]string // pre-filled field values for non-interactive use
-	ProfileID    string            // profile to save the connection under (empty = "default")
+	ProfileID    string            // profile to save the connection under (required)
 	// Scopes narrows an umbrella platform's (google, microsoft) consent to
 	// these scope groups; empty requests every group. Error elsewhere.
 	Scopes []string
@@ -152,7 +153,7 @@ func (m *Manager) Get(ctx context.Context, id string) (*Connection, error) {
 
 func (m *Manager) List(ctx context.Context, platform, profileID string) ([]Connection, error) {
 	if profileID == "" {
-		profileID = "default"
+		return nil, profiledir.ErrNoProfile
 	}
 	if platform == "" {
 		return m.store.ListAll(ctx, profileID)
@@ -237,7 +238,7 @@ func (m *Manager) SaveFields(ctx context.Context, platformID string, method Auth
 		return nil, fmt.Errorf("unknown platform %q", platformID)
 	}
 	if profileID == "" {
-		profileID = "default"
+		return nil, profiledir.ErrNoProfile
 	}
 	if data == nil {
 		data = map[string]interface{}{}

@@ -13,13 +13,17 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// profileOrDefault is the profile a command acts on: --profile (or the
-// active one OpenDB resolved), "default" when neither is set.
-func (d Deps) profileOrDefault() string {
+// ErrProfileRequired is returned when a session command runs without a
+// profile: there is no implicit "default".
+var ErrProfileRequired = errors.New("login: no profile selected; pass --profile <id|name>")
+
+// requireProfile is the profile a command acts on (--profile, as OpenDB
+// resolved it), or ErrProfileRequired.
+func (d Deps) requireProfile() (string, error) {
 	if d.ProfileID() == "" {
-		return "default"
+		return "", ErrProfileRequired
 	}
-	return d.ProfileID()
+	return d.ProfileID(), nil
 }
 
 // sessionByID loads one of the active profile's browser sessions. The
@@ -58,7 +62,7 @@ func (d Deps) newLoginTestCmd() *cobra.Command {
 		Use:   "test <session-id>",
 		Short: "Check a saved browser session (exists, not expired, cookies stored)",
 		Long: "Checks a session from `login status` without opening a browser: exit code 2 when the id " +
-			"is unknown in the active profile, 4 when it is expired or has no cookies stored.",
+			"is unknown in the profile named by --profile, 4 when it is expired or has no cookies stored.",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id, err := d.parseSessionID(args[0])
@@ -71,7 +75,11 @@ func (d Deps) newLoginTestCmd() *cobra.Command {
 			}
 			defer db.Close()
 
-			s, hasCookies, err := d.sessionByID(cmd.Context(), db.DB, d.profileOrDefault(), id)
+			pid, perr := d.requireProfile()
+			if perr != nil {
+				return perr
+			}
+			s, hasCookies, err := d.sessionByID(cmd.Context(), db.DB, pid, id)
 			if err != nil {
 				return err
 			}
@@ -111,7 +119,11 @@ func (d Deps) newLoginDeleteCmd() *cobra.Command {
 			}
 			defer db.Close()
 
-			n, err := deleteSessions(cmd.Context(), db.DB, d.profileOrDefault(), "id = ?", id)
+			pid, perr := d.requireProfile()
+			if perr != nil {
+				return perr
+			}
+			n, err := deleteSessions(cmd.Context(), db.DB, pid, "id = ?", id)
 			if err != nil {
 				return err
 			}

@@ -58,7 +58,7 @@ func (a *App) CreateChatConversation(workflowID, runtimeID, model, effort string
 		args = append(args, "--effort", effort)
 	}
 	var rec ai.ConversationRecord
-	if err := a.chatSup.cli(a.getActiveProfileID(), &rec, args...); err != nil {
+	if err := a.chatCLI(&rec, args...); err != nil {
 		return a.chatBindingError(err)
 	}
 	b, _ := json.Marshal(rec.Conversation())
@@ -78,6 +78,10 @@ func (a *App) StartChatTurn(conversationID, turnID, message string, tools, allow
 	if a.chatSup == nil {
 		return a.chatBindingError(fmt.Errorf("chat supervisor not initialized"))
 	}
+	pid, err := a.profileID()
+	if err != nil {
+		return a.chatBindingError(err)
+	}
 	h, alreadyActive, err := a.chatSup.admit(conversationID, turnID)
 	if err != nil {
 		return fmt.Sprintf(`{"ok":false,"turnId":%q,"status":"busy"}`, turnID)
@@ -85,7 +89,7 @@ func (a *App) StartChatTurn(conversationID, turnID, message string, tools, allow
 	if alreadyActive {
 		return fmt.Sprintf(`{"ok":true,"turnId":%q,"status":"active"}`, turnID)
 	}
-	h.profileID = a.getActiveProfileID()
+	h.profileID = pid
 	resp, err := a.chatSup.startTurn(h, message, tools, allowRuns, attachments)
 	if err != nil {
 		a.chatSup.release(conversationID, turnID)
@@ -111,7 +115,7 @@ func (a *App) StopChatTurn(conversationID, turnID string) string {
 		return `{"ok":true}`
 	}
 	var rec ai.TurnRecord
-	if err := a.chatSup.cli(a.getActiveProfileID(), &rec, "chat", "history", "turn", conversationID, turnID); err == nil {
+	if err := a.chatCLI(&rec, "chat", "history", "turn", conversationID, turnID); err == nil {
 		if isForeignActiveTurn(rec.Turn(), a.chatSup.instanceID) {
 			return `{"ok":false,"error":"this turn is running in another window and can only be stopped there"}`
 		}
@@ -134,7 +138,7 @@ func (a *App) StopChatAgent(conversationID, turnID, agentID string) string {
 		return a.chatBindingError(fmt.Errorf("chat supervisor not initialized"))
 	}
 	var res map[string]any
-	if err := a.chatSup.cli(a.getActiveProfileID(), &res, "chat", "turn", "stop", "--agent="+agentID, "--wait", "20s", "--", conversationID, turnID); err != nil {
+	if err := a.chatCLI(&res, "chat", "turn", "stop", "--agent="+agentID, "--wait", "20s", "--", conversationID, turnID); err != nil {
 		return a.chatBindingError(err)
 	}
 	res["ok"] = true
@@ -161,7 +165,7 @@ func (a *App) ListChatConversations(cursor string, limit int) string {
 		args = append(args, "--cursor", cursor)
 	}
 	var page chatConversationPage
-	if err := a.chatSup.cli(a.getActiveProfileID(), &page, args...); err != nil {
+	if err := a.chatCLI(&page, args...); err != nil {
 		return a.chatBindingError(err)
 	}
 	items := make([]ai.Conversation, 0, len(page.Items))
@@ -192,7 +196,7 @@ func (a *App) GetChatTurns(conversationID, cursor string, limit int) string {
 		args = append(args, "--cursor", cursor)
 	}
 	var page chatTurnPage
-	if err := a.chatSup.cli(a.getActiveProfileID(), &page, args...); err != nil {
+	if err := a.chatCLI(&page, args...); err != nil {
 		// Unknown (or deleted) conversation: no turns, as before, plus
 		// notFound so a caller holding on to it (a restored coder bubble)
 		// can let it go.
@@ -225,7 +229,7 @@ func (a *App) GetChatEvents(conversationID, turnID string, afterSeq int64, limit
 		return `{"items":[]}`
 	}
 	var page chatEventPage
-	err := a.chatSup.cli(a.getActiveProfileID(), &page, "chat", "history", "events", conversationID, turnID,
+	err := a.chatCLI(&page, "chat", "history", "events", conversationID, turnID,
 		"--after-seq", strconv.FormatInt(afterSeq, 10), "--limit", strconv.Itoa(clampChatLimit(limit)))
 	if err != nil {
 		if chatCLIExitCode(err) == 2 { // unknown turn: no events, as before
@@ -254,7 +258,7 @@ func (a *App) DeleteChatConversation(conversationID string) string {
 	if a.chatSup == nil {
 		return a.chatBindingError(fmt.Errorf("chat supervisor not initialized"))
 	}
-	if err := a.chatSup.cli(a.getActiveProfileID(), nil, "chat", "history", "delete", conversationID); err != nil {
+	if err := a.chatCLI(nil, "chat", "history", "delete", conversationID); err != nil {
 		return a.chatBindingError(err)
 	}
 	return `{"ok":true}`

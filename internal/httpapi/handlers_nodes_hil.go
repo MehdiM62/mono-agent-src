@@ -125,7 +125,7 @@ type hilItem struct {
 	CreatedAt    string                 `json:"created_at"`
 }
 
-// GET /hil
+// GET /profiles/{profile}/hil
 func (s *Server) handleHilList(w http.ResponseWriter, r *http.Request) {
 	rows, err := s.rt.db.DB.QueryContext(r.Context(),
 		`SELECT h.id, h.execution_id, h.workflow_id, h.node_id, h.node_name, h.status,
@@ -134,7 +134,7 @@ func (s *Server) handleHilList(w http.ResponseWriter, r *http.Request) {
 		 LEFT JOIN workflows w ON w.id = h.workflow_id
 		 WHERE h.status = 'pending' AND h.profile_id = ?
 		 ORDER BY h.created_at ASC`,
-		s.rt.profileID,
+		profileOf(r),
 	)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "query HIL items: "+err.Error())
@@ -158,7 +158,7 @@ func (s *Server) handleHilList(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, items)
 }
 
-// POST /hil/{id}/approve  (mutating)
+// POST /profiles/{profile}/hil/{id}/approve  (mutating)
 func (s *Server) handleHilApprove(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	var body struct {
@@ -186,7 +186,7 @@ func (s *Server) handleHilApprove(w http.ResponseWriter, r *http.Request) {
 	res, err := s.rt.db.DB.ExecContext(r.Context(),
 		`UPDATE hil_pending SET status='approved', edited_data=?, updated_at=CURRENT_TIMESTAMP
 		 WHERE id=? AND status='pending' AND profile_id = ?`,
-		string(edited), id, s.rt.profileID,
+		string(edited), id, profileOf(r),
 	)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "approve HIL item: "+err.Error())
@@ -199,13 +199,13 @@ func (s *Server) handleHilApprove(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"id": id, "status": "approved"})
 }
 
-// POST /hil/{id}/reject  (mutating)
+// POST /profiles/{profile}/hil/{id}/reject  (mutating)
 func (s *Server) handleHilReject(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	res, err := s.rt.db.DB.ExecContext(r.Context(),
 		`UPDATE hil_pending SET status='rejected', updated_at=CURRENT_TIMESTAMP
 		 WHERE id=? AND status='pending' AND profile_id = ?`,
-		id, s.rt.profileID,
+		id, profileOf(r),
 	)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "reject HIL item: "+err.Error())

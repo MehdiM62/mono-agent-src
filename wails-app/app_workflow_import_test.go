@@ -7,14 +7,15 @@ import (
 )
 
 func TestWorkflowImportArgs(t *testing.T) {
-	got := workflowImportArgs("p1", "/w/flow.json", WorkflowImportOptions{AsNew: true, Yes: true})
+	ok := mustArgs(t)
+	got := ok(workflowImportArgs("p1", "/w/flow.json", WorkflowImportOptions{AsNew: true, Yes: true}))
 	want := []string{"--profile", "p1", "--json", "workflow", "import", "--file", "/w/flow.json", "--as-new", "--yes"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %v\nwant %v", got, want)
 	}
 	// Pasted JSON goes on stdin: no --file.
-	got = workflowImportArgs("", "", WorkflowImportOptions{})
-	if !reflect.DeepEqual(got, []string{"--json", "workflow", "import"}) {
+	got = ok(workflowImportArgs("p1", "", WorkflowImportOptions{}))
+	if !reflect.DeepEqual(got, []string{"--profile", "p1", "--json", "workflow", "import"}) {
 		t.Fatalf("stdin: %v", got)
 	}
 }
@@ -39,12 +40,12 @@ func TestBundleReviewLinesMerged(t *testing.T) {
 }
 
 func TestWorkflowImportReplaceArgs(t *testing.T) {
-	got := workflowImportArgs("p1", "/w/f.json", WorkflowImportOptions{Replace: "wf-1", RemoveCopy: "wf-2"})
+	got := mustArgs(t)(workflowImportArgs("p1", "/w/f.json", WorkflowImportOptions{Replace: "wf-1", RemoveCopy: "wf-2"}))
 	want := []string{"--profile", "p1", "--json", "workflow", "import", "--file", "/w/f.json", "--replace", "wf-1"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %v", got)
 	}
-	if got := workflowDeleteArgs("p1", "wf-2"); !reflect.DeepEqual(got, []string{"--profile", "p1", "workflow", "delete", "--force", "--", "wf-2"}) {
+	if got := mustArgs(t)(workflowDeleteArgs("p1", "wf-2")); !reflect.DeepEqual(got, []string{"--profile", "p1", "workflow", "delete", "--force", "--", "wf-2"}) {
 		t.Fatalf("delete: %v", got)
 	}
 	for _, bad := range []string{"", "-x", "a b"} {
@@ -58,8 +59,8 @@ func TestWorkflowImportReplaceArgs(t *testing.T) {
 }
 
 func TestWorkflowImportReplaceAutomationsArgs(t *testing.T) {
-	got := workflowImportArgs("", "/w/f.json", WorkflowImportOptions{Yes: true, ReplaceAutomations: true})
-	want := []string{"--json", "workflow", "import", "--file", "/w/f.json", "--yes", "--replace-automations"}
+	got := mustArgs(t)(workflowImportArgs("p1", "/w/f.json", WorkflowImportOptions{Yes: true, ReplaceAutomations: true}))
+	want := []string{"--profile", "p1", "--json", "workflow", "import", "--file", "/w/f.json", "--yes", "--replace-automations"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %v", got)
 	}

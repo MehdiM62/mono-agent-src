@@ -49,10 +49,13 @@ func newOrgSummaryCmd(env *orgEnv) *cobra.Command {
 				if env.Project() != "" {
 					return env.d.InvalidInput("--project names one profile's org root; drop it to use --all-profiles")
 				}
-				db, _, _, dbErr := env.Profile()
-				if dbErr != nil {
-					return dbErr
+				// Names every profile, so it needs no --profile: open the
+				// database without resolving one.
+				db, err := env.d.OpenDB()
+				if err != nil {
+					return err
 				}
+				defer db.Close()
 				profiles, err := profiledir.List(cmd.Context(), db.DB)
 				if err != nil {
 					return fmt.Errorf("list profiles: %w", err)

@@ -28,10 +28,11 @@ func (a *App) restartImageWatcher() {
 	}
 
 	root := a.documentRootForActiveProfile()
-	if root == "" {
+	profileID, err := a.profileID()
+	if root == "" || err != nil {
 		return
 	}
-	a.imgWatcher = a.startImageWatcher(a.getActiveProfileID(), root, 0, a.emitFolderEvent)
+	a.imgWatcher = a.startImageWatcher(profileID, root, 0, a.emitFolderEvent)
 }
 
 // startImageWatcher starts an imagescan.Watcher on root that syncs

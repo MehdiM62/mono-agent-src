@@ -15,9 +15,9 @@ func TestProfileBindingsShellOut(t *testing.T) {
 	log := filepath.Join(t.TempDir(), "args.log")
 	t.Setenv("MONOAGENTCLI_BIN", fakeCLI(t, `echo "$*" >> '`+log+`'
 case "$*" in
-  *"profile list"*) echo '[{"id":"default","name":"Default","created_at":"2026-01-01T00:00:00Z","root_dir":"/p/default","icon":"","active":true},{"id":"work","name":"Work","created_at":"2026-02-01T00:00:00Z","root_dir":"/p/work","icon":"fox","active":false}]' ;;
-  *"profile get work"*) echo '{"id":"work","name":"Work","created_at":"2026-02-01T00:00:00Z","root_dir":"/p/work","icon":"fox","active":false}' ;;
-  *"profile create"*) echo '{"id":"new-id","name":"-odd name","created_at":"2026-09-26T10:00:00Z","root_dir":"/chosen","icon":"owl","active":false}' ;;
+  *"profile list"*) echo '[{"id":"default","name":"Default","created_at":"2026-01-01T00:00:00Z","root_dir":"/p/default","icon":""},{"id":"work","name":"Work","created_at":"2026-02-01T00:00:00Z","root_dir":"/p/work","icon":"fox"}]' ;;
+  *"profile get work"*) echo '{"id":"work","name":"Work","created_at":"2026-02-01T00:00:00Z","root_dir":"/p/work","icon":"fox"}' ;;
+  *"profile create"*) echo '{"id":"new-id","name":"-odd name","created_at":"2026-09-26T10:00:00Z","root_dir":"/chosen","icon":"owl"}' ;;
   *"profile switch"*) echo '{"id":"default"}' ;;
   *"profile folder"*) echo '{"id":"work","root_dir":"/p/work"}' ;;
   *"profile projects"*) echo '[{"path":"/code/app","name":"app"}]' ;;
@@ -26,7 +26,7 @@ esac
 `))
 	a := newTestApp(t)
 	a.ctx = context.Background()
-	a.setActiveProfileID("work")
+	a.selectForTest("work")
 
 	profiles, err := a.GetProfiles()
 	if err != nil || len(profiles) != 2 {
@@ -44,8 +44,11 @@ esac
 	if err != nil || created.ID != "new-id" || created.RootDir != "/chosen" || created.info(false).Icon != "owl" {
 		t.Fatalf("createProfile = %+v, %v", created, err)
 	}
-	if id, err := a.switchProfile("default"); err != nil || id != "default" || a.getActiveProfileID() != "default" {
-		t.Fatalf("switchProfile = %q, %v (active %q)", id, err, a.getActiveProfileID())
+	if err := a.selectProfile("default"); err != nil || a.selectedProfileOrEmpty() != "default" {
+		t.Fatalf("selectProfile = %v (selected %q)", err, a.selectedProfileOrEmpty())
+	}
+	if saved := loadSelectedProfile(guiStatePath(a.dbPath)); saved != "default" {
+		t.Fatalf("saved selection = %q, want default", saved)
 	}
 	if dir, err := a.profileFolder("work"); err != nil || dir != "/p/work" {
 		t.Fatalf("profileFolder = %q, %v", dir, err)
@@ -58,10 +61,10 @@ esac
 	}
 
 	want := []string{
-		"--profile work --json profile list",
-		"--profile work --json profile get work",
-		"--profile work --json profile create --root-dir /chosen --icon owl -- -odd name",
-		"--profile work --json profile switch default",
+		"--json profile list",
+		"--json profile get work",
+		"--json profile create --root-dir /chosen --icon owl -- -odd name",
+		"--json profile list",
 		"--profile default --json profile folder work",
 		"--profile default --json profile projects",
 		"--profile default --json template list",
@@ -82,11 +85,11 @@ func TestProfileBindingsOnCLIFailure(t *testing.T) {
 	if _, err := a.GetActiveProfile(); err == nil || !strings.Contains(err.Error(), "active profile not found") {
 		t.Fatalf("GetActiveProfile err = %v", err)
 	}
-	if _, err := a.switchProfile("nope"); err == nil || !strings.Contains(err.Error(), "not found") {
-		t.Fatalf("switchProfile err = %v", err)
+	if err := a.selectProfile("nope"); err == nil || !strings.Contains(err.Error(), "not found") {
+		t.Fatalf("selectProfile err = %v", err)
 	}
-	if a.getActiveProfileID() != "default" {
-		t.Fatalf("a failed switch moved the app to %q", a.getActiveProfileID())
+	if a.selectedProfileOrEmpty() != "default" {
+		t.Fatalf("a failed switch moved the app to %q", a.selectedProfileOrEmpty())
 	}
 	if got := a.GetTemplates(); got != nil {
 		t.Fatalf("GetTemplates = %+v, want nil", got)

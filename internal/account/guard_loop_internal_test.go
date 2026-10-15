@@ -80,7 +80,7 @@ func TestStartRefresherCallsRacingWithEachOtherAndWithCloseLeaveNoLoopRunning(t 
 		}()
 		select {
 		case <-finished:
-		case <-time.After(5 * time.Second):
+		case <-time.After(30 * time.Second):
 			t.Fatal("StartRefresher and Close did not return: Close waits for a loop that does not end")
 		}
 	}

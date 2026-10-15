@@ -232,9 +232,13 @@ func (r *runner) prepare(node WorkflowNode) (*nodeTask, error) {
 
 	// Resolve @img-NNN references to absolute vault file paths.
 	if vaultDB := vault.DBFromContext(ctx); vaultDB != nil {
+		profile, perr := vault.ProfileIDFromContext(ctx)
+		if perr != nil {
+			return nil, fmt.Errorf("node %s (%s) ran without a profile: %w", node.ID, node.Name, perr)
+		}
 		_ = vault.ResolveConfig(ctx, vaultDB, resolvedConfig)
 		// Resolve @secret:<name> references to decrypted vault values.
-		_ = secrets.ResolveConfig(ctx, vaultDB, vault.ProfileIDFromContext(ctx), resolvedConfig)
+		_ = secrets.ResolveConfig(ctx, vaultDB, profile, resolvedConfig)
 	}
 
 	// AI sub-nodes attached through ai_… connections, resolved for the node.

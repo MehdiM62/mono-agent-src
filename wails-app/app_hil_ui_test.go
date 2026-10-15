@@ -12,7 +12,7 @@ func TestHILUIBindingsShellOutToCLI(t *testing.T) {
 	log := fakeMonoCLI(t, `[{"id":"s1","kind":"send","state":"pending"}]`)
 	a := newTestApp(t)
 	a.ctx = context.Background()
-	a.setActiveProfileID("work")
+	a.selectForTest("work")
 
 	if got := a.HILList(); !strings.Contains(got, `"kind":"send"`) {
 		t.Fatalf("HILList = %s, want the CLI's rows untouched", got)

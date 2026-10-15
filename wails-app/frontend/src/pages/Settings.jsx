@@ -8,6 +8,7 @@ import RefreshButton from '../components/RefreshButton.jsx'
 import HealthSection from '../components/settings/HealthSection.jsx'
 import BrowserBindingsSection from '../components/settings/BrowserBindingsSection.jsx'
 import JevSection from '../components/settings/JevSection.jsx'
+import { useJevData } from '../components/settings/useJevData.js'
 import ApiSection from '../components/settings/ApiSection.jsx'
 import VaultKeyringSection from '../components/settings/VaultKeyringSection.jsx'
 import CoderModeSection from '../components/settings/CoderModeSection.jsx'
@@ -316,6 +317,7 @@ export default function Settings({ onNavigate, navData, isActive = true }) {
   const [refreshing, setRefreshing] = useState(false)
   const [profile, setProfile] = useState({ id: '', name: '' })
   const [apiStatus, setApiStatus] = useState(null) // the API section's status, shared with the keys block
+  const jev = useJevData({ withUsage: true }) // one JevStatus + one JevUsage for both Jev parts
 
   const load = useCallback(async () => {
     api.getDBPath().then(p => setDbPath(p || ''))
@@ -332,17 +334,24 @@ export default function Settings({ onNavigate, navData, isActive = true }) {
   useEffect(() => { load() }, [load])
 
   // The app keeps this page mounted while another is shown, and the profile can be switched there: the profile is
-  // read again each time the page comes back.
-  const readProfile = useCallback(() => {
-    try { GetActiveProfile().then(p => setProfile({ id: p?.id || '', name: p?.name || '' })).catch(() => {}) } catch { /* no name: the heading says "the active profile" */ }
-  }, [])
+  // read again each time the page comes back, and with it the Jev status and usage, whose profile half (feature
+  // toggles, thresholds, 7-day usage) belongs to the profile that was active when they were read.
+  const jevLoad = jev.load
+  const readProfile = useCallback((reloadJev) => {
+    try {
+      GetActiveProfile().then(p => {
+        setProfile({ id: p?.id || '', name: p?.name || '' })
+        if (reloadJev) jevLoad()
+      }).catch(() => {})
+    } catch { /* no name: the heading says "the active profile" */ }
+  }, [jevLoad])
   const wasActive = useRef(isActive)
   useEffect(() => {
     const returned = isActive && !wasActive.current
     wasActive.current = isActive
-    if (returned) { readProfile(); load() }
+    if (returned) { readProfile(true); load() }
   }, [isActive, readProfile, load])
-  useEffect(() => { readProfile() }, [readProfile])
+  useEffect(() => { readProfile(false) }, [readProfile])
 
   const handleRefresh = async () => {
     setRefreshing(true)
@@ -406,7 +415,7 @@ export default function Settings({ onNavigate, navData, isActive = true }) {
           <CoderModeSection />
 
           <div ref={sectionRefs.jev} data-section="jev">
-            <JevSection part="machine" collapsible defaultExpanded={section === 'jev'} expandToken={section === 'jev' ? navData : null} />
+            <JevSection part="machine" jev={jev} collapsible defaultExpanded={section === 'jev'} expandToken={section === 'jev' ? navData : null} />
           </div>
 
           <ApiSection part="machine" onNavigate={onNavigate} isActive={isActive} onStatus={setApiStatus} />
@@ -471,7 +480,7 @@ export default function Settings({ onNavigate, navData, isActive = true }) {
 
           <BrowserBindingsSection />
 
-          <JevSection part="profile" />
+          <JevSection part="profile" jev={jev} />
 
           <ApiKeysSection isActive={isActive} status={apiStatus} profileId={profile.id} />
 

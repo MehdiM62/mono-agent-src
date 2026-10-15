@@ -32,7 +32,14 @@ func (a *App) StreamOrgEvents(orgName, streamID string) string {
 		return aiError(err)
 	}
 	projectRoot := a.orgProjectRoot()
-	eventsArgs := orgCLIRunArgs(a.getActiveProfileID(), projectRoot, "events", "--follow", "--", orgName)
+	pid, err := a.profileID()
+	if err != nil {
+		return aiError(err)
+	}
+	eventsArgs, err := orgCLIRunArgs(pid, projectRoot, "events", "--follow", "--", orgName)
+	if err != nil {
+		return aiError(err)
+	}
 	logSuffix := ""
 	if projectRoot != "" {
 		logSuffix = fmt.Sprintf(" (project: %s)", projectRoot)
@@ -184,7 +191,14 @@ func (a *App) RunOrg(orgName, task string) string {
 		return aiError(err)
 	}
 	projectRoot := a.orgProjectRoot()
-	runArgs := orgCLIRunArgs(a.getActiveProfileID(), projectRoot, "run", orgName)
+	pid, err := a.profileID()
+	if err != nil {
+		return aiError(err)
+	}
+	runArgs, err := orgCLIRunArgs(pid, projectRoot, "run", orgName)
+	if err != nil {
+		return aiError(err)
+	}
 	logSuffix := ""
 	if projectRoot != "" {
 		logSuffix = fmt.Sprintf(" (project: %s)", projectRoot)

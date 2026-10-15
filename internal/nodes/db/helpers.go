@@ -46,8 +46,12 @@ func resolveForItem(ctx context.Context, base map[string]interface{}, fields []s
 		return nil, fmt.Errorf("resolve per-item config: %w", err)
 	}
 	if vaultDB := vault.DBFromContext(ctx); vaultDB != nil {
+		profile, perr := vault.ProfileIDFromContext(ctx)
+		if perr != nil {
+			return nil, fmt.Errorf("db node ran without a profile: %w", perr)
+		}
 		_ = vault.ResolveConfig(ctx, vaultDB, resolved)
-		_ = secrets.ResolveConfig(ctx, vaultDB, vault.ProfileIDFromContext(ctx), resolved)
+		_ = secrets.ResolveConfig(ctx, vaultDB, profile, resolved)
 	}
 	for k, v := range resolved {
 		out[k] = v

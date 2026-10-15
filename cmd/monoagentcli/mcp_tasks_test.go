@@ -60,7 +60,7 @@ func TestMCPCommandExplainsTasksOnly(t *testing.T) {
 	long := oneLine(cmd.Long)
 	for _, want := range []string{
 		"--tasks-only (or MONOAGENT_MCP_TASKS_ONLY=1)",
-		"claude mcp add monoagent-tasks-<profile> -- monoagentcli --profile <id or name> mcp --tasks-only --allow-mutations",
+		"claude mcp add monoagent-tasks -- monoagentcli mcp --tasks-only --allow-mutations",
 		"It cannot be combined with --api-only or --grant.",
 		"no tool approves, edits, moves or archives a task",
 	} {

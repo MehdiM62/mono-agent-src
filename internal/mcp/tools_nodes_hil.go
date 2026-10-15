@@ -174,7 +174,7 @@ func toolHilList(ctx context.Context, s *Server, args json.RawMessage) (interfac
 		 LEFT JOIN workflows w ON w.id = h.workflow_id
 		 WHERE h.status = 'pending' AND h.profile_id = ?
 		 ORDER BY h.created_at ASC`,
-		rt.profileID,
+		profileOf(ctx),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("query HIL items: %w", err)
@@ -224,7 +224,7 @@ func toolHilApprove(ctx context.Context, s *Server, args json.RawMessage) (inter
 	res, err := rt.db.DB.ExecContext(ctx,
 		`UPDATE hil_pending SET status='approved', edited_data=?, updated_at=CURRENT_TIMESTAMP
 		 WHERE id=? AND status='pending' AND profile_id = ?`,
-		string(edited), a.ID, rt.profileID,
+		string(edited), a.ID, profileOf(ctx),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("approve HIL item: %w", err)
@@ -252,7 +252,7 @@ func toolHilReject(ctx context.Context, s *Server, args json.RawMessage) (interf
 	res, err := rt.db.DB.ExecContext(ctx,
 		`UPDATE hil_pending SET status='rejected', updated_at=CURRENT_TIMESTAMP
 		 WHERE id=? AND status='pending' AND profile_id = ?`,
-		a.ID, rt.profileID,
+		a.ID, profileOf(ctx),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("reject HIL item: %w", err)

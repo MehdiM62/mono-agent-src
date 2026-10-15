@@ -67,7 +67,10 @@ func (a *App) runVaultCLI(stdin string, result interface{}, args ...string) erro
 	if err != nil {
 		return err
 	}
-	fullArgs := scopedCLIArgs(a.getActiveProfileID(), append([]string{"secret"}, args...)...)
+	fullArgs, err := a.scopedArgs(append([]string{"secret"}, args...)...)
+	if err != nil {
+		return err
+	}
 	cmd := exec.CommandContext(a.ctx, cliBin, fullArgs...)
 	suppressConsole(cmd)
 	if stdin != "" {

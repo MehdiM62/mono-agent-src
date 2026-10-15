@@ -29,9 +29,8 @@ from every other profile. Create one with 'monoagentcli profile create
   monoagentcli --profile <name-or-id> ...   name the profile a command acts on
 
 Every command that acts on a profile takes --profile. There is no active
-profile, no 'profile switch' and no MONOAGENT_PROFILE variable. (Today a
-scoped command without --profile still runs, prints a warning and uses the
-legacy active profile; the next release refuses it.)
+profile and no default: a command without --profile exits 3 and lists the
+profiles. Machine-wide commands (version, update, config, ...) need none.
 
 --profile accepts EITHER a profile's display name OR its ID — resolved to
 the canonical ID before anything runs. Passing a name that matches no real
@@ -55,14 +54,14 @@ GitHub, ...), always scoped to exactly one profile. Two profiles can each
 have their own connection for the SAME platform (e.g. two different
 Outlook accounts) — nothing links them beyond both being "outlook".
 
-  monoagentcli connect <platform>               interactive connect (OAuth or API key)
+  monoagentcli --profile <profile> connect <platform>               interactive connect (OAuth or API key)
   monoagentcli connect list                     connections for the --profile profile
-  monoagentcli connect list --all               every platform this CLI supports, connected or not
-  monoagentcli connect show <platform>          a platform's methods, fields, OAuth connect fields, commands
-  monoagentcli connect oauth <platform>         browser OAuth (2.0, or 1.0a) without prompts; --field key=value
-  monoagentcli connect test <id>                verify a connection still works
-  monoagentcli connect refresh <id>             force a silent token refresh right now
-  monoagentcli connect remove <id>              delete a connection
+  monoagentcli --profile <profile> connect list --all               every platform this CLI supports, connected or not
+  monoagentcli --profile <profile> connect show <platform>          a platform's methods, fields, OAuth connect fields, commands
+  monoagentcli --profile <profile> connect oauth <platform>         browser OAuth (2.0, or 1.0a) without prompts; --field key=value
+  monoagentcli --profile <profile> connect test <id>                verify a connection still works
+  monoagentcli --profile <profile> connect refresh <id>             force a silent token refresh right now
+  monoagentcli --profile <profile> connect remove <id>              delete a connection
 
 'connect list' shows an ACCOUNT column with the REAL resolved identity for
 platforms that support it (currently Outlook) — e.g. the actual mailbox
@@ -116,7 +115,7 @@ no user action needed in the common case.
 Silent refresh needs the OAuth app's client_id (and client_secret, if the
 app isn't a public/native client). Store it once per platform+profile:
 
-  monoagentcli connect set-oauth-client <platform> --client-id <id> [--client-secret <secret>]
+  monoagentcli --profile <profile> connect set-oauth-client <platform> --client-id <id> [--client-secret <secret>]
 
 Two profiles' connections for the same platform CAN use different Azure/
 OAuth app registrations (e.g. a personal-account-only app for one profile,
@@ -138,7 +137,7 @@ The binary ships no OAuth client id for any platform. Before the first
 that platform yourself and give monoagent its client id, in either way:
 
   MONOAGENT_<PLATFORM>_CLIENT_ID (and _CLIENT_SECRET) in the environment
-  monoagentcli connect set-oauth-client <platform> --client-id <id>
+  monoagentcli --profile <profile> connect set-oauth-client <platform> --client-id <id>
 
 The stored per-profile value wins over the environment. A successful
 connect stores the client it used, for silent refresh later.
@@ -149,7 +148,7 @@ connect fields; give them to 'connect oauth' as --field key=value (repeat
 the flag). An unknown key is an error naming the allowed ones, and a
 reconnect keeps the earlier values of the ones not given:
 
-  monoagentcli connect oauth salesforce --field environment=sandbox
+  monoagentcli --profile work connect oauth salesforce --field environment=sandbox
 
 OAUTH 1.0a (Trello, X/Twitter v1.1, and generic_oauth1 for any other API)
 uses the app's consumer key and secret instead of a client id: 'connect

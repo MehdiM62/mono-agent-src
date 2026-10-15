@@ -158,7 +158,7 @@ func TestTwoCallersReadTheFileOneAfterTheOther(t *testing.T) {
 	}()
 	select {
 	case <-blocked:
-	case <-time.After(3 * time.Second):
+	case <-time.After(testWait):
 		t.Fatal("the first Status never read the file")
 	}
 	go func() {
@@ -175,7 +175,7 @@ func TestTwoCallersReadTheFileOneAfterTheOther(t *testing.T) {
 	for range 2 {
 		select {
 		case <-done:
-		case <-time.After(3 * time.Second):
+		case <-time.After(testWait):
 			t.Fatal("a Status call did not return once the read had finished")
 		}
 	}

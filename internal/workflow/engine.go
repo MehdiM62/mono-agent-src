@@ -69,10 +69,9 @@ func NewWorkflowEngineWithStore(store WorkflowStore, db *sql.DB, scheduler Sched
 	}
 	connStore := connections.NewStore(db)
 	webhookServer := NewWebhookServer(cfg.WebhookAddr, logger)
+	// No default profile: an engine built without one (the daemon) must set
+	// AllowAllProfiles; any other use fails with ErrNoProfile.
 	profileID := cfg.ProfileID
-	if profileID == "" {
-		profileID = "default"
-	}
 	e := &WorkflowEngine{
 		store:            store,
 		connStore:        connStore,

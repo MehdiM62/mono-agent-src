@@ -59,7 +59,7 @@ func newOrgLegacyListCmd(env *orgEnv) *cobra.Command {
 func newOrgLegacyMoveCmd(env *orgEnv) *cobra.Command {
 	return &cobra.Command{
 		Use:   "move <org>",
-		Short: "Move an org (config, run data, and state files) from the legacy folder into the active profile",
+		Short: "Move an org (config, run data, and state files) from the legacy folder into the profile named by --profile",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
@@ -72,7 +72,7 @@ func newOrgLegacyMoveCmd(env *orgEnv) *cobra.Command {
 			}
 			legacy := legacyRoot()
 			if filepath.Clean(legacy) == filepath.Clean(root) {
-				return fmt.Errorf("the active profile already uses %s", legacy)
+				return fmt.Errorf("the profile named by --profile already uses %s", legacy)
 			}
 			srcDir, dstDir := orgdesign.OrgsDir(legacy), orgdesign.OrgsDir(root)
 			if _, err := os.Stat(filepath.Join(srcDir, name+".json")); err != nil {

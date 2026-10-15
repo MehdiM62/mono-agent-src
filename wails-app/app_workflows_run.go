@@ -75,7 +75,11 @@ func (a *App) runWorkflowProcess(id, inputJSON string) error {
 
 	a.emitLog("WORKFLOW", "INFO", fmt.Sprintf("Starting workflow %s", id))
 
-	runArgs := []string{"--profile", a.getActiveProfileID(), "workflow", "run", id}
+	pid, err := a.profileID()
+	if err != nil {
+		return err
+	}
+	runArgs := []string{"--profile", pid, "workflow", "run", id}
 	if inputJSON != "" {
 		runArgs = append(runArgs, "--input", inputJSON)
 	}
@@ -158,7 +162,7 @@ func (a *App) runWorkflowProcess(id, inputJSON string) error {
 			a.emitWorkflowEvent("workflow:complete", map[string]interface{}{"workflow_id": id, "success": true})
 		}
 		if a.ctx != nil {
-			runtime.EventsEmit(a.ctx, "images:changed", map[string]interface{}{"profileID": a.getActiveProfileID(), "workflow_id": id})
+			runtime.EventsEmit(a.ctx, "images:changed", map[string]interface{}{"profileID": pid, "workflow_id": id})
 		}
 	}()
 	return nil

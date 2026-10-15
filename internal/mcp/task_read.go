@@ -19,7 +19,7 @@ func taskReadTools() []tool {
 		{
 			name: "task_list",
 			description: taskBoardIntro +
-				"Lists the tasks of this server's profile, by column and then by position: {profile, tasks, truncated, note}, each task " +
+				"Lists the tasks of the call's profile, by column and then by position: {profile, tasks, truncated, note}, each task " +
 				"{id, profile_id, title_untrusted, notes_untrusted, status, position, source_kind, source_url_untrusted, source_title_untrusted, " +
 				"source_app_untrusted, claim: {by, until, stale} or null, last_event: {actor, kind, at} or null, created_at, updated_at}. " +
 				"Notes longer than 1000 characters are cut here; task_get has all of them. " +
@@ -38,7 +38,7 @@ func taskReadTools() []tool {
 		{
 			name: "task_get",
 			description: taskBoardIntro +
-				"One task of this server's profile with its history: {profile, task, events, events_omitted, note}; the task as task_list describes it, " +
+				"One task of the call's profile with its history: {profile, task, events, events_omitted, note}; the task as task_list describes it, " +
 				"with all of its notes, and events [{id, at, actor, kind, from_status, to_status, note_untrusted}], oldest first, " +
 				"the most recent 100 at most (events_omitted counts the older ones left out; monoagentcli task show has them all) " +
 				"(kinds: created, edited, moved, claimed, reclaimed, comment, question, result, released, archived, unarchived). " +

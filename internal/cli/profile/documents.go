@@ -300,7 +300,7 @@ func (d Deps) newProfileDocumentsIndexCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&all, "all", false, "Index every browser capture of the profile that is not indexed, has changed, or failed before")
-	cmd.Flags().BoolVar(&allProfiles, "all-profiles", false, "With --all: every profile, not only the active one")
+	cmd.Flags().BoolVar(&allProfiles, "all-profiles", false, "With --all: every profile, not only the profile named by --profile")
 	return cmd
 }
 

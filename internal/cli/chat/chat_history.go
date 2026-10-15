@@ -213,7 +213,7 @@ func newChatHistoryCreateCmd(cfg *Deps) *cobra.Command {
 		Long: "Create an agent conversation. --workflow is the tool and ownership context: " +
 			`"general" (the default), "draft", or a workflow id.` + "\n\n" +
 			"--mode coder creates a full-access conversation (see `coder`) that works in --cwd, or in a " +
-			"--profile-folder (the active profile's folder), a --coder-root (the coder root folder itself, shared), or a fresh test folder with --new-workspace. " +
+			"--profile-folder (the folder of the profile named by --profile), a --coder-root (the coder root folder itself, shared), or a fresh test folder with --new-workspace. " +
 			"The folder is fixed for the conversation's life.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -268,7 +268,7 @@ func newChatHistoryCreateCmd(cfg *Deps) *cobra.Command {
 	cmd.Flags().StringVar(&workflowID, "workflow", "general", "Workflow context")
 	cmd.Flags().StringVar(&mode, "mode", ai.ModeAssistant, "assistant, or coder for a full-access conversation")
 	cmd.Flags().StringVar(&cwd, "cwd", "", "Coder mode: the folder the agent works in (any existing folder)")
-	cmd.Flags().BoolVar(&profileFolder, "profile-folder", false, "Coder mode: work in the active profile's own folder (see 'coder workspace default')")
+	cmd.Flags().BoolVar(&profileFolder, "profile-folder", false, "Coder mode: work in the folder of the profile named by --profile (see 'coder workspace default')")
 	cmd.Flags().BoolVar(&coderRoot, "coder-root", false, "Coder mode: work in the coder root folder itself (see 'coder set --workspace-root')")
 	cmd.Flags().BoolVar(&newWorkspace, "new-workspace", false, "Coder mode: work in a fresh, randomly named test folder")
 	cmd.Flags().StringVar(&orgMode, "org", ai.OrgModeSolo, "Coder mode: solo, or dynamic to let the agent spawn worker agents")

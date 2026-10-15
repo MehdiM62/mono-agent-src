@@ -5,10 +5,21 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/monoes/mono-agent/internal/monomind"
 )
+
+// kgSyncs counts the fire-and-forget knowledge-graph syncs that the upserts
+// start, so a caller that is about to remove the directories they write to
+// (a test's temp HOME) can wait for them.
+var kgSyncs sync.WaitGroup
+
+// WaitForKGSync blocks until every knowledge-graph sync started so far by an
+// upsert has finished. Production code has no need for it: the syncs are
+// best-effort and nothing depends on them.
+func WaitForKGSync() { kgSyncs.Wait() }
 
 // ---------------------------------------------------------------------------
 // Person Messages
@@ -22,8 +33,8 @@ import (
 // profileID scopes the write to the person's profile; the message is
 // rejected if personID does not belong to that profile.
 func (d *Database) UpsertPersonMessage(msg *PersonMessage, profileID string) error {
-	if profileID == "" {
-		profileID = "default"
+	if err := requireProfile(profileID); err != nil {
+		return err
 	}
 	if msg.ID == "" {
 		msg.ID = NewID()
@@ -39,7 +50,7 @@ func (d *Database) UpsertPersonMessage(msg *PersonMessage, profileID string) err
 	}
 
 	var exists int
-	err := d.DB.QueryRow(`SELECT 1 FROM people WHERE id = ? AND COALESCE(profile_id,'default') = ?`, msg.PersonID, profileID).Scan(&exists)
+	err := d.DB.QueryRow(`SELECT 1 FROM people WHERE id = ? AND profile_id = ?`, msg.PersonID, profileID).Scan(&exists)
 	if err == sql.ErrNoRows {
 		return fmt.Errorf("person %s not found", msg.PersonID)
 	}
@@ -69,7 +80,9 @@ func (d *Database) UpsertPersonMessage(msg *PersonMessage, profileID string) err
 		return fmt.Errorf("upserting message for person %s: %w", msg.PersonID, err)
 	}
 
+	kgSyncs.Add(1)
 	go func() {
+		defer kgSyncs.Done()
 		label := msg.Subject
 		if label == "" {
 			label = msg.ID
@@ -96,8 +109,8 @@ func (d *Database) UpsertPersonMessage(msg *PersonMessage, profileID string) err
 // optionally filtered by source, newest first. Pass an empty source to skip
 // that filter.
 func (d *Database) ListPersonMessages(personID, source, profileID string, limit, offset int) ([]*PersonMessage, error) {
-	if profileID == "" {
-		profileID = "default"
+	if err := requireProfile(profileID); err != nil {
+		return nil, err
 	}
 	if limit <= 0 {
 		limit = 100
@@ -112,7 +125,7 @@ func (d *Database) ListPersonMessages(personID, source, profileID string, limit,
 		       COALESCE(pm.metadata,''), pm.status, pm.sent_at, pm.created_at, pm.read_at
 		FROM person_messages pm
 		JOIN people p ON p.id = pm.person_id
-		WHERE pm.person_id = ? AND COALESCE(p.profile_id,'default') = ?`
+		WHERE pm.person_id = ? AND p.profile_id = ?`
 	args := []interface{}{personID, profileID}
 
 	if source != "" {
@@ -208,8 +221,8 @@ func (d *Database) UpdatePersonMessageExternalID(id, externalID string) error {
 // ListPersonMessagesByStatus returns messages across every person in the
 // given profile filtered by status (e.g. "draft"), newest first.
 func (d *Database) ListPersonMessagesByStatus(profileID, status string) ([]*PersonMessageWithPerson, error) {
-	if profileID == "" {
-		profileID = "default"
+	if err := requireProfile(profileID); err != nil {
+		return nil, err
 	}
 	rows, err := d.DB.Query(`
 		SELECT pm.id, pm.person_id, pm.source, pm.external_id, pm.direction,
@@ -218,7 +231,7 @@ func (d *Database) ListPersonMessagesByStatus(profileID, status string) ([]*Pers
 		       COALESCE(p.full_name,''), p.platform_username, p.platform, pm.read_at
 		FROM person_messages pm
 		JOIN people p ON p.id = pm.person_id
-		WHERE COALESCE(p.profile_id,'default') = ? AND pm.status = ?
+		WHERE p.profile_id = ? AND pm.status = ?
 		ORDER BY pm.created_at DESC`, profileID, status,
 	)
 	if err != nil {
@@ -265,8 +278,8 @@ func (d *Database) ListAllPersonMessages(profileID, source string, limit, offset
 // ListAllPersonMessagesFiltered is ListAllPersonMessages, optionally only
 // the unread inbound messages.
 func (d *Database) ListAllPersonMessagesFiltered(profileID, source string, unreadOnly bool, limit, offset int) ([]*PersonMessageWithPerson, error) {
-	if profileID == "" {
-		profileID = "default"
+	if err := requireProfile(profileID); err != nil {
+		return nil, err
 	}
 	if limit <= 0 {
 		limit = 100
@@ -282,7 +295,7 @@ func (d *Database) ListAllPersonMessagesFiltered(profileID, source string, unrea
 		       COALESCE(p.full_name,''), p.platform_username, p.platform, pm.read_at
 		FROM person_messages pm
 		JOIN people p ON p.id = pm.person_id
-		WHERE COALESCE(p.profile_id,'default') = ?`
+		WHERE p.profile_id = ?`
 	args := []interface{}{profileID}
 
 	if source != "" {
@@ -343,8 +356,8 @@ func (d *Database) DeletePersonMessage(id string) error {
 // profileID scopes the write; the update is rejected if personID does not
 // belong to that profile.
 func (d *Database) AddPersonStatusUpdate(personID, profileID, text string) (*PersonStatusUpdate, error) {
-	if profileID == "" {
-		profileID = "default"
+	if err := requireProfile(profileID); err != nil {
+		return nil, err
 	}
 	text = strings.TrimSpace(text)
 	if text == "" {
@@ -352,7 +365,7 @@ func (d *Database) AddPersonStatusUpdate(personID, profileID, text string) (*Per
 	}
 
 	var exists int
-	err := d.DB.QueryRow(`SELECT 1 FROM people WHERE id = ? AND COALESCE(profile_id,'default') = ?`, personID, profileID).Scan(&exists)
+	err := d.DB.QueryRow(`SELECT 1 FROM people WHERE id = ? AND profile_id = ?`, personID, profileID).Scan(&exists)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("person %s not found", personID)
 	}
@@ -384,14 +397,14 @@ func (d *Database) AddPersonStatusUpdate(personID, profileID, text string) (*Per
 // GetLatestPersonStatusUpdate returns the most recent status update for a
 // person within profileID, or (nil, nil) if none exists yet.
 func (d *Database) GetLatestPersonStatusUpdate(personID, profileID string) (*PersonStatusUpdate, error) {
-	if profileID == "" {
-		profileID = "default"
+	if err := requireProfile(profileID); err != nil {
+		return nil, err
 	}
 	u := &PersonStatusUpdate{}
 	err := d.DB.QueryRow(`
 		SELECT id, person_id, text, created_at
 		FROM person_status_updates
-		WHERE person_id = ? AND COALESCE(profile_id,'default') = ?
+		WHERE person_id = ? AND profile_id = ?
 		ORDER BY created_at DESC LIMIT 1`, personID, profileID,
 	).Scan(&u.ID, &u.PersonID, &u.Text, &u.CreatedAt)
 	if err == sql.ErrNoRows {
@@ -406,13 +419,13 @@ func (d *Database) GetLatestPersonStatusUpdate(personID, profileID string) (*Per
 // ListPersonStatusUpdates returns every status update for a person within
 // profileID, newest first. limit <= 0 means no cap.
 func (d *Database) ListPersonStatusUpdates(personID, profileID string, limit int) ([]*PersonStatusUpdate, error) {
-	if profileID == "" {
-		profileID = "default"
+	if err := requireProfile(profileID); err != nil {
+		return nil, err
 	}
 	query := `
 		SELECT id, person_id, text, created_at
 		FROM person_status_updates
-		WHERE person_id = ? AND COALESCE(profile_id,'default') = ?
+		WHERE person_id = ? AND profile_id = ?
 		ORDER BY created_at DESC`
 	args := []interface{}{personID, profileID}
 	if limit > 0 {

@@ -18,6 +18,7 @@ func upkeepEnv(t *testing.T, version, pin string) *Env {
 	os.WriteFile(filepath.Join(root, ".mcp.json"), []byte(`{"mcpServers":{"monomind":{"args":["-y","--package=@monoes/monomindcli@`+pin+`","monomind","mcp","start"]}}}`), 0o644)
 	return &Env{
 		Home:        t.TempDir(),
+		ProfileID:   "p1",
 		ProfileRoot: func(string) string { return root },
 		MonomindHandshake: func(context.Context) (*monomind.VersionInfo, error) {
 			return &monomind.VersionInfo{V: 1, Version: version}, nil

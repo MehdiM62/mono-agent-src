@@ -15,6 +15,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/monoes/mono-agent/internal/profiledir"
 )
 
 // Column types, as n8n names them.
@@ -69,11 +71,9 @@ type Store struct {
 	profile string
 }
 
-// New returns the store of profile ("" is the default profile).
+// New returns the store of profile. An empty profile is kept as is: every
+// method then returns profiledir.ErrNoProfile (there is no default profile).
 func New(db *sql.DB, profile string) *Store {
-	if profile == "" {
-		profile = "default"
-	}
 	return &Store{db: db, profile: profile}
 }
 
@@ -95,6 +95,9 @@ func newID() string {
 // CreateTable creates a table with columns (a column type defaults to
 // string).
 func (s *Store) CreateTable(ctx context.Context, name string, cols []Column) (Table, error) {
+	if s.profile == "" {
+		return Table{}, profiledir.ErrNoProfile
+	}
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return Table{}, errors.New("a data table needs a name")
@@ -160,6 +163,9 @@ func scanTable(sc interface{ Scan(...interface{}) error }) (Table, error) {
 }
 
 func (s *Store) findByName(ctx context.Context, name string) (Table, error) {
+	if s.profile == "" {
+		return Table{}, profiledir.ErrNoProfile
+	}
 	t, err := scanTable(s.db.QueryRowContext(ctx, `SELECT `+tableCols+` FROM data_tables WHERE profile_id = ? AND name = ?`, s.profile, name))
 	if errors.Is(err, sql.ErrNoRows) {
 		// n8n looks names up case-insensitively.
@@ -173,6 +179,9 @@ func (s *Store) findByName(ctx context.Context, name string) (Table, error) {
 
 // FindTable finds a table by id or by name.
 func (s *Store) FindTable(ctx context.Context, ref string) (Table, error) {
+	if s.profile == "" {
+		return Table{}, profiledir.ErrNoProfile
+	}
 	ref = strings.TrimSpace(ref)
 	if ref == "" {
 		return Table{}, errors.New("no data table given (set its name or id)")
@@ -189,6 +198,9 @@ func (s *Store) FindTable(ctx context.Context, ref string) (Table, error) {
 
 // ListTables lists the profile's tables by name.
 func (s *Store) ListTables(ctx context.Context) ([]Table, error) {
+	if s.profile == "" {
+		return nil, profiledir.ErrNoProfile
+	}
 	rows, err := s.db.QueryContext(ctx, `SELECT `+tableCols+` FROM data_tables WHERE profile_id = ? ORDER BY name`, s.profile)
 	if err != nil {
 		return nil, fmt.Errorf("listing data tables: %w", err)
@@ -207,6 +219,9 @@ func (s *Store) ListTables(ctx context.Context) ([]Table, error) {
 
 // CountRows counts a table's rows.
 func (s *Store) CountRows(ctx context.Context, t Table) (int, error) {
+	if s.profile == "" {
+		return 0, profiledir.ErrNoProfile
+	}
 	var n int
 	err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM data_table_rows WHERE table_id = ?`, t.ID).Scan(&n)
 	return n, err
@@ -214,6 +229,9 @@ func (s *Store) CountRows(ctx context.Context, t Table) (int, error) {
 
 // RenameTable renames a table.
 func (s *Store) RenameTable(ctx context.Context, t Table, name string) (Table, error) {
+	if s.profile == "" {
+		return Table{}, profiledir.ErrNoProfile
+	}
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return t, errors.New("the new name is empty")
@@ -228,6 +246,9 @@ func (s *Store) RenameTable(ctx context.Context, t Table, name string) (Table, e
 
 // DeleteTable deletes a table with its rows.
 func (s *Store) DeleteTable(ctx context.Context, t Table) error {
+	if s.profile == "" {
+		return profiledir.ErrNoProfile
+	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -244,6 +265,9 @@ func (s *Store) DeleteTable(ctx context.Context, t Table) error {
 
 // ClearTable deletes all rows of a table and returns how many.
 func (s *Store) ClearTable(ctx context.Context, t Table) (int64, error) {
+	if s.profile == "" {
+		return 0, profiledir.ErrNoProfile
+	}
 	res, err := s.db.ExecContext(ctx, `DELETE FROM data_table_rows WHERE table_id = ?`, t.ID)
 	if err != nil {
 		return 0, err
@@ -322,6 +346,9 @@ type Query struct {
 
 // Select returns the rows a query selects.
 func (s *Store) Select(ctx context.Context, t Table, q Query) ([]map[string]interface{}, error) {
+	if s.profile == "" {
+		return nil, profiledir.ErrNoProfile
+	}
 	match, err := q.Filter.compile(t)
 	if err != nil {
 		return nil, err

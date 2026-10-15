@@ -35,7 +35,11 @@ var resolveSecret = func(ctx context.Context, ref string) (string, error) {
 	if db == nil {
 		return "", fmt.Errorf("no vault available to resolve %s", ref)
 	}
-	return secrets.Resolve(ctx, db, vault.ProfileIDFromContext(ctx), ref)
+	profile, perr := vault.ProfileIDFromContext(ctx)
+	if perr != nil {
+		return "", fmt.Errorf("mcp.call ran without a profile: %w", perr)
+	}
+	return secrets.Resolve(ctx, db, profile, ref)
 }
 
 // CallNode is the mcp.call node.

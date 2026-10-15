@@ -57,7 +57,7 @@ func (d Deps) newExecutionCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "execution <execution-id>",
 		Short: "Show one execution with the status and items of every node",
-		Long: "Shows an execution of the active profile and every node it ran. Items " +
+		Long: "Shows an execution of the profile named by --profile and every node it ran. Items " +
 			"are redacted (credential-like keys become ***) and truncated the same way " +
 			"as `workflow run --json`.",
 		Args: cobra.ExactArgs(1),

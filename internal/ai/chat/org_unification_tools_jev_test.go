@@ -9,7 +9,7 @@ import (
 // set_org_autonomy's decider-kind list matches orgdesign's (jev plan WS4).
 func TestSetOrgAutonomy_DeciderKinds(t *testing.T) {
 	db := newMonoagentTestDB(t)
-	mt := NewMonoagentTools(db.DB, "/bin/monoagentcli")
+	mt := NewMonoagentTools(db.DB, "/bin/monoagentcli", "default")
 	stubRunSelfExec(t, func(ctx context.Context, bin string, args ...string) ([]byte, error) {
 		t.Fatal("exec must not run for a preview")
 		return nil, nil
@@ -30,7 +30,7 @@ func TestSetOrgAutonomy_DeciderKinds(t *testing.T) {
 
 func TestSetOrgAutonomy_DeciderThreshold(t *testing.T) {
 	db := newMonoagentTestDB(t)
-	mt := NewMonoagentTools(db.DB, "/bin/monoagentcli")
+	mt := NewMonoagentTools(db.DB, "/bin/monoagentcli", "default")
 	stubRunSelfExec(t, func(ctx context.Context, bin string, args ...string) ([]byte, error) {
 		t.Fatal("exec must not run for a preview")
 		return nil, nil

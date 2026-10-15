@@ -128,58 +128,51 @@ func badParam(format string, a ...any) error {
 // CodeBadParams is a request refused because a param failed validation.
 const CodeBadParams = "bad_params"
 
-// profileArgs returns the leading --profile flag when the request names a
-// usable profile.
-func profileArgs(req *Request) ([]string, error) {
+// withProfile puts the --profile flag in front of args, which are already
+// validated. The profile is the request's own, else the one derive finds (a
+// draft's recorded profile: the side panel never sends one with record.save);
+// with neither the request is refused, as the CLI would refuse the command.
+func withProfile(req *Request, derive func() string, args []string) ([]string, error) {
 	p := req.String("profile")
+	if p == "" && derive != nil {
+		p = derive()
+	}
 	if p == "" {
-		return nil, nil
+		return nil, invalidParam("%s", chooseProfileMessage)
 	}
 	if !profiledir.ValidProfileID(p) || !safeArgValue(p) || strings.ContainsAny(p, "=") {
 		return nil, badParam("invalid profile %q", firstLine(p))
 	}
-	return []string{"--profile=" + p}, nil
+	return append([]string{"--profile=" + p}, args...), nil
 }
 
 func recordListArgs(req *Request) ([]string, error) {
-	args, err := profileArgs(req)
-	if err != nil {
-		return nil, err
-	}
-	return append(args, "record", "list", "--json"), nil
+	return withProfile(req, nil, []string{"record", "list", "--json"})
 }
 
 func recordAnalyzeArgs(req *Request) ([]string, error) {
-	args, err := profileArgs(req)
-	if err != nil {
-		return nil, err
-	}
 	id := req.String("recordingId")
 	if !recording.ValidID(id) {
 		return nil, badParam("invalid recordingId %q", firstLine(id))
 	}
-	args = append(args, "record", "analyze", id)
+	args := []string{"record", "analyze", id}
 	if a := req.String("automation"); a != "" {
 		if !automationIDPattern.MatchString(a) {
 			return nil, badParam("invalid automation id %q", firstLine(a))
 		}
 		args = append(args, "--automation="+a)
 	}
-	return append(args, "--json"), nil
+	return withProfile(req, func() string { return recording.DraftProfile(id) }, append(args, "--json"))
 }
 
 // recordVerifyArgs builds the verify argv (ending in --json) and returns
 // the validated inputs separately: they travel in a file, never on argv.
 func recordVerifyArgs(req *Request) ([]string, map[string]string, error) {
-	args, err := profileArgs(req)
-	if err != nil {
-		return nil, nil, err
-	}
 	dir, err := recording.ResolveDraftDir(req.String("draftDir"))
 	if err != nil {
 		return nil, nil, badParam("%v", err)
 	}
-	args = append(args, "record", "verify", dir)
+	args := []string{"record", "verify", dir}
 	if full, _ := req.Params["full"].(bool); full {
 		args = append(args, "--full")
 	}
@@ -187,7 +180,8 @@ func recordVerifyArgs(req *Request) ([]string, map[string]string, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	return append(args, "--json"), inputs, nil
+	args, err = withProfile(req, func() string { return recording.DraftProfile(dir) }, append(args, "--json"))
+	return args, inputs, err
 }
 
 // Bounds on record.verify's inputs: one replay's worth of form fields.
@@ -296,15 +290,11 @@ func redactArgs(args []string) string {
 }
 
 func recordSaveArgs(req *Request) ([]string, error) {
-	args, err := profileArgs(req)
-	if err != nil {
-		return nil, err
-	}
 	dir, err := recording.ResolveDraftDir(req.String("draftDir"))
 	if err != nil {
 		return nil, badParam("%v", err)
 	}
-	args = append(args, "record", "save", dir)
+	args := []string{"record", "save", dir}
 	switch as := req.String("saveAs"); as {
 	case "":
 	case "action", "fragment", "workflow":
@@ -355,7 +345,7 @@ func recordSaveArgs(req *Request) ([]string, error) {
 			args = append(args, "--keep-package-selectors")
 		}
 	}
-	return append(args, "--json"), nil
+	return withProfile(req, func() string { return recording.DraftProfile(dir) }, append(args, "--json"))
 }
 
 // runRecordJSON runs one `record …` command and decodes its stdout.
@@ -461,14 +451,24 @@ func (selfRunner) Run(ctx context.Context, args ...string) ([]byte, error) {
 		if ctx.Err() != nil {
 			return stdout.Bytes(), &RequestError{Code: CodeTimeout, Err: fmt.Errorf("monoagentcli %s: %w", redactArgs(args), ctx.Err())}
 		}
-		detail := strings.TrimSpace(stderr.String())
-		if len(detail) > stderrTail {
-			detail = "…" + detail[len(detail)-stderrTail:]
-		}
-		if detail == "" {
-			detail = err.Error()
-		}
-		return stdout.Bytes(), fmt.Errorf("monoagentcli %s: %s", redactArgs(args), detail)
+		return stdout.Bytes(), recordCommandFailure(args, stdout.String(), stderr.String(), err)
 	}
 	return stdout.Bytes(), nil
+}
+
+// recordCommandFailure explains a `record …` command that exited non-zero.
+// The CLI's refusal of a command run without --profile becomes the plain
+// "choose a profile" answer instead of the raw gate text.
+func recordCommandFailure(args []string, stdout, stderr string, err error) error {
+	detail := strings.TrimSpace(stderr)
+	if isProfileGateRefusal(detail) || isProfileGateRefusal(stdout) {
+		return invalidParam("%s", chooseProfileMessage)
+	}
+	if len(detail) > stderrTail {
+		detail = "…" + detail[len(detail)-stderrTail:]
+	}
+	if detail == "" {
+		detail = err.Error()
+	}
+	return fmt.Errorf("monoagentcli %s: %s", redactArgs(args), detail)
 }

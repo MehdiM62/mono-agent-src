@@ -149,7 +149,7 @@ func TestTheRefresherStillFollowsTheFileWhileItHolds(t *testing.T) {
 		if st.Reason != account.ReasonRefused {
 			t.Fatalf("callback got %s/%q", st.State, st.Reason)
 		}
-	case <-time.After(3 * time.Second):
+	case <-time.After(testWait):
 		t.Fatal("a refresher that holds did not notice another process's refusal")
 	}
 	if n := srv.calls.Load(); n != 1 {

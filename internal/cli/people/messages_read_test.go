@@ -11,6 +11,9 @@ import (
 func TestPeopleMessagesReadUnread(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	dbPath := filepath.Join(t.TempDir(), "m.db")
+	// Upserting a message starts a background knowledge-graph sync that writes
+	// under HOME; it must end before the temp dirs are removed.
+	t.Cleanup(storage.WaitForKGSync)
 	db, err := storage.NewDatabase(dbPath)
 	if err != nil {
 		t.Fatal(err)

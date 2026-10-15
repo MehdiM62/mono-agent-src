@@ -107,7 +107,7 @@ func (e *WorkflowEngine) StartEvaluationCase(ctx context.Context, workflowID, tr
 	}
 	exec := &WorkflowExecution{
 		WorkflowID:    workflowID,
-		ProfileID:     executionProfileID(wf, e.profileID),
+		ProfileID:     executionProfileID(wf),
 		Status:        "QUEUED",
 		TriggerType:   TriggerTypeEvaluation,
 		TriggerNodeID: triggerNodeID,

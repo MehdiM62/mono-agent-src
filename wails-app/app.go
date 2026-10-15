@@ -39,7 +39,7 @@ type App struct {
 	orgEventIDs    map[string]string    // "orgevents:<org>" key → id of the stream running under it; see StreamOrgEvents
 	orgEventStops  map[string]time.Time // stream id → when a stop for it arrived before it was registered
 
-	activeProfileIDPtr atomic.Pointer[string] // currently selected profile; access via get/setActiveProfileID (read/written across Wails goroutines)
+	selectedProfilePtr atomic.Pointer[string] // the profile the window shows (profile_selection.go); read/written across Wails goroutines
 	ready              atomic.Bool            // set once the signed-in setup has finished; see IsReady
 
 	orgWatchMu sync.Mutex
@@ -73,22 +73,6 @@ func NewApp() *App {
 	}
 }
 
-// getActiveProfileID returns the currently selected profile id. Wails dispatches
-// bound methods on independent goroutines, so this is read concurrently with
-// SwitchProfile writes — the atomic makes that access race-free. Defaults to
-// "default" before startup sets it.
-func (a *App) getActiveProfileID() string {
-	if p := a.activeProfileIDPtr.Load(); p != nil {
-		return *p
-	}
-	return "default"
-}
-
-// setActiveProfileID atomically updates the selected profile id.
-func (a *App) setActiveProfileID(id string) {
-	a.activeProfileIDPtr.Store(&id)
-}
-
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	// The process guard for any layer-2 call this process makes; see app_account_guard.go.
@@ -116,10 +100,10 @@ func (a *App) startup(ctx context.Context) {
 }
 
 // IsReady reports whether the signed-in setup (startSignedIn) has finished
-// (DB migrations, active-profile resolution, node registry, etc.). Wails
+// (DB migrations, selected-profile resolution, node registry, etc.). Wails
 // gives no guarantee the frontend won't become interactive before this
 // finishes — a page that queries profile-scoped data (e.g. Orgs) landing
-// before it does silently reads the wrong ("default") profile until the
+// before it queries no profile (an error) until the
 // user navigates away and back. Polled by the frontend instead of guessing
 // with a fixed delay.
 func (a *App) IsReady() bool {
@@ -178,18 +162,10 @@ func (a *App) stopRunningCmds() {
 const shutdownReapMargin = 2 * time.Second
 
 // orgsDirForActiveProfile resolves the directory the org design watcher
-// should poll for the currently active profile. Mirrors orgProjectRoot's
-// (app_orgs.go) own fallback exactly: when the active profile has no
-// resolvable root, `monoagentcli org` (called without --project) resolves
-// the active profile's folder itself, which for an unset profile is the
-// "default" profile's folder — the watcher must watch that same directory
-// or it silently watches nothing for a profile whose layout failed to
-// initialize.
+// should poll for the selected profile; "" when none is selected or its
+// folder cannot be resolved.
 func (a *App) orgsDirForActiveProfile() string {
 	root := a.orgProjectRoot()
-	if root == "" {
-		root = profiledir.Root(a.db, "default")
-	}
 	if root == "" {
 		return ""
 	}
@@ -288,7 +264,11 @@ func (a *App) ExportData() (*ExportResult, error) {
 	if dir == "" {
 		return &ExportResult{Cancelled: true}, nil
 	}
-	cmd := exec.CommandContext(a.ctx, cliBin, "--profile", a.getActiveProfileID(), "--json", "export", "--output-dir", dir)
+	full, err := a.scopedArgs("export", "--output-dir", dir)
+	if err != nil {
+		return nil, err
+	}
+	cmd := exec.CommandContext(a.ctx, cliBin, full...)
 	suppressConsole(cmd)
 	out, err := cmd.Output()
 	if err != nil {

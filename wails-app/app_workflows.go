@@ -161,7 +161,11 @@ func (a *App) CreateWorkflowFromTemplate(templateID string) (*WorkflowSummary, e
 		// profile — default it to the active profile so the template works
 		// correctly out of the box.
 		if n.Type == "people.sync_outlook_message" {
-			config["profile_id"] = a.getActiveProfileID()
+			pid, err := a.profileID()
+			if err != nil {
+				return nil, err
+			}
+			config["profile_id"] = pid
 		}
 		req.Nodes = append(req.Nodes, WorkflowNodeData{
 			ID:        idMap[n.ID],
@@ -349,7 +353,11 @@ func (a *App) ImportWorkflow(jsonOrPath string) (*WorkflowImportResult, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	cmd := exec.CommandContext(ctx, cliBin, "--profile", a.getActiveProfileID(), "--json", "workflow", "import")
+	importArgs, err := a.scopedArgs("workflow", "import")
+	if err != nil {
+		return nil, err
+	}
+	cmd := exec.CommandContext(ctx, cliBin, importArgs...)
 	suppressConsole(cmd)
 	cmd.Stdin = bytes.NewReader(raw)
 	out, err := cmd.Output()
@@ -392,8 +400,11 @@ func (a *App) GetWorkflowTriggerInputs(id string) string {
 	}
 	ctx, cancel := context.WithTimeout(a.ctx, 30*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, cliBin,
-		"--profile", a.getActiveProfileID(), "--json", "workflow", "inputs", id)
+	inputsArgs, err := a.scopedArgs("workflow", "inputs", id)
+	if err != nil {
+		return aiError(err)
+	}
+	cmd := exec.CommandContext(ctx, cliBin, inputsArgs...)
 	suppressConsole(cmd)
 	out, runErr := cmd.Output()
 	return cliResultJSON(cliBin, out, runErr)

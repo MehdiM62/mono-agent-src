@@ -58,7 +58,7 @@ func TestExportWritesTheProfilesPeople(t *testing.T) {
 	db.Close()
 
 	dir := filepath.Join(t.TempDir(), "out")
-	out := runExport(t, path, "", true, "--output-dir", dir)
+	out := runExport(t, path, "default", true, "--output-dir", dir)
 	var res struct {
 		OutputDir   string `json:"output_dir"`
 		PeopleCount int    `json:"people_count"`
@@ -80,5 +80,12 @@ func TestExportWritesTheProfilesPeople(t *testing.T) {
 
 	if out := runExport(t, path, "work", false, "--output-dir", dir); !strings.HasPrefix(out, "Exported 1 people to "+dir) {
 		t.Fatalf("text = %q", out)
+	}
+}
+
+func TestExportRefusesAMissingProfile(t *testing.T) {
+	db, err := exportPeopleData(nil, t.TempDir(), "")
+	if err == nil || db != 0 {
+		t.Fatalf("got %d, %v; want an error for an empty profile", db, err)
 	}
 }

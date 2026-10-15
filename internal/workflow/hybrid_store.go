@@ -89,17 +89,55 @@ func (h *HybridWorkflowStore) GetWorkflow(ctx context.Context, id string) (*Work
 	return wf, nil
 }
 
-// ListWorkflows returns every file-store workflow (the file store knows no
-// profiles) followed by the profile's SQLite workflows the files don't cover.
+// ListWorkflows returns the profile's file-store workflows followed by the
+// profile's SQLite workflows the files don't cover. An empty profileID is
+// ErrNoProfile.
 func (h *HybridWorkflowStore) ListWorkflows(ctx context.Context, profileID string) ([]Workflow, error) {
+	if profileID == "" {
+		return nil, fmt.Errorf("listing workflows: %w", ErrNoProfile)
+	}
 	fromFiles, err := h.fileWorkflows(ctx)
 	if err != nil {
 		return nil, err
 	}
+	fromFiles = filterFileWorkflows(fromFiles, profileID)
 	fromSQL, err := h.sql.ListWorkflows(ctx, profileID)
 	if err != nil {
 		return nil, err
 	}
+	return mergeWorkflowLists(fromFiles, fromSQL), nil
+}
+
+// ListAllProfilesWorkflows is ListWorkflows across every profile, for the
+// daemon engine, `workflow migrate` and the all-profiles listings.
+func (h *HybridWorkflowStore) ListAllProfilesWorkflows(ctx context.Context) ([]Workflow, error) {
+	fromFiles, err := h.fileWorkflows(ctx)
+	if err != nil {
+		return nil, err
+	}
+	fromSQL, err := h.sql.ListAllProfilesWorkflows(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return mergeWorkflowLists(fromFiles, fromSQL), nil
+}
+
+// filterFileWorkflows keeps the file workflows owned by profileID. A file
+// without a profile belongs to no profile's list (it is the legacy state the
+// startup stamp removes).
+func filterFileWorkflows(files []*Workflow, profileID string) []*Workflow {
+	out := make([]*Workflow, 0, len(files))
+	for _, wf := range files {
+		if wf.ProfileID == profileID {
+			out = append(out, wf)
+		}
+	}
+	return out
+}
+
+// mergeWorkflowLists puts the file workflows first, then the SQLite ones the
+// files don't cover.
+func mergeWorkflowLists(fromFiles []*Workflow, fromSQL []Workflow) []Workflow {
 	covered := make(map[string]struct{}, len(fromFiles))
 	var out []Workflow
 	for _, wf := range fromFiles {
@@ -111,7 +149,7 @@ func (h *HybridWorkflowStore) ListWorkflows(ctx context.Context, profileID strin
 			out = append(out, wf)
 		}
 	}
-	return out, nil
+	return out
 }
 
 // NodeCounts returns each workflow's node count, keyed by workflow id,
@@ -120,12 +158,15 @@ func (h *HybridWorkflowStore) ListWorkflows(ctx context.Context, profileID strin
 // workflows are parsed whole, so their count is already in hand; only the
 // SQLite half needs a query.
 func (h *HybridWorkflowStore) NodeCounts(ctx context.Context, profileID string) (map[string]int, error) {
+	if profileID == "" {
+		return nil, fmt.Errorf("counting workflow nodes: %w", ErrNoProfile)
+	}
 	counts := make(map[string]int)
 	fromFiles, err := h.fileWorkflows(ctx)
 	if err != nil {
 		return nil, err
 	}
-	for _, wf := range fromFiles {
+	for _, wf := range filterFileWorkflows(fromFiles, profileID) {
 		counts[wf.ID] = len(wf.Nodes)
 	}
 	sqlCounts, err := h.sql.NodeCounts(ctx, profileID)

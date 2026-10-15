@@ -20,8 +20,8 @@ func refWorkflowCmd() *cobra.Command {
 
 BEFORE HAND-BUILDING ONE — CHECK FOR A BUNDLED TEMPLATE FIRST
   monoagentcli workflow templates list
-  monoagentcli workflow templates run <id> --input '{...}'   # one-off, nothing saved
-  monoagentcli workflow templates use <id>                   # save an editable copy
+  monoagentcli --profile <profile> workflow templates run <id> --input '{...}'   # one-off, nothing saved
+  monoagentcli --profile <profile> workflow templates use <id>                   # save an editable copy
 
 Instantiates a ready-made, pre-wired workflow (fresh node/connection IDs,
 correct config shape) for the --profile profile in one command — starts

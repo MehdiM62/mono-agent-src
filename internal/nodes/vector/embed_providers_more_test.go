@@ -228,13 +228,13 @@ func TestN8nEmbeddingsNewProviders(t *testing.T) {
 func TestVertexEmbeddingUsesServiceAccountConnection(t *testing.T) {
 	keyring.MockInit()
 	db := testdb.Open(t).DB
-	ctx := vault.ContextWithDB(context.Background(), db)
+	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db), "default")
 	key, err := rsa.GenerateKey(rand.Reader, 1024)
 	if err != nil {
 		t.Fatal(err)
 	}
 	der, _ := x509.MarshalPKCS8PrivateKey(key)
-	conn := &connections.Connection{Platform: "google_service_account", Method: connections.MethodAPIKey, Label: "sa",
+	conn := &connections.Connection{ProfileID: "default", Platform: "google_service_account", Method: connections.MethodAPIKey, Label: "sa",
 		Data: map[string]interface{}{"client_email": "sa@proj.iam.gserviceaccount.com",
 			"private_key": string(pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der})),
 			"project_id":  "proj-from-conn", "location": "us-east1"}}

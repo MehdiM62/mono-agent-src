@@ -65,7 +65,7 @@ func fakeHost(f *libraryfake.Server) string { return f.URL }
 // gated runs a gated command through run(), as main does.
 func (r *olderRig) gated(t *testing.T) (code int, stderr string) {
 	t.Helper()
-	code, _, stderr = runMain(t, "--db-path", r.dbPath, "workflow", "list")
+	code, _, stderr = runMain(t, "--db-path", r.dbPath, "--profile", "default", "workflow", "list")
 	return code, stderr
 }
 

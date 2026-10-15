@@ -72,7 +72,7 @@ type captureProfile struct {
 
 // resolveCaptureProfile turns what the user typed after --profile into a
 // profile and its inbox. An id or a name both work, matching
-// `profile switch`; an id that matches nothing in the database is rejected
+// `--profile`; an id that matches nothing in the database is rejected
 // rather than guessed at, because listing the wrong (empty) directory looks
 // exactly like "you have saved nothing", which is the most confusing
 // possible answer.

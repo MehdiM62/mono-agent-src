@@ -25,9 +25,10 @@ import (
 //	~/.monoagent/recordings/                    no profile named
 //	~/.monoagent/profiles/<id>/recordings/      profile <id>
 //
-// with 0700 directories and 0600 files. By default List and Find read every
-// store (no database needed); `--profile` narrows that to one profile
-// (SetProfile); tests point it anywhere (SetInboxes).
+// with 0700 directories and 0600 files. Until a scope is set List and Find
+// read every store (no database needed); SetProfile narrows that to one
+// profile (an empty id is ErrNoProfile, never "all"), SetAllProfiles says
+// "every store" out loud; tests point it anywhere (SetInboxes).
 
 // StoreDirName is a recording store's directory name.
 const StoreDirName = "recordings"
@@ -38,17 +39,32 @@ var scope struct {
 	inboxes []string
 }
 
-// SetProfile narrows List/Find to one profile's store. "" restores the
-// default (every store).
+// ErrNoProfile is returned when a profile-scoped call names no profile. It is
+// profiledir.ErrNoProfile, so errors.Is matches storage's and workflow's.
+var ErrNoProfile = profiledir.ErrNoProfile
+
+// SetProfile narrows List/Find to one profile's store. An empty id is
+// ErrNoProfile: "every store" is SetAllProfiles.
 func SetProfile(id string) error {
 	id = strings.TrimSpace(id)
-	if id != "" && !profiledir.ValidProfileID(id) {
+	if id == "" {
+		return ErrNoProfile
+	}
+	if !profiledir.ValidProfileID(id) {
 		return fmt.Errorf("recording: unusable profile id %q", id)
 	}
 	scope.mu.Lock()
 	defer scope.mu.Unlock()
 	scope.profile = id
 	return nil
+}
+
+// SetAllProfiles widens List/Find to every store: the unprofiled one plus
+// each profile's. It is the only way to ask for that.
+func SetAllProfiles() {
+	scope.mu.Lock()
+	defer scope.mu.Unlock()
+	scope.profile = ""
 }
 
 // SetInboxes overrides the store directories read, outright. No arguments

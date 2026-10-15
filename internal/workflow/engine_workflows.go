@@ -79,14 +79,14 @@ func (e *WorkflowEngine) SaveWorkflow(ctx context.Context, w *Workflow) error {
 // process's engine (RestoreActiveWorkflows) can be handling triggers for
 // many profiles' workflows at once — engineProfileID alone would be wrong
 // for anything but whichever profile the engine happened to be constructed
-// with. Falls back to engineProfileID only for a legacy workflow row with no
-// ProfileID of its own (handleTrigger skips the run entirely when the
-// workflow can't be loaded, so wf is never nil here).
-func executionProfileID(wf *Workflow, engineProfileID string) string {
-	if wf != nil && wf.ProfileID != "" {
-		return wf.ProfileID
+// with. A workflow with no ProfileID yields "", which CreateExecution refuses
+// with ErrNoProfile (handleTrigger skips the run entirely when the workflow
+// can't be loaded, so wf is never nil here).
+func executionProfileID(wf *Workflow) string {
+	if wf == nil {
+		return ""
 	}
-	return engineProfileID
+	return wf.ProfileID
 }
 
 // checkWorkflowProfile returns an error if wf belongs to a different profile
@@ -96,14 +96,13 @@ func (e *WorkflowEngine) checkWorkflowProfile(wf *Workflow) error {
 	if e.allowAllProfiles {
 		return nil
 	}
-	// A workflow with no profile id is the default profile's, the rule the
-	// store's SQLite half and `workflow list` apply. Treating it as
-	// everyone's let any profile run it and tag the run as its own.
-	owner := wf.ProfileID
-	if owner == "" {
-		owner = "default"
+	// OwnedBy is the one ownership rule: a workflow with no profile id is an
+	// error state, neither everyone's nor the default profile's.
+	ok, err := OwnedBy(wf, e.profileID)
+	if err != nil {
+		return err
 	}
-	if owner != e.profileID {
+	if !ok {
 		return fmt.Errorf("workflow belongs to a different profile")
 	}
 	return nil
@@ -130,7 +129,7 @@ func (e *WorkflowEngine) RestoreActiveWorkflows(ctx context.Context) error {
 		e.startTriggerReconcile(loopCtx)
 		return nil
 	}
-	workflows, err := e.store.ListWorkflows(ctx, "")
+	workflows, err := e.store.ListAllProfilesWorkflows(ctx)
 	if err != nil {
 		return fmt.Errorf("engine: restore active workflows: list: %w", err)
 	}

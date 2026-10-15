@@ -16,7 +16,7 @@ func TestMigrateConnectionsToVault_NoOpWhenAlreadyMigrated(t *testing.T) {
 	ctx := context.Background()
 	store := NewStore(db)
 
-	if err := store.Save(ctx, &Connection{ID: "conn-1", Platform: "x", Method: "oauth", Label: "Test",
+	if err := store.Save(ctx, &Connection{ProfileID: "default", ID: "conn-1", Platform: "x", Method: "oauth", Label: "Test",
 		Data: map[string]interface{}{"access_token": "already-encrypted"}}); err != nil {
 		t.Fatalf("seeding encrypted connection: %v", err)
 	}
@@ -50,7 +50,7 @@ func TestMigrateConnectionsToVault_BrowserConnectionReachesSteadyState(t *testin
 	ctx := context.Background()
 	store := NewStore(db)
 
-	conn := &Connection{Platform: "instagram", Method: MethodBrowser, Label: "me", Data: map[string]interface{}{}}
+	conn := &Connection{ProfileID: "default", Platform: "instagram", Method: MethodBrowser, Label: "me", Data: map[string]interface{}{}}
 	if err := store.Save(ctx, conn); err != nil {
 		t.Fatalf("seeding browser connection: %v", err)
 	}

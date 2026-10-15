@@ -230,10 +230,10 @@ func TestManagerConnectOAuth1SavesTokens(t *testing.T) {
 	}
 	t.Cleanup(func() { delete(Registry, "oauth1-test") })
 
-	if _, err := mgr.ConnectOAuth1(context.Background(), "oauth1-test", map[string]string{OAuth1ConsumerKey: "ck"}, nil, ""); err == nil || !strings.Contains(err.Error(), OAuth1ConsumerSecret) {
+	if _, err := mgr.ConnectOAuth1(context.Background(), "oauth1-test", map[string]string{OAuth1ConsumerKey: "ck"}, nil, "default"); err == nil || !strings.Contains(err.Error(), OAuth1ConsumerSecret) {
 		t.Fatalf("missing secret: err = %v", err)
 	}
-	conn, err := mgr.ConnectOAuth1(context.Background(), "oauth1-test", map[string]string{OAuth1ConsumerKey: "ck", OAuth1ConsumerSecret: "cs"}, nil, "")
+	conn, err := mgr.ConnectOAuth1(context.Background(), "oauth1-test", map[string]string{OAuth1ConsumerKey: "ck", OAuth1ConsumerSecret: "cs"}, nil, "default")
 	if err != nil {
 		t.Fatal(err)
 	}

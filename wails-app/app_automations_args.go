@@ -26,12 +26,8 @@ func withPositional(args []string, pos ...string) []string {
 
 // automationCLIArgs builds the full argv: global flags first, then the
 // subcommand words.
-func automationCLIArgs(profileID string, sub ...string) []string {
-	full := []string{}
-	if profileID != "" {
-		full = append(full, "--profile", profileID)
-	}
-	return append(append(full, "--json"), sub...)
+func automationCLIArgs(profileID string, sub ...string) ([]string, error) {
+	return scopedCLIArgs(profileID, sub...)
 }
 
 // InstallSpec is InstallAutomation's JSON argument.

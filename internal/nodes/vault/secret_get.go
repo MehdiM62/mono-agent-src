@@ -52,7 +52,10 @@ func (n *SecretGetNode) Execute(ctx context.Context, input workflow.NodeInput, c
 	if db == nil {
 		return nil, fmt.Errorf("vault.secret_get: no database in context")
 	}
-	profileID := vaultstore.ProfileIDFromContext(ctx)
+	profileID, perr := vaultstore.ProfileIDFromContext(ctx)
+	if perr != nil {
+		return nil, fmt.Errorf("vault.secret_get: ran without a profile: %w", perr)
+	}
 
 	id, err := lookupSecretIDByName(ctx, db, profileID, name)
 	if err != nil {

@@ -94,6 +94,11 @@ func (s *listCountingStore) ListWorkflows(ctx context.Context, profileID string)
 	return s.engineGateStore.ListWorkflows(ctx, profileID)
 }
 
+func (s *listCountingStore) ListAllProfilesWorkflows(ctx context.Context) ([]Workflow, error) {
+	s.lists++
+	return s.engineGateStore.ListAllProfilesWorkflows(ctx)
+}
+
 // A locked account prunes no execution history.
 func TestPruneGate(t *testing.T) {
 	eachEngineGateMode(t, func(t *testing.T, refused bool) {

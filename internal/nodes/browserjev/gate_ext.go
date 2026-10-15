@@ -85,11 +85,15 @@ func armGuard(ctx context.Context, p guardPage) (*extGuard, error) {
 	if db == nil {
 		return nil, errors.New("there is no database to hold its approvals")
 	}
+	profile, perr := vault.ProfileIDFromContext(ctx)
+	if perr != nil {
+		return nil, fmt.Errorf("browser.jev: ran without a profile: %w", perr)
+	}
 	st, err := p.SubmitGuard(extension.SubmitGuardArm)
 	if err != nil {
 		return nil, err
 	}
-	g := &extGuard{page: p, db: db, profile: vault.ProfileIDFromContext(ctx), origin: browserctl.Origin(st.Origin)}
+	g := &extGuard{page: p, db: db, profile: profile, origin: browserctl.Origin(st.Origin)}
 	for _, b := range st.Blocked {
 		g.seen = max(g.seen, b.Seq)
 	}

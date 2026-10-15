@@ -22,7 +22,7 @@ func recordTestHome(t *testing.T, ids ...string) string {
 	t.Setenv("HOME", home)
 	// The capture inbox is isolated too, though recordings never go there.
 	t.Setenv(capture.InboxEnv, filepath.Join(home, "inbox"))
-	t.Cleanup(func() { _ = recording.SetProfile("") })
+	t.Cleanup(func() { recording.SetAllProfiles() })
 	store, err := recording.StoreDir("")
 	if err != nil {
 		t.Fatal(err)

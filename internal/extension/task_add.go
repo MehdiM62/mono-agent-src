@@ -116,7 +116,7 @@ func capturedTaskOf(req *Request) (CapturedTask, error) {
 	}
 	switch {
 	case t.ProfileID == "":
-		return CapturedTask{}, refusal("task.add needs a profile: a task always sits in one profile")
+		return CapturedTask{}, refusal(chooseProfileMessage)
 	case t.ClientID == "":
 		return CapturedTask{}, refusal("task.add needs a client_id, so that a retry cannot add a task twice")
 	}

@@ -22,7 +22,7 @@ func (d Deps) newImageCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "image",
 		Short: "Manage the image vault: list, add, label, export, delete, sync, unignore",
-		Long: "Images belong to the active profile and are addressed by id (img-001, …). " +
+		Long: "Images belong to the profile named by --profile and are addressed by id (img-001, …). " +
 			"Workflows refer to them as @img-001.",
 	}
 	cmd.AddCommand(

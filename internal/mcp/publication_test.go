@@ -25,7 +25,7 @@ func TestPublicationMCPMutationsGated(t *testing.T) {
 		}
 	}
 	s := newTestServer(t)
-	_, err := callTool(context.Background(), s, "publication_register", json.RawMessage(`{"platform":"custom","kind":"post","body":"hello"}`))
+	_, err := callToolDefault(context.Background(), s, "publication_register", json.RawMessage(`{"platform":"custom","kind":"post","body":"hello"}`))
 	if err == nil || !strings.Contains(err.Error(), "allow-mutations") {
 		t.Fatalf("gate: %v", err)
 	}
@@ -42,10 +42,10 @@ func TestPublicationMCPProfileScope(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = callTool(ctx, s, "publication_get", json.RawMessage(`{"id":"`+other.ID+`"}`)); err == nil {
+	if _, err = callToolDefault(ctx, s, "publication_get", json.RawMessage(`{"id":"`+other.ID+`"}`)); err == nil {
 		t.Fatal("cross-profile get succeeded")
 	}
-	raw, err := callTool(ctx, s, "publication_register", json.RawMessage(`{"platform":"custom","kind":"post","body":"ours","profile_id":"other"}`))
+	raw, err := callToolDefault(ctx, s, "publication_register", json.RawMessage(`{"platform":"custom","kind":"post","body":"ours","profile_id":"other"}`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,10 +53,10 @@ func TestPublicationMCPProfileScope(t *testing.T) {
 	if err = json.Unmarshal([]byte(raw), &e); err != nil {
 		t.Fatal(err)
 	}
-	if e.ProfileID != rt.profileID {
+	if e.ProfileID != testProfile {
 		t.Fatalf("profile overridden: %+v", e)
 	}
-	raw, err = callTool(ctx, s, "publication_list", json.RawMessage(`{}`))
+	raw, err = callToolDefault(ctx, s, "publication_list", json.RawMessage(`{}`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +67,7 @@ func TestPublicationMCPProfileScope(t *testing.T) {
 	if len(entries) != 1 || entries[0].Body != "ours" {
 		t.Fatalf("list: %s", raw)
 	}
-	raw, err = callTool(ctx, s, "publication_stats", json.RawMessage(`{}`))
+	raw, err = callToolDefault(ctx, s, "publication_stats", json.RawMessage(`{}`))
 	if err != nil || !strings.Contains(raw, `"total": 1`) {
 		t.Fatalf("stats: %s %v", raw, err)
 	}

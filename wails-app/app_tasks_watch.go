@@ -26,7 +26,10 @@ func (a *App) restartTaskWatcher() {
 	if a.db == nil {
 		return
 	}
-	profileID := a.getActiveProfileID()
+	profileID, err := a.profileID()
+	if err != nil {
+		return // no profile selected: no board to watch
+	}
 	a.taskWatchStop = a.startTaskWatcher(profileID, 0, a.emitFolderEvent)
 	a.taskWatchProfile = profileID
 }
@@ -99,7 +102,10 @@ func (a *App) TaskPulse() map[string]interface{} {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	profileID := a.getActiveProfileID()
+	profileID, err := a.profileID()
+	if err != nil {
+		return map[string]interface{}{}
+	}
 	store := tasks.NewStore(a.db)
 	// Rev and Counts do not check the profile: an unknown one reads revision 0
 	// and no cards, a board that never existed. Resolve it first, as Watch does.

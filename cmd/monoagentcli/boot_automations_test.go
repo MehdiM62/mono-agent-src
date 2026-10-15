@@ -29,7 +29,7 @@ func runRoot(t *testing.T, args ...string) (string, error) {
 	var out bytes.Buffer
 	root.SetOut(&out)
 	root.SetErr(&out)
-	root.SetArgs(args)
+	root.SetArgs(withTestProfile(args))
 	err := root.Execute()
 	return out.String(), err
 }

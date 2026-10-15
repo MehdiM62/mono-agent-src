@@ -35,7 +35,7 @@ const citeJSON = `{"docId":"global:/inbox/x/readable.md",
 func ask(t *testing.T, srv *Server, q string) (*AskResult, []string) {
 	t.Helper()
 	var stages []string
-	req := &Request{Method: MethodDocAsk, Params: map[string]any{"q": q}}
+	req := &Request{Method: MethodDocAsk, Params: map[string]any{"q": q, "profile": "work"}}
 	got, err := srv.handleDocAsk(context.Background(), req, func(stage, _ string) {
 		stages = append(stages, stage)
 	})
@@ -154,7 +154,7 @@ func TestDocAskClampsTheLimit(t *testing.T) {
 	runner.replies["doc search"] = `[]`
 	srv := serverWithRunner(t, runner)
 
-	req := &Request{Params: map[string]any{"q": "x", "limit": float64(500)}}
+	req := &Request{Params: map[string]any{"q": "x", "limit": float64(500), "profile": "work"}}
 	if _, err := srv.handleDocAsk(context.Background(), req, func(string, string) {}); err != nil {
 		t.Fatal(err)
 	}

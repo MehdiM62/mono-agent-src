@@ -43,7 +43,7 @@ func TestHybridCRUD_SQLiteOnly(t *testing.T) {
 		t.Errorf("OnSaved ran %d times, want 3 (%v)", len(saved), saved)
 	}
 
-	list, err := h.ListWorkflows(ctx, "")
+	list, err := h.ListWorkflows(ctx, "default")
 	if err != nil || len(list) != 1 {
 		t.Fatalf("ListWorkflows = %d, %v", len(list), err)
 	}
@@ -76,7 +76,7 @@ func TestHybridListMergesWithoutDuplicates(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	list, err := h.ListWorkflows(ctx, "")
+	list, err := h.ListWorkflows(ctx, "default")
 	if err != nil {
 		t.Fatal(err)
 	}

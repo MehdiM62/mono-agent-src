@@ -240,7 +240,9 @@ func TestLogoutRevocationSendsTheTokenAndTheClientAndGivesUpWhenNobodyAnswers(t 
 	if err := account.NewClient(srv.URL, store).Logout(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if took := time.Since(start); took > 9*time.Second {
+	// The revocation's own bound is five seconds; this one only tells a logout that
+	// gave up from one that waits for the hung server, which is forever.
+	if took := time.Since(start); took > testWait {
 		t.Fatalf("a revocation nobody answers held the logout for %v", took)
 	}
 	form := <-forms

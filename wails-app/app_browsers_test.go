@@ -34,7 +34,7 @@ func TestBrowserBindingsShellOutToCLI(t *testing.T) {
 	argsLog := fakeBrowsersCLI(t)
 	a := newTestApp(t)
 	a.ctx = context.Background()
-	a.setActiveProfileID("p-work")
+	a.selectForTest("p-work")
 
 	rep, err := a.GetBrowsers()
 	if err != nil || !rep.Running || len(rep.Browsers) != 1 || rep.Browsers[0].ProfileName != "Work" {

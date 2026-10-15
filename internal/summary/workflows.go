@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sort"
 	"strings"
 	"time"
@@ -105,19 +106,26 @@ func ownWorkflows(ctx context.Context, o Options) ([]workflow.Workflow, error) {
 	if err != nil {
 		return nil, err
 	}
-	// A workflow with no profile id is the default profile's, the same
-	// COALESCE(profile_id,'default') rule the store's SQLite half and
-	// `workflow list` use. Counting it in every profile made the All
-	// profiles view count it once per profile.
+	// workflow.OwnedBy is the shared ownership rule: a workflow with no
+	// profile id is an error state (migration 099 stamps every legacy file),
+	// owned by no profile. Skip it rather than count it in the wrong one.
 	own := all[:0:0]
-	for _, w := range all {
-		owner := w.ProfileID
-		if owner == "" {
-			owner = "default"
+	ownerless := 0
+	for i := range all {
+		owned, err := workflow.OwnedBy(&all[i], o.ProfileID)
+		if errors.Is(err, workflow.ErrLegacyWorkflowNoProfile) {
+			ownerless++
+			continue
 		}
-		if owner == o.ProfileID {
-			own = append(own, w)
+		if err != nil {
+			return nil, err
 		}
+		if owned {
+			own = append(own, all[i])
+		}
+	}
+	if ownerless > 0 {
+		slog.Warn("summary: skipped workflows with no profile id", "count", ownerless)
 	}
 	return own, nil
 }

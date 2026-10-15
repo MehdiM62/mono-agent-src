@@ -93,7 +93,7 @@ func TestAPIConfigShowShellsOutAndDecodes(t *testing.T) {
 	answer(t, dir, "show", configDoc(""), "", 0)
 	a := newTestApp(t)
 	a.ctx = context.Background()
-	a.setActiveProfileID("work")
+	a.selectForTest("work")
 
 	info, err := a.APIConfigShow()
 	if err != nil {
@@ -138,7 +138,7 @@ func TestAPIConfigSetShellsOut(t *testing.T) {
 	answer(t, dir, "set", configDoc(`,"applied":true,"changed":["v1_addr"],"widening":[]`), "", 0)
 	a := newTestApp(t)
 	a.ctx = context.Background()
-	a.setActiveProfileID("work")
+	a.selectForTest("work")
 
 	dry, err := a.APIConfigSet(map[string]string{"max_concurrent": "8", "v1_addr": "0.0.0.0:9443"}, false, true)
 	if err != nil || dry.Applied || len(dry.Changed) != 1 || dry.Changed[0] != "v1_addr" || len(dry.Widening) != 1 ||
@@ -187,7 +187,7 @@ func TestAPIConfigUnsetShellsOut(t *testing.T) {
 	answer(t, dir, "unset", configDoc(`,"applied":true,"changed":["max_concurrent"],"widening":[]`), "", 0)
 	a := newTestApp(t)
 	a.ctx = context.Background()
-	a.setActiveProfileID("work")
+	a.selectForTest("work")
 
 	dry, err := a.APIConfigUnset([]string{"tls_key_file", "tls_cert_file", "tls_key_file"}, false, true)
 	if err != nil || dry.Applied || len(dry.Changed) != 2 {
@@ -224,7 +224,7 @@ func TestAPIConfigResetShellsOut(t *testing.T) {
 	answer(t, dir, "unset", configDoc(`,"applied":true,"changed":[]`+widening), "", 0)
 	a := newTestApp(t)
 	a.ctx = context.Background()
-	a.setActiveProfileID("work")
+	a.selectForTest("work")
 
 	dry, err := a.APIConfigReset(false, true)
 	if err != nil || dry.Applied || !dry.RemovedUnreadableRow || len(dry.Widening) != 1 || dry.Widening[0].Key != "saved_settings" || dry.Widening[0].Reason != reason || len(dry.Changed) != 0 {
@@ -355,7 +355,7 @@ func TestAPIConfigPassesNoFileContent(t *testing.T) {
 	answer(t, dir, "set", configDoc(`,"applied":true,"changed":["tls_cert_file","tls_key_file"],"widening":[]`), "", 0)
 	a := newTestApp(t)
 	a.ctx = context.Background()
-	a.setActiveProfileID("work")
+	a.selectForTest("work")
 
 	res, err := a.APIConfigSet(map[string]string{"tls_cert_file": cert, "tls_key_file": key}, false, false)
 	if err != nil || !res.Applied {
@@ -378,7 +378,7 @@ func TestDaemonRestartShellsOut(t *testing.T) {
 	answer(t, dir, "restart", `{"restarted":true,"via":"launchd"}`+"\n", "Restarting the daemon interrupts whatever it is running (workflows, org runs).\n", 0)
 	a := newTestApp(t)
 	a.ctx = context.Background()
-	a.setActiveProfileID("work")
+	a.selectForTest("work")
 
 	res, err := a.DaemonRestart()
 	if err != nil || !res.Restarted || res.Via != "launchd" {

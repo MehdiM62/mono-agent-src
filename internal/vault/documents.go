@@ -89,7 +89,10 @@ func RegisterDocument(ctx context.Context, db *sql.DB, src, source string, appli
 		return "", fmt.Errorf("vault.RegisterDocument: invalid src path: %w", err)
 	}
 
-	profileID := ProfileIDFromContext(ctx)
+	profileID, err := ProfileIDFromContext(ctx)
+	if err != nil {
+		return "", fmt.Errorf("vault.RegisterDocument: %w", err)
+	}
 	docsDir := filepath.Join(VaultDir(db, profileID), "documents")
 	if err := os.MkdirAll(docsDir, 0700); err != nil {
 		return "", fmt.Errorf("vault.RegisterDocument: ensure documents dir: %w", err)

@@ -8,8 +8,7 @@ import (
 
 func TestSetOrgGrant_PreviewsUntilConfirmedThenShellsCLI(t *testing.T) {
 	db := newMonoagentTestDB(t)
-	mt := NewMonoagentTools(db.DB, "/bin/monoagentcli")
-	mt.SetProfileID("p1")
+	mt := NewMonoagentTools(db.DB, "/bin/monoagentcli", "p1")
 
 	var gotArgs []string
 	stubRunSelfExec(t, func(ctx context.Context, bin string, args ...string) ([]byte, error) {
@@ -40,7 +39,7 @@ func TestSetOrgGrant_PreviewsUntilConfirmedThenShellsCLI(t *testing.T) {
 
 func TestSetOrgGrant_RefusedAfterSyncedComms(t *testing.T) {
 	db := newMonoagentTestDB(t)
-	mt := NewMonoagentTools(db.DB, "/bin/monoagentcli")
+	mt := NewMonoagentTools(db.DB, "/bin/monoagentcli", "default")
 	mt.markSyncedCommsSeen()
 	stubRunSelfExec(t, func(ctx context.Context, bin string, args ...string) ([]byte, error) {
 		t.Fatal("exec must not run")

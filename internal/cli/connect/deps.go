@@ -4,6 +4,7 @@
 package connect
 
 import (
+	"errors"
 	"io"
 
 	"github.com/spf13/cobra"
@@ -45,10 +46,14 @@ type Deps struct {
 // NewCommand returns the `connect` command group.
 func NewCommand(d Deps) *cobra.Command { return d.newConnectCmd() }
 
-// profileOrDefault is the profile the command runs in, "default" when none is set.
-func (d Deps) profileOrDefault() string {
+// ErrProfileRequired is returned when a command that acts on a profile runs
+// without one: there is no implicit "default".
+var ErrProfileRequired = errors.New("connect: no profile selected; pass --profile <id|name>")
+
+// requireProfile is the profile the command runs in, or ErrProfileRequired.
+func (d Deps) requireProfile() (string, error) {
 	if p := d.ProfileID(); p != "" {
-		return p
+		return p, nil
 	}
-	return "default"
+	return "", ErrProfileRequired
 }

@@ -183,7 +183,7 @@ func TestAServerWhoseProfileWasDeletedRefuses(t *testing.T) {
 		args map[string]any
 	}{{"task_list", nil}, {"task_claim", map[string]any{"next": true}}} {
 		_, err := callAPITool(t, work, c.name, c.args)
-		if err == nil || !strings.HasPrefix(err.Error(), "invalid_input: ") || !strings.Contains(err.Error(), "unknown profile") {
+		if err == nil || !strings.HasPrefix(err.Error(), "invalid_input: ") || !strings.Contains(err.Error(), "not found") {
 			t.Errorf("%s after the profile was deleted: %v", c.name, err)
 		}
 	}
@@ -197,11 +197,12 @@ func TestTheTaskToolsActAsAnAgent(t *testing.T) {
 	ready := f.add("default", "approved", true)
 	inbox := f.add("default", "not yet read", false)
 
-	// What an agent sends cannot make it someone else, put a task elsewhere than Inbox or reach
-	// another profile: no tool takes such an argument.
+	// What an agent sends cannot make it someone else or put a task elsewhere than Inbox: no tool
+	// takes such an argument. (The profile is the one argument that names where a call acts, and it
+	// is required: see TestATaskToolActsOnTheProfileTheCallNames.)
 	for _, args := range []map[string]any{
 		{"title": "x", "ready": true}, {"title": "x", "status": "ready"}, {"title": "x", "source": "os"},
-		{"title": "x", "profile": workProfileID}, {"title": "x", "as": "you"},
+		{"title": "x", "as": "you"},
 	} {
 		if _, err := f.call("task_add", args); err == nil || !strings.HasPrefix(err.Error(), "invalid_input: ") {
 			t.Errorf("task_add %v: %v, want it refused", args, err)
@@ -279,5 +280,33 @@ func TestTheTaskVerbsNeedAllowMutations(t *testing.T) {
 		if names[name] {
 			t.Errorf("a read-only server lists %s", name)
 		}
+	}
+}
+
+// The profile of a task call is the call's own: the same server adds to the board of whichever
+// profile the call names, by id or by name, and a task of one board is not found from the other.
+func TestATaskToolActsOnTheProfileTheCallNames(t *testing.T) {
+	f := newTaskFixture(t, taskSetup{})
+	byID := f.doc("task_add", map[string]any{"title": "on work by id", "profile": workProfileID})
+	byName := f.doc("task_add", map[string]any{"title": "on work by name", "profile": workProfileName})
+	for _, d := range []map[string]any{byID, byName} {
+		if tk := d["task"].(map[string]any); tk["profile_id"] != workProfileID {
+			t.Errorf("a task added with the work profile landed on %v", tk["profile_id"])
+		}
+	}
+	f.doc("task_add", map[string]any{"title": "on default", "profile": "default"})
+	if n := f.count(`SELECT COUNT(*) FROM tasks WHERE profile_id = ?`, workProfileID); n != 2 {
+		t.Errorf("the work board holds %d tasks, want 2", n)
+	}
+	if n := f.count(`SELECT COUNT(*) FROM tasks WHERE profile_id = 'default'`); n != 1 {
+		t.Errorf("the default board holds %d tasks, want 1", n)
+	}
+	// From the default profile, a task of the work board does not exist.
+	workTask := int64(byID["task"].(map[string]any)["id"].(float64))
+	if _, err := f.call("task_get", map[string]any{"id": workTask, "profile": "default"}); err == nil || !strings.HasPrefix(err.Error(), "not_found: ") {
+		t.Errorf("task_get of another profile's task: %v, want not_found", err)
+	}
+	if _, err := f.call("task_get", map[string]any{"id": workTask, "profile": workProfileName}); err != nil {
+		t.Errorf("task_get of the profile's own task: %v", err)
 	}
 }

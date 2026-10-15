@@ -15,20 +15,16 @@ import (
 
 // ── workflows ─────────────────────────────────────────────────────────────
 
-func (s *Server) workflowInProfile(wf *workflow.Workflow) bool {
-	if wf == nil {
-		return false
-	}
-	owner := wf.ProfileID
-	if owner == "" {
-		owner = "default"
-	}
-	return owner == s.rt.profileID
+// workflowInProfile is workflow.OwnedBy, the one ownership rule: a workflow
+// with no profile (or a request with none) is owned by nobody.
+func workflowInProfile(wf *workflow.Workflow, profileID string) bool {
+	ok, _ := workflow.OwnedBy(wf, profileID)
+	return ok
 }
 
-// Load through the API's profile boundary even when the host's engine
-// intentionally serves all profiles (the daemon). Legacy unscoped workflows
-// belong to default, matching the engine's single-profile guard.
+// Load through the request's profile boundary even when the host's engine
+// intentionally serves all profiles (the daemon). A workflow with no profile
+// belongs to nobody (workflow.OwnedBy).
 func (s *Server) loadWorkflow(w http.ResponseWriter, r *http.Request) *workflow.Workflow {
 	id := r.PathValue("id")
 	wf, err := s.rt.store.GetWorkflow(r.Context(), id)
@@ -36,17 +32,17 @@ func (s *Server) loadWorkflow(w http.ResponseWriter, r *http.Request) *workflow.
 		writeError(w, http.StatusInternalServerError, "get workflow: "+err.Error())
 		return nil
 	}
-	if !s.workflowInProfile(wf) {
+	if !workflowInProfile(wf, profileOf(r)) {
 		writeError(w, http.StatusNotFound, fmt.Sprintf("workflow %q not found", id))
 		return nil
 	}
 	return wf
 }
 
-// GET /workflows
+// GET /profiles/{profile}/workflows
 func (s *Server) handleWorkflowList(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	wfs, err := s.rt.store.ListWorkflows(ctx, s.rt.profileID)
+	wfs, err := s.rt.store.ListWorkflows(ctx, profileOf(r))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "list workflows: "+err.Error())
 		return
@@ -71,7 +67,7 @@ func (s *Server) handleWorkflowList(w http.ResponseWriter, r *http.Request) {
 
 	out := []map[string]interface{}{}
 	for _, wf := range wfs {
-		if !s.workflowInProfile(&wf) {
+		if !workflowInProfile(&wf, profileOf(r)) {
 			continue
 		}
 		nodeCount := len(wf.Nodes)
@@ -88,7 +84,7 @@ func (s *Server) handleWorkflowList(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
-// GET /workflows/{id}
+// GET /profiles/{profile}/workflows/{id}
 func (s *Server) handleWorkflowGet(w http.ResponseWriter, r *http.Request) {
 	wf := s.loadWorkflow(w, r)
 	if wf == nil {
@@ -97,7 +93,7 @@ func (s *Server) handleWorkflowGet(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, wf)
 }
 
-// GET /workflows/{id}/executions
+// GET /profiles/{profile}/workflows/{id}/executions
 func (s *Server) handleWorkflowExecutions(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	ctx := r.Context()
@@ -139,7 +135,7 @@ func parseWorkflowBytes(raw []byte) (workflow.Workflow, error) {
 	return legacy, nil
 }
 
-// POST /workflows/{id}/validate
+// POST /profiles/{profile}/workflows/{id}/validate
 //
 // Validates the saved workflow named by {id}. A body is optional: when
 // present and non-empty, it is treated as an inline workflow JSON document
@@ -180,7 +176,7 @@ func (s *Server) handleWorkflowValidate(w http.ResponseWriter, r *http.Request) 
 	})
 }
 
-// POST /workflows/{id}/run  (mutating)
+// POST /profiles/{profile}/workflows/{id}/run  (mutating)
 func (s *Server) handleWorkflowRun(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	ctx := r.Context()
@@ -204,12 +200,13 @@ func (s *Server) handleWorkflowRun(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if err := s.rt.ensureEngine(ctx); err != nil {
+	engine, err := s.rt.engineFor(ctx, profileOf(r))
+	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	execID, err := s.rt.engine.TriggerWorkflow(ctx, id, body.Input)
+	execID, err := engine.TriggerWorkflow(ctx, id, body.Input)
 	if err != nil {
 		writeErrorFor(w, err)
 		return
@@ -306,18 +303,19 @@ func clampTimeoutSeconds(secs float64) time.Duration {
 	}
 }
 
-// POST /workflows/{id}/activate  (mutating)
+// POST /profiles/{profile}/workflows/{id}/activate  (mutating)
 func (s *Server) handleWorkflowActivate(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	ctx := r.Context()
 	if s.loadWorkflow(w, r) == nil {
 		return
 	}
-	if err := s.rt.ensureEngine(ctx); err != nil {
+	engine, err := s.rt.engineFor(ctx, profileOf(r))
+	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	if err := s.rt.engine.ActivateWorkflow(ctx, id); err != nil {
+	if err := engine.ActivateWorkflow(ctx, id); err != nil {
 		writeErrorFor(w, err)
 		return
 	}
@@ -328,18 +326,19 @@ func (s *Server) handleWorkflowActivate(w http.ResponseWriter, r *http.Request) 
 	})
 }
 
-// POST /workflows/{id}/deactivate  (mutating)
+// POST /profiles/{profile}/workflows/{id}/deactivate  (mutating)
 func (s *Server) handleWorkflowDeactivate(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	ctx := r.Context()
 	if s.loadWorkflow(w, r) == nil {
 		return
 	}
-	if err := s.rt.ensureEngine(ctx); err != nil {
+	engine, err := s.rt.engineFor(ctx, profileOf(r))
+	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	if err := s.rt.engine.DeactivateWorkflow(ctx, id); err != nil {
+	if err := engine.DeactivateWorkflow(ctx, id); err != nil {
 		writeErrorFor(w, err)
 		return
 	}

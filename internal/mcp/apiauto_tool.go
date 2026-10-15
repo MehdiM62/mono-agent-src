@@ -13,13 +13,13 @@ import (
 
 // apiAutoTools is the tool over the `auto` model of the OpenAI-compatible API, which is a Jev surface
 // of the profile (internal/jev/jevconf) and not a setting of the server: what `monoagentcli jev
-// enable|disable api_auto` does, for the MCP server's profile.
+// enable|disable api_auto` does, for the call's profile.
 func apiAutoTools() []tool {
 	return []tool{{
 		name:        "api_auto_set",
-		description: "Switch the auto model of the OpenAI-compatible API (the Jev surface api_auto) on or off for the active profile, as `monoagentcli jev enable|disable api_auto`. Switching on sends request text to TypeSafe, so it needs the operator's --allow-api-exposure and acknowledge_egress: true. " + apiToolsDetails,
+		description: "Switch the auto model of the OpenAI-compatible API (the Jev surface api_auto) on or off for the call's profile, as `monoagentcli jev enable|disable api_auto`. Switching on sends request text to TypeSafe, so it needs the operator's --allow-api-exposure and acknowledge_egress: true. " + apiToolsDetails,
 		schema: objSchema(map[string]interface{}{
-			"enabled":            boolParam("true switches the auto model on for the active profile, false switches it off"),
+			"enabled":            boolParam("true switches the auto model on for the call's profile, false switches it off"),
 			"acknowledge_egress": boolParam("Needed with enabled true, on a server whose operator started it with --allow-api-exposure: says that the user knows what is sent to TypeSafe while it is on (the refusal lists it). Not needed to switch off"),
 		}, "enabled"),
 		annotations: map[string]bool{"readOnlyHint": false},
@@ -53,23 +53,23 @@ func toolAPIAutoSet(ctx context.Context, s *Server, args json.RawMessage) (inter
 	if err != nil {
 		return nil, err
 	}
-	if err := jevconf.SetEnabled(rt.db.DB, rt.profileID, surface, *a.Enabled); err != nil {
+	if err := jevconf.SetEnabled(rt.db.DB, profileOf(ctx), surface, *a.Enabled); err != nil {
 		return nil, fmt.Errorf("switch the auto model: %w", err)
 	}
 
 	// The document of `jev enable|disable --json`.
 	doc := map[string]interface{}{
-		"profile_id": rt.profileID,
+		"profile_id": profileOf(ctx),
 		"surface":    string(surface),
 		"enabled":    *a.Enabled,
 	}
 	if *a.Enabled {
-		doc["threshold"] = jevconf.Threshold(rt.db.DB, rt.profileID, surface, jevconf.DefaultThreshold[surface])
+		doc["threshold"] = jevconf.Threshold(rt.db.DB, profileOf(ctx), surface, jevconf.DefaultThreshold[surface])
 		doc["egress"] = jevconf.Egress[surface]
 	}
 	// And what `api status --json` says of the auto model now, which the command says on stderr when
 	// there is no key. The key is only asked for, never read: this never decrypts anything.
-	st := openaiapi.DefaultAuto(rt.db.DB).Status(ctx, rt.profileID)
+	st := openaiapi.DefaultAuto(rt.db.DB).Status(ctx, profileOf(ctx))
 	doc["auto"] = openaiapi.AutoReport{Available: st.Available, Missing: st.Missing, KeySource: st.KeySource}
 	return doc, nil
 }

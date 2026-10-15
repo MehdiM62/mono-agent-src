@@ -140,7 +140,7 @@ func TestCloseWaitsForAGrantInFlightAndStoresItsAnswer(t *testing.T) {
 	close(release)
 	select {
 	case <-done:
-	case <-time.After(3 * time.Second):
+	case <-time.After(testWait):
 		t.Fatal("Close did not return once the grant was answered")
 	}
 	if rt, err := e.store.LoadRefresh(); err != nil || rt != "rt-2" {
@@ -172,7 +172,7 @@ func TestTheRefresherTellsOnRefusedWhenItsOwnRefreshIsRefused(t *testing.T) {
 		if st.Reason != account.ReasonRefused {
 			t.Fatalf("callback got %s/%q", st.State, st.Reason)
 		}
-	case <-time.After(3 * time.Second):
+	case <-time.After(testWait):
 		t.Fatal("OnRefused did not fire")
 	}
 	e.f.Clock.Advance(time.Hour)
@@ -194,7 +194,7 @@ func TestTheRefresherNoticesARefusalFromAnotherProcess(t *testing.T) {
 	e.f.Clock.Advance(loopPoll)
 	select {
 	case <-got:
-	case <-time.After(3 * time.Second):
+	case <-time.After(testWait):
 		t.Fatal("the refresher did not notice another process's refusal")
 	}
 }

@@ -48,10 +48,11 @@
 
   // Captures saved into a profile are searchable from that profile only, so
   // every recall question names the profile the side panel is "Saving
-  // into". capture_profile.js owns that choice; the key is read here
-  // directly because this group also runs without it (tests, and a worker
-  // that failed to load it), in which case no profile is sent and the
-  // backend answers from the shared brain, as before profiles existed.
+  // into", and the backend refuses a question that names none. With no
+  // choice stored that is the default profile (capture_profile.js decides).
+  // The key is read directly only as a fallback, because this group also
+  // runs without capture_profile.js (tests, and a worker that failed to
+  // load it), in which case no profile is sent.
   const PROFILE_KEY = "captureProfile";
 
   function validProfile(id) {
@@ -60,9 +61,37 @@
     return !!v && !v.includes("/") && !v.includes("\\") && !v.includes("..");
   }
 
-  /** stickyProfile is the remembered "Saving into" choice, or "". */
+  // Every lookup asks for the profile, and a bridge that cannot list profiles
+  // would be asked again for each one: concurrent callers share one question,
+  // and an answer of "none" is kept for a few seconds.
+  const NO_PROFILE_MEMORY_MS = 10000;
+  let resolving = null;
+  let noProfileUntil = 0;
+
+  /** stickyProfile is the remembered "Saving into" choice, else the default
+   *  profile, or "" when there is neither. */
   async function stickyProfile() {
+    if (Date.now() < noProfileUntil) return "";
+    if (!resolving) {
+      resolving = resolveStickyProfile()
+        .then((id) => {
+          if (!id) noProfileUntil = Date.now() + NO_PROFILE_MEMORY_MS;
+          return id;
+        })
+        .finally(() => {
+          resolving = null;
+        });
+    }
+    return resolving;
+  }
+
+  async function resolveStickyProfile() {
     try {
+      const P = root.MonoCaptureProfile;
+      if (P && P.stickyOrAsk) {
+        const chosen = await P.stickyOrAsk(root.MonoAsk, storage(), !!(deps && deps.isConnected && deps.isConnected()));
+        return validProfile(chosen) ? chosen.trim() : "";
+      }
       const got = (await storage().get(PROFILE_KEY)) || {};
       const id = got[PROFILE_KEY];
       return validProfile(id) ? id.trim() : "";
@@ -94,6 +123,7 @@
     if (!chrome.storage || !chrome.storage.onChanged) return;
     chrome.storage.onChanged.addListener((changes, area) => {
       if (area !== "local" || !changes[PROFILE_KEY]) return;
+      noProfileUntil = 0;
       root.MonoSaved.reset();
       checkActiveTab();
     });

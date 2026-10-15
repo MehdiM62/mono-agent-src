@@ -37,10 +37,10 @@ type Deps struct {
 	StdinIsTerminal func() bool
 	// DBPath is --db-path as given: `task os` writes it, made absolute, into a menu.
 	DBPath func() string
-	// OpenDBActive opens (and migrates) the database without resolving --profile and returns
-	// the active profile's id: `task os status` and `uninstall` take their profiles from the
-	// menus, and some may be deleted.
-	OpenDBActive func() (db *storage.Database, active string, err error)
+	// OpenDBUnresolved opens (and migrates) the database without resolving --profile:
+	// `task os status` and `uninstall` take their profiles from the menus, and some may
+	// be deleted.
+	OpenDBUnresolved func() (*storage.Database, error)
 }
 
 // splitCSV splits a comma-separated list, dropping blank items (the CLI's splitCSV).

@@ -82,7 +82,7 @@ func TestSaveWorkflowConnections_DanglingReferenceGivesClearError(t *testing.T) 
 	s, _ := newMigratedStore(t)
 	ctx := context.Background()
 
-	if err := s.CreateWorkflow(ctx, &Workflow{ID: "wf", Name: "wf"}); err != nil {
+	if err := s.CreateWorkflow(ctx, &Workflow{ProfileID: "default", ID: "wf", Name: "wf"}); err != nil {
 		t.Fatalf("CreateWorkflow: %v", err)
 	}
 	if err := s.SaveWorkflowNodes(ctx, "wf", []WorkflowNode{
@@ -117,7 +117,7 @@ func TestSaveWorkflowNodes_AddNodePreservesConnections(t *testing.T) {
 	s, _ := newMigratedStore(t)
 	ctx := context.Background()
 
-	if err := s.CreateWorkflow(ctx, &Workflow{ID: "wf", Name: "wf"}); err != nil {
+	if err := s.CreateWorkflow(ctx, &Workflow{ProfileID: "default", ID: "wf", Name: "wf"}); err != nil {
 		t.Fatalf("CreateWorkflow: %v", err)
 	}
 	if err := s.SaveWorkflowNodes(ctx, "wf", []WorkflowNode{
@@ -172,7 +172,7 @@ func TestSaveWorkflowNodes_RemoveNodeCascadesOnlyItsEdges(t *testing.T) {
 	s, _ := newMigratedStore(t)
 	ctx := context.Background()
 
-	if err := s.CreateWorkflow(ctx, &Workflow{ID: "wf", Name: "wf"}); err != nil {
+	if err := s.CreateWorkflow(ctx, &Workflow{ProfileID: "default", ID: "wf", Name: "wf"}); err != nil {
 		t.Fatalf("CreateWorkflow: %v", err)
 	}
 	if err := s.SaveWorkflowNodes(ctx, "wf", []WorkflowNode{
@@ -214,7 +214,7 @@ func TestSaveWorkflowNodes_UpdateFieldsKeepsEdgesAndCreatedAt(t *testing.T) {
 	s, db := newMigratedStore(t)
 	ctx := context.Background()
 
-	if err := s.CreateWorkflow(ctx, &Workflow{ID: "wf", Name: "wf"}); err != nil {
+	if err := s.CreateWorkflow(ctx, &Workflow{ProfileID: "default", ID: "wf", Name: "wf"}); err != nil {
 		t.Fatalf("CreateWorkflow: %v", err)
 	}
 	if err := s.SaveWorkflowNodes(ctx, "wf", []WorkflowNode{
@@ -267,7 +267,7 @@ func TestSaveWorkflowNodes_EmptySetClearsAll(t *testing.T) {
 	s, _ := newMigratedStore(t)
 	ctx := context.Background()
 
-	if err := s.CreateWorkflow(ctx, &Workflow{ID: "wf", Name: "wf"}); err != nil {
+	if err := s.CreateWorkflow(ctx, &Workflow{ProfileID: "default", ID: "wf", Name: "wf"}); err != nil {
 		t.Fatalf("CreateWorkflow: %v", err)
 	}
 	if err := s.SaveWorkflowNodes(ctx, "wf", nil); err != nil {
@@ -300,12 +300,11 @@ func TestSaveWorkflowNodes_EmptySetClearsAll(t *testing.T) {
 	}
 }
 
-// TestMigration026_ProfileDefaultIndex guards the ListWorkflows profile
-// predicate: migration 026 (renumbered from 024 when the merge added
-// 023/024 upstream) must exist (fresh + pre-026 upgrade, idempotent on
-// re-run) and the query planner must serve COALESCE(profile_id,'default')=?
-// from the expression index.
-func TestMigration026_ProfileDefaultIndex(t *testing.T) {
+// TestListWorkflowsUsesThePlainProfileIndex guards the ListWorkflows profile
+// predicate: migration 099 drops 026's COALESCE(profile_id,'default')
+// expression index, and `profile_id = ?` must be served by the plain
+// idx_workflows_profile from 011.
+func TestListWorkflowsUsesThePlainProfileIndex(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "migrate.db")
 	db, err := storage.NewDatabase(dbPath)
 	if err != nil {
@@ -315,46 +314,14 @@ func TestMigration026_ProfileDefaultIndex(t *testing.T) {
 	if err := db.ApplyMigrations(); err != nil {
 		t.Fatalf("ApplyMigrations (fresh): %v", err)
 	}
-
-	assertIndex := func(stage string) {
-		t.Helper()
-		var name string
-		err := db.DB.QueryRow(
-			`SELECT name FROM sqlite_master WHERE type='index' AND name='idx_workflows_profile_default'`).Scan(&name)
-		if err != nil || name != "idx_workflows_profile_default" {
-			t.Fatalf("%s: idx_workflows_profile_default missing (%v)", stage, err)
-		}
-	}
-	assertIndex("fresh db")
-
-	// Idempotent: running the full migration set again must be a no-op.
-	if err := db.ApplyMigrations(); err != nil {
-		t.Fatalf("ApplyMigrations (second run): %v", err)
-	}
-	assertIndex("second run")
-
-	// Simulate an existing pre-026 database: 026 not recorded, index absent.
-	if _, err := db.DB.Exec(`DELETE FROM schema_migrations WHERE version = 26`); err != nil {
-		t.Fatalf("unrecord 026: %v", err)
-	}
-	if _, err := db.DB.Exec(`DROP INDEX idx_workflows_profile_default`); err != nil {
-		t.Fatalf("drop index: %v", err)
-	}
-	if err := db.ApplyMigrations(); err != nil {
-		t.Fatalf("ApplyMigrations (pre-026 upgrade): %v", err)
-	}
-	assertIndex("pre-026 upgrade")
-	var applied int
-	if err := db.DB.QueryRow(`SELECT COUNT(*) FROM schema_migrations WHERE version = 26`).Scan(&applied); err != nil {
-		t.Fatalf("check schema_migrations: %v", err)
-	}
-	if applied != 1 {
-		t.Fatalf("migration 026 recorded %d times, want 1", applied)
+	var n int
+	if err := db.DB.QueryRow(
+		`SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name='idx_workflows_profile_default'`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("the COALESCE expression index must be gone (n=%d, %v)", n, err)
 	}
 
-	// The ListWorkflows predicate must use the expression index.
 	rows, err := db.DB.Query(
-		`EXPLAIN QUERY PLAN SELECT id FROM workflows WHERE COALESCE(profile_id,'default') = ?`, "default")
+		`EXPLAIN QUERY PLAN SELECT id FROM workflows WHERE profile_id = ?`, "default")
 	if err != nil {
 		t.Fatalf("explain: %v", err)
 	}
@@ -371,8 +338,8 @@ func TestMigration026_ProfileDefaultIndex(t *testing.T) {
 	if err := rows.Err(); err != nil {
 		t.Fatalf("iterate plan: %v", err)
 	}
-	if !strings.Contains(plan.String(), "idx_workflows_profile_default") {
-		t.Fatalf("query plan does not use idx_workflows_profile_default: %s", plan.String())
+	if !strings.Contains(plan.String(), "idx_workflows_profile") {
+		t.Fatalf("query plan does not use idx_workflows_profile: %s", plan.String())
 	}
 
 	// And ListWorkflows itself filters correctly through the store.
@@ -441,11 +408,22 @@ func TestNodeCounts(t *testing.T) {
 		t.Error("another profile's workflow leaked into the counts")
 	}
 
-	all, err := s.NodeCounts(ctx, "")
-	if err != nil {
-		t.Fatalf("NodeCounts(all): %v", err)
+	// An empty profile is not "every profile": it is an error.
+	if all, err := s.NodeCounts(ctx, ""); !errors.Is(err, ErrNoProfile) || all != nil {
+		t.Errorf("NodeCounts(\"\") = %v, %v; want ErrNoProfile", all, err)
 	}
-	if all["other-profile"] != 3 || all["two-nodes"] != 2 {
-		t.Errorf("unscoped counts = %v", all)
+	if _, err := s.ListWorkflows(ctx, ""); !errors.Is(err, ErrNoProfile) {
+		t.Errorf("ListWorkflows(\"\") err = %v, want ErrNoProfile", err)
+	}
+	every, err := s.ListAllProfilesWorkflows(ctx)
+	if err != nil {
+		t.Fatalf("ListAllProfilesWorkflows: %v", err)
+	}
+	seen := map[string]bool{}
+	for _, w := range every {
+		seen[w.ID] = true
+	}
+	if !seen["other-profile"] || !seen["two-nodes"] {
+		t.Errorf("ListAllProfilesWorkflows missed a profile's workflow: %v", seen)
 	}
 }
