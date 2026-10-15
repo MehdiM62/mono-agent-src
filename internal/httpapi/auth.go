@@ -9,6 +9,7 @@ import (
 
 	"github.com/monoes/mono-agent/internal/account"
 	"github.com/monoes/mono-agent/internal/accountdoor"
+	"github.com/monoes/mono-agent/internal/logging"
 	"github.com/monoes/mono-agent/internal/profiledir"
 )
 
@@ -118,8 +119,11 @@ func (s *Server) anyProfileAuth(h http.HandlerFunc) http.Handler {
 		for _, id := range ids {                   // every token is compared: no early exit
 			want, err := s.readToken(r.Context(), id)
 			if err != nil {
-				writeError(w, http.StatusInternalServerError, "resolve bearer credential: "+err.Error())
-				return
+				// One unreadable profile must not refuse a valid token of a
+				// healthy one; with no match the answer is the uniform 401.
+				lg := logging.Zerolog()
+				lg.Warn().Err(err).Str("profile", id).Msg("httpapi: reading a profile's token failed; skipping it")
+				continue
 			}
 			if want != "" && constantTimeEqual(got, want) {
 				ok = true
