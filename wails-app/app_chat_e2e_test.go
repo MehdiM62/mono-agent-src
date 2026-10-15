@@ -67,7 +67,7 @@ exit 2
 		t.Fatalf("reconcile: %v", errs)
 	}
 
-	if r := decodeStart(t, a.StartChatTurn(conv.ID, "turn-1", "history", false, false)); !r.OK || r.Status != "active" {
+	if r := decodeStart(t, a.StartChatTurn(conv.ID, "turn-1", "history", false, false, nil)); !r.OK || r.Status != "active" {
 		t.Fatalf("Start = %+v", r)
 	}
 	fin := waitForType(t, emitter, chatevents.EventTurnFinished, 30*time.Second)
@@ -98,7 +98,7 @@ exit 2
 
 	// A long turn, stopped: the kill leaves the finish to the app.
 	t.Setenv("FAKE_HANG", "1")
-	if r := decodeStart(t, a.StartChatTurn(conv.ID, "turn-2", "wait", false, false)); !r.OK {
+	if r := decodeStart(t, a.StartChatTurn(conv.ID, "turn-2", "wait", false, false, nil)); !r.OK {
 		t.Fatalf("Start turn-2 = %+v", r)
 	}
 	if out := a.DeleteChatConversation(conv.ID); !strings.Contains(out, "active turn") {

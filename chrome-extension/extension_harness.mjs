@@ -123,16 +123,39 @@ export async function start(binary, { attempts = 2, workerMs = WORKER_START_MS }
   }
 }
 
-/** extensionWorker waits for the extension's service worker and returns its id and target. */
+/**
+ * extensionWorker waits for the extension's service worker and returns its
+ * id and target, once its script has run. Chrome lists the worker's target
+ * before it evaluates background.js, and a test that evaluated in it at once
+ * found none of the worker's globals ("gate is not defined"), more often the
+ * busier the machine.
+ */
 export async function extensionWorker(cdp, timeoutMs = WORKER_START_MS) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const { targetInfos } = await cdp.send("Target.getTargets");
     const sw = targetInfos.find((t) => t.type === "service_worker" && t.url.endsWith("/background.js"));
-    if (sw) return { id: new URL(sw.url).host, targetId: sw.targetId };
+    if (sw && (await scriptHasRun(cdp, sw.targetId))) return { id: new URL(sw.url).host, targetId: sw.targetId };
     await sleep(100);
   }
   throw new Error(`the extension's service worker did not start within ${timeoutMs}ms`);
+}
+
+/**
+ * scriptHasRun asks the worker whether background.js has run. The script
+ * runs top to bottom in one task, so once `gate` (near its top) exists,
+ * everything it sets up at load exists too.
+ */
+async function scriptHasRun(cdp, targetId) {
+  let sessionId = "";
+  try {
+    ({ sessionId } = await cdp.send("Target.attachToTarget", { targetId, flatten: true }));
+    return await cdp.evaluate(sessionId, `typeof gate !== "undefined"`);
+  } catch {
+    return false; // the worker went away between the listing and the question
+  } finally {
+    if (sessionId) await cdp.send("Target.detachFromTarget", { sessionId }).catch(() => {});
+  }
 }
 
 /** attach opens a flat session on a target (created from `url` when given). */

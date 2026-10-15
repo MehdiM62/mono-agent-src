@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 
 	"github.com/monoes/mono-agent/internal/ai"
@@ -29,6 +30,8 @@ type coderTurn struct {
 	resume  string
 	cwd     string
 	orgMode string // ai.OrgModeDynamic lets the agent spawn workers (#226)
+	// attachments are the files attached to the turn, already copied into cwd.
+	attachments []chatevents.TurnAttachment
 }
 
 // coderSystemPrompt is appended to the runtime's own system prompt (not a
@@ -41,10 +44,11 @@ func coderSystemPrompt(cwd string) string {
 }
 
 // coderLeadSystemPrompt is the lead's whole system prompt for a turn in cwd:
-// the coder preamble, the active profile's context (who the chat works for,
-// what that profile holds; secrets never), and the publication rules.
+// the coder preamble, how to use the user's browser, the active profile's
+// context (who the chat works for, what that profile holds; secrets never),
+// and the publication rules.
 func coderLeadSystemPrompt(ctx context.Context, db *sql.DB, cfg *Deps, cwd string) string {
-	parts := []string{coderSystemPrompt(cwd)}
+	parts := []string{coderSystemPrompt(cwd), coderBrowserPrompt(cfg.ProfileID())}
 	if block := profilectx.Block(ctx, db, cfg.ProfileID()); block != "" {
 		parts = append(parts, block)
 	}
@@ -95,7 +99,7 @@ func runCoderTurn(cmd *cobra.Command, cfg *Deps, journal *turnJournal, t coderTu
 	opts := monomind.ExecOptions{
 		Bin:          bin,
 		Runtime:      rt.ID,
-		Prompt:       t.prompt,
+		Prompt:       t.prompt + attachmentPrompt(t.attachments),
 		Model:        t.model,
 		Effort:       t.effort,
 		EffortFlag:   st.caps.Has(monomind.CapAgentExecEffort),
@@ -108,6 +112,7 @@ func runCoderTurn(cmd *cobra.Command, cfg *Deps, journal *turnJournal, t coderTu
 		BudgetUSD:    settings.BudgetUSD,
 		SystemPrompt: systemPrompt,
 		Env:          agentSendEnv(journal, "lead", ""),
+		Attach:       nativeAttachments(st.caps, t.attachments),
 	}
 	kiloDropped := dropKiloOptions(&opts)
 	onEvent := func(ev monomind.Event) {
@@ -154,6 +159,22 @@ func runCoderTurn(cmd *cobra.Command, cfg *Deps, journal *turnJournal, t coderTu
 		return res.Err
 	}
 	return nil
+}
+
+// runPlainCoderTurn is `chat --mode coder`: one unjournaled turn in the
+// folder c picks, with the --attach files copied into it.
+func runPlainCoderTurn(cmd *cobra.Command, cfg *Deps, c coderFolderChoice, t coderTurn, attach []string) error {
+	src, err := attachmentSources(attach)
+	if err != nil {
+		return err
+	}
+	if t.cwd, err = coderFolder(cmd, cfg, c, t.runtime); err != nil {
+		return err
+	}
+	if t.attachments, err = copyAttachments(t.cwd, uuid.NewString(), src); err != nil {
+		return err
+	}
+	return runCoderTurn(cmd, cfg, nil, t)
 }
 
 // coderFolderChoice is where a new coder conversation or plain coder turn

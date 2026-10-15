@@ -103,9 +103,10 @@ func RunExecution(
 		expr:      expr,
 		logger:    logger,
 		// Build initial trigger items — wrap TriggerData as a single Item.
-		// The webhook chain trace stays internal (the run's context has it):
-		// a workflow that echoes $json must not hand it to its caller.
-		triggerItems:   buildTriggerItems(withoutTrace(exec.TriggerData, WebhookTraceKey)),
+		// The webhook chain trace and the AI-caller mark stay internal (the
+		// run's context has them): a workflow that echoes $json must not hand
+		// them on.
+		triggerItems:   buildTriggerItems(withoutTrace(withoutTrace(exec.TriggerData, WebhookTraceKey), AICallerKey)),
 		nodeOutputs:    make(map[string][]Item),
 		pendingInputs:  make(map[string][]Item),
 		pendingFrom:    make(map[string]string),

@@ -31,7 +31,8 @@ Subcommands:
   org                   Orgs, automations, grants, automation roles, autonomy, holding orgs
   publication           Published content history and automatic registration
   tasks                 The profile's task board: columns, who may do what, the agent loop
-  account               Machine sign-in, the account gate, and headless setup`,
+  account               Machine sign-in, the account gate, and headless setup
+  browser               Driving the user's browser from an agent: commands, JSON, origin policy, submit approvals`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			fmt.Println("monoagentcli ref — built-in reference")
 			fmt.Println()
@@ -51,6 +52,7 @@ Subcommands:
 			fmt.Fprintln(w, "  publication\tPublished content history and automatic registration")
 			fmt.Fprintln(w, "  tasks\tThe profile's task board: columns, who may do what, the agent loop")
 			fmt.Fprintln(w, "  account\tMachine sign-in, the account gate, and headless setup")
+			fmt.Fprintln(w, "  browser\tDriving the user's browser from an agent: commands, JSON, origin policy, submit approvals")
 			w.Flush()
 			fmt.Println()
 			fmt.Println("Example:  monoagentcli ref templates")
@@ -78,6 +80,7 @@ Subcommands:
 		refPublicationCmd(),
 		refTasksCmd(),
 		refAccountCmd(),
+		refBrowserCmd(),
 	)
 	return root
 }

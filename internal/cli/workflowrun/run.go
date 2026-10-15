@@ -10,6 +10,7 @@ import (
 
 	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/cli/workflowtemplates"
+	"github.com/monoes/mono-agent/internal/nodes/browserjev"
 	"github.com/monoes/mono-agent/internal/workflow"
 	"github.com/spf13/cobra"
 )
@@ -264,6 +265,8 @@ func (d Deps) newRunCmd() *cobra.Command {
 					return clicore.InvalidInput("invalid --input JSON (expected a JSON object): %v", err)
 				}
 			}
+			// An agent's run stays its own in a daemon (--no-wait, a resume).
+			browserjev.MarkAICaller(triggerData)
 
 			engine, closeBrowsers, err := d.BuildEngine()
 			if err != nil {

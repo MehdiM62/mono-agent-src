@@ -29,7 +29,9 @@ type chatAdmission struct {
 // fails before admission print {"error","code"} as its only stdout line.
 // A coder conversation's turn is started with tools=false: the CLI takes
 // its mode and folder from the conversation and refuses --tools for it.
-func chatTurnArgs(profileID, conversationID, turnID, instanceID, message string, tools, allowRuns bool) []string {
+// Each attachment is one --attach (coder turns only; the CLI copies it
+// into the conversation's folder).
+func chatTurnArgs(profileID, conversationID, turnID, instanceID, message string, tools, allowRuns bool, attachments ...string) []string {
 	args := []string{"--profile", profileID, "--json", "chat", "--conversation", conversationID, "--turn", turnID, "--instance", instanceID}
 	if tools {
 		toolsFlag := "monoagent"
@@ -37,6 +39,9 @@ func chatTurnArgs(profileID, conversationID, turnID, instanceID, message string,
 			toolsFlag = "monoagent,runs"
 		}
 		args = append(args, "--tools", toolsFlag)
+	}
+	for _, p := range attachments {
+		args = append(args, "--attach="+p)
 	}
 	return append(args, "--", message)
 }
@@ -82,7 +87,7 @@ func (o *turnOutput) exited(proc chatProcess) (waitErr error, stderr string) {
 // startTurn launches the turn process and waits for its admission line.
 // It returns the StartChatTurn response; on success the turn keeps
 // streaming in the background.
-func (sup *chatSupervisor) startTurn(h *chatTurnHandle, message string, tools, allowRuns bool) (string, error) {
+func (sup *chatSupervisor) startTurn(h *chatTurnHandle, message string, tools, allowRuns bool, attachments []string) (string, error) {
 	cliBin, err := sup.findCLI()
 	if err != nil {
 		return "", err
@@ -91,7 +96,7 @@ func (sup *chatSupervisor) startTurn(h *chatTurnHandle, message string, tools, a
 	h.mu.Lock()
 	h.cancel = cancel
 	h.mu.Unlock()
-	proc, err := sup.launcher(ctx, cliBin, chatTurnArgs(h.profileID, h.conversationID, h.turnID, sup.instanceID, message, tools, allowRuns))
+	proc, err := sup.launcher(ctx, cliBin, chatTurnArgs(h.profileID, h.conversationID, h.turnID, sup.instanceID, message, tools, allowRuns, attachments...))
 	if err != nil {
 		cancel()
 		return "", err
