@@ -1,4 +1,4 @@
--- 066_comms_status.sql
+-- 102_comms_status.sql
 -- Approval items in Communications.
 --
 -- 1. person_messages.hil_ref links an outbound row to the Human-in-Loop item

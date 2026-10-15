@@ -5,16 +5,16 @@ import (
 	"testing"
 )
 
-// Migration 066 adds person_messages.hil_ref and people.kind. Rows that exist
+// Migration 102 adds person_messages.hil_ref and people.kind. Rows that exist
 // keep their meaning: a synced message stays 'sent' with no hil_ref, a person
 // stays a person, and the listings that were there still return them.
-func TestApplyMigration066_CommsStatus(t *testing.T) {
+func TestApplyMigration102_CommsStatus(t *testing.T) {
 	db, err := NewDatabase(filepath.Join(t.TempDir(), "upgraded.db"))
 	if err != nil {
 		t.Fatalf("NewDatabase: %v", err)
 	}
 	defer db.DB.Close()
-	applyMigrationsBelow(t, db, 66)
+	applyMigrationsBelow(t, db, 102)
 
 	if _, err := db.DB.Exec(`INSERT INTO people (id, platform_username, platform, full_name, category, introduction, profile_id)
 		VALUES ('p', 'ada@example.test', 'email', 'Ada', 'approved', 'draft dm', 'default')`); err != nil {
