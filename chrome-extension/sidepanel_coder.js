@@ -243,16 +243,20 @@
 
   // ── what is queued, and the conversations ────────────────────────
 
-  function row(title, detail, extra) {
+  function row(title, detail, extra, address) {
     const li = document.createElement("li");
     li.className = "queue-item coder-item";
-    const t = document.createElement("div");
-    t.className = "title";
-    t.textContent = title;
-    const d = document.createElement("div");
-    d.className = "why";
-    d.textContent = detail;
-    li.append(t, d);
+    const line = (cls, text) => {
+      const n = document.createElement("div");
+      n.className = cls;
+      n.textContent = text;
+      li.appendChild(n);
+    };
+    line("title", title);
+    // The page chose its title; the address is the browser's. Shown whole,
+    // so a title cannot pass one site off as another.
+    if (address) line("coder-address", address);
+    line("why", detail);
     if (extra) li.appendChild(extra);
     return li;
   }
@@ -263,7 +267,8 @@
     for (const i of queued) {
       const where = i.title || i.origin || "a page";
       const folder = i.cwd ? ` · ${baseName(i.cwd)}` : "";
-      queuedList.appendChild(row(`${KIND_LABELS[i.kind] || i.kind}: ${where}`, `Waiting. Start it in the MonoAgent app${folder}.`));
+      const address = `${typeof i.origin === "string" ? i.origin : ""}${typeof i.path === "string" ? i.path : ""}`;
+      queuedList.appendChild(row(`${KIND_LABELS[i.kind] || i.kind}: ${where}`, `Waiting. Start it in the MonoAgent app${folder}.`, null, address));
     }
     queuedEmpty.hidden = queued.length > 0;
     convList.textContent = "";
