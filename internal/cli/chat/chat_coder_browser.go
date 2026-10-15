@@ -1,4 +1,4 @@
-package main
+package chat
 
 import "github.com/monoes/mono-agent/internal/dynorg"
 
