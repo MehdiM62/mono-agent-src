@@ -3,10 +3,12 @@ package control
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -38,6 +40,15 @@ func chatFlow(t *testing.T, path, mode string, nodes ...workflow.WorkflowNode) (
 		t.Fatal(err)
 	}
 	return f, id
+}
+
+var chatSessions atomic.Int64
+
+// chatSession is a session id no earlier run of the test used: the chat
+// messages live in a store of the process, so a fixed id would find the
+// messages of the previous iteration under -count.
+func chatSession(base string) string {
+	return fmt.Sprintf("%s-%d", base, chatSessions.Add(1))
 }
 
 // say posts a chat message and returns the response body.
@@ -80,12 +91,13 @@ func TestChat_LastNodeAnswers(t *testing.T) {
 		t.Fatalf("page = %d %v", page.Code, page.Header())
 	}
 	seen := 0
-	say(t, f, "echo", "session-one", "hello")
-	if m := botSays(t, "session-one", &seen); m.Text != "echo: hello (session-one)" {
+	s1 := chatSession("session-one")
+	say(t, f, "echo", s1, "hello")
+	if m := botSays(t, s1, &seen); m.Text != "echo: hello ("+s1+")" {
 		t.Fatalf("bot = %q", m.Text)
 	}
 	// The page reads the same messages over HTTP.
-	rec := f.serve(httptest.NewRequest(http.MethodGet, "/chat/echo/messages?sessionId=session-one&after=0", nil))
+	rec := f.serve(httptest.NewRequest(http.MethodGet, "/chat/echo/messages?sessionId="+s1+"&after=0", nil))
 	var got struct{ Messages []workflow.ChatMessage }
 	_ = json.Unmarshal(rec.Body.Bytes(), &got)
 	if len(got.Messages) != 2 || got.Messages[0].Role != "user" || got.Messages[0].Text != "hello" {
@@ -105,22 +117,23 @@ func TestChat_SendAndWaitFreeText(t *testing.T) {
 		workflow.WorkflowNode{Type: "core.respond_chat", Name: "Greet", Config: map[string]interface{}{
 			"message": "Hello {{ $json.chatInput }}"}})
 	seen := 0
-	first := say(t, f, "ask", "session-two", "hi")
-	if m := botSays(t, "session-two", &seen); m.Text != "What is your name?" {
+	s2 := chatSession("session-two")
+	first := say(t, f, "ask", s2, "hi")
+	if m := botSays(t, s2, &seen); m.Text != "What is your name?" {
 		t.Fatalf("bot = %q", m.Text)
 	}
-	answer := say(t, f, "ask", "session-two", "Ann")
+	answer := say(t, f, "ask", s2, "Ann")
 	if answer["answered"] != true || answer["execution_id"] != first["execution_id"] {
 		t.Fatalf("answer = %v (first %v): the reply should resume the waiting run", answer, first)
 	}
-	if m := botSays(t, "session-two", &seen); m.Text != "Hello Ann" {
+	if m := botSays(t, s2, &seen); m.Text != "Hello Ann" {
 		t.Fatalf("bot = %q", m.Text)
 	}
 	id, _ := first["execution_id"].(string)
 	if st := f.waitTerminal(t, id); st != "SUCCESS" {
 		t.Fatalf("run = %s", st)
 	}
-	if out := chatNodeOutput(t, f, id, "n0"); out["chatInput"] != "Ann" || out["sessionId"] != "session-two" || out["action"] != "sendMessage" {
+	if out := chatNodeOutput(t, f, id, "n0"); out["chatInput"] != "Ann" || out["sessionId"] != s2 || out["action"] != "sendMessage" {
 		t.Fatalf("answer item = %v", out)
 	}
 	var runs int
@@ -136,8 +149,9 @@ func TestChat_SendAndWaitApproval(t *testing.T) {
 			"operation": "sendAndWait", "message": "Book it?", "responseType": "approval", "blockUserInput": true,
 			"approvalOptions": `{"values": {"approvalType": "double", "approveLabel": "Yes"}}`}})
 	seen := 0
-	first := say(t, f, "approve", "session-three", "book a room")
-	m := botSays(t, "session-three", &seen)
+	s3 := chatSession("session-three")
+	first := say(t, f, "approve", s3, "book a room")
+	m := botSays(t, s3, &seen)
 	if len(m.Buttons) != 2 || m.Buttons[0].Label != "Yes" || !m.BlockInput {
 		t.Fatalf("buttons = %+v", m)
 	}
