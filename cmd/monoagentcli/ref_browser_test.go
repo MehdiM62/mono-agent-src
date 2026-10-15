@@ -42,8 +42,8 @@ func TestRefBrowserNamesRealCommands(t *testing.T) {
 	for path, flags := range map[string][]string{
 		"browsers": nil, "tabs": nil, "open": {"group"}, "navigate": nil, "reload": {"hard"}, "close": nil,
 		"click": nil, "type": nil, "press": nil, "wait": {"timeout"}, "eval": nil,
-		"screenshot": {"full", "element", "width", "height", "media", "out"},
-		"console": {"since", "level"}, "network": {"since", "failed"}, "a11y": {"selector"},
+		"screenshot": {"full", "element", "width", "height", "media", "out"}, "a11y": {"selector"},
+		"console": {"since", "level"}, "network": {"since", "failed"},
 		"pick": {"prompt", "timeout", "out"}, "allow list": nil, "allow add": nil, "allow remove": nil, "submit": {"hil"},
 	} {
 		check(path, flags, true)
