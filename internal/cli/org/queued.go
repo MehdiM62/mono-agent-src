@@ -29,7 +29,10 @@ func newOrgQueuedCmd(env *orgEnv) *cobra.Command {
 			if !orgdesign.ValidOrgName(org) {
 				return env.d.InvalidInput("invalid org name %q", org)
 			}
-			root := env.Root()
+			root, err := env.RootErr()
+			if err != nil {
+				return err
+			}
 			inbox, err := orgbridge.InboxPath(root, org)
 			if err != nil {
 				return env.d.InvalidInput("%s", err.Error())

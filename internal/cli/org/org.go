@@ -35,7 +35,7 @@ func NewCommand(d Deps) *cobra.Command {
 	}
 	cmd.PersistentFlags().StringVar(&project, "project", "",
 		"Project root orgs resolve under (<root>/.monomind/orgs/); default: the active profile's folder")
-	root := env.Root
+	root := env.root
 
 	cmd.AddCommand(
 		newOrgListCmd(root),
@@ -87,7 +87,28 @@ func NewCommand(d Deps) *cobra.Command {
 		newOrgReconcileDocCmd(env),
 		newOrgTeardownProfileCmd(env),
 	)
+	requireRoot(cmd, env)
 	return cmd
+}
+
+// requireRoot makes every org subcommand that acts on a folder fail up front
+// when there is none (the database cannot be opened and no --project was
+// given), so none of them can run with an empty root, which joins relative
+// to the current directory. env.root is only safe to call from under it.
+func requireRoot(group *cobra.Command, env *orgEnv) {
+	for _, c := range group.Commands() {
+		requireRoot(c, env)
+		run := c.RunE
+		if run == nil || c.Name() == "sections-runtimes" {
+			continue
+		}
+		c.RunE = func(cmd *cobra.Command, args []string) error {
+			if _, err := env.RootErr(); err != nil {
+				return err
+			}
+			return run(cmd, args)
+		}
+	}
 }
 
 // printOrgJSON writes a raw JSON payload to stdout with a trailing newline.

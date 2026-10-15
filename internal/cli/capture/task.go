@@ -48,8 +48,11 @@ func (d Deps) newCaptureTaskCmd() *cobra.Command {
 			"  monoagentcli capture task ./capture --board acme --assignee alice --json",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			root, closeEnv := d.OrgRoot(project)
+			root, closeEnv, err := d.OrgRoot(project)
 			defer closeEnv()
+			if err != nil {
+				return err
+			}
 
 			board, err := d.resolveBoard(root, boardFlag)
 			if err != nil {

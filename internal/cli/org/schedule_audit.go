@@ -22,7 +22,11 @@ func newOrgScheduleAuditCmd(env *orgEnv) *cobra.Command {
 			if !orgdesign.ValidOrgName(args[0]) {
 				return env.d.InvalidInput("invalid org name %q", args[0])
 			}
-			v, err := orgbridge.ReadScheduleAudit(env.Root(), args[0])
+			root, err := env.RootErr()
+			if err != nil {
+				return err
+			}
+			v, err := orgbridge.ReadScheduleAudit(root, args[0])
 			if err != nil {
 				return env.d.InvalidInput("%s", err.Error())
 			}

@@ -49,8 +49,8 @@ func profileEnv(t *testing.T) (*Env, *storage.Database, string) {
 func TestRootIsTheProfileRoot(t *testing.T) {
 	t.Parallel()
 	e, db, root := profileEnv(t)
-	if got := e.Root(); got != root {
-		t.Fatalf("Root() = %q, want %q", got, root)
+	if got, err := e.RootErr(); err != nil || got != root {
+		t.Fatalf("RootErr() = %q, %v, want %q", got, err, root)
 	}
 	gotDB, pid, gotRoot, err := e.Profile()
 	if err != nil || gotDB != db || pid != "work" || gotRoot != root {
@@ -67,8 +67,8 @@ func TestProjectFlagWinsWithoutOpeningTheDB(t *testing.T) {
 		OpenDB:  func() (*storage.Database, error) { t.Fatal("OpenDB called"); return nil, nil },
 		Project: func() string { return "/some/project" },
 	})
-	if got := e.Root(); got != "/some/project" {
-		t.Fatalf("Root() = %q", got)
+	if got, err := e.RootErr(); err != nil || got != "/some/project" {
+		t.Fatalf("RootErr() = %q, %v", got, err)
 	}
 	e.Close()
 }
@@ -89,7 +89,7 @@ func TestProfileRefusesAnotherProject(t *testing.T) {
 }
 
 // A database that cannot be opened gives no root: the profile is never guessed, "default" included.
-func TestRootIsEmptyAndErrsWhenTheDBFails(t *testing.T) {
+func TestRootErrsWhenTheDBFails(t *testing.T) {
 	t.Parallel()
 	for _, pid := range []string{"", "other"} {
 		e := New(Deps{
@@ -97,9 +97,6 @@ func TestRootIsEmptyAndErrsWhenTheDBFails(t *testing.T) {
 			ProfileID: func() string { return pid },
 			Project:   func() string { return "" },
 		})
-		if got := e.Root(); got != "" {
-			t.Fatalf("profile %q: Root() = %q, want none", pid, got)
-		}
 		if got, err := e.RootErr(); got != "" || err == nil || err.Error() != "no db" {
 			t.Fatalf("profile %q: RootErr() = %q, %v", pid, got, err)
 		}

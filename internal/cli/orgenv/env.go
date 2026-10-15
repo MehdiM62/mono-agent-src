@@ -67,15 +67,10 @@ func (e *Env) open() {
 	})
 }
 
-// Root is the project root org proxies run against: --project when given,
-// otherwise the profile's root. When the database cannot be opened there is
-// no root ("", never the default profile's folder); RootErr says why.
-func (e *Env) Root() string {
-	root, _ := e.RootErr()
-	return root
-}
-
-// RootErr is Root with the reason there is none.
+// RootErr is the project root org proxies run against: --project when given,
+// otherwise the profile's root. When the database cannot be opened there is no
+// root and the error says why; it is never the default profile's folder and
+// never "" (filepath.Join("", ...) would land in the current directory).
 func (e *Env) RootErr() (string, error) {
 	if p := e.Project(); p != "" {
 		return expandPath(p), nil
