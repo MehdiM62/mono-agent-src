@@ -24,6 +24,10 @@ type PersonInfo struct {
 	JobTitle       string `json:"job_title"`
 	Category       string `json:"category"`
 	CreatedAt      string `json:"created_at"`
+	// Kind is "person" or "company"; OwnAccount marks our own account
+	// (the person a post with no recipient is filed under).
+	Kind       string `json:"kind"`
+	OwnAccount bool   `json:"own_account"`
 }
 
 type PersonDetailInfo struct {

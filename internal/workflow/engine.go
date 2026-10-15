@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/monoes/mono-agent/internal/commsync"
 	"github.com/monoes/mono-agent/internal/connections"
 	"github.com/rs/zerolog"
 )
@@ -190,6 +191,7 @@ func (e *WorkflowEngine) Start(ctx context.Context) error {
 		); err != nil {
 			e.logger.Warn().Err(err).Msg("engine: failed to clean up orphaned HIL items")
 		}
+		_ = commsync.SetStatusForRejected(e.ctx, db)
 	}
 
 	// 4. Re-register triggers for all active workflows in this engine's

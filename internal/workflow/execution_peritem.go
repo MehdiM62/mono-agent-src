@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/monoes/mono-agent/internal/commsync"
 	"github.com/monoes/mono-agent/internal/publication"
 	"github.com/monoes/mono-agent/internal/secrets"
 	"github.com/monoes/mono-agent/internal/vault"
@@ -122,6 +123,22 @@ func (r *runner) resolveFor(t *nodeTask, item Item) (map[string]interface{}, err
 // for independent tasks: it touches only the task and the store.
 func (r *runner) runTask(t *nodeTask) {
 	ctx := t.ctx
+	// Communications: tell a Human-in-Loop node what it is approving, and
+	// mark the approved messages that wait for any other node as sending
+	// while it runs and as sent or failed once it ends.
+	if r.hasHIL {
+		db := vault.DBFromContext(ctx)
+		if t.node.Type == humanInLoopType {
+			t.ctx = commsync.WithDownstream(ctx, r.wf.Name, downstreamOf(r.dag, t.node.ID))
+		} else {
+			commsync.NodeStarted(ctx, db, r.exec.ID, t.node.ID)
+			defer func() {
+				if !errors.Is(t.execErr, ErrNodePaused) {
+					commsync.NodeFinished(ctx, db, r.exec.ID, t.node.ID, t.execErr)
+				}
+			}()
+		}
+	}
 	logger := r.logger
 	observe := func(outputs []NodeOutput) {
 		t.attempts++
@@ -150,7 +167,7 @@ func (r *runner) runTask(t *nodeTask) {
 		return
 	}
 	t.runs = 1
-	t.outputs, t.execErr = executeWithRetry(ctx, t.executor, t.input, t.config, t.retryPolicy, observe)
+	t.outputs, t.execErr = executeWithRetry(t.ctx, t.executor, t.input, t.config, t.retryPolicy, observe)
 }
 
 // runPerItem executes t once per input item and concatenates the outputs

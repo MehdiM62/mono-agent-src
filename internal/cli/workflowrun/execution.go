@@ -11,6 +11,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/monoes/mono-agent/internal/cli/clicore"
+	"github.com/monoes/mono-agent/internal/commsync"
 	"github.com/monoes/mono-agent/internal/daemonhb"
 	"github.com/monoes/mono-agent/internal/workflow"
 	"github.com/spf13/cobra"
@@ -270,6 +271,7 @@ func cancelExecution(ctx context.Context, db *sql.DB, profileID, executionID str
 		executionID, profileID); err != nil {
 		return res, fmt.Errorf("reject pending reviews: %w", err)
 	}
+	_ = commsync.SetStatusForExecution(ctx, db, executionID, commsync.Rejected)
 	res.Status = "CANCELLED"
 	// A parent waiting on this run becomes due for resume now rather than on
 	// its poll, and the run's own sub-workflow children stop with it.

@@ -1545,6 +1545,32 @@
     "open": "Abrir",
     "openNamed": "Abrir {{name}}"
   },
+  "comms": {
+    "status": {
+      "draft": "Borrador",
+      "pending_approval": "Pendiente de aprobación",
+      "approved": "Aprobado",
+      "sending": "Enviando",
+      "sent": "Enviado",
+      "rejected": "Rechazado",
+      "failed": "Fallido",
+      "expired": "Caducado"
+    },
+    "filterAll": "Todos",
+    "waiting": "Esperando tu aprobación",
+    "review": "Revisar",
+    "recipient": "Destinatario",
+    "openPerson": "Abrir persona",
+    "seeInComms": "Ver en Comunicaciones",
+    "statusLabel": "Estado",
+    "timeline": "Historial de estado",
+    "company": "Empresa",
+    "ownAccount": "Tu cuenta",
+    "commsCount": "{{count}} comunicaciones",
+    "commsPending": "{{count}} pendientes",
+    "filterLabel": "Filtrar por estado",
+    "onePerson": "Solo una persona"
+  },
   "coderQueue": {
     "kind": {
       "copy-style": "Copiar estilo",

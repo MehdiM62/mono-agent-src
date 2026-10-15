@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/monoes/mono-agent/internal/commsync"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -196,6 +197,7 @@ func (s *Server) handleHilApprove(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, fmt.Sprintf("HIL item %q not found or already resolved", id))
 		return
 	}
+	_ = commsync.SetStatus(r.Context(), s.rt.db.DB, id, commsync.Approved, commsync.Detail{Edited: body.Data})
 	writeJSON(w, http.StatusOK, map[string]string{"id": id, "status": "approved"})
 }
 
@@ -215,5 +217,6 @@ func (s *Server) handleHilReject(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, fmt.Sprintf("HIL item %q not found or already resolved", id))
 		return
 	}
+	_ = commsync.SetStatus(r.Context(), s.rt.db.DB, id, commsync.Rejected, commsync.Detail{})
 	writeJSON(w, http.StatusOK, map[string]string{"id": id, "status": "rejected"})
 }

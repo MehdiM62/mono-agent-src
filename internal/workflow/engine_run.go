@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/monoes/mono-agent/internal/account"
+	"github.com/monoes/mono-agent/internal/commsync"
 	"github.com/monoes/mono-agent/internal/vault"
 	"github.com/rs/zerolog"
 )
@@ -376,6 +377,7 @@ func (e *WorkflowEngine) cancelExecution(executionID string, cause error) {
 			_, _ = db.ExecContext(dctx,
 				`UPDATE hil_pending SET status='rejected', updated_at=CURRENT_TIMESTAMP WHERE execution_id=? AND status='pending'`,
 				executionID)
+			_ = commsync.SetStatusForExecution(dctx, db, executionID, commsync.Rejected)
 		}
 		e.logger.Info().Str("execution_id", executionID).Msg("engine: queued/waiting execution cancelled")
 		e.onExecutionFinished(executionID) // wakes a parent waiting on this sub-workflow run

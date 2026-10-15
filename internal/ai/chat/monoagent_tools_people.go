@@ -230,6 +230,8 @@ type messageSummary struct {
 	Source    string `json:"source"`
 	Direction string `json:"direction"`
 	Subject   string `json:"subject,omitempty"`
+	Status    string `json:"status"`
+	HilRef    string `json:"hil_ref,omitempty"`
 	CreatedAt string `json:"created_at"`
 }
 
@@ -249,7 +251,7 @@ func (mt *MonoagentTools) listMessages(args string) (string, error) {
 	if limit <= 0 {
 		limit = 50
 	}
-	query := `SELECT id, person_id, source, direction, COALESCE(subject,''), created_at
+	query := `SELECT id, person_id, source, direction, COALESCE(subject,''), status, COALESCE(hil_ref,''), created_at
 	          FROM person_messages WHERE profile_id = ?`
 	params := []interface{}{mt.ProfileID()}
 	if a.PersonID != "" {
@@ -270,7 +272,7 @@ func (mt *MonoagentTools) listMessages(args string) (string, error) {
 	out := make([]messageSummary, 0)
 	for rows.Next() {
 		var m messageSummary
-		if err := rows.Scan(&m.ID, &m.PersonID, &m.Source, &m.Direction, &m.Subject, &m.CreatedAt); err != nil {
+		if err := rows.Scan(&m.ID, &m.PersonID, &m.Source, &m.Direction, &m.Subject, &m.Status, &m.HilRef, &m.CreatedAt); err != nil {
 			return "", fmt.Errorf("scan message: %w", err)
 		}
 		out = append(out, m)
@@ -290,11 +292,11 @@ func (mt *MonoagentTools) getMessage(args string) (string, error) {
 	if err := json.Unmarshal([]byte(args), &a); err != nil {
 		return "", fmt.Errorf("invalid args: %w", err)
 	}
-	var id, personID, source, direction, subject, body, createdAt string
+	var id, personID, source, direction, subject, body, status, hilRef, createdAt string
 	if err := mt.db.QueryRow(
-		`SELECT id, person_id, source, direction, COALESCE(subject,''), COALESCE(body,''), created_at
+		`SELECT id, person_id, source, direction, COALESCE(subject,''), COALESCE(body,''), status, COALESCE(hil_ref,''), created_at
 		 FROM person_messages WHERE id = ? AND profile_id = ?`, a.MessageID, mt.ProfileID(),
-	).Scan(&id, &personID, &source, &direction, &subject, &body, &createdAt); err != nil {
+	).Scan(&id, &personID, &source, &direction, &subject, &body, &status, &hilRef, &createdAt); err != nil {
 		if err == sql.ErrNoRows {
 			return "", fmt.Errorf("message %s not found", a.MessageID)
 		}
@@ -303,7 +305,7 @@ func (mt *MonoagentTools) getMessage(args string) (string, error) {
 	mt.markSyncedCommsSeen()
 	return marshalFenced(map[string]interface{}{
 		"id": id, "person_id": personID, "source": source, "direction": direction,
-		"subject": subject, "body": body, "created_at": createdAt,
+		"subject": subject, "body": body, "status": status, "hil_ref": hilRef, "created_at": createdAt,
 	})
 }
 
