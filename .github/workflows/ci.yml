@@ -1,4 +1,10 @@
 name: CI
+# Where the Linux jobs run. Unset: GitHub's ubuntu-latest. The repository variable CI_RUNNER is a
+# JSON runs-on value, e.g. ["self-hosted","linux","x64","monoes-vps"] for the project's own VPS
+# (private repositories get no free hosted minutes to speak of, and 2-core hosted runners are
+# about twice as slow as the 4-core ones public repositories get). macOS and Windows jobs stay hosted.
+# A pull request from a fork always runs on ubuntu-latest, never on the variable's runner: a
+# self-hosted runner keeps its disk and network between jobs, so it must not run code from outside.
 
 # push is limited to master: a branch with a PR already runs this workflow via
 # pull_request, and running both on every commit doubled the queue (each commit
@@ -27,7 +33,7 @@ jobs:
   # publish executes locally the next time this repo's MCP server starts.
   mcp-pin-guard:
     name: Guard .mcp.json version pin
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_RUNNER || '"ubuntu-latest"') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Reject floating Monomind version
@@ -48,12 +54,15 @@ jobs:
   # error for users. See docs/plans/local-agent-monomind-delegation.md §11.
   monomind-smoke:
     name: Monomind integration smoke test
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_RUNNER || '"ubuntu-latest"') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          # The self-hosted runner keeps these caches on its own disk; two runners restoring one
+          # shared cache at once collided and hung both jobs.
+          cache: ${{ runner.environment == 'github-hosted' }}
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .node-version
@@ -94,13 +103,14 @@ jobs:
   # script runs the checks in the warn period and asserts the refusal after it.
   doctor-smoke:
     name: Doctor smoke test
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_RUNNER || '"ubuntu-latest"') }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          cache: ${{ runner.environment == 'github-hosted' }}
       - name: Build monoagentcli
         run: go build -tags devaccount -o "$RUNNER_TEMP/monoagentcli" ./cmd/monoagentcli
       # Profile guard (scripts/lib/mono.sh): every scoped monoagentcli call in
@@ -125,13 +135,14 @@ jobs:
   # and not for signed-in users. It must pass before release R.
   account-smoke:
     name: Account gate smoke (devaccount)
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_RUNNER || '"ubuntu-latest"') }}
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          cache: ${{ runner.environment == 'github-hosted' }}
       - name: Vet with the dev tag
         run: go vet -tags devaccount ./internal/account/... ./internal/accountsmoke/... ./cmd/monoagentcli/
       - name: Account tests with the dev tag
@@ -144,12 +155,13 @@ jobs:
   # that the guard passes and fails as it should (spec D11, D24).
   release-guard-test:
     name: Release guard test
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_RUNNER || '"ubuntu-latest"') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          cache: ${{ runner.environment == 'github-hosted' }}
       - name: Test the release guard
         run: bash scripts/check-release-tags-test.sh
       - name: Test the rollout guard
@@ -166,7 +178,7 @@ jobs:
   # above for why this repo never runs an unpinned npm package in CI.
   openapi-lint:
     name: Validate HTTP API OpenAPI spec
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_RUNNER || '"ubuntu-latest"') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -180,7 +192,7 @@ jobs:
   # dependencies and no install step.
   extension-test:
     name: Chrome extension
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_RUNNER || '"ubuntu-latest"') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -209,19 +221,20 @@ jobs:
   # Scheduled + on-push dependency vulnerability scanning (MA-06/MA-11).
   vuln-scan:
     name: Vulnerability scan
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_RUNNER || '"ubuntu-latest"') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          cache: ${{ runner.environment == 'github-hosted' }}
       - name: govulncheck
         # Exact version, like every other tool CI runs (see mcp-pin-guard).
         run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '20'
-          cache: 'npm'
+          cache: ${{ runner.environment == 'github-hosted' && 'npm' || '' }}
           cache-dependency-path: wails-app/frontend/package-lock.json
       - name: npm audit (frontend, production deps)
         # --omit=dev: the frontend's only current high-severity finding is an
@@ -237,13 +250,14 @@ jobs:
   # review. Not a gate yet; pinned like every other tool.
   staticcheck:
     name: staticcheck (informational)
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_RUNNER || '"ubuntu-latest"') }}
     continue-on-error: true
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          cache: ${{ runner.environment == 'github-hosted' }}
       - name: staticcheck
         run: go run honnef.co/go/tools/cmd/staticcheck@v0.8.2 -checks 'SA*,U1000' ./...
 
@@ -258,13 +272,14 @@ jobs:
   # hand-written and are not touched by this check.
   schemagen-check:
     name: Generated node schemas up to date
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_RUNNER || '"ubuntu-latest"') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          cache: ${{ runner.environment == 'github-hosted' }}
 
       - name: Check generated schemas match committed files
         run: go run ./cmd/schemagen -check
@@ -277,7 +292,7 @@ jobs:
   # below stay the checks that gate a merge: they need every shard.
   test-shards:
     name: Test shard (${{ matrix.tags }} ${{ matrix.shard }})
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_RUNNER || '"ubuntu-latest"') }}
     strategy:
       fail-fast: false
       matrix:
@@ -289,6 +304,7 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          cache: ${{ runner.environment == 'github-hosted' }}
 
       - name: Test
         env:
@@ -317,13 +333,14 @@ jobs:
   test:
     name: Build & test (default)
     needs: test-shards
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_RUNNER || '"ubuntu-latest"') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          cache: ${{ runner.environment == 'github-hosted' }}
 
       - name: Build
         run: go build ./...
@@ -371,6 +388,7 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          cache: ${{ runner.environment == 'github-hosted' }}
 
       - name: Test
         run: go test ./internal/account/... -count=1 -timeout 20m
@@ -380,13 +398,14 @@ jobs:
   test-nosocial:
     name: Build & test (nosocial)
     needs: test-shards
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_RUNNER || '"ubuntu-latest"') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          cache: ${{ runner.environment == 'github-hosted' }}
 
       - name: Build
         run: go build -tags nosocial ./...
@@ -404,15 +423,18 @@ jobs:
   # (24.04) has no webkit2gtk-4.0 dev package.
   wails:
     name: Wails GUI module
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON((github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_RUNNER || '"ubuntu-latest"') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: wails-app/go.mod
+          cache: ${{ runner.environment == 'github-hosted' }}
 
       - name: Install Linux system dependencies
+        # The self-hosted runner has these installed and its user has no sudo.
+        if: runner.environment == 'github-hosted'
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends \
@@ -421,7 +443,7 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .node-version
-          cache: 'npm'
+          cache: ${{ runner.environment == 'github-hosted' && 'npm' || '' }}
           cache-dependency-path: wails-app/frontend/package-lock.json
 
       - name: Build frontend
