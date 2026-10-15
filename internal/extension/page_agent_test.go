@@ -183,6 +183,12 @@ func TestTabGroupSendsTitleAndColor(t *testing.T) {
 	}
 }
 
+func TestTabIDIsThePagesTab(t *testing.T) {
+	if id := NewExtensionPage(&fakeSender{}, 42).TabID(); id != 42 {
+		t.Fatalf("TabID = %d, want 42", id)
+	}
+}
+
 func TestPageForPinsTheTarget(t *testing.T) {
 	r, seen := targetRelay(t, map[string]interface{}{"watching": true})
 	if _, err := r.PageFor(Target{Instance: "chrome-2"}, 9).WatchTab(true); err != nil {

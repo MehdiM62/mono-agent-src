@@ -254,6 +254,9 @@ func (r *RemoteSender) PageFor(t Target, tabID int) *ExtensionPage {
 	return NewExtensionPage(pinnedSender{via: r, t: t}, tabID)
 }
 
+// TabID is the browser tab this page drives.
+func (ep *ExtensionPage) TabID() int { return ep.tabID }
+
 // Screenshot captures this tab.
 func (ep *ExtensionPage) Screenshot(o ScreenshotOptions) (*Screenshot, error) {
 	var out Screenshot
