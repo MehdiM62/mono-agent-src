@@ -89,11 +89,6 @@ describe("the coder's browser commands", { skip: browser ? false : why, concurre
     base = `http://127.0.0.1:${server.address().port}`;
     assert.ok(browser.worker, browser.workerError);
     sw = await attach(browser.cdp, { targetId: browser.worker.targetId });
-    // The worker's target can be listed before its script has run.
-    for (let t = 0; t < 10000; t += 100) {
-      if (await browser.cdp.evaluate(sw, `typeof gate !== "undefined" && typeof MonoAgentCommands !== "undefined"`)) break;
-      await sleep(100);
-    }
     await browser.cdp.evaluate(
       sw,
       `(() => {
