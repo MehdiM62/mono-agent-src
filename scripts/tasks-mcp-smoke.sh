@@ -26,16 +26,25 @@ run() { mono_guard env -i "PATH=$PATH" "MONOAGENT_DEV_ENFORCE_FROM=2999-01-01T00
 prof=smoke # the named profile every scoped call acts on
 fail() { echo "tasks mcp smoke: $*" >&2; exit 1; }
 
-# rpc <extra mcp flags> : reads request lines on stdin, prints responses
-rpc() { run mcp --profile "$prof" --tasks-only "$@"; }
+# rpc <extra mcp flags> : reads request lines on stdin, prints responses. The server holds no profile:
+# it takes no --profile, and every call below names its own in the "profile" argument.
+rpc() { run mcp --tasks-only "$@"; }
 init='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","clientInfo":{"name":"smoke client","version":"1"}}}'
-call() { printf '{"jsonrpc":"2.0","id":%s,"method":"tools/call","params":{"name":"%s","arguments":%s}}\n' "$1" "$2" "$3"; }
+call() { jq -cn --argjson id "$1" --arg name "$2" --argjson args "$3" --arg p "$prof" '{jsonrpc:"2.0",id:$id,method:"tools/call",params:{name:$name,arguments:({profile:$p}+$args)}}'; }
+# callp <id> <tool> <args> : the same without the profile argument added (for the refusal check)
+callp() { printf '{"jsonrpc":"2.0","id":%s,"method":"tools/call","params":{"name":"%s","arguments":%s}}\n' "$1" "$2" "$3"; }
 resp() { jq -c "select(.id==$2)" <<<"$1"; } # one response by id
 
 run --json profile create "$prof" >/dev/null || fail "profile create"
 
 echo "== the operator adds a task straight to Ready"
 run --profile "$prof" task add "smoke test the task tools" --notes "from the smoke script" --ready >"$root/add.out" 2>&1 || fail "task add: $(cat "$root/add.out")"
+
+echo "== a call without a profile is refused, naming the argument and listing the profiles"
+out="$({ echo "$init"; callp 2 task_list '{}'; callp 3 task_list '{"profile":"nosuch"}'; call 4 task_list '{}'; } | rpc)"
+resp "$out" 2 | jq -e --arg p "$prof" '.result.isError==true and (.result.content[0].text|contains("\"profile\" argument is required") and contains($p))' >/dev/null || fail "task_list without a profile: $(resp "$out" 2)"
+resp "$out" 3 | jq -e '.result.isError==true and (.result.content[0].text|contains("not found"))' >/dev/null || fail "task_list with an unknown profile: $(resp "$out" 3)"
+resp "$out" 4 | jq -e '.result.isError!=true' >/dev/null || fail "task_list with a profile: $(resp "$out" 4)"
 
 echo "== without --allow-mutations: only the read tools are listed, a verb refuses"
 out="$({ echo "$init"; echo '{"jsonrpc":"2.0","id":2,"method":"tools/list"}'; call 3 task_claim '{"next":true}'; } | rpc)"
@@ -106,7 +115,7 @@ resp "$out" 2 | jq -e '[.result.tools[].name]|index("task_approve")==null' >/dev
 resp "$out" 3 | jq -e '.result.isError==true' >/dev/null || fail "task_approve worked after deny"
 
 echo "== --tasks-only with --api-only is refused"
-if run mcp --profile "$prof" --tasks-only --api-only </dev/null >/dev/null 2>"$root/err"; then fail "--tasks-only --api-only started"; fi
+if run mcp --tasks-only --api-only </dev/null >/dev/null 2>"$root/err"; then fail "--tasks-only --api-only started"; fi
 grep -q "cannot be combined" "$root/err" || fail "refusal text: $(cat "$root/err")"
 
 mono_check_clean
