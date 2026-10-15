@@ -118,6 +118,33 @@ func TestBrowserPermissionRefusals(t *testing.T) {
 	if res := bt.runJSON("open", "https://news.example/"); res["url"] != "https://news.example/" {
 		t.Fatalf("open after the user allowed it: %v", res)
 	}
+
+	// A no holds for a while: site_rejected, no new item. A site a block
+	// covers can't be approved (exit 3), and its item stays pending.
+	_, err = bt.run("open", "https://ads.example/")
+	if f, ok := err.(jsonErrorFields); ok {
+		id, _ = f.JSONErrorFields()["hil_id"].(string)
+	}
+	t.Setenv("CLAUDECODE", "")
+	if _, err := runHIL(t, bt.cfg, "reject", id); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("CLAUDECODE", "1")
+	if _, err := bt.run("open", "https://ads.example/"); jsonCode(err) != "site_rejected" || exitCodeFor(err) != 3 {
+		t.Fatalf("right after a no: %v (%s)", err, jsonCode(err))
+	}
+	_, err = bt.run("open", "https://www.shop.example/")
+	if f, ok := err.(jsonErrorFields); ok {
+		id, _ = f.JSONErrorFields()["hil_id"].(string)
+	}
+	t.Setenv("CLAUDECODE", "")
+	bt.runJSON("permissions", "site", "shop.example", "block")
+	if _, err := runHIL(t, bt.cfg, "approve", id); exitCodeFor(err) != 3 {
+		t.Fatalf("approving a blocked site: %v", err)
+	}
+	if it, _ := browserctl.GetSiteItem(t.Context(), db, "default", id); it.Status != "pending" {
+		t.Fatalf("the item: %+v", it)
+	}
 }
 
 // A block takes a bare host, rules are stored canonical, and `allow add`

@@ -128,10 +128,29 @@ func validKind(kind string) bool {
 // default level. With no setting yet, the old allowlist (browser_agent_
 // allowlist) is read as allow rules; the first SavePermissions keeps them.
 func LoadPermissions(db *sql.DB) (Permissions, error) {
-	p := DefaultPermissions()
-	var raw string
-	err := db.QueryRow(`SELECT config_data FROM configs WHERE name = ?`, PermissionsSetting).Scan(&raw)
+	raw, found, err := permissionsRow(db)
+	if err != nil {
+		return DefaultPermissions(), err
+	}
+	return parsePermissions(db, raw, found)
+}
+
+// permissionsRow is the stored setting's text; found is false when there
+// is none yet.
+func permissionsRow(db *sql.DB) (raw string, found bool, err error) {
+	err = db.QueryRow(`SELECT config_data FROM configs WHERE name = ?`, PermissionsSetting).Scan(&raw)
 	if errors.Is(err, sql.ErrNoRows) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, fmt.Errorf("reading the browser permissions: %w", err)
+	}
+	return raw, true, nil
+}
+
+func parsePermissions(db *sql.DB, raw string, found bool) (Permissions, error) {
+	p := DefaultPermissions()
+	if !found {
 		old, err := loadOldAllowlist(db)
 		if err != nil {
 			return p, err
@@ -140,9 +159,6 @@ func LoadPermissions(db *sql.DB) (Permissions, error) {
 			p.Sites = append(p.Sites, SiteRule{Origin: o, Rule: RuleAllow})
 		}
 		return p, nil
-	}
-	if err != nil {
-		return p, fmt.Errorf("reading the browser permissions: %w", err)
 	}
 	var stored Permissions
 	if err := json.Unmarshal([]byte(raw), &stored); err != nil {
@@ -187,35 +203,93 @@ func mergeSite(sites []SiteRule, s SiteRule) []SiteRule {
 	return append(sites, s)
 }
 
-// SavePermissions stores p (sites sorted, one rule per origin).
+// SavePermissions stores p (sites sorted, one rule per origin), replacing
+// what is stored. A change to the stored permissions goes through
+// UpdatePermissions, so a concurrent one is never lost.
 func SavePermissions(db *sql.DB, p Permissions) error {
-	out := DefaultPermissions()
-	for k, v := range p.Levels {
-		if !validKind(k) || !validLevel(v) {
-			return fmt.Errorf("%s: %s is not a level for %s", PermissionsSetting, v, k)
-		}
-		out.Levels[k] = v
-	}
-	for _, s := range p.Sites {
-		c, err := canonSite(s)
-		if err != nil {
-			return err
-		}
-		out.Sites = mergeSite(out.Sites, c)
-	}
-	sort.Slice(out.Sites, func(i, j int) bool { return out.Sites[i].Origin < out.Sites[j].Origin })
-	b, err := json.Marshal(out)
+	_, b, err := encodePermissions(p)
 	if err != nil {
 		return err
 	}
 	_, err = db.Exec(`INSERT INTO configs (name, config_data, created_at, updated_at)
 		VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 		ON CONFLICT(name) DO UPDATE SET config_data = excluded.config_data, updated_at = excluded.updated_at`,
-		PermissionsSetting, string(b))
+		PermissionsSetting, b)
 	if err != nil {
 		return fmt.Errorf("saving the browser permissions: %w", err)
 	}
 	return nil
+}
+
+// errPermissionsBusy: other writers kept changing the setting under
+// UpdatePermissions.
+var errPermissionsBusy = errors.New("the browser permissions kept changing while saving: try again")
+
+// afterPermissionsRead runs between UpdatePermissions' read and its write
+// (tests interleave a second writer there).
+var afterPermissionsRead func()
+
+// UpdatePermissions applies change to the stored permissions atomically:
+// it reads them, applies change, and stores the result only if the row
+// still holds what it read (a compare-and-set on the configs row), reading
+// again when another writer got there first. It returns what it stored.
+func UpdatePermissions(db *sql.DB, change func(*Permissions) error) (Permissions, error) {
+	for range 50 {
+		raw, found, err := permissionsRow(db)
+		if err != nil {
+			return Permissions{}, err
+		}
+		p, err := parsePermissions(db, raw, found)
+		if err != nil {
+			return p, err
+		}
+		if err := change(&p); err != nil {
+			return p, err
+		}
+		out, b, err := encodePermissions(p)
+		if err != nil {
+			return p, err
+		}
+		if afterPermissionsRead != nil {
+			afterPermissionsRead()
+		}
+		var res sql.Result
+		if found {
+			res, err = db.Exec(`UPDATE configs SET config_data = ?, updated_at = CURRENT_TIMESTAMP
+				WHERE name = ? AND config_data = ?`, b, PermissionsSetting, raw)
+		} else {
+			res, err = db.Exec(`INSERT INTO configs (name, config_data, created_at, updated_at)
+				VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) ON CONFLICT(name) DO NOTHING`, PermissionsSetting, b)
+		}
+		if err != nil {
+			return p, fmt.Errorf("saving the browser permissions: %w", err)
+		}
+		if n, err := res.RowsAffected(); err == nil && n == 1 {
+			return out, nil
+		}
+	}
+	return Permissions{}, errPermissionsBusy
+}
+
+// encodePermissions checks p and returns its stored form and text.
+func encodePermissions(p Permissions) (Permissions, string, error) {
+	out := DefaultPermissions()
+	for k, v := range p.Levels {
+		if !validKind(k) || !validLevel(v) {
+			return out, "", fmt.Errorf("%s: %s is not a level for %s", PermissionsSetting, v, k)
+		}
+		out.Levels[k] = v
+	}
+	for _, s := range p.Sites {
+		c, err := canonSite(s)
+		if err != nil {
+			return out, "", err
+		}
+		out.Sites = mergeSite(out.Sites, c)
+	}
+	sort.Slice(out.Sites, func(i, j int) bool { return out.Sites[i].Origin < out.Sites[j].Origin })
+	b, err := json.Marshal(out)
+	return out, string(b), err
 }
 
 // Level is kind's level.
@@ -294,6 +368,13 @@ func (p Permissions) Sited(rule string) []string {
 		}
 	}
 	return out
+}
+
+// Blocked reports whether a block rule covers rawURL's host (an origin
+// works too).
+func (p Permissions) Blocked(rawURL string) bool {
+	var be *SiteBlockedError
+	return errors.As(Policy{Agent: true, Level: LevelFullNoApprovals, Blocklist: p.Sited(RuleBlock)}.Check(rawURL), &be)
 }
 
 // PolicyFor is the policy for an agent of kind ("" is a human terminal:

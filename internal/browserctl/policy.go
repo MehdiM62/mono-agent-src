@@ -348,21 +348,20 @@ func loadOldAllowlist(db *sql.DB) ([]string, error) {
 // SaveAllowlist makes entries the permissions' allow rules (block rules
 // are kept; an entry that was blocked becomes allowed).
 func SaveAllowlist(db *sql.DB, entries []string) error {
-	p, err := LoadPermissions(db)
-	if err != nil {
-		return err
-	}
-	kept := []SiteRule{}
-	for _, s := range p.Sites {
-		if s.Rule == RuleBlock {
-			kept = append(kept, s)
+	_, err := UpdatePermissions(db, func(p *Permissions) error {
+		kept := []SiteRule{}
+		for _, s := range p.Sites {
+			if s.Rule == RuleBlock {
+				kept = append(kept, s)
+			}
 		}
-	}
-	p.Sites = kept
-	for _, e := range entries {
-		if _, _, err := p.SetSite(e, RuleAllow); err != nil {
-			return err
+		p.Sites = kept
+		for _, e := range entries {
+			if _, _, err := p.SetSite(e, RuleAllow); err != nil {
+				return err
+			}
 		}
-	}
-	return SavePermissions(db, p)
+		return nil
+	})
+	return err
 }

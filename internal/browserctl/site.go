@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -18,7 +19,9 @@ import (
 // no rule raises a HIL item asking the user to allow it, instead of a
 // refusal. Approving it (operator only, `hil approve` or the HIL page)
 // adds an allow rule; rejecting adds nothing. A pending item for the same
-// origin and kind is reused. A row's columns:
+// origin and kind is reused; a site the user said no to is not asked again
+// for siteRejectMemory, and a profile has at most SiteAskLimit items
+// waiting. A row's columns:
 //
 //	execution_id  "browser:site:<id>" (no workflow waits on it)
 //	workflow_id   "browser.site"; node_id the same; node_name "Use <host>"
@@ -27,6 +30,44 @@ import (
 
 // SiteKind marks a site item: its workflow_id, node_id and node_config kind.
 const SiteKind = "browser.site"
+
+// SiteAskLimit is how many site items may wait for the user per profile.
+const SiteAskLimit = 20
+
+// siteRejectMemory is how long the user's no to a site holds for a kind.
+const siteRejectMemory = 10 * time.Minute
+
+// SiteRejectedError: the user said no to the site for this kind of agent
+// within siteRejectMemory; it is refused without asking again. The CLI
+// reports it as site_rejected with exit code 3.
+type SiteRejectedError struct {
+	Origin string
+	Kind   string
+}
+
+func (e *SiteRejectedError) Error() string {
+	return fmt.Sprintf("the user said no to %s for %s in the last %d minutes: don't ask again yet, and tell the user if the task needs that site",
+		e.Origin, strings.ToLower(KindLabel(e.Kind)), int(siteRejectMemory.Minutes()))
+}
+
+// SiteAsksFullError: SiteAskLimit site items already wait for the user.
+// The CLI reports it as site_asks_full with exit code 3.
+type SiteAsksFullError struct{ Pending int }
+
+func (e *SiteAsksFullError) Error() string {
+	return fmt.Sprintf("%d site approvals already wait for the user: ask them to answer those (the Human in Loop page) before asking for another site", e.Pending)
+}
+
+// SiteBlockedDecisionError: approving a site item whose site a block rule
+// covers; the item stays pending.
+type SiteBlockedDecisionError struct {
+	ID     string
+	Origin string
+}
+
+func (e *SiteBlockedDecisionError) Error() string {
+	return fmt.Sprintf("%s is blocked for agents, so item %s can't allow it: remove the block that covers it (Settings → Agent browser permissions, or `monoagentcli browser permissions`) first, or reject the item", e.Origin, e.ID)
+}
 
 // SiteApprovalPendingError is a site waiting for the user's yes (HIL item
 // HILID). The CLI reports it as site_needs_approval with exit code 3.
@@ -66,30 +107,36 @@ func IsSiteItem(nodeConfig string) bool {
 
 // AskSite raises (or reuses the pending one for the same origin and kind)
 // the item asking the user to allow rawURL's site for agents of kind.
-// by nil reads who asked from this process's env.
+// by nil reads who asked from this process's env. A site the user
+// rejected for kind lately is a *SiteRejectedError, and a profile with
+// SiteAskLimit items waiting a *SiteAsksFullError; neither raises an item.
 func AskSite(ctx context.Context, db *sql.DB, profile, kind, rawURL string, by *hilsend.PreparedBy) (id string, err error) {
 	if profile == "" {
 		return "", profiledir.ErrNoProfile
 	}
 	origin := Origin(rawURL)
-	rows, err := db.QueryContext(ctx, `SELECT id, node_config FROM hil_pending
-		WHERE workflow_id = ? AND status = 'pending' AND profile_id = ? ORDER BY rowid`, SiteKind, profile)
+	pending, err := siteItems(ctx, db, profile, `status = 'pending'`)
 	if err != nil {
 		return "", err
 	}
-	for rows.Next() {
-		var rid, nc string
-		if err := rows.Scan(&rid, &nc); err != nil {
-			rows.Close()
-			return "", err
-		}
-		var rec siteRecord
-		if json.Unmarshal([]byte(nc), &rec) == nil && rec.Origin == origin && rec.AgentKind == kind {
-			rows.Close()
-			return rid, nil
+	for _, it := range pending {
+		if it.rec.Origin == origin && it.rec.AgentKind == kind {
+			return it.id, nil
 		}
 	}
-	rows.Close()
+	rejected, err := siteItems(ctx, db, profile, `status = 'rejected' AND updated_at >= datetime('now', ?)`,
+		fmt.Sprintf("-%d seconds", int(siteRejectMemory.Seconds())))
+	if err != nil {
+		return "", err
+	}
+	for _, it := range rejected {
+		if it.rec.Origin == origin && it.rec.AgentKind == kind {
+			return "", &SiteRejectedError{Origin: origin, Kind: kind}
+		}
+	}
+	if len(pending) >= SiteAskLimit {
+		return "", &SiteAsksFullError{Pending: len(pending)}
+	}
 	who := RequestedBy()
 	if by != nil {
 		who = *by
@@ -105,6 +152,34 @@ func AskSite(ctx context.Context, db *sql.DB, profile, kind, rawURL string, by *
 		return "", fmt.Errorf("storing the site approval: %w", err)
 	}
 	return id, nil
+}
+
+type storedSite struct {
+	id  string
+	rec siteRecord
+}
+
+// siteItems lists the profile's site items that match where (more SQL
+// conditions on hil_pending, with args).
+func siteItems(ctx context.Context, db *sql.DB, profile, where string, args ...any) ([]storedSite, error) {
+	rows, err := db.QueryContext(ctx, `SELECT id, node_config FROM hil_pending
+		WHERE workflow_id = ? AND profile_id = ? AND `+where+` ORDER BY rowid`, append([]any{SiteKind, profile}, args...)...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []storedSite
+	for rows.Next() {
+		var it storedSite
+		var nc string
+		if err := rows.Scan(&it.id, &nc); err != nil {
+			return nil, err
+		}
+		if json.Unmarshal([]byte(nc), &it.rec) == nil {
+			out = append(out, it)
+		}
+	}
+	return out, rows.Err()
 }
 
 // SiteItem is one stored site item; Status is pending, approved or rejected.
@@ -142,7 +217,9 @@ func findSite(ctx context.Context, db *sql.DB, profile, id string) (SiteItem, si
 
 // DecideSiteItem approves or rejects a pending site item for the operator
 // (`hil approve|reject` call it after refusing an agent). Approving adds an
-// allow rule for its origin; rejecting adds nothing.
+// allow rule for its origin; rejecting adds nothing. A site a block rule
+// covers can't be approved (*SiteBlockedDecisionError): the item stays
+// pending, for the user to reject or to approve once the block is gone.
 func DecideSiteItem(ctx context.Context, db *sql.DB, profile, id string, approve bool) (SiteItem, error) {
 	it, rec, err := findSite(ctx, db, profile, id)
 	if err != nil {
@@ -159,13 +236,8 @@ func DecideSiteItem(ctx context.Context, db *sql.DB, profile, id string, approve
 		if err != nil {
 			return it, err
 		}
-		if p.Rule(rec.Origin) != RuleBlock {
-			if _, _, err := p.SetSite(rec.Origin, RuleAllow); err != nil {
-				return it, err
-			}
-			if err := SavePermissions(db, p); err != nil {
-				return it, err
-			}
+		if p.Blocked(rec.Origin) {
+			return it, &SiteBlockedDecisionError{ID: id, Origin: rec.Origin}
 		}
 	}
 	rec.DecidedAt = time.Now().UTC().Format(time.RFC3339)
@@ -179,5 +251,17 @@ func DecideSiteItem(ctx context.Context, db *sql.DB, profile, id string, approve
 		return it, &SubmitStateError{ID: id, Status: "decided", Profile: profile}
 	}
 	it.Status = to
+	if approve {
+		// A block added meanwhile wins: no allow rule then.
+		if _, err := UpdatePermissions(db, func(p *Permissions) error {
+			if p.Blocked(rec.Origin) {
+				return nil
+			}
+			_, _, err := p.SetSite(rec.Origin, RuleAllow)
+			return err
+		}); err != nil {
+			return it, err
+		}
+	}
 	return it, nil
 }

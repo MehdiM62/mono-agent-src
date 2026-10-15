@@ -115,28 +115,22 @@ func newBrowserPermissionsCmd(cfg *globalConfig) *cobra.Command {
 	return cmd
 }
 
-// withPermissions loads the permissions, applies change (nil: none) and
-// saves, then hands them to done.
+// withPermissions applies change (nil: none) to the permissions
+// atomically (browserctl.UpdatePermissions), then hands them to done.
 func withPermissions(cfg *globalConfig, change func(*browserctl.Permissions) error, done func(browserctl.Permissions) error) error {
 	db, err := initDB(cfg)
 	if err != nil {
 		return fmt.Errorf("initializing database: %w", err)
 	}
 	defer db.Close()
-	p, err := browserctl.LoadPermissions(db.DB)
+	var p browserctl.Permissions
+	if change == nil {
+		p, err = browserctl.LoadPermissions(db.DB)
+	} else {
+		p, err = browserctl.UpdatePermissions(db.DB, change)
+	}
 	if err != nil {
 		return err
-	}
-	if change != nil {
-		if err := change(&p); err != nil {
-			return err
-		}
-		if err := browserctl.SavePermissions(db.DB, p); err != nil {
-			return err
-		}
-		if p, err = browserctl.LoadPermissions(db.DB); err != nil {
-			return err
-		}
 	}
 	return done(p)
 }

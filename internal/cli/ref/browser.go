@@ -173,6 +173,10 @@ ERRORS AN AGENT ACTS ON (exit 3; --json prints {"error","code"})
   origin_not_allowed   not local and no allow rule (dev)
   site_needs_approval  {hil_id}: the user is asked to allow this site (ask);
                        wait for the decision, then retry
+  site_rejected        the user said no to this site in the last 10 minutes;
+                       don't ask again, tell the user if the task needs it
+  site_asks_full       20 site approvals already wait for the user; ask them
+                       to answer those first
   eval_not_allowed     browser eval on a page that is not local
   origin_changed       the tab left the page the command was checked for (a
                        redirect, a script, the user); nothing ran. See where it
