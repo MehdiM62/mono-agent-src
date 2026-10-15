@@ -23,7 +23,8 @@ var mustBeGlobal = []string{
 	"api config show", "action template list", "automation install", "automation trust",
 	"automation test", "automation new", "extension status", "library status", "library login",
 	"workflow templates list", "secret keyring status", "coder status", "daemon install",
-	"account status", "ref commands", "init", "nodejs status", "db migrate", "integration list",
+	"account status", "ref commands", "init", "nodejs status", "db migrate", "integration list", "chat history reconcile",
+	"secret encrypt-connections",
 }
 
 var mustBeScoped = []string{

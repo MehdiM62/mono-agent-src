@@ -63,6 +63,11 @@ var classes = map[string]string{
 
 	"secret keyring": ClassGlobal, "secret encrypt-connections": ClassGlobal,
 
+	// chat history reconcile is deliberately cross-profile: it interrupts the
+	// active turns of EVERY profile (the desktop app runs it at startup with no
+	// profile). Its siblings (list, show, turns, ...) stay scoped.
+	"chat history reconcile": ClassGlobal,
+
 	"coder status": ClassGlobal, "coder enable": ClassGlobal, "coder disable": ClassGlobal, "coder set": ClassGlobal,
 
 	"daemon install": ClassGlobal, "daemon uninstall": ClassGlobal, "daemon restart": ClassGlobal,
