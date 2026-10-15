@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { AlertTriangle } from 'lucide-react'
 import { api } from '../../services/api.js'
 import { ImageLightbox } from '../chat/ChatAttachments.jsx'
 
@@ -6,8 +7,8 @@ import { ImageLightbox } from '../chat/ChatAttachments.jsx'
 // is not local, held until a person approves it (then `monoagentcli browser
 // submit --hil <id>` sends it, once). readonly_data is {origin, url, form:
 // {action, method, fields: [{name, type, label, value}], submitter},
-// screenshot, requested_by}. Sensitive values arrive masked as "•••" and are
-// shown as they are.
+// screenshot, requested_by, asciiHost?}. Sensitive values arrive masked as
+// "•••" and are shown as they are.
 
 export const BROWSER_SUBMIT = 'browser.submit'
 
@@ -30,6 +31,26 @@ export function requesterParts(by) {
   if (by.agentId) parts.push(`agent ${by.agentId}`)
   if (by.conversationId) parts.push(`chat ${String(by.conversationId).slice(0, 8)}`)
   return parts
+}
+
+// AsciiHost is the look-alike check (plan C9): an item whose host has
+// non-ASCII characters carries asciiHost, its xn-- form, shown next to the
+// Unicode one, since such a host can imitate another site's name. Nothing
+// shows for an ASCII host.
+export function AsciiHost({ host }) {
+  if (!host) return null
+  return (
+    <div data-testid="ascii-host" style={{ marginTop: 4, fontSize: 11, lineHeight: 1.5 }}>
+      {/* No ligatures: "xn--" must not render as a dash. */}
+      <div style={{ fontFamily: mono, color: '#e2e8f0', fontVariantLigatures: 'none' }}>
+        <span style={{ color: 'var(--text-muted)' }}>ASCII form: </span>{host}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 5, color: '#fbbf24' }}>
+        <AlertTriangle size={11} style={{ flexShrink: 0, marginTop: 2 }} />
+        <span>Check the address: this site uses non-Latin characters, which can imitate another site&apos;s name.</span>
+      </div>
+    </div>
+  )
 }
 
 export function Section({ label, children }) {
@@ -84,6 +105,7 @@ export function BrowserSubmitDetails({ item }) {
       <Section label="Submits to">
         <div style={box}>
           <div style={{ color: '#e2e8f0', fontWeight: 600 }}>{ro.origin || 'an unknown origin'}</div>
+          <AsciiHost host={ro.asciiHost} />
           {ro.url && <div style={{ fontFamily: mono, fontSize: 11, marginTop: 2 }}>{ro.url}</div>}
           {(form.method || form.action) && (
             <div style={{ fontFamily: mono, fontSize: 11, marginTop: 4, color: 'var(--text-muted)' }}>

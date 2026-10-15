@@ -75,6 +75,26 @@ describe('browser submit approval card', () => {
     expect(screen.getByText('browser')).toBeInTheDocument()
   })
 
+  it('shows the ASCII form of a non-Latin host with a check-the-address hint, and nothing for an ASCII host', async () => {
+    const idn = structuredClone(fixture)
+    idn.readonly_data.origin = 'https://shоp.example.com'
+    idn.readonly_data.url = 'https://shоp.example.com/checkout?step=2'
+    idn.readonly_data.asciiHost = 'xn--shp-ted.example.com'
+    WailsApp.GetHILItems.mockResolvedValue([idn])
+    const { unmount } = render(<HumanInLoop />)
+    const card = await screen.findByTestId('browser-submit-details')
+    const check = within(card).getByTestId('ascii-host')
+    expect(check).toHaveTextContent('ASCII form: xn--shp-ted.example.com')
+    expect(check).toHaveTextContent('Check the address: this site uses non-Latin characters')
+    expect(within(card).getByText('https://shоp.example.com')).toBeInTheDocument()
+    unmount()
+
+    WailsApp.GetHILItems.mockResolvedValue([structuredClone(fixture)])
+    render(<HumanInLoop />)
+    await screen.findByTestId('browser-submit-details')
+    expect(screen.queryByTestId('ascii-host')).toBeNull()
+  })
+
   it('keeps Approve and Reject as they are', async () => {
     render(<HumanInLoop />)
     await screen.findByTestId('browser-submit-details')

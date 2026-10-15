@@ -48,6 +48,26 @@ describe('browser site approval card', () => {
     expect(screen.getByText('browser')).toBeInTheDocument()
   })
 
+  it('shows the ASCII form of a non-Latin host with a check-the-address hint, and nothing for an ASCII host', async () => {
+    const idn = structuredClone(fixture)
+    idn.readonly_data.origin = 'https://аpple.com'
+    idn.readonly_data.url = 'https://аpple.com/account'
+    idn.readonly_data.asciiHost = 'xn--pple-43d.com'
+    WailsApp.GetHILItems.mockResolvedValue([idn])
+    const { unmount } = render(<HumanInLoop />)
+    const card = await screen.findByTestId('browser-site-details')
+    expect(card).toHaveTextContent('A coder chat wants to use https://аpple.com')
+    const check = within(card).getByTestId('ascii-host')
+    expect(check).toHaveTextContent('ASCII form: xn--pple-43d.com')
+    expect(check).toHaveTextContent('Check the address: this site uses non-Latin characters')
+    unmount()
+
+    WailsApp.GetHILItems.mockResolvedValue([structuredClone(fixture)])
+    render(<HumanInLoop />)
+    expect(await screen.findByTestId('browser-site-details')).toBeInTheDocument()
+    expect(screen.queryByTestId('ascii-host')).toBeNull()
+  })
+
   it('Allow approves the item and Not now rejects it', async () => {
     render(<HumanInLoop />)
     await screen.findByTestId('browser-site-details')

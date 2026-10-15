@@ -1,8 +1,8 @@
-import { Section, box, requesterParts } from './BrowserSubmitDetails.jsx'
+import { AsciiHost, Section, box, requesterParts } from './BrowserSubmitDetails.jsx'
 
 // A browser site approval (plan C8): an agent whose kind is at "Ask per new
 // site" tried to use a site with no rule. readonly_data is {origin, url,
-// kind, requested_by}. Approving it (Allow) adds an allow rule for the
+// kind, requested_by, asciiHost?}. Approving it (Allow) adds an allow rule for the
 // origin, which every agent kind then honours; rejecting it (Not now) adds
 // nothing.
 
@@ -21,6 +21,7 @@ export function BrowserSiteDetails({ item }) {
     <div data-testid="browser-site-details" style={{ marginBottom: 20 }}>
       <div style={{ fontSize: 14, color: '#e2e8f0', marginBottom: 12, wordBreak: 'break-all' }}>
         {WHO[ro.kind] || 'An agent'} wants to use <strong>{ro.origin || 'a site'}</strong>
+        <AsciiHost host={ro.asciiHost} />
       </div>
       {ro.url && (
         <Section label="Page">
