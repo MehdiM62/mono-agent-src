@@ -209,3 +209,40 @@ Policy (agent context only; a human terminal is unrestricted):
 - Integrator: merge all branches, wire C7 glue, full `go test ./...`, an end-to-end run (coder turn screenshots a
   localhost page; extension queues a copy-style; Start runs it; form submit on an allowlisted origin raises a HIL item),
   reviewer pass (security-sensitive), one PR to master — merged only on the user's go (master auto-releases).
+
+## C8 — browser permissions in Settings (user request, 2026-10-15)
+
+User decisions: both "full" variants are levels; default is Dev pages + allowlist; set per agent kind, plus per-site rules.
+
+- **Levels** (ids): `full-no-approvals` (any site, submits go through, no guard), `full` (any site; a submit on a
+  non-local origin waits for HIL approval), `dev` (localhost/dev + sites with an allow rule; submits on allowed real
+  sites wait for approval — today's behaviour), `ask` (like `dev`, but a new site raises a HIL "allow this site?" item
+  instead of a refusal), `off` (agents of that kind can't use the browser at all).
+- **Kinds**: `coder` (coder chats + their dynorg workers), `org` (monomind org roles, org triggers), `chat` (in-app chat
+  and the workflow runs it starts), `other` (any other agent shell, e.g. a Claude Code or Codex session in a terminal).
+  A human terminal (no agent markers) is never restricted.
+- **Defaults**: coder `dev`, other `dev`, chat `full`, org `full` (chat/org keep what they have today through
+  browser.jev; the user can tighten them).
+- **Site rules** (all kinds): `allow` or `block`. `block` wins over every level (even full); `allow` matters for `dev`
+  and `ask`. Local/dev origins are always allowed except at `off`.
+- **Storage**: configs key `browser_agent_permissions` =
+  `{"levels":{"coder":"dev","org":"full","chat":"full","other":"dev"},"sites":[{"origin":"https://github.com","rule":"allow"}]}`;
+  missing kinds fall back to defaults. If the key is absent and `browser_agent_allowlist` exists, its entries seed
+  `sites` as `allow` (one-time, on first write).
+- **Kind detection** (`browserctl.AgentKind()`): agent shell (markers) → `coder` if `MONOAGENT_AGENT_KIND=coder` (set by
+  coder turns and dynorg workers), `org` if `MONOMIND_ORG_ROLE` is set or `MONOAGENT_AGENT_KIND=org`, else `other`.
+  A shell can never be `chat`. `chat` = a run marked `_ai_caller=chat` / `MONOAGENT_AI_CALLER=chat` with no shell
+  markers. browser.jev: shell → kind as above; `_ai_caller=chat` → chat; org trigger types → org; `_ai_caller=agent` → other.
+- **CLI** (machine-wide, profile-gate class global):
+  `browser permissions [--json]` → `{levels, sites, kinds:[{kind,label,level,isDefault}], catalog:[{id,label,description}],
+  you:{kind,level}}` (agents may read it);
+  `browser permissions set <kind> <level>`; `browser permissions site <origin> <allow|block|clear>` — both refused in
+  agent context. `browser allow add|remove|list` stay as aliases of site allow/clear/list.
+- **Errors (exit 3)**: `browser_off` ("browser access is off for coder chats — Settings → Browser permissions"),
+  `site_blocked`, `origin_not_allowed` (dev), `site_needs_approval` with `{hil_id}` (ask). HIL item kind `browser.site`
+  `{origin, url, kind, requested_by}`; `hil approve` (operator only) adds an `allow` rule; reject adds nothing; a
+  pending item for the same origin+kind is reused.
+- **GUI**: Settings → "Agent browser permissions" (`BrowserPermissionsSection.jsx`, next to BrowserBindingsSection):
+  one row per kind with a level picker (label + one-line description), the site-rules list (add origin, allow/block,
+  remove), all via `monoagentcli browser permissions … --json`. HIL page: a card for `browser.site` items
+  ("A coder chat wants to use https://x.com" — Allow / Not now).
