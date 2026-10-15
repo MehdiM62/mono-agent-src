@@ -10,7 +10,7 @@ import (
 	"github.com/monoes/mono-agent/internal/storage"
 )
 
-// In ModeEnforce the gate refuses a scoped command run without --profile
+// The gate enforces by default: it refuses a scoped command run without --profile
 // before any of its work, with the CLI's invalid-input exit code.
 func TestProfileGateEnforceEndToEnd(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
@@ -27,9 +27,9 @@ func TestProfileGateEnforceEndToEnd(t *testing.T) {
 	}
 	db.Close()
 
-	old := profileGateMode
-	profileGateMode = profilegate.ModeEnforce
-	t.Cleanup(func() { profileGateMode = old })
+	if profileGateMode != profilegate.ModeEnforce {
+		t.Fatal("the profile gate must enforce by default")
+	}
 
 	run := func(args ...string) (string, string, error) {
 		root := newRootCmd()
@@ -51,8 +51,30 @@ func TestProfileGateEnforceEndToEnd(t *testing.T) {
 	if out != "" {
 		t.Errorf("the refused command printed %q", out)
 	}
-	if _, _, err := run("config", "list"); err != nil {
-		t.Errorf("config list (global): %v", err)
+	// Global commands and the profile list need no profile.
+	for _, args := range [][]string{{"config", "list"}, {"version"}, {"agent", "scan"}, {"profile", "list"}, {"profile", "get", "work"}} {
+		if _, _, err := run(args...); err != nil {
+			t.Errorf("%v (global) without --profile: %v", args, err)
+		}
+	}
+	// There is no active profile: switch and current are gone, and profile list
+	// carries no "active" field.
+	for _, sub := range []string{"switch", "current"} {
+		if _, _, err := run("profile", sub, "work"); err == nil || !strings.Contains(err.Error(), "unknown command") {
+			t.Errorf("profile %s: %v, want an unknown-command error", sub, err)
+		}
+	}
+	if out, _, err := run("--json", "profile", "list"); err != nil || strings.Contains(out, `"active"`) {
+		t.Errorf("profile list --json: %v, %q", err, out)
+	}
+	// doctor runs the machine checks without a profile; the per-profile ones
+	// ask for --profile.
+	out, _, err = run("--json", "doctor", "--group", "core")
+	if err != nil && exitCodeFor(err) == 3 {
+		t.Errorf("doctor without --profile was refused: %v", err)
+	}
+	if !strings.Contains(out, "core.home") || !strings.Contains(out, "pass --profile") {
+		t.Errorf("doctor without --profile: want the machine checks and a skipped profile check, got %q", out)
 	}
 	if _, _, err := run("people"); err != nil {
 		t.Errorf("bare people (help): %v", err)
