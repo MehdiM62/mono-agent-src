@@ -28,7 +28,7 @@ func TestEveryDoorRefusesWhenLockedAndOpensWhenSignedIn(t *testing.T) {
 	_, hb := r.heartbeatAccount()
 	hb.is(t, "locked", true, false)
 	r.health(api).is(t, "locked", true, false)
-	if a := probe(t, "GET", api+"/workflows", ""); a.code != 401 || !strings.Contains(a.body, `"login_required"`) || a.header.Get("WWW-Authenticate") != "" {
+	if a := probe(t, "GET", api+"/profiles/default/workflows", ""); a.code != 401 || !strings.Contains(a.body, `"login_required"`) || a.header.Get("WWW-Authenticate") != "" {
 		t.Errorf("the HTTP API door, locked: %d %s", a.code, a.body)
 	}
 	if a := probe(t, "GET", api+"/v1/models", ""); a.code != 401 || !strings.Contains(a.body, `"code":"login_required"`) {
@@ -48,7 +48,7 @@ func TestEveryDoorRefusesWhenLockedAndOpensWhenSignedIn(t *testing.T) {
 	} else {
 		reply.Data.Account.is(t, "locked", true, false)
 	}
-	if text, isErr := mcp.try("workflow_list", map[string]any{}); !isErr || text != loginLine {
+	if text, isErr := mcp.try("workflow_list", map[string]any{"profile": "default"}); !isErr || text != loginLine {
 		t.Errorf("the MCP door, locked: %v %q", isErr, text)
 	}
 	if res := mcp.call("tools/list", map[string]any{}); res["tools"] == nil {
@@ -58,8 +58,8 @@ func TestEveryDoorRefusesWhenLockedAndOpensWhenSignedIn(t *testing.T) {
 	// Signed in: no restart, each door sees the session within its poll interval.
 	r.signIn()
 	open := func(what string, ok func() bool) { r.waitFor(what+" to open", 60*time.Second, ok) }
-	open("the HTTP API", func() bool { return probe(t, "GET", api+"/workflows", "").header.Get("WWW-Authenticate") != "" })
-	if a := probe(t, "GET", api+"/workflows", ""); a.code != 401 || !strings.Contains(a.body, "missing or invalid bearer credential") {
+	open("the HTTP API", func() bool { return probe(t, "GET", api+"/profiles/default/workflows", "").header.Get("WWW-Authenticate") != "" })
+	if a := probe(t, "GET", api+"/profiles/default/workflows", ""); a.code != 401 || !strings.Contains(a.body, "missing or invalid bearer credential") {
 		t.Errorf("the HTTP API door, signed in: %d %s", a.code, a.body)
 	}
 	if a := probe(t, "GET", api+"/v1/models", ""); a.code != 401 || !strings.Contains(a.body, "invalid_api_key") {
@@ -77,7 +77,7 @@ func TestEveryDoorRefusesWhenLockedAndOpensWhenSignedIn(t *testing.T) {
 	} else {
 		reply.Data.Account.is(t, "ok", true, true)
 	}
-	open("MCP", func() bool { _, isErr := mcp.try("workflow_list", map[string]any{}); return !isErr })
+	open("MCP", func() bool { _, isErr := mcp.try("workflow_list", map[string]any{"profile": "default"}); return !isErr })
 	open("the heartbeat", func() bool { return r.accountState() == "ok" })
 	_, hb = r.heartbeatAccount()
 	hb.is(t, "ok", true, true)
