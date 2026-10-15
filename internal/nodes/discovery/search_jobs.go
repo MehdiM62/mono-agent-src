@@ -10,6 +10,7 @@ import (
 	"github.com/monoes/mono-agent/internal/applications"
 	"github.com/monoes/mono-agent/internal/discovery"
 	"github.com/monoes/mono-agent/internal/discoveryregistry"
+	"github.com/monoes/mono-agent/internal/nodes/nodeprofile"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -55,7 +56,10 @@ func (n *SearchJobsNode) Execute(ctx context.Context, input workflow.NodeInput, 
 	if !ok {
 		return nil, fmt.Errorf("discovery.search_jobs: unknown source %q (available: %v)", sourceName, discoveryregistry.Names())
 	}
-	profileID := configString(config, "profile_id", "default")
+	profileID, err := nodeprofile.Require(ctx, "discovery.search_jobs", config)
+	if err != nil {
+		return nil, err
+	}
 	location := configString(config, "location", "")
 	limit := 25
 	if v, ok := config["limit"].(float64); ok && v > 0 {

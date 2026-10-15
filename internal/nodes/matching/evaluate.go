@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/monoes/mono-agent/internal/matching"
+	"github.com/monoes/mono-agent/internal/nodes/nodeprofile"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -44,9 +45,9 @@ func (n *EvaluateNode) Execute(ctx context.Context, input workflow.NodeInput, co
 	if runtime == "" {
 		runtime = "claude"
 	}
-	profileID, _ := config["profile_id"].(string)
-	if profileID == "" {
-		profileID = "default"
+	profileID, err := nodeprofile.Require(ctx, "applications.evaluate", config)
+	if err != nil {
+		return nil, err
 	}
 
 	verdict, err := matching.Evaluate(ctx, globalDB, profileID, applicationID, runtime)

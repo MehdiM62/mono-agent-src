@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/monoes/mono-agent/internal/applications"
+	"github.com/monoes/mono-agent/internal/nodes/nodeprofile"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -40,7 +41,10 @@ func (n *SetStatusNode) Execute(ctx context.Context, input workflow.NodeInput, c
 	if applications.Status(status) == applications.StatusApplied {
 		return nil, fmt.Errorf("applications.set_status: \"applied\" is not a valid target here -- use the `application send` CLI command, which requires an explicit human action")
 	}
-	profileID := configString(config, "profile_id", "default")
+	profileID, err := nodeprofile.Require(ctx, "applications.set_status", config)
+	if err != nil {
+		return nil, err
+	}
 	actor := applications.Actor(configString(config, "actor", string(applications.ActorSystem)))
 	note := configString(config, "note", "")
 
