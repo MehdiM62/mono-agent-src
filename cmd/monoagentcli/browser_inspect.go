@@ -244,7 +244,10 @@ func newBrowserPickCmd(cfg *globalConfig) *cobra.Command {
 				}
 				return err
 			}
-			res := map[string]any{"selector": pickSelector(fp), "tag": fp.Tag, "text": fp.Text, "rect": fp.Rect, "screenshot": ""}
+			res := map[string]any{"selector": pickSelector(fp), "tag": fp.Tag, "text": fp.Text, "rect": nil, "screenshot": ""}
+			if r := fp.Rect; r != nil {
+				res["rect"] = map[string]float64{"x": r.X, "y": r.Y, "width": r.W, "height": r.H}
+			}
 			if sel := pickSelector(fp); sel != "" {
 				if shot, err := r.s.Screenshot(browserctl.ScreenshotOptions{Mode: "element", Selector: sel}); err == nil {
 					out := ""
