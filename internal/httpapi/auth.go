@@ -57,15 +57,23 @@ func (s *Server) profileAuth(h http.HandlerFunc) http.Handler {
 			return
 		}
 		if len(candidates) == 0 {
-			// Spend the comparison a real profile would cost, so the answer
-			// does not differ in what it computes.
+			// Do the work a real profile with a wrong token costs: the same
+			// token-store read (listing the vault and decrypting the token of an
+			// existing profile, which is discarded) and the same comparison, so
+			// the latency does not tell unknown from wrong.
+			if ids, err := allProfileIDs(ctx, s.rt.db.DB); err == nil && len(ids) > 0 {
+				_, _ = s.readToken(ctx, ids[0])
+			}
 			constantTimeEqual(got, s.decoyToken)
 			writeUnauthorized(w)
 			return
 		}
 		var matched []string
 		for _, id := range candidates {
-			want, err := ensureToken(ctx, s.rt.db.DB, id)
+			want, err := s.readToken(ctx, id)
+			if err == nil && want == "" {
+				want, err = ensureToken(ctx, s.rt.db.DB, id)
+			}
 			if err != nil {
 				writeError(w, http.StatusInternalServerError, "resolve bearer credential: "+err.Error())
 				return
@@ -108,7 +116,7 @@ func (s *Server) anyProfileAuth(h http.HandlerFunc) http.Handler {
 		}
 		ok := constantTimeEqual(got, s.decoyToken) // false; keeps the work up when there are no tokens
 		for _, id := range ids {                   // every token is compared: no early exit
-			want, err := existingToken(r.Context(), s.rt.db.DB, id)
+			want, err := s.readToken(r.Context(), id)
 			if err != nil {
 				writeError(w, http.StatusInternalServerError, "resolve bearer credential: "+err.Error())
 				return

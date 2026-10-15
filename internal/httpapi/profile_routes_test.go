@@ -1,8 +1,10 @@
 package httpapi
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -235,6 +237,51 @@ func TestTokenComparisonIsExact(t *testing.T) {
 		if constantTimeEqual(tok, other) {
 			t.Errorf("%q accepted as %q", other, tok)
 		}
+	}
+}
+
+// An unknown profile does the token-store work a real profile with a wrong
+// token does: the same number of vault reads (counted through the seam, not
+// timed), so latency cannot tell the two apart.
+func TestUnknownProfileDoesTheSameTokenReadsAsAWrongToken(t *testing.T) {
+	s := newTestServer(t, false)
+	addProfile(t, s, "other", "Other")
+	testToken(t, s, "default")
+	testToken(t, s, "other")
+
+	var reads int
+	real := s.readToken
+	s.readToken = func(ctx context.Context, id string) (string, error) {
+		reads++
+		return real(ctx, id)
+	}
+	count := func(path string) int {
+		reads = 0
+		wantUnauthorized(t, path, doReq(t, s, "GET", path, "wrong-token", nil))
+		return reads
+	}
+	wrong := count("/profiles/other/workflows")
+	unknown := count("/profiles/ghost/workflows")
+	if wrong == 0 || unknown != wrong {
+		t.Errorf("token reads: wrong token %d, unknown profile %d; want equal and non-zero", wrong, unknown)
+	}
+}
+
+// The standalone server says once, at start, that other profiles' webhook
+// triggers are the daemon's.
+func TestStandaloneServeWarnsAboutWebhookTriggers(t *testing.T) {
+	s := newTestServer(t, false)
+	var out bytes.Buffer
+	s.warnOut = &out
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_ = s.Serve(ctx, ln)
+	if got := out.String(); strings.Count(got, "\n") != 1 || !strings.Contains(got, "webhook") || !strings.Contains(got, "daemon") {
+		t.Errorf("warning = %q, want one line naming webhook triggers and the daemon", got)
 	}
 }
 

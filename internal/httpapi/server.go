@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"io"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -37,6 +38,11 @@ type Server struct {
 	// decoyToken is compared against when no profile matches the request, so
 	// an unknown profile costs what a wrong token for a real one does.
 	decoyToken string
+	// readToken reads a profile's token from the vault without creating one
+	// ("" when it has none). A field so that a test can count the reads.
+	readToken func(ctx context.Context, profileID string) (string, error)
+	// warnOut receives the start-up warning (default stderr).
+	warnOut io.Writer
 }
 
 // NewServer builds a Server. The runtime (DB, profile, engine) is bootstrapped
@@ -57,7 +63,10 @@ func NewServer(opts Options) (*Server, error) {
 		rt.Close()
 		return nil, fmt.Errorf("httpapi: %w", err)
 	}
-	s := &Server{opts: opts, addr: opts.Addr, rt: rt, decoyToken: decoy}
+	s := &Server{opts: opts, addr: opts.Addr, rt: rt, decoyToken: decoy, warnOut: os.Stderr}
+	s.readToken = func(ctx context.Context, profileID string) (string, error) {
+		return existingToken(ctx, s.rt.db.DB, profileID)
+	}
 	s.mux = s.routes()
 	s.handler = accountGate(s.mux)
 	return s, nil
@@ -105,6 +114,10 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 // gracefully shuts down.
 func (s *Server) Serve(ctx context.Context, ln net.Listener) error {
 	s.ensureTokens(ctx)
+	if !s.rt.hosted {
+		fmt.Fprintln(s.warnOut, "warning: this standalone HTTP API starts one engine per profile, but the webhook port is bound by only one of them: "+
+			"other profiles' webhook triggers are served only by `monoagentcli daemon`")
+	}
 	httpSrv := &http.Server{
 		Handler:      s.handler,
 		ReadTimeout:  30 * time.Second,
