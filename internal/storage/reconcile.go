@@ -249,9 +249,10 @@ func (d *Database) reconcileProfilesIcon(ctx context.Context) error {
 
 // legacyOwnerTables are the tables migration 099 cannot stamp in SQL because
 // their profile_id column may not exist yet when it runs: vault_keys (the
-// per-profile shape is created by reconcile) and ai_chat_messages (profile_id
-// is added by reconcileAddedColumns).
-var legacyOwnerTables = []string{"vault_keys", "ai_chat_messages"}
+// per-profile shape is created by reconcile). ai_chat_messages is deliberately
+// absent: its profile_id ” is a sentinel for ambiguous legacy global-assistant
+// chats that must never be returned to any profile (see ai.AIStore).
+var legacyOwnerTables = []string{"vault_keys"}
 
 // reconcileLegacyOwners gives a legacyOwnerTables row with a NULL or empty
 // profile_id the same owner migration 099 gives every other legacy row: the

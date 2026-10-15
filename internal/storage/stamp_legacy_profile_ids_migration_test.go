@@ -207,9 +207,11 @@ func TestApplyMigration099_IdempotentAndDropsTheExpressionIndex(t *testing.T) {
 	}
 }
 
-// vault_keys (the one nullable profile_id) and ai_chat_messages are stamped by
-// ReconcileSchema, not the SQL file, which a drifted database could abort.
-func TestReconcileStampsOwnerlessVaultKeyAndChatMessages(t *testing.T) {
+// vault_keys (the one nullable profile_id) is stamped by ReconcileSchema, not
+// the SQL file, which a drifted database could abort. ai_chat_messages rows
+// with profile_id ” are a deliberate sentinel (ambiguous legacy global
+// assistant chats, see ai.AIStore.GetChatHistory) and stay unowned.
+func TestReconcileStampsOwnerlessVaultKeyButNotChatMessages(t *testing.T) {
 	db, err := NewDatabase(filepath.Join(t.TempDir(), "vk.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -236,12 +238,16 @@ func TestReconcileStampsOwnerlessVaultKeyAndChatMessages(t *testing.T) {
 	for _, q := range []string{
 		`SELECT COUNT(*) FROM vault_keys WHERE profile_id = 'oldest'`,
 		`SELECT COUNT(*) FROM vault_keys WHERE profile_id = 'newer'`,
-		`SELECT COUNT(*) FROM ai_chat_messages WHERE id = 'm1' AND profile_id = 'oldest'`,
+		`SELECT COUNT(*) FROM ai_chat_messages WHERE id = 'm1' AND profile_id = ''`,
 		`SELECT COUNT(*) FROM ai_chat_messages WHERE id = 'm2' AND profile_id = 'newer'`,
 	} {
 		var n int
 		if err := db.DB.QueryRow(q).Scan(&n); err != nil || n != 1 {
 			t.Errorf("%s: n=%d err=%v, want 1", q, n, err)
 		}
+	}
+	var stolen int
+	if err := db.DB.QueryRow(`SELECT COUNT(*) FROM ai_chat_messages WHERE profile_id = 'oldest'`).Scan(&stolen); err != nil || stolen != 0 {
+		t.Errorf("ambiguous chat rows were handed to a profile: n=%d err=%v", stolen, err)
 	}
 }

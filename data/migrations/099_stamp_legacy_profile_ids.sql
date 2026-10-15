@@ -12,10 +12,11 @@
 -- aborting the migration (and with it startup). Idempotent: a second run
 -- finds no NULL/'' rows.
 --
--- vault_keys (the only nullable profile_id) and ai_chat_messages are not
--- stamped here: their profile_id column may not exist yet (a singleton-shape
--- vault_keys, a pre-095 ai_chat_messages), which would abort this file.
--- ReconcileSchema stamps them in Go once the column exists.
+-- vault_keys (the only nullable profile_id) is not stamped here: its
+-- profile_id column may not exist yet (a singleton-shape vault_keys), which
+-- would abort this file. ReconcileSchema stamps it in Go once the column
+-- exists. ai_chat_messages is never stamped: profile_id '' is a deliberate
+-- sentinel for ambiguous legacy chats that no profile may read.
 
 UPDATE OR IGNORE agent_usage SET profile_id = (SELECT id FROM profiles ORDER BY (id = 'default') DESC, created_at ASC, id ASC LIMIT 1) WHERE (profile_id IS NULL OR profile_id = '') AND EXISTS (SELECT 1 FROM profiles);
 UPDATE OR IGNORE applications SET profile_id = (SELECT id FROM profiles ORDER BY (id = 'default') DESC, created_at ASC, id ASC LIMIT 1) WHERE (profile_id IS NULL OR profile_id = '') AND EXISTS (SELECT 1 FROM profiles);
