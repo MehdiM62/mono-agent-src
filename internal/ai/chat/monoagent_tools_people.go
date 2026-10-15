@@ -91,7 +91,7 @@ func (mt *MonoagentTools) getPerson(args string) (string, error) {
 		        COALESCE(following_count,0), COALESCE(introduction,''), COALESCE(is_verified,0), COALESCE(category,''), COALESCE(job_title,''),
 		        COALESCE(headline,''), COALESCE(location,''), COALESCE(about,''), COALESCE(experience,''), COALESCE(education,''),
 		        COALESCE(profile_details,'')
-		 FROM people WHERE id = ?`, a.PersonID,
+		 FROM people WHERE id = ? AND profile_id = ?`, a.PersonID, mt.ProfileID(),
 	).Scan(&id, &username, &platform, &fullName, &imageURL, &contact, &website, &contentCount, &followerCount,
 		&followingCount, &intro, &isVerified, &category, &jobTitle,
 		&headline, &location, &about, &experience, &education, &details); err != nil {
@@ -151,8 +151,8 @@ func (mt *MonoagentTools) upsertPerson(args string) (string, error) {
 		return "", fmt.Errorf("lookup person: %w", err)
 	default:
 		if _, err := mt.db.Exec(
-			`UPDATE people SET full_name = ?, category = ?, job_title = ?, introduction = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-			a.FullName, a.Category, a.JobTitle, a.Introduction, id); err != nil {
+			`UPDATE people SET full_name = ?, category = ?, job_title = ?, introduction = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND profile_id = ?`,
+			a.FullName, a.Category, a.JobTitle, a.Introduction, id, mt.ProfileID()); err != nil {
 			return "", fmt.Errorf("update person: %w", err)
 		}
 	}
@@ -179,7 +179,7 @@ func (mt *MonoagentTools) deletePerson(args string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("snapshot before delete: %w", err)
 	}
-	if _, err := mt.db.Exec(`DELETE FROM people WHERE id = ?`, a.PersonID); err != nil {
+	if _, err := mt.db.Exec(`DELETE FROM people WHERE id = ? AND profile_id = ?`, a.PersonID, mt.ProfileID()); err != nil {
 		return "", fmt.Errorf("delete person: %w", err)
 	}
 	return marshalJSON(map[string]interface{}{"deleted_person_id": a.PersonID, "backup_path": backupPath})
