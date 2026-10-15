@@ -291,7 +291,7 @@ func (mt *MonoagentTools) restrictFileWriteForOrgs() bool {
 func (mt *MonoagentTools) checkWorkflowOwnership(workflowID string) error {
 	var exists int
 	err := mt.db.QueryRow(
-		`SELECT 1 FROM workflows WHERE id = ? AND COALESCE(profile_id,'default') = ?`,
+		`SELECT 1 FROM workflows WHERE id = ? AND profile_id = ?`,
 		workflowID, mt.ProfileID(),
 	).Scan(&exists)
 	if err == sql.ErrNoRows {
@@ -306,7 +306,7 @@ func (mt *MonoagentTools) checkWorkflowOwnership(workflowID string) error {
 func (mt *MonoagentTools) checkPersonOwnership(personID string) error {
 	var exists int
 	err := mt.db.QueryRow(
-		`SELECT 1 FROM people WHERE id = ? AND COALESCE(profile_id,'default') = ?`,
+		`SELECT 1 FROM people WHERE id = ? AND profile_id = ?`,
 		personID, mt.ProfileID(),
 	).Scan(&exists)
 	if err == sql.ErrNoRows {

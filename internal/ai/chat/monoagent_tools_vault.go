@@ -49,7 +49,7 @@ func (mt *MonoagentTools) listVaultItems(args string) (string, error) {
 	}
 	rows, err := mt.db.Query(
 		`SELECT id, filename, size_bytes, source, COALESCE(label,''), created_at
-		 FROM vault_images WHERE COALESCE(profile_id,'default') = ? ORDER BY seq DESC LIMIT ?`,
+		 FROM vault_images WHERE profile_id = ? ORDER BY seq DESC LIMIT ?`,
 		mt.ProfileID(), limit)
 	if err != nil {
 		return "", fmt.Errorf("query vault items: %w", err)

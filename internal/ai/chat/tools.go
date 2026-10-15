@@ -55,7 +55,7 @@ func (ct *CanvasTools) checkWorkflowOwnership(workflowID string) error {
 	}
 	var exists int
 	err := ct.db.QueryRow(
-		`SELECT 1 FROM workflows WHERE id = ? AND COALESCE(profile_id,'default') = ?`,
+		`SELECT 1 FROM workflows WHERE id = ? AND profile_id = ?`,
 		workflowID, ct.ProfileID(),
 	).Scan(&exists)
 	if err == sql.ErrNoRows {
