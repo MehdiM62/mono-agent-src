@@ -73,7 +73,10 @@ type WorkflowStore interface {
 	// Workflows
 	CreateWorkflow(ctx context.Context, w *Workflow) error
 	GetWorkflow(ctx context.Context, id string) (*Workflow, error)
+	// ListWorkflows lists one profile's workflows; an empty profileID is
+	// ErrNoProfile. ListAllProfilesWorkflows is the explicit "every profile".
 	ListWorkflows(ctx context.Context, profileID string) ([]Workflow, error)
+	ListAllProfilesWorkflows(ctx context.Context) ([]Workflow, error)
 	UpdateWorkflow(ctx context.Context, w *Workflow) error
 	DeleteWorkflow(ctx context.Context, id string) error
 	SetWorkflowActive(ctx context.Context, id string, active bool) error

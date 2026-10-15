@@ -205,6 +205,7 @@ func TestEngine_AdoptsUnownedQueuedExecution(t *testing.T) {
 
 	// The --no-wait artifact: an unowned QUEUED row (pid 0, never dispatched).
 	adopted := &WorkflowExecution{
+		ProfileID:   "default",
 		WorkflowID:  wfID,
 		Status:      "QUEUED",
 		TriggerType: "trigger.manual",
@@ -250,6 +251,7 @@ func TestEngine_AdoptionRunsExactlyOnce_TwoEngines(t *testing.T) {
 	wfID := createActiveManualWorkflow(t, ctx, eng1, "test.count.atomic")
 
 	orphan := &WorkflowExecution{
+		ProfileID:   "default",
 		WorkflowID:  wfID,
 		Status:      "QUEUED",
 		TriggerType: "trigger.manual",
@@ -282,18 +284,17 @@ func TestEngine_AdoptionRunsExactlyOnce_TwoEngines(t *testing.T) {
 // for most of those workflows.
 func TestExecutionProfileID(t *testing.T) {
 	cases := []struct {
-		name            string
-		wf              *Workflow
-		engineProfileID string
-		want            string
+		name string
+		wf   *Workflow
+		want string
 	}{
-		{"workflow has its own profile", &Workflow{ID: "wf-1", ProfileID: "halansari"}, "default", "halansari"},
-		{"workflow profile differs from engine's", &Workflow{ID: "wf-2", ProfileID: "monoes"}, "halansari", "monoes"},
-		{"legacy workflow with no profile falls back to engine's", &Workflow{ID: "wf-3", ProfileID: ""}, "default", "default"},
-		{"nil workflow falls back to engine's", nil, "edge", "edge"},
+		{"workflow has its own profile", &Workflow{ID: "wf-1", ProfileID: "halansari"}, "halansari"},
+		{"another workflow, another profile", &Workflow{ID: "wf-2", ProfileID: "monoes"}, "monoes"},
+		{"workflow with no profile yields none (CreateExecution refuses it)", &Workflow{ID: "wf-3", ProfileID: ""}, ""},
+		{"nil workflow yields none", nil, ""},
 	}
 	for _, tc := range cases {
-		if got := executionProfileID(tc.wf, tc.engineProfileID); got != tc.want {
+		if got := executionProfileID(tc.wf); got != tc.want {
 			t.Errorf("%s: executionProfileID() = %q, want %q", tc.name, got, tc.want)
 		}
 	}

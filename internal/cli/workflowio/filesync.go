@@ -5,10 +5,12 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/monoes/mono-agent/internal/storage"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -26,6 +28,9 @@ const SyncMarkerName = "workflows-sqlite-sync.json"
 // workflow in SQLite is skipped (an upsert would move them) and retried on
 // the next call. Returns the ids synced.
 func SyncFileWorkflowsToSQL(ctx context.Context, db *sql.DB, dir string) ([]string, error) {
+	if err := StampFileWorkflows(ctx, db, dir); err != nil {
+		return nil, err
+	}
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -78,6 +83,23 @@ func SyncFileWorkflowsToSQL(ctx context.Context, db *sql.DB, dir string) ([]stri
 		}
 	}
 	return synced, nil
+}
+
+// StampFileWorkflows gives workflow files that carry no profile_id the owner
+// migration 099 gives ownerless database rows: the profile 'default' if it
+// exists, else the oldest. It runs ahead of every file-to-SQLite sync (the
+// point the CLI opens its workflow store), is idempotent, and does nothing
+// when there are no profiles or no files to fix.
+func StampFileWorkflows(ctx context.Context, db *sql.DB, dir string) error {
+	owner, err := (&storage.Database{DB: db}).LegacyOwnerProfile(ctx)
+	if err != nil || owner == "" {
+		return err
+	}
+	stamped, err := workflow.StampFileWorkflowProfiles(dir, owner)
+	if len(stamped) > 0 {
+		log.Printf("workflow files: gave %d workflow(s) with no profile to profile %q", len(stamped), owner)
+	}
+	return err
 }
 
 func syncOneWorkflowToSQL(ctx context.Context, db *sql.DB, s *workflow.SQLiteWorkflowStore, wf *workflow.Workflow) error {

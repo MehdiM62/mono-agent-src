@@ -78,15 +78,23 @@ func toolWorkflowGet(ctx context.Context, s *Server, args json.RawMessage) (inte
 	if err != nil {
 		return nil, fmt.Errorf("get workflow: %w", err)
 	}
-	if wf == nil || crossProfile(wf.ProfileID, profileOf(ctx)) {
+	if wf == nil || !workflowOwned(wf, profileOf(ctx)) {
 		return nil, fmt.Errorf("workflow %q not found", a.ID)
 	}
 	return wf, nil
 }
 
-// crossProfile reports whether a record's owning profile (empty means
-// unscoped/legacy, and is always considered in-profile) differs from the
-// active profile. A cross-profile lookup is surfaced as "not found" by
+// workflowOwned is workflow.OwnedBy for workflows: a workflow with no profile,
+// or a call with none, is owned by nobody (read as "not found" by every
+// caller here).
+func workflowOwned(wf *workflow.Workflow, profileID string) bool {
+	ok, _ := workflow.OwnedBy(wf, profileID)
+	return ok
+}
+
+// crossProfile reports whether a non-workflow record's owning profile (empty
+// means unscoped/legacy, and is considered in-profile) differs from the
+// active profile. Workflows use workflowOwned. A cross-profile lookup is surfaced as "not found" by
 // every caller here, matching internal/httpapi/handlers.go's
 // handleWorkflowGet/handleWorkflowExecutions and
 // internal/workflow/engine.go's checkWorkflowProfile — never a
@@ -106,7 +114,7 @@ func (rt *runtime) listWorkflows(ctx context.Context, profileID string) ([]workf
 	}
 	out := all[:0:0]
 	for _, wf := range all {
-		if !crossProfile(wf.ProfileID, profileID) {
+		if workflowOwned(&wf, profileID) {
 			out = append(out, wf)
 		}
 	}
@@ -149,7 +157,7 @@ func toolWorkflowValidate(ctx context.Context, s *Server, args json.RawMessage) 
 		if err != nil {
 			return nil, fmt.Errorf("get workflow: %w", err)
 		}
-		if loaded == nil || crossProfile(loaded.ProfileID, profileOf(ctx)) {
+		if loaded == nil || !workflowOwned(loaded, profileOf(ctx)) {
 			return nil, fmt.Errorf("workflow %q not found", a.ID)
 		}
 		wf = *loaded
@@ -209,7 +217,7 @@ func toolWorkflowRun(ctx context.Context, s *Server, args json.RawMessage) (inte
 	}
 	// Another profile's workflow is not found, as for workflow_get: the engine of this
 	// profile would refuse it too, but with a message that says the workflow exists.
-	if owned, gerr := rt.store.GetWorkflow(ctx, a.ID); gerr == nil && owned != nil && crossProfile(owned.ProfileID, profileOf(ctx)) {
+	if owned, gerr := rt.store.GetWorkflow(ctx, a.ID); gerr == nil && owned != nil && !workflowOwned(owned, profileOf(ctx)) {
 		return nil, fmt.Errorf("workflow %q not found", a.ID)
 	}
 	engine, err := rt.ensureEngine(ctx, profileOf(ctx))

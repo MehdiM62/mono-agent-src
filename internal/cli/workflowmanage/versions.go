@@ -250,7 +250,7 @@ func (d Deps) lookupVersion(ctx context.Context, store *workflow.HybridWorkflowS
 // where versions live.
 func profileWorkflowIDs(ctx context.Context, db *storage.Database, profileID string) ([]string, error) {
 	rows, err := db.DB.QueryContext(ctx,
-		`SELECT id FROM workflows WHERE COALESCE(profile_id, 'default') = ?`, profileID)
+		`SELECT id FROM workflows WHERE profile_id = ?`, profileID)
 	if err != nil {
 		return nil, fmt.Errorf("list workflows: %w", err)
 	}

@@ -257,7 +257,7 @@ func (s *runMemorySource) columnExists(ctx context.Context, table, column string
 }
 
 func (s *runMemorySource) FinishedSince(ctx context.Context, since time.Time) ([]monomind.FinishedRun, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT workflow_id, COALESCE(profile_id,'default'), MAX(`+finishedJulian+`)
+	rows, err := s.db.QueryContext(ctx, `SELECT workflow_id, profile_id, MAX(`+finishedJulian+`)
 		FROM workflow_executions
 		WHERE finished_at IS NOT NULL AND status IN `+runMemoryTerminal+` AND `+finishedJulian+` >= julianday(?)
 		GROUP BY workflow_id, profile_id`, since.UTC().Format("2006-01-02 15:04:05"))

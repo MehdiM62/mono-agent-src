@@ -121,21 +121,40 @@ func workflowContentHash(wf *workflow.Workflow) string {
 }
 
 // OwnedWorkflow returns the local workflow id if it exists and belongs to
-// profileID (a workflow with no SQLite row, or no profile, counts as ours).
+// profileID, else nil. The ownership rule is workflow.OwnedBy: an empty
+// profileID or a workflow with no profile owns nothing (CheckOwnedWorkflow
+// says why).
 func OwnedWorkflow(ctx context.Context, store *workflow.HybridWorkflowStore, db *sql.DB, profileID, id string) *workflow.Workflow {
+	wf, _ := CheckOwnedWorkflow(ctx, store, db, profileID, id)
+	return wf
+}
+
+// CheckOwnedWorkflow is OwnedWorkflow with the reason: (nil, nil) when the
+// workflow is absent or belongs to another profile, workflow.ErrNoProfile
+// for an empty profileID, and workflow.ErrLegacyWorkflowNoProfile for a
+// workflow that carries no profile.
+func CheckOwnedWorkflow(ctx context.Context, store *workflow.HybridWorkflowStore, db *sql.DB, profileID, id string) (*workflow.Workflow, error) {
+	if profileID == "" {
+		return nil, workflow.ErrNoProfile
+	}
 	if id == "" {
-		return nil
+		return nil, nil
 	}
 	wf, err := store.GetWorkflow(ctx, id)
 	if err != nil || wf == nil {
-		return nil
+		return nil, err
 	}
+	owned, err := workflow.OwnedBy(wf, profileID)
+	if err != nil || !owned {
+		return nil, err
+	}
+	// The SQLite row, when there is one, must agree with the file.
 	var owner string
 	_ = db.QueryRowContext(ctx, `SELECT profile_id FROM workflows WHERE id = ?`, id).Scan(&owner)
-	if owner != "" && profileID != "" && owner != profileID {
-		return nil
+	if owner != "" && owner != profileID {
+		return nil, nil
 	}
-	return wf
+	return wf, nil
 }
 
 // importMatch is what findImportTarget decided about an import.

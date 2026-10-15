@@ -153,7 +153,7 @@ func ownedWorkflow(ctx context.Context, rt *runtime, id string) (*workflow.Workf
 		return nil, fmt.Errorf("workflow_id is required")
 	}
 	wf, err := rt.store.GetWorkflow(ctx, id)
-	if err != nil || wf == nil || crossProfile(wf.ProfileID, profileOf(ctx)) {
+	if err != nil || wf == nil || !workflowOwned(wf, profileOf(ctx)) {
 		return nil, fmt.Errorf("workflow %q not found", id)
 	}
 	var owner string

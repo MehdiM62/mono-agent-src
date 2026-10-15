@@ -176,9 +176,6 @@ func randomSecret() string {
 }
 
 func workflowProfile(w *Workflow) string {
-	if w.ProfileID == "" {
-		return "default"
-	}
 	return w.ProfileID
 }
 

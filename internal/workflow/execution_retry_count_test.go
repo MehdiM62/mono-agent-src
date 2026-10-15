@@ -28,7 +28,7 @@ func TestRunExecution_RecordsRetryCount(t *testing.T) {
 	calls, fails := 0, 2
 	reg := NewNodeTypeRegistry()
 	reg.Register("test.flaky", func() NodeExecutor { return flakyNode{calls: &calls, fails: &fails} })
-	wf := &Workflow{ID: "wf-retry-count", Name: "retry count", Nodes: []WorkflowNode{
+	wf := &Workflow{ProfileID: "default", ID: "wf-retry-count", Name: "retry count", Nodes: []WorkflowNode{
 		{ID: "t", Type: "trigger.manual", Name: "T"},
 		{ID: "f", Type: "test.flaky", Name: "Flaky", Config: map[string]interface{}{
 			"retry_policy": map[string]interface{}{"max_retries": 3, "initial_delay": 0.001},
@@ -37,7 +37,7 @@ func TestRunExecution_RecordsRetryCount(t *testing.T) {
 	if err := store.CreateWorkflow(ctx, wf); err != nil {
 		t.Fatalf("create workflow: %v", err)
 	}
-	exec := &WorkflowExecution{ID: "e-retry-count", WorkflowID: wf.ID, Status: "RUNNING", TriggerType: "manual"}
+	exec := &WorkflowExecution{ProfileID: "default", ID: "e-retry-count", WorkflowID: wf.ID, Status: "RUNNING", TriggerType: "manual"}
 	if err := store.CreateExecution(ctx, exec); err != nil {
 		t.Fatalf("create execution: %v", err)
 	}

@@ -236,7 +236,7 @@ func (e *WorkflowEngine) runPrune(ctx context.Context) {
 	if account.Require(ctx) != nil {
 		return
 	}
-	workflows, err := e.store.ListWorkflows(ctx, e.profileID)
+	workflows, err := e.listEngineWorkflows(ctx)
 	if err != nil {
 		e.logger.Warn().Err(err).Msg("engine: prune: failed to list workflows")
 		return
@@ -256,7 +256,7 @@ func (e *WorkflowEngine) reregisterTriggers(ctx context.Context) error {
 	if e.triggersLocked() {
 		return nil
 	}
-	workflows, err := e.store.ListWorkflows(ctx, e.profileID)
+	workflows, err := e.listEngineWorkflows(ctx)
 	if err != nil {
 		return fmt.Errorf("list workflows: %w", err)
 	}
@@ -290,4 +290,14 @@ func (e *WorkflowEngine) reregisterTriggers(ctx context.Context) error {
 		}
 	}
 	return firstErr
+}
+
+// listEngineWorkflows lists the workflows this engine looks after: its own
+// profile's, or every profile's when it was built with AllowAllProfiles (the
+// daemon). An engine with neither fails with ErrNoProfile.
+func (e *WorkflowEngine) listEngineWorkflows(ctx context.Context) ([]Workflow, error) {
+	if e.allowAllProfiles {
+		return e.store.ListAllProfilesWorkflows(ctx)
+	}
+	return e.store.ListWorkflows(ctx, e.profileID)
 }

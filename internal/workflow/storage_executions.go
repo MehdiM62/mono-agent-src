@@ -31,7 +31,7 @@ func (s *SQLiteWorkflowStore) CreateExecution(ctx context.Context, e *WorkflowEx
 
 	profileID := e.ProfileID
 	if profileID == "" {
-		profileID = "default"
+		return fmt.Errorf("creating execution %s: %w", e.ID, ErrNoProfile)
 	}
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO workflow_executions
@@ -52,7 +52,7 @@ func (s *SQLiteWorkflowStore) GetExecution(ctx context.Context, id string) (*Wor
 	e := &WorkflowExecution{}
 	var createdAt sqliteTime
 	err := s.db.QueryRowContext(ctx, `
-		SELECT id, workflow_id, status, trigger_type, trigger_data, started_at, finished_at, COALESCE(error_message,''), created_at, COALESCE(resume_state,''), COALESCE(profile_id,'default'), COALESCE(trigger_node_id,''), COALESCE(error_class,'')
+		SELECT id, workflow_id, status, trigger_type, trigger_data, started_at, finished_at, COALESCE(error_message,''), created_at, COALESCE(resume_state,''), profile_id, COALESCE(trigger_node_id,''), COALESCE(error_class,'')
 		FROM workflow_executions WHERE id = ?`, id,
 	).Scan(
 		&e.ID, &e.WorkflowID, &e.Status, &e.TriggerType, &e.TriggerDataRaw,

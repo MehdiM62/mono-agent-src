@@ -28,7 +28,7 @@ func (e *WorkflowEngine) StartSubWorkflow(ctx context.Context, req SubWorkflowSt
 	}
 	profileID := vault.ProfileIDFromContext(ctx)
 	if profileID == "" {
-		profileID = "default"
+		return "", fmt.Errorf("sub-workflow: %w", ErrNoProfile)
 	}
 	wf, err := e.resolveSubWorkflow(ctx, req.Workflow, profileID)
 	if err != nil {
@@ -101,7 +101,11 @@ func (e *WorkflowEngine) resolveSubWorkflow(ctx context.Context, ref, profileID 
 		return nil, fmt.Errorf("sub-workflow: load workflow: %w", err)
 	}
 	if wf != nil {
-		if executionProfileID(wf, "default") != profileID {
+		ok, err := OwnedBy(wf, profileID)
+		if err != nil {
+			return nil, fmt.Errorf("sub-workflow %q: %w", ref, err)
+		}
+		if !ok {
 			return nil, fmt.Errorf("sub-workflow %q: %w", ref, ErrWorkflowProfileMismatch)
 		}
 		return wf, nil

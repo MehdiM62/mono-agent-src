@@ -43,7 +43,7 @@ func (d Deps) runWorkflowMigrate() func(cmd *cobra.Command, args []string) error
 			return fmt.Errorf("open file store: %w", err)
 		}
 
-		workflows, err := sqliteStore.ListWorkflows(ctx, "")
+		workflows, err := sqliteStore.ListAllProfilesWorkflows(ctx)
 		if err != nil {
 			return fmt.Errorf("list workflows from sqlite: %w", err)
 		}

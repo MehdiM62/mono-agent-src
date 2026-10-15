@@ -37,7 +37,7 @@ func (s *SQLiteWorkflowStore) saveDefinition(ctx context.Context, w *Workflow, m
 	}
 	profileID := w.ProfileID
 	if profileID == "" {
-		profileID = "default"
+		return fmt.Errorf("saving workflow %s: %w", w.ID, ErrNoProfile)
 	}
 	// The profile and version of an existing row are not the saver's to
 	// change: the profile is set where the workflow is created, the version

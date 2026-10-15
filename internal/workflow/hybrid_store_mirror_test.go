@@ -16,7 +16,7 @@ func newHybridForTest(t *testing.T) (*HybridWorkflowStore, *SQLiteWorkflowStore)
 }
 
 func mirrorWF(id string, nodeIDs ...string) *Workflow {
-	w := &Workflow{ID: id, Name: id, Version: 3}
+	w := &Workflow{ProfileID: "default", ID: id, Name: id, Version: 3}
 	for i, n := range nodeIDs {
 		typ := "core.set"
 		if i == 0 {

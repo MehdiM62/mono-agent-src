@@ -15,20 +15,16 @@ import (
 
 // ── workflows ─────────────────────────────────────────────────────────────
 
+// workflowInProfile is workflow.OwnedBy, the one ownership rule: a workflow
+// with no profile (or a request with none) is owned by nobody.
 func workflowInProfile(wf *workflow.Workflow, profileID string) bool {
-	if wf == nil {
-		return false
-	}
-	owner := wf.ProfileID
-	if owner == "" {
-		owner = "default"
-	}
-	return owner == profileID
+	ok, _ := workflow.OwnedBy(wf, profileID)
+	return ok
 }
 
 // Load through the request's profile boundary even when the host's engine
-// intentionally serves all profiles (the daemon). Legacy unscoped workflows
-// belong to default, matching the engine's single-profile guard.
+// intentionally serves all profiles (the daemon). A workflow with no profile
+// belongs to nobody (workflow.OwnedBy).
 func (s *Server) loadWorkflow(w http.ResponseWriter, r *http.Request) *workflow.Workflow {
 	id := r.PathValue("id")
 	wf, err := s.rt.store.GetWorkflow(r.Context(), id)

@@ -204,7 +204,7 @@ func (d Deps) newImportCmd() *cobra.Command {
 				wf.ID, overwrite = uuid.New().String(), false
 			case asNew || wf.ID == "":
 				wf.ID = uuid.New().String()
-			case OwnedWorkflow(ctx, store, db.DB, "", wf.ID) == nil:
+			case !workflowIDTaken(ctx, store, wf.ID):
 				// The id is free here: keep it, so a re-import finds it.
 			case overwrite:
 				return d.InvalidInput("--overwrite: id %s is used by a workflow in another profile; import without --overwrite to get a copy with a new id", wf.ID)
@@ -482,4 +482,10 @@ func (d Deps) newExportCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&useSuggested, "use-suggested-domains", false,
 		"With --bundle-automations: give legacy packages the domains suggested from their navigate URLs")
 	return cmd
+}
+
+// workflowIDTaken reports whether any profile already has a workflow with id.
+func workflowIDTaken(ctx context.Context, store *workflow.HybridWorkflowStore, id string) bool {
+	wf, err := store.GetWorkflow(ctx, id)
+	return err == nil && wf != nil
 }

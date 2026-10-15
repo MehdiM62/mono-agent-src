@@ -98,7 +98,7 @@ func (e *WorkflowEngine) fireErrorWorkflow(ctx context.Context, executionID, err
 
 	exec := &WorkflowExecution{
 		WorkflowID:  target.ID,
-		ProfileID:   executionProfileID(target, e.profileID),
+		ProfileID:   executionProfileID(target),
 		Status:      "QUEUED",
 		TriggerType: TriggerNodeTypeError,
 		TriggerData: errorTriggerPayload(failed, wf, errMsg),
