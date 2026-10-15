@@ -57,7 +57,7 @@ func ContextWithProfileID(ctx context.Context, profileID string) context.Context
 
 // ErrNoProfile is returned when an operation needs a profile and none was
 // given. There is no implicit profile: callers name one or fail.
-var ErrNoProfile = errors.New("no profile: this operation needs an explicit profile")
+var ErrNoProfile = profiledir.ErrNoProfile
 
 // ProfileIDFromContext retrieves the profile ID stored by ContextWithProfileID.
 // Returns ErrNoProfile when the context carries none.

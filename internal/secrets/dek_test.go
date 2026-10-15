@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/monoes/mono-agent/internal/profiledir"
 	"github.com/monoes/mono-agent/internal/storage"
-	"github.com/monoes/mono-agent/internal/vault"
 
 	"github.com/zalando/go-keyring"
 )
@@ -344,8 +344,8 @@ func TestGetOrCreateDEK_EmptyProfileIDIsRefused(t *testing.T) {
 	keyring.MockInit()
 	db := newDEKTestDB(t)
 
-	if _, err := getOrCreateDEK(context.Background(), db.DB, ""); !errors.Is(err, vault.ErrNoProfile) {
-		t.Fatalf("getOrCreateDEK with empty profile err = %v, want vault.ErrNoProfile", err)
+	if _, err := getOrCreateDEK(context.Background(), db.DB, ""); !errors.Is(err, profiledir.ErrNoProfile) {
+		t.Fatalf("getOrCreateDEK with empty profile err = %v, want profiledir.ErrNoProfile", err)
 	}
 
 	var n int
@@ -355,7 +355,7 @@ func TestGetOrCreateDEK_EmptyProfileIDIsRefused(t *testing.T) {
 	if _, err := keyring.Get(keyringService, "kek-"); err != keyring.ErrNotFound {
 		t.Fatalf("expected no bare kek- keychain entry, got err=%v", err)
 	}
-	if _, err := CheckVault(context.Background(), db.DB, ""); !errors.Is(err, vault.ErrNoProfile) {
-		t.Fatalf("CheckVault with empty profile err = %v, want vault.ErrNoProfile", err)
+	if _, err := CheckVault(context.Background(), db.DB, ""); !errors.Is(err, profiledir.ErrNoProfile) {
+		t.Fatalf("CheckVault with empty profile err = %v, want profiledir.ErrNoProfile", err)
 	}
 }

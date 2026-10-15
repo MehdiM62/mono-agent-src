@@ -9,7 +9,7 @@ import (
 
 	"github.com/zalando/go-keyring"
 
-	"github.com/monoes/mono-agent/internal/vault"
+	"github.com/monoes/mono-agent/internal/profiledir"
 )
 
 // VaultState is the outcome of CheckVault.
@@ -39,7 +39,7 @@ const (
 // failing states.
 func CheckVault(ctx context.Context, db *sql.DB, profileID string) (VaultState, error) {
 	if profileID == "" {
-		return "", vault.ErrNoProfile
+		return "", profiledir.ErrNoProfile
 	}
 
 	// The database first: a profile with no stored key never touches the

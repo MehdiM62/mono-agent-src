@@ -5,8 +5,9 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"github.com/monoes/mono-agent/internal/vault"
 	"os"
+
+	"github.com/monoes/mono-agent/internal/profiledir"
 )
 
 // MigrateSessionsToVault backfills vault_ref for any crawler_sessions row
@@ -46,7 +47,7 @@ func MigrateSessionsToVault(ctx context.Context, db *sql.DB) (migrated, total in
 
 	for _, r := range toMigrate {
 		if r.profileID == "" {
-			fmt.Fprintf(os.Stderr, "warning: skipping session migration for %s/%s: %v\n", r.platform, r.username, vault.ErrNoProfile)
+			fmt.Fprintf(os.Stderr, "warning: skipping session migration for %s/%s: %v\n", r.platform, r.username, profiledir.ErrNoProfile)
 			continue
 		}
 		// Pre-dates per-profile keys entirely (written before any vault

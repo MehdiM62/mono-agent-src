@@ -5,7 +5,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"fmt"
-	"github.com/monoes/mono-agent/internal/vault"
+	"github.com/monoes/mono-agent/internal/profiledir"
 	"sync"
 	"time"
 )
@@ -62,7 +62,7 @@ func getOrCreateDEK(ctx context.Context, db *sql.DB, profileID string) ([]byte, 
 	// An empty profile ID is refused: "" would create its own "kek-" keychain
 	// entry and an empty-profile vault_keys row that nothing else finds.
 	if profileID == "" {
-		return nil, vault.ErrNoProfile
+		return nil, profiledir.ErrNoProfile
 	}
 	key := dekKey{db: db, profileID: profileID}
 	dekEntriesMu.Lock()

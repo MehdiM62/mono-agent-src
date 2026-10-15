@@ -7,6 +7,8 @@ import (
 	"io"
 	"strings"
 	"time"
+
+	"github.com/monoes/mono-agent/internal/profiledir"
 )
 
 // tailorOAuth applies cfg.Tailor (per-tenant URLs) for a connection's data.
@@ -61,7 +63,7 @@ func (m *Manager) ConnectOAuth1(ctx context.Context, platformID string, fields m
 		return nil, fmt.Errorf("unknown platform %q", platformID)
 	}
 	if profileID == "" {
-		profileID = "default"
+		return nil, profiledir.ErrNoProfile
 	}
 	conn := &Connection{Platform: platformID, Method: MethodOAuth1, Data: map[string]interface{}{}, ProfileID: profileID}
 	for _, f := range p.Fields[MethodOAuth1] {

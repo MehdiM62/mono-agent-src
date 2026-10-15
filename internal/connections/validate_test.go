@@ -55,7 +55,7 @@ func TestValidateConnectionUnparseableConnStr(t *testing.T) {
 // missing host/username before attempting any network dial.
 func TestValidateSSHMissingFields(t *testing.T) {
 	for _, platform := range []string{"ssh", "sftp"} {
-		conn := &Connection{Platform: platform, Data: map[string]interface{}{"username": "root"}}
+		conn := &Connection{ProfileID: "default", Platform: platform, Data: map[string]interface{}{"username": "root"}}
 		if _, err := ValidateConnection(context.Background(), conn); err == nil {
 			t.Fatalf("%s: expected error for missing host", platform)
 		}
@@ -77,7 +77,7 @@ func TestValidateSSHMissingAuth(t *testing.T) {
 // TestValidateFTPMissingFields verifies validateFTP rejects a connection
 // missing host/username before attempting any network dial.
 func TestValidateFTPMissingFields(t *testing.T) {
-	conn := &Connection{Platform: "ftp", Data: map[string]interface{}{"username": "anon"}}
+	conn := &Connection{ProfileID: "default", Platform: "ftp", Data: map[string]interface{}{"username": "anon"}}
 	if _, err := ValidateConnection(context.Background(), conn); err == nil {
 		t.Fatal("expected error for missing host")
 	}
@@ -87,7 +87,7 @@ func TestValidateFTPMissingFields(t *testing.T) {
 // cases reject a connection missing base_url.
 func TestValidateGenericMissingBaseURL(t *testing.T) {
 	for _, platform := range []string{"generic_api", "generic_basic"} {
-		conn := &Connection{Platform: platform, Data: map[string]interface{}{}}
+		conn := &Connection{ProfileID: "default", Platform: platform, Data: map[string]interface{}{}}
 		if _, err := ValidateConnection(context.Background(), conn); err == nil {
 			t.Fatalf("%s: expected error for missing base_url", platform)
 		}

@@ -25,7 +25,7 @@ func TestValidatorStatusErrors(t *testing.T) {
 			return &http.Response{StatusCode: tc.code, Body: io.NopCloser(strings.NewReader("{}")), Header: http.Header{}, Request: r}, nil
 		})
 		for _, platform := range []string{"github", "notion", "telegram"} {
-			conn := &Connection{Platform: platform, Data: map[string]interface{}{
+			conn := &Connection{ProfileID: "default", Platform: platform, Data: map[string]interface{}{
 				"token": "tok-123456", "access_token": "tok-123456", "bot_token": "tok-123456"}}
 			_, err := ValidateConnection(context.Background(), conn)
 			if HTTPStatus(err) != tc.code || CredentialsRejected(err) != tc.rejected {
