@@ -1,0 +1,2193 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "telegram",
+  "extends": "comm.telegram",
+  "title": "Telegram",
+  "description": "Messages, chats, callbacks and files with a Telegram bot (n8n operations)",
+  "category": "app",
+  "docs_url": "https://core.telegram.org/bots/api",
+  "n8n_types": [
+    "n8n-nodes-base.telegram"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.telegramTrigger"
+  ],
+  "base_url": "https://api.telegram.org/bot{{ cred.bot_token }}",
+  "credentials": [
+    {
+      "platform": "telegram",
+      "reuse_platform": "telegram",
+      "name": "Telegram bot",
+      "n8n_credential": "telegramApi",
+      "n8n_field_map": {
+        "accessToken": "bot_token"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "bot_token",
+          "label": "Bot token",
+          "secret": true,
+          "required": true,
+          "help": "From @BotFather"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "User-Agent": "mono-agent"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "message",
+      "label": "Message"
+    },
+    {
+      "value": "chat",
+      "label": "Chat"
+    },
+    {
+      "value": "callback",
+      "label": "Callback"
+    },
+    {
+      "value": "file",
+      "label": "File"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "message",
+      "operation": "sendMessage",
+      "title": "Send a text message",
+      "method": "POST",
+      "path": "/sendMessage",
+      "fields": [
+        {
+          "key": "chatId",
+          "label": "Chat ID",
+          "type": "text",
+          "required": true,
+          "help": "Chat ID or @channelusername"
+        },
+        {
+          "key": "text",
+          "label": "Text",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "key": "replyMarkup",
+          "label": "Reply markup",
+          "type": "select",
+          "options": [
+            "none",
+            "forceReply",
+            "inlineKeyboard",
+            "replyKeyboard",
+            "replyKeyboardRemove"
+          ],
+          "default": "none"
+        },
+        {
+          "key": "forceReply",
+          "label": "Force reply",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "force_reply",
+            "selective"
+          ]
+        },
+        {
+          "key": "inlineKeyboard",
+          "label": "Inline keyboard",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "rows"
+          ],
+          "help": "{\"rows\": [{\"row\": {\"buttons\": [{\"text\": \"Open\", \"additionalFields\": {\"url\": \"https://…\"}}]}}]}"
+        },
+        {
+          "key": "replyKeyboard",
+          "label": "Reply keyboard",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "rows"
+          ],
+          "help": "Same shape as Inline keyboard"
+        },
+        {
+          "key": "replyKeyboardOptions",
+          "label": "Reply keyboard options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "resize_keyboard",
+            "one_time_keyboard",
+            "selective"
+          ]
+        },
+        {
+          "key": "replyKeyboardRemove",
+          "label": "Remove reply keyboard",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "remove_keyboard",
+            "selective"
+          ]
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "appendAttribution",
+            "caption",
+            "disable_notification",
+            "disable_web_page_preview",
+            "duration",
+            "fileName",
+            "height",
+            "parse_mode",
+            "performer",
+            "reply_to_message_id",
+            "message_thread_id",
+            "title",
+            "thumb",
+            "width"
+          ]
+        }
+      ],
+      "body": {
+        "chat_id": "{{ p.chatId }}",
+        "text": "{{ p.text }}",
+        "$merge": "{{ p.additionalFields | omit:'appendAttribution,fileName' }}",
+        "parse_mode": "{{ p.additionalFields.parse_mode | default:'Markdown' }}",
+        "disable_web_page_preview": "{{ p.additionalFields.disable_web_page_preview | default:true }}",
+        "reply_markup": {
+          "$when": "{{ p.replyMarkup | ne:'none' }}",
+          "inline_keyboard": {
+            "$map": "{{ p.replyMarkup | eq:'inlineKeyboard' | then:p.inlineKeyboard.rows }}",
+            "$to": {
+              "$map": "{{ el.row.buttons }}",
+              "$to": {
+                "text": "{{ el.text }}",
+                "$merge": "{{ el.additionalFields }}"
+              }
+            }
+          },
+          "keyboard": {
+            "$map": "{{ p.replyMarkup | eq:'replyKeyboard' | then:p.replyKeyboard.rows }}",
+            "$to": {
+              "$map": "{{ el.row.buttons }}",
+              "$to": {
+                "text": "{{ el.text }}",
+                "$merge": "{{ el.additionalFields }}"
+              }
+            }
+          },
+          "$merge": [
+            "{{ p.replyMarkup | eq:'forceReply' | then:p.forceReply }}",
+            "{{ p.replyMarkup | eq:'replyKeyboardRemove' | then:p.replyKeyboardRemove }}",
+            "{{ p.replyMarkup | eq:'replyKeyboard' | then:p.replyKeyboardOptions }}"
+          ]
+        }
+      }
+    },
+    {
+      "resource": "message",
+      "operation": "deleteMessage",
+      "title": "Delete a message",
+      "method": "POST",
+      "path": "/deleteMessage",
+      "fields": [
+        {
+          "key": "chatId",
+          "label": "Chat ID",
+          "type": "text",
+          "required": true,
+          "help": "Chat ID or @channelusername"
+        },
+        {
+          "key": "messageId",
+          "label": "Message ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "chat_id": "{{ p.chatId }}",
+        "message_id": "{{ p.messageId }}"
+      }
+    },
+    {
+      "resource": "message",
+      "operation": "editMessageText",
+      "title": "Edit a message's text",
+      "method": "POST",
+      "path": "/editMessageText",
+      "fields": [
+        {
+          "key": "messageType",
+          "label": "Message type",
+          "type": "select",
+          "options": [
+            "message",
+            "inlineMessage"
+          ],
+          "default": "message"
+        },
+        {
+          "key": "chatId",
+          "label": "Chat ID",
+          "type": "text"
+        },
+        {
+          "key": "messageId",
+          "label": "Message ID",
+          "type": "text"
+        },
+        {
+          "key": "inlineMessageId",
+          "label": "Inline message ID",
+          "type": "text"
+        },
+        {
+          "key": "text",
+          "label": "Text",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "key": "replyMarkup",
+          "label": "Reply markup",
+          "type": "select",
+          "options": [
+            "none",
+            "forceReply",
+            "inlineKeyboard",
+            "replyKeyboard",
+            "replyKeyboardRemove"
+          ],
+          "default": "none"
+        },
+        {
+          "key": "forceReply",
+          "label": "Force reply",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "force_reply",
+            "selective"
+          ]
+        },
+        {
+          "key": "inlineKeyboard",
+          "label": "Inline keyboard",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "rows"
+          ],
+          "help": "{\"rows\": [{\"row\": {\"buttons\": [{\"text\": \"Open\", \"additionalFields\": {\"url\": \"https://…\"}}]}}]}"
+        },
+        {
+          "key": "replyKeyboard",
+          "label": "Reply keyboard",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "rows"
+          ],
+          "help": "Same shape as Inline keyboard"
+        },
+        {
+          "key": "replyKeyboardOptions",
+          "label": "Reply keyboard options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "resize_keyboard",
+            "one_time_keyboard",
+            "selective"
+          ]
+        },
+        {
+          "key": "replyKeyboardRemove",
+          "label": "Remove reply keyboard",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "remove_keyboard",
+            "selective"
+          ]
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "disable_web_page_preview",
+            "parse_mode"
+          ]
+        }
+      ],
+      "body": {
+        "inline_message_id": "{{ p.messageType | eq:'inlineMessage' | then:p.inlineMessageId }}",
+        "chat_id": "{{ p.messageType | ne:'inlineMessage' | then:p.chatId }}",
+        "message_id": "{{ p.messageType | ne:'inlineMessage' | then:p.messageId }}",
+        "text": "{{ p.text }}",
+        "$merge": "{{ p.additionalFields }}",
+        "reply_markup": {
+          "$when": "{{ p.replyMarkup | ne:'none' }}",
+          "inline_keyboard": {
+            "$map": "{{ p.replyMarkup | eq:'inlineKeyboard' | then:p.inlineKeyboard.rows }}",
+            "$to": {
+              "$map": "{{ el.row.buttons }}",
+              "$to": {
+                "text": "{{ el.text }}",
+                "$merge": "{{ el.additionalFields }}"
+              }
+            }
+          },
+          "keyboard": {
+            "$map": "{{ p.replyMarkup | eq:'replyKeyboard' | then:p.replyKeyboard.rows }}",
+            "$to": {
+              "$map": "{{ el.row.buttons }}",
+              "$to": {
+                "text": "{{ el.text }}",
+                "$merge": "{{ el.additionalFields }}"
+              }
+            }
+          },
+          "$merge": [
+            "{{ p.replyMarkup | eq:'forceReply' | then:p.forceReply }}",
+            "{{ p.replyMarkup | eq:'replyKeyboardRemove' | then:p.replyKeyboardRemove }}",
+            "{{ p.replyMarkup | eq:'replyKeyboard' | then:p.replyKeyboardOptions }}"
+          ]
+        }
+      }
+    },
+    {
+      "resource": "message",
+      "operation": "pinChatMessage",
+      "title": "Pin a message",
+      "method": "POST",
+      "path": "/pinChatMessage",
+      "fields": [
+        {
+          "key": "chatId",
+          "label": "Chat ID",
+          "type": "text",
+          "required": true,
+          "help": "Chat ID or @channelusername"
+        },
+        {
+          "key": "messageId",
+          "label": "Message ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "disable_notification"
+          ]
+        }
+      ],
+      "body": {
+        "chat_id": "{{ p.chatId }}",
+        "message_id": "{{ p.messageId }}",
+        "disable_notification": "{{ p.additionalFields.disable_notification | eq:'true' | then:true }}"
+      }
+    },
+    {
+      "resource": "message",
+      "operation": "unpinChatMessage",
+      "title": "Unpin a message",
+      "method": "POST",
+      "path": "/unpinChatMessage",
+      "fields": [
+        {
+          "key": "chatId",
+          "label": "Chat ID",
+          "type": "text",
+          "required": true,
+          "help": "Chat ID or @channelusername"
+        },
+        {
+          "key": "messageId",
+          "label": "Message ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "chat_id": "{{ p.chatId }}",
+        "message_id": "{{ p.messageId }}"
+      }
+    },
+    {
+      "resource": "message",
+      "operation": "sendAnimation",
+      "title": "Send an animation",
+      "method": "POST",
+      "path": "/sendAnimation",
+      "fields": [
+        {
+          "key": "chatId",
+          "label": "Chat ID",
+          "type": "text",
+          "required": true,
+          "help": "Chat ID or @channelusername"
+        },
+        {
+          "key": "binaryData",
+          "label": "Upload binary data",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Input binary property",
+          "type": "text",
+          "default": "data"
+        },
+        {
+          "key": "file",
+          "label": "File ID or URL",
+          "type": "text",
+          "help": "When not uploading binary data"
+        },
+        {
+          "key": "replyMarkup",
+          "label": "Reply markup",
+          "type": "select",
+          "options": [
+            "none",
+            "forceReply",
+            "inlineKeyboard",
+            "replyKeyboard",
+            "replyKeyboardRemove"
+          ],
+          "default": "none"
+        },
+        {
+          "key": "forceReply",
+          "label": "Force reply",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "force_reply",
+            "selective"
+          ]
+        },
+        {
+          "key": "inlineKeyboard",
+          "label": "Inline keyboard",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "rows"
+          ],
+          "help": "{\"rows\": [{\"row\": {\"buttons\": [{\"text\": \"Open\", \"additionalFields\": {\"url\": \"https://…\"}}]}}]}"
+        },
+        {
+          "key": "replyKeyboard",
+          "label": "Reply keyboard",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "rows"
+          ],
+          "help": "Same shape as Inline keyboard"
+        },
+        {
+          "key": "replyKeyboardOptions",
+          "label": "Reply keyboard options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "resize_keyboard",
+            "one_time_keyboard",
+            "selective"
+          ]
+        },
+        {
+          "key": "replyKeyboardRemove",
+          "label": "Remove reply keyboard",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "remove_keyboard",
+            "selective"
+          ]
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "caption",
+            "disable_notification",
+            "disable_web_page_preview",
+            "duration",
+            "fileName",
+            "height",
+            "parse_mode",
+            "performer",
+            "reply_to_message_id",
+            "message_thread_id",
+            "title",
+            "thumb",
+            "width"
+          ]
+        }
+      ],
+      "body": {
+        "chat_id": "{{ p.chatId }}",
+        "animation": "{{ p.binaryData | ne:'true' | then:p.file }}",
+        "$merge": "{{ p.additionalFields | omit:'fileName' }}",
+        "reply_markup": {
+          "$when": "{{ p.replyMarkup | ne:'none' }}",
+          "inline_keyboard": {
+            "$map": "{{ p.replyMarkup | eq:'inlineKeyboard' | then:p.inlineKeyboard.rows }}",
+            "$to": {
+              "$map": "{{ el.row.buttons }}",
+              "$to": {
+                "text": "{{ el.text }}",
+                "$merge": "{{ el.additionalFields }}"
+              }
+            }
+          },
+          "keyboard": {
+            "$map": "{{ p.replyMarkup | eq:'replyKeyboard' | then:p.replyKeyboard.rows }}",
+            "$to": {
+              "$map": "{{ el.row.buttons }}",
+              "$to": {
+                "text": "{{ el.text }}",
+                "$merge": "{{ el.additionalFields }}"
+              }
+            }
+          },
+          "$merge": [
+            "{{ p.replyMarkup | eq:'forceReply' | then:p.forceReply }}",
+            "{{ p.replyMarkup | eq:'replyKeyboardRemove' | then:p.replyKeyboardRemove }}",
+            "{{ p.replyMarkup | eq:'replyKeyboard' | then:p.replyKeyboardOptions }}"
+          ]
+        }
+      },
+      "body_type": "multipart",
+      "binary": {
+        "upload_field": "binaryPropertyName",
+        "upload_when": "{{ p.binaryData }}",
+        "multipart_field": "animation",
+        "file_name": "{{ p.additionalFields.fileName | default:bin.file_name }}",
+        "fallback_body_type": "json"
+      }
+    },
+    {
+      "resource": "message",
+      "operation": "sendAudio",
+      "title": "Send an audio file",
+      "method": "POST",
+      "path": "/sendAudio",
+      "fields": [
+        {
+          "key": "chatId",
+          "label": "Chat ID",
+          "type": "text",
+          "required": true,
+          "help": "Chat ID or @channelusername"
+        },
+        {
+          "key": "binaryData",
+          "label": "Upload binary data",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Input binary property",
+          "type": "text",
+          "default": "data"
+        },
+        {
+          "key": "file",
+          "label": "File ID or URL",
+          "type": "text",
+          "help": "When not uploading binary data"
+        },
+        {
+          "key": "replyMarkup",
+          "label": "Reply markup",
+          "type": "select",
+          "options": [
+            "none",
+            "forceReply",
+            "inlineKeyboard",
+            "replyKeyboard",
+            "replyKeyboardRemove"
+          ],
+          "default": "none"
+        },
+        {
+          "key": "forceReply",
+          "label": "Force reply",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "force_reply",
+            "selective"
+          ]
+        },
+        {
+          "key": "inlineKeyboard",
+          "label": "Inline keyboard",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "rows"
+          ],
+          "help": "{\"rows\": [{\"row\": {\"buttons\": [{\"text\": \"Open\", \"additionalFields\": {\"url\": \"https://…\"}}]}}]}"
+        },
+        {
+          "key": "replyKeyboard",
+          "label": "Reply keyboard",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "rows"
+          ],
+          "help": "Same shape as Inline keyboard"
+        },
+        {
+          "key": "replyKeyboardOptions",
+          "label": "Reply keyboard options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "resize_keyboard",
+            "one_time_keyboard",
+            "selective"
+          ]
+        },
+        {
+          "key": "replyKeyboardRemove",
+          "label": "Remove reply keyboard",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "remove_keyboard",
+            "selective"
+          ]
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "caption",
+            "disable_notification",
+            "disable_web_page_preview",
+            "duration",
+            "fileName",
+            "height",
+            "parse_mode",
+            "performer",
+            "reply_to_message_id",
+            "message_thread_id",
+            "title",
+            "thumb",
+            "width"
+          ]
+        }
+      ],
+      "body": {
+        "chat_id": "{{ p.chatId }}",
+        "audio": "{{ p.binaryData | ne:'true' | then:p.file }}",
+        "$merge": "{{ p.additionalFields | omit:'fileName' }}",
+        "reply_markup": {
+          "$when": "{{ p.replyMarkup | ne:'none' }}",
+          "inline_keyboard": {
+            "$map": "{{ p.replyMarkup | eq:'inlineKeyboard' | then:p.inlineKeyboard.rows }}",
+            "$to": {
+              "$map": "{{ el.row.buttons }}",
+              "$to": {
+                "text": "{{ el.text }}",
+                "$merge": "{{ el.additionalFields }}"
+              }
+            }
+          },
+          "keyboard": {
+            "$map": "{{ p.replyMarkup | eq:'replyKeyboard' | then:p.replyKeyboard.rows }}",
+            "$to": {
+              "$map": "{{ el.row.buttons }}",
+              "$to": {
+                "text": "{{ el.text }}",
+                "$merge": "{{ el.additionalFields }}"
+              }
+            }
+          },
+          "$merge": [
+            "{{ p.replyMarkup | eq:'forceReply' | then:p.forceReply }}",
+            "{{ p.replyMarkup | eq:'replyKeyboardRemove' | then:p.replyKeyboardRemove }}",
+            "{{ p.replyMarkup | eq:'replyKeyboard' | then:p.replyKeyboardOptions }}"
+          ]
+        }
+      },
+      "body_type": "multipart",
+      "binary": {
+        "upload_field": "binaryPropertyName",
+        "upload_when": "{{ p.binaryData }}",
+        "multipart_field": "audio",
+        "file_name": "{{ p.additionalFields.fileName | default:bin.file_name }}",
+        "fallback_body_type": "json"
+      }
+    },
+    {
+      "resource": "message",
+      "operation": "sendDocument",
+      "title": "Send a document",
+      "method": "POST",
+      "path": "/sendDocument",
+      "fields": [
+        {
+          "key": "chatId",
+          "label": "Chat ID",
+          "type": "text",
+          "required": true,
+          "help": "Chat ID or @channelusername"
+        },
+        {
+          "key": "binaryData",
+          "label": "Upload binary data",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Input binary property",
+          "type": "text",
+          "default": "data"
+        },
+        {
+          "key": "file",
+          "label": "File ID or URL",
+          "type": "text",
+          "help": "When not uploading binary data"
+        },
+        {
+          "key": "replyMarkup",
+          "label": "Reply markup",
+          "type": "select",
+          "options": [
+            "none",
+            "forceReply",
+            "inlineKeyboard",
+            "replyKeyboard",
+            "replyKeyboardRemove"
+          ],
+          "default": "none"
+        },
+        {
+          "key": "forceReply",
+          "label": "Force reply",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "force_reply",
+            "selective"
+          ]
+        },
+        {
+          "key": "inlineKeyboard",
+          "label": "Inline keyboard",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "rows"
+          ],
+          "help": "{\"rows\": [{\"row\": {\"buttons\": [{\"text\": \"Open\", \"additionalFields\": {\"url\": \"https://…\"}}]}}]}"
+        },
+        {
+          "key": "replyKeyboard",
+          "label": "Reply keyboard",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "rows"
+          ],
+          "help": "Same shape as Inline keyboard"
+        },
+        {
+          "key": "replyKeyboardOptions",
+          "label": "Reply keyboard options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "resize_keyboard",
+            "one_time_keyboard",
+            "selective"
+          ]
+        },
+        {
+          "key": "replyKeyboardRemove",
+          "label": "Remove reply keyboard",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "remove_keyboard",
+            "selective"
+          ]
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "caption",
+            "disable_notification",
+            "disable_web_page_preview",
+            "duration",
+            "fileName",
+            "height",
+            "parse_mode",
+            "performer",
+            "reply_to_message_id",
+            "message_thread_id",
+            "title",
+            "thumb",
+            "width"
+          ]
+        }
+      ],
+      "body": {
+        "chat_id": "{{ p.chatId }}",
+        "document": "{{ p.binaryData | ne:'true' | then:p.file }}",
+        "$merge": "{{ p.additionalFields | omit:'fileName' }}",
+        "reply_markup": {
+          "$when": "{{ p.replyMarkup | ne:'none' }}",
+          "inline_keyboard": {
+            "$map": "{{ p.replyMarkup | eq:'inlineKeyboard' | then:p.inlineKeyboard.rows }}",
+            "$to": {
+              "$map": "{{ el.row.buttons }}",
+              "$to": {
+                "text": "{{ el.text }}",
+                "$merge": "{{ el.additionalFields }}"
+              }
+            }
+          },
+          "keyboard": {
+            "$map": "{{ p.replyMarkup | eq:'replyKeyboard' | then:p.replyKeyboard.rows }}",
+            "$to": {
+              "$map": "{{ el.row.buttons }}",
+              "$to": {
+                "text": "{{ el.text }}",
+                "$merge": "{{ el.additionalFields }}"
+              }
+            }
+          },
+          "$merge": [
+            "{{ p.replyMarkup | eq:'forceReply' | then:p.forceReply }}",
+            "{{ p.replyMarkup | eq:'replyKeyboardRemove' | then:p.replyKeyboardRemove }}",
+            "{{ p.replyMarkup | eq:'replyKeyboard' | then:p.replyKeyboardOptions }}"
+          ]
+        }
+      },
+      "body_type": "multipart",
+      "binary": {
+        "upload_field": "binaryPropertyName",
+        "upload_when": "{{ p.binaryData }}",
+        "multipart_field": "document",
+        "file_name": "{{ p.additionalFields.fileName | default:bin.file_name }}",
+        "fallback_body_type": "json"
+      }
+    },
+    {
+      "resource": "message",
+      "operation": "sendPhoto",
+      "title": "Send a photo",
+      "method": "POST",
+      "path": "/sendPhoto",
+      "fields": [
+        {
+          "key": "chatId",
+          "label": "Chat ID",
+          "type": "text",
+          "required": true,
+          "help": "Chat ID or @channelusername"
+        },
+        {
+          "key": "binaryData",
+          "label": "Upload binary data",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Input binary property",
+          "type": "text",
+          "default": "data"
+        },
+        {
+          "key": "file",
+          "label": "File ID or URL",
+          "type": "text",
+          "help": "When not uploading binary data"
+        },
+        {
+          "key": "replyMarkup",
+          "label": "Reply markup",
+          "type": "select",
+          "options": [
+            "none",
+            "forceReply",
+            "inlineKeyboard",
+            "replyKeyboard",
+            "replyKeyboardRemove"
+          ],
+          "default": "none"
+        },
+        {
+          "key": "forceReply",
+          "label": "Force reply",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "force_reply",
+            "selective"
+          ]
+        },
+        {
+          "key": "inlineKeyboard",
+          "label": "Inline keyboard",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "rows"
+          ],
+          "help": "{\"rows\": [{\"row\": {\"buttons\": [{\"text\": \"Open\", \"additionalFields\": {\"url\": \"https://…\"}}]}}]}"
+        },
+        {
+          "key": "replyKeyboard",
+          "label": "Reply keyboard",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "rows"
+          ],
+          "help": "Same shape as Inline keyboard"
+        },
+        {
+          "key": "replyKeyboardOptions",
+          "label": "Reply keyboard options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "resize_keyboard",
+            "one_time_keyboard",
+            "selective"
+          ]
+        },
+        {
+          "key": "replyKeyboardRemove",
+          "label": "Remove reply keyboard",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "remove_keyboard",
+            "selective"
+          ]
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "caption",
+            "disable_notification",
+            "disable_web_page_preview",
+            "duration",
+            "fileName",
+            "height",
+            "parse_mode",
+            "performer",
+            "reply_to_message_id",
+            "message_thread_id",
+            "title",
+            "thumb",
+            "width"
+          ]
+        }
+      ],
+      "body": {
+        "chat_id": "{{ p.chatId }}",
+        "photo": "{{ p.binaryData | ne:'true' | then:p.file }}",
+        "$merge": "{{ p.additionalFields | omit:'fileName' }}",
+        "reply_markup": {
+          "$when": "{{ p.replyMarkup | ne:'none' }}",
+          "inline_keyboard": {
+            "$map": "{{ p.replyMarkup | eq:'inlineKeyboard' | then:p.inlineKeyboard.rows }}",
+            "$to": {
+              "$map": "{{ el.row.buttons }}",
+              "$to": {
+                "text": "{{ el.text }}",
+                "$merge": "{{ el.additionalFields }}"
+              }
+            }
+          },
+          "keyboard": {
+            "$map": "{{ p.replyMarkup | eq:'replyKeyboard' | then:p.replyKeyboard.rows }}",
+            "$to": {
+              "$map": "{{ el.row.buttons }}",
+              "$to": {
+                "text": "{{ el.text }}",
+                "$merge": "{{ el.additionalFields }}"
+              }
+            }
+          },
+          "$merge": [
+            "{{ p.replyMarkup | eq:'forceReply' | then:p.forceReply }}",
+            "{{ p.replyMarkup | eq:'replyKeyboardRemove' | then:p.replyKeyboardRemove }}",
+            "{{ p.replyMarkup | eq:'replyKeyboard' | then:p.replyKeyboardOptions }}"
+          ]
+        }
+      },
+      "body_type": "multipart",
+      "binary": {
+        "upload_field": "binaryPropertyName",
+        "upload_when": "{{ p.binaryData }}",
+        "multipart_field": "photo",
+        "file_name": "{{ p.additionalFields.fileName | default:bin.file_name }}",
+        "fallback_body_type": "json"
+      }
+    },
+    {
+      "resource": "message",
+      "operation": "sendSticker",
+      "title": "Send a sticker",
+      "method": "POST",
+      "path": "/sendSticker",
+      "fields": [
+        {
+          "key": "chatId",
+          "label": "Chat ID",
+          "type": "text",
+          "required": true,
+          "help": "Chat ID or @channelusername"
+        },
+        {
+          "key": "binaryData",
+          "label": "Upload binary data",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Input binary property",
+          "type": "text",
+          "default": "data"
+        },
+        {
+          "key": "file",
+          "label": "File ID or URL",
+          "type": "text",
+          "help": "When not uploading binary data"
+        },
+        {
+          "key": "replyMarkup",
+          "label": "Reply markup",
+          "type": "select",
+          "options": [
+            "none",
+            "forceReply",
+            "inlineKeyboard",
+            "replyKeyboard",
+            "replyKeyboardRemove"
+          ],
+          "default": "none"
+        },
+        {
+          "key": "forceReply",
+          "label": "Force reply",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "force_reply",
+            "selective"
+          ]
+        },
+        {
+          "key": "inlineKeyboard",
+          "label": "Inline keyboard",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "rows"
+          ],
+          "help": "{\"rows\": [{\"row\": {\"buttons\": [{\"text\": \"Open\", \"additionalFields\": {\"url\": \"https://…\"}}]}}]}"
+        },
+        {
+          "key": "replyKeyboard",
+          "label": "Reply keyboard",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "rows"
+          ],
+          "help": "Same shape as Inline keyboard"
+        },
+        {
+          "key": "replyKeyboardOptions",
+          "label": "Reply keyboard options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "resize_keyboard",
+            "one_time_keyboard",
+            "selective"
+          ]
+        },
+        {
+          "key": "replyKeyboardRemove",
+          "label": "Remove reply keyboard",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "remove_keyboard",
+            "selective"
+          ]
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "caption",
+            "disable_notification",
+            "disable_web_page_preview",
+            "duration",
+            "fileName",
+            "height",
+            "parse_mode",
+            "performer",
+            "reply_to_message_id",
+            "message_thread_id",
+            "title",
+            "thumb",
+            "width"
+          ]
+        }
+      ],
+      "body": {
+        "chat_id": "{{ p.chatId }}",
+        "sticker": "{{ p.binaryData | ne:'true' | then:p.file }}",
+        "$merge": "{{ p.additionalFields | omit:'fileName' }}",
+        "reply_markup": {
+          "$when": "{{ p.replyMarkup | ne:'none' }}",
+          "inline_keyboard": {
+            "$map": "{{ p.replyMarkup | eq:'inlineKeyboard' | then:p.inlineKeyboard.rows }}",
+            "$to": {
+              "$map": "{{ el.row.buttons }}",
+              "$to": {
+                "text": "{{ el.text }}",
+                "$merge": "{{ el.additionalFields }}"
+              }
+            }
+          },
+          "keyboard": {
+            "$map": "{{ p.replyMarkup | eq:'replyKeyboard' | then:p.replyKeyboard.rows }}",
+            "$to": {
+              "$map": "{{ el.row.buttons }}",
+              "$to": {
+                "text": "{{ el.text }}",
+                "$merge": "{{ el.additionalFields }}"
+              }
+            }
+          },
+          "$merge": [
+            "{{ p.replyMarkup | eq:'forceReply' | then:p.forceReply }}",
+            "{{ p.replyMarkup | eq:'replyKeyboardRemove' | then:p.replyKeyboardRemove }}",
+            "{{ p.replyMarkup | eq:'replyKeyboard' | then:p.replyKeyboardOptions }}"
+          ]
+        }
+      },
+      "body_type": "multipart",
+      "binary": {
+        "upload_field": "binaryPropertyName",
+        "upload_when": "{{ p.binaryData }}",
+        "multipart_field": "sticker",
+        "file_name": "{{ p.additionalFields.fileName | default:bin.file_name }}",
+        "fallback_body_type": "json"
+      }
+    },
+    {
+      "resource": "message",
+      "operation": "sendVideo",
+      "title": "Send a video",
+      "method": "POST",
+      "path": "/sendVideo",
+      "fields": [
+        {
+          "key": "chatId",
+          "label": "Chat ID",
+          "type": "text",
+          "required": true,
+          "help": "Chat ID or @channelusername"
+        },
+        {
+          "key": "binaryData",
+          "label": "Upload binary data",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Input binary property",
+          "type": "text",
+          "default": "data"
+        },
+        {
+          "key": "file",
+          "label": "File ID or URL",
+          "type": "text",
+          "help": "When not uploading binary data"
+        },
+        {
+          "key": "replyMarkup",
+          "label": "Reply markup",
+          "type": "select",
+          "options": [
+            "none",
+            "forceReply",
+            "inlineKeyboard",
+            "replyKeyboard",
+            "replyKeyboardRemove"
+          ],
+          "default": "none"
+        },
+        {
+          "key": "forceReply",
+          "label": "Force reply",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "force_reply",
+            "selective"
+          ]
+        },
+        {
+          "key": "inlineKeyboard",
+          "label": "Inline keyboard",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "rows"
+          ],
+          "help": "{\"rows\": [{\"row\": {\"buttons\": [{\"text\": \"Open\", \"additionalFields\": {\"url\": \"https://…\"}}]}}]}"
+        },
+        {
+          "key": "replyKeyboard",
+          "label": "Reply keyboard",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "rows"
+          ],
+          "help": "Same shape as Inline keyboard"
+        },
+        {
+          "key": "replyKeyboardOptions",
+          "label": "Reply keyboard options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "resize_keyboard",
+            "one_time_keyboard",
+            "selective"
+          ]
+        },
+        {
+          "key": "replyKeyboardRemove",
+          "label": "Remove reply keyboard",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "remove_keyboard",
+            "selective"
+          ]
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "caption",
+            "disable_notification",
+            "disable_web_page_preview",
+            "duration",
+            "fileName",
+            "height",
+            "parse_mode",
+            "performer",
+            "reply_to_message_id",
+            "message_thread_id",
+            "title",
+            "thumb",
+            "width"
+          ]
+        }
+      ],
+      "body": {
+        "chat_id": "{{ p.chatId }}",
+        "video": "{{ p.binaryData | ne:'true' | then:p.file }}",
+        "$merge": "{{ p.additionalFields | omit:'fileName' }}",
+        "reply_markup": {
+          "$when": "{{ p.replyMarkup | ne:'none' }}",
+          "inline_keyboard": {
+            "$map": "{{ p.replyMarkup | eq:'inlineKeyboard' | then:p.inlineKeyboard.rows }}",
+            "$to": {
+              "$map": "{{ el.row.buttons }}",
+              "$to": {
+                "text": "{{ el.text }}",
+                "$merge": "{{ el.additionalFields }}"
+              }
+            }
+          },
+          "keyboard": {
+            "$map": "{{ p.replyMarkup | eq:'replyKeyboard' | then:p.replyKeyboard.rows }}",
+            "$to": {
+              "$map": "{{ el.row.buttons }}",
+              "$to": {
+                "text": "{{ el.text }}",
+                "$merge": "{{ el.additionalFields }}"
+              }
+            }
+          },
+          "$merge": [
+            "{{ p.replyMarkup | eq:'forceReply' | then:p.forceReply }}",
+            "{{ p.replyMarkup | eq:'replyKeyboardRemove' | then:p.replyKeyboardRemove }}",
+            "{{ p.replyMarkup | eq:'replyKeyboard' | then:p.replyKeyboardOptions }}"
+          ]
+        }
+      },
+      "body_type": "multipart",
+      "binary": {
+        "upload_field": "binaryPropertyName",
+        "upload_when": "{{ p.binaryData }}",
+        "multipart_field": "video",
+        "file_name": "{{ p.additionalFields.fileName | default:bin.file_name }}",
+        "fallback_body_type": "json"
+      }
+    },
+    {
+      "resource": "message",
+      "operation": "sendChatAction",
+      "title": "Send a chat action",
+      "method": "POST",
+      "path": "/sendChatAction",
+      "fields": [
+        {
+          "key": "chatId",
+          "label": "Chat ID",
+          "type": "text",
+          "required": true,
+          "help": "Chat ID or @channelusername"
+        },
+        {
+          "key": "action",
+          "label": "Action",
+          "type": "select",
+          "default": "typing",
+          "options": [
+            "typing",
+            "upload_photo",
+            "record_video",
+            "upload_video",
+            "record_voice",
+            "upload_voice",
+            "upload_document",
+            "choose_sticker",
+            "find_location",
+            "record_video_note",
+            "upload_video_note"
+          ]
+        }
+      ],
+      "body": {
+        "chat_id": "{{ p.chatId }}",
+        "action": "{{ p.action }}"
+      }
+    },
+    {
+      "resource": "message",
+      "operation": "sendLocation",
+      "title": "Send a location",
+      "method": "POST",
+      "path": "/sendLocation",
+      "fields": [
+        {
+          "key": "chatId",
+          "label": "Chat ID",
+          "type": "text",
+          "required": true,
+          "help": "Chat ID or @channelusername"
+        },
+        {
+          "key": "latitude",
+          "label": "Latitude",
+          "type": "number",
+          "default": 0
+        },
+        {
+          "key": "longitude",
+          "label": "Longitude",
+          "type": "number",
+          "default": 0
+        },
+        {
+          "key": "replyMarkup",
+          "label": "Reply markup",
+          "type": "select",
+          "options": [
+            "none",
+            "forceReply",
+            "inlineKeyboard",
+            "replyKeyboard",
+            "replyKeyboardRemove"
+          ],
+          "default": "none"
+        },
+        {
+          "key": "forceReply",
+          "label": "Force reply",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "force_reply",
+            "selective"
+          ]
+        },
+        {
+          "key": "inlineKeyboard",
+          "label": "Inline keyboard",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "rows"
+          ],
+          "help": "{\"rows\": [{\"row\": {\"buttons\": [{\"text\": \"Open\", \"additionalFields\": {\"url\": \"https://…\"}}]}}]}"
+        },
+        {
+          "key": "replyKeyboard",
+          "label": "Reply keyboard",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "rows"
+          ],
+          "help": "Same shape as Inline keyboard"
+        },
+        {
+          "key": "replyKeyboardOptions",
+          "label": "Reply keyboard options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "resize_keyboard",
+            "one_time_keyboard",
+            "selective"
+          ]
+        },
+        {
+          "key": "replyKeyboardRemove",
+          "label": "Remove reply keyboard",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "remove_keyboard",
+            "selective"
+          ]
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "caption",
+            "disable_notification",
+            "disable_web_page_preview",
+            "duration",
+            "fileName",
+            "height",
+            "parse_mode",
+            "performer",
+            "reply_to_message_id",
+            "message_thread_id",
+            "title",
+            "thumb",
+            "width"
+          ]
+        }
+      ],
+      "body": {
+        "chat_id": "{{ p.chatId }}",
+        "latitude": "{{ p.latitude }}",
+        "longitude": "{{ p.longitude }}",
+        "$merge": "{{ p.additionalFields | omit:'fileName' }}",
+        "reply_markup": {
+          "$when": "{{ p.replyMarkup | ne:'none' }}",
+          "inline_keyboard": {
+            "$map": "{{ p.replyMarkup | eq:'inlineKeyboard' | then:p.inlineKeyboard.rows }}",
+            "$to": {
+              "$map": "{{ el.row.buttons }}",
+              "$to": {
+                "text": "{{ el.text }}",
+                "$merge": "{{ el.additionalFields }}"
+              }
+            }
+          },
+          "keyboard": {
+            "$map": "{{ p.replyMarkup | eq:'replyKeyboard' | then:p.replyKeyboard.rows }}",
+            "$to": {
+              "$map": "{{ el.row.buttons }}",
+              "$to": {
+                "text": "{{ el.text }}",
+                "$merge": "{{ el.additionalFields }}"
+              }
+            }
+          },
+          "$merge": [
+            "{{ p.replyMarkup | eq:'forceReply' | then:p.forceReply }}",
+            "{{ p.replyMarkup | eq:'replyKeyboardRemove' | then:p.replyKeyboardRemove }}",
+            "{{ p.replyMarkup | eq:'replyKeyboard' | then:p.replyKeyboardOptions }}"
+          ]
+        }
+      }
+    },
+    {
+      "resource": "message",
+      "operation": "sendMediaGroup",
+      "title": "Send an album of photos or videos",
+      "method": "POST",
+      "path": "/sendMediaGroup",
+      "fields": [
+        {
+          "key": "chatId",
+          "label": "Chat ID",
+          "type": "text",
+          "required": true,
+          "help": "Chat ID or @channelusername"
+        },
+        {
+          "key": "media",
+          "label": "Media",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "media"
+          ],
+          "help": "{\"media\": [{\"type\": \"photo|video\", \"media\": \"file id or URL\", \"additionalFields\": {\"caption\", \"parse_mode\"}}]}"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "disable_notification",
+            "reply_to_message_id",
+            "message_thread_id"
+          ]
+        }
+      ],
+      "body": {
+        "chat_id": "{{ p.chatId }}",
+        "$merge": "{{ p.additionalFields }}",
+        "media": {
+          "$map": "{{ p.media.media }}",
+          "$to": {
+            "$merge": [
+              "{{ el | omit:'additionalFields' }}",
+              "{{ el.additionalFields }}"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "resource": "message",
+      "operation": "sendMessageDraft",
+      "title": "Stream a draft message",
+      "method": "POST",
+      "path": "/sendMessageDraft",
+      "fields": [
+        {
+          "key": "chatId",
+          "label": "Chat ID",
+          "type": "text",
+          "required": true,
+          "help": "Chat ID or @channelusername"
+        },
+        {
+          "key": "draftId",
+          "label": "Draft ID",
+          "type": "number",
+          "default": 1,
+          "required": true
+        },
+        {
+          "key": "text",
+          "label": "Text",
+          "type": "textarea"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "message_thread_id",
+            "parse_mode"
+          ]
+        }
+      ],
+      "body": {
+        "chat_id": "{{ p.chatId }}",
+        "draft_id": "{{ p.draftId }}",
+        "text": "{{ p.text }}",
+        "$merge": "{{ p.additionalFields }}"
+      }
+    },
+    {
+      "resource": "message",
+      "operation": "sendRichMessage",
+      "title": "Send a rich message",
+      "method": "POST",
+      "path": "/sendRichMessage",
+      "fields": [
+        {
+          "key": "chatId",
+          "label": "Chat ID",
+          "type": "text",
+          "required": true,
+          "help": "Chat ID or @channelusername"
+        },
+        {
+          "key": "richFormat",
+          "label": "Format",
+          "type": "select",
+          "options": [
+            "html",
+            "markdown"
+          ],
+          "default": "html"
+        },
+        {
+          "key": "richMessageText",
+          "label": "Content",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "key": "replyMarkup",
+          "label": "Reply markup",
+          "type": "select",
+          "options": [
+            "none",
+            "forceReply",
+            "inlineKeyboard",
+            "replyKeyboard",
+            "replyKeyboardRemove"
+          ],
+          "default": "none"
+        },
+        {
+          "key": "forceReply",
+          "label": "Force reply",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "force_reply",
+            "selective"
+          ]
+        },
+        {
+          "key": "inlineKeyboard",
+          "label": "Inline keyboard",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "rows"
+          ],
+          "help": "{\"rows\": [{\"row\": {\"buttons\": [{\"text\": \"Open\", \"additionalFields\": {\"url\": \"https://…\"}}]}}]}"
+        },
+        {
+          "key": "replyKeyboard",
+          "label": "Reply keyboard",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "rows"
+          ],
+          "help": "Same shape as Inline keyboard"
+        },
+        {
+          "key": "replyKeyboardOptions",
+          "label": "Reply keyboard options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "resize_keyboard",
+            "one_time_keyboard",
+            "selective"
+          ]
+        },
+        {
+          "key": "replyKeyboardRemove",
+          "label": "Remove reply keyboard",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "remove_keyboard",
+            "selective"
+          ]
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "disable_notification",
+            "message_effect_id",
+            "message_thread_id",
+            "protect_content",
+            "is_rtl",
+            "skip_entity_detection"
+          ]
+        }
+      ],
+      "body": {
+        "chat_id": "{{ p.chatId }}",
+        "rich_message": {
+          "html": "{{ p.richFormat | ne:'markdown' | then:p.richMessageText }}",
+          "markdown": "{{ p.richFormat | eq:'markdown' | then:p.richMessageText }}",
+          "is_rtl": "{{ p.additionalFields.is_rtl }}",
+          "skip_entity_detection": "{{ p.additionalFields.skip_entity_detection }}"
+        },
+        "$merge": "{{ p.additionalFields | pick:'disable_notification,protect_content,message_thread_id,message_effect_id' }}",
+        "reply_markup": {
+          "$when": "{{ p.replyMarkup | ne:'none' }}",
+          "inline_keyboard": {
+            "$map": "{{ p.replyMarkup | eq:'inlineKeyboard' | then:p.inlineKeyboard.rows }}",
+            "$to": {
+              "$map": "{{ el.row.buttons }}",
+              "$to": {
+                "text": "{{ el.text }}",
+                "$merge": "{{ el.additionalFields }}"
+              }
+            }
+          },
+          "keyboard": {
+            "$map": "{{ p.replyMarkup | eq:'replyKeyboard' | then:p.replyKeyboard.rows }}",
+            "$to": {
+              "$map": "{{ el.row.buttons }}",
+              "$to": {
+                "text": "{{ el.text }}",
+                "$merge": "{{ el.additionalFields }}"
+              }
+            }
+          },
+          "$merge": [
+            "{{ p.replyMarkup | eq:'forceReply' | then:p.forceReply }}",
+            "{{ p.replyMarkup | eq:'replyKeyboardRemove' | then:p.replyKeyboardRemove }}",
+            "{{ p.replyMarkup | eq:'replyKeyboard' | then:p.replyKeyboardOptions }}"
+          ]
+        }
+      }
+    },
+    {
+      "resource": "message",
+      "operation": "sendRichMessageDraft",
+      "title": "Send a rich message draft",
+      "method": "POST",
+      "path": "/sendRichMessageDraft",
+      "fields": [
+        {
+          "key": "chatId",
+          "label": "Chat ID",
+          "type": "text",
+          "required": true,
+          "help": "Chat ID or @channelusername"
+        },
+        {
+          "key": "draftId",
+          "label": "Draft ID",
+          "type": "number",
+          "default": 1,
+          "required": true
+        },
+        {
+          "key": "richFormat",
+          "label": "Format",
+          "type": "select",
+          "options": [
+            "html",
+            "markdown"
+          ],
+          "default": "html"
+        },
+        {
+          "key": "richMessageText",
+          "label": "Content",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "disable_notification",
+            "message_effect_id",
+            "message_thread_id",
+            "protect_content",
+            "is_rtl",
+            "skip_entity_detection"
+          ]
+        }
+      ],
+      "body": {
+        "chat_id": "{{ p.chatId }}",
+        "rich_message": {
+          "html": "{{ p.richFormat | ne:'markdown' | then:p.richMessageText }}",
+          "markdown": "{{ p.richFormat | eq:'markdown' | then:p.richMessageText }}",
+          "is_rtl": "{{ p.additionalFields.is_rtl }}",
+          "skip_entity_detection": "{{ p.additionalFields.skip_entity_detection }}"
+        },
+        "$merge": "{{ p.additionalFields | pick:'disable_notification,protect_content,message_thread_id,message_effect_id' }}",
+        "draft_id": "{{ p.draftId }}"
+      }
+    },
+    {
+      "resource": "chat",
+      "operation": "get",
+      "title": "Get a chat",
+      "method": "POST",
+      "path": "/getChat",
+      "fields": [
+        {
+          "key": "chatId",
+          "label": "Chat ID",
+          "type": "text",
+          "required": true,
+          "help": "Chat ID or @channelusername"
+        }
+      ],
+      "body": {
+        "chat_id": "{{ p.chatId }}"
+      }
+    },
+    {
+      "resource": "chat",
+      "operation": "administrators",
+      "title": "Get a chat's administrators",
+      "method": "POST",
+      "path": "/getChatAdministrators",
+      "fields": [
+        {
+          "key": "chatId",
+          "label": "Chat ID",
+          "type": "text",
+          "required": true,
+          "help": "Chat ID or @channelusername"
+        }
+      ],
+      "body": {
+        "chat_id": "{{ p.chatId }}"
+      },
+      "output": {
+        "path": "result"
+      }
+    },
+    {
+      "resource": "chat",
+      "operation": "member",
+      "title": "Get a chat member",
+      "method": "POST",
+      "path": "/getChatMember",
+      "fields": [
+        {
+          "key": "chatId",
+          "label": "Chat ID",
+          "type": "text",
+          "required": true,
+          "help": "Chat ID or @channelusername"
+        },
+        {
+          "key": "userId",
+          "label": "User ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "chat_id": "{{ p.chatId }}",
+        "user_id": "{{ p.userId }}"
+      }
+    },
+    {
+      "resource": "chat",
+      "operation": "leave",
+      "title": "Leave a chat",
+      "method": "POST",
+      "path": "/leaveChat",
+      "fields": [
+        {
+          "key": "chatId",
+          "label": "Chat ID",
+          "type": "text",
+          "required": true,
+          "help": "Chat ID or @channelusername"
+        }
+      ],
+      "body": {
+        "chat_id": "{{ p.chatId }}"
+      }
+    },
+    {
+      "resource": "chat",
+      "operation": "setDescription",
+      "title": "Set a chat's description",
+      "method": "POST",
+      "path": "/setChatDescription",
+      "fields": [
+        {
+          "key": "chatId",
+          "label": "Chat ID",
+          "type": "text",
+          "required": true,
+          "help": "Chat ID or @channelusername"
+        },
+        {
+          "key": "description",
+          "label": "Description",
+          "type": "textarea",
+          "required": true
+        }
+      ],
+      "body": {
+        "chat_id": "{{ p.chatId }}",
+        "description": "{{ p.description }}"
+      }
+    },
+    {
+      "resource": "chat",
+      "operation": "setTitle",
+      "title": "Set a chat's title",
+      "method": "POST",
+      "path": "/setChatTitle",
+      "fields": [
+        {
+          "key": "chatId",
+          "label": "Chat ID",
+          "type": "text",
+          "required": true,
+          "help": "Chat ID or @channelusername"
+        },
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "chat_id": "{{ p.chatId }}",
+        "title": "{{ p.title }}"
+      }
+    },
+    {
+      "resource": "callback",
+      "operation": "answerQuery",
+      "title": "Answer a callback query",
+      "method": "POST",
+      "path": "/answerCallbackQuery",
+      "fields": [
+        {
+          "key": "queryId",
+          "label": "Query ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "cache_time",
+            "show_alert",
+            "text",
+            "url"
+          ]
+        }
+      ],
+      "body": {
+        "callback_query_id": "{{ p.queryId }}",
+        "$merge": "{{ p.additionalFields }}"
+      }
+    },
+    {
+      "resource": "callback",
+      "operation": "answerInlineQuery",
+      "title": "Answer an inline query",
+      "method": "POST",
+      "path": "/answerInlineQuery",
+      "fields": [
+        {
+          "key": "queryId",
+          "label": "Query ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "results",
+          "label": "Results (JSON)",
+          "type": "textarea",
+          "required": true,
+          "help": "A JSON-serialized array of InlineQueryResult"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "cache_time",
+            "show_alert",
+            "text",
+            "url"
+          ]
+        }
+      ],
+      "body": {
+        "inline_query_id": "{{ p.queryId }}",
+        "results": "{{ p.results }}",
+        "$merge": "{{ p.additionalFields }}"
+      }
+    },
+    {
+      "resource": "file",
+      "operation": "get",
+      "title": "Get a file (and download it)",
+      "method": "{{ p.download | eq:'true' | then:'GET' | default:'POST' }}",
+      "path": "/{{ p.download | eq:'true' | then:'file/' }}bot{{ cred.bot_token }}/{{ p.download | eq:'true' | then:pre.result.file_path | default:'getFile' | path }}",
+      "base_url": "https://api.telegram.org",
+      "fields": [
+        {
+          "key": "fileId",
+          "label": "File ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "download",
+          "label": "Download the file",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "mimeType"
+          ]
+        }
+      ],
+      "before": {
+        "when": "{{ p.download }}",
+        "method": "POST",
+        "path": "/bot{{ cred.bot_token }}/getFile",
+        "body": {
+          "file_id": "{{ p.fileId }}"
+        }
+      },
+      "body": {
+        "file_id": "{{ p.download | ne:'true' | then:p.fileId }}"
+      },
+      "binary": {
+        "download_when": "{{ p.download }}",
+        "file_name": "{{ pre.result.file_path | re:'([^/]+)$' }}",
+        "mime_type": "{{ p.additionalFields.mimeType }}"
+      }
+    }
+  ],
+  "webhook": {
+    "fields": [
+      {
+        "key": "updates",
+        "label": "Updates",
+        "type": "array",
+        "required": true
+      }
+    ],
+    "create": [
+      {
+        "method": "POST",
+        "path": "/setWebhook",
+        "body": {
+          "url": "{{ hook.url }}",
+          "secret_token": "{{ hook.secret }}",
+          "drop_pending_updates": true,
+          "!allowed_updates": {
+            "$concat": [
+              "{{ p.updates | join:',' | matches:'(^|,)\\*(,|$)' | not | then:p.updates }}"
+            ]
+          }
+        }
+      }
+    ],
+    "id": "{{ cred.bot_token | re:'^([0-9]+):' }}",
+    "delete": [
+      {
+        "method": "POST",
+        "path": "/deleteWebhook"
+      }
+    ],
+    "check": {
+      "method": "POST",
+      "path": "/getWebhookInfo",
+      "exists_when": "{{ res.result.url | eq:hook.url }}"
+    },
+    "verify": {
+      "signature": "{{ hdr.X-Telegram-Bot-Api-Secret-Token }}",
+      "alg": "token"
+    }
+  }
+}

@@ -2,8 +2,6 @@ package bot
 
 import (
 	"context"
-	"fmt"
-	"strings"
 
 	"github.com/monoes/mono-agent/internal/browser"
 )
@@ -45,17 +43,3 @@ type BotAdapter interface {
 // create the corresponding BotAdapter. Platform packages register themselves
 // via init() functions.
 var PlatformRegistry = map[string]func() BotAdapter{}
-
-// NewBot creates a new BotAdapter for the given platform.
-// The platform name is normalised to upper-case before lookup.
-func NewBot(platform string) (BotAdapter, error) {
-	platform = strings.ToUpper(strings.TrimSpace(platform))
-	constructor, ok := PlatformRegistry[platform]
-	if !ok {
-		if !PlatformCompiledIn(platform) {
-			return nil, ErrNotCompiledIn(platform)
-		}
-		return nil, fmt.Errorf("unsupported platform: %s", platform)
-	}
-	return constructor(), nil
-}

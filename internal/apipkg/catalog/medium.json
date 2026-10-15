@@ -1,0 +1,174 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "medium",
+  "node_type": "app.medium",
+  "title": "Medium",
+  "description": "Publish posts and list publications on Medium",
+  "category": "app",
+  "docs_url": "https://github.com/Medium/medium-api-docs",
+  "n8n_types": [
+    "n8n-nodes-base.medium"
+  ],
+  "base_url": "https://api.medium.com/v1",
+  "credentials": [
+    {
+      "platform": "medium",
+      "name": "Medium",
+      "n8n_credential": "mediumApi",
+      "n8n_credential_alt": [
+        "mediumOAuth2Api"
+      ],
+      "n8n_field_map": {
+        "accessToken": "access_token"
+      },
+      "methods": [
+        "bearer",
+        "oauth"
+      ],
+      "fields": [
+        {
+          "key": "access_token",
+          "label": "Integration token",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "oauth": {
+        "auth_url": "https://medium.com/m/oauth/authorize",
+        "token_url": "https://api.medium.com/v1/tokens",
+        "scopes": [],
+        "extra_params": {
+          "scope": "basicProfile,publishPost,listPublications"
+        }
+      },
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "post",
+      "label": "Post"
+    },
+    {
+      "value": "publication",
+      "label": "Publication"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "post",
+      "operation": "create",
+      "title": "Create a post",
+      "method": "POST",
+      "description": "Posts under your own profile, or under a publication when publication is on",
+      "before": {
+        "when": "{{ p.publication | ne:'true' }}",
+        "method": "GET",
+        "path": "/me"
+      },
+      "path": "/{{ p.publication | eq:'true' | then:'publications' | default:'users' }}/{{ p.publication | eq:'true' | then:p.publicationId | default:pre.data.id }}/posts",
+      "fields": [
+        {
+          "key": "publication",
+          "label": "Post under a publication",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "publicationId",
+          "label": "Publication ID",
+          "type": "text",
+          "help": "Used when publication is on"
+        },
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "contentFormat",
+          "label": "Content format",
+          "type": "select",
+          "required": true,
+          "default": "",
+          "options": [
+            "html",
+            "markdown"
+          ]
+        },
+        {
+          "key": "content",
+          "label": "Content",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "canonicalUrl",
+            "license",
+            "notifyFollowers",
+            "publishStatus",
+            "tags"
+          ],
+          "help": "tags: comma-separated (up to 5); publishStatus: public, draft or unlisted; license: e.g. all-rights-reserved, cc-40-by, public-domain"
+        }
+      ],
+      "body": {
+        "title": "{{ p.title }}",
+        "contentFormat": "{{ p.contentFormat }}",
+        "content": "{{ p.content }}",
+        "!tags": {
+          "$concat": [
+            "{{ p.additionalFields.tags | split }}"
+          ]
+        },
+        "canonicalUrl": "{{ p.additionalFields.canonicalUrl }}",
+        "publishStatus": "{{ p.additionalFields.publishStatus }}",
+        "license": "{{ p.additionalFields.license }}",
+        "notifyFollowers": "{{ p.additionalFields.notifyFollowers }}"
+      },
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "publication",
+      "operation": "getAll",
+      "title": "Get many publications",
+      "method": "GET",
+      "before": {
+        "method": "GET",
+        "path": "/me"
+      },
+      "path": "/users/{{ pre.data.id }}/publications",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        }
+      ],
+      "output": {
+        "path": "data",
+        "limit": true
+      }
+    }
+  ]
+}

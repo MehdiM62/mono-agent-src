@@ -250,12 +250,12 @@ func TestInputProjection(t *testing.T) {
 func TestMissingKeyIsInvalidConfig(t *testing.T) {
 	t.Setenv("TYPESAFE_API_KEY", "")
 	srv := jevtest.NewServer(t, nil)
-	for _, key := range []string{"", "@secret:typesafe"} {
+	for key, want := range map[string]string{"": "jev key set", "@secret:typesafe": `"typesafe"`} {
 		cfg := baseConfig()
 		cfg["api_key"] = key
 		_, err := (&Node{}).Execute(context.Background(), workflow.NodeInput{Items: items("x")}, cfg)
-		if !errors.Is(err, workflow.ErrInvalidConfig) || !strings.Contains(err.Error(), `"typesafe"`) {
-			t.Errorf("api_key %q: err = %v, want ErrInvalidConfig naming the typesafe secret", key, err)
+		if !errors.Is(err, workflow.ErrInvalidConfig) || !strings.Contains(err.Error(), want) {
+			t.Errorf("api_key %q: err = %v, want ErrInvalidConfig containing %s", key, err, want)
 		}
 	}
 	cfg := baseConfig()

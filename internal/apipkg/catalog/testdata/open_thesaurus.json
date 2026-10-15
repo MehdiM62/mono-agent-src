@@ -1,0 +1,32 @@
+{
+  "getSynonyms": {
+    "params": {
+      "text": "Haus",
+      "options": {
+        "similar": true,
+        "substringMaxResults": 5
+      }
+    },
+    "response": {
+      "synsets": [
+        {
+          "id": 1
+        },
+        {
+          "id": 2
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/synonyme/search",
+      "query": {
+        "q": "Haus",
+        "format": "application/json",
+        "similar": "true",
+        "substringMaxResults": "5"
+      },
+      "items": 2
+    }
+  }
+}

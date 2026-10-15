@@ -237,6 +237,26 @@
       "switchTo": "Cambiar a {{name}}",
       "chipTitle": "Del perfil {{name}}",
       "line": "{{active}} activos · {{running}} en curso · {{failed}} fallidos (24 h) · {{waiting}} esperándote"
+    },
+    "getStarted": {
+      "title": "Primeros pasos",
+      "progress": "{{done}} de {{total}} hechos",
+      "dismiss": "Ocultar esta lista",
+      "optional": "opcional",
+      "done": "Hecho",
+      "signIn": "Inicia sesión en monoes.me",
+      "signInWhy": "MonoAgent necesita una cuenta de monoes.me antes de ejecutar nada.",
+      "signInAction": "Iniciar sesión",
+      "firstRun": "Ejecuta tu primer flujo de trabajo",
+      "firstRunWhy": "Empieza con una plantilla y pulsa Ejecutar.",
+      "firstRunAction": "Elegir una plantilla",
+      "extension": "Conecta la extensión del navegador",
+      "extensionWhy": "Las automatizaciones web se ejecutan en tu propio navegador a través de la extensión.",
+      "extensionWhyUnpaired": "El puente está en marcha pero aún no acepta esta app. Emparéjalo con el botón.",
+      "extensionAction": "Configurar",
+      "daemon": "Mantén los flujos en marcha en segundo plano",
+      "daemonWhy": "Las programaciones y los webhooks necesitan el servicio en segundo plano.",
+      "daemonAction": "Abrir configuración"
     }
   },
   "agentSetup": {
@@ -271,7 +291,17 @@
     "language": {
       "sectionTitle": "Idioma",
       "label": "Idioma de la interfaz",
-      "hint": "Piloto: solo inglés y español — consulta docs/i18n.md"
+      "hint": "Piloto: solo inglés y español"
+    },
+    "browsers": {
+      "notPaired": "Este navegador aún no está emparejado con MonoAgent.",
+      "notPairedWhy": "Emparéjalo para que las automatizaciones puedan ejecutarse en él. La extensión se empareja sola desde una página que abre el botón.",
+      "pair": "Emparejar navegador",
+      "pairing": "Emparejando…",
+      "pairOpened": "Se abrió la página de emparejamiento en tu navegador.",
+      "pairNotOpened": "No se pudo abrir la página de emparejamiento.",
+      "pairRestart": "El puente en marcha usa un token de emparejamiento distinto al de esta app.",
+      "details": "Detalles"
     },
     "health": {
       "sectionTitle": "Estado del sistema",
@@ -638,6 +668,19 @@
           "done": "Se restablecieron los ajustes guardados. Cada ajuste vuelve a su variable de entorno o a su valor por defecto."
         }
       }
+    },
+    "scope": {
+      "globalTitle": "Todos los perfiles",
+      "globalLine": "Se aplica a todo este equipo, a todos los perfiles.",
+      "profileTitle": "Este perfil",
+      "profileLine": "Se aplica solo al perfil {{name}}. Los demás perfiles conservan los suyos.",
+      "profileLineNoName": "Se aplica solo al perfil activo. Los demás perfiles conservan los suyos."
+    },
+    "jev": {
+      "keyProfileVault": "Definida (este perfil, se compartirá)",
+      "featuresTitle": "Funciones de TypeSafe Jev",
+      "consent": "Activar una función es una decisión solo de este perfil: permite que este perfil envíe datos a TypeSafe. Los demás perfiles siguen desactivados hasta que la activen ellos.",
+      "adoptHint": "Esta clave solo está en la bóveda de este perfil. Para compartirla con todos los perfiles, ejecuta:"
     }
   },
   "orgs": {
@@ -982,6 +1025,13 @@
     "scopedTitle": "Claude se ejecutó con el acceso limitado de monomind: sus herramientas se limitan a lo que permite este turno. Todavía no tiene un sandbox propio.",
     "awaitingMonomindTitle": "monomind todavía no puede aislar este entorno de agente (incidencia #396 de monomind), así que el turno se ejecutó sin sandbox. Los turnos de Codex y Grok ya se aíslan."
   },
+  "coderFolder": {
+    "profileDefault": "Carpeta del perfil (predeterminada): {{name}}",
+    "profileDefaultUnnamed": "Carpeta del perfil (predeterminada)",
+    "profileHint": "La carpeta del perfil activo",
+    "chooseAnother": "Elegir otra carpeta…",
+    "chooseHint": "Cualquier carpeta de confianza"
+  },
   "bubbles": {
     "dockLabel": "Chats de código",
     "newChat": "Nuevo chat de código",
@@ -1218,7 +1268,8 @@
       "approved": "aprobada",
       "denied": "denegada",
       "rejected": "rechazada",
-      "dismissed": "descartada"
+      "dismissed": "descartada",
+      "sent": "enviado"
     },
     "dismiss": "Descartar",
     "dismissHint": "Cierra esta pregunta sin responder; se avisa al rol",
@@ -1246,7 +1297,23 @@
     "sent": "enviado",
     "couldNotSend": "No se pudo enviar: {{error}}",
     "openAsBubble": "Abrir como burbuja",
-    "openAsBubbleNamed": "Abrir {{name}} como burbuja de chat"
+    "openAsBubbleNamed": "Abrir {{name}} como burbuja de chat",
+    "threadBoss": "Jefe",
+    "threadTeam": "Equipo",
+    "threadsLabel": "Vista de la conversación",
+    "threadRoleLabel": "Hilo de {{name}}",
+    "teamEmpty": "Aún no hay mensajes entre roles.",
+    "roleEmpty": "{{name}} todavía no ha dicho ni hecho nada.",
+    "waitingElsewhere_one": "{{count}} esperando por ti en otra vista. Ver el hilo del jefe",
+    "waitingElsewhere_other": "{{count}} esperando por ti en otra vista. Ver el hilo del jefe",
+    "tool": {
+      "running": "en curso",
+      "ok": "hecho",
+      "failed": "falló",
+      "denied": "denegado"
+    },
+    "answerInBubble": "Responder en la burbuja",
+    "answerInBubbleNamed": "Abre {{name}} como burbuja para responder lo que espera por ti"
   },
   "account": {
     "checking": "Comprobando tu cuenta de monoes.me…",
@@ -1319,6 +1386,11 @@
       "text": "Desde el {{date}} hará falta una sesión de monoes.me.",
       "signIn": "Iniciar sesión"
     },
+    "menu": {
+      "label": "Cuenta",
+      "notSignedIn": "Sin sesión iniciada",
+      "plan": "Tu plan: {{plan}}"
+    },
     "banner": {
       "dismiss": "Descartar",
       "close": "Cerrar"
@@ -1349,10 +1421,28 @@
     "left": "quedan {{time}}",
     "ended": "terminó hace {{time}}",
     "leaseEnded": "El reclamo terminó: otro agente puede tomarla, o puede volver a Listo.",
-    "tag": { "question": "Pregunta", "result": "Resultado" },
-    "age": { "now": "ahora", "m": "{{n}} min", "h": "{{n}} h", "d": "{{n}} d", "w": "{{n}} sem" },
-    "span": { "m": "{{m}} min", "hm": "{{h}} h {{m}} min" },
-    "source": { "chrome": "Chrome", "os": "App", "agent": "Agente", "app": "MonoAgent", "cli": "Terminal" },
+    "tag": {
+      "question": "Pregunta",
+      "result": "Resultado"
+    },
+    "age": {
+      "now": "ahora",
+      "m": "{{n}} min",
+      "h": "{{n}} h",
+      "d": "{{n}} d",
+      "w": "{{n}} sem"
+    },
+    "span": {
+      "m": "{{m}} min",
+      "hm": "{{h}} h {{m}} min"
+    },
+    "source": {
+      "chrome": "Chrome",
+      "os": "App",
+      "agent": "Agente",
+      "app": "MonoAgent",
+      "cli": "Terminal"
+    },
     "archiveFailed": "No se pudo archivar",
     "archiving": "Archivando…",
     "close": "Cerrar",
@@ -1436,5 +1526,58 @@
       "org_id": "ID de organización",
       "role_id": "ID del rol"
     }
+  },
+  "ask": {
+    "regionLabel": "Esperando tu aprobación",
+    "hilTitle": "El flujo {{workflow}} pregunta: {{node}}",
+    "sendTitle": "Aprobar el envío ({{channel}})",
+    "sendLabel": "Aprobar el envío de {{channel}} a {{name}}",
+    "channel": {
+      "email": "correo",
+      "dm": "mensaje directo",
+      "comment": "comentario",
+      "post": "publicación",
+      "connection": "solicitud de conexión"
+    },
+    "to": "Para",
+    "from": "De",
+    "subject": "Asunto",
+    "profile": "perfil",
+    "person": "abrir persona",
+    "unknownRecipient": "Destinatario desconocido",
+    "textLabel": "Texto exacto que se enviará",
+    "edited": "Editado: al aprobar se envía este texto.",
+    "preparedBy": "Preparado por {{name}}. No se envía nada hasta que apruebes.",
+    "edit": "Editar",
+    "doneEditing": "Terminar edición",
+    "attachments_one": "{{count}} adjunto",
+    "attachments_other": "{{count}} adjuntos",
+    "imageAlt": "Imagen adjunta",
+    "previewFailed": "Vista previa no disponible",
+    "previewLoading": "Cargando vista previa…",
+    "open": "Abrir",
+    "openNamed": "Abrir {{name}}"
+  },
+  "coderQueue": {
+    "kind": {
+      "copy-style": "Copiar estilo",
+      "tokens": "Tokens de diseño",
+      "fix-element": "Arreglar elemento",
+      "bug-report": "Informe de error",
+      "integration": "Integración",
+      "ask": "Pregunta"
+    },
+    "label": "Chat de código en cola: {{kind}}",
+    "fromBrowser": "desde el navegador",
+    "dismiss": "Descartar",
+    "dismissNamed": "Descartar {{kind}}",
+    "screenshot": "Captura de la página",
+    "coderRoot": "carpeta raíz de código",
+    "changeFolder": "Cambiar",
+    "start": "Iniciar",
+    "stackLabel": "Chats de código en cola",
+    "showFewer": "Mostrar menos",
+    "more_one": "+{{count}} más en cola",
+    "more_other": "+{{count}} más en cola"
   }
 }

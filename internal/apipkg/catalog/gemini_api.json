@@ -1,0 +1,1140 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "gemini_api",
+  "node_type": "app.gemini_api",
+  "title": "Google Gemini API",
+  "description": "Gemini messages, image/audio/video/document analysis, image and Veo video generation, media files and File Search stores through the Gemini API with your own key",
+  "category": "app",
+  "docs_url": "https://ai.google.dev/api",
+  "n8n_types": [
+    "@n8n/n8n-nodes-langchain.googleGemini"
+  ],
+  "base_url": "{{ cred.host | default:'https://generativelanguage.googleapis.com' }}",
+  "credentials": [
+    {
+      "platform": "gemini_api",
+      "reuse_platform": "gemini_api",
+      "name": "Google Gemini API",
+      "n8n_credential": "googlePalmApi",
+      "n8n_field_map": {
+        "apiKey": "api_key",
+        "host": "host"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "host",
+          "label": "Host",
+          "help": "Defaults to https://generativelanguage.googleapis.com"
+        }
+      ],
+      "inject": {
+        "query": {
+          "key": "{{ cred.api_key }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "audio",
+      "label": "Audio"
+    },
+    {
+      "value": "document",
+      "label": "Document"
+    },
+    {
+      "value": "file",
+      "label": "Media File"
+    },
+    {
+      "value": "fileSearch",
+      "label": "File Search"
+    },
+    {
+      "value": "image",
+      "label": "Image"
+    },
+    {
+      "value": "video",
+      "label": "Video"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "audio",
+      "operation": "transcribe",
+      "title": "Transcribe a recording",
+      "description": "generateContent asking for a transcript; with Simplify each candidate is an item",
+      "method": "POST",
+      "path": "/v1beta/models/{{ (p.modelId | rl | replace:'models/','') }}:generateContent",
+      "fields": [
+        {
+          "key": "modelId",
+          "label": "Model",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "Gemini model id (models/… or bare). Plain id or n8n model locator."
+        },
+        {
+          "key": "inputType",
+          "label": "Input",
+          "type": "select",
+          "default": "url",
+          "options": [
+            "url",
+            "binary"
+          ]
+        },
+        {
+          "key": "audioUrls",
+          "label": "Audio URLs",
+          "type": "text",
+          "default": "",
+          "help": "Comma-separated URLs (used when Input is url)."
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Input binary properties",
+          "type": "text",
+          "default": "data",
+          "help": "Comma-separated binary properties (used when Input is binary)."
+        },
+        {
+          "key": "simplify",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "startTime",
+            "endTime"
+          ],
+          "help": "startTime / endTime: MM:SS or HH:MM:SS."
+        }
+      ],
+      "body": {
+        "contents": [
+          {
+            "role": "user",
+            "parts": {
+              "$concat": [
+                {
+                  "$map": "{{ p.inputType | ne:'binary' | then:(p.audioUrls | split) }}",
+                  "$to": {
+                    "fileData": {
+                      "$when": "{{ el | matches:'^https://generativelanguage[.]googleapis[.]com' }}",
+                      "fileUri": "{{ el }}"
+                    }
+                  }
+                },
+                {
+                  "$map": "{{ bin.files }}",
+                  "$to": {
+                    "inlineData": {
+                      "mimeType": "{{ el.mime_type }}",
+                      "data": "{{ el.base64 }}"
+                    }
+                  }
+                },
+                [
+                  {
+                    "text": "Generate a transcript of the speech{{ p.options.startTime | prefix:' from ' }}{{ p.options.endTime | prefix:' to ' }}"
+                  }
+                ]
+              ]
+            }
+          }
+        ]
+      },
+      "binary": {
+        "properties": "{{ p.inputType | eq:'binary' | then:p.binaryPropertyName }}",
+        "upload_urls": {
+          "$map": "{{ p.inputType | ne:'binary' | then:(p.audioUrls | split) }}",
+          "$to": "{{ el | matches:'^https://generativelanguage[.]googleapis[.]com' | not | then:el }}"
+        }
+      },
+      "output": {
+        "path": "{{ p.simplify | ne:'false' | then:'candidates' }}"
+      }
+    },
+    {
+      "resource": "audio",
+      "operation": "analyze",
+      "title": "Analyze audio",
+      "description": "generateContent with the audio inline (URLs are fetched; Gemini file URIs pass as fileData); with Simplify each candidate is an item",
+      "method": "POST",
+      "path": "/v1beta/models/{{ (p.modelId | rl | replace:'models/','') }}:generateContent",
+      "fields": [
+        {
+          "key": "modelId",
+          "label": "Model",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "Gemini model id (models/… or bare). Plain id or n8n model locator."
+        },
+        {
+          "key": "text",
+          "label": "Question",
+          "type": "textarea",
+          "default": "What's in this audio?"
+        },
+        {
+          "key": "inputType",
+          "label": "Input",
+          "type": "select",
+          "default": "url",
+          "options": [
+            "url",
+            "binary"
+          ]
+        },
+        {
+          "key": "audioUrls",
+          "label": "Audio URLs",
+          "type": "text",
+          "default": "",
+          "help": "Comma-separated URLs (used when Input is url)."
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Input binary properties",
+          "type": "text",
+          "default": "data",
+          "help": "Comma-separated binary properties (used when Input is binary)."
+        },
+        {
+          "key": "simplify",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "maxOutputTokens"
+          ],
+          "help": "maxOutputTokens: answer length (default 300)."
+        }
+      ],
+      "body": {
+        "contents": [
+          {
+            "role": "user",
+            "parts": {
+              "$concat": [
+                {
+                  "$map": "{{ p.inputType | ne:'binary' | then:(p.audioUrls | split) }}",
+                  "$to": {
+                    "fileData": {
+                      "$when": "{{ el | matches:'^https://generativelanguage[.]googleapis[.]com' }}",
+                      "fileUri": "{{ el }}"
+                    }
+                  }
+                },
+                {
+                  "$map": "{{ bin.files }}",
+                  "$to": {
+                    "inlineData": {
+                      "mimeType": "{{ el.mime_type }}",
+                      "data": "{{ el.base64 }}"
+                    }
+                  }
+                },
+                [
+                  {
+                    "text": "{{ p.text }}"
+                  }
+                ]
+              ]
+            }
+          }
+        ],
+        "generationConfig": {
+          "maxOutputTokens": "{{ p.options.maxOutputTokens | default:300 }}"
+        }
+      },
+      "binary": {
+        "properties": "{{ p.inputType | eq:'binary' | then:p.binaryPropertyName }}",
+        "upload_urls": {
+          "$map": "{{ p.inputType | ne:'binary' | then:(p.audioUrls | split) }}",
+          "$to": "{{ el | matches:'^https://generativelanguage[.]googleapis[.]com' | not | then:el }}"
+        }
+      },
+      "output": {
+        "path": "{{ p.simplify | ne:'false' | then:'candidates' }}"
+      }
+    },
+    {
+      "resource": "document",
+      "operation": "analyze",
+      "title": "Analyze document",
+      "description": "generateContent with the document inline (URLs are fetched; Gemini file URIs pass as fileData); with Simplify each candidate is an item",
+      "method": "POST",
+      "path": "/v1beta/models/{{ (p.modelId | rl | replace:'models/','') }}:generateContent",
+      "fields": [
+        {
+          "key": "modelId",
+          "label": "Model",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "Gemini model id (models/… or bare). Plain id or n8n model locator."
+        },
+        {
+          "key": "text",
+          "label": "Question",
+          "type": "textarea",
+          "default": "What's in this document?"
+        },
+        {
+          "key": "inputType",
+          "label": "Input",
+          "type": "select",
+          "default": "url",
+          "options": [
+            "url",
+            "binary"
+          ]
+        },
+        {
+          "key": "documentUrls",
+          "label": "Document URLs",
+          "type": "text",
+          "default": "",
+          "help": "Comma-separated URLs (used when Input is url)."
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Input binary properties",
+          "type": "text",
+          "default": "data",
+          "help": "Comma-separated binary properties (used when Input is binary)."
+        },
+        {
+          "key": "simplify",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "maxOutputTokens"
+          ],
+          "help": "maxOutputTokens: answer length (default 300)."
+        }
+      ],
+      "body": {
+        "contents": [
+          {
+            "role": "user",
+            "parts": {
+              "$concat": [
+                {
+                  "$map": "{{ p.inputType | ne:'binary' | then:(p.documentUrls | split) }}",
+                  "$to": {
+                    "fileData": {
+                      "$when": "{{ el | matches:'^https://generativelanguage[.]googleapis[.]com' }}",
+                      "fileUri": "{{ el }}"
+                    }
+                  }
+                },
+                {
+                  "$map": "{{ bin.files }}",
+                  "$to": {
+                    "inlineData": {
+                      "mimeType": "{{ el.mime_type }}",
+                      "data": "{{ el.base64 }}"
+                    }
+                  }
+                },
+                [
+                  {
+                    "text": "{{ p.text }}"
+                  }
+                ]
+              ]
+            }
+          }
+        ],
+        "generationConfig": {
+          "maxOutputTokens": "{{ p.options.maxOutputTokens | default:300 }}"
+        }
+      },
+      "binary": {
+        "properties": "{{ p.inputType | eq:'binary' | then:p.binaryPropertyName }}",
+        "upload_urls": {
+          "$map": "{{ p.inputType | ne:'binary' | then:(p.documentUrls | split) }}",
+          "$to": "{{ el | matches:'^https://generativelanguage[.]googleapis[.]com' | not | then:el }}"
+        }
+      },
+      "output": {
+        "path": "{{ p.simplify | ne:'false' | then:'candidates' }}"
+      }
+    },
+    {
+      "resource": "file",
+      "operation": "upload",
+      "title": "Upload a media file",
+      "description": "Resumable upload to the Files API; waits until the file is ACTIVE and answers {fileUri, mimeType}",
+      "fields": [
+        {
+          "key": "inputType",
+          "label": "Input",
+          "type": "select",
+          "default": "url",
+          "options": [
+            "url",
+            "binary"
+          ]
+        },
+        {
+          "key": "fileUrl",
+          "label": "File URL",
+          "type": "text",
+          "default": "",
+          "help": "Fetched and uploaded when Input is url."
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Input binary property",
+          "type": "text",
+          "default": "data",
+          "help": "Used when Input is binary."
+        }
+      ],
+      "before": {
+        "method": "POST",
+        "path": "/upload/v1beta/files",
+        "headers": {
+          "X-Goog-Upload-Protocol": "resumable",
+          "X-Goog-Upload-Command": "start",
+          "X-Goog-Upload-Header-Content-Length": "{{ bin.file_size }}",
+          "X-Goog-Upload-Header-Content-Type": "{{ bin.mime_type }}"
+        },
+        "body": {
+          "file": {
+            "display_name": "{{ bin.file_name }}"
+          }
+        }
+      },
+      "binary": {
+        "upload_field": "binaryPropertyName",
+        "upload_url": "{{ p.inputType | ne:'binary' | then:p.fileUrl }}"
+      },
+      "error_when": "{{ res.file.state | default:res.state | eq:'FAILED' }}",
+      "error_message": "{{ res.file.error.message | default:res.error.message | default:'Error uploading file' }}",
+      "poll": {
+        "method": "GET",
+        "path": "/v1beta/{{ main.file.name | path }}",
+        "until": "{{ res.file.state | default:res.state | in:'ACTIVE,FAILED' }}",
+        "interval_ms": 1000,
+        "max_wait_ms": 3600000
+      },
+      "output": {
+        "to": {
+          "fileUri": "{{ el.file.uri | default:el.uri }}",
+          "mimeType": "{{ el.file.mimeType | default:el.mimeType }}"
+        }
+      },
+      "method": "POST",
+      "path": "{{ hdr.X-Goog-Upload-Url }}",
+      "body_type": "raw",
+      "headers": {
+        "X-Goog-Upload-Offset": "0",
+        "X-Goog-Upload-Command": "upload, finalize"
+      }
+    },
+    {
+      "resource": "fileSearch",
+      "operation": "createStore",
+      "title": "Create a File Search store",
+      "method": "POST",
+      "path": "/v1beta/fileSearchStores",
+      "fields": [
+        {
+          "key": "displayName",
+          "label": "Display name",
+          "type": "text",
+          "default": "",
+          "required": true
+        }
+      ],
+      "body": {
+        "displayName": "{{ p.displayName }}"
+      }
+    },
+    {
+      "resource": "fileSearch",
+      "operation": "deleteStore",
+      "title": "Delete a File Search store",
+      "method": "DELETE",
+      "path": "/v1beta/{{ p.fileSearchStoreName | path }}",
+      "fields": [
+        {
+          "key": "fileSearchStoreName",
+          "label": "File Search store",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "Full name: fileSearchStores/…"
+        },
+        {
+          "key": "force",
+          "label": "Force",
+          "type": "boolean",
+          "default": false,
+          "help": "Also delete the store's documents (otherwise a non-empty store is not deleted)."
+        }
+      ],
+      "query": {
+        "force": "{{ p.force }}"
+      }
+    },
+    {
+      "resource": "fileSearch",
+      "operation": "listStores",
+      "title": "List File Search stores",
+      "description": "One page; the response (fileSearchStores, nextPageToken) is the item",
+      "method": "GET",
+      "path": "/v1beta/fileSearchStores",
+      "fields": [
+        {
+          "key": "pageSize",
+          "label": "Page size",
+          "type": "number",
+          "default": 10,
+          "min": 1,
+          "max": 20
+        },
+        {
+          "key": "pageToken",
+          "label": "Page token",
+          "type": "text",
+          "default": ""
+        }
+      ],
+      "query": {
+        "pageSize": "{{ p.pageSize }}",
+        "pageToken": "{{ p.pageToken }}"
+      }
+    },
+    {
+      "resource": "fileSearch",
+      "operation": "uploadToStore",
+      "title": "Upload a file to a File Search store",
+      "description": "Resumable upload into the store; waits for the import operation and answers its response",
+      "fields": [
+        {
+          "key": "fileSearchStoreName",
+          "label": "File Search store",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "Full name: fileSearchStores/…"
+        },
+        {
+          "key": "displayName",
+          "label": "Display name",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "Shown in citations."
+        },
+        {
+          "key": "inputType",
+          "label": "Input",
+          "type": "select",
+          "default": "url",
+          "options": [
+            "url",
+            "binary"
+          ]
+        },
+        {
+          "key": "fileUrl",
+          "label": "File URL",
+          "type": "text",
+          "default": "",
+          "help": "Fetched and uploaded when Input is url."
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Input binary property",
+          "type": "text",
+          "default": "data",
+          "help": "Used when Input is binary."
+        }
+      ],
+      "before": {
+        "method": "POST",
+        "path": "/upload/v1beta/{{ p.fileSearchStoreName | path }}:uploadToFileSearchStore",
+        "headers": {
+          "X-Goog-Upload-Protocol": "resumable",
+          "X-Goog-Upload-Command": "start",
+          "X-Goog-Upload-Header-Content-Length": "{{ bin.file_size }}",
+          "X-Goog-Upload-Header-Content-Type": "{{ bin.mime_type }}"
+        },
+        "body": {
+          "displayName": "{{ p.displayName }}",
+          "mimeType": "{{ bin.mime_type }}"
+        }
+      },
+      "binary": {
+        "upload_field": "binaryPropertyName",
+        "upload_url": "{{ p.inputType | ne:'binary' | then:p.fileUrl }}"
+      },
+      "poll": {
+        "method": "GET",
+        "path": "/v1beta/{{ main.name | path }}",
+        "until": "{{ res.done }}",
+        "interval_ms": 1000,
+        "max_wait_ms": 3600000,
+        "error_when": "{{ res.error }}",
+        "error_message": "{{ res.error.message | default:'Error uploading file to File Search store' }}"
+      },
+      "output": {
+        "path": "response"
+      },
+      "method": "POST",
+      "path": "{{ hdr.X-Goog-Upload-Url }}",
+      "body_type": "raw",
+      "headers": {
+        "X-Goog-Upload-Offset": "0",
+        "X-Goog-Upload-Command": "upload, finalize"
+      }
+    },
+    {
+      "resource": "image",
+      "operation": "generate",
+      "title": "Generate an image",
+      "description": "Gemini image models answer through generateContent, Imagen models through :predict; one item per image",
+      "method": "POST",
+      "path": "/v1beta/models/{{ (p.modelId | rl | replace:'models/','') }}{{ (p.modelId | rl | replace:'models/','') | matches:'imagen' | then:':predict' | default:':generateContent' }}",
+      "fields": [
+        {
+          "key": "modelId",
+          "label": "Model",
+          "type": "text",
+          "default": "models/gemini-3.1-flash-image-preview",
+          "required": true,
+          "help": "Gemini model id (models/… or bare). Plain id or n8n model locator."
+        },
+        {
+          "key": "prompt",
+          "label": "Prompt",
+          "type": "textarea",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "sampleCount",
+            "binaryPropertyOutput"
+          ],
+          "help": "sampleCount: number of images (Imagen); binaryPropertyOutput: output binary property (default data)."
+        }
+      ],
+      "body": {
+        "contents": {
+          "$concat": [
+            {
+              "$when": "{{ (p.modelId | rl | replace:'models/','') | matches:'imagen' | not }}",
+              "role": "user",
+              "parts": [
+                {
+                  "text": "{{ p.prompt }}"
+                }
+              ]
+            }
+          ]
+        },
+        "generationConfig": {
+          "$when": "{{ (p.modelId | rl | replace:'models/','') | matches:'imagen' | not }}",
+          "responseModalities": [
+            "IMAGE",
+            "TEXT"
+          ]
+        },
+        "instances": {
+          "$concat": [
+            {
+              "$when": "{{ (p.modelId | rl | replace:'models/','') | matches:'imagen' }}",
+              "prompt": "{{ p.prompt }}"
+            }
+          ]
+        },
+        "parameters": {
+          "$when": "{{ (p.modelId | rl | replace:'models/','') | matches:'imagen' }}",
+          "sampleCount": "{{ p.options.sampleCount | default:1 }}"
+        }
+      },
+      "binary": {
+        "download": true,
+        "download_each": "{{ (p.modelId | rl | replace:'models/','') | matches:'imagen' | then:'predictions' | default:'candidates' }}",
+        "download_base64": "{{ el.bytesBase64Encoded | default:(el.content.parts | pluck:'inlineData.data' | get:'0') }}",
+        "mime_type": "{{ el.mimeType | default:(el.content.parts | pluck:'inlineData.mimeType' | get:'0') | default:'image/png' }}",
+        "file_name": "image.{{ el.mimeType | default:(el.content.parts | pluck:'inlineData.mimeType' | get:'0') | default:'image/png' | replace:'image/','' }}",
+        "property": "{{ p.options.binaryPropertyOutput | default:'data' }}"
+      }
+    },
+    {
+      "resource": "image",
+      "operation": "analyze",
+      "title": "Analyze image",
+      "description": "generateContent with the image inline (URLs are fetched; Gemini file URIs pass as fileData); with Simplify each candidate is an item",
+      "method": "POST",
+      "path": "/v1beta/models/{{ (p.modelId | rl | replace:'models/','') }}:generateContent",
+      "fields": [
+        {
+          "key": "modelId",
+          "label": "Model",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "Gemini model id (models/… or bare). Plain id or n8n model locator."
+        },
+        {
+          "key": "text",
+          "label": "Question",
+          "type": "textarea",
+          "default": "What's in this image?"
+        },
+        {
+          "key": "inputType",
+          "label": "Input",
+          "type": "select",
+          "default": "url",
+          "options": [
+            "url",
+            "binary"
+          ]
+        },
+        {
+          "key": "imageUrls",
+          "label": "Image URLs",
+          "type": "text",
+          "default": "",
+          "help": "Comma-separated URLs (used when Input is url)."
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Input binary properties",
+          "type": "text",
+          "default": "data",
+          "help": "Comma-separated binary properties (used when Input is binary)."
+        },
+        {
+          "key": "simplify",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "maxOutputTokens"
+          ],
+          "help": "maxOutputTokens: answer length (default 300)."
+        }
+      ],
+      "body": {
+        "contents": [
+          {
+            "role": "user",
+            "parts": {
+              "$concat": [
+                {
+                  "$map": "{{ p.inputType | ne:'binary' | then:(p.imageUrls | split) }}",
+                  "$to": {
+                    "fileData": {
+                      "$when": "{{ el | matches:'^https://generativelanguage[.]googleapis[.]com' }}",
+                      "fileUri": "{{ el }}"
+                    }
+                  }
+                },
+                {
+                  "$map": "{{ bin.files }}",
+                  "$to": {
+                    "inlineData": {
+                      "mimeType": "{{ el.mime_type }}",
+                      "data": "{{ el.base64 }}"
+                    }
+                  }
+                },
+                [
+                  {
+                    "text": "{{ p.text }}"
+                  }
+                ]
+              ]
+            }
+          }
+        ],
+        "generationConfig": {
+          "maxOutputTokens": "{{ p.options.maxOutputTokens | default:300 }}"
+        }
+      },
+      "binary": {
+        "properties": "{{ p.inputType | eq:'binary' | then:p.binaryPropertyName }}",
+        "upload_urls": {
+          "$map": "{{ p.inputType | ne:'binary' | then:(p.imageUrls | split) }}",
+          "$to": "{{ el | matches:'^https://generativelanguage[.]googleapis[.]com' | not | then:el }}"
+        }
+      },
+      "output": {
+        "path": "{{ p.simplify | ne:'false' | then:'candidates' }}"
+      }
+    },
+    {
+      "resource": "image",
+      "operation": "edit",
+      "title": "Edit images",
+      "description": "generateContent with the input images inline and an IMAGE answer; one item per candidate",
+      "method": "POST",
+      "path": "/v1beta/models/{{ p.modelId | rl | default:'models/gemini-2.5-flash-image-preview' | replace:'models/','' }}:generateContent",
+      "fields": [
+        {
+          "key": "modelId",
+          "label": "Model",
+          "type": "text",
+          "default": "",
+          "help": "Image model; empty means models/gemini-2.5-flash-image-preview."
+        },
+        {
+          "key": "prompt",
+          "label": "Prompt",
+          "type": "textarea",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "images",
+          "label": "Images",
+          "type": "collection",
+          "default": {
+            "values": [
+              {
+                "binaryPropertyName": "data"
+              }
+            ]
+          },
+          "options": [
+            "values"
+          ],
+          "help": "values: [{binaryPropertyName}] — the input images."
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "binaryPropertyOutput"
+          ],
+          "help": "binaryPropertyOutput: output binary property (default edited)."
+        }
+      ],
+      "body": {
+        "contents": [
+          {
+            "role": "user",
+            "parts": {
+              "$concat": [
+                {
+                  "$map": "{{ bin.files }}",
+                  "$to": {
+                    "inlineData": {
+                      "mimeType": "{{ el.mime_type }}",
+                      "data": "{{ el.base64 }}"
+                    }
+                  }
+                },
+                [
+                  {
+                    "text": "{{ p.prompt }}"
+                  }
+                ]
+              ]
+            }
+          }
+        ],
+        "generationConfig": {
+          "responseModalities": [
+            "IMAGE"
+          ]
+        }
+      },
+      "binary": {
+        "properties": "{{ p.images.values | pluck:'binaryPropertyName' | join:',' }}",
+        "download": true,
+        "download_each": "candidates",
+        "download_base64": "{{ el.content.parts | pluck:'inlineData.data' | get:'0' }}",
+        "mime_type": "{{ el.content.parts | pluck:'inlineData.mimeType' | get:'0' | default:'image/png' }}",
+        "file_name": "image.{{ el.content.parts | pluck:'inlineData.mimeType' | get:'0' | default:'image/png' | replace:'image/','' }}",
+        "property": "{{ p.options.binaryPropertyOutput | default:'edited' }}"
+      },
+      "error_when": "{{ res.candidates | then:(res.candidates | pluck:'content.parts' | flatten | pluck:'inlineData.data' | len | eq:'0') }}",
+      "error_message": "No image data returned from Gemini API"
+    },
+    {
+      "resource": "video",
+      "operation": "generate",
+      "title": "Generate a video",
+      "description": "Veo predictLongRunning; waits for the operation, then downloads each video (or answers its URL)",
+      "method": "POST",
+      "path": "/v1beta/models/{{ (p.modelId | rl | replace:'models/','') }}:predictLongRunning",
+      "fields": [
+        {
+          "key": "modelId",
+          "label": "Model",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "A Veo model (models/veo-…)."
+        },
+        {
+          "key": "prompt",
+          "label": "Prompt",
+          "type": "textarea",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "returnAs",
+          "label": "Return as",
+          "type": "select",
+          "default": "video",
+          "options": [
+            "video",
+            "url"
+          ]
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "sampleCount",
+            "durationSeconds",
+            "aspectRatio",
+            "personGeneration",
+            "binaryPropertyOutput"
+          ],
+          "help": "aspectRatio: 16:9 or 9:16; personGeneration: dont_allow, allow_adult, allow_all; binaryPropertyOutput: output binary property (default data)."
+        }
+      ],
+      "body": {
+        "instances": [
+          {
+            "prompt": "{{ p.prompt }}"
+          }
+        ],
+        "parameters": {
+          "aspectRatio": "{{ p.options.aspectRatio }}",
+          "personGeneration": "{{ p.options.personGeneration }}",
+          "sampleCount": "{{ p.options.sampleCount | default:1 }}",
+          "durationSeconds": "{{ p.options.durationSeconds }}"
+        }
+      },
+      "error_when": "{{ res.error }}",
+      "error_message": "{{ res.error.message | default:'Error generating video' }}",
+      "poll": {
+        "method": "GET",
+        "path": "/v1beta/{{ main.name | path }}",
+        "until": "{{ res.done }}",
+        "interval_ms": 5000,
+        "max_wait_ms": 3600000
+      },
+      "output": {
+        "path": "response.generateVideoResponse.generatedSamples",
+        "download": {
+          "when": "{{ p.returnAs | ne:'url' }}",
+          "method": "GET",
+          "path": "{{ el.video.uri }}",
+          "property": "{{ p.options.binaryPropertyOutput | default:'data' }}",
+          "file_name": "video.mp4"
+        },
+        "to": {
+          "url": "{{ p.returnAs | eq:'url' | then:el.video.uri }}"
+        }
+      }
+    },
+    {
+      "resource": "video",
+      "operation": "analyze",
+      "title": "Analyze video",
+      "description": "generateContent with the video inline (URLs are fetched; Gemini file URIs pass as fileData); with Simplify each candidate is an item",
+      "method": "POST",
+      "path": "/v1beta/models/{{ (p.modelId | rl | replace:'models/','') }}:generateContent",
+      "fields": [
+        {
+          "key": "modelId",
+          "label": "Model",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "Gemini model id (models/… or bare). Plain id or n8n model locator."
+        },
+        {
+          "key": "text",
+          "label": "Question",
+          "type": "textarea",
+          "default": "What's in this video?"
+        },
+        {
+          "key": "inputType",
+          "label": "Input",
+          "type": "select",
+          "default": "url",
+          "options": [
+            "url",
+            "binary"
+          ]
+        },
+        {
+          "key": "videoUrls",
+          "label": "Video URLs",
+          "type": "text",
+          "default": "",
+          "help": "Comma-separated URLs (used when Input is url)."
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Input binary properties",
+          "type": "text",
+          "default": "data",
+          "help": "Comma-separated binary properties (used when Input is binary)."
+        },
+        {
+          "key": "simplify",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "maxOutputTokens"
+          ],
+          "help": "maxOutputTokens: answer length (default 300)."
+        }
+      ],
+      "body": {
+        "contents": [
+          {
+            "role": "user",
+            "parts": {
+              "$concat": [
+                {
+                  "$map": "{{ p.inputType | ne:'binary' | then:(p.videoUrls | split) }}",
+                  "$to": {
+                    "fileData": {
+                      "$when": "{{ el | matches:'^https://generativelanguage[.]googleapis[.]com' }}",
+                      "fileUri": "{{ el }}"
+                    }
+                  }
+                },
+                {
+                  "$map": "{{ bin.files }}",
+                  "$to": {
+                    "inlineData": {
+                      "mimeType": "{{ el.mime_type }}",
+                      "data": "{{ el.base64 }}"
+                    }
+                  }
+                },
+                [
+                  {
+                    "text": "{{ p.text }}"
+                  }
+                ]
+              ]
+            }
+          }
+        ],
+        "generationConfig": {
+          "maxOutputTokens": "{{ p.options.maxOutputTokens | default:300 }}"
+        }
+      },
+      "binary": {
+        "properties": "{{ p.inputType | eq:'binary' | then:p.binaryPropertyName }}",
+        "upload_urls": {
+          "$map": "{{ p.inputType | ne:'binary' | then:(p.videoUrls | split) }}",
+          "$to": "{{ el | matches:'^https://generativelanguage[.]googleapis[.]com' | not | then:el }}"
+        }
+      },
+      "output": {
+        "path": "{{ p.simplify | ne:'false' | then:'candidates' }}"
+      }
+    },
+    {
+      "resource": "video",
+      "operation": "download",
+      "title": "Download a video",
+      "description": "Downloads a Gemini API video URL with the API key",
+      "method": "GET",
+      "path": "{{ p.url }}",
+      "fields": [
+        {
+          "key": "url",
+          "label": "URL",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "A video URL from Generate a video (Return as url)."
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "binaryPropertyOutput"
+          ],
+          "help": "binaryPropertyOutput: output binary property (default data)."
+        }
+      ],
+      "binary": {
+        "download": true,
+        "property": "{{ p.options.binaryPropertyOutput | default:'data' }}",
+        "file_name": "video.mp4",
+        "mime_type": "video/mp4"
+      }
+    }
+  ]
+}

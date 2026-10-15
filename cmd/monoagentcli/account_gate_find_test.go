@@ -32,8 +32,8 @@ var findCases = []struct {
 	{[]string{"--profile", "work", "workflow", "list"}, "workflow list", []string{"--profile", "work"}, classGated, "a value flag takes the next word"},
 	{[]string{"--profile=work", "workflow", "list"}, "workflow list", []string{"--profile=work"}, classGated, ""},
 	{[]string{"--db-path", "/tmp/x.db", "workflow", "list"}, "workflow list", []string{"--db-path", "/tmp/x.db"}, classGated, ""},
-	{[]string{"--db-path=/tmp/x.db", "doctor"}, "doctor", []string{"--db-path=/tmp/x.db"}, classOpen, ""},
-	{[]string{"--lang", "es", "doctor"}, "doctor", []string{"--lang", "es"}, classOpen, ""},
+	{[]string{"--db-path=/tmp/x.db", "doctor"}, "doctor", []string{"--db-path=/tmp/x.db"}, classGated, "doctor waits for a login"},
+	{[]string{"--lang", "es", "version"}, "version", []string{"--lang", "es"}, classOpen, ""},
 	{[]string{"--profile", "work", "account", "login"}, "account login", []string{"--profile", "work"}, classOpen, "the way out, behind a flag"},
 	{[]string{"--db-path", "/tmp/x.db", "account", "status"}, "account status", []string{"--db-path", "/tmp/x.db"}, classOpen, ""},
 	{[]string{"--profile", "doctor"}, "", []string{"--profile", "doctor"}, classOpen, "`doctor` is the profile's name: no command"},
@@ -43,10 +43,13 @@ var findCases = []struct {
 	{[]string{"workflow", "--json", "list"}, "workflow list", []string{"--json"}, classGated, "flags may sit between the words"},
 	{[]string{"workflow", "list", "--profile", "work"}, "workflow list", []string{"--profile", "work"}, classGated, ""},
 	{[]string{"workflow", "--profile", "list"}, "workflow", []string{"--profile", "list"}, classGated, "`list` is the profile's name"},
-	{[]string{"doctor", "fix", "x"}, "doctor fix", []string{"x"}, classOpen, "an open command's subcommand"},
+	{[]string{"doctor", "fix", "x"}, "doctor fix", []string{"x"}, classGated, ""},
+	{[]string{"account", "--json", "status"}, "account status", []string{"--json"}, classOpen, "an open command's subcommand"},
 	{[]string{"library", "--json", "status"}, "library status", []string{"--json"}, classOpen, "library status is open, its siblings are not"},
 	{[]string{"library", "list"}, "library list", nil, classGated, ""},
-	{[]string{"ref", "node", "http.request"}, "ref node", []string{"http.request"}, classOpen, ""},
+	{[]string{"ref", "node", "http.request"}, "ref node", []string{"http.request"}, classGated, "the reference waits for a login"},
+	{[]string{"setup"}, "setup", nil, classGated, ""},
+	{[]string{"release", "verify", "a", "b"}, "release verify", []string{"a", "b"}, classGated, ""},
 	{[]string{"update", "--app"}, "update", []string{"--app"}, classOpen, ""},
 	// The long-running commands start locked; their siblings do not.
 	{[]string{"daemon"}, "daemon", nil, classServe, ""},
@@ -64,12 +67,14 @@ var findCases = []struct {
 	// `--` ends the flags and the command words.
 	{[]string{"--", "workflow", "list"}, "", []string{"--", "workflow", "list"}, classOpen, "nothing before `--` names a command"},
 	{[]string{"workflow", "--", "list"}, "workflow", []string{"--", "list"}, classGated, "`list` is an argument of workflow"},
-	{[]string{"doctor", "--", "workflow", "run"}, "doctor", []string{"--", "workflow", "run"}, classOpen, "an open command's arguments are never commands"},
-	// help, completion and __complete are added by cobra later: the root.
+	{[]string{"version", "--", "workflow", "run"}, "version", []string{"--", "workflow", "run"}, classOpen, "an open command's arguments are never commands"},
+	// help, completion and __complete are added by cobra later: the root, resolved again with them.
 	{[]string{"help", "workflow", "run"}, "", []string{"help", "workflow", "run"}, classOpen, "cobra adds help while executing"},
-	{[]string{"completion", "bash"}, "", []string{"completion", "bash"}, classOpen, "cobra adds completion while executing"},
-	{[]string{"__complete", "workflow", ""}, "", []string{"__complete", "workflow", ""}, classOpen, "cobra adds __complete while executing"},
-	{[]string{"__completeNoDesc", "workflow", ""}, "", []string{"__completeNoDesc", "workflow", ""}, classOpen, "an alias of __complete"},
+	{[]string{"completion", "bash"}, "", []string{"completion", "bash"}, classGated, "cobra adds completion while executing; gated"},
+	{[]string{"--profile", "work", "completion", "zsh"}, "", []string{"--profile", "work", "completion", "zsh"}, classGated, ""},
+	{[]string{"__complete", "workflow", ""}, "", []string{"__complete", "workflow", ""}, classGated, "cobra adds __complete while executing; gated"},
+	{[]string{"__completeNoDesc", "workflow", ""}, "", []string{"__completeNoDesc", "workflow", ""}, classGated, "an alias of __complete"},
+	{[]string{"__complete", "workflow", "--help"}, "", []string{"__complete", "workflow", "--help"}, classGated, "every word of a completion request is data"},
 	// The help flag does not exist yet when Find runs.
 	{[]string{"--help"}, "", []string{"--help"}, classOpen, ""},
 	{[]string{"workflow", "--help"}, "workflow", []string{"--help"}, classOpen, "help is open on any command"},
@@ -151,7 +156,7 @@ func TestGateMatchesTheClassOfEveryCommandAndAlias(t *testing.T) {
 func TestHiddenCommandsAreStillResolved(t *testing.T) {
 	root := newRootCmd()
 	applyClassification(root)
-	for name, want := range map[string]string{"status": classGated, "doctor": classOpen, "mcp": classServe} {
+	for name, want := range map[string]string{"status": classGated, "version": classOpen, "mcp": classServe} {
 		cmd, _, err := root.Find([]string{name})
 		if err != nil || commandKey(cmd) != name {
 			t.Fatalf("%s: found %v, %v", name, cmd, err)
@@ -184,13 +189,21 @@ func recordingTree(ran *[]*cobra.Command) *cobra.Command {
 
 var classRank = map[string]int{classOpen: 0, classServe: 1, classGated: 2}
 
-// gateAgreesWithCobra fails if cobra would run a command of a stricter class
-// than the gate calls the invocation. It reports whether cobra ran one that
-// is not open.
-func gateAgreesWithCobra(t *testing.T, args []string) bool {
-	t.Helper()
-	fresh := newRootCmd() // the gate looks before anything has been parsed, as in run
+// gateTree is the tree the gate looks at: one never parsed or executed, as in
+// run. invocationClass only Finds in it, which parses nothing, so one tree
+// serves every invocation of a test (building one per call was most of the
+// time of TestGateNeverDowngradesWhatCobraWouldRun).
+func gateTree() *cobra.Command {
+	fresh := newRootCmd()
 	applyClassification(fresh)
+	return fresh
+}
+
+// gateAgreesWithCobra fails if cobra would run a command of a stricter class
+// than the gate (looking at fresh, from gateTree) calls the invocation. It
+// reports whether cobra ran one that is not open.
+func gateAgreesWithCobra(t *testing.T, fresh *cobra.Command, args []string) bool {
+	t.Helper()
 	gate := invocationClass(fresh, args)
 
 	var ran []*cobra.Command
@@ -216,8 +229,9 @@ func gateAgreesWithCobra(t *testing.T, args []string) bool {
 // before and after a spread of commands.
 func TestGateNeverDowngradesWhatCobraWouldRun(t *testing.T) {
 	ran := 0
+	fresh := gateTree()
 	for _, tc := range findCases {
-		if gateAgreesWithCobra(t, tc.args) {
+		if gateAgreesWithCobra(t, fresh, tc.args) {
 			ran++
 		}
 	}
@@ -230,7 +244,7 @@ func TestGateNeverDowngradesWhatCobraWouldRun(t *testing.T) {
 	for _, prefix := range prefixes {
 		for _, path := range paths {
 			for _, suffix := range suffixes {
-				if gateAgreesWithCobra(t, append(append(append([]string{}, prefix...), path...), suffix...)) {
+				if gateAgreesWithCobra(t, fresh, append(append(append([]string{}, prefix...), path...), suffix...)) {
 					ran++
 				}
 			}

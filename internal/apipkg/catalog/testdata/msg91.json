@@ -1,0 +1,24 @@
+{
+  "sms.send": {
+    "params": {
+      "from": "ACMEIN",
+      "to": "919999999999",
+      "message": "hi"
+    },
+    "credential": {
+      "auth_key": "k"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/sendhttp.php",
+      "query": {
+        "route": "4",
+        "country": "0",
+        "sender": "ACMEIN",
+        "mobiles": "919999999999",
+        "message": "hi"
+      },
+      "items": 1
+    }
+  }
+}

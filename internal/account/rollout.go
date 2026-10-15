@@ -6,7 +6,7 @@ import "time"
 // dormant: nothing locks, nothing warns and nothing contacts monoes.me
 // implicitly. B5a is the one change that sets it, in the initializer below;
 // everything else reads it through EnforceDate.
-var enforceFrom = time.Time{}
+var enforceFrom = time.Date(2026, time.October, 11, 0, 0, 0, 0, time.UTC)
 
 // EnforceDate returns the enforcement date, or the zero time while dormant.
 func EnforceDate() time.Time {

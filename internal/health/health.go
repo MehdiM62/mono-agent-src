@@ -155,6 +155,10 @@ type Env struct {
 	FreeBytes         func(path string) (uint64, error)
 	LatestVersion     func(ctx context.Context) (string, error)
 
+	// SchemaAhead reports the database's newest recorded migration, this
+	// binary's newest embedded one, and whether the database is ahead.
+	SchemaAhead func(ctx context.Context) (dbVersion, binaryVersion int, ahead bool, err error)
+
 	// Node.js: the first node on PATH that isn't monoagent's managed one,
 	// the active managed version, and installing a managed one.
 	SystemNode  func(ctx context.Context) (path, version string, found bool)
@@ -196,6 +200,10 @@ type Env struct {
 	ExtensionInstalled func() (found, checked bool)
 	ExtensionDir       func() string
 	Bridge             func(ctx context.Context) (BridgeInfo, bool)
+	// ClientPairing asks the bridge at baseURL whether it accepts this app's
+	// pairing token: ClientPairingOK, ClientPairingMismatch, or "unknown"
+	// (an older bridge, or no answer). It only asks; it never pairs.
+	ClientPairing func(ctx context.Context, baseURL string) string
 	// BridgeService names the user service that owns the bridge pid, or "".
 	// It is separate from Bridge because resolving it runs systemctl.
 	BridgeService func(ctx context.Context, pid int) string
@@ -222,7 +230,10 @@ type Env struct {
 	ClaudeSkills        func() (claudeFound bool, missing, stale []string)
 	InstallClaudeSkills func() error
 	MCPRegistration     func() (claudeFound, registered bool, where string)
-	RegisterMCP         func(ctx context.Context, progress func(string)) error
+	// MCPRuntimes, when set, is the registration per installed coding agent
+	// (one doctor row each); MCPRegistration is the fallback without it.
+	MCPRuntimes func() []MCPRuntime
+	RegisterMCP func(ctx context.Context, progress func(string)) error
 
 	// MonoesAccount reads the monoes.me session from this machine (no
 	// network, nothing written).
@@ -259,7 +270,9 @@ type SessionInfo struct {
 
 // BridgeInfo is what the running extension bridge reports about itself.
 type BridgeInfo struct {
-	Addr      string
+	Addr string
+	// URL is the base URL it answered on, for ClientPairing.
+	URL       string
 	Status    string // connected | waiting | unpaired
 	PID       int
 	Version   string
@@ -307,4 +320,13 @@ func (r *Report) RequiredFailures() int {
 		}
 	}
 	return n
+}
+
+// MCPRuntime is one installed coding agent's monoagent MCP registration.
+type MCPRuntime struct {
+	ID, Label  string
+	Registered bool   // a `monoagentcli mcp` server is configured
+	Current    bool   // ... and it runs with --allow-mutations
+	Where      string // where it is configured (entry and file)
+	Err        string // the agent's config could not be read
 }

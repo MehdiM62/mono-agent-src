@@ -1,0 +1,26 @@
+{
+  "language.translate": {
+    "params": {
+      "text": "Hello",
+      "translateTo": "de"
+    },
+    "response": {
+      "data": {
+        "translations": [
+          {
+            "translatedText": "Hallo"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/language/translate/v2",
+      "body": {
+        "q": "Hello",
+        "target": "de"
+      },
+      "items": 1
+    }
+  }
+}

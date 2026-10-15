@@ -1,0 +1,102 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "postmark",
+  "node_type": "app.postmark",
+  "title": "Postmark",
+  "description": "Postmark email delivery events (trigger only)",
+  "category": "app",
+  "docs_url": "https://postmarkapp.com/developer",
+  "n8n_types": [],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.postmarkTrigger"
+  ],
+  "base_url": "https://api.postmarkapp.com",
+  "credentials": [
+    {
+      "platform": "postmark",
+      "name": "Postmark",
+      "n8n_credential": "postmarkApi",
+      "n8n_field_map": {
+        "serverToken": "server_token"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "server_token",
+          "label": "Server API token",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "headers": {
+          "X-Postmark-Server-Token": "{{ cred.server_token }}"
+        }
+      }
+    }
+  ],
+  "operations": [],
+  "webhook": {
+    "fields": [
+      {
+        "key": "events",
+        "label": "Events",
+        "type": "array",
+        "required": true
+      },
+      {
+        "key": "firstOpen",
+        "label": "First open only",
+        "type": "boolean",
+        "default": false
+      },
+      {
+        "key": "includeContent",
+        "label": "Include content",
+        "type": "boolean",
+        "default": false
+      }
+    ],
+    "create": [
+      {
+        "method": "POST",
+        "path": "/webhooks",
+        "body": {
+          "Url": "{{ hook.url }}",
+          "Triggers": {
+            "Open": {
+              "Enabled": "{{ p.events | join:',' | matches:'(^|,)open(,|$)' | default:false }}",
+              "PostFirstOpenOnly": "{{ p.firstOpen | bool }}"
+            },
+            "Click": {
+              "Enabled": "{{ p.events | join:',' | matches:'(^|,)click(,|$)' | default:false }}"
+            },
+            "Delivery": {
+              "Enabled": "{{ p.events | join:',' | matches:'(^|,)delivery(,|$)' | default:false }}"
+            },
+            "Bounce": {
+              "Enabled": "{{ p.events | join:',' | matches:'(^|,)bounce(,|$)' | default:false }}",
+              "IncludeContent": "{{ p.includeContent | bool }}"
+            },
+            "SpamComplaint": {
+              "Enabled": "{{ p.events | join:',' | matches:'(^|,)spamComplaint(,|$)' | default:false }}",
+              "IncludeContent": "{{ p.includeContent | bool }}"
+            },
+            "SubscriptionChange": {
+              "Enabled": "{{ p.events | join:',' | matches:'(^|,)subscriptionChange(,|$)' | default:false }}"
+            }
+          }
+        }
+      }
+    ],
+    "id": "{{ res.ID }}",
+    "delete": [
+      {
+        "method": "DELETE",
+        "path": "/webhooks/{{ hook.id }}"
+      }
+    ]
+  }
+}

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -26,25 +25,42 @@ func rewriteBracketIndex(tmpl string) string {
 	return bracketIndexPattern.ReplaceAllString(tmpl, `(index $1 "$2")`)
 }
 
-// preamble is prepended to every template so authors can use $json, $node,
-// $workflow, $execution, and $env directly without referencing dot.
-const preamble = `{{- $json := .json -}}` +
-	`{{- $node := .node -}}` +
-	`{{- $workflow := .workflow -}}` +
-	`{{- $execution := .execution -}}` +
-	`{{- $env := .env -}}`
+// preambleVars are the variables a template can use directly without
+// referencing dot; each is declared as `$name := .name`.
+var preambleVars = []string{
+	"json", "node", "items", "workflow", "execution", "env",
+	"now", "today", "trigger", "vars", "runIndex", "prevNode",
+}
 
-// nodeJSONProxy is a map[string]interface{} with a single key "json" whose
-// value is the node's first-item JSON map.  This lets templates use the syntax
-// $node["Name"].json.someKey — the template looks up key "json" on the map
-// and then key "someKey" on the inner map.
+// preambleFor returns the declarations prepended to src: only the variables
+// src mentions, because every declaration costs a map lookup on each
+// execution. A template that mentions none still gets a trimming no-op, so
+// leading whitespace is trimmed the same way either way.
+func preambleFor(src string) string {
+	var b strings.Builder
+	for _, v := range preambleVars {
+		if strings.Contains(src, "$"+v) {
+			b.WriteString("{{- $" + v + " := ." + v + " -}}")
+		}
+	}
+	if b.Len() == 0 {
+		return "{{- /* */ -}}"
+	}
+	return b.String()
+}
+
+// nodeJSONProxy is a map[string]interface{} whose key "json" holds the
+// node's first-item JSON map and whose keys "all" and "items" hold every
+// item's JSON.  This lets templates use the syntax $node["Name"].json.someKey
+// — the template looks up key "json" on the map and then key "someKey" on
+// the inner map.
 type nodeJSONProxy = map[string]interface{}
 
 // ExpressionEngine evaluates Go text/template expressions against an
 // ExpressionContext.  Parsed templates are cached in a sync.Map for
 // performance.
 type ExpressionEngine struct {
-	cache sync.Map // key: template string → *template.Template
+	cache sync.Map // key: template string → *parsedTemplate
 	funcs template.FuncMap
 }
 
@@ -52,6 +68,7 @@ type ExpressionEngine struct {
 func NewExpressionEngine() *ExpressionEngine {
 	e := &ExpressionEngine{}
 	e.funcs = e.buildFuncMap()
+	addStringMatchFuncs(e.funcs)
 	return e
 }
 
@@ -105,29 +122,7 @@ func (e *ExpressionEngine) buildFuncMap() template.FuncMap {
 				return 0, fmt.Errorf("toInt: cannot convert %T", v)
 			}
 		},
-		"toFloat": func(v interface{}) (float64, error) {
-			switch t := v.(type) {
-			case int:
-				return float64(t), nil
-			case int32:
-				return float64(t), nil
-			case int64:
-				return float64(t), nil
-			case float32:
-				return float64(t), nil
-			case float64:
-				return t, nil
-			case string:
-				return strconv.ParseFloat(strings.TrimSpace(t), 64)
-			case bool:
-				if t {
-					return 1, nil
-				}
-				return 0, nil
-			default:
-				return 0, fmt.Errorf("toFloat: cannot convert %T", v)
-			}
-		},
+		"toFloat": toFloat,
 		"toBool": func(v interface{}) (bool, error) {
 			switch t := v.(type) {
 			case bool:
@@ -179,16 +174,17 @@ func (e *ExpressionEngine) buildFuncMap() template.FuncMap {
 			return time.Now().UTC().Format(time.RFC3339)
 		},
 
-		// Arithmetic (all operate on float64)
-		"add": func(a, b float64) float64 { return a + b },
-		"sub": func(a, b float64) float64 { return a - b },
-		"mul": func(a, b float64) float64 { return a * b },
-		"div": func(a, b float64) (float64, error) {
+		// Arithmetic (all operate on float64; operands convert as toFloat,
+		// so integers from code nodes and $runIndex work too)
+		"add": arith(func(a, b float64) (float64, error) { return a + b, nil }),
+		"sub": arith(func(a, b float64) (float64, error) { return a - b, nil }),
+		"mul": arith(func(a, b float64) (float64, error) { return a * b, nil }),
+		"div": arith(func(a, b float64) (float64, error) {
 			if b == 0 {
 				return 0, fmt.Errorf("div: division by zero")
 			}
 			return a / b, nil
-		},
+		}),
 
 		// Collection helpers
 		"len": func(v interface{}) (int, error) {
@@ -257,13 +253,15 @@ func toIndexInt(key interface{}) (int, error) {
 	}
 }
 
-// parse returns a cached *template.Template for the given source string.
-// The preamble is always prepended so $json/$node/... variables are available.
-func (e *ExpressionEngine) parse(src string) (*template.Template, error) {
+// parse returns a cached *parsedTemplate for the given source string.
+// A preamble is prepended so $json/$node/... variables are available.
+func (e *ExpressionEngine) parse(src string) (*parsedTemplate, error) {
 	if v, ok := e.cache.Load(src); ok {
-		return v.(*template.Template), nil
+		return v.(*parsedTemplate), nil
 	}
-	full := preamble + rewriteBracketIndex(src)
+	body := rewriteBracketIndex(src)
+	pre := preambleFor(body)
+	full := pre + body
 	t, err := template.New("").
 		Option("missingkey=zero").
 		Funcs(e.funcs).
@@ -276,8 +274,9 @@ func (e *ExpressionEngine) parse(src string) (*template.Template, error) {
 			blankMissingValues(tt.Tree, tt.Tree.Root)
 		}
 	}
-	e.cache.Store(src, t)
-	return t, nil
+	p := &parsedTemplate{t: t, needs: needsOf(t, len(pre))}
+	e.cache.Store(src, p)
+	return p, nil
 }
 
 // noValueFunc is the function blankMissingValues appends to every printed
@@ -328,67 +327,6 @@ func blankMissingValues(tree *parse.Tree, n parse.Node) {
 	}
 }
 
-// buildData converts an ExpressionContext into the map passed as dot to templates.
-func buildData(ctx ExpressionContext) map[string]interface{} {
-	// .json
-	jsonMap := ctx.JSON
-	if jsonMap == nil {
-		jsonMap = make(map[string]interface{})
-	}
-
-	// .node — map of node name → nodeJSONProxy so templates can do
-	// $node["Name"].json.someKey
-	// nodeJSONProxy is map[string]interface{}{"json": firstItemJSON}.
-	nodeMap := make(map[string]interface{}, len(ctx.Node))
-	for name, items := range ctx.Node {
-		var firstJSON map[string]interface{}
-		if len(items) > 0 {
-			firstJSON = items[0].JSON
-		}
-		if firstJSON == nil {
-			firstJSON = make(map[string]interface{})
-		}
-		nodeMap[name] = nodeJSONProxy{"json": firstJSON}
-	}
-
-	// .workflow
-	workflowMap := map[string]interface{}{
-		"id": ctx.WorkflowID,
-	}
-
-	// .execution
-	executionMap := map[string]interface{}{
-		"id": ctx.ExecutionID,
-	}
-
-	// .env — ONLY the variables explicitly provided via ctx.Env. The full
-	// OS environment is merged in exclusively when
-	// MONOAGENT_ALLOW_ENV_TEMPLATES=1: by default a template must not be
-	// able to read the invoking shell's environment (which typically holds
-	// API keys and other secrets). Values are strings so that a missing
-	// key renders as the empty string rather than "<no value>".
-	envMap := make(map[string]string, len(ctx.Env))
-	if os.Getenv("MONOAGENT_ALLOW_ENV_TEMPLATES") == "1" {
-		for _, kv := range os.Environ() {
-			parts := strings.SplitN(kv, "=", 2)
-			if len(parts) == 2 {
-				envMap[parts[0]] = parts[1]
-			}
-		}
-	}
-	for k, v := range ctx.Env {
-		envMap[k] = v
-	}
-
-	return map[string]interface{}{
-		"json":      jsonMap,
-		"node":      nodeMap,
-		"workflow":  workflowMap,
-		"execution": executionMap,
-		"env":       envMap,
-	}
-}
-
 // EvaluateString evaluates a template string against the given context.
 // Strings that contain no {{ }} delimiters are returned as-is without parsing.
 func (e *ExpressionEngine) EvaluateString(tmpl string, ctx ExpressionContext) (string, error) {
@@ -396,15 +334,15 @@ func (e *ExpressionEngine) EvaluateString(tmpl string, ctx ExpressionContext) (s
 		return tmpl, nil
 	}
 
-	t, err := e.parse(tmpl)
+	p, err := e.parse(tmpl)
 	if err != nil {
 		return "", err
 	}
 
-	data := buildData(ctx)
+	data := buildData(ctx, p.needs)
 
 	var buf bytes.Buffer
-	if err := t.Execute(&buf, data); err != nil {
+	if err := p.t.Execute(&buf, data); err != nil {
 		return "", fmt.Errorf("expression: execute error: %w", err)
 	}
 	return buf.String(), nil
@@ -445,8 +383,12 @@ func (e *ExpressionEngine) EvaluateValue(tmpl string, ctx ExpressionContext) (in
 
 // ResolveConfig walks a config map and evaluates all string values as
 // templates.  Non-string values pass through unchanged.  Nested maps and
-// slices are recursively resolved.
+// slices are recursively resolved.  An unprepared ctx is prepared once for
+// the whole walk, so the per-node template data is built at most once.
 func (e *ExpressionEngine) ResolveConfig(config map[string]interface{}, ctx ExpressionContext) (map[string]interface{}, error) {
+	if ctx.base == nil {
+		ctx = ctx.Prepared()
+	}
 	out := make(map[string]interface{}, len(config))
 	for k, v := range config {
 		resolved, err := e.resolveValue(v, ctx)
@@ -516,4 +458,43 @@ func (e *ExpressionEngine) ResolveItem(item Item, ctx ExpressionContext) (Item, 
 		JSON:   resolved,
 		Binary: item.Binary,
 	}, nil
+}
+
+func toFloat(v interface{}) (float64, error) {
+	switch t := v.(type) {
+	case int:
+		return float64(t), nil
+	case int32:
+		return float64(t), nil
+	case int64:
+		return float64(t), nil
+	case float32:
+		return float64(t), nil
+	case float64:
+		return t, nil
+	case string:
+		return strconv.ParseFloat(strings.TrimSpace(t), 64)
+	case bool:
+		if t {
+			return 1, nil
+		}
+		return 0, nil
+	default:
+		return 0, fmt.Errorf("toFloat: cannot convert %T", v)
+	}
+}
+
+// arith lifts a float64 operation to operands of any number type.
+func arith(op func(a, b float64) (float64, error)) func(a, b interface{}) (float64, error) {
+	return func(a, b interface{}) (float64, error) {
+		x, err := toFloat(a)
+		if err != nil {
+			return 0, err
+		}
+		y, err := toFloat(b)
+		if err != nil {
+			return 0, err
+		}
+		return op(x, y)
+	}
 }

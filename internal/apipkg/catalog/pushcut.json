@@ -1,0 +1,109 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "pushcut",
+  "node_type": "app.pushcut",
+  "title": "Pushcut",
+  "description": "Send Pushcut notifications to your iOS devices",
+  "category": "app",
+  "docs_url": "https://www.pushcut.io/webapi",
+  "n8n_types": [
+    "n8n-nodes-base.pushcut"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.pushcutTrigger"
+  ],
+  "base_url": "https://api.pushcut.io/v1",
+  "credentials": [
+    {
+      "platform": "pushcut",
+      "name": "Pushcut",
+      "n8n_credential": "pushcutApi",
+      "n8n_field_map": {
+        "apiKey": "api_key"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "headers": {
+          "API-Key": "{{ cred.api_key }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "notification",
+      "label": "Notification"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "notification",
+      "operation": "send",
+      "title": "Send a notification",
+      "method": "POST",
+      "path": "/notifications/{{ p.notificationName }}",
+      "fields": [
+        {
+          "key": "notificationName",
+          "label": "Notification",
+          "type": "text",
+          "required": true,
+          "help": "Name of a notification defined in the Pushcut app"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "devices",
+            "input",
+            "text",
+            "title"
+          ],
+          "help": "devices: list of device ids (default: all)"
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.additionalFields }}"
+      }
+    }
+  ],
+  "webhook": {
+    "fields": [
+      {
+        "key": "actionName",
+        "label": "Action name",
+        "type": "text",
+        "required": true
+      }
+    ],
+    "create": [
+      {
+        "method": "POST",
+        "path": "/subscriptions",
+        "body": {
+          "actionName": "{{ p.actionName }}",
+          "url": "{{ hook.url }}"
+        }
+      }
+    ],
+    "id": "{{ res.id }}",
+    "delete": [
+      {
+        "method": "DELETE",
+        "path": "/subscriptions/{{ hook.id }}"
+      }
+    ]
+  }
+}

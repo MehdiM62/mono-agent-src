@@ -39,6 +39,9 @@ type KeyringPassphraseResult struct {
 
 // KeyringStatus reports the vault's key store (never prompts).
 func (a *App) KeyringStatus() (KeyringStatusInfo, error) {
+	if err := a.signedOut(); err != nil {
+		return KeyringStatusInfo{}, err
+	}
 	var st KeyringStatusInfo
 	if err := a.runMonoCLI("", &st, "secret", "keyring", "status"); err != nil {
 		return KeyringStatusInfo{}, err
@@ -52,6 +55,9 @@ func (a *App) KeyringStatus() (KeyringStatusInfo, error) {
 // KeyringSetPassphrase saves the file-keyring passphrase. The CLI checks it
 // unlocks an existing file keyring before saving. Passed only on stdin.
 func (a *App) KeyringSetPassphrase(passphrase string) (KeyringPassphraseResult, error) {
+	if err := a.signedOut(); err != nil {
+		return KeyringPassphraseResult{}, err
+	}
 	passphrase = strings.TrimRight(passphrase, "\r\n")
 	if passphrase == "" {
 		return KeyringPassphraseResult{}, errors.New("enter the passphrase first")
@@ -68,6 +74,9 @@ func (a *App) KeyringSetPassphrase(passphrase string) (KeyringPassphraseResult, 
 
 // KeyringClearPassphrase deletes the saved passphrase file.
 func (a *App) KeyringClearPassphrase() (KeyringPassphraseResult, error) {
+	if err := a.signedOut(); err != nil {
+		return KeyringPassphraseResult{}, err
+	}
 	var res KeyringPassphraseResult
 	if err := a.runMonoCLI("", &res, "secret", "keyring", "clear-passphrase"); err != nil {
 		return KeyringPassphraseResult{}, err

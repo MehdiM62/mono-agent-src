@@ -1,0 +1,208 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "jina_ai",
+  "node_type": "app.jina_ai",
+  "title": "Jina AI",
+  "description": "Read web pages, search the web and run deep research with Jina AI",
+  "category": "app",
+  "docs_url": "https://jina.ai/reader/",
+  "n8n_types": [
+    "n8n-nodes-base.jinaAi"
+  ],
+  "base_url": "https://r.jina.ai",
+  "headers": {
+    "Accept": "application/json"
+  },
+  "credentials": [
+    {
+      "platform": "jina_ai",
+      "name": "Jina AI",
+      "n8n_credential": "jinaAiApi",
+      "n8n_field_map": {
+        "apiKey": "access_token"
+      },
+      "methods": [
+        "bearer"
+      ],
+      "fields": [
+        {
+          "key": "access_token",
+          "label": "API key",
+          "secret": true,
+          "required": true,
+          "help": "jina.ai → API key"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "reader",
+      "label": "Reader"
+    },
+    {
+      "value": "research",
+      "label": "Research"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "reader",
+      "operation": "read",
+      "title": "Read a web page",
+      "description": "Fetches a URL and returns its content in a model-friendly format",
+      "method": "POST",
+      "path": "/",
+      "headers": {
+        "X-Return-Format": "{{ p.options.outputFormat }}",
+        "X-Target-Selector": "{{ p.options.targetSelector }}",
+        "X-Remove-Selector": "{{ p.options.excludeSelector }}",
+        "X-With-Generated-Alt": "{{ p.options.enableImageCaptioning | eq:'true' | then:'true' }}",
+        "X-Wait-For-Selector": "{{ p.options.waitForSelector }}"
+      },
+      "fields": [
+        {
+          "key": "url",
+          "label": "URL",
+          "type": "text",
+          "required": true,
+          "placeholder": "https://example.com/article"
+        },
+        {
+          "key": "simplify",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true,
+          "help": "Return only the data part of the response"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "outputFormat",
+            "targetSelector",
+            "excludeSelector",
+            "enableImageCaptioning",
+            "waitForSelector"
+          ],
+          "help": "outputFormat: html, markdown, screenshot, text (empty = JSON)"
+        }
+      ],
+      "body": {
+        "url": "{{ p.url }}"
+      },
+      "output": {
+        "path": "{{ p.simplify | eq:'true' | then:'data' }}"
+      }
+    },
+    {
+      "resource": "reader",
+      "operation": "search",
+      "title": "Search the web",
+      "method": "GET",
+      "path": "/",
+      "base_url": "https://s.jina.ai",
+      "headers": {
+        "X-Return-Format": "{{ p.options.outputFormat }}",
+        "X-Site": "{{ p.options.siteFilter }}"
+      },
+      "fields": [
+        {
+          "key": "searchQuery",
+          "label": "Search query",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "simplify",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true,
+          "help": "Return only the data part of the response"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "outputFormat",
+            "siteFilter",
+            "pageNumber"
+          ],
+          "help": "outputFormat: html, markdown, screenshot, text (empty = JSON)"
+        }
+      ],
+      "query": {
+        "q": "{{ p.searchQuery }}",
+        "page": "{{ p.options.pageNumber }}"
+      },
+      "output": {
+        "path": "{{ p.simplify | eq:'true' | then:'data' }}"
+      }
+    },
+    {
+      "resource": "research",
+      "operation": "deepResearch",
+      "title": "Run deep research",
+      "method": "POST",
+      "path": "/v1/chat/completions",
+      "base_url": "https://deepsearch.jina.ai",
+      "fields": [
+        {
+          "key": "researchQuery",
+          "label": "Research query",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "key": "simplify",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true,
+          "help": "Return the answer, its annotations and usage only"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "maxReturnedSources",
+            "prioritizeSources",
+            "excludeSources",
+            "siteFilter"
+          ],
+          "help": "Source lists are comma-separated host names"
+        }
+      ],
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "{{ p.researchQuery }}"
+          }
+        ],
+        "max_returned_urls": "{{ p.options.maxReturnedSources }}",
+        "boost_hostnames": "{{ p.options.prioritizeSources | split }}",
+        "bad_hostnames": "{{ p.options.excludeSources | split }}",
+        "only_hostnames": "{{ p.options.siteFilter | split }}"
+      },
+      "output": {
+        "to": {
+          "content": "{{ el.choices.0.message.content }}",
+          "annotations": "{{ el.choices.0.message.annotations }}",
+          "usage": "{{ el.usage }}"
+        },
+        "to_when": "{{ p.simplify }}"
+      }
+    }
+  ]
+}

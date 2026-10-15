@@ -1,6 +1,6 @@
 ---
 name: record-to-action
-description: Turn a normalized browser activity recording (from `monoagentcli record analyze`) into a monoagent automation action draft — ActionDef steps, named selectors, fragments and naming — as one strict JSON object. Used by `record analyze` through the monomind runner; can also be run by hand on the JSON that `record analyze` prints.
+description: Turn a normalized browser activity recording (from `monoagentcli --profile <profile> record analyze`) into a monoagent automation action draft — ActionDef steps, named selectors, fragments and naming — as one strict JSON object. Used by `record analyze` through the monomind runner; can also be run by hand on the JSON that `record analyze` prints.
 ---
 
 # Record → Action

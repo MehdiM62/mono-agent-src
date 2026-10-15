@@ -1,0 +1,455 @@
+{
+  "messageConversation.create": {
+    "params": {
+      "workspaceId": "1",
+      "conversationId": "2",
+      "content": "hi",
+      "additionalFields": {
+        "direct_mentions": [
+          5,
+          6
+        ],
+        "actionsUi": {
+          "actionValues": [
+            {
+              "action": "open_url",
+              "type": "action",
+              "url": "https://x",
+              "button_text": "Go"
+            }
+          ]
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v3/conversation_messages/add",
+      "body": {
+        "conversation_id": "2",
+        "workspace_id": "1",
+        "content": "[name](twist-mention://5) [name](twist-mention://6) hi",
+        "direct_mentions": [
+          5,
+          6
+        ],
+        "actions": [
+          {
+            "action": "open_url",
+            "type": "action",
+            "url": "https://x",
+            "button_text": "Go"
+          }
+        ]
+      }
+    }
+  },
+  "messageConversation.delete": {
+    "params": {
+      "id": "9"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v3/conversation_messages/remove",
+      "query": {
+        "id": "9"
+      }
+    }
+  },
+  "messageConversation.get": {
+    "params": {
+      "id": "9"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v3/conversation_messages/getone",
+      "query": {
+        "id": "9"
+      }
+    }
+  },
+  "messageConversation.getAll": {
+    "params": {
+      "workspaceId": "1",
+      "conversationId": "2",
+      "additionalFields": {
+        "limit": 10,
+        "order_by": "DESC"
+      }
+    },
+    "response": [
+      {
+        "id": 1
+      },
+      {
+        "id": 2
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/v3/conversation_messages/get",
+      "query": {
+        "conversation_id": "2",
+        "limit": "10",
+        "order_by": "DESC"
+      },
+      "items": 2
+    }
+  },
+  "messageConversation.update": {
+    "params": {
+      "id": "9",
+      "updateFields": {
+        "content": "new"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v3/conversation_messages/update",
+      "body": {
+        "id": "9",
+        "content": "new"
+      }
+    }
+  },
+  "channel.create": {
+    "params": {
+      "workspaceId": "1",
+      "name": "general",
+      "additionalFields": {
+        "public": true,
+        "color": 1
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v3/channels/add",
+      "body": {
+        "workspace_id": "1",
+        "name": "general",
+        "public": true,
+        "color": 1
+      }
+    }
+  },
+  "channel.archive": {
+    "params": {
+      "channelId": "3"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v3/channels/archive",
+      "query": {
+        "id": "3"
+      }
+    }
+  },
+  "channel.delete": {
+    "params": {
+      "channelId": "3"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v3/channels/remove",
+      "query": {
+        "id": "3"
+      }
+    }
+  },
+  "channel.get": {
+    "params": {
+      "channelId": "3"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v3/channels/getone",
+      "query": {
+        "id": "3"
+      }
+    }
+  },
+  "channel.getAll": {
+    "params": {
+      "workspaceId": "1",
+      "limit": 1,
+      "filters": {
+        "archived": true
+      }
+    },
+    "response": [
+      {
+        "id": 1
+      },
+      {
+        "id": 2
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/v3/channels/get",
+      "query": {
+        "workspace_id": "1",
+        "archived": "true"
+      },
+      "items": 1
+    }
+  },
+  "channel.unarchive": {
+    "params": {
+      "channelId": "3"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v3/channels/unarchive",
+      "query": {
+        "id": "3"
+      }
+    }
+  },
+  "channel.update": {
+    "params": {
+      "channelId": "3",
+      "updateFields": {
+        "name": "x"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v3/channels/update",
+      "body": {
+        "id": "3",
+        "name": "x"
+      }
+    }
+  },
+  "comment.create": {
+    "params": {
+      "threadId": "4",
+      "content": "yo",
+      "additionalFields": {
+        "recipients": [
+          1
+        ],
+        "binaryProperties": "data, data2"
+      }
+    },
+    "expect": {
+      "items": 1
+    },
+    "input": {
+      "binary": {
+        "data": {
+          "data": "aGk=",
+          "fileName": "a.txt",
+          "mimeType": "text/plain"
+        },
+        "data2": {
+          "data": "eW8=",
+          "fileName": "b.png",
+          "mimeType": "image/png"
+        }
+      }
+    },
+    "responses": [
+      {
+        "attachment_id": "u1",
+        "file_name": "a.txt"
+      },
+      {
+        "attachment_id": "u2",
+        "file_name": "b.png"
+      },
+      {
+        "id": 9
+      }
+    ],
+    "expect_requests": [
+      {
+        "method": "POST",
+        "path": "/api/v3/attachments/upload",
+        "body": {
+          "attachment_id": "<any>",
+          "file_name": "file:a.txt:hi"
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/api/v3/attachments/upload",
+        "body": {
+          "attachment_id": "<any>",
+          "file_name": "file:b.png:yo"
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/api/v3/comments/add",
+        "body": {
+          "thread_id": "4",
+          "content": "yo",
+          "recipients": [
+            1
+          ],
+          "attachments": [
+            {
+              "attachment_id": "u1",
+              "file_name": "a.txt"
+            },
+            {
+              "attachment_id": "u2",
+              "file_name": "b.png"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "comment.delete": {
+    "params": {
+      "commentId": "5"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v3/comments/remove",
+      "query": {
+        "id": "5"
+      }
+    }
+  },
+  "comment.get": {
+    "params": {
+      "commentId": "5"
+    },
+    "response": {
+      "comment": {
+        "id": 5
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v3/comments/getone",
+      "query": {
+        "id": "5"
+      },
+      "items": 1
+    }
+  },
+  "comment.getAll": {
+    "params": {
+      "threadId": "4",
+      "limit": 3,
+      "filters": {
+        "as_ids": true,
+        "newer_than_ts": "2024-01-01T00:00:00Z"
+      }
+    },
+    "response": [
+      11,
+      12
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/v3/comments/get",
+      "query": {
+        "thread_id": "4",
+        "as_ids": "true",
+        "newer_than_ts": "1704067200",
+        "limit": "3"
+      },
+      "items": 2
+    }
+  },
+  "comment.update": {
+    "params": {
+      "commentId": "5",
+      "updateFields": {
+        "content": "c"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v3/comments/update",
+      "body": {
+        "id": "5",
+        "content": "c"
+      }
+    }
+  },
+  "thread.create": {
+    "params": {
+      "channelId": "3",
+      "title": "T",
+      "content": "body"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v3/threads/add",
+      "body": {
+        "channel_id": "3",
+        "title": "T",
+        "content": "body"
+      }
+    }
+  },
+  "thread.delete": {
+    "params": {
+      "threadId": "6"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v3/threads/remove",
+      "query": {
+        "id": "6"
+      }
+    }
+  },
+  "thread.get": {
+    "params": {
+      "threadId": "6"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v3/threads/getone",
+      "query": {
+        "id": "6"
+      }
+    }
+  },
+  "thread.getAll": {
+    "params": {
+      "channelId": "3",
+      "returnAll": true,
+      "filters": {
+        "filter_by": "starred"
+      }
+    },
+    "response": [
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/v3/threads/get",
+      "query": {
+        "channel_id": "3",
+        "filter_by": "starred"
+      },
+      "items": 1
+    }
+  },
+  "thread.update": {
+    "params": {
+      "threadId": "6",
+      "updateFields": {
+        "title": "New"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v3/threads/update",
+      "body": {
+        "id": "6",
+        "title": "New"
+      }
+    }
+  }
+}

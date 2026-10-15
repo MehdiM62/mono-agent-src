@@ -98,6 +98,22 @@ export function useRecentWorkspaces(active) {
   return recent
 }
 
+// useActiveProfile loads the active profile ({name, root_dir, …}) while
+// `active`; null until known or when it can't be read. A new coder chat
+// works in that profile's folder unless the user picks another.
+export function useActiveProfile(active) {
+  const [profile, setProfile] = useState(null)
+  useEffect(() => {
+    if (!active) return
+    let current = true
+    Promise.resolve().then(() => api.getActiveProfile())
+      .then(p => { if (current) setProfile(p && p.name ? p : null) })
+      .catch(() => { if (current) setProfile(null) })
+    return () => { current = false }
+  }, [active])
+  return profile
+}
+
 // useCoderRuntimeChoice narrows the runtime picker for a coder chat being
 // set up: `options` are the scanned runtimes coder mode can run on now, and
 // a current runtime outside them is swapped for the first that is — so the

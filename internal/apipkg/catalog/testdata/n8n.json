@@ -1,0 +1,337 @@
+{
+  "workflow.getAll": {
+    "params": {
+      "returnAll": true,
+      "filters": {
+        "activeWorkflows": true,
+        "tags": "a,b",
+        "name": "W"
+      }
+    },
+    "responses": [
+      {
+        "data": [
+          {
+            "id": "1"
+          },
+          {
+            "id": "2"
+          }
+        ],
+        "nextCursor": "c2"
+      },
+      {
+        "data": [
+          {
+            "id": "3"
+          }
+        ],
+        "nextCursor": null
+      }
+    ],
+    "expect_requests": [
+      {
+        "method": "GET",
+        "path": "/api/v1/workflows",
+        "query": {
+          "active": "true",
+          "tags": "a,b",
+          "name": "W",
+          "limit": "100"
+        },
+        "headers": {
+          "X-N8N-API-KEY": "k1"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/workflows",
+        "query": {
+          "active": "true",
+          "tags": "a,b",
+          "name": "W",
+          "limit": "100",
+          "cursor": "c2"
+        }
+      }
+    ],
+    "credential": {
+      "base_url": "https://n8n.test/api/v1/",
+      "api_key": "k1"
+    }
+  },
+  "workflow.activate": {
+    "params": {
+      "workflowId": {
+        "__rl": true,
+        "mode": "list",
+        "value": "w1",
+        "cachedResultName": "W"
+      },
+      "additionalFields": {
+        "versionId": "v9"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/workflows/w1/activate",
+      "body": {
+        "versionId": "v9"
+      }
+    },
+    "credential": {
+      "base_url": "https://n8n.test/api/v1/",
+      "api_key": "k1"
+    }
+  },
+  "workflow.create": {
+    "params": {
+      "workflowObject": "{\"name\":\"W\",\"nodes\":[{\"name\":\"A\"}],\"connections\":{},\"settings\":{\"timezone\":\"UTC\"},\"id\":\"drop-me\"}"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/workflows",
+      "body": {
+        "name": "W",
+        "nodes": [
+          {
+            "name": "A"
+          }
+        ],
+        "connections": {},
+        "settings": {
+          "timezone": "UTC"
+        },
+        "staticData": null
+      }
+    },
+    "credential": {
+      "base_url": "https://n8n.test/api/v1/",
+      "api_key": "k1"
+    }
+  },
+  "workflow.deactivate": {
+    "params": {
+      "workflowId": "w1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/workflows/w1/deactivate"
+    },
+    "credential": {
+      "base_url": "https://n8n.test/api/v1/",
+      "api_key": "k1"
+    }
+  },
+  "workflow.delete": {
+    "params": {
+      "workflowId": "w1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v1/workflows/w1"
+    },
+    "credential": {
+      "base_url": "https://n8n.test/api/v1/",
+      "api_key": "k1"
+    }
+  },
+  "workflow.get": {
+    "params": {
+      "workflowId": {
+        "__rl": true,
+        "mode": "list",
+        "value": "w1",
+        "cachedResultName": "W"
+      }
+    },
+    "response": {
+      "id": "w1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/workflows/w1",
+      "items": 1
+    },
+    "credential": {
+      "base_url": "https://n8n.test/api/v1/",
+      "api_key": "k1"
+    }
+  },
+  "workflow.getVersion": {
+    "params": {
+      "workflowId": "w1",
+      "versionId": "v2"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/workflows/w1/v2"
+    },
+    "credential": {
+      "base_url": "https://n8n.test/api/v1/",
+      "api_key": "k1"
+    }
+  },
+  "workflow.update": {
+    "params": {
+      "workflowId": "w1",
+      "workflowObject": "{\"name\":\"W2\",\"nodes\":[],\"active\":true}"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v1/workflows/w1",
+      "body": {
+        "name": "W2"
+      }
+    },
+    "credential": {
+      "base_url": "https://n8n.test/api/v1/",
+      "api_key": "k1"
+    }
+  },
+  "execution.getAll": {
+    "params": {
+      "limit": 1,
+      "filters": {
+        "workflowId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "w1",
+          "cachedResultName": "W"
+        },
+        "status": "error"
+      },
+      "options": {
+        "activeWorkflows": true
+      }
+    },
+    "response": {
+      "data": [
+        {
+          "id": "e1"
+        },
+        {
+          "id": "e2"
+        }
+      ],
+      "nextCursor": "c"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/executions",
+      "query": {
+        "workflowId": "w1",
+        "status": "error",
+        "includeData": "true",
+        "limit": "1"
+      },
+      "items": 1
+    },
+    "credential": {
+      "base_url": "https://n8n.test/api/v1/",
+      "api_key": "k1"
+    }
+  },
+  "execution.get": {
+    "params": {
+      "executionId": "e1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/executions/e1"
+    },
+    "credential": {
+      "base_url": "https://n8n.test/api/v1/",
+      "api_key": "k1"
+    }
+  },
+  "execution.delete": {
+    "params": {
+      "executionId": "e1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v1/executions/e1"
+    },
+    "credential": {
+      "base_url": "https://n8n.test/api/v1/",
+      "api_key": "k1"
+    }
+  },
+  "credential.create": {
+    "params": {
+      "name": "GH",
+      "credentialTypeName": "githubApi",
+      "data": "{\"accessToken\":\"t\"}"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/credentials",
+      "body": {
+        "name": "GH",
+        "type": "githubApi",
+        "data": {
+          "accessToken": "t"
+        }
+      }
+    },
+    "credential": {
+      "base_url": "https://n8n.test/api/v1/",
+      "api_key": "k1"
+    }
+  },
+  "credential.delete": {
+    "params": {
+      "credentialId": "c1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v1/credentials/c1"
+    },
+    "credential": {
+      "base_url": "https://n8n.test/api/v1/",
+      "api_key": "k1"
+    }
+  },
+  "credential.getSchema": {
+    "params": {
+      "credentialTypeName": "githubApi"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/credentials/schema/githubApi"
+    },
+    "credential": {
+      "base_url": "https://n8n.test/api/v1/",
+      "api_key": "k1"
+    }
+  },
+  "audit.generate": {
+    "params": {
+      "additionalOptions": {
+        "categories": [
+          "credentials",
+          "nodes"
+        ],
+        "daysAbandonedWorkflow": 30
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/audit",
+      "body": {
+        "additionalOptions": {
+          "categories": [
+            "credentials",
+            "nodes"
+          ],
+          "daysAbandonedWorkflow": 30
+        }
+      }
+    },
+    "credential": {
+      "base_url": "https://n8n.test/api/v1/",
+      "api_key": "k1"
+    }
+  }
+}

@@ -1,0 +1,787 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "mailchimp",
+  "node_type": "app.mailchimp",
+  "title": "Mailchimp",
+  "description": "Audience members, tags, interest groups and campaigns in Mailchimp",
+  "category": "app",
+  "docs_url": "https://mailchimp.com/developer/marketing/api/",
+  "n8n_types": [
+    "n8n-nodes-base.mailchimp"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.mailchimpTrigger"
+  ],
+  "base_url": "https://{{ cred.dc | default:(cred.api_key | split:'-' | get:'-1') }}.api.mailchimp.com/3.0",
+  "credentials": [
+    {
+      "platform": "mailchimp",
+      "name": "Mailchimp",
+      "n8n_credential": "mailchimpApi",
+      "n8n_field_map": {
+        "apiKey": "api_key"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true,
+          "help": "Ends in the data center, e.g. …-us6"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "apikey {{ cred.api_key }}"
+        }
+      }
+    },
+    {
+      "platform": "mailchimp_oauth",
+      "name": "Mailchimp (OAuth2)",
+      "n8n_credential": "mailchimpOAuth2Api",
+      "methods": [
+        "oauth"
+      ],
+      "fields": [],
+      "oauth": {
+        "auth_url": "https://login.mailchimp.com/oauth2/authorize",
+        "token_url": "https://login.mailchimp.com/oauth2/token",
+        "scopes": [],
+        "metadata": {
+          "url": "https://login.mailchimp.com/oauth2/metadata",
+          "headers": {
+            "Authorization": "OAuth {{ cred.access_token }}"
+          },
+          "fields": {
+            "dc": "dc",
+            "api_endpoint": "api_endpoint"
+          }
+        }
+      },
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "member",
+      "label": "Member"
+    },
+    {
+      "value": "campaign",
+      "label": "Campaign"
+    },
+    {
+      "value": "listGroup",
+      "label": "List Group"
+    },
+    {
+      "value": "memberTag",
+      "label": "Member Tag"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "member",
+      "operation": "create",
+      "title": "Add a member to an audience",
+      "method": "POST",
+      "path": "/lists/{{ p.list }}/members",
+      "fields": [
+        {
+          "key": "list",
+          "label": "Audience (list) ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "type": "select",
+          "required": true,
+          "default": "subscribed",
+          "options": [
+            "cleaned",
+            "pending",
+            "subscribed",
+            "transactional",
+            "unsubscribed"
+          ]
+        },
+        {
+          "key": "jsonParameters",
+          "label": "JSON parameters",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "emailType",
+            "ipOptIn",
+            "ipSignup",
+            "language",
+            "tags",
+            "timestampOpt",
+            "timestampSignup",
+            "vip"
+          ],
+          "help": "emailType: html or text; tags: comma-separated"
+        },
+        {
+          "key": "locationFieldsUi",
+          "label": "Location",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "locationFieldsValues"
+          ]
+        },
+        {
+          "key": "mergeFieldsUi",
+          "label": "Merge fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "mergeFieldsValues"
+          ],
+          "help": "locationFieldsUi.locationFieldsValues: {latitude, longitude}; mergeFieldsUi.mergeFieldsValues: [{name, value}]; groupsUi.groupsValues: [{categoryId, categoryFieldId, value}]"
+        },
+        {
+          "key": "groupsUi",
+          "label": "Interest groups",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "groupsValues"
+          ]
+        },
+        {
+          "key": "mergeFieldsJson",
+          "label": "Merge fields (JSON)",
+          "type": "json",
+          "default": ""
+        },
+        {
+          "key": "locationJson",
+          "label": "Location (JSON)",
+          "type": "json",
+          "default": ""
+        },
+        {
+          "key": "groupJson",
+          "label": "Interest groups (JSON)",
+          "type": "json",
+          "default": ""
+        }
+      ],
+      "body": {
+        "email_address": "{{ p.email }}",
+        "status": "{{ p.status }}",
+        "email_type": "{{ p.options.emailType }}",
+        "language": "{{ p.options.language }}",
+        "vip": "{{ p.options.vip | eq:'true' | then:true }}",
+        "ip_signup": "{{ p.options.ipSignup }}",
+        "ip_opt": "{{ p.options.ipOptIn }}",
+        "timestamp_opt": "{{ p.options.timestampOpt | date:'YYYY-MM-DD HH:mm:ss' }}",
+        "timestamp_signup": "{{ p.options.timestampSignup | date:'YYYY-MM-DD HH:mm:ss' }}",
+        "location": {
+          "$merge": [
+            "{{ p.jsonParameters | eq:'true' | then:(p.locationJson | fromjson) }}"
+          ],
+          "latitude": "{{ p.jsonParameters | ne:'true' | then:p.locationFieldsUi.locationFieldsValues.latitude | float }}",
+          "longitude": "{{ p.jsonParameters | ne:'true' | then:p.locationFieldsUi.locationFieldsValues.longitude | float }}"
+        },
+        "merge_fields": {
+          "$merge": [
+            "{{ p.jsonParameters | eq:'true' | then:(p.mergeFieldsJson | fromjson) }}",
+            "{{ p.jsonParameters | ne:'true' | then:(p.mergeFieldsUi.mergeFieldsValues | kv:'name,value') }}"
+          ]
+        },
+        "interests": {
+          "$merge": [
+            "{{ p.jsonParameters | eq:'true' | then:(p.groupJson | fromjson) }}",
+            "{{ p.jsonParameters | ne:'true' | then:(p.groupsUi.groupsValues | kv:'categoryFieldId,value') }}"
+          ]
+        },
+        "tags": "{{ p.options.tags | split }}"
+      }
+    },
+    {
+      "resource": "member",
+      "operation": "delete",
+      "title": "Permanently delete a member",
+      "method": "POST",
+      "path": "/lists/{{ p.list }}/members/{{ p.email | lower }}/actions/delete-permanent",
+      "fields": [
+        {
+          "key": "list",
+          "label": "Audience (list) ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "member",
+      "operation": "get",
+      "title": "Get a member",
+      "method": "GET",
+      "path": "/lists/{{ p.list }}/members/{{ p.email | lower }}",
+      "fields": [
+        {
+          "key": "list",
+          "label": "Audience (list) ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "excludeFields",
+            "fields"
+          ],
+          "help": "Comma-separated field paths"
+        }
+      ],
+      "query": {
+        "fields": "{{ p.options.fields }}",
+        "exclude_fields": "{{ p.options.excludeFields }}"
+      }
+    },
+    {
+      "resource": "member",
+      "operation": "getAll",
+      "title": "Get many members",
+      "method": "GET",
+      "path": "/lists/{{ p.list }}/members",
+      "fields": [
+        {
+          "key": "list",
+          "label": "Audience (list) ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 500,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "beforeLastChanged",
+            "beforeTimestampOpt",
+            "emailType",
+            "sinceLastChanged",
+            "status"
+          ]
+        }
+      ],
+      "query": {
+        "before_last_changed": "{{ p.options.beforeLastChanged }}",
+        "before_timestamp_opt": "{{ p.options.beforeTimestampOpt }}",
+        "email_type": "{{ p.options.emailType }}",
+        "status": "{{ p.options.status }}",
+        "since_last_changed": "{{ p.options.sinceLastChanged }}"
+      },
+      "pagination": {
+        "type": "offset",
+        "offset_param": "offset",
+        "limit_param": "count",
+        "page_size": 500,
+        "results_path": "members"
+      }
+    },
+    {
+      "resource": "member",
+      "operation": "update",
+      "title": "Update a member",
+      "method": "PUT",
+      "path": "/lists/{{ p.list }}/members/{{ p.email | lower }}",
+      "fields": [
+        {
+          "key": "list",
+          "label": "Audience (list) ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "jsonParameters",
+          "label": "JSON parameters",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "emailType",
+            "groupsUi",
+            "ipOptIn",
+            "ipSignup",
+            "language",
+            "locationFieldsUi",
+            "mergeFieldsUi",
+            "skipMergeValidation",
+            "status",
+            "timestampOpt",
+            "timestampSignup",
+            "vip"
+          ],
+          "help": "locationFieldsUi.locationFieldsValues: {latitude, longitude}; mergeFieldsUi.mergeFieldsValues: [{name, value}]; groupsUi.groupsValues: [{categoryId, categoryFieldId, value}]"
+        },
+        {
+          "key": "mergeFieldsJson",
+          "label": "Merge fields (JSON)",
+          "type": "json",
+          "default": ""
+        },
+        {
+          "key": "locationJson",
+          "label": "Location (JSON)",
+          "type": "json",
+          "default": ""
+        },
+        {
+          "key": "groupJson",
+          "label": "Interest groups (JSON)",
+          "type": "json",
+          "default": ""
+        }
+      ],
+      "query": {
+        "skip_merge_validation": "{{ p.updateFields.skipMergeValidation | eq:'true' | then:'true' }}"
+      },
+      "body": {
+        "email_address": "{{ p.email }}",
+        "status": "{{ p.updateFields.status }}",
+        "email_type": "{{ p.updateFields.emailType }}",
+        "language": "{{ p.updateFields.language }}",
+        "vip": "{{ p.updateFields.vip | eq:'true' | then:true }}",
+        "ip_signup": "{{ p.updateFields.ipSignup }}",
+        "ip_opt": "{{ p.updateFields.ipOptIn }}",
+        "timestamp_opt": "{{ p.updateFields.timestampOpt | date:'YYYY-MM-DD HH:mm:ss' }}",
+        "timestamp_signup": "{{ p.updateFields.timestampSignup | date:'YYYY-MM-DD HH:mm:ss' }}",
+        "location": {
+          "$merge": [
+            "{{ p.jsonParameters | eq:'true' | then:(p.locationJson | fromjson) }}"
+          ],
+          "latitude": "{{ p.jsonParameters | ne:'true' | then:p.updateFields.locationFieldsUi.locationFieldsValues.latitude | float }}",
+          "longitude": "{{ p.jsonParameters | ne:'true' | then:p.updateFields.locationFieldsUi.locationFieldsValues.longitude | float }}"
+        },
+        "merge_fields": {
+          "$merge": [
+            "{{ p.jsonParameters | eq:'true' | then:(p.mergeFieldsJson | fromjson) }}",
+            "{{ p.jsonParameters | ne:'true' | then:(p.updateFields.mergeFieldsUi.mergeFieldsValues | kv:'name,value') }}"
+          ]
+        },
+        "interests": {
+          "$merge": [
+            "{{ p.jsonParameters | eq:'true' | then:(p.groupJson | fromjson) }}",
+            "{{ p.jsonParameters | ne:'true' | then:(p.updateFields.groupsUi.groupsValues | kv:'categoryFieldId,value') }}"
+          ]
+        }
+      }
+    },
+    {
+      "resource": "memberTag",
+      "operation": "create",
+      "title": "Add tags to a member",
+      "method": "POST",
+      "path": "/lists/{{ p.list }}/members/{{ p.email | lower }}/tags",
+      "fields": [
+        {
+          "key": "list",
+          "label": "Audience (list) ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "tags",
+          "label": "Tags",
+          "type": "array",
+          "required": true,
+          "item_type": "text"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "isSyncing"
+          ],
+          "help": "isSyncing: don't trigger automations"
+        }
+      ],
+      "body": {
+        "!tags": {
+          "$map": "{{ p.tags }}",
+          "$to": {
+            "name": "{{ el }}",
+            "status": "active"
+          }
+        },
+        "is_syncing": "{{ p.options.isSyncing | eq:'true' | then:true }}"
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "memberTag",
+      "operation": "delete",
+      "title": "Remove tags from a member",
+      "method": "POST",
+      "path": "/lists/{{ p.list }}/members/{{ p.email | lower }}/tags",
+      "fields": [
+        {
+          "key": "list",
+          "label": "Audience (list) ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "tags",
+          "label": "Tags",
+          "type": "array",
+          "required": true,
+          "item_type": "text"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "isSyncing"
+          ],
+          "help": "isSyncing: don't trigger automations"
+        }
+      ],
+      "body": {
+        "!tags": {
+          "$map": "{{ p.tags }}",
+          "$to": {
+            "name": "{{ el }}",
+            "status": "inactive"
+          }
+        },
+        "is_syncing": "{{ p.options.isSyncing | eq:'true' | then:true }}"
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "listGroup",
+      "operation": "getAll",
+      "title": "Get many interest groups",
+      "method": "GET",
+      "path": "/lists/{{ p.list }}/interest-categories/{{ p.groupCategory }}/interests",
+      "fields": [
+        {
+          "key": "list",
+          "label": "Audience (list) ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "groupCategory",
+          "label": "Interest category ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 500,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "offset",
+        "offset_param": "offset",
+        "limit_param": "count",
+        "page_size": 500,
+        "results_path": "interests"
+      }
+    },
+    {
+      "resource": "campaign",
+      "operation": "getAll",
+      "title": "Get many campaigns",
+      "method": "GET",
+      "path": "/campaigns",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 10,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "beforeCreateTime",
+            "beforeSendTime",
+            "excludeFields",
+            "fields",
+            "listId",
+            "sinceCreateTime",
+            "sinceSendTime",
+            "sortDirection",
+            "sortField",
+            "status"
+          ],
+          "help": "fields/excludeFields: lists of field paths (default fields: id, status, tracking and main settings); sortField: create_time or send_time; sortDirection: ASC or DESC; status: save, sending, sent or schedule"
+        }
+      ],
+      "query": {
+        "status": "{{ p.options.status }}",
+        "before_create_time": "{{ p.options.beforeCreateTime }}",
+        "before_send_time": "{{ p.options.beforeSendTime }}",
+        "exclude_fields": "{{ p.options.excludeFields | csv }}",
+        "fields": "{{ p.options.fields | csv | default:'campaigns.id,campaigns.status,campaigns.tracking,campaigns.settings.from_name,campaigns.settings.reply_to,campaigns.settings.title' }}",
+        "list_id": "{{ p.options.listId }}",
+        "since_create_time": "{{ p.options.sinceCreateTime }}",
+        "since_send_time": "{{ p.options.sinceSendTime }}",
+        "sort_dir": "{{ p.options.sortDirection }}",
+        "sort_field": "{{ p.options.sortField }}"
+      },
+      "pagination": {
+        "type": "offset",
+        "offset_param": "offset",
+        "limit_param": "count",
+        "page_size": 500,
+        "results_path": "campaigns"
+      }
+    },
+    {
+      "resource": "campaign",
+      "operation": "delete",
+      "title": "Delete a campaign",
+      "method": "DELETE",
+      "path": "/campaigns/{{ p.campaignId }}",
+      "fields": [
+        {
+          "key": "campaignId",
+          "label": "Campaign ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "campaign",
+      "operation": "get",
+      "title": "Get a campaign",
+      "method": "GET",
+      "path": "/campaigns/{{ p.campaignId }}",
+      "fields": [
+        {
+          "key": "campaignId",
+          "label": "Campaign ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "campaign",
+      "operation": "replicate",
+      "title": "Replicate a campaign",
+      "method": "POST",
+      "path": "/campaigns/{{ p.campaignId }}/actions/replicate",
+      "fields": [
+        {
+          "key": "campaignId",
+          "label": "Campaign ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "campaign",
+      "operation": "resend",
+      "title": "Create a resend of a campaign",
+      "method": "POST",
+      "path": "/campaigns/{{ p.campaignId }}/actions/create-resend",
+      "fields": [
+        {
+          "key": "campaignId",
+          "label": "Campaign ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "campaign",
+      "operation": "send",
+      "title": "Send a campaign",
+      "method": "POST",
+      "path": "/campaigns/{{ p.campaignId }}/actions/send",
+      "fields": [
+        {
+          "key": "campaignId",
+          "label": "Campaign ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    }
+  ],
+  "webhook": {
+    "fields": [
+      {
+        "key": "list",
+        "label": "Audience ID",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "events",
+        "label": "Events",
+        "type": "array",
+        "required": true
+      },
+      {
+        "key": "sources",
+        "label": "Sources",
+        "type": "array",
+        "required": true
+      }
+    ],
+    "create": [
+      {
+        "method": "POST",
+        "path": "/lists/{{ p.list }}/webhooks",
+        "body": {
+          "url": "{{ hook.url }}",
+          "events": {
+            "$entries": "{{ p.events }}",
+            "$key": "{{ el }}",
+            "$value": true
+          },
+          "sources": {
+            "$entries": "{{ p.sources }}",
+            "$key": "{{ el }}",
+            "$value": true
+          }
+        }
+      }
+    ],
+    "id": "{{ res.id }}",
+    "delete": [
+      {
+        "method": "DELETE",
+        "path": "/lists/{{ p.list }}/webhooks/{{ hook.id }}"
+      }
+    ],
+    "check": {
+      "method": "GET",
+      "path": "/lists/{{ p.list }}/webhooks/{{ hook.id }}"
+    }
+  }
+}

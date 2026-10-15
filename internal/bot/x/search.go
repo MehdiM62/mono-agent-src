@@ -115,10 +115,12 @@ func (b *XBot) SearchPosts(ctx context.Context, p browser.PageInterface, query s
 	seen := map[string]bool{}
 	for _, q := range queries {
 		rows, err := b.searchOne(ctx, p, q, max, seen)
+		// A search that fails after reading some rows (a scroll or a re-read
+		// failed) still returns them, as ListFollowers does.
+		out = append(out, rows...)
 		if err != nil {
 			return out, err
 		}
-		out = append(out, rows...)
 	}
 	return out, nil
 }

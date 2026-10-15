@@ -17,7 +17,7 @@ var (
 
 func bot(name string) Actor { return Actor{Kind: Agent, Name: name} }
 
-// clock is a time the test controls, for leases and the hourly limit.
+// clock is a time the test controls, for leases.
 type clock struct{ t time.Time }
 
 func newClock() *clock                   { return &clock{t: time.Date(2026, 10, 5, 12, 0, 0, 0, time.UTC)} }

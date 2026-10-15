@@ -15,6 +15,9 @@ type TagInfo struct {
 // GetAllTags returns every tag in the active profile, ordered by name —
 // `people tag list`.
 func (a *App) GetAllTags() []TagInfo {
+	if a.signedOut() != nil {
+		return nil
+	}
 	var tags []TagInfo
 	if err := a.runMonoCLI("", &tags, "people", "tag", "list"); err != nil {
 		return nil
@@ -25,6 +28,9 @@ func (a *App) GetAllTags() []TagInfo {
 // GetPersonTags returns all tags attached to the given person —
 // `people tag list --person`.
 func (a *App) GetPersonTags(personId string) []TagInfo {
+	if a.signedOut() != nil {
+		return nil
+	}
 	var tags []TagInfo
 	if err := a.runMonoCLI("", &tags, "people", "tag", "list", "--person="+personId); err != nil {
 		return nil
@@ -36,6 +42,9 @@ func (a *App) GetPersonTags(personId string) []TagInfo {
 // an existing tag everywhere — `people tag add`. Returns the tag, or nil
 // when it could not be added (unknown person, bad colour, 10 tags already).
 func (a *App) AddPersonTag(personId, tagName, color string) *TagInfo {
+	if a.signedOut() != nil {
+		return nil
+	}
 	args := []string{"people", "tag", "add"}
 	if color != "" {
 		args = append(args, "--color="+color)
@@ -50,6 +59,9 @@ func (a *App) AddPersonTag(personId, tagName, color string) *TagInfo {
 
 // UpdateTagColor recolours a tag for everyone who has it — `people tag color`.
 func (a *App) UpdateTagColor(tagId, color string) bool {
+	if a.signedOut() != nil {
+		return false
+	}
 	if err := a.runMonoCLI("", nil, "people", "tag", "color", "--", tagId, color); err != nil {
 		a.emitLog("PEOPLE", "WARN", fmt.Sprintf("recolouring tag %s: %v", tagId, err))
 		return false
@@ -60,6 +72,9 @@ func (a *App) UpdateTagColor(tagId, color string) bool {
 // RemovePersonTag unlinks a tag from a person (the tag itself stays) —
 // `people tag remove`.
 func (a *App) RemovePersonTag(personId, tagId string) {
+	if a.signedOut() != nil {
+		return
+	}
 	if err := a.runMonoCLI("", nil, "people", "tag", "remove", "--", personId, tagId); err != nil {
 		a.emitLog("PEOPLE", "WARN", fmt.Sprintf("untagging %s: %v", personId, err))
 	}
@@ -69,6 +84,9 @@ func (a *App) RemovePersonTag(personId, tagId string) {
 // person IDs, in one call — `people tag map`. People without tags are left
 // out.
 func (a *App) GetPeopleTagsMap(personIds []string) map[string][]TagInfo {
+	if a.signedOut() != nil {
+		return nil
+	}
 	if len(personIds) == 0 {
 		return nil
 	}
@@ -94,6 +112,9 @@ type SocialListInfo struct {
 // GetSocialLists returns the active profile's social lists, newest first —
 // `list ls`.
 func (a *App) GetSocialLists() []SocialListInfo {
+	if a.signedOut() != nil {
+		return nil
+	}
 	var lists []SocialListInfo
 	if err := a.runMonoCLI("", &lists, "list", "ls"); err != nil {
 		return nil

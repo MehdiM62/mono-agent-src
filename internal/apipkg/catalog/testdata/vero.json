@@ -1,0 +1,137 @@
+{
+  "user.create": {
+    "params": {
+      "id": "u1",
+      "additionalFields": {
+        "email": "a@b.c"
+      },
+      "dataAttributesUi": {
+        "dataAttributesValues": [
+          {
+            "key": "plan",
+            "value": "pro"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/users/track",
+      "body": {
+        "id": "u1",
+        "email": "a@b.c",
+        "data": {
+          "plan": "pro"
+        },
+        "auth_token": "test-auth_token"
+      }
+    }
+  },
+  "user.addTags": {
+    "params": {
+      "id": "u1",
+      "tags": "a,b"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v2/users/tags/edit",
+      "body": {
+        "id": "u1",
+        "add": "[\"a\",\"b\"]",
+        "auth_token": "test-auth_token"
+      }
+    }
+  },
+  "user.alias": {
+    "params": {
+      "id": "u1",
+      "newId": "u2"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v2/users/reidentify",
+      "body": {
+        "id": "u1",
+        "new_id": "u2",
+        "auth_token": "test-auth_token"
+      }
+    }
+  },
+  "user.delete": {
+    "params": {
+      "id": "u1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/users/delete",
+      "body": {
+        "id": "u1",
+        "auth_token": "test-auth_token"
+      }
+    }
+  },
+  "user.resubscribe": {
+    "params": {
+      "id": "u1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/users/resubscribe",
+      "body": {
+        "id": "u1",
+        "auth_token": "test-auth_token"
+      }
+    }
+  },
+  "user.removeTags": {
+    "params": {
+      "id": "u1",
+      "tags": "a"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v2/users/tags/edit",
+      "body": {
+        "id": "u1",
+        "remove": "[\"a\"]",
+        "auth_token": "test-auth_token"
+      }
+    }
+  },
+  "user.unsubscribe": {
+    "params": {
+      "id": "u1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/users/unsubscribe",
+      "body": {
+        "id": "u1",
+        "auth_token": "test-auth_token"
+      }
+    }
+  },
+  "event.track": {
+    "params": {
+      "id": "u1",
+      "email": "a@b.c",
+      "eventName": "bought",
+      "jsonParameters": true,
+      "dataAttributesJson": "{\"price\":5}"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/events/track",
+      "body": {
+        "identity": {
+          "id": "u1",
+          "email": "a@b.c"
+        },
+        "event_name": "bought",
+        "email": "a@b.c",
+        "data": "{\"price\":5}",
+        "auth_token": "test-auth_token"
+      }
+    }
+  }
+}

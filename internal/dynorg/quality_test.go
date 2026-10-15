@@ -55,11 +55,13 @@ func TestRuleModelSkipsBadFits(t *testing.T) {
 		t.Errorf("why = %v", st.Why)
 	}
 
-	// The track record is per category: a testing worker still gets opus.
+	// The track record is per category: opus's engineering failures don't
+	// count against a testing worker, which light work sends to the
+	// cheapest model that fits (no lead bias).
 	tester := writer
 	tester.Role = "qa-tester"
-	if st, _ := s.Staff(ctx, tester); st.Model.Key() != "claude/opus" {
-		t.Errorf("testing worker model = %s, want claude/opus", st.Model.Key())
+	if st, _ := s.Staff(ctx, tester); st.Model.Key() != "claude/haiku" {
+		t.Errorf("testing worker model = %s, want claude/haiku", st.Model.Key())
 	}
 
 	// When every model is a bad fit the rule still picks one.

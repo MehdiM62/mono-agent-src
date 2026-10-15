@@ -2,6 +2,11 @@
 
 Thanks for your interest in improving Mono Agent.
 
+The source is private and this project does not accept source contributions;
+the public repository publishes releases only. Bug reports and suggestions are
+welcome in its Issues and Discussions. The rest of this file is the maintainers'
+build and test guide.
+
 ## Prerequisites
 
 - **Go 1.26** or newer (the version pinned in [`go.mod`](go.mod))
@@ -36,23 +41,29 @@ default (social included) and `-tags nosocial` modes.
 
 ### The monoes.me account gate
 
-The account gate (`internal/account`) is currently dormant: the enforcement date
-is unset and production signing keys are not pinned. No implicit account calls
-are made. `monoagentcli ref account` explains current and future behavior. A
+The account gate (`internal/account`) is live: a monoes.me sign-in has been
+required since 2026-10-11 (UTC) and the production signing key is pinned.
+`monoagentcli ref account` explains the behavior. A
 `-tags devaccount` build trusts a development signing key and honors
 `MONOAGENT_DEV_ENFORCE_FROM` (an RFC 3339 time) to move the enforcement date,
 so the gate can be exercised against the fake monoes.me in
-`internal/library/libraryfake`:
+`internal/library/libraryfake`. Unit tests need no tag: `accounttest.Install` and
+`account.SetTrustedKeysForTest` swap the keys and the clock, and panic outside a
+test binary. To run the real binary, build it with the tag:
 
 ```bash
+go build -tags devaccount -o /tmp/monoagentcli ./cmd/monoagentcli
 go test -race -tags devaccount ./internal/account/...
 go test -tags devaccount ./internal/accountsmoke/ -count=1 -timeout 25m   # real-binary smoke
 ```
 
 Never build a release with that tag: CI's `release-guard` job
 (`scripts/check-release-tags.sh`) fails the release if any shipped Go binary
-lists it. Set `MONOAGENT_DEV_ENFORCE_FROM` for the process under test only; a
-default build ignores it.
+lists it. Set `MONOAGENT_DEV_ENFORCE_FROM` for the process under test only: a
+future date such as `2999-01-01T00:00:00Z` forces the warn period (nothing locks),
+a past date forces enforcement, and it never relaxes anything. A default build
+ignores it. Scripts and CI jobs that run a gated command without testing the gate
+should build with the tag and set a date that never comes.
 
 ## Code Style
 
@@ -71,6 +82,13 @@ default build ignores it.
 - Describe what changed and why; link any related issues.
 - Verify before opening: `gofmt` clean, `go build ./...`,
   `go test ./...`, and the same with `-tags nosocial`.
+
+## Contribution terms
+
+Mono Agent is proprietary software (see `LICENSE`) and does not accept source
+code contributions. Bug reports, suggestions and other feedback are welcome;
+by sending them you let Nokhodian UG (haftungsbeschränkt) use them without
+restriction and without payment (section 6 of `LICENSE`).
 
 ## Security
 

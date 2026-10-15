@@ -1,0 +1,15 @@
+{
+  "name": "Split order lines",
+  "nodes": [
+    {"name": "Manual", "type": "n8n-nodes-base.manualTrigger", "typeVersion": 1, "position": [0, 0], "parameters": {}},
+    {"name": "Split Out", "type": "n8n-nodes-base.splitOut", "typeVersion": 1, "position": [200, 0],
+     "parameters": {"fieldToSplitOut": "lines", "include": "allOtherFields", "options": {"destinationFieldName": "line"}}},
+    {"name": "Summarize", "type": "n8n-nodes-base.summarize", "typeVersion": 1.1, "position": [400, 0],
+     "parameters": {"fieldsToSummarize": {"values": [{"aggregation": "sum", "field": "line.qty"}, {"aggregation": "concatenate", "field": "customer", "separateBy": "other", "customSeparator": " | "}]},
+       "fieldsToSplitBy": "order", "options": {"outputFormat": "singleItem"}}}
+  ],
+  "connections": {
+    "Manual": {"main": [[{"node": "Split Out", "type": "main", "index": 0}]]},
+    "Split Out": {"main": [[{"node": "Summarize", "type": "main", "index": 0}]]}
+  }
+}

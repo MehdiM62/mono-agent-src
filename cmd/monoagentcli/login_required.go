@@ -29,13 +29,13 @@ func (e loginRequiredError) JSONErrorFields() map[string]any {
 // message of account.LoginRequiredError, whose first line is
 // "Log in to monoes.me first: monoagentcli account login".
 func newLoginRequiredError(st account.Status) error {
-	return loginRequiredError{&cliError{code: 4, msg: (&account.LoginRequiredError{Status: st}).Error()}, st}
+	return loginRequiredError{&cliError{Code: 4, Msg: (&account.LoginRequiredError{Status: st}).Error()}, st}
 }
 
 // libraryLoginRequired is the library's own "log in first". Its text names
 // `library login`, which still works: it is an alias of `account login`.
 func libraryLoginRequired() error {
-	return loginRequiredError{&cliError{code: 4, msg: library.ErrNotLoggedIn.Error()}, account.CurrentStatus()}
+	return loginRequiredError{&cliError{Code: 4, Msg: library.ErrNotLoggedIn.Error()}, account.CurrentStatus()}
 }
 
 // isLoginRequired reports whether err means "log in to monoes.me first".

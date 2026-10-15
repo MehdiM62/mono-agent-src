@@ -3,6 +3,14 @@
   "credential_platform": null,
   "fields": [
     {
+      "help": "Use a saved connection's token or login. Its access_token or API key is sent as a Bearer token and a username and password as Basic auth unless Connection auth says otherwise. OAuth tokens are refreshed before the run.",
+      "key": "credential_id",
+      "label": "Saved connection",
+      "required": false,
+      "type": "credential_picker"
+    },
+    {
+      "help": "With a saved connection that has a base URL a path like /v1/items is enough.",
       "key": "url",
       "label": "URL",
       "placeholder": "https://api.example.com/data",
@@ -19,15 +27,152 @@
         "PUT",
         "PATCH",
         "DELETE",
-        "HEAD"
+        "HEAD",
+        "OPTIONS"
       ],
       "required": true,
       "type": "select"
     },
     {
+      "default": "none",
+      "help": "credential uses the saved connection above (also the case with none when a connection is picked).",
+      "key": "auth_type",
+      "label": "Authentication",
+      "options": [
+        "none",
+        "credential",
+        "basic",
+        "digest",
+        "bearer",
+        "api_key"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "depends_on": {
+        "key": "auth_type",
+        "values": [
+          "none",
+          "credential"
+        ]
+      },
+      "help": "How to send the connection's secret: bearer (default for tokens and keys), basic, oauth1 (default for OAuth 1.0a connections), header:X-API-Key or query:api_key. Leave empty to decide from the connection.",
+      "key": "credential_auth",
+      "label": "Connection auth",
+      "placeholder": "bearer",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "auth_type",
+        "values": [
+          "basic",
+          "digest"
+        ]
+      },
+      "key": "auth_username",
+      "label": "Username",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "auth_type",
+        "values": [
+          "basic",
+          "digest"
+        ]
+      },
+      "key": "auth_password",
+      "label": "Password",
+      "required": false,
+      "type": "password"
+    },
+    {
+      "depends_on": {
+        "key": "auth_type",
+        "values": [
+          "bearer"
+        ]
+      },
+      "help": "Sent as Authorization: Bearer <token>.",
+      "key": "auth_token",
+      "label": "Bearer token",
+      "required": false,
+      "type": "password"
+    },
+    {
+      "default": "header",
+      "depends_on": {
+        "key": "auth_type",
+        "values": [
+          "api_key"
+        ]
+      },
+      "key": "auth_api_key_in",
+      "label": "API key location",
+      "options": [
+        "header",
+        "query"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "depends_on": {
+        "key": "auth_type",
+        "values": [
+          "api_key"
+        ]
+      },
+      "help": "The header or query parameter name.",
+      "key": "auth_api_key_name",
+      "label": "API key name",
+      "placeholder": "X-API-Key",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "auth_type",
+        "values": [
+          "api_key"
+        ]
+      },
+      "key": "auth_api_key_value",
+      "label": "API key value",
+      "required": false,
+      "type": "password"
+    },
+    {
+      "help": "An object or a list of {name, value}. A list value repeats the parameter (see Query array format).",
+      "key": "query_params",
+      "label": "Query parameters (JSON)",
+      "placeholder": "{ \"limit\": 50, \"tags\": [\"a\", \"b\"] }",
+      "required": false,
+      "rows": 3,
+      "type": "textarea"
+    },
+    {
+      "default": "repeat",
+      "help": "How a list value is written: repeat (a=1&a=2), brackets (a[]=1) or indices (a[0]=1).",
+      "key": "query_array_format",
+      "label": "Query array format",
+      "options": [
+        "repeat",
+        "brackets",
+        "indices"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "help": "An object or a list of {name, value}.",
       "key": "headers",
       "label": "Headers (JSON)",
-      "placeholder": "{ \"Authorization\": \"Bearer {{$env.API_KEY}}\" }",
+      "placeholder": "{ \"Accept\": \"application/json\" }",
       "required": false,
       "rows": 3,
       "type": "textarea"
@@ -41,16 +186,318 @@
           "PATCH"
         ]
       },
+      "help": "Left empty: an object or JSON text is sent as JSON and other text as text/plain. form is application/x-www-form-urlencoded; multipart is form-data with files; binary sends the input item's binary data.",
+      "key": "body_type",
+      "label": "Body type",
+      "options": [
+        "json",
+        "form",
+        "multipart",
+        "text",
+        "raw",
+        "binary",
+        "none"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "depends_on": {
+        "key": "method",
+        "values": [
+          "POST",
+          "PUT",
+          "PATCH"
+        ]
+      },
+      "help": "JSON or text. For form and multipart an object of fields; a multipart file field is {\"file\": \"/path\"} or {\"binary_property\": \"data\"}.",
       "key": "body",
-      "label": "Request Body",
+      "label": "Request body",
       "required": false,
       "rows": 5,
       "type": "textarea"
     },
     {
+      "depends_on": {
+        "key": "body_type",
+        "values": [
+          "raw",
+          "binary"
+        ]
+      },
+      "help": "Content-Type for a raw or binary body (binary detects it when empty).",
+      "key": "raw_content_type",
+      "label": "Raw content type",
+      "placeholder": "application/xml",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": "data",
+      "depends_on": {
+        "key": "body_type",
+        "values": [
+          "binary"
+        ]
+      },
+      "help": "Which binary data of the input item to send.",
+      "key": "binary_property",
+      "label": "Binary property",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": "json",
+      "help": "json parses the body (text when it is not JSON); autodetect decides from Content-Type; file keeps the bytes as binary data on the item; binary returns base64 text.",
+      "key": "response_format",
+      "label": "Response format",
+      "options": [
+        "json",
+        "text",
+        "autodetect",
+        "file",
+        "binary"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "default": true,
+      "help": "On: each item is {status, headers, body}. Off: the body itself is the item (a list becomes one item per element).",
+      "key": "full_response",
+      "label": "Include status and headers",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "default": false,
+      "help": "Send non-2xx responses to the main output instead of the error output.",
+      "key": "never_error",
+      "label": "Never error",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "default": "data",
+      "help": "Where a text or binary body goes when status and headers are not included; also the binary data name for the file format.",
+      "key": "output_property",
+      "label": "Output property",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": false,
+      "key": "lowercase_headers",
+      "label": "Lower-case response headers",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "default": true,
+      "key": "follow_redirects",
+      "label": "Follow redirects",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "default": 10,
+      "depends_on": {
+        "key": "follow_redirects",
+        "values": [
+          "true"
+        ]
+      },
+      "key": "max_redirects",
+      "label": "Max redirects",
+      "required": false,
+      "type": "number"
+    },
+    {
+      "default": false,
+      "help": "Off (default): auth and custom headers are dropped when a redirect leaves the original host.",
+      "key": "send_credentials_on_redirect",
+      "label": "Send credentials on cross-host redirects",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "default": false,
+      "key": "allow_unauthorized_certs",
+      "label": "Ignore TLS certificate errors",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "key": "proxy",
+      "label": "Proxy",
+      "placeholder": "http://user:pass@proxy:8080",
+      "required": false,
+      "type": "text"
+    },
+    {
       "default": 30,
       "key": "timeout",
       "label": "Timeout (seconds)",
+      "required": false,
+      "type": "number"
+    },
+    {
+      "default": "none",
+      "help": "offset: page/per_page query parameters. update_parameter: set parameters per request from {{ $response }} and {{ $pageCount }}. next_url: follow a URL the response names.",
+      "key": "pagination_type",
+      "label": "Pagination",
+      "options": [
+        "none",
+        "offset",
+        "update_parameter",
+        "next_url"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "default": "page",
+      "depends_on": {
+        "key": "pagination_type",
+        "values": [
+          "offset"
+        ]
+      },
+      "key": "page_field",
+      "label": "Page parameter",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": 100,
+      "depends_on": {
+        "key": "pagination_type",
+        "values": [
+          "offset"
+        ]
+      },
+      "help": "Sent as per_page; a shorter page ends pagination.",
+      "key": "page_size",
+      "label": "Page size",
+      "required": false,
+      "type": "number"
+    },
+    {
+      "depends_on": {
+        "key": "pagination_type",
+        "values": [
+          "update_parameter"
+        ]
+      },
+      "help": "A list of {type: query|header|body, name, value}. value is a template; $response is the previous response (body, headers, statusCode) and $pageCount the pages fetched so far.",
+      "key": "pagination_parameters",
+      "label": "Pagination parameters (JSON)",
+      "placeholder": "[{ \"type\": \"query\", \"name\": \"page\", \"value\": \"{{ add $pageCount 1 }}\" }]",
+      "required": false,
+      "rows": 4,
+      "type": "textarea"
+    },
+    {
+      "depends_on": {
+        "key": "pagination_type",
+        "values": [
+          "next_url"
+        ]
+      },
+      "help": "Template for the next page's URL from the previous response; empty ends pagination.",
+      "key": "pagination_next_url",
+      "label": "Next URL",
+      "placeholder": "{{ $response.body.next }}",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": "response_is_empty",
+      "depends_on": {
+        "key": "pagination_type",
+        "values": [
+          "update_parameter",
+          "next_url"
+        ]
+      },
+      "key": "pagination_complete_when",
+      "label": "Pagination complete when",
+      "options": [
+        "response_is_empty",
+        "status_codes",
+        "expression"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "depends_on": {
+        "key": "pagination_complete_when",
+        "values": [
+          "status_codes"
+        ]
+      },
+      "key": "pagination_status_codes",
+      "label": "Complete on status codes",
+      "placeholder": "404, 410",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "pagination_complete_when",
+        "values": [
+          "expression"
+        ]
+      },
+      "help": "Template evaluated on each response; true ends pagination after that page.",
+      "key": "pagination_complete_expression",
+      "label": "Complete expression",
+      "placeholder": "{{ not $response.body.has_more }}",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": 1000,
+      "depends_on": {
+        "key": "pagination_type",
+        "values": [
+          "offset",
+          "update_parameter",
+          "next_url"
+        ]
+      },
+      "key": "max_pages",
+      "label": "Max pages",
+      "required": false,
+      "type": "number"
+    },
+    {
+      "default": 0,
+      "depends_on": {
+        "key": "pagination_type",
+        "values": [
+          "offset",
+          "update_parameter",
+          "next_url"
+        ]
+      },
+      "key": "pagination_interval_ms",
+      "label": "Delay between pages (ms)",
+      "required": false,
+      "type": "number"
+    },
+    {
+      "help": "With a batch interval: pause after this many items.",
+      "key": "batch_size",
+      "label": "Batch size",
+      "required": false,
+      "type": "number"
+    },
+    {
+      "help": "Pause between batches of items.",
+      "key": "batch_interval_ms",
+      "label": "Batch interval (ms)",
       "required": false,
       "type": "number"
     },
@@ -69,6 +516,23 @@
       "label": "Max Response Body (MB)",
       "required": false,
       "type": "number"
+    }
+  ],
+  "outputs": [
+    {
+      "description": "HTTP status code",
+      "key": "status",
+      "type": "number"
+    },
+    {
+      "description": "response headers",
+      "key": "headers",
+      "type": "object"
+    },
+    {
+      "description": "response body (parsed JSON when response_format is json; base64 for binary)",
+      "key": "body",
+      "type": "any"
     }
   ]
 }

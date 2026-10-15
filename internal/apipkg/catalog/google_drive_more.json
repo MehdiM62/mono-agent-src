@@ -1,0 +1,930 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "google_drive_more",
+  "extends": "service.google_drive",
+  "title": "Google Drive (n8n operations)",
+  "description": "n8n Google Drive operations (files, folders, search, shared drives) on the native Google Drive node",
+  "category": "app",
+  "docs_url": "https://developers.google.com/drive/api/reference/rest/v3",
+  "n8n_types": [
+    "n8n-nodes-base.googleDrive"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.googleDriveTrigger"
+  ],
+  "base_url": "https://www.googleapis.com/drive/v3",
+  "credentials": [
+    {
+      "platform": "google",
+      "name": "Google (Drive scope group)",
+      "n8n_credential": "googleDriveOAuth2Api",
+      "n8n_credential_alt": [
+        "googleApi",
+        "googleOAuth2Api"
+      ],
+      "methods": [
+        "oauth"
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      },
+      "reuse_platform": "google",
+      "scope_group": "drive"
+    }
+  ],
+  "resources": [
+    {
+      "value": "file",
+      "label": "File"
+    },
+    {
+      "value": "fileFolder",
+      "label": "File/Folder"
+    },
+    {
+      "value": "folder",
+      "label": "Folder"
+    },
+    {
+      "value": "drive",
+      "label": "Shared drive"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "file",
+      "operation": "upload",
+      "title": "Upload a file",
+      "method": "POST",
+      "base_url": "https://www.googleapis.com/upload/drive/v3",
+      "path": "/files",
+      "description": "Uploads the binary, then sets its name, parent folder and properties.",
+      "fields": [
+        {
+          "key": "inputDataFieldName",
+          "label": "Input binary field",
+          "type": "text",
+          "default": "data",
+          "required": true
+        },
+        {
+          "key": "name",
+          "label": "File name",
+          "type": "text"
+        },
+        {
+          "key": "driveId",
+          "label": "Drive",
+          "type": "text",
+          "default": "My Drive",
+          "help": "Shared drive ID, or My Drive."
+        },
+        {
+          "key": "folderId",
+          "label": "Parent folder",
+          "type": "text",
+          "default": "root",
+          "help": "Folder ID or URL; root for the drive root."
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "keepRevisionForever",
+            "ocrLanguage",
+            "useContentAsIndexableText",
+            "propertiesUi",
+            "appPropertiesUi",
+            "simplifyOutput"
+          ]
+        }
+      ],
+      "query": {
+        "uploadType": "media",
+        "supportsAllDrives": "true"
+      },
+      "binary": {
+        "upload_field": "inputDataFieldName"
+      },
+      "also": [
+        {
+          "method": "PATCH",
+          "path": "/files/{{ res.id }}",
+          "query": {
+            "includeItemsFromAllDrives": "true",
+            "supportsAllDrives": "true",
+            "spaces": "appDataFolder, drive",
+            "corpora": "allDrives",
+            "addParents": "{{ p.folderId | rl | default:'root' | ne:'root' | then:(p.folderId | rl) | default:(p.driveId | rl | ne:'My Drive' | then:(p.driveId | rl)) | default:'root' }}",
+            "keepRevisionForever": "{{ p.options.keepRevisionForever }}",
+            "ocrLanguage": "{{ p.options.ocrLanguage }}",
+            "useContentAsIndexableText": "{{ p.options.useContentAsIndexableText }}",
+            "fields": "{{ p.options.simplifyOutput | eq:'false' | then:'*' }}"
+          },
+          "body": {
+            "name": "{{ p.name | default:bin.file_name }}",
+            "properties": "{{ p.options.propertiesUi.propertyValues | kv:'key,value' }}",
+            "appProperties": "{{ p.options.appPropertiesUi.appPropertyValues | kv:'key,value' }}"
+          }
+        }
+      ]
+    },
+    {
+      "resource": "file",
+      "operation": "copy",
+      "title": "Copy a file",
+      "method": "POST",
+      "path": "/files/{{ p.fileId | rl }}/copy",
+      "fields": [
+        {
+          "key": "fileId",
+          "label": "File",
+          "type": "text",
+          "required": true,
+          "help": "File ID or URL (n8n resource locator accepted)."
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text"
+        },
+        {
+          "key": "sameFolder",
+          "label": "Same folder",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "driveId",
+          "label": "Drive",
+          "type": "text",
+          "default": "My Drive",
+          "help": "Shared drive ID, or My Drive."
+        },
+        {
+          "key": "folderId",
+          "label": "Parent folder",
+          "type": "text",
+          "default": "root",
+          "help": "Folder ID or URL; root for the drive root."
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "copyRequiresWriterPermission",
+            "description"
+          ]
+        }
+      ],
+      "query": {
+        "includeItemsFromAllDrives": "true",
+        "supportsAllDrives": "true",
+        "spaces": "appDataFolder, drive",
+        "corpora": "allDrives"
+      },
+      "body": {
+        "name": "{{ p.name | default:(p.fileId.cachedResultName | prefix:'Copy of ') }}",
+        "copyRequiresWriterPermission": "{{ p.options.copyRequiresWriterPermission | default:false }}",
+        "description": "{{ p.options.description }}",
+        "parents": [
+          "{{ p.sameFolder | eq:'false' | then:(p.folderId | rl | default:'root' | ne:'root' | then:(p.folderId | rl) | default:(p.driveId | rl | ne:'My Drive' | then:(p.driveId | rl)) | default:'root') }}"
+        ]
+      }
+    },
+    {
+      "resource": "file",
+      "operation": "createFromText",
+      "title": "Create a file from text",
+      "method": "POST",
+      "base_url": "https://www.googleapis.com/upload/drive/v3",
+      "path": "/files",
+      "fields": [
+        {
+          "key": "content",
+          "label": "Content",
+          "type": "textarea"
+        },
+        {
+          "key": "name",
+          "label": "File name",
+          "type": "text"
+        },
+        {
+          "key": "driveId",
+          "label": "Drive",
+          "type": "text",
+          "default": "My Drive",
+          "help": "Shared drive ID, or My Drive."
+        },
+        {
+          "key": "folderId",
+          "label": "Parent folder",
+          "type": "text",
+          "default": "root",
+          "help": "Folder ID or URL; root for the drive root."
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "keepRevisionForever",
+            "ocrLanguage",
+            "useContentAsIndexableText",
+            "propertiesUi",
+            "appPropertiesUi",
+            "convertToGoogleDocument"
+          ]
+        }
+      ],
+      "query": {
+        "uploadType": "multipart",
+        "supportsAllDrives": "true",
+        "keepRevisionForever": "{{ p.options.keepRevisionForever }}",
+        "ocrLanguage": "{{ p.options.ocrLanguage }}",
+        "useContentAsIndexableText": "{{ p.options.useContentAsIndexableText }}"
+      },
+      "headers": {
+        "Content-Type": "multipart/related; boundary=monoagent_part"
+      },
+      "body_type": "raw",
+      "body": "--monoagent_part\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n{\"name\":\"{{ p.name | default:'Untitled' }}\",\"parents\":[\"{{ p.folderId | rl | default:'root' | ne:'root' | then:(p.folderId | rl) | default:(p.driveId | rl | ne:'My Drive' | then:(p.driveId | rl)) | default:'root' }}\"],\"mimeType\":\"{{ p.options.convertToGoogleDocument | eq:'true' | then:'application/vnd.google-apps.document' | default:'text/plain' }}\"}\r\n--monoagent_part\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n{{ p.content }}\r\n--monoagent_part--\r\n",
+      "description": "Uploads the text as a plain-text file, or converts it to a Google Doc when convertToGoogleDocument is on."
+    },
+    {
+      "resource": "file",
+      "operation": "deleteFile",
+      "title": "Delete a file",
+      "method": "PATCH",
+      "path": "/files/{{ p.fileId | rl }}",
+      "description": "Moves the file to the trash, or deletes it for good with deletePermanently.",
+      "fields": [
+        {
+          "key": "fileId",
+          "label": "File",
+          "type": "text",
+          "required": true,
+          "help": "File ID or URL (n8n resource locator accepted)."
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "deletePermanently"
+          ]
+        }
+      ],
+      "query": {
+        "supportsAllDrives": "true"
+      },
+      "body": {
+        "trashed": true
+      },
+      "also": [
+        {
+          "when": "{{ p.options.deletePermanently }}",
+          "method": "DELETE",
+          "path": "/files/{{ p.fileId | rl }}",
+          "query": {
+            "supportsAllDrives": "true"
+          }
+        }
+      ],
+      "output": {
+        "path": "__none"
+      }
+    },
+    {
+      "resource": "file",
+      "operation": "download",
+      "title": "Download a file",
+      "method": "GET",
+      "path": "/files/{{ p.fileId | rl }}{{ pre.mimeType | eq:'application/vnd.google-apps.document' | then:'/export' }}{{ pre.mimeType | eq:'application/vnd.google-apps.spreadsheet' | then:'/export' }}{{ pre.mimeType | eq:'application/vnd.google-apps.presentation' | then:'/export' }}{{ pre.mimeType | eq:'application/vnd.google-apps.drawing' | then:'/export' }}",
+      "description": "Google Docs, Sheets, Slides and Drawings are exported (googleFileConversion picks the format).",
+      "fields": [
+        {
+          "key": "fileId",
+          "label": "File",
+          "type": "text",
+          "required": true,
+          "help": "File ID or URL (n8n resource locator accepted)."
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "binaryPropertyName",
+            "googleFileConversion",
+            "fileName"
+          ]
+        }
+      ],
+      "before": {
+        "method": "GET",
+        "path": "/files/{{ p.fileId | rl }}",
+        "query": {
+          "fields": "mimeType,name",
+          "supportsAllDrives": "true"
+        }
+      },
+      "query": {
+        "alt": "{{ pre.mimeType | prefix:'x' | then:'media' }}",
+        "mimeType": "{{ pre.mimeType | eq:'application/vnd.google-apps.document' | then:(p.options.googleFileConversion.conversion.docsToFormat | default:'application/vnd.openxmlformats-officedocument.wordprocessingml.document') }}{{ pre.mimeType | eq:'application/vnd.google-apps.spreadsheet' | then:(p.options.googleFileConversion.conversion.sheetsToFormat | default:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') }}{{ pre.mimeType | eq:'application/vnd.google-apps.presentation' | then:(p.options.googleFileConversion.conversion.slidesToFormat | default:'application/vnd.openxmlformats-officedocument.presentationml.presentation') }}{{ pre.mimeType | eq:'application/vnd.google-apps.drawing' | then:(p.options.googleFileConversion.conversion.drawingsToFormat | default:'image/jpeg') }}",
+        "supportsAllDrives": "true"
+      },
+      "binary": {
+        "download": true,
+        "file_name": "{{ p.options.fileName | default:pre.name }}"
+      }
+    },
+    {
+      "resource": "file",
+      "operation": "move",
+      "title": "Move a file",
+      "method": "PATCH",
+      "path": "/files/{{ p.fileId | rl }}",
+      "fields": [
+        {
+          "key": "fileId",
+          "label": "File",
+          "type": "text",
+          "required": true,
+          "help": "File ID or URL (n8n resource locator accepted)."
+        },
+        {
+          "key": "driveId",
+          "label": "Drive",
+          "type": "text",
+          "default": "My Drive",
+          "help": "Shared drive ID, or My Drive."
+        },
+        {
+          "key": "folderId",
+          "label": "Parent folder",
+          "type": "text",
+          "default": "root",
+          "help": "Folder ID or URL; root for the drive root."
+        }
+      ],
+      "before": {
+        "method": "GET",
+        "path": "/files/{{ p.fileId | rl }}",
+        "query": {
+          "includeItemsFromAllDrives": "true",
+          "supportsAllDrives": "true",
+          "spaces": "appDataFolder, drive",
+          "corpora": "allDrives",
+          "fields": "parents"
+        }
+      },
+      "query": {
+        "includeItemsFromAllDrives": "true",
+        "supportsAllDrives": "true",
+        "spaces": "appDataFolder, drive",
+        "corpora": "allDrives",
+        "addParents": "{{ p.folderId | rl | default:'root' | ne:'root' | then:(p.folderId | rl) | default:(p.driveId | rl | ne:'My Drive' | then:(p.driveId | rl)) | default:'root' }}",
+        "removeParents": "{{ pre.parents | csv }}"
+      }
+    },
+    {
+      "resource": "file",
+      "operation": "share",
+      "title": "Share a file",
+      "method": "POST",
+      "path": "/files/{{ p.fileId | rl }}/permissions",
+      "fields": [
+        {
+          "key": "fileId",
+          "label": "File",
+          "type": "text",
+          "required": true,
+          "help": "File ID or URL (n8n resource locator accepted)."
+        },
+        {
+          "key": "permissionsUi",
+          "label": "Permissions",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "permissionsValues"
+          ],
+          "help": "permissionsValues: {role: owner|organizer|fileOrganizer|writer|commenter|reader, type: user|group|domain|anyone, emailAddress, domain, allowFileDiscovery}."
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "emailMessage",
+            "moveToNewOwnersRoot",
+            "sendNotificationEmail",
+            "transferOwnership",
+            "useDomainAdminAccess"
+          ]
+        }
+      ],
+      "query": {
+        "supportsAllDrives": "true",
+        "emailMessage": "{{ p.options.emailMessage }}",
+        "moveToNewOwnersRoot": "{{ p.options.moveToNewOwnersRoot }}",
+        "sendNotificationEmail": "{{ p.options.sendNotificationEmail }}",
+        "transferOwnership": "{{ p.options.transferOwnership }}",
+        "useDomainAdminAccess": "{{ p.options.useDomainAdminAccess }}"
+      },
+      "body": "{{ p.permissionsUi.permissionsValues }}"
+    },
+    {
+      "resource": "file",
+      "operation": "update",
+      "title": "Update a file",
+      "method": "PATCH",
+      "path": "/files/{{ p.fileId | rl }}",
+      "description": "Optionally replaces the content (raw upload of the input binary), then changes the file's name, properties and trashed state.",
+      "fields": [
+        {
+          "key": "fileId",
+          "label": "File",
+          "type": "text",
+          "required": true,
+          "help": "File ID or URL (n8n resource locator accepted)."
+        },
+        {
+          "key": "changeFileContent",
+          "label": "Change file content",
+          "type": "boolean",
+          "default": false,
+          "help": "Upload the input binary as the file's new content first"
+        },
+        {
+          "key": "inputDataFieldName",
+          "label": "Input binary field",
+          "type": "text",
+          "default": "data"
+        },
+        {
+          "key": "newUpdatedFileName",
+          "label": "New file name",
+          "type": "text"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "keepRevisionForever",
+            "ocrLanguage",
+            "useContentAsIndexableText",
+            "propertiesUi",
+            "appPropertiesUi",
+            "trashed",
+            "fields"
+          ]
+        }
+      ],
+      "before": [
+        {
+          "when": "{{ p.changeFileContent }}",
+          "upload": true,
+          "method": "PATCH",
+          "base_url": "https://www.googleapis.com/upload/drive/v3",
+          "path": "/files/{{ p.fileId | rl }}",
+          "query": {
+            "uploadType": "media",
+            "supportsAllDrives": "true"
+          }
+        }
+      ],
+      "binary": {
+        "upload_field": "inputDataFieldName",
+        "upload_when": "false"
+      },
+      "query": {
+        "supportsAllDrives": "true",
+        "keepRevisionForever": "{{ p.options.keepRevisionForever }}",
+        "ocrLanguage": "{{ p.options.ocrLanguage }}",
+        "useContentAsIndexableText": "{{ p.options.useContentAsIndexableText }}",
+        "trashed": "{{ p.options.trashed }}",
+        "fields": "{{ p.options.fields | csv | eq:'*' | then:'*' }}{{ p.options.fields | csv | ne:'*' | then:(p.options.fields | csv) }}"
+      },
+      "body": {
+        "name": "{{ p.newUpdatedFileName }}",
+        "properties": "{{ p.options.propertiesUi.propertyValues | kv:'key,value' }}",
+        "appProperties": "{{ p.options.appPropertiesUi.appPropertyValues | kv:'key,value' }}"
+      }
+    },
+    {
+      "resource": "file",
+      "operation": "get",
+      "title": "Get a file's metadata",
+      "description": "One file or folder with all its metadata (modifiedTime, trashed, …); the importer polls it for n8n's Drive trigger on a specific file or on the watched folder itself.",
+      "method": "GET",
+      "path": "/files/{{ p.fileId | rl }}",
+      "fields": [
+        {
+          "key": "fileId",
+          "label": "File or folder",
+          "type": "text",
+          "required": true,
+          "help": "File/folder ID or URL (n8n resource locator accepted)."
+        },
+        {
+          "key": "fields",
+          "label": "Fields",
+          "type": "text",
+          "default": "*",
+          "help": "Drive fields selector; * returns every field."
+        }
+      ],
+      "query": {
+        "fields": "{{ p.fields }}",
+        "supportsAllDrives": "true"
+      }
+    },
+    {
+      "resource": "fileFolder",
+      "operation": "search",
+      "title": "Search files and folders",
+      "method": "GET",
+      "path": "/files",
+      "fields": [
+        {
+          "key": "searchMethod",
+          "label": "Search method",
+          "type": "select",
+          "options": [
+            "name",
+            "query"
+          ],
+          "default": "name"
+        },
+        {
+          "key": "queryString",
+          "label": "Search query",
+          "type": "text"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filter",
+          "label": "Filter",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "driveId",
+            "folderId",
+            "whatToSearch",
+            "fileTypes",
+            "includeTrashed"
+          ]
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fields"
+          ],
+          "help": "fields: file fields to return; * for all (default id, name)."
+        }
+      ],
+      "query": {
+        "q": "{{ p.searchMethod | default:'name' | eq:'name' | then:p.queryString | prefix:\"name contains '\" | suffix:\"'\" }}{{ p.searchMethod | eq:'query' | then:p.queryString }}{{ p.filter.folderId | rl | ne:'root' | then:(p.filter.folderId | rl) | prefix:\" and '\" | suffix:\"' in parents\" }}{{ p.filter.whatToSearch | eq:'folders' | then:\" and mimeType = 'application/vnd.google-apps.folder'\" }}{{ p.filter.whatToSearch | eq:'files' | then:\" and mimeType != 'application/vnd.google-apps.folder'\" }}{{ p.filter | then:p.filter.includeTrashed | ne:'true' | then:' and trashed = false' }}",
+        "fields": "nextPageToken, files({{ p.options.fields | csv | default:'id, name' }})",
+        "includeItemsFromAllDrives": "true",
+        "supportsAllDrives": "true",
+        "spaces": "appDataFolder, drive",
+        "corpora": "{{ p.filter.driveId | rl | ne:'My Drive' | then:(p.filter.driveId | rl) | then:'drive' | default:'allDrives' }}",
+        "driveId": "{{ p.filter.driveId | rl | ne:'My Drive' | then:(p.filter.driveId | rl) }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "pageToken",
+        "cursor_path": "nextPageToken",
+        "limit_param": "pageSize",
+        "page_size": 100,
+        "results_path": "files"
+      }
+    },
+    {
+      "resource": "folder",
+      "operation": "create",
+      "title": "Create a folder",
+      "method": "POST",
+      "path": "/files",
+      "fields": [
+        {
+          "key": "name",
+          "label": "Folder name",
+          "type": "text"
+        },
+        {
+          "key": "driveId",
+          "label": "Drive",
+          "type": "text",
+          "default": "My Drive",
+          "help": "Shared drive ID, or My Drive."
+        },
+        {
+          "key": "folderId",
+          "label": "Parent folder",
+          "type": "text",
+          "default": "root",
+          "help": "Folder ID or URL; root for the drive root."
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "simplifyOutput",
+            "folderColorRgb"
+          ]
+        }
+      ],
+      "query": {
+        "includeItemsFromAllDrives": "true",
+        "supportsAllDrives": "true",
+        "spaces": "appDataFolder, drive",
+        "corpora": "allDrives",
+        "fields": "{{ p.options.simplifyOutput | eq:'false' | then:'*' }}"
+      },
+      "body": {
+        "name": "{{ p.name | default:'Untitled' }}",
+        "mimeType": "application/vnd.google-apps.folder",
+        "parents": [
+          "{{ p.folderId | rl | default:'root' | ne:'root' | then:(p.folderId | rl) | default:(p.driveId | rl | ne:'My Drive' | then:(p.driveId | rl)) | default:'root' }}"
+        ],
+        "folderColorRgb": "{{ p.options.folderColorRgb }}"
+      }
+    },
+    {
+      "resource": "folder",
+      "operation": "deleteFolder",
+      "title": "Delete a folder",
+      "method": "PATCH",
+      "path": "/files/{{ p.folderNoRootId | rl }}",
+      "fields": [
+        {
+          "key": "folderNoRootId",
+          "label": "Folder",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "deletePermanently"
+          ]
+        }
+      ],
+      "query": {
+        "supportsAllDrives": "true"
+      },
+      "body": {
+        "trashed": true
+      },
+      "also": [
+        {
+          "when": "{{ p.options.deletePermanently }}",
+          "method": "DELETE",
+          "path": "/files/{{ p.folderNoRootId | rl }}",
+          "query": {
+            "supportsAllDrives": "true"
+          }
+        }
+      ],
+      "output": {
+        "path": "__none"
+      }
+    },
+    {
+      "resource": "folder",
+      "operation": "share",
+      "title": "Share a folder",
+      "method": "POST",
+      "path": "/files/{{ p.folderNoRootId | rl }}/permissions",
+      "fields": [
+        {
+          "key": "folderNoRootId",
+          "label": "Folder",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "permissionsUi",
+          "label": "Permissions",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "permissionsValues"
+          ],
+          "help": "permissionsValues: {role: owner|organizer|fileOrganizer|writer|commenter|reader, type: user|group|domain|anyone, emailAddress, domain, allowFileDiscovery}."
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "emailMessage",
+            "moveToNewOwnersRoot",
+            "sendNotificationEmail",
+            "transferOwnership",
+            "useDomainAdminAccess"
+          ]
+        }
+      ],
+      "query": {
+        "supportsAllDrives": "true",
+        "emailMessage": "{{ p.options.emailMessage }}",
+        "moveToNewOwnersRoot": "{{ p.options.moveToNewOwnersRoot }}",
+        "sendNotificationEmail": "{{ p.options.sendNotificationEmail }}",
+        "transferOwnership": "{{ p.options.transferOwnership }}",
+        "useDomainAdminAccess": "{{ p.options.useDomainAdminAccess }}"
+      },
+      "body": "{{ p.permissionsUi.permissionsValues }}"
+    },
+    {
+      "resource": "drive",
+      "operation": "create",
+      "title": "Create a shared drive",
+      "method": "POST",
+      "path": "/drives",
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "capabilities",
+            "colorRgb",
+            "hidden",
+            "restrictions"
+          ]
+        }
+      ],
+      "query": {
+        "requestId": "{{ uuid }}"
+      },
+      "body": {
+        "name": "{{ p.name }}",
+        "$merge": "{{ p.options }}"
+      }
+    },
+    {
+      "resource": "drive",
+      "operation": "deleteDrive",
+      "title": "Delete a shared drive",
+      "method": "DELETE",
+      "path": "/drives/{{ p.driveId | rl }}",
+      "fields": [
+        {
+          "key": "driveId",
+          "label": "Shared drive",
+          "type": "text",
+          "required": true,
+          "help": "Shared drive ID or URL."
+        }
+      ]
+    },
+    {
+      "resource": "drive",
+      "operation": "get",
+      "title": "Get a shared drive",
+      "method": "GET",
+      "path": "/drives/{{ p.driveId | rl }}",
+      "fields": [
+        {
+          "key": "driveId",
+          "label": "Shared drive",
+          "type": "text",
+          "required": true,
+          "help": "Shared drive ID or URL."
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "useDomainAdminAccess"
+          ]
+        }
+      ],
+      "query": {
+        "useDomainAdminAccess": "{{ p.options.useDomainAdminAccess }}"
+      }
+    },
+    {
+      "resource": "drive",
+      "operation": "list",
+      "title": "List shared drives",
+      "method": "GET",
+      "path": "/drives",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "q",
+            "useDomainAdminAccess"
+          ]
+        }
+      ],
+      "query": {
+        "q": "{{ p.options.q }}",
+        "useDomainAdminAccess": "{{ p.options.useDomainAdminAccess }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "pageToken",
+        "cursor_path": "nextPageToken",
+        "limit_param": "pageSize",
+        "page_size": 100,
+        "results_path": "drives"
+      }
+    },
+    {
+      "resource": "drive",
+      "operation": "update",
+      "title": "Update a shared drive",
+      "method": "PATCH",
+      "path": "/drives/{{ p.driveId | rl }}",
+      "fields": [
+        {
+          "key": "driveId",
+          "label": "Shared drive",
+          "type": "text",
+          "required": true,
+          "help": "Shared drive ID or URL."
+        },
+        {
+          "key": "options",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "colorRgb",
+            "name",
+            "restrictions"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.options }}"
+      }
+    }
+  ]
+}

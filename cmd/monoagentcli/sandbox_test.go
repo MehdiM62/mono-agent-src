@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/monoes/mono-agent/internal/monomind"
+	"github.com/monoes/mono-agent/internal/storage"
 )
 
 func withFallbackCaps(t *testing.T, caps ...string) {
@@ -20,6 +21,24 @@ func withFallbackCaps(t *testing.T, caps ...string) {
 		return monomind.NewCapabilitySet("2.24.5", caps...), nil
 	}
 	t.Cleanup(func() { capabilityProbe = old })
+}
+
+// newSandboxTestDB makes a migrated database under a throwaway HOME.
+func newSandboxTestDB(t *testing.T) string {
+	t.Helper()
+	t.Setenv("HOME", t.TempDir())
+	dbPath := filepath.Join(t.TempDir(), "sandbox-test.db")
+	db, err := storage.NewDatabase(dbPath)
+	if err != nil {
+		t.Fatalf("NewDatabase: %v", err)
+	}
+	if err := db.ApplyMigrations(); err != nil {
+		t.Fatalf("ApplyMigrations: %v", err)
+	}
+	if err := db.DB.Close(); err != nil {
+		t.Fatalf("closing seed db: %v", err)
+	}
+	return dbPath
 }
 
 func runSandboxCLI(t *testing.T, dbPath string, args ...string) (sandboxFallbackReport, int, string) {
@@ -36,7 +55,7 @@ func runSandboxCLI(t *testing.T, dbPath string, args ...string) (sandboxFallback
 }
 
 func TestSandboxFallbackCLI(t *testing.T) {
-	dbPath := newChatCLITestDB(t)
+	dbPath := newSandboxTestDB(t)
 	t.Setenv(monomind.SandboxFallbackEnv, "")
 	withFallbackCaps(t, monomind.CapAgentExecSandboxFallback)
 
@@ -68,7 +87,7 @@ func TestSandboxFallbackCLI(t *testing.T) {
 }
 
 func TestSandboxFallbackCLIWithoutCapability(t *testing.T) {
-	dbPath := newChatCLITestDB(t)
+	dbPath := newSandboxTestDB(t)
 	t.Setenv(monomind.SandboxFallbackEnv, "")
 	withFallbackCaps(t) // an older monomind
 	if rep, code, out := runSandboxCLI(t, dbPath); code != 0 || rep.Capable || rep.MonomindVersion != "2.24.5" {
@@ -80,7 +99,7 @@ func TestSandboxFallbackCLIWithoutCapability(t *testing.T) {
 // from another process (the app) reaches a running daemon within the TTL,
 // and a missing or unreadable database is the default, not an error.
 func TestSandboxFallbackProviderSeesChanges(t *testing.T) {
-	dbPath := newChatCLITestDB(t)
+	dbPath := newSandboxTestDB(t)
 	withFallbackCaps(t)
 	t.Setenv(monomind.SandboxFallbackEnv, "")
 	prev := monomind.SandboxFallbackProvider

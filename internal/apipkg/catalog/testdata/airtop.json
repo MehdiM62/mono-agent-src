@@ -1,0 +1,536 @@
+{
+  "session.create": {
+    "params": {
+      "profileName": "p1",
+      "proxy": "integrated",
+      "additionalFields": {
+        "solveCaptcha": true,
+        "extensionIds": "abc, def"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/sessions",
+      "body": {
+        "configuration": {
+          "profileName": "p1",
+          "timeoutMinutes": 10,
+          "proxy": {
+            "country": "US",
+            "sticky": true
+          },
+          "solveCaptcha": true,
+          "record": false,
+          "extensionIds": [
+            "abc",
+            "def"
+          ]
+        }
+      }
+    }
+  },
+  "session.save": {
+    "params": {
+      "profileName": "p1"
+    },
+    "input": {
+      "sessionId": "s1"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v1/sessions/s1/save-profile-on-termination/p1"
+    }
+  },
+  "session.terminate": {
+    "params": {
+      "sessionId": "s1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v1/sessions/s1"
+    }
+  },
+  "window.create": {
+    "params": {
+      "sessionId": "s1",
+      "url": "https://example.com",
+      "additionalFields": {
+        "waitUntil": "load"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/sessions/s1/windows",
+      "body": {
+        "url": "https://example.com",
+        "waitUntil": "load"
+      }
+    }
+  },
+  "window.close": {
+    "params": {
+      "sessionId": "s1",
+      "windowId": "w1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v1/sessions/s1/windows/w1"
+    }
+  },
+  "window.getLiveView": {
+    "params": {
+      "sessionId": "s1",
+      "windowId": "w1",
+      "additionalFields": {
+        "includeNavigationBar": true,
+        "screenResolution": "1280X720"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/sessions/s1/windows/w1",
+      "query": {
+        "includeNavigationBar": "true",
+        "screenResolution": "1280x720"
+      }
+    }
+  },
+  "window.list": {
+    "params": {
+      "sessionId": "s1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/sessions/s1/windows"
+    }
+  },
+  "window.load": {
+    "params": {
+      "sessionId": "s1",
+      "windowId": "w1",
+      "url": "https://example.com"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/sessions/s1/windows/w1",
+      "body": {
+        "url": "https://example.com"
+      }
+    }
+  },
+  "window.takeScreenshot": {
+    "params": {
+      "sessionId": "s1",
+      "windowId": "w1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/sessions/s1/windows/w1/screenshot"
+    }
+  },
+  "extraction.getPaginated": {
+    "params": {
+      "sessionId": "s1",
+      "windowId": "w1",
+      "prompt": "List products",
+      "additionalFields": {
+        "paginationMode": "paginated"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/sessions/s1/windows/w1/paginated-extraction",
+      "body": {
+        "prompt": "List products",
+        "configuration": {
+          "paginationMode": "paginated"
+        }
+      }
+    }
+  },
+  "extraction.query": {
+    "params": {
+      "sessionId": "s1",
+      "windowId": "w1",
+      "prompt": "What is the title?"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/sessions/s1/windows/w1/page-query",
+      "body": {
+        "prompt": "What is the title?",
+        "configuration": {
+          "experimental": {
+            "includeVisualAnalysis": "disabled"
+          }
+        }
+      }
+    }
+  },
+  "extraction.scrape": {
+    "params": {},
+    "input": {
+      "sessionId": "s1",
+      "windowId": "w1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/sessions/s1/windows/w1/scrape-content"
+    }
+  },
+  "interaction.click": {
+    "params": {
+      "sessionId": "s1",
+      "windowId": "w1",
+      "elementDescription": "Login button",
+      "additionalFields": {
+        "waitForNavigation": "load"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/sessions/s1/windows/w1/click",
+      "body": {
+        "elementDescription": "Login button",
+        "configuration": {
+          "clickType": "click",
+          "waitForNavigationConfig": {
+            "waitUntil": "load"
+          }
+        },
+        "waitForNavigation": true
+      }
+    }
+  },
+  "interaction.hover": {
+    "params": {
+      "sessionId": "s1",
+      "windowId": "w1",
+      "elementDescription": "Menu",
+      "additionalFields": {
+        "visualScope": "viewport"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/sessions/s1/windows/w1/hover",
+      "body": {
+        "elementDescription": "Menu",
+        "configuration": {
+          "visualAnalysis": {
+            "scope": "viewport"
+          }
+        }
+      }
+    }
+  },
+  "interaction.scroll": {
+    "params": {
+      "sessionId": "s1",
+      "windowId": "w1",
+      "scrollingMode": "manual",
+      "scrollBy": {
+        "scrollValues": {
+          "yAxis": "200px"
+        }
+      },
+      "scrollToElement": "ignored"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/sessions/s1/windows/w1/scroll",
+      "body": {
+        "scrollBy": {
+          "yAxis": "200px"
+        }
+      }
+    }
+  },
+  "interaction.type": {
+    "params": {
+      "sessionId": "s1",
+      "windowId": "w1",
+      "text": "hello",
+      "pressEnterKey": true
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/sessions/s1/windows/w1/type",
+      "body": {
+        "text": "hello",
+        "pressEnterKey": true
+      }
+    }
+  },
+  "file.getMany": {
+    "params": {
+      "limit": 5,
+      "sessionIds": "s1"
+    },
+    "response": {
+      "data": {
+        "files": [
+          {
+            "id": "f1"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/files",
+      "query": {
+        "sessionIds": "s1",
+        "offset": "0",
+        "limit": "5"
+      },
+      "items": 1
+    }
+  },
+  "file.deleteFile": {
+    "params": {
+      "fileId": "f1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v1/files/f1"
+    }
+  },
+  "file.get": {
+    "params": {
+      "fileId": "f1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/files/f1"
+    }
+  },
+  "interaction.fill": {
+    "params": {
+      "sessionId": "s1",
+      "windowId": "w1",
+      "formData": "Name: Ada"
+    },
+    "responses": [
+      {
+        "requestId": "r1"
+      },
+      {
+        "status": "running"
+      },
+      {
+        "status": "completed",
+        "data": {
+          "modelResponse": "done"
+        }
+      }
+    ],
+    "expect_requests": [
+      {
+        "method": "POST",
+        "path": "/api/v1/async/sessions/s1/windows/w1/execute-automation",
+        "body": {
+          "automationId": "auto",
+          "parameters": {
+            "customData": "Name: Ada"
+          }
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/requests/r1/status"
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/requests/r1/status"
+      }
+    ],
+    "expect": {
+      "items": 1
+    }
+  },
+  "session.waitForDownload": {
+    "params": {
+      "sessionId": "s1",
+      "additionalFields": {
+        "timeout": 5
+      }
+    },
+    "responses": [
+      {
+        "$sse": [
+          {
+            "event": "status",
+            "status": "running"
+          },
+          {
+            "event": "file_status",
+            "status": "available",
+            "fileId": "f1",
+            "downloadUrl": "https://files.example/f1"
+          }
+        ]
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/sessions/s1/events",
+      "query": {
+        "all": "true"
+      },
+      "items": 1
+    }
+  },
+  "file.load": {
+    "params": {
+      "sessionId": "s1",
+      "windowId": "w1",
+      "fileId": "f1"
+    },
+    "responses": [
+      {},
+      {
+        "$sse": [
+          {
+            "event": "file_upload_status",
+            "fileId": "f0",
+            "status": "available"
+          },
+          {
+            "event": "file_upload_status",
+            "fileId": "f1",
+            "status": "available"
+          }
+        ]
+      },
+      {}
+    ],
+    "expect_requests": [
+      {
+        "method": "POST",
+        "path": "/api/v1/files/f1/push",
+        "body": {
+          "sessionIds": [
+            "s1"
+          ]
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/sessions/s1/events",
+        "query": {
+          "all": "true"
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/sessions/s1/windows/w1/file-input",
+        "body": {
+          "fileId": "f1",
+          "includeHiddenElements": true
+        }
+      }
+    ],
+    "expect": {
+      "items": 1
+    }
+  },
+  "file.upload": {
+    "params": {
+      "sessionId": "s1",
+      "windowId": "w1",
+      "fileName": "a.txt",
+      "url": "https://example.com/a.txt"
+    },
+    "responses": [
+      "file body",
+      {
+        "data": {
+          "id": "f1",
+          "uploadUrl": "https://upload.example/put/f1"
+        }
+      },
+      {},
+      {
+        "data": {
+          "status": "available"
+        }
+      },
+      {},
+      {
+        "$sse": [
+          {
+            "event": "file_upload_status",
+            "fileId": "f1",
+            "status": "available"
+          }
+        ]
+      },
+      {}
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/files/f1/push",
+      "body": {
+        "sessionIds": [
+          "s1"
+        ]
+      },
+      "items": 1
+    }
+  },
+  "agent.run": {
+    "params": {
+      "agentId": "ag1",
+      "agentParameters": {
+        "value": {
+          "query": "x"
+        }
+      },
+      "timeout": 30
+    },
+    "responses": [
+      {
+        "webhookId": "wh1"
+      },
+      {
+        "invocationId": "inv1"
+      },
+      {
+        "status": "Running"
+      },
+      {
+        "status": "Completed",
+        "output": {
+          "answer": 42
+        }
+      }
+    ],
+    "expect_requests": [
+      {
+        "method": "GET",
+        "path": "/api/v2/agents/ag1"
+      },
+      {
+        "method": "POST",
+        "path": "/api/hooks/agents/ag1/webhooks/wh1",
+        "body": {
+          "configVars": {
+            "query": "x"
+          }
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/api/hooks/agents/ag1/invocations/inv1/result"
+      },
+      {
+        "method": "GET",
+        "path": "/api/hooks/agents/ag1/invocations/inv1/result"
+      }
+    ],
+    "expect": {
+      "items": 1
+    }
+  }
+}

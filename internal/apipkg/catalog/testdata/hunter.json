@@ -1,0 +1,80 @@
+{
+  "domainSearch": {
+    "params": {
+      "domain": "stripe.com",
+      "limit": 5,
+      "filters": {
+        "type": "personal",
+        "seniority": [
+          "senior",
+          "executive"
+        ]
+      }
+    },
+    "response": {
+      "data": {
+        "domain": "stripe.com",
+        "emails": [
+          {
+            "value": "a@stripe.com"
+          },
+          {
+            "value": "b@stripe.com"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v2/domain-search",
+      "query": {
+        "domain": "stripe.com",
+        "type": "personal",
+        "seniority": "senior,executive",
+        "offset": "0",
+        "limit": "5"
+      },
+      "items": 2
+    }
+  },
+  "emailFinder": {
+    "params": {
+      "domain": "stripe.com",
+      "firstname": "Ada",
+      "lastname": "Lovelace"
+    },
+    "response": {
+      "data": {
+        "email": "ada@stripe.com"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v2/email-finder",
+      "query": {
+        "domain": "stripe.com",
+        "first_name": "Ada",
+        "last_name": "Lovelace"
+      },
+      "items": 1
+    }
+  },
+  "emailVerifier": {
+    "params": {
+      "email": "ada@stripe.com"
+    },
+    "response": {
+      "data": {
+        "status": "valid"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v2/email-verifier",
+      "query": {
+        "email": "ada@stripe.com"
+      },
+      "items": 1
+    }
+  }
+}

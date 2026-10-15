@@ -11,9 +11,9 @@ engagement, or outreach service for accounts you don't own.
 It's a workflow engine that runs on your machine: you build automations
 against services and accounts that are yours, at a pace you control.
 
-The online library requires a monoes.me sign-in; the account gate for local work
-is currently dormant. A future enabled gate will limit offline operation to at
-most 24 hours from a signed token's issue time. See [SECURITY.md](../SECURITY.md).
+A monoes.me sign-in has been required since 2026-10-11 (UTC), including for local
+work. Offline operation is limited to at most 24 hours from a signed token's
+issue time. See [SECURITY.md](../SECURITY.md).
 
 You control when those workflows run and which services they contact.
 
@@ -30,7 +30,7 @@ The `core.human_in_loop` node pauses a workflow and puts each pending item in
 a durable approval queue (stored in SQLite — it survives restarts). A person
 can review the data, edit any field, and approve or reject each item.
 Rejection stops that branch; approval resumes it with the edited data.
-Approvals can also be handled from the CLI (`monoagentcli hil list` /
+Approvals can also be handled from the CLI (`monoagentcli --profile <name> hil list` /
 `hil approve` / `hil reject`) or by an AI agent acting on your instruction.
 
 **We strongly recommend putting a human-in-the-loop node in front of anything
@@ -185,7 +185,7 @@ That build simply doesn't contain those node types.
 
 ## No affiliation
 
-Mono Agent is an independent, unofficial, MIT-licensed open-source project.
+Mono Agent is an independent, unofficial, proprietary project.
 It is not affiliated with, authorized by, maintained by, sponsored by, or
 endorsed by Meta (Instagram, Facebook), LinkedIn, X (Twitter), TikTok,
 Google, or any other platform or company whose services it can automate.

@@ -3,6 +3,8 @@ package workflow
 import (
 	"context"
 	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -136,5 +138,32 @@ func TestWorkflowFileStore_SchemaEmbedded(t *testing.T) {
 	}
 	if len(loaded.Nodes[0].Schema.Fields) == 0 {
 		t.Fatal("expected non-empty fields for service.google_sheets")
+	}
+}
+
+// Workflow definitions live under ~/.monoagent/workflows and are the
+// user's own: the folder is 0700 and each file 0600.
+func TestWorkflowFileStore_FilesArePrivate(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix modes do not apply on Windows")
+	}
+	dir := filepath.Join(t.TempDir(), "workflows")
+	store, err := NewWorkflowFileStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wf := &Workflow{Name: "private", Nodes: []WorkflowNode{}, Connections: []WorkflowConnection{}}
+	if err := store.SaveWorkflow(context.Background(), wf); err != nil {
+		t.Fatal(err)
+	}
+	if info, err := os.Stat(dir); err != nil || info.Mode().Perm() != 0o700 {
+		t.Fatalf("dir mode %v (%v), want 0700", info.Mode().Perm(), err)
+	}
+	path, err := store.filePath(wf.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info, err := os.Stat(path); err != nil || info.Mode().Perm() != 0o600 {
+		t.Fatalf("file mode %v (%v), want 0600", info.Mode().Perm(), err)
 	}
 }

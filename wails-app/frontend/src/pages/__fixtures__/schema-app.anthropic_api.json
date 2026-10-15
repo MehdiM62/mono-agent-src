@@ -1,0 +1,522 @@
+{
+ "apipkg": "anthropic_api",
+ "category": "app",
+ "credential_platform": "anthropic",
+ "description": "Files, image and document analysis and prompt tools through the Anthropic API with your own key",
+ "docs_url": "https://docs.anthropic.com/en/api",
+ "fields": [
+  {
+   "key": "credential_id",
+   "label": "Anthropic API Connection",
+   "required": true,
+   "type": "credential_picker"
+  },
+  {
+   "default": "file",
+   "key": "resource",
+   "label": "Resource",
+   "options": [
+    "file",
+    "image",
+    "document",
+    "prompt"
+   ],
+   "required": true,
+   "type": "select"
+  },
+  {
+   "default": "upload",
+   "depends_on": {
+    "key": "resource",
+    "values": [
+     "file"
+    ]
+   },
+   "key": "operation",
+   "label": "File Operation",
+   "options": [
+    "upload",
+    "get",
+    "list",
+    "deleteFile"
+   ],
+   "required": true,
+   "type": "select"
+  },
+  {
+   "default": "analyze",
+   "depends_on": {
+    "key": "resource",
+    "values": [
+     "image"
+    ]
+   },
+   "key": "operation",
+   "label": "Image Operation",
+   "options": [
+    "analyze"
+   ],
+   "required": true,
+   "type": "select"
+  },
+  {
+   "default": "analyze",
+   "depends_on": {
+    "key": "resource",
+    "values": [
+     "document"
+    ]
+   },
+   "key": "operation",
+   "label": "Document Operation",
+   "options": [
+    "analyze"
+   ],
+   "required": true,
+   "type": "select"
+  },
+  {
+   "default": "generate",
+   "depends_on": {
+    "key": "resource",
+    "values": [
+     "prompt"
+    ]
+   },
+   "key": "operation",
+   "label": "Prompt Operation",
+   "options": [
+    "generate",
+    "improve",
+    "templatize"
+   ],
+   "required": true,
+   "type": "select"
+  },
+  {
+   "default": "url",
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "upload",
+     "analyze"
+    ]
+   },
+   "key": "inputType",
+   "label": "Input",
+   "options": [
+    "url",
+    "binary"
+   ],
+   "required": false,
+   "type": "select",
+   "visible_for": [
+    {
+     "operation": "upload",
+     "resource": "file"
+    },
+    {
+     "operation": "analyze",
+     "resource": "image"
+    },
+    {
+     "operation": "analyze",
+     "resource": "document"
+    }
+   ]
+  },
+  {
+   "default": "",
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "upload"
+    ]
+   },
+   "key": "fileUrl",
+   "label": "File URL",
+   "required": false,
+   "type": "text",
+   "visible_for": [
+    {
+     "operation": "upload",
+     "resource": "file"
+    }
+   ]
+  },
+  {
+   "default": "data",
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "upload"
+    ]
+   },
+   "key": "binaryPropertyName",
+   "label": "Input binary property",
+   "required": false,
+   "type": "text",
+   "visible_for": [
+    {
+     "operation": "upload",
+     "resource": "file"
+    }
+   ]
+  },
+  {
+   "default": {},
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "upload"
+    ]
+   },
+   "help": "fileName: name given to the uploaded file (default file). Keys: fileName",
+   "key": "options",
+   "label": "Options",
+   "language": "json",
+   "required": false,
+   "type": "code",
+   "visible_for": [
+    {
+     "operation": "upload",
+     "resource": "file"
+    }
+   ]
+  },
+  {
+   "default": "",
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "get",
+     "deleteFile"
+    ]
+   },
+   "key": "fileId",
+   "label": "File ID",
+   "required": true,
+   "type": "text",
+   "visible_for": [
+    {
+     "operation": "get",
+     "resource": "file"
+    },
+    {
+     "operation": "deleteFile",
+     "resource": "file"
+    }
+   ]
+  },
+  {
+   "default": false,
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "list"
+    ]
+   },
+   "key": "returnAll",
+   "label": "Return all",
+   "required": false,
+   "type": "boolean",
+   "visible_for": [
+    {
+     "operation": "list",
+     "resource": "file"
+    }
+   ]
+  },
+  {
+   "default": 50,
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "list"
+    ]
+   },
+   "key": "limit",
+   "label": "Limit",
+   "max": 1000,
+   "min": 1,
+   "required": false,
+   "type": "number",
+   "visible_for": [
+    {
+     "operation": "list",
+     "resource": "file"
+    }
+   ]
+  },
+  {
+   "default": "",
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "analyze"
+    ]
+   },
+   "help": "Claude model id (plain or n8n model locator).",
+   "key": "modelId",
+   "label": "Model",
+   "required": true,
+   "type": "text",
+   "visible_for": [
+    {
+     "operation": "analyze",
+     "resource": "image"
+    },
+    {
+     "operation": "analyze",
+     "resource": "document"
+    }
+   ]
+  },
+  {
+   "default": "What's in this image?",
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "analyze"
+    ]
+   },
+   "key": "text",
+   "label": "Question",
+   "required": true,
+   "type": "textarea",
+   "visible_for": [
+    {
+     "operation": "analyze",
+     "resource": "image"
+    },
+    {
+     "operation": "analyze",
+     "resource": "document"
+    }
+   ]
+  },
+  {
+   "default": "",
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "analyze"
+    ]
+   },
+   "help": "Comma-separated URLs; an Anthropic file URL (\u2026/v1/files/<id>) refers to an uploaded file.",
+   "key": "imageUrls",
+   "label": "Image URLs",
+   "required": false,
+   "type": "text",
+   "visible_for": [
+    {
+     "operation": "analyze",
+     "resource": "image"
+    }
+   ]
+  },
+  {
+   "default": "data",
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "analyze"
+    ]
+   },
+   "help": "Comma-separated binary properties.",
+   "key": "binaryPropertyName",
+   "label": "Input binary properties",
+   "required": false,
+   "type": "text",
+   "visible_for": [
+    {
+     "operation": "analyze",
+     "resource": "image"
+    },
+    {
+     "operation": "analyze",
+     "resource": "document"
+    }
+   ]
+  },
+  {
+   "default": true,
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "analyze",
+     "generate",
+     "improve",
+     "templatize"
+    ]
+   },
+   "help": "Only return the answer's content blocks.",
+   "key": "simplify",
+   "label": "Simplify",
+   "required": false,
+   "type": "boolean",
+   "visible_for": [
+    {
+     "operation": "analyze",
+     "resource": "image"
+    },
+    {
+     "operation": "analyze",
+     "resource": "document"
+    },
+    {
+     "operation": "generate",
+     "resource": "prompt"
+    },
+    {
+     "operation": "improve",
+     "resource": "prompt"
+    },
+    {
+     "operation": "templatize",
+     "resource": "prompt"
+    }
+   ]
+  },
+  {
+   "default": {},
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "analyze"
+    ]
+   },
+   "help": "maxTokens: default 1024. Keys: maxTokens",
+   "key": "options",
+   "label": "Options",
+   "language": "json",
+   "required": false,
+   "type": "code",
+   "visible_for": [
+    {
+     "operation": "analyze",
+     "resource": "image"
+    },
+    {
+     "operation": "analyze",
+     "resource": "document"
+    }
+   ]
+  },
+  {
+   "default": "",
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "analyze"
+    ]
+   },
+   "help": "Comma-separated URLs; an Anthropic file URL (\u2026/v1/files/<id>) refers to an uploaded file.",
+   "key": "documentUrls",
+   "label": "Document URLs",
+   "required": false,
+   "type": "text",
+   "visible_for": [
+    {
+     "operation": "analyze",
+     "resource": "document"
+    }
+   ]
+  },
+  {
+   "default": "",
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "generate"
+    ]
+   },
+   "key": "task",
+   "label": "Task",
+   "required": true,
+   "type": "textarea",
+   "visible_for": [
+    {
+     "operation": "generate",
+     "resource": "prompt"
+    }
+   ]
+  },
+  {
+   "default": {
+    "values": [
+     {
+      "content": "",
+      "role": "user"
+     }
+    ]
+   },
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "improve",
+     "templatize"
+    ]
+   },
+   "help": "values: [{role: user|assistant, content}] Keys: values",
+   "key": "messages",
+   "label": "Messages",
+   "language": "json",
+   "required": false,
+   "type": "code",
+   "visible_for": [
+    {
+     "operation": "improve",
+     "resource": "prompt"
+    },
+    {
+     "operation": "templatize",
+     "resource": "prompt"
+    }
+   ]
+  },
+  {
+   "default": {},
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "improve"
+    ]
+   },
+   "help": "Keys: system, feedback",
+   "key": "options",
+   "label": "Options",
+   "language": "json",
+   "required": false,
+   "type": "code",
+   "visible_for": [
+    {
+     "operation": "improve",
+     "resource": "prompt"
+    }
+   ]
+  },
+  {
+   "default": {},
+   "depends_on": {
+    "key": "operation",
+    "values": [
+     "templatize"
+    ]
+   },
+   "help": "Keys: system",
+   "key": "options",
+   "label": "Options",
+   "language": "json",
+   "required": false,
+   "type": "code",
+   "visible_for": [
+    {
+     "operation": "templatize",
+     "resource": "prompt"
+    }
+   ]
+  }
+ ],
+ "title": "Anthropic API"
+}

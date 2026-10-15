@@ -61,7 +61,7 @@ func TestPrepareNodeGeneratesDocuments(t *testing.T) {
 		"cv_data":           map[string]interface{}{"name": "Jane Doe"},
 		"cover_letter_data": map[string]interface{}{"senderName": "Jane Doe"},
 	}
-	outputs, err := node.Execute(context.Background(), workflow.NodeInput{}, config)
+	outputs, err := node.Execute(vault.ContextWithProfileID(context.Background(), "default"), workflow.NodeInput{}, config)
 	if err != nil {
 		t.Fatalf("Execute: %v", err)
 	}

@@ -1,0 +1,694 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "mattermost",
+  "node_type": "app.mattermost",
+  "title": "Mattermost",
+  "description": "Channels, messages, reactions and users in Mattermost",
+  "category": "app",
+  "docs_url": "https://api.mattermost.com/",
+  "n8n_types": [
+    "n8n-nodes-base.mattermost"
+  ],
+  "base_url": "{{ cred.base_url }}/api/v4",
+  "credentials": [
+    {
+      "platform": "mattermost",
+      "name": "Mattermost",
+      "n8n_credential": "mattermostApi",
+      "n8n_field_map": {
+        "accessToken": "access_token",
+        "baseUrl": "base_url",
+        "allowUnauthorizedCerts": "allow_unauthorized_certs"
+      },
+      "methods": [
+        "bearer"
+      ],
+      "fields": [
+        {
+          "key": "access_token",
+          "label": "Access token",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "base_url",
+          "label": "Base URL",
+          "required": true,
+          "help": "e.g. https://chat.example.com (no trailing slash)"
+        },
+        {
+          "key": "allow_unauthorized_certs",
+          "label": "Ignore SSL issues",
+          "help": "true to accept self-signed or invalid TLS certificates (self-hosted servers)"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "message",
+      "label": "Message"
+    },
+    {
+      "value": "channel",
+      "label": "Channel"
+    },
+    {
+      "value": "reaction",
+      "label": "Reaction"
+    },
+    {
+      "value": "user",
+      "label": "User"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "message",
+      "operation": "post",
+      "title": "Post a message",
+      "method": "POST",
+      "path": "/posts",
+      "fields": [
+        {
+          "key": "channelId",
+          "label": "Channel ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "message",
+          "label": "Message",
+          "type": "textarea",
+          "default": ""
+        },
+        {
+          "key": "attachments",
+          "label": "Attachments",
+          "type": "json",
+          "default": [],
+          "help": "List of attachments: {fallback, color, pretext, author_name, author_link, author_icon, title, title_link, text, image_url, thumb_url, footer, footer_icon, fields: {item: [{title, value, short}]}, actions: {item: [{type, name, data_source, options: {option: [{text, value}]}, integration: {item: {url, context: {property: [{name, value}]}}}}]}}"
+        },
+        {
+          "key": "otherOptions",
+          "label": "Other options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "root_id"
+          ],
+          "help": "root_id: post to reply to"
+        }
+      ],
+      "body": {
+        "channel_id": "{{ p.channelId }}",
+        "message": "{{ p.message }}",
+        "props": {
+          "attachments": {
+            "$map": "{{ p.attachments }}",
+            "$to": {
+              "$merge": "{{ el | omit:'fields,actions' }}",
+              "fields": "{{ el.fields.item }}",
+              "actions": {
+                "$map": "{{ el.actions.item }}",
+                "$to": {
+                  "$merge": "{{ el | omit:'type,data_source,options,integration' }}",
+                  "type": "{{ el.type | ne:'button' | then:el.type }}",
+                  "data_source": "{{ el.data_source | ne:'custom' | then:el.data_source }}",
+                  "options": "{{ el.options.option }}",
+                  "integration": {
+                    "url": "{{ el.integration.item.url }}",
+                    "context": "{{ el.integration.item.context.property | kv:'name,value' }}"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "$merge": "{{ p.otherOptions }}"
+      }
+    },
+    {
+      "resource": "message",
+      "operation": "delete",
+      "title": "Delete a post",
+      "method": "DELETE",
+      "path": "/posts/{{ p.postId }}",
+      "fields": [
+        {
+          "key": "postId",
+          "label": "Post ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "message",
+      "operation": "postEphemeral",
+      "title": "Post an ephemeral message",
+      "method": "POST",
+      "path": "/posts/ephemeral",
+      "fields": [
+        {
+          "key": "userId",
+          "label": "User ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "channelId",
+          "label": "Channel ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "message",
+          "label": "Message",
+          "type": "textarea",
+          "default": ""
+        }
+      ],
+      "body": {
+        "user_id": "{{ p.userId }}",
+        "post": {
+          "channel_id": "{{ p.channelId }}",
+          "message": "{{ p.message }}"
+        }
+      }
+    },
+    {
+      "resource": "channel",
+      "operation": "create",
+      "title": "Create a channel",
+      "method": "POST",
+      "path": "/channels",
+      "fields": [
+        {
+          "key": "teamId",
+          "label": "Team ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "displayName",
+          "label": "Display name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "channel",
+          "label": "Name",
+          "type": "text",
+          "required": true,
+          "help": "URL-safe channel name"
+        },
+        {
+          "key": "type",
+          "label": "Type",
+          "type": "select",
+          "default": "public",
+          "options": [
+            "private",
+            "public"
+          ]
+        }
+      ],
+      "body": {
+        "team_id": "{{ p.teamId }}",
+        "display_name": "{{ p.displayName }}",
+        "name": "{{ p.channel }}",
+        "type": "{{ p.type | eq:'public' | then:'O' | default:'P' }}"
+      }
+    },
+    {
+      "resource": "channel",
+      "operation": "addUser",
+      "title": "Add a user to a channel",
+      "method": "POST",
+      "path": "/channels/{{ p.channelId }}/members",
+      "fields": [
+        {
+          "key": "channelId",
+          "label": "Channel ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "userId",
+          "label": "User ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "user_id": "{{ p.userId }}"
+      }
+    },
+    {
+      "resource": "channel",
+      "operation": "delete",
+      "title": "Delete (archive) a channel",
+      "method": "DELETE",
+      "path": "/channels/{{ p.channelId }}",
+      "fields": [
+        {
+          "key": "channelId",
+          "label": "Channel ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "channel",
+      "operation": "members",
+      "title": "Get the members of a channel",
+      "method": "GET",
+      "path": "/channels/{{ p.channelId }}/members",
+      "fields": [
+        {
+          "key": "teamId",
+          "label": "Team ID",
+          "type": "text",
+          "default": "",
+          "help": "Only used to pick the channel in the editor"
+        },
+        {
+          "key": "channelId",
+          "label": "Channel ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "resolveData",
+          "label": "Resolve data",
+          "type": "boolean",
+          "default": true,
+          "help": "Return the users instead of the membership records"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "start_page": 0,
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": ""
+      },
+      "output": {
+        "expand": {
+          "when": "{{ p.resolveData }}",
+          "method": "GET",
+          "path": "/users/{{ el.user_id }}"
+        }
+      }
+    },
+    {
+      "resource": "channel",
+      "operation": "restore",
+      "title": "Restore a channel",
+      "method": "POST",
+      "path": "/channels/{{ p.channelId }}/restore",
+      "fields": [
+        {
+          "key": "channelId",
+          "label": "Channel ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "channel",
+      "operation": "search",
+      "title": "Search channels of a team",
+      "method": "POST",
+      "path": "/teams/{{ p.teamId }}/channels/search",
+      "fields": [
+        {
+          "key": "teamId",
+          "label": "Team ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "term",
+          "label": "Search term",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        }
+      ],
+      "body": {
+        "term": "{{ p.term }}"
+      },
+      "output": {
+        "limit": true
+      }
+    },
+    {
+      "resource": "channel",
+      "operation": "statistics",
+      "title": "Get channel statistics",
+      "method": "GET",
+      "path": "/channels/{{ p.channelId }}/stats",
+      "fields": [
+        {
+          "key": "channelId",
+          "label": "Channel ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "reaction",
+      "operation": "create",
+      "title": "Add a reaction",
+      "method": "POST",
+      "path": "/reactions",
+      "fields": [
+        {
+          "key": "userId",
+          "label": "User ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "postId",
+          "label": "Post ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "emojiName",
+          "label": "Emoji name",
+          "type": "text",
+          "required": true,
+          "help": "e.g. thumbsup (colons are removed)"
+        }
+      ],
+      "body": {
+        "user_id": "{{ p.userId }}",
+        "post_id": "{{ p.postId }}",
+        "emoji_name": "{{ p.emojiName | replace:':','' }}",
+        "create_at": "{{ now | epoch_ms }}"
+      }
+    },
+    {
+      "resource": "reaction",
+      "operation": "delete",
+      "title": "Remove a reaction",
+      "method": "DELETE",
+      "path": "/users/{{ p.userId }}/posts/{{ p.postId }}/reactions/{{ p.emojiName | replace:':','' }}",
+      "fields": [
+        {
+          "key": "userId",
+          "label": "User ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "postId",
+          "label": "Post ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "emojiName",
+          "label": "Emoji name",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "reaction",
+      "operation": "getAll",
+      "title": "Get the reactions of a post",
+      "method": "GET",
+      "path": "/posts/{{ p.postId }}/reactions",
+      "fields": [
+        {
+          "key": "postId",
+          "label": "Post ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        }
+      ],
+      "output": {
+        "limit": true
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "create",
+      "title": "Create a user",
+      "method": "POST",
+      "path": "/users",
+      "fields": [
+        {
+          "key": "username",
+          "label": "Username",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "authService",
+          "label": "Auth service",
+          "type": "select",
+          "required": true,
+          "default": "",
+          "options": [
+            "email",
+            "gitlab",
+            "google",
+            "ldap",
+            "office365",
+            "saml"
+          ]
+        },
+        {
+          "key": "authData",
+          "label": "Auth data",
+          "type": "text",
+          "default": "",
+          "help": "Service id of the user (non-email auth services)"
+        },
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "password",
+          "label": "Password",
+          "type": "password",
+          "default": ""
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "first_name",
+            "last_name",
+            "locale",
+            "nickname",
+            "notificationUi"
+          ],
+          "help": "notificationUi.notificationValues: {channel, desktop, desktop_sound, email, first_name, mention_keys, push}"
+        }
+      ],
+      "body": {
+        "auth_service": "{{ p.authService }}",
+        "username": "{{ p.username }}",
+        "$merge": "{{ p.additionalFields | omit:'notificationUi' }}",
+        "notify_props": "{{ p.additionalFields.notificationUi.notificationValues }}",
+        "email": "{{ p.authService | eq:'email' | then:p.email }}",
+        "password": "{{ p.authService | eq:'email' | then:p.password }}",
+        "auth_data": "{{ p.authService | ne:'email' | then:p.authData }}"
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "deactive",
+      "title": "Deactivate a user",
+      "method": "DELETE",
+      "path": "/users/{{ p.userId }}",
+      "fields": [
+        {
+          "key": "userId",
+          "label": "User ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "getByEmail",
+      "title": "Get a user by email",
+      "method": "GET",
+      "path": "/users/email/{{ p.email }}",
+      "fields": [
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "getById",
+      "title": "Get users by ID",
+      "method": "POST",
+      "path": "/users/ids",
+      "fields": [
+        {
+          "key": "userIds",
+          "label": "User IDs",
+          "type": "text",
+          "required": true,
+          "help": "Comma-separated"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "since"
+          ],
+          "help": "since: only users changed after this date"
+        }
+      ],
+      "query": {
+        "since": "{{ p.additionalFields.since | epoch_ms }}"
+      },
+      "body": "{{ p.userIds | split }}"
+    },
+    {
+      "resource": "user",
+      "operation": "getAll",
+      "title": "Get many users",
+      "method": "GET",
+      "path": "/users",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "inChannel",
+            "inTeam",
+            "notInChannel",
+            "notInTeam",
+            "sort"
+          ],
+          "help": "sort: createdAt, lastActivityAt (with inTeam), status (with inChannel) or username"
+        }
+      ],
+      "query": {
+        "in_team": "{{ p.additionalFields.inTeam }}",
+        "not_in_team": "{{ p.additionalFields.notInTeam }}",
+        "in_channel": "{{ p.additionalFields.inChannel }}",
+        "not_in_channel": "{{ p.additionalFields.notInChannel }}",
+        "sort": "{{ p.additionalFields.sort | ne:'username' | then:p.additionalFields.sort | replace:'createdAt','created_at' | replace:'lastActivityAt','last_activity_at' }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "start_page": 0,
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": ""
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "invite",
+      "title": "Invite users to a team",
+      "method": "POST",
+      "path": "/teams/{{ p.teamId }}/invite/email",
+      "fields": [
+        {
+          "key": "teamId",
+          "label": "Team ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "emails",
+          "label": "Emails",
+          "type": "text",
+          "required": true,
+          "help": "Comma-separated"
+        }
+      ],
+      "body": "{{ p.emails | split }}"
+    }
+  ]
+}

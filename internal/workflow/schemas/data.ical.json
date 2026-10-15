@@ -1,0 +1,179 @@
+{
+  "_generated": true,
+  "credential_platform": null,
+  "fields": [
+    {
+      "key": "title",
+      "label": "Event Title",
+      "placeholder": "{{ $json.title }}",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "help": "RFC 3339 date-time (a time without a zone is read in the local zone), a date (2026-10-13), or a Unix epoch.",
+      "key": "start",
+      "label": "Start",
+      "placeholder": "2026-10-13T09:30:00Z",
+      "required": true,
+      "type": "text"
+    },
+    {
+      "help": "Defaults to the start. For an all-day event this is the last day of the event.",
+      "key": "end",
+      "label": "End",
+      "placeholder": "2026-10-13T10:30:00Z",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": false,
+      "key": "all_day",
+      "label": "All Day",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "default": "data",
+      "help": "Binary property the .ics file is stored in.",
+      "key": "binary_property_name",
+      "label": "Put Output File in Field",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "help": "List of {name, email, rsvp}.",
+      "key": "attendees",
+      "label": "Attendees (JSON)",
+      "language": "json",
+      "placeholder": "[{\"name\": \"Ada\", \"email\": \"ada@example.com\", \"rsvp\": true}]",
+      "required": false,
+      "rows": 4,
+      "type": "code"
+    },
+    {
+      "help": "Shown by Outlook (X-MICROSOFT-CDO-BUSYSTATUS).",
+      "key": "busy_status",
+      "label": "Busy Status",
+      "options": [
+        "",
+        "BUSY",
+        "TENTATIVE",
+        "FREE",
+        "OOF"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "help": "Name calendar apps give the imported calendar (X-WR-CALNAME).",
+      "key": "cal_name",
+      "label": "Calendar Name",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "key": "description",
+      "label": "Description",
+      "required": false,
+      "type": "textarea"
+    },
+    {
+      "default": "event.ics",
+      "key": "file_name",
+      "label": "File Name",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "key": "geolocation",
+      "label": "Geolocation (JSON)",
+      "language": "json",
+      "placeholder": "{\"lat\": 52.52, \"lon\": 13.405}",
+      "required": false,
+      "rows": 2,
+      "type": "code"
+    },
+    {
+      "key": "location",
+      "label": "Location",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "help": "An RFC 5545 RRULE value.",
+      "key": "recurrence_rule",
+      "label": "Recurrence Rule",
+      "placeholder": "FREQ=WEEKLY;BYDAY=MO;COUNT=10",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "key": "organizer",
+      "label": "Organizer (JSON)",
+      "language": "json",
+      "placeholder": "{\"name\": \"Ada\", \"email\": \"ada@example.com\"}",
+      "required": false,
+      "rows": 2,
+      "type": "code"
+    },
+    {
+      "help": "Revision number; raise it when sending an update of the same uid.",
+      "key": "sequence",
+      "label": "Sequence",
+      "required": false,
+      "type": "number"
+    },
+    {
+      "key": "status",
+      "label": "Status",
+      "options": [
+        "",
+        "CONFIRMED",
+        "CANCELLED",
+        "TENTATIVE"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "help": "Stable id of the event; a random one is made when empty.",
+      "key": "uid",
+      "label": "UID",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "key": "url",
+      "label": "URL",
+      "required": false,
+      "type": "text"
+    }
+  ],
+  "outputs": [
+    {
+      "description": "the .ics file, base64-encoded (default property \"data\")",
+      "key": "<binary_property_name>",
+      "type": "string"
+    },
+    {
+      "description": "the file's name",
+      "key": "file_name",
+      "type": "string"
+    },
+    {
+      "description": "the file's media type",
+      "key": "mime_type",
+      "type": "string"
+    },
+    {
+      "description": "the file's extension, without the dot",
+      "key": "file_extension",
+      "type": "string"
+    },
+    {
+      "description": "the file's size in bytes",
+      "key": "file_size",
+      "type": "number"
+    }
+  ]
+}

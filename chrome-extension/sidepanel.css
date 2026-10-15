@@ -1626,3 +1626,24 @@ progress::-webkit-progress-value {
   min-height: 4.5em;
   line-height: 1.4;
 }
+
+/* The sign-in screen (signin.html): the whole panel while nobody is signed in. */
+.signin {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-4) var(--sp-3);
+}
+
+.signin h2 {
+  margin: 0;
+  font-size: var(--t-lg, 1.1rem);
+}
+
+.signin p {
+  margin: 0;
+}
+
+.signin .btn-primary {
+  align-self: flex-start;
+}

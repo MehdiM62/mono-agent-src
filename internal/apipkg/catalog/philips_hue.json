@@ -1,0 +1,253 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "philips_hue",
+  "title": "Philips Hue",
+  "description": "Lights on a Philips Hue bridge through the Hue remote API",
+  "category": "app",
+  "docs_url": "https://developers.meethue.com/develop/hue-api/remote-api-quick-start-guide/",
+  "n8n_types": [
+    "n8n-nodes-base.philipsHue"
+  ],
+  "base_url": "https://api.meethue.com/route",
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "credentials": [
+    {
+      "platform": "philips_hue",
+      "name": "Philips Hue",
+      "n8n_credential": "philipsHueOAuth2Api",
+      "n8n_field_map": {},
+      "methods": [
+        "oauth"
+      ],
+      "fields": [],
+      "oauth": {
+        "auth_url": "https://api.meethue.com/v2/oauth2/authorize",
+        "token_url": "https://api.meethue.com/v2/oauth2/token",
+        "scopes": []
+      },
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "light",
+      "label": "Light"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "light",
+      "operation": "update",
+      "title": "Update a light's state",
+      "method": "PUT",
+      "path": "/api/{{ pres.0.whitelist | entries | find:'value.name','mono-agent' | get:'key' | default:pres.2.0.success.username }}/lights/{{ p.lightId }}/state",
+      "before": [
+        {
+          "method": "GET",
+          "path": "/api/0/config"
+        },
+        {
+          "when": "{{ pres.0.whitelist | entries | find:'value.name','mono-agent' | get:'key' | default:'register' | eq:'register' }}",
+          "method": "PUT",
+          "path": "/api/0/config",
+          "body": {
+            "linkbutton": true
+          }
+        },
+        {
+          "when": "{{ pres.0.whitelist | entries | find:'value.name','mono-agent' | get:'key' | default:'register' | eq:'register' }}",
+          "method": "POST",
+          "path": "/api",
+          "body": {
+            "devicetype": "mono-agent"
+          }
+        }
+      ],
+      "fields": [
+        {
+          "key": "lightId",
+          "label": "Light ID",
+          "type": "text",
+          "required": true,
+          "default": ""
+        },
+        {
+          "key": "on",
+          "label": "On",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "alert",
+            "bri",
+            "bri_inc",
+            "ct",
+            "ct_inc",
+            "xy",
+            "xy_inc",
+            "effect",
+            "hue",
+            "hue_inc",
+            "sat",
+            "sat_inc",
+            "transitiontime"
+          ],
+          "help": "transitiontime is in seconds; xy / xy_inc are \"x,y\" text."
+        }
+      ],
+      "body": {
+        "on": "{{ p.on }}",
+        "$merge": "{{ p.additionalFields | omit:'transitiontime,xy,xy_inc' }}",
+        "transitiontime": "{{ p.additionalFields.transitiontime | mul:100 }}",
+        "xy": {
+          "$map": "{{ p.additionalFields.xy | split }}",
+          "$to": "{{ el | float }}"
+        },
+        "xy_inc": {
+          "$map": "{{ p.additionalFields.xy_inc | split }}",
+          "$to": "{{ el | float }}"
+        }
+      },
+      "output": {
+        "each": "success",
+        "merge": true
+      }
+    },
+    {
+      "resource": "light",
+      "operation": "delete",
+      "title": "Delete a light",
+      "method": "DELETE",
+      "path": "/api/{{ pres.0.whitelist | entries | find:'value.name','mono-agent' | get:'key' | default:pres.2.0.success.username }}/lights/{{ p.lightId }}",
+      "before": [
+        {
+          "method": "GET",
+          "path": "/api/0/config"
+        },
+        {
+          "when": "{{ pres.0.whitelist | entries | find:'value.name','mono-agent' | get:'key' | default:'register' | eq:'register' }}",
+          "method": "PUT",
+          "path": "/api/0/config",
+          "body": {
+            "linkbutton": true
+          }
+        },
+        {
+          "when": "{{ pres.0.whitelist | entries | find:'value.name','mono-agent' | get:'key' | default:'register' | eq:'register' }}",
+          "method": "POST",
+          "path": "/api",
+          "body": {
+            "devicetype": "mono-agent"
+          }
+        }
+      ],
+      "fields": [
+        {
+          "key": "lightId",
+          "label": "Light ID",
+          "type": "text",
+          "required": true,
+          "default": ""
+        }
+      ]
+    },
+    {
+      "resource": "light",
+      "operation": "get",
+      "title": "Get a light",
+      "method": "GET",
+      "path": "/api/{{ pres.0.whitelist | entries | find:'value.name','mono-agent' | get:'key' | default:pres.2.0.success.username }}/lights/{{ p.lightId }}",
+      "before": [
+        {
+          "method": "GET",
+          "path": "/api/0/config"
+        },
+        {
+          "when": "{{ pres.0.whitelist | entries | find:'value.name','mono-agent' | get:'key' | default:'register' | eq:'register' }}",
+          "method": "PUT",
+          "path": "/api/0/config",
+          "body": {
+            "linkbutton": true
+          }
+        },
+        {
+          "when": "{{ pres.0.whitelist | entries | find:'value.name','mono-agent' | get:'key' | default:'register' | eq:'register' }}",
+          "method": "POST",
+          "path": "/api",
+          "body": {
+            "devicetype": "mono-agent"
+          }
+        }
+      ],
+      "fields": [
+        {
+          "key": "lightId",
+          "label": "Light ID",
+          "type": "text",
+          "required": true,
+          "default": ""
+        }
+      ]
+    },
+    {
+      "resource": "light",
+      "operation": "getAll",
+      "title": "Get many lights",
+      "method": "GET",
+      "path": "/api/{{ pres.0.whitelist | entries | find:'value.name','mono-agent' | get:'key' | default:pres.2.0.success.username }}/lights",
+      "before": [
+        {
+          "method": "GET",
+          "path": "/api/0/config"
+        },
+        {
+          "when": "{{ pres.0.whitelist | entries | find:'value.name','mono-agent' | get:'key' | default:'register' | eq:'register' }}",
+          "method": "PUT",
+          "path": "/api/0/config",
+          "body": {
+            "linkbutton": true
+          }
+        },
+        {
+          "when": "{{ pres.0.whitelist | entries | find:'value.name','mono-agent' | get:'key' | default:'register' | eq:'register' }}",
+          "method": "POST",
+          "path": "/api",
+          "body": {
+            "devicetype": "mono-agent"
+          }
+        }
+      ],
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1,
+          "max": 500
+        }
+      ],
+      "output": {
+        "from": "{{ res | values }}",
+        "limit": true
+      }
+    }
+  ]
+}

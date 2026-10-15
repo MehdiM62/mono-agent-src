@@ -1,0 +1,480 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "freshdesk",
+  "node_type": "app.freshdesk",
+  "title": "Freshdesk",
+  "description": "Tickets and contacts in Freshdesk",
+  "category": "app",
+  "docs_url": "https://developers.freshdesk.com/api/",
+  "n8n_types": [
+    "n8n-nodes-base.freshdesk"
+  ],
+  "base_url": "https://{{ cred.domain }}.freshdesk.com/api/v2",
+  "headers": {
+    "Accept": "application/json"
+  },
+  "credentials": [
+    {
+      "platform": "freshdesk",
+      "name": "Freshdesk",
+      "n8n_credential": "freshdeskApi",
+      "n8n_field_map": {
+        "apiKey": "api_key",
+        "domain": "domain"
+      },
+      "methods": [
+        "basic"
+      ],
+      "fields": [
+        {
+          "key": "domain",
+          "label": "Subdomain",
+          "required": true,
+          "help": "acme for acme.freshdesk.com"
+        },
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true,
+          "help": "Profile settings → Your API key"
+        }
+      ],
+      "inject": {
+        "basic": {
+          "username": "{{ cred.api_key }}",
+          "password": "X"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "ticket",
+      "label": "Ticket"
+    },
+    {
+      "value": "contact",
+      "label": "Contact"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "ticket",
+      "operation": "create",
+      "title": "Create a ticket",
+      "method": "POST",
+      "path": "/tickets",
+      "fields": [
+        {
+          "key": "requester",
+          "label": "Requester identified by",
+          "type": "select",
+          "default": "requesterId",
+          "options": [
+            "requesterId",
+            "email",
+            "facebookId",
+            "phone",
+            "twitterId",
+            "uniqueExternalId"
+          ]
+        },
+        {
+          "key": "requesterIdentificationValue",
+          "label": "Requester value",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "type": "select",
+          "default": "pending",
+          "options": [
+            "closed",
+            "open",
+            "pending",
+            "resolved"
+          ]
+        },
+        {
+          "key": "priority",
+          "label": "Priority",
+          "type": "select",
+          "default": "low",
+          "options": [
+            "low",
+            "medium",
+            "high",
+            "urgent"
+          ]
+        },
+        {
+          "key": "source",
+          "label": "Source",
+          "type": "select",
+          "default": "portal",
+          "options": [
+            "chat",
+            "email",
+            "feedbackWidget",
+            "mobileHelp",
+            "OutboundEmail",
+            "phone",
+            "portal"
+          ]
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "agent",
+            "ccEmails",
+            "company",
+            "description",
+            "dueBy",
+            "emailConfigId",
+            "frDueBy",
+            "group",
+            "name",
+            "product",
+            "subject",
+            "tags",
+            "type"
+          ],
+          "help": "ccEmails and tags: comma-separated; type: Question, Incident, Problem, Feature Request, Refund"
+        }
+      ],
+      "body": {
+        "requester_id": "{{ p.requester | eq:'requesterId' | then:(p.requesterIdentificationValue | numeric) }}",
+        "email": "{{ p.requester | eq:'email' | then:(p.requesterIdentificationValue) }}",
+        "facebook_id": "{{ p.requester | eq:'facebookId' | then:(p.requesterIdentificationValue) }}",
+        "phone": "{{ p.requester | eq:'phone' | then:(p.requesterIdentificationValue) }}",
+        "twitter_id": "{{ p.requester | eq:'twitterId' | then:(p.requesterIdentificationValue) }}",
+        "unique_external_id": "{{ p.requester | eq:'uniqueExternalId' | then:(p.requesterIdentificationValue) }}",
+        "status": "{{ p.status | replace:'open','2' | replace:'pending','3' | replace:'resolved','4' | replace:'closed','5' | numeric }}",
+        "priority": "{{ p.priority | replace:'low','1' | replace:'medium','2' | replace:'high','3' | replace:'urgent','4' | numeric }}",
+        "source": "{{ p.source | replace:'OutboundEmail','10' | replace:'email','1' | replace:'portal','2' | replace:'phone','3' | replace:'chat','7' | replace:'mobileHelp','8' | replace:'feedbackWidget','9' | numeric }}",
+        "name": "{{ p.options.name }}",
+        "type": "{{ p.options.type }}",
+        "responder_id": "{{ p.options.agent | numeric }}",
+        "company_id": "{{ p.options.company | numeric }}",
+        "product_id": "{{ p.options.product | numeric }}",
+        "group_id": "{{ p.options.group | numeric }}",
+        "fr_due_by": "{{ p.options.frDueBy }}",
+        "email_config_id": "{{ p.options.emailConfigId | numeric }}",
+        "due_by": "{{ p.options.dueBy }}",
+        "tags": "{{ p.options.tags | split }}",
+        "cc_emails": "{{ p.options.ccEmails | split }}",
+        "subject": "{{ p.options.subject | default:'null' }}",
+        "description": "{{ p.options.description | default:'null' }}"
+      }
+    },
+    {
+      "resource": "ticket",
+      "operation": "delete",
+      "title": "Delete a ticket",
+      "method": "DELETE",
+      "path": "/tickets/{{ p.ticketId }}",
+      "fields": [
+        {
+          "key": "ticketId",
+          "label": "Ticket ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "ticket",
+      "operation": "get",
+      "title": "Get a ticket",
+      "method": "GET",
+      "path": "/tickets/{{ p.ticketId }}",
+      "fields": [
+        {
+          "key": "ticketId",
+          "label": "Ticket ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "ticket",
+      "operation": "getAll",
+      "title": "Get many tickets",
+      "method": "GET",
+      "path": "/tickets",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 5,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "companyId",
+            "include",
+            "order",
+            "orderBy",
+            "requesterEmail",
+            "requesterId",
+            "updatedSince"
+          ],
+          "help": "include: company, description, requester, stats; orderBy: createdAt, dueBy, updatedAt"
+        }
+      ],
+      "query": {
+        "requester_id": "{{ p.options.requesterId }}",
+        "email": "{{ p.options.requesterEmail }}",
+        "company_id": "{{ p.options.companyId }}",
+        "updated_since": "{{ p.options.updatedSince }}",
+        "order_by": "{{ p.options.orderBy | replace:'createdAt','created_at' | replace:'dueBy','due_by' | replace:'updatedAt','updated_at' }}",
+        "order_type": "{{ p.options.order }}",
+        "include": "{{ p.options.include | csv }}"
+      },
+      "pagination": {
+        "type": "link_header",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": ""
+      }
+    },
+    {
+      "resource": "ticket",
+      "operation": "update",
+      "title": "Update a ticket",
+      "method": "PUT",
+      "path": "/tickets/{{ p.ticketId }}",
+      "fields": [
+        {
+          "key": "ticketId",
+          "label": "Ticket ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "agent",
+            "ccEmails",
+            "company",
+            "dueBy",
+            "emailConfigId",
+            "frDueBy",
+            "group",
+            "name",
+            "product",
+            "tags",
+            "type",
+            "priority",
+            "requester",
+            "requesterIdentificationValue",
+            "source",
+            "status"
+          ]
+        }
+      ],
+      "body": {
+        "requester_id": "{{ p.updateFields.requester | eq:'requesterId' | then:(p.updateFields.requesterIdentificationValue | numeric) }}",
+        "email": "{{ p.updateFields.requester | eq:'email' | then:(p.updateFields.requesterIdentificationValue) }}",
+        "facebook_id": "{{ p.updateFields.requester | eq:'facebookId' | then:(p.updateFields.requesterIdentificationValue) }}",
+        "phone": "{{ p.updateFields.requester | eq:'phone' | then:(p.updateFields.requesterIdentificationValue) }}",
+        "twitter_id": "{{ p.updateFields.requester | eq:'twitterId' | then:(p.updateFields.requesterIdentificationValue) }}",
+        "unique_external_id": "{{ p.updateFields.requester | eq:'uniqueExternalId' | then:(p.updateFields.requesterIdentificationValue) }}",
+        "status": "{{ p.updateFields.status | replace:'open','2' | replace:'pending','3' | replace:'resolved','4' | replace:'closed','5' | numeric }}",
+        "priority": "{{ p.updateFields.priority | replace:'low','1' | replace:'medium','2' | replace:'high','3' | replace:'urgent','4' | numeric }}",
+        "source": "{{ p.updateFields.source | replace:'OutboundEmail','10' | replace:'email','1' | replace:'portal','2' | replace:'phone','3' | replace:'chat','7' | replace:'mobileHelp','8' | replace:'feedbackWidget','9' | numeric }}",
+        "name": "{{ p.updateFields.name }}",
+        "type": "{{ p.updateFields.type }}",
+        "responder_id": "{{ p.updateFields.agent | numeric }}",
+        "company_id": "{{ p.updateFields.company | numeric }}",
+        "product_id": "{{ p.updateFields.product | numeric }}",
+        "group_id": "{{ p.updateFields.group | numeric }}",
+        "fr_due_by": "{{ p.updateFields.frDueBy }}",
+        "email_config_id": "{{ p.updateFields.emailConfigId | numeric }}",
+        "due_by": "{{ p.updateFields.dueBy }}",
+        "tags": "{{ p.updateFields.tags | split }}",
+        "cc_emails": "{{ p.updateFields.ccEmails | split }}"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "create",
+      "title": "Create a contact",
+      "method": "POST",
+      "path": "/contacts",
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "address",
+            "company_id",
+            "customFields",
+            "description",
+            "email",
+            "job_title",
+            "language",
+            "mobile",
+            "name",
+            "other_companies",
+            "other_emails",
+            "phone",
+            "tags",
+            "time_zone",
+            "twitter_id",
+            "unique_external_id",
+            "view_all_tickets"
+          ],
+          "help": "customFields: {\"customField\": [{\"name\", \"value\"}]}"
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.additionalFields | omit:'customFields' }}",
+        "custom_fields": "{{ p.additionalFields.customFields.customField | kv:'name,value' }}",
+        "name": "{{ p.name }}",
+        "email": "{{ p.email }}"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "delete",
+      "title": "Delete a contact",
+      "method": "DELETE",
+      "path": "/contacts/{{ p.contactId }}",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "contact",
+      "operation": "get",
+      "title": "Get a contact",
+      "method": "GET",
+      "path": "/contacts/{{ p.contactId }}",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "contact",
+      "operation": "getAll",
+      "title": "Get many contacts",
+      "method": "GET",
+      "path": "/contacts",
+      "fields": [
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "company_id",
+            "email",
+            "mobile",
+            "phone",
+            "state",
+            "updated_since"
+          ],
+          "help": "state: blocked, deleted, unverified, verified"
+        }
+      ],
+      "query": {
+        "$merge": "{{ p.filters }}"
+      },
+      "pagination": {
+        "type": "link_header",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": ""
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "update",
+      "title": "Update a contact",
+      "method": "PUT",
+      "path": "/contacts/{{ p.contactId }}",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Fields to update",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "address",
+            "company_id",
+            "customFields",
+            "description",
+            "email",
+            "job_title",
+            "language",
+            "mobile",
+            "name",
+            "other_companies",
+            "other_emails",
+            "phone",
+            "tags",
+            "time_zone",
+            "twitter_id",
+            "unique_external_id",
+            "view_all_tickets"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.additionalFields | omit:'customFields' }}",
+        "custom_fields": "{{ p.additionalFields.customFields.customField | kv:'name,value' }}"
+      }
+    }
+  ]
+}

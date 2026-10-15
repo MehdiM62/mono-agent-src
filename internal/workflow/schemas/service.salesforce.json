@@ -79,6 +79,22 @@
       "required": false,
       "rows": 5,
       "type": "textarea"
+    },
+    {
+      "default": "66.0",
+      "help": "Salesforce REST API version such as 66.0 or v66.0. Leave at the default unless your org needs an older release.",
+      "key": "api_version",
+      "label": "API Version",
+      "placeholder": "66.0",
+      "required": false,
+      "type": "text"
+    }
+  ],
+  "outputs": [
+    {
+      "description": "the platform API's response object, as returned (fields vary by operation)",
+      "key": "<API response fields>",
+      "type": "object"
     }
   ]
 }

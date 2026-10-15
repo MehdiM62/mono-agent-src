@@ -3,11 +3,21 @@
   "fields": [
     { "key": "credential_id", "label": "Google Account", "type": "credential_picker", "required": true },
     { "key": "spreadsheet_id", "label": "Spreadsheet", "type": "resource_picker", "required": false, "resource": { "type": "spreadsheets", "create_label": "Create New Spreadsheet" }, "help": "Select or create a Google Sheets spreadsheet." },
+    { "key": "title", "label": "New Spreadsheet Title", "type": "text", "required": false, "default": "MonoAgent Export", "help": "Title used when a spreadsheet is created: by create_spreadsheet, or when Spreadsheet is empty or \"new\"." },
     { "key": "sheet_name", "label": "Sheet Name", "type": "text", "required": false, "default": "Sheet1", "help": "Name of the sheet tab. Defaults to Sheet1." },
-    { "key": "operation", "label": "Operation", "type": "select", "required": true, "options": ["read_rows", "append_rows", "update_rows", "clear_range"], "default": "append_rows" },
+    { "key": "operation", "label": "Operation", "type": "select", "required": true, "options": ["read_rows", "append_rows", "update_rows", "clear_range", "create_spreadsheet"], "default": "append_rows" },
     { "key": "range", "label": "Range", "type": "text", "required": false, "placeholder": "e.g. A1:D100", "help": "Leave empty to auto-detect from data.", "depends_on": { "key": "operation", "values": ["read_rows", "update_rows", "clear_range"] } },
     { "key": "values", "label": "Rows (JSON array)", "type": "textarea", "required": false, "rows": 5, "help": "e.g. [[\"a\", \"b\"], [\"c\", \"d\"]]. Defaults to the incoming items.", "depends_on": { "key": "operation", "values": ["append_rows", "update_rows"] } },
     { "key": "use_header_row", "label": "First Row is Header", "type": "boolean", "required": false, "help": "Map the first row to field names when reading; prepend a header row when appending.", "depends_on": { "key": "operation", "values": ["read_rows", "append_rows"] } },
+    { "key": "since_last_run", "label": "Only New Rows Since Last Run", "type": "boolean", "required": false, "default": false, "help": "Return only rows appended after the ones this node read in an earlier run, by row number. The first run returns every row. If the range now has fewer rows than last time (cleared or rows deleted) the run starts over and returns every row. Remembered per node, spreadsheet and range.", "depends_on": { "key": "operation", "values": ["read_rows"] } },
+    { "key": "baseline", "label": "Skip Existing Rows on First Run", "type": "boolean", "required": false, "default": false, "help": "First run only records what is there and emits nothing; later runs emit what is new (n8n's behaviour).", "depends_on": { "key": "since_last_run", "values": ["true"] } },
     { "key": "value_input_option", "label": "Input Option", "type": "select", "required": false, "options": ["RAW", "USER_ENTERED"], "default": "RAW", "depends_on": { "key": "operation", "values": ["append_rows", "update_rows"] } }
+  ],
+  "outputs": [
+    {
+      "description": "the platform API's response object, as returned (fields vary by operation)",
+      "key": "<API response fields>",
+      "type": "object"
+    }
   ]
 }

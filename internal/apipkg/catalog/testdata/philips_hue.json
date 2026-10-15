@@ -1,0 +1,167 @@
+{
+  "light.update": {
+    "params": {
+      "lightId": "3",
+      "on": true,
+      "additionalFields": {
+        "bri": 200,
+        "transitiontime": 2,
+        "xy": "0.3, 0.4"
+      }
+    },
+    "responses": [
+      {
+        "whitelist": {
+          "abc": {
+            "name": "mono-agent"
+          }
+        }
+      },
+      [
+        {
+          "success": {
+            "/lights/3/state/on": true
+          }
+        },
+        {
+          "success": {
+            "/lights/3/state/bri": 200
+          }
+        }
+      ]
+    ],
+    "expect_requests": [
+      {
+        "method": "GET",
+        "path": "/route/api/0/config"
+      },
+      {
+        "method": "PUT",
+        "path": "/route/api/abc/lights/3/state",
+        "body": {
+          "on": true,
+          "bri": 200,
+          "transitiontime": 200,
+          "xy": [
+            0.3,
+            0.4
+          ]
+        }
+      }
+    ],
+    "expect": {
+      "method": "PUT",
+      "path": "/route/api/abc/lights/3/state",
+      "body": {
+        "on": true,
+        "bri": 200,
+        "transitiontime": 200,
+        "xy": [
+          0.3,
+          0.4
+        ]
+      },
+      "items": 1
+    }
+  },
+  "light.delete": {
+    "params": {
+      "lightId": "3"
+    },
+    "responses": [
+      {
+        "whitelist": {}
+      },
+      {},
+      [
+        {
+          "success": {
+            "username": "newuser"
+          }
+        }
+      ],
+      [
+        {
+          "success": "/lights/3 deleted"
+        }
+      ]
+    ],
+    "expect_requests": [
+      {
+        "method": "GET",
+        "path": "/route/api/0/config"
+      },
+      {
+        "method": "PUT",
+        "path": "/route/api/0/config",
+        "body": {
+          "linkbutton": true
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/route/api",
+        "body": {
+          "devicetype": "mono-agent"
+        }
+      },
+      {
+        "method": "DELETE",
+        "path": "/route/api/newuser/lights/3"
+      }
+    ],
+    "expect": {
+      "method": "DELETE",
+      "path": "/route/api/newuser/lights/3"
+    }
+  },
+  "light.get": {
+    "params": {
+      "lightId": "3"
+    },
+    "responses": [
+      {
+        "whitelist": {
+          "abc": {
+            "name": "mono-agent"
+          }
+        }
+      },
+      {
+        "name": "Lamp"
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/route/api/abc/lights/3",
+      "items": 1
+    }
+  },
+  "light.getAll": {
+    "params": {
+      "limit": 1
+    },
+    "responses": [
+      {
+        "whitelist": {
+          "abc": {
+            "name": "mono-agent"
+          }
+        }
+      },
+      {
+        "1": {
+          "name": "A"
+        },
+        "2": {
+          "name": "B"
+        }
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/route/api/abc/lights",
+      "items": 1
+    }
+  }
+}

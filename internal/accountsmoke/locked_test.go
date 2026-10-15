@@ -5,6 +5,7 @@ package accountsmoke
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -26,7 +27,26 @@ func TestNoSessionAfterTheDateIsRefusedAndNothingIsWritten(t *testing.T) {
 	r.assertOnlyTheClockGuardRecord(from, time.Now())
 	r.assertLocked(r.run("workflow", "list"), "not_logged_in", false)
 	r.assertLocked(r.run("org", "serve", "--foreground"), "not_logged_in", false) // a launcher, not a serving command (spec A1)
-	mustExit(t, r.run("version"), 0)                                              // an open command needs no account
+	// Signed out only the way in is open: the reference, doctor, setup, release and shell completion
+	// are refused like any gated command, and leave nothing more behind.
+	for _, args := range [][]string{{"ref"}, {"ref", "account"}, {"doctor"}, {"doctor", "fix", "core.db.migrate"}, {"setup"},
+		{"release", "verify", "a", "b"}, {"completion", "bash"}, {"__complete", "work"}, {"__completeNoDesc", "work"}} {
+		r.assertLocked(r.run(args...), "not_logged_in", false)
+	}
+	r.assertLocked(r.run("--json", "doctor"), "not_logged_in", true)
+	// The open commands need no account and write nothing: the root (its help says to sign in
+	// first), help, version, account and update's help.
+	for _, args := range [][]string{{}, {"--help"}, {"help", "workflow"}, {"version"}, {"account"}, {"update", "--help"}} {
+		res := r.run(args...)
+		mustExit(t, res, 0)
+		if strings.Contains(res.stderr, loginLine) {
+			t.Fatalf("%q is open, but said %s", args, res.stderr)
+		}
+	}
+	if res := r.run(); !strings.Contains(res.stdout, "Sign in first: monoagentcli account login.") {
+		t.Fatalf("the root help must say to sign in first:\n%s", res.stdout)
+	}
+	r.assertOnlyTheClockGuardRecord(from, time.Now())
 
 	r.signIn()
 	mustExit(t, r.run("workflow", "list"), 0)

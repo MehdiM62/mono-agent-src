@@ -1,0 +1,37 @@
+{
+  "name": "Paginated API and GraphQL",
+  "nodes": [
+    {"name": "Manual", "type": "n8n-nodes-base.manualTrigger", "typeVersion": 1, "position": [0, 0], "parameters": {}},
+    {"name": "List users", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [200, 0],
+     "parameters": {
+       "url": "https://api.example.com/users",
+       "authentication": "predefinedCredentialType", "nodeCredentialType": "githubApi",
+       "sendQuery": true, "queryParameters": {"parameters": [{"name": "per_page", "value": "50"}, {"name": "tag", "value": "a"}, {"name": "tag", "value": "b"}]},
+       "sendHeaders": true, "headerParameters": {"parameters": [{"name": "X-Trace", "value": "={{ $json.trace }}"}]},
+       "options": {
+         "timeout": 15000,
+         "proxy": "http://proxy.local:3128",
+         "batching": {"batch": {"batchSize": 5, "batchInterval": 200}},
+         "pagination": {"pagination": {"paginationMode": "responseContainsNextURL", "nextURL": "={{ $response.body.next }}",
+           "paginationCompleteWhen": "other", "completeExpression": "={{ !$response.body.next }}", "limitPagesFetched": true, "maxRequests": 20}},
+         "response": {"response": {"neverError": true}}
+       }
+     },
+     "credentials": {"githubApi": {"id": "9", "name": "GitHub"}}},
+    {"name": "Upload", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [400, 0],
+     "parameters": {"method": "POST", "url": "https://api.example.com/upload",
+       "authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth",
+       "sendBody": true, "contentType": "multipart-form-data",
+       "bodyParameters": {"parameters": [{"parameterType": "formBinaryData", "name": "file", "inputDataFieldName": "data"}, {"name": "note", "value": "hi"}]},
+       "options": {"response": {"response": {"fullResponse": true, "responseFormat": "json"}}, "lowercaseHeaders": false}},
+     "credentials": {"httpHeaderAuth": {"id": "10", "name": "Upload key"}}},
+    {"name": "GraphQL", "type": "n8n-nodes-base.graphql", "typeVersion": 1.1, "position": [600, 0],
+     "parameters": {"endpoint": "https://api.example.com/graphql", "query": "query($id: ID!) { user(id: $id) { name } }",
+       "variables": "{\"id\": \"1\"}", "headerParametersUi": {"parameter": [{"name": "X-App", "value": "mono"}]}}}
+  ],
+  "connections": {
+    "Manual": {"main": [[{"node": "List users", "type": "main", "index": 0}]]},
+    "List users": {"main": [[{"node": "Upload", "type": "main", "index": 0}]]},
+    "Upload": {"main": [[{"node": "GraphQL", "type": "main", "index": 0}]]}
+  }
+}

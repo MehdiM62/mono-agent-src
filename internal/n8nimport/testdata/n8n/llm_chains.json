@@ -1,0 +1,24 @@
+{
+  "name": "Summarise tickets",
+  "nodes": [
+    {"parameters": {}, "name": "Manual", "type": "n8n-nodes-base.manualTrigger", "typeVersion": 1, "position": [0, 0]},
+    {"parameters": {"modelId": {"__rl": true, "value": "gpt-4o", "mode": "list"}, "messages": {"values": [{"role": "system", "content": "You triage support tickets."}, {"content": "=Classify: {{ $json.ticket }}"}]}, "options": {"temperature": 0}}, "name": "OpenAI", "type": "@n8n/n8n-nodes-langchain.openAi", "typeVersion": 1.8, "position": [200, 0], "credentials": {"openAiApi": {"id": "1", "name": "OpenAI"}}},
+    {"parameters": {"assignments": {"assignments": [{"id": "1", "name": "label", "value": "={{ $json.message.content }}", "type": "string"}]}, "options": {}}, "name": "Label", "type": "n8n-nodes-base.set", "typeVersion": 3.4, "position": [400, 0]},
+    {"parameters": {"promptType": "define", "text": "=Write a one-line summary of: {{ $json.label }}", "messages": {"messageValues": [{"message": "Be terse."}]}}, "name": "Basic LLM Chain", "type": "@n8n/n8n-nodes-langchain.chainLlm", "typeVersion": 1.5, "position": [600, 0]},
+    {"parameters": {"model": "claude-3-5-sonnet-20240620", "options": {}}, "name": "Anthropic Chat Model", "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic", "typeVersion": 1.2, "position": [600, 200], "credentials": {"anthropicApi": {"id": "2", "name": "Anthropic"}}},
+    {"parameters": {"conditions": {"options": {"caseSensitive": true, "leftValue": "", "typeValidation": "strict"}, "conditions": [{"leftValue": "={{ $json.text }}", "rightValue": "^(urgent|p1)", "operator": {"type": "string", "operation": "regex"}}], "combinator": "and"}, "options": {}}, "name": "Urgent?", "type": "n8n-nodes-base.if", "typeVersion": 2, "position": [800, 0]},
+    {"parameters": {"mode": "expression", "numberOutputs": 2, "output": "={{ $json.text.length > 80 ? 1 : 0 }}"}, "name": "By length", "type": "n8n-nodes-base.switch", "typeVersion": 3, "position": [1000, 100]},
+    {"parameters": {}, "name": "Short", "type": "n8n-nodes-base.noOp", "typeVersion": 1, "position": [1200, 50]},
+    {"parameters": {}, "name": "Long", "type": "n8n-nodes-base.noOp", "typeVersion": 1, "position": [1200, 150]},
+    {"parameters": {}, "name": "Escalate", "type": "n8n-nodes-base.noOp", "typeVersion": 1, "position": [1000, -100]}
+  ],
+  "connections": {
+    "Manual": {"main": [[{"node": "OpenAI", "type": "main", "index": 0}]]},
+    "OpenAI": {"main": [[{"node": "Label", "type": "main", "index": 0}]]},
+    "Label": {"main": [[{"node": "Basic LLM Chain", "type": "main", "index": 0}]]},
+    "Anthropic Chat Model": {"ai_languageModel": [[{"node": "Basic LLM Chain", "type": "ai_languageModel", "index": 0}]]},
+    "Basic LLM Chain": {"main": [[{"node": "Urgent?", "type": "main", "index": 0}]]},
+    "Urgent?": {"main": [[{"node": "Escalate", "type": "main", "index": 0}], [{"node": "By length", "type": "main", "index": 0}]]},
+    "By length": {"main": [[{"node": "Short", "type": "main", "index": 0}], [{"node": "Long", "type": "main", "index": 0}]]}
+  }
+}

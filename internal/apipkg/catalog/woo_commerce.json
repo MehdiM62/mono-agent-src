@@ -1,0 +1,1000 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "woo_commerce",
+  "title": "WooCommerce",
+  "description": "Customers, orders and products in a WooCommerce store",
+  "category": "app",
+  "docs_url": "https://woocommerce.github.io/woocommerce-rest-api-docs/",
+  "n8n_types": [
+    "n8n-nodes-base.wooCommerce"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.wooCommerceTrigger"
+  ],
+  "base_url": "{{ cred.url | re:'^(.*?)/?$' }}/wp-json/wc/v3",
+  "credentials": [
+    {
+      "platform": "woo_commerce",
+      "name": "WooCommerce",
+      "n8n_credential": "wooCommerceApi",
+      "n8n_field_map": {
+        "consumerKey": "consumer_key",
+        "consumerSecret": "consumer_secret",
+        "url": "url",
+        "includeCredentialsInQuery": "include_credentials_in_query"
+      },
+      "methods": [
+        "basic"
+      ],
+      "fields": [
+        {
+          "key": "url",
+          "label": "Store URL",
+          "required": true,
+          "help": "e.g. https://shop.example.com"
+        },
+        {
+          "key": "consumer_key",
+          "label": "Consumer key",
+          "required": true
+        },
+        {
+          "key": "consumer_secret",
+          "label": "Consumer secret",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "include_credentials_in_query",
+          "label": "Send keys in the query string",
+          "help": "true for servers that drop the Authorization header"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "{{ (cred.include_credentials_in_query | default:'false' | bool) | ne:'true' | then:(cred.consumer_key | suffix:':' | suffix:cred.consumer_secret | base64 | prefix:'Basic ') }}"
+        },
+        "query": {
+          "consumer_key": "{{ (cred.include_credentials_in_query | default:'false' | bool) | eq:'true' | then:cred.consumer_key }}",
+          "consumer_secret": "{{ (cred.include_credentials_in_query | default:'false' | bool) | eq:'true' | then:cred.consumer_secret }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "product",
+      "label": "Product"
+    },
+    {
+      "value": "customer",
+      "label": "Customer"
+    },
+    {
+      "value": "order",
+      "label": "Order"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "product",
+      "operation": "create",
+      "title": "Create a product",
+      "method": "POST",
+      "path": "/products",
+      "body": {
+        "name": "{{ p.name }}",
+        "$merge": {
+          "$entries": "{{ p.additionalFields | omit:'tags,categories' | entries }}",
+          "$key": "{{ el.key | snake }}",
+          "$value": "{{ el.value }}"
+        },
+        "tags": {
+          "$map": "{{ p.additionalFields.tags }}",
+          "$to": {
+            "id": "{{ el | int }}"
+          }
+        },
+        "categories": {
+          "$map": "{{ p.additionalFields.categories }}",
+          "$to": {
+            "id": "{{ el | int }}"
+          }
+        },
+        "images": "{{ p.imagesUi.imagesValues }}",
+        "dimensions": "{{ p.dimensionsUi.dimensionsValues }}",
+        "meta_data": "{{ p.metadataUi.metadataValues }}"
+      },
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "backorders",
+            "buttonText",
+            "catalogVisibility",
+            "categories",
+            "crossSellIds",
+            "dateOnSaleFrom",
+            "dateOnSaleTo",
+            "description",
+            "downloadable",
+            "externalUrl",
+            "featured",
+            "manageStock",
+            "menuOrder",
+            "parentId",
+            "purchaseNote",
+            "regularPrice",
+            "reviewsAllowed",
+            "salePrice",
+            "shippingClass",
+            "shortDescription",
+            "sku",
+            "slug",
+            "soldIndividually",
+            "status",
+            "stockQuantity",
+            "stockStatus",
+            "tags",
+            "taxClass",
+            "taxStatus",
+            "type",
+            "upsellIds",
+            "virtual",
+            "weight"
+          ]
+        },
+        {
+          "key": "dimensionsUi",
+          "label": "Dimensions",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "dimensionsValues"
+          ],
+          "help": "{\"dimensionsValues\": {\"height\", \"length\", \"width\"}}"
+        },
+        {
+          "key": "imagesUi",
+          "label": "Images",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "imagesValues"
+          ],
+          "help": "{\"imagesValues\": [{\"alt\", \"src\", \"name\"}]}"
+        },
+        {
+          "key": "metadataUi",
+          "label": "Metadata",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "metadataValues"
+          ],
+          "help": "{\"metadataValues\": [{\"key\", \"value\"}]}"
+        }
+      ]
+    },
+    {
+      "resource": "product",
+      "operation": "delete",
+      "title": "Delete a product",
+      "method": "DELETE",
+      "path": "/products/{{ p.productId }}",
+      "query": {
+        "force": "true"
+      },
+      "fields": [
+        {
+          "key": "productId",
+          "label": "Product ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "product",
+      "operation": "get",
+      "title": "Get a product",
+      "method": "GET",
+      "path": "/products/{{ p.productId }}",
+      "fields": [
+        {
+          "key": "productId",
+          "label": "Product ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "product",
+      "operation": "getAll",
+      "title": "Get many products",
+      "method": "GET",
+      "path": "/products",
+      "query": {
+        "after": "{{ p.options.after }}",
+        "before": "{{ p.options.before }}",
+        "category": "{{ p.options.category }}",
+        "context": "{{ p.options.context }}",
+        "featured": "{{ p.options.featured | eq:'true' }}",
+        "max_price": "{{ p.options.maxPrice }}",
+        "min_price": "{{ p.options.minPrice }}",
+        "order": "{{ p.options.order }}",
+        "orderby": "{{ p.options.orderBy }}",
+        "search": "{{ p.options.search }}",
+        "sku": "{{ p.options.sku }}",
+        "slug": "{{ p.options.slug }}",
+        "status": "{{ p.options.status }}",
+        "stock_status": "{{ p.options.stockStatus }}",
+        "tag": "{{ p.options.tag }}",
+        "tax_class": "{{ p.options.taxClass }}",
+        "type": "{{ p.options.type }}"
+      },
+      "pagination": {
+        "type": "link_header",
+        "limit_param": "per_page",
+        "page_size": 100
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "after",
+            "before",
+            "category",
+            "context",
+            "featured",
+            "maxPrice",
+            "minPrice",
+            "order",
+            "orderBy",
+            "search",
+            "sku",
+            "slug",
+            "status",
+            "stockStatus",
+            "tag",
+            "taxClass",
+            "type"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "product",
+      "operation": "update",
+      "title": "Update a product",
+      "method": "PUT",
+      "path": "/products/{{ p.productId }}",
+      "body": {
+        "$merge": {
+          "$entries": "{{ p.updateFields | omit:'tags,categories' | entries }}",
+          "$key": "{{ el.key | snake }}",
+          "$value": "{{ el.value }}"
+        },
+        "tags": {
+          "$map": "{{ p.updateFields.tags }}",
+          "$to": {
+            "id": "{{ el | int }}"
+          }
+        },
+        "categories": {
+          "$map": "{{ p.updateFields.categories }}",
+          "$to": {
+            "id": "{{ el | int }}"
+          }
+        },
+        "images": "{{ p.imagesUi.imagesValues }}",
+        "dimensions": "{{ p.dimensionsUi.dimensionsValues }}",
+        "meta_data": "{{ p.metadataUi.metadataValues }}"
+      },
+      "fields": [
+        {
+          "key": "productId",
+          "label": "Product ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "backorders",
+            "buttonText",
+            "catalogVisibility",
+            "categories",
+            "crossSellIds",
+            "dateOnSaleFrom",
+            "dateOnSaleTo",
+            "description",
+            "downloadable",
+            "externalUrl",
+            "featured",
+            "manageStock",
+            "menuOrder",
+            "parentId",
+            "purchaseNote",
+            "regularPrice",
+            "reviewsAllowed",
+            "salePrice",
+            "shippingClass",
+            "shortDescription",
+            "sku",
+            "slug",
+            "soldIndividually",
+            "status",
+            "stockQuantity",
+            "stockStatus",
+            "tags",
+            "taxClass",
+            "taxStatus",
+            "type",
+            "upsellIds",
+            "virtual",
+            "weight",
+            "name"
+          ]
+        },
+        {
+          "key": "dimensionsUi",
+          "label": "Dimensions",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "dimensionsValues"
+          ],
+          "help": "{\"dimensionsValues\": {\"height\", \"length\", \"width\"}}"
+        },
+        {
+          "key": "imagesUi",
+          "label": "Images",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "imagesValues"
+          ],
+          "help": "{\"imagesValues\": [{\"alt\", \"src\", \"name\"}]}"
+        },
+        {
+          "key": "metadataUi",
+          "label": "Metadata",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "metadataValues"
+          ],
+          "help": "{\"metadataValues\": [{\"key\", \"value\"}]}"
+        }
+      ]
+    },
+    {
+      "resource": "order",
+      "operation": "create",
+      "title": "Create an order",
+      "method": "POST",
+      "path": "/orders",
+      "body": {
+        "currency": "{{ p.additionalFields.currency }}",
+        "customer_id": "{{ p.additionalFields.customerId }}",
+        "customer_note": "{{ p.additionalFields.customerNote }}",
+        "parent_id": "{{ p.additionalFields.parentId }}",
+        "payment_method": "{{ p.additionalFields.paymentMethodId }}",
+        "payment_method_title": "{{ p.additionalFields.paymentMethodTitle }}",
+        "set_paid": "{{ p.additionalFields.setPaid }}",
+        "status": "{{ p.additionalFields.status }}",
+        "transaction_id": "{{ p.additionalFields.transactionID }}",
+        "billing": {
+          "$entries": "{{ p.billingUi.billingValues | entries }}",
+          "$key": "{{ el.key | snake }}",
+          "$value": "{{ el.value }}"
+        },
+        "shipping": {
+          "$entries": "{{ p.shippingUi.shippingValues | entries }}",
+          "$key": "{{ el.key | snake }}",
+          "$value": "{{ el.value }}"
+        },
+        "coupon_lines": {
+          "$map": "{{ p.couponLinesUi.couponLinesValues }}",
+          "$to": {
+            "$merge": {
+              "$entries": "{{ el | omit:'metadataUi' | entries }}",
+              "$key": "{{ el.key | snake }}",
+              "$value": "{{ el.value }}"
+            },
+            "meta_data": "{{ el.metadataUi.metadataValues }}"
+          }
+        },
+        "fee_lines": {
+          "$map": "{{ p.feeLinesUi.feeLinesValues }}",
+          "$to": {
+            "$merge": {
+              "$entries": "{{ el | omit:'metadataUi' | entries }}",
+              "$key": "{{ el.key | snake }}",
+              "$value": "{{ el.value }}"
+            },
+            "meta_data": "{{ el.metadataUi.metadataValues }}"
+          }
+        },
+        "line_items": {
+          "$map": "{{ p.lineItemsUi.lineItemsValues }}",
+          "$to": {
+            "$merge": {
+              "$entries": "{{ el | omit:'metadataUi' | entries }}",
+              "$key": "{{ el.key | snake }}",
+              "$value": "{{ el.value }}"
+            },
+            "meta_data": "{{ el.metadataUi.metadataValues }}"
+          }
+        },
+        "meta_data": "{{ p.metadataUi.metadataValues }}",
+        "shipping_lines": {
+          "$map": "{{ p.shippingLinesUi.shippingLinesValues }}",
+          "$to": {
+            "$merge": {
+              "$entries": "{{ el | omit:'metadataUi' | entries }}",
+              "$key": "{{ el.key | snake }}",
+              "$value": "{{ el.value }}"
+            },
+            "meta_data": "{{ el.metadataUi.metadataValues }}"
+          }
+        }
+      },
+      "fields": [
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "currency",
+            "customerId",
+            "customerNote",
+            "parentId",
+            "paymentMethodId",
+            "paymentMethodTitle",
+            "setPaid",
+            "status",
+            "transactionID"
+          ]
+        },
+        {
+          "key": "billingUi",
+          "label": "Billing address",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "billingValues"
+          ],
+          "help": "{\"billingValues\": {\"firstName\", \"lastName\", \"company\", \"address_1\", \"address_2\", \"city\", \"postcode\", \"country\", \"email\", \"phone\"}}"
+        },
+        {
+          "key": "couponLinesUi",
+          "label": "Coupon lines",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "couponLinesValues"
+          ],
+          "help": "{\"couponLinesValues\": [{\"code\", \"metadataUi\": {\"metadataValues\": [{\"key\", \"value\"}]}}]}"
+        },
+        {
+          "key": "feeLinesUi",
+          "label": "Fee lines",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "feeLinesValues"
+          ],
+          "help": "{\"feeLinesValues\": [{\"name\", \"taxClass\", \"taxStatus\", \"total\", \"metadataUi\"}]}"
+        },
+        {
+          "key": "lineItemsUi",
+          "label": "Line items",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "lineItemsValues"
+          ],
+          "help": "{\"lineItemsValues\": [{\"name\", \"productId\", \"variationId\", \"quantity\", \"taxClass\", \"subtotal\", \"total\", \"metadataUi\"}]}"
+        },
+        {
+          "key": "metadataUi",
+          "label": "Metadata",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "metadataValues"
+          ],
+          "help": "{\"metadataValues\": [{\"key\", \"value\"}]}"
+        },
+        {
+          "key": "shippingUi",
+          "label": "Shipping address",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "shippingValues"
+          ],
+          "help": "{\"shippingValues\": {\"firstName\", \"lastName\", \"company\", \"address_1\", \"address_2\", \"city\", \"postcode\", \"country\"}}"
+        },
+        {
+          "key": "shippingLinesUi",
+          "label": "Shipping lines",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "shippingLinesValues"
+          ],
+          "help": "{\"shippingLinesValues\": [{\"methodTitle\", \"method ID\", \"total\", \"metadataUi\"}]}"
+        }
+      ]
+    },
+    {
+      "resource": "order",
+      "operation": "delete",
+      "title": "Delete an order",
+      "method": "DELETE",
+      "path": "/orders/{{ p.orderId }}",
+      "query": {
+        "force": "true"
+      },
+      "fields": [
+        {
+          "key": "orderId",
+          "label": "Order ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "order",
+      "operation": "get",
+      "title": "Get an order",
+      "method": "GET",
+      "path": "/orders/{{ p.orderId }}",
+      "fields": [
+        {
+          "key": "orderId",
+          "label": "Order ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "order",
+      "operation": "getAll",
+      "title": "Get many orders",
+      "method": "GET",
+      "path": "/orders",
+      "query": {
+        "after": "{{ p.options.after }}",
+        "before": "{{ p.options.before }}",
+        "category": "{{ p.options.category }}",
+        "customer": "{{ p.options.customer | int }}",
+        "dp": "{{ p.options.decimalPoints }}",
+        "product": "{{ p.options.product | int }}",
+        "order": "{{ p.options.order }}",
+        "orderby": "{{ p.options.orderBy }}",
+        "search": "{{ p.options.search }}",
+        "status": "{{ p.options.status }}"
+      },
+      "pagination": {
+        "type": "link_header",
+        "limit_param": "per_page",
+        "page_size": 100
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "after",
+            "before",
+            "category",
+            "customer",
+            "decimalPoints",
+            "order",
+            "product",
+            "orderBy",
+            "search",
+            "status"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "order",
+      "operation": "update",
+      "title": "Update an order",
+      "method": "PUT",
+      "path": "/orders/{{ p.orderId }}",
+      "body": {
+        "currency": "{{ p.updateFields.currency }}",
+        "customer_id": "{{ p.updateFields.customerId | int }}",
+        "customer_note": "{{ p.updateFields.customerNote }}",
+        "parent_id": "{{ p.updateFields.parentId | int }}",
+        "payment_method": "{{ p.updateFields.paymentMethodId }}",
+        "payment_method_title": "{{ p.updateFields.paymentMethodTitle }}",
+        "set_paid": "{{ p.updateFields.setPaid }}",
+        "status": "{{ p.updateFields.status }}",
+        "transaction_id": "{{ p.updateFields.transactionID }}",
+        "billing": {
+          "$entries": "{{ p.billingUi.billingValues | entries }}",
+          "$key": "{{ el.key | snake }}",
+          "$value": "{{ el.value }}"
+        },
+        "shipping": {
+          "$entries": "{{ p.shippingUi.shippingValues | entries }}",
+          "$key": "{{ el.key | snake }}",
+          "$value": "{{ el.value }}"
+        },
+        "coupon_lines": {
+          "$map": "{{ p.couponLinesUi.couponLinesValues }}",
+          "$to": {
+            "$merge": {
+              "$entries": "{{ el | omit:'metadataUi' | entries }}",
+              "$key": "{{ el.key | snake }}",
+              "$value": "{{ el.value }}"
+            },
+            "meta_data": "{{ el.metadataUi.metadataValues }}"
+          }
+        },
+        "fee_lines": {
+          "$map": "{{ p.feeLinesUi.feeLinesValues }}",
+          "$to": {
+            "$merge": {
+              "$entries": "{{ el | omit:'metadataUi' | entries }}",
+              "$key": "{{ el.key | snake }}",
+              "$value": "{{ el.value }}"
+            },
+            "meta_data": "{{ el.metadataUi.metadataValues }}"
+          }
+        },
+        "line_items": {
+          "$map": "{{ p.lineItemsUi.lineItemsValues }}",
+          "$to": {
+            "$merge": {
+              "$entries": "{{ el | omit:'metadataUi' | entries }}",
+              "$key": "{{ el.key | snake }}",
+              "$value": "{{ el.value }}"
+            },
+            "meta_data": "{{ el.metadataUi.metadataValues }}"
+          }
+        },
+        "meta_data": "{{ p.metadataUi.metadataValues }}",
+        "shipping_lines": {
+          "$map": "{{ p.shippingLinesUi.shippingLinesValues }}",
+          "$to": {
+            "$merge": {
+              "$entries": "{{ el | omit:'metadataUi' | entries }}",
+              "$key": "{{ el.key | snake }}",
+              "$value": "{{ el.value }}"
+            },
+            "meta_data": "{{ el.metadataUi.metadataValues }}"
+          }
+        }
+      },
+      "fields": [
+        {
+          "key": "orderId",
+          "label": "Order ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "currency",
+            "customerId",
+            "customerNote",
+            "parentId",
+            "paymentMethodId",
+            "paymentMethodTitle",
+            "status",
+            "transactionID"
+          ]
+        },
+        {
+          "key": "billingUi",
+          "label": "Billing address",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "billingValues"
+          ],
+          "help": "{\"billingValues\": {\"firstName\", \"lastName\", \"company\", \"address_1\", \"address_2\", \"city\", \"postcode\", \"country\", \"email\", \"phone\"}}"
+        },
+        {
+          "key": "couponLinesUi",
+          "label": "Coupon lines",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "couponLinesValues"
+          ],
+          "help": "{\"couponLinesValues\": [{\"code\", \"metadataUi\": {\"metadataValues\": [{\"key\", \"value\"}]}}]}"
+        },
+        {
+          "key": "feeLinesUi",
+          "label": "Fee lines",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "feeLinesValues"
+          ],
+          "help": "{\"feeLinesValues\": [{\"name\", \"taxClass\", \"taxStatus\", \"total\", \"metadataUi\"}]}"
+        },
+        {
+          "key": "lineItemsUi",
+          "label": "Line items",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "lineItemsValues"
+          ],
+          "help": "{\"lineItemsValues\": [{\"name\", \"productId\", \"variationId\", \"quantity\", \"taxClass\", \"subtotal\", \"total\", \"metadataUi\"}]}"
+        },
+        {
+          "key": "metadataUi",
+          "label": "Metadata",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "metadataValues"
+          ],
+          "help": "{\"metadataValues\": [{\"key\", \"value\"}]}"
+        },
+        {
+          "key": "shippingUi",
+          "label": "Shipping address",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "shippingValues"
+          ],
+          "help": "{\"shippingValues\": {\"firstName\", \"lastName\", \"company\", \"address_1\", \"address_2\", \"city\", \"postcode\", \"country\"}}"
+        },
+        {
+          "key": "shippingLinesUi",
+          "label": "Shipping lines",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "shippingLinesValues"
+          ],
+          "help": "{\"shippingLinesValues\": [{\"methodTitle\", \"method ID\", \"total\", \"metadataUi\"}]}"
+        }
+      ]
+    },
+    {
+      "resource": "customer",
+      "operation": "create",
+      "title": "Create a customer",
+      "method": "POST",
+      "path": "/customers",
+      "body": {
+        "email": "{{ p.email }}",
+        "$merge": "{{ p.additionalFields | omit:'meta_data' }}",
+        "meta_data": "{{ p.additionalFields.meta_data.meta_data_fields }}"
+      },
+      "fields": [
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "billing",
+            "first_name",
+            "last_name",
+            "meta_data",
+            "password",
+            "shipping",
+            "username"
+          ],
+          "help": "billing/shipping: address objects; meta_data: {\"meta_data_fields\": [{\"key\", \"value\"}]}"
+        }
+      ]
+    },
+    {
+      "resource": "customer",
+      "operation": "delete",
+      "title": "Delete a customer",
+      "method": "DELETE",
+      "path": "/customers/{{ p.customerId }}",
+      "query": {
+        "force": "true"
+      },
+      "fields": [
+        {
+          "key": "customerId",
+          "label": "Customer ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "customer",
+      "operation": "get",
+      "title": "Get a customer",
+      "method": "GET",
+      "path": "/customers/{{ p.customerId }}",
+      "fields": [
+        {
+          "key": "customerId",
+          "label": "Customer ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "customer",
+      "operation": "getAll",
+      "title": "Get many customers",
+      "method": "GET",
+      "path": "/customers",
+      "query": {
+        "$merge": "{{ p.filters }}"
+      },
+      "pagination": {
+        "type": "link_header",
+        "limit_param": "per_page",
+        "page_size": 100
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "email",
+            "order",
+            "orderby"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "customer",
+      "operation": "update",
+      "title": "Update a customer",
+      "method": "PUT",
+      "path": "/customers/{{ p.customerId }}",
+      "body": {
+        "$merge": "{{ p.updateFields | omit:'meta_data' }}",
+        "meta_data": "{{ p.updateFields.meta_data.meta_data_fields }}"
+      },
+      "fields": [
+        {
+          "key": "customerId",
+          "label": "Customer ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "billing",
+            "first_name",
+            "last_name",
+            "meta_data",
+            "password",
+            "shipping",
+            "username"
+          ]
+        }
+      ]
+    }
+  ],
+  "webhook": {
+    "fields": [
+      {
+        "key": "event",
+        "label": "Event",
+        "type": "text",
+        "required": true
+      }
+    ],
+    "create": [
+      {
+        "method": "POST",
+        "path": "/webhooks",
+        "body": {
+          "delivery_url": "{{ hook.url }}",
+          "topic": "{{ p.event }}",
+          "secret": "{{ hook.secret }}"
+        }
+      }
+    ],
+    "id": "{{ res.id }}",
+    "delete": [
+      {
+        "method": "DELETE",
+        "path": "/webhooks/{{ hook.id }}",
+        "query": {
+          "force": "true"
+        }
+      }
+    ],
+    "verify": {
+      "signature": "{{ hdr.X-WC-Webhook-Signature }}",
+      "encoding": "base64"
+    }
+  }
+}

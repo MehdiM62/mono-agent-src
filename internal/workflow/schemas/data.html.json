@@ -10,7 +10,10 @@
         "extract",
         "extract_all",
         "text",
-        "generate"
+        "generate",
+        "extract_html_content",
+        "generate_html_template",
+        "convert_to_html_table"
       ],
       "required": true,
       "type": "select"
@@ -60,6 +63,15 @@
       "type": "text"
     },
     {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "extract",
+          "extract_all",
+          "text",
+          "generate"
+        ]
+      },
       "help": "Defaults to the HTML field, overwriting it.",
       "key": "output_field",
       "label": "Output Field",
@@ -79,6 +91,204 @@
       "required": false,
       "rows": 5,
       "type": "textarea"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "generate_html_template"
+        ]
+      },
+      "help": "Evaluated once per item; {{ }} expressions read that item. The output item is {html: ...}.",
+      "key": "html",
+      "label": "HTML Template",
+      "language": "html",
+      "placeholder": "<h1>{{ $json.title }}</h1>",
+      "required": false,
+      "rows": 10,
+      "type": "code"
+    },
+    {
+      "default": "json",
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "extract_html_content"
+        ]
+      },
+      "help": "Read the HTML from a JSON property or from a binary (base64) property.",
+      "key": "source_data",
+      "label": "Source Data",
+      "options": [
+        "json",
+        "binary"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "default": "data",
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "extract_html_content"
+        ]
+      },
+      "help": "JSON: dot path to a string or a list of strings (one output item per string). Binary: the binary property name.",
+      "key": "data_property_name",
+      "label": "Property Name",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "extract_html_content"
+        ]
+      },
+      "help": "List of {key, css_selector, return_value (text|html|attribute|value), attribute, return_array, skip_selectors}. Each output item holds only these keys.",
+      "key": "extraction_values",
+      "label": "Extraction Values (JSON)",
+      "language": "json",
+      "placeholder": "[{\"key\": \"title\", \"css_selector\": \"h1\", \"return_value\": \"text\"}]",
+      "required": false,
+      "rows": 6,
+      "type": "code"
+    },
+    {
+      "default": false,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "extract_html_content"
+        ]
+      },
+      "help": "Remove whitespace at the start and end of each value.",
+      "key": "trim_values",
+      "label": "Trim Values",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "default": false,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "extract_html_content"
+        ]
+      },
+      "help": "Trim each value and collapse line breaks and runs of whitespace into single spaces.",
+      "key": "clean_up_text",
+      "label": "Clean Up Text",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "default": false,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "convert_to_html_table"
+        ]
+      },
+      "help": "Turn first_name into First Name in the header row.",
+      "key": "capitalize",
+      "label": "Capitalize Headers",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "default": false,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "convert_to_html_table"
+        ]
+      },
+      "help": "Leave out the built-in inline styles.",
+      "key": "custom_styling",
+      "label": "Custom Styling",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "convert_to_html_table"
+        ]
+      },
+      "key": "caption",
+      "label": "Caption",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "convert_to_html_table"
+        ]
+      },
+      "key": "table_attributes",
+      "label": "Table Attributes",
+      "placeholder": "style=\"padding:10px\"",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "convert_to_html_table"
+        ]
+      },
+      "key": "header_attributes",
+      "label": "Header Attributes",
+      "placeholder": "style=\"padding:10px\"",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "convert_to_html_table"
+        ]
+      },
+      "help": "Evaluated per item.",
+      "key": "row_attributes",
+      "label": "Row Attributes",
+      "placeholder": "class=\"row\"",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "convert_to_html_table"
+        ]
+      },
+      "help": "Evaluated per item.",
+      "key": "cell_attributes",
+      "label": "Cell Attributes",
+      "placeholder": "class=\"cell\"",
+      "required": false,
+      "type": "text"
+    }
+  ],
+  "outputs": [
+    {
+      "description": "the input item's fields, passed through",
+      "key": "*",
+      "type": "object"
+    },
+    {
+      "description": "the extracted text, attribute(s) or generated HTML",
+      "key": "<output_field|field>",
+      "type": "any"
     }
   ]
 }

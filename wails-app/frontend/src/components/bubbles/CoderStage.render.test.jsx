@@ -19,7 +19,7 @@ const { api, listeners } = vi.hoisted(() => ({
     stopChatAgent: vi.fn(),
     coderStatus: vi.fn(),
     coderWorkspaceList: vi.fn(),
-    coderWorkspaceRoot: vi.fn(),
+    coderWorkspaceDefault: vi.fn(),
     createCoderConversation: vi.fn(),
     getAgentRuntimeModels: vi.fn(),
     pickCoderFolder: vi.fn(),
@@ -32,6 +32,7 @@ vi.mock('../../services/api.js', () => ({
   notify,
   onChatEvent: cb => { listeners.chat.add(cb); return () => listeners.chat.delete(cb) },
   onOrgEvent: () => () => {},
+  onOrgRunStatus: () => () => {},
   newOrgEventsStreamId: () => 'stream',
 }))
 vi.mock('../ConfirmDialog.jsx', () => ({ confirm: vi.fn() }))

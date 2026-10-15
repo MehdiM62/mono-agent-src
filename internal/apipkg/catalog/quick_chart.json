@@ -1,0 +1,136 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "quick_chart",
+  "node_type": "app.quick_chart",
+  "title": "QuickChart",
+  "description": "Render a chart image (PNG, SVG, PDF or WebP) with QuickChart",
+  "category": "app",
+  "docs_url": "https://quickchart.io/documentation/",
+  "n8n_types": [
+    "n8n-nodes-base.quickChart"
+  ],
+  "base_url": "https://quickchart.io",
+  "operations": [
+    {
+      "resource": "",
+      "operation": "create",
+      "title": "Render a chart",
+      "description": "One chart per input item, with that item's data as its dataset",
+      "method": "GET",
+      "path": "/chart",
+      "fields": [
+        {
+          "key": "chartType",
+          "label": "Chart type",
+          "type": "select",
+          "default": "bar",
+          "options": [
+            "bar",
+            "doughnut",
+            "line",
+            "pie",
+            "polarArea"
+          ]
+        },
+        {
+          "key": "labelsMode",
+          "label": "Labels from",
+          "type": "select",
+          "default": "manually",
+          "options": [
+            "manually",
+            "array"
+          ]
+        },
+        {
+          "key": "labelsUi",
+          "label": "Labels",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "labelsValues"
+          ],
+          "help": "{labelsValues: [{label}]} (labelsMode manually)"
+        },
+        {
+          "key": "labelsArray",
+          "label": "Labels array",
+          "type": "text",
+          "default": "",
+          "help": "JSON array of labels (labelsMode array)"
+        },
+        {
+          "key": "data",
+          "label": "Data",
+          "type": "json",
+          "required": true,
+          "help": "The dataset's data, e.g. [12, 19, 3]"
+        },
+        {
+          "key": "output",
+          "label": "Binary property",
+          "type": "text",
+          "default": "data",
+          "help": "Output binary property for the image"
+        },
+        {
+          "key": "chartOptions",
+          "label": "Chart options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "backgroundColor",
+            "devicePixelRatio",
+            "format",
+            "height",
+            "horizontal",
+            "width"
+          ]
+        },
+        {
+          "key": "datasetOptions",
+          "label": "Dataset options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "backgroundColor",
+            "borderColor",
+            "fill",
+            "label",
+            "pointStyle"
+          ]
+        }
+      ],
+      "query": {
+        "chart": {
+          "$json": {
+            "type": "{{ p.chartOptions.horizontal | bool | eq:'true' | then:(p.chartType | eq:'bar' | then:'horizontalBar') | default:p.chartType }}",
+            "data": {
+              "labels": "{{ p.labelsMode | eq:'array' | then:(p.labelsArray | fromjson) | default:(p.labelsUi.labelsValues | pluck:'label') }}",
+              "datasets": [
+                {
+                  "label": "{{ p.datasetOptions.label | default:'Chart' }}",
+                  "data": "{{ p.data | fromjson }}",
+                  "backgroundColor": "{{ p.datasetOptions.backgroundColor }}",
+                  "borderColor": "{{ p.datasetOptions.borderColor }}",
+                  "type": "{{ p.chartOptions.horizontal | bool | eq:'true' | then:(p.chartType | eq:'bar' | then:'horizontalBar') | default:p.chartType }}",
+                  "fill": "{{ p.datasetOptions.fill }}",
+                  "pointStyle": "{{ p.datasetOptions.pointStyle }}"
+                }
+              ]
+            }
+          }
+        },
+        "backgroundColor": "{{ p.chartOptions.backgroundColor }}",
+        "devicePixelRatio": "{{ p.chartOptions.devicePixelRatio }}",
+        "format": "{{ p.chartOptions.format }}",
+        "height": "{{ p.chartOptions.height }}",
+        "width": "{{ p.chartOptions.width }}"
+      },
+      "binary": {
+        "download": true,
+        "property_field": "output"
+      }
+    }
+  ]
+}

@@ -1,0 +1,918 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "intercom",
+  "node_type": "app.intercom",
+  "title": "Intercom",
+  "description": "Users, leads and companies in Intercom",
+  "category": "app",
+  "docs_url": "https://developers.intercom.com/docs/references/rest-api/api.intercom.io/",
+  "n8n_types": [
+    "n8n-nodes-base.intercom"
+  ],
+  "base_url": "https://api.intercom.io",
+  "headers": {
+    "Accept": "application/json"
+  },
+  "credentials": [
+    {
+      "platform": "intercom",
+      "name": "Intercom",
+      "n8n_credential": "intercomApi",
+      "n8n_field_map": {
+        "apiKey": "access_token"
+      },
+      "methods": [
+        "bearer"
+      ],
+      "fields": [
+        {
+          "key": "access_token",
+          "label": "Access token",
+          "secret": true,
+          "required": true,
+          "help": "Developer Hub → your app → Authentication"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "user",
+      "label": "User"
+    },
+    {
+      "value": "lead",
+      "label": "Lead"
+    },
+    {
+      "value": "company",
+      "label": "Company"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "user",
+      "operation": "create",
+      "title": "Create a user",
+      "method": "POST",
+      "path": "/users",
+      "fields": [
+        {
+          "key": "identifierType",
+          "label": "Identifier type",
+          "type": "select",
+          "options": [
+            "userId",
+            "email"
+          ],
+          "default": ""
+        },
+        {
+          "key": "idValue",
+          "label": "Identifier value",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "avatar",
+            "companies",
+            "email",
+            "name",
+            "phone",
+            "sessionCount",
+            "userId",
+            "unsubscribedFromEmails",
+            "updateLastRequestAt",
+            "utmCampaign",
+            "utmContent",
+            "utmMedium",
+            "utmSource",
+            "utmTerm"
+          ],
+          "help": "companies: list of company IDs; avatar: image URL"
+        },
+        {
+          "key": "jsonParameters",
+          "label": "JSON parameters",
+          "type": "boolean",
+          "default": false,
+          "help": "Give custom attributes as JSON instead of name/value rows"
+        },
+        {
+          "key": "customAttributesJson",
+          "label": "Custom attributes (JSON)",
+          "type": "json",
+          "default": ""
+        },
+        {
+          "key": "customAttributesUi",
+          "label": "Custom attributes",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "customAttributesValues"
+          ],
+          "help": "customAttributesValues: list of {name, value}"
+        }
+      ],
+      "body": {
+        "email": "{{ p.additionalFields.email | default:(p.identifierType | eq:'email' | then:p.idValue) }}",
+        "phone": "{{ p.additionalFields.phone }}",
+        "name": "{{ p.additionalFields.name }}",
+        "unsubscribed_from_emails": "{{ p.additionalFields.unsubscribedFromEmails | eq:'true' | then:true }}",
+        "update_last_request_at": "{{ p.additionalFields.updateLastRequestAt | eq:'true' | then:true }}",
+        "utm_source": "{{ p.additionalFields.utmSource }}",
+        "utm_medium": "{{ p.additionalFields.utmMedium }}",
+        "utm_campaign": "{{ p.additionalFields.utmCampaign }}",
+        "utm_term": "{{ p.additionalFields.utmTerm }}",
+        "utm_content": "{{ p.additionalFields.utmContent }}",
+        "avatar": {
+          "$when": "{{ p.additionalFields.avatar }}",
+          "type": "avatar",
+          "image_url": "{{ p.additionalFields.avatar }}"
+        },
+        "companies": {
+          "$map": "{{ p.additionalFields.companies }}",
+          "$to": {
+            "company_id": "{{ el }}"
+          }
+        },
+        "custom_attributes": {
+          "$merge": [
+            "{{ p.jsonParameters | eq:'true' | then:(p.customAttributesJson | fromjson) }}",
+            "{{ p.jsonParameters | ne:'true' | then:(p.customAttributesUi.customAttributesValues | kv:'name,value') }}"
+          ]
+        },
+        "user_id": "{{ p.additionalFields.userId | default:(p.identifierType | eq:'userId' | then:p.idValue) }}",
+        "session_count": "{{ p.additionalFields.sessionCount }}"
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "delete",
+      "title": "Delete a user",
+      "method": "DELETE",
+      "path": "/users/{{ p.id }}",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Intercom user ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "get",
+      "title": "Get a user",
+      "method": "GET",
+      "path": "/users{{ p.selectBy | eq:'id' | then:'/' }}{{ p.selectBy | eq:'id' | then:p.value }}",
+      "fields": [
+        {
+          "key": "selectBy",
+          "label": "Select by",
+          "type": "select",
+          "options": [
+            "id",
+            "userId"
+          ],
+          "default": "id"
+        },
+        {
+          "key": "value",
+          "label": "Value",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "query": {
+        "user_id": "{{ p.selectBy | eq:'userId' | then:p.value }}"
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "getAll",
+      "title": "Get many users",
+      "method": "GET",
+      "path": "/users",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 60
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "company_id",
+            "email",
+            "segment_id",
+            "tag_id"
+          ]
+        }
+      ],
+      "query": {
+        "$merge": "{{ p.filters }}"
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "pages.next",
+        "limit_param": "per_page",
+        "page_size": 60,
+        "results_path": "users"
+      },
+      "output": {
+        "path": "users"
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "update",
+      "title": "Update a user",
+      "method": "POST",
+      "path": "/users",
+      "fields": [
+        {
+          "key": "updateBy",
+          "label": "Update by",
+          "type": "select",
+          "options": [
+            "id",
+            "email",
+            "userId"
+          ],
+          "default": "id"
+        },
+        {
+          "key": "value",
+          "label": "Value",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "avatar",
+            "companies",
+            "email",
+            "name",
+            "phone",
+            "sessionCount",
+            "userId",
+            "unsubscribedFromEmails",
+            "updateLastRequestAt",
+            "utmCampaign",
+            "utmContent",
+            "utmMedium",
+            "utmSource",
+            "utmTerm"
+          ],
+          "help": "companies: list of company IDs; avatar: image URL"
+        },
+        {
+          "key": "jsonParameters",
+          "label": "JSON parameters",
+          "type": "boolean",
+          "default": false,
+          "help": "Give custom attributes as JSON instead of name/value rows"
+        },
+        {
+          "key": "customAttributesJson",
+          "label": "Custom attributes (JSON)",
+          "type": "json",
+          "default": ""
+        },
+        {
+          "key": "customAttributesUi",
+          "label": "Custom attributes",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "customAttributesValues"
+          ],
+          "help": "customAttributesValues: list of {name, value}"
+        }
+      ],
+      "body": {
+        "email": "{{ p.updateBy | eq:'email' | then:p.value | default:p.additionalFields.email }}",
+        "phone": "{{ p.additionalFields.phone }}",
+        "name": "{{ p.additionalFields.name }}",
+        "unsubscribed_from_emails": "{{ p.additionalFields.unsubscribedFromEmails | eq:'true' | then:true }}",
+        "update_last_request_at": "{{ p.additionalFields.updateLastRequestAt | eq:'true' | then:true }}",
+        "utm_source": "{{ p.additionalFields.utmSource }}",
+        "utm_medium": "{{ p.additionalFields.utmMedium }}",
+        "utm_campaign": "{{ p.additionalFields.utmCampaign }}",
+        "utm_term": "{{ p.additionalFields.utmTerm }}",
+        "utm_content": "{{ p.additionalFields.utmContent }}",
+        "avatar": {
+          "$when": "{{ p.additionalFields.avatar }}",
+          "type": "avatar",
+          "image_url": "{{ p.additionalFields.avatar }}"
+        },
+        "companies": {
+          "$map": "{{ p.additionalFields.companies }}",
+          "$to": {
+            "company_id": "{{ el }}"
+          }
+        },
+        "custom_attributes": {
+          "$merge": [
+            "{{ p.jsonParameters | eq:'true' | then:(p.customAttributesJson | fromjson) }}",
+            "{{ p.jsonParameters | ne:'true' | then:(p.customAttributesUi.customAttributesValues | kv:'name,value') }}"
+          ]
+        },
+        "user_id": "{{ p.updateBy | eq:'userId' | then:p.value | default:p.additionalFields.userId }}",
+        "id": "{{ p.updateBy | eq:'id' | then:p.value }}",
+        "session_count": "{{ p.additionalFields.sessionCount }}"
+      }
+    },
+    {
+      "resource": "lead",
+      "operation": "create",
+      "title": "Create a lead",
+      "method": "POST",
+      "path": "/contacts",
+      "fields": [
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "avatar",
+            "companies",
+            "email",
+            "name",
+            "phone",
+            "unsubscribedFromEmails",
+            "updateLastRequestAt",
+            "utmCampaign",
+            "utmContent",
+            "utmMedium",
+            "utmSource",
+            "utmTerm"
+          ],
+          "help": "companies: list of company IDs; avatar: image URL"
+        },
+        {
+          "key": "jsonParameters",
+          "label": "JSON parameters",
+          "type": "boolean",
+          "default": false,
+          "help": "Give custom attributes as JSON instead of name/value rows"
+        },
+        {
+          "key": "customAttributesJson",
+          "label": "Custom attributes (JSON)",
+          "type": "json",
+          "default": ""
+        },
+        {
+          "key": "customAttributesUi",
+          "label": "Custom attributes",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "customAttributesValues"
+          ],
+          "help": "customAttributesValues: list of {name, value}"
+        }
+      ],
+      "body": {
+        "email": "{{ p.additionalFields.email | default:p.email }}",
+        "phone": "{{ p.additionalFields.phone }}",
+        "name": "{{ p.additionalFields.name }}",
+        "unsubscribed_from_emails": "{{ p.additionalFields.unsubscribedFromEmails | eq:'true' | then:true }}",
+        "update_last_request_at": "{{ p.additionalFields.updateLastRequestAt | eq:'true' | then:true }}",
+        "utm_source": "{{ p.additionalFields.utmSource }}",
+        "utm_medium": "{{ p.additionalFields.utmMedium }}",
+        "utm_campaign": "{{ p.additionalFields.utmCampaign }}",
+        "utm_term": "{{ p.additionalFields.utmTerm }}",
+        "utm_content": "{{ p.additionalFields.utmContent }}",
+        "avatar": {
+          "$when": "{{ p.additionalFields.avatar }}",
+          "type": "avatar",
+          "image_url": "{{ p.additionalFields.avatar }}"
+        },
+        "companies": {
+          "$map": "{{ p.additionalFields.companies }}",
+          "$to": {
+            "company_id": "{{ el }}"
+          }
+        },
+        "custom_attributes": {
+          "$merge": [
+            "{{ p.jsonParameters | eq:'true' | then:(p.customAttributesJson | fromjson) }}",
+            "{{ p.jsonParameters | ne:'true' | then:(p.customAttributesUi.customAttributesValues | kv:'name,value') }}"
+          ]
+        }
+      }
+    },
+    {
+      "resource": "lead",
+      "operation": "delete",
+      "title": "Delete a lead",
+      "method": "DELETE",
+      "path": "/contacts{{ p.deleteBy | eq:'id' | then:'/' }}{{ p.deleteBy | eq:'id' | then:p.value }}",
+      "fields": [
+        {
+          "key": "deleteBy",
+          "label": "Delete by",
+          "type": "select",
+          "options": [
+            "id",
+            "userId"
+          ],
+          "default": ""
+        },
+        {
+          "key": "value",
+          "label": "Value",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "query": {
+        "user_id": "{{ p.deleteBy | ne:'id' | then:p.value }}"
+      }
+    },
+    {
+      "resource": "lead",
+      "operation": "get",
+      "title": "Get a lead",
+      "method": "GET",
+      "path": "/contacts{{ p.selectBy | eq:'id' | then:'/' }}{{ p.selectBy | eq:'id' | then:p.value }}",
+      "fields": [
+        {
+          "key": "selectBy",
+          "label": "Select by",
+          "type": "select",
+          "options": [
+            "email",
+            "id",
+            "userId",
+            "phone"
+          ],
+          "default": "id"
+        },
+        {
+          "key": "value",
+          "label": "Value",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "query": {
+        "email": "{{ p.selectBy | eq:'email' | then:p.value }}",
+        "user_id": "{{ p.selectBy | eq:'userId' | then:p.value }}",
+        "phone": "{{ p.selectBy | eq:'phone' | then:p.value }}"
+      },
+      "output": {
+        "path": "{{ p.selectBy | ne:'id' | then:'contacts' }}"
+      }
+    },
+    {
+      "resource": "lead",
+      "operation": "getAll",
+      "title": "Get many leads",
+      "method": "GET",
+      "path": "/contacts",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 60
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "email",
+            "phone"
+          ]
+        }
+      ],
+      "query": {
+        "$merge": "{{ p.filters }}"
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "pages.next",
+        "limit_param": "per_page",
+        "page_size": 60,
+        "results_path": "contacts"
+      },
+      "output": {
+        "path": "contacts"
+      }
+    },
+    {
+      "resource": "lead",
+      "operation": "update",
+      "title": "Update a lead",
+      "method": "POST",
+      "path": "/contacts",
+      "fields": [
+        {
+          "key": "updateBy",
+          "label": "Update by",
+          "type": "select",
+          "options": [
+            "userId",
+            "id"
+          ],
+          "default": "id"
+        },
+        {
+          "key": "value",
+          "label": "Value",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "avatar",
+            "companies",
+            "email",
+            "name",
+            "phone",
+            "unsubscribedFromEmails",
+            "updateLastRequestAt",
+            "utmCampaign",
+            "utmContent",
+            "utmMedium",
+            "utmSource",
+            "utmTerm"
+          ],
+          "help": "companies: list of company IDs; avatar: image URL"
+        },
+        {
+          "key": "jsonParameters",
+          "label": "JSON parameters",
+          "type": "boolean",
+          "default": false,
+          "help": "Give custom attributes as JSON instead of name/value rows"
+        },
+        {
+          "key": "customAttributesJson",
+          "label": "Custom attributes (JSON)",
+          "type": "json",
+          "default": ""
+        },
+        {
+          "key": "customAttributesUi",
+          "label": "Custom attributes",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "customAttributesValues"
+          ],
+          "help": "customAttributesValues: list of {name, value}"
+        }
+      ],
+      "body": {
+        "email": "{{ p.additionalFields.email }}",
+        "phone": "{{ p.additionalFields.phone }}",
+        "name": "{{ p.additionalFields.name }}",
+        "unsubscribed_from_emails": "{{ p.additionalFields.unsubscribedFromEmails | eq:'true' | then:true }}",
+        "update_last_request_at": "{{ p.additionalFields.updateLastRequestAt | eq:'true' | then:true }}",
+        "utm_source": "{{ p.additionalFields.utmSource }}",
+        "utm_medium": "{{ p.additionalFields.utmMedium }}",
+        "utm_campaign": "{{ p.additionalFields.utmCampaign }}",
+        "utm_term": "{{ p.additionalFields.utmTerm }}",
+        "utm_content": "{{ p.additionalFields.utmContent }}",
+        "avatar": {
+          "$when": "{{ p.additionalFields.avatar }}",
+          "type": "avatar",
+          "image_url": "{{ p.additionalFields.avatar }}"
+        },
+        "companies": {
+          "$map": "{{ p.additionalFields.companies }}",
+          "$to": {
+            "company_id": "{{ el }}"
+          }
+        },
+        "custom_attributes": {
+          "$merge": [
+            "{{ p.jsonParameters | eq:'true' | then:(p.customAttributesJson | fromjson) }}",
+            "{{ p.jsonParameters | ne:'true' | then:(p.customAttributesUi.customAttributesValues | kv:'name,value') }}"
+          ]
+        },
+        "user_id": "{{ p.updateBy | eq:'userId' | then:p.value }}",
+        "id": "{{ p.updateBy | eq:'id' | then:p.value }}"
+      }
+    },
+    {
+      "resource": "company",
+      "operation": "create",
+      "title": "Create a company",
+      "method": "POST",
+      "path": "/companies",
+      "fields": [
+        {
+          "key": "companyId",
+          "label": "Company ID",
+          "type": "text",
+          "default": "",
+          "help": "Your own ID for the company"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "industry",
+            "monthlySpend",
+            "name",
+            "plan",
+            "size",
+            "website"
+          ]
+        },
+        {
+          "key": "jsonParameters",
+          "label": "JSON parameters",
+          "type": "boolean",
+          "default": false,
+          "help": "Give custom attributes as JSON instead of name/value rows"
+        },
+        {
+          "key": "customAttributesJson",
+          "label": "Custom attributes (JSON)",
+          "type": "json",
+          "default": ""
+        },
+        {
+          "key": "customAttributesUi",
+          "label": "Custom attributes",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "customAttributesValues"
+          ],
+          "help": "customAttributesValues: list of {name, value}"
+        }
+      ],
+      "body": {
+        "company_id": "{{ p.companyId }}",
+        "monthly_spend": "{{ p.additionalFields.monthlySpend | numeric }}",
+        "name": "{{ p.additionalFields.name }}",
+        "plan": "{{ p.additionalFields.plan }}",
+        "size": "{{ p.additionalFields.size }}",
+        "website": "{{ p.additionalFields.website }}",
+        "industry": "{{ p.additionalFields.industry }}",
+        "custom_attributes": {
+          "$merge": [
+            "{{ p.jsonParameters | eq:'true' | then:(p.customAttributesJson | fromjson) }}",
+            "{{ p.jsonParameters | ne:'true' | then:(p.customAttributesUi.customAttributesValues | kv:'name,value') }}"
+          ]
+        }
+      }
+    },
+    {
+      "resource": "company",
+      "operation": "get",
+      "title": "Get a company",
+      "method": "GET",
+      "path": "/companies{{ p.selectBy | eq:'id' | then:'/' }}{{ p.selectBy | eq:'id' | then:p.value }}",
+      "fields": [
+        {
+          "key": "selectBy",
+          "label": "Select by",
+          "type": "select",
+          "options": [
+            "companyId",
+            "id",
+            "name"
+          ],
+          "default": "id"
+        },
+        {
+          "key": "value",
+          "label": "Value",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "query": {
+        "company_id": "{{ p.selectBy | eq:'companyId' | then:p.value }}",
+        "name": "{{ p.selectBy | eq:'name' | then:p.value }}"
+      }
+    },
+    {
+      "resource": "company",
+      "operation": "getAll",
+      "title": "Get many companies",
+      "method": "GET",
+      "path": "/companies",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 60
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "segment_id",
+            "tag_id"
+          ]
+        }
+      ],
+      "query": {
+        "$merge": "{{ p.filters }}"
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "pages.next",
+        "limit_param": "per_page",
+        "page_size": 60,
+        "results_path": "companies"
+      },
+      "output": {
+        "path": "companies"
+      }
+    },
+    {
+      "resource": "company",
+      "operation": "update",
+      "title": "Update a company",
+      "method": "POST",
+      "path": "/companies",
+      "fields": [
+        {
+          "key": "companyId",
+          "label": "Company ID",
+          "type": "text",
+          "default": "",
+          "help": "Your own ID for the company"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "industry",
+            "monthlySpend",
+            "name",
+            "plan",
+            "size",
+            "website"
+          ]
+        },
+        {
+          "key": "jsonParameters",
+          "label": "JSON parameters",
+          "type": "boolean",
+          "default": false,
+          "help": "Give custom attributes as JSON instead of name/value rows"
+        },
+        {
+          "key": "customAttributesJson",
+          "label": "Custom attributes (JSON)",
+          "type": "json",
+          "default": ""
+        },
+        {
+          "key": "customAttributesUi",
+          "label": "Custom attributes",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "customAttributesValues"
+          ],
+          "help": "customAttributesValues: list of {name, value}"
+        }
+      ],
+      "body": {
+        "company_id": "{{ p.companyId }}",
+        "monthly_spend": "{{ p.additionalFields.monthlySpend | numeric }}",
+        "name": "{{ p.additionalFields.name }}",
+        "plan": "{{ p.additionalFields.plan }}",
+        "size": "{{ p.additionalFields.size }}",
+        "website": "{{ p.additionalFields.website }}",
+        "industry": "{{ p.additionalFields.industry }}",
+        "custom_attributes": {
+          "$merge": [
+            "{{ p.jsonParameters | eq:'true' | then:(p.customAttributesJson | fromjson) }}",
+            "{{ p.jsonParameters | ne:'true' | then:(p.customAttributesUi.customAttributesValues | kv:'name,value') }}"
+          ]
+        }
+      }
+    },
+    {
+      "resource": "company",
+      "operation": "users",
+      "title": "List a company's users",
+      "method": "GET",
+      "path": "/companies{{ p.listBy | eq:'id' | then:'/' }}{{ p.listBy | eq:'id' | then:p.value }}{{ p.listBy | eq:'id' | then:'/users' }}",
+      "fields": [
+        {
+          "key": "listBy",
+          "label": "List by",
+          "type": "select",
+          "options": [
+            "id",
+            "companyId"
+          ],
+          "default": ""
+        },
+        {
+          "key": "value",
+          "label": "Value",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 60
+        }
+      ],
+      "query": {
+        "company_id": "{{ p.listBy | ne:'id' | then:p.value }}",
+        "type": "{{ p.listBy | ne:'id' | then:'users' }}"
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "pages.next",
+        "limit_param": "per_page",
+        "page_size": 60,
+        "results_path": "users"
+      },
+      "output": {
+        "path": "users"
+      }
+    }
+  ]
+}

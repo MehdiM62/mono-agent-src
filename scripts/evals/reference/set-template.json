@@ -1,0 +1,50 @@
+{
+  "name": "eval-set-template",
+  "description": "",
+  "version": 1,
+  "is_active": false,
+  "nodes": [
+    {
+      "id": "trigger",
+      "type": "trigger.manual",
+      "name": "trigger",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "config": {}
+    },
+    {
+      "id": "set",
+      "type": "core.set",
+      "name": "set",
+      "position": {
+        "x": 260,
+        "y": 0
+      },
+      "config": {
+        "assignments": [
+          {
+            "field": "full_name",
+            "value": "{{ $json.first }} {{ $json.last }}",
+            "type": "string"
+          },
+          {
+            "field": "shout",
+            "value": "{{ upper $json.first }} {{ upper $json.last }}",
+            "type": "string"
+          }
+        ]
+      }
+    }
+  ],
+  "connections": [
+    {
+      "id": "c1",
+      "source": "trigger",
+      "source_handle": "main",
+      "target": "set",
+      "target_handle": "main"
+    }
+  ]
+}

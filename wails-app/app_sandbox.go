@@ -7,10 +7,18 @@ package main
 
 // SandboxFallbackGet returns `sandbox fallback`: the effective value, where it comes from
 // (env | saved | default), the accepted values and whether monomind supports the setting.
-func (a *App) SandboxFallbackGet() string { return a.jsonResult("sandbox", "fallback") }
+func (a *App) SandboxFallbackGet() string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
+	return a.jsonResult("sandbox", "fallback")
+}
 
 // SandboxFallbackSet saves value and returns the same document. The CLI validates it; the
 // flag is attached to its value so that no value can be read as another flag.
 func (a *App) SandboxFallbackSet(value string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	return a.jsonResult("sandbox", "fallback", "--set="+value)
 }

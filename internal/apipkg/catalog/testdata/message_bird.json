@@ -1,0 +1,48 @@
+{
+  "sms.send": {
+    "params": {
+      "originator": "Acme",
+      "recipients": "31612345678, 31687654321",
+      "message": "hi",
+      "additionalFields": {
+        "datacoding": "unicode",
+        "mclass": 0
+      }
+    },
+    "credential": {
+      "access_key": "k"
+    },
+    "response": {
+      "id": "m1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/messages",
+      "items": 1,
+      "body": {
+        "originator": "Acme",
+        "body": "hi",
+        "recipients": [
+          31612345678,
+          31687654321
+        ],
+        "datacoding": "unicode",
+        "mclass": 0
+      }
+    }
+  },
+  "balance.get": {
+    "params": {},
+    "credential": {
+      "access_key": "k"
+    },
+    "response": {
+      "amount": 10
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/balance",
+      "items": 1
+    }
+  }
+}

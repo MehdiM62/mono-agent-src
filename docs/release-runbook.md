@@ -2,14 +2,21 @@
 
 Every push to master still publishes a GitHub release (see `.github/workflows/release.yml`
 and SECURITY.md, "Release governance"). Alongside it, CI builds, checks and signs what the
-updater verifies from the public releases-only repo (default `monoes/mono-agent-releases`).
+updater verifies from the public releases-only repo (`monoes/mono-agent`, the workflow-level
+`RELEASES_REPO`; the code builds in the private `monoes/mono-agent-src` once the owner has
+run `docs/release-repo-split-runbook.md`).
 Releases are hands-free apart from the `release` environment approval.
 
 ## What is published
 
 - the release assets and `SHA256SUMS`
 - `manifest.json` (schema 1: version, release time, notes URL, and per-platform assets with
-  `os`, `arch`, `name`, `url`, `sha256`, `size`, `kind` of `cli` or `app`)
+  `os`, `arch`, `name`, `url`, `sha256`, `size`, `kind` of `cli` or `app`). The browser
+  extension zip, `monoagent-chrome-extension.zip`, is an asset too: `kind` `extension`, with no
+  `os` or `arch`. Installers that pick by os/arch/kind never select it.
+  `monoagentcli extension install` checks the zip against the signed manifest of the CLI's
+  release. It uses that release's `SHA256SUMS.txt` only when the manifest has no extension
+  entry (releases made before the extension was listed), and it says so in its output.
 - `manifest.json.sig`: one line, `<key id> <base64 Ed25519 signature>`, made over the exact
   bytes of `manifest.json`. The key id is the first 8 bytes of the SHA-256 of the public key,
   hex encoded.
@@ -30,7 +37,7 @@ GitHub environment. It exists nowhere else in CI.
    Steps run in this order, and only the last signing one has the key:
    - it reads the latest release in the **releases repo** (`gh release list --repo
      "$RELEASES_REPO"`, the current tag excluded). The release job has already published the
-     tag in this repo, so only the releases repo gives a real version floor. An API failure
+     tag in the releases repo, so the earlier releases there give the version floor. An API failure
      fails the job; an empty list is accepted only for the very first release;
    - it compiles `cmd/release-manifest` into `$RUNNER_TEMP` and flattens the artifacts (a
      duplicate file name fails the job instead of one file silently replacing the other);
@@ -56,9 +63,9 @@ GitHub environment. It exists nowhere else in CI.
    against the signed `manifest.json` (`release-manifest check -strict`); and it uploads only
    the files the manifest lists, plus the manifest, the signature and a `SHA256SUMS`
    regenerated from those verified files (the unsigned `SHA256SUMS` is never uploaded). Any
-   mismatch aborts. It runs only when the secrets `RELEASES_REPO` (`owner/name`) and
-   `RELEASES_REPO_TOKEN` exist, and fails rather than upload without the signature.
-   `sign-manifest` is a no-op when `RELEASES_REPO` is unset.
+   mismatch aborts. It writes to `RELEASES_REPO` with the secret `RELEASES_REPO_TOKEN` and fails
+   rather than upload without the signature. Both this job and `sign-manifest` are no-ops when
+   the secret `RELEASES_REPO_TOKEN` does not exist.
 
 What these checks do and do not prove: the pre-sign check proves the manifest **matches the
 build artifacts** that the workflow produced. It does not prove the build itself was not
@@ -95,13 +102,14 @@ GitHub API path (while `AllowLegacyGitHubUpdates` is true).
    Create the environment first (step 3) if it does not exist, since `gh secret set --env`
    needs it. Nothing is stored in your keyring in this mode.
 2. Copy the printed public line (`<keyid> <base64pub>`) into `pinnedReleaseKeys` in
-   `internal/release/keys.go` and ship it in a release (see "Bootstrap"). Until a key is
-   pinned no manifest is trusted by clients, and the CI self-check fails.
+   `internal/release/keys.go`, and its base64 half into `RELEASE_PUBKEY` in `install.sh`, and
+   ship it in a release (see "Bootstrap"). Until a key is pinned no manifest is trusted by
+   clients, and the CI self-check fails.
 3. Protect the `release` environment. Find your numeric user id, then set the required
    reviewer and limit deployments to master:
 
    ```bash
-   OWNER=your-github-login; REPO=monoes/mono-agent
+   OWNER=your-github-login; REPO=monoes/mono-agent-src   # the repository the workflow RUNS in (before the rename of the split: monoes/mono-agent)
    ID=$(gh api users/$OWNER --jq .id)
    # required reviewer = the owner (self review stays allowed: you are the only maintainer)
    gh api -X PUT repos/$REPO/environments/release --input - <<JSON
@@ -173,6 +181,10 @@ never be uploaded.)
    gh secret set RELEASE_SIGNING_KEY --env release --repo OWNER/REPO < "$keydir/next"
    ```
 
+   `install.sh` pins one key (`RELEASE_PUBKEY`), and each release publishes it to the releases
+   repository. Set it to the new key's base64 in the first release CI signs with the new key,
+   or the installer refuses that release's manifest.
+
 4. Delete the staged key: `rm -f "$keydir/next"; rmdir "$keydir"` (the trap does this on exit).
 5. Later, when clients have moved past builds that only know the old key, ship a release
    (signed by the new key) that removes the old line from `pinnedReleaseKeys`.
@@ -225,9 +237,9 @@ The local path still works and is the fallback if CI signing is unavailable or u
 # once: create a key in the OS keyring (pin the printed public key)
 monoagentcli release keygen
 
-gh release download vX.Y.Z --repo monoes/mono-agent-releases --pattern manifest.json
+gh release download vX.Y.Z --repo monoes/mono-agent --pattern manifest.json
 go run ./cmd/release-manifest sign -manifest manifest.json -keyring     # or -key-file path/to/key
-gh release upload vX.Y.Z manifest.json.sig --repo monoes/mono-agent-releases
+gh release upload vX.Y.Z manifest.json.sig --repo monoes/mono-agent
 monoagentcli release verify manifest.json manifest.json.sig   # add --pubkey "<id> <b64>" to try another key
 ```
 

@@ -1,0 +1,89 @@
+{
+  "with_user": {
+    "handle": "@synth_alice",
+    "full_name": "Alice (header)",
+    "is_verified": true,
+    "is_protected": false,
+    "bio": "",
+    "location": "Header Town",
+    "website": "alice.example",
+    "website_href": "https://t.co/abc",
+    "join_date": "Joined March 2011",
+    "followers_text": "1.2K",
+    "following_text": "3,456",
+    "posts_text": "12M posts",
+    "profile_picture_url": "https://pbs.twimg.com/profile_images/1/a_200x200.jpg",
+    "banner_url": "https://pbs.twimg.com/profile_banners/1/600x200",
+    "can_dm": true,
+    "professional_category": "",
+    "birth_date": "",
+    "verification_type": "",
+    "user": {
+      "id_str": "424242",
+      "name": "Alice Synth",
+      "screen_name": "Synth_Alice",
+      "description": "Building things at https://t.co/xyz",
+      "location": "Berlin",
+      "entities": {
+        "url": {"urls": [{"url": "https://t.co/abc", "expanded_url": "https://alice.example/home", "display_url": "alice.example/home"}]},
+        "description": {"urls": [{"url": "https://t.co/xyz", "expanded_url": "https://work.example", "display_url": "work.example"}]}
+      },
+      "followers_count": 1234,
+      "friends_count": 3456,
+      "statuses_count": 12000345,
+      "verified": false,
+      "verified_type": "",
+      "is_blue_verified": true,
+      "protected": false,
+      "profile_image_url_https": "https://pbs.twimg.com/profile_images/1/a_normal.jpg",
+      "profile_banner_url": "https://pbs.twimg.com/profile_banners/1",
+      "created_at": "Tue Mar 21 20:50:14 +0000 2006",
+      "pinned_tweet_ids_str": ["777"],
+      "birthdate": {"day": 5, "month": 6, "year": 1990},
+      "professional": {"professional_type": "Creator", "category": [{"name": "Artist"}]},
+      "business_account": {"affiliates_count": 7}
+    }
+  },
+  "header_only": {
+    "handle": "@synth_bob",
+    "full_name": "Bob Synth",
+    "is_verified": true,
+    "is_protected": true,
+    "bio": "Plain bio",
+    "location": "Paris",
+    "website": "bob.example",
+    "website_href": "https://t.co/bob",
+    "join_date": "Joined March 2011",
+    "followers_text": "1.2K",
+    "following_text": "3,456",
+    "posts_text": "12M",
+    "profile_picture_url": "https://pbs.twimg.com/profile_images/2/b_400x400.jpg",
+    "banner_url": "",
+    "can_dm": false,
+    "professional_category": "Science & Technology",
+    "birth_date": "Born June 5",
+    "verification_type": "business",
+    "pinned_url": "https://x.com/synth_bob/status/555",
+    "pinned_text": "Pinned hello"
+  },
+  "other_user": {
+    "handle": "@synth_carol",
+    "full_name": "Carol Header",
+    "bio": "header bio",
+    "followers_text": "Followers",
+    "following_text": "",
+    "user": {"screen_name": "someone_else", "name": "Not Carol", "followers_count": 99}
+  },
+  "no_handle": {
+    "handle": "",
+    "full_name": "Dana NoHandle",
+    "followers_text": "60.7m"
+  },
+  "nameless": {
+    "handle": "",
+    "full_name": ""
+  },
+  "empty_state": {
+    "empty_state": "This account doesn’t exist\nTry searching for another."
+  }
+}

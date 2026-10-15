@@ -13,11 +13,17 @@ import (
 
 // GetGlobalSummary returns `summary --all-profiles --json` verbatim.
 func (a *App) GetGlobalSummary() string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	return a.rawCLI(summaryCLITimeout, "summary", "--all-profiles")
 }
 
 // GetGlobalOrgSummary returns `org summary --all-profiles [--fast]` verbatim.
 func (a *App) GetGlobalOrgSummary(fast bool) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	args := []string{"org", "summary", "--all-profiles"}
 	if fast {
 		args = append(args, "--fast")
@@ -27,6 +33,9 @@ func (a *App) GetGlobalOrgSummary(fast bool) string {
 
 // ListAllProfilesWorkflows is ListWorkflows across every profile.
 func (a *App) ListAllProfilesWorkflows() ([]WorkflowSummary, error) {
+	if err := a.signedOut(); err != nil {
+		return nil, err
+	}
 	var rows []struct {
 		workflow.Workflow
 		NodeCount   int    `json:"node_count"`
@@ -48,6 +57,9 @@ func (a *App) ListAllProfilesWorkflows() ([]WorkflowSummary, error) {
 
 // GetAllProfilesRecentExecutions is GetRecentExecutions across every profile.
 func (a *App) GetAllProfilesRecentExecutions(limit int) ([]WorkflowExecutionSummary, error) {
+	if err := a.signedOut(); err != nil {
+		return nil, err
+	}
 	if limit <= 0 {
 		limit = 20
 	}

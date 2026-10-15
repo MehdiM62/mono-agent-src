@@ -1,0 +1,207 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "google_firebase_realtime_database",
+  "node_type": "app.google_firebase_realtime_database",
+  "title": "Google Firebase Realtime Database",
+  "description": "Read and write data in a Firebase Realtime Database",
+  "category": "app",
+  "docs_url": "https://firebase.google.com/docs/reference/rest/database",
+  "n8n_types": [
+    "n8n-nodes-base.googleFirebaseRealtimeDatabase"
+  ],
+  "base_url": "https://firebaseio.com",
+  "credentials": [
+    {
+      "platform": "google",
+      "name": "Google (Firebase)",
+      "n8n_credential": "googleFirebaseRealtimeDatabaseOAuth2Api",
+      "n8n_credential_alt": [
+        "googleOAuth2Api"
+      ],
+      "methods": [
+        "oauth"
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      },
+      "reuse_platform": "google"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "",
+      "operation": "create",
+      "title": "Write data (replace)",
+      "method": "PUT",
+      "path": "https://{{ p.projectId }}.{{ p.region }}/{{ p.path | path }}.json",
+      "fields": [
+        {
+          "key": "projectId",
+          "label": "Database instance",
+          "type": "text",
+          "required": true,
+          "help": "Realtime Database instance name, e.g. my-project-default-rtdb."
+        },
+        {
+          "key": "region",
+          "label": "Database host",
+          "type": "text",
+          "default": "firebaseio.com",
+          "help": "Host suffix of the database URL: firebaseio.com (US) or e.g. europe-west1.firebasedatabase.app."
+        },
+        {
+          "key": "path",
+          "label": "Object path",
+          "type": "text",
+          "required": true,
+          "help": "Path inside the database, e.g. users/ada."
+        },
+        {
+          "key": "attributes",
+          "label": "Attributes",
+          "type": "text",
+          "required": true,
+          "help": "Comma-separated input-item keys to write."
+        }
+      ],
+      "body": "{{ item | pick:p.attributes }}"
+    },
+    {
+      "resource": "",
+      "operation": "delete",
+      "title": "Delete data",
+      "method": "DELETE",
+      "path": "https://{{ p.projectId }}.{{ p.region }}/{{ p.path | path }}.json",
+      "fields": [
+        {
+          "key": "projectId",
+          "label": "Database instance",
+          "type": "text",
+          "required": true,
+          "help": "Realtime Database instance name, e.g. my-project-default-rtdb."
+        },
+        {
+          "key": "region",
+          "label": "Database host",
+          "type": "text",
+          "default": "firebaseio.com",
+          "help": "Host suffix of the database URL: firebaseio.com (US) or e.g. europe-west1.firebasedatabase.app."
+        },
+        {
+          "key": "path",
+          "label": "Object path",
+          "type": "text",
+          "required": true,
+          "help": "Path inside the database, e.g. users/ada."
+        }
+      ]
+    },
+    {
+      "resource": "",
+      "operation": "get",
+      "title": "Get data",
+      "method": "GET",
+      "path": "https://{{ p.projectId }}.{{ p.region }}/{{ p.path | path }}.json",
+      "fields": [
+        {
+          "key": "projectId",
+          "label": "Database instance",
+          "type": "text",
+          "required": true,
+          "help": "Realtime Database instance name, e.g. my-project-default-rtdb."
+        },
+        {
+          "key": "region",
+          "label": "Database host",
+          "type": "text",
+          "default": "firebaseio.com",
+          "help": "Host suffix of the database URL: firebaseio.com (US) or e.g. europe-west1.firebasedatabase.app."
+        },
+        {
+          "key": "path",
+          "label": "Object path",
+          "type": "text",
+          "help": "Empty for the whole database."
+        }
+      ]
+    },
+    {
+      "resource": "",
+      "operation": "push",
+      "title": "Push a child",
+      "method": "POST",
+      "path": "https://{{ p.projectId }}.{{ p.region }}/{{ p.path | path }}.json",
+      "fields": [
+        {
+          "key": "projectId",
+          "label": "Database instance",
+          "type": "text",
+          "required": true,
+          "help": "Realtime Database instance name, e.g. my-project-default-rtdb."
+        },
+        {
+          "key": "region",
+          "label": "Database host",
+          "type": "text",
+          "default": "firebaseio.com",
+          "help": "Host suffix of the database URL: firebaseio.com (US) or e.g. europe-west1.firebasedatabase.app."
+        },
+        {
+          "key": "path",
+          "label": "Object path",
+          "type": "text",
+          "required": true,
+          "help": "Path inside the database, e.g. users/ada."
+        },
+        {
+          "key": "attributes",
+          "label": "Attributes",
+          "type": "text",
+          "required": true,
+          "help": "Comma-separated input-item keys to write."
+        }
+      ],
+      "body": "{{ item | pick:p.attributes }}"
+    },
+    {
+      "resource": "",
+      "operation": "update",
+      "title": "Update data",
+      "method": "PATCH",
+      "path": "https://{{ p.projectId }}.{{ p.region }}/{{ p.path | path }}.json",
+      "fields": [
+        {
+          "key": "projectId",
+          "label": "Database instance",
+          "type": "text",
+          "required": true,
+          "help": "Realtime Database instance name, e.g. my-project-default-rtdb."
+        },
+        {
+          "key": "region",
+          "label": "Database host",
+          "type": "text",
+          "default": "firebaseio.com",
+          "help": "Host suffix of the database URL: firebaseio.com (US) or e.g. europe-west1.firebasedatabase.app."
+        },
+        {
+          "key": "path",
+          "label": "Object path",
+          "type": "text",
+          "required": true,
+          "help": "Path inside the database, e.g. users/ada."
+        },
+        {
+          "key": "attributes",
+          "label": "Attributes",
+          "type": "text",
+          "required": true,
+          "help": "Comma-separated input-item keys to write."
+        }
+      ],
+      "body": "{{ item | pick:p.attributes }}"
+    }
+  ]
+}

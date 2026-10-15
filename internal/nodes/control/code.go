@@ -4,21 +4,32 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/dop251/goja"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
-// CodeNode executes JavaScript code via the goja runtime.
+// CodeNode executes JavaScript code via the goja runtime, or Python code
+// with the system python3 (code_python.go).
 // Config fields:
 //
 //	"code" (string, required): JavaScript code to execute.
 //	    The JS environment exposes:
-//	    - $input: object with all() method returning all items as JS objects
+//	    - $input: all() returning all items as JS objects, first(),
+//	      last(), and item (the first item)
 //	    - $json: first item's JSON map (shorthand)
-//	    The code must return an array of objects (or a single object).
+//	    - $('Node Name'): that node's output, with $input's accessors
+//	    - $execution: id, resumeUrl and resumeFormUrl; $workflow: id
+//	    - $runIndex: the node's run in a loop (0 on the first pass)
+//	    The code must return an array of objects (or a single object), or
+//	    a promise of one; a top-level return or await runs the code as an
+//	    async function body.
 //	    Each returned object becomes an Item on the "main" handle.
+//	"language" (string, optional): "javascript" (default) or "python".
+//	"mode" (string, optional, Python only): "runOnceForAllItems" (default)
+//	    or "runOnceForEachItem".
 //	"timeout_seconds" (number, optional): execution timeout, default 30,
 //	    clamped to 1-600.
 //	"memory_limit_mb" (number, optional): JS runtime memory limit,
@@ -47,6 +58,10 @@ func (n *CodeNode) Execute(ctx context.Context, input workflow.NodeInput, config
 		return nil, fmt.Errorf("%w: code node requires \"code\"", workflow.ErrInvalidConfig)
 	}
 
+	if lang, _ := config["language"].(string); lang == "python" {
+		return runPython(ctx, input, config, code, codeTimeout(config))
+	}
+
 	rt := goja.New()
 
 	memLimitMB := codeDefaultMemLimitMB
@@ -59,25 +74,21 @@ func (n *CodeNode) Execute(ctx context.Context, input workflow.NodeInput, config
 		limiter.SetMemoryLimit(memLimitMB << 20)
 	}
 
-	// Build the array of item JSON maps for $input.all().
-	itemMaps := make([]interface{}, len(input.Items))
-	for i, item := range input.Items {
-		m := make(map[string]interface{})
-		for k, v := range item.JSON {
-			m[k] = v
-		}
-		itemMaps[i] = m
-	}
-
-	// $input object with all() method.
+	// $input with all(), first(), last() and item over the input items.
 	inputObj := rt.NewObject()
-	if err := inputObj.Set("all", func(call goja.FunctionCall) goja.Value {
-		return rt.ToValue(itemMaps)
-	}); err != nil {
-		return nil, fmt.Errorf("code node: failed to set $input.all: %w", err)
+	if err := setItemAccessors(rt, inputObj, jsonMaps(input.Items)); err != nil {
+		return nil, fmt.Errorf("code node: failed to set $input: %w", err)
 	}
 	if err := rt.Set("$input", inputObj); err != nil {
 		return nil, fmt.Errorf("code node: failed to set $input: %w", err)
+	}
+	// items: the input items as {json} objects, which n8n's Code node (and its
+	// Function node before it) still offers next to $input.all().
+	if _, err := rt.RunString("var items = $input.all().map(function (j) { return {json: j}; });"); err != nil {
+		return nil, fmt.Errorf("code node: failed to set items: %w", err)
+	}
+	if err := setNodeAccessor(rt, input.NodeOutputs); err != nil {
+		return nil, fmt.Errorf("code node: failed to set $: %w", err)
 	}
 
 	// $json — first item's JSON, or empty map.
@@ -91,17 +102,22 @@ func (n *CodeNode) Execute(ctx context.Context, input workflow.NodeInput, config
 		return nil, fmt.Errorf("code node: failed to set $json: %w", err)
 	}
 
+	// $execution and $workflow, as in n8n's Code node. The resume URL is
+	// signed, so it is only built for code that reads $execution.
+	if strings.Contains(code, "$execution") {
+		if err := rt.Set("$execution", workflow.ExecutionData(input.ExecutionID)); err != nil {
+			return nil, fmt.Errorf("code node: failed to set $execution: %w", err)
+		}
+	}
+	if err := rt.Set("$workflow", map[string]interface{}{"id": input.WorkflowID}); err != nil {
+		return nil, fmt.Errorf("code node: failed to set $workflow: %w", err)
+	}
+	if err := rt.Set("$runIndex", input.RunIndex); err != nil {
+		return nil, fmt.Errorf("code node: failed to set $runIndex: %w", err)
+	}
+
 	// Enforce the timeout via goja's interrupt mechanism.
-	timeoutSecs := codeDefaultTimeoutSecs
-	if v := configNumber(config, "timeout_seconds"); v > 0 {
-		timeoutSecs = int(v)
-	}
-	if timeoutSecs < codeMinTimeoutSecs {
-		timeoutSecs = codeMinTimeoutSecs
-	}
-	if timeoutSecs > codeMaxTimeoutSecs {
-		timeoutSecs = codeMaxTimeoutSecs
-	}
+	timeoutSecs := int(codeTimeout(config) / time.Second)
 	timer := time.AfterFunc(time.Duration(timeoutSecs)*time.Second, func() {
 		rt.Interrupt(fmt.Sprintf("code node: execution timeout (%ds)", timeoutSecs))
 	})
@@ -117,7 +133,14 @@ func (n *CodeNode) Execute(ctx context.Context, input workflow.NodeInput, config
 		}
 	}()
 
-	val, err := rt.RunString(code)
+	prg, err := compileCode(code)
+	var val goja.Value
+	if err == nil {
+		val, err = rt.RunProgram(prg)
+	}
+	if err == nil {
+		val, err = settle(val)
+	}
 	close(done)
 
 	if err != nil {
@@ -145,6 +168,22 @@ func (n *CodeNode) Execute(ctx context.Context, input workflow.NodeInput, config
 	return []workflow.NodeOutput{
 		{Handle: "main", Items: items},
 	}, nil
+}
+
+// codeTimeout is the config's timeout_seconds, default 30, clamped to
+// 1-600.
+func codeTimeout(config map[string]interface{}) time.Duration {
+	timeoutSecs := codeDefaultTimeoutSecs
+	if v := configNumber(config, "timeout_seconds"); v > 0 {
+		timeoutSecs = int(v)
+	}
+	if timeoutSecs < codeMinTimeoutSecs {
+		timeoutSecs = codeMinTimeoutSecs
+	}
+	if timeoutSecs > codeMaxTimeoutSecs {
+		timeoutSecs = codeMaxTimeoutSecs
+	}
+	return time.Duration(timeoutSecs) * time.Second
 }
 
 // configNumber reads a numeric config field whether it arrived as
@@ -200,16 +239,32 @@ func jsValueToItems(val goja.Value) ([]workflow.Item, error) {
 			if err != nil {
 				return nil, fmt.Errorf("result[%d]: %w", i, err)
 			}
-			items = append(items, workflow.Item{JSON: m})
+			items = append(items, workflow.Item{JSON: n8nItemJSON(m)})
 		}
 		return items, nil
 
 	case map[string]interface{}:
-		return []workflow.Item{{JSON: v}}, nil
+		return []workflow.Item{{JSON: n8nItemJSON(v)}}, nil
 
 	default:
 		return nil, fmt.Errorf("code must return an array of objects or a single object, got %T", exported)
 	}
+}
+
+// n8nItemJSON unwraps an item written the n8n way, {json: {...}} (with
+// optional binary/pairedItem, which have no place in a mono item), to its
+// JSON; any other object is the item's JSON itself.
+func n8nItemJSON(m map[string]interface{}) map[string]interface{} {
+	j, ok := m["json"].(map[string]interface{})
+	if !ok {
+		return m
+	}
+	for k := range m {
+		if k != "json" && k != "binary" && k != "pairedItem" {
+			return m
+		}
+	}
+	return j
 }
 
 // toStringMap casts an interface{} to map[string]interface{}.

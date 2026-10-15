@@ -1,6 +1,6 @@
 # Dependency license audit
 
-Commit a9dd7075; `python3 scripts/licenseaudit/audit.py deps`. Not legal advice.
+Commit 8a600b74; `python3 scripts/licenseaudit/audit.py deps`. Not legal advice.
 
 - Go modules linked into the CLI or the app: 81 (licenses: Apache-2.0, BSD-2-Clause, BSD-3-Clause, BSD-3-Clause+MIT+Public-Domain, ISC, MIT)
 - npm packages that ship in the app: 111 (licenses: ISC, MIT)
@@ -99,7 +99,7 @@ None.
 
 1. **Resolved: the MySQL driver is now MIT.** `github.com/go-sql-driver/mysql` (MPL-2.0) was linked into the CLI by the MySQL node (`internal/nodes/db/mysql.go`). It is replaced by `github.com/go-mysql-org/go-mysql` (MIT), which adds `coreos/go-semver` (Apache-2.0), `pingcap/errors` (BSD-2-Clause), `pingcap/log` (Apache-2.0), `pingcap/tidb/pkg/parser` (Apache-2.0), `go.uber.org/multierr` and `go.uber.org/zap` (MIT) and `gopkg.in/natefinch/lumberjack.v2` (MIT). No copyleft Go module is linked any more.
 2. **No other copyleft code ships.** The twelve MPL-2.0 npm packages (`lightningcss` and its platform binaries) are build tooling and are not in the app's files.
-3. **Releases ship binaries without third-party license texts today** (`release.yml`, "Flatten and checksum all release files": binaries, archives and checksums only). MIT, BSD, ISC and Apache-2.0 ask for their text to accompany a binary. `NOTICE` is that text; Task 4 attaches it to every release with one `cp` line, a change that can land alone whether or not the repository is ever closed.
+3. **Release app bundles and Linux packages carry `NOTICE`** (`release.yml` copies it in); re-checked 2026-10-11. The standalone CLI binaries and the flat release assets still ship without it, so Task 4 attaches it to every release. MIT, BSD, ISC and Apache-2.0 ask for their text to accompany a binary. `NOTICE` is that text; Task 4 attaches it to every release with one `cp` line, a change that can land alone whether or not the repository is ever closed.
 4. **`modernc.org/sqlite`** keeps BSD-3-Clause, MIT (sqlite-vec) and the SQLite public-domain dedication in separate files, plus `LICENSE-3RD-PARTY.md` for the C it transpiles; `NOTICE` includes all of them, and the Apache-2.0 modules' `NOTICE` files likewise.
-5. **Vendored code:** `internal/jevpick/snapshot.js` (Browser Use, MIT) is in `NOTICE` by hand (`VENDORED` in `scripts/licenseaudit/audit.py`); add any other vendored file the copyright audit finds.
+5. **Vendored code:** `internal/jevpick/snapshot.js` (Browser Use, MIT) is in `NOTICE` by hand (`VENDORED` in `scripts/licenseaudit/audit.py`); `internal/nodes/browserjev/policy.go:13` ("Rules adapted from jev-ultrafast (questions.py)") derives from the same Browser Use project and is not covered by that notice; see the copyright audit. Re-run 2026-10-11 at 8a600b74: no copyleft or unclassified module ships, and `NOTICE` regenerates byte-identical.
 6. **Not covered:** images and fonts under `assets/` and in the desktop frontend, and the monomind runtime (a separate program the app starts, not linked in).

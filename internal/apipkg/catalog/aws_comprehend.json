@@ -1,0 +1,217 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "aws_comprehend",
+  "node_type": "app.aws_comprehend",
+  "title": "AWS Comprehend",
+  "description": "Language, entities and sentiment of text with Amazon Comprehend",
+  "category": "app",
+  "docs_url": "https://docs.aws.amazon.com/comprehend/latest/APIReference/API_Operations.html",
+  "n8n_types": [
+    "n8n-nodes-base.awsComprehend"
+  ],
+  "base_url": "https://comprehend.{{ cred.region | default:'us-east-1' }}.amazonaws.com{{ cred.region | matches:'^cn-' | then:'.cn' }}",
+  "credentials": [
+    {
+      "platform": "aws",
+      "reuse_platform": "aws",
+      "name": "AWS",
+      "n8n_credential": "aws",
+      "n8n_field_map": {
+        "accessKeyId": "access_key_id",
+        "secretAccessKey": "secret_access_key",
+        "sessionToken": "session_token",
+        "region": "region",
+        "stsAccessKeyId": "access_key_id",
+        "stsSecretAccessKey": "secret_access_key",
+        "stsSessionToken": "session_token",
+        "roleArn": "role_arn",
+        "externalId": "external_id",
+        "roleSessionName": "role_session_name"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "access_key_id",
+          "label": "Access key ID",
+          "required": true
+        },
+        {
+          "key": "secret_access_key",
+          "label": "Secret access key",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "region",
+          "label": "Region",
+          "help": "Default us-east-1"
+        },
+        {
+          "key": "session_token",
+          "label": "Session token",
+          "secret": true,
+          "help": "Only for temporary credentials"
+        }
+      ],
+      "inject": {
+        "aws_sigv4": {
+          "service": "comprehend",
+          "region": "{{ cred.region | default:'us-east-1' }}"
+        }
+      },
+      "n8n_credential_alt": [
+        "awsAssumeRole"
+      ]
+    }
+  ],
+  "resources": [
+    {
+      "value": "text",
+      "label": "Text"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "text",
+      "operation": "detectDominantLanguage",
+      "title": "Detect the dominant language",
+      "method": "POST",
+      "path": "/",
+      "headers": {
+        "X-Amz-Target": "Comprehend_20171127.DetectDominantLanguage",
+        "Content-Type": "application/x-amz-json-1.1"
+      },
+      "body_type": "json",
+      "body": {
+        "Text": "{{ p.text }}"
+      },
+      "fields": [
+        {
+          "key": "text",
+          "label": "Text",
+          "type": "textarea",
+          "default": ""
+        },
+        {
+          "key": "simple",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true,
+          "help": "Return {languageCode: score} instead of the raw response"
+        }
+      ],
+      "output": {
+        "to": {
+          "$entries": "{{ el.Languages }}",
+          "$key": "{{ el.LanguageCode }}",
+          "$value": "{{ el.Score }}"
+        },
+        "to_when": "{{ p.simple }}"
+      }
+    },
+    {
+      "resource": "text",
+      "operation": "detectEntities",
+      "title": "Detect named entities",
+      "method": "POST",
+      "path": "/",
+      "headers": {
+        "X-Amz-Target": "Comprehend_20171127.DetectEntities",
+        "Content-Type": "application/x-amz-json-1.1"
+      },
+      "body_type": "json",
+      "body": {
+        "Text": "{{ p.text }}",
+        "LanguageCode": "{{ p.languageCode }}",
+        "EndpointArn": "{{ p.additionalFields.endpointArn }}"
+      },
+      "fields": [
+        {
+          "key": "languageCode",
+          "label": "Language",
+          "type": "select",
+          "default": "en",
+          "options": [
+            "ar",
+            "zh",
+            "zh-TW",
+            "en",
+            "fr",
+            "de",
+            "hi",
+            "it",
+            "ja",
+            "ko",
+            "pt",
+            "es"
+          ]
+        },
+        {
+          "key": "text",
+          "label": "Text",
+          "type": "textarea",
+          "default": ""
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "endpointArn"
+          ],
+          "help": "endpointArn: a custom entity recognition endpoint"
+        }
+      ],
+      "output": {
+        "path": "Entities"
+      }
+    },
+    {
+      "resource": "text",
+      "operation": "detectSentiment",
+      "title": "Detect the sentiment",
+      "method": "POST",
+      "path": "/",
+      "headers": {
+        "X-Amz-Target": "Comprehend_20171127.DetectSentiment",
+        "Content-Type": "application/x-amz-json-1.1"
+      },
+      "body_type": "json",
+      "body": {
+        "Text": "{{ p.text }}",
+        "LanguageCode": "{{ p.languageCode }}"
+      },
+      "fields": [
+        {
+          "key": "languageCode",
+          "label": "Language",
+          "type": "select",
+          "default": "en",
+          "options": [
+            "ar",
+            "zh",
+            "zh-TW",
+            "en",
+            "fr",
+            "de",
+            "hi",
+            "it",
+            "ja",
+            "ko",
+            "pt",
+            "es"
+          ]
+        },
+        {
+          "key": "text",
+          "label": "Text",
+          "type": "textarea",
+          "default": ""
+        }
+      ]
+    }
+  ]
+}

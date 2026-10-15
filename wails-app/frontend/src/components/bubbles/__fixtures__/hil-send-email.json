@@ -1,0 +1,17 @@
+{
+  "kind": "send",
+  "id": "hil-send-1",
+  "state": "pending",
+  "preparedBy": { "role": "dev", "agentId": "agent-dev-1" },
+  "action": "email.send",
+  "channel": "email",
+  "account": { "platform": "outlook", "handle": "me@acme.test" },
+  "recipient": { "personId": "p-42", "name": "Sam Rivera", "profileUrl": "https://www.linkedin.com/in/sam-rivera" },
+  "subject": "Release notes for v1.2",
+  "text": "Hi Sam,\n\nHere are the release notes for v1.2. The screenshot shows the new dashboard.\n\nBest,\nMe",
+  "attachments": [
+    { "kind": "image", "name": "dashboard.png", "path": "/tmp/fx/dashboard.png", "size": 48213, "mime": "image/png" },
+    { "kind": "file", "name": "notes-v1.2.pdf", "path": "/tmp/fx/notes-v1.2.pdf", "size": 2411724, "mime": "application/pdf" },
+    { "kind": "link", "name": "Changelog", "url": "https://example.test/changelog" }
+  ]
+}

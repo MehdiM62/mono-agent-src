@@ -1,0 +1,959 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "sentry_io",
+  "title": "Sentry.io",
+  "description": "Events, issues, organizations, projects, releases and teams in Sentry (cloud or self-hosted)",
+  "category": "app",
+  "docs_url": "https://docs.sentry.io/api/",
+  "n8n_types": [
+    "n8n-nodes-base.sentryIo"
+  ],
+  "base_url": "{{ cred.url | default:'https://sentry.io' }}",
+  "credentials": [
+    {
+      "platform": "sentry_io",
+      "name": "Sentry.io (cloud)",
+      "n8n_credential": "sentryIoApi",
+      "n8n_credential_alt": [
+        "sentryIoOAuth2Api"
+      ],
+      "n8n_field_map": {
+        "token": "access_token"
+      },
+      "methods": [
+        "bearer",
+        "oauth"
+      ],
+      "fields": [
+        {
+          "key": "access_token",
+          "label": "Auth token",
+          "secret": true,
+          "required": true,
+          "help": "Settings → Auth Tokens"
+        }
+      ],
+      "oauth": {
+        "auth_url": "https://sentry.io/oauth/authorize/",
+        "token_url": "https://sentry.io/oauth/token/",
+        "scopes": [
+          "event:admin",
+          "event:read",
+          "org:read",
+          "project:read",
+          "project:releases",
+          "team:read",
+          "event:write",
+          "org:admin",
+          "project:write",
+          "team:write",
+          "project:admin",
+          "team:admin"
+        ]
+      },
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    },
+    {
+      "platform": "sentry_io_server",
+      "name": "Sentry (self-hosted)",
+      "n8n_credential": "sentryIoServerApi",
+      "n8n_field_map": {
+        "token": "token",
+        "url": "url"
+      },
+      "methods": [
+        "bearer"
+      ],
+      "fields": [
+        {
+          "key": "url",
+          "label": "Sentry URL",
+          "required": true,
+          "help": "e.g. https://sentry.example.com"
+        },
+        {
+          "key": "token",
+          "label": "Auth token",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "event",
+      "label": "Event"
+    },
+    {
+      "value": "issue",
+      "label": "Issue"
+    },
+    {
+      "value": "organization",
+      "label": "Organization"
+    },
+    {
+      "value": "project",
+      "label": "Project"
+    },
+    {
+      "value": "release",
+      "label": "Release"
+    },
+    {
+      "value": "team",
+      "label": "Team"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "event",
+      "operation": "get",
+      "title": "Get an event",
+      "method": "GET",
+      "path": "/api/0/projects/{{ p.organizationSlug }}/{{ p.projectSlug }}/events/{{ p.eventId }}/",
+      "fields": [
+        {
+          "key": "organizationSlug",
+          "label": "Organization slug",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "projectSlug",
+          "label": "Project slug",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "eventId",
+          "label": "Event ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "event",
+      "operation": "getAll",
+      "title": "Get many events of a project",
+      "method": "GET",
+      "path": "/api/0/projects/{{ p.organizationSlug }}/{{ p.projectSlug }}/events/",
+      "fields": [
+        {
+          "key": "organizationSlug",
+          "label": "Organization slug",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "projectSlug",
+          "label": "Project slug",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "full",
+          "label": "Full event payload",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1,
+          "max": 500
+        }
+      ],
+      "query": {
+        "full": "{{ p.full }}"
+      },
+      "pagination": {
+        "type": "link_header",
+        "results_path": ""
+      }
+    },
+    {
+      "resource": "issue",
+      "operation": "get",
+      "title": "Get an issue",
+      "method": "GET",
+      "path": "/api/0/issues/{{ p.issueId }}/",
+      "fields": [
+        {
+          "key": "issueId",
+          "label": "Issue ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "issue",
+      "operation": "delete",
+      "title": "Delete an issue",
+      "method": "DELETE",
+      "path": "/api/0/issues/{{ p.issueId }}/",
+      "fields": [
+        {
+          "key": "issueId",
+          "label": "Issue ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "issue",
+      "operation": "getAll",
+      "title": "Get many issues of a project",
+      "method": "GET",
+      "path": "/api/0/projects/{{ p.organizationSlug }}/{{ p.projectSlug }}/issues/",
+      "fields": [
+        {
+          "key": "organizationSlug",
+          "label": "Organization slug",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "projectSlug",
+          "label": "Project slug",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1,
+          "max": 500
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "query",
+            "statsPeriod",
+            "shortIdLookUp"
+          ],
+          "help": "statsPeriod: 24h or 14d"
+        }
+      ],
+      "query": {
+        "query": "{{ p.additionalFields.query }}",
+        "statsPeriod": "{{ p.additionalFields.statsPeriod }}",
+        "shortIdLookup": "{{ p.additionalFields.shortIdLookUp }}"
+      },
+      "pagination": {
+        "type": "link_header",
+        "results_path": ""
+      }
+    },
+    {
+      "resource": "issue",
+      "operation": "update",
+      "title": "Update an issue",
+      "method": "PUT",
+      "path": "/api/0/issues/{{ p.issueId }}/",
+      "fields": [
+        {
+          "key": "issueId",
+          "label": "Issue ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "assignedTo",
+            "hasSeen",
+            "isBookmarked",
+            "isPublic",
+            "isSubscribed",
+            "status"
+          ],
+          "help": "status: ignored, resolved, resolvedInNextRelease or unresolved"
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.additionalFields }}"
+      }
+    },
+    {
+      "resource": "organization",
+      "operation": "get",
+      "title": "Get an organization",
+      "method": "GET",
+      "path": "/api/0/organizations/{{ p.organizationSlug }}/",
+      "fields": [
+        {
+          "key": "organizationSlug",
+          "label": "Organization slug",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "organization",
+      "operation": "create",
+      "title": "Create an organization",
+      "method": "POST",
+      "path": "/api/0/organizations/",
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "agreeTerms",
+          "label": "Agree to the terms",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "slug"
+          ]
+        }
+      ],
+      "body": {
+        "name": "{{ p.name }}",
+        "agreeTerms": "{{ p.agreeTerms }}",
+        "slug": "{{ p.additionalFields.slug }}"
+      }
+    },
+    {
+      "resource": "organization",
+      "operation": "getAll",
+      "title": "Get many organizations",
+      "method": "GET",
+      "path": "/api/0/organizations/",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1,
+          "max": 500
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "member",
+            "owner"
+          ]
+        }
+      ],
+      "query": {
+        "member": "{{ p.additionalFields.member | eq:'true' | then:'true' }}",
+        "owner": "{{ p.additionalFields.owner | eq:'true' | then:'true' }}"
+      },
+      "pagination": {
+        "type": "link_header",
+        "results_path": ""
+      }
+    },
+    {
+      "resource": "organization",
+      "operation": "update",
+      "title": "Update an organization",
+      "method": "PUT",
+      "path": "/api/0/organizations/{{ p.organization_slug }}/",
+      "fields": [
+        {
+          "key": "organization_slug",
+          "label": "Organization slug",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "name",
+            "slug"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields }}"
+      }
+    },
+    {
+      "resource": "project",
+      "operation": "get",
+      "title": "Get a project",
+      "method": "GET",
+      "path": "/api/0/projects/{{ p.organizationSlug }}/{{ p.projectSlug }}/",
+      "fields": [
+        {
+          "key": "organizationSlug",
+          "label": "Organization slug",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "projectSlug",
+          "label": "Project slug",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "project",
+      "operation": "create",
+      "title": "Create a project",
+      "method": "POST",
+      "path": "/api/0/teams/{{ p.organizationSlug }}/{{ p.teamSlug }}/projects/",
+      "fields": [
+        {
+          "key": "organizationSlug",
+          "label": "Organization slug",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "teamSlug",
+          "label": "Team slug",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "slug"
+          ]
+        }
+      ],
+      "body": {
+        "name": "{{ p.name }}",
+        "$merge": "{{ p.additionalFields }}"
+      }
+    },
+    {
+      "resource": "project",
+      "operation": "delete",
+      "title": "Delete a project",
+      "method": "DELETE",
+      "path": "/api/0/projects/{{ p.organizationSlug }}/{{ p.projectSlug }}/",
+      "fields": [
+        {
+          "key": "organizationSlug",
+          "label": "Organization slug",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "projectSlug",
+          "label": "Project slug",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "project",
+      "operation": "getAll",
+      "title": "Get many projects",
+      "method": "GET",
+      "path": "/api/0/projects/",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1,
+          "max": 500
+        }
+      ],
+      "pagination": {
+        "type": "link_header",
+        "results_path": ""
+      }
+    },
+    {
+      "resource": "project",
+      "operation": "update",
+      "title": "Update a project",
+      "method": "PUT",
+      "path": "/api/0/projects/{{ p.organizationSlug }}/{{ p.projectSlug }}/",
+      "fields": [
+        {
+          "key": "organizationSlug",
+          "label": "Organization slug",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "projectSlug",
+          "label": "Project slug",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "isBookmarked",
+            "digestsMaxDelay",
+            "digestsMinDelay",
+            "name",
+            "slug",
+            "team",
+            "platform"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields }}"
+      }
+    },
+    {
+      "resource": "release",
+      "operation": "get",
+      "title": "Get a release",
+      "method": "GET",
+      "path": "/api/0/organizations/{{ p.organizationSlug }}/releases/{{ p.version }}/",
+      "fields": [
+        {
+          "key": "organizationSlug",
+          "label": "Organization slug",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "version",
+          "label": "Version",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "release",
+      "operation": "create",
+      "title": "Create a release",
+      "method": "POST",
+      "path": "/api/0/organizations/{{ p.organizationSlug }}/releases/",
+      "fields": [
+        {
+          "key": "organizationSlug",
+          "label": "Organization slug",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "version",
+          "label": "Version",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "url",
+          "label": "URL",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "projects",
+          "label": "Project slugs",
+          "type": "array",
+          "item_type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "dateReleased",
+            "commits",
+            "refs"
+          ],
+          "help": "commits: {\"commitProperties\": [{\"id\", \"repository\", \"message\", \"authorName\", \"authorEmail\", \"timestamp\", \"patchSet\": {\"patchSetProperties\": [{\"path\", \"type\"}]}}]}; refs: {\"refProperties\": [{\"commit\", \"repository\", \"previousCommit\"}]}"
+        }
+      ],
+      "body": {
+        "version": "{{ p.version }}",
+        "url": "{{ p.url }}",
+        "projects": "{{ p.projects }}",
+        "dateReleased": "{{ p.additionalFields.dateReleased }}",
+        "commits": {
+          "$map": "{{ p.additionalFields.commits.commitProperties }}",
+          "$to": {
+            "id": "{{ el.id }}",
+            "repository": "{{ el.repository }}",
+            "message": "{{ el.message }}",
+            "author_name": "{{ el.authorName }}",
+            "author_email": "{{ el.authorEmail }}",
+            "timestamp": "{{ el.timestamp }}",
+            "patch_set": {
+              "$map": "{{ el.patchSet.patchSetProperties }}",
+              "$to": {
+                "path": "{{ el.path }}",
+                "type": "{{ el.type }}"
+              }
+            }
+          }
+        },
+        "refs": "{{ p.additionalFields.refs.refProperties }}"
+      }
+    },
+    {
+      "resource": "release",
+      "operation": "delete",
+      "title": "Delete a release",
+      "method": "DELETE",
+      "path": "/api/0/organizations/{{ p.organizationSlug }}/releases/{{ p.version }}/",
+      "fields": [
+        {
+          "key": "organizationSlug",
+          "label": "Organization slug",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "version",
+          "label": "Version",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "release",
+      "operation": "getAll",
+      "title": "Get many releases",
+      "method": "GET",
+      "path": "/api/0/organizations/{{ p.organizationSlug }}/releases/",
+      "fields": [
+        {
+          "key": "organizationSlug",
+          "label": "Organization slug",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1,
+          "max": 500
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "query"
+          ]
+        }
+      ],
+      "query": {
+        "query": "{{ p.additionalFields.query }}"
+      },
+      "pagination": {
+        "type": "link_header",
+        "results_path": ""
+      }
+    },
+    {
+      "resource": "release",
+      "operation": "update",
+      "title": "Update a release",
+      "method": "PUT",
+      "path": "/api/0/organizations/{{ p.organizationSlug }}/releases/{{ p.version }}/",
+      "fields": [
+        {
+          "key": "organizationSlug",
+          "label": "Organization slug",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "version",
+          "label": "Version",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "commits",
+            "dateReleased",
+            "ref",
+            "refs",
+            "url"
+          ],
+          "help": "commits and refs as on Create"
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields | omit:'commits,refs' }}",
+        "commits": {
+          "$map": "{{ p.updateFields.commits.commitProperties }}",
+          "$to": {
+            "id": "{{ el.id }}",
+            "repository": "{{ el.repository }}",
+            "message": "{{ el.message }}",
+            "author_name": "{{ el.authorName }}",
+            "author_email": "{{ el.authorEmail }}",
+            "timestamp": "{{ el.timestamp }}",
+            "patch_set": {
+              "$map": "{{ el.patchSet.patchSetProperties }}",
+              "$to": {
+                "path": "{{ el.path }}",
+                "type": "{{ el.type }}"
+              }
+            }
+          }
+        },
+        "refs": "{{ p.updateFields.refs.refProperties }}"
+      }
+    },
+    {
+      "resource": "team",
+      "operation": "get",
+      "title": "Get a team",
+      "method": "GET",
+      "path": "/api/0/teams/{{ p.organizationSlug }}/{{ p.teamSlug }}/",
+      "fields": [
+        {
+          "key": "organizationSlug",
+          "label": "Organization slug",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "teamSlug",
+          "label": "Team slug",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "team",
+      "operation": "create",
+      "title": "Create a team",
+      "method": "POST",
+      "path": "/api/0/organizations/{{ p.organizationSlug }}/teams/",
+      "fields": [
+        {
+          "key": "organizationSlug",
+          "label": "Organization slug",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "slug"
+          ]
+        }
+      ],
+      "body": {
+        "name": "{{ p.name }}",
+        "slug": "{{ p.additionalFields.slug }}"
+      }
+    },
+    {
+      "resource": "team",
+      "operation": "delete",
+      "title": "Delete a team",
+      "method": "DELETE",
+      "path": "/api/0/teams/{{ p.organizationSlug }}/{{ p.teamSlug }}/",
+      "fields": [
+        {
+          "key": "organizationSlug",
+          "label": "Organization slug",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "teamSlug",
+          "label": "Team slug",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "team",
+      "operation": "getAll",
+      "title": "Get many teams",
+      "method": "GET",
+      "path": "/api/0/organizations/{{ p.organizationSlug }}/teams/",
+      "fields": [
+        {
+          "key": "organizationSlug",
+          "label": "Organization slug",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1,
+          "max": 500
+        }
+      ],
+      "pagination": {
+        "type": "link_header",
+        "results_path": ""
+      }
+    },
+    {
+      "resource": "team",
+      "operation": "update",
+      "title": "Update a team",
+      "method": "PUT",
+      "path": "/api/0/teams/{{ p.organizationSlug }}/{{ p.teamSlug }}/",
+      "fields": [
+        {
+          "key": "organizationSlug",
+          "label": "Organization slug",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "teamSlug",
+          "label": "Team slug",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "name",
+            "slug"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields }}"
+      }
+    }
+  ]
+}

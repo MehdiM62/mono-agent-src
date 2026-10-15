@@ -1,0 +1,386 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "netscaler_adc",
+  "title": "Netscaler ADC",
+  "description": "Files and SSL certificates on a Netscaler (Citrix) ADC through the NITRO API",
+  "category": "app",
+  "docs_url": "https://developer-docs.netscaler.com/en-us/adc-nitro-api/current-release/",
+  "n8n_types": [
+    "n8n-nodes-base.citrixAdc"
+  ],
+  "base_url": "{{ cred.url }}/nitro/v1",
+  "credentials": [
+    {
+      "platform": "netscaler_adc",
+      "name": "Netscaler ADC",
+      "n8n_credential": "citrixAdcApi",
+      "n8n_field_map": {
+        "url": "url",
+        "username": "username",
+        "password": "password"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "url",
+          "label": "Appliance URL",
+          "required": true,
+          "help": "e.g. https://adc.example.com, without a trailing slash"
+        },
+        {
+          "key": "username",
+          "label": "Username",
+          "required": true
+        },
+        {
+          "key": "password",
+          "label": "Password",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "headers": {
+          "X-NITRO-USER": "{{ cred.username }}",
+          "X-NITRO-PASS": "{{ cred.password }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "file",
+      "label": "File"
+    },
+    {
+      "value": "certificate",
+      "label": "Certificate"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "file",
+      "operation": "upload",
+      "title": "Upload a file to the appliance",
+      "method": "POST",
+      "path": "/config/systemfile",
+      "fields": [
+        {
+          "key": "fileLocation",
+          "label": "File location",
+          "type": "text",
+          "default": "/nsconfig/ssl/",
+          "required": true
+        },
+        {
+          "key": "binaryProperty",
+          "label": "Input binary field",
+          "type": "text",
+          "default": "data",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fileName"
+          ],
+          "help": "fileName overrides the binary's file name."
+        }
+      ],
+      "binary": {
+        "upload_field": "binaryProperty"
+      },
+      "body_type": "json",
+      "body": {
+        "systemfile": {
+          "filename": "{{ p.options.fileName | default:bin.file_name }}",
+          "filecontent": "{{ bin.base64 }}",
+          "filelocation": "{{ p.fileLocation }}",
+          "fileencoding": "BASE64"
+        }
+      }
+    },
+    {
+      "resource": "file",
+      "operation": "delete",
+      "title": "Delete a file",
+      "method": "DELETE",
+      "path": "/config/systemfile",
+      "fields": [
+        {
+          "key": "fileLocation",
+          "label": "File location",
+          "type": "text",
+          "default": "/nsconfig/ssl/",
+          "required": true
+        },
+        {
+          "key": "fileName",
+          "label": "File name",
+          "type": "text",
+          "default": "",
+          "required": true
+        }
+      ],
+      "query": {
+        "args": "filename:{{ p.fileName }},filelocation:{{ p.fileLocation }}"
+      }
+    },
+    {
+      "resource": "file",
+      "operation": "download",
+      "title": "Download a file",
+      "method": "GET",
+      "path": "/config/systemfile",
+      "fields": [
+        {
+          "key": "fileLocation",
+          "label": "File location",
+          "type": "text",
+          "default": "/nsconfig/ssl/",
+          "required": true
+        },
+        {
+          "key": "fileName",
+          "label": "File name",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "binaryProperty",
+          "label": "Output binary field",
+          "type": "text",
+          "default": "data"
+        }
+      ],
+      "query": {
+        "args": "filename:{{ p.fileName }},filelocation:{{ p.fileLocation }}"
+      },
+      "binary": {
+        "property_field": "binaryProperty",
+        "download_base64": "{{ res.systemfile.0.filecontent }}",
+        "file_name": "{{ res.systemfile.0.filename }}"
+      },
+      "output": {
+        "path": "systemfile.0"
+      }
+    },
+    {
+      "resource": "certificate",
+      "operation": "create",
+      "title": "Create a certificate",
+      "method": "POST",
+      "path": "/config/sslcert",
+      "query": {
+        "action": "create"
+      },
+      "fields": [
+        {
+          "key": "certificateFileName",
+          "label": "Certificate file name",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "certificateFormat",
+          "label": "Certificate format",
+          "type": "select",
+          "default": "PEM",
+          "options": [
+            "PEM",
+            "DER"
+          ]
+        },
+        {
+          "key": "certificateType",
+          "label": "Certificate type",
+          "type": "select",
+          "default": "ROOT_CERT",
+          "options": [
+            "ROOT_CERT",
+            "INTM_CERT",
+            "SRVR_CERT",
+            "CLNT_CERT"
+          ]
+        },
+        {
+          "key": "certificateRequestFileName",
+          "label": "Certificate request file name",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "caCertificateFileName",
+          "label": "CA certificate file name",
+          "type": "text",
+          "default": "",
+          "help": "Not for ROOT_CERT."
+        },
+        {
+          "key": "caCertificateFileFormat",
+          "label": "CA certificate format",
+          "type": "select",
+          "default": "PEM",
+          "options": [
+            "PEM",
+            "DER"
+          ]
+        },
+        {
+          "key": "caPrivateKeyFileName",
+          "label": "CA private key file name",
+          "type": "text",
+          "default": "",
+          "help": "Not for ROOT_CERT."
+        },
+        {
+          "key": "caPrivateKeyFileFormat",
+          "label": "CA private key format",
+          "type": "select",
+          "default": "PEM",
+          "options": [
+            "PEM",
+            "DER"
+          ]
+        },
+        {
+          "key": "privateKeyFileName",
+          "label": "Private key file name",
+          "type": "text",
+          "default": "",
+          "help": "ROOT_CERT only."
+        },
+        {
+          "key": "caSerialFileNumber",
+          "label": "CA serial number file",
+          "type": "text",
+          "default": "",
+          "help": "Not for ROOT_CERT."
+        },
+        {
+          "key": "privateKeyFormat",
+          "label": "Private key format",
+          "type": "select",
+          "default": "PEM",
+          "options": [
+            "PEM",
+            "DER"
+          ]
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "pempassphrase",
+            "subjectaltname",
+            "days"
+          ]
+        }
+      ],
+      "body": {
+        "sslcert": {
+          "reqfile": "{{ p.certificateRequestFileName }}",
+          "certfile": "{{ p.certificateFileName }}",
+          "certform": "{{ p.certificateFormat }}",
+          "certType": "{{ p.certificateType }}",
+          "$merge": "{{ p.additionalFields }}",
+          "keyfile": "{{ p.certificateType | eq:'ROOT_CERT' | then:p.privateKeyFileName }}",
+          "cacert": "{{ p.certificateType | ne:'ROOT_CERT' | then:p.caCertificateFileName }}",
+          "cacertform": "{{ p.certificateType | ne:'ROOT_CERT' | then:p.caCertificateFileFormat }}",
+          "cakey": "{{ p.certificateType | ne:'ROOT_CERT' | then:p.caPrivateKeyFileName }}",
+          "cakeyform": "{{ p.certificateType | ne:'ROOT_CERT' | then:p.caPrivateKeyFileFormat }}",
+          "caserial": "{{ p.certificateType | ne:'ROOT_CERT' | then:p.caSerialFileNumber }}"
+        }
+      }
+    },
+    {
+      "resource": "certificate",
+      "operation": "install",
+      "title": "Install a certificate key pair",
+      "method": "POST",
+      "path": "/config/sslcertkey",
+      "fields": [
+        {
+          "key": "certificateKeyPairName",
+          "label": "Certificate-key pair name",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "certificateFileName",
+          "label": "Certificate file name",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "privateKeyFileName",
+          "label": "Private key file name",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "certificateFormat",
+          "label": "Certificate format",
+          "type": "select",
+          "default": "PEM",
+          "options": [
+            "PEM",
+            "DER"
+          ]
+        },
+        {
+          "key": "password",
+          "label": "Password",
+          "type": "password",
+          "default": "",
+          "help": "PEM only."
+        },
+        {
+          "key": "notifyExpiration",
+          "label": "Notify before expiry",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "notificationPeriod",
+          "label": "Notification period (days)",
+          "type": "number",
+          "default": 10,
+          "min": 10,
+          "max": 100
+        },
+        {
+          "key": "certificateBundle",
+          "label": "Certificate bundle",
+          "type": "boolean",
+          "default": false,
+          "help": "PEM only."
+        }
+      ],
+      "body": {
+        "sslcertkey": {
+          "cert": "{{ p.certificateFileName }}",
+          "certkey": "{{ p.certificateKeyPairName }}",
+          "key": "{{ p.privateKeyFileName }}",
+          "inform": "{{ p.certificateFormat }}",
+          "passplain": "{{ p.certificateFormat | eq:'PEM' | then:p.password }}",
+          "bundle": "{{ p.certificateFormat | eq:'PEM' | then:(p.certificateBundle | eq:'true' | then:'YES' | default:'NO') }}",
+          "expirymonitor": "{{ p.notifyExpiration | eq:'true' | then:'ENABLED' }}",
+          "notificationperiod": "{{ p.notifyExpiration | eq:'true' | then:p.notificationPeriod }}"
+        }
+      }
+    }
+  ]
+}

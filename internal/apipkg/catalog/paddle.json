@@ -1,0 +1,538 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "paddle",
+  "title": "Paddle (Classic)",
+  "description": "Coupons, payments, plans, products and users through the Paddle Classic vendor API",
+  "category": "app",
+  "docs_url": "https://developer.paddle.com/classic/api-reference/",
+  "n8n_types": [
+    "n8n-nodes-base.paddle"
+  ],
+  "base_url": "{{ cred.sandbox | eq:'true' | then:'https://sandbox-vendors.paddle.com/api' | default:'https://vendors.paddle.com/api' }}",
+  "error_when": "{{ res.success | ne:'true' }}",
+  "error_message": "{{ res.error.message }}",
+  "credentials": [
+    {
+      "platform": "paddle",
+      "name": "Paddle Classic",
+      "n8n_credential": "paddleApi",
+      "n8n_field_map": {
+        "vendorAuthCode": "vendor_auth_code",
+        "vendorId": "vendor_id",
+        "sandbox": "sandbox"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "vendor_id",
+          "label": "Vendor ID",
+          "required": true
+        },
+        {
+          "key": "vendor_auth_code",
+          "label": "Vendor auth code",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "sandbox",
+          "label": "Sandbox",
+          "help": "true to use the sandbox"
+        }
+      ],
+      "inject": {
+        "query": {
+          "vendor_id": "{{ cred.vendor_id }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "coupon",
+      "label": "Coupon"
+    },
+    {
+      "value": "payment",
+      "label": "Payment"
+    },
+    {
+      "value": "plan",
+      "label": "Plan"
+    },
+    {
+      "value": "product",
+      "label": "Product"
+    },
+    {
+      "value": "user",
+      "label": "User"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "coupon",
+      "operation": "create",
+      "title": "Create coupons",
+      "method": "POST",
+      "path": "/2.1/product/create_coupon",
+      "fields": [
+        {
+          "key": "couponType",
+          "label": "Coupon type",
+          "type": "select",
+          "default": "checkout",
+          "options": [
+            "checkout",
+            "product"
+          ]
+        },
+        {
+          "key": "productIds",
+          "label": "Product IDs",
+          "type": "array",
+          "default": [],
+          "item_type": "text",
+          "help": "couponType = product"
+        },
+        {
+          "key": "discountType",
+          "label": "Discount type",
+          "type": "select",
+          "default": "flat",
+          "options": [
+            "flat",
+            "percentage"
+          ]
+        },
+        {
+          "key": "discountAmount",
+          "label": "Discount amount",
+          "type": "number",
+          "default": 1
+        },
+        {
+          "key": "currency",
+          "label": "Currency",
+          "type": "text",
+          "default": "EUR",
+          "help": "discountType = flat"
+        },
+        {
+          "key": "jsonParameters",
+          "label": "JSON parameters",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "additionalFieldsJson",
+          "label": "Additional fields (JSON)",
+          "type": "json",
+          "default": "",
+          "help": "With JSON parameters on: raw Paddle body fields."
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "allowedUses",
+            "couponCode",
+            "couponPrefix",
+            "description",
+            "expires",
+            "group",
+            "numberOfCoupons",
+            "recurring"
+          ]
+        }
+      ],
+      "body": {
+        "vendor_id": "{{ cred.vendor_id }}",
+        "vendor_auth_code": "{{ cred.vendor_auth_code }}",
+        "$merge": "{{ p.jsonParameters | eq:'true' | then:(p.additionalFieldsJson | fromjson) }}",
+        "product_ids": "{{ p.jsonParameters | ne:'true' | then:(p.couponType | eq:'product' | then:(p.productIds | csv)) }}",
+        "currency": "{{ p.jsonParameters | ne:'true' | then:(p.discountType | eq:'flat' | then:p.currency) }}",
+        "coupon_type": "{{ p.jsonParameters | ne:'true' | then:(p.couponType) }}",
+        "discount_type": "{{ p.jsonParameters | ne:'true' | then:(p.discountType) }}",
+        "discount_amount": "{{ p.jsonParameters | ne:'true' | then:(p.discountAmount) }}",
+        "allowed_uses": "{{ p.jsonParameters | ne:'true' | then:(p.additionalFields.allowedUses) }}",
+        "coupon_code": "{{ p.jsonParameters | ne:'true' | then:(p.additionalFields.couponCode) }}",
+        "coupon_prefix": "{{ p.jsonParameters | ne:'true' | then:(p.additionalFields.couponPrefix) }}",
+        "expires": "{{ p.jsonParameters | ne:'true' | then:(p.additionalFields.expires | date:'YYYY-MM-DD') }}",
+        "group": "{{ p.jsonParameters | ne:'true' | then:(p.additionalFields.group) }}",
+        "recurring": "{{ p.jsonParameters | ne:'true' | then:(p.additionalFields.recurring | eq:'true' | then:1 | default:0) }}",
+        "num_coupons": "{{ p.jsonParameters | ne:'true' | then:(p.additionalFields.numberOfCoupons) }}",
+        "description": "{{ p.jsonParameters | ne:'true' | then:(p.additionalFields.description) }}"
+      },
+      "output": {
+        "from": "{{ res.response.coupon_codes }}",
+        "to": {
+          "coupon": "{{ el }}"
+        }
+      }
+    },
+    {
+      "resource": "coupon",
+      "operation": "getAll",
+      "title": "Get a product's coupons",
+      "method": "POST",
+      "path": "/2.0/product/list_coupons",
+      "fields": [
+        {
+          "key": "productId",
+          "label": "Product ID",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        }
+      ],
+      "body": {
+        "vendor_id": "{{ cred.vendor_id }}",
+        "vendor_auth_code": "{{ cred.vendor_auth_code }}",
+        "product_id": "{{ p.productId }}"
+      },
+      "output": {
+        "path": "response",
+        "limit": true
+      }
+    },
+    {
+      "resource": "coupon",
+      "operation": "update",
+      "title": "Update coupons",
+      "method": "POST",
+      "path": "/2.1/product/update_coupon",
+      "fields": [
+        {
+          "key": "updateBy",
+          "label": "Update by",
+          "type": "select",
+          "default": "couponCode",
+          "options": [
+            "couponCode",
+            "group"
+          ]
+        },
+        {
+          "key": "couponCode",
+          "label": "Coupon code",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "group",
+          "label": "Group",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "jsonParameters",
+          "label": "JSON parameters",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "additionalFieldsJson",
+          "label": "Additional fields (JSON)",
+          "type": "json",
+          "default": "",
+          "help": "With JSON parameters on: raw Paddle body fields."
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "allowedUses",
+            "currency",
+            "discount",
+            "expires",
+            "newCouponCode",
+            "newGroup",
+            "productIds",
+            "recurring",
+            "discountAmount"
+          ],
+          "help": "discount: {\"discountProperties\": {\"discountType\": \"flat\", \"discountAmount\": 5, \"currency\": \"EUR\"}}"
+        }
+      ],
+      "body": {
+        "vendor_id": "{{ cred.vendor_id }}",
+        "vendor_auth_code": "{{ cred.vendor_auth_code }}",
+        "$merge": "{{ p.jsonParameters | eq:'true' | then:(p.additionalFieldsJson | fromjson) }}",
+        "group": "{{ p.jsonParameters | ne:'true' | then:(p.updateBy | eq:'group' | then:p.group) }}",
+        "coupon_code": "{{ p.jsonParameters | ne:'true' | then:(p.updateBy | ne:'group' | then:p.couponCode) }}",
+        "allowed_uses": "{{ p.jsonParameters | ne:'true' | then:(p.additionalFields.allowedUses) }}",
+        "new_coupon_code": "{{ p.jsonParameters | ne:'true' | then:(p.additionalFields.newCouponCode) }}",
+        "expires": "{{ p.jsonParameters | ne:'true' | then:(p.additionalFields.expires | date:'YYYY-MM-DD') }}",
+        "new_group": "{{ p.jsonParameters | ne:'true' | then:(p.additionalFields.newGroup) }}",
+        "recurring": "{{ p.jsonParameters | ne:'true' | then:(p.additionalFields.recurring | eq:'true' | then:1 | default:(p.additionalFields.recurring | eq:'false' | then:0)) }}",
+        "product_ids": "{{ p.jsonParameters | ne:'true' | then:(p.additionalFields.productIds) }}",
+        "discount_amount": "{{ p.jsonParameters | ne:'true' | then:(p.additionalFields.discount.discountProperties.discountAmount | default:p.additionalFields.discountAmount) }}",
+        "currency": "{{ p.jsonParameters | ne:'true' | then:(p.additionalFields.discount.discountProperties.discountType | ne:'percentage' | then:p.additionalFields.discount.discountProperties.currency | default:p.additionalFields.currency) }}"
+      },
+      "output": {
+        "path": "response"
+      }
+    },
+    {
+      "resource": "payment",
+      "operation": "getAll",
+      "title": "Get many subscription payments",
+      "method": "POST",
+      "path": "/2.0/subscription/payments",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "jsonParameters",
+          "label": "JSON parameters",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "additionalFieldsJson",
+          "label": "Additional fields (JSON)",
+          "type": "json",
+          "default": "",
+          "help": "With JSON parameters on: raw Paddle body fields."
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "from",
+            "to",
+            "isPaid",
+            "plan",
+            "subscriptionId",
+            "state",
+            "isOneOffCharge"
+          ]
+        }
+      ],
+      "body": {
+        "vendor_id": "{{ cred.vendor_id }}",
+        "vendor_auth_code": "{{ cred.vendor_auth_code }}",
+        "$merge": "{{ p.jsonParameters | eq:'true' | then:(p.additionalFieldsJson | fromjson) }}",
+        "subscription_id": "{{ p.jsonParameters | ne:'true' | then:(p.additionalFields.subscriptionId) }}",
+        "plan": "{{ p.jsonParameters | ne:'true' | then:(p.additionalFields.plan) }}",
+        "state": "{{ p.jsonParameters | ne:'true' | then:(p.additionalFields.state) }}",
+        "is_paid": "{{ p.jsonParameters | ne:'true' | then:(p.additionalFields.isPaid | eq:'true' | then:1 | default:0) }}",
+        "from": "{{ p.jsonParameters | ne:'true' | then:(p.additionalFields.from | date:'YYYY-MM-DD') }}",
+        "to": "{{ p.jsonParameters | ne:'true' | then:(p.additionalFields.to | date:'YYYY-MM-DD') }}",
+        "is_one_off_charge": "{{ p.jsonParameters | ne:'true' | then:(p.additionalFields.isOneOffCharge) }}"
+      },
+      "output": {
+        "path": "response",
+        "limit": true
+      }
+    },
+    {
+      "resource": "payment",
+      "operation": "reschedule",
+      "title": "Reschedule a payment",
+      "method": "POST",
+      "path": "/2.0/subscription/payments_reschedule",
+      "fields": [
+        {
+          "key": "paymentId",
+          "label": "Payment ID",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "date",
+          "label": "Date",
+          "type": "datetime",
+          "default": "",
+          "required": true
+        }
+      ],
+      "body": {
+        "vendor_id": "{{ cred.vendor_id }}",
+        "vendor_auth_code": "{{ cred.vendor_auth_code }}",
+        "payment_id": "{{ p.paymentId }}",
+        "date": "{{ p.date | date:'YYYY-MM-DD' }}"
+      }
+    },
+    {
+      "resource": "plan",
+      "operation": "get",
+      "title": "Get a plan",
+      "method": "POST",
+      "path": "/2.0/subscription/plans",
+      "fields": [
+        {
+          "key": "planId",
+          "label": "Plan ID",
+          "type": "text",
+          "default": "",
+          "required": true
+        }
+      ],
+      "body": {
+        "vendor_id": "{{ cred.vendor_id }}",
+        "vendor_auth_code": "{{ cred.vendor_auth_code }}",
+        "plan": "{{ p.planId }}"
+      },
+      "output": {
+        "path": "response"
+      }
+    },
+    {
+      "resource": "plan",
+      "operation": "getAll",
+      "title": "Get many plans",
+      "method": "POST",
+      "path": "/2.0/subscription/plans",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        }
+      ],
+      "body": {
+        "vendor_id": "{{ cred.vendor_id }}",
+        "vendor_auth_code": "{{ cred.vendor_auth_code }}"
+      },
+      "output": {
+        "path": "response",
+        "limit": true
+      }
+    },
+    {
+      "resource": "product",
+      "operation": "getAll",
+      "title": "Get many products",
+      "method": "POST",
+      "path": "/2.0/product/get_products",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        }
+      ],
+      "body": {
+        "vendor_id": "{{ cred.vendor_id }}",
+        "vendor_auth_code": "{{ cred.vendor_auth_code }}"
+      },
+      "output": {
+        "path": "response.products",
+        "limit": true
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "getAll",
+      "title": "Get many subscription users",
+      "method": "POST",
+      "path": "/2.0/subscription/users",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "jsonParameters",
+          "label": "JSON parameters",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "additionalFieldsJson",
+          "label": "Additional fields (JSON)",
+          "type": "json",
+          "default": "",
+          "help": "With JSON parameters on: raw Paddle body fields."
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "planId",
+            "subscriptionId",
+            "state"
+          ]
+        }
+      ],
+      "body": {
+        "vendor_id": "{{ cred.vendor_id }}",
+        "vendor_auth_code": "{{ cred.vendor_auth_code }}",
+        "$merge": "{{ p.jsonParameters | eq:'true' | then:(p.additionalFieldsJson | fromjson) }}",
+        "state": "{{ p.jsonParameters | ne:'true' | then:(p.additionalFields.state) }}",
+        "plan_id": "{{ p.jsonParameters | ne:'true' | then:(p.additionalFields.planId) }}",
+        "subscription_id": "{{ p.jsonParameters | ne:'true' | then:(p.additionalFields.subscriptionId) }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "results_per_page",
+        "page_size": 200,
+        "param_in": "body",
+        "results_path": "response"
+      }
+    }
+  ]
+}

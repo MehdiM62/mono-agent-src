@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/monoes/mono-agent/internal/apipkg"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -18,16 +19,23 @@ import (
 //
 // Config fields:
 //
-//	"operation"     (string, required): "submit_post" | "get_hot" | "comment" | "upvote"
+//	"operation"     (string, required): "submit_post" | "get_hot" | "comment" | "upvote" |
+//	                "list_comments" | "get_post_metrics"
 //	"access_token"  (string, required): OAuth2 bearer token
 //	"user_agent"    (string, optional, default "mono-agent/1.0"): Reddit requires a descriptive User-Agent
 //	"subreddit"     (string, required for submit_post and get_hot)
 //	"title"         (string, required for submit_post)
-//	"kind"          (string, optional, default "self"): "self" | "link" for submit_post
-//	"text"          (string, required for submit_post when kind="self", and for comment)
+//	"kind"          (string, optional): "auto" | "self" | "link" for submit_post; "auto" (or empty) is
+//	                "link" when "url" is set, else "self"
+//	"text"          (string, optional self-post body for submit_post; required for comment)
 //	"url"           (string, required for submit_post when kind="link")
 //	"limit"         (int, optional, default 25): get_hot listing size
-//	"thing_id"      (string, required for comment (parent fullname) and upvote (target fullname))
+//	"thing_id"      (string, required for comment (parent fullname), upvote (target fullname),
+//	                list_comments and get_post_metrics (post fullname "t3_..." or bare ID))
+//
+// It is also the runtime for the legacy "comm.reddit" type (registered as an
+// alias): its "reply_to_comment" operation runs as comment, with a bare ID
+// taken as a comment ("t1_") fullname as it always was there.
 type RedditNode struct{}
 
 func (n *RedditNode) Type() string { return "service.reddit" }
@@ -36,6 +44,9 @@ func (n *RedditNode) Type() string { return "service.reddit" }
 var redditBaseURL = "https://oauth.reddit.com"
 
 func (n *RedditNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
+	if extensionOwns("service.reddit", config) {
+		return apipkg.ExecuteExtension(ctx, "service.reddit", input, config)
+	}
 	accessToken := strVal(config, "access_token")
 	if accessToken == "" {
 		return nil, fmt.Errorf("service.reddit: 'access_token' is required")
@@ -55,6 +66,15 @@ func (n *RedditNode) Execute(ctx context.Context, input workflow.NodeInput, conf
 		return n.comment(ctx, accessToken, userAgent, config)
 	case "upvote":
 		return n.upvote(ctx, accessToken, userAgent, config)
+	case "reply_to_comment": // legacy comm.reddit name
+		if id := strVal(config, "thing_id"); id != "" {
+			config = withDefault(config, "thing_id", redditEnsureFullname(id, "t1"))
+		}
+		return n.comment(ctx, accessToken, userAgent, config)
+	case "list_comments":
+		return n.listComments(ctx, accessToken, userAgent, config)
+	case "get_post_metrics":
+		return n.getPostMetrics(ctx, accessToken, userAgent, config)
 	default:
 		return nil, fmt.Errorf("service.reddit: unknown operation %q", operation)
 	}
@@ -67,8 +87,11 @@ func (n *RedditNode) submitPost(ctx context.Context, accessToken, userAgent stri
 		return nil, fmt.Errorf("service.reddit: 'subreddit' and 'title' are required for submit_post")
 	}
 	kind := strVal(config, "kind")
-	if kind == "" {
+	if kind == "" || kind == "auto" {
 		kind = "self"
+		if strVal(config, "url") != "" {
+			kind = "link"
+		}
 	}
 
 	form := url.Values{}
@@ -83,11 +106,8 @@ func (n *RedditNode) submitPost(ctx context.Context, accessToken, userAgent stri
 		}
 		form.Set("url", linkURL)
 	} else {
-		text := strVal(config, "text")
-		if text == "" {
-			return nil, fmt.Errorf("service.reddit: 'text' is required for submit_post with kind=self")
-		}
-		form.Set("text", text)
+		// A self post may be title-only, so an empty body is sent as-is.
+		form.Set("text", strVal(config, "text"))
 	}
 
 	result, err := redditPostForm(ctx, redditBaseURL+"/api/submit", accessToken, userAgent, form)

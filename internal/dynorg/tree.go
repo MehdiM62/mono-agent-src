@@ -56,8 +56,8 @@ func childRequest(parent *worker, req SpawnRequest) (SpawnRequest, error) {
 }
 
 // accessWithin reports whether a sub-worker with access child stays within
-// its parent's: research under anyone, coding under any writer, and qa or
-// automation only under the same profile.
+// its parent's: research under anyone, coding under any writer, workspace
+// under workspace, and qa or automation under the same profile or workspace.
 func accessWithin(parent, child string) bool {
 	switch {
 	case child == ProfileResearch:
@@ -66,6 +66,8 @@ func accessWithin(parent, child string) bool {
 		return false
 	case child == ProfileCoding:
 		return true
+	case parent == ProfileWorkspace:
+		return true // a superset of qa and automation
 	}
 	return child == parent
 }

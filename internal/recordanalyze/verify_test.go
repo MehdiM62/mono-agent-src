@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -174,5 +176,50 @@ func TestFailureCode(t *testing.T) {
 		if got := FailureCode(c.typ, c.err); got != c.want {
 			t.Errorf("%s %v: got %q want %q", c.typ, c.err, got, c.want)
 		}
+	}
+}
+
+// A recording draft holds what was typed and seen during the recording:
+// its folders are 0700 and its files 0600, also after PromoteHealed
+// rewrites selectors.json.
+func TestDraftFilesArePrivate(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix modes do not apply on Windows")
+	}
+	dir := formDraft(t)
+	sel := filepath.Join(dir, "selectors.json")
+	if err := os.WriteFile(sel, []byte(`{"a":{"candidates":[{"css":"#x"},{"css":"#y"}]}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(sel, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := PromoteHealed(dir, []Observation{{Key: "a", Index: 1, OK: true, Healed: true}}); err != nil || len(got) != 1 {
+		t.Fatalf("PromoteHealed: %v %v", got, err)
+	}
+	n := 0
+	err := filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		info, err := d.Info()
+		if err != nil {
+			return err
+		}
+		want := fs.FileMode(0o600)
+		if d.IsDir() {
+			want = 0o700
+		}
+		if info.Mode().Perm() != want {
+			t.Errorf("%s: mode %v, want %v", p, info.Mode().Perm(), want)
+		}
+		n++
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n < 3 {
+		t.Fatalf("draft has only %d entries", n)
 	}
 }

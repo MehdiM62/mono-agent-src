@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import {
   initialOrgBubble, applyOrgBusEvent, replayOrgBubble, orgStageOf, pendingByRole,
-  emptyOrgSummary, applyOrgSummaryEvent, orgBubbleStatus, orgNeedsCount, touchesThread, orgsToAutoOpen,
+  emptyOrgSummary, applyOrgSummaryEvent, orgBubbleStatus, orgNeedsCount, touchesThread, orgsToAutoOpen, roleThread, teamThread, threadView, isOrgStart,
 } from './orgBubble.js'
 import { LEAD_ID } from './orgStage.js'
 
@@ -241,16 +241,99 @@ describe('orgsToAutoOpen', () => {
     { name: 'off', running: false, needs: 3 },
     { name: 'open', running: true, needs: 1 },
   ]
-  it('opens running orgs that wait on the person and have no bubble', () => {
-    expect(orgsToAutoOpen(rows, new Set(['open']))).toEqual({ open: ['acme'], dismissed: {} })
+  it('docks every running org without a bubble, waiting or not', () => {
+    expect(orgsToAutoOpen(rows, new Set(['open']))).toEqual({ open: ['acme', 'idle'], dismissed: {} })
   })
-  it('keeps a closed bubble closed until more items wait, and forgets it once none do', () => {
-    let r = orgsToAutoOpen(rows, new Set(), { acme: 2 })
+  it('never docks the same org twice', () => {
+    expect(orgsToAutoOpen(rows, new Set(['acme', 'idle', 'open'])).open).toEqual([])
+  })
+  it('keeps a closed bubble closed for the run until more items wait, and forgets it once the org stops', () => {
+    let r = orgsToAutoOpen(rows, new Set(), { acme: 2, idle: 0 })
     expect(r.open).toEqual(['open'])
-    expect(r.dismissed).toEqual({ acme: 2 })
+    expect(r.dismissed).toEqual({ acme: 2, idle: 0 })
     r = orgsToAutoOpen([{ name: 'acme', running: true, needs: 3 }], new Set(), r.dismissed)
     expect(r).toEqual({ open: ['acme'], dismissed: {} })
-    r = orgsToAutoOpen([{ name: 'acme', running: true, needs: 0 }], new Set(), { acme: 2 })
+    r = orgsToAutoOpen([{ name: 'acme', running: false, needs: 0 }], new Set(), { acme: 2 })
     expect(r).toEqual({ open: [], dismissed: {} })
+    // The next run docks again.
+    expect(orgsToAutoOpen([{ name: 'acme', running: true, needs: 0 }], new Set(), r.dismissed).open).toEqual(['acme'])
+  })
+})
+
+describe('ring states: done and error', () => {
+  const run = (...evs) => evs.reduce((s, ev) => applyOrgSummaryEvent(s, ev), emptyOrgSummary('acme'))
+  const started = { id: 'a', ts: 1, org: 'acme', run: 'r1', type: 'status', msg: 'org started (goal: x)' }
+  const stopped = { id: 'z', ts: 9, org: 'acme', run: 'r1', type: 'status', msg: 'org stopped' }
+  it('is green when a run ended cleanly and red when it ended with an error', () => {
+    expect(orgBubbleStatus(run(started, stopped))).toBe('done')
+    const failed = { id: 'e', ts: 5, org: 'acme', run: 'r1', type: 'audit', reason: 'session-result-error', from: 'dev' }
+    expect(orgBubbleStatus(run(started, failed, stopped))).toBe('error')
+  })
+  it('stays amber while a workflow approval waits, whatever else the org does', () => {
+    expect(orgBubbleStatus(run(started, stopped), 1)).toBe('needs')
+    expect(orgBubbleStatus(null, 2)).toBe('needs')
+  })
+  it('counts a run that ends while collapsed as unread', () => {
+    const closed = [started, stopped].reduce((s, ev) => applyOrgSummaryEvent(s, ev, { expanded: false }), emptyOrgSummary('acme'))
+    expect(closed.unread).toBe(1)
+    const open = [started, stopped].reduce((s, ev) => applyOrgSummaryEvent(s, ev, { expanded: true }), emptyOrgSummary('acme'))
+    expect(open.unread).toBe(0)
+  })
+  it('recognises a run start', () => {
+    expect(isOrgStart(started)).toBe(true)
+    expect(isOrgStart(stopped)).toBe(false)
+    expect(isOrgStart({ type: 'status', from: 'ceo', msg: 'org started' })).toBe(false)
+  })
+})
+
+describe('prejoin: every role on the stage from the start', () => {
+  it('shows all roles idle before anyone speaks, under their parents', () => {
+    const s = initialOrgBubble({ ...acme(), prejoin: true })
+    expect(Object.keys(s.stage.nodes).sort()).toEqual([LEAD_ID, 'dev', 'qa'].sort())
+    expect(s.stage.nodes.qa.parentId).toBe('dev')
+    expect(s.stage.nodes.dev.status).toBe('idle')
+  })
+  it('does not change the lazy adapter', () => {
+    expect(Object.keys(initialOrgBubble(acme()).stage.nodes)).toEqual([LEAD_ID])
+  })
+  it('brings them back when a new run resets the stage', () => {
+    let s = initialOrgBubble({ ...acme(), prejoin: true })
+    s = applyOrgBusEvent(s, { id: 'x1', ts: 1, org: 'acme', run: 'r1', type: 'status', msg: 'org started' })
+    s = applyOrgBusEvent(s, { id: 'x2', ts: 2, org: 'acme', run: 'r2', type: 'status', msg: 'org started' })
+    expect(Object.keys(s.stage.nodes)).toContain('qa')
+  })
+  it('keeps replaying the recorded bus to the same thread of messages', () => {
+    const s = replayOrgBubble(ACME, { ...acme(), prejoin: true })
+    expect(Object.keys(s.stage.nodes)).toEqual(expect.arrayContaining([LEAD_ID, 'dev', 'qa']))
+  })
+})
+
+describe('per-role threads', () => {
+  const items = [
+    { kind: 'human', id: 'h', ts: 10, text: 'go' },
+    { kind: 'boss', id: 'b', ts: 20, role: 'ceo', text: 'on it' },
+    { kind: 'team', id: 't1', ts: 30, from: 'ceo', to: 'dev', text: 'draft it' },
+    { kind: 'approval', id: 'a', ts: 40, role: 'dev', ref: 'dev:Bash:1', text: 'Bash' },
+    { kind: 'team', id: 't2', ts: 50, from: 'dev', to: 'qa', text: 'check it' },
+    { kind: 'question', id: 'q', ts: 60, role: 'qa', ref: 'q1', text: 'which?' },
+    { kind: 'send', id: 's', ts: 70, preparedBy: { role: 'dev' }, text: 'hi' },
+  ]
+  const calls = {
+    c1: { callId: 'c1', name: 'Edit', arguments: { file_path: 'a.go' }, status: 'completed', startedAt: new Date(35).toISOString() },
+    c2: { callId: 'c2', name: 'Bash', arguments: '{"command":"go test"}', status: 'started', startedAt: new Date(80).toISOString() },
+  }
+  const state = { calls, callIds: { dev: ['c1', 'c2'] } }
+  it('keeps a role\'s asks, team messages and tool activity, oldest first', () => {
+    expect(roleThread(items, 'dev', state).map(i => i.id)).toEqual(['t1', 'c1', 'a', 't2', 's', 'c2'])
+    expect(roleThread(items, 'qa', state).map(i => i.id)).toEqual(['t2', 'q'])
+  })
+  it('gives the boss its own items and the whole thread by default', () => {
+    expect(roleThread(items, 'ceo', state).map(i => i.id)).toEqual(['b', 't1'])
+    expect(threadView(items, { mode: 'boss' })).toBe(items)
+  })
+  it('shows the team view as role-to-role messages only', () => {
+    expect(teamThread(items).map(i => i.id)).toEqual(['t1', 't2'])
+    expect(threadView(items, { mode: 'team' }).map(i => i.id)).toEqual(['t1', 't2'])
+    expect(threadView(items, { mode: 'role', role: 'qa' }, state).map(i => i.id)).toEqual(['t2', 'q'])
   })
 })

@@ -1,0 +1,71 @@
+/* AskCard and the per-role thread chrome of the org bubble. */
+.ask-card {
+  margin: 4px 0;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: transparent;
+  min-width: 0;
+}
+.ask-card[data-pending="true"] { border-color: rgba(251, 191, 36, 0.45); background: rgba(251, 191, 36, 0.06); }
+.ask-head { display: flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); overflow-wrap: anywhere; }
+.ask-card[data-pending="true"] .ask-head { color: #fbbf24; }
+.ask-actions { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; align-items: center; }
+.ask-input {
+  flex: 1 1 160px; min-width: 0; font-family: var(--font-mono); font-size: 10.5px; background: var(--elevated);
+  border: 1px solid var(--border-bright); border-radius: var(--radius); color: var(--text); padding: 5px 8px; outline: none;
+}
+.ask-input:focus-visible, .ask-text-edit:focus-visible, .ask-field textarea:focus-visible, .ask-text:focus-visible,
+.org-thread-tabs button:focus-visible, .ask-link:focus-visible, .org-waiting-hint:focus-visible { outline: 2px solid var(--cyan); outline-offset: 1px; }
+.ask-facts { margin: 6px 0 0; display: grid; gap: 2px; font-family: var(--font-mono); font-size: 10px; }
+.ask-facts > div { display: flex; gap: 8px; min-width: 0; }
+.ask-facts dt { color: var(--text-muted); flex: 0 0 56px; }
+.ask-facts dd { margin: 0; color: var(--text); min-width: 0; overflow-wrap: anywhere; }
+.ask-link { background: none; border: none; padding: 0; color: var(--cyan); cursor: pointer; font: inherit; text-decoration: underline; }
+.ask-text {
+  margin: 6px 0 0; padding: 7px 9px; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 220px; overflow: auto;
+  font-family: var(--font-body, inherit); font-size: 12px; line-height: 1.5; color: var(--text);
+  background: var(--elevated); border: 1px solid var(--border); border-radius: var(--radius);
+}
+.ask-text-edit {
+  width: 100%; box-sizing: border-box; margin-top: 6px; padding: 7px 9px; resize: vertical; font-size: 12px; line-height: 1.5;
+  background: var(--elevated); color: var(--text); border: 1px solid var(--border-bright); border-radius: var(--radius);
+}
+.ask-field { display: block; margin-top: 6px; font-family: var(--font-mono); font-size: 9.5px; color: var(--text-muted); }
+.ask-field textarea {
+  display: block; width: 100%; box-sizing: border-box; margin-top: 2px; padding: 5px 8px; font-size: 11px; resize: vertical;
+  background: var(--elevated); color: var(--text); border: 1px solid var(--border-bright); border-radius: var(--radius);
+}
+.ask-atts { display: grid; gap: 6px; margin-top: 6px; }
+.ask-att { margin: 0; min-width: 0; font-family: var(--font-mono); font-size: 10px; color: var(--text); }
+.ask-att-image img { display: block; max-width: 100%; max-height: 220px; border-radius: var(--radius); border: 1px solid var(--border); object-fit: contain; background: var(--elevated); }
+.ask-att-image figcaption { margin-top: 2px; color: var(--text-muted); }
+.ask-att-file, .ask-att-link { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border: 1px solid var(--border); border-radius: var(--radius); flex-wrap: wrap; }
+.ask-att-name { overflow-wrap: anywhere; min-width: 0; }
+.ask-att-meta { color: var(--text-muted); }
+.ask-att-missing { display: flex; align-items: center; gap: 6px; padding: 14px; border: 1px dashed var(--border-bright); border-radius: var(--radius); color: var(--text-muted); }
+
+.org-thread-tabs { display: flex; gap: 4px; padding: 5px 12px 0; border-bottom: 1px solid var(--border); flex-shrink: 0; overflow-x: auto; }
+.org-thread-tabs button {
+  background: transparent; border: none; border-bottom: 2px solid transparent; padding: 4px 10px; cursor: pointer; white-space: nowrap;
+  font-family: var(--font-mono); font-size: 10px; color: var(--text-muted);
+}
+.org-thread-tabs button.active { color: var(--cyan); border-bottom-color: var(--cyan); }
+.org-tool-row { display: flex; align-items: center; gap: 6px; margin: 2px 0; font-family: var(--font-mono); font-size: 9.5px; color: var(--text-muted); min-width: 0; }
+.org-tool-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.org-tool-state { margin-left: auto; flex-shrink: 0; }
+.org-tool-state[data-state="running"] { color: var(--cyan); }
+.org-tool-state[data-state="failed"], .org-tool-state[data-state="denied"] { color: var(--red, #ef4444); }
+.org-waiting-hint {
+  display: block; width: 100%; margin: 0 0 6px; padding: 5px 10px; cursor: pointer; text-align: left;
+  font-family: var(--font-mono); font-size: 10px; color: #fbbf24; background: rgba(251, 191, 36, 0.06);
+  border: 1px solid rgba(251, 191, 36, 0.35); border-radius: var(--radius);
+}
+
+/* Narrow window: buttons share the row, facts get a slimmer label column. */
+.bubble-overlay.narrow .ask-facts dt { flex-basis: 44px; }
+.bubble-overlay.narrow .ask-actions .btn { flex: 1 1 auto; justify-content: center; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ask-card, .ask-card * { animation: none !important; transition: none !important; }
+}

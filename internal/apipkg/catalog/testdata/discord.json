@@ -1,0 +1,452 @@
+{
+  "channel.create": {
+    "params": {
+      "guildId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "g1"
+      },
+      "name": "news",
+      "options": {
+        "topic": "t",
+        "categoryId": {
+          "__rl": true,
+          "value": "cat1"
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v10/guilds/g1/channels",
+      "body": {
+        "name": "news",
+        "type": 0,
+        "topic": "t",
+        "parent_id": "cat1"
+      }
+    }
+  },
+  "channel.deleteChannel": {
+    "params": {
+      "guildId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "g1"
+      },
+      "channelId": "c1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v10/channels/c1"
+    }
+  },
+  "channel.get": {
+    "params": {
+      "guildId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "g1"
+      },
+      "channelId": "c1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v10/channels/c1"
+    }
+  },
+  "channel.getAll": {
+    "params": {
+      "guildId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "g1"
+      },
+      "limit": 1
+    },
+    "response": [
+      {
+        "id": "1"
+      },
+      {
+        "id": "2"
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/v10/guilds/g1/channels",
+      "items": 1
+    }
+  },
+  "channel.update": {
+    "params": {
+      "guildId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "g1"
+      },
+      "channelId": "c1",
+      "name": "n2",
+      "options": {
+        "nsfw": true
+      }
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/api/v10/channels/c1",
+      "body": {
+        "name": "n2",
+        "nsfw": true
+      }
+    }
+  },
+  "message.send": {
+    "params": {
+      "guildId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "g1"
+      },
+      "sendTo": "user",
+      "userId": "u1",
+      "content": "hi",
+      "options": {
+        "flags": [
+          "SUPPRESS_EMBEDS"
+        ]
+      },
+      "embeds": {
+        "values": [
+          {
+            "inputMethod": "fields",
+            "title": "T",
+            "color": "#ff0000",
+            "image": "https://x/i.png"
+          }
+        ]
+      }
+    },
+    "responses": [
+      {
+        "id": "dm1"
+      },
+      {
+        "id": "m1"
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/api/v10/channels/dm1/messages",
+      "body": {
+        "content": "hi",
+        "flags": 4,
+        "embeds": [
+          {
+            "title": "T",
+            "color": 16711680,
+            "image": {
+              "url": "https://x/i.png"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "message.deleteMessage": {
+    "params": {
+      "guildId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "g1"
+      },
+      "channelId": "c1",
+      "messageId": "m1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v10/channels/c1/messages/m1"
+    }
+  },
+  "message.get": {
+    "params": {
+      "guildId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "g1"
+      },
+      "channelId": "c1",
+      "messageId": "m1",
+      "options": {
+        "simplify": true
+      }
+    },
+    "response": {
+      "id": "m1",
+      "content": "x",
+      "extra": 1
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v10/channels/c1/messages/m1",
+      "items": 1
+    }
+  },
+  "message.getAll": {
+    "params": {
+      "guildId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "g1"
+      },
+      "channelId": "c1",
+      "limit": 2
+    },
+    "response": [
+      {
+        "id": "9"
+      },
+      {
+        "id": "8"
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/v10/channels/c1/messages",
+      "query": {
+        "limit": "2"
+      },
+      "items": 2
+    }
+  },
+  "message.react": {
+    "params": {
+      "guildId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "g1"
+      },
+      "channelId": "c1",
+      "messageId": "m1",
+      "emoji": "👍"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v10/channels/c1/messages/m1/reactions/%F0%9F%91%8D/@me"
+    }
+  },
+  "member.getAll": {
+    "params": {
+      "guildId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "g1"
+      },
+      "limit": 1,
+      "options": {
+        "simplify": true
+      }
+    },
+    "response": [
+      {
+        "user": {
+          "id": "u1"
+        },
+        "roles": [],
+        "nick": "n"
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/v10/guilds/g1/members",
+      "query": {
+        "limit": "1"
+      },
+      "items": 1
+    }
+  },
+  "member.ban": {
+    "params": {
+      "guildId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "g1"
+      },
+      "userId": "u1",
+      "deleteMessageSeconds": 3600,
+      "reason": "rule_break"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v10/guilds/g1/bans/u1",
+      "body": {
+        "delete_message_seconds": 3600
+      },
+      "headers": {
+        "X-Audit-Log-Reason": "Breaking%20server%20rules"
+      }
+    }
+  },
+  "member.kick": {
+    "params": {
+      "guildId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "g1"
+      },
+      "userId": "u1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v10/guilds/g1/members/u1",
+      "headers": {
+        "X-Audit-Log-Reason": "Suspicious%20or%20spam%20account"
+      }
+    }
+  },
+  "member.roleAdd": {
+    "params": {
+      "guildId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "g1"
+      },
+      "userId": "u1",
+      "role": [
+        "r1",
+        "r2"
+      ]
+    },
+    "expect_requests": [
+      {
+        "method": "GET",
+        "path": "/api/v10/guilds/g1/members/u1"
+      },
+      {
+        "method": "PUT",
+        "path": "/api/v10/guilds/g1/members/u1/roles/r1"
+      },
+      {
+        "method": "PUT",
+        "path": "/api/v10/guilds/g1/members/u1/roles/r2"
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/v10/guilds/g1/members/u1",
+      "items": 1
+    }
+  },
+  "member.roleRemove": {
+    "params": {
+      "guildId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "g1"
+      },
+      "userId": "u1",
+      "role": [
+        "r1"
+      ]
+    },
+    "expect_requests": [
+      {
+        "method": "GET",
+        "path": "/api/v10/guilds/g1/members/u1"
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/v10/guilds/g1/members/u1/roles/r1"
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/v10/guilds/g1/members/u1"
+    }
+  },
+  "member.timeout": {
+    "params": {
+      "guildId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "g1"
+      },
+      "userId": "u1",
+      "duration": "60"
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/api/v10/guilds/g1/members/u1",
+      "body": {
+        "communication_disabled_until": "<any>"
+      }
+    }
+  },
+  "member.unban": {
+    "params": {
+      "guildId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "g1"
+      },
+      "userId": "u1",
+      "reason": "other",
+      "reasonCustom": "appeal"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v10/guilds/g1/bans/u1",
+      "headers": {
+        "X-Audit-Log-Reason": "appeal"
+      }
+    }
+  },
+  "webhook.sendLegacy": {
+    "params": {
+      "content": "hello",
+      "options": {
+        "username": "bot",
+        "wait": true
+      },
+      "files": {
+        "values": [
+          {
+            "inputFieldName": "data"
+          },
+          {
+            "inputFieldName": "data2"
+          }
+        ]
+      }
+    },
+    "credential": {
+      "webhook_uri": "https://discord.com/api/webhooks/1/abc"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/webhooks/1/abc",
+      "query": {
+        "wait": "true"
+      },
+      "body": {
+        "content": "hello",
+        "username": "bot",
+        "payload_json": "{\"attachments\":[{\"filename\":\"a.txt\",\"id\":0},{\"filename\":\"b.png\",\"id\":1}],\"content\":\"hello\",\"username\":\"bot\"}",
+        "files[0]": "file:a.txt:hi",
+        "files[1]": "file:b.png:yo"
+      }
+    },
+    "input": {
+      "binary": {
+        "data": {
+          "data": "aGk=",
+          "fileName": "a.txt",
+          "mimeType": "text/plain"
+        },
+        "data2": {
+          "data": "eW8=",
+          "fileName": "b.png",
+          "mimeType": "image/png"
+        }
+      }
+    }
+  }
+}

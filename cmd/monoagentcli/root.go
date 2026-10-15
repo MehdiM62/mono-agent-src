@@ -8,9 +8,14 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/monoes/mono-agent/internal/account"
+	"github.com/monoes/mono-agent/internal/cli/clicore"
+	"github.com/monoes/mono-agent/internal/cli/profilegate"
+	"github.com/monoes/mono-agent/internal/cli/workflowrun"
 	"github.com/monoes/mono-agent/internal/connections"
 	"github.com/monoes/mono-agent/internal/i18n"
 	"github.com/monoes/mono-agent/internal/nodemgr"
+	"github.com/monoes/mono-agent/internal/profiledir"
 	"github.com/monoes/mono-agent/internal/secrets"
 	"github.com/monoes/mono-agent/internal/storage"
 	"github.com/spf13/cobra"
@@ -27,10 +32,6 @@ type globalConfig struct {
 	LogFile    string
 	ProfileID  string // active profile; defaults to value stored in settings table
 	Lang       string // UI locale; see internal/i18n and docs/i18n.md
-
-	// projectFilter narrows `doctor --project`: monomind projects (paths
-	// relative to the profile folder, or folder names) to check.
-	projectFilter []string
 }
 
 func newRootCmd() *cobra.Command { return buildRootCmd(true) }
@@ -53,13 +54,21 @@ func buildRootCmd(installProvider bool) *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			// The way in (the root's help, help, version and the open commands of the
+			// account gate) reads no action and does no first-run work, and neither
+			// does a serving command while the account is locked.
+			open := !cmd.HasParent() || commandClass(cmd) == classOpen || !needsAutomations(cmd)
 			// Best-effort: install Claude Code skill on first run if Claude is detected.
-			runClaudeFirstRunCheck()
+			if !open && account.Require(cmd.Context()) == nil {
+				runClaudeFirstRunCheck()
+			}
 			// Put monoagent's managed Node on PATH for every child process
 			// (monomind, npm, agent CLIs). One stat when none is installed.
 			nodemgr.Activate(cmd.Context())
 			// Installed automation packages, before anything reads actions.
-			bootAutomationsFor(cmd)
+			if !open {
+				bootAutomationsFor(cmd)
+			}
 		},
 	}
 
@@ -71,8 +80,9 @@ func buildRootCmd(installProvider bool) *cobra.Command {
 	cmd.PersistentFlags().IntVar(&cfg.Workers, "workers", 1, "Number of concurrent browser workers")
 	cmd.PersistentFlags().BoolVarP(&cfg.Verbose, "verbose", "v", false, "Enable debug logging")
 	cmd.PersistentFlags().BoolVar(&cfg.JSONOutput, "json", false, "Output in JSON format")
-	cmd.PersistentFlags().StringVar(&cfg.LogFile, "log-file", "", "Path to log file")
-	cmd.PersistentFlags().StringVar(&cfg.ProfileID, "profile", "", "Profile to use (defaults to the active profile in settings)")
+	cmd.PersistentFlags().StringVar(&cfg.LogFile, "log-file", "", "Write log output to this file (appended) instead of stderr")
+	cmd.PersistentFlags().String("log-level", "", "Log level: debug, info, warn or error (default warn; also MONOAGENT_LOG_LEVEL)")
+	cmd.PersistentFlags().StringVar(&cfg.ProfileID, "profile", "", "Profile to act on (id or name); required by commands that act on a profile")
 	cmd.PersistentFlags().StringVar(&cfg.Lang, "lang", i18n.CurrentLocale(), "UI locale for translated help text (also MONOAGENT_LANG env var); see docs/i18n.md")
 
 	// Register subcommands
@@ -85,6 +95,7 @@ func buildRootCmd(installProvider bool) *cobra.Command {
 		newInitCmd(),
 		newPeopleCmd(cfg),
 		newListCmd(cfg),
+		newTableCmd(cfg),
 		newTemplateCmd(cfg),
 		newConfigCmd(cfg),
 		newExportCmd(cfg),
@@ -99,6 +110,7 @@ func buildRootCmd(installProvider bool) *cobra.Command {
 		newWorkflowCmd(cfg),
 		newDaemonCmd(cfg),
 		newExtensionCmd(cfg),
+		newBrowserCmd(cfg),
 		newNodeCmd(cfg),
 		newConnectCmd(cfg),
 		newRefCmd(),
@@ -123,13 +135,15 @@ func buildRootCmd(installProvider bool) *cobra.Command {
 		newPublicationCmd(cfg),
 		newLibraryCmd(cfg),
 		newAccountCmd(cfg),
+		newIntegrationCmd(cfg),
+		newDBCmd(cfg),
 	)
 
 	// `workflow run --full-outputs`: skip credential-key redaction of
 	// output items in the --json record (4KB truncation still applies).
 	// Registered here on the run subcommand to keep workflow.go untouched.
 	if runCmd, _, err := cmd.Find([]string{"workflow", "run"}); err == nil && runCmd != nil {
-		runCmd.Flags().BoolVar(&fullOutputsFlag, "full-outputs", false,
+		runCmd.Flags().BoolVar(&workflowrun.FullOutputs, "full-outputs", false,
 			"Include unredacted output items in the --json record (values under credential-like keys such as token/password/api_key are masked by default)")
 	}
 
@@ -142,6 +156,7 @@ func buildRootCmd(installProvider bool) *cobra.Command {
 	}
 
 	rejectUnknownSubcommands(cmd)
+	installProfileGate(cmd, cfg)
 
 	return cmd
 }
@@ -165,11 +180,20 @@ func buildRootCmd(installProvider bool) *cobra.Command {
 // command that isn't Runnable *before* it validates args, so a group needs a
 // RunE for its Args check to be reached at all. The RunE is only ever hit
 // with zero args, where it does what cobra did — print help.
+//
+// Replacing cobra's own unknown-command error also replaced its "Did you
+// mean" suggestions, so the error adds them back (SuggestionsFor) before the
+// list of available subcommands.
 func rejectUnknownSubcommands(cmd *cobra.Command) {
 	for _, sub := range cmd.Commands() {
 		rejectUnknownSubcommands(sub)
 	}
 	if cmd.HasSubCommands() && cmd.Args == nil && cmd.Run == nil && cmd.RunE == nil {
+		// A group does no work of its own: the profile gate does not judge it.
+		if cmd.Annotations == nil {
+			cmd.Annotations = map[string]string{}
+		}
+		cmd.Annotations[profilegate.GroupAnnotation] = "true"
 		cmd.Args = func(c *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				return nil
@@ -180,23 +204,21 @@ func rejectUnknownSubcommands(cmd *cobra.Command) {
 					names = append(names, sub.Name())
 				}
 			}
-			return fmt.Errorf("unknown command %q for %q (available: %s)", args[0], c.CommandPath(), strings.Join(names, ", "))
+			msg := fmt.Sprintf("unknown command %q for %q", args[0], c.CommandPath())
+			if c.SuggestionsMinimumDistance <= 0 {
+				c.SuggestionsMinimumDistance = 2 // cobra's default, which only its own lookup applies
+			}
+			if suggestions := c.SuggestionsFor(args[0]); len(suggestions) > 0 {
+				msg += fmt.Sprintf(". Did you mean: %s?", strings.Join(suggestions, ", "))
+			}
+			return fmt.Errorf("%s (available: %s)", msg, strings.Join(names, ", "))
 		}
 		cmd.RunE = func(c *cobra.Command, _ []string) error { return c.Help() }
 	}
 }
 
 // expandPath expands ~ to the user's home directory.
-func expandPath(path string) string {
-	if strings.HasPrefix(path, "~/") {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return path
-		}
-		return filepath.Join(home, path[2:])
-	}
-	return path
-}
+func expandPath(path string) string { return clicore.ExpandPath(path) }
 
 // initDB creates and returns a database connection, applying migrations.
 // It also resolves cfg.ProfileID: if not set via --profile, reads it from the settings table.
@@ -255,8 +277,8 @@ func initDB(cfg *globalConfig) (*storage.Database, error) {
 	return db, nil
 }
 
-// migrateProfilesToPerProfileKeys mirrors the wails app's per-profile vault
-// migration (wails-app/app.go migrateProfilesToPerProfileLayout): every
+// migrateProfilesToPerProfileKeys is the key half of the per-profile
+// migration (`db migrate` adds the folder and vault-file half): every
 // profile's secrets and connection blobs are re-encrypted off the shared
 // legacy key onto the profile's own key. Each pass is idempotent and
 // settles into a cheap no-op once a profile is fully migrated, so running
@@ -313,17 +335,14 @@ func migrateProfilesToPerProfileKeys(db *storage.Database) {
 // row in `profiles`.
 func resolveProfileID(db *sql.DB, idOrName string) (string, error) {
 	var id string
-	if err := db.QueryRow(`SELECT id FROM profiles WHERE id = ?`, idOrName).Scan(&id); err == nil {
-		return id, nil
+	// The reserved machine scope is never a profile id; as a name it is fine.
+	if idOrName != profiledir.MachineProfileID {
+		if err := db.QueryRow(`SELECT id FROM profiles WHERE id = ?`, idOrName).Scan(&id); err == nil {
+			return id, nil
+		}
 	}
 	if err := db.QueryRow(`SELECT id FROM profiles WHERE LOWER(name) = LOWER(?)`, idOrName).Scan(&id); err == nil {
 		return id, nil
 	}
 	return "", errInvalidInput("profile %q not found (checked both id and name)", idOrName)
-}
-
-// ensureDir creates a directory if it does not exist.
-func ensureDir(path string) error {
-	expanded := expandPath(path)
-	return os.MkdirAll(expanded, 0755)
 }

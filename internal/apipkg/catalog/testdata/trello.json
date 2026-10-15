@@ -1,0 +1,602 @@
+{
+  "card.create": {
+    "params": {
+      "listId": "L1",
+      "name": "Do it",
+      "description": "d",
+      "additionalFields": {
+        "due": "2024-01-01",
+        "idLabels": "a,b"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/1/cards",
+      "body": {
+        "idList": "L1",
+        "name": "Do it",
+        "desc": "d",
+        "due": "2024-01-01",
+        "idLabels": "a,b"
+      }
+    }
+  },
+  "card.delete": {
+    "params": {
+      "id": "abc"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/1/cards/abc"
+    }
+  },
+  "card.get": {
+    "params": {
+      "id": {
+        "__rl": true,
+        "mode": "url",
+        "value": "https://trello.com/c/abc123/12-title"
+      },
+      "additionalFields": {
+        "fields": "name",
+        "members": true
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/1/cards/abc123",
+      "query": {
+        "fields": "name",
+        "members": "true"
+      }
+    }
+  },
+  "card.update": {
+    "params": {
+      "id": {
+        "__rl": true,
+        "mode": "id",
+        "value": "abc"
+      },
+      "updateFields": {
+        "name": "n",
+        "closed": true
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/1/cards/abc",
+      "query": {
+        "name": "n",
+        "closed": "true"
+      }
+    }
+  },
+  "attachment.getAll": {
+    "params": {
+      "cardId": "c1"
+    },
+    "response": [
+      {
+        "id": 1
+      },
+      {
+        "id": 2
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/1/cards/c1/attachments",
+      "items": 2
+    }
+  },
+  "attachment.create": {
+    "params": {
+      "cardId": "c1",
+      "url": "https://x",
+      "additionalFields": {
+        "name": "x"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/1/cards/c1/attachments",
+      "body": {
+        "url": "https://x",
+        "name": "x"
+      }
+    }
+  },
+  "attachment.delete": {
+    "params": {
+      "cardId": "c1",
+      "id": "a1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/1/cards/c1/attachments/a1"
+    }
+  },
+  "attachment.get": {
+    "params": {
+      "cardId": "c1",
+      "id": "a1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/1/cards/c1/attachments/a1"
+    }
+  },
+  "board.create": {
+    "params": {
+      "name": "B",
+      "additionalFields": {
+        "prefs_voting": "members"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/1/boards",
+      "body": {
+        "name": "B",
+        "prefs_voting": "members"
+      }
+    }
+  },
+  "board.delete": {
+    "params": {
+      "id": {
+        "__rl": true,
+        "mode": "url",
+        "value": "https://trello.com/b/B1/name"
+      }
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/1/boards/B1"
+    }
+  },
+  "board.get": {
+    "params": {
+      "id": "B1",
+      "additionalFields": {
+        "fields": "all"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/1/boards/B1",
+      "query": {
+        "fields": "all"
+      }
+    }
+  },
+  "board.update": {
+    "params": {
+      "id": "B1",
+      "updateFields": {
+        "desc": "x"
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/1/boards/B1",
+      "query": {
+        "desc": "x"
+      }
+    }
+  },
+  "boardMember.add": {
+    "params": {
+      "id": "B1",
+      "idMember": "M1",
+      "type": "admin"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/1/boards/B1/members/M1",
+      "query": {
+        "type": "admin",
+        "allowBillableGuest": "false"
+      }
+    }
+  },
+  "boardMember.getAll": {
+    "params": {
+      "id": "B1",
+      "limit": 5
+    },
+    "responses": [
+      [
+        {
+          "id": "1"
+        },
+        {
+          "id": "2"
+        }
+      ],
+      []
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/1/boards/B1/members",
+      "query": {
+        "limit": "5"
+      },
+      "items": 2
+    }
+  },
+  "boardMember.invite": {
+    "params": {
+      "id": "B1",
+      "email": "a@b.c",
+      "additionalFields": {
+        "type": "normal",
+        "fullName": "Ada"
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/1/boards/B1/members",
+      "query": {
+        "email": "a@b.c",
+        "type": "normal"
+      },
+      "body": {
+        "fullName": "Ada"
+      }
+    }
+  },
+  "boardMember.remove": {
+    "params": {
+      "id": "B1",
+      "idMember": "M1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/1/boards/B1/members/M1"
+    }
+  },
+  "cardComment.create": {
+    "params": {
+      "cardId": "c1",
+      "text": "hi"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/1/cards/c1/actions/comments",
+      "body": {
+        "text": "hi"
+      }
+    }
+  },
+  "cardComment.delete": {
+    "params": {
+      "cardId": "c1",
+      "commentId": "k1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/1/cards/c1/actions/k1/comments"
+    }
+  },
+  "cardComment.update": {
+    "params": {
+      "cardId": "c1",
+      "commentId": "k1",
+      "text": "yo"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/1/cards/c1/actions/k1/comments",
+      "query": {
+        "text": "yo"
+      }
+    }
+  },
+  "checklist.getAll": {
+    "params": {
+      "cardId": "c1"
+    },
+    "response": [
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/1/cards/c1/checklists",
+      "items": 1
+    }
+  },
+  "checklist.create": {
+    "params": {
+      "cardId": "c1",
+      "name": "CL"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/1/cards/c1/checklists",
+      "body": {
+        "name": "CL"
+      }
+    }
+  },
+  "checklist.createCheckItem": {
+    "params": {
+      "checklistId": "k1",
+      "name": "step",
+      "additionalFields": {
+        "checked": true
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/1/checklists/k1/checkItems",
+      "body": {
+        "name": "step",
+        "checked": true
+      }
+    }
+  },
+  "checklist.delete": {
+    "params": {
+      "cardId": "c1",
+      "id": "k1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/1/cards/c1/checklists/k1"
+    }
+  },
+  "checklist.deleteCheckItem": {
+    "params": {
+      "cardId": "c1",
+      "checkItemId": "i1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/1/cards/c1/checkItem/i1"
+    }
+  },
+  "checklist.get": {
+    "params": {
+      "id": "k1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/1/checklists/k1"
+    }
+  },
+  "checklist.getCheckItem": {
+    "params": {
+      "cardId": "c1",
+      "checkItemId": "i1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/1/cards/c1/checkItem/i1"
+    }
+  },
+  "checklist.completedCheckItems": {
+    "params": {
+      "cardId": "c1"
+    },
+    "response": [
+      {
+        "idCheckItem": "i1"
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/1/cards/c1/checkItemStates",
+      "items": 1
+    }
+  },
+  "checklist.updateCheckItem": {
+    "params": {
+      "cardId": "c1",
+      "checkItemId": "i1",
+      "additionalFields": {
+        "state": "complete"
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/1/cards/c1/checkItem/i1",
+      "query": {
+        "state": "complete"
+      }
+    }
+  },
+  "label.getAll": {
+    "params": {
+      "boardId": "B1"
+    },
+    "response": [
+      {
+        "id": 1
+      },
+      {
+        "id": 2
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/1/board/B1/labels",
+      "items": 2
+    }
+  },
+  "label.addLabel": {
+    "params": {
+      "cardId": "c1",
+      "id": "lb"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/1/cards/c1/idLabels",
+      "body": {
+        "value": "lb"
+      }
+    }
+  },
+  "label.create": {
+    "params": {
+      "boardId": "B1",
+      "name": "Bug",
+      "color": "red"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/1/labels",
+      "body": {
+        "idBoard": "B1",
+        "name": "Bug",
+        "color": "red"
+      }
+    }
+  },
+  "label.delete": {
+    "params": {
+      "id": "lb"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/1/labels/lb"
+    }
+  },
+  "label.get": {
+    "params": {
+      "id": "lb"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/1/labels/lb"
+    }
+  },
+  "label.removeLabel": {
+    "params": {
+      "cardId": "c1",
+      "id": "lb"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/1/cards/c1/idLabels/lb"
+    }
+  },
+  "label.update": {
+    "params": {
+      "id": "lb",
+      "updateFields": {
+        "color": "blue"
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/1/labels/lb",
+      "query": {
+        "color": "blue"
+      }
+    }
+  },
+  "list.create": {
+    "params": {
+      "idBoard": "B1",
+      "name": "Todo",
+      "additionalFields": {
+        "pos": "top"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/1/lists",
+      "body": {
+        "idBoard": "B1",
+        "name": "Todo",
+        "pos": "top"
+      }
+    }
+  },
+  "list.archive": {
+    "params": {
+      "id": "L1",
+      "archive": true
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/1/lists/L1/closed",
+      "query": {
+        "value": "true"
+      }
+    }
+  },
+  "list.get": {
+    "params": {
+      "id": "L1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/1/lists/L1"
+    }
+  },
+  "list.getCards": {
+    "params": {
+      "id": "L1",
+      "returnAll": true
+    },
+    "responses": [
+      [
+        {
+          "id": "1"
+        }
+      ],
+      []
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/1/lists/L1/cards",
+      "query": {
+        "sort": "-id",
+        "limit": "30"
+      },
+      "items": 1
+    }
+  },
+  "list.getAll": {
+    "params": {
+      "id": "B1",
+      "limit": 1
+    },
+    "response": [
+      {
+        "id": "1"
+      },
+      {
+        "id": "2"
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/1/boards/B1/lists",
+      "query": {
+        "limit": "1"
+      },
+      "items": 1
+    }
+  },
+  "list.update": {
+    "params": {
+      "id": "L1",
+      "updateFields": {
+        "name": "x"
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/1/lists/L1",
+      "query": {
+        "name": "x"
+      }
+    }
+  }
+}

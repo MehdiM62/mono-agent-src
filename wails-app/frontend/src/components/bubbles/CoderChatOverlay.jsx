@@ -72,7 +72,7 @@ export function CoderChatOverlay({ bubble, store, originRect, onCollapse, onClos
     let cwd = setup.workspace?.kind === 'folder' ? setup.workspace.path : ''
     let workspace = null
     if (!cwd) {
-      workspace = await api.coderWorkspaceRoot(runtime)
+      workspace = await api.coderWorkspaceDefault(runtime)
       cwd = workspace.path
     }
     const conv = await api.createCoderConversation(runtime, setup.model, setup.effort || '', cwd, false)

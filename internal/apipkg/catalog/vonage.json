@@ -1,0 +1,117 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "vonage",
+  "node_type": "app.vonage",
+  "title": "Vonage",
+  "description": "Send SMS through the Vonage (Nexmo) SMS API",
+  "category": "app",
+  "docs_url": "https://developer.vonage.com/en/api/sms",
+  "n8n_types": [
+    "n8n-nodes-base.vonage"
+  ],
+  "base_url": "https://rest.nexmo.com",
+  "credentials": [
+    {
+      "platform": "vonage",
+      "name": "Vonage",
+      "n8n_credential": "vonageApi",
+      "n8n_field_map": {
+        "apiKey": "api_key",
+        "apiSecret": "api_secret"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "api_key",
+          "label": "API key",
+          "required": true
+        },
+        {
+          "key": "api_secret",
+          "label": "API secret",
+          "secret": true,
+          "required": true,
+          "help": "Vonage dashboard → API settings"
+        }
+      ],
+      "inject": {
+        "body": {
+          "api_key": "{{ cred.api_key }}",
+          "api_secret": "{{ cred.api_secret }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "sms",
+      "label": "SMS"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "sms",
+      "operation": "send",
+      "title": "Send an SMS",
+      "method": "POST",
+      "path": "/sms/json",
+      "body_type": "form",
+      "body": {
+        "from": "{{ p.from }}",
+        "to": "{{ p.to }}",
+        "type": "text",
+        "text": "{{ p.message }}",
+        "account-ref": "{{ p.additionalFields.account-ref }}",
+        "callback": "{{ p.additionalFields.callback }}",
+        "client-ref": "{{ p.additionalFields.client-ref }}",
+        "message-class": "{{ p.additionalFields.message-class }}",
+        "protocol-id": "{{ p.additionalFields.protocol-id }}",
+        "status-report-req": "{{ p.additionalFields.status-report-req }}",
+        "ttl": "{{ p.additionalFields.ttl | mul:60000 }}"
+      },
+      "output": {
+        "path": "messages"
+      },
+      "fields": [
+        {
+          "key": "from",
+          "label": "From",
+          "type": "text",
+          "default": "",
+          "help": "Sender name or number"
+        },
+        {
+          "key": "to",
+          "label": "To",
+          "type": "text",
+          "default": "",
+          "help": "Recipient number in E.164 format"
+        },
+        {
+          "key": "message",
+          "label": "Message",
+          "type": "textarea",
+          "default": ""
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "account-ref",
+            "callback",
+            "client-ref",
+            "message-class",
+            "protocol-id",
+            "status-report-req",
+            "ttl"
+          ],
+          "help": "ttl is in minutes"
+        }
+      ]
+    }
+  ]
+}

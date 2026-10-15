@@ -1,0 +1,18 @@
+{
+  "email.check": {
+    "params": {
+      "email": "ada@example.com"
+    },
+    "response": {
+      "trustRate": 90
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/singleEmail:check",
+      "body": {
+        "email": "ada@example.com"
+      },
+      "items": 1
+    }
+  }
+}

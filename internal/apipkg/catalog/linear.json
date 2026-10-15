@@ -1,0 +1,352 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "linear",
+  "extends": "service.linear",
+  "title": "Linear",
+  "description": "Issues, issue links and comments in Linear (n8n operations, GraphQL)",
+  "category": "app",
+  "docs_url": "https://developers.linear.app/docs/graphql/working-with-the-graphql-api",
+  "n8n_types": [
+    "n8n-nodes-base.linear"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.linearTrigger"
+  ],
+  "base_url": "https://api.linear.app",
+  "error_when": "{{ res.errors }}",
+  "error_message": "{{ res.errors.0.message }}",
+  "headers": {
+    "Accept": "application/json"
+  },
+  "credentials": [
+    {
+      "platform": "linear",
+      "reuse_platform": "linear",
+      "name": "Linear",
+      "n8n_credential": "linearApi",
+      "n8n_credential_alt": [
+        "linearOAuth2Api"
+      ],
+      "n8n_field_map": {
+        "apiKey": "api_key"
+      },
+      "methods": [
+        "api_key",
+        "oauth"
+      ],
+      "fields": [
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true,
+          "help": "linear.app → Settings → API"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "{{ cred.access_token | prefix:'Bearer ' | default:cred.api_key }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "issue",
+      "label": "Issue"
+    },
+    {
+      "value": "comment",
+      "label": "Comment"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "issue",
+      "operation": "create",
+      "title": "Create an issue",
+      "method": "POST",
+      "path": "/graphql",
+      "fields": [
+        {
+          "key": "teamId",
+          "label": "Team ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "assigneeId",
+            "description",
+            "priorityId",
+            "stateId"
+          ],
+          "help": "priorityId: 0 none, 1 urgent, 2 high, 3 normal, 4 low"
+        }
+      ],
+      "body": {
+        "query": "mutation IssueCreate($title: String!, $teamId: String!, $description: String, $assigneeId: String, $priorityId: Int, $stateId: String) { issueCreate(input: {title: $title, teamId: $teamId, description: $description, assigneeId: $assigneeId, priority: $priorityId, stateId: $stateId}) { success issue { id identifier title priority archivedAt createdAt description dueDate assignee { id displayName email } creator { id displayName email } state { id name } team { id name } cycle { id name } } } }",
+        "variables": {
+          "teamId": "{{ p.teamId }}",
+          "title": "{{ p.title }}",
+          "$merge": "{{ p.additionalFields }}"
+        }
+      },
+      "output": {
+        "path": "data.issueCreate.issue"
+      }
+    },
+    {
+      "resource": "issue",
+      "operation": "addLink",
+      "title": "Add a link to an issue",
+      "method": "POST",
+      "path": "/graphql",
+      "fields": [
+        {
+          "key": "issueId",
+          "label": "Issue ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "link",
+          "label": "Link",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "query": "mutation AttachmentLinkURL($url: String!, $issueId: String!) { attachmentLinkURL(url: $url, issueId: $issueId) { success } }",
+        "variables": {
+          "issueId": "{{ p.issueId }}",
+          "url": "{{ p.link }}"
+        }
+      },
+      "output": {
+        "path": "data.attachmentLinkURL"
+      }
+    },
+    {
+      "resource": "issue",
+      "operation": "delete",
+      "title": "Delete an issue",
+      "method": "POST",
+      "path": "/graphql",
+      "fields": [
+        {
+          "key": "issueId",
+          "label": "Issue ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "query": "mutation IssueDelete($issueId: String!) { issueDelete(id: $issueId) { success } }",
+        "variables": {
+          "issueId": "{{ p.issueId }}"
+        }
+      },
+      "output": {
+        "path": "data.issueDelete"
+      }
+    },
+    {
+      "resource": "issue",
+      "operation": "get",
+      "title": "Get an issue",
+      "method": "POST",
+      "path": "/graphql",
+      "fields": [
+        {
+          "key": "issueId",
+          "label": "Issue ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "query": "query Issue($issueId: String!) { issue(id: $issueId) { id identifier title priority archivedAt createdAt description dueDate assignee { id displayName email } creator { id displayName email } state { id name } team { id name } cycle { id name } } }",
+        "variables": {
+          "issueId": "{{ p.issueId }}"
+        }
+      },
+      "output": {
+        "path": "data.issue"
+      }
+    },
+    {
+      "resource": "issue",
+      "operation": "getAll",
+      "title": "Get many issues",
+      "method": "POST",
+      "path": "/graphql",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "body": {
+        "query": "query Issues($first: Int, $after: String) { issues(first: $first, after: $after) { nodes { id identifier title priority archivedAt createdAt description dueDate assignee { id displayName email } creator { id displayName email } state { id name } team { id name } cycle { id name } } pageInfo { hasNextPage endCursor } } }"
+      },
+      "output": {
+        "path": "data.issues.nodes"
+      },
+      "pagination": {
+        "type": "cursor",
+        "param_in": "body",
+        "cursor_param": "variables.after",
+        "limit_param": "variables.first",
+        "page_size": 50,
+        "cursor_path": "data.issues.pageInfo.endCursor",
+        "has_more_path": "data.issues.pageInfo.hasNextPage",
+        "results_path": "data.issues.nodes"
+      }
+    },
+    {
+      "resource": "issue",
+      "operation": "update",
+      "title": "Update an issue",
+      "method": "POST",
+      "path": "/graphql",
+      "fields": [
+        {
+          "key": "issueId",
+          "label": "Issue ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "assigneeId",
+            "description",
+            "priorityId",
+            "stateId",
+            "teamId",
+            "title"
+          ],
+          "help": "priorityId: 0 none, 1 urgent, 2 high, 3 normal, 4 low"
+        }
+      ],
+      "body": {
+        "query": "mutation IssueUpdate($issueId: String!, $title: String, $teamId: String, $description: String, $assigneeId: String, $priorityId: Int, $stateId: String) { issueUpdate(id: $issueId, input: {title: $title, teamId: $teamId, description: $description, assigneeId: $assigneeId, priority: $priorityId, stateId: $stateId}) { success issue { id identifier title priority archivedAt createdAt description dueDate assignee { id displayName email } creator { id displayName email } state { id name } team { id name } cycle { id name } } } }",
+        "variables": {
+          "issueId": "{{ p.issueId }}",
+          "$merge": "{{ p.updateFields }}"
+        }
+      },
+      "output": {
+        "path": "data.issueUpdate.issue"
+      }
+    },
+    {
+      "resource": "comment",
+      "operation": "addComment",
+      "title": "Add a comment to an issue",
+      "method": "POST",
+      "path": "/graphql",
+      "fields": [
+        {
+          "key": "issueId",
+          "label": "Issue ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "comment",
+          "label": "Comment",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "parentId"
+          ],
+          "help": "parentId: comment to reply to"
+        }
+      ],
+      "body": {
+        "query": "mutation CommentCreate($issueId: String!, $body: String!, $parentId: String) { commentCreate(input: {issueId: $issueId, body: $body, parentId: $parentId}) { success comment { id } } }",
+        "variables": {
+          "issueId": "{{ p.issueId }}",
+          "body": "{{ p.comment }}",
+          "parentId": "{{ p.additionalFields.parentId | re:'^\\s*(.*?)\\s*$' }}"
+        }
+      },
+      "output": {
+        "path": "data.commentCreate"
+      }
+    }
+  ],
+  "webhook": {
+    "fields": [
+      {
+        "key": "teamId",
+        "label": "Team ID",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "resources",
+        "label": "Resources",
+        "type": "array",
+        "required": true
+      }
+    ],
+    "create": [
+      {
+        "method": "POST",
+        "path": "/graphql",
+        "body": {
+          "query": "mutation webhookCreate($url: String!, $teamId: String!, $resources: [String!]!) { webhookCreate(input: {url: $url, teamId: $teamId, resourceTypes: $resources}) { success webhook { id enabled } } }",
+          "variables": {
+            "url": "{{ hook.url }}",
+            "teamId": "{{ p.teamId }}",
+            "resources": "{{ p.resources | map:'reaction=Reaction,cycle=Cycle,attachment=Attachment,issue=Issue,comment=Comment,issueLabel=IssueLabel,project=Project' }}"
+          }
+        }
+      }
+    ],
+    "id": "{{ res.data.webhookCreate.webhook.id }}",
+    "delete": [
+      {
+        "method": "POST",
+        "path": "/graphql",
+        "body": {
+          "query": "mutation webhookDelete($id: String!) { webhookDelete(id: $id) { success } }",
+          "variables": {
+            "id": "{{ hook.id }}"
+          }
+        }
+      }
+    ]
+  }
+}

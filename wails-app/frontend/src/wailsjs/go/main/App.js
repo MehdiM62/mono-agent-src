@@ -186,6 +186,10 @@ export function CancelHealthRun(arg1) {
   return window['go']['main']['App']['CancelHealthRun'](arg1);
 }
 
+export function CancelPlatformOAuth(arg1) {
+  return window['go']['main']['App']['CancelPlatformOAuth'](arg1);
+}
+
 export function CancelWorkflow(arg1) {
   return window['go']['main']['App']['CancelWorkflow'](arg1);
 }
@@ -242,6 +246,10 @@ export function CoderWorkspaceList() {
   return window['go']['main']['App']['CoderWorkspaceList']();
 }
 
+export function CoderWorkspaceDefault(arg1) {
+  return window['go']['main']['App']['CoderWorkspaceDefault'](arg1);
+}
+
 export function CoderWorkspaceRoot(arg1) {
   return window['go']['main']['App']['CoderWorkspaceRoot'](arg1);
 }
@@ -256,6 +264,10 @@ export function ConfirmSocialLogin(arg1) {
 
 export function ConnectPlatformOAuth(arg1) {
   return window['go']['main']['App']['ConnectPlatformOAuth'](arg1);
+}
+
+export function ConnectPlatformOAuthFields(arg1, arg2, arg3) {
+  return window['go']['main']['App']['ConnectPlatformOAuthFields'](arg1, arg2, arg3);
 }
 
 export function ControlOrg(arg1, arg2) {
@@ -456,6 +468,10 @@ export function GetEffectiveTools(arg1, arg2) {
 
 export function GetExecutionDetail(arg1) {
   return window['go']['main']['App']['GetExecutionDetail'](arg1);
+}
+
+export function GetExtensionStatus() {
+  return window['go']['main']['App']['GetExtensionStatus']();
 }
 
 export function GetGlobalOrgSummary(arg1) {
@@ -682,8 +698,64 @@ export function GetWorkflowTriggerInputs(arg1) {
   return window['go']['main']['App']['GetWorkflowTriggerInputs'](arg1);
 }
 
+export function HILAttachment(arg1, arg2) {
+  return window['go']['main']['App']['HILAttachment'](arg1, arg2);
+}
+
+export function HILList() {
+  return window['go']['main']['App']['HILList']();
+}
+
+export function HILResolve(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['HILResolve'](arg1, arg2, arg3, arg4);
+}
+
 export function HasGeneratedDocuments(arg1) {
   return window['go']['main']['App']['HasGeneratedDocuments'](arg1);
+}
+
+export function HilSendAllowAdd(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['HilSendAllowAdd'](arg1, arg2, arg3, arg4);
+}
+
+export function HilSendAllowList() {
+  return window['go']['main']['App']['HilSendAllowList']();
+}
+
+export function HilSendAllowRemove(arg1) {
+  return window['go']['main']['App']['HilSendAllowRemove'](arg1);
+}
+
+export function HilSendAttachment(arg1, arg2) {
+  return window['go']['main']['App']['HilSendAttachment'](arg1, arg2);
+}
+
+export function HilSendAttachmentData(arg1, arg2) {
+  return window['go']['main']['App']['HilSendAttachmentData'](arg1, arg2);
+}
+
+export function HilSendEdit(arg1, arg2, arg3) {
+  return window['go']['main']['App']['HilSendEdit'](arg1, arg2, arg3);
+}
+
+export function HilSendList(arg1) {
+  return window['go']['main']['App']['HilSendList'](arg1);
+}
+
+export function HilSendRecipient(arg1) {
+  return window['go']['main']['App']['HilSendRecipient'](arg1);
+}
+
+export function HilSendResolve(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['main']['App']['HilSendResolve'](arg1, arg2, arg3, arg4, arg5);
+}
+
+export function HilSendSetApproval(arg1) {
+  return window['go']['main']['App']['HilSendSetApproval'](arg1);
+}
+
+export function HilSendShow(arg1) {
+  return window['go']['main']['App']['HilSendShow'](arg1);
 }
 
 export function ImportVaultAll(arg1, arg2) {
@@ -914,6 +986,10 @@ export function MoveProfileFolder(arg1, arg2) {
   return window['go']['main']['App']['MoveProfileFolder'](arg1, arg2);
 }
 
+export function NodeConfigFromCurl(arg1) {
+  return window['go']['main']['App']['NodeConfigFromCurl'](arg1);
+}
+
 export function OpenAnyFilePicker(arg1) {
   return window['go']['main']['App']['OpenAnyFilePicker'](arg1);
 }
@@ -962,6 +1038,10 @@ export function OrgSignatureStatus(arg1) {
   return window['go']['main']['App']['OrgSignatureStatus'](arg1);
 }
 
+export function PairExtension() {
+  return window['go']['main']['App']['PairExtension']();
+}
+
 export function PauseOrgAutonomy(arg1, arg2) {
   return window['go']['main']['App']['PauseOrgAutonomy'](arg1, arg2);
 }
@@ -970,12 +1050,40 @@ export function PickCoderFolder() {
   return window['go']['main']['App']['PickCoderFolder']();
 }
 
+export function PlatformNames() {
+  return window['go']['main']['App']['PlatformNames']();
+}
+
 export function PromoteRoleToRoot(arg1, arg2) {
   return window['go']['main']['App']['PromoteRoleToRoot'](arg1, arg2);
 }
 
+export function QueueDismiss(arg1) {
+  return window['go']['main']['App']['QueueDismiss'](arg1);
+}
+
+export function QueueImage(arg1) {
+  return window['go']['main']['App']['QueueImage'](arg1);
+}
+
+export function QueueList() {
+  return window['go']['main']['App']['QueueList']();
+}
+
+export function QueueStart(arg1, arg2) {
+  return window['go']['main']['App']['QueueStart'](arg1, arg2);
+}
+
+export function ReadHILScreenshot(arg1) {
+  return window['go']['main']['App']['ReadHILScreenshot'](arg1);
+}
+
 export function ReadJSONFile(arg1) {
   return window['go']['main']['App']['ReadJSONFile'](arg1);
+}
+
+export function ReadWorkspaceImage(arg1, arg2) {
+  return window['go']['main']['App']['ReadWorkspaceImage'](arg1, arg2);
 }
 
 export function RejectDraftPersonMessage(arg1) {
@@ -1078,6 +1186,10 @@ export function SandboxFallbackSet(arg1) {
   return window['go']['main']['App']['SandboxFallbackSet'](arg1);
 }
 
+export function SaveChatAttachment(arg1, arg2, arg3) {
+  return window['go']['main']['App']['SaveChatAttachment'](arg1, arg2, arg3);
+}
+
 export function SaveConnectionDirect(arg1, arg2, arg3) {
   return window['go']['main']['App']['SaveConnectionDirect'](arg1, arg2, arg3);
 }
@@ -1174,6 +1286,10 @@ export function ShowAutomation(arg1) {
   return window['go']['main']['App']['ShowAutomation'](arg1);
 }
 
+export function ShowPlatform(arg1) {
+  return window['go']['main']['App']['ShowPlatform'](arg1);
+}
+
 export function ShowRecording(arg1) {
   return window['go']['main']['App']['ShowRecording'](arg1);
 }
@@ -1182,8 +1298,8 @@ export function StartAgentValidation(arg1, arg2, arg3) {
   return window['go']['main']['App']['StartAgentValidation'](arg1, arg2, arg3);
 }
 
-export function StartChatTurn(arg1, arg2, arg3, arg4, arg5) {
-  return window['go']['main']['App']['StartChatTurn'](arg1, arg2, arg3, arg4, arg5);
+export function StartChatTurn(arg1, arg2, arg3, arg4, arg5, arg6) {
+  return window['go']['main']['App']['StartChatTurn'](arg1, arg2, arg3, arg4, arg5, arg6);
 }
 
 export function StartOrgGroup(arg1) {

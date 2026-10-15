@@ -19,8 +19,9 @@ import (
 	"time"
 )
 
-// ReleasesRepo is the public releases-only GitHub repository.
-const ReleasesRepo = "monoes/mono-agent-releases"
+// ReleasesRepo is the public releases-only GitHub repository (the source
+// repository is private and never named in a URL a client uses).
+const ReleasesRepo = "monoes/mono-agent"
 
 // ManifestURL is where monoes.me serves the latest signed manifest.
 const ManifestURL = "https://monoes.me/mono-agent/releases/latest/manifest.json"
@@ -77,13 +78,9 @@ type Manifest struct {
 	Assets    []Asset `json:"assets"`
 }
 
-// Verify checks sig (a "<key-id> <base64 signature>" line) over the exact
-// manifest bytes against the pinned keys and parses the manifest.
-func Verify(manifest, sig []byte) (*Manifest, error) {
-	return VerifyWith(PinnedKeys(), manifest, sig)
-}
-
-// VerifyWith is Verify against explicit keys.
+// VerifyWith checks sig (a "<key-id> <base64 signature>" line) over the
+// exact manifest bytes against keys (normally PinnedKeys()) and parses the
+// manifest.
 func VerifyWith(keys []Key, manifest, sig []byte) (*Manifest, error) {
 	if len(keys) == 0 {
 		return nil, fmt.Errorf("%w: this build pins no release key", ErrUnavailable)

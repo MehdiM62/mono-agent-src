@@ -1,0 +1,632 @@
+{
+  "issue.create": {
+    "params": {
+      "projectId": "5",
+      "subject": "S",
+      "additionalFields": {
+        "tags": [
+          "a"
+        ]
+      }
+    },
+    "credential": {
+      "username": "u",
+      "password": "pw",
+      "url": ""
+    },
+    "responses": [
+      {
+        "auth_token": "A"
+      },
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/issues",
+      "body": {
+        "project": "5",
+        "subject": "S",
+        "tags": [
+          "a"
+        ]
+      },
+      "headers": {
+        "Authorization": "Bearer A"
+      },
+      "items": 1
+    }
+  },
+  "issue.delete": {
+    "params": {
+      "issueId": "1"
+    },
+    "credential": {
+      "username": "u",
+      "password": "pw",
+      "url": ""
+    },
+    "responses": [
+      {
+        "auth_token": "A"
+      }
+    ],
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v1/issues/1"
+    }
+  },
+  "issue.get": {
+    "params": {
+      "issueId": "1"
+    },
+    "credential": {
+      "username": "u",
+      "password": "pw",
+      "url": ""
+    },
+    "responses": [
+      {
+        "auth_token": "A"
+      },
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/issues/1",
+      "items": 1
+    }
+  },
+  "issue.getAll": {
+    "params": {
+      "projectId": "5",
+      "limit": 1,
+      "filters": {
+        "assigned_to": "3"
+      }
+    },
+    "credential": {
+      "username": "u",
+      "password": "pw",
+      "url": ""
+    },
+    "responses": [
+      {
+        "auth_token": "A"
+      },
+      [
+        {
+          "id": 1
+        },
+        {
+          "id": 2
+        }
+      ]
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/issues",
+      "query": {
+        "project": "5",
+        "assigned_to": "3"
+      },
+      "headers": {
+        "x-disable-pagination": "True"
+      },
+      "items": 1
+    }
+  },
+  "issue.update": {
+    "params": {
+      "issueId": "1",
+      "updateFields": {
+        "subject": "New"
+      }
+    },
+    "credential": {
+      "username": "u",
+      "password": "pw",
+      "url": ""
+    },
+    "responses": [
+      {
+        "auth_token": "A"
+      },
+      {
+        "id": 1,
+        "version": 4
+      },
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "PATCH",
+      "path": "/api/v1/issues/1",
+      "body": {
+        "subject": "New",
+        "version": 4
+      },
+      "headers": {
+        "Authorization": "Bearer A"
+      }
+    }
+  },
+  "epic.create": {
+    "params": {
+      "projectId": "5",
+      "subject": "S",
+      "additionalFields": {
+        "tags": [
+          "a"
+        ]
+      }
+    },
+    "credential": {
+      "username": "u",
+      "password": "pw",
+      "url": ""
+    },
+    "responses": [
+      {
+        "auth_token": "A"
+      },
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/epics",
+      "body": {
+        "project": "5",
+        "subject": "S",
+        "tags": [
+          "a"
+        ]
+      },
+      "headers": {
+        "Authorization": "Bearer A"
+      },
+      "items": 1
+    }
+  },
+  "epic.delete": {
+    "params": {
+      "epicId": "1"
+    },
+    "credential": {
+      "username": "u",
+      "password": "pw",
+      "url": ""
+    },
+    "responses": [
+      {
+        "auth_token": "A"
+      }
+    ],
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v1/epics/1"
+    }
+  },
+  "epic.get": {
+    "params": {
+      "epicId": "1"
+    },
+    "credential": {
+      "username": "u",
+      "password": "pw",
+      "url": ""
+    },
+    "responses": [
+      {
+        "auth_token": "A"
+      },
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/epics/1",
+      "items": 1
+    }
+  },
+  "epic.getAll": {
+    "params": {
+      "projectId": "5",
+      "limit": 1,
+      "filters": {
+        "assigned_to": "3",
+        "statusIsClosed": true
+      }
+    },
+    "credential": {
+      "username": "u",
+      "password": "pw",
+      "url": ""
+    },
+    "responses": [
+      {
+        "auth_token": "A"
+      },
+      [
+        {
+          "id": 1
+        },
+        {
+          "id": 2
+        }
+      ]
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/epics",
+      "query": {
+        "project": "5",
+        "assigned_to": "3",
+        "status__is_closed": "true"
+      },
+      "headers": {
+        "x-disable-pagination": "True"
+      },
+      "items": 1
+    }
+  },
+  "epic.update": {
+    "params": {
+      "epicId": "1",
+      "updateFields": {
+        "subject": "New"
+      }
+    },
+    "credential": {
+      "username": "u",
+      "password": "pw",
+      "url": ""
+    },
+    "responses": [
+      {
+        "auth_token": "A"
+      },
+      {
+        "id": 1,
+        "version": 4
+      },
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "PATCH",
+      "path": "/api/v1/epics/1",
+      "body": {
+        "subject": "New",
+        "version": 4
+      },
+      "headers": {
+        "Authorization": "Bearer A"
+      }
+    }
+  },
+  "task.create": {
+    "params": {
+      "projectId": "5",
+      "subject": "S",
+      "additionalFields": {
+        "tags": [
+          "a"
+        ]
+      }
+    },
+    "credential": {
+      "username": "u",
+      "password": "pw",
+      "url": ""
+    },
+    "responses": [
+      {
+        "auth_token": "A"
+      },
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/tasks",
+      "body": {
+        "project": "5",
+        "subject": "S",
+        "tags": [
+          "a"
+        ]
+      },
+      "headers": {
+        "Authorization": "Bearer A"
+      },
+      "items": 1
+    }
+  },
+  "task.delete": {
+    "params": {
+      "taskId": "1"
+    },
+    "credential": {
+      "username": "u",
+      "password": "pw",
+      "url": ""
+    },
+    "responses": [
+      {
+        "auth_token": "A"
+      }
+    ],
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v1/tasks/1"
+    }
+  },
+  "task.get": {
+    "params": {
+      "taskId": "1"
+    },
+    "credential": {
+      "username": "u",
+      "password": "pw",
+      "url": ""
+    },
+    "responses": [
+      {
+        "auth_token": "A"
+      },
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/tasks/1",
+      "items": 1
+    }
+  },
+  "task.getAll": {
+    "params": {
+      "projectId": "5",
+      "limit": 1,
+      "filters": {
+        "assigned_to": "3",
+        "statusIsClosed": true
+      }
+    },
+    "credential": {
+      "username": "u",
+      "password": "pw",
+      "url": ""
+    },
+    "responses": [
+      {
+        "auth_token": "A"
+      },
+      [
+        {
+          "id": 1
+        },
+        {
+          "id": 2
+        }
+      ]
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/tasks",
+      "query": {
+        "project": "5",
+        "assigned_to": "3",
+        "status__is_closed": "true"
+      },
+      "headers": {
+        "x-disable-pagination": "True"
+      },
+      "items": 1
+    }
+  },
+  "task.update": {
+    "params": {
+      "taskId": "1",
+      "updateFields": {
+        "subject": "New"
+      }
+    },
+    "credential": {
+      "username": "u",
+      "password": "pw",
+      "url": ""
+    },
+    "responses": [
+      {
+        "auth_token": "A"
+      },
+      {
+        "id": 1,
+        "version": 4
+      },
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "PATCH",
+      "path": "/api/v1/tasks/1",
+      "body": {
+        "subject": "New",
+        "version": 4
+      },
+      "headers": {
+        "Authorization": "Bearer A"
+      }
+    }
+  },
+  "userStory.create": {
+    "params": {
+      "projectId": "5",
+      "subject": "S",
+      "additionalFields": {
+        "tags": [
+          "a"
+        ]
+      }
+    },
+    "credential": {
+      "username": "u",
+      "password": "pw",
+      "url": ""
+    },
+    "responses": [
+      {
+        "auth_token": "A"
+      },
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/userstories",
+      "body": {
+        "project": "5",
+        "subject": "S",
+        "tags": [
+          "a"
+        ]
+      },
+      "headers": {
+        "Authorization": "Bearer A"
+      },
+      "items": 1
+    }
+  },
+  "userStory.delete": {
+    "params": {
+      "userStoryId": "1"
+    },
+    "credential": {
+      "username": "u",
+      "password": "pw",
+      "url": ""
+    },
+    "responses": [
+      {
+        "auth_token": "A"
+      }
+    ],
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v1/userstories/1"
+    }
+  },
+  "userStory.get": {
+    "params": {
+      "userStoryId": "1"
+    },
+    "credential": {
+      "username": "u",
+      "password": "pw",
+      "url": ""
+    },
+    "responses": [
+      {
+        "auth_token": "A"
+      },
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/userstories/1",
+      "items": 1
+    }
+  },
+  "userStory.getAll": {
+    "params": {
+      "projectId": "5",
+      "limit": 1,
+      "filters": {
+        "assigned_to": "3",
+        "statusIsClosed": true
+      }
+    },
+    "credential": {
+      "username": "u",
+      "password": "pw",
+      "url": ""
+    },
+    "responses": [
+      {
+        "auth_token": "A"
+      },
+      [
+        {
+          "id": 1
+        },
+        {
+          "id": 2
+        }
+      ]
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/userstories",
+      "query": {
+        "project": "5",
+        "assigned_to": "3",
+        "status__is_closed": "true"
+      },
+      "headers": {
+        "x-disable-pagination": "True"
+      },
+      "items": 1
+    }
+  },
+  "userStory.update": {
+    "params": {
+      "userStoryId": "1",
+      "updateFields": {
+        "subject": "New"
+      }
+    },
+    "credential": {
+      "username": "u",
+      "password": "pw",
+      "url": ""
+    },
+    "responses": [
+      {
+        "auth_token": "A"
+      },
+      {
+        "id": 1,
+        "version": 4
+      },
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "PATCH",
+      "path": "/api/v1/userstories/1",
+      "body": {
+        "subject": "New",
+        "version": 4
+      },
+      "headers": {
+        "Authorization": "Bearer A"
+      }
+    }
+  }
+}

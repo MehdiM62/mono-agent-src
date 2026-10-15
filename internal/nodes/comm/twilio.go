@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/monoes/mono-agent/internal/apipkg"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -30,6 +31,9 @@ type TwilioNode struct{}
 func (n *TwilioNode) Type() string { return "comm.twilio" }
 
 func (n *TwilioNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
+	if extensionOwns("comm.twilio", config) {
+		return apipkg.ExecuteExtension(ctx, "comm.twilio", input, config)
+	}
 	accountSID, _ := config["account_sid"].(string)
 	if accountSID == "" {
 		return nil, fmt.Errorf("comm.twilio: account_sid is required")

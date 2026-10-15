@@ -1,0 +1,85 @@
+{
+  "build.cancel": {
+    "params": {
+      "buildId": "42"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/build/42/cancel"
+    }
+  },
+  "build.get": {
+    "params": {
+      "buildId": "42",
+      "additionalFields": {
+        "include": "build.commit"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/build/42",
+      "query": {
+        "include": "build.commit"
+      }
+    }
+  },
+  "build.getAll": {
+    "params": {
+      "limit": 5,
+      "additionalFields": {
+        "sortBy": "number",
+        "order": "desc"
+      }
+    },
+    "response": {
+      "builds": [
+        {
+          "id": 1
+        },
+        {
+          "id": 2
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/builds",
+      "query": {
+        "sort_by": "number:desc",
+        "limit": "5",
+        "offset": "0"
+      },
+      "items": 2
+    }
+  },
+  "build.restart": {
+    "params": {
+      "buildId": "42"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/build/42/restart"
+    }
+  },
+  "build.trigger": {
+    "params": {
+      "slug": "octo/repo",
+      "branch": "main",
+      "additionalFields": {
+        "message": "hi",
+        "mergeMode": "merge"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/repo/octo%2Frepo/requests",
+      "body": {
+        "request": {
+          "branch": "main",
+          "message": "hi",
+          "merge_mode": "merge"
+        }
+      }
+    }
+  }
+}

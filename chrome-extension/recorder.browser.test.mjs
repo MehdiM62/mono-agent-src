@@ -55,6 +55,8 @@ const FIXTURE = `<!doctype html><html><head><meta charset="utf-8"><title>Recorde
   <div id=":r5:"><a href="#details">Details</a></div>
   <form id="pay"><textarea name="notes">card 4242 4242 4242 4242 thanks</textarea>
     <input name="card_cvv" value="123"><button type="button" id="pay-btn">Pay</button></form>
+  <div id="handlers"><button type="button" id="h-btn" onclick="fetch('/api/x',{headers:{Authorization:'Bearer sekrit-inline'}}).catch(()=>{})" onmouseover="window.__hover='sekrit-hover'">Handlers</button>
+    <a id="h-link" href="java&#9;script:void('sekrit-link')">Run</a><a id="h-ok" href="https://ok.test/a">Ok</a></div>
   <x-card id="host"></x-card>
   <script>
     const root = document.getElementById("host").attachShadow({ mode: "open" });
@@ -142,6 +144,19 @@ describe("recorder.js in a browser", { skip, concurrency: 1 }, () => {
     const checked = JSON.parse(await resolves(events[0].target.candidates, "#email"));
     for (const { c, ok } of checked) assert.ok(ok, `candidate ${JSON.stringify(c)} resolves to #email`);
     assert.ok(events[0].target.candidates.some((c) => c.kind === "xpath" && c.value.includes("label")), "label XPath offered");
+  });
+
+  it("snippets carry no inline event handlers and no javascript: URLs", async () => {
+    await open();
+    await click("#h-btn");
+    const [msg] = await sent();
+    assert.equal(msg.event.type, "click");
+    const snip = msg.snippet;
+    assert.match(snip, /id="h-btn"/, "the snippet still shows the button");
+    assert.match(snip, /href="https:\/\/ok\.test\/a"/, "an ordinary link is kept");
+    for (const gone of ["sekrit", "onclick", "onmouseover", "script:", "Authorization"]) {
+      assert.ok(!snip.includes(gone), `${gone} left in ${snip}`);
+    }
   });
 
   it("scores a test id first and resolves every candidate for the button", async () => {

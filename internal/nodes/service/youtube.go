@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 
+	"github.com/monoes/mono-agent/internal/apipkg"
 	"github.com/monoes/mono-agent/internal/fsconfine"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
@@ -43,9 +44,15 @@ const youtubeUploadURL = "https://www.googleapis.com/upload/youtube/v3/videos?up
 var youtubeAPIBase = "https://www.googleapis.com/youtube/v3"
 
 func (n *YouTubeNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
+	if extensionOwns("service.youtube", config) {
+		return apipkg.ExecuteExtension(ctx, "service.youtube", input, config)
+	}
 	accessToken := strVal(config, "access_token")
 	if accessToken == "" {
 		return nil, fmt.Errorf("youtube: access_token is required")
+	}
+	if err := credentialScopeCheck(config, "youtube"); err != nil {
+		return nil, fmt.Errorf("youtube: %w", err)
 	}
 	operation := strVal(config, "operation")
 

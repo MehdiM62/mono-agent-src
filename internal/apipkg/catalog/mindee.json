@@ -1,0 +1,199 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "mindee",
+  "node_type": "app.mindee",
+  "title": "Mindee",
+  "description": "Extract data from invoices and receipts with Mindee document AI",
+  "category": "app",
+  "docs_url": "https://developers.mindee.com/docs/",
+  "n8n_types": [
+    "n8n-nodes-base.mindee"
+  ],
+  "base_url": "https://api.mindee.net",
+  "credentials": [
+    {
+      "platform": "mindee",
+      "name": "Mindee",
+      "n8n_credential": "mindeeReceiptApi",
+      "n8n_credential_alt": [
+        "mindeeInvoiceApi"
+      ],
+      "n8n_field_map": {
+        "apiKey": "api_key"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "{{ p.apiVersion | ne:'1' | then:(cred.api_key | prefix:'Token ') }}",
+          "X-Inferuser-Token": "{{ p.apiVersion | eq:'1' | then:cred.api_key }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "receipt",
+      "label": "Receipt"
+    },
+    {
+      "value": "invoice",
+      "label": "Invoice"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "receipt",
+      "operation": "predict",
+      "title": "Extract receipt data",
+      "method": "POST",
+      "path": "{{ p.apiVersion | eq:'1' | then:'/products/expense_receipts/v2' | default:'/v1/products/mindee/expense_receipts/v' }}{{ p.apiVersion | ne:'1' | then:p.apiVersion }}/predict",
+      "body_type": "multipart",
+      "fields": [
+        {
+          "key": "apiVersion",
+          "label": "API version",
+          "type": "select",
+          "default": "4",
+          "options": [
+            "1",
+            "3",
+            "4"
+          ],
+          "help": "Mindee API version (n8n node v1 used 1, v2 used 3, v3 uses 4)"
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Binary property",
+          "type": "text",
+          "default": "data",
+          "required": true
+        },
+        {
+          "key": "rawData",
+          "label": "Raw data",
+          "type": "boolean",
+          "default": false,
+          "help": "Return Mindee's full response instead of a flat summary"
+        }
+      ],
+      "binary": {
+        "upload_field": "binaryPropertyName",
+        "multipart_field": "{{ p.apiVersion | eq:'1' | then:'file' | default:'document' }}"
+      },
+      "output": {
+        "to": {
+          "id": "{{ res.document.id }}",
+          "name": "{{ res.document.name }}",
+          "number_of_pages": "{{ res.document.n_pages }}",
+          "$merge": [
+            {
+              "$entries": "{{ res.document.inference.prediction | entries }}",
+              "$key": "{{ el.key }}",
+              "$value": "{{ el.value.value | default:el.value.name | default:el.value.raw | default:el.value.degrees | default:el.value.amount | default:el.value.iban }}"
+            },
+            {
+              "$entries": "{{ res.predictions.0 | entries }}",
+              "$key": "{{ el.key }}",
+              "$value": "{{ el.value.value | default:el.value.name | default:el.value.raw | default:el.value.degrees | default:el.value.amount | default:el.value.iban }}"
+            }
+          ],
+          "currency": "{{ res.document.inference.prediction.locale.currency | default:res.predictions.0.locale.currency }}",
+          "locale": "{{ res.document.inference.prediction.locale.value | default:res.predictions.0.locale.value }}",
+          "taxes": {
+            "amount": "{{ res.document.inference.prediction.taxes.0.amount | default:res.predictions.0.taxes.0.amount }}",
+            "rate": "{{ res.document.inference.prediction.taxes.0.rate | default:res.predictions.0.taxes.0.rate }}"
+          },
+          "line_items": {
+            "$map": "{{ res.document.inference.prediction.line_items }}",
+            "$to": {
+              "$merge": "{{ el | pick:'description,product_code,quantity,tax_amount,tax_rate,total_amount,unit_price' }}"
+            }
+          }
+        },
+        "to_when": "{{ p.rawData | ne:'true' }}"
+      }
+    },
+    {
+      "resource": "invoice",
+      "operation": "predict",
+      "title": "Extract invoice data",
+      "method": "POST",
+      "path": "{{ p.apiVersion | eq:'1' | then:'/products/invoices/v1' | default:'/v1/products/mindee/invoices/v' }}{{ p.apiVersion | ne:'1' | then:p.apiVersion }}/predict",
+      "body_type": "multipart",
+      "fields": [
+        {
+          "key": "apiVersion",
+          "label": "API version",
+          "type": "select",
+          "default": "4",
+          "options": [
+            "1",
+            "3",
+            "4"
+          ],
+          "help": "Mindee API version (n8n node v1 used 1, v2 used 3, v3 uses 4)"
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Binary property",
+          "type": "text",
+          "default": "data",
+          "required": true
+        },
+        {
+          "key": "rawData",
+          "label": "Raw data",
+          "type": "boolean",
+          "default": false,
+          "help": "Return Mindee's full response instead of a flat summary"
+        }
+      ],
+      "binary": {
+        "upload_field": "binaryPropertyName",
+        "multipart_field": "{{ p.apiVersion | eq:'1' | then:'file' | default:'document' }}"
+      },
+      "output": {
+        "to": {
+          "id": "{{ res.document.id }}",
+          "name": "{{ res.document.name }}",
+          "number_of_pages": "{{ res.document.n_pages }}",
+          "$merge": [
+            {
+              "$entries": "{{ res.document.inference.prediction | entries }}",
+              "$key": "{{ el.key }}",
+              "$value": "{{ el.value.value | default:el.value.name | default:el.value.raw | default:el.value.degrees | default:el.value.amount | default:el.value.iban }}"
+            },
+            {
+              "$entries": "{{ res.predictions.0 | entries }}",
+              "$key": "{{ el.key }}",
+              "$value": "{{ el.value.value | default:el.value.name | default:el.value.raw | default:el.value.degrees | default:el.value.amount | default:el.value.iban }}"
+            }
+          ],
+          "currency": "{{ res.document.inference.prediction.locale.currency | default:res.predictions.0.locale.currency }}",
+          "locale": "{{ res.document.inference.prediction.locale.value | default:res.predictions.0.locale.value }}",
+          "taxes": {
+            "amount": "{{ res.document.inference.prediction.taxes.0.amount | default:res.predictions.0.taxes.0.amount }}",
+            "rate": "{{ res.document.inference.prediction.taxes.0.rate | default:res.predictions.0.taxes.0.rate }}"
+          },
+          "line_items": {
+            "$map": "{{ res.document.inference.prediction.line_items }}",
+            "$to": {
+              "$merge": "{{ el | pick:'description,product_code,quantity,tax_amount,tax_rate,total_amount,unit_price' }}"
+            }
+          }
+        },
+        "to_when": "{{ p.rawData | ne:'true' }}"
+      }
+    }
+  ]
+}

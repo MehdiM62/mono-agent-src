@@ -1,0 +1,319 @@
+{
+  "config.get": {
+    "response": {
+      "version": "1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/config",
+      "items": 1
+    },
+    "credential": {
+      "host": "ha.test",
+      "port": "8123",
+      "ssl": "false",
+      "access_token": "t"
+    }
+  },
+  "config.check": {
+    "response": {
+      "result": "valid"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/config/core/check_config",
+      "items": 1
+    },
+    "credential": {
+      "host": "ha.test",
+      "port": "8123",
+      "ssl": "false",
+      "access_token": "t"
+    }
+  },
+  "cameraProxy.getScreenshot": {
+    "params": {
+      "cameraEntityId": "camera.door"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/camera_proxy/camera.door",
+      "items": 1
+    },
+    "credential": {
+      "host": "ha.test",
+      "port": "8123",
+      "ssl": "false",
+      "access_token": "t"
+    }
+  },
+  "event.getAll": {
+    "params": {
+      "limit": 1
+    },
+    "response": [
+      {
+        "event": "a"
+      },
+      {
+        "event": "b"
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/events",
+      "items": 1
+    },
+    "credential": {
+      "host": "ha.test",
+      "port": "8123",
+      "ssl": "false",
+      "access_token": "t"
+    }
+  },
+  "event.create": {
+    "params": {
+      "eventType": "my_event",
+      "eventAttributes": {
+        "attributes": [
+          {
+            "name": "a",
+            "value": "1"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/events/my_event",
+      "body": {
+        "a": "1"
+      }
+    },
+    "credential": {
+      "host": "ha.test",
+      "port": "8123",
+      "ssl": "false",
+      "access_token": "t"
+    }
+  },
+  "history.getAll": {
+    "params": {
+      "returnAll": true,
+      "additionalFields": {
+        "startTime": "2024-01-01T00:00:00Z",
+        "entityIds": "sun.sun",
+        "minimalResponse": true
+      }
+    },
+    "response": [
+      [
+        {
+          "state": "x"
+        }
+      ]
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/history/period/2024-01-01T00:00:00Z",
+      "query": {
+        "filter_entity_id": "sun.sun",
+        "minimal_response": "true"
+      },
+      "items": 1
+    },
+    "credential": {
+      "host": "ha.test",
+      "port": "8123",
+      "ssl": "false",
+      "access_token": "t"
+    }
+  },
+  "log.getErroLogs": {
+    "expect": {
+      "method": "GET",
+      "path": "/api/error_log",
+      "items": 1
+    },
+    "credential": {
+      "host": "ha.test",
+      "port": "8123",
+      "ssl": "false",
+      "access_token": "t"
+    }
+  },
+  "log.getLogbookEntries": {
+    "params": {
+      "additionalFields": {
+        "entityId": "sun.sun"
+      }
+    },
+    "response": [
+      {
+        "a": 1
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/logbook",
+      "query": {
+        "entity": "sun.sun"
+      },
+      "items": 1
+    },
+    "credential": {
+      "host": "ha.test",
+      "port": "8123",
+      "ssl": "false",
+      "access_token": "t"
+    }
+  },
+  "service.getAll": {
+    "params": {
+      "returnAll": true
+    },
+    "response": [
+      {
+        "domain": "light"
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/services",
+      "items": 1
+    },
+    "credential": {
+      "host": "ha.test",
+      "port": "8123",
+      "ssl": "false",
+      "access_token": "t"
+    }
+  },
+  "service.call": {
+    "params": {
+      "domain": "light",
+      "service": "turn_on",
+      "serviceAttributes": {
+        "attributes": [
+          {
+            "name": "entity_id",
+            "value": "light.k"
+          }
+        ]
+      }
+    },
+    "response": [],
+    "expect": {
+      "method": "POST",
+      "path": "/api/services/light/turn_on",
+      "body": {
+        "entity_id": "light.k"
+      }
+    },
+    "credential": {
+      "host": "ha.test",
+      "port": "8123",
+      "ssl": "false",
+      "access_token": "t"
+    }
+  },
+  "state.get": {
+    "params": {
+      "entityId": "sun.sun"
+    },
+    "response": {
+      "state": "above"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/states/sun.sun",
+      "items": 1
+    },
+    "credential": {
+      "host": "ha.test",
+      "port": "8123",
+      "ssl": "false",
+      "access_token": "t"
+    }
+  },
+  "state.getAll": {
+    "params": {
+      "limit": 2
+    },
+    "response": [
+      {
+        "a": 1
+      },
+      {
+        "a": 2
+      },
+      {
+        "a": 3
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/states",
+      "items": 2
+    },
+    "credential": {
+      "host": "ha.test",
+      "port": "8123",
+      "ssl": "false",
+      "access_token": "t"
+    }
+  },
+  "state.upsert": {
+    "params": {
+      "entityId": "sensor.x",
+      "state": "on",
+      "stateAttributes": {
+        "attributes": [
+          {
+            "name": "unit",
+            "value": "C"
+          }
+        ]
+      }
+    },
+    "response": {
+      "state": "on"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/states/sensor.x",
+      "body": {
+        "state": "on",
+        "attributes": {
+          "unit": "C"
+        }
+      },
+      "items": 1
+    },
+    "credential": {
+      "host": "ha.test",
+      "port": "8123",
+      "ssl": "false",
+      "access_token": "t"
+    }
+  },
+  "template.create": {
+    "params": {
+      "template": "{% if is_state(\"sun.sun\", \"above_horizon\") %}day{% endif %}"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/template",
+      "body": {
+        "template": "{% if is_state(\"sun.sun\", \"above_horizon\") %}day{% endif %}"
+      },
+      "items": 1
+    },
+    "credential": {
+      "host": "ha.test",
+      "port": "8123",
+      "ssl": "false",
+      "access_token": "t"
+    }
+  }
+}

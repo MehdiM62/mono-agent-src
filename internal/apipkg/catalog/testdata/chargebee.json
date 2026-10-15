@@ -1,0 +1,118 @@
+{
+  "customer.create": {
+    "params": {
+      "properties": {
+        "first_name": "Ada",
+        "email": "a@x.io",
+        "customProperties": {
+          "property": [
+            {
+              "name": "cf_tier",
+              "value": "gold"
+            }
+          ]
+        }
+      }
+    },
+    "response": {
+      "customer": {
+        "id": "c1"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/customers",
+      "query": {},
+      "body": {
+        "first_name": "Ada",
+        "email": "a@x.io",
+        "cf_tier": "gold"
+      },
+      "items": 1
+    }
+  },
+  "invoice.list": {
+    "params": {
+      "maxResults": 5,
+      "filters": {
+        "date": [
+          {
+            "operation": "after",
+            "value": "2024-01-01T00:00:00Z"
+          }
+        ],
+        "total": [
+          {
+            "operation": "gt",
+            "value": 100
+          }
+        ]
+      }
+    },
+    "response": {
+      "list": [
+        {
+          "invoice": {
+            "id": "1"
+          }
+        },
+        {
+          "invoice": {
+            "id": "2"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/invoices",
+      "query": {
+        "sort_by[desc]": "date",
+        "limit": "5",
+        "date[after]": "1704067200",
+        "total[gt]": "100"
+      },
+      "items": 2
+    }
+  },
+  "invoice.pdfUrl": {
+    "params": {
+      "invoiceId": "inv_1"
+    },
+    "response": {
+      "download": {
+        "download_url": "https://x"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/invoices/inv_1/pdf",
+      "query": {},
+      "items": 1
+    }
+  },
+  "subscription.delete": {
+    "params": {
+      "subscriptionId": "s1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/subscriptions/s1/delete",
+      "query": {}
+    }
+  },
+  "subscription.cancel": {
+    "params": {
+      "subscriptionId": "s1",
+      "endOfTerm": true
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/subscriptions/s1/cancel",
+      "query": {},
+      "body": {
+        "end_of_term": "true"
+      }
+    }
+  }
+}

@@ -87,5 +87,53 @@
     };
   }
 
-  root.MonoAccount = { fromReply, refusing, tracker, CODE_ACCOUNT_LOCKED };
+  // ── Signed in or not (the gate: gate.js, signin.html) ────────────────────
+
+  /**
+   * Nothing in the extension works until the person has signed in to
+   * monoes.me. The extension cannot check a session itself: it only knows
+   * what a bridge last told it. So "signed in" means exactly this:
+   *
+   *   the last account a bridge reported was ok or grace, and that report is
+   *   less than CONFIRM_WINDOW_MS old.
+   *
+   * A report is a reply to `ping` (it says data.account) or any reply refused
+   * with account_locked. A `ping` without an account is a bridge from before
+   * the gate: that reports nobody signed in. Locked is signed out whether or
+   * not the bridge says it is enforced. Nothing else counts: an ordinary
+   * answer only shows the bridge did not refuse that one request.
+   *
+   * The window is the CLI's own grace (internal/account GraceWindow, 24h): a
+   * session the CLI confirmed keeps working that long without monoes.me, so
+   * an extension whose bridge is down keeps its offline behaviour that long
+   * after the last time a bridge said "signed in". A fresh install has no
+   * report and is signed out. A report stamped in the future (the clock went
+   * back) proves nothing.
+   */
+  const SEEN_KEY = "accountSeen";
+  const CONFIRM_WINDOW_MS = 24 * 60 * 60 * 1000;
+  const CLOCK_SLACK_MS = 60 * 1000;
+  const SIGNED_IN_STATES = ["ok", "grace"];
+
+  /** seenFrom reads one frame into a report {state, at}, or null when it reports nothing. */
+  function seenFrom(frame, now) {
+    if (!frame || frame.kind !== "reply" || frame.progress) return null;
+    if (!frame.ok && frame.code === CODE_ACCOUNT_LOCKED) return { state: LOCKED, at: now };
+    if (!frame.ok || !frame.data || frame.data.pong !== true) return null;
+    const account = frame.data.account;
+    const state = account && typeof account === "object" && typeof account.state === "string" ? account.state : LOCKED;
+    return { state, at: now };
+  }
+
+  /** signedIn is the gate's one decision, at time `now`. */
+  function signedIn(seen, now) {
+    if (!seen || typeof seen !== "object" || SIGNED_IN_STATES.indexOf(seen.state) === -1) return false;
+    if (typeof seen.at !== "number" || !Number.isFinite(seen.at)) return false;
+    return seen.at <= now + CLOCK_SLACK_MS && now - seen.at < CONFIRM_WINDOW_MS;
+  }
+
+  root.MonoAccount = {
+    fromReply, refusing, tracker, seenFrom, signedIn,
+    CODE_ACCOUNT_LOCKED, SEEN_KEY, CONFIRM_WINDOW_MS, CLOCK_SLACK_MS,
+  };
 })(globalThis);
