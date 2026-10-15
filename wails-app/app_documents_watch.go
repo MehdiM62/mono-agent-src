@@ -164,7 +164,7 @@ func (a *App) runProfileCLI(profileID string, timeout time.Duration, result inte
 	}
 	ctx, cancel := context.WithTimeout(parent, timeout)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, cliBin, append([]string{"--profile", profileID, "--json"}, args...)...)
+	cmd := exec.CommandContext(ctx, cliBin, scopedCLIArgs(profileID, args...)...)
 	suppressConsole(cmd)
 	stdout, runErr := cmd.Output()
 	out := cliResultJSON(cliBin, stdout, runErr)

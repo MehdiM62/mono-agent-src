@@ -52,7 +52,7 @@ func TestRenderNodeCreatesDocument(t *testing.T) {
 		"doc_type": "cv",
 		"data":     map[string]interface{}{"name": "Jane Doe"},
 	}
-	outputs, err := node.Execute(context.Background(), workflow.NodeInput{}, config)
+	outputs, err := node.Execute(vault.ContextWithProfileID(context.Background(), "default"), workflow.NodeInput{}, config)
 	if err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
@@ -70,7 +70,7 @@ func TestRenderNodeRejectsUnknownDocType(t *testing.T) {
 
 	node := &documentsnodes.RenderNode{}
 	config := map[string]interface{}{"doc_type": "nonsense", "data": map[string]interface{}{}}
-	if _, err := node.Execute(context.Background(), workflow.NodeInput{}, config); err == nil {
+	if _, err := node.Execute(vault.ContextWithProfileID(context.Background(), "default"), workflow.NodeInput{}, config); err == nil {
 		t.Fatal("expected error for unknown doc_type, got nil")
 	}
 }

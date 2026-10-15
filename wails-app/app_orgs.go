@@ -74,12 +74,8 @@ func (a *App) runOrgCLI(args ...string) string {
 	}
 	ctx, cancel := context.WithTimeout(a.ctx, orgCLITimeout)
 	defer cancel()
-	fullArgs := []string{"org"}
 	projectRoot := a.orgProjectRoot()
-	if projectRoot != "" {
-		fullArgs = append(fullArgs, "--project", projectRoot)
-	}
-	fullArgs = append(fullArgs, args...)
+	fullArgs := orgCLIRunArgs(a.getActiveProfileID(), projectRoot, args...)
 	logSuffix := ""
 	if projectRoot != "" {
 		logSuffix = fmt.Sprintf(" (project: %s)", projectRoot)

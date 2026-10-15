@@ -57,7 +57,7 @@ func orgDeps(cfg *globalConfig) org.Deps {
 	}
 }
 
-func (e *orgEnv) Root() string { return e.env().Root() }
+func (e *orgEnv) RootErr() (string, error) { return e.env().RootErr() }
 
 func (e *orgEnv) Profile() (*storage.Database, string, string, error) { return e.env().Profile() }
 

@@ -15,11 +15,11 @@ import (
 // The binary path is quoted in ExecStart, so a folder with a space, a % or
 // a $ in its name still names one file to systemd.
 func TestRenderUnitQuotesTheBinaryPath(t *testing.T) {
-	unit, err := renderUnit(`/home/a b/100%/$x/monoagentcli`)
+	unit, err := renderUnit(`/home/a b/100%/$x/monoagentcli`, "p-1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := `ExecStart="/home/a b/100%%/$$x/monoagentcli" daemon`
+	want := `ExecStart="/home/a b/100%%/$$x/monoagentcli" daemon --profile "p-1"`
 	if !strings.Contains(unit, want+"\n") {
 		t.Fatalf("unit has no %q:\n%s", want, unit)
 	}
@@ -111,5 +111,28 @@ func TestStatusNeedsTheUnitEnabled(t *testing.T) {
 	systemdAvailable = func() bool { return false }
 	if ok, where := in.Status(ctx); ok || !strings.Contains(where, "no systemd") {
 		t.Fatalf("no systemd: %v %q", ok, where)
+	}
+}
+
+// The unit always names the profile it runs, and reading it back finds the same one.
+func TestRenderUnitCarriesTheProfile(t *testing.T) {
+	unit, err := renderUnit("/usr/local/bin/monoagentcli", "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(unit, `daemon --profile "default"`+"\n") {
+		t.Fatalf("no --profile in the unit:\n%s", unit)
+	}
+	if got, ok := profileFromDefinition(unit); !ok || got != "default" {
+		t.Fatalf("profileFromDefinition = %q, %v", got, ok)
+	}
+}
+
+func TestInstallRefusesAnEmptyProfile(t *testing.T) {
+	origAvail := systemdAvailable
+	t.Cleanup(func() { systemdAvailable = origAvail })
+	systemdAvailable = func() bool { return true }
+	if _, err := (linuxInstaller{}).Install(context.Background(), ""); err == nil {
+		t.Fatal("Install with no profile succeeded")
 	}
 }

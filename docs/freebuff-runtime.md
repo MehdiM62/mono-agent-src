@@ -19,7 +19,7 @@ monoagentcli agent scan --json
 monoagentcli agent install freebuff
 freebuff login
 monoagentcli agent test freebuff
-monoagentcli chat --runtime freebuff -- 'Hello'
+monoagentcli --profile work chat --runtime freebuff -- 'Hello'
 ```
 
 The official npm package and executable are both `freebuff`. Monoagent uses

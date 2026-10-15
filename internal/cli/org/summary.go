@@ -72,7 +72,10 @@ func newOrgSummaryCmd(env *orgEnv) *cobra.Command {
 				}
 				return printOrgSummary(rows, fast, serve, "global")
 			}
-			root := env.Root()
+			root, err := env.RootErr()
+			if err != nil {
+				return err
+			}
 			db, profileID, _, dbErr := env.Profile()
 			rows, live, err := env.orgSummaryFor(cmd.Context(), root, db, profileID, dbErr, fast)
 			if err != nil {

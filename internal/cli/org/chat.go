@@ -134,7 +134,10 @@ func newOrgChatHistoryCmd(env *orgEnv) *cobra.Command {
 			if limit < 0 {
 				return env.d.InvalidInput("--limit must be 0 or more")
 			}
-			root := env.Root()
+			root, err := env.RootErr()
+			if err != nil {
+				return err
+			}
 			doc, err := orgdesign.Load(root, org)
 			if err != nil {
 				return env.d.NotFound("org %q not found", org)
@@ -257,7 +260,11 @@ func runOrgChatResolve(cmd *cobra.Command, env *orgEnv, req orgchat.Request) err
 	if !orgChatRef.MatchString(req.Ref) {
 		return env.d.InvalidInput("invalid item ref %q", req.Ref)
 	}
-	res, err := orgchat.Resolve(cmd.Context(), orgChatClient, env.Root(), req)
+	root, err := env.RootErr()
+	if err != nil {
+		return err
+	}
+	res, err := orgchat.Resolve(cmd.Context(), orgChatClient, root, req)
 	if err != nil {
 		var stopped *orgchat.NotRunningError
 		switch {

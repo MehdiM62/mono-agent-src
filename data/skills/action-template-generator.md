@@ -15,7 +15,7 @@ This skill is invoked after the user runs:
 ```bash
 monoagentcli action template capture <url>   # [--wait <secs>] [--headless] [--out <file>]
 # or
-monoagentcli crawl <url>
+monoagentcli --profile <profile> crawl <url>
 ```
 
 That command opens a real browser, renders the page (including JavaScript), and saves the DOM to `~/.monoagent/captures/<domain>_<timestamp>.html`.
@@ -149,7 +149,7 @@ Package written: <dir>/<id>
 
 Validate: monoagentcli automation validate <id>
 Install:  monoagentcli automation install <id> --local --yes
-Run:      monoagentcli node run <id>.<action_type> --config '{"url":"<page url>"}'
+Run:      monoagentcli --profile <profile> node run <id>.<action_type> --config '{"url":"<page url>"}'
 ```
 
 To merge a single loose action file into an installed automation instead, use `monoagentcli action import <file>.json --into <id> --yes`. `action template install` is deprecated.

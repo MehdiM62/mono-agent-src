@@ -13,7 +13,7 @@ import (
 // The unit says how long it allows a stopping daemon, in [Service], never less than stopGrace and
 // never less than systemd's stock 90 s, because the daemon also drains the runs in flight.
 func TestTheUnitGivesTheDaemonTimeToFinishARefresh(t *testing.T) {
-	unit, err := renderUnit("/usr/local/bin/monoagentcli")
+	unit, err := renderUnit("/usr/local/bin/monoagentcli", "p-1")
 	if err != nil {
 		t.Fatal(err)
 	}

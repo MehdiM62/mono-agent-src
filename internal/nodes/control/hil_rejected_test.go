@@ -66,7 +66,7 @@ func decide(t *testing.T, ctx context.Context, db *sql.DB, in workflow.NodeInput
 func TestHIL_RejectedEdgeRoutesRejectedItems(t *testing.T) {
 	db := newHILTestDB(t)
 	wireRejected(t, db, true)
-	ctx := vault.ContextWithDB(context.Background(), db)
+	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db), "default")
 	in := twoItemInput()
 	decide(t, ctx, db, in, "rejected", "approved")
 
@@ -89,7 +89,7 @@ func TestHIL_RejectedEdgeRoutesRejectedItems(t *testing.T) {
 func TestHIL_RejectedEdgeWaitsForPending(t *testing.T) {
 	db := newHILTestDB(t)
 	wireRejected(t, db, true)
-	ctx := vault.ContextWithDB(context.Background(), db)
+	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db), "default")
 	in := twoItemInput()
 	decide(t, ctx, db, in, "rejected")
 	if _, err := (&HumanInLoopNode{}).Execute(ctx, in, map[string]interface{}{}); !errors.Is(err, workflow.ErrNodePaused) {
@@ -102,7 +102,7 @@ func TestHIL_RejectedEdgeWaitsForPending(t *testing.T) {
 func TestHIL_RejectWithoutEdgeIsErrRejected(t *testing.T) {
 	db := newHILTestDB(t)
 	wireRejected(t, db, false)
-	ctx := vault.ContextWithDB(context.Background(), db)
+	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db), "default")
 	in := twoItemInput()
 	decide(t, ctx, db, in, "rejected", "approved")
 	_, err := (&HumanInLoopNode{}).Execute(ctx, in, map[string]interface{}{})
