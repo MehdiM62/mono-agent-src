@@ -45,6 +45,8 @@
     integration: "Integration",
     ask: "Question",
   };
+  // coder.queue's refusals that no other job would escape (the CLI's codes).
+  const REFUSALS = new Set(["coder_disabled", "needs_monomind_update", "coder_runtime_unsupported"]);
   const NOTICES = {
     offline: "MonoAgent isn't connected, so nothing can go to the coder. This comes back when the bridge does.",
     update: "This MonoAgent can't take work for the coder yet. Update MonoAgent, then reopen this panel.",
@@ -127,10 +129,11 @@
       seen.add(dir);
       out.push({ value: dir, label });
     };
-    const mapped = (projects.projects || []).filter((p) => p && typeof p.dir === "string");
+    // A folder that is gone is not offered: the coder could not start there.
+    const mapped = (projects.projects || []).filter((p) => p && typeof p.dir === "string" && p.exists !== false);
     for (const p of mapped) if (p.origin === origin) add(p.dir, `${baseName(p.dir)} (this site's project)`);
     for (const p of mapped) add(p.dir, `${baseName(p.dir)} (${p.origin || "mapped"})`);
-    for (const dir of projects.recent || []) add(dir, baseName(dir));
+    for (const r of projects.recent || []) if (r && r.exists !== false) add(r.path, baseName(r.path));
     out.push({ value: "", label: "The coder's default folder" });
     return out;
   }
@@ -209,6 +212,9 @@
       target = null;
       say("ok", "Queued. Start it in the MonoAgent app.");
       loadLists();
+    } else if (REFUSALS.has(answer.code)) {
+      // Coder mode off, or unable to run: true of every job, so said at the top.
+      refusedText = answer.error || "MonoAgent will not take work for the coder right now.";
     } else {
       say("err", answer.code === "offline" ? NOTICES.offline : answer.error || "MonoAgent did not queue it.");
     }
@@ -331,17 +337,28 @@
     drawFollow();
   }
 
+  /**
+   * poll asks for the latest turn after the last event seen. seq counts per
+   * turn, so when the latest turn is a new one, the end of the old one is
+   * fetched first and the new one from its start: two more requests, only
+   * when a turn begins.
+   */
   async function poll() {
     clearTimeout(pollTimer);
     const w = watching;
     if (!w || !visible() || !ready()) return;
-    const answer = await ask(withProfile({ type: "coder_events", conversationId: w.id, since: w.since }));
+    const events = (extra) => ask(withProfile(Object.assign({ type: "coder_events", conversationId: w.id }, extra)));
+    let answer = await events({ since: w.chat.lastSeq });
+    let changed = false;
+    if (watching === w && answer.ok && answer.turn && w.chat.turn && answer.turn !== w.chat.turn) {
+      const tail = await events({ turn: w.chat.turn, since: w.chat.lastSeq });
+      if (tail.ok) changed = Mirror.fold(w, tail);
+      answer = await events({ turn: answer.turn });
+    }
     if (watching !== w) return;
     if (answer.ok) {
-      const changed = Mirror.fold(w, answer.events || []);
-      const top = (answer.events || []).reduce((n, e) => (e && Number.isFinite(e.seq) ? Math.max(n, e.seq) : n), w.since);
-      w.since = Number.isFinite(answer.next) ? answer.next : top;
-      const running = !!answer.running;
+      if (Mirror.fold(w, answer)) changed = true;
+      const running = !!answer.turn_active;
       if (!running && w.running) Core.closeOpen(w.chat);
       if (changed || running !== w.running) {
         w.running = running;

@@ -69,7 +69,11 @@ function fakeTimers() {
 const PAGE = () => ({ key: "5|https://a.example/p", tabId: 5, url: "https://a.example/p", title: "SECRET TITLE of the page" });
 const READY = {
   coder_ready: { ok: true, state: "ready" },
-  coder_projects: { ok: true, projects: [{ origin: "https://b.example", dir: "/w/b" }, { origin: "https://a.example", dir: "/w/a" }], recent: ["/w/old", "/w/a"] },
+  coder_projects: {
+    ok: true,
+    projects: [{ origin: "https://b.example", dir: "/w/b", exists: true }, { origin: "https://a.example", dir: "/w/a", exists: true }, { origin: "https://c.example", dir: "/w/gone", exists: false }],
+    recent: [{ path: "/w/old", exists: true }, { path: "/w/a", exists: true }, { path: "/w/vanished", exists: false }],
+  },
   coder_queue_list: { ok: true, items: [] },
   coder_list: { ok: true, conversations: [] },
 };
@@ -200,7 +204,7 @@ test("the picker asks for the panel's tab; moving to another page drops the elem
   assert.equal(t.els["coder-selector"].textContent, "The whole page");
 });
 
-test("this site's project folder comes first and is chosen; the default is always offered", async () => {
+test("this site's project folder comes first and is chosen; folders that are gone are not offered; the default always is", async () => {
   const t = setup();
   await settle();
   const opts = t.els["coder-cwd"].children.map((o) => o.value);
@@ -232,7 +236,7 @@ function mirrorSetup(conv, events) {
   return setup({
     replies: {
       coder_list: { ok: true, conversations: [conv] },
-      coder_events: Array.isArray(events) ? { ok: true, events, next: 9, running: false } : events,
+      coder_events: Array.isArray(events) ? { ok: true, turn: "t1", events, turn_active: false, images: [] } : events,
     },
   });
 }
@@ -246,17 +250,23 @@ async function watchFirst(t) {
 }
 
 test("the mirror draws replies as nodes, never markup, with tool cards and screenshots", async () => {
-  const t = mirrorSetup({ id: "c-1", title: "Fix the hero" }, [
-    { seq: 1, type: "turn.started", payload: { text: "Recreate the hero" } },
-    { seq: 2, type: "tool.started", payload: { callId: "t1", name: "Bash" } },
-    { seq: 3, type: "tool.completed", payload: { callId: "t1", ok: true }, images: [
-      { path: "/w/a/.monoagent/screenshots/1.png", dataUrl: SHOT },
-      { path: "/w/a/evil.png", dataUrl: "javascript:alert(1)" },
-      { path: "/w/a/remote.png", dataUrl: "https://evil.example/x.png" },
-      { path: "/w/a/svg.svg", dataUrl: "data:image/svg+xml;base64,PHN2Zz4=" },
-    ] },
-    { seq: 4, type: "assistant.delta", payload: { text: HOSTILE } },
-  ]);
+  const t = mirrorSetup({ id: "c-1", title: "Fix the hero" }, {
+    ok: true,
+    turn: "t1",
+    turn_active: false,
+    events: [
+      { seq: 1, type: "turn.started", payload: { text: "Recreate the hero" } },
+      { seq: 2, type: "tool.started", payload: { callId: "t1", name: "Bash" } },
+      { seq: 3, type: "tool.completed", payload: { callId: "t1", ok: true } },
+      { seq: 4, type: "assistant.delta", payload: { text: HOSTILE } },
+    ],
+    images: [
+      { seq: 3, path: "/w/a/.monoagent/screenshots/1.png", dataUrl: SHOT },
+      { seq: 3, path: "/w/a/evil.png", dataUrl: "javascript:alert(1)" },
+      { seq: 3, path: "/w/a/remote.png", dataUrl: "https://evil.example/x.png" },
+      { seq: 3, path: "/w/a/svg.svg", dataUrl: "data:image/svg+xml;base64,PHN2Zz4=" },
+    ],
+  });
   await watchFirst(t);
   assert.deepEqual(t.of("coder_events")[0], { type: "coder_events", conversationId: "c-1", since: 0, profile: "p-work" });
   assert.equal(t.els["coder-mirror"].hidden, false);
@@ -274,23 +284,24 @@ test("the mirror draws replies as nodes, never markup, with tool cards and scree
   assert.equal(t.of("coder_events").at(-1).since, 0);
   t.timers.fire(1500);
   await settle();
-  assert.equal(t.of("coder_events").at(-1).since, 9, "the next poll starts where the last ended");
+  assert.equal(t.of("coder_events").at(-1).since, 4, "the next poll starts where the last ended");
+  assert.equal(t.els["coder-log"].all().filter((n) => n.tag === "img").length, 1, "a screenshot seen twice is drawn once");
 });
 
 test("the follow-up box shows only where MonoAgent allows a message from here", async () => {
   const cases = [
     [{ id: "c-1", startedInDesktop: false }, false],
+    [{ id: "c-1" }, false],
+    [{ id: "c-1", startedInDesktop: "yes" }, false],
     [{ id: "c-1", startedInDesktop: true }, true],
     [{ id: "c-1", startedInDesktop: true, running: true }, false],
-    [{ id: "c-1", startedInDesktop: true, canSend: false }, false],
-    [{ id: "c-1", canSend: true }, true],
   ];
   for (const [conv, shown] of cases) {
     const t = mirrorSetup(conv, []);
     await watchFirst(t);
     assert.equal(t.els["coder-follow"].hidden, !shown, JSON.stringify(conv));
   }
-  const busy = mirrorSetup({ id: "c-1", canSend: true }, { ok: true, events: [], running: true });
+  const busy = mirrorSetup({ id: "c-1", startedInDesktop: true }, { ok: true, turn: "t2", events: [], turn_active: true, images: [] });
   await watchFirst(busy);
   assert.equal(busy.els["coder-follow"].hidden, true, "not while a turn runs");
   assert.equal(busy.els["coder-stop"].hidden, false, "Stop shows while a turn runs");
@@ -358,4 +369,49 @@ test("a menu click's prefill opens the section filled in; stale or another windo
   const other = setup({ tabWindow: 2, session: { coderPrefill: { at: Date.now(), kind: "tokens", tabId: 5, selector: "" } } });
   await settle();
   assert.equal(other.els["coder-panel"].open, false);
+});
+
+test("a new turn is read from its start, after the end of the one on screen", async () => {
+  let latest = "t1";
+  const turns = {
+    t1: [
+      { seq: 1, type: "turn.started", payload: { text: "first job" } },
+      { seq: 2, type: "assistant.delta", payload: { text: "one" } },
+      { seq: 3, type: "turn.finished", payload: { status: "completed" } },
+    ],
+    t2: [
+      { seq: 1, type: "turn.started", payload: { text: "a follow-up" } },
+      { seq: 2, type: "assistant.delta", payload: { text: "two" } },
+    ],
+  };
+  const t = mirrorSetup({ id: "c-1", startedInDesktop: true }, (m) => {
+    const turn = m.turn || latest;
+    return { ok: true, turn, turn_active: turn === "t2", events: turns[turn].filter((e) => e.seq > (m.since || 0)), images: [] };
+  });
+  await watchFirst(t);
+  assert.match(t.els["coder-log"].textContent, /one/);
+  latest = "t2";
+  const before = t.of("coder_events").length;
+  t.timers.fire(1500);
+  await settle(20);
+  const asked = t.of("coder_events").slice(before).map(({ turn, since }) => ({ turn, since }));
+  assert.deepEqual(asked, [{ turn: undefined, since: 3 }, { turn: "t1", since: 3 }, { turn: "t2", since: undefined }]);
+  const text = t.els["coder-log"].textContent;
+  assert.match(text, /a follow-up/);
+  assert.match(text, /two/);
+  assert.equal(t.els["coder-stop"].hidden, false, "the new turn runs");
+});
+
+test("coder mode off, said by coder.queue, becomes the section's notice", async () => {
+  const words = "coder mode is disabled — enable it in Settings or with `monoagentcli coder enable --yes-i-understand`";
+  const t = setup({ replies: { coder_queue: { ok: false, error: words, code: "coder_disabled" } } });
+  await settle();
+  t.els["coder-kind"].value = "bug-report";
+  t.els["coder-kind"].fire("change");
+  t.els["coder-queue"].fire("click");
+  await settle();
+  assert.equal(t.els["coder-notice"].textContent, words);
+  assert.equal(t.els["coder-notice"].hidden, false);
+  assert.equal(t.els["coder-msg"].textContent, "", "said once");
+  assert.equal(t.els["coder-queue"].disabled, true);
 });

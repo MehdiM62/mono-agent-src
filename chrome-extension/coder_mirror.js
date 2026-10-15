@@ -3,9 +3,9 @@
  *
  * The Coder section (sidepanel_coder.js) polls `coder.events` and draws one
  * conversation as it happens. The records are chat.events records, so they
- * fold into chat_core.js's transcript state as the chat's do; a record may
- * also carry `images: [{path, dataUrl}]`, the screenshots its tool wrote in
- * the project folder, which are kept under the reply they belong to.
+ * fold into chat_core.js's transcript state as the chat's do; the reply also
+ * carries `images: [{seq, path, dataUrl}]`, the screenshots a tool result
+ * named in the project folder, which are kept under the reply of that event.
  *
  * SAFETY, as in chat_render.js: the reply may say whatever a page talked the
  * coder into, so the DOM is built only with createElement, textContent and
@@ -13,7 +13,7 @@
  * of a raster type, never from a path or a remote address.
  *
  *   watchState(id)              a fresh mirror for one conversation
- *   fold(state, events)         -> changed?   pure, node-tested
+ *   fold(state, reply)          -> changed?   a coder.events reply; pure, node-tested
  *   render(doc, state)          -> DocumentFragment of the transcript
  *   followable(state, conv)     may the follow-up box show? (coder.send)
  *
@@ -35,7 +35,7 @@
   const baseName = (p) => String(p || "").split(/[\\/]/).filter(Boolean).pop() || String(p || "");
 
   function watchState(id) {
-    return { id, chat: Core().newState(null), shots: [], since: 0, running: false };
+    return { id, chat: Core().newState(null), shots: [], running: false };
   }
 
   function lastAssistant(chat) {
@@ -43,21 +43,24 @@
     return null;
   }
 
-  /** fold applies events and keeps their screenshots, under the reply they belong to. */
-  function fold(state, events) {
+  /**
+   * fold applies one coder.events reply: its events, in order, stamped with
+   * its turn (seq counts per turn), and each screenshot under the reply its
+   * event belongs to. An event already seen changes nothing, and nor does
+   * its screenshot.
+   */
+  function fold(state, reply) {
+    const r = reply || {};
+    const images = Array.isArray(r.images) ? r.images : [];
     let changed = false;
-    for (const e of Array.isArray(events) ? events : []) {
-      if (!e || typeof e.type !== "string" || !Number.isFinite(e.seq)) continue;
-      const ev = { seq: e.seq, type: e.type, payload: e.payload && typeof e.payload === "object" ? e.payload : {} };
-      if (e.turn !== undefined && e.turn !== null && e.turn !== "") ev.turn = String(e.turn);
-      if (Core().applyEvent(state.chat, ev)) changed = true;
-      const images = Array.isArray(e.images) ? e.images : [];
-      const owner = images.length ? lastAssistant(state.chat) : null;
+    for (const e of Core().normalizeEvents(r.events, r.turn)) {
+      if (!Core().applyEvent(state.chat, e)) continue;
+      changed = true;
+      const owner = lastAssistant(state.chat);
       for (const img of images) {
-        const url = img && typeof img.dataUrl === "string" ? img.dataUrl : "";
-        if (!owner || url.length > IMAGE_CAP || !IMAGE.test(url)) continue;
+        const url = img && img.seq === e.seq && typeof img.dataUrl === "string" ? img.dataUrl : "";
+        if (!owner || !url || url.length > IMAGE_CAP || !IMAGE.test(url)) continue;
         state.shots.push({ owner: owner.id, path: String(img.path || ""), url });
-        changed = true;
       }
     }
     return changed;
@@ -115,14 +118,13 @@
   }
 
   /**
-   * followable: MonoAgent says this conversation takes a message from here.
-   * It answers `canSend` itself; a bridge that does not falls back to the
-   * rule it enforces (decision 3): the app started its first turn, and no
-   * turn is running.
+   * followable: would MonoAgent take a message from here (coder.send)?
+   * Decision 3's rule, which the bridge enforces: the app ran a turn of this
+   * conversation to its end (`startedInDesktop`, from coder.list), and no
+   * turn is running now.
    */
   function followable(state, conv) {
-    if (!state || state.running || !conv) return false;
-    return typeof conv.canSend === "boolean" ? conv.canSend : !!conv.startedInDesktop && !conv.running;
+    return !!(state && conv && !state.running && conv.startedInDesktop === true && !conv.running);
   }
 
   root.MonoCoderMirror = { watchState, fold, render, followable, baseName, IMAGE_CAP };

@@ -23,7 +23,8 @@
  *   coder_queue       {kind, tabId, selector?, note?, cwd?, profile?} -> {item}
  *   coder_queue_list  -> {items}
  *   coder_list        -> {conversations}
- *   coder_events      {conversationId, since} -> {events, next, running}
+ *   coder_events      {conversationId, turn?, since?} -> {turn, events, turn_active, images}
+ *                     like chat.events: seq counts per turn, no turn means the latest
  *   coder_send        {conversationId, text}
  *   coder_stop        {conversationId}
  *   coder_pick        {tabId} -> {selector}   the element picker, then a selector
@@ -268,15 +269,19 @@
    * promptUserToSubmit is decision 4 for a form the extension filled: it is
    * never submitted for the person. The page shows its "review and press
    * Submit yourself" banner and outlines the submit control (C1
-   * submit_prompt, agent_submit.js); nothing is pressed. Resolves what the
-   * page answered, or {shown:false} when it could not be shown.
+   * submit_prompt, agent_submit_prompt.js); nothing is pressed. Resolves
+   * what the page answered, {shown, submitSelector?}, or {shown:false} when
+   * it could not be shown. `selector` names the form, when known.
    */
   async function promptUserToSubmit(tabId, opts) {
-    const S = root.MonoAgentSubmit;
-    if (!S || typeof S.prompt !== "function" || !Number.isInteger(tabId)) return { shown: false };
+    const S = root.MonoAgentSubmitPrompt;
+    if (!S || typeof S.show !== "function" || !Number.isInteger(tabId)) return { shown: false };
     const o = opts || {};
+    const params = { tabId };
+    if (typeof o.selector === "string" && o.selector) params.selector = o.selector;
+    if (typeof o.message === "string" && o.message) params.message = o.message;
     try {
-      return await S.prompt({ tabId, selector: o.selector, message: o.message });
+      return await S.show(params);
     } catch {
       return { shown: false };
     }
@@ -303,9 +308,18 @@
     },
     coder_events: async (msg) => {
       const params = { conversationId: conversationOf(msg) };
-      if (Number.isFinite(msg.since) && msg.since > 0) params.since = msg.since;
+      const turn = str(msg.turn);
+      if (turn && !ID.test(turn)) throw fail("invalid turn id", "invalid");
+      if (turn) params.turn = turn;
+      if (Number.isInteger(msg.since) && msg.since > 0) params.since = msg.since;
       const data = (await query("coder.events", withProfile(params, msg))) || {};
-      return { ok: true, events: Array.isArray(data.events) ? data.events : [], next: data.next, running: !!data.running };
+      return {
+        ok: true,
+        turn: str(data.turn),
+        events: Array.isArray(data.events) ? data.events : [],
+        turn_active: !!data.turn_active,
+        images: Array.isArray(data.images) ? data.images : [],
+      };
     },
     coder_send: async (msg) => {
       const text = str(msg.text).trim();

@@ -117,27 +117,28 @@ test("MonoAgent's refusal comes back with its own words and code", async () => {
 
 test("lists, events, send and stop name the conversation and nothing else", async () => {
   const replies = {
-    "coder.projects": { projects: [{ origin: "http://localhost:3000", dir: "/w/app" }], recent: ["/w/old"] },
+    "coder.projects": { projects: [{ origin: "http://localhost:3000", dir: "/w/app", exists: true }], recent: [{ path: "/w/old", exists: true }] },
     "coder.queue.list": { items: [{ id: "q1" }] },
     "coder.list": { conversations: [{ id: "c-1" }] },
-    "coder.events": { events: [{ seq: 1, type: "assistant.delta", payload: { text: "hi" } }], next: 1, running: true },
-    "coder.send": { turnId: "t2" },
+    "coder.events": { turn: "t1", events: [{ seq: 1, type: "assistant.delta", payload: { text: "hi" } }], turn_active: true, images: [{ seq: 1, path: "a.png", dataUrl: "data:image/png;base64,AA==" }] },
+    "coder.send": { conversationId: "c-1", turnId: "t2" },
     "coder.stop": { stopped: true },
   };
   const ask = fakeAsk({ methods: ["ping", "coder.queue"], reply: (_p, m) => replies[m] });
   const t = setup({ ask });
-  assert.deepEqual(await t.send({ type: "coder_projects" }), { ok: true, projects: replies["coder.projects"].projects, recent: ["/w/old"] });
+  assert.deepEqual(await t.send({ type: "coder_projects" }), { ok: true, projects: replies["coder.projects"].projects, recent: replies["coder.projects"].recent });
   assert.deepEqual((await t.send({ type: "coder_queue_list" })).items, [{ id: "q1" }]);
   assert.deepEqual((await t.send({ type: "coder_list" })).conversations, [{ id: "c-1" }]);
   const ev = await t.send({ type: "coder_events", conversationId: "c-1", since: 0 });
-  assert.deepEqual([ev.events.length, ev.next, ev.running], [1, 1, true]);
-  await t.send({ type: "coder_events", conversationId: "c-1", since: 7 });
+  assert.deepEqual([ev.turn, ev.events.length, ev.turn_active, ev.images.length], ["t1", 1, true, 1]);
+  await t.send({ type: "coder_events", conversationId: "c-1", turn: "t1", since: 7 });
+  assert.equal((await t.send({ type: "coder_events", conversationId: "c-1", turn: "../t" })).ok, false);
   assert.equal((await t.send({ type: "coder_send", conversationId: "c-1", text: " next " })).ok, true);
   assert.equal((await t.send({ type: "coder_stop", conversationId: "c-1" })).ok, true);
   const sent = ask.calls.map((c) => [c.method, c.params]);
   assert.deepEqual(sent.slice(3), [
     ["coder.events", { conversationId: "c-1" }],
-    ["coder.events", { conversationId: "c-1", since: 7 }],
+    ["coder.events", { conversationId: "c-1", turn: "t1", since: 7 }],
     ["coder.send", { conversationId: "c-1", text: "next" }],
     ["coder.stop", { conversationId: "c-1" }],
   ]);
@@ -224,9 +225,10 @@ test("promptUserToSubmit asks the page to show its banner, and never fails the c
   const t = setup();
   assert.deepEqual(await t.B.promptUserToSubmit(42), { shown: false }, "no submit module loaded");
   const seen = [];
-  t.sandbox.MonoAgentSubmit = { prompt: async (o) => (seen.push(o), { shown: true, submitSelector: "#go" }) };
+  t.sandbox.MonoAgentSubmitPrompt = { show: async (o) => (seen.push(o), { shown: true, submitSelector: "#go" }) };
   assert.deepEqual(await t.B.promptUserToSubmit(42, { selector: "form#f" }), { shown: true, submitSelector: "#go" });
-  assert.deepEqual(seen, [{ tabId: 42, selector: "form#f", message: undefined }]);
-  t.sandbox.MonoAgentSubmit = { prompt: async () => { throw new Error("tab closed"); } };
+  assert.deepEqual(await t.B.promptUserToSubmit(42), { shown: true, submitSelector: "#go" });
+  assert.deepEqual(seen, [{ tabId: 42, selector: "form#f" }, { tabId: 42 }]);
+  t.sandbox.MonoAgentSubmitPrompt = { show: async () => { throw new Error("tab closed"); } };
   assert.deepEqual(await t.B.promptUserToSubmit(42), { shown: false });
 });
