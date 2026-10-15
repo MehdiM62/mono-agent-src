@@ -17,7 +17,9 @@ CLI="$W/monoagentcli"
 (cd "$REPO" && go build -tags devaccount -o "$CLI" ./cmd/monoagentcli)
 # Keep this devaccount build independent of the production enforcement date.
 export MONOAGENT_DEV_ENFORCE_FROM=2999-01-01T00:00:00Z
-mc() { HOME="$H" MONOAGENT_EXTENSION_PORT="$PORT" "$CLI" "$@"; }
+# shellcheck source=../lib/mono.sh
+. "$REPO/scripts/lib/mono.sh"
+mc() { HOME="$H" MONOAGENT_EXTENSION_PORT="$PORT" mono_guard "$CLI" "$@"; }
 
 cleanup() {
   for f in "$W"/*.pid; do [ -f "$f" ] && kill "$(cat "$f")" 2>/dev/null || true; done
@@ -80,4 +82,6 @@ mc extension unbind "E2E Personal"
 mc --profile Solo --json capture page --formats mhtml --out "$W/inbox-solo" >"$W/cap-solo.json"
 grep -q personal.html <(jq -r .meta.url "$W/cap-solo.json") || { echo "FAIL: Solo did not use the default browser"; exit 1; }
 echo "PASS: unbind makes a default browser that unbound profiles use"
+mono_scan_log "$W/bridge.log"
+mono_check_clean
 echo "ALL PASS"
