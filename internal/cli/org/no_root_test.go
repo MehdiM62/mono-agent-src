@@ -62,3 +62,25 @@ func TestOrgCommandsWithUnopenableDBTouchNothingUnderCwd(t *testing.T) {
 		}
 	}
 }
+
+// `org summary` keeps reporting the local facts (the org files under an
+// explicit --project) when the database cannot be opened, and still writes
+// nothing under the current directory.
+func TestOrgSummaryWithUnopenableDBKeepsLocalFacts(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	project := t.TempDir()
+	writeOrgFile(t, project, "acme.json", `{"name":"acme"}`)
+	cwd := t.TempDir()
+	t.Chdir(cwd)
+	cmd := newOrgCmd(&testConfig{DBPath: t.TempDir(), ProfileID: "default"})
+	cmd.SetArgs([]string{"summary", "--fast", "--project", project})
+	cmd.SilenceUsage, cmd.SilenceErrors = true, true
+	var err error
+	out := captureStdout(t, func() { err = cmd.Execute() })
+	if err != nil || !strings.Contains(out, `"acme"`) {
+		t.Fatalf("summary: err %v, out %s", err, out)
+	}
+	if entries, _ := os.ReadDir(cwd); len(entries) != 0 {
+		t.Fatalf("summary wrote under the current directory: %v", entries)
+	}
+}
