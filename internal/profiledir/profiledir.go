@@ -7,16 +7,11 @@ package profiledir
 
 import (
 	"database/sql"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 )
-
-// ErrNoProfile is returned when an operation needs a profile and none was
-// given. There is no implicit profile: callers name one or fail.
-var ErrNoProfile = errors.New("no profile: this operation needs an explicit profile")
 
 // MachineProfileID is the reserved vault scope that holds machine-wide secrets
 // (the TypeSafe key). It is never a profile's id.
