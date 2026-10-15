@@ -6,7 +6,7 @@ package mcp
 var docsTopics = map[string]string{
 	"publication": `PUBLICATION HISTORY
 
-The active profile's local history of successful posts, comments, replies,
+A profile's local history of successful posts, comments, replies,
 articles, videos and shared channel posts. Built-in publishing operations register
 success automatically from workflows, direct node runs and agent automations.
 Reads, likes, follows, drafts and private messages are excluded.
@@ -58,7 +58,7 @@ Human-in-the-loop:
 Credentials & profiles:
   connect <platform>         OAuth/API-key connection setup
   secret add --kind secret --name x   (pipe value via stdin; never argv)
-  profile list | profile use <name>   Everything is scoped to the active profile
+  profile list                        Everything is scoped to a profile; pass --profile <id|name>
 
 Exit codes: 0 ok, 1 general, 2 not-found, 3 invalid-input/validation, 4 auth/connection.`,
 
@@ -185,8 +185,10 @@ collide.`,
 	"connections": `CONNECTIONS, CREDENTIALS & PROFILES
 
 Profiles scope everything (workflows, connections, people, HIL queue,
-secrets). --profile <name> overrides one command; the active profile comes
-from the settings table ("default" initially). A workflow saved under one
+secrets). Every command that acts on a profile takes --profile <id|name>; there
+is no active profile. (This server still serves the profile fixed at start, and
+today falls back to MONOAGENT_PROFILE, which is being removed; a later release
+adds a required profile argument.) A workflow saved under one
 profile cannot run under another.
 
 Connections ('monoagentcli connect <platform>') store OAuth tokens /
@@ -194,7 +196,7 @@ API keys in an encrypted vault (keyring-wrapped key, AES-256-GCM). Nodes
 resolve credentials by:
   1. explicit config field credential_id (connection ID or platform name)
   2. platform name derived from the node type (service.google_sheets ->
-     google_sheets), scoped to the active profile
+     google_sheets), scoped to the profile
 OAuth tokens refresh automatically before expiry.
 
 Secrets for config values: prefer the vault (secret add, value via stdin) —

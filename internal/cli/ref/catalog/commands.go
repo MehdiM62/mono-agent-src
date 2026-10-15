@@ -5,7 +5,7 @@ package catalog
 // cliDocs is the start of the `ref commands` catalogue; catalog.go appends the
 // entries kept in the other commands_*.go files.
 var cliDocs = []cmdDoc{
-	{Name: "publication", Short: "List and register published content in the active profile", Usage: "monoagentcli publication list|get|register|stats", Flags: "  list: --search --platform --kind --workflow --agent --since --until --limit --offset\n  register: --stdin-json", Examples: []string{"monoagentcli --json publication list", "monoagentcli --json publication register --stdin-json < publication.json", "monoagentcli ref publication"}},
+	{Name: "publication", Short: "List and register published content in a profile", Usage: "monoagentcli publication list|get|register|stats", Flags: "  list: --search --platform --kind --workflow --agent --since --until --limit --offset\n  register: --stdin-json", Examples: []string{"monoagentcli --json publication list", "monoagentcli --json publication register --stdin-json < publication.json", "monoagentcli ref publication"}},
 	{
 		Name:  "login",
 		Short: "Log in to a social platform (opens browser for cookie capture)",
@@ -268,14 +268,12 @@ generations at once) without the runs interfering.`,
 		Name:  "profile",
 		Short: "Manage profiles — the full isolation boundary for people/messages/connections/workflows",
 		Usage: "monoagentcli profile <subcommand>",
-		Flags: `  list             List all profiles and which is active
-  create <name>    Create a new profile
-  switch <name>    Change the active default profile
-  current          Show the currently active profile`,
+		Flags: `  list             List all profiles
+  create <name>    Create a new profile`,
 		Examples: []string{
 			"monoagentcli profile list",
 			"monoagentcli profile create halansari",
-			"monoagentcli --profile halansari people list   # override for a single command, no switch needed",
+			"monoagentcli --profile halansari people list   # commands that act on a profile name it with --profile",
 		},
 	},
 	{
