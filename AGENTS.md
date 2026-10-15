@@ -504,14 +504,35 @@ monoagentcli --profile work library logout
 ## MCP server
 
 ```bash
-monoagentcli --profile work mcp                     # stdio JSON-RPC MCP server, read-only tools only
-monoagentcli --profile work mcp --allow-mutations   # also serve mutating tools
-monoagentcli --profile work mcp --allow-mutations --allow-api-exposure   # also let api_config_set widen what the API's server exposes, and api_auto_set switch the auto model on
-monoagentcli --profile work mcp --api-only --allow-mutations --allow-api-exposure   # the same, serving the OpenAI-compatible API's tools (api_*) and no other
-monoagentcli --profile work mcp --tasks-only --allow-mutations   # the user's task board's tools (task_*) and no other, for one profile
-monoagentcli --profile work mcp --allow-mutations --workflow-tools   # also each saved workflow as a tool wf_<slug>
-monoagentcli --profile work mcp --allow-mutations --workflow-tools="Daily digest,wf-123"   # only those workflows (id or name)
+monoagentcli mcp                     # stdio JSON-RPC MCP server, read-only tools only
+monoagentcli mcp --allow-mutations   # also serve mutating tools
+monoagentcli mcp --allow-mutations --allow-api-exposure   # also let api_config_set widen what the API's server exposes, and api_auto_set switch the auto model on
+monoagentcli mcp --api-only --allow-mutations --allow-api-exposure   # the same, serving the OpenAI-compatible API's tools (api_*) and no other
+monoagentcli mcp --tasks-only --allow-mutations   # the user's task board's tools (task_*) and no other
+monoagentcli mcp --allow-mutations --workflow-tools   # also each active workflow, of every profile, as a tool wf_<slug>
+monoagentcli mcp --allow-mutations --workflow-tools="Daily digest,wf-123"   # only those workflows (id or name)
+monoagentcli --profile work mcp --grant <id>   # grant mode: the one server that is bound to a profile
 ```
+
+**One server serves every profile, and holds none.** `mcp` is a machine-wide
+command: it takes no `--profile` (except with `--grant`), reads no
+`MONOAGENT_PROFILE` and no active-profile setting, and falls back to no
+`default`. Every tool that acts on a profile takes a **required** string
+argument `profile`, the profile's id or name, on each call, and resolves it
+per call as the CLI's `--profile` does (an id, else a name without regard to
+case). A call with no `profile`, an unknown one, or a name that two profiles
+share is an `invalid_input` error that names the argument and lists the
+profiles (`Work (a1), Home (b2)`); the server never picks one. What a call of
+profile A asks for in profile B (a workflow, execution, person, secret, task,
+HIL item, publication) is not found. Only the **global** tools take no profile,
+because they read and write no profile data: `node_list`, `node_schema`, `docs`,
+`workflow_template_list`, `workflow_template_show`, `template_list` (message
+templates are machine-wide), `api_config_get`, `api_config_set` and
+`api_config_apply`. `api_status`, `api_models_list`, `api_key_*` and
+`api_auto_set` are scoped: they read the profile's key count and auto-model
+state. The requirement is added to a tool's input schema by `scoped()` in
+`internal/mcp/profile_arg.go`, which every tool list passes through, so a new
+tool is scoped unless it sets `global: true`.
 
 Register it with any MCP client (stdio transport). Prefer MCP when the
 host supports it; the CLI covers the same surface. `doctor fix
@@ -573,7 +594,7 @@ dangerous calls.
   (the dedicated listener is not up), `not_running` or `unknown`). Both are built
   by `internal/apiconfig`, the code the commands
   run, with this MCP server's own environment (`api_config_get` says
-  `"environment":"mcp"` where the command says `"shell"`), the server's profile
+  `"environment":"mcp"` where the command says `"shell"`), the call's profile
   and the daemon's heartbeat. A saved row that cannot be read stops both, and
   `api_models_list`, with the command's message passed on as it is (it starts
   `the saved settings are damaged` and names `api config unset --all --yes`): a
@@ -700,7 +721,7 @@ existing MCP client config that relies on them.
   daemon that is not registered for auto-start is an error with the command's
   words: stop it and start `monoagentcli daemon` again, or `daemon install`.
 - `api_auto_set` — switches the Jev surface `api_auto` (the `auto` model) on or
-  off for the MCP server's profile, as `jev enable|disable api_auto` does, and
+  off for the call's profile, as `jev enable|disable api_auto` does, and
   answers that command's `--json` document plus `auto`, what `api_status` says of
   the auto model after the change (`available`, or what it is `missing`: the
   surface, a Jev key). Switching on needs two things, because the
@@ -739,19 +760,22 @@ existing MCP client config that relies on them.
   work the user's board and nothing else: `--allow-mutations`, which the five
   verbs need, also serves the workflow tools that can run a command as the OS
   user. A call by name of another tool is refused ("is not served ...
-  `--tasks-only`"). Today a server serves the one profile named by its `--profile` flag, so
-  register one per profile:
-  `claude mcp add monoagent-tasks-<profile> -- monoagentcli --profile <id or name> mcp --tasks-only --allow-mutations`.
-  A later release adds a required `profile` argument to the profile-scoped
-  tools, after which one server will serve every profile.
+  `--tasks-only`"). One server serves every profile; the agent passes `profile`
+  on each call:
+  `claude mcp add monoagent-tasks -- monoagentcli mcp --tasks-only --allow-mutations`.
+  `task_approve` is listed while any profile has delegated approval; each call is
+  still checked against the profile it names.
   It cannot be combined with `--api-only` (refused at start, the environment
   variables included) or `--grant`. A host that has tools of its own, such as a
   shell tool, is not stopped by it. Nothing registers it for you.
 
 **Workflows as tools.** `monoagentcli mcp --allow-mutations --workflow-tools`
-(or `MONOAGENT_MCP_WORKFLOW_TOOLS=1`) also serves every active workflow of the
-profile as a tool `wf_<slug>`; `--workflow-tools=<id|name>,...` serves only
-those. A tool's input schema comes from the workflow's trigger fields
+(or `MONOAGENT_MCP_WORKFLOW_TOOLS=1`) also serves every active workflow, of
+every profile, as a tool `wf_<slug>`; `--workflow-tools=<id|name>,...` serves
+only those. A workflow tool is bound to its workflow's own profile: it takes the
+required `profile` argument too (not part of the trigger input), and a call that
+names another profile does not find the workflow. A second workflow with the
+same slug, in any profile, gets an id suffix. A tool's input schema comes from the workflow's trigger fields
 (`workflow inputs`), and a call runs it as `workflow_run` does (same wait,
 result and redaction; `_timeout_seconds` sets the wait). Workflows are re-read
 on every `tools/list`. It cannot be combined with `--api-only`, `--tasks-only`
@@ -768,7 +792,11 @@ or `--grant`.
 `workflow_validate` declare an `outputSchema`.
 
 **Grant mode.** `monoagentcli mcp --grant <id> --profile <id>` is the tool
-provider monomind spawns for an org role. It serves only that role's
+provider monomind spawns for an org role; `--profile` is required there and
+must name the grant's profile (the one server that is bound to a profile). Its
+tools accept the `profile` argument as optional: it must equal the grant's
+profile (id or name), else the call is `refused_grant`, and it is not passed on
+to the workflow as input. It serves only that role's
 granted automations (`automation_<alias>`, `automation_status`,
 `automation_output`, plus Initiator and decision tools when granted), runs
 calls in `monoagentcli daemon`, and refuses a grant used by another org or
@@ -1562,8 +1590,8 @@ a row here):
 | CLI | `monoagentcli task ...` (this section) |
 | Session-start hook | `monoagentcli --profile <id> task digest`; nothing installs the hook for you |
 | Chrome extension | *Add selection as task*, *Add page as task*, the side panel's box and the `add-task` key send `task.add` over the extension bridge: a capture, Inbox only, in the profile the extension is "Saving into" (README, Chrome Extension) |
-| MCP, any server | `monoagentcli mcp`: `task_list`, `task_get`, `task_next`; with `--allow-mutations` also `task_claim`, `task_comment`, `task_finish`, `task_release`, `task_add`, acting on the server's one profile as `agent:<client>#<4 hex>`; text in fields ending in `_untrusted`; no tool edits, moves or archives a task, and none approves unless the user delegated it (next row) |
-| MCP, the board alone | `claude mcp add monoagent-tasks-<profile> -- monoagentcli --profile <id or name> mcp --tasks-only --allow-mutations`: the same eight tools and no other, one server per profile today (a required `profile` tool argument is coming); nothing registers it for you. While the user has run `task agents allow --approve` for the profile (default: off), it also serves `task_approve`; no tool changes that setting |
+| MCP, any server | `monoagentcli mcp`: `task_list`, `task_get`, `task_next`; with `--allow-mutations` also `task_claim`, `task_comment`, `task_finish`, `task_release`, `task_add`, acting on the call's profile as `agent:<client>#<4 hex>`; text in fields ending in `_untrusted`; no tool edits, moves or archives a task, and none approves unless the user delegated it (next row) |
+| MCP, the board alone | `claude mcp add monoagent-tasks -- monoagentcli mcp --tasks-only --allow-mutations`: the same eight tools and no other, one server for every profile (each call passes `profile`); nothing registers it for you. While the user has run `task agents allow --approve` for the profile (default: off), it also serves `task_approve`; no tool changes that setting |
 | Claude Code skill | `~/.claude/skills/monoagent-tasks/SKILL.md`, written create-only by the next CLI run on a machine with `~/.claude` |
 | Dashboard summary | `monoagentcli --profile <id> --json summary --section tasks`: one profile's counts and its next task (not in `--all-profiles`) |
 | Desktop app | The Tasks tab after Documents: the selected profile's board, drag and keyboard moves, a "How to capture" note, a sidebar badge; it renders and runs `monoagentcli task ...`, and slides cards by FLIP unless `prefers-reduced-motion` is set |
@@ -2559,10 +2587,11 @@ pass --profile <id|name>` on stderr and falls back to the legacy active
 profile. The next release refuses it with that message as an error. Always
 pass `--profile`; the examples here do.
 
-The MCP server and the HTTP API are moving the same way: a later release adds
-a required `profile` argument to their profile-scoped tools and requests.
-Until then they serve the single profile fixed at start (`monoagentcli
---profile <id> mcp`, `httpapi`).
+The MCP server already works this way: it holds no profile, and each
+profile-scoped tool takes a required `profile` argument (see
+[MCP server](#mcp-server)). The HTTP API is moving the same way: a later release
+adds the profile to its requests. Until then it serves the single profile fixed
+at start (`monoagentcli --profile <id> httpapi`).
 
 A workflow saved under one profile cannot run under another — if a run
 fails with "workflow belongs to a different profile", check
@@ -2647,7 +2676,7 @@ keys and the clock, and panic outside a test binary.
 | `MONOAGENT_DEV_ENFORCE_FROM` | Forces the warn period (a future date such as `2999-01-01T00:00:00Z`) or enforcement (a past date) for a test: an RFC 3339 time. Read only by a `-tags devaccount` build; a default build does not read it, so it never relaxes anything. Default: unset — the date compiled into the binary (2026-10-11 UTC). |
 | `MONOMIND_BIN` | Path to the `monomind` binary; checked before `PATH` and the other install locations (see [How AI works in mono-agent](#how-ai-works-in-mono-agent)). Default: unset — discovered. |
 | `MONOAGENT_AI_RUNTIME` | Agent runtime `ai.extract_page` uses to generate selectors. Default: unset — the first installed runtime, `claude` first. |
-| `MONOAGENT_PROFILE` | **Being removed.** Profile name the built-in MCP server and HTTP API fall back to when `--profile` is not given (the CLI never read it). Pass `--profile` instead. Default: unset. |
+| `MONOAGENT_PROFILE` | **Being removed.** Profile name the built-in HTTP API falls back to when `--profile` is not given (the CLI never read it, and the MCP server no longer does). Pass `--profile` instead. Default: unset. |
 | `MONOAGENT_ACTOR` | The agent's name for the task board's agent commands (`task next --claim`, `claim`, `comment`, `finish`, `release`) when `--as` is not given (`--as` wins). Setting it also makes the caller an agent, so the operator-only commands (`board` and `approve` unless delegated, `edit`, `move`, `archive`, `unarchive`, `add --ready`, `agents allow`, `agents deny`) refuse it. Set but blank, a value of only spaces, it counts as an agent without a name, like a blank `--as` (an empty value counts as unset). Default: unset — a caller with no `--as`, no `MONOAGENT_ACTOR` and no agent-context variable such as `CLAUDECODE` is the operator. |
 | `MONOAGENT_DEBUG` | Set to any non-empty value to enable verbose browser-adapter logging. Default: unset. |
 | `MONOAGENTCLI_BIN` | Path override for the `monoagentcli` binary the desktop GUI (`wails-app/`) shells out to. Default: unset — resolved relative to the GUI binary. |

@@ -86,17 +86,18 @@ read it yet: never work an Inbox task.
 
 If this host has monoagent's task tools (`task_next`, `task_claim`,
 `task_comment`, `task_finish`, `task_release`, `task_list`, `task_get`,
-`task_add`), use them instead of the commands: the server serves one profile
-and names you itself (`agent:<client>#<4 hex digits>`), so you pass neither
-`--profile` nor a name, and every text comes back in a field ending in
-`_untrusted`. Use one server for the whole task: two servers are two
-claimants, and one cannot comment on or finish what the other claimed. If the
-server restarts, you are a new claimant too: a task you held frees itself when
-its lease ends; tell the user. The user registers one server per profile (a later release adds a required
-`profile` argument to the tools; when your tools list it, pass it):
+`task_add`), use them instead of the commands. The server holds no profile: you
+pass `profile` on every call, the id of the board you chose in section 1 (the
+name works too). A call without it is refused with the list of profiles. The
+server names you itself (`agent:<client>#<4 hex digits>`), so you pass no name,
+and every text comes back in a field ending in `_untrusted`. Use one server for
+the whole task: two servers are two claimants, and one cannot comment on or
+finish what the other claimed. If the server restarts, you are a new claimant
+too: a task you held frees itself when its lease ends; tell the user. The user
+registers one server for all profiles:
 
 ```bash
-claude mcp add monoagent-tasks-<profile> -- monoagentcli --profile <profile-id> mcp --tasks-only --allow-mutations
+claude mcp add monoagent-tasks -- monoagentcli mcp --tasks-only --allow-mutations
 ```
 
 ## 6. Delegated abilities (only if the user turned them on)
