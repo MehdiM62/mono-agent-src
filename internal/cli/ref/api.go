@@ -226,7 +226,8 @@ OPENAI-COMPATIBLE API (/v1)
     monoagentcli api config ...    the server's settings, saved in the database
                                    (see "Server settings" below)
 
-  monoagentcli mcp has the same management as tools, for its own profile:
+  monoagentcli mcp has the same management as tools, for the profile each call names (a
+  required "profile" argument; api_config_get, api_config_set and api_config_apply take none):
   api_key_list, api_models_list, api_status and api_config_get, and with
   --allow-mutations api_key_create (it returns the key once, in its result,
   which puts it in the MCP host's transcript), api_key_update, api_key_revoke,
@@ -385,7 +386,7 @@ OPENAI-COMPATIBLE API (/v1)
   the auto model on. api_config_apply restarts the
   daemon as daemon restart does (it reads the saved settings first and restarts
   nothing when they cannot be used), and interrupts what it is running.
-  api_auto_set switches the api_auto surface of the server's profile on (it needs
+  api_auto_set switches the api_auto surface of the call's profile on (it needs
   --allow-api-exposure on the server, since what leaves the machine is the
   operator's decision, and acknowledge_egress: true, because prompts then go to
   TypeSafe) or off (it needs neither), as jev enable|disable api_auto does, and

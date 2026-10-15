@@ -218,8 +218,9 @@ FROM MCP
   or archives a task; when the operator allowed approving (task agents allow --approve)
   a --tasks-only server also serves task_approve (ids, top), and task_list lists the Inbox
   by default while the operator allows viewing. To give an agent the board and no workflow tool, register one
-  server per profile (or set MONOAGENT_MCP_TASKS_ONLY=1 for it):
-    claude mcp add monoagent-tasks-<profile> -- monoagentcli --profile <id or name> mcp --tasks-only --allow-mutations
+  server for all profiles (or set MONOAGENT_MCP_TASKS_ONLY=1 for it); every call passes its
+  "profile" (id or name), and a call without it is refused with the list of profiles:
+    claude mcp add monoagent-tasks -- monoagentcli mcp --tasks-only --allow-mutations
 
 SESSION START
   task digest prints two short lines when the profile has ready work (the counts and the
