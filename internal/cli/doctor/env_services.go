@@ -91,13 +91,9 @@ func addServiceHooks(env *health.Env, d EnvDeps) {
 		}
 		return nil
 	}
-	env.AutostartStatus = func(ctx context.Context) (bool, string) { return autostartStatus(ctx, autostart.New()) }
+	env.AutostartStatus = func(ctx context.Context) (bool, string) { return autostart.New().Status(ctx) }
 	env.InstallAutostart = func(ctx context.Context, progress func(string)) error {
-		profile, err := daemonProfile(ctx, env)
-		if err != nil {
-			return err
-		}
-		res, err := autostart.New().Install(ctx, profile)
+		res, err := autostart.New().Install(ctx, "")
 		if err != nil {
 			return err
 		}
@@ -105,20 +101,11 @@ func addServiceHooks(env *health.Env, d EnvDeps) {
 		return nil
 	}
 	env.StartDaemon = func(ctx context.Context, progress func(string)) error {
-		// The profile as doctor resolved it: --profile may be a name.
-		args, err := daemonStartArgs(ctx, d, env)
-		if err != nil {
-			return err
-		}
-		return startDaemon(ctx, args, autostart.New(), progress)
+		return startDaemon(ctx, daemonArgs(d.DBPath()), autostart.New(), progress)
 	}
 	env.StopDaemon = stopDaemon
 	env.CanStartDaemon = func(ctx context.Context) error {
-		args, err := daemonStartArgs(ctx, d, env)
-		if err != nil {
-			return err
-		}
-		return daemonStartBlocked(ctx, args, autostart.New())
+		return daemonStartBlocked(ctx, daemonArgs(d.DBPath()), autostart.New())
 	}
 
 	env.ClaudeSkills = integrations.ClaudeSkillsState
@@ -130,20 +117,12 @@ func addServiceHooks(env *health.Env, d EnvDeps) {
 	env.RegisterMCP = integrations.RegisterAgentsMCP
 }
 
-// daemonStartArgs is the command line doctor starts the daemon with.
-func daemonStartArgs(ctx context.Context, d EnvDeps, env *health.Env) ([]string, error) {
-	profile, err := daemonProfile(ctx, env)
-	if err != nil {
-		return nil, err
-	}
-	return daemonArgs(d.DBPath(), profile)
-}
 
 // startDaemon starts `monoagentcli daemon` through its login service when
 // one is registered (idempotent), otherwise as a detached background
 // process logging to ~/.monoagent/logs/daemon.log. The daemon gets
-// doctor's --db-path and --profile; the login service runs with the
-// defaults, so it is not used when those were changed.
+// doctor's --db-path; the login service runs with the
+// defaults, so it is not used when that was changed.
 func startDaemon(ctx context.Context, args []string, as autostart.Installer, progress func(string)) error {
 	// A daemon that is still starting has no heartbeat yet, but it holds
 	// the lock: starting another would be refused by it anyway, and must
@@ -189,28 +168,21 @@ func startDaemon(ctx context.Context, args []string, as autostart.Installer, pro
 
 // serviceStartRefusal is why the registered login service, at where, cannot
 // start the daemon with args: nil when it can. The service runs the daemon
-// with the default database and the profile it was registered with, and one
-// daemon runs per home (the service's would take the lock), so it cannot
-// start one with another database or profile. A registration that names no
-// profile (out of date) is still started: doctor reports it, and fixing it
-// rewrites it.
+// with the default database, and one daemon runs per home (the service's would
+// take the lock), so it cannot start one with another database. (A unit written
+// before the daemon served every profile also carries --profile <id>; the
+// daemon ignores it, so that unit is as good as one without.)
 func serviceStartRefusal(where string, args []string) error {
-	want := []string{"daemon"}
-	if i := slices.Index(args, "--profile"); i >= 0 && i+1 < len(args) {
-		if reg, found, err := registeredProfile(); err != nil || !found || reg == args[i+1] {
-			want = append(want, args[i:i+2]...)
-		}
-	}
-	if slices.Equal(args, want) {
+	if slices.Equal(args, []string{"daemon"}) {
 		return nil
 	}
-	return fmt.Errorf("the registered login service (%s) runs the daemon with the default database and the profile it was registered with, not %s — "+
+	return fmt.Errorf("the registered login service (%s) runs the daemon with the default database, not %s — "+
 		"start it yourself: monoagentcli %s", where, strings.Join(args[1:], " "), strings.Join(args, " "))
 }
 
 // daemonStartBlocked says, before anything is stopped, whether startDaemon
 // would refuse to start the daemon with args (the registered service cannot
-// run it with another database or profile): nil when it would not.
+// run it with another database): nil when it would not.
 func daemonStartBlocked(ctx context.Context, args []string, as autostart.Installer) error {
 	if ok, where := as.Status(ctx); ok {
 		return serviceStartRefusal(where, args)
@@ -304,52 +276,14 @@ func heartbeatNames(pid int) bool {
 	return ok && hb.PID == pid
 }
 
-// daemonArgs is `daemon` plus the --db-path (dbPath) doctor runs with, when given, and always
-// --profile profileID: the daemon never starts on whatever profile happens to be active.
-// profileID is the profile as doctor resolved it (--profile may be a name).
-func daemonArgs(dbPath, profileID string) ([]string, error) {
-	if profileID == "" {
-		return nil, fmt.Errorf("no profile to start the daemon with: pass --profile <id>")
-	}
+// daemonArgs is `daemon` plus the --db-path (dbPath) doctor runs with, when given. The daemon
+// serves every profile, so it is started with none.
+func daemonArgs(dbPath string) []string {
 	args := []string{"daemon"}
 	if dbPath != "" && clicore.ExpandPath(dbPath) != clicore.ExpandPath(capturecli.DefaultDBPath) {
 		args = append(args, "--db-path", clicore.ExpandPath(dbPath))
 	}
-	return append(args, "--profile", profileID), nil
-}
-
-// daemonProfile is the profile doctor starts or registers the daemon with: the one it resolved,
-// which must exist in the database. It is never invented ("default" included).
-func daemonProfile(ctx context.Context, env *health.Env) (string, error) {
-	if env.DB == nil {
-		return "", fmt.Errorf("cannot name a profile for the daemon: the database is not open; pass --profile <id>")
-	}
-	var id string
-	if err := env.DB.QueryRowContext(ctx, `SELECT id FROM profiles WHERE id = ?`, env.ProfileID).Scan(&id); err != nil {
-		return "", fmt.Errorf("profile %q does not exist; pass --profile <id> (see `monoagentcli profile list`)", env.ProfileID)
-	}
-	return id, nil
-}
-
-// registeredProfile is the profile the registered login service starts the daemon with; tests replace it.
-var registeredProfile = autostart.RegisteredProfile
-
-// autostartStatus is the service manager's status, except that a registration which starts the
-// daemon without --profile (installed before the profile was explicit) is reported as out of
-// date rather than as in place: fixing it rewrites the registration.
-func autostartStatus(ctx context.Context, as autostart.Installer) (bool, string) {
-	ok, where := as.Status(ctx)
-	if !ok {
-		return ok, where
-	}
-	_, found, err := registeredProfile()
-	if err != nil {
-		return false, where + ": could not read the registration (" + err.Error() + ")"
-	}
-	if !found {
-		return false, where + " is out of date: it starts the daemon without --profile; fix it to rewrite the registration"
-	}
-	return true, where
+	return args
 }
 
 // bridgeOwner says what runs the bridge process pid: the daemon (pid

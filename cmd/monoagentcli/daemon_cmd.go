@@ -30,7 +30,6 @@ func newDaemonRestartCmd(cfg *globalConfig) *cobra.Command {
 // daemonDeps are the CLI's pieces the daemon runs on.
 func daemonDeps(cfg *globalConfig) daemon.Deps {
 	return daemon.Deps{
-		ProfileID:             func() string { return cfg.ProfileID },
 		JSONOutput:            func() bool { return cfg.JSONOutput },
 		OpenDB:                func() (*storage.Database, error) { return initDB(cfg) },
 		BuildEngine:           func() (*workflow.WorkflowEngine, func(), error) { return buildEngine(cfg, true) },
