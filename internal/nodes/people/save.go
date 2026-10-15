@@ -12,10 +12,10 @@ import (
 	_ "github.com/monoes/mono-agent/internal/bot/linkedin"
 	_ "github.com/monoes/mono-agent/internal/bot/tiktok"
 	_ "github.com/monoes/mono-agent/internal/bot/x"
+	"github.com/monoes/mono-agent/internal/nodes/nodeprofile"
 	"github.com/monoes/mono-agent/internal/personitem"
 	"github.com/monoes/mono-agent/internal/personphoto"
 	"github.com/monoes/mono-agent/internal/util"
-	"github.com/monoes/mono-agent/internal/vault"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -66,12 +66,9 @@ func (n *PeopleSaveNode) Execute(
 
 	// The owning profile: the node's config, else the profile the run
 	// belongs to, else "default".
-	profileID, _ := config["profile_id"].(string)
-	if profileID == "" {
-		profileID = vault.ProfileIDFromContext(ctx)
-	}
-	if profileID == "" {
-		profileID = "default"
+	profileID, err := nodeprofile.Require(ctx, "people.save", config)
+	if err != nil {
+		return nil, err
 	}
 
 	tx, err := globalPeopleDB.BeginTx(ctx, nil)

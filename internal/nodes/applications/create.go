@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/monoes/mono-agent/internal/applications"
+	"github.com/monoes/mono-agent/internal/nodes/nodeprofile"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -22,10 +23,14 @@ func (n *CreateNode) Execute(ctx context.Context, input workflow.NodeInput, conf
 		return nil, fmt.Errorf("applications.create: store not available (call SetGlobalStore at startup)")
 	}
 
+	profileID, err := nodeprofile.Require(ctx, "applications.create", config)
+	if err != nil {
+		return nil, err
+	}
 	kind := configString(config, "kind", "")
 	app := &applications.Application{
 		Kind:      applications.Kind(kind),
-		ProfileID: configString(config, "profile_id", ""),
+		ProfileID: profileID,
 	}
 
 	switch app.Kind {

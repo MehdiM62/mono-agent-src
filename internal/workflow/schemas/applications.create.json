@@ -21,8 +21,7 @@
       "type": "text"
     },
     {
-      "default": "default",
-      "help": "Which profile owns this application. Defaults to 'default'.",
+      "help": "Optional. Must match the workflow's profile (leave blank to use it).",
       "key": "profile_id",
       "label": "Profile ID",
       "required": false,
