@@ -25,7 +25,7 @@ func newBrowserSubmitCmd(cfg *globalConfig) *cobra.Command {
 			"hold what was approved: any change is refused (submit_changed) and the approval kept.\n" +
 			"--tab and --browser are ignored. An approval made any other way (the MCP server's or\n" +
 			"the HTTP API's hil tools) is refused.",
-		Example: "  monoagentcli --json browser submit --hil 1a2b3c4d",
+		Example: "  monoagentcli --profile <id> --json browser submit --hil 1a2b3c4d",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if hilID == "" {

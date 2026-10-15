@@ -18,7 +18,9 @@ function fakeChrome({ frames = { 7: [0, 3] }, session = {}, urls = { 7: "https:/
   const listeners = { committed: [], message: [], removed: [] };
   const guards = new Map(); // "tab:frame" -> {armed, allow}
   const calls = [];
+  const bar = []; // agent_guard_bar.js calls, apart: [what, tabId, frames]
   let page = null;
+  let barFns = null;
   const chrome = {
     runtime: { id: "ext-id", onMessage: { addListener: (fn) => listeners.message.push(fn) } },
     storage: {
@@ -40,6 +42,11 @@ function fakeChrome({ frames = { 7: [0, 3] }, session = {}, urls = { 7: "https:/
         const all = frames[target.tabId];
         if (!all) throw new Error(`No tab with id: ${target.tabId}`);
         const ids = target.allFrames ? all : target.frameIds;
+        const barFn = Object.keys(barFns).find((k) => barFns[k] === func);
+        if (barFn) {
+          bar.push([barFn, target.tabId, ids]);
+          return ids.map((frameId) => ({ frameId, result: true }));
+        }
         const kind = func === page.installRelay ? "relay" : func === page.installGuard ? "guard" : `control:${args[1]}`;
         calls.push({ kind, tabId: target.tabId, frames: ids, world: world || "ISOLATED", immediately: !!injectImmediately });
         return ids.map((frameId) => {
@@ -63,7 +70,8 @@ function fakeChrome({ frames = { 7: [0, 3] }, session = {}, urls = { 7: "https:/
     store,
     guards,
     calls,
-    setPage: (p) => (page = p),
+    bar,
+    setPage: (p, b) => ((page = p), (barFns = b)),
     tabUrls,
     pending,
     // A frame commits a document; the top frame's commit moves the tab's page.
@@ -82,8 +90,8 @@ function fakeChrome({ frames = { 7: [0, 3] }, session = {}, urls = { 7: "https:/
 
 function setup(opts) {
   const f = fakeChrome(opts);
-  const g = loadExtensionScripts(["agent_cdp.js", "agent_redact.js", "agent_submit_page.js", "agent_submit_guard.js"], { chrome: f.chrome });
-  f.setPage(g.MonoAgentSubmitPage);
+  const g = loadExtensionScripts(["agent_cdp.js", "agent_redact.js", "agent_submit_page.js", "agent_guard_bar.js", "agent_submit_guard.js"], { chrome: f.chrome });
+  f.setPage(g.MonoAgentSubmitPage, g.MonoAgentGuardBar);
   g.MonoAgentSubmitGuard.install();
   return Object.assign(f, { guard: g.MonoAgentSubmitGuard });
 }
@@ -297,4 +305,29 @@ test("messages from elsewhere, and unknown actions, are refused", async () => {
   await assert.rejects(t.guard.handle({ action: "status" }), /tabId is required/);
   await assert.rejects(t.guard.handle({ tabId: 99, action: "arm" }), /No tab with id: 99/);
   assert.equal((await t.guard.handle({ tabId: 99, action: "status" })).armed, false, "a tab the guard never installed in stays unarmed");
+});
+
+// ── the armed tab says so (review re-check) ───────────────────────────────
+
+test("an armed tab shows the bar in its top frame; a held submit adds a toast; disarm takes it down", async () => {
+  const t = setup();
+  await t.guard.handle({ tabId: 7, action: "arm" });
+  assert.deepEqual(t.bar, [["show", 7, [0]]]);
+  t.report(7, 3, report([]));
+  await settle();
+  assert.deepEqual(t.bar.slice(1), [["show", 7, [0]], ["toast", 7, [0]]], "the toast is in the top frame, whichever frame was held");
+  await t.guard.handle({ tabId: 7, action: "disarm" });
+  assert.deepEqual(t.bar[t.bar.length - 1], ["hide", 7, [0]]);
+});
+
+test("a new document on the armed origin gets the bar again; a frame inside it does not get its own", async () => {
+  const t = setup();
+  await t.guard.handle({ tabId: 7, action: "arm" });
+  t.bar.length = 0;
+  await t.commit(7, 0, "https://shop.test/checkout");
+  await t.commit(7, 3, "https://js.payments.example/iframe");
+  assert.deepEqual(t.bar, [["show", 7, [0]]]);
+  t.bar.length = 0;
+  await t.commit(7, 0, "https://mail.example.com/");
+  assert.deepEqual(t.bar, [], "another origin: no bar, the tab is no longer armed");
 });

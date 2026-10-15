@@ -27,18 +27,20 @@ const browserLong = `Drive your own browser — the one with the MonoAgent Bridg
 command line: open and navigate tabs, click and type, take screenshots, read the
 console and failed requests, and ask you to pick an element.
 
-Every command acts on one tab: --tab, else the tab this context used last, else
-the active tab (for an agent, the active tab of its own tab group). --browser picks
-one of several attached browsers (see ` + "`browser browsers`" + `); --profile routes to
-the browser bound to that profile.
+Pass --profile <id> with every command but ` + "`browser browsers`" + `, ` + "`browser allow`" + ` and
+` + "`browser diff`" + `: it routes to the browser bound to that profile, and held submits
+belong to it. Every command acts on one tab: --tab, else the tab this context used
+last, else the active tab (for an agent, the active tab of its own tab group).
+--browser picks one of several attached browsers (see ` + "`browser browsers`" + `).
 
 Run by an agent (Claude Code, Codex, an org role, a coder chat), the commands only
 drive local and dev pages (localhost, *.localhost, 127.0.0.0/8, ::1, *.local, *.test,
 private network addresses) and the origins on your allowlist (` + "`browser allow`" + `);
 file: and browser-internal pages never. An agent's form submit on an allowed page
 that is not local waits for your approval: the command exits 3 with
-{"status":"awaiting_approval","hil_id":…}; approve it with ` + "`hil approve <id>`" + ` or on
-the Human in Loop page, then the agent runs ` + "`browser submit --hil <id>`" + `. This is
+{"status":"awaiting_approval","hil_id":…}; approve it with
+` + "`monoagentcli --profile <id> hil approve <hil_id>`" + ` or on the Human in Loop page, then
+the agent runs ` + "`monoagentcli --profile <id> browser submit --hil <hil_id>`" + `. This is
 a guard against mistakes and prompt injection from pages, not a sandbox: an agent
 with full access to this machine can reach the bridge directly. A terminal you run
 yourself is not restricted.`
@@ -48,10 +50,10 @@ func newBrowserCmd(cfg *globalConfig) *cobra.Command {
 		Use:   "browser",
 		Short: "Drive your browser through the extension: tabs, clicks, screenshots, console, network",
 		Long:  browserLong,
-		Example: `  monoagentcli browser open http://localhost:3000
-  monoagentcli browser click "button.save"
-  monoagentcli --json browser screenshot --full
-  monoagentcli --json browser console --level error`,
+		Example: `  monoagentcli --profile <id> browser open http://localhost:3000
+  monoagentcli --profile <id> browser click "button.save"
+  monoagentcli --profile <id> --json browser screenshot --full
+  monoagentcli --profile <id> --json browser console --level error`,
 	}
 	cmd.PersistentFlags().String("browser", "", "Attached browser to use: an instance id (4+ leading characters) or label")
 	cmd.PersistentFlags().Int("tab", 0, "Tab id to act on (see browser tabs)")
@@ -173,7 +175,8 @@ func browserErr(cmd *cobra.Command, cfg *globalConfig, err error) error {
 		if cfg.JSONOutput {
 			_ = writeJSONTo(cmd.OutOrStdout(), map[string]any{
 				"status": "awaiting_approval", "hil_id": aw.HILID, "origin": aw.Origin, "url": aw.URL, "via": aw.Via,
-				"hint": fmt.Sprintf("ask the user to approve it (monoagentcli hil approve %s, or the Human in Loop page), then run monoagentcli browser submit --hil %s", aw.HILID, aw.HILID),
+				"hint": fmt.Sprintf("ask the user to approve it (monoagentcli %s hil approve %s, or the Human in Loop page), then run monoagentcli %s browser submit --hil %s",
+					browserctl.ProfileFlag(aw.Profile), aw.HILID, browserctl.ProfileFlag(aw.Profile), aw.HILID),
 			})
 		}
 		return reportedError{Err: errInvalidInput("%s", aw.Error())}
@@ -209,7 +212,7 @@ func browserErr(cmd *cobra.Command, cfg *globalConfig, err error) error {
 		return fmt.Errorf("%s: the MonoAgent extension in that browser is older than this command — update it, or reload it from the browser's extensions page", strings.TrimPrefix(msg, "extension error: "))
 	}
 	if strings.Contains(msg, "No tab with id") {
-		return errNotFound("%s — see `monoagentcli browser tabs`", strings.TrimPrefix(msg, "extension error: "))
+		return errNotFound("%s — see `monoagentcli %s browser tabs`", strings.TrimPrefix(msg, "extension error: "), browserctl.ProfileFlag(cfg.ProfileID))
 	}
 	return err
 }

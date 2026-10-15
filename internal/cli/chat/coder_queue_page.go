@@ -69,9 +69,18 @@ func pageOf(raw string) (origin, path string, err error) {
 	return origin, path, nil
 }
 
-// cleanLine is s as one line: every run of spaces and control characters
-// becomes one space, and at most max runes are kept.
+// cleanLine is s as one line: format characters (bidi embeddings,
+// overrides and isolates, LRM/RLM/ALM, zero-width spaces and joiners, BOM:
+// Unicode category Cf) are dropped, so a page can't visually reorder the
+// prompt or the card; every run of spaces and control characters becomes
+// one space; and at most max runes are kept.
 func cleanLine(s string, max int) string {
+	s = strings.Map(func(r rune) rune {
+		if unicode.Is(unicode.Cf, r) {
+			return -1
+		}
+		return r
+	}, s)
 	s = strings.Join(strings.FieldsFunc(s, func(r rune) bool { return unicode.IsSpace(r) || unicode.IsControl(r) }), " ")
 	if utf8.RuneCountInString(s) > max {
 		s = string([]rune(s)[:max]) + "…"

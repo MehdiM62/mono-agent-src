@@ -69,6 +69,13 @@ var classes = map[string]string{
 	"chat history reconcile": ClassGlobal,
 
 	"coder status": ClassGlobal, "coder enable": ClassGlobal, "coder disable": ClassGlobal, "coder set": ClassGlobal,
+	// The origin→folder map is the machine-wide coder_projects setting.
+	"coder projects": ClassGlobal,
+
+	// The agent allowlist is one machine-wide setting, `browser browsers`
+	// lists every attached browser, and `browser diff` only compares two
+	// files. Every other browser command drives the profile's browser.
+	"browser allow": ClassGlobal, "browser browsers": ClassGlobal, "browser diff": ClassGlobal,
 
 	"daemon install": ClassGlobal, "daemon uninstall": ClassGlobal, "daemon restart": ClassGlobal,
 }
