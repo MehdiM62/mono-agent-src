@@ -150,7 +150,11 @@ func (a *App) runAPICLI(result interface{}, args ...string) error {
 	if ctx == nil { // before startup, and in tests
 		ctx = context.Background()
 	}
-	cmd := exec.CommandContext(ctx, cliBin, scopedCLIArgs(a.getActiveProfileID(), args...)...)
+	full, err := a.scopedArgs(args...)
+	if err != nil {
+		return err
+	}
+	cmd := exec.CommandContext(ctx, cliBin, full...)
 	suppressConsole(cmd)
 	out, err := cmd.Output()
 	if err != nil {

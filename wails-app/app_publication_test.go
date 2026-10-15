@@ -20,7 +20,7 @@ esac
 `))
 	a := newTestApp(t)
 	a.ctx = context.Background()
-	a.setActiveProfileID("work")
+	a.selectForTest("work")
 	if got := strings.TrimSpace(a.ListPublications("hello", "x", "post", "w1", "a1", "2026-10-01", "2026-10-06", 51, 50)); got != "[]" {
 		t.Fatalf("list = %q", got)
 	}

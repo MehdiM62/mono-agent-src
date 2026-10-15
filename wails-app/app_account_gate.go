@@ -19,6 +19,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -170,13 +171,12 @@ func (a *App) startSignedIn() {
 	if a.chatSup == nil {
 		a.initChatSupervisor()
 	}
-	// Load the active profile from settings; default to 'default' if not set.
-	var activeProfileID string
-	_ = a.db.QueryRow(`SELECT value FROM settings WHERE key = 'active_profile_id'`).Scan(&activeProfileID)
-	if activeProfileID == "" {
-		activeProfileID = "default"
+	// The profile this window shows: the saved selection, else the oldest
+	// profile. With no profile at all nothing is selected, bindings that
+	// need one return errNoProfile, and the sidebar offers a new profile.
+	if err := a.selectProfileAtStartup(); err != nil && !errors.Is(err, errNoProfile) {
+		a.emitLog("SYSTEM", "WARN", "selecting a profile: "+err.Error())
 	}
-	a.setActiveProfileID(activeProfileID)
 	a.startWatchers()
 	a.emitLog("SYSTEM", "INFO", "Mono Agent UI connected to "+a.dbPath)
 	// Marks the signed-in setup as finished — see IsReady. Must be the last

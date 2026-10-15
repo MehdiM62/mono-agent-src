@@ -9,10 +9,12 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key) => key }),
 }))
 
+const { getProfiles } = vi.hoisted(() => ({ getProfiles: vi.fn() }))
+
 vi.mock('../wailsjs/go/main/App', () => ({
   GetVersion: () => Promise.resolve({ version: '1.0.0' }),
   GetHILItems: () => Promise.resolve([]),
-  GetProfiles: () => Promise.resolve([{ id: 'default', name: 'Default', is_active: true, root_dir: '', icon: '' }]),
+  GetProfiles: () => getProfiles(),
   SwitchProfile: () => Promise.resolve(),
   ChooseProfileFolder: () => Promise.resolve(''),
   MoveProfileFolder: () => Promise.resolve(),
@@ -28,6 +30,7 @@ vi.mock('./NewProfileModal.jsx', () => ({
 
 beforeEach(() => {
   vi.clearAllMocks()
+  getProfiles.mockResolvedValue([{ id: 'default', name: 'Default', is_active: true, root_dir: '', icon: '' }])
 })
 
 afterEach(() => {
@@ -59,3 +62,14 @@ it('does not render AI agents tab in sidebar navigation', async () => {
   expect(screen.queryByText('sidebar.nav.ai')).not.toBeInTheDocument()
 })
 
+
+// The window's own selection is the only source of the shown profile: with
+// no profile at all nothing is named "Default"; the switcher offers a new one.
+it('names no profile when none exists', async () => {
+  getProfiles.mockResolvedValue([])
+  render(<Sidebar activePage="dashboard" onNavigate={() => {}} stats={{}} dbConnected={true} />)
+
+  await waitFor(() => expect(getProfiles).toHaveBeenCalled())
+  expect(screen.queryByText('Default')).not.toBeInTheDocument()
+  expect(screen.getByText('New profile')).toBeInTheDocument()
+})

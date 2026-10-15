@@ -23,7 +23,7 @@ func TestVaultImageHandlerIsProfileScoped(t *testing.T) {
 		}
 	}
 	a := newTestApp(t)
-	a.setActiveProfileID("p1")
+	a.selectForTest("p1")
 	if _, err := a.db.Exec(`INSERT INTO vault_images (id, seq, path, filename, profile_id) VALUES
 		('img-001', 1, ?, 'img-001.png', 'p1'), ('img-002', 2, ?, 'img-002.png', 'p2')`,
 		filepath.Join(vaultDir, "img-001.png"), filepath.Join(vaultDir, "img-002.png")); err != nil {

@@ -20,7 +20,7 @@ func TestHilSendBindingsShellOutToCLI(t *testing.T) {
 	t.Setenv("MONOAGENTCLI_BIN", bin) // the resolve binding uses runMonoCLI
 	a, _ := newCLIChatApp(t, bin)
 	a.ctx = context.Background()
-	a.setActiveProfileID("work")
+	a.selectForTest("work")
 
 	a.HilSendList("pending")
 	a.HilSendShow("s1")

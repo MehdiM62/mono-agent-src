@@ -34,7 +34,7 @@ esac
 `))
 	a := newTestApp(t)
 	a.ctx = context.Background()
-	a.setActiveProfileID("work")
+	a.selectForTest("work")
 
 	people := a.GetPeople("ALL", "", 50, 100)
 	if len(people) != 1 || people[0].Username != "sam" || people[0].ProfileURL != "u" || !people[0].IsVerified || people[0].CreatedAt == "" {
@@ -137,7 +137,7 @@ esac
 `))
 	a := newTestApp(t)
 	a.ctx = context.Background()
-	a.setActiveProfileID("work")
+	a.selectForTest("work")
 
 	if err := a.AddPersonMessage("p1", "manual", "", "", "", "Hi", "hello there"); err != nil {
 		t.Fatal(err)

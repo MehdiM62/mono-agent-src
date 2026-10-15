@@ -53,7 +53,7 @@ func newTaskTestApp(t *testing.T) *App {
 	t.Helper()
 	a := newTestApp(t)
 	a.ctx = context.Background()
-	a.setActiveProfileID("work")
+	a.selectForTest("work")
 	return a
 }
 
@@ -355,7 +355,7 @@ func TestTaskBoardIsTheActiveProfilesBoard(t *testing.T) {
 		{"work", "for the audit,for the client"},
 		{"default", "at home"},
 	} {
-		a.setActiveProfileID(c.profile)
+		a.selectForTest(c.profile)
 		v := decodeTaskBoard(t, a.TaskBoard(0))
 		if v.Profile.ID != c.profile || v.titles("inbox") != c.inbox {
 			t.Errorf("active profile %q: the board of %q with Inbox %q, want Inbox %q", c.profile, v.Profile.ID, v.titles("inbox"), c.inbox)

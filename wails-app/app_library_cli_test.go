@@ -27,7 +27,7 @@ esac
 `))
 	a := newTestApp(t)
 	a.ctx = context.Background()
-	a.setActiveProfileID("work")
+	a.selectForTest("work")
 
 	if got := a.LibraryStatus(true); !strings.Contains(got, `"logged_in":false`) {
 		t.Fatalf("LibraryStatus = %s", got)

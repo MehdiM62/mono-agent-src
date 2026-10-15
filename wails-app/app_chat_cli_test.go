@@ -68,7 +68,9 @@ func newCLIChatApp(t *testing.T, bin string) (*App, *collectingEmitter) {
 	emitter := &collectingEmitter{}
 	sup := newChatSupervisor(defaultChatProcessLauncher, emitter.emit, func() (string, error) { return bin, nil })
 	t.Cleanup(sup.stopAll)
-	return &App{chatSup: sup}, emitter
+	a := &App{chatSup: sup}
+	a.selectForTest("default")
+	return a, emitter
 }
 
 func lines(ls ...string) string { return strings.Join(ls, "\n") + "\n" }
@@ -106,7 +108,7 @@ func TestApp_StartChatTurn_RunsTheCLITurnAndRelaysItsEvents(t *testing.T) {
 		eventLine("conv-1", "turn-1", 3, chatevents.EventTurnFinished, chatevents.TurnFinishedPayload{Status: chatevents.StatusCompleted, HistorySaved: true}),
 	)})
 	a, emitter := newCLIChatApp(t, bin)
-	a.setActiveProfileID("work")
+	a.selectForTest("work")
 
 	r := decodeStart(t, a.StartChatTurn("conv-1", "turn-1", "hello world", true, true))
 	if !r.OK || r.TurnID != "turn-1" || r.Status != "active" {
@@ -336,7 +338,7 @@ func TestApp_CreateChatConversation_ShellsOutAndKeepsTheShape(t *testing.T) {
 func TestApp_ListChatConversations_ShellsOut(t *testing.T) {
 	bin, argsLog := chatFakeCLI(t, fakeChatReply{match: "chat history list", stdout: `{"items":[{"id":"c1","profile_id":"work","backend":"provider","workflow_context":"general","runtime_id":"","provider_id":"old","model":"gpt-x","session_id":"","mode":"assistant","cwd":"","created_at":"t0","updated_at":"t1"},{"id":"c2","profile_id":"work","backend":"agent","workflow_context":"general","runtime_id":"claude","provider_id":"","model":"sonnet","session_id":"","mode":"coder","cwd":"/w/proj","created_at":"t0","updated_at":"t0"}],"next_cursor":"t1|c1"}`})
 	a, _ := newCLIChatApp(t, bin)
-	a.setActiveProfileID("work")
+	a.selectForTest("work")
 	out := a.ListChatConversations("t9|c9", 999)
 	want := `{"items":[{"id":"c1","profileId":"work","backend":"provider","workflowContext":"general","providerId":"old","model":"gpt-x","mode":"assistant","cwd":"","createdAt":"t0","updatedAt":"t1"},{"id":"c2","profileId":"work","backend":"agent","workflowContext":"general","runtimeId":"claude","model":"sonnet","mode":"coder","cwd":"/w/proj","createdAt":"t0","updatedAt":"t0"}],"nextCursor":"t1|c1"}`
 	if out != want {

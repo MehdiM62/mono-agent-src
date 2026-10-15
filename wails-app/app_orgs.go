@@ -34,15 +34,15 @@ const orgCLITimeout = 60 * time.Second
 
 // orgProjectRoot resolves the active profile's project root for org state
 // (`<root>/.monomind/orgs/`) and ensures the folder layout exists. Returns
-// "" if the profile's layout can't be created, so callers can fall back to
-// the CLI's default (unscoped) project root rather than failing outright.
+// "" if the profile's layout can't be created, so callers leave --project off and the CLI resolves
+// the root from --profile.
 func (a *App) orgProjectRoot() string {
-	profileID := a.getActiveProfileID()
-	if profileID == "" {
+	profileID, err := a.profileID()
+	if err != nil {
 		return ""
 	}
 	if err := profiledir.EnsureLayout(a.db, profileID); err != nil {
-		a.emitLog("ORG", "WARN", fmt.Sprintf("could not prepare profile folder for %q: %v (falling back to default org project root)", profileID, err))
+		a.emitLog("ORG", "WARN", fmt.Sprintf("could not prepare profile folder for %q: %v (leaving the project root to the CLI)", profileID, err))
 		return ""
 	}
 	return profiledir.Root(a.db, profileID)
@@ -57,8 +57,8 @@ func (a *App) orgProjectRoot() string {
 // this has no extra override/legacy-fallback branch, so the check is just
 // "is there a profile, and is it unmanaged-custom."
 func (a *App) restrictFileWriteForOrgs() bool {
-	profileID := a.getActiveProfileID()
-	if profileID == "" {
+	profileID, err := a.profileID()
+	if err != nil {
 		return false
 	}
 	return profiledir.IsDefaultManaged(a.db, profileID)
@@ -75,7 +75,14 @@ func (a *App) runOrgCLI(args ...string) string {
 	ctx, cancel := context.WithTimeout(a.ctx, orgCLITimeout)
 	defer cancel()
 	projectRoot := a.orgProjectRoot()
-	fullArgs := orgCLIRunArgs(a.getActiveProfileID(), projectRoot, args...)
+	pid, err := a.profileID()
+	if err != nil {
+		return aiError(err)
+	}
+	fullArgs, err := orgCLIRunArgs(pid, projectRoot, args...)
+	if err != nil {
+		return aiError(err)
+	}
 	logSuffix := ""
 	if projectRoot != "" {
 		logSuffix = fmt.Sprintf(" (project: %s)", projectRoot)

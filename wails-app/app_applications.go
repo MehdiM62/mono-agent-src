@@ -22,11 +22,25 @@ import (
 // internal/discovery, internal/matching, internal/documents, or
 // internal/apply -- the CLI's --json output is the contract.
 func (a *App) runMonoCLI(stdin string, result interface{}, args ...string) error {
+	fullArgs, err := a.scopedArgs(args...)
+	if err != nil {
+		return err
+	}
+	return a.runCLIArgs(stdin, result, fullArgs)
+}
+
+// runGlobalCLI is runMonoCLI for a machine-wide command (`profile list`,
+// `profile create`, ...), which names no profile.
+func (a *App) runGlobalCLI(stdin string, result interface{}, args ...string) error {
+	return a.runCLIArgs(stdin, result, unscopedCLIArgs(args...))
+}
+
+// runCLIArgs runs monoagentcli with the finished argv fullArgs.
+func (a *App) runCLIArgs(stdin string, result interface{}, fullArgs []string) error {
 	cliBin, err := findMonoAgentCLI()
 	if err != nil {
 		return err
 	}
-	fullArgs := scopedCLIArgs(a.getActiveProfileID(), args...)
 	ctx := a.ctx
 	if ctx == nil { // before startup, and in tests (which keep ctx nil so emitLog skips the Wails runtime)
 		ctx = context.Background()

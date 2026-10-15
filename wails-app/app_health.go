@@ -43,14 +43,13 @@ const (
 	healthModeProjects   = "projects"
 )
 
-// healthArgs builds `[--profile P] --json doctor [--skip-group runtimes |
+// healthArgs builds `--profile P --json doctor [--skip-group runtimes |
 // --deep | --projects]` for a mode.
 func healthArgs(profileID, mode string) ([]string, error) {
-	args := []string{}
-	if profileID != "" {
-		args = append(args, "--profile", profileID)
+	args, err := scopedCLIArgs(profileID, "doctor")
+	if err != nil {
+		return nil, err
 	}
-	args = append(args, "--json", "doctor")
 	switch mode {
 	case healthModeBackground:
 		return append(args, "--skip-group", "runtimes"), nil
@@ -64,14 +63,10 @@ func healthArgs(profileID, mode string) ([]string, error) {
 	return nil, fmt.Errorf("unknown health check mode %q", mode)
 }
 
-// healthFixArgs builds `[--profile P] --json doctor fix <id>`.
-func healthFixArgs(profileID, fixID string) []string {
-	args := []string{}
-	if profileID != "" {
-		args = append(args, "--profile", profileID)
-	}
+// healthFixArgs builds `--profile P --json doctor fix <id>`.
+func healthFixArgs(profileID, fixID string) ([]string, error) {
 	// "--" so a fix id can never be read as a flag.
-	return append(args, "--json", "doctor", "fix", "--", fixID)
+	return scopedCLIArgs(profileID, "doctor", "fix", "--", fixID)
 }
 
 // healthReportJSON returns the doctor report verbatim. doctor exits 1 when a
@@ -100,7 +95,11 @@ func (a *App) RunHealthCheck(mode string) string {
 		b, _ := json.Marshal(map[string]any{"error": err.Error(), "cli_missing": true})
 		return string(b)
 	}
-	args, err := healthArgs(a.getActiveProfileID(), mode)
+	pid, err := a.profileID()
+	if err != nil {
+		return aiError(err)
+	}
+	args, err := healthArgs(pid, mode)
 	if err != nil {
 		return aiError(err)
 	}
@@ -222,7 +221,15 @@ func (a *App) RunHealthFix(fixID string) string {
 	// One run per fix (per runtime for installs): two `doctor fix`
 	// processes for the same fix would start two daemons or two npm
 	// installs into one global folder.
-	return a.startStreamed(cliBin, fixID, healthFixArgs(a.getActiveProfileID(), fixID), fmt.Sprintf("%s is already running", fixID))
+	pid, err := a.profileID()
+	if err != nil {
+		return aiError(err)
+	}
+	args, err := healthFixArgs(pid, fixID)
+	if err != nil {
+		return aiError(err)
+	}
+	return a.startStreamed(cliBin, fixID, args, fmt.Sprintf("%s is already running", fixID))
 }
 
 // stopGracefully makes the context's cancel (Cancel, a timeout, the app
@@ -242,19 +249,18 @@ var healthGracePeriod = 15 * time.Second
 // script the person was shown and agreed to, and the CLI runs a script only
 // if the recipe it scans now names that exact URL. An npm install needs no
 // approval flag.
-func agentInstallArgs(profileID, runtimeID string, update bool, approveURL string) []string {
-	args := []string{}
-	if profileID != "" {
-		args = append(args, "--profile", profileID)
+func agentInstallArgs(profileID, runtimeID string, update bool, approveURL string) ([]string, error) {
+	args, err := scopedCLIArgs(profileID, "agent", "install")
+	if err != nil {
+		return nil, err
 	}
-	args = append(args, "--json", "agent", "install")
 	if update {
 		args = append(args, "--force")
 	}
 	if approveURL != "" {
 		args = append(args, "--approve-script", approveURL)
 	}
-	return append(args, "--", runtimeID)
+	return append(args, "--", runtimeID), nil
 }
 
 // InstallAgentRuntime installs (update: reinstalls) one AI agent runtime in
@@ -268,8 +274,15 @@ func (a *App) InstallAgentRuntime(runtimeID string, update bool, approveURL stri
 	if err != nil {
 		return aiError(err)
 	}
-	return a.startStreamed(cliBin, "agent.install:"+runtimeID,
-		agentInstallArgs(a.getActiveProfileID(), runtimeID, update, approveURL),
+	pid, err := a.profileID()
+	if err != nil {
+		return aiError(err)
+	}
+	args, err := agentInstallArgs(pid, runtimeID, update, approveURL)
+	if err != nil {
+		return aiError(err)
+	}
+	return a.startStreamed(cliBin, "agent.install:"+runtimeID, args,
 		fmt.Sprintf("%s is already being installed", runtimeID))
 }
 

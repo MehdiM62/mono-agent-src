@@ -66,7 +66,7 @@ echo '{"id":"c1","platform":"generic_oauth1","method":"oauth1","account_id":"acc
 	}
 	pairs := []string{"request_token_url=http://127.0.0.1:1/rt", "consumer_key=ck"}
 	var got []string
-	conn, err := runOAuthConnect(a.ctx, cliBin, oauthConnectArgs("work", "generic_oauth1", pairs, true),
+	conn, err := runOAuthConnect(a.ctx, cliBin, mustArgs(t)(oauthConnectArgs("work", "generic_oauth1", pairs, true)),
 		`{"consumer_secret":"`+secret+`"}`, func(msg, kind string) { got = append(got, kind+":"+msg) })
 	if err != nil || conn.AccountID != "acct" || strings.Join(got, "|") != "info:Opening browser: http://127.0.0.1:1/authorize?oauth_token=t|info:Could not open browser automatically. Please open this URL manually: http://127.0.0.1:1/authorize?oauth_token=t|info:Waiting for the browser" {
 		t.Fatalf("runOAuthConnect = %+v, %v, %v", conn, err, got)
@@ -80,7 +80,7 @@ echo '{"id":"c1","platform":"generic_oauth1","method":"oauth1","account_id":"acc
 	}
 
 	// No secret fields: no --stdin-json, nothing on stdin.
-	if got := strings.Join(oauthConnectArgs("p", "zendesk_oauth", []string{"subdomain=acme"}, false), " "); got != "--profile p --json connect oauth zendesk_oauth --field subdomain=acme" {
+	if got := strings.Join(mustArgs(t)(oauthConnectArgs("p", "zendesk_oauth", []string{"subdomain=acme"}, false)), " "); got != "--profile p --json connect oauth zendesk_oauth --field subdomain=acme" {
 		t.Fatalf("args = %q", got)
 	}
 }

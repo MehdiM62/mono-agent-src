@@ -30,7 +30,6 @@ const dbMigrateTimeout = 5 * time.Minute
 type dbMigrateResult struct {
 	SchemaVersion int      `json:"schema_version"`
 	Applied       int      `json:"applied"`
-	ActiveProfile string   `json:"active_profile"`
 	Profiles      []string `json:"profiles"`
 	VaultMoved    int      `json:"vault_moved"`
 	Errors        []string `json:"errors"`

@@ -28,10 +28,13 @@ func newTestApp(t *testing.T) *App {
 	}
 	t.Cleanup(func() { sdb.DB.Close() })
 
-	return &App{
+	a := &App{
 		db:          sdb.DB,
+		dbPath:      filepath.Join(t.TempDir(), "monoagent.db"), // the UI state file lands beside it
 		runningCmds: make(map[string]*exec.Cmd),
 	}
+	a.selectForTest("default") // a profile that happens to be called default; tests that need none clear it
+	return a
 }
 
 // cliHomeDB opens the database a monoagentcli subprocess with HOME=home
@@ -109,8 +112,8 @@ func TestWorkflowBindingsThroughCLI(t *testing.T) {
 
 	// One profile never sees, reads or exports another's workflow.
 	t.Run("ProfileScoped", func(t *testing.T) {
-		a.setActiveProfileID("other")
-		defer a.setActiveProfileID("default")
+		a.selectForTest("other")
+		defer a.selectForTest("default")
 		if _, ok := listed()[saved.ID]; ok {
 			t.Fatal("workflow from profile 'default' leaked into 'other'")
 		}

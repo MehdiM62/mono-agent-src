@@ -75,9 +75,10 @@ func vaultImageHandler(app *App) http.Handler {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
-		profileID := app.getActiveProfileID()
-		if profileID == "" {
-			profileID = "default"
+		profileID, err := app.profileID()
+		if err != nil {
+			w.WriteHeader(http.StatusNotFound)
+			return
 		}
 		// Only this profile's files, served from the path stored on the row
 		// (images live in the profile's own vault folder). The lookup is the
