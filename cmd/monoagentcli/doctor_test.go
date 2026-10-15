@@ -61,7 +61,10 @@ func runDoctor(t *testing.T, home string, args ...string) (string, error) {
 	var out bytes.Buffer
 	root.SetOut(&out)
 	root.SetErr(&out)
-	root.SetArgs(append(args, "--db-path", filepath.Join(home, ".monoagent", "monoagent.db")))
+	// --profile default: doctor acts on a profile, and the profile gate warns on stderr (which this
+	// helper shares with stdout) when none is named.
+	// Ahead of args, so a test that names its own --profile wins.
+	root.SetArgs(append(append([]string{"--profile", "default"}, args...), "--db-path", filepath.Join(home, ".monoagent", "monoagent.db")))
 	err := root.Execute()
 	return out.String(), err
 }

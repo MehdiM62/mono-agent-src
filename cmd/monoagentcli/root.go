@@ -71,7 +71,7 @@ func newRootCmd() *cobra.Command {
 	cmd.PersistentFlags().BoolVar(&cfg.JSONOutput, "json", false, "Output in JSON format")
 	cmd.PersistentFlags().StringVar(&cfg.LogFile, "log-file", "", "Write log output to this file (appended) instead of stderr")
 	cmd.PersistentFlags().String("log-level", "", "Log level: debug, info, warn or error (default warn; also MONOAGENT_LOG_LEVEL)")
-	cmd.PersistentFlags().StringVar(&cfg.ProfileID, "profile", "", "Profile to use (defaults to the active profile in settings)")
+	cmd.PersistentFlags().StringVar(&cfg.ProfileID, "profile", "", "Profile to act on (id or name); required by commands that act on a profile")
 	cmd.PersistentFlags().StringVar(&cfg.Lang, "lang", i18n.CurrentLocale(), "UI locale for translated help text (also MONOAGENT_LANG env var); see docs/i18n.md")
 
 	// Register subcommands
@@ -143,6 +143,7 @@ func newRootCmd() *cobra.Command {
 	}
 
 	rejectUnknownSubcommands(cmd)
+	installProfileGate(cmd, cfg)
 
 	return cmd
 }
