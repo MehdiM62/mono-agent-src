@@ -95,18 +95,22 @@ type EmulatedMedia struct {
 
 // ConsoleQuery are read_console's params: entries after Since (a seq), at
 // most Limit, of the named levels (debug, log, info, warning, error; all
-// when empty).
+// when empty), recorded while the tab's page was on Origin (any when empty).
 type ConsoleQuery struct {
 	Since  int64    `json:"since,omitempty"`
 	Limit  int      `json:"limit,omitempty"`
 	Levels []string `json:"levels,omitempty"`
+	Origin string   `json:"origin,omitempty"`
 }
 
 // ConsoleEntry is one console message, uncaught exception or browser log
 // entry. Line and Column are 1-based; Stack is set for errors that carry one.
+// Origin is the tab's page origin when it was recorded. URLs in it have lost
+// the values of their secret-looking query parameters ("•••").
 type ConsoleEntry struct {
 	Seq    int64  `json:"seq"`
 	TS     int64  `json:"ts"`
+	Origin string `json:"origin"`
 	Level  string `json:"level"`
 	Text   string `json:"text"`
 	URL    string `json:"url"`
@@ -122,18 +126,23 @@ type ConsolePage struct {
 }
 
 // NetworkQuery are read_network's params. FailedOnly keeps requests that
-// failed and HTTP 4xx/5xx answers.
+// failed and HTTP 4xx/5xx answers; Origin keeps those made while the tab's
+// page was on it.
 type NetworkQuery struct {
-	Since      int64 `json:"since,omitempty"`
-	Limit      int   `json:"limit,omitempty"`
-	FailedOnly bool  `json:"failedOnly,omitempty"`
+	Since      int64  `json:"since,omitempty"`
+	Limit      int    `json:"limit,omitempty"`
+	FailedOnly bool   `json:"failedOnly,omitempty"`
+	Origin     string `json:"origin,omitempty"`
 }
 
 // NetworkEntry is one finished or failed request; a request still in flight
-// is not listed yet. Never headers or bodies.
+// is not listed yet. Never headers or bodies, and URL has lost the values of
+// its secret-looking query parameters. Origin is the tab's page origin when
+// the request was sent (the origin a page's own document request loads).
 type NetworkEntry struct {
 	Seq        int64  `json:"seq"`
 	TS         int64  `json:"ts"`
+	Origin     string `json:"origin"`
 	RequestID  string `json:"requestId"`
 	Method     string `json:"method"`
 	URL        string `json:"url"`
@@ -168,19 +177,23 @@ type A11yTreeResult struct {
 	Truncated bool       `json:"truncated,omitempty"`
 }
 
-// SubmitGuardState is submit_guard's data: whether the guard is armed and
-// the submits it has blocked on this tab, oldest first.
+// SubmitGuardState is submit_guard's data: whether the guard is armed, the
+// origin it was armed on, and the submits it has blocked on this tab, oldest
+// first. The tab's page leaving that origin disarms it and drops the records.
 type SubmitGuardState struct {
 	Armed   bool            `json:"armed"`
+	Origin  string          `json:"origin,omitempty"`
 	Blocked []BlockedSubmit `json:"blocked"`
 }
 
-// BlockedSubmit is one submit the guard stopped.
+// BlockedSubmit is one submit the guard stopped, in frame FrameID (0: the
+// top frame) of the tab.
 type BlockedSubmit struct {
-	Seq  int64      `json:"seq"`
-	TS   int64      `json:"ts"`
-	URL  string     `json:"url"`
-	Form SubmitForm `json:"form"`
+	Seq     int64      `json:"seq"`
+	TS      int64      `json:"ts"`
+	URL     string     `json:"url"`
+	Form    SubmitForm `json:"form"`
+	FrameID int        `json:"frameId"`
 }
 
 // SubmitForm summarises the stopped form. Password, hidden and card-like
@@ -330,6 +343,53 @@ func (ep *ExtensionPage) SubmitGuard(action string) (*SubmitGuardState, error) {
 		return nil, err
 	}
 	return &out, nil
+}
+
+// SubmitGuardAllowOnce lets exactly one submit through in one frame: frameID
+// when it is 0 or more (a BlockedSubmit's FrameID), else the frame of the
+// latest blocked submit of the form at selector, else that of the latest
+// blocked submit. A frame that has gone away is an error, never another
+// frame.
+func (ep *ExtensionPage) SubmitGuardAllowOnce(frameID int, selector string) (*SubmitGuardState, error) {
+	params := map[string]interface{}{"action": SubmitGuardAllowOnce}
+	if frameID >= 0 {
+		params["frameId"] = frameID
+	}
+	if selector != "" {
+		params["selector"] = selector
+	}
+	var out SubmitGuardState
+	if err := ep.agentCall(CmdSubmitGuard, params, 0, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ExpectOriginPrefix starts the error of a command refused because its tab
+// was not on the origin the caller expected (WithExpectOrigin).
+const ExpectOriginPrefix = "origin_changed:"
+
+// WithExpectOrigin is this page with every command (its elements' too)
+// carrying expectOrigin: the extension refuses one whose tab is on another
+// origin, or still navigating, with an error containing ExpectOriginPrefix.
+func (ep *ExtensionPage) WithExpectOrigin(origin string) *ExtensionPage {
+	return &ExtensionPage{server: originSender{inner: ep.server, origin: origin}, tabID: ep.tabID, timeout: ep.timeout}
+}
+
+// originSender adds expectOrigin to every command it sends.
+type originSender struct {
+	inner  commandSender
+	origin string
+}
+
+func (s originSender) SendCommand(cmd *Command, timeout time.Duration) (*Response, error) {
+	c := *cmd
+	c.Params = make(map[string]interface{}, len(cmd.Params)+1)
+	for k, v := range cmd.Params {
+		c.Params[k] = v
+	}
+	c.Params["expectOrigin"] = s.origin
+	return s.inner.SendCommand(&c, timeout)
 }
 
 // SubmitPrompt shows the in-page banner asking the person to review the form

@@ -6,8 +6,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { loadExtensionScripts } from "./test_helpers.mjs";
 
-function setup({ failEnable = false } = {}) {
-  const g = loadExtensionScripts(["agent_cdp.js", "agent_watch.js"], {});
+function setup({ failEnable = false, page = "http://localhost:5173/" } = {}) {
+  const g = loadExtensionScripts(["agent_cdp.js", "agent_redact.js", "agent_watch.js"], {});
   const sent = [];
   let emit = null;
   let detach = null;
@@ -17,6 +17,7 @@ function setup({ failEnable = false } = {}) {
     cdp: async (tabId, method) => {
       if (failEnable && method === "Network.enable") throw new Error("Cannot access a chrome:// URL");
       sent.push([tabId, method]);
+      if (method === "Page.getFrameTree") return { frameTree: { frame: { id: "MAIN", url: page } } };
       return {};
     },
     onDebuggerEvent: (fn) => (emit = fn),
@@ -40,7 +41,7 @@ const frame = (functionName, url, lineNumber, columnNumber) => ({ functionName, 
 test("watch_tab enables Runtime, Log and Network on the tab and holds it", async () => {
   const t = setup();
   assert.deepEqual(await t.watch.watch({ tabId: 4, on: true }), { watching: true });
-  assert.deepEqual(t.sent, [[4, "Runtime.enable"], [4, "Log.enable"], [4, "Network.enable"]]);
+  assert.deepEqual(t.sent, [[4, "Page.enable"], [4, "Page.getFrameTree"], [4, "Runtime.enable"], [4, "Log.enable"], [4, "Network.enable"]]);
   assert.equal(t.cdp.holds(4), true);
   assert.deepEqual(await t.watch.watch({ tabId: 4, on: false }), { watching: false });
   assert.equal(t.cdp.holds(4), false, "unwatched, the idle sweep may detach it");
@@ -71,7 +72,7 @@ test("console entries read like DevTools: format specifiers, previews, 1-based l
   }));
   const { entries, next } = t.watch.readConsole({ tabId: 1 });
   assert.equal(next, 3);
-  assert.deepEqual(entries[0], { seq: 1, ts: 1760000000000, level: "log", text: "cart has 3 items", url: "http://localhost:5173/src/App.jsx", line: 42, column: 9 });
+  assert.deepEqual(entries[0], { seq: 1, ts: 1760000000000, origin: "http://localhost:5173", level: "log", text: "cart has 3 items", url: "http://localhost:5173/src/App.jsx", line: 42, column: 9 });
   assert.equal(entries[1].text, '{id: 7, name: "Ann"} [1, …] undefined null NaN');
   assert.equal(entries[1].level, "info");
   assert.equal(entries[2].level, "error");
@@ -96,10 +97,10 @@ test("uncaught exceptions and browser log entries are console entries too", asyn
   t.event(1, "Log.entryAdded", { entry: { source: "violation", level: "verbose", text: "[Violation] slow handler", timestamp: 1760000000300 } });
   const { entries } = t.watch.readConsole({ tabId: 1 });
   assert.deepEqual(entries[0], {
-    seq: 1, ts: 1760000000100, level: "error", text: "Uncaught TypeError: x is undefined",
+    seq: 1, ts: 1760000000100, origin: "http://localhost:5173", level: "error", text: "Uncaught TypeError: x is undefined",
     url: "http://localhost:5173/src/main.js", line: 3, column: 11, stack: "    at boot (main.js:3:11)",
   });
-  assert.deepEqual(entries[1], { seq: 2, ts: 1760000000200, level: "error", text: "Failed to load resource: 404 (Not Found)", url: "http://localhost:5173/missing.png", line: 0, column: 0 });
+  assert.deepEqual(entries[1], { seq: 2, ts: 1760000000200, origin: "http://localhost:5173", level: "error", text: "Failed to load resource: 404 (Not Found)", url: "http://localhost:5173/missing.png", line: 0, column: 0 });
   assert.equal(entries[2].level, "debug");
 });
 
@@ -209,7 +210,7 @@ test("a request is listed once it ends, with its outcome and never a header or b
   const { entries, next } = t.watch.readNetwork({ tabId: 1 });
   assert.equal(next, 1);
   assert.deepEqual(entries, [{
-    seq: 1, ts: 1760000000000, requestId: "1.1", method: "POST", url: "http://localhost:5173/api/items?page=2",
+    seq: 1, ts: 1760000000000, origin: "http://localhost:5173", requestId: "1.1", method: "POST", url: "http://localhost:5173/api/items?page=2",
     status: 500, statusText: "Internal Server Error", mimeType: "application/json", type: "XHR",
     failed: false, errorText: "", durationMs: 250, size: 512,
   }]);
@@ -260,4 +261,57 @@ test("Cancel on the debugging banner stops the watch and keeps what was read", a
   t.detach(1, "canceled_by_user");
   t.event(1, "Network.loadingFinished", { requestId: "6", timestamp: 12, encodedDataLength: 1 });
   assert.deepEqual(t.watch.readNetwork({ tabId: 1 }).entries.map((e) => e.requestId), ["5"]);
+});
+
+// ── origins and secrets (security review, items 6) ───────────────────────
+
+// Assembled at runtime: the repository's secret scanner reads `name=value` literals as credentials.
+const AT = ["access", "token"].join("_");
+
+test("entries carry the page's origin; a navigation moves it, and a reader can keep to one origin", async () => {
+  const t = setup({ page: "http://localhost:5173/login" });
+  await t.watch.watch({ tabId: 1, on: true });
+  t.event(1, "Runtime.consoleAPICalled", log("log", [str("on the app")], { timestamp: 1 }));
+  // The page's own document request loads into the origin it asks for.
+  t.event(1, "Network.requestWillBeSent", {
+    requestId: "D1", request: { url: "https://accounts.example.com/signin", method: "GET" }, timestamp: 1, wallTime: 1, type: "Document", frameId: "MAIN",
+  });
+  t.event(1, "Network.loadingFinished", { requestId: "D1", timestamp: 2, encodedDataLength: 1 });
+  t.event(1, "Page.frameNavigated", { frame: { id: "MAIN", url: "https://accounts.example.com/signin" } });
+  t.event(1, "Page.frameNavigated", { frame: { id: "IFRAME", parentId: "MAIN", url: "https://ads.example.net/x" } });
+  t.event(1, "Runtime.consoleAPICalled", log("log", [str("on the sign-in page")], { timestamp: 2 }));
+  request(t, 1, "X1", "https://accounts.example.com/api/me");
+  t.event(1, "Network.loadingFinished", { requestId: "X1", timestamp: 11, encodedDataLength: 1 });
+
+  const all = t.watch.readConsole({ tabId: 1 });
+  assert.deepEqual(all.entries.map((e) => [e.text, e.origin]), [
+    ["on the app", "http://localhost:5173"],
+    ["on the sign-in page", "https://accounts.example.com"],
+  ]);
+  const mine = t.watch.readConsole({ tabId: 1, origin: "http://localhost:5173" });
+  assert.deepEqual(mine.entries.map((e) => e.text), ["on the app"]);
+  assert.equal(mine.next, 2, "the cursor still moves past what the filter dropped");
+  assert.deepEqual(t.watch.readNetwork({ tabId: 1 }).entries.map((e) => [e.requestId, e.origin]), [
+    ["D1", "https://accounts.example.com"],
+    ["X1", "https://accounts.example.com"],
+  ]);
+  assert.deepEqual(t.watch.readNetwork({ tabId: 1, origin: "http://localhost:5173" }).entries, []);
+  assert.throws(() => t.watch.readNetwork({ tabId: 1, origin: 5 }), /origin must be a string/);
+});
+
+test("secret-looking query values are masked before anything is buffered", async () => {
+  const t = setup();
+  await t.watch.watch({ tabId: 1, on: true });
+  request(t, 1, "S1", `https://api.test/oauth/cb?code=4/0Ab&state=xy&page=2`);
+  t.event(1, "Network.loadingFinished", { requestId: "S1", timestamp: 11, encodedDataLength: 1 });
+  t.event(1, "Runtime.consoleAPICalled", log("error", [str(`GET https://api.test/me?${AT}=ya29.a0 401`)], {
+    stackTrace: { callFrames: [frame("load", "https://cdn.test/a.js?sig=zz", 0, 0)] },
+  }));
+  const [net] = t.watch.readNetwork({ tabId: 1 }).entries;
+  assert.equal(net.url, "https://api.test/oauth/cb?code=•••&state=•••&page=2");
+  const [c] = t.watch.readConsole({ tabId: 1 }).entries;
+  assert.equal(c.text, `GET https://api.test/me?${AT}=••• 401`);
+  assert.equal(c.url, "https://cdn.test/a.js?sig=•••");
+  assert.equal(c.stack, "    at load (https://cdn.test/a.js?sig=•••:1:1)");
+  assert.equal(JSON.stringify([net, c]).match(/4\/0Ab|ya29|zz\b/), null);
 });

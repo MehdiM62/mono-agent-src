@@ -17,7 +17,14 @@
  *
  * What is recorded of the network is the request line and the outcome:
  * method, URL, status, type, timing and size. Never a header, never a body,
- * so cookies and tokens in them never reach the buffer or the bridge.
+ * so cookies and tokens in them never reach the buffer or the bridge; and
+ * every URL, in an entry or in console text, loses the values of its
+ * secret-looking parameters (agent_redact.js) before it is buffered.
+ *
+ * Every entry carries the origin of the tab's page when it was recorded (a
+ * request: when it was sent; the page's own document request: the origin it
+ * loads). A reader that passes `origin` gets only that origin's entries, so
+ * an agent sees nothing a page it may not act on logged.
  *
  * A request enters the network ring when it ends (finished, failed, or
  * redirected on to another URL), so an entry is complete when it is read
@@ -51,7 +58,7 @@
   function stateFor(tabId) {
     let st = tabs.get(tabId);
     if (!st) {
-      st = { watching: false, console: [], network: [], consoleSeq: 0, networkSeq: 0, pending: new Map(), cutoff: 0 };
+      st = { watching: false, console: [], network: [], consoleSeq: 0, networkSeq: 0, pending: new Map(), cutoff: 0, origin: "", mainFrame: "" };
       tabs.set(tabId, st);
     }
     return st;
@@ -63,6 +70,14 @@
   }
 
   const int = (n) => (Number.isFinite(n) ? Math.round(n) : 0);
+
+  function originOf(u) {
+    try {
+      return new URL(u).origin;
+    } catch {
+      return "";
+    }
+  }
 
   /** watch answers watch_tab. */
   async function watch(params) {
@@ -84,6 +99,15 @@
     st.watching = true;
     root.MonoAgentCdp.hold(tabId, "watch");
     try {
+      // Where the page is first, so that Runtime.enable's replay is stamped
+      // with it; Page.frameNavigated keeps it current.
+      await root.MonoAgentCdp.send(tabId, "Page.enable", {});
+      const tree = await root.MonoAgentCdp.send(tabId, "Page.getFrameTree", {});
+      const top = tree && tree.frameTree && tree.frameTree.frame;
+      if (top) {
+        st.mainFrame = top.id;
+        st.origin = originOf(top.url);
+      }
       for (const domain of ["Runtime", "Log", "Network"]) {
         await root.MonoAgentCdp.send(tabId, `${domain}.enable`, {});
       }
@@ -203,6 +227,7 @@
     st.pending.delete(requestId);
     push(st, "network", {
       ts: r.ts,
+      origin: r.origin,
       requestId,
       method: r.method,
       url: r.url,
@@ -232,7 +257,9 @@
         ts: Number.isFinite(p.wallTime) ? Math.round(p.wallTime * 1000) : Date.now(),
         start: p.timestamp,
         method: req.method || "",
-        url: cap(req.url || "", MAX_URL),
+        url: cap(root.MonoAgentRedact.url(req.url || ""), MAX_URL),
+        // The page's own document loads into the origin it requests.
+        origin: p.type === "Document" && p.frameId === st.mainFrame ? originOf(req.url) : st.origin,
         type: p.type || "",
         status: 0,
         statusText: "",
@@ -259,6 +286,14 @@
   function onEvent(tabId, method, params) {
     const st = tabs.get(tabId);
     if (!st || !st.watching) return;
+    if (method === "Page.frameNavigated") {
+      const f = params.frame || {};
+      if (!f.parentId) {
+        st.mainFrame = f.id || st.mainFrame;
+        st.origin = originOf(f.url);
+      }
+      return;
+    }
     if (method.startsWith("Network.")) {
       networkEvent(st, method, params);
       return;
@@ -266,6 +301,11 @@
     const entry = consoleEntry(method, params);
     if (!entry) return;
     if (st.cutoff && entry.ts && entry.ts <= st.cutoff) return; // a replay of what is buffered
+    const R = root.MonoAgentRedact;
+    entry.origin = st.origin;
+    entry.text = R.text(entry.text);
+    entry.url = R.url(entry.url);
+    if (entry.stack) entry.stack = R.text(entry.stack);
     push(st, "console", entry);
   }
 
@@ -324,7 +364,15 @@
     if (want) {
       for (const l of want) if (!LEVELS.includes(l)) throw new Error(`read_console: unknown level ${l} (${LEVELS.join(", ")})`);
     }
-    return page(st.console, st.consoleSeq, params.since, limit, (e) => !want || want.has(e.level));
+    const origin = originFilter(params, "read_console");
+    return page(st.console, st.consoleSeq, params.since, limit, (e) => (!want || want.has(e.level)) && (!origin || e.origin === origin));
+  }
+
+  /** originFilter reads the optional `origin` a reader keeps to. */
+  function originFilter(params, type) {
+    if (params.origin === undefined || params.origin === null || params.origin === "") return "";
+    if (typeof params.origin !== "string") throw new Error(`${type}: origin must be a string`);
+    return params.origin;
   }
 
   /** readNetwork answers read_network; failedOnly keeps failed requests and HTTP 4xx/5xx. */
@@ -332,7 +380,8 @@
     const st = watched(params, "read_network");
     const limit = limitOf(params.limit, "read_network");
     const failedOnly = params.failedOnly === true;
-    return page(st.network, st.networkSeq, params.since, limit, (e) => !failedOnly || e.failed || e.status >= 400);
+    const origin = originFilter(params, "read_network");
+    return page(st.network, st.networkSeq, params.since, limit, (e) => (!failedOnly || e.failed || e.status >= 400) && (!origin || e.origin === origin));
   }
 
   root.MonoAgentCdp.onEvent(onEvent);
