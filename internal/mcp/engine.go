@@ -42,6 +42,10 @@ type runtime struct {
 	// what keeps a run of profile A from touching profile B.
 	engines map[string]*workflow.WorkflowEngine
 	scheds  map[string]*scheduler.Scheduler
+	// runCtx is the long-lived context the engines run under, made on the
+	// first engine start (under mu) and cancelled by Close.
+	runCtx  context.Context
+	runStop context.CancelFunc
 	chat    map[string]*aichat.MonoagentTools
 	// untrusted names the untrusted content (synced messages) any profile's
 	// chat tools returned. Their injection gate is per session, and a server
@@ -192,6 +196,9 @@ func (rt *runtime) Close() {
 	}
 	rt.mu.Lock()
 	defer rt.mu.Unlock()
+	if rt.runStop != nil {
+		rt.runStop()
+	}
 	for id, e := range rt.engines {
 		_ = e.Stop()
 		delete(rt.engines, id)
@@ -314,7 +321,12 @@ func (rt *runtime) ensureEngine(ctx context.Context, profileID string) (*workflo
 		MaxExecHistory: 500,
 		ProfileID:      profileID,
 	}, logger)
-	if err := engine.Start(ctx); err != nil {
+	// The engine serves every later call of the profile, so it runs under the
+	// runtime's own context, never the context of the call that started it.
+	if rt.runCtx == nil {
+		rt.runCtx, rt.runStop = context.WithCancel(context.Background())
+	}
+	if err := engine.Start(rt.runCtx); err != nil {
 		sched.Stop()
 		return nil, fmt.Errorf("mcp: start engine: %w", err)
 	}

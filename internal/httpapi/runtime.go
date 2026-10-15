@@ -82,6 +82,13 @@ type runtime struct {
 	engines map[string]*profileEngine
 	hosted  bool // DB and engine belong to the host process
 
+	// runCtx outlives every request: the engines a standalone server starts
+	// on a request's behalf run under it, and Close cancels it. An engine
+	// started with the first request's context would die when that request
+	// ended and leave later runs of the profile queued forever.
+	runCtx  context.Context
+	runStop context.CancelFunc
+
 	// mu guards the lazy engine/registry/scheduler bootstrap: HTTP
 	// requests are handled concurrently, so several mutating requests may
 	// race to start the engine on first use.
@@ -204,9 +211,12 @@ func newRuntime(opts Options) (*runtime, error) {
 		_ = workflowio.StampFileWorkflows(ctx, db.DB, expandHome(wfDir))
 	}
 
+	runCtx, runStop := context.WithCancel(context.Background())
 	return &runtime{
-		db:    db,
-		store: workflow.NewHybridWorkflowStore(fileStore, sqlStore),
+		db:      db,
+		store:   workflow.NewHybridWorkflowStore(fileStore, sqlStore),
+		runCtx:  runCtx,
+		runStop: runStop,
 	}, nil
 }
 
@@ -221,6 +231,9 @@ func (rt *runtime) Close() {
 	if rt.hosted {
 		rt.engine, rt.db = nil, nil
 		return
+	}
+	if rt.runStop != nil {
+		rt.runStop()
 	}
 	for id, pe := range rt.engines {
 		_ = pe.engine.Stop()
@@ -270,7 +283,7 @@ func (rt *runtime) engineFor(ctx context.Context, profileID string) (*workflow.W
 		MaxExecHistory: 500,
 		ProfileID:      profileID,
 	}, logger)
-	if err := engine.Start(ctx); err != nil {
+	if err := engine.Start(rt.runCtx); err != nil {
 		sched.Stop()
 		return nil, fmt.Errorf("httpapi: start engine: %w", err)
 	}
