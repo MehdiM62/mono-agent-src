@@ -51,6 +51,9 @@ func TestLive(t *testing.T) {
 	if _, err := Build(rec, "#nothing-here", Options{}); err != ErrNotFound {
 		t.Fatalf("missing element: %v", err)
 	}
+	if _, err := ReadSource(rec, "#nothing-here"); err != ErrNotFound {
+		t.Fatalf("source of a missing element: %v", err)
+	}
 	if _, err := Build(rec, "div[", Options{}); err == nil {
 		t.Fatal("bad selector accepted")
 	}
