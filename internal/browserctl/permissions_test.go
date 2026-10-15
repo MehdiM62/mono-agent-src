@@ -146,17 +146,17 @@ func TestSiteItemsAreReusedAndApprovedOnce(t *testing.T) {
 	actAsHuman(t)
 	ctx := context.Background()
 	db := testdb.Open(t).DB
-	a, err := AskSite(ctx, db, "", KindCoder, "https://news.example/a", nil)
+	a, err := AskSite(ctx, db, "default", KindCoder, "https://news.example/a", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if b, _ := AskSite(ctx, db, "", KindCoder, "https://news.example/b", nil); b != a {
+	if b, _ := AskSite(ctx, db, "default", KindCoder, "https://news.example/b", nil); b != a {
 		t.Fatal("a pending item for the same origin and kind was not reused")
 	}
-	if c, _ := AskSite(ctx, db, "", KindOrg, "https://news.example/", nil); c == a {
+	if c, _ := AskSite(ctx, db, "default", KindOrg, "https://news.example/", nil); c == a {
 		t.Fatal("another kind reused the coder's item")
 	}
-	it, err := DecideSiteItem(ctx, db, "", a, true)
+	it, err := DecideSiteItem(ctx, db, "default", a, true)
 	if err != nil || it.Status != "approved" || it.Origin != "https://news.example" {
 		t.Fatalf("approve: %+v, %v", it, err)
 	}
@@ -164,11 +164,11 @@ func TestSiteItemsAreReusedAndApprovedOnce(t *testing.T) {
 		t.Fatalf("approving added no allow rule: %+v", p.Sites)
 	}
 	var se *SubmitStateError
-	if _, err := DecideSiteItem(ctx, db, "", a, false); !errors.As(err, &se) {
+	if _, err := DecideSiteItem(ctx, db, "default", a, false); !errors.As(err, &se) {
 		t.Fatalf("a second decision: %v", err)
 	}
-	r, _ := AskSite(ctx, db, "", KindCoder, "https://other.example/", nil)
-	if it, _ := DecideSiteItem(ctx, db, "", r, false); it.Status != "rejected" {
+	r, _ := AskSite(ctx, db, "default", KindCoder, "https://other.example/", nil)
+	if it, _ := DecideSiteItem(ctx, db, "default", r, false); it.Status != "rejected" {
 		t.Fatalf("reject: %+v", it)
 	}
 	if p, _ := LoadPermissions(db); p.Rule("https://other.example") != "" {
@@ -178,5 +178,11 @@ func TestSiteItemsAreReusedAndApprovedOnce(t *testing.T) {
 	db.QueryRow(`SELECT node_config FROM hil_pending WHERE id = ?`, r).Scan(&nc)
 	if !IsSiteItem(nc) || IsSubmitItem(nc) {
 		t.Fatalf("node_config %s", nc)
+	}
+	if got, _ := GetSiteItem(ctx, db, "default", r); got.Status != "rejected" || got.Origin != "https://other.example" {
+		t.Fatalf("get = %+v", got)
+	}
+	if _, err := AskSite(ctx, db, "", KindCoder, "https://x.example/", nil); err == nil {
+		t.Fatal("a site item with no profile")
 	}
 }

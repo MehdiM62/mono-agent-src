@@ -28,11 +28,12 @@ func TestBrowserPermissionsShowAndSet(t *testing.T) {
 	if _, err := bt.run("permissions", "set", "robots", "dev"); exitCodeFor(err) != 3 {
 		t.Fatalf("a bad kind: %v", err)
 	}
-	doc = bt.runJSON("permissions", "set", "coder", "ask")
+	// The GUI's argv: positionals after "--".
+	doc = bt.runJSON("permissions", "set", "--", "coder", "ask")
 	if doc["levels"].(map[string]any)["coder"] != "ask" {
 		t.Fatalf("after set: %v", doc["levels"])
 	}
-	doc = bt.runJSON("permissions", "site", "https://bank.example/", "block")
+	doc = bt.runJSON("permissions", "site", "--", "https://bank.example/", "block")
 	if sites := doc["sites"].([]any); len(sites) != 1 || sites[0].(map[string]any)["rule"] != "block" || sites[0].(map[string]any)["origin"] != "https://bank.example" {
 		t.Fatalf("sites = %v", sites)
 	}
