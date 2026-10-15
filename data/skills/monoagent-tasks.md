@@ -28,11 +28,8 @@ off unless the user turned them on.
 
 A task always sits in one profile, and every `task` command needs
 `--profile`. Find out which board the user means: ask, or list the profiles
-(`--json` gives each one's `id` and `name`):
-
-```bash
-monoagentcli profile list
-```
+with `monoagentcli profile list --json`, which gives each one's `id` and
+`name`.
 
 Tell the user which board you are working on. Pass `--profile <profile-id>` on
 every call, with that id (the name works too, in quotes if it has a space).
