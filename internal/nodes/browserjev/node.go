@@ -133,7 +133,11 @@ func (n *Node) Execute(ctx context.Context, input workflow.NodeInput, config map
 // key (`jev key set`; an @secret: ref also tries the profile vault) → TYPESAFE_API_KEY; an unresolved @secret: ref is never sent)
 // and records usage under node:browser.jev.
 func jevClient(ctx context.Context, config map[string]interface{}) (*jev.Client, error) {
-	return jevconf.NewClient(ctx, vault.DBFromContext(ctx), vault.ProfileIDFromContext(ctx),
+	profile, perr := vault.ProfileIDFromContext(ctx)
+	if perr != nil {
+		return nil, fmt.Errorf("browser.jev: ran without a profile: %w", perr)
+	}
+	return jevconf.NewClient(ctx, vault.DBFromContext(ctx), profile,
 		str(config, "api_key"), str(config, "model"), jevconf.NodeSurface("browser.jev"))
 }
 

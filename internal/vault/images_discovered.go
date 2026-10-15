@@ -20,7 +20,7 @@ func RegisterDiscoveredImage(ctx context.Context, db *sql.DB, profileID, path, f
 		return "", false, fmt.Errorf("vault.RegisterDiscoveredImage: path is empty")
 	}
 	if profileID == "" {
-		profileID = "default"
+		return "", false, fmt.Errorf("vault.RegisterDiscoveredImage: %w", ErrNoProfile)
 	}
 	if filename == "" {
 		filename = filepath.Base(path)
@@ -112,7 +112,7 @@ func ReconcileDiscoveredImages(ctx context.Context, db *sql.DB, profileID string
 // refreshes counted too -- what `image sync` reports.
 func SyncDiscoveredImages(ctx context.Context, db *sql.DB, profileID string, found []DiscoveredFile) (res ReconcileResult) {
 	if profileID == "" {
-		profileID = "default"
+		return ReconcileResult{Errs: []error{fmt.Errorf("vault.SyncDiscoveredImages: %w", ErrNoProfile)}}
 	}
 	type trackedRow struct {
 		size       int64

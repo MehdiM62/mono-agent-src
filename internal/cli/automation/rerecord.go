@@ -45,7 +45,11 @@ func (d Deps) openPicker(ctx context.Context, url string, verbose bool) (element
 	if verbose {
 		logger = logger.Level(zerolog.TraceLevel)
 	}
-	bridge := d.SetupBridge(vault.ProfileIDFromContext(ctx), logger, 3*time.Second)
+	profile, perr := vault.ProfileIDFromContext(ctx)
+	if perr != nil {
+		return nil, perr
+	}
+	bridge := d.SetupBridge(profile, logger, 3*time.Second)
 	if !bridge.IsConnected() {
 		if err := d.EnsureConnected(bridge, 30*time.Second); err != nil {
 			return nil, fmt.Errorf("browser bridge not connected: %w", err)

@@ -3,6 +3,7 @@ package vault
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -54,13 +55,17 @@ func ContextWithProfileID(ctx context.Context, profileID string) context.Context
 	return context.WithValue(ctx, profileCtxKey{}, profileID)
 }
 
+// ErrNoProfile is returned when an operation needs a profile and none was
+// given. There is no implicit profile: callers name one or fail.
+var ErrNoProfile = errors.New("no profile: this operation needs an explicit profile")
+
 // ProfileIDFromContext retrieves the profile ID stored by ContextWithProfileID.
-// Returns "default" if absent.
-func ProfileIDFromContext(ctx context.Context) string {
+// Returns ErrNoProfile when the context carries none.
+func ProfileIDFromContext(ctx context.Context) (string, error) {
 	if v, ok := ctx.Value(profileCtxKey{}).(string); ok && v != "" {
-		return v
+		return v, nil
 	}
-	return "default"
+	return "", ErrNoProfile
 }
 
 // VaultDir returns the absolute path of a profile's vault directory —
@@ -96,7 +101,10 @@ func Register(ctx context.Context, db *sql.DB, src, source, workflowID, executio
 	}
 	src = absSrc
 
-	profileID := ProfileIDFromContext(ctx)
+	profileID, err := ProfileIDFromContext(ctx)
+	if err != nil {
+		return "", fmt.Errorf("vault.Register: %w", err)
+	}
 	vaultDir := VaultDir(db, profileID)
 	if strings.HasPrefix(absSrc, vaultDir+string(os.PathSeparator)) || absSrc == vaultDir {
 		return "", fmt.Errorf("vault.Register: src must not be inside the vault directory")
@@ -290,7 +298,7 @@ func moveTrackedFiles(ctx context.Context, db *sql.DB, table, profileID, fromDir
 	}
 
 	rows, err := db.QueryContext(ctx,
-		fmt.Sprintf(`SELECT id, path FROM %s WHERE COALESCE(profile_id,'default') = ?`, table), profileID)
+		fmt.Sprintf(`SELECT id, path FROM %s WHERE profile_id = ?`, table), profileID)
 	if err != nil {
 		return 0, []error{fmt.Errorf("vault.moveTrackedFiles(%s): query rows: %w", table, err)}
 	}
@@ -358,10 +366,13 @@ func Resolve(ctx context.Context, db *sql.DB, ref string) (string, error) {
 		return ref, nil
 	}
 	id := strings.TrimPrefix(ref, "@")
-	profileID := ProfileIDFromContext(ctx)
+	profileID, err := ProfileIDFromContext(ctx)
+	if err != nil {
+		return ref, fmt.Errorf("vault.Resolve: %w", err)
+	}
 	var path string
-	err := db.QueryRowContext(ctx,
-		`SELECT path FROM vault_images WHERE id = ? AND COALESCE(profile_id,'default') = ?`,
+	err = db.QueryRowContext(ctx,
+		`SELECT path FROM vault_images WHERE id = ? AND profile_id = ?`,
 		id, profileID).Scan(&path)
 	if err == sql.ErrNoRows {
 		return ref, fmt.Errorf("vault.Resolve: image %q not found", id)
@@ -388,6 +399,9 @@ func ResolveConfig(ctx context.Context, db *sql.DB, config map[string]interface{
 			continue
 		}
 		resolved, err := Resolve(ctx, db, s)
+		if errors.Is(err, ErrNoProfile) {
+			return err
+		}
 		if err != nil {
 			// Non-fatal: leave original ref, emit warning.
 			fmt.Fprintf(os.Stderr, "vault: warning: %v\n", err)

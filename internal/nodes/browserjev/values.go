@@ -88,7 +88,11 @@ func parseValues(ctx context.Context, config map[string]interface{}) ([]namedVal
 				return nil, fmt.Errorf("%w: browser.jev values: %q references %s but no vault is available",
 					workflow.ErrInvalidConfig, name, s)
 			}
-			resolved, err := secrets.Resolve(ctx, db, vault.ProfileIDFromContext(ctx), s)
+			profile, perr := vault.ProfileIDFromContext(ctx)
+			if perr != nil {
+				return nil, fmt.Errorf("browser.jev values: ran without a profile: %w", perr)
+			}
+			resolved, err := secrets.Resolve(ctx, db, profile, s)
 			if err != nil || resolved == "" || strings.HasPrefix(resolved, "@secret:") {
 				return nil, fmt.Errorf("%w: browser.jev values: %q references %s, which did not resolve: %v",
 					workflow.ErrInvalidConfig, name, s, err)

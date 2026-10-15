@@ -416,7 +416,7 @@ type capturingProfileNode struct {
 
 func (capturingProfileNode) Type() string { return "test.capture_profile" }
 func (n capturingProfileNode) Execute(ctx context.Context, _ NodeInput, _ map[string]interface{}) ([]NodeOutput, error) {
-	*n.gotProfileID = vault.ProfileIDFromContext(ctx)
+	*n.gotProfileID, _ = vault.ProfileIDFromContext(ctx)
 	return []NodeOutput{{Handle: "main", Items: []Item{NewItem(map[string]interface{}{})}}}, nil
 }
 

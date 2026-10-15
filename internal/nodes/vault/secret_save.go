@@ -100,7 +100,10 @@ func (n *SecretSaveNode) Execute(ctx context.Context, input workflow.NodeInput, 
 	if db == nil {
 		return nil, fmt.Errorf("vault.secret_save: no database in context")
 	}
-	profileID := vaultstore.ProfileIDFromContext(ctx)
+	profileID, perr := vaultstore.ProfileIDFromContext(ctx)
+	if perr != nil {
+		return nil, fmt.Errorf("vault.secret_save: ran without a profile: %w", perr)
+	}
 
 	outItems := make([]workflow.Item, 0, len(input.Items))
 	for itemIdx, item := range input.Items {

@@ -45,7 +45,10 @@ func (n *MemoryNode) Execute(ctx context.Context, input workflow.NodeInput, conf
 	if db == nil {
 		return nil, fmt.Errorf("agent.memory: chat memory needs the profile database")
 	}
-	profile := vault.ProfileIDFromContext(ctx)
+	profile, perr := vault.ProfileIDFromContext(ctx)
+	if perr != nil {
+		return nil, fmt.Errorf("agent.memory: ran without a profile: %w", perr)
+	}
 	sessionTmpl := configString(config, "session_key", DefaultSessionKey)
 	// An attached memory sub-node names the session (n8n's Chat Memory
 	// Manager takes its memory this way).
