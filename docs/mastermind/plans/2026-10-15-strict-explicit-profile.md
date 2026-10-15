@@ -41,6 +41,7 @@ This spans six independent subsystems (CLI gate, repo callers, MCP/HTTP, data, G
 - **MCP and HTTP:** `internal/mcp/engine.go:211-229` and `internal/httpapi/runtime.go:190-209` resolve `--profile` → `MONOAGENT_PROFILE` → setting → `"default"` once at startup. 0 of 80 MCP tools take a profile argument.
 - **Fallbacks:** ~97 non-test `profileID = "default"` assignments, `vault.ProfileIDFromContext` returns `"default"` (34 callers), and `COALESCE(profile_id,'default')` in ~40 queries plus an expression index (`026`).
 - **Callers that name no profile:** GUI Go (`wails-app/app_orgs.go:84,250,398`, `app_orgs_design_save.go:203`; in-process DB reads keyed by `getActiveProfileID()`, 52 calls in 25 files), Chrome extension (`capture_profile.js`, `sidepanel*.js`, `extension/chat_cli.go`, `recording_methods.go`), autostart units (`doctor/env_services.go:279-288`), `scripts/e2e/*.sh`, `scripts/*smoke*.sh`, `Dockerfile`/`docker-compose.yml`, `AGENTS.md`, `README.md`, `data/skills/*.md`.
+- **Task 0.3 answers (researched 2026-10-15):** `workflow_daily_counters.profile_key` is a plain profile id (`'default'` when empty, `internal/nodes/action_storage.go:242-247`); keys do not collide across profiles, but a run with no profile shares the real `default` profile's daily caps, so the empty case must become an error. `threads` is dead (only tests call `UpsertThread/GetThread/ListThreads`, `internal/storage/repository_lists.go:226-272`); leave it, optionally drop later. `automation_selector_health` is deliberately machine-wide (it tracks site DOM, not user data). **Real bug:** `tags` declares `name TEXT NOT NULL UNIQUE` (migration 004), so two profiles cannot both own a tag of the same name; fix with a rebuild to `UNIQUE(profile_id, name)` (added as Task 4.3). Empty-means-all sites: `ListWorkflows("")`/`NodeCounts("")` (`internal/workflow/storage_workflows.go:89-146`), `record` and `summary` via `recording.SetProfile("")` (`internal/recording/scope.go:60-119`). Further `'default'` fallbacks seen: `storage/repository.go:137`, `person_messages_read.go`, `repository_messages.go`, `workflow/storage_executions.go:33`, `workflow/engine.go:73`, `cli/node/save.go:20`, `cli/export/export.go:68`, `httpapi/runtime.go:151`. `wails-app/app_workflows.go:191` runs `workflow list` with no explicit profile.
 - **Known scoping bugs found on the way:** `hil recipient` reads `people WHERE id=?` unscoped (`internal/cli/hil/send.go:~290`); three different rules for an empty workflow owner (HTTP: `"default"`; MCP and CLI: accessible by anyone); `ListWorkflows("")` means "every profile"; `workflow_daily_counters.profile_key` is unexplained; `threads` has `profile_id` but no live writer.
 
 ## File Structure (whole program)
@@ -350,6 +351,13 @@ One PR per area; each ends with the area's own tests plus a run of its commands 
 - [ ] **Step 3:** Unify the empty-owner rule: an empty `ProfileID` on a workflow is an error in HTTP, MCP and CLI (`crossProfile`, `OwnedWorkflow`).
 - [ ] **Step 4:** Remove `ListWorkflows("")` semantics ("every profile"): `workflow migrate` and `workflow_all_profiles` iterate profiles explicitly.
 - [ ] **Step 5 (guard):** add a Go test that fails if `git grep` finds `COALESCE(profile_id` or `= "default"` assignments outside an allow-list file (`migrations`, tests, the stamp code).
+### Task 4.3: Per-profile tag names
+
+**Files:** `data/migrations/100_tags_profile_unique.sql` (Write tool), `internal/peopletags/peopletags.go`, test in `internal/peopletags/`.
+
+- [ ] Failing test: profiles A and B each create a tag named `lead`; the second create must succeed (today it hits the global `UNIQUE(name)` from migration 004).
+- [ ] Rebuild `tags` with `UNIQUE(profile_id, name COLLATE NOCASE)` the way migration 014 did for `people`; keep tag ids so `people_tags` and `application_tags` are unaffected. Commit `fix(tags): make tag names unique per profile`.
+
 - [ ] **DDL defaults:** do **not** rebuild the 21 tables that have `DEFAULT 'default'`; once every insert supplies `profile_id` the default is inert. Add a repository test that inserts without a profile and expects the app-level API to refuse before reaching SQL.
 
 ---
