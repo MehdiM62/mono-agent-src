@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"net/http"
 	"os"
@@ -154,7 +155,7 @@ func listQueueItems(cfg *Deps, profile string, all bool) ([]queueItem, error) {
 }
 
 // refuseInAgent refuses what inside a coding agent or org role: queueing
-// and starting coder chats are the person's. It asks the detector the
+// and starting coder chats, and choosing their folders, are the person's. It asks the detector the
 // `browser` commands use (browserctl.IsAgentContext), so the two never
 // disagree about who is an agent. A courtesy guard, like org signing's: an
 // agent can unset its env.
@@ -170,7 +171,7 @@ func refuseInAgent(what string) error {
 		}
 	}
 	return &coderError{code: "agent_context", err: &clicore.Error{Code: 3,
-		Msg: fmt.Sprintf("%s is refused inside an agent (%s is set): only the person queues and starts coder chats", what, m)}}
+		Msg: fmt.Sprintf("%s is refused inside an agent (%s is set): only the person does that", what, m)}}
 }
 
 func printQueueJSON(cmd *cobra.Command, v any) error {
@@ -287,6 +288,47 @@ func activeProfile(cfg *Deps) (string, error) {
 	return cfg.ProfileID(), nil
 }
 
+var errTooLarge = errors.New("file too large")
+
+// readCapped reads p when it is a regular file (not a symlink) of at most max
+// bytes. It looks at the path first, so a pipe or device is never opened,
+// then opens it once and checks the open file is the one it looked at, and
+// reads at most max+1 bytes of it: a file swapped or grown in between can't
+// slip past the cap.
+func readCapped(p string, max int64) ([]byte, error) {
+	before, err := os.Lstat(p)
+	if err != nil {
+		return nil, err
+	}
+	if !before.Mode().IsRegular() {
+		return nil, fmt.Errorf("%s is not a regular file", p)
+	}
+	if before.Size() > max {
+		return nil, errTooLarge
+	}
+	f, err := os.Open(p)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	if now, err := f.Stat(); err != nil || !os.SameFile(before, now) {
+		return nil, fmt.Errorf("%s changed while it was read", p)
+	}
+	return readAllCapped(f, max)
+}
+
+// readAllCapped reads r to its end, refusing more than max bytes.
+func readAllCapped(r io.Reader, max int64) ([]byte, error) {
+	b, err := io.ReadAll(io.LimitReader(r, max+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(b)) > max {
+		return nil, errTooLarge
+	}
+	return b, nil
+}
+
 // queueImageMax bounds an image `coder queue image` returns.
 const queueImageMax = 10 << 20
 
@@ -297,17 +339,12 @@ func queueImageDataURL(dir, name string) (string, error) {
 	if filepath.IsAbs(clean) || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
 		return "", clicore.InvalidInput("%q is not a file of the queued chat", name)
 	}
-	p := filepath.Join(dir, clean)
-	fi, err := os.Lstat(p)
-	if err != nil || !fi.Mode().IsRegular() {
-		return "", clicore.NotFound("the queued chat has no file %s", name)
-	}
-	if fi.Size() > queueImageMax {
+	b, err := readCapped(filepath.Join(dir, clean), queueImageMax)
+	switch {
+	case errors.Is(err, errTooLarge):
 		return "", clicore.InvalidInput("%s is larger than %d MB", name, queueImageMax>>20)
-	}
-	b, err := os.ReadFile(p)
-	if err != nil {
-		return "", err
+	case err != nil:
+		return "", clicore.NotFound("the queued chat has no file %s", name)
 	}
 	mime := http.DetectContentType(b)
 	switch mime {
