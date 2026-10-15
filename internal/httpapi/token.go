@@ -27,6 +27,24 @@ const tokenField = "token"
 // concurrently with itself for the same profile — a benign race just
 // creates (and then ignores) a duplicate secret entry the first time.
 func ensureToken(ctx context.Context, db *sql.DB, profileID string) (string, error) {
+	if tok, err := existingToken(ctx, db, profileID); err != nil || tok != "" {
+		return tok, err
+	}
+	tok, err := generateToken()
+	if err != nil {
+		return "", fmt.Errorf("httpapi: generate token: %w", err)
+	}
+	if _, err := secrets.Add(ctx, db, profileID, "secret", tokenSecretName,
+		map[string]string{tokenField: tok}, "", "", "monoagentcli httpapi bearer token (auto-generated)"); err != nil {
+		return "", fmt.Errorf("httpapi: store token: %w", err)
+	}
+	return tok, nil
+}
+
+// existingToken returns the profile's token, or "" when it has none yet. It
+// never creates one: a caller that only checks a credential must not mint
+// tokens for profiles nobody asked for.
+func existingToken(ctx context.Context, db *sql.DB, profileID string) (string, error) {
 	entries, err := secrets.List(ctx, db, profileID)
 	if err != nil {
 		return "", fmt.Errorf("httpapi: list vault entries: %w", err)
@@ -43,16 +61,7 @@ func ensureToken(ctx context.Context, db *sql.DB, profileID string) (string, err
 			return tok, nil
 		}
 	}
-
-	tok, err := generateToken()
-	if err != nil {
-		return "", fmt.Errorf("httpapi: generate token: %w", err)
-	}
-	if _, err := secrets.Add(ctx, db, profileID, "secret", tokenSecretName,
-		map[string]string{tokenField: tok}, "", "", "monoagentcli httpapi bearer token (auto-generated)"); err != nil {
-		return "", fmt.Errorf("httpapi: store token: %w", err)
-	}
-	return tok, nil
+	return "", nil
 }
 
 func generateToken() (string, error) {

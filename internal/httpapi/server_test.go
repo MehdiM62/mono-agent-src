@@ -50,7 +50,6 @@ func newTestServer(t *testing.T, allowMutations bool) *Server {
 
 	s, err := NewServer(Options{
 		DBPath:         dbPath,
-		Profile:        "default",
 		WorkflowsDir:   filepath.Join(t.TempDir(), "workflows"),
 		Addr:           "127.0.0.1:0",
 		AllowMutations: allowMutations,
@@ -63,9 +62,10 @@ func newTestServer(t *testing.T, allowMutations bool) *Server {
 	return s
 }
 
-func testToken(t *testing.T, s *Server) string {
+// testToken is the bearer token of profile (its id), created on first use.
+func testToken(t *testing.T, s *Server, profile string) string {
 	t.Helper()
-	tok, err := ensureToken(context.Background(), s.rt.db.DB, s.rt.profileID)
+	tok, err := ensureToken(context.Background(), s.rt.db.DB, profile)
 	if err != nil {
 		t.Fatalf("ensureToken: %v", err)
 	}
@@ -92,7 +92,7 @@ func doReq(t *testing.T, s *Server, method, path, token string, body []byte) *ht
 // Authorization header is rejected on a read endpoint.
 func TestUnauthenticatedRequestRejected(t *testing.T) {
 	s := newTestServer(t, false)
-	rw := doReq(t, s, "GET", "/workflows", "", nil)
+	rw := doReq(t, s, "GET", "/profiles/default"+"/workflows", "", nil)
 	if rw.Code != http.StatusUnauthorized {
 		t.Fatalf("status = %d, want 401", rw.Code)
 	}
@@ -101,8 +101,8 @@ func TestUnauthenticatedRequestRejected(t *testing.T) {
 // TestWrongTokenRejected verifies an incorrect bearer token is rejected.
 func TestWrongTokenRejected(t *testing.T) {
 	s := newTestServer(t, false)
-	testToken(t, s) // ensure a real token exists, so this isn't a vacuous pass
-	rw := doReq(t, s, "GET", "/workflows", "not-the-real-token", nil)
+	testToken(t, s, "default") // ensure a real token exists, so this isn't a vacuous pass
+	rw := doReq(t, s, "GET", "/profiles/default"+"/workflows", "not-the-real-token", nil)
 	if rw.Code != http.StatusUnauthorized {
 		t.Fatalf("status = %d, want 401", rw.Code)
 	}
@@ -111,8 +111,8 @@ func TestWrongTokenRejected(t *testing.T) {
 // TestCorrectTokenAccepted verifies the real token is accepted.
 func TestCorrectTokenAccepted(t *testing.T) {
 	s := newTestServer(t, false)
-	tok := testToken(t, s)
-	rw := doReq(t, s, "GET", "/workflows", tok, nil)
+	tok := testToken(t, s, "default")
+	rw := doReq(t, s, "GET", "/profiles/default"+"/workflows", tok, nil)
 	if rw.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200, body=%s", rw.Code, rw.Body.String())
 	}
@@ -131,7 +131,7 @@ func TestHealthUnauthenticated(t *testing.T) {
 // store and confirms GET /workflows and GET /workflows/{id} surface it.
 func TestReadEndpointReturnsRealData(t *testing.T) {
 	s := newTestServer(t, false)
-	tok := testToken(t, s)
+	tok := testToken(t, s, "default")
 
 	wf := &workflow.Workflow{
 		ID:       "wf-http-1",
@@ -145,7 +145,7 @@ func TestReadEndpointReturnsRealData(t *testing.T) {
 		t.Fatalf("seed workflow: %v", err)
 	}
 
-	rw := doReq(t, s, "GET", "/workflows", tok, nil)
+	rw := doReq(t, s, "GET", "/profiles/default"+"/workflows", tok, nil)
 	if rw.Code != http.StatusOK {
 		t.Fatalf("list status = %d, body=%s", rw.Code, rw.Body.String())
 	}
@@ -166,7 +166,7 @@ func TestReadEndpointReturnsRealData(t *testing.T) {
 		t.Fatalf("seeded workflow %q not present in list: %+v", wf.ID, list)
 	}
 
-	rw = doReq(t, s, "GET", "/workflows/"+wf.ID, tok, nil)
+	rw = doReq(t, s, "GET", "/profiles/default"+"/workflows/"+wf.ID, tok, nil)
 	if rw.Code != http.StatusOK {
 		t.Fatalf("get status = %d, body=%s", rw.Code, rw.Body.String())
 	}
@@ -182,8 +182,8 @@ func TestReadEndpointReturnsRealData(t *testing.T) {
 // TestGetUnknownWorkflowIs404 checks the not-found status mapping.
 func TestGetUnknownWorkflowIs404(t *testing.T) {
 	s := newTestServer(t, false)
-	tok := testToken(t, s)
-	rw := doReq(t, s, "GET", "/workflows/does-not-exist", tok, nil)
+	tok := testToken(t, s, "default")
+	rw := doReq(t, s, "GET", "/profiles/default"+"/workflows/does-not-exist", tok, nil)
 	if rw.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want 404, body=%s", rw.Code, rw.Body.String())
 	}
@@ -194,7 +194,7 @@ func TestGetUnknownWorkflowIs404(t *testing.T) {
 // not 403 — indistinguishable from "doesn't exist").
 func TestMutatingEndpointUnreachableWithoutOptIn(t *testing.T) {
 	s := newTestServer(t, false)
-	tok := testToken(t, s)
+	tok := testToken(t, s, "default")
 
 	wf := &workflow.Workflow{
 		ID: "wf-no-mutate", Name: "x", IsActive: true,
@@ -205,11 +205,11 @@ func TestMutatingEndpointUnreachableWithoutOptIn(t *testing.T) {
 	}
 
 	for _, path := range []string{
-		"/workflows/" + wf.ID + "/run",
-		"/workflows/" + wf.ID + "/activate",
-		"/workflows/" + wf.ID + "/deactivate",
-		"/hil/some-id/approve",
-		"/hil/some-id/reject",
+		"/profiles/default/workflows/" + wf.ID + "/run",
+		"/profiles/default/workflows/" + wf.ID + "/activate",
+		"/profiles/default/workflows/" + wf.ID + "/deactivate",
+		"/profiles/default/hil/some-id/approve",
+		"/profiles/default/hil/some-id/reject",
 	} {
 		rw := doReq(t, s, "POST", path, tok, nil)
 		if rw.Code != http.StatusNotFound {
@@ -222,7 +222,7 @@ func TestMutatingEndpointUnreachableWithoutOptIn(t *testing.T) {
 // works end-to-end once AllowMutations=true.
 func TestMutatingEndpointReachableWithOptIn(t *testing.T) {
 	s := newTestServer(t, true)
-	tok := testToken(t, s)
+	tok := testToken(t, s, "default")
 
 	wf := &workflow.Workflow{
 		ID: "wf-mutate", Name: "x", IsActive: false,
@@ -234,7 +234,7 @@ func TestMutatingEndpointReachableWithOptIn(t *testing.T) {
 		t.Fatalf("seed workflow: %v", err)
 	}
 
-	rw := doReq(t, s, "POST", "/workflows/"+wf.ID+"/activate", tok, nil)
+	rw := doReq(t, s, "POST", "/profiles/default/workflows/"+wf.ID+"/activate", tok, nil)
 	if rw.Code != http.StatusOK {
 		t.Fatalf("activate status = %d, body=%s", rw.Code, rw.Body.String())
 	}
@@ -249,7 +249,7 @@ func TestMutatingEndpointReachableWithOptIn(t *testing.T) {
 }
 
 // TestRedactionMasksCredentialShapedValue confirms redactItemsUnlessFull
-// (the same pipeline used by /workflows/{id}/run) masks a credential-shaped
+// (the same pipeline used by the workflow run route) masks a credential-shaped
 // key, and that X-Full-Outputs: 1 opts out.
 func TestRedactionMasksCredentialShapedValue(t *testing.T) {
 	items := []workflow.Item{
@@ -273,8 +273,16 @@ func TestRedactionMasksCredentialShapedValue(t *testing.T) {
 	}
 }
 
-// Exercise both the standalone engine and the daemon's all-profile engine.
-// The API must enforce its own profile boundary before calling either one.
+// addProfile seeds another profile.
+func addProfile(t *testing.T, s *Server, id, name string) {
+	t.Helper()
+	if _, err := s.rt.db.DB.Exec(`INSERT INTO profiles (id, name) VALUES (?, ?)`, id, name); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Exercise both the standalone engines and the daemon's all-profile engine.
+// The API must enforce the path profile's boundary before calling either one.
 func TestWorkflowMutationProfileIsolation(t *testing.T) {
 	t.Setenv("MONOAGENT_WEBHOOK_ADDR", "127.0.0.1:0")
 	for _, hosted := range []bool{false, true} {
@@ -282,10 +290,7 @@ func TestWorkflowMutationProfileIsolation(t *testing.T) {
 			t.Run(fmt.Sprintf("hosted=%t/profile=%s", hosted, apiProfile), func(t *testing.T) {
 				seed := newTestServer(t, true)
 				ctx := context.Background()
-				if _, err := seed.rt.db.DB.Exec(`INSERT INTO profiles (id, name) VALUES ('other', 'Other')`); err != nil {
-					t.Fatal(err)
-				}
-				seed.rt.profileID = apiProfile
+				addProfile(t, seed, "other", "Other")
 				s := seed
 				if hosted {
 					logger := zerolog.Nop()
@@ -301,14 +306,14 @@ func TestWorkflowMutationProfileIsolation(t *testing.T) {
 					}
 					t.Cleanup(func() { _ = engine.Stop() })
 					var err error
-					s, err = NewServer(Options{DB: seed.rt.db, Store: seed.rt.store, Engine: engine,
-						Profile: apiProfile, AllowMutations: true})
+					s, err = NewServer(Options{DB: seed.rt.db, Store: seed.rt.store, Engine: engine, AllowMutations: true})
 					if err != nil {
 						t.Fatal(err)
 					}
 					t.Cleanup(s.Close)
 				}
-				tok := testToken(t, s)
+				tok := testToken(t, s, apiProfile)
+				base := "/profiles/" + apiProfile + "/workflows/"
 				for _, action := range []string{"run", "activate", "deactivate"} {
 					for _, owner := range []string{"default", "other", ""} {
 						id := action + "-" + owner
@@ -322,7 +327,7 @@ func TestWorkflowMutationProfileIsolation(t *testing.T) {
 						for _, read := range []struct{ method, suffix string }{
 							{"GET", ""}, {"GET", "/executions"}, {"POST", "/validate"},
 						} {
-							rw := doReq(t, s, read.method, "/workflows/"+id+read.suffix, tok, nil)
+							rw := doReq(t, s, read.method, base+id+read.suffix, tok, nil)
 							want := http.StatusOK
 							if foreign {
 								want = http.StatusNotFound
@@ -331,7 +336,7 @@ func TestWorkflowMutationProfileIsolation(t *testing.T) {
 								t.Errorf("%s %s owner=%q: status=%d, want %d, body=%s", read.method, read.suffix, owner, rw.Code, want, rw.Body.String())
 							}
 						}
-						rw := doReq(t, s, "POST", "/workflows/"+id+"/"+action, tok, nil)
+						rw := doReq(t, s, "POST", base+id+"/"+action, tok, nil)
 						want := http.StatusOK
 						if foreign {
 							want = http.StatusNotFound
@@ -350,12 +355,12 @@ func TestWorkflowMutationProfileIsolation(t *testing.T) {
 							}
 						}
 					}
-					rw := doReq(t, s, "POST", "/workflows/missing/"+action, tok, nil)
+					rw := doReq(t, s, "POST", base+"missing/"+action, tok, nil)
 					if rw.Code != http.StatusNotFound {
 						t.Errorf("%s missing workflow: status=%d, body=%s", action, rw.Code, rw.Body.String())
 					}
 				}
-				list := doReq(t, s, "GET", "/workflows", tok, nil)
+				list := doReq(t, s, "GET", "/profiles/"+apiProfile+"/workflows", tok, nil)
 				if list.Code != http.StatusOK {
 					t.Fatalf("list status=%d, body=%s", list.Code, list.Body.String())
 				}

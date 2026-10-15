@@ -22,7 +22,7 @@ var mustBeGlobal = []string{
 	"profile list", "profile create", "node schema", "node list", "message-template list",
 	"api config show", "action template list", "automation install", "automation trust",
 	"automation test", "automation new", "extension status", "library status", "library login",
-	"workflow templates list", "secret keyring status", "coder status", "daemon install",
+	"workflow templates list", "secret keyring status", "coder status", "daemon", "daemon install", "httpapi",
 	"account status", "ref commands", "init", "nodejs status", "db migrate", "integration list", "chat history reconcile",
 	"secret encrypt-connections", "mcp",
 }
@@ -30,7 +30,7 @@ var mustBeGlobal = []string{
 var mustBeScoped = []string{
 	"people list", "workflow run", "workflow list", "workflow validate", "secret get", "secret add",
 	"task add", "org list", "hil list", "connect list", "library logout", "library install",
-	"automation list", "automation rerecord", "api key list", "api status", "daemon", "doctor",
+	"automation list", "automation rerecord", "api key list", "api status", "doctor",
 	"status", "login status", "chat history list", "jev status", "node run",
 }
 

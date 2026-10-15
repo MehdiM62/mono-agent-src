@@ -20,29 +20,44 @@ func refAPICmd() *cobra.Command {
 
 For agents that can't speak stdio JSON-RPC. Same surface as the MCP
 tools (internal/httpapi/ mirrors internal/mcp/'s conventions), plus
-GET /workflows/{id}/executions and POST /workflows/{id}/activate /
-deactivate.
+GET /profiles/{profile}/workflows/{id}/executions and POST
+/profiles/{profile}/workflows/{id}/activate / deactivate. The server
+picks no profile: workflows and HIL items are addressed per profile,
+{profile} being a profile's id or name.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ENDPOINTS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   Always registered (read-only):
-    GET  /health                          unauthenticated liveness/version check
-    GET  /workflows                       list saved workflows
-    GET  /workflows/{id}                  full workflow JSON document
-    GET  /workflows/{id}/executions       recent executions (?limit=)
-    POST /workflows/{id}/validate         validate saved or inline workflow
-    GET  /nodes                           list all node types
-    GET  /nodes/{type}/schema             embedded JSON schema for one node type
-    GET  /hil                             pending Human-in-Loop queue
+    GET  /health
+         unauthenticated liveness/version check
+    GET  /profiles/{profile}/workflows
+         list saved workflows
+    GET  /profiles/{profile}/workflows/{id}
+         full workflow JSON document
+    GET  /profiles/{profile}/workflows/{id}/executions
+         recent executions (?limit=)
+    POST /profiles/{profile}/workflows/{id}/validate
+         validate saved or inline workflow
+    GET  /nodes
+         list all node types (any profile's credential)
+    GET  /nodes/{type}/schema
+         embedded JSON schema for one node type
+    GET  /profiles/{profile}/hil
+         pending Human-in-Loop queue
 
   Only registered with --allow-mutations / MONOAGENT_HTTPAPI_ALLOW_MUTATIONS=1:
-    POST /workflows/{id}/run              trigger a workflow, wait for completion
-    POST /workflows/{id}/activate         activate a workflow's triggers
-    POST /workflows/{id}/deactivate       deactivate a workflow's triggers
-    POST /hil/{id}/approve                approve a pending HIL item
-    POST /hil/{id}/reject                 reject a pending HIL item
+    POST /profiles/{profile}/workflows/{id}/run
+         trigger a workflow, wait for completion
+    POST /profiles/{profile}/workflows/{id}/activate
+         activate a workflow's triggers
+    POST /profiles/{profile}/workflows/{id}/deactivate
+         deactivate a workflow's triggers
+    POST /profiles/{profile}/hil/{id}/approve
+         approve a pending HIL item
+    POST /profiles/{profile}/hil/{id}/reject
+         reject a pending HIL item
 
   Served by monoagentcli daemon (on by default), always, with its own auth:
     POST /org-endpoint/{id}               deliver an org message to an
@@ -58,16 +73,25 @@ AUTH
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   Every request needs "Authorization: Bearer <credential>" except GET
-  /health. The credential is generated on first start and stored in the
-  serving profile's secrets vault (monoagentcli secret list, name
-  "httpapi-token"; monoagentcli secret reveal httpapi-token --reveal to
-  print it). Loopback-only bind by default (127.0.0.1:9322) — override
-  with --addr or MONOAGENT_HTTPAPI_ADDR.
+  /health. Each profile has its own credential, stored in that profile's
+  secrets vault (monoagentcli --profile <p> secret list, name
+  "httpapi-token"; monoagentcli --profile <p> secret reveal httpapi-token
+  --reveal to print it); the server creates it for every profile when it
+  starts. A credential authorizes only the profile it belongs to: the one
+  in the request path. A credential of another profile, a profile that does
+  not exist and a missing credential all get the same 401, so a caller
+  cannot find out which profiles exist. /nodes* takes the credential of any
+  profile. A profile name that two profiles share is answered 409 to the
+  holder of one of their credentials: use the id. Loopback-only bind by
+  default (127.0.0.1:9322) — override with --addr or MONOAGENT_HTTPAPI_ADDR.
 
-  Workflow reads and mutations are scoped to the server's profile,
+  The unprefixed /workflows* and /hil* routes of earlier releases are gone;
+  they answer 404 with a hint naming the new path.
+
+  Workflow reads and mutations are scoped to the profile in the path,
   including when the daemon hosts this API. Another profile's workflow
   ID returns 404. Legacy workflows with no profile ID belong to default.
-  The daemon's own triggers still serve all profiles internally.
+  The daemon's own triggers serve all profiles.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 OPENAI-COMPATIBLE API (/v1)
@@ -430,10 +454,10 @@ EXAMPLE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   monoagentcli httpapi &
-  monoagentcli --json secret reveal httpapi-token --reveal   # copy "token"
+  monoagentcli --json --profile <profile> secret reveal httpapi-token --reveal   # copy "token"
   curl -s http://127.0.0.1:9322/health
   curl -s -H 'Authorization: Bearer <paste credential here>' \
-    http://127.0.0.1:9322/workflows
+    http://127.0.0.1:9322/profiles/<profile>/workflows
 
 `)
 		},

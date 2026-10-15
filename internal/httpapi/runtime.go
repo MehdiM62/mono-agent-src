@@ -29,15 +29,13 @@ import (
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
-// Options configures the server. It mirrors mcp.Options.
+// Options configures the server. It mirrors mcp.Options. There is no
+// profile option: the server serves every profile, and each request names the
+// profile it is for in its path (/profiles/{profile}/...).
 type Options struct {
 	// DBPath is the SQLite database path ("~/..." expanded). Empty
 	// defaults to ~/.monoagent/monoagent.db.
 	DBPath string
-	// Profile is the --profile flag value. Empty consults
-	// MONOAGENT_PROFILE, then the active_profile_id setting, then
-	// "default".
-	Profile string
 	// WorkflowsDir overrides the JSON workflow file store directory
 	// (default ~/.monoagent/workflows; mainly for tests).
 	WorkflowsDir string
@@ -66,25 +64,34 @@ type Options struct {
 	ExtraRoutes func(mux *http.ServeMux)
 }
 
-// runtime holds the lazily-bootstrapped database, profile, store, and (on
-// first mutating call) a running WorkflowEngine. It is a near-verbatim
+// runtime holds the lazily-bootstrapped database, store, and (on the first
+// mutating call for a profile) that profile's WorkflowEngine. It is a near-verbatim
 // copy of internal/mcp's runtime — kept as its own unexported type here
 // rather than shared, since internal/mcp does not export it and the two
 // packages must stay independently buildable per the repo's internal/
 // package boundaries.
 type runtime struct {
-	db        *storage.Database
-	profileID string
-	store     *workflow.HybridWorkflowStore
-	registry  *workflow.NodeTypeRegistry
-	engine    *workflow.WorkflowEngine
-	sched     *scheduler.Scheduler
-	hosted    bool // DB and engine belong to the host process
+	db       *storage.Database
+	store    *workflow.HybridWorkflowStore
+	registry *workflow.NodeTypeRegistry
+	// engine is the host's engine (daemon): it serves every profile. A
+	// standalone server has none and builds one engine per profile in engines,
+	// each bound to its profile, on that profile's first mutating call.
+	engine  *workflow.WorkflowEngine
+	engines map[string]*profileEngine
+	hosted  bool // DB and engine belong to the host process
 
 	// mu guards the lazy engine/registry/scheduler bootstrap: HTTP
 	// requests are handled concurrently, so several mutating requests may
 	// race to start the engine on first use.
 	mu sync.Mutex
+}
+
+// profileEngine is a standalone server's engine for one profile, with the
+// scheduler it owns.
+type profileEngine struct {
+	engine *workflow.WorkflowEngine
+	sched  *scheduler.Scheduler
 }
 
 func expandHome(path string) string {
@@ -142,20 +149,15 @@ func migrateProfilesToPerProfileKeys(ctx context.Context, db *sql.DB) {
 	}
 }
 
-// newRuntime opens the database (applying migrations), resolves the active
-// profile, and builds the hybrid workflow store. Mirrors internal/mcp's
-// newRuntime.
+// newRuntime opens the database (applying migrations) and builds the hybrid
+// workflow store. It picks no profile: every request names its own.
 func newRuntime(opts Options) (*runtime, error) {
 	if opts.DB != nil {
-		profile := opts.Profile
-		if profile == "" {
-			profile = "default"
-		}
 		store := opts.Store
 		if store == nil {
 			store = workflow.NewHybridWorkflowStore(nil, workflow.NewSQLiteWorkflowStore(opts.DB.DB))
 		}
-		return &runtime{db: opts.DB, profileID: profile, store: store, engine: opts.Engine, hosted: true}, nil
+		return &runtime{db: opts.DB, store: store, engine: opts.Engine, hosted: true}, nil
 	}
 	dbPath := opts.DBPath
 	if dbPath == "" {
@@ -189,26 +191,6 @@ func newRuntime(opts Options) (*runtime, error) {
 	}
 	migrateProfilesToPerProfileKeys(ctx, db.DB)
 
-	profile := opts.Profile
-	if profile == "" {
-		profile = os.Getenv("MONOAGENT_PROFILE")
-	}
-	if profile != "" {
-		resolved, err := resolveProfileID(db.DB, profile)
-		if err != nil {
-			db.Close()
-			return nil, fmt.Errorf("httpapi: %w", err)
-		}
-		profile = resolved
-	} else {
-		var id string
-		_ = db.DB.QueryRow(`SELECT value FROM settings WHERE key = 'active_profile_id'`).Scan(&id)
-		if id == "" {
-			id = "default"
-		}
-		profile = id
-	}
-
 	sqlStore := workflow.NewSQLiteWorkflowStore(db.DB)
 	wfDir := opts.WorkflowsDir
 	if wfDir == "" {
@@ -220,26 +202,12 @@ func newRuntime(opts Options) (*runtime, error) {
 	}
 
 	return &runtime{
-		db:        db,
-		profileID: profile,
-		store:     workflow.NewHybridWorkflowStore(fileStore, sqlStore),
+		db:    db,
+		store: workflow.NewHybridWorkflowStore(fileStore, sqlStore),
 	}, nil
 }
 
-// resolveProfileID accepts a profile's ID or display name and returns the
-// canonical ID (same semantics as the CLI's --profile resolution).
-func resolveProfileID(db *sql.DB, idOrName string) (string, error) {
-	var id string
-	if err := db.QueryRow(`SELECT id FROM profiles WHERE id = ?`, idOrName).Scan(&id); err == nil {
-		return id, nil
-	}
-	if err := db.QueryRow(`SELECT id FROM profiles WHERE name = ?`, idOrName).Scan(&id); err == nil {
-		return id, nil
-	}
-	return "", fmt.Errorf("profile %q not found (checked both id and name)", idOrName)
-}
-
-// Close releases the runtime's engine and database. Safe on nil receivers
+// Close releases the runtime's engines and database. Safe on nil receivers
 // and safe to call more than once.
 func (rt *runtime) Close() {
 	if rt == nil {
@@ -251,13 +219,10 @@ func (rt *runtime) Close() {
 		rt.engine, rt.db = nil, nil
 		return
 	}
-	if rt.engine != nil {
-		_ = rt.engine.Stop()
-		rt.engine = nil
-	}
-	if rt.sched != nil {
-		_ = rt.sched.Stop()
-		rt.sched = nil
+	for id, pe := range rt.engines {
+		_ = pe.engine.Stop()
+		_ = pe.sched.Stop()
+		delete(rt.engines, id)
 	}
 	if rt.db != nil {
 		_ = rt.db.Close()
@@ -265,19 +230,27 @@ func (rt *runtime) Close() {
 	}
 }
 
-// ensureEngine starts the WorkflowEngine (queue workers, scheduler, resume
-// loop) on first use. Browser-session nodes are not wired here — like the
-// MCP server, the HTTP API never launches Chrome; run those workflows via
-// the CLI or daemon.
-func (rt *runtime) ensureEngine(ctx context.Context) error {
+// engineFor returns the engine that runs profileID's workflows, starting it
+// (queue workers, scheduler, resume loop) on first use. A host's engine (the
+// daemon) serves every profile; a standalone server starts one engine per
+// profile, each bound to its profile like the engine of a CLI run. The caller
+// has already checked that the workflow belongs to profileID.
+// Browser-session nodes are not wired here — like the MCP server, the HTTP API
+// never launches Chrome; run those workflows via the CLI or daemon.
+func (rt *runtime) engineFor(ctx context.Context, profileID string) (*workflow.WorkflowEngine, error) {
 	rt.mu.Lock()
 	defer rt.mu.Unlock()
 	if rt.engine != nil {
-		return nil
+		return rt.engine, nil
+	}
+	if pe, ok := rt.engines[profileID]; ok {
+		return pe.engine, nil
 	}
 	logger := logging.Zerolog()
 
-	registry := noderegistry.Build(rt.db.DB)
+	if rt.registry == nil {
+		rt.registry = noderegistry.Build(rt.db.DB)
+	}
 	nodes.SetGlobalCredentialStore(connections.NewStore(rt.db.DB))
 	cfgStore := cfgpkg.ConfigStore(&cfgpkg.DBConfigStore{DB: rt.db})
 	nodes.SetGlobalConfigMgr(&cfgpkg.ConfigManagerAdapter{
@@ -287,26 +260,26 @@ func (rt *runtime) ensureEngine(ctx context.Context) error {
 	sched := scheduler.NewScheduler(logger)
 	sched.Start()
 
-	engine := workflow.NewWorkflowEngineWithStore(rt.store, rt.db.DB, sched, registry, workflow.EngineConfig{
+	engine := workflow.NewWorkflowEngineWithStore(rt.store, rt.db.DB, sched, rt.registry, workflow.EngineConfig{
 		MaxConcurrent:  5,
 		QueueCapacity:  1000,
 		PruneInterval:  time.Hour,
 		MaxExecHistory: 500,
-		ProfileID:      rt.profileID,
+		ProfileID:      profileID,
 	}, logger)
 	if err := engine.Start(ctx); err != nil {
 		sched.Stop()
-		return fmt.Errorf("httpapi: start engine: %w", err)
+		return nil, fmt.Errorf("httpapi: start engine: %w", err)
 	}
-
-	rt.registry = registry
-	rt.sched = sched
-	rt.engine = engine
-	return nil
+	if rt.engines == nil {
+		rt.engines = map[string]*profileEngine{}
+	}
+	rt.engines[profileID] = &profileEngine{engine: engine, sched: sched}
+	return engine, nil
 }
 
 // registryOrDefault returns the node registry, building a DB-less one if
-// the engine has not been started yet.
+// no engine has been started yet.
 func (rt *runtime) registryOrDefault() *workflow.NodeTypeRegistry {
 	rt.mu.Lock()
 	defer rt.mu.Unlock()

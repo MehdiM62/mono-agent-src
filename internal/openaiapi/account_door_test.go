@@ -128,7 +128,7 @@ func TestTheLoopbackMountRefusesInTheEnvelopeAndTheRestFlat(t *testing.T) {
 	h := newHarness(t, okTurn("x"))
 	key := h.key(t, "default", "app", false)
 	srv, err := httpapi.NewServer(httpapi.Options{
-		DB: h.db, Profile: "default", Version: "mount-test",
+		DB: h.db, Version: "mount-test",
 		ExtraRoutes: func(mux *http.ServeMux) { h.g.Mount(mux, anyPolicy) },
 	})
 	if err != nil {
@@ -147,11 +147,11 @@ func TestTheLoopbackMountRefusesInTheEnvelopeAndTheRestFlat(t *testing.T) {
 	wantEnvelopeRefusal(t, do(http.MethodGet, "/v1/models"))
 	wantEnvelopeRefusal(t, do(http.MethodPost, "/v1/chat/completions"))
 
-	flat := do(http.MethodGet, "/workflows")
+	flat := do(http.MethodGet, "/profiles/default/workflows")
 	var body map[string]any
 	if err := json.Unmarshal(flat.Body.Bytes(), &body); err != nil || flat.Code != http.StatusUnauthorized ||
 		body["error"] != "login_required" || body["login_required"] != true {
-		t.Errorf("GET /workflows = %d %s, want the HTTP API's flat login_required body", flat.Code, flat.Body)
+		t.Errorf("GET /profiles/default/workflows = %d %s, want the HTTP API's flat login_required body", flat.Code, flat.Body)
 	}
 	if health := do(http.MethodGet, "/health"); health.Code != http.StatusOK {
 		t.Errorf("GET /health = %d, want 200", health.Code)

@@ -15,9 +15,8 @@ import (
 )
 
 // NewCommand runs the REST/JSON HTTP API server in the foreground,
-// mirroring `monoagentcli daemon`'s signal handling. Unlike daemon (which
-// keeps triggers alive across all profiles), the HTTP API is scoped to the
-// active --profile, exactly like every other read/write command.
+// mirroring `monoagentcli daemon`'s signal handling. It serves every profile:
+// each request names its profile in the path, so the command takes none.
 func NewCommand(d Deps) *cobra.Command {
 	var addr string
 	var allowMutations bool
@@ -30,8 +29,10 @@ func NewCommand(d Deps) *cobra.Command {
 			"for external agents that cannot speak the stdio MCP protocol (see `monoagentcli mcp`).\n\n" +
 			"Loopback-only by default (127.0.0.1:9322) — override with --addr or MONOAGENT_HTTPAPI_ADDR. " +
 			"Every request requires `Authorization: Bearer <token>` except GET /health; the token is " +
-			"generated on first start and stored in this profile's secrets vault (`monoagentcli secret " +
-			"list`, name \"httpapi-token\").\n\n" +
+			"generated for each profile when the server starts and stored in that profile's secrets vault " +
+			"(`monoagentcli --profile <p> secret list`, name \"httpapi-token\"); a token authorizes only its " +
+			"own profile. Workflows and HIL items are served under /profiles/{profile}/ ({profile} is a " +
+			"profile id or name); --profile is ignored.\n\n" +
 			"Mutating endpoints (workflow run/activate/deactivate, hil approve/reject) are only served " +
 			"when --allow-mutations or MONOAGENT_HTTPAPI_ALLOW_MUTATIONS=1 is set; without it, only the " +
 			"read endpoints are registered (an unregistered mutating path 404s, not 403s). " +
@@ -45,6 +46,9 @@ func NewCommand(d Deps) *cobra.Command {
 			"(TLS required). See `monoagentcli api --help` and examples/openai-api-quickstart.md.",
 		Example: "  monoagentcli httpapi\n  monoagentcli httpapi --allow-mutations\n  MONOAGENT_HTTPAPI_ADDR=127.0.0.1:9999 monoagentcli httpapi",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if cmd.Flags().Changed("profile") {
+				fmt.Fprintln(cmd.ErrOrStderr(), "note: --profile is ignored: the HTTP API serves every profile, and each request names its profile in the path (/profiles/{profile}/...)")
+			}
 			// The OpenAI-compatible API (/v1) reads API keys and the roster
 			// from the database, so this command opens it for the gateway.
 			db, err := d.OpenGatewayDB()
@@ -61,7 +65,6 @@ func NewCommand(d Deps) *cobra.Command {
 
 			srv, err := httpapi.NewServer(httpapi.Options{
 				DBPath:         d.DBPath(),
-				Profile:        d.ProfileID(),
 				Addr:           addr,
 				AllowMutations: allowMutations,
 				Version:        d.Version(),
