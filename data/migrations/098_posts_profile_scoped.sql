@@ -1,4 +1,4 @@
--- 097_posts_profile_scoped.sql
+-- 098_posts_profile_scoped.sql
 -- posts was UNIQUE(platform, shortcode) with no profile column, so two profiles
 -- scraping the same post collided on one shared row. Give posts a profile_id
 -- and scope the uniqueness to it (same rebuild as 014 did for people).

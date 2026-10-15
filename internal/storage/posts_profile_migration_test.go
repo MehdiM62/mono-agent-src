@@ -5,16 +5,16 @@ import (
 	"testing"
 )
 
-// Migration 097 scopes posts to a profile: ids and post_comments survive the
+// Migration 098 scopes posts to a profile: ids and post_comments survive the
 // rebuild, profile_id is backfilled from the owning person ('default' for
 // ownerless posts), and two profiles may now hold the same shortcode.
-func TestApplyMigration097_PostsProfileScoped(t *testing.T) {
+func TestApplyMigration098_PostsProfileScoped(t *testing.T) {
 	db, err := NewDatabase(filepath.Join(t.TempDir(), "posts.db"))
 	if err != nil {
 		t.Fatalf("NewDatabase: %v", err)
 	}
 	defer db.DB.Close()
-	applyMigrationsBelow(t, db, 97)
+	applyMigrationsBelow(t, db, 98)
 
 	for _, stmt := range []string{
 		`INSERT INTO people (id, platform_username, platform, profile_id) VALUES
@@ -61,13 +61,13 @@ func TestApplyMigration097_PostsProfileScoped(t *testing.T) {
 
 // Ownerless posts go to the 'default' profile when it exists, else to the
 // oldest profile.
-func TestApplyMigration097_OwnerlessPostsPickAnExistingProfile(t *testing.T) {
+func TestApplyMigration098_OwnerlessPostsPickAnExistingProfile(t *testing.T) {
 	db, err := NewDatabase(filepath.Join(t.TempDir(), "posts2.db"))
 	if err != nil {
 		t.Fatalf("NewDatabase: %v", err)
 	}
 	defer db.DB.Close()
-	applyMigrationsBelow(t, db, 97)
+	applyMigrationsBelow(t, db, 98)
 	for _, stmt := range []string{
 		`DELETE FROM profiles WHERE id = 'default'`,
 		`INSERT INTO profiles (id, name, created_at) VALUES ('newer', 'N', '2026-05-01 00:00:00'), ('oldest', 'O', '2026-01-01 00:00:00')`,
