@@ -41,7 +41,7 @@ desktop GUI (`wails-app/`).
   browser automation packages (gemini, hackernews, instagram, linkedin,
   producthunt, tiktok, x). Their node types exist once the package is
   installed: `monoagentcli library login`, then
-  `monoagentcli library install automation <id>` (see
+  `monoagentcli --profile work library install automation <id>` (see
   [monoes.me library](#monoesme-library)). Packages an older release
   installed keep working. The compiled bots they call stay in the binary.
 
@@ -74,11 +74,11 @@ Prefer `ref` over guessing from `--help` alone.
 ## Health check
 
 ```bash
-monoagentcli doctor                 # check everything monoagent needs; exit 1 = a required check failed
-monoagentcli doctor --json          # stable report (schema "v":1): results[] with id/group/status/summary/fix
-monoagentcli doctor --fix [--yes]   # apply fixes (auto ones directly, confirm ones after asking / with --yes)
-monoagentcli doctor fix <fix-id> --json   # one fix, progress as NDJSON {"kind":"line"|"done"|"error"}
-monoagentcli setup [--yes] [--runtime claude] [--autostart] [--mcp] [--deps]  # guided: fix everything, offer extras, report
+monoagentcli --profile work doctor                 # check everything monoagent needs; exit 1 = a required check failed
+monoagentcli --profile work doctor --json          # stable report (schema "v":1): results[] with id/group/status/summary/fix
+monoagentcli --profile work doctor --fix [--yes]   # apply fixes (auto ones directly, confirm ones after asking / with --yes)
+monoagentcli --profile work doctor fix <fix-id> --json   # one fix, progress as NDJSON {"kind":"line"|"done"|"error"}
+monoagentcli --profile work setup [--yes] [--runtime claude] [--autostart] [--mcp] [--deps]  # guided: fix everything, offer extras, report
 ```
 
 When a bridge version differs from the CLI, `doctor` offers
@@ -149,11 +149,11 @@ General automation lives under `workflow` and `node`; prefer those.
 ## Machine-readable output
 
 The global `--json` flag works on most commands. Place it before the
-subcommand: `monoagentcli --json workflow search`.
+subcommand: `monoagentcli --profile work --json workflow search`.
 
 ```bash
 # What can this already do? Returns ready-to-run commands per hit.
-monoagentcli --json workflow search <query>
+monoagentcli --profile work --json workflow search <query>
 
 # JSON schema for a node type (exit 2 on unknown type): config fields and,
 # for most nodes, `outputs` (the keys its items carry; "*" = input passed
@@ -165,18 +165,18 @@ monoagentcli node schema <type>
 # invalid_workflow, unknown_node_type, missing_required, invalid_option,
 # dangling_node_ref, bad_expression (errors) and unknown_field,
 # unknown_upstream_field, needs_setup (warnings: e.g. no account chosen yet).
-monoagentcli workflow validate <id>
-monoagentcli workflow validate --file <workflow.json>
+monoagentcli --profile work workflow validate <id>
+monoagentcli --profile work workflow validate --file <workflow.json>
 
 # Draft a workflow from a description: an agent turn writes it, validate's
 # errors go back to it until it passes, and it is saved inactive.
-monoagentcli workflow generate "<description>" [--runtime <rt>|auto] [--no-save] [--json]
+monoagentcli --profile work workflow generate "<description>" [--runtime <rt>|auto] [--no-save] [--json]
 
 # Run controls:
-monoagentcli workflow run <id> --dry-run    # validate + print execution plan, no run
-monoagentcli workflow run <id> --no-wait    # print execution id, exit 0
-monoagentcli workflow run <id> --timeout 30m
-monoagentcli --json workflow run <id>       # execution record + per-node output items
+monoagentcli --profile work workflow run <id> --dry-run    # validate + print execution plan, no run
+monoagentcli --profile work workflow run <id> --no-wait    # print execution id, exit 0
+monoagentcli --profile work workflow run <id> --timeout 30m
+monoagentcli --profile work --json workflow run <id>       # execution record + per-node output items
 ```
 
 Typical agent loop: `workflow search --json` → inspect template with
@@ -187,7 +187,7 @@ JSON → `workflow validate --json` → `node run` single nodes → `workflow sa
 
 ### At a glance: `summary`
 
-`monoagentcli --json summary [--section workflows,executions,…]` is one
+`monoagentcli --profile work --json summary [--section workflows,executions,…]` is one
 read-only call that returns counts for:
 
 - workflows
@@ -208,8 +208,8 @@ read-only call that returns counts for:
 It is local-only: it never calls Jev, monomind or the network (apart from a
 loopback probe of the extension bridge), so it is safe to poll. The desktop
 dashboard polls it. A failing section reports `"error"` inside itself, and the
-command still exits 0. For orgs, use `monoagentcli org summary [--fast]`. For
-the full run list, use `monoagentcli --json workflow executions --all --limit N`.
+command still exits 0. For orgs, use `monoagentcli --profile work org summary [--fast]`. For
+the full run list, use `monoagentcli --profile work --json workflow executions --all --limit N`.
 
 > **Importing a workflow is equivalent to executing code.** Workflows can
 > run shell commands (`system.execute_command`), inline JavaScript
@@ -249,7 +249,7 @@ The desktop app does everything through these commands; they are equally usable 
   - `people status set|get|history`
   - `people messages list|all [--unread]|add|compose|drafts|send-draft|reject-draft|read|unread`
 - **Social lists:** `list ls`.
-- **Image vault:** `image list|search|get|data|add|label|delete|stats|export`, scoped to the active profile. `image data` returns a data URL. `image sync` scans the profile folder and reconciles discovered images. `image delete` keeps files that live in the profile folder and hides them from later syncs; `image unignore <path>` or `image add <path>` brings one back.
+- **Image vault:** `image list|search|get|data|add|label|delete|stats|export`, scoped to the profile named by `--profile`. `image data` returns a data URL. `image sync` scans the profile folder and reconciles discovered images. `image delete` keeps files that live in the profile folder and hides them from later syncs; `image unignore <path>` or `image add <path>` brings one back.
 - **Workflows:**
   - `workflow save` creates or replaces a workflow from the editor's document on stdin.
   - `workflow execution <id>` shows run detail with redacted items; a WAITING run
@@ -272,7 +272,7 @@ The desktop app does everything through these commands; they are equally usable 
   - `profile documents list|get|capture|index|rm`, and `profile documents sync`, which scans the profile folder and reconciles documents
   - Browser captures saved into a profile are indexed automatically by the extension bridge (the daemon's or `extension serve`) within seconds, into that profile's own monomind store (scope `profile:<id>`), and the row records Indexed or the error. `profile documents index --all [--all-profiles]` is the backfill: every capture that is not indexed, has changed, or failed before. "Ask your brain" in the extension and chat knowledge search read the same store, so a capture is searchable only from its own profile.
 - **Chat:**
-  - `chat history list|show|create|turns|turn|events|delete|finish|reconcile`, scoped to the active profile (`reconcile` sweeps every profile).
+  - `chat history list|show|create|turns|turn|events|delete|finish|reconcile`, scoped to the profile named by `--profile` (`reconcile` sweeps every profile).
   - `chat history create --runtime R [--model M] [--workflow W] [--mode coder --cwd DIR|--coder-root|--new-workspace]` makes a conversation (coder mode: see "Coder mode" below), `chat history turns <conv> [--cursor] [--limit]` pages its turns, and `chat history events <conv> <turn> [--after-seq N] [--limit N]` returns the events with the turn's status.
   - `chat --conversation <conv> --turn <id> [--instance <app-id>] [--tools monoagent[,runs]] -- <message>` runs one turn and journals it itself. It takes the runtime, model and session from the conversation. Stdout is an admission line, then each committed event as NDJSON. A repeated turn id never runs twice. `--prompt-stdin` (instead of `-- <message>`) reads the prompt from stdin. `--tools monoagent:read` is a mode of its own, never combined with `runs`, `--canvas` or other members: only `list_workflows`, `get_workflow`, `list_node_types`, no Bash, and the turn counts as carrying untrusted web-page text. It is the only mode the browser extension's side-panel chat (`chat.send`, `chat.stop`, `chat.events` over the extension bridge) starts, with the message on stdin; see SECURITY.md, "The extension's side-panel chat".
   - `chat history delete` refuses a conversation with an active turn (exit 3). `chat history finish <conv> <turn> --status S` records the end of a turn whose process was killed; it does nothing if the turn already finished. `chat history reconcile --except-owner <app-id>` marks turns left active as interrupted, at app startup.
@@ -290,17 +290,17 @@ The desktop app does everything through these commands; they are equally usable 
 
 ## Publication history
 
-Publication is the active profile's local history of successful posts, comments,
+Publication is a profile's local history of successful posts, comments,
 replies, articles, videos, and shared channel publications. Built-in publishing
 nodes register automatically from workflows and direct node runs, including
 agent-granted workflow execution. Private mail/DMs stay in Communications.
 
 ```bash
 monoagentcli ref publication
-monoagentcli --json publication list --platform reddit --kind comment
-monoagentcli --json publication get <id>
-monoagentcli --json publication stats
-monoagentcli --json publication register --stdin-json < publication.json
+monoagentcli --profile work --json publication list --platform reddit --kind comment
+monoagentcli --profile work --json publication get <id>
+monoagentcli --profile work --json publication stats
+monoagentcli --profile work --json publication register --stdin-json < publication.json
 ```
 
 **Agents publishing through external tools must register each success.** Include
@@ -444,14 +444,14 @@ included: monoes.me answers 401 to anonymous reads.
 monoagentcli library login                        # browser sign-in (OAuth 2.1 + PKCE, loopback redirect on 127.0.0.1)
 monoagentcli library login --email you@x.com      # headless: emails a code, then asks for it (--send / --code split the steps)
 monoagentcli library status [--offline]           # logged in? as whom
-monoagentcli library list --kind automation       # official + public; --scope official|mine, --search, --tag, --page, --per-page
-monoagentcli library show automation/instagram    # one item (id or <kind>/<slug>)
-monoagentcli library install automation instagram # download, verify sha256, install
-monoagentcli library install org research-team --rename research-2
-monoagentcli library publish workflow <id> [--public] [--name --description --tags --version]
-monoagentcli library update [<id>] [--dry-run]    # newer versions of what came from the library
-monoagentcli library installed                    # what this profile installed from it
-monoagentcli library logout
+monoagentcli --profile work library list --kind automation       # official + public; --scope official|mine, --search, --tag, --page, --per-page
+monoagentcli --profile work library show automation/instagram    # one item (id or <kind>/<slug>)
+monoagentcli --profile work library install automation instagram # download, verify sha256, install
+monoagentcli --profile work library install org research-team --rename research-2
+monoagentcli --profile work library publish workflow <id> [--public] [--name --description --tags --version]
+monoagentcli --profile work library update [<id>] [--dry-run]    # newer versions of what came from the library
+monoagentcli --profile work library installed                    # what this profile installed from it
+monoagentcli --profile work library logout
 ```
 
 - Login required: `list`, `show`, `install`, `update` and `publish`
@@ -478,10 +478,10 @@ monoagentcli library logout
     live-run confirmation, bare-name vault fallback); everything else is
     `imported`. Replacing a more trusted or your own package needs
     `--replace` (or `--yes`).
-  - **workflow** → `workflow import` into the active profile (bundled
+  - **workflow** → `workflow import` into the profile named by `--profile` (bundled
     automations install with `--yes`); reinstalling replaces the earlier
     import in place. `missing_automations` lists packages it needs.
-  - **org** → the active profile's org folder, stopped. A name in use
+  - **org** → the profile's org folder, stopped. A name in use
     needs `--rename <name>` or `--yes` (replace).
 - Provenance (`{source:"monoes", item_id, version, sha256}`) is recorded in
   the automation index and in `~/.monoagent/library/installed.json`
@@ -504,13 +504,13 @@ monoagentcli library logout
 ## MCP server
 
 ```bash
-monoagentcli mcp                     # stdio JSON-RPC MCP server, read-only tools only
-monoagentcli mcp --allow-mutations   # also serve mutating tools
-monoagentcli mcp --allow-mutations --allow-api-exposure   # also let api_config_set widen what the API's server exposes, and api_auto_set switch the auto model on
-monoagentcli mcp --api-only --allow-mutations --allow-api-exposure   # the same, serving the OpenAI-compatible API's tools (api_*) and no other
+monoagentcli --profile work mcp                     # stdio JSON-RPC MCP server, read-only tools only
+monoagentcli --profile work mcp --allow-mutations   # also serve mutating tools
+monoagentcli --profile work mcp --allow-mutations --allow-api-exposure   # also let api_config_set widen what the API's server exposes, and api_auto_set switch the auto model on
+monoagentcli --profile work mcp --api-only --allow-mutations --allow-api-exposure   # the same, serving the OpenAI-compatible API's tools (api_*) and no other
 monoagentcli --profile work mcp --tasks-only --allow-mutations   # the user's task board's tools (task_*) and no other, for one profile
-monoagentcli mcp --allow-mutations --workflow-tools   # also each saved workflow as a tool wf_<slug>
-monoagentcli mcp --allow-mutations --workflow-tools="Daily digest,wf-123"   # only those workflows (id or name)
+monoagentcli --profile work mcp --allow-mutations --workflow-tools   # also each saved workflow as a tool wf_<slug>
+monoagentcli --profile work mcp --allow-mutations --workflow-tools="Daily digest,wf-123"   # only those workflows (id or name)
 ```
 
 Register it with any MCP client (stdio transport). Prefer MCP when the
@@ -546,7 +546,7 @@ dangerous calls.
   provenance fence)
 - `social_list_list`, `template_list`
 - `org_list`, `org_get`, `org_validate`
-- `api_key_list` (the active profile's API keys for the
+- `api_key_list` (the server profile's API keys for the
   [OpenAI-compatible API](#openai-compatible-api-v1): metadata only, never a
   key), `api_models_list` (the document of `api models --json`: the models
   `/v1` would serve with each one's confinement class and capabilities, `image`
@@ -627,7 +627,7 @@ existing MCP client config that relies on them.
   agent's verbs on the task board, acting as the agent the server names after
   its client (`agent:<client>#<4 hex>`); no tool approves, edits, moves or
   archives a task
-- `api_key_create`, `api_key_update`, `api_key_revoke` — the active profile's
+- `api_key_create`, `api_key_update`, `api_key_revoke` — the server profile's
   API keys, under the rules of `api key create|update|revoke` (names, the
   context switch, the errors); a key of another profile is "not found". A name
   can be neither a key (anything holding `sk-ma-`, in any case) nor the shape
@@ -739,8 +739,11 @@ existing MCP client config that relies on them.
   work the user's board and nothing else: `--allow-mutations`, which the five
   verbs need, also serves the workflow tools that can run a command as the OS
   user. A call by name of another tool is refused ("is not served ...
-  `--tasks-only`"). A server serves one profile, so register one per profile:
+  `--tasks-only`"). Today a server serves the one profile named by its `--profile` flag, so
+  register one per profile:
   `claude mcp add monoagent-tasks-<profile> -- monoagentcli --profile <id or name> mcp --tasks-only --allow-mutations`.
+  A later release adds a required `profile` argument to the profile-scoped
+  tools, after which one server will serve every profile.
   It cannot be combined with `--api-only` (refused at start, the environment
   variables included) or `--grant`. A host that has tools of its own, such as a
   shell tool, is not stopped by it. Nothing registers it for you.
@@ -781,7 +784,7 @@ here; MCP is just a second transport onto the same tool implementations.
 ## HTTP API
 
 ```bash
-monoagentcli httpapi    # REST/JSON server (default 127.0.0.1:9322)
+monoagentcli --profile work httpapi    # REST/JSON server (default 127.0.0.1:9322)
 ```
 
 For agents that can't speak stdio JSON-RPC. Same surface as the MCP tools
@@ -793,7 +796,7 @@ registered when started with `--allow-mutations` or
 `MONOAGENT_HTTPAPI_ALLOW_MUTATIONS=1` — otherwise those paths 404 rather
 than 403, so a probe can't distinguish "opted out" from "doesn't exist".
 Every request needs `Authorization: Bearer <token>` except `GET /health`;
-the token is generated on first start and stored in the active profile's
+the token is generated on first start and stored in the serving profile's
 secrets vault (`secret list`, name `httpapi-token`). Output items go
 through the same redaction as `workflow run --json` — pass
 `X-Full-Outputs: 1` to opt out per request, mirroring
@@ -847,7 +850,7 @@ a key. It lives in `internal/openaiapi/`; the spec is
 - **The `auto` model.** `"model": "auto"` lets [TypeSafe Jev](#typesafe-jev-decisions-only)
   pick, per request, among the models the listener serves (a `--context` key:
   among those its own cap allows). It is the `api_auto` Jev surface: off until
-  `monoagentcli jev enable api_auto` on the key's profile, which also needs
+  `monoagentcli --profile <id> jev enable api_auto` on the key's profile, which also needs
   that profile's Jev key (`jev key set`, or `TYPESAFE_API_KEY` in the server's
   environment, which the gateway blanks in its agent turns). Without them
   `auto` is not listed and answers 404 `model_not_found` naming what is
@@ -1408,7 +1411,7 @@ a key. It lives in `internal/openaiapi/`; the spec is
   forward on the machine can still expose a loopback one) and the confinement
   the running daemon reports, or that is assumed from the app's environment.
   The header says Network when any listener that serves `/v1` is bound beyond
-  loopback. The active profile's keys: create with a show-once panel (Escape
+  loopback. The selected profile's keys: create with a show-once panel (Escape
   does not close it, only Done: the key is not shown again), a context switch
   (turning it on asks first, since excerpts of the profile's documents reach the
   model's provider) and revoke after a confirmation. The models: their class,
@@ -1469,8 +1472,7 @@ agents share. `monoagentcli task` is the base interface to the board; the
 table at the end of this section lists the other ways to reach it. It
 is the user's own board in monoagent, not a monomind org's issues
 (`capture task` files those). A task always sits in one profile: pass
-`--profile <id or name>` on every call, or the active profile is used,
-which the app changes when the user switches.
+`--profile <id or name>` on every call (see [Profiles](#profiles)).
 
 | Column | Meaning |
 |---|---|
@@ -1561,10 +1563,10 @@ a row here):
 | Session-start hook | `monoagentcli --profile <id> task digest`; nothing installs the hook for you |
 | Chrome extension | *Add selection as task*, *Add page as task*, the side panel's box and the `add-task` key send `task.add` over the extension bridge: a capture, Inbox only, in the profile the extension is "Saving into" (README, Chrome Extension) |
 | MCP, any server | `monoagentcli mcp`: `task_list`, `task_get`, `task_next`; with `--allow-mutations` also `task_claim`, `task_comment`, `task_finish`, `task_release`, `task_add`, acting on the server's one profile as `agent:<client>#<4 hex>`; text in fields ending in `_untrusted`; no tool edits, moves or archives a task, and none approves unless the user delegated it (next row) |
-| MCP, the board alone | `claude mcp add monoagent-tasks-<profile> -- monoagentcli --profile <id or name> mcp --tasks-only --allow-mutations`: the same eight tools and no other, one server per profile; nothing registers it for you. While the user has run `task agents allow --approve` for the profile (default: off), it also serves `task_approve`; no tool changes that setting |
+| MCP, the board alone | `claude mcp add monoagent-tasks-<profile> -- monoagentcli --profile <id or name> mcp --tasks-only --allow-mutations`: the same eight tools and no other, one server per profile today (a required `profile` tool argument is coming); nothing registers it for you. While the user has run `task agents allow --approve` for the profile (default: off), it also serves `task_approve`; no tool changes that setting |
 | Claude Code skill | `~/.claude/skills/monoagent-tasks/SKILL.md`, written create-only by the next CLI run on a machine with `~/.claude` |
 | Dashboard summary | `monoagentcli --profile <id> --json summary --section tasks`: one profile's counts and its next task (not in `--all-profiles`) |
-| Desktop app | The Tasks tab after Documents: the active profile's board, drag and keyboard moves, a "How to capture" note, a sidebar badge; it renders and runs `monoagentcli task ...`, and slides cards by FLIP unless `prefers-reduced-motion` is set |
+| Desktop app | The Tasks tab after Documents: the selected profile's board, drag and keyboard moves, a "How to capture" note, a sidebar badge; it renders and runs `monoagentcli task ...`, and slides cards by FLIP unless `prefers-reduced-motion` is set |
 | macOS menu | Services, "Add to MonoAgent Tasks: <profile>" on text selected in any app, installed once per profile by `monoagentcli --profile <id> task os install` and removed by `task os uninstall` (both the operator's: an agent is refused with `operator_only`); it runs `task add --stdin --source os`, a capture into Inbox (`monoagentcli ref tasks`) |
 
 ## Assistant chat & tools
@@ -1576,12 +1578,12 @@ stdout; the desktop app consumes the same stream. `--runtime` and a prompt
 are required:
 
 ```bash
-monoagentcli chat --runtime claude "summarize my failed runs"            # no tools
-monoagentcli chat --runtime claude --history-id <session> "…"            # persist this turn under a named session bucket
-monoagentcli chat --runtime claude --resume <session-id> "continue"      # resume a prior runtime session (runtime-issued id)
-monoagentcli chat --runtime claude --tools monoagent "…"                 # + workflows, vault, people, actions, comms tools
-monoagentcli chat --runtime claude --tools monoagent,runs "…"            # + run/execution tools (second explicit gate)
-monoagentcli chat --runtime codex --canvas <workflow-id> "add a Slack step"  # workflow-builder mode
+monoagentcli --profile work chat --runtime claude "summarize my failed runs"            # no tools
+monoagentcli --profile work chat --runtime claude --history-id <session> "…"            # persist this turn under a named session bucket
+monoagentcli --profile work chat --runtime claude --resume <session-id> "continue"      # resume a prior runtime session (runtime-issued id)
+monoagentcli --profile work chat --runtime claude --tools monoagent "…"                 # + workflows, vault, people, actions, comms tools
+monoagentcli --profile work chat --runtime claude --tools monoagent,runs "…"            # + run/execution tools (second explicit gate)
+monoagentcli --profile work chat --runtime codex --canvas <workflow-id> "add a Slack step"  # workflow-builder mode
 ```
 
 `--budget-usd` never trips for a runtime whose scan entry has
@@ -1627,11 +1629,11 @@ hooks, MCP servers) plus the folder's own.
 monoagentcli coder status --json                          # settings, monomind support, and each runtime's readiness
 monoagentcli coder enable --yes-i-understand              # off until enabled; the CLI enforces it
 monoagentcli coder set --workspace-root ~/monoagent-coder --max-turns 200 --timeout 60m --budget-usd 5
-monoagentcli coder workspace root --json                  # the coder root itself, set up as a shared working folder
-monoagentcli coder workspace new --json                   # or a fresh random test folder inside it
-monoagentcli chat history create --runtime codex --mode coder --effort high --coder-root   # or --cwd <any folder>, --new-workspace; runtime defaults to claude
-monoagentcli chat --conversation <conv> --turn <id> -- "make the tests pass"
-monoagentcli chat --mode coder --cwd ~/code/app -- "…"   # one unjournaled turn
+monoagentcli --profile work coder workspace root --json                  # the coder root itself, set up as a shared working folder
+monoagentcli --profile work coder workspace new --json                   # or a fresh random test folder inside it
+monoagentcli --profile work chat history create --runtime codex --mode coder --effort high --coder-root   # or --cwd <any folder>, --new-workspace; runtime defaults to claude
+monoagentcli --profile work chat --conversation <conv> --turn <id> -- "make the tests pass"
+monoagentcli --profile work chat --mode coder --cwd ~/code/app -- "…"   # one unjournaled turn
 ```
 
 - The mode and folder are fixed when the conversation is created. The
@@ -2226,10 +2228,10 @@ login (and its bill) is what the turn uses.
 
 ## Orgs, automations, and autonomy
 
-`monoagentcli org summary [--fast]` prints one row per org (running, autonomy level, paused, queued messages, `needs_you`) plus totals. `--fast` reads only local files and the database and leaves `needs_you` null. Without it, `needs_you` is computed for every org in parallel (monomind round-trips, each org capped at 10 s).
+`monoagentcli --profile work org summary [--fast]` prints one row per org (running, autonomy level, paused, queued messages, `needs_you`) plus totals. `--fast` reads only local files and the database and leaves `needs_you` null. Without it, `needs_you` is computed for every org in parallel (monomind round-trips, each org capped at 10 s).
 
 An **org** is a team of agent roles run by monomind (`monomind org serve`).
-Its config lives in the active profile's folder:
+Its config lives in the profile's folder:
 `<profile folder>/.monomind/orgs/<name>.json` (`org` commands use that
 folder unless you pass `--project`; orgs left in the old `~/.monoagent`
 folder are listed by `org legacy list` and moved by `org legacy move`).
@@ -2237,12 +2239,12 @@ Workflows join an org as **automations**; roles use them three ways:
 
 ```bash
 # 1. Membership: the workflow belongs to the org under an alias.
-monoagentcli org automation add growth --workflow <id> --alias publish_post
+monoagentcli --profile work org automation add growth --workflow <id> --alias publish_post
 # 2. Grant: a role calls it as the tool monoagent__automation_publish_post.
-monoagentcli org grant add growth --role writer --automation publish_post
+monoagentcli --profile work org grant add growth --role writer --automation publish_post
 # 3. Automation role: a role in the chart that is the workflow; messages to
 #    it start the run, and the run's output comes back as a reply.
-monoagentcli org automation-role add growth --alias publish_post --reports-to lead
+monoagentcli --profile work org automation-role add growth --alias publish_post --reports-to lead
 ```
 
 - Grants and automation roles are enforced from mono-agent's database, not
@@ -2351,10 +2353,10 @@ and HIL items inside runs the org started:
 | `full` | rule approves | decider | decider |
 
 ```bash
-monoagentcli org autonomy set growth --level mid --decider model --policy "Never approve spend over \$50."
-monoagentcli org autonomy pause growth --for 30m     # drop to manual now
-monoagentcli org autonomy needs-you growth           # items waiting for a person
-monoagentcli org autonomy decisions growth           # resolver, tier, verdict, rationale, cost (+ jev summary)
+monoagentcli --profile work org autonomy set growth --level mid --decider model --policy "Never approve spend over \$50."
+monoagentcli --profile work org autonomy pause growth --for 30m     # drop to manual now
+monoagentcli --profile work org autonomy needs-you growth           # items waiting for a person
+monoagentcli --profile work org autonomy decisions growth           # resolver, tier, verdict, rationale, cost (+ jev summary)
 ```
 
 The decider is `model` (a one-shot `monomind agent exec`), `boss` (the org's
@@ -2379,10 +2381,10 @@ child with a full run of its own goal, so phrase child goals for messages
 **Two long-running processes.** Org features need both:
 
 ```bash
-monoagentcli org serve   # the org daemon (monomind) for the active profile's folder
-monoagentcli daemon      # workflow engine, HTTP API, automation-role endpoint, decisions
-monoagentcli --json status   # reports both
-monoagentcli org serve --stop   # stop the folder's running orgs and its org daemon
+monoagentcli --profile work org serve   # the org daemon (monomind) for the profile's folder
+monoagentcli --profile work daemon      # workflow engine, HTTP API, automation-role endpoint, decisions
+monoagentcli --profile work --json status   # reports both
+monoagentcli --profile work org serve --stop   # stop the folder's running orgs and its org daemon
 ```
 
 Before deleting a profile, run `monoagentcli --profile <id> org teardown-profile`
@@ -2404,9 +2406,9 @@ HIL nodes pause a running workflow until a person approves or rejects the
 data. Agents can drive that queue headlessly:
 
 ```bash
-monoagentcli --json hil list                          # pending items (readonly_data + editable_data)
-monoagentcli hil approve <id> --data '{"caption":"edited text"}'
-monoagentcli hil reject <id>
+monoagentcli --profile work --json hil list                          # pending items (readonly_data + editable_data)
+monoagentcli --profile work hil approve <id> --data '{"caption":"edited text"}'
+monoagentcli --profile work hil reject <id>
 ```
 
 `--data` overrides the item's editable fields with a JSON object (defaults
@@ -2418,9 +2420,9 @@ drafted introduction) have their own queue, the one the app shows on Human
 in Loop:
 
 ```bash
-monoagentcli --json people review list
-monoagentcli people review approve <id> --intro "edited text" --send   # approve, then run the dispatch workflow
-monoagentcli people review reject <id>
+monoagentcli --profile work --json people review list
+monoagentcli --profile work people review approve <id> --intro "edited text" --send   # approve, then run the dispatch workflow
+monoagentcli --profile work people review reject <id>
 ```
 
 `--send` runs the profile's workflow named like "Send Approved DMs" (or
@@ -2431,10 +2433,10 @@ introduction}` as trigger input. A missing (exit 2), ambiguous or inactive
 Tags on people (at most 10 each; a tag is the profile's, matched by name):
 
 ```bash
-monoagentcli --json people tag list [--person <id>]
-monoagentcli people tag add <person-id> "hot lead" --color "#ff5500"
-monoagentcli people tag remove <person-id> <tag-id|name>
-monoagentcli people tag color <tag-id|name> "#00b4d8"   # recolours it for everyone
+monoagentcli --profile work --json people tag list [--person <id>]
+monoagentcli --profile work people tag add <person-id> "hot lead" --color "#ff5500"
+monoagentcli --profile work people tag remove <person-id> <tag-id|name>
+monoagentcli --profile work people tag color <tag-id|name> "#00b4d8"   # recolours it for everyone
 ```
 
 ## Secrets
@@ -2444,7 +2446,7 @@ AES-256-GCM payloads) — never in argv or shell history:
 
 ```bash
 # Preferred: pipe the value via stdin (omit --value/--field entirely to read stdin)
-printf '%s' "$TOKEN" | monoagentcli secret add --kind secret --name github-token
+printf '%s' "$TOKEN" | monoagentcli --profile work secret add --kind secret --name github-token
 ```
 
 Stdin input is accepted with **or without** a trailing newline —
@@ -2452,8 +2454,8 @@ Stdin input is accepted with **or without** a trailing newline —
 newline is stripped.
 
 ```bash
-monoagentcli secret list                 # metadata only, never values
-monoagentcli secret add --kind secret --name aws \
+monoagentcli --profile work secret list                 # metadata only, never values
+monoagentcli --profile work secret add --kind secret --name aws \
   --field access_key_id=... --field secret_access_key=...   # still argv — avoid for high-value secrets
 ```
 
@@ -2520,13 +2522,13 @@ probabilities, in one ~100–300 ms request. It **never generates text**.
   host). `doctor` reports it as `jev.key`.
 
 ```bash
-printf '%s' "$KEY" | monoagentcli jev key set          # or: Settings › TypeSafe Jev in the app
-monoagentcli --json jev status               # key source (never the key), model, surfaces + thresholds
-monoagentcli jev enable hil [--threshold 0.9] [--yes]
-monoagentcli jev disable hil                 # today's behaviour returns immediately
-monoagentcli --json jev usage --since 7d     # calls, failures, input tokens, est. USD by surface
-monoagentcli jev ask --request req.json      # raw {state, questions, model?}; recorded as surface "cli"
-monoagentcli jev models
+printf '%s' "$KEY" | monoagentcli --profile work jev key set          # or: Settings › TypeSafe Jev in the app
+monoagentcli --profile work --json jev status               # key source (never the key), model, surfaces + thresholds
+monoagentcli --profile work jev enable hil [--threshold 0.9] [--yes]
+monoagentcli --profile work jev disable hil                 # today's behaviour returns immediately
+monoagentcli --profile work --json jev usage --since 7d     # calls, failures, input tokens, est. USD by surface
+monoagentcli --profile work jev ask --request req.json      # raw {state, questions, model?}; recorded as surface "cli"
+monoagentcli --profile work jev models
 ```
 
 Every call is recorded in `jev_usage` (counts only, no content). **Tests
@@ -2536,13 +2538,31 @@ server); real-API tests are opt-in via env like `browserjev/e2e_test.go`.
 ## Profiles
 
 Everything (workflows, connections, people, secrets, HIL queue) is scoped
-to a profile. `--profile <name>` isolates a single command; the active
-default comes from `monoagentcli profile`:
+to a profile, and every command that acts on a profile takes an explicit
+`--profile <id|name>`. There is no active profile, no `profile switch` or
+`profile current`, no `MONOAGENT_PROFILE` environment variable and no
+`default` fallback: you name the profile on each call.
 
 ```bash
-monoagentcli profile list
-monoagentcli --profile work workflow list     # one-off override, no switch
+monoagentcli profile list                      # find the id or name
+monoagentcli --profile work workflow list      # a scoped command names its profile
 ```
+
+Machine-wide commands need no `--profile`: `version`, `update`, `config`,
+`message-template`, `agent`, `account`, `db`, `node list|schema`,
+`api config`, `profile list|create|get`, `ref` and a few more (the list is
+`internal/cli/profilegate/classes.go`). Any command not on that list is scoped.
+
+**Today's release is a warning release.** A scoped command run without
+`--profile` still works: it prints `warning: this command acts on a profile:
+pass --profile <id|name>` on stderr and falls back to the legacy active
+profile. The next release refuses it with that message as an error. Always
+pass `--profile`; the examples here do.
+
+The MCP server and the HTTP API are moving the same way: a later release adds
+a required `profile` argument to their profile-scoped tools and requests.
+Until then they serve the single profile fixed at start (`monoagentcli
+--profile <id> mcp`, `httpapi`).
 
 A workflow saved under one profile cannot run under another — if a run
 fails with "workflow belongs to a different profile", check
@@ -2627,7 +2647,7 @@ keys and the clock, and panic outside a test binary.
 | `MONOAGENT_DEV_ENFORCE_FROM` | Forces the warn period (a future date such as `2999-01-01T00:00:00Z`) or enforcement (a past date) for a test: an RFC 3339 time. Read only by a `-tags devaccount` build; a default build does not read it, so it never relaxes anything. Default: unset — the date compiled into the binary (2026-10-11 UTC). |
 | `MONOMIND_BIN` | Path to the `monomind` binary; checked before `PATH` and the other install locations (see [How AI works in mono-agent](#how-ai-works-in-mono-agent)). Default: unset — discovered. |
 | `MONOAGENT_AI_RUNTIME` | Agent runtime `ai.extract_page` uses to generate selectors. Default: unset — the first installed runtime, `claude` first. |
-| `MONOAGENT_PROFILE` | Profile name the built-in MCP server operates against. Default: unset — the MCP server's default profile. |
+| `MONOAGENT_PROFILE` | **Being removed.** Profile name the built-in MCP server and HTTP API fall back to when `--profile` is not given (the CLI never read it). Pass `--profile` instead. Default: unset. |
 | `MONOAGENT_ACTOR` | The agent's name for the task board's agent commands (`task next --claim`, `claim`, `comment`, `finish`, `release`) when `--as` is not given (`--as` wins). Setting it also makes the caller an agent, so the operator-only commands (`board` and `approve` unless delegated, `edit`, `move`, `archive`, `unarchive`, `add --ready`, `agents allow`, `agents deny`) refuse it. Set but blank, a value of only spaces, it counts as an agent without a name, like a blank `--as` (an empty value counts as unset). Default: unset — a caller with no `--as`, no `MONOAGENT_ACTOR` and no agent-context variable such as `CLAUDECODE` is the operator. |
 | `MONOAGENT_DEBUG` | Set to any non-empty value to enable verbose browser-adapter logging. Default: unset. |
 | `MONOAGENTCLI_BIN` | Path override for the `monoagentcli` binary the desktop GUI (`wails-app/`) shells out to. Default: unset — resolved relative to the GUI binary. |
