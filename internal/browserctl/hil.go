@@ -164,7 +164,7 @@ func IsSubmitItem(nodeConfig string) bool {
 // CreateSubmitItem stores a pending submit item and returns it.
 func CreateSubmitItem(ctx context.Context, db *sql.DB, req SubmitRequest) (SubmitItem, error) {
 	if req.Profile == "" {
-		req.Profile = "default"
+		return SubmitItem{}, errNoProfile
 	}
 	digest := ""
 	if req.Page != nil && req.FrameID == 0 {
@@ -219,7 +219,7 @@ func GetSubmitItem(ctx context.Context, db *sql.DB, profile, id string) (SubmitI
 func findSubmit(ctx context.Context, db *sql.DB, profile, id string) (SubmitItem, submitRecord, error) {
 	id = strings.TrimSpace(id)
 	if profile == "" {
-		profile = "default"
+		return SubmitItem{}, submitRecord{}, errNoProfile
 	}
 	if id == "" {
 		return SubmitItem{}, submitRecord{}, ErrSubmitNotFound
@@ -348,7 +348,7 @@ var errRaced = errors.New("the item changed meanwhile")
 
 func updateSubmit(ctx context.Context, db *sql.DB, profile, id, from, to string, rec submitRecord) error {
 	if profile == "" {
-		profile = "default"
+		return errNoProfile
 	}
 	raw, err := json.Marshal(rec)
 	if err != nil {
