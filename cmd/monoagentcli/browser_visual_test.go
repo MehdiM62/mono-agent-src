@@ -13,7 +13,7 @@ import (
 	"github.com/monoes/mono-agent/internal/extension"
 )
 
-func writeTestPNG(t *testing.T, path string, w, h int, dot bool) {
+func writeDiffTestPNG(t *testing.T, path string, w, h int, dot bool) {
 	t.Helper()
 	img := image.NewNRGBA(image.Rect(0, 0, w, h))
 	for y := 0; y < h; y++ {
@@ -38,8 +38,8 @@ func TestBrowserDiff(t *testing.T) {
 	bt := newBrowserTest(t, true)
 	dir := t.TempDir()
 	a, b := filepath.Join(dir, "a.png"), filepath.Join(dir, "b.png")
-	writeTestPNG(t, a, 4, 4, false)
-	writeTestPNG(t, b, 4, 4, true)
+	writeDiffTestPNG(t, a, 4, 4, false)
+	writeDiffTestPNG(t, b, 4, 4, true)
 	out := filepath.Join(dir, "d.png")
 
 	res := bt.runJSON("diff", a, b, "--out", out, "--threshold", "0")
@@ -62,7 +62,7 @@ func TestBrowserDiff(t *testing.T) {
 	}
 
 	c := filepath.Join(dir, "c.png")
-	writeTestPNG(t, c, 6, 4, false)
+	writeDiffTestPNG(t, c, 6, 4, false)
 	if res = bt.runJSON("diff", a, c); res["sizeMismatch"] != true || res["changed"] != float64(8) {
 		t.Fatalf("size mismatch = %v", res)
 	}

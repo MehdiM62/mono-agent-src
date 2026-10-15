@@ -229,5 +229,5 @@ func sweepDir(out string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return newStampedDir(browserctl.ScreenshotsDir(wd), "sweep-")
+	return newBrowserStampedDir(browserctl.ScreenshotsDir(wd), "sweep-")
 }

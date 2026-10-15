@@ -106,7 +106,7 @@ func newBrowserTokensCmd(cfg *globalConfig) *cobra.Command {
 				return err
 			}
 			if out != "" {
-				path, err := writeJSONFile(out, t)
+				path, err := writeBrowserJSONFile(out, t)
 				if err != nil {
 					return err
 				}
@@ -114,7 +114,7 @@ func newBrowserTokensCmd(cfg *globalConfig) *cobra.Command {
 					fmt.Fprintf(cmd.OutOrStdout(), "Saved the design tokens of %s to %s\n", t.URL, path)
 				})
 			}
-			return r.out(t, func() { printTokens(cmd, t) })
+			return r.out(t, func() { printBrowserTokens(cmd, t) })
 		},
 	}
 	cmd.Flags().StringVar(&out, "out", "", "Write the tokens to this JSON file instead of printing them")
@@ -154,7 +154,7 @@ func newBrowserSourceCmd(cfg *globalConfig) *cobra.Command {
 					where = fmt.Sprintf("%s:%d:%d", s.File, s.Line, s.Column)
 				}
 				fmt.Fprintf(w, "%s %s %s (confidence %.2f, via %s)\n",
-					orDash(s.Framework), orDash(s.Component), orDash(where), s.Confidence, s.Via)
+					browserOrDash(s.Framework), browserOrDash(s.Component), browserOrDash(where), s.Confidence, s.Via)
 				for _, h := range s.Hints {
 					fmt.Fprintf(w, "  %s: %s\n", h.Kind, h.Value)
 				}
@@ -184,11 +184,11 @@ func styleBundleDir(out string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return newStampedDir(filepath.Join(wd, ".monoagent", "styles"), "")
+	return newBrowserStampedDir(filepath.Join(wd, ".monoagent", "styles"), "")
 }
 
-// newStampedDir creates and returns a new folder <parent>/<prefix><yyyymmdd-hhmmss>-<n>.
-func newStampedDir(parent, prefix string) (string, error) {
+// newBrowserStampedDir creates and returns a new folder <parent>/<prefix><yyyymmdd-hhmmss>-<n>.
+func newBrowserStampedDir(parent, prefix string) (string, error) {
 	if err := os.MkdirAll(parent, 0o755); err != nil {
 		return "", err
 	}
@@ -207,9 +207,9 @@ func newStampedDir(parent, prefix string) (string, error) {
 	return "", fmt.Errorf("no free folder name in %s", parent)
 }
 
-// writeJSONFile writes v as indented JSON to path (directories created) and
+// writeBrowserJSONFile writes v as indented JSON to path (directories created) and
 // returns the absolute path.
-func writeJSONFile(path string, v any) (string, error) {
+func writeBrowserJSONFile(path string, v any) (string, error) {
 	abs, err := filepath.Abs(path)
 	if err != nil {
 		return "", err
@@ -224,7 +224,7 @@ func writeJSONFile(path string, v any) (string, error) {
 	return abs, os.WriteFile(abs, append(data, '\n'), 0o644)
 }
 
-func printTokens(cmd *cobra.Command, t *stylebundle.Tokens) {
+func printBrowserTokens(cmd *cobra.Command, t *stylebundle.Tokens) {
 	w := cmd.OutOrStdout()
 	fmt.Fprintf(w, "Design tokens of %s\n\nPalette (share of painted area):\n", t.URL)
 	for _, c := range t.Palette {
@@ -250,19 +250,19 @@ func printTokens(cmd *cobra.Command, t *stylebundle.Tokens) {
 		for _, u := range g.uses {
 			vals = append(vals, fmt.Sprintf("%s ×%d", u.Value, u.Count))
 		}
-		fmt.Fprintf(w, "\n%s: %s\n", g.name, orDash(strings.Join(vals, ", ")))
+		fmt.Fprintf(w, "\n%s: %s\n", g.name, browserOrDash(strings.Join(vals, ", ")))
 	}
 	var bps []string
 	for _, b := range t.Breakpoints {
 		bps = append(bps, b.Query)
 	}
-	fmt.Fprintf(w, "\nBreakpoints: %s\nCustom properties on :root: %d\n", orDash(strings.Join(bps, ", ")), len(t.Variables))
+	fmt.Fprintf(w, "\nBreakpoints: %s\nCustom properties on :root: %d\n", browserOrDash(strings.Join(bps, ", ")), len(t.Variables))
 	for _, n := range t.Notes {
 		fmt.Fprintf(w, "note: %s\n", n)
 	}
 }
 
-func orDash(s string) string {
+func browserOrDash(s string) string {
 	if s == "" {
 		return "-"
 	}
