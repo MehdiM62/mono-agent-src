@@ -5,12 +5,14 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+
+	"github.com/monoes/mono-agent/internal/profiledir"
 )
 
 // ErrNoProfile is returned when a profile-scoped call names no profile.
 // There is no implicit default: callers (and the UI) test errors.Is(err,
-// ErrNoProfile) to say "pass --profile".
-var ErrNoProfile = errors.New("no profile named: pass --profile <id|name>")
+// ErrNoProfile) to say "pass --profile". It is profiledir.ErrNoProfile.
+var ErrNoProfile = profiledir.ErrNoProfile
 
 // requireProfile returns ErrNoProfile for an empty profile id.
 func requireProfile(profileID string) error {

@@ -12,7 +12,6 @@ import (
 
 	"github.com/monoes/mono-agent/internal/capture"
 	"github.com/monoes/mono-agent/internal/profiledir"
-	"github.com/monoes/mono-agent/internal/storage"
 )
 
 // Where recordings live (contracts §6, revised).
@@ -41,8 +40,8 @@ var scope struct {
 }
 
 // ErrNoProfile is returned when a profile-scoped call names no profile. It is
-// storage.ErrNoProfile, so errors.Is matches either.
-var ErrNoProfile = storage.ErrNoProfile
+// profiledir.ErrNoProfile, so errors.Is matches storage's and workflow's.
+var ErrNoProfile = profiledir.ErrNoProfile
 
 // SetProfile narrows List/Find to one profile's store. An empty id is
 // ErrNoProfile: "every store" is SetAllProfiles.

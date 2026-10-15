@@ -4,13 +4,13 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/monoes/mono-agent/internal/storage"
+	"github.com/monoes/mono-agent/internal/profiledir"
 )
 
 // ErrNoProfile is returned when a profile-scoped call names no profile. It is
-// the same value as storage.ErrNoProfile, so errors.Is matches either; callers
-// and the UI test it to say "pass --profile".
-var ErrNoProfile = storage.ErrNoProfile
+// the same value as storage.ErrNoProfile (profiledir.ErrNoProfile), so
+// errors.Is matches either; callers and the UI test it to say "pass --profile".
+var ErrNoProfile = profiledir.ErrNoProfile
 
 // ErrLegacyWorkflowNoProfile marks a workflow that carries no profile id. After
 // migration 099 and the file-store stamp none should exist; one that does is an
