@@ -30,6 +30,7 @@
   const MAX_DATA = 30 * 1024 * 1024;
   // A tab in the background may never paint; say so instead of hanging.
   const SHOT_TIMEOUT_MS = 30000;
+  const SETTLE_MS = 1000;
   const COLOR_SCHEMES = ["", "light", "dark"];
   const REDUCED_MOTION = ["", "reduce", "no-preference"];
 
@@ -154,6 +155,17 @@
     return { width: 0, height: 0 };
   }
 
+  /**
+   * settle waits until the page has drawn twice, so an override Chrome has
+   * just set or cleared is what the page measures when emulate answers (a
+   * cleared one otherwise lands a frame later). Capped: a tab in the
+   * background may not draw at all.
+   */
+  async function settle(tabId) {
+    const frames = "new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(true))))";
+    await withTimeout(cdp(tabId, "Runtime.evaluate", { expression: frames, awaitPromise: true }), SETTLE_MS, "").catch(() => {});
+  }
+
   function sizeOf(v, name, max) {
     if (v === undefined || v === null) return 0;
     if (!Number.isFinite(v) || v < 0 || v > max) throw new Error(`emulate: ${name} must be 0 to ${max}`);
@@ -173,6 +185,7 @@
       await cdp(tabId, "Emulation.setEmulatedMedia", { media: "", features: [] });
       emulations.delete(tabId);
       root.MonoAgentCdp.release(tabId, "emulate");
+      await settle(tabId);
       return { ok: true };
     }
     const named = (k) => params[k] !== undefined && params[k] !== null;
@@ -222,6 +235,7 @@
         root.MonoAgentCdp.release(tabId, "emulate");
       }
     }
+    await settle(tabId);
     return { ok: true };
   }
 

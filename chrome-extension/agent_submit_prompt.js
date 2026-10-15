@@ -97,6 +97,7 @@
         display:flex;align-items:center;gap:12px;padding:10px 12px 10px 16px;border-radius:10px;
         background:#1f2430;color:#f5f6f8;font:14px/1.4 system-ui,sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.35);
         pointer-events:auto}
+      .bar.low{top:auto;bottom:12px}
       .tag{font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:#f5b546;white-space:nowrap}
       .msg{flex:1}
       button{all:unset;cursor:pointer;padding:4px 10px;border-radius:6px;background:#343b4a;color:#f5f6f8;font:13px system-ui,sans-serif}
@@ -124,6 +125,7 @@
     shadow.append(style, bar, ring);
     (document.body || document.documentElement).appendChild(host);
 
+    const TOP_BAND = 80; // the banner's height and margin, with room to spare
     let frame = 0;
     function place() {
       if (!control || !control.isConnected || !visible(control)) {
@@ -132,6 +134,8 @@
         const r = control.getBoundingClientRect();
         ring.hidden = false;
         Object.assign(ring.style, { left: `${r.left - 6}px`, top: `${r.top - 6}px`, width: `${r.width + 6}px`, height: `${r.height + 6}px` });
+        // A control near the top would sit under the banner, out of reach.
+        bar.classList.toggle("low", r.top < TOP_BAND);
       }
       frame = requestAnimationFrame(place);
     }
