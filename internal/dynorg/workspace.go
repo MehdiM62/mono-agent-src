@@ -30,7 +30,7 @@ const maxProfileContext = 6000
 // shared by the worker prompt and the lead's.
 const workspaceRules = "You have full access to this folder and the web, and to every part of the user's mono-agent through " +
 	"`monoagentcli` on your PATH (`monoagentcli ref commands` lists what it can do). Use the surface that owns the work: " +
-	"an app being run (job applications, social, browser) -> work on that app's tab with `node run` or `extension`; " +
+	"an app being run (job applications, social, browser) -> work on that app's tab with `browser` (or `node run` for its nodes); " +
 	"to-dos -> `task`; files and documents -> `profile documents`; contacts -> `people`; " +
 	"credentials -> the vault (use item names and paths, never print or write a value); " +
 	"repeatable work -> build or reuse a WORKFLOW first (`workflow list`, `workflow validate`, `workflow run`) and only then bring in org roles. " +
