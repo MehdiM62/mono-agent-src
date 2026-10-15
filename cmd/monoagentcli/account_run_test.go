@@ -155,7 +155,7 @@ func TestRunWritesNothingToTheAccountFolderBeforeTheDateOrWhileDormant(t *testin
 			}
 			f.Clock.Set(tc.clock)
 			home := freshHome(t)
-			if code, _, stderr := runMain(t, "workflow", "list"); code != 0 || stderr != tc.stderr {
+			if code, _, stderr := runMain(t, "--profile", "default", "workflow", "list"); code != 0 || stderr != tc.stderr {
 				t.Errorf("exit %d, stderr %q, want exit 0 and %q", code, stderr, tc.stderr)
 			}
 			if _, err := os.Stat(filepath.Join(home, ".monoagent", "account")); !os.IsNotExist(err) {
@@ -255,7 +255,7 @@ func TestRunLetsGatedCommandsRunWhenAllowed(t *testing.T) {
 	for name, mode := range map[string]accounttest.Mode{"signed in": accounttest.SignedIn, "dormant, not signed in": accounttest.Dormant} {
 		accounttest.Install(t, mode)
 		home := freshHome(t)
-		code, _, stderr := runMain(t, "workflow", "list")
+		code, _, stderr := runMain(t, "--profile", "default", "workflow", "list")
 		if code != 0 || stderr != "" {
 			t.Errorf("%s: exit %d, stderr %q", name, code, stderr)
 		}

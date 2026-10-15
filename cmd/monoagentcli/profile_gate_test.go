@@ -1,7 +1,11 @@
 package main
 
 import (
+	"bytes"
+	"context"
+	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/monoes/mono-agent/internal/cli/profilegate"
@@ -55,6 +59,61 @@ func TestProfileGateTable(t *testing.T) {
 	if len(all) != wantLeafCommands || len(global) != wantGlobalLeaves {
 		t.Errorf("leaf commands = %d (want %d), global = %d (want %d); global leaves:\n%v",
 			len(all), wantLeafCommands, len(global), wantGlobalLeaves, global)
+	}
+}
+
+// runGateCLI executes args on a fresh root over a scratch database and returns
+// the command's error and stderr. It skips the account gate by design.
+func runGateCLI(t *testing.T, args ...string) (string, error) {
+	t.Helper()
+	root := newRootCmd()
+	var out, errb bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(&errb)
+	root.SetArgs(append([]string{"--db-path", filepath.Join(t.TempDir(), "gate.db")}, args...))
+	err := root.ExecuteContext(context.Background())
+	return errb.String(), err
+}
+
+func TestScopedCommandWithoutProfileWarnsAndRuns(t *testing.T) {
+	stderr, err := runGateCLI(t, "people", "list")
+	if err != nil {
+		t.Fatalf("people list must still run in warn mode: %v", err)
+	}
+	if !strings.Contains(stderr, "--profile") || !strings.Contains(stderr, "falling back to the active profile") {
+		t.Fatalf("want the profile warning on stderr, got %q", stderr)
+	}
+}
+
+func TestScopedCommandWithProfileIsSilent(t *testing.T) {
+	stderr, err := runGateCLI(t, "--profile", "default", "people", "list")
+	if err != nil || strings.Contains(stderr, "acts on a profile") {
+		t.Fatalf("got %v / %q", err, stderr)
+	}
+}
+
+func TestGlobalCommandsAndHelpAreSilent(t *testing.T) {
+	for _, args := range [][]string{{"config", "list"}, {"version"}, {"help"}, {"help", "people"}} {
+		stderr, err := runGateCLI(t, args...)
+		if err != nil || strings.Contains(stderr, "acts on a profile") {
+			t.Fatalf("%v: got %v / %q", args, err, stderr)
+		}
+	}
+}
+
+func TestACommandWithItsOwnPreRunStillGetsTheGate(t *testing.T) {
+	root := newRootCmd()
+	doctor, _, err := root.Find([]string{"doctor"})
+	if err != nil || doctor == nil || doctor.PersistentPreRun == nil {
+		t.Fatalf("doctor has no pre-run of its own: %v", err)
+	}
+	var errb bytes.Buffer
+	doctor.SetErr(&errb)
+	doctor.SetContext(context.Background())
+	_ = doctor.ParseFlags(nil)
+	doctor.PersistentPreRun(doctor, nil)
+	if !strings.Contains(errb.String(), "--profile") {
+		t.Fatalf("want the warning from doctor's own pre-run, got %q", errb.String())
 	}
 }
 
