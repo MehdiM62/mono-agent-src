@@ -7,7 +7,8 @@
  * records (agent_submit_guard.js) cross the bridge to an agent, so they
  * keep a URL's shape and drop those values at record time: every query (or
  * fragment) parameter whose name contains one of SENSITIVE_NAMES keeps its
- * name and loses its value to "•••". Everything else stays as written, so a
+ * name and loses its value to "•••", and so does a path segment that looks
+ * like a token (/reset/<token>). Everything else stays as written, so a
  * debugging agent still sees ?page=2.
  *
  * SENSITIVE_NAMES is internal/extension/chat_context.go's urlSensitiveNames,
@@ -58,14 +59,28 @@
     return q.replace(/([^&;=]+)=([^&;]*)/g, (all, name, value) => (value && sensitive(name) ? `${name}=${MASK}` : all));
   }
 
-  /** url masks the sensitive query and fragment values of one URL. */
+  /**
+   * pathSecret: a path segment that looks like a token rather than a name
+   * (a password-reset or magic link): 24 or more of [A-Za-z0-9_-], with a
+   * letter and a digit among them.
+   */
+  const pathSecret = (seg) => seg.length >= 24 && /^[A-Za-z0-9_-]+$/.test(seg) && /[A-Za-z]/.test(seg) && /\d/.test(seg);
+
+  /** url masks the sensitive query and fragment values, and token-like path segments, of one URL. */
   function url(u) {
     const s = String(u == null ? "" : u);
     const hash = s.indexOf("#");
     const head = hash === -1 ? s : s.slice(0, hash);
     let frag = hash === -1 ? "" : s.slice(hash);
     const q = head.indexOf("?");
-    const out = q === -1 ? head : head.slice(0, q + 1) + params(head.slice(q + 1));
+    let base = q === -1 ? head : head.slice(0, q);
+    const scheme = base.indexOf("://");
+    const pathAt = scheme === -1 ? -1 : base.indexOf("/", scheme + 3);
+    if (pathAt !== -1) {
+      const path = base.slice(pathAt).split("/").map((seg) => (pathSecret(seg) ? MASK : seg));
+      base = base.slice(0, pathAt) + path.join("/");
+    }
+    const out = q === -1 ? base : base + "?" + params(head.slice(q + 1));
     // An OAuth implicit grant puts the token in the fragment.
     if (frag.includes("=")) frag = "#" + params(frag.slice(1));
     return out + frag;

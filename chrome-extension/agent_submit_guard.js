@@ -25,6 +25,10 @@
  * iframe is exactly what must not submit unapproved). A report that arrives
  * while the page is on another origin is dropped.
  *
+ * While a tab is armed its page shows a bar saying so, with a button that
+ * stops the guard, and a toast for each held submit (agent_guard_bar.js):
+ * the guard cannot tell the person's own submit from an agent's.
+ *
  * The armed tabs and their blocked submits are kept in chrome.storage.session
  * as well as here, so a worker restart neither forgets to re-arm a tab on its
  * next navigation nor loses an attempt the CLI has not read yet. A browser
@@ -99,6 +103,11 @@
     return (results || []).some((r) => r && r.result === true);
   }
 
+  /** ui runs one of agent_guard_bar.js's functions in the tab's top frame, once the page is there. */
+  function ui(tabId, fn) {
+    return chrome.scripting.executeScript({ target: { tabId, frameIds: [0] }, func: fn }).catch(() => {});
+  }
+
   /** control runs one guard action in the target frames; true when a guard took it. */
   async function control(tabId, frames, action) {
     const results = await chrome.scripting.executeScript({
@@ -133,10 +142,12 @@
       st.origin = origin;
       tabs[tabId] = st;
       save();
+      await ui(tabId, root.MonoAgentGuardBar.show);
     } else if (action === "disarm") {
       st.armed = false;
       if (tabs[tabId]) save();
       await control(tabId, { allFrames: true }, "disarm").catch(() => false);
+      await ui(tabId, root.MonoAgentGuardBar.hide);
     } else if (action === "allow_once") {
       if (!st.armed) throw new Error("submit_guard: the guard is not armed on this tab");
       const frameId = allowFrame(st, params);
@@ -224,6 +235,8 @@
     });
     if (st.blocked.length > MAX_BLOCKED) st.blocked.shift();
     save();
+    await ui(tabId, root.MonoAgentGuardBar.show);
+    await ui(tabId, root.MonoAgentGuardBar.toast);
   }
 
   async function committed(details) {
@@ -243,6 +256,8 @@
     }
     // As early as Chrome allows: before the page's own scripts, usually.
     await inject(details.tabId, { frameIds: [details.frameId] }, true).catch(() => false);
+    // The bar waits for the page: executeScript's default timing.
+    if (details.frameId === 0) await ui(details.tabId, root.MonoAgentGuardBar.show);
   }
 
   async function removed(tabId) {

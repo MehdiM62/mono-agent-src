@@ -80,3 +80,12 @@ test("sensitiveField is the submit guard's rule: type, autocomplete, name or id,
   ];
   for (const f of kept) assert.equal(R.sensitiveField(f), false, JSON.stringify(f));
 });
+
+test("a token-like path segment is masked; names, slugs, hashed file names and short ids are not", () => {
+  assert.equal(R.url("https://app.test/reset/k9Xq2LmZ8vB4nR7tY1wP5sD3/confirm?step=2"), `https://app.test/reset/${R.MASK}/confirm?step=2`);
+  assert.equal(R.url("https://app.test/blog/how-to-write-a-good-commit-message"), "https://app.test/blog/how-to-write-a-good-commit-message");
+  assert.equal(R.url("http://localhost:5173/assets/index-Bx7Kq2Lm9NpQrStUvWxYz.js"), "http://localhost:5173/assets/index-Bx7Kq2Lm9NpQrStUvWxYz.js");
+  assert.equal(R.url("http://localhost:3000/api/items/42"), "http://localhost:3000/api/items/42");
+  assert.equal(R.url("https://cdn.test/a/abcdefghijklmnopqrstuvwxyz"), "https://cdn.test/a/abcdefghijklmnopqrstuvwxyz", "letters only: a word, not a token");
+  assert.equal(R.text("at load (https://app.test/m/k9Xq2LmZ8vB4nR7tY1wP5sD3:4:2)"), `at load (https://app.test/m/${R.MASK}:4:2)`);
+});

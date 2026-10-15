@@ -301,6 +301,46 @@ describe("the coder's browser commands", { skip: browser ? false : why, concurre
     await at(p, "/final"); // disarmed, the page submits
   });
 
+  /** barState reads the armed tab's bar from the extension's isolated world, where its parts are. */
+  const barState = (p) =>
+    browser.cdp.evaluate(
+      sw,
+      `chrome.scripting.executeScript({ target: { tabId: ${p.tabId}, frameIds: [0] }, func: () => {
+        const s = globalThis.MonoAgentGuardBarState;
+        if (!s || !s.host.isConnected) return JSON.stringify(null);
+        const r = s.parts.stopButton.getBoundingClientRect();
+        return JSON.stringify({ text: s.parts.msg.textContent, toast: s.parts.toast.hidden ? "" : s.parts.toast.textContent,
+          button: { x: r.left + r.width / 2, y: r.top + r.height / 2 } });
+      } }).then((r) => r[0].result)`
+    ).then(JSON.parse);
+
+  it("an armed tab shows its bar and a toast per held submit; Stop agent guard, really clicked, disarms it", async () => {
+    const p = await open("/form");
+    await guard(p.tabId, "arm");
+    let bar;
+    await until(async () => (bar = await barState(p)), "the bar");
+    assert.equal(bar.text, "An agent is using this tab — form submits wait for your approval in MonoAgent");
+    assert.equal(bar.toast, "");
+    assert.equal(await inPage(p, `document.getElementById("monoagent-guard-bar").shadowRoot`), null, "closed: the page cannot reach in");
+    assert.equal(await inPage(p, `document.body.innerText.includes("An agent is using this tab")`), false);
+    // A page that removes the bar gets it back.
+    await inPage(p, `document.getElementById("monoagent-guard-bar").remove(), true`);
+    await until(() => inPage(p, `!!document.getElementById("monoagent-guard-bar")`), "the bar to come back");
+
+    await inPage(p, `document.getElementById("pay").click()`);
+    await blocked(p, 1);
+    await until(async () => (await barState(p)).toast === "This submit is waiting for approval in MonoAgent", "the toast");
+
+    bar = await barState(p);
+    for (const type of ["mousePressed", "mouseReleased"]) {
+      await browser.cdp.send("Input.dispatchMouseEvent", { type, x: bar.button.x, y: bar.button.y, button: "left", clickCount: 1 }, p.session);
+    }
+    await until(async () => (await barState(p)) === null, "the bar to go");
+    assert.equal((await guard(p.tabId, "status")).armed, false);
+    await inPage(p, `document.getElementById("pay").click()`);
+    await at(p, "/next"); // the person's own submit goes through
+  });
+
   it("the guard ends when the tab's page leaves the armed origin; the other site submits freely", async () => {
     const p = await open("/form");
     await guard(p.tabId, "arm");
