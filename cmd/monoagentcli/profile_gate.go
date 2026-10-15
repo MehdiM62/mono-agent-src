@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 	_ "modernc.org/sqlite"
@@ -30,7 +31,12 @@ func installProfileGate(root *cobra.Command, cfg *globalConfig) {
 	// warning in ModeWarn.
 	gate := func(cmd *cobra.Command) error {
 		list := func() ([]profilegate.ProfileRef, error) { return listProfilesReadOnly(cfg.DBPath) }
-		warning, err := profilegate.Check(cmd, cmd.Flags().Changed("profile"), profileGateMode, list)
+		// An empty value (--profile '' or --profile=) names no profile.
+		given := cmd.Flags().Changed("profile")
+		if f := cmd.Flags().Lookup("profile"); given && f != nil && strings.TrimSpace(f.Value.String()) == "" {
+			given = false
+		}
+		warning, err := profilegate.Check(cmd, given, profileGateMode, list)
 		if err != nil {
 			return errInvalidInput("%s", err.Error())
 		}
