@@ -8,11 +8,22 @@
  * lets exactly the next submit through.
  *
  *   arm         inject the guard into every frame, and into every document
- *               the tab commits from now on (webNavigation.onCommitted)
+ *               the tab commits from now on on the same origin
+ *               (webNavigation.onCommitted)
  *   disarm      stop blocking; the guards stay in their pages, inert
- *   allow_once  the next submit passes, in the frame the last blocked one
- *               came from (else the top frame)
- *   status      what all four answer: {armed, blocked:[{seq,ts,url,form}]}
+ *   allow_once  the next submit passes, in the frame named by `frameId`,
+ *               else the frame of the latest blocked submit of the form at
+ *               `selector`, else that of the latest blocked submit
+ *   status      what all four answer:
+ *               {armed, origin, blocked:[{seq,ts,url,form,frameId}]}
+ *
+ * A guard belongs to the origin its tab was on when it was armed. The tab's
+ * page leaving that origin (the person going elsewhere in the same tab)
+ * ends it: the tab is disarmed and its records dropped, so nothing the
+ * person submits on another site is stopped or reported. Frames inside a
+ * page on the armed origin are guarded whatever their own origin (a payment
+ * iframe is exactly what must not submit unapproved). A report that arrives
+ * while the page is on another origin is dropped.
  *
  * The armed tabs and their blocked submits are kept in chrome.storage.session
  * as well as here, so a worker restart neither forgets to re-arm a tab on its
@@ -61,7 +72,8 @@
   function view(st) {
     return {
       armed: !!st.armed,
-      blocked: st.blocked.map((b) => ({ seq: b.seq, ts: b.ts, url: b.url, form: b.form })),
+      origin: st.origin || "",
+      blocked: st.blocked.map((b) => ({ seq: b.seq, ts: b.ts, url: b.url, form: b.form, frameId: b.frameId })),
     };
   }
 
@@ -107,12 +119,18 @@
     const action = params.action;
     if (!ACTIONS.includes(action)) throw new Error(`submit_guard: action must be one of ${ACTIONS.join(", ")}`);
     await load();
-    const st = tabs[tabId] || { armed: false, seq: 0, blocked: [] };
+    const st = tabs[tabId] || { armed: false, origin: "", seq: 0, blocked: [] };
     if (action === "arm") {
+      const tab = await chrome.tabs.get(tabId);
+      if (tab.pendingUrl) throw new Error("submit_guard: the tab is navigating; arm it once the page has loaded");
+      const origin = originOf(tab.url);
+      if (!/^https?:/.test(origin)) throw new Error("submit_guard: the tab has no web page to guard");
       if (!(await inject(tabId, { allFrames: true }, false))) {
         throw new Error("submit_guard: the guard could not be installed in this page");
       }
+      if (st.origin !== origin) st.blocked = []; // records belong to the origin they were made on
       st.armed = true;
+      st.origin = origin;
       tabs[tabId] = st;
       save();
     } else if (action === "disarm") {
@@ -121,19 +139,48 @@
       await control(tabId, { allFrames: true }, "disarm").catch(() => false);
     } else if (action === "allow_once") {
       if (!st.armed) throw new Error("submit_guard: the guard is not armed on this tab");
-      const last = st.blocked[st.blocked.length - 1];
-      const frameId = last && Number.isInteger(last.frameId) ? last.frameId : 0;
-      let ok = await control(tabId, { frameIds: [frameId] }, "allow_once").catch(() => false);
-      if (!ok && frameId !== 0) ok = await control(tabId, { frameIds: [0] }, "allow_once").catch(() => false);
-      if (!ok) throw new Error("submit_guard: no guard in this page to let a submit through (arm it again)");
+      const frameId = allowFrame(st, params);
+      const ok = await control(tabId, { frameIds: [frameId] }, "allow_once").catch(() => false);
+      if (!ok) throw new Error(`submit_guard: no guard in frame ${frameId} to let a submit through (it navigated away; arm it again)`);
     }
     return view(st);
   }
 
+  /**
+   * allowFrame is the frame allow_once opens: the one the caller names, else
+   * the one the latest blocked submit of `selector` (or the latest of all)
+   * came from. Never a guess at another frame: one that went away is an error.
+   */
+  function allowFrame(st, params) {
+    if (params.frameId !== undefined && params.frameId !== null) {
+      if (!Number.isInteger(params.frameId) || params.frameId < 0) throw new Error("submit_guard: frameId must be a frame id");
+      return params.frameId;
+    }
+    let pick = st.blocked[st.blocked.length - 1];
+    if (typeof params.selector === "string" && params.selector) {
+      pick = [...st.blocked].reverse().find((b) => b.form.selector === params.selector);
+      if (!pick) throw new Error(`submit_guard: no blocked submit of ${params.selector} to let through`);
+    }
+    return pick && Number.isInteger(pick.frameId) ? pick.frameId : 0;
+  }
+
+  function originOf(u) {
+    try {
+      return new URL(u).origin;
+    } catch {
+      return "";
+    }
+  }
+
   const str = (v, n) => (typeof v === "string" ? v.slice(0, n) : "");
 
-  /** normalize re-checks a report from the page: it is page-written data. */
+  /**
+   * normalize re-checks a report from the page: it is page-written data. Its
+   * URLs lose their secret-looking query values (agent_redact.js), as do any
+   * URLs in the field values.
+   */
   function normalize(detail) {
+    const R = root.MonoAgentRedact;
     let d;
     try {
       d = JSON.parse(detail);
@@ -144,15 +191,15 @@
     const f = d.form && typeof d.form === "object" ? d.form : {};
     const fields = Array.isArray(f.fields) ? f.fields.slice(0, 100) : [];
     return {
-      url: str(d.url, 2048),
+      url: R.url(str(d.url, 2048)),
       form: {
-        action: str(f.action, 2048),
+        action: R.url(str(f.action, 2048)),
         method: str(f.method, 16),
         fields: fields.map((x) => ({
           name: str(x && x.name, 200),
           type: str(x && x.type, 40),
           label: str(x && x.label, 200),
-          value: str(x && x.value, 500),
+          value: R.text(str(x && x.value, 500)),
         })),
         submitter: str(f.submitter, 1000),
         selector: str(f.selector, 1000),
@@ -160,17 +207,18 @@
     };
   }
 
-  async function record(tabId, frameId, frameUrl, detail) {
+  async function record(tabId, frameId, frameUrl, tabUrl, detail) {
     await load();
     const st = tabs[tabId];
     if (!st || !st.armed) return;
+    if (originOf(tabUrl) !== st.origin) return; // never a report from a page on another origin
     const report = normalize(detail);
     if (!report) return;
     st.seq += 1;
     st.blocked.push({
       seq: st.seq,
       ts: Date.now(),
-      url: str(frameUrl, 2048) || report.url,
+      url: root.MonoAgentRedact.url(str(frameUrl, 2048)) || report.url,
       form: report.form,
       frameId: Number.isInteger(frameId) ? frameId : 0,
     });
@@ -182,6 +230,17 @@
     await load();
     const st = tabs[details.tabId];
     if (!st || !st.armed) return;
+    if (details.frameId === 0) {
+      if (originOf(details.url) !== st.origin) {
+        // The page left the armed origin: the guard ends with it.
+        delete tabs[details.tabId];
+        save();
+        return;
+      }
+    } else {
+      const tab = await chrome.tabs.get(details.tabId).catch(() => null);
+      if (!tab || originOf(tab.url) !== st.origin) return;
+    }
     // As early as Chrome allows: before the page's own scripts, usually.
     await inject(details.tabId, { frameIds: [details.frameId] }, true).catch(() => false);
   }
@@ -193,6 +252,14 @@
     save();
   }
 
+  /** armedTabs lists the armed tabs, for the idle release (agent_commands.js). */
+  async function armedTabs() {
+    await load();
+    return Object.keys(tabs)
+      .filter((k) => tabs[k].armed)
+      .map(Number);
+  }
+
   /** install registers the three listeners; called once, at worker start. */
   function install() {
     chrome.webNavigation.onCommitted.addListener((details) => {
@@ -202,7 +269,7 @@
       if (!msg || msg.type !== MESSAGE) return false;
       const tabId = sender && sender.tab && sender.tab.id;
       if (!Number.isInteger(tabId) || (sender.id && sender.id !== chrome.runtime.id)) return false;
-      record(tabId, sender.frameId, sender.url, msg.detail).catch(() => {});
+      record(tabId, sender.frameId, sender.url, sender.tab.url, msg.detail).catch(() => {});
       return false;
     });
     chrome.tabs.onRemoved.addListener((tabId) => {
@@ -211,5 +278,5 @@
     load();
   }
 
-  root.MonoAgentSubmitGuard = { install, handle, normalize, GUARD_KEY };
+  root.MonoAgentSubmitGuard = { install, handle, normalize, armedTabs, GUARD_KEY };
 })(globalThis);

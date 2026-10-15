@@ -199,3 +199,67 @@ func TestPageForPinsTheTarget(t *testing.T) {
 		t.Fatalf("query %v, command %+v", q, cmd)
 	}
 }
+
+func TestSubmitGuardAllowOnceNamesTheFrame(t *testing.T) {
+	ok := &Response{Success: true, Data: map[string]interface{}{"armed": true, "origin": "https://shop.test", "blocked": []interface{}{
+		map[string]interface{}{"seq": 3, "ts": 1, "url": "https://shop.test/pay", "frameId": 7, "form": map[string]interface{}{"selector": "#pay"}},
+	}}}
+	for _, tc := range []struct {
+		frame    int
+		selector string
+		want     map[string]interface{}
+	}{
+		{7, "", map[string]interface{}{"action": "allow_once", "frameId": 7}},
+		{0, "", map[string]interface{}{"action": "allow_once", "frameId": 0}},
+		{-1, "#pay", map[string]interface{}{"action": "allow_once", "selector": "#pay"}},
+		{-1, "", map[string]interface{}{"action": "allow_once"}},
+	} {
+		s := &fakeSender{resp: ok}
+		st, err := NewExtensionPage(s, 4).SubmitGuardAllowOnce(tc.frame, tc.selector)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(s.cmds[0].Params, tc.want) {
+			t.Fatalf("params = %#v, want %#v", s.cmds[0].Params, tc.want)
+		}
+		if st.Origin != "https://shop.test" || st.Blocked[0].FrameID != 7 {
+			t.Fatalf("state = %+v", st)
+		}
+	}
+}
+
+// WithExpectOrigin puts expectOrigin on every command of the page and of
+// the elements it finds, and leaves the caller's params alone.
+func TestWithExpectOriginRidesOnEveryCommand(t *testing.T) {
+	s := &fakeSender{resp: &Response{Success: true, Data: map[string]interface{}{"elementId": "el_1", "watching": true}}}
+	p := NewExtensionPage(s, 9).WithExpectOrigin("http://localhost:5173")
+	if p.TabID() != 9 {
+		t.Fatalf("tab = %d", p.TabID())
+	}
+	if _, err := p.WatchTab(true); err != nil {
+		t.Fatal(err)
+	}
+	el, err := p.Element("#save", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = el.Click()
+	if len(s.cmds) != 3 {
+		t.Fatalf("sent %d commands", len(s.cmds))
+	}
+	for _, c := range s.cmds {
+		if c.Params["expectOrigin"] != "http://localhost:5173" || c.TabID != 9 {
+			t.Fatalf("%s params = %#v", c.Type, c.Params)
+		}
+	}
+	params := map[string]interface{}{"on": true}
+	_ = p.agentCall(CmdWatchTab, params, 0, nil)
+	if _, leaked := params["expectOrigin"]; leaked {
+		t.Fatal("the caller's params map was changed")
+	}
+	plain := &fakeSender{resp: s.resp}
+	_, _ = NewExtensionPage(plain, 9).WatchTab(true)
+	if _, set := plain.cmds[0].Params["expectOrigin"]; set {
+		t.Fatal("a page without WithExpectOrigin sent expectOrigin")
+	}
+}

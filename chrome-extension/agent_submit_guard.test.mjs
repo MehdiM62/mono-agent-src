@@ -11,8 +11,10 @@ import { loadExtensionScripts } from "./test_helpers.mjs";
  * where, and plays the guard's part: installGuard arms a frame, the control
  * function acts on the frame's guard if there is one.
  */
-function fakeChrome({ frames = { 7: [0, 3] }, session = {} } = {}) {
+function fakeChrome({ frames = { 7: [0, 3] }, session = {}, urls = { 7: "https://shop.test/cart" } } = {}) {
   const store = { ...session };
+  const tabUrls = { ...urls }; // a tab's top page; `pending` is a navigation not yet committed
+  const pending = {};
   const listeners = { committed: [], message: [], removed: [] };
   const guards = new Map(); // "tab:frame" -> {armed, allow}
   const calls = [];
@@ -26,7 +28,13 @@ function fakeChrome({ frames = { 7: [0, 3] }, session = {} } = {}) {
       },
     },
     webNavigation: { onCommitted: { addListener: (fn) => listeners.committed.push(fn) } },
-    tabs: { onRemoved: { addListener: (fn) => listeners.removed.push(fn) } },
+    tabs: {
+      onRemoved: { addListener: (fn) => listeners.removed.push(fn) },
+      get: async (id) => {
+        if (!(id in tabUrls)) throw new Error(`No tab with id: ${id}`);
+        return pending[id] ? { id, url: tabUrls[id], pendingUrl: pending[id] } : { id, url: tabUrls[id] };
+      },
+    },
     scripting: {
       executeScript: async ({ target, func, args, world, injectImmediately }) => {
         const all = frames[target.tabId];
@@ -56,18 +64,25 @@ function fakeChrome({ frames = { 7: [0, 3] }, session = {} } = {}) {
     guards,
     calls,
     setPage: (p) => (page = p),
-    commit: async (tabId, frameId) => {
-      listeners.committed.forEach((fn) => fn({ tabId, frameId, url: "https://shop.test/next" }));
+    tabUrls,
+    pending,
+    // A frame commits a document; the top frame's commit moves the tab's page.
+    commit: async (tabId, frameId, url = "https://shop.test/next") => {
+      if (frameId === 0) tabUrls[tabId] = url;
+      listeners.committed.forEach((fn) => fn({ tabId, frameId, url }));
       await new Promise((r) => setTimeout(r, 10));
     },
-    report: (tabId, frameId, detail) => listeners.message.forEach((fn) => fn({ type: "agent_submit_blocked", detail }, { id: "ext-id", tab: { id: tabId }, frameId, url: `https://shop.test/frame${frameId}` })),
+    report: (tabId, frameId, detail) =>
+      listeners.message.forEach((fn) =>
+        fn({ type: "agent_submit_blocked", detail }, { id: "ext-id", tab: { id: tabId, url: tabUrls[tabId] }, frameId, url: `https://shop.test/frame${frameId}` })
+      ),
     remove: (tabId) => listeners.removed.forEach((fn) => fn(tabId)),
   };
 }
 
 function setup(opts) {
   const f = fakeChrome(opts);
-  const g = loadExtensionScripts(["agent_cdp.js", "agent_submit_page.js", "agent_submit_guard.js"], { chrome: f.chrome });
+  const g = loadExtensionScripts(["agent_cdp.js", "agent_redact.js", "agent_submit_page.js", "agent_submit_guard.js"], { chrome: f.chrome });
   f.setPage(g.MonoAgentSubmitPage);
   g.MonoAgentSubmitGuard.install();
   return Object.assign(f, { guard: g.MonoAgentSubmitGuard });
@@ -83,7 +98,7 @@ const report = (fields) =>
 
 test("arm puts the relay, then the guard, into every frame", async () => {
   const t = setup();
-  assert.deepEqual(await t.guard.handle({ tabId: 7, action: "arm" }), { armed: true, blocked: [] });
+  assert.deepEqual(await t.guard.handle({ tabId: 7, action: "arm" }), { armed: true, origin: "https://shop.test", blocked: [] });
   assert.deepEqual(t.calls.map((c) => [c.kind, c.world, c.frames]), [
     ["relay", "ISOLATED", [0, 3]],
     ["guard", "MAIN", [0, 3]],
@@ -100,7 +115,8 @@ test("a blocked submit is recorded with the reporting frame's URL; status reads 
   assert.equal(st.armed, true);
   assert.equal(st.blocked.length, 1);
   const [b] = st.blocked;
-  assert.deepEqual(Object.keys(b), ["seq", "ts", "url", "form"], "the contract's fields, no frame id");
+  assert.deepEqual(Object.keys(b), ["seq", "ts", "url", "form", "frameId"]);
+  assert.equal(b.frameId, 3);
   assert.equal(b.seq, 1);
   assert.equal(b.url, "https://shop.test/frame3", "the browser's word for the frame, not the page's");
   assert.deepEqual(b.form, { action: "https://shop.test/pay", method: "POST", fields: [{ name: "card", type: "text", label: "Card", value: "•••" }], submitter: "#pay", selector: "#checkout" });
@@ -118,17 +134,90 @@ test("allow_once goes to the frame the last blocked submit came from", async () 
   assert.equal(t.guards.get("7:0").allow, 0, "exactly one submit, not one per frame");
 });
 
-test("allow_once falls back to the top frame, and refuses when nothing is armed", async () => {
+test("allow_once never falls back to another frame, and refuses when nothing is armed", async () => {
   const t = setup();
   await assert.rejects(t.guard.handle({ tabId: 7, action: "allow_once" }), /the guard is not armed on this tab/);
   await t.guard.handle({ tabId: 7, action: "arm" });
   t.report(7, 3, report([]));
   await settle();
   t.guards.delete("7:3"); // that frame navigated away
-  await t.guard.handle({ tabId: 7, action: "allow_once" });
+  await assert.rejects(t.guard.handle({ tabId: 7, action: "allow_once" }), /no guard in frame 3/);
+  assert.equal(t.guards.get("7:0").allow, 0, "the top frame was not opened instead");
+});
+
+test("allow_once opens the frame the caller names, or that of the named form's latest blocked submit", async () => {
+  const t = setup();
+  await t.guard.handle({ tabId: 7, action: "arm" });
+  const formAt = (selector) => JSON.stringify({ url: "u", form: { action: "a", method: "POST", fields: [], submitter: "", selector } });
+  t.report(7, 3, formAt("#pay"));
+  t.report(7, 0, formAt("#search"));
+  await settle();
+  await t.guard.handle({ tabId: 7, action: "allow_once", selector: "#pay" });
+  assert.deepEqual([t.guards.get("7:3").allow, t.guards.get("7:0").allow], [1, 0], "the approved form's frame, not the latest one");
+  t.guards.get("7:3").allow = 0;
+  await t.guard.handle({ tabId: 7, action: "allow_once", frameId: 0 });
   assert.equal(t.guards.get("7:0").allow, 1);
-  t.guards.clear();
-  await assert.rejects(t.guard.handle({ tabId: 7, action: "allow_once" }), /no guard in this page/);
+  await assert.rejects(t.guard.handle({ tabId: 7, action: "allow_once", selector: "#nope" }), /no blocked submit of #nope/);
+  await assert.rejects(t.guard.handle({ tabId: 7, action: "allow_once", frameId: -2 }), /frameId must be a frame id/);
+});
+
+// ── the armed origin (security review, item 5) ────────────────────────────
+
+test("arm takes the tab's origin; a tab still navigating, or on no web page, is refused", async () => {
+  const t = setup({ frames: { 7: [0], 8: [0], 9: [0] }, urls: { 7: "https://shop.test/cart", 8: "https://shop.test/", 9: "chrome://newtab/" } });
+  t.pending[8] = "https://elsewhere.test/";
+  await assert.rejects(t.guard.handle({ tabId: 8, action: "arm" }), /the tab is navigating/);
+  await assert.rejects(t.guard.handle({ tabId: 9, action: "arm" }), /no web page to guard/);
+  assert.equal((await t.guard.handle({ tabId: 7, action: "arm" })).origin, "https://shop.test");
+});
+
+test("the page leaving the armed origin disarms the tab and drops its records; the person's other sites are left alone", async () => {
+  const t = setup();
+  await t.guard.handle({ tabId: 7, action: "arm" });
+  t.report(7, 0, report([]));
+  await settle();
+  t.calls.length = 0;
+  await t.commit(7, 0, "https://shop.test/checkout"); // same origin: still guarded
+  assert.deepEqual(t.calls.map((c) => c.kind), ["relay", "guard"]);
+  t.calls.length = 0;
+  await t.commit(7, 0, "https://mail.example.com/inbox");
+  assert.deepEqual(t.calls, [], "nothing injected into the other site");
+  assert.deepEqual(await t.guard.handle({ tabId: 7, action: "status" }), { armed: false, origin: "", blocked: [] });
+  assert.equal(t.store.agentSubmitGuard[7], undefined, "forgotten in session storage too");
+  await t.commit(7, 0, "https://shop.test/cart"); // and coming back does not re-arm it
+  assert.deepEqual(t.calls, []);
+});
+
+test("a frame inside a page on the armed origin is guarded whatever its own origin", async () => {
+  const t = setup();
+  await t.guard.handle({ tabId: 7, action: "arm" });
+  t.calls.length = 0;
+  await t.commit(7, 3, "https://js.payments.example/iframe");
+  assert.deepEqual(t.calls.map((c) => [c.kind, c.frames]), [["relay", [3]], ["guard", [3]]]);
+});
+
+test("a report that arrives while the tab's page is on another origin is dropped", async () => {
+  const t = setup();
+  await t.guard.handle({ tabId: 7, action: "arm" });
+  t.tabUrls[7] = "https://mail.example.com/"; // committed, the listener not yet run
+  t.report(7, 0, report([]));
+  await settle();
+  t.tabUrls[7] = "https://shop.test/cart";
+  assert.deepEqual((await t.guard.handle({ tabId: 7, action: "status" })).blocked, []);
+});
+
+test("a record's URLs lose their secret-looking query values", async () => {
+  const t = setup();
+  await t.guard.handle({ tabId: 7, action: "arm" });
+  const SESSION = ["sess", "ion"].join("");
+  t.report(7, 0, JSON.stringify({
+    url: "u",
+    form: { action: `https://shop.test/pay?${SESSION}=abc&step=2`, method: "POST", fields: [{ name: "next", type: "text", label: "", value: `https://shop.test/r?sig=zz` }], submitter: "", selector: "#f" },
+  }));
+  await settle();
+  const [b] = (await t.guard.handle({ tabId: 7, action: "status" })).blocked;
+  assert.equal(b.form.action, `https://shop.test/pay?${SESSION}=•••&step=2`);
+  assert.equal(b.form.fields[0].value, "https://shop.test/r?sig=•••");
 });
 
 test("a navigation in an armed tab re-arms the new document, as early as Chrome allows", async () => {
@@ -176,9 +265,9 @@ test("the report is page-written data: shapes and sizes are re-checked", () => {
 });
 
 test("a worker restart picks the armed tabs back up from session storage", async () => {
-  const saved = { agentSubmitGuard: { 7: { armed: true, seq: 4, blocked: [{ seq: 4, ts: 1, url: "u", form: {}, frameId: 0 }] } } };
+  const saved = { agentSubmitGuard: { 7: { armed: true, origin: "https://shop.test", seq: 4, blocked: [{ seq: 4, ts: 1, url: "u", form: {}, frameId: 0 }] } } };
   const t = setup({ session: saved });
-  await t.commit(7, 0);
+  await t.commit(7, 0, "https://shop.test/cart");
   assert.deepEqual(t.calls.map((c) => c.kind), ["relay", "guard"]);
   t.report(7, 0, report([]));
   await settle();
@@ -196,7 +285,7 @@ test("a tab keeps its last 50 attempts, and closing it forgets them", async () =
   assert.equal(st.blocked[0].seq, 6);
   t.remove(7);
   await settle();
-  assert.deepEqual(await t.guard.handle({ tabId: 7, action: "status" }), { armed: false, blocked: [] });
+  assert.deepEqual(await t.guard.handle({ tabId: 7, action: "status" }), { armed: false, origin: "", blocked: [] });
 });
 
 test("messages from elsewhere, and unknown actions, are refused", async () => {

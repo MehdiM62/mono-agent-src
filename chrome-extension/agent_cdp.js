@@ -79,6 +79,11 @@
     return held.has(tabId);
   }
 
+  /** heldTabs lists the tabs something holds, for the idle release (agent_commands.js). */
+  function heldTabs() {
+    return [...held.keys()];
+  }
+
   /** lost ends every hold on the tab and tells the modules why. */
   function lost(tabId, reason) {
     held.delete(tabId);
@@ -105,6 +110,7 @@
     hold,
     release,
     holds,
+    heldTabs,
     onEvent: (fn) => eventListeners.push(fn),
     onLost: (fn) => lostListeners.push(fn),
   };
