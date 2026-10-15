@@ -40,6 +40,7 @@ func (d Deps) newProfileCmd() *cobra.Command {
 		d.newProfileDocumentsCmd(),
 		d.newProfileSearchKnowledgeCmd(),
 		d.newProfileContextCmd(),
+		d.newProfileInfoCmd(),
 	)
 	return cmd
 }
