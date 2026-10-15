@@ -52,10 +52,15 @@ func TestProfileGateEnforceEndToEnd(t *testing.T) {
 		t.Errorf("the refused command printed %q", out)
 	}
 	// Global commands and the profile list need no profile.
-	for _, args := range [][]string{{"config", "list"}, {"version"}, {"agent", "scan"}, {"profile", "list"}, {"profile", "get", "work"}} {
+	for _, args := range [][]string{{"config", "list"}, {"version"}, {"node", "list"}, {"message-template", "list"}, {"profile", "list"}, {"profile", "get", "work"}} {
 		if _, _, err := run(args...); err != nil {
 			t.Errorf("%v (global) without --profile: %v", args, err)
 		}
+	}
+	// agent scan is global too, but needs monomind (absent on CI): it may fail
+	// for that, never at the gate.
+	if _, _, err := run("agent", "scan"); err != nil && (exitCodeFor(err) == 3 || strings.Contains(err.Error(), "pass --profile")) {
+		t.Errorf("agent scan was gated: %v", err)
 	}
 	// There is no active profile: switch and current are gone, and profile list
 	// carries no "active" field.
