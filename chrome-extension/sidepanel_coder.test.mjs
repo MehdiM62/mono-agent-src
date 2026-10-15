@@ -282,7 +282,7 @@ test("the mirror draws replies as nodes, never markup, with tool cards and scree
   assert.ok(nodes.some((n) => n.tag === "strong" && n.textContent === "bold"));
   assert.ok(nodes.some((n) => n.className === "chat-tool" && n.textContent === "Bash"));
   assert.equal(t.of("coder_events").at(-1).since, 0);
-  t.timers.fire(1500);
+  t.timers.fire(6000);
   await settle();
   assert.equal(t.of("coder_events").at(-1).since, 4, "the next poll starts where the last ended");
   assert.equal(t.els["coder-log"].all().filter((n) => n.tag === "img").length, 1, "a screenshot seen twice is drawn once");
@@ -332,12 +332,12 @@ test("the mirror polls only while the section is open and the panel visible", as
   const t = mirrorSetup({ id: "c-1" }, []);
   await watchFirst(t);
   const before = t.of("coder_events").length;
-  t.timers.fire(1500);
+  t.timers.fire(6000);
   await settle();
   assert.equal(t.of("coder_events").length, before + 1);
   t.doc.visibilityState = "hidden";
   t.doc.fire("visibilitychange");
-  t.timers.fire(1500);
+  t.timers.fire(6000);
   await settle();
   assert.equal(t.of("coder_events").length, before + 1, "polled while hidden");
   t.doc.visibilityState = "visible";
@@ -346,9 +346,33 @@ test("the mirror polls only while the section is open and the panel visible", as
   assert.equal(t.of("coder_events").length, before + 2, "visible again: polls at once");
   t.els["coder-panel"].open = false;
   t.els["coder-panel"].fire("toggle");
-  t.timers.fire(1500);
+  t.timers.fire(6000);
   await settle();
   assert.equal(t.of("coder_events").length, before + 2, "polled while folded");
+});
+
+test("the mirror polls every 1.5 s while a turn runs, every 6 s when idle, and not at all hidden or unwatched", async () => {
+  let active = true;
+  const t = mirrorSetup({ id: "c-1", startedInDesktop: true }, () => ({ ok: true, turn: "t1", events: [], turn_active: active, images: [] }));
+  const polls = () => [...t.timers.pending.values()].filter((x) => !x.every).map((x) => x.ms);
+  t.openSection();
+  await settle();
+  assert.deepEqual(polls(), [], "nothing watched: no poll");
+  await watchFirst(t);
+  assert.deepEqual(polls(), [1500], "a turn runs");
+  active = false;
+  t.timers.fire(1500);
+  await settle();
+  assert.deepEqual(polls(), [6000], "idle");
+  t.doc.visibilityState = "hidden";
+  t.doc.fire("visibilitychange");
+  assert.deepEqual(polls(), [], "hidden: no poll left waiting");
+  t.doc.visibilityState = "visible";
+  t.doc.fire("visibilitychange");
+  await settle();
+  assert.deepEqual(polls(), [6000]);
+  t.els["coder-mirror-close"].fire("click");
+  assert.deepEqual(polls(), [], "the mirror closed: no poll");
 });
 
 test("a menu click's prefill opens the section filled in; stale or another window's is ignored", async () => {
@@ -392,7 +416,7 @@ test("a new turn is read from its start, after the end of the one on screen", as
   assert.match(t.els["coder-log"].textContent, /one/);
   latest = "t2";
   const before = t.of("coder_events").length;
-  t.timers.fire(1500);
+  t.timers.fire(6000);
   await settle(20);
   const asked = t.of("coder_events").slice(before).map(({ turn, since }) => ({ turn, since }));
   assert.deepEqual(asked, [{ turn: undefined, since: 3 }, { turn: "t1", since: 3 }, { turn: "t2", since: undefined }]);
