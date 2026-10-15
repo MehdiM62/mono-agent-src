@@ -81,7 +81,7 @@ func permissionsDB(t *testing.T, kind, level string, sites ...string) context.Co
 func TestAgentShellRunFollowsTheOriginPolicy(t *testing.T) {
 	t.Setenv("CLAUDECODE", "1")
 	_, opened, err := policyRun(t, context.Background(), "https://shop.example.com/", "")
-	if err == nil || opened || !strings.Contains(err.Error(), "monoagentcli browser permissions site https://shop.example.com allow") {
+	if err == nil || opened || !strings.Contains(err.Error(), "https://shop.example.com is not allowed") || !strings.Contains(err.Error(), "Agent browser permissions") {
 		t.Fatalf("a site off the allowlist: opened=%v err=%v", opened, err)
 	}
 
@@ -99,7 +99,7 @@ func TestAgentShellRunFollowsTheOriginPolicy(t *testing.T) {
 	// A daemon running a shell's `workflow run` holds it to the same rules.
 	t.Setenv("CLAUDECODE", "")
 	marked := workflow.WithTrigger(context.Background(), "trigger.manual", map[string]interface{}{workflow.AICallerKey: "agent"})
-	if _, _, err := policyRun(t, marked, "https://shop.example.com/", ""); err == nil || !strings.Contains(err.Error(), "browser permissions site") {
+	if _, _, err := policyRun(t, marked, "https://shop.example.com/", ""); err == nil || !strings.Contains(err.Error(), "is not allowed") {
 		t.Fatalf("a run a shell marked: %v", err)
 	}
 }
