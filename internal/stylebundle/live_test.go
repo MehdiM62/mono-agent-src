@@ -12,7 +12,8 @@ import (
 const replayFile = "testdata/card.replay.json"
 
 // liveSelectors are the fixture's elements the live run reads the source of.
-var liveSelectors = []string{"#card", "#react-btn", "#vue-el", "#svelte-el", "#plain-el"}
+var liveSelectors = []string{"#card", "#react-btn", "#vue-el", "#svelte-el", "#plain-el",
+	"#react19-btn", "#nav-link", "#vue-insp-el", "#sentry-el"}
 
 // TestLive builds a bundle in a real browser through the extension bridge.
 // It runs only when STYLEBUNDLE_LIVE_BRIDGE is the bridge's base URL (a

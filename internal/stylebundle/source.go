@@ -29,6 +29,9 @@ func ReadSource(p Page, selector string) (*Source, error) {
 		return nil, err
 	}
 	s.File = cleanURL(s.File)
+	if len(s.Components) == 0 && s.Component != "" {
+		s.Components = []string{s.Component}
+	}
 	if s.Components == nil {
 		s.Components = []string{}
 	}

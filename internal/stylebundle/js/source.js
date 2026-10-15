@@ -181,7 +181,7 @@
   if (testId) {
     hint("test-id", testId.getAttribute("data-testid") || testId.getAttribute("data-test-id") || testId.getAttribute("data-test") || testId.getAttribute("data-cy"));
   }
-  const text = (el.textContent || "").replace(/\s+/g, " ").trim();
+  const text = (el.innerText || el.textContent || "").replace(/\s+/g, " ").trim();
   if (text) hint("text", text.length > opts.maxText ? text.slice(0, opts.maxText) : text);
   hint("tag", el.localName);
 

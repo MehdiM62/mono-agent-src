@@ -68,6 +68,10 @@ body { margin: 0; font-family: system-ui, sans-serif; color: #222; background: #
   <div class="panel" id="vue-root"><span class="hello" id="vue-el">Hello from Vue</span></div>
   <div class="panel" id="svelte-root"><span class="counter svelte-1x2y3z" id="svelte-el">Count: 3</span></div>
   <div class="panel" id="plain"><span class="price-tag" id="plain-el" data-testid="price">$19</span></div>
+  <div class="panel" id="react19-root"><button id="react19-btn" type="button">Undo</button></div>
+  <nav class="panel" data-inspector-relative-path="src/Nav.tsx" data-inspector-line="3" data-inspector-column="5"><a id="nav-link" class="nav__link">Home</a></nav>
+  <div class="panel" data-v-inspector="src/components/Foo.vue:10:3"><i id="vue-insp-el">Foo</i></div>
+  <div class="panel" data-sentry-component="Checkout" data-sentry-source-file="checkout.tsx"><b id="sentry-el">Pay</b></div>
 </div>
 <script>
 // Synthetic framework dev metadata, shaped like what each framework attaches
@@ -85,6 +89,16 @@ document.getElementById("react-btn")["__reactFiber$x7k2q"] = { tag: 5, type: "bu
 const vueParent = { type: { __file: "/home/dev/app/src/App.vue", __name: "App" } };
 document.getElementById("vue-el").__vueParentComponent =
   { type: { __file: "/home/dev/app/src/components/Hello.vue", __name: "Hello" }, parent: vueParent };
+
+// React 19 keeps no _debugSource; the JSX call site is in _debugStack.
+function Toolbar() {}
+const toolbarFiber = { tag: 0, type: Toolbar };
+document.getElementById("react19-btn")["__reactFiber$r19"] = { tag: 5, type: "button", return: toolbarFiber,
+  _debugOwner: toolbarFiber,
+  _debugStack: { stack: "Error: react-stack-top-frame\n" +
+    "    at exports.jsxDEV (http://localhost:5173/node_modules/.vite/deps/react_jsx-dev-runtime.js?v=1a2b:250:30)\n" +
+    "    at Toolbar (http://localhost:5173/src/Toolbar.tsx?t=1700000000:14:9)\n" +
+    "    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=1a2b:5000:22)" } };
 
 document.getElementById("svelte-el").__svelte_meta =
   { loc: { file: "src/lib/Counter.svelte", line: 3, column: 2, char: 51 } };

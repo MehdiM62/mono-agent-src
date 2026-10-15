@@ -124,6 +124,10 @@ func TestSourceFromRecording(t *testing.T) {
 		{"#vue-el", "vue", "Hello", "/home/dev/app/src/components/Hello.vue", 0, 0.7},
 		{"#svelte-el", "svelte", "", "src/lib/Counter.svelte", 3, 0.85},
 		{"#plain-el", "", "", "", 0, 0.1},
+		{"#react19-btn", "react", "Toolbar", "http://localhost:5173/src/Toolbar.tsx", 14, 0.6},
+		{"#nav-link", "react", "", "src/Nav.tsx", 3, 0.85},
+		{"#vue-insp-el", "vue", "", "src/components/Foo.vue", 10, 0.85},
+		{"#sentry-el", "react", "Checkout", "checkout.tsx", 0, 0.6},
 	} {
 		s, err := ReadSource(f, tc.sel)
 		if err != nil {
@@ -136,6 +140,9 @@ func TestSourceFromRecording(t *testing.T) {
 	s, _ := ReadSource(f, "#react-btn")
 	if strings.Join(s.Components, ">") != "SaveButton>SettingsPanel" {
 		t.Errorf("react owners %v", s.Components)
+	}
+	if s, _ := ReadSource(f, "#sentry-el"); strings.Join(s.Components, ">") != "Checkout" {
+		t.Errorf("sentry components %v", s.Components)
 	}
 	s, _ = ReadSource(f, "#plain-el")
 	hints := map[Hint]bool{}
