@@ -99,6 +99,9 @@ func (s *Session) OpenTab(url, group string) (int, error) {
 		if err := s.Watch(true); err != nil {
 			return s.tabID, fmt.Errorf("tab %d opened, but watching its console and network failed: %w", s.tabID, err)
 		}
+		// Turning the watch on replays the first load's console messages;
+		// reads start at the reload, which records everything once.
+		s.markLoad()
 		if _, err := s.send(s.tabID, extension.CmdReload, nil, loadTimeout); err != nil {
 			return s.tabID, err
 		}
@@ -121,6 +124,7 @@ func (s *Session) Navigate(url string) (string, error) {
 			return "", err
 		}
 	}
+	s.markLoad()
 	var out struct {
 		URL string `json:"url"`
 	}
@@ -140,6 +144,7 @@ func (s *Session) Navigate(url string) (string, error) {
 
 // Reload reloads the tab; hard bypasses the cache.
 func (s *Session) Reload(hard bool) error {
+	s.markLoad()
 	if !hard {
 		_, err := s.Send(extension.CmdReload, nil, loadTimeout)
 		return err
@@ -162,6 +167,7 @@ func (s *Session) CloseTab() error {
 	if s.state.TabID == s.tabID {
 		s.state.TabID = 0
 		delete(s.state.Reported, tabKey(s.info.Instance, s.tabID))
+		delete(s.state.Loads, tabKey(s.info.Instance, s.tabID))
 		_ = s.saveState()
 	}
 	s.tabID, s.url = 0, ""
@@ -203,11 +209,39 @@ type NetworkEntry struct {
 	Size       float64 `json:"size,omitempty"`
 }
 
-// Console reads the tab's buffered console entries after seq since,
-// optionally only levels. The watch is turned on first (it is idempotent).
+// markLoad remembers the newest console and network entries of a watched
+// tab before it loads a page (open, navigate, reload), so that a read with
+// a negative since starts at that page. An unwatched tab has nothing to mark.
+func (s *Session) markLoad() {
+	var c, n struct {
+		Next int `json:"next"`
+	}
+	if s.Call(CmdReadConsole, map[string]interface{}{"limit": 500}, DefaultTimeout, &c) != nil {
+		return
+	}
+	if s.Call(CmdReadNetwork, map[string]interface{}{"limit": 500}, DefaultTimeout, &n) != nil {
+		return
+	}
+	if s.state.Loads == nil {
+		s.state.Loads = map[string]LoadMark{}
+	}
+	s.state.Loads[tabKey(s.info.Instance, s.tabID)] = LoadMark{Console: c.Next, Network: n.Next}
+	_ = s.saveState()
+}
+
+// loadMark is the tab's mark from markLoad (zero: none).
+func (s *Session) loadMark() LoadMark { return s.state.Loads[tabKey(s.info.Instance, s.tabID)] }
+
+// Console reads the tab's buffered console entries after seq since (a
+// negative since: since the page was last loaded by OpenTab, Navigate or
+// Reload), optionally only levels. The watch is turned on first (it is
+// idempotent).
 func (s *Session) Console(since int, levels []string, limit int) ([]ConsoleEntry, int, error) {
 	if err := s.Watch(true); err != nil {
 		return nil, 0, err
+	}
+	if since < 0 {
+		since = s.loadMark().Console
 	}
 	params := map[string]interface{}{"since": since}
 	if len(levels) > 0 {
@@ -229,10 +263,14 @@ func (s *Session) Console(since int, levels []string, limit int) ([]ConsoleEntry
 	return out.Entries, out.Next, nil
 }
 
-// Network reads the tab's buffered requests after seq since.
+// Network reads the tab's buffered requests after seq since (negative:
+// since the page was last loaded, as Console).
 func (s *Session) Network(since int, failedOnly bool, limit int) ([]NetworkEntry, int, error) {
 	if err := s.Watch(true); err != nil {
 		return nil, 0, err
+	}
+	if since < 0 {
+		since = s.loadMark().Network
 	}
 	params := map[string]interface{}{"since": since, "failedOnly": failedOnly}
 	if limit > 0 {

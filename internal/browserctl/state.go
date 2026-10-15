@@ -18,8 +18,17 @@ type State struct {
 	Instance string `json:"instance,omitempty"`
 	// Reported is, per tab ("<instance>/<tabId>"), the submit_guard seq of
 	// the last blocked submit already turned into a HIL item.
-	Reported  map[string]int `json:"reported,omitempty"`
-	UpdatedAt string         `json:"updatedAt,omitempty"`
+	Reported map[string]int `json:"reported,omitempty"`
+	// Loads is, per tab, where its console and network buffers stood when
+	// a browser command last loaded a page in it.
+	Loads     map[string]LoadMark `json:"loads,omitempty"`
+	UpdatedAt string              `json:"updatedAt,omitempty"`
+}
+
+// LoadMark is the newest console and network seq before a page load.
+type LoadMark struct {
+	Console int `json:"console"`
+	Network int `json:"network"`
 }
 
 // StateDir is where the session state files live.

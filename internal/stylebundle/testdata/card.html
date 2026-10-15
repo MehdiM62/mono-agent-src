@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Card fixture</title>
+<!-- The stylebundle live test page: internal/stylebundle/live_test.go. -->
+<style>
+@font-face {
+  font-family: "Fixture Serif";
+  src: local("Noto Serif"), local("NotoSerif-Regular"), url("fixture-serif.woff2?v=secret-token") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Never Used";
+  src: url("missing.woff2") format("woff2");
+}
+:root {
+  --brand: #3355ff;
+  --brand-ink: #ffffff;
+  --radius: 12px;
+  --space: 16px;
+  --shadow: 0 4px 12px rgba(0, 0, 0, .15);
+  --unused: 1px;
+}
+body { margin: 0; font-family: system-ui, sans-serif; color: #222; background: #f5f6fa; }
+.wrap { padding: 32px; display: flex; gap: 24px; flex-wrap: wrap; }
+.card {
+  background-color: white;
+  border-radius: var(--radius);
+  padding: var(--space);
+  box-shadow: var(--shadow);
+  width: 320px;
+  transition: background-color .2s ease, transform .2s;
+  font-family: "Fixture Serif", Georgia, serif;
+  background-image: url("bg.png?sig=abc123");
+}
+.card:hover { background-color: #eef1ff; transform: translateY(-2px); }
+.card:focus-visible { outline: 3px solid var(--brand); }
+.card:active { box-shadow: none; }
+.card__title { font-size: 20px; font-weight: 600; margin: 0 0 8px; color: var(--brand); }
+.card__body { font-size: 14px; line-height: 1.5; color: #444; margin: 0; }
+.card__cta {
+  display: inline-block; margin-top: 12px; padding: 8px 14px; border-radius: 8px;
+  background: var(--brand); color: var(--brand-ink); text-decoration: none;
+}
+.card__cta:active { background: #2240dd; }
+.card::before { content: ""; display: block; height: 4px; background: var(--brand); border-radius: 2px; margin-bottom: 8px; }
+@media (max-width: 600px) { .card { width: auto; } .wrap { flex-direction: column; } }
+@media (min-width: 1200px) { .card__title { font-size: 24px; } }
+@media (prefers-color-scheme: dark) { body { background: #111; color: #eee; } .card { background-color: #1d1f27; } }
+.panel { padding: 12px; border: 1px solid #ddd; border-radius: 6px; background: #fff; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <article class="card" id="card" tabindex="0" role="article" aria-label="Pricing card for Jane"
+           data-insp-path="/home/dev/app/src/components/Card.tsx:12:5:article"
+           onclick="alert(1)" style="--local: 2px">
+    <h2 class="card__title">Pro plan</h2>
+    <p class="card__body">Everything in Free, plus unlimited projects and priority support for Jane Doe (jane@example.com).</p>
+    <a class="card__cta" href="https://example.com/buy?session=abc123&amp;token=xyz" onclick="steal()">Buy now</a>
+    <script>window.__fixtureInline = 1;</script>
+    <img alt="Jane's avatar" src="avatar.png?sig=deadbeef" width="32" height="32">
+  </article>
+  <div class="panel" id="react-root"><button class="Button_primary__a1b2c" id="react-btn" type="button">Save</button></div>
+  <div class="panel" id="vue-root"><span class="hello" id="vue-el">Hello from Vue</span></div>
+  <div class="panel" id="svelte-root"><span class="counter svelte-1x2y3z" id="svelte-el">Count: 3</span></div>
+  <div class="panel" id="plain"><span class="price-tag" id="plain-el" data-testid="price">$19</span></div>
+  <div class="panel" id="react19-root"><button id="react19-btn" type="button">Undo</button></div>
+  <nav class="panel" data-inspector-relative-path="src/Nav.tsx" data-inspector-line="3" data-inspector-column="5"><a id="nav-link" class="nav__link">Home</a></nav>
+  <div class="panel" data-v-inspector="src/components/Foo.vue:10:3"><i id="vue-insp-el">Foo</i></div>
+  <div class="panel" data-sentry-component="Checkout" data-sentry-source-file="checkout.tsx"><b id="sentry-el">Pay</b></div>
+</div>
+<script>
+// Synthetic framework dev metadata, shaped like what each framework attaches
+// in a development build.
+function SaveButton() {}
+function SettingsPanel() {}
+const ownerFiber = { tag: 0, type: SettingsPanel,
+  _debugSource: { fileName: "/home/dev/app/src/SettingsPanel.jsx", lineNumber: 40, columnNumber: 3 } };
+const compFiber = { tag: 0, type: SaveButton, return: ownerFiber, _debugOwner: ownerFiber,
+  _debugSource: { fileName: "/home/dev/app/src/SettingsPanel.jsx", lineNumber: 52, columnNumber: 7 } };
+document.getElementById("react-btn")["__reactFiber$x7k2q"] = { tag: 5, type: "button", return: compFiber,
+  _debugOwner: compFiber,
+  _debugSource: { fileName: "/home/dev/app/src/SaveButton.jsx", lineNumber: 8, columnNumber: 10 } };
+
+const vueParent = { type: { __file: "/home/dev/app/src/App.vue", __name: "App" } };
+document.getElementById("vue-el").__vueParentComponent =
+  { type: { __file: "/home/dev/app/src/components/Hello.vue", __name: "Hello" }, parent: vueParent };
+
+// React 19 keeps no _debugSource; the JSX call site is in _debugStack.
+function Toolbar() {}
+const toolbarFiber = { tag: 0, type: Toolbar };
+document.getElementById("react19-btn")["__reactFiber$r19"] = { tag: 5, type: "button", return: toolbarFiber,
+  _debugOwner: toolbarFiber,
+  _debugStack: { stack: "Error: react-stack-top-frame\n" +
+    "    at exports.jsxDEV (http://localhost:5173/node_modules/.vite/deps/react_jsx-dev-runtime.js?v=1a2b:250:30)\n" +
+    "    at Toolbar (http://localhost:5173/src/Toolbar.tsx?t=1700000000:14:9)\n" +
+    "    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=1a2b:5000:22)" } };
+
+document.getElementById("svelte-el").__svelte_meta =
+  { loc: { file: "src/lib/Counter.svelte", line: 3, column: 2, char: 51 } };
+</script>
+</body>
+</html>

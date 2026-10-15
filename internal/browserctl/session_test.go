@@ -55,7 +55,7 @@ func TestAgentOpenTabGoesIntoItsGroupAndIsWatched(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"create_tab", "tab_group", "watch_tab", "reload", "page_info"}
+	want := []string{"create_tab", "tab_group", "watch_tab", "read_console", "read_network", "reload", "page_info"}
 	if got := f.Types(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("commands = %v, want %v", got, want)
 	}
@@ -71,6 +71,33 @@ func TestAgentOpenTabGoesIntoItsGroupAndIsWatched(t *testing.T) {
 	}
 	if s2.TabID() != id || s2.URL() != "http://localhost:3000/" {
 		t.Fatalf("default tab = %d %q", s2.TabID(), s2.URL())
+	}
+}
+
+func TestConsoleStartsAtTheLastLoad(t *testing.T) {
+	setEnv(t, true)
+	f := browserctltest.New()
+	newest := 4 // the first load's messages, replayed when the watch starts
+	f.On(browserctl.CmdReadConsole, func(c *extension.Command) (any, error) {
+		since, _ := c.Params["since"].(int)
+		entries := []any{}
+		for seq := since + 1; seq <= newest; seq++ {
+			entries = append(entries, map[string]any{"seq": seq, "level": "error", "text": "boom"})
+		}
+		return map[string]any{"entries": entries, "next": newest}, nil
+	})
+	s, _ := browserctl.Open(browserctl.Options{NoTab: true, Sender: f})
+	if _, err := s.OpenTab("http://localhost:3000/", ""); err != nil {
+		t.Fatal(err)
+	}
+	newest = 6 // the reload logs two
+	s2, _ := browserctl.Open(browserctl.Options{Sender: f})
+	got, next, err := s2.Console(-1, nil, 0)
+	if err != nil || len(got) != 2 || got[0].Seq != 5 || next != 6 {
+		t.Fatalf("console since the load = %+v next %d, %v", got, next, err)
+	}
+	if all, _, _ := s2.Console(0, nil, 0); len(all) != 6 {
+		t.Fatalf("console from the start = %d entries", len(all))
 	}
 }
 
