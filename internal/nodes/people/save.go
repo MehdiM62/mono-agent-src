@@ -64,8 +64,8 @@ func (n *PeopleSaveNode) Execute(
 	// Config-level platform override.
 	configPlatform, _ := config["platform"].(string)
 
-	// The owning profile: the node's config, else the profile the run
-	// belongs to, else "default".
+	// The owning profile: the profile the run belongs to (the node's optional
+	// profile_id must match it; a legacy "default" is ignored). No fallback.
 	profileID, err := nodeprofile.Require(ctx, "people.save", config)
 	if err != nil {
 		return nil, err
