@@ -181,3 +181,17 @@ func TestPhotosAreCopiedIntoTheProfileFolder(t *testing.T) {
 		t.Error("Set accepted a photo field")
 	}
 }
+
+func TestEmailAndPhoneAreChecked(t *testing.T) {
+	db, _ := newDB(t)
+	for k, v := range map[string]string{"email": "ada@example.com", "phone": "+49 (170) 123-4567", "emergency_phone": "0170/1234567"} {
+		if err := Set(bg, db, "p1", k, v, SourceUser, ""); err != nil {
+			t.Errorf("%s=%q: %v", k, v, err)
+		}
+	}
+	for k, v := range map[string]string{"email": "not-an-email", "email_secondary": "a@b", "phone": "!!", "phone_home": "123", "phone_work": "call me"} {
+		if err := Set(bg, db, "p1", k, v, SourceUser, ""); err == nil {
+			t.Errorf("%s=%q was accepted", k, v)
+		}
+	}
+}
