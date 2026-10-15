@@ -15,8 +15,7 @@ installed version: read them instead of guessing.
 Commands that act on a profile take an explicit `--profile <profile>` (an id or
 name; `monoagentcli profile list` shows them, and ask the user which one if
 more than one fits). The examples write it as `--profile <profile>`. There is no
-active profile. Today a scoped command without it still runs with a warning;
-the next release refuses it.
+active profile, and a command without it exits 3 and lists the profiles.
 
 The loop, in order:
 
@@ -174,12 +173,12 @@ Then validate again (step 4) and re-run. Change one thing at a time and
 re-test that node with `node run` before running the whole workflow.
 
 When it works: `monoagentcli --profile <profile> workflow activate <wf-id>` for schedule/webhook
-triggers (and keep `monoagentcli --profile <profile> daemon` running).
+triggers (and keep `monoagentcli daemon` running).
 
 ## MCP tool equivalents
 
 When the `monoagent` MCP server is connected (registered by
-`monoagentcli doctor` / `setup --mcp` with `--allow-mutations`), prefer its
+`monoagentcli --profile <profile> doctor` / `setup --mcp` with `--allow-mutations`), prefer its
 tools. Read-only: `docs` (the `ref` topics), `workflow_list`, `workflow_get`,
 `template_list`, `node_list`, `node_schema`, `workflow_validate` (`id`,
 `file` or an inline `workflow`), `workflow_status` (an execution by

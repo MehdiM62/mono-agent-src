@@ -267,7 +267,7 @@ The desktop app does everything through these commands; they are equally usable 
   - `connect for-node <node-type>` and `connect oauth <platform>` (progress is NDJSON on stderr).
   - `connect resources <credential-id> --platform P --type T [--query Q]` lists a connection's spreadsheets, folders, labels or channels for the node editor's picker.
 - **Profiles:**
-  - `profile list|get|current|switch|create [--root-dir] [--icon]`
+  - `profile list|get|create [--root-dir] [--icon]`
   - `profile folder <id>`, `profile move [--check] <id> <dir>` (moves images and documents) and `profile projects`
   - `profile documents list|get|capture|index|rm`, and `profile documents sync`, which scans the profile folder and reconciles documents
   - Browser captures saved into a profile are indexed automatically by the extension bridge (the daemon's or `extension serve`) within seconds, into that profile's own monomind store (scope `profile:<id>`), and the row records Indexed or the error. `profile documents index --all [--all-profiles]` is the backfill: every capture that is not indexed, has changed, or failed before. "Ask your brain" in the extension and chat knowledge search read the same store, so a capture is searchable only from its own profile.
@@ -511,13 +511,12 @@ monoagentcli mcp --api-only --allow-mutations --allow-api-exposure   # the same,
 monoagentcli mcp --tasks-only --allow-mutations   # the user's task board's tools (task_*) and no other
 monoagentcli mcp --allow-mutations --workflow-tools   # also each active workflow, of every profile, as a tool wf_<slug>
 monoagentcli mcp --allow-mutations --workflow-tools="Daily digest,wf-123"   # only those workflows (id or name)
-monoagentcli --profile work mcp --grant <id>   # grant mode: the one server that is bound to a profile
+monoagentcli mcp --grant <id>   # grant mode: the one server that is bound to a profile
 ```
 
 **One server serves every profile, and holds none.** `mcp` is a machine-wide
-command: it takes no `--profile` (except with `--grant`), reads no
-`MONOAGENT_PROFILE` and no active-profile setting, and falls back to no
-`default`. Every tool that acts on a profile takes a **required** string
+command: it takes no `--profile` (except with `--grant`, which needs
+one) and falls back to no `default`. Every tool that acts on a profile takes a **required** string
 argument `profile`, the profile's id or name, on each call, and resolves it
 per call as the CLI's `--profile` does (an id, else a name without regard to
 case). A call with no `profile`, an unknown one, or a name that two profiles
@@ -661,7 +660,7 @@ existing MCP client config that relies on them.
   new key, once, in the `key` field of its result. Only its SHA-256 is stored,
   so no tool, `api_key_list` included, can show it again. It also makes the key
   part of the MCP host's transcript, which the host may keep and, for a hosted
-  model, send to its provider. `monoagentcli api key create` writes the key to
+  model, send to its provider. `monoagentcli --profile work api key create` writes the key to
   its stdout (also with `--json`): run in your own terminal it stays out of any
   transcript, but run by an agent through a shell tool it lands in that
   transcript too. The `api_*` tools are MCP only (the chat assistant has
@@ -889,7 +888,7 @@ a key. It lives in `internal/openaiapi/`; the spec is
   pick, per request, among the models the listener serves (a `--context` key:
   among those its own cap allows). It is the `api_auto` Jev surface: off until
   `monoagentcli --profile <id> jev enable api_auto` on the key's profile, which also needs
-  that profile's Jev key (`jev key set`, or `TYPESAFE_API_KEY` in the server's
+  the machine-wide Jev key (`jev key set`, or `TYPESAFE_API_KEY` in the server's
   environment, which the gateway blanks in its agent turns). Without them
   `auto` is not listed and answers 404 `model_not_found` naming what is
   missing (`api models` and `api status` say it too, and that a key from the
@@ -920,7 +919,7 @@ a key. It lives in `internal/openaiapi/`; the spec is
   `api_auto` in `jev usage`, and the server's log line has `auto=jev|rule` and
   never the prompt.
 - **Auth is a per-profile API key** (`sk-ma-…`), never the legacy token above.
-  `monoagentcli api key create --name <n> [--context]` prints the key once and
+  `monoagentcli --profile <id> api key create --name <n> [--context]` prints the key once and
   stores only its SHA-256, so it needs no vault and no keyring and works on a
   headless server. A key belongs to one profile: its requests run as that
   profile, in that profile's folder, and nothing of another profile's is
@@ -1597,7 +1596,7 @@ a row here):
 
 | Surface | Reaches the board through |
 |---|---|
-| CLI | `monoagentcli task ...` (this section) |
+| CLI | `monoagentcli --profile <id> task ...` (this section) |
 | Session-start hook | `monoagentcli --profile <id> task digest`; nothing installs the hook for you |
 | Chrome extension | *Add selection as task*, *Add page as task*, the side panel's box and the `add-task` key send `task.add` over the extension bridge: a capture, Inbox only, in the profile the extension is "Saving into" (README, Chrome Extension) |
 | MCP, any server | `monoagentcli mcp`: `task_list`, `task_get`, `task_next`; with `--allow-mutations` also `task_claim`, `task_comment`, `task_finish`, `task_release`, `task_add`, acting on the call's profile as `agent:<client>#<4 hex>`; text in fields ending in `_untrusted`; no tool edits, moves or archives a task, and none approves unless the user delegated it (next row) |
@@ -1771,7 +1770,7 @@ tools:
 | `org_stop` | Stops a worker. |
 | `org_rate` | Rates a worker's latest report `good` or `bad`, once per report. The rating feeds the roster's track record (below). |
 
-Outside the turn, `monoagentcli chat turn stop <conversation> <turn> --agent
+Outside the turn, `monoagentcli --profile <id> chat turn stop <conversation> <turn> --agent
 <id> [--wait 20s] --json` stops one worker and leaves the lead and the other
 workers running (#255); the app's stage drawer calls it through
 `App.StopChatAgent`. The control path is a mailbox folder next to the
@@ -2010,7 +2009,7 @@ tools gets `ask_user`.
 - **Waiting:** the worker lets go of its leases and its concurrency slot,
   and takes them back in the usual order (leases, then a slot). `org_wait`
   shows the open question.
-- **Answering:** `monoagentcli chat turn answer <conversation> <turn>
+- **Answering:** `monoagentcli --profile <id> chat turn answer <conversation> <turn>
   --agent w1 --question q1 --text "…"` records the answer; the app's worker
   row has an answer box that calls it. The running turn passes the answer
   to the worker within a second.
@@ -2240,7 +2239,7 @@ login (and its bill) is what the turn uses.
   - **Coder mode** asks for no sandbox; it has its own full-access contract.
   - Every monomind name (flag, modes, capability, env level, start-event
     fields) lives only in `internal/monomind/sandbox.go`.
-- **Checking it.** `monoagentcli doctor --group monomind` checks Node.js,
+- **Checking it.** `monoagentcli --profile <id> doctor --group monomind` checks Node.js,
   the binary, the protocol handshake (version floor
   `internal/monomind.MinMonomindVersion`, currently `2.10.0`), capabilities
   and the profile's `monomind init`; `--group runtimes` lists each runtime.
@@ -2420,7 +2419,7 @@ child with a full run of its own goal, so phrase child goals for messages
 
 ```bash
 monoagentcli --profile work org serve   # the org daemon (monomind) for the profile's folder
-monoagentcli --profile work daemon      # workflow engine, HTTP API, automation-role endpoint, decisions
+monoagentcli daemon      # workflow engine, HTTP API, automation-role endpoint, decisions
 monoagentcli --profile work --json status   # reports both
 monoagentcli --profile work org serve --stop   # stop the folder's running orgs and its org daemon
 ```
@@ -2555,7 +2554,9 @@ probabilities, in one ~100–300 ms request. It **never generates text**.
   LinkedIn like with a named reaction that is missing from the menu fails
   instead of silently clicking plain Like (an unknown reaction name is an
   error).
-- **Key**: vault entry `typesafe` for the profile, else `TYPESAFE_API_KEY`
+- **Key**: the machine-wide vault entry `typesafe`, shared by every profile (a
+  key still held in a profile's vault works as a fallback; `jev key adopt`
+  copies it to the machine vault), else `TYPESAFE_API_KEY`
   (`TYPESAFE_DEFAULT_MODEL` / `TYPESAFE_BASE_URL` override the model and
   host). `doctor` reports it as `jev.key`.
 
@@ -2577,9 +2578,8 @@ server); real-API tests are opt-in via env like `browserjev/e2e_test.go`.
 
 Everything (workflows, connections, people, secrets, HIL queue) is scoped
 to a profile, and every command that acts on a profile takes an explicit
-`--profile <id|name>`. There is no active profile, no `profile switch` or
-`profile current`, no `MONOAGENT_PROFILE` environment variable and no
-`default` fallback: you name the profile on each call.
+`--profile <id|name>`. There is no active profile and no `default` fallback: you name the profile on
+each call. `profile list` shows the ids and names.
 
 ```bash
 monoagentcli profile list                      # find the id or name
@@ -2588,20 +2588,20 @@ monoagentcli --profile work workflow list      # a scoped command names its prof
 
 Machine-wide commands need no `--profile`: `version`, `update`, `config`,
 `message-template`, `agent`, `account`, `db`, `node list|schema`,
-`api config`, `profile list|create|get`, `ref` and a few more (the list is
+`api config`, `profile list|create|get`, `mcp`, `daemon`, `httpapi`, `ref` and a few more (the list is
 `internal/cli/profilegate/classes.go`). Any command not on that list is scoped.
 
-**Today's release is a warning release.** A scoped command run without
-`--profile` still works: it prints `warning: this command acts on a profile:
-pass --profile <id|name>` on stderr and falls back to the legacy active
-profile. The next release refuses it with that message as an error. Always
-pass `--profile`; the examples here do.
+A scoped command run without `--profile` exits 3 with `pass --profile
+<id|name>` and the list of profiles. Always pass `--profile`; the examples here
+do.
 
-The MCP server already works this way: it holds no profile, and each
-profile-scoped tool takes a required `profile` argument (see
-[MCP server](#mcp-server)). The HTTP API is moving the same way: a later release
-adds the profile to its requests. Until then it serves the single profile fixed
-at start (`monoagentcli --profile <id> httpapi`).
+The MCP server and the HTTP API work the same way. The MCP server holds no
+profile: each profile-scoped tool takes a required `profile` argument (see
+[MCP server](#mcp-server)). The HTTP API puts the profile in the path,
+`/profiles/{profile}/...` (see [HTTP API](#http-api)). `daemon` and `httpapi`
+serve every profile and need no `--profile`; `daemon --profile` is a deprecated
+no-op. The desktop app and the Chrome extension each keep their own profile
+selector as UI state and always send the profile explicitly.
 
 A workflow saved under one profile cannot run under another — if a run
 fails with "workflow belongs to a different profile", check
@@ -2686,7 +2686,6 @@ keys and the clock, and panic outside a test binary.
 | `MONOAGENT_DEV_ENFORCE_FROM` | Forces the warn period (a future date such as `2999-01-01T00:00:00Z`) or enforcement (a past date) for a test: an RFC 3339 time. Read only by a `-tags devaccount` build; a default build does not read it, so it never relaxes anything. Default: unset — the date compiled into the binary (2026-10-11 UTC). |
 | `MONOMIND_BIN` | Path to the `monomind` binary; checked before `PATH` and the other install locations (see [How AI works in mono-agent](#how-ai-works-in-mono-agent)). Default: unset — discovered. |
 | `MONOAGENT_AI_RUNTIME` | Agent runtime `ai.extract_page` uses to generate selectors. Default: unset — the first installed runtime, `claude` first. |
-| `MONOAGENT_PROFILE` | **Being removed.** Profile name the built-in HTTP API falls back to when `--profile` is not given (the CLI never read it, and the MCP server no longer does). Pass `--profile` instead. Default: unset. |
 | `MONOAGENT_ACTOR` | The agent's name for the task board's agent commands (`task next --claim`, `claim`, `comment`, `finish`, `release`) when `--as` is not given (`--as` wins). Setting it also makes the caller an agent, so the operator-only commands (`board` and `approve` unless delegated, `edit`, `move`, `archive`, `unarchive`, `add --ready`, `agents allow`, `agents deny`) refuse it. Set but blank, a value of only spaces, it counts as an agent without a name, like a blank `--as` (an empty value counts as unset). Default: unset — a caller with no `--as`, no `MONOAGENT_ACTOR` and no agent-context variable such as `CLAUDECODE` is the operator. |
 | `MONOAGENT_DEBUG` | Set to any non-empty value to enable verbose browser-adapter logging. Default: unset. |
 | `MONOAGENTCLI_BIN` | Path override for the `monoagentcli` binary the desktop GUI (`wails-app/`) shells out to. Default: unset — resolved relative to the GUI binary. |
