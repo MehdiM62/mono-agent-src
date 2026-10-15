@@ -29,6 +29,8 @@ const FORM = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewp
   <input type="hidden" name="csrf" value="tok-123">
   <label>Card <input name="cardnumber" value="4111 1111 1111 1111"></label>
   <input name="note" value="4111111111111111">
+  <input name="order" value="1234567812345678">
+  <textarea name="memo">card 4111-1111-1111-1111 exp 12/29</textarea>
   <input type="checkbox" name="news" value="yes">
   <button id="pay">Pay</button>
 </form>
@@ -217,6 +219,9 @@ describe("the coder's browser commands", { skip: browser ? false : why, concurre
     assert.ok(texts.includes("warning:careful"));
     assert.ok(texts.some((t) => t.startsWith("error:Uncaught Error: boom")));
     assert.ok(cons.entries.every((e) => Number.isInteger(e.seq) && Number.isInteger(e.ts)));
+    assert.ok(cons.entries.every((e) => e.origin === base), "every entry carries the page's origin");
+    assert.deepEqual((await ok("read_console", p.tabId, { origin: "https://elsewhere.test" })).entries, []);
+    assert.ok((await ok("read_network", p.tabId, { origin: base })).entries.length > 0);
     const errors = await ok("read_console", p.tabId, { levels: ["error"], since: 0 });
     assert.ok(errors.entries.every((e) => e.level === "error"));
     const miss = net.entries.find((e) => e.url.endsWith("/missing.json"));
@@ -238,7 +243,7 @@ describe("the coder's browser commands", { skip: browser ? false : why, concurre
 
   it("armed, a click on Pay is stopped and recorded with its secrets masked", async () => {
     const p = await open("/form");
-    assert.deepEqual(await guard(p.tabId, "arm"), { armed: true, blocked: [] });
+    assert.deepEqual(await guard(p.tabId, "arm"), { armed: true, origin: base, blocked: [] });
     await inPage(p, `document.getElementById("pay").click()`);
     await blocked(p, 1);
     assert.equal(await inPage(p, "location.pathname"), "/form", "nothing was submitted");
@@ -248,13 +253,16 @@ describe("the coder's browser commands", { skip: browser ? false : why, concurre
     assert.equal(b.url, p.url);
     assert.deepEqual([b.form.action, b.form.method, b.form.submitter, b.form.selector], [`${base}/next`, "GET", "#pay", "#checkout"]);
     const values = Object.fromEntries(b.form.fields.map((f) => [f.name, f.value]));
-    assert.deepEqual(values, { email: "ann@example.com", pw: "•••", csrf: "•••", cardnumber: "•••", note: "•••" });
+    assert.deepEqual(values, { email: "ann@example.com", pw: "•••", csrf: "•••", cardnumber: "•••", note: "•••", order: "1234567812345678", memo: "•••" });
+    assert.equal(b.frameId, 0);
     assert.equal(b.form.fields.find((f) => f.name === "email").label, "Email");
     assert.equal(JSON.stringify(st).match(/hunter2|tok-123|4111/), null);
   });
 
   it("Enter in a field, form.submit() and requestSubmit() are stopped too; so is an app's own handler", async () => {
     const p = pages["/form"];
+    // A page cannot switch the guard off by pretending to be put in the back/forward cache.
+    await inPage(p, `window.dispatchEvent(new PageTransitionEvent("pagehide", { persisted: true })), true`);
     await inPage(p, `document.getElementById("email").focus()`);
     for (const type of ["keyDown", "keyUp"]) {
       await browser.cdp.send("Input.dispatchKeyEvent", { type, key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, text: type === "keyDown" ? "\r" : undefined }, p.session);
@@ -273,7 +281,8 @@ describe("the coder's browser commands", { skip: browser ? false : why, concurre
 
   it("allow_once lets exactly the next submit through, and the next page is guarded again", async () => {
     const p = pages["/form"];
-    await guard(p.tabId, "allow_once");
+    // The latest blocked submit was #spa's: name the approved form instead.
+    await ok("submit_guard", p.tabId, { action: "allow_once", selector: "#checkout" });
     await inPage(p, `document.getElementById("pay").click()`);
     await at(p, "/next");
     await until(() => inPage(p, `document.readyState === "complete"`).catch(() => false), "/next to load");
@@ -285,6 +294,28 @@ describe("the coder's browser commands", { skip: browser ? false : why, concurre
     await guard(p.tabId, "disarm");
     await inPage(p, `document.getElementById("again-btn").click()`);
     await at(p, "/final"); // disarmed, the page submits
+  });
+
+  it("the guard ends when the tab's page leaves the armed origin; the other site submits freely", async () => {
+    const p = await open("/form");
+    await guard(p.tabId, "arm");
+    // localhost and 127.0.0.1 are two origins on the same server.
+    const other = base.replace("127.0.0.1", "localhost");
+    await browser.cdp.send("Page.navigate", { url: `${other}/form?elsewhere=1` }, p.session);
+    await until(() => inPage(p, `location.host.startsWith("localhost") && document.readyState === "complete"`).catch(() => false), "the other origin to load");
+    assert.deepEqual(await guard(p.tabId, "status"), { armed: false, origin: "", blocked: [] });
+    await inPage(p, `document.getElementById("pay").click()`);
+    await at(p, "/next");
+  });
+
+  it("expectOrigin: a command for a tab on another origin is refused with origin_changed", async () => {
+    const p = await open("/form");
+    const wrong = await command("page_info", p.tabId, { expectOrigin: "https://elsewhere.test" });
+    assert.equal(wrong.success, false);
+    assert.match(wrong.error, /^origin_changed: the tab is on http:\/\/127\.0\.0\.1:\d+, not https:\/\/elsewhere\.test$/);
+    const right = await command("page_info", p.tabId, { expectOrigin: base });
+    assert.equal(right.success, true, right.error);
+    assert.equal((await command("page_info", p.tabId, {})).success, true, "no expectOrigin: no check");
   });
 
   it("submit_prompt shows its banner in a closed root, rings Pay, and never submits", async () => {
