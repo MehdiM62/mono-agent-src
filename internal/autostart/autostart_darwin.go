@@ -5,6 +5,7 @@ package autostart
 import (
 	"context"
 	"fmt"
+	"html"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -29,6 +30,8 @@ const darwinPlistTemplate = `<?xml version="1.0" encoding="UTF-8"?>
 	<array>
 		<string>{{.Exe}}</string>
 		<string>daemon</string>
+		<string>--profile</string>
+		<string>{{.Profile}}</string>
 	</array>
 	<key>RunAtLoad</key>
 	<true/>
@@ -54,13 +57,13 @@ func serviceLogHint() string {
 	return "~/.monoagent/logs/daemon.log (and daemon.err.log)"
 }
 
-func renderPlist(exe, logs string) (string, error) {
+func renderPlist(exe, logs, profileID string) (string, error) {
 	var b strings.Builder
 	tmpl := template.Must(template.New("plist").Parse(darwinPlistTemplate))
 	err := tmpl.Execute(&b, struct {
-		Label, Exe, LogDir string
-		ExitTimeOut        int
-	}{Label, exe, logs, int(stopGrace / time.Second)})
+		Label, Exe, LogDir, Profile string
+		ExitTimeOut                 int
+	}{Label, exe, logs, html.EscapeString(profileID), int(stopGrace / time.Second)})
 	return b.String(), err
 }
 
@@ -80,7 +83,10 @@ func launchdDomain() string {
 	return "gui/" + strconv.Itoa(os.Getuid())
 }
 
-func (darwinInstaller) Install(ctx context.Context) (Result, error) {
+func (darwinInstaller) Install(ctx context.Context, profileID string) (Result, error) {
+	if profileID == "" {
+		return Result{}, errNoProfile
+	}
 	exe, err := executablePath()
 	if err != nil {
 		return Result{}, err
@@ -97,7 +103,7 @@ func (darwinInstaller) Install(ctx context.Context) (Result, error) {
 		return Result{}, fmt.Errorf("create %s: %w", filepath.Dir(path), err)
 	}
 
-	plist, err := renderPlist(exe, logs)
+	plist, err := renderPlist(exe, logs, profileID)
 	if err != nil {
 		return Result{}, fmt.Errorf("write %s: %w", path, err)
 	}
@@ -198,4 +204,14 @@ func (darwinInstaller) MainPID(ctx context.Context) (int, error) {
 		return strconv.Atoi(string(m[1]))
 	}
 	return 0, nil
+}
+
+// registeredDefinition is the text of the installed LaunchAgent plist.
+func registeredDefinition() (string, error) {
+	path, err := plistPath()
+	if err != nil {
+		return "", err
+	}
+	b, err := os.ReadFile(path)
+	return string(b), err
 }

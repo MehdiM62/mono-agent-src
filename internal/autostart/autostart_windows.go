@@ -24,7 +24,10 @@ func serviceLogHint() string {
 	return `%USERPROFILE%\.monoagent\logs\daemon.log`
 }
 
-func (windowsInstaller) Install(ctx context.Context) (Result, error) {
+func (windowsInstaller) Install(ctx context.Context, profileID string) (Result, error) {
+	if profileID == "" {
+		return Result{}, errNoProfile
+	}
 	exe, err := executablePath()
 	if err != nil {
 		return Result{}, err
@@ -39,7 +42,7 @@ func (windowsInstaller) Install(ctx context.Context) (Result, error) {
 	// StandardOutPath or systemd's journal), so the task runs a cmd
 	// wrapper that appends both streams to a file instead. /rl limited
 	// avoids requiring admin rights for a per-user task.
-	trArg := fmt.Sprintf(`cmd /c ""%s" daemon >> "%s" 2>&1"`, exe, logPath)
+	trArg := taskCommand(exe, logPath, profileID)
 
 	cmd := exec.CommandContext(ctx, "schtasks", "/create", "/tn", taskName,
 		"/sc", "onlogon", "/rl", "limited", "/f", "/tr", trArg)
@@ -122,3 +125,14 @@ func (windowsInstaller) Start(ctx context.Context) error {
 
 // MainPID: a scheduled task does not report its process in a form that is checked here.
 func (windowsInstaller) MainPID(context.Context) (int, error) { return 0, ErrPIDUnverifiable }
+
+// taskCommand is the Scheduled Task's command line: the daemon with its profile, output appended to logPath.
+func taskCommand(exe, logPath, profileID string) string {
+	return fmt.Sprintf(`cmd /c ""%s" daemon --profile "%s" >> "%s" 2>&1"`, exe, profileID, logPath)
+}
+
+// registeredDefinition is the task's XML export (schtasks /query /xml).
+func registeredDefinition() (string, error) {
+	out, err := exec.Command("schtasks", "/query", "/tn", taskName, "/xml").Output()
+	return string(out), err
+}

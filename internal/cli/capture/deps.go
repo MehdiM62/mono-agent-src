@@ -43,7 +43,7 @@ type Deps struct {
 	Page PageDeps
 	// OrgRoot resolves the project root holding .monomind/orgs for `capture task`'s --project
 	// (empty: the active profile's root); closeEnv releases what resolving it opened.
-	OrgRoot func(project string) (root string, closeEnv func())
+	OrgRoot func(project string) (root string, closeEnv func(), err error)
 }
 
 // PageDeps is what `capture page` takes from the CLI: the extension bridge.

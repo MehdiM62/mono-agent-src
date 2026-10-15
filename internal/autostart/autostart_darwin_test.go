@@ -71,3 +71,13 @@ func TestStatusNeedsTheJobLoaded(t *testing.T) {
 		t.Fatalf("launchctl %s", got)
 	}
 }
+
+func TestThePlistCarriesTheProfile(t *testing.T) {
+	plist, err := renderPlist("/usr/local/bin/monoagentcli", "/Users/ada/.monoagent/logs", "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, ok := profileFromDefinition(plist); !ok || got != "default" {
+		t.Fatalf("profileFromDefinition = %q, %v\n%s", got, ok, plist)
+	}
+}

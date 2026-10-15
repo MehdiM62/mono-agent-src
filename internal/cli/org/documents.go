@@ -26,7 +26,11 @@ func newOrgDocumentsCmd(env *orgEnv) *cobra.Command {
 			if !orgdesign.ValidOrgName(org) {
 				return env.d.InvalidInput("invalid org name %q", org)
 			}
-			v, err := orgbridge.ReadDocView(env.Root(), org, run)
+			root, err := env.RootErr()
+			if err != nil {
+				return err
+			}
+			v, err := orgbridge.ReadDocView(root, org, run)
 			if err != nil {
 				return env.d.InvalidInput("%s", err.Error())
 			}

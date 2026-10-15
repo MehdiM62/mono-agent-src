@@ -62,16 +62,17 @@ monoagentcli version
 monoagentcli account login             # sign in to monoes.me (required, see above)
 monoagentcli ref                       # built-in offline docs: commands, nodes, expressions
 monoagentcli node list                 # every node type this binary has
+monoagentcli profile list              # your profiles; the commands below act on one, so they say --profile <name>
 
 # Try the flagship example workflow (prints the new workflow id)
 monoagentcli workflow templates list
-monoagentcli workflow import --file examples/morning-briefing.json   # ships in the source tree; `workflow templates list` shows the bundled ones
-monoagentcli workflow activate <id>              # enable its triggers
-monoagentcli workflow run <id>                   # run it now
+monoagentcli --profile work workflow import --file examples/morning-briefing.json   # ships in the source tree; `workflow templates list` shows the bundled ones
+monoagentcli --profile work workflow activate <id>              # enable its triggers
+monoagentcli --profile work workflow run <id>                   # run it now
 # Note: the summarize step runs on a local AI agent — it needs monomind and an installed runtime (see "How AI works in Mono Agent").
 
 # Run the scheduler daemon (keeps cron/webhook triggers alive)
-monoagentcli daemon
+monoagentcli --profile work daemon
 ```
 
 `install.sh` installs the latest release (macOS arm64/amd64, Linux amd64/arm64). It reads the release's `manifest.json` from the latest GitHub release of monoes/mono-agent (monoes.me second), verifies the manifest's Ed25519 signature against the release key pinned in the script (key id `3b3e972f459a3151`; this needs an `openssl` with Ed25519, otherwise it says the install is checksum-only), and checks each download's SHA256 against the manifest. Without `INSTALL_DIR` it installs into `/usr/local/bin` when you can write there without sudo, else into `~/.local/bin`, and prints the line to add to your shell if that folder is not on your `PATH`; it never asks for sudo unless you chose an `INSTALL_DIR` that needs it. `--app` also installs the desktop app. You can also grab a CLI / desktop build from [releases](https://github.com/monoes/mono-agent/releases/latest). There's also [Docker](Dockerfile). This repository publishes releases only; the source is not public, so there is nothing to clone.
@@ -159,10 +160,10 @@ More ready-to-run workflows (RSS→AI→email, Sheets→Gmail, Stripe→Sheets s
 <td width="50%">
 
 ### 👤 Multi-Profile Workspaces
-- Named workspaces (`default`, `work`, `client-a`, …) with full tenant isolation
+- Named workspaces (`work`, `client-a`, …) with full tenant isolation
 - Workflows, connections, people, vault images, HIL items — all scoped per workspace
-- Switch with `--profile <name>` on any CLI command or via the GUI sidebar
-- Running workflows in one workspace are unaffected when you switch to another
+- Name the workspace with `--profile <id|name>` on every CLI command that acts on one; the GUI sidebar picks it for you there. There is no active profile and no `profile switch`
+- Running workflows in one workspace are unaffected by work in another
 - Toggle **All profiles** in the dashboard header to see every workspace at once; rows are labelled with their profile, and **Switch** takes you to it
 
 </td>
@@ -261,9 +262,9 @@ The pattern Mono Agent recommends for *any* outbound communication — the AI dr
 Approve from the terminal while the workflow waits:
 
 ```bash
-monoagentcli hil list               # show pending items
-monoagentcli hil approve <id>       # resume the workflow
-monoagentcli hil reject <id>        # drop the item
+monoagentcli --profile work hil list               # show pending items
+monoagentcli --profile work hil approve <id>       # resume the workflow
+monoagentcli --profile work hil reject <id>        # drop the item
 ```
 
 ---
@@ -276,7 +277,7 @@ Mono Agent has no built-in AI provider and stores no API keys for text AI. Every
 monoagentcli agent scan              # runtimes monomind knows, and which are installed
 monoagentcli agent install claude    # install one
 monoagentcli agent test claude       # smoke turn; also proves the login works
-monoagentcli doctor --group monomind # Node.js, the monomind binary, version and features
+monoagentcli --profile work doctor --group monomind # Node.js, the monomind binary, version and features
 ```
 
 Agent turns (except coder mode) run in the agent CLI's own sandbox where monomind can do it: they can write only their working folder and the temp dir. Today that covers codex and grok (monomind 2.11.1 or newer). Other runtimes follow once monomind ships `agent exec --sandbox` (monomind#396), and claude keeps its scoped access. Each chat turn shows a badge saying which applies, and `doctor` has a matching row. Details: [AGENTS.md](AGENTS.md#how-ai-works-in-mono-agent).
@@ -440,7 +441,9 @@ Publish to and read **your own accounts** on these platforms via the Chrome exte
 
 ## CLI Reference
 
-The binary is `monoagentcli`. Most commands accept `--json` for machine-readable output and `--profile <name>` to scope to a workspace.
+The binary is `monoagentcli`. Most commands accept `--json` for machine-readable output. Every command that acts on a workspace takes an explicit `--profile <id|name>`; the examples below pass `--profile work`. Machine-wide commands (`version`, `update`, `config`, `message-template`, `agent`, `account`, `db`, `node list|schema`, `api config`, `profile list|create|get`, `ref`, …) need none.
+
+> **Warning release:** today a workspace command run without `--profile` still works, prints a warning and falls back to the legacy active profile. The next release refuses it. Pass `--profile` now.
 
 <details>
 <summary><strong>Workflow</strong></summary>
@@ -451,26 +454,26 @@ The binary is `monoagentcli`. Most commands accept `--json` for machine-readable
 > unreviewed shell script — read it (or `workflow validate`/`get --json` it) before importing.
 
 ```bash
-monoagentcli workflow list                          # list workflows (--json)
-monoagentcli workflow get <id>                      # print a workflow as JSON
-monoagentcli workflow create <name>                 # new blank workflow
-monoagentcli workflow import --file flow.json       # import (also accepts stdin)
-monoagentcli workflow export <id>                   # export as JSON
-monoagentcli workflow validate <id>                 # validate against node schemas (exit 3 on invalid)
-monoagentcli workflow run <id>                      # run and wait
-monoagentcli workflow run <id> --dry-run            # validate + print execution plan, no run
-monoagentcli workflow run <id> --no-wait            # print execution id, exit immediately
-monoagentcli workflow run <id> --json               # execution record + per-node outputs
-monoagentcli workflow run <id> --input '{"key":1}'  # inject trigger data
-monoagentcli workflow activate <id>                 # enable triggers
-monoagentcli workflow deactivate <id>               # disable triggers
-monoagentcli workflow executions <id>               # run history
-monoagentcli workflow search [query]                # search workflows & templates
+monoagentcli --profile work workflow list                          # list workflows (--json)
+monoagentcli --profile work workflow get <id>                      # print a workflow as JSON
+monoagentcli --profile work workflow create <name>                 # new blank workflow
+monoagentcli --profile work workflow import --file flow.json       # import (also accepts stdin)
+monoagentcli --profile work workflow export <id>                   # export as JSON
+monoagentcli --profile work workflow validate <id>                 # validate against node schemas (exit 3 on invalid)
+monoagentcli --profile work workflow run <id>                      # run and wait
+monoagentcli --profile work workflow run <id> --dry-run            # validate + print execution plan, no run
+monoagentcli --profile work workflow run <id> --no-wait            # print execution id, exit immediately
+monoagentcli --profile work workflow run <id> --json               # execution record + per-node outputs
+monoagentcli --profile work workflow run <id> --input '{"key":1}'  # inject trigger data
+monoagentcli --profile work workflow activate <id>                 # enable triggers
+monoagentcli --profile work workflow deactivate <id>               # disable triggers
+monoagentcli --profile work workflow executions <id>               # run history
+monoagentcli --profile work workflow search [query]                # search workflows & templates
 monoagentcli workflow templates list                # bundled ready-to-use templates
-monoagentcli workflow node add <id> --type core.filter --name Filter
-monoagentcli workflow node set <id> <node-id> --config '{"max":5}'
-monoagentcli workflow node remove <id> <node-id>
-monoagentcli workflow connect <id> --from n1:main --to n2:main
+monoagentcli --profile work workflow node add <id> --type core.filter --name Filter
+monoagentcli --profile work workflow node set <id> <node-id> --config '{"max":5}'
+monoagentcli --profile work workflow node remove <id> <node-id>
+monoagentcli --profile work workflow connect <id> --from n1:main --to n2:main
 ```
 
 </details>
@@ -481,7 +484,7 @@ monoagentcli workflow connect <id> --from n1:main --to n2:main
 ```bash
 monoagentcli node list                              # all node types (--json)
 monoagentcli node schema core.if                    # JSON schema for a node type
-monoagentcli node run http.request \
+monoagentcli --profile work node run http.request \
   --config '{"method":"GET","url":"https://httpbin.org/get"}'
 ```
 
@@ -491,19 +494,19 @@ monoagentcli node run http.request \
 <summary><strong>Secrets & Connections</strong></summary>
 
 ```bash
-monoagentcli secret add --kind secret --name aws \
+monoagentcli --profile work secret add --kind secret --name aws \
   --field access_key_id=... --field secret_access_key=...   # values via flags or stdin
-monoagentcli secret list                            # metadata only — never values
-monoagentcli secret get <name>                      # resolve a vault reference (no plaintext)
-monoagentcli secret update <name> / secret rm <name>
-monoagentcli secret export                          # encrypted, passphrase-protected bundle
-monoagentcli secret import <file>                   # restore on another machine
+monoagentcli --profile work secret list                            # metadata only — never values
+monoagentcli --profile work secret get <name>                      # resolve a vault reference (no plaintext)
+monoagentcli --profile work secret update <name> / secret rm <name>
+monoagentcli --profile work secret export                          # encrypted, passphrase-protected bundle
+monoagentcli --profile work secret import <file>                   # restore on another machine
 monoagentcli secret encrypt-connections             # one-time seal of legacy plaintext creds
 
-monoagentcli login <platform>                       # browser session login (saved locally)
-monoagentcli login status
-monoagentcli connect <platform>                     # add an API credential
-monoagentcli connect list / connect test <id> / connect remove <id>
+monoagentcli --profile work login <platform>                       # browser session login (saved locally)
+monoagentcli --profile work login status
+monoagentcli --profile work connect <platform>                     # add an API credential
+monoagentcli --profile work connect list / connect test <id> / connect remove <id>
 ```
 
 </details>
@@ -512,9 +515,9 @@ monoagentcli connect list / connect test <id> / connect remove <id>
 <summary><strong>Human-in-the-Loop</strong></summary>
 
 ```bash
-monoagentcli hil list                               # pending review items
-monoagentcli hil approve <id>                       # resume the workflow
-monoagentcli hil reject <id>                        # drop the item (workflow errors out)
+monoagentcli --profile work hil list                               # pending review items
+monoagentcli --profile work hil approve <id>                       # resume the workflow
+monoagentcli --profile work hil reject <id>                        # drop the item (workflow errors out)
 ```
 
 </details>
@@ -523,12 +526,12 @@ monoagentcli hil reject <id>                        # drop the item (workflow er
 <summary><strong>People (CRM)</strong></summary>
 
 ```bash
-monoagentcli people list                            # contacts (--json)
-monoagentcli people import --file people.json --platform linkedin   # JSON array format
-monoagentcli people messages list <person-id>       # message history
-monoagentcli people messages compose <person-id>    # AI-assisted draft
-monoagentcli people messages send-draft <message-id>   # send an approved draft
-monoagentcli people status set <person-id> "text"   # status timeline
+monoagentcli --profile work people list                            # contacts (--json)
+monoagentcli --profile work people import --file people.json --platform linkedin   # JSON array format
+monoagentcli --profile work people messages list <person-id>       # message history
+monoagentcli --profile work people messages compose <person-id>    # AI-assisted draft
+monoagentcli --profile work people messages send-draft <message-id>   # send an approved draft
+monoagentcli --profile work people status set <person-id> "text"   # status timeline
 ```
 
 </details>
@@ -537,8 +540,8 @@ monoagentcli people status set <person-id> "text"   # status timeline
 <summary><strong>For AI agents</strong></summary>
 
 ```bash
-monoagentcli mcp                  # MCP server over stdio — read-only tools by default
-monoagentcli mcp --allow-mutations   # also expose workflow_run, hil_approve, …
+monoagentcli --profile work mcp                  # MCP server over stdio — read-only tools by default
+monoagentcli --profile work mcp --allow-mutations   # also expose workflow_run, hil_approve, …
 monoagentcli ref                  # built-in offline docs: commands, nodes, expressions, examples
 monoagentcli ref node core.if     # detailed docs for one node type
 ```
@@ -565,8 +568,8 @@ Full agent documentation: [AGENTS.md](AGENTS.md).
 <summary><strong>Scheduling</strong></summary>
 
 ```bash
-monoagentcli workflow activate <id>   # enable the workflow's trigger.schedule / trigger.webhook
-monoagentcli daemon                   # keep all workflow triggers alive; blocks until Ctrl+C
+monoagentcli --profile work workflow activate <id>   # enable the workflow's trigger.schedule / trigger.webhook
+monoagentcli --profile work daemon                   # keep all workflow triggers alive; blocks until Ctrl+C
 monoagentcli daemon install           # start the daemon automatically at login
 ```
 

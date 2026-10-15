@@ -24,7 +24,7 @@ BEFORE HAND-BUILDING ONE — CHECK FOR A BUNDLED TEMPLATE FIRST
   monoagentcli workflow templates use <id>                   # save an editable copy
 
 Instantiates a ready-made, pre-wired workflow (fresh node/connection IDs,
-correct config shape) for the active profile in one command — starts
+correct config shape) for the --profile profile in one command — starts
 inactive so you can fill in credentials before 'workflow activate'. Only
 fall back to building the JSON below by hand for something not covered by
 an existing template.

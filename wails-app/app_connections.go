@@ -293,7 +293,7 @@ func (a *App) runConnCLI(stdin string, result interface{}, args ...string) error
 	if err != nil {
 		return err
 	}
-	cmd := exec.CommandContext(a.ctx, cliBin, append([]string{"--profile", a.getActiveProfileID(), "--json"}, args...)...)
+	cmd := exec.CommandContext(a.ctx, cliBin, scopedCLIArgs(a.getActiveProfileID(), args...)...)
 	suppressConsole(cmd)
 	if stdin != "" {
 		cmd.Stdin = strings.NewReader(stdin)

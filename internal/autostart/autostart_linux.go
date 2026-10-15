@@ -31,7 +31,7 @@ Description=MonoAgent daemon (workflow engine + extension bridge)
 After=default.target
 
 [Service]
-ExecStart={{.Exe}} daemon
+ExecStart={{.Exe}} daemon --profile {{.Profile}}
 Restart=on-failure
 RestartSec=5
 TimeoutStopSec={{.StopSec}}
@@ -48,13 +48,14 @@ const systemdStopTimeout = 90 * time.Second
 // renderUnit returns the unit file for the binary at exe. The path is
 // quoted for systemd, which splits ExecStart on spaces and expands % and $:
 // a binary under a folder with a space in its name would otherwise not run.
-func renderUnit(exe string) (string, error) {
+func renderUnit(exe, profileID string) (string, error) {
 	var b strings.Builder
 	tmpl := template.Must(template.New("unit").Parse(linuxUnitTemplate))
 	if err := tmpl.Execute(&b, struct {
 		Exe     string
+		Profile string
 		StopSec int
-	}{systemdQuote(exe), int(systemdStopTimeout / time.Second)}); err != nil {
+	}{systemdQuote(exe), systemdQuote(profileID), int(systemdStopTimeout / time.Second)}); err != nil {
 		return "", err
 	}
 	return b.String(), nil
@@ -90,7 +91,10 @@ var systemctl = func(ctx context.Context, args ...string) ([]byte, error) {
 	return exec.CommandContext(ctx, "systemctl", args...).Output()
 }
 
-func (linuxInstaller) Install(ctx context.Context) (Result, error) {
+func (linuxInstaller) Install(ctx context.Context, profileID string) (Result, error) {
+	if profileID == "" {
+		return Result{}, errNoProfile
+	}
 	if !systemdAvailable() {
 		return Result{}, fmt.Errorf(
 			"no systemd user session detected (/run/systemd/system missing) — `daemon install` needs " +
@@ -109,7 +113,7 @@ func (linuxInstaller) Install(ctx context.Context) (Result, error) {
 		return Result{}, fmt.Errorf("create %s: %w", filepath.Dir(path), err)
 	}
 
-	unit, err := renderUnit(exe)
+	unit, err := renderUnit(exe, profileID)
 	if err != nil {
 		return Result{}, fmt.Errorf("write %s: %w", path, err)
 	}
@@ -217,4 +221,14 @@ func (linuxInstaller) MainPID(ctx context.Context) (int, error) {
 		return 0, fmt.Errorf("systemctl reported main pid %q", strings.TrimSpace(string(out)))
 	}
 	return pid, nil
+}
+
+// registeredDefinition is the text of the installed unit file.
+func registeredDefinition() (string, error) {
+	path, err := unitPath()
+	if err != nil {
+		return "", err
+	}
+	b, err := os.ReadFile(path)
+	return string(b), err
 }

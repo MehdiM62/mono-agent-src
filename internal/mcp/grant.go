@@ -83,8 +83,15 @@ func (s *Server) grantScope(ctx context.Context) (*orggrant.Bundle, *runtime, er
 	if err != nil {
 		return nil, nil, err
 	}
-	if s.opts.Profile != "" && s.opts.Profile != b.ProfileID {
-		return nil, nil, fmt.Errorf("%s: grant %s belongs to profile %q, not %q", codeRefusedGrant, s.opts.Grant, b.ProfileID, s.opts.Profile)
+	if s.opts.Profile != "" {
+		// --profile is an id or a name; compare ids.
+		want, err := resolveProfileID(rt.db.DB, s.opts.Profile)
+		if err != nil {
+			return nil, nil, fmt.Errorf("%s: %v", codeRefusedGrant, err)
+		}
+		if want != b.ProfileID {
+			return nil, nil, fmt.Errorf("%s: grant %s belongs to profile %q, not %q", codeRefusedGrant, s.opts.Grant, b.ProfileID, s.opts.Profile)
+		}
 	}
 	org, role := os.Getenv("MONOMIND_ORG_NAME"), os.Getenv("MONOMIND_ORG_ROLE")
 	if org == "" {
