@@ -26,7 +26,9 @@ CLI="$W/monoagentcli"
 # Keep this devaccount build independent of the production enforcement date.
 export MONOAGENT_DEV_ENFORCE_FROM=2999-01-01T00:00:00Z
 PATH_FOR_RUN="${MONOMIND_PATH:+$MONOMIND_PATH:}$PATH"
-mc() { env HOME="$H" PATH="$PATH_FOR_RUN" MONOAGENT_EXTENSION_PORT="$PORT" MONOAGENT_SUMMARY_RUNTIME=off "$CLI" "$@"; }
+# shellcheck source=../lib/mono.sh
+. "$REPO/scripts/lib/mono.sh"
+mc() { mono_guard env HOME="$H" PATH="$PATH_FOR_RUN" MONOAGENT_EXTENSION_PORT="$PORT" MONOAGENT_SUMMARY_RUNTIME=off "$CLI" "$@"; }
 echo "monomind: $(env HOME="$H" PATH="$PATH_FOR_RUN" monomind --version)"
 
 cleanup() {
@@ -103,4 +105,6 @@ mc --profile Work --json profile search-knowledge "$Q" | tee "$W/chat-work.json"
 mc --profile Personal --json profile search-knowledge "$Q" | tee "$W/chat-personal.json" | jq -e 'map(select(.Path | test("inbox"))) | length == 0' >/dev/null \
   || { echo "FAIL: chat search in Personal sees Work's capture"; exit 1; }
 echo "PASS: chat knowledge search is profile-scoped"
+mono_scan_log "$W/bridge.log"
+mono_check_clean
 echo "artifacts: $W"
