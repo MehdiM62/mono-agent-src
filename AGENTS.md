@@ -2410,9 +2410,10 @@ element's styles, design tokens and source file, pixel diffs, responsive
 sweeps, and `browser pick` to have the user point at an element.
 `monoagentcli ref browser` lists every command with its JSON. Pass
 `--profile <id>` on every one: they act on a profile, and the CLI refuses a
-profile-scoped command without it (the machine-wide `browser allow`,
-`browser browsers` and `browser diff` don't need it). A coder chat's lead
-and its workers are told their profile id in their instructions.
+profile-scoped command without it (the machine-wide `browser permissions`,
+`browser allow`, `browser browsers` and `browser diff` don't need it). A
+coder chat's lead and its workers are told their profile id in their
+instructions.
 
 ```bash
 monoagentcli --profile <id> --json browser open http://localhost:5173       # {"tabId":812,"url":…}
@@ -2421,21 +2422,36 @@ monoagentcli --profile <id> --json browser console --tab 812 --level error   # {
 monoagentcli --profile <id> --json browser network --tab 812 --failed
 ```
 
-- **Origin policy (agents only; your own terminal is unrestricted).** An
-  agent (any agent-context marker, as for `hil`) may open and act on
-  `localhost`, `*.localhost`, `127.0.0.0/8`, `::1`, `*.local`, `*.test`,
-  private-network (RFC 1918) hosts and the user's allowlist (`browser allow
-  list|add|remove`; add and remove refuse an agent). Anything else, and
-  `file:` and `chrome:` pages, is refused. Agents get no cookie commands and
-  no raw CDP, and `browser eval` only on local and dev pages
-  (`eval_not_allowed`); their console and network reads show only what the
-  tab's current site logged. Their tabs go into the tab group `Coder ·
-  <label>`.
+- **Permissions per kind of agent (your own terminal is unrestricted).** The
+  user sets a level for each kind of agent in Settings → *Agent browser
+  permissions* (`browser permissions set <kind> <level>`, refused in an
+  agent). The kinds are `coder` (coder chats and their workers, marked
+  `MONOAGENT_AGENT_KIND=coder`), `org` (org roles: `MONOMIND_ORG_ROLE`, and
+  the runs the org starts), `chat` (the in-app chat and the workflow runs it
+  starts) and `other` (any other agent shell). The levels are
+  `full-no-approvals` (any site, submits go through), `full` (any site,
+  submits on real sites wait for approval), `dev` (local and dev pages plus
+  sites with an allow rule), `ask` (like `dev`, but a new site raises an
+  "allow this site?" Human-in-Loop item) and `off`. Defaults: `coder` and
+  `other` `dev`, `chat` and `org` `full`. Site rules (`browser permissions
+  site <origin> allow|block|clear`; `browser allow add|remove|list` are
+  aliases) apply to every kind, and a block wins over every level. Local
+  and dev pages (`localhost`, `*.localhost`, `127.0.0.0/8`, `::1`,
+  `*.local`, `*.test`, RFC 1918 hosts) are allowed at every level but
+  `off`; `file:` and `chrome:` pages never. An agent reads its own kind and
+  level with `browser permissions` and never tries to change them. Refusals
+  exit 3 with `browser_off`, `site_blocked` or `origin_not_allowed`;
+  `site_needs_approval` carries a `hil_id`: wait for the user, then retry.
+  Agents get no cookie commands and no raw CDP, and `browser eval` only
+  where submits need no approval (`eval_not_allowed`); their console and
+  network reads show only what the tab's current site logged. Their tabs go
+  into the tab group `Coder · <label>`.
   A command whose tab left the checked page before it ran is refused with
   exit 3, code `origin_changed`: see where the tab is (`browser tabs`)
   before acting again.
-- **Form submits.** On an allowed page that is not local, the extension's
-  submit guard is armed before an agent acts. A click on a submit-like
+- **Form submits.** On an allowed page that is not local (at every level
+  but `full-no-approvals`), the extension's submit guard is armed before an
+  agent acts. A click on a submit-like
   control, or a submit the guard blocked (Enter, script), becomes a
   `browser.submit` Human-in-Loop item, and the command exits **3** with
   `{"status":"awaiting_approval","hil_id":…}`. Only the user's approval
@@ -2447,20 +2463,21 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
   another origin, before acting there) when an AI caller started its run: an
   agent's shell, a chat tool call (`run_workflow` starts `workflow run` with
   `MONOAGENT_AI_CALLER=chat`), a `workflow run` either of them started (its
-  trigger data carries `_ai_caller`, so a daemon that adopts a `--no-wait`
-  run or resumes a paused one sees it; workflows never see the field), or the
-  org side (granted calls, automation roles, `trigger.org`). A blocked submit
+  trigger data carries `_ai_caller` with its kind, so a daemon that adopts a
+  `--no-wait` run or resumes a paused one sees it; workflows never see the
+  field), or the org side (granted calls, automation roles, `trigger.org`). A blocked submit
   on a page that is not local becomes a `browser.submit` item and the run
   waits: approved, it is sent (if the page still shows the approved form,
   else status `blocked`) and the goal goes on; rejected, status
   `blocked`; still pending at the node's timeout, status `awaiting_approval`
   with `hil_id` and `tab_id`, and the tab stays open for `browser submit
   --hil`. A run that can't arm the guard fails. Runs the user starts behave
-  as before. A run an agent's shell started (`_ai_caller` `agent`) also
-  follows the origin policy, on its start URL and on every page it reaches;
-  anything else fails the run, naming `browser allow add <origin>`. The
-  chat's and the org side's runs keep real sites, behind the submit gate
-  only.
+  as before. The run also follows its kind's level, on its start URL and on
+  every page it reaches: an agent's shell is `coder`, `org` or `other` (a
+  daemon reads the kind from `_ai_caller`; an unknown mark is `other`), a
+  chat tool call `chat`, the org side `org`. `off` and a refused site fail the run with the
+  refusal's message; `ask` raises the "allow this site?" item and waits like
+  a submit; `full-no-approvals` runs without the submit guard.
 - **Not covered.** A workflow an agent activates on a schedule or a webhook
   runs later in the daemon as the user's own (no mark), and so do
   sub-workflows of org-side runs, `workflow templates run`, and a run the

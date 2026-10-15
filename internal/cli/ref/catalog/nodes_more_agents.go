@@ -216,7 +216,7 @@ Port of browser-use/jev-ultrafast.`,
   "fail_on_blocked": false
 }`,
 		Inputs: "any items (one run per item; none = one run)",
-		Outputs: `input item + status (done|blocked|budget|timeout|awaiting_approval), reason, url, title,
+		Outputs: `input item + status (done|blocked|budget|timeout|awaiting_approval|site_needs_approval), reason, url, title,
 page_text, steps[] (action, operation, text, value_name, probability,
 confidence, latency_ms, page_changed), decisions, value_requests, text_turns,
 low_confidence_steps (steps with confidence < 0.5), jev_input_tokens, elapsed_ms;
@@ -235,18 +235,19 @@ value is ever typed into one. Gate on low_confidence_steps downstream when a
 shaky run matters.
 Skips file inputs too; frames, shadow DOM, canvas and uploads can block.
 Get a key at console.typesafe.ai and store it: "monoagentcli jev key set".
-Form submits need approval when an AI started the run (a coder or org role's
-shell, a coding agent, a chat tool call, a workflow run one of them started,
-also when a daemon runs it, a granted call, an automation role or
-trigger.org): the extension's submit guard holds a submit on any page but
-localhost/dev, it becomes a browser.submit Human-in-Loop item, and the run
-waits. Approved, it is sent and the goal goes on; rejected, status blocked;
-still waiting at the timeout, status awaiting_approval with hil_id and
-tab_id, the tab left open for "monoagentcli browser submit --hil <id>". A run
-an agent's shell started also keeps to local/dev pages and the user's
-browser allowlist ("monoagentcli browser allow add <origin>"), on its start
-URL and every page it reaches. A run you start yourself is not gated. See
-"monoagentcli ref browser".`,
+A run an AI started (a coder chat or its worker, an org role, another agent
+shell, a chat tool call, a workflow run one of them started, also when a
+daemon runs it, a granted call, an automation role or trigger.org) follows
+that kind of agent's level in Settings → Agent browser permissions, on its
+start URL and every page it reaches: off and a refused or blocked site fail
+the run; ask raises an "allow this site?" Human-in-Loop item and waits
+(status site_needs_approval with hil_id if no answer comes in time). Below
+full-no-approvals, the extension's submit guard holds a form submit on any
+page but localhost/dev as a browser.submit item and the run waits:
+approved, it is sent and the goal goes on; rejected, status blocked; still
+waiting at the timeout, status awaiting_approval with hil_id and tab_id, the
+tab left open for "monoagentcli browser submit --hil <id>". A run you start
+yourself is not gated. See "monoagentcli ref browser".`,
 	},
 	{
 		Type:     "ai.choose",
