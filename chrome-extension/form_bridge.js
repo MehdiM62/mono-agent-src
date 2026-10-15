@@ -5,7 +5,9 @@
  *
  * Scans the active tab's form fields (form_page.js), asks the bridge which of
  * them the profile's own documents can answer (`form.fill`), and writes the
- * answers into the page. It never submits. Runtime and model are the panel's
+ * answers into the page. It never submits: once a field was filled, the page
+ * asks the person to review the form and press Submit themselves (decision 4,
+ * MonoCoderBridge.promptUserToSubmit). Runtime and model are the panel's
  * "AI for summaries" choice, as for chat.
  *
  * After ask.js, chat_core.js and summary_ai.js; recall_bridge.js installs
@@ -17,6 +19,7 @@
 
   const PAGE_FILE = "form_page.js";
   const FILL_TIMEOUT_MS = 180000;
+  const SUBMIT_MESSAGE = "Review the form and press Submit yourself";
   let running = false;
 
   async function activeTab(msg) {
@@ -67,6 +70,8 @@
       }
       const values = (data && Array.isArray(data.values) ? data.values : []).filter((v) => v && typeof v.id === "string" && typeof v.value === "string");
       const done = await inPage(tab.id, (vals) => globalThis.MonoFormPage.apply(vals), [values.map(({ id, value }) => ({ id, value }))]);
+      // No selector: the banner finds the form the last filled field is in.
+      if (done && done.filled > 0 && root.MonoCoderBridge) await root.MonoCoderBridge.promptUserToSubmit(tab.id, { message: SUBMIT_MESSAGE });
       const sources = [...new Set(values.map((v) => v.source).filter(Boolean))];
       return { ok: true, filled: (done && done.filled) || 0, found: asked.length, sources };
     } finally {
