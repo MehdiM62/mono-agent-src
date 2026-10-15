@@ -14,6 +14,7 @@ import (
 
 	"github.com/monoes/mono-agent/internal/extension"
 	"github.com/monoes/mono-agent/internal/hilsend"
+	"github.com/monoes/mono-agent/internal/profiledir"
 )
 
 // Submit items: a form submit an agent tried on a non-local origin, held
@@ -164,7 +165,7 @@ func IsSubmitItem(nodeConfig string) bool {
 // CreateSubmitItem stores a pending submit item and returns it.
 func CreateSubmitItem(ctx context.Context, db *sql.DB, req SubmitRequest) (SubmitItem, error) {
 	if req.Profile == "" {
-		req.Profile = "default"
+		return SubmitItem{}, profiledir.ErrNoProfile
 	}
 	digest := ""
 	if req.Page != nil && req.FrameID == 0 {
@@ -219,7 +220,7 @@ func GetSubmitItem(ctx context.Context, db *sql.DB, profile, id string) (SubmitI
 func findSubmit(ctx context.Context, db *sql.DB, profile, id string) (SubmitItem, submitRecord, error) {
 	id = strings.TrimSpace(id)
 	if profile == "" {
-		profile = "default"
+		return SubmitItem{}, submitRecord{}, profiledir.ErrNoProfile
 	}
 	if id == "" {
 		return SubmitItem{}, submitRecord{}, ErrSubmitNotFound
@@ -348,7 +349,7 @@ var errRaced = errors.New("the item changed meanwhile")
 
 func updateSubmit(ctx context.Context, db *sql.DB, profile, id, from, to string, rec submitRecord) error {
 	if profile == "" {
-		profile = "default"
+		return profiledir.ErrNoProfile
 	}
 	raw, err := json.Marshal(rec)
 	if err != nil {

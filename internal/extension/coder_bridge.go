@@ -100,7 +100,8 @@ func registerCoderBridge(s *Server, cli coderCLI) *coderBridge {
 	return cb
 }
 
-// coderProfile is the profile param, else the asking browser's.
+// coderProfile is the profile param, else the asking browser's. A request
+// that names neither is refused, as the chat methods refuse it.
 func coderProfile(req *Request) (string, error) {
 	p, err := chatProfile(req)
 	if err != nil || p != "" {
@@ -109,7 +110,7 @@ func coderProfile(req *Request) (string, error) {
 	if o := req.Origin.Profile; o != "" && safeArgValue(o) && !strings.Contains(o, "=") {
 		return o, nil
 	}
-	return "", nil
+	return "", invalidParam("%s", chooseProfileMessage)
 }
 
 func coderConversationParam(req *Request) (string, error) {

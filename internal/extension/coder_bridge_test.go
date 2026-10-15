@@ -86,6 +86,9 @@ func callCoder(t *testing.T, srv *Server, method string, params map[string]any, 
 	if !ok {
 		t.Fatalf("%s not registered", method)
 	}
+	if origin.Profile == "" {
+		origin.Profile = "p1" // a request names its profile; here the asking browser is bound to one
+	}
 	res, err := h(context.Background(), &Request{Method: method, Params: params, Origin: origin}, func(string, string) {})
 	if err != nil {
 		return nil, err
@@ -174,14 +177,30 @@ func TestCoderReadMethodsPassThrough(t *testing.T) {
 	}}
 	srv, _ := coderSrv(f)
 	for method, want := range map[string]string{
-		MethodCoderQueueList: "--json coder queue list",
-		MethodCoderProjects:  "--json coder projects list",
-		MethodCoderList:      "--json coder list",
+		MethodCoderQueueList: "--profile=p1 --json coder queue list",
+		MethodCoderProjects:  "--profile=p1 --json coder projects list",
+		MethodCoderList:      "--profile=p1 --json coder list",
 	} {
 		res, err := callCoder(t, srv, method, nil, ConnInfo{})
 		if err != nil || res["seen"] != want {
 			t.Errorf("%s = %v %v, want %q", method, res, err, want)
 		}
+	}
+}
+
+func TestCoderRequestWithoutAProfileIsRefused(t *testing.T) {
+	f := &fakeCoderCLI{reply: func([]string) (string, error) { return `{}`, nil }}
+	srv, _ := coderSrv(f)
+	h, ok := srv.handlerFor(MethodCoderList)
+	if !ok {
+		t.Fatal("coder.list not registered")
+	}
+	_, err := h(context.Background(), &Request{Method: MethodCoderList}, func(string, string) {})
+	if err == nil || !strings.Contains(err.Error(), chooseProfileMessage) {
+		t.Fatalf("err = %v, want %q", err, chooseProfileMessage)
+	}
+	if len(f.calls) != 0 {
+		t.Errorf("the CLI ran without a profile: %v", f.calls)
 	}
 }
 

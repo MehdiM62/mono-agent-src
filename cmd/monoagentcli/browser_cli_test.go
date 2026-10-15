@@ -44,7 +44,7 @@ func newBrowserTest(t *testing.T, agent bool) *browserTest {
 	old := browserBridge
 	browserBridge = func() (browserctl.Sender, error) { return fake, nil }
 	t.Cleanup(func() { browserBridge = old })
-	return &browserTest{t: t, cfg: &globalConfig{DBPath: testdb.Path(t), JSONOutput: true}, fake: fake}
+	return &browserTest{t: t, cfg: &globalConfig{DBPath: testdb.Path(t), ProfileID: "default", JSONOutput: true}, fake: fake}
 }
 
 // run executes `browser args…` and returns stdout and the error.
