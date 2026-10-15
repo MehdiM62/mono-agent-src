@@ -2443,7 +2443,15 @@ monoagentcli --json browser network --tab 812 --failed
   `blocked`; still pending at the node's timeout, status `awaiting_approval`
   with `hil_id` and `tab_id`, and the tab stays open for `browser submit
   --hil`. A run that can't arm the guard fails. Runs the user starts behave
-  as before.
+  as before. A run an agent's shell started (`_ai_caller` `agent`) also
+  follows the origin policy, on its start URL and on every page it reaches;
+  anything else fails the run, naming `browser allow add <origin>`. The
+  chat's and the org side's runs keep real sites, behind the submit gate
+  only.
+- **Not covered.** A workflow an agent activates on a schedule or a webhook
+  runs later in the daemon as the user's own (no mark), and so do
+  sub-workflows of org-side runs, `workflow templates run`, and a run the
+  MCP `workflow_run` tool started that a daemon later resumes.
 - **Honest limit.** A full-access agent can read the bridge token and talk
   to the bridge directly, so the origin policy and the submit guard guard
   against mistakes and instructions a page plants, not against a determined

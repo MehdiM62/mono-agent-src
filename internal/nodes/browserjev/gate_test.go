@@ -30,26 +30,35 @@ func TestAICaller(t *testing.T) {
 		}
 	}
 
-	marked := workflow.WithTrigger(ctx, "trigger.manual", map[string]interface{}{workflow.AICallerKey: "an agent (CLAUDECODE)"})
-	if c, ok := aiCaller(marked); !ok || c.name != "an agent (CLAUDECODE)" {
-		t.Errorf("a run an agent's `workflow run` marked (a daemon runs it): %+v %v", c, ok)
+	if c, _ := aiCaller(org); c.shell {
+		t.Error("the org side keeps real sites (submit gate only)")
+	}
+	for mark, shell := range map[string]bool{"agent": true, "chat": false, "anything else": true} {
+		c, ok := aiCaller(workflow.WithTrigger(ctx, "trigger.manual", map[string]interface{}{workflow.AICallerKey: mark}))
+		if !ok || c.shell != shell {
+			t.Errorf("a run marked %q (a daemon runs it): %+v %v", mark, c, ok)
+		}
 	}
 	data := map[string]interface{}{"who": "zed"}
 	if MarkAICaller(data); len(data) != 1 {
 		t.Errorf("the user's own run is not marked: %v", data)
 	}
+	t.Setenv(EnvAICaller, "chat")
+	if MarkAICaller(data); data[workflow.AICallerKey] != "chat" {
+		t.Errorf("a chat tool call's run is marked chat: %v", data)
+	}
+	if c, ok := aiCaller(ctx); !ok || c.name != "chat" || c.by.AgentID != "chat" || c.shell {
+		t.Errorf("a chat tool call: %+v %v", c, ok)
+	}
 
+	// A shell is a shell even when it sets the chat's variable.
 	t.Setenv("CLAUDECODE", "1")
 	t.Setenv(hilsend.EnvAgentRole, "qa")
-	if MarkAICaller(data); data[workflow.AICallerKey] != "an agent (CLAUDECODE)" {
-		t.Errorf("an agent's run is marked: %v", data)
+	if MarkAICaller(data); data[workflow.AICallerKey] != "agent" {
+		t.Errorf("an agent's run is marked agent: %v", data)
 	}
-	if c, ok := aiCaller(ctx); !ok || c.name != "an agent (CLAUDECODE)" || c.by.Role != "qa" {
+	if c, ok := aiCaller(ctx); !ok || c.name != "an agent (CLAUDECODE)" || c.by.Role != "qa" || !c.shell {
 		t.Errorf("an agent's shell: %+v %v", c, ok)
-	}
-	t.Setenv(EnvAICaller, "chat")
-	if c, ok := aiCaller(ctx); !ok || c.name != "chat" || c.by.AgentID != "chat" {
-		t.Errorf("a chat tool call: %+v %v", c, ok)
 	}
 }
 

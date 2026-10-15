@@ -131,6 +131,10 @@ FORM SUBMITS ON A REAL SITE (EXIT 3)
   rejected, the run ends blocked; still waiting when its timeout ends, the run
   ends with status awaiting_approval, hil_id and tab_id, and the tab stays open
   for ` + "`browser submit --hil <id>`" + `. Runs the user starts behave as before.
+  A run an agent's shell started (directly, or a ` + "`workflow run`" + ` a daemon picks
+  up) also follows WHERE AN AGENT MAY GO: its start URL and every page it
+  reaches; anything else fails the run. A chat tool call's or the org's run
+  keeps real sites, behind the submit gate only.
 
 EXAMPLE: DEBUG LOOP (a dev server on localhost)
   monoagentcli --json browser open http://localhost:5173      # {"tabId":812,...}
