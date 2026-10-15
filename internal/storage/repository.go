@@ -81,7 +81,9 @@ func (d *Database) UpsertPerson(person *Person) error {
 		return fmt.Errorf("upserting person %s/%s: %w", person.Platform, person.PlatformUsername, err)
 	}
 
+	kgSyncs.Add(1)
 	go func() {
+		defer kgSyncs.Done()
 		node := monomind.KGNode{Name: personKGDisplayName(person), Type: "person", Description: personKGDescription(person)}
 		_ = monomind.SyncToKnowledgeGraph(context.Background(), d.DB, person.ProfileID, []monomind.KGNode{node}, nil, "person:"+person.ID)
 	}()
@@ -333,7 +335,9 @@ func (d *Database) BatchUpsertPeople(people []*Person) error {
 		return err
 	}
 
+	kgSyncs.Add(1)
 	go func() {
+		defer kgSyncs.Done()
 		// Batches are expected to belong to a single profile in practice;
 		// group by profile defensively rather than assuming that.
 		byProfile := make(map[string][]monomind.KGNode)
