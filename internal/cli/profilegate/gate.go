@@ -10,9 +10,17 @@ import (
 // globalWhenFlag lists scoped commands that are machine-pure when one flag is
 // given, keyed by command path (as in classes): `workflow validate --file`
 // reads a file and touches no profile data, while `workflow validate <id>`
-// loads the workflow from a profile.
+// loads the workflow from a profile. --all-profiles is a deliberate
+// cross-profile read: it names every profile, so --profile would contradict it.
 var globalWhenFlag = map[string]string{
-	"workflow validate": "file",
+	"workflow validate":       "file",
+	"summary":                 "all-profiles",
+	"org summary":             "all-profiles",
+	"workflow list":           "all-profiles",
+	"workflow executions":     "all-profiles",
+	"api key list":            "all-profiles",
+	"capture list":            "all-profiles",
+	"profile documents index": "all-profiles",
 }
 
 // Mode is what the gate does with a scoped command that names no profile.
