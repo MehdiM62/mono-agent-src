@@ -140,7 +140,7 @@ round() { # round <tool> <n>
 
 	if [[ $tool == mono ]]; then
 		"${mono_run[@]}" -d --name "$mono" --network "container:$net" "${limits[@]}" \
-			-v "$data:/data" "$base_image" monoagentcli daemon --profile "$profile" >/dev/null
+			-v "$data:/data" "$base_image" monoagentcli daemon >/dev/null
 	else
 		docker run -d --name "$n8n" --network "container:$net" "${limits[@]}" --user "$uidgid" \
 			"${n8n_env[@]}" -v "$data:/home/node/.n8n" "$n8n_image" >/dev/null
