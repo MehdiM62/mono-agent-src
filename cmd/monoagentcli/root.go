@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -314,15 +315,15 @@ func migrateProfilesToPerProfileKeys(db *storage.Database) {
 // canonical ID, erroring (exit 3, invalid input) if neither matches any
 // row in `profiles`.
 func resolveProfileID(db *sql.DB, idOrName string) (string, error) {
-	var id string
-	// The reserved machine scope is never a profile id; as a name it is fine.
-	if idOrName != profiledir.MachineProfileID {
-		if err := db.QueryRow(`SELECT id FROM profiles WHERE id = ?`, idOrName).Scan(&id); err == nil {
-			return id, nil
-		}
-	}
-	if err := db.QueryRow(`SELECT id FROM profiles WHERE LOWER(name) = LOWER(?)`, idOrName).Scan(&id); err == nil {
+	id, err := profiledir.Resolve(context.Background(), db, idOrName)
+	var ambiguous *profiledir.AmbiguousError
+	switch {
+	case err == nil:
 		return id, nil
+	case errors.Is(err, profiledir.ErrUnknownProfile):
+		return "", errInvalidInput("profile %q not found (checked both id and name)", idOrName)
+	case errors.As(err, &ambiguous):
+		return "", errInvalidInput("%s", ambiguous.Error())
 	}
-	return "", errInvalidInput("profile %q not found (checked both id and name)", idOrName)
+	return "", errInvalidInput("looking up profile %q: %v", idOrName, err)
 }

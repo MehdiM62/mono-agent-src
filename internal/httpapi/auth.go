@@ -52,7 +52,7 @@ func (s *Server) profileAuth(h http.HandlerFunc) http.Handler {
 			return
 		}
 		ctx := r.Context()
-		candidates, err := candidateProfiles(ctx, s.rt.db.DB, r.PathValue("profile"))
+		candidates, err := profiledir.Candidates(ctx, s.rt.db.DB, r.PathValue("profile"))
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "resolve profile: "+err.Error())
 			return
@@ -135,40 +135,6 @@ func (s *Server) anyProfileAuth(h http.HandlerFunc) http.Handler {
 		}
 		h(w, r)
 	})
-}
-
-// candidateProfiles resolves the path segment like the CLI's --profile: an
-// exact profile id first (the reserved machine scope is never a profile),
-// else every profile with that name, case-insensitively. More than one
-// candidate means the name is ambiguous.
-func candidateProfiles(ctx context.Context, db *sql.DB, idOrName string) ([]string, error) {
-	if idOrName == "" {
-		return nil, nil
-	}
-	if idOrName != profiledir.MachineProfileID {
-		var id string
-		err := db.QueryRowContext(ctx, `SELECT id FROM profiles WHERE id = ?`, idOrName).Scan(&id)
-		if err == nil {
-			return []string{id}, nil
-		}
-		if err != sql.ErrNoRows {
-			return nil, err
-		}
-	}
-	rows, err := db.QueryContext(ctx, `SELECT id FROM profiles WHERE LOWER(name) = LOWER(?) ORDER BY id`, idOrName)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var ids []string
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		ids = append(ids, id)
-	}
-	return ids, rows.Err()
 }
 
 func allProfileIDs(ctx context.Context, db *sql.DB) ([]string, error) {

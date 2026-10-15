@@ -5,8 +5,11 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/monoes/mono-agent/internal/profiledir"
 )
 
 // profileArg is the name of the argument every profile-scoped tool requires.
@@ -116,27 +119,10 @@ func splitProfileArg(args json.RawMessage) (profile string, rest json.RawMessage
 	return s, rest, s != "", nil
 }
 
-// profileList names the profiles a caller may pass: "Work (a1), Home (b2)".
-func profileList(db *sql.DB) string {
-	rows, err := db.Query(`SELECT id, name FROM profiles ORDER BY created_at, id`)
-	if err != nil {
-		return ""
-	}
-	defer rows.Close()
-	var parts []string
-	for rows.Next() {
-		var id, name string
-		if rows.Scan(&id, &name) == nil {
-			parts = append(parts, fmt.Sprintf("%s (%s)", name, id))
-		}
-	}
-	return strings.Join(parts, ", ")
-}
-
 // profileHint is the sentence that ends a profile error: the profiles that
 // exist, or a note that none does.
 func profileHint(db *sql.DB) string {
-	if list := profileList(db); list != "" {
+	if list := profiledir.Describe(context.Background(), db); list != "" {
 		return " Profiles: " + list
 	}
 	return " No profile exists yet; create one with `monoagentcli profile create`."
@@ -165,31 +151,17 @@ func resolveCallProfile(db *sql.DB, args json.RawMessage) (string, json.RawMessa
 // reserved machine scope is never an id). A name that matches several profiles
 // is an error: it never picks one.
 func resolveProfileID(db *sql.DB, idOrName string) (string, error) {
-	const machineScope = "_machine"
-	var id string
-	if idOrName != machineScope {
-		if err := db.QueryRow(`SELECT id FROM profiles WHERE id = ?`, idOrName).Scan(&id); err == nil {
-			return id, nil
-		}
-	}
-	rows, err := db.Query(`SELECT id FROM profiles WHERE LOWER(name) = LOWER(?) ORDER BY created_at, id`, idOrName)
-	if err != nil {
-		return "", fmt.Errorf("invalid_input: look up profile %q: %v", idOrName, err)
-	}
-	var ids []string
-	for rows.Next() {
-		if rows.Scan(&id) == nil {
-			ids = append(ids, id)
-		}
-	}
-	rows.Close()
-	switch len(ids) {
-	case 1:
-		return ids[0], nil
-	case 0:
+	id, err := profiledir.Resolve(context.Background(), db, idOrName)
+	var ambiguous *profiledir.AmbiguousError
+	switch {
+	case err == nil:
+		return id, nil
+	case errors.Is(err, profiledir.ErrUnknownProfile):
 		return "", fmt.Errorf("invalid_input: profile %q not found (checked both id and name).%s", idOrName, profileHint(db))
+	case errors.As(err, &ambiguous):
+		return "", fmt.Errorf("invalid_input: profile name %q matches %d profiles (%s): pass the id.%s", idOrName, len(ambiguous.IDs), strings.Join(ambiguous.IDs, ", "), profileHint(db))
 	}
-	return "", fmt.Errorf("invalid_input: profile name %q matches %d profiles (%s): pass the id.%s", idOrName, len(ids), strings.Join(ids, ", "), profileHint(db))
+	return "", fmt.Errorf("invalid_input: look up profile %q: %v", idOrName, err)
 }
 
 // scopeCall resolves the profile of a scoped tool call: it returns ctx carrying

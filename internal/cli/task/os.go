@@ -16,6 +16,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/monoes/mono-agent/internal/cli/clicore"
+	"github.com/monoes/mono-agent/internal/profiledir"
 	"github.com/monoes/mono-agent/internal/tasks"
 	"github.com/monoes/mono-agent/internal/tasks/osmenu"
 )
@@ -388,12 +389,6 @@ not an error.`,
 // resolveProfileID is the id of the profile idOrName names, by id or else by name (the
 // CLI's resolveProfileID).
 func resolveProfileID(db *sql.DB, idOrName string) (string, bool) {
-	var id string
-	if err := db.QueryRow(`SELECT id FROM profiles WHERE id = ?`, idOrName).Scan(&id); err == nil {
-		return id, true
-	}
-	if err := db.QueryRow(`SELECT id FROM profiles WHERE LOWER(name) = LOWER(?)`, idOrName).Scan(&id); err == nil {
-		return id, true
-	}
-	return "", false
+	id, err := profiledir.Resolve(context.Background(), db, idOrName)
+	return id, err == nil
 }

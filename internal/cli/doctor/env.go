@@ -205,14 +205,8 @@ func NewHealthEnv(d EnvDeps, projects []string) (*health.Env, func()) {
 // resolveProfileID is the id of the profile idOrName names, by id or else by name (the CLI's
 // resolveProfileID).
 func resolveProfileID(db *sql.DB, idOrName string) (string, bool) {
-	var id string
-	if err := db.QueryRow(`SELECT id FROM profiles WHERE id = ?`, idOrName).Scan(&id); err == nil {
-		return id, true
-	}
-	if err := db.QueryRow(`SELECT id FROM profiles WHERE LOWER(name) = LOWER(?)`, idOrName).Scan(&id); err == nil {
-		return id, true
-	}
-	return "", false
+	id, err := profiledir.Resolve(context.Background(), db, idOrName)
+	return id, err == nil
 }
 
 // installMonomind runs install (npm install -g, returning the folder the
