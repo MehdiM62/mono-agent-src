@@ -3,6 +3,7 @@ package browserctl
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/monoes/mono-agent/internal/testdb"
@@ -186,5 +187,20 @@ func TestSiteItemsAreReusedAndApprovedOnce(t *testing.T) {
 	}
 	if _, err := AskSite(ctx, db, "", KindCoder, "https://x.example/", nil); err == nil {
 		t.Fatal("a site item with no profile")
+	}
+}
+
+// Every agent shell starts at dev pages, as shipped in v0.141.0 (org roles
+// included); the in-app chat keeps any site behind submit approvals. The
+// level that lets scripts run anywhere says what that exposes.
+func TestDefaultLevelsAndTheRiskyOne(t *testing.T) {
+	p := DefaultPermissions()
+	for kind, want := range map[string]string{KindCoder: LevelDev, KindOrg: LevelDev, KindOther: LevelDev, KindChat: LevelFull} {
+		if got := p.Level(kind); got != want {
+			t.Errorf("%s defaults to %s, want %s", kind, got, want)
+		}
+	}
+	if d := Catalog()[0]; d.ID != LevelFullNoApprovals || !strings.Contains(d.Description, "scripts") || !strings.Contains(d.Description, "cookies and storage") {
+		t.Errorf("full-no-approvals: %q", d.Description)
 	}
 }

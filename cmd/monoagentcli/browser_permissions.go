@@ -59,9 +59,10 @@ func newBrowserPermissionsCmd(cfg *globalConfig) *cobra.Command {
 		Short: "What each kind of agent may do in the browser, and the site rules",
 		Long: "Each kind of agent — coder chats, org roles, the in-app chat, other agents (a Claude Code or\n" +
 			"Codex session in a terminal) — has a level:\n" +
-			"  full-no-approvals  any site; form submits go through without asking\n" +
+			"  full-no-approvals  any site; form submits go through without asking, and scripts run on\n" +
+			"                     any page (they can read that site's cookies and storage)\n" +
 			"  full               any site; a form submit on a real site waits for your approval\n" +
-			"  dev                localhost and dev pages plus allowed sites (the default for coder chats)\n" +
+			"  dev                localhost and dev pages plus allowed sites (the default but for the chat)\n" +
 			"  ask                like dev, but a new site asks you first instead of being refused\n" +
 			"  off                no browser at all\n" +
 			"Site rules apply to every kind: allow (for dev and ask) admits exactly one origin\n" +

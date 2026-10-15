@@ -35,10 +35,11 @@ last, else the active tab (for an agent, the active tab of its own tab group).
 
 Run by an agent (Claude Code, Codex, an org role, a coder chat), the commands do what
 that kind of agent's level allows (` + "`browser permissions`" + `, Settings → Agent browser
-permissions): by default coder chats and other agents drive only local and dev pages
-(localhost, *.localhost, 127.0.0.0/8, ::1, *.local, *.test, private network addresses)
-and the sites you allowed, and the in-app chat and org roles any site; a site you
-block is refused at every level, and file: and browser-internal pages never. Refusals
+permissions): by default coder chats, org roles and other agents drive only local and
+dev pages (localhost, *.localhost, 127.0.0.0/8, ::1, *.local, *.test, private network
+addresses) and the sites you allowed, and the in-app chat any site; a site you block
+(and its subdomains, on any scheme and port) is refused at every level, and file: and
+browser-internal pages never. Refusals
 exit 3 with the code browser_off, site_blocked, origin_not_allowed or
 site_needs_approval (with the hil_id that asks you). An agent's form submit on a page
 that is not local waits for your approval (except at full-no-approvals): exit 3 with

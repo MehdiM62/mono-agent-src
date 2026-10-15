@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/monoes/mono-agent/internal/browserctl"
@@ -10,13 +11,14 @@ func TestBrowserPermissionsShowAndSet(t *testing.T) {
 	bt := newBrowserTest(t, false)
 	doc := bt.runJSON("permissions")
 	levels := doc["levels"].(map[string]any)
-	if levels["coder"] != "dev" || levels["other"] != "dev" || levels["chat"] != "full" || levels["org"] != "full" {
+	if levels["coder"] != "dev" || levels["other"] != "dev" || levels["chat"] != "full" || levels["org"] != "dev" {
 		t.Fatalf("default levels = %v", levels)
 	}
 	if kinds := doc["kinds"].([]any); len(kinds) != 4 || kinds[0].(map[string]any)["label"] != "Coder chats" || kinds[0].(map[string]any)["isDefault"] != true {
 		t.Fatalf("kinds = %v", kinds)
 	}
-	if cat := doc["catalog"].([]any); len(cat) != 5 || cat[0].(map[string]any)["id"] != "full-no-approvals" || cat[0].(map[string]any)["description"] == "" {
+	if cat := doc["catalog"].([]any); len(cat) != 5 || cat[0].(map[string]any)["id"] != "full-no-approvals" ||
+		!strings.Contains(cat[0].(map[string]any)["description"].(string), "cookies and storage") {
 		t.Fatalf("catalog = %v", cat)
 	}
 	if you := doc["you"].(map[string]any); you["kind"] != "human" || you["level"] != "unrestricted" {

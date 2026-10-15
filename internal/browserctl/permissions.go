@@ -48,7 +48,7 @@ type LevelInfo struct {
 // GUI shows verbatim.
 func Catalog() []LevelInfo {
 	return []LevelInfo{
-		{LevelFullNoApprovals, "Full access, no approvals", "Any site; form submits go through without asking you."},
+		{LevelFullNoApprovals, "Full access, no approvals", "Any site; form submits go through without asking you, and scripts run on any page, where they can read that site's cookies and storage."},
 		{LevelFull, "Full access", "Any site; a form submit on a real site waits for your approval."},
 		{LevelDev, "Dev pages + allowed sites", "Localhost and dev pages, plus sites you allow; submits on real sites wait for your approval."},
 		{LevelAsk, "Ask for new sites", "Like dev pages + allowed sites, but a new site asks you first instead of being refused."},
@@ -71,8 +71,10 @@ func KindLabel(kind string) string {
 	return kind
 }
 
-// DefaultLevels are the levels of kinds the user did not set.
-var DefaultLevels = map[string]string{KindCoder: LevelDev, KindOrg: LevelFull, KindChat: LevelFull, KindOther: LevelDev}
+// DefaultLevels are the levels of kinds the user did not set: dev pages
+// for every agent shell, as shipped in v0.141.0; the in-app chat keeps any
+// site behind submit approvals, as it had.
+var DefaultLevels = map[string]string{KindCoder: LevelDev, KindOrg: LevelDev, KindChat: LevelFull, KindOther: LevelDev}
 
 // Site rules.
 const (
