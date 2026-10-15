@@ -237,7 +237,8 @@ func newCoderCmd(cfg *Deps) *cobra.Command {
 			"enabled here. Web pages and files in the folder can carry instructions that steer it, so " +
 			"only point it at folders you trust.",
 	}
-	cmd.AddCommand(newCoderStatusCmd(cfg), newCoderEnableCmd(cfg), newCoderDisableCmd(cfg), newCoderSetCmd(cfg), newCoderWorkspaceCmd(cfg), newCoderStopBackgroundCmd(cfg))
+	cmd.AddCommand(newCoderStatusCmd(cfg), newCoderEnableCmd(cfg), newCoderDisableCmd(cfg), newCoderSetCmd(cfg), newCoderWorkspaceCmd(cfg), newCoderStopBackgroundCmd(cfg),
+		newCoderQueueCmd(cfg), newCoderProjectsCmd(cfg), newCoderListCmd(cfg))
 	return cmd
 }
 

@@ -145,11 +145,34 @@ func (n *Node) run(ctx context.Context, cfg runConfig, client *jev.Client, write
 	defer cancel()
 	started := time.Now()
 
+	// A run an AI caller started is held to the submit gate, and an agent
+	// shell's to the origin policy too (gate_run.go).
+	gate, err := newRunGate(ctx, cfg.url)
+	if err != nil {
+		return nil, err
+	}
 	drv, closeTab, err := open(ctx, cfg.url)
 	if err != nil {
 		return nil, err
 	}
-	defer closeTab()
+	defer func() {
+		if !gate.keepTab() {
+			closeTab()
+		}
+	}()
+	if err := gate.arm(ctx, drv); err != nil {
+		return nil, err
+	}
+	observe := func() (*jevpick.PageState, error) {
+		p, err := drv.Observe(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if err := gate.checkPage(drv, p.URL); err != nil {
+			return nil, err // none of a page the caller may not read reaches the output
+		}
+		return p, nil
+	}
 
 	// jevSc scrubs every configured value before a Jev request; outSc only
 	// the vault-backed ones, for the node's output and the local writer.
@@ -176,13 +199,15 @@ func (n *Node) run(ctx context.Context, cfg runConfig, client *jev.Client, write
 				low++
 			}
 		}
-		return map[string]interface{}{
+		out := map[string]interface{}{
 			"status": status, "reason": reason, "goal": cfg.goal,
 			"url": outSc.str(page.URL), "title": outSc.str(page.Title), "page_text": outSc.str(page.Text),
 			"steps": outSc.history(history), "decisions": decisions, "jev_input_tokens": tokens,
 			"low_confidence_steps": low, "value_requests": valueRequests, "text_turns": textTurns,
 			"elapsed_ms": time.Since(started).Milliseconds(),
 		}
+		gate.output(out)
+		return out
 	}
 
 	// Running out of time mid-step is an outcome, not a failure: report the
@@ -192,7 +217,7 @@ func (n *Node) run(ctx context.Context, cfg runConfig, client *jev.Client, write
 			result, err = finish("timeout", fmt.Sprintf("stopped after %s", cfg.timeout)), nil
 		}
 	}()
-	if page, err = drv.Observe(ctx); err != nil {
+	if page, err = observe(); err != nil {
 		return nil, err
 	}
 
@@ -206,7 +231,7 @@ func (n *Node) run(ctx context.Context, cfg runConfig, client *jev.Client, write
 		if ok, err := drv.Fresh(page, nil); err != nil {
 			return nil, err
 		} else if !ok {
-			if page, err = drv.Observe(ctx); err != nil {
+			if page, err = observe(); err != nil {
 				return nil, err
 			}
 		}
@@ -279,8 +304,11 @@ func (n *Node) run(ctx context.Context, cfg runConfig, client *jev.Client, write
 			recorded = text
 		}
 
+		if err := gate.beforeAct(ctx, page.URL); err != nil {
+			return nil, err
+		}
 		if err := drv.Act(ctx, page, a, text); errors.Is(err, jevpick.ErrStale) {
-			if page, err = drv.Observe(ctx); err != nil {
+			if page, err = observe(); err != nil {
 				return nil, err
 			}
 			continue
@@ -297,8 +325,13 @@ func (n *Node) run(ctx context.Context, cfg runConfig, client *jev.Client, write
 		history = append(history, step{Step: len(history) + 1, Action: a.Label, Kind: a.Kind,
 			Operation: d.Operation, Target: d.Target, Text: recorded, ValueName: valueName, Probability: d.Probability,
 			Confidence: d.Confidence, LatencyMS: d.LatencyMS, URL: page.URL})
+		if end, err := gate.afterAct(ctx, a.Kind); err != nil {
+			return nil, err
+		} else if end != nil {
+			return finish(end.status, end.reason), nil
+		}
 		before := page.Fingerprint
-		if page, err = drv.Observe(ctx); err != nil {
+		if page, err = observe(); err != nil {
 			return nil, err
 		}
 		changed := page.Fingerprint != before
@@ -416,7 +449,8 @@ func openExtensionTab(ctx context.Context, url string) (driver, func(), error) {
 		closeTab()
 		return nil, nil, err
 	}
-	return extDriver{b}, closeTab, nil
+	gp, _ := page.(guardPage)
+	return extDriver{b, gp}, closeTab, nil
 }
 
 func str(config map[string]interface{}, key string) string {

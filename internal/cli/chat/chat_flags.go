@@ -21,4 +21,5 @@ type chatFlags struct {
 	newWorkspace   bool
 	coderRoot      bool
 	profileFold    bool
+	attach         []string
 }

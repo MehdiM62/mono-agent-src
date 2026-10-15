@@ -1,0 +1,304 @@
+package browserctl
+
+import (
+	"fmt"
+	"time"
+
+	"github.com/monoes/mono-agent/internal/extension"
+)
+
+// loadTimeout bounds opening or navigating a tab (the extension waits for
+// the page to load).
+const loadTimeout = 60 * time.Second
+
+// Tab is one open tab as list_tabs reports it.
+type Tab struct {
+	TabID      int    `json:"tabId"`
+	WindowID   int    `json:"windowId"`
+	GroupID    int    `json:"groupId"`
+	GroupTitle string `json:"groupTitle"`
+	URL        string `json:"url"`
+	Title      string `json:"title"`
+	Active     bool   `json:"active"`
+}
+
+// ListTabs lists the browser's tabs, unfiltered.
+func (s *Session) ListTabs() ([]Tab, error) {
+	var out struct {
+		Tabs []Tab `json:"tabs"`
+	}
+	if err := s.call(0, extension.CmdListTabs, nil, DefaultTimeout, &out); err != nil {
+		return nil, err
+	}
+	if out.Tabs == nil {
+		out.Tabs = []Tab{}
+	}
+	return out.Tabs, nil
+}
+
+// VisibleTabs is ListTabs as the caller may see it: everything for a
+// human; for an agent, its own group's tabs and tabs on allowed pages.
+func (s *Session) VisibleTabs() ([]Tab, error) {
+	tabs, err := s.ListTabs()
+	if err != nil || !s.policy.Agent {
+		return tabs, err
+	}
+	group := GroupTitle()
+	out := []Tab{}
+	for _, t := range tabs {
+		if t.GroupTitle == group || s.policy.Allowed(t.URL) {
+			out = append(out, t)
+		}
+	}
+	return out, nil
+}
+
+// OpenTab opens url in a new tab and makes it the session's tab. An
+// agent's tab goes into its group (group, else GroupTitle) and is watched
+// from the start: the page is reloaded once the watch is on, so errors
+// raised while it loads are kept. A human's tab is grouped only when group
+// is given.
+func (s *Session) OpenTab(url, group string) (int, error) {
+	if err := s.policy.Check(url); err != nil {
+		return 0, err
+	}
+	var created struct {
+		TabID int `json:"tabId"`
+	}
+	if err := s.call(0, extension.CmdCreateTab, map[string]interface{}{"url": url}, loadTimeout, &created); err != nil {
+		return 0, err
+	}
+	if created.TabID == 0 {
+		return 0, fmt.Errorf("create_tab: the extension answered without a tab id")
+	}
+	// Where it landed (a redirect), checked before anything else touches it.
+	if err := s.UseTab(created.TabID); err != nil {
+		if s.policy.Agent {
+			_, _ = s.sendRaw(created.TabID, extension.CmdCloseTab, nil, DefaultTimeout)
+			s.forget(created.TabID)
+		}
+		return 0, err
+	}
+	if group == "" && s.policy.Agent {
+		group = GroupTitle()
+	}
+	if group != "" {
+		if err := s.call(s.tabID, extension.CmdTabGroup, map[string]interface{}{"title": group}, DefaultTimeout, nil); err != nil {
+			return s.tabID, fmt.Errorf("tab %d opened, but grouping it failed: %w", s.tabID, err)
+		}
+	}
+	if s.policy.Agent {
+		if err := s.Watch(true); err != nil {
+			return s.tabID, fmt.Errorf("tab %d opened, but watching its console and network failed: %w", s.tabID, err)
+		}
+		// Turning the watch on replays the first load's console messages;
+		// reads start at the reload, which records everything once.
+		s.markLoad()
+		if _, err := s.send(s.tabID, extension.CmdReload, nil, loadTimeout); err != nil {
+			return s.tabID, err
+		}
+	}
+	// The page may have redirected while it loaded again.
+	if err := s.UseTab(s.tabID); err != nil {
+		if s.policy.Agent {
+			id := s.tabID
+			_, _ = s.sendRaw(id, extension.CmdCloseTab, nil, DefaultTimeout)
+			s.forget(id)
+		}
+		return 0, err
+	}
+	return s.tabID, nil
+}
+
+// Navigate loads url in the session's tab and returns the URL it ended on.
+// An agent's tab is watched first, so the new page's errors are kept.
+func (s *Session) Navigate(url string) (string, error) {
+	if err := s.policy.Check(url); err != nil {
+		return "", err
+	}
+	wasBlank := blank(s.url)
+	if s.policy.Agent && !wasBlank {
+		if err := s.Watch(true); err != nil {
+			return "", err
+		}
+	}
+	s.markLoad()
+	var out struct {
+		URL string `json:"url"`
+	}
+	if err := s.Call(extension.CmdNavigate, map[string]interface{}{"url": url}, loadTimeout, &out); err != nil {
+		return "", err
+	}
+	// Where it landed (a redirect), checked before anything else touches it.
+	id := s.tabID
+	if err := s.UseTab(id); err != nil {
+		if s.policy.Agent {
+			s.dropRefused(id)
+		}
+		return "", err
+	}
+	if s.policy.Agent && wasBlank {
+		if err := s.Watch(true); err != nil {
+			return "", err
+		}
+	}
+	return s.url, nil
+}
+
+// Reload reloads the tab; hard bypasses the cache.
+func (s *Session) Reload(hard bool) error {
+	s.markLoad()
+	if !hard {
+		_, err := s.Send(extension.CmdReload, nil, loadTimeout)
+		return err
+	}
+	if _, err := s.Page().CDP("Page.reload", map[string]interface{}{"ignoreCache": true}); err != nil {
+		return err
+	}
+	// Page.reload returns before the tab starts loading; until then
+	// wait_load would see the old page complete.
+	time.Sleep(250 * time.Millisecond)
+	_, err := s.Send(extension.CmdWaitLoad, map[string]interface{}{"timeout": loadTimeout.Milliseconds()}, loadTimeout+5*time.Second)
+	return err
+}
+
+// CloseTab closes the session's tab and forgets it as the context's last.
+func (s *Session) CloseTab() error {
+	if _, err := s.Send(extension.CmdCloseTab, nil, DefaultTimeout); err != nil {
+		return err
+	}
+	s.forget(s.tabID)
+	return nil
+}
+
+// Watch turns the tab's console and network buffering on or off.
+func (s *Session) Watch(on bool) error {
+	_, err := s.Send(extension.CmdWatchTab, map[string]interface{}{"on": on}, DefaultTimeout)
+	return err
+}
+
+// ConsoleEntry is one read_console entry.
+type ConsoleEntry struct {
+	Seq    int     `json:"seq"`
+	TS     float64 `json:"ts"`
+	Level  string  `json:"level"`
+	Text   string  `json:"text"`
+	URL    string  `json:"url,omitempty"`
+	Line   int     `json:"line,omitempty"`
+	Column int     `json:"column,omitempty"`
+	Stack  string  `json:"stack,omitempty"`
+}
+
+// NetworkEntry is one read_network entry (never headers or bodies).
+type NetworkEntry struct {
+	Seq        int     `json:"seq"`
+	TS         float64 `json:"ts"`
+	RequestID  string  `json:"requestId"`
+	Method     string  `json:"method"`
+	URL        string  `json:"url"`
+	Status     int     `json:"status"`
+	StatusText string  `json:"statusText,omitempty"`
+	MimeType   string  `json:"mimeType,omitempty"`
+	Type       string  `json:"type,omitempty"`
+	Failed     bool    `json:"failed"`
+	ErrorText  string  `json:"errorText,omitempty"`
+	DurationMs float64 `json:"durationMs,omitempty"`
+	Size       float64 `json:"size,omitempty"`
+}
+
+// markLoad remembers the newest console and network entries of a watched
+// tab before it loads a page (open, navigate, reload), so that a read with
+// a negative since starts at that page. An unwatched tab has nothing to mark.
+func (s *Session) markLoad() {
+	var c, n struct {
+		Next int `json:"next"`
+	}
+	if s.Call(extension.CmdReadConsole, map[string]interface{}{"limit": 500}, DefaultTimeout, &c) != nil {
+		return
+	}
+	if s.Call(extension.CmdReadNetwork, map[string]interface{}{"limit": 500}, DefaultTimeout, &n) != nil {
+		return
+	}
+	if s.state.Loads == nil {
+		s.state.Loads = map[string]LoadMark{}
+	}
+	s.state.Loads[tabKey(s.info.Instance, s.tabID)] = LoadMark{Console: c.Next, Network: n.Next}
+	_ = s.saveState()
+}
+
+// agentOrigin is the origin an agent's console and network reads keep to:
+// what was recorded while the tab was on its current, allowed page ("" for
+// a person, who reads everything).
+func (s *Session) agentOrigin() string {
+	if !s.policy.Agent || blank(s.url) {
+		return ""
+	}
+	return Origin(s.url)
+}
+
+// loadMark is the tab's mark from markLoad (zero: none).
+func (s *Session) loadMark() LoadMark { return s.state.Loads[tabKey(s.info.Instance, s.tabID)] }
+
+// Console reads the tab's buffered console entries after seq since (a
+// negative since: since the page was last loaded by OpenTab, Navigate or
+// Reload), optionally only levels; an agent reads only what was recorded on
+// the tab's current origin (agentOrigin). The watch is turned on first (it
+// is idempotent).
+func (s *Session) Console(since int, levels []string, limit int) ([]ConsoleEntry, int, error) {
+	if err := s.Watch(true); err != nil {
+		return nil, 0, err
+	}
+	if since < 0 {
+		since = s.loadMark().Console
+	}
+	params := map[string]interface{}{"since": since}
+	if o := s.agentOrigin(); o != "" {
+		params["origin"] = o
+	}
+	if len(levels) > 0 {
+		params["levels"] = levels
+	}
+	if limit > 0 {
+		params["limit"] = limit
+	}
+	var out struct {
+		Entries []ConsoleEntry `json:"entries"`
+		Next    int            `json:"next"`
+	}
+	if err := s.Call(extension.CmdReadConsole, params, DefaultTimeout, &out); err != nil {
+		return nil, 0, err
+	}
+	if out.Entries == nil {
+		out.Entries = []ConsoleEntry{}
+	}
+	return out.Entries, out.Next, nil
+}
+
+// Network reads the tab's buffered requests after seq since (negative:
+// since the page was last loaded, as Console).
+func (s *Session) Network(since int, failedOnly bool, limit int) ([]NetworkEntry, int, error) {
+	if err := s.Watch(true); err != nil {
+		return nil, 0, err
+	}
+	if since < 0 {
+		since = s.loadMark().Network
+	}
+	params := map[string]interface{}{"since": since, "failedOnly": failedOnly}
+	if o := s.agentOrigin(); o != "" {
+		params["origin"] = o
+	}
+	if limit > 0 {
+		params["limit"] = limit
+	}
+	var out struct {
+		Entries []NetworkEntry `json:"entries"`
+		Next    int            `json:"next"`
+	}
+	if err := s.Call(extension.CmdReadNetwork, params, DefaultTimeout, &out); err != nil {
+		return nil, 0, err
+	}
+	if out.Entries == nil {
+		out.Entries = []NetworkEntry{}
+	}
+	return out.Entries, out.Next, nil
+}

@@ -26,7 +26,7 @@ func newExecStore(t *testing.T) *SQLiteWorkflowStore {
 		trigger_node_id TEXT NOT NULL DEFAULT '', error_class TEXT NOT NULL DEFAULT '')`); err != nil {
 		t.Fatalf("create table: %v", err)
 	}
-	if _, err := db.Exec(`CREATE TABLE hil_pending (id TEXT PRIMARY KEY, execution_id TEXT, status TEXT DEFAULT 'pending')`); err != nil {
+	if _, err := db.Exec(`CREATE TABLE hil_pending (id TEXT PRIMARY KEY, execution_id TEXT, status TEXT DEFAULT 'pending', updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`); err != nil {
 		t.Fatalf("create hil table: %v", err)
 	}
 	return NewSQLiteWorkflowStore(db)

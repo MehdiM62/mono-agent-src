@@ -3,6 +3,7 @@ import { ChevronDown, ChevronRight, Loader, Check, X, Ban, Square } from 'lucide
 import { useTicker, formatDuration } from './toolCardUtils.js'
 import { Tag, Section, preStyle, mono, CYAN } from './nativeToolParts.jsx'
 import { describe, kindOf } from './nativeToolDescribe.jsx'
+import { ToolResultImages } from './ChatAttachments.jsx'
 
 export { DiffView } from './nativeToolParts.jsx'
 
@@ -105,6 +106,7 @@ export function NativeToolCard({ call, turnId = '', isLive = true, childCalls = 
           {durationText && <span style={{ fontFamily: mono, fontSize: 9, color: 'var(--text-muted)' }}>{`· ${durationText}`}</span>}
         </span>
       </button>
+      <ToolResultImages call={call} />
       <div id={panelId} hidden={!open} style={{ padding: '0 10px 8px', display: open ? 'flex' : 'none', flexDirection: 'column', gap: 6 }}>
         {raw != null && <Section label="Input (truncated)" copyText={raw}><pre style={preStyle}>{raw}</pre></Section>}
         {d.body}

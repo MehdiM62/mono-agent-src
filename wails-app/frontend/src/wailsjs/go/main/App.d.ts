@@ -533,7 +533,19 @@ export function PlatformNames():Promise<Record<string, string>>;
 
 export function PromoteRoleToRoot(arg1:string,arg2:string):Promise<string>;
 
+export function QueueDismiss(arg1:string):Promise<string>;
+
+export function QueueImage(arg1:string):Promise<string>;
+
+export function QueueList():Promise<string>;
+
+export function QueueStart(arg1:string,arg2:string):Promise<string>;
+
+export function ReadHILScreenshot(arg1:string):Promise<string>;
+
 export function ReadJSONFile(arg1:string):Promise<Record<string, any>>;
+
+export function ReadWorkspaceImage(arg1:string,arg2:string):Promise<string>;
 
 export function RejectDraftPersonMessage(arg1:string):Promise<void>;
 
@@ -580,6 +592,8 @@ export function RunOrg(arg1:string,arg2:string):Promise<string>;
 export function RunWorkflow(arg1:string):Promise<void>;
 
 export function RunWorkflowWithInput(arg1:string,arg2:string):Promise<void>;
+
+export function SaveChatAttachment(arg1:string,arg2:string,arg3:string):Promise<string>;
 
 export function SaveConnectionDirect(arg1:string,arg2:string,arg3:string):Promise<string>;
 
@@ -635,7 +649,7 @@ export function ShowRecording(arg1:string):Promise<string>;
 
 export function StartAgentValidation(arg1:Array<string>,arg2:Array<string>,arg3:boolean):Promise<string>;
 
-export function StartChatTurn(arg1:string,arg2:string,arg3:string,arg4:boolean,arg5:boolean):Promise<string>;
+export function StartChatTurn(arg1:string,arg2:string,arg3:string,arg4:boolean,arg5:boolean,arg6:Array<string>):Promise<string>;
 
 export function StartOrgGroup(arg1:string):Promise<string>;
 
