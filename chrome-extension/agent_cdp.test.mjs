@@ -122,3 +122,93 @@ test("agent_cdp.js loads before the modules that register with it, and the dispa
   assert.equal(agent[agent.length - 1], "agent_commands.js");
   assert.ok(agent.indexOf("agent_submit_page.js") < agent.indexOf("agent_submit_guard.js"));
 });
+
+// ── expectOrigin and the idle release (security review, items 6 and 7) ──
+
+/** commands loads the dispatch with recording stand-ins for the modules it calls. */
+function commands({ tabs = {} } = {}) {
+  const chrome = {
+    tabs: {
+      get: async (id) => {
+        if (!tabs[id]) throw new Error(`No tab with id: ${id}.`);
+        return tabs[id];
+      },
+    },
+  };
+  const g = loadExtensionScripts(["agent_cdp.js", "agent_commands.js"], { chrome });
+  const did = [];
+  let armed = [];
+  const emulating = new Set();
+  g.MonoAgentWatch = { watch: async (p) => (did.push(["watch", p.tabId, p.on]), g.MonoAgentCdp.release(p.tabId, "watch"), { watching: false }) };
+  g.MonoAgentShot = {
+    emulating: (tabId) => emulating.has(tabId),
+    emulate: async (p) => (did.push(["emulate", p.tabId, p.reset]), g.MonoAgentCdp.release(p.tabId, "emulate"), { ok: true }),
+  };
+  g.MonoAgentSubmitGuard = {
+    install: () => {},
+    armedTabs: async () => armed,
+    handle: async (p) => (did.push(["guard", p.tabId, p.action]), (armed = armed.filter((t) => t !== p.tabId)), {}),
+  };
+  g.MonoAgentCommands.install({
+    attach: async () => {},
+    cdp: async () => ({}),
+    onDebuggerEvent: () => {},
+    onDebuggerDetach: () => {},
+    detach: async (tabId) => did.push(["detach", tabId]),
+  });
+  return { c: g.MonoAgentCommands, cdp: g.MonoAgentCdp, did, arm: (tabId) => armed.push(tabId), emulate: (tabId) => emulating.add(tabId) };
+}
+
+test("expectOrigin: absent, nothing is checked; given, another origin or a navigation in flight is origin_changed", async () => {
+  const t = commands({
+    tabs: {
+      1: { id: 1, url: "http://localhost:5173/app" },
+      2: { id: 2, url: "http://localhost:5173/app", pendingUrl: "https://evil.test/" },
+      3: { id: 3, url: "chrome://newtab/" },
+    },
+  });
+  await t.c.checkOrigin({ tabId: 1 });
+  await t.c.checkOrigin({ tabId: 99 }); // no param: not even the tab is looked up
+  await t.c.checkOrigin({ tabId: 1, expectOrigin: "http://localhost:5173" });
+  await t.c.checkOrigin({ expectOrigin: "http://localhost:5173" }); // not a tab's command
+  await assert.rejects(t.c.checkOrigin({ tabId: 1, expectOrigin: "https://shop.test" }), /^Error: origin_changed: the tab is on http:\/\/localhost:5173, not https:\/\/shop.test$/);
+  await assert.rejects(t.c.checkOrigin({ tabId: 2, expectOrigin: "http://localhost:5173" }), /^Error: origin_changed: the tab is navigating to https:\/\/evil.test/);
+  await assert.rejects(t.c.checkOrigin({ tabId: 3, expectOrigin: "http://localhost:5173" }), /origin_changed: the tab is on null/);
+  await assert.rejects(t.c.checkOrigin({ tabId: 1, expectOrigin: 7 }), /origin_changed: expectOrigin must be an origin/);
+});
+
+test("a held or armed tab with no command for IDLE_RELEASE_MS is unwatched, reset, disarmed and detached", async () => {
+  const t = commands();
+  assert.equal(t.c.IDLE_RELEASE_MS, 15 * 60 * 1000);
+  t.cdp.hold(4, "watch");
+  t.cdp.hold(4, "emulate");
+  t.emulate(4);
+  t.arm(4);
+  t.c.touch(4);
+  await t.c.sweepIdle(Date.now() + 1000);
+  assert.deepEqual(t.did, [], "not idle yet");
+  await t.c.sweepIdle(Date.now() + t.c.IDLE_RELEASE_MS + 1000);
+  assert.deepEqual(t.did, [["watch", 4, false], ["emulate", 4, true], ["guard", 4, "disarm"], ["detach", 4]]);
+  assert.equal(t.cdp.holds(4), false);
+});
+
+test("an armed tab the guard kept across a worker restart gets the full idle time from the restart", async () => {
+  const t = commands();
+  t.arm(6);
+  await t.c.sweepIdle(Date.now() + t.c.IDLE_RELEASE_MS - 60000);
+  assert.deepEqual(t.did, []);
+  await t.c.sweepIdle(Date.now() + t.c.IDLE_RELEASE_MS + 60000);
+  assert.deepEqual(t.did, [["watch", 6, false], ["guard", 6, "disarm"], ["detach", 6]]);
+});
+
+test("background.js counts every tab's command as use, checks expectOrigin before the handlers, and sweeps on its alarm", () => {
+  const dispatch = background.slice(background.indexOf("async function handleCommand(cmd) {"));
+  const body = dispatch.slice(0, dispatch.indexOf("\n}\n"));
+  const check = body.indexOf("await MonoAgentCommands.checkOrigin(params);");
+  assert.ok(body.indexOf("MonoAgentCommands.touch(params.tabId);") !== -1);
+  assert.ok(check !== -1 && check > body.indexOf("ACTIVE_TAB_COMMANDS.has") && check < body.indexOf("switch (cmd.type)"));
+  const alarm = background.slice(background.indexOf("chrome.alarms.onAlarm.addListener"));
+  assert.match(alarm.slice(0, alarm.indexOf("\n});\n")), /MonoAgentCommands\.sweepIdle\(\)/);
+  const install = background.slice(background.indexOf("MonoAgentCommands.install({"));
+  assert.match(install.slice(0, install.indexOf("\n});")), /detach: \(tabId\) => \(debuggerPinned\.has\(tabId\) \? undefined : detachDebugger\(tabId\)\)/);
+});

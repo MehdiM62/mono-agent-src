@@ -59,7 +59,7 @@ importScripts("recorder_privacy.js", "recorder_outbox.js", "recorder_session.js"
 importScripts("bridge_health.js");
 // The coder's browser commands (plan C1): agent_cdp.js first, every other
 // agent module registers with it; agent_commands.js, the dispatch, last.
-importScripts("agent_cdp.js", "agent_tabs.js", "agent_screenshot.js", "agent_watch.js", "agent_a11y.js");
+importScripts("agent_cdp.js", "agent_redact.js", "agent_tabs.js", "agent_screenshot.js", "agent_watch.js", "agent_a11y.js");
 importScripts("agent_submit_page.js", "agent_submit_guard.js", "agent_submit_prompt.js", "agent_commands.js");
 
 // ---------------------------------------------------------------------------
@@ -206,6 +206,8 @@ chrome.alarms.onAlarm.addListener((alarm) => {
       connect();
     }
     sweepIdleDebuggers();
+    // A watch, emulation or armed guard nobody has used for a while (agent_commands.js).
+    MonoAgentCommands.sweepIdle().catch((err) => console.warn("[monoagent] idle release:", err.message));
     // The last report may have just run out of its window (account_state.js).
     gate.check();
     // Re-create the alarm to guarantee the service worker stays alive.
@@ -682,6 +684,10 @@ async function handleCommand(cmd) {
       const [active] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
       params.tabId = active?.id;
     }
+    // Every tab's command counts as use, and a caller that names the origin
+    // it expects is refused another one (agent_commands.js).
+    MonoAgentCommands.touch(params.tabId);
+    await MonoAgentCommands.checkOrigin(params);
     if (SENSITIVE_COMMANDS.has(cmd.type) && !(await isOriginAuthorized(params.tabId))) {
       throw new Error(
         `Site not authorized for "${cmd.type}" — grant access to this tab's site in the ` +
@@ -1545,6 +1551,8 @@ MonoAgentCommands.install({
   onDebuggerEvent: (fn) => chrome.debugger.onEvent.addListener(fn),
   onDebuggerDetach: (fn) => chrome.debugger.onDetach.addListener(fn),
   onTabRemoved: (fn) => chrome.tabs.onRemoved.addListener(fn),
+  // The idle release's last step; a tab the CDP relay still listens to stays attached.
+  detach: (tabId) => (debuggerPinned.has(tabId) ? undefined : detachDebugger(tabId)),
 });
 
 // The toolbar button opens the side panel rather than a popup: a panel

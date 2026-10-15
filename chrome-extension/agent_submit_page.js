@@ -12,9 +12,10 @@
  * claimed to have blocked it). form.submit() fires no event, so it is
  * wrapped; requestSubmit() is too, after the browser's own validation.
  * Each stopped attempt is summarised (password, hidden and card-like values
- * masked as "•••") and handed to installRelay's listener as a CustomEvent
- * named by a nonce the page never sees. allow_once lets exactly the next
- * submit through, then the guard blocks again.
+ * masked as "•••"; a card number is 13 to 19 digits that pass the Luhn
+ * check) and handed to installRelay's listener as a CustomEvent named by a
+ * nonce the page never sees. allow_once lets exactly the next submit
+ * through, then the guard blocks again.
  *
  * installRelay runs in the extension's isolated world of the same frame and
  * forwards those events to the worker (agent_submit_guard.js).
@@ -93,8 +94,10 @@
       if (/(^|\s)(cc-|current-password|new-password|one-time-code)/.test(ac)) return true;
       const named = `${el.name || ""} ${el.id || ""}`.toLowerCase();
       if (/card|cc[-_]?(num|number|exp|csc|cvv)|cvv|cvc|csc|iban|ssn|secret|token|passw|otp|(^|[^a-z])pin([^a-z]|$)/.test(named)) return true;
-      const digits = value.replace(/[\s-]/g, "");
-      return /^\d{13,19}$/.test(digits) && luhn(digits);
+      // A card number anywhere in the value, spaced or dashed: 13 to 19
+      // digits that pass the Luhn check (an order number mostly does not).
+      const runs = value.match(/\d(?:[ -]?\d){12,18}/g) || [];
+      return runs.some((run) => luhn(run.replace(/[ -]/g, "")));
     }
 
     function labelOf(el) {
@@ -187,6 +190,19 @@
         // the relay is gone with its world; the submit stays blocked
       }
     }
+
+    // A page put into the back/forward cache stops guarding: restored, it is
+    // armed again only if its tab still is (agent_submit_guard.js re-injects
+    // on the commit), so a guard that ended cannot linger in a cached page.
+    window.addEventListener(
+      "pagehide",
+      (event) => {
+        if (event.isTrusted !== true) return; // the page cannot disarm it by pretending
+        armed = false;
+        allow = 0;
+      },
+      true
+    );
 
     window.addEventListener(
       "submit",

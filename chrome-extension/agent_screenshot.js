@@ -241,5 +241,5 @@
 
   root.MonoAgentCdp.onLost((tabId) => emulations.delete(tabId));
 
-  root.MonoAgentShot = { screenshot, emulate, imageSize };
+  root.MonoAgentShot = { screenshot, emulate, imageSize, emulating: (tabId) => emulations.has(tabId) };
 })(globalThis);

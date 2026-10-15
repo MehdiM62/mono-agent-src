@@ -50,9 +50,11 @@ export function useQueuedCoderChats() {
   return { items, refresh, drop }
 }
 
-function pagePlace(item) {
-  const host = String(item.origin || '').replace(/^[a-z]+:\/\//i, '')
-  return host + (item.path && item.path !== '/' ? item.path : '')
+// pageAddress is the whole address the chat was queued from (origin and
+// path, as the browser reported them), shown in full so the person sees
+// which site the agent will be told about before pressing Start.
+function pageAddress(item) {
+  return `${item.origin || ''}${item.path || ''}`
 }
 
 // QueuedCoderBubble is one queued chat: its kind, the page, a screenshot,
@@ -119,7 +121,7 @@ export function QueuedCoderBubble({ item, onStart, onDismiss }) {
       {item.title && (
         <div title={item.title} style={{ fontSize: 11, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</div>
       )}
-      <div title={`${item.origin || ''}${item.path || ''}`} style={{ color: 'var(--cyan)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pagePlace(item)}</div>
+      <div data-testid="queued-page" style={{ color: 'var(--cyan)', overflowWrap: 'anywhere', wordBreak: 'break-all', lineHeight: 1.35 }}>{pageAddress(item)}</div>
       {thumb && (
         <img src={thumb} alt={t('coderQueue.screenshot', { defaultValue: 'Screenshot of the page' })}
           style={{ width: '100%', height: 84, objectFit: 'cover', objectPosition: 'top', borderRadius: 6, border: '1px solid var(--border)' }} />

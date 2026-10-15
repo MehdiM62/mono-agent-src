@@ -55,6 +55,13 @@
   color: var(--ink-2);
 }
 
+.coder-address {
+  font-family: var(--mono);
+  font-size: var(--t-xs);
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+
 .coder-target {
   display: flex;
   align-items: center;
