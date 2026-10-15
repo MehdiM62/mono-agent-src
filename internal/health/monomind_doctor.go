@@ -96,7 +96,10 @@ func checkMonomindDoctor(ctx context.Context, env *Env) Result {
 		return Result{Status: StatusInfo, Summary: fmt.Sprintf("monomind %s can't report its checks here — update it to see them", version),
 			Detail: "needs monomind with capability " + monomind.CapDoctorJSON + ": npm install -g " + MonomindPackage}
 	}
-	root := env.ProfileRoot(env.profileID())
+	if env.ProfileID == "" {
+		return noProfile()
+	}
+	root := env.profileRoot()
 	// Its checks are about a folder set up for monomind; in one that is
 	// not, every row is "not set up yet" and its automatic fixes would
 	// write monomind's files there although setting it up was declined.
@@ -138,7 +141,10 @@ func checkMonomindProjects(ctx context.Context, env *Env) Result {
 	if len(projects) == 0 {
 		return Result{Status: StatusInfo, Summary: "no monomind projects inside this profile's folder"}
 	}
-	root := env.ProfileRoot(env.profileID())
+	if env.ProfileID == "" {
+		return noProfile()
+	}
+	root := env.profileRoot()
 	res := Result{Source: "monomind"}
 	worst := StatusOK
 	for _, rel := range projects {
@@ -296,7 +302,10 @@ func fixMonomindComponent(ctx context.Context, env *Env, arg string, install boo
 	if !validComponent(component) || manualComponents[component] {
 		return fmt.Errorf("%q is not a monomind fix monoagent runs", component)
 	}
-	root := env.ProfileRoot(env.profileID())
+	if env.ProfileID == "" {
+		return fmt.Errorf("pass --profile <id|name> to say which profile")
+	}
+	root := env.profileRoot()
 	dir := root
 	if project != "" {
 		rel := filepath.Clean(filepath.FromSlash(project))

@@ -36,6 +36,11 @@ var classes = map[string]string{
 	"account": ClassGlobal, "agent": ClassGlobal, "config": ClassGlobal,
 	"message-template": ClassGlobal, "db": ClassGlobal,
 
+	// doctor and setup always run the machine checks; the per-profile ones
+	// (profile folder, vault, accounts, monomind folder, Jev) run when
+	// --profile names a profile and report "pass --profile" when it does not.
+	"doctor": ClassGlobal, "setup": ClassGlobal,
+
 	// mcp serves every profile and holds none: its tools take a profile argument
 	// per call. Only `mcp --grant` is bound to one profile, and it checks its own
 	// --profile (internal/cli/integrations/mcp.go).
@@ -55,7 +60,6 @@ var classes = map[string]string{
 
 	"profile list": ClassGlobal, "profile create": ClassGlobal, "profile get": ClassGlobal,
 	"profile folder": ClassGlobal, "profile move": ClassGlobal, "profile projects": ClassGlobal,
-	"profile switch": ClassGlobal, "profile current": ClassGlobal, // removed in a later phase
 
 	"node list": ClassGlobal, "node palette": ClassGlobal, "node schema": ClassGlobal, "node curl": ClassGlobal,
 

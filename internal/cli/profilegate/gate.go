@@ -52,7 +52,7 @@ func Check(c *cobra.Command, flagSet bool, mode Mode, list Lister) (warning stri
 	if mode == ModeEnforce {
 		return "", fmt.Errorf("%s", msg)
 	}
-	return "warning: " + msg + "; falling back to the active profile, this becomes an error in the next release", nil
+	return "warning: " + msg + "; warn mode: the command runs without a profile", nil
 }
 
 // globalByFlag is whether c was given the flag that makes it machine-pure.

@@ -20,6 +20,7 @@ func doctorEnv(t *testing.T, caps []string, rep *monomind.DoctorReport) (*Env, *
 	os.WriteFile(filepath.Join(root, ".monomind", "config.yaml"), []byte("x"), 0o644)
 	var calls []monomind.DoctorOptions
 	env := &Env{
+		ProfileID:   "p1",
 		ProfileRoot: func(string) string { return root },
 		MonomindHandshake: func(context.Context) (*monomind.VersionInfo, error) {
 			return &monomind.VersionInfo{V: 1, Version: "2.16.1", Capabilities: caps}, nil
