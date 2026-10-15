@@ -170,7 +170,7 @@ func TestRunMemoryRedaction(t *testing.T) {
 	rr[0].Error = "GET https://user:hunter2@api.example.com/v1?api_" + "key=abc123 failed: Authorization: Bearer " + fakeJWT + " " + "tok" + "en=" + fakeKey
 	rs := &recordingSync{}
 	now := memT0
-	src := &stubRunSource{wfs: map[string]*RunWorkflow{"w1": {ID: "w1", Name: "W"}}, runs: map[string][]RunRecord{"w1": rr}}
+	src := &stubRunSource{wfs: map[string]*RunWorkflow{"w1": {ID: "w1", Name: "W", ProfileID: "p1"}}, runs: map[string][]RunRecord{"w1": rr}}
 	m := newMem(t, src, rs, &now)
 	if err := m.Observe(context.Background(), "w1"); err != nil {
 		t.Fatal(err)
@@ -233,7 +233,7 @@ func TestRunMemoryObserveGraph(t *testing.T) {
 func TestRunMemoryThrottle(t *testing.T) {
 	rs := &recordingSync{}
 	now := memT0
-	src := &stubRunSource{wfs: map[string]*RunWorkflow{"w1": {ID: "w1", Name: "W"}}, runs: map[string][]RunRecord{"w1": runs("SUCCESS")}}
+	src := &stubRunSource{wfs: map[string]*RunWorkflow{"w1": {ID: "w1", Name: "W", ProfileID: "p1"}}, runs: map[string][]RunRecord{"w1": runs("SUCCESS")}}
 	m := newMem(t, src, rs, &now)
 	ctx := context.Background()
 	must := func(err error) {
@@ -326,7 +326,7 @@ func TestRunMemorySweepWatermarkAndBatching(t *testing.T) {
 func TestRunMemorySyncFailureStaysPending(t *testing.T) {
 	rs := &recordingSync{err: errors.New("monomind missing")}
 	now := memT0
-	src := &stubRunSource{wfs: map[string]*RunWorkflow{"w1": {ID: "w1", Name: "W"}}, runs: map[string][]RunRecord{"w1": runs("SUCCESS")}}
+	src := &stubRunSource{wfs: map[string]*RunWorkflow{"w1": {ID: "w1", Name: "W", ProfileID: "p1"}}, runs: map[string][]RunRecord{"w1": runs("SUCCESS")}}
 	m := newMem(t, src, rs, &now)
 	if err := m.Observe(context.Background(), "w1"); err == nil {
 		t.Fatal("want sync error")
@@ -345,7 +345,7 @@ func TestRunMemoryFixEdge(t *testing.T) {
 	now := memT0
 	f := runs("FAILED")
 	f[0].Error = "waiting for selector .title"
-	wf := &RunWorkflow{ID: "w1", Name: "W", UpdatedAt: memT0.Add(-time.Hour)}
+	wf := &RunWorkflow{ID: "w1", Name: "W", ProfileID: "p1", UpdatedAt: memT0.Add(-time.Hour)}
 	src := &stubRunSource{wfs: map[string]*RunWorkflow{"w1": wf}, runs: map[string][]RunRecord{"w1": f}}
 	m := newMem(t, src, rs, &now)
 	ctx := context.Background()
@@ -375,7 +375,7 @@ func TestRunMemoryFixEdge(t *testing.T) {
 func TestRunMemoryOptOut(t *testing.T) {
 	rs := &recordingSync{}
 	now := memT0
-	src := &stubRunSource{wfs: map[string]*RunWorkflow{"w1": {ID: "w1", Name: "W"}}, runs: map[string][]RunRecord{"w1": runs("SUCCESS")},
+	src := &stubRunSource{wfs: map[string]*RunWorkflow{"w1": {ID: "w1", Name: "W", ProfileID: "p1"}}, runs: map[string][]RunRecord{"w1": runs("SUCCESS")},
 		finished: []FinishedRun{{WorkflowID: "w1", FinishedAt: memT0}}}
 	m := newMem(t, src, rs, &now)
 	if !RunMemoryEnabled(m.DB) {

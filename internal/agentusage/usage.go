@@ -7,11 +7,16 @@ package agentusage
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/monoes/mono-agent/internal/monomind"
 )
+
+// ErrProfileRequired is returned when a usage row names no profile; there is
+// no implicit "default".
+var ErrProfileRequired = errors.New("agentusage: a profile is required")
 
 // Sources of a usage row.
 const (
@@ -62,7 +67,7 @@ func (t Turn) FromResult(res *monomind.TurnResult) Turn {
 	return t
 }
 
-// Record stores t. A zero At is now; an empty ProfileID is "default".
+// Record stores t. A zero At is now; an empty ProfileID is an error.
 func Record(ctx context.Context, db *sql.DB, t Turn) error {
 	if db == nil {
 		return nil
@@ -71,7 +76,7 @@ func Record(ctx context.Context, db *sql.DB, t Turn) error {
 		t.At = time.Now()
 	}
 	if t.ProfileID == "" {
-		t.ProfileID = "default"
+		return ErrProfileRequired
 	}
 	_, err := db.ExecContext(ctx, `INSERT INTO agent_usage
 		(at, profile_id, source, workflow_id, execution_id, node_id, session_id, runtime, model, input_tokens, output_tokens, cost_usd)

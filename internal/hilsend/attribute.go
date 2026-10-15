@@ -17,7 +17,7 @@ func Attribute(ctx context.Context, db *sql.DB, profile string, entries []public
 		return
 	}
 	if profile == "" {
-		profile = "default"
+		return // no profile, no attribution: never guess one
 	}
 	p, err := (Store{DB: db, Profile: profile}).Get(ctx, id)
 	if err != nil {
