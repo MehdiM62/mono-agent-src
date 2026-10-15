@@ -10,6 +10,7 @@ import (
 
 	"github.com/monoes/mono-agent/internal/account"
 	"github.com/monoes/mono-agent/internal/cli/clicore"
+	"github.com/monoes/mono-agent/internal/cli/profilegate"
 	"github.com/monoes/mono-agent/internal/cli/workflowrun"
 	"github.com/monoes/mono-agent/internal/connections"
 	"github.com/monoes/mono-agent/internal/i18n"
@@ -176,6 +177,11 @@ func rejectUnknownSubcommands(cmd *cobra.Command) {
 		rejectUnknownSubcommands(sub)
 	}
 	if cmd.HasSubCommands() && cmd.Args == nil && cmd.Run == nil && cmd.RunE == nil {
+		// A group does no work of its own: the profile gate does not judge it.
+		if cmd.Annotations == nil {
+			cmd.Annotations = map[string]string{}
+		}
+		cmd.Annotations[profilegate.GroupAnnotation] = "true"
 		cmd.Args = func(c *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				return nil

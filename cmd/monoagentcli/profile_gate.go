@@ -3,7 +3,9 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"net/url"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 	_ "modernc.org/sqlite"
@@ -45,6 +47,18 @@ func installProfileGate(root *cobra.Command, cfg *globalConfig) {
 	wrap(root)
 }
 
+// readOnlyURI is the SQLite URI that opens the file at path read-only. The path
+// is escaped (a ?, # or % in a folder name is part of the name), and a Windows
+// drive path gets the leading slash a file URI needs.
+func readOnlyURI(path string) string {
+	p := filepath.ToSlash(path)
+	if len(p) >= 2 && p[1] == ':' {
+		p = "/" + p
+	}
+	u := url.URL{Scheme: "file", Path: p, RawQuery: "mode=ro"}
+	return u.String()
+}
+
 // listProfilesReadOnly names the profiles of the database at dbPath for the
 // gate's message. Best effort: it never creates or migrates a database, and
 // any failure means no list.
@@ -53,7 +67,7 @@ func listProfilesReadOnly(dbPath string) ([]profilegate.ProfileRef, error) {
 	if _, err := os.Stat(path); err != nil {
 		return nil, err
 	}
-	db, err := sql.Open("sqlite", "file:"+path+"?mode=ro")
+	db, err := sql.Open("sqlite", readOnlyURI(path))
 	if err != nil {
 		return nil, err
 	}

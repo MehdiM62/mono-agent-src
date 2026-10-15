@@ -5,15 +5,19 @@
 package profilegate
 
 import (
-	"strings"
-
 	"github.com/spf13/cobra"
+
+	"github.com/monoes/mono-agent/internal/cli/accountgate"
 )
 
 const (
-	Annotation  = "monoagent.profile"
 	ClassScoped = "scoped"
 	ClassGlobal = "global"
+
+	// GroupAnnotation marks a command that only groups subcommands (its own
+	// run just prints help or rejects an unknown subcommand). The gate does not
+	// judge it.
+	GroupAnnotation = "monoagent.profile.group"
 )
 
 // classes lists the commands whose class is decided here, keyed by command
@@ -50,7 +54,9 @@ var classes = map[string]string{
 
 	"node list": ClassGlobal, "node palette": ClassGlobal, "node schema": ClassGlobal, "node curl": ClassGlobal,
 
-	"library login": ClassGlobal, "library logout": ClassGlobal, "library status": ClassGlobal,
+	// library logout deletes the resolved profile's legacy vault token
+	// (Client.LogoutLegacy on a VaultStore bound to the profile): scoped.
+	"library login": ClassGlobal, "library status": ClassGlobal,
 
 	"workflow templates list": ClassGlobal, "workflow templates show": ClassGlobal,
 	"workflow convert": ClassGlobal,
@@ -63,13 +69,7 @@ var classes = map[string]string{
 }
 
 // CommandKey is c's path below the root: "workflow templates list".
-func CommandKey(c *cobra.Command) string {
-	var names []string
-	for ; c != nil && c.HasParent(); c = c.Parent() {
-		names = append([]string{c.Name()}, names...)
-	}
-	return strings.Join(names, " ")
-}
+func CommandKey(c *cobra.Command) string { return accountgate.CommandKey(c) }
 
 // Class is the class of c: its nearest listed ancestor's, else scoped.
 func Class(c *cobra.Command) string {

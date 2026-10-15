@@ -6,17 +6,21 @@ import (
 	"github.com/spf13/cobra"
 )
 
+func leaf(name string) *cobra.Command {
+	return &cobra.Command{Use: name, Run: func(*cobra.Command, []string) {}}
+}
+
 func tree() *cobra.Command {
-	root := &cobra.Command{Use: "monoagentcli"}
-	people := &cobra.Command{Use: "people"}
-	people.AddCommand(&cobra.Command{Use: "list"})
-	cfg := &cobra.Command{Use: "config"}
-	cfg.AddCommand(&cobra.Command{Use: "get"})
-	library := &cobra.Command{Use: "library"}
-	library.AddCommand(&cobra.Command{Use: "status"}, &cobra.Command{Use: "install"})
-	auto := &cobra.Command{Use: "automation"}
-	auto.AddCommand(&cobra.Command{Use: "list"}, &cobra.Command{Use: "install"})
-	root.AddCommand(people, cfg, library, auto, &cobra.Command{Use: "brand-new"})
+	root := leaf("monoagentcli")
+	people := leaf("people")
+	people.AddCommand(leaf("list"))
+	cfg := leaf("config")
+	cfg.AddCommand(leaf("get"))
+	library := leaf("library")
+	library.AddCommand(leaf("status"), leaf("install"))
+	auto := leaf("automation")
+	auto.AddCommand(leaf("list"), leaf("install"))
+	root.AddCommand(people, cfg, library, auto, leaf("brand-new"))
 	return root
 }
 
