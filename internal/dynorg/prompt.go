@@ -15,7 +15,8 @@ const (
 // BrowserRules is how an agent uses the user's browser through
 // `monoagentcli browser`: the worker profiles that may and the coder lead
 // (internal/cli/chat/chat_coder_browser.go) all say the same.
-const BrowserRules = "The user's browser: `monoagentcli browser` (`monoagentcli ref browser` has every command). " +
+const BrowserRules = "The user's browser: `monoagentcli --profile <your profile id> browser …` (`monoagentcli ref browser` has every command); " +
+	"pass `--profile` on every monoagentcli command except the machine-wide `browser allow`, `browser browsers` and `browser diff`. " +
 	"You may open localhost and dev hosts and the sites the user allowlisted; anything else is refused. " +
 	"Debug loop: `browser open <url>` (keep its tabId and pass `--tab`), then `browser screenshot`, " +
 	"`browser console --level error` and `browser network --failed`; fix, `browser reload`, repeat. " +

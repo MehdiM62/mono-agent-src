@@ -30,7 +30,7 @@ func TestCoderLeadPromptNamesTheProfile(t *testing.T) {
 	if !strings.Contains(prompt, `"Work Stuff"`) || !strings.Contains(prompt, "bank-login") || !strings.Contains(prompt, "working in "+custom) {
 		t.Errorf("lead prompt does not name the profile:\n%s", prompt)
 	}
-	if !strings.Contains(prompt, coderBrowserPrompt()) {
+	if !strings.Contains(prompt, coderBrowserPrompt("work")) {
 		t.Errorf("lead prompt leaves out the browser section:\n%s", prompt)
 	}
 	other := coderLeadSystemPrompt(context.Background(), db.DB, testDeps(&testConfig{ProfileID: "default"}), custom)

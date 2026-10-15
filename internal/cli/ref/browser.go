@@ -24,9 +24,15 @@ monoagentcli browser — the user's real browser, for agents (and people)
 The commands drive a live browser through the MonoAgent extension (any profile
 with the extension attached). Put --json before them for JSON on stdout.
 
+Pass --profile <id> on every command: they act on a profile (its browser, its
+approvals, its allowlist checks), and the CLI refuses a profile-scoped command
+without it. The machine-wide ` + "`browser allow`" + `, ` + "`browser browsers`" + ` and
+` + "`browser diff`" + ` don't need it; it does no harm there. An agent finds its
+profile id in its instructions.
+
 CHOOSING THE BROWSER AND TAB
-  --browser <instance|label>   one of ` + "`browser browsers`" + `; default: the active profile's routing
-  --profile <name>             the profile whose browser to use
+  --profile <id|name>          the profile whose browser to use (required, above)
+  --browser <instance|label>   one of ` + "`browser browsers`" + `; default: that profile's routing
   --tab <id>                   the tab to act on. Without it: the last tab this caller
                                used (kept per coder conversation, else per org role,
                                else per agent or human), else the active tab of the
@@ -118,9 +124,9 @@ FORM SUBMITS ON A REAL SITE (EXIT 3)
   A submit the guard blocked another way (the Enter key, eval) is reported the
   same way by the next command. The item (workflow browser.submit) shows the
   origin, URL, form fields (passwords and card numbers masked), a screenshot
-  and who asked. Wait for the user to approve it (` + "`monoagentcli --json hil list`" + `
+  and who asked. Wait for the user to approve it (` + "`monoagentcli --profile <id> --json hil list`" + `
   shows it), then:
-      monoagentcli browser submit --hil <id>
+      monoagentcli --profile <id> browser submit --hil <id>
   lets exactly that submit through, if the tab still shows the same page and
   the same form contents. Only the user's approval counts
   (` + "`hil approve`" + ` or the Human in Loop page, which refuse an agent); an
@@ -153,22 +159,22 @@ ERRORS AN AGENT ACTS ON (exit 3; --json prints {"error","code"})
   tab_blank            the tab has no page yet: browser navigate <url>
 
 EXAMPLE: DEBUG LOOP (a dev server on localhost)
-  monoagentcli --json browser open http://localhost:5173      # {"tabId":812,...}
-  monoagentcli --json browser screenshot --tab 812
-  monoagentcli --json browser console --tab 812 --level error
-  monoagentcli --json browser network --tab 812 --failed
+  monoagentcli --profile <id> --json browser open http://localhost:5173      # {"tabId":812,...}
+  monoagentcli --profile <id> --json browser screenshot --tab 812
+  monoagentcli --profile <id> --json browser console --tab 812 --level error
+  monoagentcli --profile <id> --json browser network --tab 812 --failed
   # fix the code, then reload: reads start at the new load
-  monoagentcli browser reload --tab 812
-  monoagentcli --json browser console --tab 812 --level error
-  monoagentcli --json browser sweep --tab 812                     # every width, light and dark
+  monoagentcli --profile <id> browser reload --tab 812
+  monoagentcli --profile <id> --json browser console --tab 812 --level error
+  monoagentcli --profile <id> --json browser sweep --tab 812                     # every width, light and dark
 
 EXAMPLE: COPY A STYLE AND VERIFY IT
   # the element's bundle: a coder chat queued from the extension has it in
   # .monoagent/context/<id>/; on an allowed page make it yourself:
-  monoagentcli browser styles '.pricing-card' --out ./ref
+  monoagentcli --profile <id> browser styles '.pricing-card' --out ./ref
   # rebuild it in the project (bundle.json, tokens.json), then on the dev page:
-  monoagentcli --json browser screenshot --tab 812 --element '.pricing-card' --out ./out/card.png
+  monoagentcli --profile <id> --json browser screenshot --tab 812 --element '.pricing-card' --out ./out/card.png
   monoagentcli --json browser diff ./ref/element.png ./out/card.png   # {"changed":1830,"ratio":0.04,...}
   # adjust and repeat until the ratio is near 0, then check widths and dark mode:
-  monoagentcli --json browser sweep --tab 812 --element '.pricing-card'
+  monoagentcli --profile <id> --json browser sweep --tab 812 --element '.pricing-card'
 `
