@@ -334,17 +334,24 @@ export default function Settings({ onNavigate, navData, isActive = true }) {
   useEffect(() => { load() }, [load])
 
   // The app keeps this page mounted while another is shown, and the profile can be switched there: the profile is
-  // read again each time the page comes back.
-  const readProfile = useCallback(() => {
-    try { GetActiveProfile().then(p => setProfile({ id: p?.id || '', name: p?.name || '' })).catch(() => {}) } catch { /* no name: the heading says "the active profile" */ }
-  }, [])
+  // read again each time the page comes back, and with it the Jev status and usage, whose profile half (feature
+  // toggles, thresholds, 7-day usage) belongs to the profile that was active when they were read.
+  const jevLoad = jev.load
+  const readProfile = useCallback((reloadJev) => {
+    try {
+      GetActiveProfile().then(p => {
+        setProfile({ id: p?.id || '', name: p?.name || '' })
+        if (reloadJev) jevLoad()
+      }).catch(() => {})
+    } catch { /* no name: the heading says "the active profile" */ }
+  }, [jevLoad])
   const wasActive = useRef(isActive)
   useEffect(() => {
     const returned = isActive && !wasActive.current
     wasActive.current = isActive
-    if (returned) { readProfile(); load() }
+    if (returned) { readProfile(true); load() }
   }, [isActive, readProfile, load])
-  useEffect(() => { readProfile() }, [readProfile])
+  useEffect(() => { readProfile(false) }, [readProfile])
 
   const handleRefresh = async () => {
     setRefreshing(true)
