@@ -382,7 +382,7 @@ func TestStoresUseMigratedSchemaWithoutDDL(t *testing.T) {
 		t.Fatal(err)
 	}
 	cs := connections.NewStore(db.DB)
-	if err := cs.Save(ctx, &connections.Connection{Platform: "github", Method: connections.MethodAPIKey, Label: "gh",
+	if err := cs.Save(ctx, &connections.Connection{ProfileID: "default", Platform: "github", Method: connections.MethodAPIKey, Label: "gh",
 		Data: map[string]interface{}{"token": "t"}}); err != nil {
 		t.Fatalf("Save connection: %v", err)
 	}
