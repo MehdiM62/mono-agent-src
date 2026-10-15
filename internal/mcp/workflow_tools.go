@@ -272,8 +272,9 @@ func (s *Server) workflowTools() []tool {
 // time: --workflow-tools serves a workflow tool for each, and the tool is bound
 // to the workflow's own profile (a call whose profile argument names another is
 // not found), so one server serves them all without choosing a profile. A
-// workflow with no owner recorded (a legacy file) appears once and answers to
-// every profile, as it does for every by-id tool.
+// workflow with no owner recorded belongs to nobody, so it is not listed and
+// not served (legacy rows and files are stamped by migration 099 and the file
+// stamp).
 func listAllProfilesWorkflows(ctx context.Context, rt *runtime) ([]workflow.Workflow, error) {
 	rows, err := rt.db.DB.QueryContext(ctx, `SELECT id FROM profiles ORDER BY created_at, id`)
 	if err != nil {
@@ -335,9 +336,7 @@ func runWorkflowTool(ctx context.Context, s *Server, id string, args json.RawMes
 var ErrWorkflowToolsWithNarrowMode = errors.New("--workflow-tools serves saved workflows as tools and cannot be combined with --api-only or --tasks-only (MONOAGENT_MCP_WORKFLOW_TOOLS, MONOAGENT_MCP_API_ONLY=1 and MONOAGENT_MCP_TASKS_ONLY=1 count as the flags)")
 
 // workflowToolProfileNote tells a caller which profile the argument must name.
+// Every served workflow has an owner (an ownerless one is never listed).
 func workflowToolProfileNote(wf *workflow.Workflow) string {
-	if wf.ProfileID == "" {
-		return " The profile argument may name any profile."
-	}
 	return fmt.Sprintf(" It belongs to profile %s: the profile argument must name it.", wf.ProfileID)
 }
