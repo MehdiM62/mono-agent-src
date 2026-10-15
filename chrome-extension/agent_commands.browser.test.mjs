@@ -198,7 +198,12 @@ describe("the coder's browser commands", { skip: browser ? false : why, concurre
     walk(nodes);
     assert.ok(flat.some((x) => x.role === "textbox" && x.name === "Email" && x.value === "ann@example.com"), JSON.stringify(nodes));
     assert.ok(flat.some((x) => x.role === "button" && x.name === "Pay"));
-    assert.equal(JSON.stringify(nodes).includes("hunter2"), false);
+    const valueOf = (name) => (flat.find((x) => x.role === "textbox" && x.name.trim() === name) || {}).value;
+    assert.equal(valueOf("Password"), "•••", JSON.stringify(nodes));
+    assert.equal(valueOf("Card"), "•••");
+    const values = flat.filter((x) => x.role === "textbox").map((x) => x.value);
+    assert.ok(values.includes("1234567812345678"), "a number that fails Luhn is kept");
+    assert.equal(JSON.stringify(nodes).match(/hunter2|•••••••|4111/), null, "neither the password nor its length, nor a card number");
   });
 
   it("watch_tab buffers console and network across a reload", async () => {
