@@ -98,6 +98,9 @@ type SubmitRequest struct {
 	TabID    int
 	Instance string
 	Seq      int
+	// FrameID is the frame the submit was held in (submit_guard's record);
+	// 0, the top frame, is the only one a held submit can be repeated in.
+	FrameID int
 }
 
 // ApprovedByOperator is SubmitItem.ApprovedBy for an approval made through
@@ -118,6 +121,7 @@ type SubmitItem struct {
 	TabID       int                `json:"tabId"`
 	Instance    string             `json:"instance,omitempty"`
 	Seq         int                `json:"seq,omitempty"`
+	FrameID     int                `json:"frameId,omitempty"`
 	FormDigest  string             `json:"formDigest,omitempty"`
 	ApprovedBy  string             `json:"approvedBy,omitempty"`
 	ConsumedAt  string             `json:"consumedAt,omitempty"`
@@ -139,6 +143,7 @@ type submitRecord struct {
 	TabID       int    `json:"tabId"`
 	Instance    string `json:"instance,omitempty"`
 	Seq         int    `json:"seq,omitempty"`
+	FrameID     int    `json:"frameId,omitempty"`
 	FormDigest  string `json:"formDigest,omitempty"`
 	ApprovedBy  string `json:"approvedBy,omitempty"`
 	DecidedAt   string `json:"decidedAt,omitempty"`
@@ -161,7 +166,7 @@ func CreateSubmitItem(ctx context.Context, db *sql.DB, req SubmitRequest) (Submi
 		req.Profile = "default"
 	}
 	digest := ""
-	if req.Page != nil {
+	if req.Page != nil && req.FrameID == 0 {
 		if f, d, err := bindForm(req.Page, req.Form); err == nil {
 			req.Form, digest = f, d
 		}
@@ -176,14 +181,14 @@ func CreateSubmitItem(ctx context.Context, db *sql.DB, req SubmitRequest) (Submi
 	it := SubmitItem{
 		ID: uuid.NewString(), Status: "pending", Origin: Origin(req.URL), URL: req.URL, Form: req.Form,
 		Screenshot: req.Screenshot, RequestedBy: who, Via: req.Via, TabID: req.TabID,
-		Instance: req.Instance, Seq: req.Seq, FormDigest: digest,
+		Instance: req.Instance, Seq: req.Seq, FrameID: req.FrameID, FormDigest: digest,
 	}
 	ro, err := json.Marshal(submitCard{Origin: it.Origin, URL: it.URL, Form: it.Form, Screenshot: it.Screenshot, RequestedBy: it.RequestedBy})
 	if err != nil {
 		return it, err
 	}
 	nc, err := json.Marshal(submitRecord{Kind: SubmitKind, Via: it.Via, TabID: it.TabID, Instance: it.Instance, Seq: it.Seq,
-		FormDigest: it.FormDigest})
+		FrameID: it.FrameID, FormDigest: it.FormDigest})
 	if err != nil {
 		return it, err
 	}
@@ -256,7 +261,7 @@ func findSubmit(ctx context.Context, db *sql.DB, profile, id string) (SubmitItem
 	return SubmitItem{
 		ID: r.id, Status: r.status, Origin: card.Origin, URL: card.URL, Form: card.Form, Screenshot: card.Screenshot,
 		RequestedBy: card.RequestedBy, Via: rec.Via, TabID: rec.TabID, Instance: rec.Instance, Seq: rec.Seq,
-		FormDigest: rec.FormDigest, ApprovedBy: rec.ApprovedBy, ConsumedAt: rec.ConsumedAt, SubmittedAt: rec.SubmittedAt, Error: rec.Error,
+		FrameID: rec.FrameID, FormDigest: rec.FormDigest, ApprovedBy: rec.ApprovedBy, ConsumedAt: rec.ConsumedAt, SubmittedAt: rec.SubmittedAt, Error: rec.Error,
 	}, rec, nil
 }
 

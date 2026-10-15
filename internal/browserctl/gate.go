@@ -45,10 +45,11 @@ type guardStatus struct {
 }
 
 type blockedEntry struct {
-	Seq  int         `json:"seq"`
-	TS   float64     `json:"ts"`
-	URL  string      `json:"url"`
-	Form FormSummary `json:"form"`
+	Seq     int         `json:"seq"`
+	TS      float64     `json:"ts"`
+	URL     string      `json:"url"`
+	FrameID int         `json:"frameId"`
+	Form    FormSummary `json:"form"`
 }
 
 func (s *Session) guard(action string) (guardStatus, error) {
@@ -116,7 +117,7 @@ func (s *Session) takeBlocked(ctx context.Context, db *sql.DB) error {
 		if u == "" {
 			u = s.url
 		}
-		a, err := s.Hold(ctx, db, u, b.Form, "guard", b.Seq)
+		a, err := s.Hold(ctx, db, u, b.Form, "guard", b.Seq, b.FrameID)
 		if err != nil {
 			return err
 		}
@@ -137,12 +138,13 @@ func (s *Session) takeBlocked(ctx context.Context, db *sql.DB) error {
 	return nil
 }
 
-// Hold records a held submit on pageURL as a HIL item, with a screenshot
-// of the page for the card, and returns it as an *AwaitingApproval.
-func (s *Session) Hold(ctx context.Context, db *sql.DB, pageURL string, form FormSummary, via string, seq int) (*AwaitingApproval, error) {
+// Hold records a held submit on pageURL (in frameID, 0 the top frame) as a
+// HIL item, with a screenshot of the page for the card, and returns it as
+// an *AwaitingApproval.
+func (s *Session) Hold(ctx context.Context, db *sql.DB, pageURL string, form FormSummary, via string, seq, frameID int) (*AwaitingApproval, error) {
 	it, err := CreateSubmitItem(ctx, db, SubmitRequest{
 		Profile: s.profile, URL: pageURL, Form: form, Via: via, TabID: s.tabID, Instance: s.info.Instance, Seq: seq,
-		Page: s.Page(),
+		FrameID: frameID, Page: s.Page(),
 	})
 	if err != nil {
 		return nil, err
@@ -237,33 +239,57 @@ var ErrNotSent = errors.New("nothing was submitted")
 // page still shows what was approved (ResubmitItem).
 func (s *Session) Resubmit(it SubmitItem) error { return ResubmitItem(s.Page(), it) }
 
-// ResubmitPage repeats a held submit on page p: the guard lets exactly one
-// submit through, then the recorded submitter is clicked, or the form
-// requestSubmit()ted when there was none. A failure wrapping ErrNotSent
-// reached nothing on the page. It checks nothing about the page: callers
-// repeating an approved item use ResubmitItem.
-func ResubmitPage(p *extension.ExtensionPage, f FormSummary) error {
+// ResubmitPage repeats a held submit of the page's top frame on page p
+// (resubmit). It checks nothing about the page: callers repeating an
+// approved item use ResubmitItem.
+func ResubmitPage(p *extension.ExtensionPage, f FormSummary) error { return resubmit(p, f, 0) }
+
+// resubmit repeats a held submit: the guard is armed, the submit control
+// found, then the guard lets exactly one submit through in frameID and the
+// control is clicked, or the form requestSubmit()ted when there was none.
+// A failure wrapping ErrNotSent reached nothing on the page; when the
+// trigger fails after the guard opened, the guard is closed again.
+func resubmit(p *extension.ExtensionPage, f FormSummary, frameID int) error {
 	if f.Submitter == "" && f.Selector == "" {
 		return fmt.Errorf("%w: the held submit recorded neither its submit control nor its form, so it cannot be repeated", ErrNotSent)
 	}
-	if _, err := p.SubmitGuard(extension.SubmitGuardAllowOnce); err != nil {
-		return fmt.Errorf("%w: letting the submit through: %v", ErrNotSent, err)
+	if frameID != 0 {
+		return fmt.Errorf("%w: the form is in a frame of the page, where a held submit cannot be repeated", ErrNotSent)
+	}
+	if _, err := p.SubmitGuard(extension.SubmitGuardArm); err != nil {
+		return fmt.Errorf("%w: arming the page's submit guard: %v", ErrNotSent, err)
+	}
+	reclose := func() {
+		_, _ = p.SubmitGuard(extension.SubmitGuardDisarm)
+		_, _ = p.SubmitGuard(extension.SubmitGuardArm)
 	}
 	if f.Submitter != "" {
 		el, err := p.Element(f.Submitter, 10*time.Second)
 		if err != nil {
+			return fmt.Errorf("%w: %v", ErrNotSent, err)
+		}
+		if _, err := p.SubmitGuardAllowOnce(frameID, ""); err != nil {
+			return fmt.Errorf("%w: letting the submit through: %v", ErrNotSent, err)
+		}
+		if err := el.Click(); err != nil {
+			reclose()
 			return err
 		}
-		return el.Click()
+		return nil
+	}
+	if _, err := p.SubmitGuardAllowOnce(frameID, ""); err != nil {
+		return fmt.Errorf("%w: letting the submit through: %v", ErrNotSent, err)
 	}
 	sel, _ := json.Marshal(f.Selector)
 	res, err := p.EvalCDP(fmt.Sprintf(`(() => { const f = document.querySelector(%s);
   if (!(f instanceof HTMLFormElement)) return false; f.requestSubmit(); return true; })()`, string(sel)))
 	if err != nil {
+		reclose()
 		return err
 	}
 	if ok, _ := res.(bool); !ok {
-		return fmt.Errorf("the form %s is no longer on the page", f.Selector)
+		reclose()
+		return fmt.Errorf("%w: the form %s is no longer on the page", ErrNotSent, f.Selector)
 	}
 	return nil
 }

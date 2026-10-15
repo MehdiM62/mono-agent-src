@@ -226,13 +226,24 @@ func (s *Session) markLoad() {
 	_ = s.saveState()
 }
 
+// agentOrigin is the origin an agent's console and network reads keep to:
+// what was recorded while the tab was on its current, allowed page ("" for
+// a person, who reads everything).
+func (s *Session) agentOrigin() string {
+	if !s.policy.Agent || blank(s.url) {
+		return ""
+	}
+	return Origin(s.url)
+}
+
 // loadMark is the tab's mark from markLoad (zero: none).
 func (s *Session) loadMark() LoadMark { return s.state.Loads[tabKey(s.info.Instance, s.tabID)] }
 
 // Console reads the tab's buffered console entries after seq since (a
 // negative since: since the page was last loaded by OpenTab, Navigate or
-// Reload), optionally only levels. The watch is turned on first (it is
-// idempotent).
+// Reload), optionally only levels; an agent reads only what was recorded on
+// the tab's current origin (agentOrigin). The watch is turned on first (it
+// is idempotent).
 func (s *Session) Console(since int, levels []string, limit int) ([]ConsoleEntry, int, error) {
 	if err := s.Watch(true); err != nil {
 		return nil, 0, err
@@ -241,6 +252,9 @@ func (s *Session) Console(since int, levels []string, limit int) ([]ConsoleEntry
 		since = s.loadMark().Console
 	}
 	params := map[string]interface{}{"since": since}
+	if o := s.agentOrigin(); o != "" {
+		params["origin"] = o
+	}
 	if len(levels) > 0 {
 		params["levels"] = levels
 	}
@@ -270,6 +284,9 @@ func (s *Session) Network(since int, failedOnly bool, limit int) ([]NetworkEntry
 		since = s.loadMark().Network
 	}
 	params := map[string]interface{}{"since": since, "failedOnly": failedOnly}
+	if o := s.agentOrigin(); o != "" {
+		params["origin"] = o
+	}
 	if limit > 0 {
 		params["limit"] = limit
 	}
