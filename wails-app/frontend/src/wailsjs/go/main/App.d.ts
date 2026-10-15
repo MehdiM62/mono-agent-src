@@ -95,6 +95,8 @@ export function AssignOrgRole(arg1:string,arg2:string,arg3:string):Promise<strin
 
 export function BindBrowser(arg1:string,arg2:string):Promise<main.BrowserRow>;
 
+export function BrowserPermissions():Promise<string>;
+
 export function CancelHealthRun(arg1:string):Promise<string>;
 
 export function CancelPlatformOAuth(arg1:string):Promise<string>;
@@ -626,6 +628,10 @@ export function SetAgentRosterAutoRevalidate(arg1:boolean):Promise<string>;
 export function SetApplicationStatus(arg1:string,arg2:string,arg3:string):Promise<void>;
 
 export function SetAutomationTrust(arg1:string,arg2:string):Promise<string>;
+
+export function SetBrowserPermission(arg1:string,arg2:string):Promise<string>;
+
+export function SetBrowserSiteRule(arg1:string,arg2:string):Promise<string>;
 
 export function SetChatOrgMode(arg1:string,arg2:string):Promise<string>;
 

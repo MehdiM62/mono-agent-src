@@ -23,6 +23,7 @@ vi.mock('../components/settings/BrowserBindingsSection.jsx', () => stub('binding
 vi.mock('../components/settings/JevSection.jsx', () => stub('jev'))
 vi.mock('../components/settings/ApiSection.jsx', () => stub('api'))
 vi.mock('../components/settings/CoderModeSection.jsx', () => stub('coder'))
+vi.mock('../components/settings/BrowserPermissionsSection.jsx', () => stub('browser-permissions'))
 vi.mock('../components/settings/api/ApiKeysSection.jsx', () => stub('api-keys'))
 import Settings from './Settings.jsx'
 import { GetActiveProfile } from '../wailsjs/go/main/App'
@@ -49,7 +50,7 @@ describe('Settings scope groups', () => {
     render(<Settings onNavigate={vi.fn()} />)
     const g = screen.getByTestId('scope-global')
     const p = screen.getByTestId('scope-profile')
-    for (const id of ['health', 'coder', 'jev-machine', 'api-machine']) expect(within(g).getByTestId(id)).toBeInTheDocument()
+    for (const id of ['health', 'coder', 'browser-permissions', 'jev-machine', 'api-machine']) expect(within(g).getByTestId(id)).toBeInTheDocument()
     expect(within(g).getByText('Database Path')).toBeInTheDocument()
     expect(within(g).getByText('settings.aiAgentsTitle')).toBeInTheDocument()
     expect(within(p).getByTestId('bindings')).toBeInTheDocument()

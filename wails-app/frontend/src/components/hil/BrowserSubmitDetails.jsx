@@ -13,7 +13,7 @@ export const BROWSER_SUBMIT = 'browser.submit'
 
 const mono = 'var(--font-mono)'
 const sectionLabel = { fontSize: 10, fontFamily: mono, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }
-const box = { padding: '7px 10px', background: 'rgba(255,255,255,0.04)', borderRadius: 6, border: '1px solid rgba(255,255,255,0.07)', fontSize: 12, color: 'var(--text-secondary)', wordBreak: 'break-all' }
+export const box = { padding: '7px 10px', background: 'rgba(255,255,255,0.04)', borderRadius: 6, border: '1px solid rgba(255,255,255,0.07)', fontSize: 12, color: 'var(--text-secondary)', wordBreak: 'break-all' }
 const cell = { padding: '5px 8px', borderBottom: '1px solid rgba(255,255,255,0.06)', textAlign: 'left', verticalAlign: 'top', wordBreak: 'break-all' }
 
 export function isBrowserSubmit(item) {
@@ -32,7 +32,7 @@ export function requesterParts(by) {
   return parts
 }
 
-function Section({ label, children }) {
+export function Section({ label, children }) {
   return (
     <div style={{ marginBottom: 12 }}>
       <div style={sectionLabel}>{label}</div>
