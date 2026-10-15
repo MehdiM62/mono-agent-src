@@ -62,11 +62,11 @@ func TestWorkflowSections(t *testing.T) {
 		 ('e5','wx','QUEUED','manual','other','2026-09-26 11:00:00', NULL)`,
 	)
 	src := fakeWorkflows{wfs: []workflow.Workflow{
-		{ID: "w1", Name: "Scraper", IsActive: true, Nodes: []workflow.WorkflowNode{
+		{ID: "w1", Name: "Scraper", IsActive: true, ProfileID: "default", Nodes: []workflow.WorkflowNode{
 			{ID: "n1", Type: "trigger.schedule", Config: map[string]interface{}{"cron": "0 0 14 * * *", "timezone": "UTC"}},
 			{ID: "n9", Type: "trigger.schedule", Disabled: true, Config: map[string]interface{}{"cron": "0 0 13 * * *"}},
 		}},
-		{ID: "w2", Name: "Digest", IsActive: false, Nodes: []workflow.WorkflowNode{
+		{ID: "w2", Name: "Digest", IsActive: false, ProfileID: "default", Nodes: []workflow.WorkflowNode{
 			{ID: "n2", Type: "trigger.schedule", Config: map[string]interface{}{"cron": "0 0 * * * *"}},
 		}},
 	}}
@@ -102,7 +102,7 @@ func TestWorkflowSections(t *testing.T) {
 
 func TestScheduleTimezoneAndInvalidSpecs(t *testing.T) {
 	db := testDB(t)
-	src := fakeWorkflows{wfs: []workflow.Workflow{{ID: "w1", Name: "Mixed", IsActive: true, Nodes: []workflow.WorkflowNode{
+	src := fakeWorkflows{wfs: []workflow.Workflow{{ID: "w1", Name: "Mixed", IsActive: true, ProfileID: "default", Nodes: []workflow.WorkflowNode{
 		{ID: "bad", Type: "trigger.schedule", Config: map[string]interface{}{"cron": "every tuesday"}},
 		{ID: "five", Type: "trigger.schedule", Config: map[string]interface{}{"cron": "0 14 * * *"}}, // scheduler needs seconds
 		{ID: "berlin", Type: "trigger.schedule", Config: map[string]interface{}{"cron": "0 0 15 * * *", "timezone": "Europe/Berlin"}},
@@ -144,7 +144,7 @@ func TestWorkflowsAreProfileScoped(t *testing.T) {
 	}}
 	s := Build(context.Background(), Options{DB: db.DB, ProfileID: "default", Now: now, Workflows: src,
 		Sections: map[string]bool{"workflows": true, "schedules": true}})
-	if s.Workflows.Total != 2 || len(s.Schedules.Upcoming) != 2 {
+	if s.Workflows.Total != 1 || len(s.Schedules.Upcoming) != 1 {
 		t.Fatalf("workflows = %+v, upcoming = %+v", s.Workflows, s.Schedules.Upcoming)
 	}
 	for _, u := range s.Schedules.Upcoming {
@@ -161,7 +161,7 @@ func TestWorkflowsAreProfileScoped(t *testing.T) {
 // (past) one, or no daemon, falls back to the computed time.
 func TestDaemonSchedulesPreferred(t *testing.T) {
 	db := testDB(t)
-	src := fakeWorkflows{wfs: []workflow.Workflow{{ID: "w1", Name: "A", IsActive: true, Nodes: []workflow.WorkflowNode{
+	src := fakeWorkflows{wfs: []workflow.Workflow{{ID: "w1", Name: "A", IsActive: true, ProfileID: "default", Nodes: []workflow.WorkflowNode{
 		{ID: "every", Type: "trigger.schedule", Config: map[string]interface{}{"cron": "@every 1h"}},
 		{ID: "daily", Type: "trigger.schedule", Config: map[string]interface{}{"cron": "0 0 14 * * *"}},
 	}}}}
@@ -188,17 +188,20 @@ func TestDaemonSchedulesPreferred(t *testing.T) {
 	}
 }
 
-// A workflow with no profile id belongs to "default", the same rule
-// `workflow list` applies; it must not be counted in every profile.
-func TestOwnWorkflowsUnownedMeansDefault(t *testing.T) {
+// A workflow with no profile id is an error state: it is owned by no
+// profile, so it is skipped everywhere, the default profile included.
+func TestOwnWorkflowsSkipsOwnerless(t *testing.T) {
 	src := fakeWorkflows{wfs: []workflow.Workflow{
 		{ID: "legacy", IsActive: true},
 		{ID: "work", IsActive: true, ProfileID: "p-work"},
 	}}
-	for profile, want := range map[string]string{"default": "legacy", "p-work": "work"} {
+	for profile, want := range map[string]string{"default": "", "p-work": "work"} {
 		got, err := ownWorkflows(context.Background(), Options{ProfileID: profile, Workflows: src})
-		if err != nil || len(got) != 1 || got[0].ID != want {
-			t.Errorf("%s: got %+v, %v; want only %s", profile, got, err, want)
+		if err != nil {
+			t.Fatalf("%s: %v", profile, err)
+		}
+		if want == "" && len(got) != 0 || want != "" && (len(got) != 1 || got[0].ID != want) {
+			t.Errorf("%s: got %+v; want %q", profile, got, want)
 		}
 	}
 }
