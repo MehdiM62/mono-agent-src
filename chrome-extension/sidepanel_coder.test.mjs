@@ -466,3 +466,19 @@ test("the reload checkbox shows for a bug report only, and its answer goes with 
   assert.ok(!("reload" in t.of("coder_queue")[2]), "reload went with another kind");
   assert.ok(!JSON.stringify(t.sent).includes("SECRET"), "the page's title went out");
 });
+
+test("a queued job shows its whole address under the page's title, as text", async () => {
+  const path = `/${"a".repeat(600)}<img src=x onerror=alert(1)>%0A?next=https://github.com/login`;
+  const t = setup({
+    replies: { coder_queue_list: { ok: true, items: [{ id: "q1", kind: "bug-report", status: "queued", title: "GitHub", origin: "https://evil.example", path }] } },
+  });
+  await settle();
+  const item = t.els["coder-queued"].children[0];
+  const address = item.children.find((n) => n.className === "coder-address");
+  assert.ok(address, "no address line");
+  assert.equal(address.textContent, `https://evil.example${path}`, "the address was cut or changed");
+  assert.equal(item.children.indexOf(address), 1, "the address sits right under the title");
+  assert.equal(item.children[0].textContent, "Bug report: GitHub");
+  assert.deepEqual(html, [], "markup was parsed");
+  assert.ok(!item.all().some((n) => n.tag === "img"), "the path became an element");
+});
