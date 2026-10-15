@@ -209,7 +209,7 @@ func NewCommand(d Deps) *cobra.Command {
 	api.Bind(c)
 	c.Flags().DurationVar(&stopGrace, "stop-grace", 10*time.Second, "On shutdown, how long runs in flight may take to finish before they are cancelled (a service manager kills the daemon about 35s after asking it to stop)")
 	c.Flags().BoolVar(&bridgeOn, "bridge", true, "Hold the Chrome extension bridge open in this process (same bridge 'extension serve' runs standalone)")
-	c.AddCommand(newDaemonInstallCmd(d), newDaemonUninstallCmd(), NewRestartCommand(d))
+	c.AddCommand(newDaemonInstallCmd(d), newDaemonUninstallCmd(d), NewRestartCommand(d))
 	return c
 }
 

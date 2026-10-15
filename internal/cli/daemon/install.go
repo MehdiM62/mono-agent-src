@@ -8,8 +8,6 @@ import (
 	"syscall"
 
 	"github.com/spf13/cobra"
-
-	"github.com/monoes/mono-agent/internal/autostart"
 )
 
 // newDaemonInstallCmd registers `monoagentcli daemon` to start automatically
@@ -60,7 +58,7 @@ func newDaemonInstallCmd(d Deps) *cobra.Command {
 // data" expectations — `rm -rf ~/.monoagent` alone would otherwise leave a
 // LaunchAgent/systemd unit/Scheduled Task pointing at a binary nobody meant
 // to keep running.
-func newDaemonUninstallCmd() *cobra.Command {
+func newDaemonUninstallCmd(d Deps) *cobra.Command {
 	return &cobra.Command{
 		Use:     "uninstall",
 		Short:   "Stop the daemon and remove its login-time auto-start registration",
@@ -69,7 +67,7 @@ func newDaemonUninstallCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 			defer stop()
-			if err := autostart.New().Uninstall(ctx); err != nil {
+			if err := d.NewInstaller().Uninstall(ctx); err != nil {
 				return fmt.Errorf("uninstall: %w", err)
 			}
 			fmt.Fprintln(cmd.OutOrStdout(), "Removed the daemon's auto-start registration.")
