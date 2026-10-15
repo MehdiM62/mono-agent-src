@@ -15,8 +15,8 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/monoes/mono-agent/internal/browserctl"
 	"github.com/monoes/mono-agent/internal/cli/clicore"
-	"github.com/monoes/mono-agent/internal/orgsign"
 )
 
 // `coder queue …`: coder chats the browser extension queued (C5 of
@@ -148,12 +148,20 @@ func listQueueItems(cfg *Deps, profile string, all bool) ([]queueItem, error) {
 }
 
 // refuseInAgent refuses what inside a coding agent or org role: queueing
-// and starting coder chats are the person's, the same courtesy guard as
-// org signing (orgsign.AgentContextMarker).
+// and starting coder chats are the person's. It asks the detector the
+// `browser` commands use (browserctl.IsAgentContext), so the two never
+// disagree about who is an agent. A courtesy guard, like org signing's: an
+// agent can unset its env.
 func refuseInAgent(what string) error {
-	m := orgsign.AgentContextMarker()
-	if m == "" {
+	if !browserctl.IsAgentContext() {
 		return nil
+	}
+	m := "an agent marker"
+	for _, k := range browserctl.AgentContextEnv() {
+		if strings.TrimSpace(os.Getenv(k)) != "" {
+			m = k
+			break
+		}
 	}
 	return &coderError{code: "agent_context", err: &clicore.Error{Code: 3,
 		Msg: fmt.Sprintf("%s is refused inside an agent (%s is set): only the person queues and starts coder chats", what, m)}}

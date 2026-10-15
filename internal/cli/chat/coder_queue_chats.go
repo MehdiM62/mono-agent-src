@@ -17,10 +17,13 @@ import (
 // says whether the side panel may send follow-ups (coder.send): only to a
 // conversation whose first turn the person started in the desktop app.
 //
-// Who started a turn is its owner instance id, with no extra column: the
-// app's chat supervisor passes `--instance <uuid>` (wails-app/app_chat.go),
-// the extension bridge `--instance ext-…`, and a terminal none. So a
-// finished turn owned by a UUID is a desktop turn.
+// Who started a turn is its owner instance id, with no extra column or
+// migration: the app's chat supervisor passes `--instance <uuid>`
+// (wails-app/app_chat.go), the extension bridge `--instance ext-…`, and a
+// terminal none. So a finished turn owned by a UUID is a desktop turn. This
+// is a courtesy check, not a barrier: anything that can run `chat` can pass
+// a UUID of its own, and a full-access agent can do that. It keeps the side
+// panel from starting what the person never started in the app.
 
 type coderChatRow struct {
 	ID               string `json:"id"`

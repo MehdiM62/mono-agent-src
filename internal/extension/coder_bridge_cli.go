@@ -10,14 +10,22 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/monoes/mono-agent/internal/hilsend"
 	"github.com/monoes/mono-agent/internal/orgsign"
 )
 
 // cliCoder is the real coderCLI: this binary, with every agent-context
-// marker removed from the child's env. The request came from the person's
-// browser, so a bridge that happens to run under an agent's shell must not
-// make it an agent's request.
+// variable removed from the child's env (coderAgentEnv). The request came
+// from the person's browser, so a bridge that happens to run under an
+// agent's shell must not make it an agent's request.
 type cliCoder struct{ chat cliChatBackend }
+
+// coderAgentEnv is every variable the `browser` commands' agent detector
+// reads: browserctl.AgentContextEnv, which this package can't import
+// (browserctl imports it). A test holds the two lists equal.
+func coderAgentEnv() []string {
+	return append(orgsign.AgentContextMarkers(), hilsend.EnvAgentContext, "MONOAGENT_ACTOR")
+}
 
 func (c *cliCoder) command(ctx context.Context, stdin string, args []string) (*exec.Cmd, error) {
 	bin, err := c.chat.binary()
@@ -27,7 +35,7 @@ func (c *cliCoder) command(ctx context.Context, stdin string, args []string) (*e
 	cmd := exec.CommandContext(ctx, bin, args...)
 	cmd.WaitDelay = monomindWaitDelay
 	cmd.Stdin = strings.NewReader(stdin)
-	markers := orgsign.AgentContextMarkers()
+	markers := coderAgentEnv()
 	for _, kv := range os.Environ() {
 		if k, _, _ := strings.Cut(kv, "="); !slices.Contains(markers, k) {
 			cmd.Env = append(cmd.Env, kv)

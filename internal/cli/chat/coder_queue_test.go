@@ -11,8 +11,8 @@ import (
 	"testing"
 
 	"github.com/monoes/mono-agent/internal/ai"
+	"github.com/monoes/mono-agent/internal/browserctl"
 	"github.com/monoes/mono-agent/internal/monomind"
-	"github.com/monoes/mono-agent/internal/orgsign"
 	"github.com/monoes/mono-agent/internal/storage"
 )
 
@@ -67,10 +67,11 @@ func withFakeBrowser(t *testing.T) *fakeBrowser {
 	return f
 }
 
-// asOperator clears every agent-context marker (the tests run inside one).
+// asOperator clears every agent-context variable (the tests run inside an
+// agent).
 func asOperator(t *testing.T) {
 	t.Helper()
-	for _, k := range orgsign.AgentContextMarkers() {
+	for _, k := range browserctl.AgentContextEnv() {
 		t.Setenv(k, "")
 	}
 }
@@ -221,12 +222,17 @@ func TestCoderQueueRefusedInsideAnAgent(t *testing.T) {
 	fb := withFakeBrowser(t)
 	it := queueAdd(t, dbPath, "--kind", "tokens")
 
-	t.Setenv("CLAUDECODE", "1")
-	for _, args := range [][]string{{"queue", "add", "--kind", "tokens"}, {"queue", "start", it.ID}} {
-		out, code := runCoderCLI(t, dbPath, args...)
-		if code != 3 || !strings.Contains(out, `"code":"agent_context"`) || !strings.Contains(out, "CLAUDECODE") {
-			t.Errorf("%v inside an agent: exit %d %s", args, code, out)
-		}
+	// Any variable the `browser` commands count as an agent's counts here.
+	for _, marker := range []string{"CLAUDECODE", "MONOAGENT_AGENT_CONTEXT", "MONOAGENT_ACTOR"} {
+		t.Run(marker, func(t *testing.T) {
+			t.Setenv(marker, "1")
+			for _, args := range [][]string{{"queue", "add", "--kind", "tokens"}, {"queue", "start", it.ID}} {
+				out, code := runCoderCLI(t, dbPath, args...)
+				if code != 3 || !strings.Contains(out, `"code":"agent_context"`) || !strings.Contains(out, marker) {
+					t.Errorf("%v with %s set: exit %d %s", args, marker, code, out)
+				}
+			}
+		})
 	}
 	if len(fb.calls) != 3 { // the first add's eval, screenshot, tokens
 		t.Errorf("the refused add still ran %d browser commands", len(fb.calls)-3)
@@ -234,7 +240,8 @@ func TestCoderQueueRefusedInsideAnAgent(t *testing.T) {
 }
 
 func TestWithoutAgentMarkers(t *testing.T) {
-	env := withoutAgentMarkers([]string{"HOME=/h", "CLAUDECODE=1", "MONOMIND_AGENT_EXEC=1", "PATH=/bin", "AGENT=x"})
+	env := withoutAgentMarkers([]string{"HOME=/h", "CLAUDECODE=1", "MONOMIND_AGENT_EXEC=1", "PATH=/bin", "AGENT=x",
+		"MONOAGENT_AGENT_CONTEXT=coder", "MONOAGENT_ACTOR=w1"})
 	if !slices.Equal(env, []string{"HOME=/h", "PATH=/bin"}) {
 		t.Fatalf("env = %v", env)
 	}
@@ -373,6 +380,24 @@ func TestCoderProjectsMapUnmap(t *testing.T) {
 	}
 	if _, code := runCoderCLI(t, dbPath, "projects", "unmap", "http://localhost:3000"); code != 2 {
 		t.Errorf("unmap twice: exit %d", code)
+	}
+}
+
+// Only the app's instance ids (UUIDs) count as the desktop: the bridge's
+// ext-… ids and a terminal's empty one never do.
+func TestIsDesktopInstance(t *testing.T) {
+	for owner, want := range map[string]bool{
+		"7a1c3f9e-2b4d-4e8f-9a0b-1c2d3e4f5a6b": true,
+		"":                                     false,
+		"ext-6ba121542143":                     false,
+		"ext-7a1c3f9e-2b4d-4e8f-9a0b-1c2d3e4f5a6b":      false,
+		"{7a1c3f9e-2b4d-4e8f-9a0b-1c2d3e4f5a6b}":        false,
+		"urn:uuid:7a1c3f9e-2b4d-4e8f-9a0b-1c2d3e4f5a6b": false,
+		"7a1c3f9e2b4d4e8f9a0b1c2d3e4f5a6b":              false,
+	} {
+		if got := isDesktopInstance(owner); got != want {
+			t.Errorf("isDesktopInstance(%q) = %v, want %v", owner, got, want)
+		}
 	}
 }
 

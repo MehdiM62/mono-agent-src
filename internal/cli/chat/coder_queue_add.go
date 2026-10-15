@@ -23,8 +23,8 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/monoes/mono-agent/internal/browserctl"
 	"github.com/monoes/mono-agent/internal/cli/clicore"
-	"github.com/monoes/mono-agent/internal/orgsign"
 )
 
 const (
@@ -74,9 +74,10 @@ func (selfExec) Run(ctx context.Context, args []string) ([]byte, error) {
 	return out, nil
 }
 
-// withoutAgentMarkers is env minus every orgsign.AgentContextMarkers entry.
+// withoutAgentMarkers is env minus every variable browserctl.IsAgentContext
+// reads.
 func withoutAgentMarkers(env []string) []string {
-	markers := orgsign.AgentContextMarkers()
+	markers := browserctl.AgentContextEnv()
 	out := make([]string, 0, len(env))
 	for _, kv := range env {
 		k, _, _ := strings.Cut(kv, "=")
