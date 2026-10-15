@@ -263,10 +263,11 @@ func TestResubmitClicksTheRecordedSubmitter(t *testing.T) {
 		t.Fatal(err)
 	}
 	calls := f.Calls()
-	last := calls[len(calls)-3:]
-	if last[0].Type != extension.CmdSubmitGuard || last[0].Params["action"] != extension.SubmitGuardAllowOnce ||
+	last := calls[len(calls)-4:]
+	if last[0].Type != extension.CmdSubmitGuard || last[0].Params["action"] != extension.SubmitGuardArm ||
 		last[1].Type != extension.CmdElement || last[1].Params["selector"] != "#send" ||
-		last[2].Type != extension.CmdClick || last[2].Params["elementId"] != "el:#send" {
+		last[2].Type != extension.CmdSubmitGuard || last[2].Params["action"] != extension.SubmitGuardAllowOnce || last[2].Params["frameId"] != 0 ||
+		last[3].Type != extension.CmdClick || last[3].Params["elementId"] != "el:#send" {
 		t.Fatalf("calls = %+v", last)
 	}
 }

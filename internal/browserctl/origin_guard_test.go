@@ -169,7 +169,7 @@ func TestAnApprovedSubmitIsBoundToItsFormAndPage(t *testing.T) {
 	if err != nil || !probe.Submit {
 		t.Fatalf("probe: %+v %v", probe, err)
 	}
-	aw, err := s.Hold(ctx, db, s.URL(), probe.Form, "click", 0)
+	aw, err := s.Hold(ctx, db, s.URL(), probe.Form, "click", 0, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -199,5 +199,77 @@ func TestAnApprovedSubmitIsBoundToItsFormAndPage(t *testing.T) {
 		Form: browserctl.FormSummary{Selector: "#pay-form", Submitter: "#pay"}})
 	if err := s3.Resubmit(unbound); !errors.Is(err, browserctl.ErrSubmitUnbound) {
 		t.Fatalf("resubmit of an unbound item: %v", err)
+	}
+}
+
+// A submit held in a frame of the page cannot be repeated (the trigger
+// reaches the top frame only), so it is stored unbound and refused before
+// the guard is opened anywhere.
+func TestASubmitHeldInAFrameIsNotRepeated(t *testing.T) {
+	setEnv(t, true)
+	ctx := context.Background()
+	db := testdb.Open(t).DB
+	f := browserctltest.New()
+	f.AddTab("https://shop.example/", "Coder · Agent", true)
+	s, _ := browserctl.Open(browserctl.Options{Sender: f, Allowlist: []string{"https://shop.example"}})
+	it, err := browserctl.CreateSubmitItem(ctx, db, browserctl.SubmitRequest{URL: "https://shop.example/", Via: "guard",
+		FrameID: 2, Page: s.Page(), Form: browserctl.FormSummary{Selector: "#f", Submitter: "#go"}})
+	if err != nil || it.FormDigest != "" || it.FrameID != 2 {
+		t.Fatalf("item = %+v, %v", it, err)
+	}
+	if err := s.Resubmit(it); !errors.Is(err, browserctl.ErrNotSent) {
+		t.Fatalf("resubmit in a frame: %v", err)
+	}
+	for _, c := range f.Calls() {
+		if c.Type == extension.CmdSubmitGuard && c.Params["action"] == extension.SubmitGuardAllowOnce {
+			t.Fatal("the guard was opened for a frame submit")
+		}
+	}
+}
+
+// When the click fails after the guard opened, the guard is closed again,
+// so no later submit slips through on that allowance.
+func TestAFailedResubmitClosesTheGuardAgain(t *testing.T) {
+	setEnv(t, true)
+	f := browserctltest.New()
+	f.AddTab("https://shop.example/", "Coder · Agent", true)
+	f.On(extension.CmdClick, func(*extension.Command) (any, error) { return nil, errors.New("Element is detached") })
+	s, _ := browserctl.Open(browserctl.Options{Sender: f, Allowlist: []string{"https://shop.example"}})
+	it := browserctl.SubmitItem{URL: "https://shop.example/", Form: browserctl.FormSummary{Submitter: "#go"},
+		FormDigest: browserctl.FormDigest(browserctl.FormSummary{})}
+	if err := s.Resubmit(it); err == nil {
+		t.Fatal("a failed click reported success")
+	}
+	var actions []any
+	for _, c := range f.Calls() {
+		if c.Type == extension.CmdSubmitGuard {
+			actions = append(actions, c.Params["action"])
+		}
+	}
+	want := []any{"arm", "allow_once", "disarm", "arm"}
+	if len(actions) != 4 || actions[0] != want[0] || actions[1] != want[1] || actions[2] != want[2] || actions[3] != want[3] {
+		t.Fatalf("guard actions = %v, want %v", actions, want)
+	}
+}
+
+// An agent's console and network reads keep to the tab's current origin.
+func TestAgentReadsKeepToTheTabsOrigin(t *testing.T) {
+	setEnv(t, true)
+	f := browserctltest.New()
+	tab := f.AddTab("http://localhost:3000/app", "Coder · Agent", true)
+	s, _ := browserctl.Open(browserctl.Options{Sender: f})
+	s.Console(-1, nil, 0)
+	s.Network(-1, false, 0)
+	setEnv(t, false)
+	h, _ := browserctl.Open(browserctl.Options{Sender: f, Tab: tab})
+	h.Console(-1, nil, 0)
+	var got []any
+	for _, c := range f.Calls() {
+		if c.Type == extension.CmdReadConsole || c.Type == extension.CmdReadNetwork {
+			got = append(got, c.Params["origin"])
+		}
+	}
+	if len(got) != 3 || got[0] != "http://localhost:3000" || got[1] != "http://localhost:3000" || got[2] != nil {
+		t.Fatalf("origin params = %v", got)
 	}
 }

@@ -141,5 +141,5 @@ func ResubmitItem(p *extension.ExtensionPage, it SubmitItem) error {
 	if err := VerifyHeld(p, it); err != nil {
 		return err
 	}
-	return ResubmitPage(p, it.Form)
+	return resubmit(p, it.Form, it.FrameID)
 }
