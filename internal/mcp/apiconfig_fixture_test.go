@@ -38,7 +38,7 @@ func (f *fakeInstaller) record(call string) {
 	f.calls = append(f.calls, call)
 }
 
-func (f *fakeInstaller) Install(context.Context) (autostart.Result, error) {
+func (f *fakeInstaller) Install(context.Context, string) (autostart.Result, error) {
 	f.record("install")
 	return autostart.Result{}, nil
 }

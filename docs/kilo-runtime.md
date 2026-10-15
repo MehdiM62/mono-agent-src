@@ -20,7 +20,7 @@ monoagentcli agent scan --json
 monoagentcli agent install kilo
 kilo auth login
 monoagentcli agent test kilo
-monoagentcli chat --runtime kilo -- 'Hello'
+monoagentcli --profile work chat --runtime kilo -- 'Hello'
 ```
 
 Monoagent consumes monomind's scan recipe (`npm install -g @kilocode/cli`)

@@ -25,6 +25,8 @@ set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo="$(cd "$here/../../.." && pwd)"
 work="${BENCH_WORK:-${TMPDIR:-/tmp}/bench-vs-n8n}"
+# shellcheck source=../../lib/mono.sh
+. "$repo/scripts/lib/mono.sh"
 n8n_image="${N8N_IMAGE:-docker.n8n.io/n8nio/n8n:2.43.4}"
 base_image="${BASE_IMAGE:-alpine:3.22}"
 rounds="${ROUNDS:-3}"
@@ -87,12 +89,17 @@ n8n_env=(-e N8N_DIAGNOSTICS_ENABLED=false -e N8N_VERSION_NOTIFICATIONS_ENABLED=f
 # ── Seed data directories (setup is not timed) ──────────────────────────────
 log "seeding Mono Agent data dir"
 mkdir -p "$work/seed-mono" "$work/seed-n8n"
+# Every scoped call names this profile (the seed data dir is scratch, never ~/.monoagent).
+profile=bench
+"${mono_run[@]}" --rm -v "$work/seed-mono:/data" "$base_image" \
+	monoagentcli profile create "$profile" >"$work/raw/mono-profile.txt" 2>&1 || { cat "$work/raw/mono-profile.txt" >&2; exit 1; }
 "${mono_run[@]}" --rm -v "$work/seed-mono:/data" -v "$here/monoagent-workflow.json:/wf.json:ro" \
-	"$base_image" monoagentcli workflow import --file /wf.json >"$work/raw/mono-import.txt" 2>&1
+	"$base_image" monoagentcli workflow import --profile "$profile" --file /wf.json >"$work/raw/mono-import.txt" 2>&1
 wf_id="$(grep -o 'as id: [0-9a-f-]*' "$work/raw/mono-import.txt" | awk '{print $3}')"
 [[ -n "$wf_id" ]] || { cat "$work/raw/mono-import.txt" >&2; exit 1; }
 "${mono_run[@]}" --rm -v "$work/seed-mono:/data" "$base_image" \
-	monoagentcli workflow activate "$wf_id" >>"$work/raw/mono-import.txt" 2>&1
+	monoagentcli workflow activate --profile "$profile" "$wf_id" >>"$work/raw/mono-import.txt" 2>&1
+mono_scan_log "$work/raw/mono-import.txt"
 
 log "seeding n8n data dir"
 docker run --rm --user "$uidgid" "${n8n_env[@]}" -v "$work/seed-n8n:/home/node/.n8n" \
@@ -133,7 +140,7 @@ round() { # round <tool> <n>
 
 	if [[ $tool == mono ]]; then
 		"${mono_run[@]}" -d --name "$mono" --network "container:$net" "${limits[@]}" \
-			-v "$data:/data" "$base_image" monoagentcli daemon >/dev/null
+			-v "$data:/data" "$base_image" monoagentcli daemon --profile "$profile" >/dev/null
 	else
 		docker run -d --name "$n8n" --network "container:$net" "${limits[@]}" --user "$uidgid" \
 			"${n8n_env[@]}" -v "$data:/home/node/.n8n" "$n8n_image" >/dev/null
@@ -177,6 +184,7 @@ round() { # round <tool> <n>
 	load_rss="$(rss_kb "$name")"
 	peak_cg="$(cg "$name" memory.peak 2>/dev/null || echo null)"
 	docker logs "$name" >"$work/raw/$tool-$n.log" 2>&1 || true
+	[[ $tool == mono ]] && mono_scan_log "$work/raw/$tool-$n.log"
 	docker rm -f "$name" >/dev/null
 
 	jq -n --arg tool "$tool" --argjson round "$n" --argjson cold "$cold" \
@@ -257,5 +265,6 @@ jq -s --arg commit "$commit" --arg mono_version "$mono_version" --arg mono_descr
 		},
 		rounds: .
 	}' "$work"/raw/*.json >"$results"
+mono_check_clean
 log "wrote $results"
 jq '{mono_agent: .mono_agent.summary, n8n: .n8n.summary}' "$results"

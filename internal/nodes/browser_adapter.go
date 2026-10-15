@@ -271,7 +271,7 @@ func (b *BrowserNode) Execute(ctx context.Context, input workflow.NodeInput, con
 	// Actions page's now-removed execution path.
 	storage := &workflowActionStorage{
 		db:          vault.DBFromContext(ctx),
-		profileID:   vault.ProfileIDFromContext(ctx),
+		profileID:   storageProfile(ctx),
 		executionID: input.ExecutionID,
 		nodeID:      input.NodeID,
 		platform:    b.platform,

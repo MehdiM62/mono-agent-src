@@ -7,5 +7,5 @@ type SearchJobsNodeSchema struct {
 	Location  string `json:"location" schema:"label=Location,type=text,help=Job location filter."`
 	Source    string `json:"source" schema:"label=Source,type=select,default=linkedin,options=linkedin|arbeitnow|jobicy,help=Which job board to search."`
 	Limit     int    `json:"limit" schema:"label=Limit,type=number,default=25,help=Maximum results to import (capped at 100)."`
-	ProfileID string `json:"profile_id" schema:"label=Profile ID,type=text,default=default,help=Which profile owns the imported applications."`
+	ProfileID string `json:"profile_id" schema:"label=Profile ID,type=text,help=Optional. Must match the workflow's profile (leave blank to use it)."`
 }

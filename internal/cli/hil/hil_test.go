@@ -238,3 +238,48 @@ func TestHILShortIDResolvesToPendingItem(t *testing.T) {
 		t.Fatalf("ambiguous short id: err = %v, want not found", err)
 	}
 }
+
+// A send item in profile A must not show another profile's person as its recipient.
+func TestHILRecipientIsScopedToTheProfile(t *testing.T) {
+	dbPath := newHILTestDB(t)
+	sdb, err := storage.NewDatabase(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { sdb.Close() })
+	for _, q := range []string{
+		`INSERT INTO people (id, platform_username, platform, profile_id) VALUES ('person-a', 'alice', 'instagram', 'profile-a')`,
+		`INSERT INTO people (id, platform_username, platform, profile_id) VALUES ('person-b', 'bob', 'instagram', 'profile-b')`,
+		`INSERT INTO hil_pending (id, execution_id, workflow_id, node_id, node_name, status, readonly_data, editable_data, node_config, profile_id)
+		 VALUES ('send-own', 'send:send-own', '', 'n', 'send:dm', 'pending', '{"kind":"send","id":"send-own","recipient":{"personId":"person-a"}}', '{}', '{"kind":"send"}', 'profile-a')`,
+		`INSERT INTO hil_pending (id, execution_id, workflow_id, node_id, node_name, status, readonly_data, editable_data, node_config, profile_id)
+		 VALUES ('send-foreign', 'send:send-foreign', '', 'n', 'send:dm', 'pending', '{"kind":"send","id":"send-foreign","recipient":{"personId":"person-b"}}', '{}', '{"kind":"send"}', 'profile-a')`,
+	} {
+		if _, err := sdb.DB.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	recipient := func(id string) hilRecipient {
+		cfg := &testConfig{DBPath: dbPath, ProfileID: "profile-a", JSONOutput: true}
+		var err error
+		out := captureStdout(t, func() {
+			cmd := testDeps(cfg).newHILRecipientCmd()
+			cmd.SetArgs([]string{id})
+			err = cmd.Execute()
+		})
+		if err != nil {
+			t.Fatalf("recipient %s: %v", id, err)
+		}
+		var r hilRecipient
+		if jerr := json.Unmarshal([]byte(out), &r); jerr != nil {
+			t.Fatalf("output %q: %v", out, jerr)
+		}
+		return r
+	}
+	if r := recipient("send-own"); !r.Found || r.Username != "alice" {
+		t.Errorf("own person: %+v, want found alice", r)
+	}
+	if r := recipient("send-foreign"); r.Found || r.Username != "" {
+		t.Errorf("another profile's person was read: %+v", r)
+	}
+}

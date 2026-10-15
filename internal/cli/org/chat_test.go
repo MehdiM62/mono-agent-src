@@ -89,7 +89,7 @@ func setupOrgChat(t *testing.T) (*testConfig, *chatFake, string) {
 	t.Setenv("HOME", t.TempDir())
 	cfg := &testConfig{DBPath: filepath.Join(t.TempDir(), "chat.db"), ProfileID: "default"}
 	env := testEnv(cfg)
-	root := env.Root()
+	root := env.root()
 	env.Close()
 	ceo, dev := "ceo", "dev"
 	doc := &orgdesign.Doc{Name: "acme", Goal: "ship", Roles: []orgdesign.Role{

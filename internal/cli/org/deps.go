@@ -51,6 +51,14 @@ type orgEnv struct {
 
 func newEnv(d Deps, e *orgenv.Env) *orgEnv { return &orgEnv{Env: e, d: d} }
 
+// root is the org root for the proxy commands, which take it as a func. It is
+// "" when there is none, so it may only be called from a command run through
+// requireRoot; code that can run without that guard uses RootErr.
+func (e *orgEnv) root() string {
+	r, _ := e.RootErr()
+	return r
+}
+
 // genOptions returns what reconcile needs to write generated org JSON
 // blocks for this process.
 func (e *orgEnv) genOptions(profileID string) orggrant.GenOptions { return e.GenOptions(profileID) }

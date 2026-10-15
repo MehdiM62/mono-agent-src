@@ -18,9 +18,9 @@ type fakeInstaller struct {
 	restartCalls int
 }
 
-func (f *fakeInstaller) Install(context.Context) (Result, error) { return Result{}, nil }
-func (f *fakeInstaller) Uninstall(context.Context) error         { return nil }
-func (f *fakeInstaller) Start(context.Context) error             { return nil }
+func (f *fakeInstaller) Install(context.Context, string) (Result, error) { return Result{}, nil }
+func (f *fakeInstaller) Uninstall(context.Context) error                 { return nil }
+func (f *fakeInstaller) Start(context.Context) error                     { return nil }
 func (f *fakeInstaller) Status(context.Context) (bool, string) {
 	f.statusCalls++
 	return f.installed, f.where

@@ -13,6 +13,7 @@ import (
 
 	"github.com/monoes/mono-agent/internal/hilsuggest"
 	"github.com/monoes/mono-agent/internal/jev/jevconf"
+	"github.com/monoes/mono-agent/internal/nodes/nodeprofile"
 	"github.com/monoes/mono-agent/internal/vault"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
@@ -41,9 +42,9 @@ func (n *HumanInLoopNode) Execute(ctx context.Context, input workflow.NodeInput,
 		return nil, fmt.Errorf("human_in_loop: database not available in context")
 	}
 
-	profileID := vault.ProfileIDFromContext(ctx)
-	if profileID == "" {
-		profileID = "default"
+	profileID, err := nodeprofile.Require(ctx, "core.human_in_loop", config)
+	if err != nil {
+		return nil, err
 	}
 
 	// Optional timeout: pending items older than this are auto-rejected.

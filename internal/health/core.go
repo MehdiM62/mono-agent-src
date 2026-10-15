@@ -138,7 +138,7 @@ func checkProfile(ctx context.Context, env *Env) Result {
 			var name string
 			if err := env.DB.QueryRowContext(ctx, `SELECT COALESCE(name, id) FROM profiles WHERE id = ?`, id).Scan(&name); err != nil {
 				return Result{Status: StatusFail, Summary: fmt.Sprintf("active profile %q does not exist", id),
-					Detail: "switch with: monoagentcli profile switch <name>"}
+					Detail: "list profiles with: monoagentcli profile list"}
 			}
 			id = fmt.Sprintf("%s (%s)", name, id)
 		}

@@ -288,7 +288,7 @@ func (d Deps) newHILRecipientCmd() *cobra.Command {
 					var img, contact, web, intro, job, cat, name sql.NullString
 					err := db.QueryRowContext(cmd.Context(),
 						`SELECT platform, platform_username, full_name, image_url, contact_details, website, introduction, job_title, category
-						 FROM people WHERE id = ?`, p.Recipient.PersonID).
+						 FROM people WHERE id = ? AND profile_id = ?`, p.Recipient.PersonID, d.ProfileID()).
 						Scan(&out.Platform, &out.Username, &name, &img, &contact, &web, &intro, &job, &cat)
 					if err == nil {
 						out.Found, out.FullName, out.Image, out.Contact = true, name.String, img.String, contact.String
