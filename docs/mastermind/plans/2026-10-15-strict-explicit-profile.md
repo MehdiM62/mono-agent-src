@@ -335,9 +335,9 @@ One PR per area; each ends with the area's own tests plus a run of its commands 
 
 ## Phase 4: Data — remove the fallbacks
 
-### Task 4.1: Stamp legacy rows (migration `098`)
+### Task 4.1: Stamp legacy rows (next free migration number — 098 is taken by posts, check `ls data/migrations` and parallel PRs first)
 
-**Files:** `data/migrations/098_stamp_legacy_profile_ids.sql` (write it with the Write tool), test in `internal/storage/`.
+**Files:** `data/migrations/<next free number>_stamp_legacy_profile_ids.sql` (write it with the Write tool), test in `internal/storage/`.
 
 - [ ] For every table with a nullable/empty-allowed `profile_id` (`vault_keys`, rows with `''` in `jev_usage`, `publications`, `ai_chat_messages`, and any NULL in the `DEFAULT 'default'` tables), `UPDATE … SET profile_id = <stamp> WHERE profile_id IS NULL OR profile_id = ''` where `<stamp>` is the profile `default` if it exists else the oldest profile. Test with a two-profile DB and an ownerless row for each table.
 - [ ] Also stamp the workflow file store (`~/.monoagent/workflows/*.json` with empty `profile_id`) in `workflowio`.
@@ -353,7 +353,7 @@ One PR per area; each ends with the area's own tests plus a run of its commands 
 - [ ] **Step 5 (guard):** add a Go test that fails if `git grep` finds `COALESCE(profile_id` or `= "default"` assignments outside an allow-list file (`migrations`, tests, the stamp code).
 ### Task 4.3: Per-profile tag names
 
-**Files:** `data/migrations/100_tags_profile_unique.sql` (Write tool), `internal/peopletags/peopletags.go`, test in `internal/peopletags/`.
+**Files:** `data/migrations/<next free number>_tags_profile_unique.sql` (Write tool), `internal/peopletags/peopletags.go`, test in `internal/peopletags/`.
 
 - [ ] Failing test: profiles A and B each create a tag named `lead`; the second create must succeed (today it hits the global `UNIQUE(name)` from migration 004).
 - [ ] Rebuild `tags` with `UNIQUE(profile_id, name COLLATE NOCASE)` the way migration 014 did for `people`; keep tag ids so `people_tags` and `application_tags` are unaffected. Commit `fix(tags): make tag names unique per profile`.
@@ -365,7 +365,7 @@ One PR per area; each ends with the area's own tests plus a run of its commands 
 ## Phase 5: Delete the old mechanism
 
 - [ ] `profile switch` and `profile current` removed (`internal/cli/profile/profile.go:226-285`); `Active` field and the star in `profile list`/`get`.
-- [ ] Migration `099` deletes `settings.active_profile_id`; remove every reader (`root.go`, `doctor/env.go`, `capture/classify.go`, `mcp`, `httpapi`, `health/core.go`, `wails-app/app.go`), plus the seed in `011` stays (history) but is deleted at runtime.
+- [ ] A new migration deletes `settings.active_profile_id`; remove every reader (`root.go`, `doctor/env.go`, `capture/classify.go`, `mcp`, `httpapi`, `health/core.go`, `wails-app/app.go`), plus the seed in `011` stays (history) but is deleted at runtime.
 - [ ] `profiledir.List` loses the `Default` marking and `Default()` (no callers); callers in `extension/profile_list.go`, `library/adopt.go` (`activeFirst`), `capture/profiles.go`, `capturehooks/index.go`, `extensioncli/browsers.go`, `summary/all.go`, `org/summary.go`, `workflowmanage/all_profiles.go` adjust.
 - [ ] GUI: `getActiveProfileID`/`setActiveProfileID` become the GUI's own persisted selection (its own file or localStorage), never a DB setting.
 - [ ] Remove `MONOAGENT_PROFILE` text from help and docs.
