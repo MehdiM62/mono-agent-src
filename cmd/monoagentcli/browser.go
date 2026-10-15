@@ -33,11 +33,15 @@ belong to it. Every command acts on one tab: --tab, else the tab this context us
 last, else the active tab (for an agent, the active tab of its own tab group).
 --browser picks one of several attached browsers (see ` + "`browser browsers`" + `).
 
-Run by an agent (Claude Code, Codex, an org role, a coder chat), the commands only
-drive local and dev pages (localhost, *.localhost, 127.0.0.0/8, ::1, *.local, *.test,
-private network addresses) and the origins on your allowlist (` + "`browser allow`" + `);
-file: and browser-internal pages never. An agent's form submit on an allowed page
-that is not local waits for your approval: the command exits 3 with
+Run by an agent (Claude Code, Codex, an org role, a coder chat), the commands do what
+that kind of agent's level allows (` + "`browser permissions`" + `, Settings → Agent browser
+permissions): by default coder chats and other agents drive only local and dev pages
+(localhost, *.localhost, 127.0.0.0/8, ::1, *.local, *.test, private network addresses)
+and the sites you allowed, and the in-app chat and org roles any site; a site you
+block is refused at every level, and file: and browser-internal pages never. Refusals
+exit 3 with the code browser_off, site_blocked, origin_not_allowed or
+site_needs_approval (with the hil_id that asks you). An agent's form submit on a page
+that is not local waits for your approval (except at full-no-approvals): exit 3 with
 {"status":"awaiting_approval","hil_id":…}; approve it with
 ` + "`monoagentcli --profile <id> hil approve <hil_id>`" + ` or on the Human in Loop page, then
 the agent runs ` + "`monoagentcli --profile <id> browser submit --hil <hil_id>`" + `. This is
@@ -61,7 +65,7 @@ func newBrowserCmd(cfg *globalConfig) *cobra.Command {
 		newBrowserBrowsersCmd, newBrowserTabsCmd, newBrowserOpenCmd, newBrowserNavigateCmd, newBrowserReloadCmd,
 		newBrowserCloseCmd, newBrowserClickCmd, newBrowserTypeCmd, newBrowserPressCmd, newBrowserWaitCmd,
 		newBrowserEvalCmd, newBrowserScreenshotCmd, newBrowserConsoleCmd, newBrowserNetworkCmd, newBrowserA11yCmd,
-		newBrowserPickCmd, newBrowserAllowCmd, newBrowserSubmitCmd,
+		newBrowserPickCmd, newBrowserAllowCmd, newBrowserPermissionsCmd, newBrowserSubmitCmd,
 	}
 	for _, f := range append(builtin, browserSubcommands...) {
 		cmd.AddCommand(f(cfg))
@@ -90,7 +94,7 @@ func openBrowser(cmd *cobra.Command, cfg *globalConfig, noTab bool) (*browserRun
 	if err != nil {
 		return nil, fmt.Errorf("initializing database: %w", err)
 	}
-	allow, err := browserctl.LoadAllowlist(db.DB)
+	perms, err := browserctl.LoadPermissions(db.DB)
 	if err != nil {
 		db.Close()
 		return nil, err
@@ -98,7 +102,7 @@ func openBrowser(cmd *cobra.Command, cfg *globalConfig, noTab bool) (*browserRun
 	b, _ := cmd.Flags().GetString("browser")
 	tab, _ := cmd.Flags().GetInt("tab")
 	s, err := browserctl.Open(browserctl.Options{
-		Browser: b, Profile: cfg.ProfileID, Tab: tab, NoTab: noTab, Allowlist: allow, Sender: sender,
+		Browser: b, Profile: cfg.ProfileID, Tab: tab, NoTab: noTab, Permissions: &perms, DB: db.DB, Sender: sender,
 	})
 	if err != nil {
 		db.Close()
@@ -170,7 +174,20 @@ func browserErr(cmd *cobra.Command, cfg *globalConfig, err error) error {
 	var se *browserctl.SubmitStateError
 	var changed *browserctl.SubmitChangedError
 	var blankTab *browserctl.BlankTabError
+	var off *browserctl.BrowserOffError
+	var blocked *browserctl.SiteBlockedError
+	var pending *browserctl.SiteApprovalPendingError
+	var ask *browserctl.SiteNeedsApprovalError
 	switch {
+	case errors.As(err, &off):
+		return browserCLIError{error: errInvalidInput("%s", off.Error()), code: "browser_off", extra: map[string]any{"kind": off.Kind}}
+	case errors.As(err, &blocked):
+		return browserCLIError{error: errInvalidInput("%s", blocked.Error()), code: "site_blocked", extra: map[string]any{"origin": blocked.Origin}}
+	case errors.As(err, &pending):
+		return browserCLIError{error: errInvalidInput("%s", pending.Error()), code: "site_needs_approval",
+			extra: map[string]any{"hil_id": pending.HILID, "origin": pending.Origin}}
+	case errors.As(err, &ask):
+		return browserCLIError{error: errInvalidInput("%s", ask.Error()), code: "site_needs_approval", extra: map[string]any{"origin": ask.Origin}}
 	case errors.As(err, &aw):
 		if cfg.JSONOutput {
 			_ = writeJSONTo(cmd.OutOrStdout(), map[string]any{

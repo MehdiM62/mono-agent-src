@@ -50,17 +50,19 @@ func newBrowserSubmitCmd(cfg *globalConfig) *cobra.Command {
 			if err != nil {
 				return giveBack(err)
 			}
-			allow, err := browserctl.LoadAllowlist(db.DB)
+			perms, err := browserctl.LoadPermissions(db.DB)
 			if err != nil {
 				return giveBack(err)
 			}
 			// The user's approval covers the page it was given for, even
-			// one an agent may not otherwise drive.
+			// one an agent may not otherwise drive (a block rule or a level
+			// of off still wins).
+			var allow []string
 			if o, err := browserctl.NormalizeAllowEntry(it.Origin); err == nil {
 				allow = append(allow, o)
 			}
 			s, err := browserctl.Open(browserctl.Options{
-				Browser: it.Instance, Profile: cfg.ProfileID, Tab: it.TabID, Allowlist: allow, Sender: sender,
+				Browser: it.Instance, Profile: cfg.ProfileID, Tab: it.TabID, Permissions: &perms, Allowlist: allow, Sender: sender,
 			})
 			if err != nil {
 				return giveBack(err)
