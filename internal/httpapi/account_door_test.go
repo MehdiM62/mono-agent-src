@@ -95,7 +95,7 @@ func TestHealthIsOpenInEveryStateAndReportsTheAccount(t *testing.T) {
 func TestLockedServerRefusesEveryPathButHealth(t *testing.T) {
 	paths := []struct{ method, path string }{
 		{"GET", "/profiles/default/workflows"}, {"POST", "/profiles/default/workflows/x/run"}, {"POST", "/profiles/default/hil/x/approve"},
-			{"GET", "/profiles/nope/workflows"}, {"GET", "/workflows"}, {"POST", "/workflows/x/run"}, {"POST", "/hil/x/approve"}, {"GET", "/nodes/x/schema"},
+		{"GET", "/profiles/nope/workflows"}, {"GET", "/workflows"}, {"POST", "/workflows/x/run"}, {"POST", "/hil/x/approve"}, {"GET", "/nodes/x/schema"},
 		{"POST", "/org-endpoint/x"}, {"GET", "/nope"}, {"POST", "/health"}, {"GET", "/health/"},
 		{"GET", "//workflows"}, {"GET", "/./workflows"}, {"GET", "/WORKFLOWS"}, {"GET", "/v1x"},
 		{"HEAD", "/nope"}, {"OPTIONS", "/workflows"}, {"OPTIONS", "/health"},

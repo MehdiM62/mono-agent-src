@@ -107,7 +107,7 @@ func (s *Server) anyProfileAuth(h http.HandlerFunc) http.Handler {
 			return
 		}
 		ok := constantTimeEqual(got, s.decoyToken) // false; keeps the work up when there are no tokens
-		for _, id := range ids {                    // every token is compared: no early exit
+		for _, id := range ids {                   // every token is compared: no early exit
 			want, err := existingToken(r.Context(), s.rt.db.DB, id)
 			if err != nil {
 				writeError(w, http.StatusInternalServerError, "resolve bearer credential: "+err.Error())

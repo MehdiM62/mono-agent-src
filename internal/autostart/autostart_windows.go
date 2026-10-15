@@ -24,7 +24,7 @@ func serviceLogHint() string {
 	return `%USERPROFILE%\.monoagent\logs\daemon.log`
 }
 
-func (windowsInstaller) Install(ctx context.Context) (Result, error) {
+func (windowsInstaller) Install(ctx context.Context, _ string) (Result, error) {
 	exe, err := executablePath()
 	if err != nil {
 		return Result{}, err

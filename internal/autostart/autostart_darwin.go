@@ -80,7 +80,7 @@ func launchdDomain() string {
 	return "gui/" + strconv.Itoa(os.Getuid())
 }
 
-func (darwinInstaller) Install(ctx context.Context) (Result, error) {
+func (darwinInstaller) Install(ctx context.Context, _ string) (Result, error) {
 	exe, err := executablePath()
 	if err != nil {
 		return Result{}, err

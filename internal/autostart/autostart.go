@@ -32,8 +32,10 @@ type Installer interface {
 	// Install writes the service definition and starts it now, replacing
 	// any previous registration under Label. Safe to call again over an
 	// existing install. The registered command is plain `daemon`: it serves
-	// every profile and each workflow runs under its own.
-	Install(ctx context.Context) (Result, error)
+	// every profile and each workflow runs under its own, so profileID is
+	// ignored. It stays in the signature only so that the implementers
+	// elsewhere (test fakes in other packages) keep compiling; callers pass "".
+	Install(ctx context.Context, profileID string) (Result, error)
 	// Uninstall stops the service and removes its definition. Safe to call
 	// when nothing is installed.
 	Uninstall(ctx context.Context) error
