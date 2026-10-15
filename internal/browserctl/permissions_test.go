@@ -100,13 +100,15 @@ func TestAgentKindNeverCallsAShellChat(t *testing.T) {
 	if k := AgentKind(); k != KindOther {
 		t.Fatalf("a shell with %s=chat: %q", EnvAgentKind, k)
 	}
-	t.Setenv(EnvAgentKind, "coder")
+	asKind(t, KindCoder)
 	if k := AgentKind(); k != KindCoder {
 		t.Fatalf("a coder turn: %q", k)
 	}
 	t.Setenv(EnvAgentKind, "")
 	t.Setenv("CLAUDECODE", "")
 	t.Setenv("MONOMIND_ORG_ROLE", "qa")
+	asKind(t, KindOrg)
+	t.Setenv(EnvAgentKind, "")
 	if k := AgentKind(); k != KindOrg {
 		t.Fatalf("an org role: %q", k)
 	}

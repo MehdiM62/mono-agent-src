@@ -288,23 +288,31 @@ const (
 )
 
 // AgentKind is the kind of agent running this process, "" for a human
-// terminal. An agent shell (IsAgentContext) is coder when
-// MONOAGENT_AGENT_KIND=coder, org when MONOMIND_ORG_ROLE is set or
-// MONOAGENT_AGENT_KIND=org, else other: a shell is never chat. chat is a
-// process with MONOAGENT_AI_CALLER=chat and no shell markers.
+// terminal. An agent shell (IsAgentContext) is the kind it declares —
+// coder with MONOAGENT_AGENT_KIND=coder, org with MONOAGENT_AGENT_KIND=org
+// or MONOMIND_ORG_ROLE — when a token its spawner issued vouches for it
+// (IssueAgentKind), else other: a shell is never chat. chat is a process
+// with MONOAGENT_AI_CALLER=chat and no shell markers.
 func AgentKind() string {
-	kind := strings.TrimSpace(os.Getenv(EnvAgentKind))
 	if IsAgentContext() {
-		switch {
-		case kind == KindCoder:
-			return KindCoder
-		case kind == KindOrg || strings.TrimSpace(os.Getenv("MONOMIND_ORG_ROLE")) != "":
-			return KindOrg
+		if kind := declaredKind(); kind != "" && kindVouched(kind) {
+			return kind
 		}
 		return KindOther
 	}
 	if strings.TrimSpace(os.Getenv(EnvAICaller)) == KindChat {
 		return KindChat
+	}
+	return ""
+}
+
+// declaredKind is the kind an agent shell's environment claims.
+func declaredKind() string {
+	switch kind := strings.TrimSpace(os.Getenv(EnvAgentKind)); {
+	case kind == KindCoder || kind == KindOrg:
+		return kind
+	case strings.TrimSpace(os.Getenv("MONOMIND_ORG_ROLE")) != "":
+		return KindOrg
 	}
 	return ""
 }
