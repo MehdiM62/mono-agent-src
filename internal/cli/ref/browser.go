@@ -28,14 +28,15 @@ CHOOSING THE BROWSER AND TAB
   --browser <instance|label>   one of ` + "`browser browsers`" + `; default: the active profile's routing
   --profile <name>             the profile whose browser to use
   --tab <id>                   the tab to act on. Without it: the last tab this caller
-                               used (kept per conversation or org role, else "human"),
-                               else the active tab of the agent's tab group.
+                               used (kept per coder conversation, else per org role,
+                               else per agent or human), else the active tab of the
+                               agent's tab group (a human: of the browser).
   Keep the tabId ` + "`browser open`" + ` returns and pass --tab: other workers may share the
   same conversation.
 
 TABS
-  browser browsers                          the browsers with the extension attached
-  browser tabs                              {tabs:[{tabId,windowId,groupId,groupTitle,url,title,active}]}
+  browser browsers                          {browsers:[...]} — those with the extension attached
+  browser tabs                              {browser,tabs:[{tabId,windowId,groupId,groupTitle,url,title,active}]}
                                             (an agent sees its group's tabs and allowed pages)
   browser open <url> [--group <title>]      {tabId,url}
   browser navigate <url>
@@ -60,7 +61,7 @@ SEEING THE PAGE
       errorText,durationMs,size}],next} — never headers or bodies
       Pass next back as --since to read only what is new. In an agent, open and
       navigate start recording at once, so errors during the first load are kept.
-  browser a11y [--selector S]               {nodes:[{role,name,value,children}]}
+  browser a11y [--selector S] [--depth N]   {nodes:[{role,name,value,children}],truncated}
 
 STYLES AND VISUAL CHECKS
   browser styles <sel> [--out DIR]          a folder: bundle.json (computed styles, matched
@@ -88,9 +89,9 @@ WHERE AN AGENT MAY GO
   Refused: opening or navigating anywhere else, and acting on a tab whose page is
   not allowed. Tabs an agent opens go into the tab group "Coder · <label>".
   No cookie commands and no raw CDP for agents.
-  browser allow list | add <origin> | remove <origin>
-      origin: scheme://host[:port] or *.host. add and remove are the user's
-      (refused in an agent).
+  browser allow list
+  browser allow add <origin>                origin: scheme://host[:port] or *.host
+  browser allow remove <origin>             add and remove are the user's (refused in an agent)
 
 FORM SUBMITS ON A REAL SITE (EXIT 3)
   On an allowed page that is not localhost or a dev host, the submit guard is armed

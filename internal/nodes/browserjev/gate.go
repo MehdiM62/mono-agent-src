@@ -26,20 +26,20 @@ type caller struct {
 
 // aiCaller reports who started this run when it was not the user: a chat
 // tool call (EnvAICaller), an agent's process (a coder chat, an org role's
-// shell, a coding agent's shell or MCP server: hilsend.Detect, the send
-// gate's own test), or the org side (a granted call, a message to an
+// shell, a coding agent's shell or MCP server: browserctl.IsAgentContext,
+// the test `monoagentcli browser` holds agents to), or the org side (a granted call, a message to an
 // automation role, a trigger.org event). A run the user started from the
 // app, a terminal, a schedule or a webhook is none of these.
 func aiCaller(ctx context.Context) (caller, bool) {
 	if v := strings.TrimSpace(os.Getenv(EnvAICaller)); v != "" {
 		return caller{name: v, by: hilsend.PreparedBy{AgentID: v}}, true
 	}
-	if who, ok := hilsend.Detect(); ok {
+	if browserctl.IsAgentContext() {
 		name := "an agent"
 		if m := orgsign.AgentContextMarker(); m != "" {
 			name += " (" + m + ")"
 		}
-		return caller{name: name, by: who}, true
+		return caller{name: name, by: browserctl.RequestedBy()}, true
 	}
 	switch workflow.TriggerTypeFrom(ctx) {
 	case workflow.TriggerTypeOrgTool, workflow.TriggerTypeOrgMessage, workflow.TriggerNodeTypeOrg:
