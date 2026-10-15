@@ -86,18 +86,26 @@ func SyncFileWorkflowsToSQL(ctx context.Context, db *sql.DB, dir string) ([]stri
 }
 
 // StampFileWorkflows gives workflow files that carry no profile_id the owner
-// migration 099 gives ownerless database rows: the profile 'default' if it
-// exists, else the oldest. It runs ahead of every file-to-SQLite sync (the
+// their SQLite mirror row records, else the owner migration 099 gives
+// ownerless database rows: the profile 'default' if it exists, else the
+// oldest. It runs ahead of every file-to-SQLite sync (the
 // point the CLI opens its workflow store), is idempotent, and does nothing
 // when there are no profiles or no files to fix.
 func StampFileWorkflows(ctx context.Context, db *sql.DB, dir string) error {
 	owner, err := (&storage.Database{DB: db}).LegacyOwnerProfile(ctx)
-	if err != nil || owner == "" {
+	if err != nil {
 		return err
 	}
-	stamped, err := workflow.StampFileWorkflowProfiles(dir, owner)
+	rowOwner := func(id string) string {
+		var p sql.NullString
+		if db.QueryRowContext(ctx, `SELECT profile_id FROM workflows WHERE id = ?`, id).Scan(&p) != nil {
+			return ""
+		}
+		return p.String
+	}
+	stamped, err := workflow.StampFileWorkflowProfiles(dir, owner, rowOwner)
 	if len(stamped) > 0 {
-		log.Printf("workflow files: gave %d workflow(s) with no profile to profile %q", len(stamped), owner)
+		log.Printf("workflow files: gave %d workflow(s) with no profile an owner (fallback %q)", len(stamped), owner)
 	}
 	return err
 }

@@ -155,3 +155,28 @@ func TestSyncStampsBeforeMirroring(t *testing.T) {
 		t.Fatalf("mirrored profile = %q, %v; want default", profile, err)
 	}
 }
+
+// The owner recorded in the workflow's SQLite mirror row wins over the
+// default/oldest rule: a file whose row belongs to 'work' is stamped 'work'.
+func TestStampFileWorkflowsTakesTheOwnerFromTheSQLiteRow(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	db, err := storage.NewDatabase(testdb.Path(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if _, err := db.DB.Exec(`INSERT INTO profiles (id, name, created_at) VALUES ('work', 'Work', '2026-05-01 00:00:00')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.DB.Exec(`INSERT INTO workflows (id, name, profile_id) VALUES ('w-legacy', 'legacy', 'work')`); err != nil {
+		t.Fatal(err)
+	}
+	dir := writeStampFixture(t)
+	if err := StampFileWorkflows(ctx, db.DB, dir); err != nil {
+		t.Fatal(err)
+	}
+	if got := profileOfFile(t, filepath.Join(dir, "w-legacy.json")); got != "work" {
+		t.Errorf("file stamped %q, want work (its SQLite row's owner)", got)
+	}
+}
