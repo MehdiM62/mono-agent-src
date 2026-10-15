@@ -197,7 +197,7 @@ func startDaemon(ctx context.Context, args []string, as autostart.Installer, pro
 func serviceStartRefusal(where string, args []string) error {
 	want := []string{"daemon"}
 	if i := slices.Index(args, "--profile"); i >= 0 && i+1 < len(args) {
-		if reg, found := registeredProfile(); !found || reg == args[i+1] {
+		if reg, found, err := registeredProfile(); err != nil || !found || reg == args[i+1] {
 			want = append(want, args[i:i+2]...)
 		}
 	}
@@ -342,7 +342,11 @@ func autostartStatus(ctx context.Context, as autostart.Installer) (bool, string)
 	if !ok {
 		return ok, where
 	}
-	if _, found := registeredProfile(); !found {
+	_, found, err := registeredProfile()
+	if err != nil {
+		return false, where + ": could not read the registration (" + err.Error() + ")"
+	}
+	if !found {
 		return false, where + " is out of date: it starts the daemon without --profile; fix it to rewrite the registration"
 	}
 	return true, where

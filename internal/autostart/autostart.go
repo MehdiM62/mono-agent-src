@@ -115,14 +115,16 @@ func logDir() (string, error) {
 var errNoProfile = errors.New("a profile id is required: the registered daemon always runs with --profile <id>")
 
 // RegisteredProfile is the profile the registered service definition starts the daemon with.
-// found is false when there is no definition or it names no --profile (an install from before the
-// profile was explicit): such a registration is out of date and `doctor fix` rewrites it.
-func RegisteredProfile() (profile string, found bool) {
+// found is false when the definition names no --profile (an install from before the profile was
+// explicit): such a registration is out of date and `doctor fix` rewrites it. err is set when the
+// definition could not be read at all, which says nothing about its profile.
+func RegisteredProfile() (profile string, found bool, err error) {
 	text, err := registeredDefinition()
 	if err != nil {
-		return "", false
+		return "", false, err
 	}
-	return profileFromDefinition(text)
+	profile, found = profileFromDefinition(text)
+	return profile, found, nil
 }
 
 // profileFromDefinition finds the value after --profile in a service definition: a systemd

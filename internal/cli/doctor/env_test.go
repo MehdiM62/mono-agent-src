@@ -116,7 +116,7 @@ func (f *fakeAutostart) Restart(context.Context) error {
 func TestStartDaemonUsesTheServiceOnlyWithDefaults(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv("MONOAGENT_DAEMON_HEARTBEAT", filepath.Join(t.TempDir(), "hb.json"))
-	registeredProfile = func() (string, bool) { return "p1", true }
+	registeredProfile = func() (string, bool, error) { return "p1", true, nil }
 	t.Cleanup(func() { registeredProfile = autostart.RegisteredProfile })
 	as := &fakeAutostart{installed: true}
 	if err := startDaemon(context.Background(), []string{"daemon", "--profile", "p1"}, as, func(string) {}); err != nil || as.started != 1 {
@@ -134,7 +134,7 @@ func TestDaemonStartBlockedIsTheRefusalStartDaemonGives(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv("MONOAGENT_DAEMON_HEARTBEAT", filepath.Join(t.TempDir(), "hb.json"))
 	ctx := context.Background()
-	registeredProfile = func() (string, bool) { return "p1", true }
+	registeredProfile = func() (string, bool, error) { return "p1", true, nil }
 	t.Cleanup(func() { registeredProfile = autostart.RegisteredProfile })
 	custom := []string{"daemon", "--db-path", "/tmp/x.db", "--profile", "p1"}
 
@@ -244,7 +244,7 @@ func TestHealthEnvJevKeyHook(t *testing.T) {
 
 // The service is registered for one profile: another profile is not started through it.
 func TestServiceStartRefusesAnotherProfile(t *testing.T) {
-	registeredProfile = func() (string, bool) { return "p1", true }
+	registeredProfile = func() (string, bool, error) { return "p1", true, nil }
 	t.Cleanup(func() { registeredProfile = autostart.RegisteredProfile })
 	if err := serviceStartRefusal("/x", []string{"daemon", "--profile", "p2"}); err == nil {
 		t.Error("the service registered for p1 was used for p2")
@@ -255,16 +255,26 @@ func TestServiceStartRefusesAnotherProfile(t *testing.T) {
 func TestAutostartStatusReportsAUnitWithoutAProfile(t *testing.T) {
 	t.Cleanup(func() { registeredProfile = autostart.RegisteredProfile })
 	as := &fakeAutostart{installed: true}
-	registeredProfile = func() (string, bool) { return "", false }
+	registeredProfile = func() (string, bool, error) { return "", false, nil }
 	ok, where := autostartStatus(context.Background(), as)
 	if ok || !strings.Contains(where, "out of date") || !strings.Contains(where, "--profile") {
 		t.Errorf("old unit: ok=%v where=%q", ok, where)
 	}
-	registeredProfile = func() (string, bool) { return "p1", true }
+	registeredProfile = func() (string, bool, error) { return "p1", true, nil }
 	if ok, _ := autostartStatus(context.Background(), as); !ok {
 		t.Error("a unit with a profile was reported out of date")
 	}
 	if ok, _ := autostartStatus(context.Background(), &fakeAutostart{}); ok {
 		t.Error("nothing registered reported as installed")
+	}
+}
+
+// A definition that cannot be read is not an out-of-date one: it says so and offers no rewrite.
+func TestAutostartStatusDistinguishesAnUnreadableDefinition(t *testing.T) {
+	t.Cleanup(func() { registeredProfile = autostart.RegisteredProfile })
+	registeredProfile = func() (string, bool, error) { return "", false, errors.New("permission denied") }
+	ok, where := autostartStatus(context.Background(), &fakeAutostart{installed: true})
+	if ok || !strings.Contains(where, "could not read the registration") || strings.Contains(where, "out of date") || strings.Contains(where, "fix it") {
+		t.Errorf("unreadable: ok=%v where=%q", ok, where)
 	}
 }
