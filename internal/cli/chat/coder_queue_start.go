@@ -60,7 +60,7 @@ func newCoderQueueStartCmd(cfg *Deps) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&cwd, "cwd", "", "Folder to work in instead of the one the item was queued for")
-	cmd.Flags().StringVar(&runtimeID, "runtime", "", "Agent runtime (default claude; see `coder status`)")
+	cmd.Flags().StringVar(&runtimeID, "runtime", "", "Agent runtime (default claude; see 'coder status')")
 	cmd.Flags().StringVar(&model, "model", "", "Model for the runtime")
 	cmd.Flags().StringVar(&effort, "effort", "", "Reasoning effort")
 	return cmd
