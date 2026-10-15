@@ -12,7 +12,7 @@ func sendWithContext(t *testing.T, ctxParams map[string]any, message string) str
 	t.Helper()
 	f := &fakeChat{}
 	_, err := callChat(t, chatSrv(f), MethodChatSend, map[string]any{
-		"conversation": "c1", "message": message, "context": ctxParams,
+		"profile": "p", "conversation": "c1", "message": message, "context": ctxParams,
 	}, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -160,7 +160,7 @@ func TestChatContextCJKPageOfNineThousandCharsIsAccepted(t *testing.T) {
 	text := strings.Repeat("世", 9000) // 27,000 bytes: the old server refused it
 	f := &fakeChat{}
 	if _, err := callChat(t, chatSrv(f), MethodChatSend, map[string]any{
-		"conversation": "c1", "message": "x", "context": map[string]any{"url": "https://a.test/", "text": text},
+		"profile": "p", "conversation": "c1", "message": "x", "context": map[string]any{"url": "https://a.test/", "text": text},
 	}, nil); err != nil {
 		t.Fatalf("a 9,000 character CJK page was refused: %v", err)
 	}

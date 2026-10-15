@@ -150,6 +150,23 @@ func chatProfile(req *Request) (string, error) {
 	return p, nil
 }
 
+// chooseProfileMessage is what the person is told when a request names no
+// profile. The bridge never picks one for them: the side panel's selector does.
+const chooseProfileMessage = "choose a profile in the extension"
+
+// requireProfile is chatProfile for a method that acts on a profile: a
+// request that names none is refused here, before any CLI is run.
+func requireProfile(req *Request) (string, error) {
+	p, err := chatProfile(req)
+	if err != nil {
+		return "", err
+	}
+	if p == "" {
+		return "", invalidParam("%s", chooseProfileMessage)
+	}
+	return p, nil
+}
+
 // chatConversation reads the conversation param; required when must.
 func chatConversation(req *Request, must bool) (string, error) {
 	c := req.String("conversation")
@@ -239,7 +256,7 @@ type chatSend struct {
 func parseChatSend(req *Request) (chatSend, error) {
 	var c chatSend
 	var err error
-	if c.profile, err = chatProfile(req); err != nil {
+	if c.profile, err = requireProfile(req); err != nil {
 		return c, err
 	}
 	if c.conversation, err = chatConversation(req, false); err != nil {
@@ -379,7 +396,7 @@ func (cb *chatBridge) handleStop(_ context.Context, req *Request, _ ProgressFunc
 }
 
 func (cb *chatBridge) handleEvents(ctx context.Context, req *Request, _ ProgressFunc) (any, error) {
-	profile, err := chatProfile(req)
+	profile, err := requireProfile(req)
 	if err != nil {
 		return nil, err
 	}

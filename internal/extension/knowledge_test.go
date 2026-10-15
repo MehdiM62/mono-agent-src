@@ -81,7 +81,7 @@ func serverWithRunner(t *testing.T, runner Runner) *Server {
 
 func lookup(t *testing.T, srv *Server, url string) *SavedDocument {
 	t.Helper()
-	req := &Request{Method: MethodDocLookup, Params: map[string]any{"url": url}}
+	req := &Request{Method: MethodDocLookup, Params: map[string]any{"url": url, "profile": "work"}}
 	got, err := srv.handleDocLookup(context.Background(), req, func(string, string) {})
 	if err != nil {
 		t.Fatalf("doc.lookup: %v", err)
@@ -157,10 +157,11 @@ func TestDocLookupFallsBackToTheLibrary(t *testing.T) {
 	if !doc.Saved || doc.Versions != 3 {
 		t.Fatalf("fallback did not find the page: %+v", doc)
 	}
-	// The global brain is asked first: that is where extension captures land.
+	// Only the profile's own store is asked: the shared brain's pages are
+	// not that profile's.
 	argv := runner.argv("doc list")
-	if argv == nil || strings.Join(argv, " ") != "doc list --global --json" {
-		t.Errorf("argv = %v, want the global store asked first", argv)
+	if argv == nil || strings.Join(argv, " ") != "doc list --scope profile:work --json" {
+		t.Errorf("argv = %v, want the profile's store asked", argv)
 	}
 	// --limit would apply AFTER the newest-first sort and hide exactly the
 	// old captures this is looking for.
@@ -173,9 +174,9 @@ func TestDocLookupFallsBackToTheLibrary(t *testing.T) {
 	}
 }
 
-// The project store is only consulted when the global one has nothing, so
-// the common case stays at one exec.
-func TestDocLookupFallbackAsksBothStores(t *testing.T) {
+// A request always names a profile, so the fallback asks that profile's
+// store and no other.
+func TestDocLookupFallbackAsksOnlyTheProfileStore(t *testing.T) {
 	runner := newFakeRunner()
 	runner.errs["doc lookup"] = errors.New("unknown subcommand: lookup")
 	runner.replies["doc list"] = `[]`
@@ -190,8 +191,8 @@ func TestDocLookupFallbackAsksBothStores(t *testing.T) {
 			stores = append(stores, strings.Join(call, " "))
 		}
 	}
-	if len(stores) != 2 || stores[0] != "doc list --global --json" || stores[1] != "doc list --json" {
-		t.Fatalf("stores asked = %v, want global then project", stores)
+	if len(stores) != 1 || stores[0] != "doc list --scope profile:work --json" {
+		t.Fatalf("stores asked = %v, want the profile's store only", stores)
 	}
 }
 
@@ -310,7 +311,7 @@ func TestDocLookupReportsAMissingMonomindAsUnavailable(t *testing.T) {
 	runner.errs["doc list"] = Unavailable("monomind not found (AI engine)")
 	srv := serverWithRunner(t, runner)
 
-	req := &Request{Params: map[string]any{"url": "https://example.com/post"}}
+	req := &Request{Params: map[string]any{"url": "https://example.com/post", "profile": "work"}}
 	_, err := srv.handleDocLookup(context.Background(), req, func(string, string) {})
 	if err == nil {
 		t.Fatal("a missing monomind was not reported")
@@ -334,7 +335,7 @@ func TestDocLookupRejectsNonJSON(t *testing.T) {
 	runner.replies["doc list"] = "No documents indexed yet.\n"
 	srv := serverWithRunner(t, runner)
 
-	req := &Request{Params: map[string]any{"url": "https://example.com/post"}}
+	req := &Request{Params: map[string]any{"url": "https://example.com/post", "profile": "work"}}
 	if _, err := srv.handleDocLookup(context.Background(), req, func(string, string) {}); err == nil {
 		t.Fatal("a non-JSON reply was accepted")
 	}

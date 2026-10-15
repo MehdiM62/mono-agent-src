@@ -122,9 +122,9 @@ func TestTaskAdd_RefusesWhatNoBoardCouldFile(t *testing.T) {
 		over map[string]any
 		want string
 	}{
-		{"no profile", map[string]any{"profile": ""}, "needs a profile"},
-		{"a blank profile", map[string]any{"profile": "   "}, "needs a profile"},
-		{"a profile that is not a string", map[string]any{"profile": 7}, "needs a profile"},
+		{"no profile", map[string]any{"profile": ""}, chooseProfileMessage},
+		{"a blank profile", map[string]any{"profile": "   "}, chooseProfileMessage},
+		{"a profile that is not a string", map[string]any{"profile": 7}, chooseProfileMessage},
 		{"no client id", map[string]any{"client_id": ""}, "needs a client_id"},
 		{"no kind", map[string]any{"kind": ""}, "is not selection, page or note"},
 		{"an unknown kind", map[string]any{"kind": "screenshot"}, "is not selection, page or note"},

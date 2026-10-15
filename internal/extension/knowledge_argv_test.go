@@ -61,7 +61,7 @@ func TestDocRelatedPassesTheURLAfterADoubleDash(t *testing.T) {
 	runner.replies["doc related"] = `[]`
 	srv := serverWithRunner(t, runner)
 
-	req := &Request{Params: map[string]any{"url": "https://example.com/post#frag"}}
+	req := &Request{Params: map[string]any{"url": "https://example.com/post#frag", "profile": "work"}}
 	if _, err := srv.handleDocRelated(context.Background(), req, func(string, string) {}); err != nil {
 		t.Fatalf("doc.related: %v", err)
 	}
@@ -80,7 +80,7 @@ func TestDocLookupPassesTheURLAfterADoubleDash(t *testing.T) {
 	runner.replies["doc lookup"] = `{"saved":false}`
 	srv := serverWithRunner(t, runner)
 
-	req := &Request{Params: map[string]any{"url": "https://example.com/post"}}
+	req := &Request{Params: map[string]any{"url": "https://example.com/post", "profile": "work"}}
 	if _, err := srv.handleDocLookup(context.Background(), req, func(string, string) {}); err != nil {
 		t.Fatalf("doc.lookup: %v", err)
 	}
