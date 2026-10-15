@@ -1,21 +1,75 @@
 {
-  "levels": { "coder": "dev", "org": "full", "chat": "full", "other": "ask" },
+  "levels": {
+    "coder": "dev",
+    "org": "full",
+    "chat": "full",
+    "other": "ask"
+  },
   "sites": [
-    { "origin": "https://github.com", "rule": "allow" },
-    { "origin": "https://bank.example.com", "rule": "block" }
+    {
+      "origin": "https://github.com",
+      "rule": "allow"
+    },
+    {
+      "origin": "https://bank.example.com",
+      "rule": "block"
+    }
   ],
   "kinds": [
-    { "kind": "coder", "label": "Coder chats", "level": "dev", "isDefault": true },
-    { "kind": "org", "label": "Org roles", "level": "full", "isDefault": true },
-    { "kind": "chat", "label": "Chat and workflow runs", "level": "full", "isDefault": true },
-    { "kind": "other", "label": "Other agents", "level": "ask", "isDefault": false }
+    {
+      "kind": "coder",
+      "label": "Coder chats",
+      "level": "dev",
+      "isDefault": true
+    },
+    {
+      "kind": "org",
+      "label": "Org roles",
+      "level": "full",
+      "isDefault": true
+    },
+    {
+      "kind": "chat",
+      "label": "In-app chat",
+      "level": "full",
+      "isDefault": true
+    },
+    {
+      "kind": "other",
+      "label": "Other agents (terminal sessions)",
+      "level": "ask",
+      "isDefault": false
+    }
   ],
   "catalog": [
-    { "id": "full-no-approvals", "label": "Full, no approvals", "description": "Any site; form submits go through without asking you." },
-    { "id": "full", "label": "Full — submits ask", "description": "Any site; a form submit on a real site waits for your approval." },
-    { "id": "dev", "label": "Dev pages + allowlist", "description": "Local and dev pages plus the sites you allow; submits on real sites ask." },
-    { "id": "ask", "label": "Ask per new site", "description": "Like Dev pages + allowlist, but a new site asks you instead of being refused." },
-    { "id": "off", "label": "Off", "description": "No browser use at all." }
+    {
+      "id": "full-no-approvals",
+      "label": "Full access, no approvals",
+      "description": "Any site; form submits go through without asking you."
+    },
+    {
+      "id": "full",
+      "label": "Full access",
+      "description": "Any site; a form submit on a real site waits for your approval."
+    },
+    {
+      "id": "dev",
+      "label": "Dev pages + allowed sites",
+      "description": "Localhost and dev pages, plus sites you allow; submits on real sites wait for your approval."
+    },
+    {
+      "id": "ask",
+      "label": "Ask for new sites",
+      "description": "Like dev pages + allowed sites, but a new site asks you first instead of being refused."
+    },
+    {
+      "id": "off",
+      "label": "Off",
+      "description": "This kind of agent can't use the browser."
+    }
   ],
-  "you": { "kind": "human", "level": "" }
+  "you": {
+    "kind": "human",
+    "level": ""
+  }
 }

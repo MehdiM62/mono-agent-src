@@ -110,8 +110,8 @@ export default function BrowserPermissionsSection() {
 
       <div style={{ ...label, marginTop: 6 }}>Site rules</div>
       <div style={hint}>
-        Allow lets agents at Dev pages + allowlist or Ask per new site use a site. Block keeps every agent off a
-        site, whatever its level.
+        Allow opens a site to agents at {levelOf('dev')?.label || 'dev'} or {levelOf('ask')?.label || 'ask'}. Block
+        keeps every agent off a site, whatever its level.
       </div>
       {sites.length === 0 && <div style={hint}>No site rules yet.</div>}
       {sites.map(s => (

@@ -4,7 +4,8 @@ import '@testing-library/jest-dom/vitest'
 import { render, screen, fireEvent, waitFor, within, cleanup } from '@testing-library/react'
 import BrowserPermissionsSection from './BrowserPermissionsSection.jsx'
 import { api } from '../../services/api.js'
-// The `monoagentcli browser permissions --json` document (plan C8).
+// The `monoagentcli browser permissions --json` document (plan C8), with the
+// labels of browserctl.Catalog and KindLabel.
 import fixture from './__fixtures__/browser-permissions.json'
 
 vi.mock('../../services/api.js', () => ({
@@ -29,13 +30,14 @@ describe('BrowserPermissionsSection', () => {
     expect(['coder', 'org', 'chat', 'other'].map(k => within(kindRow(k)).getByRole('combobox').value)).toEqual(['dev', 'full', 'full', 'ask'])
     const options = within(kindRow('coder')).getAllByRole('option').map(o => o.textContent)
     expect(options).toEqual([
-      '⚠ Full, no approvals — Any site; form submits go through without asking you.',
-      'Full — submits ask — Any site; a form submit on a real site waits for your approval.',
-      'Dev pages + allowlist — Local and dev pages plus the sites you allow; submits on real sites ask.',
-      'Ask per new site — Like Dev pages + allowlist, but a new site asks you instead of being refused.',
-      'Off — No browser use at all.',
+      '⚠ Full access, no approvals — Any site; form submits go through without asking you.',
+      'Full access — Any site; a form submit on a real site waits for your approval.',
+      'Dev pages + allowed sites — Localhost and dev pages, plus sites you allow; submits on real sites wait for your approval.',
+      'Ask for new sites — Like dev pages + allowed sites, but a new site asks you first instead of being refused.',
+      "Off — This kind of agent can't use the browser.",
     ])
-    expect(within(kindRow('coder')).getByText('Local and dev pages plus the sites you allow; submits on real sites ask.')).toBeInTheDocument()
+    expect(within(kindRow('coder')).getByText('Localhost and dev pages, plus sites you allow; submits on real sites wait for your approval.')).toBeInTheDocument()
+    expect(screen.getByText(/Allow opens a site to agents at Dev pages \+ allowed sites or Ask for new sites/)).toBeInTheDocument()
     expect(within(kindRow('coder')).getByText('default')).toBeInTheDocument()
     expect(within(kindRow('other')).queryByText('default')).toBeNull()
     expect(screen.queryByTestId('permission-risk')).toBeNull()
