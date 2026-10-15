@@ -16,7 +16,7 @@ func refAPICmd() *cobra.Command {
 ║          monoagentcli — HTTP API (monoagentcli httpapi)            ║
 ╚══════════════════════════════════════════════════════════════╝
 
-  monoagentcli httpapi    # REST/JSON server (default 127.0.0.1:9322)
+  monoagentcli --profile work httpapi    # REST/JSON server (default 127.0.0.1:9322)
 
 For agents that can't speak stdio JSON-RPC. Same surface as the MCP
 tools (internal/httpapi/ mirrors internal/mcp/'s conventions), plus
@@ -217,16 +217,16 @@ OPENAI-COMPATIBLE API (/v1)
   once, only its SHA-256 is stored (no vault, no keyring, so it works on a
   headless server):
 
-    monoagentcli api key create --name NAME [--context]
-    monoagentcli api key list [--all-profiles] | show | update | revoke
-    monoagentcli api models        each model with its confinement class and
+    monoagentcli --profile <profile> api key create --name NAME [--context]
+    monoagentcli --profile <profile> api key list [--all-profiles] | show | update | revoke
+    monoagentcli --profile <profile> api models        each model with its confinement class and
                                    whether it makes images, as this shell's
                                    flags, environment and saved settings see it
-    monoagentcli api status        listeners, key count, reachability
+    monoagentcli --profile <profile> api status        listeners, key count, reachability
     monoagentcli api config ...    the server's settings, saved in the database
                                    (see "Server settings" below)
 
-  monoagentcli mcp has the same management as tools, for its own profile:
+  The MCP server (monoagentcli --profile <profile> mcp) has the same management as tools, for its own profile:
   api_key_list, api_models_list, api_status and api_config_get, and with
   --allow-mutations api_key_create (it returns the key once, in its result,
   which puts it in the MCP host's transcript), api_key_update, api_key_revoke,
@@ -428,8 +428,8 @@ STATUS-CODE MAPPING (mirrors CLI exit codes — see "ref commands")
 EXAMPLE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  monoagentcli httpapi &
-  monoagentcli --json secret reveal httpapi-token --reveal   # copy "token"
+  monoagentcli --profile work httpapi &
+  monoagentcli --profile work --json secret reveal httpapi-token --reveal   # copy "token"
   curl -s http://127.0.0.1:9322/health
   curl -s -H 'Authorization: Bearer <paste credential here>' \
     http://127.0.0.1:9322/workflows
