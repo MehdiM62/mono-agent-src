@@ -85,14 +85,14 @@ type inboxCandidate struct {
 // reclassify, up to limit.
 func selectInboxCandidates(db *sql.DB, profileID, personID string, since time.Duration, limit int, reclassify bool) ([]inboxCandidate, error) {
 	if profileID == "" {
-		profileID = "default"
+		return nil, errNoProfile
 	}
 	query := `
 		SELECT pm.id, COALESCE(pm.sender,''), COALESCE(pm.subject,''), COALESCE(pm.body,''),
 		       COALESCE(pm.metadata,''), pm.sent_at, pm.created_at, COALESCE(p.full_name,'')
 		FROM person_messages pm
 		JOIN people p ON p.id = pm.person_id
-		WHERE COALESCE(p.profile_id,'default') = ? AND pm.direction = 'inbound'`
+		WHERE p.profile_id = ? AND pm.direction = 'inbound'`
 	args := []interface{}{profileID}
 	if personID != "" {
 		query += " AND pm.person_id = ?"

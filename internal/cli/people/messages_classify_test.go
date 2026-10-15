@@ -303,3 +303,16 @@ func TestParseAge(t *testing.T) {
 		}
 	}
 }
+
+// An empty profile selects nothing: it is an error, never the default profile.
+func TestSelectInboxCandidatesRefusesAnEmptyProfile(t *testing.T) {
+	dbPath := seedInboxMessages(t)
+	withJevDB(t, dbPath, func(db *storage.Database) {
+		if _, err := selectInboxCandidates(db.DB, "", "", 0, 0, false); err == nil {
+			t.Fatal("want an error for an empty profile")
+		}
+		if err := assertMessageInProfile(db.DB, "any", ""); err == nil {
+			t.Fatal("want an error for an empty profile")
+		}
+	})
+}
