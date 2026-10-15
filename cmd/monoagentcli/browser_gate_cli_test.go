@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/monoes/mono-agent/internal/browserctl"
+	"github.com/monoes/mono-agent/internal/browserctl/browserctltest"
 	"github.com/monoes/mono-agent/internal/cli/profilegate"
-	"github.com/monoes/mono-agent/internal/extension"
 )
 
 // An agent's `browser eval` could send a form around the approval a submit
@@ -45,15 +45,9 @@ func TestBrowserSubmitRefusesAChangedForm(t *testing.T) {
 		t.Fatal(err)
 	}
 	bt.fake.AddTab("https://shop.example/checkout", "Coder · Agent", true)
-	amount := "10"
-	bt.fake.On("eval_cdp", func(c *extension.Command) (any, error) {
-		form := map[string]any{"action": "https://shop.example/pay", "method": "post", "selector": "#pay-form",
-			"fields": []any{map[string]any{"name": "amount", "type": "text", "value": amount}}}
-		if strings.Contains(c.Params["expression"].(string), "const el = document.querySelector") {
-			return map[string]any{"result": map[string]any{"found": true, "submit": true, "why": "type=submit", "form": form}}, nil
-		}
-		return map[string]any{"result": map[string]any{"found": true, "form": form}}, nil
-	})
+	fp := &browserctltest.FormPage{Action: "https://shop.example/pay", Method: "post", Selector: "#pay-form", Submit: true,
+		Fields: []browserctl.FormField{{Name: "amount", Type: "text", Value: "10"}}}
+	bt.fake.On("eval_cdp", fp.Handler())
 	out, err := bt.run("click", "#pay")
 	if exitCodeFor(err) != 3 || !strings.Contains(out, "awaiting_approval") {
 		t.Fatalf("held click: %v %s", err, out)
@@ -65,14 +59,14 @@ func TestBrowserSubmitRefusesAChangedForm(t *testing.T) {
 	}
 	t.Setenv("CLAUDECODE", "1")
 
-	amount = "10000"
+	fp.Set("amount", "10000")
 	if _, err := bt.run("submit", "--hil", id); exitCodeFor(err) != 3 || jsonCode(err) != "submit_changed" {
 		t.Fatalf("submit after the amount changed: %v (%s)", err, jsonCode(err))
 	}
 	if it, _ := browserctl.GetSubmitItem(t.Context(), db, "default", id); it.Status != "approved" {
 		t.Fatalf("the approval was not handed back: %s", it.Status)
 	}
-	amount = "10"
+	fp.Set("amount", "10")
 	if res := bt.runJSON("submit", "--hil", id); res["status"] != "submitted" {
 		t.Fatalf("submit of the approved form: %v", res)
 	}

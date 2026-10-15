@@ -155,15 +155,9 @@ func TestAnApprovedSubmitIsBoundToItsFormAndPage(t *testing.T) {
 	f := browserctltest.New()
 	withScreenshot(f)
 	tab := f.AddTab("https://shop.example/checkout?step=2", "Coder · Agent", true)
-	amount := "10"
-	f.On("eval_cdp", func(c *extension.Command) (any, error) {
-		form := map[string]any{"action": "https://shop.example/pay", "method": "post", "selector": "#pay-form",
-			"fields": []any{map[string]any{"name": "amount", "type": "text", "label": "Amount", "value": amount}}}
-		if strings.Contains(c.Params["expression"].(string), "const el = document.querySelector") {
-			return map[string]any{"result": map[string]any{"found": true, "submit": true, "why": "type=submit", "form": form}}, nil
-		}
-		return map[string]any{"result": map[string]any{"found": true, "form": form}}, nil
-	})
+	fp := &browserctltest.FormPage{Action: "https://shop.example/pay", Method: "post", Selector: "#pay-form", Submit: true,
+		Fields: []browserctl.FormField{{Name: "amount", Type: "text", Label: "Amount", Value: "10"}}}
+	f.On("eval_cdp", fp.Handler())
 	s, _ := browserctl.Open(browserctl.Options{Sender: f, Allowlist: []string{"https://shop.example"}})
 	probe, err := s.ProbeSubmit("#pay")
 	if err != nil || !probe.Submit {
@@ -178,12 +172,15 @@ func TestAnApprovedSubmitIsBoundToItsFormAndPage(t *testing.T) {
 		t.Fatalf("held item = %+v", it)
 	}
 
-	amount = "10000"
+	fp.Set("amount", "10000")
 	var changed *browserctl.SubmitChangedError
-	if err := s.Resubmit(it); !errors.As(err, &changed) || !errors.Is(err, browserctl.ErrNotSent) {
-		t.Fatalf("resubmit after the amount changed: %v", err)
+	if err := s.Resubmit(it); !errors.As(err, &changed) || !errors.Is(err, browserctl.ErrNotSent) || fp.Triggered != 0 {
+		t.Fatalf("resubmit after the amount changed: %v (%d submits)", err, fp.Triggered)
 	}
-	amount = "10"
+	if got := guardActions(f); strings.Join(got, ",") != "arm,allow_once,disarm,arm" {
+		t.Fatalf("guard after a refused change: %v", got)
+	}
+	fp.Set("amount", "10")
 	f.SetURL(tab, "https://shop.example/checkout/other")
 	s2, _ := browserctl.Open(browserctl.Options{Sender: f, Allowlist: []string{"https://shop.example"}})
 	if err := s2.Resubmit(it); !errors.As(err, &changed) {
@@ -191,8 +188,8 @@ func TestAnApprovedSubmitIsBoundToItsFormAndPage(t *testing.T) {
 	}
 	f.SetURL(tab, "https://shop.example/checkout?step=3") // the query is not part of the binding
 	s3, _ := browserctl.Open(browserctl.Options{Sender: f, Allowlist: []string{"https://shop.example"}})
-	if err := s3.Resubmit(it); err != nil {
-		t.Fatalf("resubmit of the unchanged form: %v", err)
+	if err := s3.Resubmit(it); err != nil || fp.Triggered != 1 {
+		t.Fatalf("resubmit of the unchanged form: %v (%d submits)", err, fp.Triggered)
 	}
 
 	unbound, _ := browserctl.CreateSubmitItem(ctx, db, browserctl.SubmitRequest{URL: "https://shop.example/checkout",
@@ -200,6 +197,18 @@ func TestAnApprovedSubmitIsBoundToItsFormAndPage(t *testing.T) {
 	if err := s3.Resubmit(unbound); !errors.Is(err, browserctl.ErrSubmitUnbound) {
 		t.Fatalf("resubmit of an unbound item: %v", err)
 	}
+}
+
+// guardActions lists the submit_guard actions sent so far.
+func guardActions(f *browserctltest.Fake) []string {
+	var out []string
+	for _, c := range f.Calls() {
+		if c.Type == extension.CmdSubmitGuard {
+			a, _ := c.Params["action"].(string)
+			out = append(out, a)
+		}
+	}
+	return out
 }
 
 // A submit held in a frame of the page cannot be repeated (the trigger
@@ -227,28 +236,22 @@ func TestASubmitHeldInAFrameIsNotRepeated(t *testing.T) {
 	}
 }
 
-// When the click fails after the guard opened, the guard is closed again,
-// so no later submit slips through on that allowance.
+// When the trigger fails after the guard opened, the guard is closed
+// again, so no later submit slips through on that allowance.
 func TestAFailedResubmitClosesTheGuardAgain(t *testing.T) {
 	setEnv(t, true)
 	f := browserctltest.New()
 	f.AddTab("https://shop.example/", "Coder · Agent", true)
-	f.On(extension.CmdClick, func(*extension.Command) (any, error) { return nil, errors.New("Element is detached") })
+	f.On("eval_cdp", func(*extension.Command) (any, error) {
+		return map[string]any{"result": map[string]any{"missing": "the submit control"}}, nil
+	})
 	s, _ := browserctl.Open(browserctl.Options{Sender: f, Allowlist: []string{"https://shop.example"}})
-	it := browserctl.SubmitItem{URL: "https://shop.example/", Form: browserctl.FormSummary{Submitter: "#go"},
-		FormDigest: browserctl.FormDigest(browserctl.FormSummary{})}
-	if err := s.Resubmit(it); err == nil {
-		t.Fatal("a failed click reported success")
+	it := browserctl.SubmitItem{URL: "https://shop.example/", Form: browserctl.FormSummary{Submitter: "#go"}, FormDigest: "d"}
+	if err := s.Resubmit(it); !errors.Is(err, browserctl.ErrNotSent) {
+		t.Fatalf("a missing control: %v", err)
 	}
-	var actions []any
-	for _, c := range f.Calls() {
-		if c.Type == extension.CmdSubmitGuard {
-			actions = append(actions, c.Params["action"])
-		}
-	}
-	want := []any{"arm", "allow_once", "disarm", "arm"}
-	if len(actions) != 4 || actions[0] != want[0] || actions[1] != want[1] || actions[2] != want[2] || actions[3] != want[3] {
-		t.Fatalf("guard actions = %v, want %v", actions, want)
+	if got := guardActions(f); strings.Join(got, ",") != "arm,allow_once,disarm,arm" {
+		t.Fatalf("guard actions = %v", got)
 	}
 }
 

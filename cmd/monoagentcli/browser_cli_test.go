@@ -125,11 +125,9 @@ func TestBrowserHeldSubmitExits3AndIsApprovedOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 	tab := bt.fake.AddTab("https://example.com/compose", "Coder · Agent", true)
-	bt.fake.On("eval_cdp", func(*extension.Command) (any, error) {
-		return map[string]any{"result": map[string]any{"found": true, "submit": true, "why": "type=submit",
-			"form": map[string]any{"action": "https://example.com/post", "method": "post", "selector": "#f",
-				"fields": []any{map[string]any{"name": "body", "type": "textarea", "value": "hi"}}}}}, nil
-	})
+	fp := &browserctltest.FormPage{Action: "https://example.com/post", Method: "post", Selector: "#f", Submit: true,
+		Fields: []browserctl.FormField{{Name: "body", Type: "textarea", Value: "hi"}}}
+	bt.fake.On("eval_cdp", fp.Handler())
 
 	out, err := bt.run("click", "#send")
 	if exitCodeFor(err) != 3 {
@@ -167,14 +165,15 @@ func TestBrowserHeldSubmitExits3AndIsApprovedOnce(t *testing.T) {
 	if res["status"] != "submitted" || int(res["tabId"].(float64)) != tab {
 		t.Fatalf("submit = %v", res)
 	}
-	calls := bt.fake.Calls()
-	var allowOnce, click bool
-	for _, c := range calls {
+	var allowOnce bool
+	for _, c := range bt.fake.Calls() {
 		allowOnce = allowOnce || (c.Type == extension.CmdSubmitGuard && c.Params["action"] == "allow_once")
-		click = click || (c.Type == extension.CmdClick && c.Params["elementId"] == "el:#send" && allowOnce)
+		if c.Type == extension.CmdClick {
+			t.Fatal("the submit went through the content script's click, outside the checked evaluation")
+		}
 	}
-	if !allowOnce || !click {
-		t.Fatalf("submit did not let the guard through and click: %v", bt.fake.Types())
+	if !allowOnce || fp.Triggered != 1 {
+		t.Fatalf("submit did not let the guard through and submit once: %v, %d submits", bt.fake.Types(), fp.Triggered)
 	}
 	if _, err := bt.run("submit", "--hil", hilID); jsonCode(err) != "submit_consumed" {
 		t.Fatalf("second submit: %v (%s)", err, jsonCode(err))
@@ -313,6 +312,7 @@ func TestBrowserSubmitApprovalIsTheOperators(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	bt.fake.On("eval_cdp", (&browserctltest.FormPage{Fields: []browserctl.FormField{{Name: "total", Value: "9.99"}}}).Handler())
 	held := func() string {
 		it, err := browserctl.CreateSubmitItem(t.Context(), db, browserctl.SubmitRequest{
 			URL: "https://shop.example/checkout", Via: "guard", TabID: tab, Instance: bt.fake.Instance,

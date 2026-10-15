@@ -1,16 +1,23 @@
 package browserctl
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/dop251/goja"
 )
 
-// probeDOM is just enough DOM for probeSubmitJS: elements with attributes,
-// a parent chain, closest() for the two selector lists the probe uses, and
-// forms whose elements getter lives on HTMLFormElement.prototype.
+// probeDOM is just enough DOM for the page scripts: elements with
+// attributes, a parent chain, closest() and querySelectorAll() for the
+// selector lists the scripts use, forms whose elements getter lives on
+// HTMLFormElement.prototype, FormData, and click()/requestSubmit() that
+// record what they did.
 const probeDOM = `
+const clicks = [], submits = [];
+const FIELD_TAGS = ["INPUT", "BUTTON", "SELECT", "TEXTAREA"];
 class El {
   constructor(tag, attrs, props) {
     this.tagName = tag.toUpperCase(); this.nodeType = 1; this.attrs = attrs || {};
@@ -29,6 +36,7 @@ class El {
     return sel.split(",").some((s) => {
       s = s.trim();
       if (s === "[role=button]") return this.attrs.role === "button";
+      if (s === "[contenteditable]") return "contenteditable" in this.attrs;
       return this.tagName === s.toUpperCase();
     });
   }
@@ -36,14 +44,36 @@ class El {
     for (let n = this; n; n = n.parentElement) if (n.matches(sel)) return n;
     return null;
   }
+  querySelectorAll(sel) {
+    const out = [];
+    const walk = (n) => n.kids.forEach((k) => { if (k.matches(sel)) out.push(k); walk(k); });
+    walk(this);
+    return out;
+  }
+  querySelector(sel) { return this.querySelectorAll(sel)[0] || null; }
+  click() { clicks.push(this.id || this.tagName); }
 }
-class HTMLFormElement extends El {}
+class HTMLFormElement extends El {
+  requestSubmit() { submits.push(this.id || "form"); }
+}
 Object.defineProperty(HTMLFormElement.prototype, "elements", { get() {
-  const out = [];
-  const walk = (n) => n.kids.forEach((k) => { if (["INPUT", "BUTTON", "SELECT", "TEXTAREA"].includes(k.tagName)) out.push(k); walk(k); });
-  walk(this);
-  return out;
+  return this.querySelectorAll("input,button,select,textarea");
 }});
+class FormData {
+  constructor(form, submitter) {
+    if (submitter && submitter.form !== form) throw new TypeError("not a submitter of this form");
+    this.list = [];
+    for (const f of form.querySelectorAll("input,button,select,textarea")) {
+      if (!f.name || f.disabled) continue;
+      const t = (f.type || "").toLowerCase();
+      if (["submit", "button", "reset", "image"].includes(t)) { if (f === submitter) this.list.push([f.name, f.value || ""]); continue; }
+      if ((t === "checkbox" || t === "radio") && !f.checked) continue;
+      if (t === "file") { for (const file of f.files || []) this.list.push([f.name, file]); continue; }
+      this.list.push([f.name, String(f.value == null ? "" : f.value)]);
+    }
+  }
+  entries() { return this.list[Symbol.iterator](); }
+}
 class URL {
   constructor(u, base) {
     this.href = /^https?:/.test(u) ? u : u.startsWith("/") ? base.match(/^https?:\/\/[^/]+/)[0] + u : base.replace(/[^/]*$/, "") + u;
@@ -55,17 +85,17 @@ const html = new El("html");
 const body = html.add(new El("body"));
 const bySel = {};
 const document = {
-  documentElement: html,
+  documentElement: html, body,
   querySelector: (s) => bySel[s] || null,
   querySelectorAll: (s) => { const id = s.slice(1); const all = []; const walk = (n) => { if (n.id === id) all.push(n); n.kids.forEach(walk); }; walk(html); return all; },
 };
 const field = (form, tag, attrs, props) => { const f = form.add(new El(tag, attrs, props)); f.form = form; f.labels = []; return f; };
 
 // A message form with a password, a hidden token, a card number, a submit
-// button with a span inside, and a plain button.
+// button with a span inside, a plain button, and many more fields.
 const main = body.add(new El("main"));
 main.add(new El("div"));
-const form = main.add(new HTMLFormElement("form", { action: "/post", method: "POST" }));
+const form = main.add(new HTMLFormElement("form", { action: "/post", method: "POST", id: "login" }));
 // A field named "action" must not hide the form's own action.
 field(form, "input", { name: "action" }, { type: "hidden", value: "send" });
 field(form, "textarea", { name: "body" }, { type: "textarea", value: "hello" });
@@ -75,35 +105,81 @@ field(form, "input", { name: "agree" }, { type: "checkbox", checked: true, value
 // Card numbers in fields named nothing like a card: one passes the Luhn check, one does not.
 field(form, "input", { name: "ref" }, { type: "text", value: "4242 4242-4242 4242" });
 field(form, "input", { name: "order_no" }, { type: "text", value: "1234567890123" });
+// Names that only contain "pin" or "pass" inside a word are not secrets.
+field(form, "input", { name: "shipping_address" }, { type: "text", value: "1 Main St" });
+field(form, "input", { name: "passengers" }, { type: "text", value: "2" });
+field(form, "input", { name: "pin" }, { type: "text", value: "1234" });
 field(form, "input", { name: "color" }, { type: "radio", checked: false, value: "red" });
-const send = field(form, "button", { type: "submit", id: "send" }, { type: "submit" });
+const send = field(form, "button", { type: "submit", id: "send", name: "op" }, { type: "submit", value: "send" });
 bySel["#send span"] = send.add(new El("span", {}, { innerText: "Send" }));
 bySel["#send"] = send;
-bySel["form#login"] = form;
+bySel["#login"] = form;
 bySel["#toggle"] = field(form, "button", { type: "button", id: "toggle" }, { type: "button", innerText: "Show password" });
+for (let i = 0; i < 64; i++) field(form, "input", { name: "extra" + i }, { type: "text", value: "v" + i });
 bySel["#menu"] = body.add(new El("button", { id: "menu" }, { innerText: "Open menu" }));
 bySel["#publish"] = body.add(new El("a", { id: "publish" }, { innerText: "Publish now" }));
 bySel["#big"] = body.add(new El("div", { id: "big" }, { innerText: "Publish ".repeat(20) }));
 bySel["#sub"] = body.add(new El("input", { type: "submit", id: "sub" }, { type: "submit", value: "Go" }));
+// A composer with no form: an editor and a Post button in one box.
+const composer = body.add(new El("section"));
+bySel["#editor"] = composer.add(new El("div", { contenteditable: "true", id: "editor" }, { isContentEditable: true, innerText: "draft" }));
+bySel["#post"] = composer.add(new El("button", { id: "post" }, { innerText: "Post" }));
 `
+
+// page is a fresh probeDOM, then setup.
+func page(t *testing.T, setup string) *goja.Runtime {
+	t.Helper()
+	vm := goja.New()
+	if _, err := vm.RunString(probeDOM + setup); err != nil {
+		t.Fatalf("dom: %v", err)
+	}
+	return vm
+}
+
+func run(t *testing.T, vm *goja.Runtime, js string, out any) {
+	t.Helper()
+	v, err := vm.RunString(js)
+	if err != nil {
+		t.Fatalf("script: %v", err)
+	}
+	raw, _ := json.Marshal(v.Export())
+	if err := json.Unmarshal(raw, out); err != nil {
+		t.Fatalf("answer %s: %v", raw, err)
+	}
+}
 
 func runProbe(t *testing.T, selector string) SubmitTarget {
 	t.Helper()
-	vm := goja.New()
-	if _, err := vm.RunString(probeDOM); err != nil {
-		t.Fatalf("dom: %v", err)
-	}
-	v, err := vm.RunString(withSelector(probeSubmitJS, selector))
-	if err != nil {
-		t.Fatalf("probe %s: %v", selector, err)
-	}
-	raw, _ := json.Marshal(v.Export())
 	var st SubmitTarget
-	if err := json.Unmarshal(raw, &st); err != nil {
-		t.Fatalf("probe %s answered %s: %v", selector, raw, err)
-	}
+	run(t, page(t, ""), pageScript(probeSubmitJS, "", selector, ""), &st)
 	return st
 }
+
+func holdDigest(t *testing.T, setup, form, sub string) string {
+	t.Helper()
+	var h held
+	run(t, page(t, setup), pageScript(holdJS, form, sub, ""), &h)
+	if !h.Found || len(h.Digest) != 64 {
+		t.Fatalf("hold %q %q after %q: %+v", form, sub, setup, h)
+	}
+	return h.Digest
+}
+
+func TestPageSHA256MatchesGo(t *testing.T) {
+	vm := page(t, "")
+	for _, s := range []string{"", "abc", strings.Repeat("0123456789", 100), "héllo – 😀  ", strings.Repeat("x", 55), strings.Repeat("y", 56)} {
+		v, err := vm.RunString("(() => {" + formLibJS + "return sha256(" + mustJSON(s) + "); })()")
+		if err != nil {
+			t.Fatal(err)
+		}
+		sum := sha256.Sum256([]byte(s))
+		if got := v.String(); got != hex.EncodeToString(sum[:]) {
+			t.Errorf("sha256(%q) = %s, want %x", s, got, sum)
+		}
+	}
+}
+
+func mustJSON(s string) string { b, _ := json.Marshal(s); return string(b) }
 
 func TestProbeSubmitClassifiesTheClickTarget(t *testing.T) {
 	cases := []struct {
@@ -116,6 +192,7 @@ func TestProbeSubmitClassifiesTheClickTarget(t *testing.T) {
 		{"#toggle", true, "a button inside a form"},
 		{"#sub", true, "type=submit"},
 		{"#publish", true, "its text"},
+		{"#post", true, "its text"},
 		{"#menu", false, ""},
 		{"#big", false, ""}, // long text is not a label
 	}
@@ -131,9 +208,8 @@ func TestProbeSubmitClassifiesTheClickTarget(t *testing.T) {
 }
 
 func TestProbeSubmitSummarizesTheFormWithSecretsMasked(t *testing.T) {
-	got := runProbe(t, "#send")
-	f := got.Form
-	if f.Action != "https://example.com/post" || f.Method != "post" || f.Selector != "body:nth-of-type(1) > main:nth-of-type(1) > form:nth-of-type(1)" {
+	f := runProbe(t, "#send").Form
+	if f.Action != "https://example.com/post" || f.Method != "post" || f.Selector != "#login" {
 		t.Fatalf("form = %+v", f)
 	}
 	values := map[string]string{}
@@ -141,56 +217,89 @@ func TestProbeSubmitSummarizesTheFormWithSecretsMasked(t *testing.T) {
 		values[fl.Name] = fl.Value
 	}
 	want := map[string]string{"action": "•••", "body": "hello", "pw": "•••", "card_number": "•••", "agree": "yes",
-		"ref": "•••", "order_no": "1234567890123"}
+		"ref": "•••", "order_no": "1234567890123", "shipping_address": "1 Main St", "passengers": "2", "pin": "•••"}
 	for k, v := range want {
 		if values[k] != v {
-			t.Errorf("field %s = %q, want %q (all: %v)", k, values[k], v, values)
+			t.Errorf("field %s = %q, want %q", k, values[k], v)
 		}
 	}
 	if _, ok := values["color"]; ok {
 		t.Error("an unchecked radio is listed")
 	}
-	if _, ok := values["send"]; ok {
-		t.Error("the submit button is listed as a field")
+	if len(f.Fields) > 60 {
+		t.Errorf("the card lists %d fields", len(f.Fields))
 	}
 	if got := runProbe(t, "#menu"); got.Form.Selector != "" || len(got.Form.Fields) != 0 {
 		t.Errorf("a control outside a form has a form: %+v", got.Form)
 	}
 }
 
-// summarizeFormJS reads a form by its own selector the way the probe reads
-// it through a control, so a held submit's digest can be checked again.
-func TestSummarizeFormMatchesTheProbe(t *testing.T) {
-	vm := goja.New()
-	if _, err := vm.RunString(probeDOM); err != nil {
+// The digest covers what the submit would send, unmasked and in full: a
+// change to a hidden or password field, past the card's 200 characters or
+// 60 fields, or to the submitter's value changes it; a label does not.
+func TestHeldDigestCoversWhatTheSubmitSends(t *testing.T) {
+	base := holdDigest(t, "", "#login", "#send")
+	if again := holdDigest(t, "", "#login", "#send span"); again != base {
+		t.Fatal("a click inside the button binds differently from the button")
+	}
+	for name, setup := range map[string]string{
+		"hidden input":    `form.querySelectorAll("input")[0].value = "delete";`,
+		"password":        `form.querySelectorAll("input")[1].value = "hunter3";`,
+		"past char 200":   `form.querySelector("textarea").value = "x".repeat(300) + "y";`,
+		"field 61+":       `form.querySelectorAll("input").find((f) => f.name === "extra63").value = "changed";`,
+		"submitter value": `send.value = "send-all";`,
+		"action":          `form.attrs.action = "/elsewhere";`,
+		"formaction":      `send.attrs.formaction = "/elsewhere";`,
+	} {
+		if got := holdDigest(t, setup, "#login", "#send"); got == base {
+			t.Errorf("%s: the digest did not change", name)
+		}
+	}
+	if got := holdDigest(t, `form.querySelector("textarea").labels = [{ innerText: "Message" }];`, "#login", "#send"); got != base {
+		t.Error("a label changed the digest")
+	}
+	long := holdDigest(t, `form.querySelector("textarea").value = "x".repeat(300);`, "#login", "#send")
+	if holdDigest(t, `form.querySelector("textarea").value = "x".repeat(299) + "z";`, "#login", "#send") == long {
+		t.Error("a change past the card's 200 characters kept the digest")
+	}
+}
+
+func TestHeldDigestOfAControlOutsideAForm(t *testing.T) {
+	base := holdDigest(t, "", "", "#post")
+	if got := holdDigest(t, `bySel["#editor"].innerText = "edited";`, "", "#post"); got == base {
+		t.Fatal("editing the composer kept the digest")
+	}
+}
+
+// The trigger checks the digest and submits in one evaluation.
+func TestTriggerChecksAndSubmitsInOneStep(t *testing.T) {
+	vm := page(t, "")
+	var h held
+	run(t, vm, pageScript(holdJS, "#login", "#send", ""), &h)
+	var out struct {
+		OK      bool   `json:"ok"`
+		Changed bool   `json:"changed"`
+		Missing string `json:"missing"`
+	}
+	run(t, vm, pageScript(triggerJS, "#login", "#send", h.Digest), &out)
+	if !out.OK || vm.Get("clicks").String() != "send" {
+		t.Fatalf("trigger: %+v, clicks %v", out, vm.Get("clicks"))
+	}
+	if _, err := vm.RunString(`form.querySelectorAll("input")[1].value = "changed";`); err != nil {
 		t.Fatal(err)
 	}
-	v, err := vm.RunString(withSelector(summarizeFormJS, "form#login"))
-	if err != nil {
-		t.Fatal(err)
+	out.OK = false
+	run(t, vm, pageScript(triggerJS, "#login", "#send", h.Digest), &out)
+	if out.OK || !out.Changed || vm.Get("clicks").String() != "send" {
+		t.Fatalf("trigger after a change: %+v, clicks %v", out, vm.Get("clicks"))
 	}
-	raw, _ := json.Marshal(v.Export())
-	var got struct {
-		Found bool        `json:"found"`
-		Form  FormSummary `json:"form"`
+	out.Changed = false
+	run(t, vm, pageScript(triggerJS, "#login", "", ""), &out)
+	if !out.OK || vm.Get("submits").String() != "login" {
+		t.Fatalf("requestSubmit with no check: %+v, submits %v", out, vm.Get("submits"))
 	}
-	if err := json.Unmarshal(raw, &got); err != nil || !got.Found {
-		t.Fatalf("summary %s: %v", raw, err)
-	}
-	probe := runProbe(t, "#send")
-	if FormDigest(got.Form) != FormDigest(probe.Form) {
-		t.Fatalf("digests differ:\n%+v\n%+v", got.Form, probe.Form)
-	}
-	changed := got.Form
-	changed.Fields = append([]FormField(nil), got.Form.Fields...)
-	changed.Fields[1].Value = "hello!"
-	if FormDigest(changed) == FormDigest(got.Form) {
-		t.Fatal("a changed value keeps the digest")
-	}
-	relabelled := got.Form
-	relabelled.Fields = append([]FormField(nil), got.Form.Fields...)
-	relabelled.Fields[1].Label = "Message"
-	if FormDigest(relabelled) != FormDigest(got.Form) {
-		t.Fatal("a label changes the digest")
+	run(t, vm, pageScript(triggerJS, "#login", "#gone", h.Digest), &out)
+	if out.Missing == "" {
+		t.Fatalf("a missing control: %+v", out)
 	}
 }

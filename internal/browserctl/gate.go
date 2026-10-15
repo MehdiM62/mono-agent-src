@@ -252,7 +252,7 @@ type SubmitTarget struct {
 // apply. The form it would send is summarized with sensitive values masked.
 func (s *Session) ProbeSubmit(selector string) (SubmitTarget, error) {
 	var t SubmitTarget
-	res, err := s.Page().EvalCDP(withSelector(probeSubmitJS, selector))
+	res, err := s.Page().EvalCDP(pageScript(probeSubmitJS, "", selector, ""))
 	if err != nil {
 		return t, err
 	}
@@ -279,16 +279,17 @@ var ErrNotSent = errors.New("nothing was submitted")
 func (s *Session) Resubmit(it SubmitItem) error { return ResubmitItem(s.Page(), it) }
 
 // ResubmitPage repeats a held submit of the page's top frame on page p
-// (resubmit). It checks nothing about the page: callers repeating an
-// approved item use ResubmitItem.
-func ResubmitPage(p *extension.ExtensionPage, f FormSummary) error { return resubmit(p, f, 0) }
+// (resubmit) without checking what it sends: callers repeating an approved
+// item use ResubmitItem.
+func ResubmitPage(p *extension.ExtensionPage, f FormSummary) error { return resubmit(p, f, 0, "") }
 
-// resubmit repeats a held submit: the guard is armed, the submit control
-// found, then the guard lets exactly one submit through in frameID and the
-// control is clicked, or the form requestSubmit()ted when there was none.
-// A failure wrapping ErrNotSent reached nothing on the page; when the
-// trigger fails after the guard opened, the guard is closed again.
-func resubmit(p *extension.ExtensionPage, f FormSummary, frameID int) error {
+// resubmit repeats a held submit: the guard is armed and lets exactly one
+// submit through in frameID, then one evaluation in the page checks that
+// what would be sent still has the digest expect ("": no check) and clicks
+// the submit control, or requestSubmit()s the form when there was none. A
+// failure wrapping ErrNotSent reached nothing on the page; once the guard
+// was opened, any failure closes it again.
+func resubmit(p *extension.ExtensionPage, f FormSummary, frameID int, expect string) error {
 	if f.Submitter == "" && f.Selector == "" {
 		return fmt.Errorf("%w: the held submit recorded neither its submit control nor its form, so it cannot be repeated", ErrNotSent)
 	}
@@ -298,39 +299,37 @@ func resubmit(p *extension.ExtensionPage, f FormSummary, frameID int) error {
 	if _, err := p.SubmitGuard(extension.SubmitGuardArm); err != nil {
 		return fmt.Errorf("%w: arming the page's submit guard: %v", ErrNotSent, err)
 	}
+	if _, err := p.SubmitGuardAllowOnce(frameID, ""); err != nil {
+		return fmt.Errorf("%w: letting the submit through: %v", ErrNotSent, err)
+	}
 	reclose := func() {
 		_, _ = p.SubmitGuard(extension.SubmitGuardDisarm)
 		_, _ = p.SubmitGuard(extension.SubmitGuardArm)
 	}
-	if f.Submitter != "" {
-		el, err := p.Element(f.Submitter, 10*time.Second)
-		if err != nil {
-			return fmt.Errorf("%w: %v", ErrNotSent, err)
-		}
-		if _, err := p.SubmitGuardAllowOnce(frameID, ""); err != nil {
-			return fmt.Errorf("%w: letting the submit through: %v", ErrNotSent, err)
-		}
-		if err := el.Click(); err != nil {
-			reclose()
-			return err
-		}
-		return nil
-	}
-	if _, err := p.SubmitGuardAllowOnce(frameID, ""); err != nil {
-		return fmt.Errorf("%w: letting the submit through: %v", ErrNotSent, err)
-	}
-	sel, _ := json.Marshal(f.Selector)
-	res, err := p.EvalCDP(fmt.Sprintf(`(() => { const f = document.querySelector(%s);
-  if (!(f instanceof HTMLFormElement)) return false; f.requestSubmit(); return true; })()`, string(sel)))
+	res, err := p.EvalCDP(pageScript(triggerJS, f.Selector, f.Submitter, expect))
 	if err != nil {
 		reclose()
 		return err
 	}
-	if ok, _ := res.(bool); !ok {
-		reclose()
-		return fmt.Errorf("%w: the form %s is no longer on the page", ErrNotSent, f.Selector)
+	raw, _ := json.Marshal(res)
+	var out struct {
+		OK      bool   `json:"ok"`
+		Changed bool   `json:"changed"`
+		Missing string `json:"missing"`
 	}
-	return nil
+	_ = json.Unmarshal(raw, &out)
+	switch {
+	case out.OK:
+		return nil
+	case out.Changed:
+		reclose()
+		return &SubmitChangedError{What: "what the form would send"}
+	case out.Missing != "":
+		reclose()
+		return fmt.Errorf("%w: %s is no longer on the page", ErrNotSent, out.Missing)
+	}
+	reclose()
+	return fmt.Errorf("%w: the page did not answer the submit (%s)", ErrNotSent, raw)
 }
 
 // settle gives a page a moment to act on a click before AfterAct reads it.

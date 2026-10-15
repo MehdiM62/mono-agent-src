@@ -252,22 +252,27 @@ func TestLocalPagesAreNotGated(t *testing.T) {
 	}
 }
 
-func TestResubmitClicksTheRecordedSubmitter(t *testing.T) {
+func TestResubmitChecksAndSubmitsInOneEvaluation(t *testing.T) {
 	setEnv(t, true)
 	f := browserctltest.New()
 	f.AddTab("https://example.com/", "Coder · Agent", true)
+	fp := &browserctltest.FormPage{Selector: "#f", Fields: []browserctl.FormField{{Name: "q", Value: "hi"}}}
+	f.On("eval_cdp", fp.Handler())
 	s, _ := browserctl.Open(browserctl.Options{Sender: f, Allowlist: []string{"https://example.com"}})
-	it := browserctl.SubmitItem{URL: "https://example.com/", Form: browserctl.FormSummary{Submitter: "#send"},
-		FormDigest: browserctl.FormDigest(browserctl.FormSummary{})}
-	if err := s.Resubmit(it); err != nil {
-		t.Fatal(err)
+	it, err := browserctl.CreateSubmitItem(context.Background(), testdb.Open(t).DB, browserctl.SubmitRequest{
+		URL: "https://example.com/", Via: "click", Page: s.Page(), Form: browserctl.FormSummary{Selector: "#f", Submitter: "#send"}})
+	if err != nil || it.FormDigest == "" {
+		t.Fatalf("held item %+v, %v", it, err)
+	}
+	if err := s.Resubmit(it); err != nil || fp.Triggered != 1 {
+		t.Fatalf("resubmit: %v (%d submits)", err, fp.Triggered)
 	}
 	calls := f.Calls()
-	last := calls[len(calls)-4:]
+	last := calls[len(calls)-3:]
 	if last[0].Type != extension.CmdSubmitGuard || last[0].Params["action"] != extension.SubmitGuardArm ||
-		last[1].Type != extension.CmdElement || last[1].Params["selector"] != "#send" ||
-		last[2].Type != extension.CmdSubmitGuard || last[2].Params["action"] != extension.SubmitGuardAllowOnce || last[2].Params["frameId"] != 0 ||
-		last[3].Type != extension.CmdClick || last[3].Params["elementId"] != "el:#send" {
+		last[1].Type != extension.CmdSubmitGuard || last[1].Params["action"] != extension.SubmitGuardAllowOnce || last[1].Params["frameId"] != 0 ||
+		last[2].Type != "eval_cdp" || !strings.HasPrefix(last[2].Params["expression"].(string), "/*mono:trigger*/") ||
+		!strings.Contains(last[2].Params["expression"].(string), it.FormDigest) {
 		t.Fatalf("calls = %+v", last)
 	}
 }

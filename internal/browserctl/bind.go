@@ -1,8 +1,6 @@
 package browserctl
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -31,63 +29,43 @@ func (e *SubmitChangedError) Error() string {
 // Unwrap makes it ErrNotSent: nothing reached the page.
 func (e *SubmitChangedError) Unwrap() error { return ErrNotSent }
 
-// FormDigest is the digest an approval is bound to: the form's action,
-// method, and each field's name, type and value (masked values as masked),
-// in order. Labels are left out: they are not sent.
-func FormDigest(f FormSummary) string {
-	type field struct{ Name, Type, Value string }
-	doc := struct {
-		Action, Method string
-		Fields         []field
-	}{Action: f.Action, Method: f.Method, Fields: []field{}}
-	for _, x := range f.Fields {
-		doc.Fields = append(doc.Fields, field{x.Name, x.Type, x.Value})
-	}
-	raw, _ := json.Marshal(doc)
-	sum := sha256.Sum256(raw)
-	return hex.EncodeToString(sum[:])
+// held is holdJS's answer.
+type held struct {
+	Found  bool        `json:"found"`
+	Form   FormSummary `json:"form"`
+	Digest string      `json:"digest"`
 }
 
-// summarizeForm reads the form at selector on page p (summarizeFormJS);
-// found is false when no form matches.
-func summarizeForm(p *extension.ExtensionPage, selector string) (FormSummary, bool, error) {
-	var out struct {
-		Found bool        `json:"found"`
-		Form  FormSummary `json:"form"`
-	}
-	res, err := p.EvalCDP(withSelector(summarizeFormJS, selector))
-	if err != nil {
-		return FormSummary{}, false, err
-	}
-	raw, err := json.Marshal(res)
-	if err != nil {
-		return FormSummary{}, false, err
-	}
-	if err := json.Unmarshal(raw, &out); err != nil {
-		return FormSummary{}, false, fmt.Errorf("reading the form: %w", err)
-	}
-	if out.Form.Fields == nil {
-		out.Form.Fields = []FormField{}
-	}
-	return out.Form, out.Found, nil
-}
-
-// bindForm reads f's form on page p the way VerifyHeld will, keeping f's
-// submitter, and returns it with its digest. A submit with no form (a
-// submit-like control outside any form) is bound to the page alone.
+// bindForm reads what the held submit f would send on page p (holdJS): the
+// masked summary for the card, with f's submitter kept, and the digest the
+// approval is bound to.
 func bindForm(p *extension.ExtensionPage, f FormSummary) (FormSummary, string, error) {
-	if f.Selector == "" {
-		return f, FormDigest(FormSummary{}), nil
+	if f.Selector == "" && f.Submitter == "" {
+		return f, "", errFormGone
 	}
-	got, found, err := summarizeForm(p, f.Selector)
+	res, err := p.EvalCDP(pageScript(holdJS, f.Selector, f.Submitter, ""))
 	if err != nil {
 		return f, "", err
 	}
-	if !found {
+	raw, err := json.Marshal(res)
+	if err != nil {
+		return f, "", err
+	}
+	var h held
+	if err := json.Unmarshal(raw, &h); err != nil {
+		return f, "", fmt.Errorf("reading the form: %w", err)
+	}
+	if !h.Found || h.Digest == "" {
 		return f, "", errFormGone
 	}
-	got.Submitter = f.Submitter
-	return got, FormDigest(got), nil
+	if f.Selector == "" {
+		h.Form = f // a control outside any form: nothing to show but the control
+	}
+	if h.Form.Fields == nil {
+		h.Form.Fields = []FormField{}
+	}
+	h.Form.Submitter, h.Form.Selector = f.Submitter, f.Selector
+	return h.Form, h.Digest, nil
 }
 
 var errFormGone = errors.New("the form is no longer on the page")
@@ -105,8 +83,9 @@ func pagePath(rawURL string) string {
 	return Origin(rawURL) + p
 }
 
-// VerifyHeld checks that page p still shows what it was approved for: the
-// same origin and path, and a form with the approved digest. Its errors
+// VerifyHeld checks that page p is still the page the submit was approved
+// on (origin and path) and that the item is bound at all. The form itself
+// is checked by resubmit, in the same evaluation as the submit. Its errors
 // wrap ErrNotSent.
 func VerifyHeld(p *extension.ExtensionPage, it SubmitItem) error {
 	if it.FormDigest == "" {
@@ -119,20 +98,6 @@ func VerifyHeld(p *extension.ExtensionPage, it SubmitItem) error {
 	if pagePath(now) != pagePath(it.URL) {
 		return &SubmitChangedError{What: fmt.Sprintf("the page (approved on %s, now %s)", pagePath(it.URL), pagePath(now))}
 	}
-	digest := FormDigest(FormSummary{})
-	if it.Form.Selector != "" {
-		got, found, err := summarizeForm(p, it.Form.Selector)
-		if err != nil {
-			return fmt.Errorf("%w: reading the form: %v", ErrNotSent, err)
-		}
-		if !found {
-			return &SubmitChangedError{What: "the form (it is no longer on the page)"}
-		}
-		digest = FormDigest(got)
-	}
-	if digest != it.FormDigest {
-		return &SubmitChangedError{What: "the form's contents"}
-	}
 	return nil
 }
 
@@ -141,5 +106,5 @@ func ResubmitItem(p *extension.ExtensionPage, it SubmitItem) error {
 	if err := VerifyHeld(p, it); err != nil {
 		return err
 	}
-	return resubmit(p, it.Form, it.FrameID)
+	return resubmit(p, it.Form, it.FrameID, it.FormDigest)
 }
