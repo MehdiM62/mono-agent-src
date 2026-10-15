@@ -31,7 +31,6 @@ func newDBCmd(cfg *globalConfig) *cobra.Command {
 		JSONOutput: func() bool { return cfg.JSONOutput },
 		OpenDB:     func() (*storage.Database, error) { return initDB(cfg) },
 		DBPath:     func() string { return cfg.DBPath },
-		ProfileID:  func() string { return cfg.ProfileID },
 	})
 }
 

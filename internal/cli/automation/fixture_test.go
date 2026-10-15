@@ -78,12 +78,9 @@ func testDeps(cfg *testConfig) Deps {
 				return nil, err
 			}
 			if cfg.ProfileID == "" {
-				var id string
-				_ = db.DB.QueryRow(`SELECT value FROM settings WHERE key = 'active_profile_id'`).Scan(&id)
-				if id == "" {
-					id = "default"
-				}
-				cfg.ProfileID = id
+				// Test helper: a bare config acts on the seeded 'default' profile; the
+				// real CLI has no such fallback (the profile gate refuses first).
+				cfg.ProfileID = "default"
 				return db, nil
 			}
 			var id string

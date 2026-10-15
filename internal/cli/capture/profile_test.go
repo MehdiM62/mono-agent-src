@@ -37,7 +37,6 @@ func profileFixture(t *testing.T) (*testConfig, string) {
 		`CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT)`,
 		`INSERT INTO profiles (id, name, created_at) VALUES ('p-work', 'Work', '2026-01-01')`,
 		`INSERT INTO profiles (id, name, created_at) VALUES ('p-home', 'Personal', '2026-02-01')`,
-		`INSERT INTO settings (key, value) VALUES ('active_profile_id', 'p-work')`,
 	} {
 		if _, err := db.Exec(stmt); err != nil {
 			t.Fatalf("exec %q: %v", stmt, err)
@@ -85,7 +84,7 @@ func TestCaptureListProfile(t *testing.T) {
 		t.Errorf("listing does not name the profile:\n%s", out)
 	}
 
-	// The name works as well as the id — the same as `profile switch`.
+	// The name works as well as the id — the same as every command's `--profile`.
 	cfg.ProfileID = "Personal"
 	out, err = runCaptureCmd(t, cfg, "list")
 	if err != nil {

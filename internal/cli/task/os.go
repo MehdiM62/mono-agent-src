@@ -45,8 +45,8 @@ Services). It runs
   monoagentcli --profile <id> task add --stdin --source os
 
 with the selected text on standard input (never on a command line), so the
-text lands in the Inbox of one profile: the one --profile names, else the
-active profile when you install. Run install once per profile. No app or
+text lands in the Inbox of one profile: the one --profile names.
+Run install once per profile. No app or
 daemon has to be running. macOS may list the item only after you enable it
 once in System Settings, Keyboard, Keyboard Shortcuts, Services, Text.
 
@@ -107,14 +107,13 @@ func taskOSRunnable(path string) bool {
 
 // withTaskStore opens the database without resolving --profile: status and
 // uninstall take their profiles from the bundles, and some may be deleted.
-// active is the active profile's id.
-func (d Deps) withTaskStore(cmd *cobra.Command, fn func(ctx context.Context, store *tasks.Store, db *sql.DB, active string) error) error {
-	db, active, err := d.OpenDBActive()
+func (d Deps) withTaskStore(cmd *cobra.Command, fn func(ctx context.Context, store *tasks.Store, db *sql.DB) error) error {
+	db, err := d.OpenDBUnresolved()
 	if err != nil {
 		return fmt.Errorf("initializing database: %w", err)
 	}
 	defer db.Close()
-	return fn(cmd.Context(), tasks.NewStore(db.DB), db.DB, active)
+	return fn(cmd.Context(), tasks.NewStore(db.DB), db.DB)
 }
 
 func (d Deps) newTaskOSInstallCmd() *cobra.Command {
@@ -122,8 +121,8 @@ func (d Deps) newTaskOSInstallCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "install",
 		Short: `Add "Add to MonoAgent Tasks: <profile>" to the macOS Services menu (you only)`,
-		Long: `Adds the menu item for one profile: --profile (an id or a name), else the
-active profile, which the output names. Run it again after renaming the profile
+		Long: `Adds the menu item for one profile: --profile (an id or a name),
+which the output names. Run it again after renaming the profile
 or moving monoagentcli; a menu that is already current is left alone. --force
 replaces a bundle of the same name that this command did not write; the menu of
 another profile is never replaced.`,
@@ -251,7 +250,7 @@ database: run status with that --db-path to judge it).`,
 			if err != nil {
 				return err
 			}
-			return d.withTaskStore(cmd, func(ctx context.Context, store *tasks.Store, _ *sql.DB, _ string) error {
+			return d.withTaskStore(cmd, func(ctx context.Context, store *tasks.Store, _ *sql.DB) error {
 				rows := make([]taskOSMenuJSON, 0, len(menus))
 				for _, m := range menus {
 					row, err := d.taskOSState(ctx, store, dbPath, m)
@@ -332,7 +331,7 @@ func (d Deps) newTaskOSUninstallCmd() *cobra.Command {
 		Use:   "uninstall",
 		Short: "Remove a profile's Add to MonoAgent Tasks menu (you only; macOS)",
 		Long: `Removes the menu that files into the profile --profile names (an id or a
-name), else into the active profile, of the database this command uses
+name), of the database this command uses
 (--db-path). A profile deleted since is named by its id, as task os status
 prints it. Only a menu task os install wrote is removed; nothing to remove is
 not an error.`,
@@ -355,13 +354,14 @@ not an error.`,
 			if err != nil {
 				return err
 			}
-			return d.withTaskStore(cmd, func(_ context.Context, _ *tasks.Store, db *sql.DB, active string) error {
-				id := active
-				if flag := d.ProfileID(); flag != "" {
-					id = flag // a deleted profile's id, as status prints it
-					if resolved, ok := resolveProfileID(db, flag); ok {
-						id = resolved
-					}
+			return d.withTaskStore(cmd, func(_ context.Context, _ *tasks.Store, db *sql.DB) error {
+				id := d.ProfileID()
+				if id == "" {
+					return d.InvalidInput("task os uninstall acts on a profile: pass --profile <id|name>")
+				}
+				// A deleted profile's id, as status prints it, stays as given.
+				if resolved, ok := resolveProfileID(db, id); ok {
+					id = resolved
 				}
 				removed, err := osmenu.Remove(dir, dbPath, id)
 				if err != nil {
