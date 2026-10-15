@@ -434,3 +434,14 @@ func TestStoreGetJobIncludesTitle(t *testing.T) {
 		t.Fatalf("expected title to round-trip, got %q", got.Job.Title)
 	}
 }
+
+func TestStoreCreateRefusesAMissingProfile(t *testing.T) {
+	store := applications.NewStore(newTestDB(t).DB)
+	app := &applications.Application{
+		Kind: applications.KindJob,
+		Job:  &applications.JobDetails{Title: "t", Company: "c", URL: "https://x.example/1"},
+	}
+	if err := store.Create(context.Background(), app); !errors.Is(err, applications.ErrInvalidInput) {
+		t.Fatalf("err = %v, want ErrInvalidInput", err)
+	}
+}

@@ -49,7 +49,7 @@ func policyRun(t *testing.T, ctx context.Context, start, pageURL string) (res ma
 // lets it: local and dev pages and the user's allowlist.
 func TestAgentShellRunFollowsTheOriginPolicy(t *testing.T) {
 	t.Setenv("CLAUDECODE", "1")
-	_, opened, err := policyRun(t, context.Background(), "https://shop.example.com/", "")
+	_, opened, err := policyRun(t, vault.ContextWithProfileID(context.Background(), "p1"), "https://shop.example.com/", "")
 	if err == nil || opened || !strings.Contains(err.Error(), "monoagentcli browser allow add https://shop.example.com") {
 		t.Fatalf("a site off the allowlist: opened=%v err=%v", opened, err)
 	}
@@ -58,7 +58,7 @@ func TestAgentShellRunFollowsTheOriginPolicy(t *testing.T) {
 	if err := browserctl.SaveAllowlist(db, []string{"https://shop.example.com"}); err != nil {
 		t.Fatal(err)
 	}
-	ctx := vault.ContextWithDB(context.Background(), db)
+	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db), "p1")
 	if res, _, err := policyRun(t, ctx, "https://shop.example.com/", ""); err != nil || res["status"] != "done" {
 		t.Fatalf("an allowlisted site: %v %v", res, err)
 	}
@@ -71,7 +71,7 @@ func TestAgentShellRunFollowsTheOriginPolicy(t *testing.T) {
 
 	// A daemon running a shell's `workflow run` holds it to the same rules.
 	t.Setenv("CLAUDECODE", "")
-	marked := workflow.WithTrigger(context.Background(), "trigger.manual", map[string]interface{}{workflow.AICallerKey: "agent"})
+	marked := workflow.WithTrigger(vault.ContextWithProfileID(context.Background(), "p1"), "trigger.manual", map[string]interface{}{workflow.AICallerKey: "agent"})
 	if _, _, err := policyRun(t, marked, "https://shop.example.com/", ""); err == nil || !strings.Contains(err.Error(), "browser allow add") {
 		t.Fatalf("a run a shell marked: %v", err)
 	}
@@ -80,15 +80,15 @@ func TestAgentShellRunFollowsTheOriginPolicy(t *testing.T) {
 // The chat and the user keep real sites: the chat behind the submit gate,
 // the user as before.
 func TestChatAndUserRunsKeepRealSites(t *testing.T) {
-	marked := workflow.WithTrigger(context.Background(), "trigger.manual", map[string]interface{}{workflow.AICallerKey: "chat"})
+	marked := workflow.WithTrigger(vault.ContextWithProfileID(context.Background(), "p1"), "trigger.manual", map[string]interface{}{workflow.AICallerKey: "chat"})
 	if res, _, err := policyRun(t, marked, "https://shop.example.com/", "https://shop.example.com/results"); err != nil || res["status"] != "done" {
 		t.Fatalf("a run the chat marked: %v %v", res, err)
 	}
-	if res, _, err := policyRun(t, context.Background(), "https://shop.example.com/", "https://shop.example.com/results"); err != nil || res["status"] != "done" {
+	if res, _, err := policyRun(t, vault.ContextWithProfileID(context.Background(), "p1"), "https://shop.example.com/", "https://shop.example.com/results"); err != nil || res["status"] != "done" {
 		t.Fatalf("the user's run: %v %v", res, err)
 	}
 	t.Setenv(EnvAICaller, "chat")
-	if res, _, err := policyRun(t, context.Background(), "https://shop.example.com/", ""); err != nil || res["status"] != "done" {
+	if res, _, err := policyRun(t, vault.ContextWithProfileID(context.Background(), "p1"), "https://shop.example.com/", ""); err != nil || res["status"] != "done" {
 		t.Fatalf("a chat tool call's run: %v %v", res, err)
 	}
 }
@@ -112,7 +112,7 @@ func TestAgentShellPolicyTrustsTheTabNotThePage(t *testing.T) {
 	run := func(tab string) (map[string]interface{}, error) {
 		drv := &tabURLDriver{urlDriver: &urlDriver{guardedDriver: g, url: "http://localhost:5173/"}, tab: tab}
 		n := &Node{writer: zurich, open: func(context.Context, string) (driver, func(), error) { return drv, func() {}, nil }}
-		out, err := n.Execute(context.Background(), workflow.NodeInput{}, map[string]interface{}{"url": "http://localhost:5173/", "goal": "Search for zurich", "api_key": "k"})
+		out, err := n.Execute(vault.ContextWithProfileID(context.Background(), "p1"), workflow.NodeInput{}, map[string]interface{}{"url": "http://localhost:5173/", "goal": "Search for zurich", "api_key": "k"})
 		if err != nil {
 			return nil, err
 		}

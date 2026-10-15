@@ -21,7 +21,7 @@ func TestWorkflowConnectOnAFileOnlyWorkflow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	wf := &workflow.Workflow{ID: "wf-file-only", Name: "editor", Nodes: []workflow.WorkflowNode{
+	wf := &workflow.Workflow{ProfileID: "default", ID: "wf-file-only", Name: "editor", Nodes: []workflow.WorkflowNode{
 		{ID: "a", Type: "core.set", Name: "A", Config: map[string]interface{}{}},
 		{ID: "b", Type: "core.filter", Name: "B", Config: map[string]interface{}{}},
 	}}
@@ -107,7 +107,7 @@ func TestWorkflowRunReportsProgressWhenAskedTo(t *testing.T) {
 	}}, &saved)
 
 	req := request(7, "tools/call", map[string]interface{}{
-		"name": "workflow_run", "arguments": map[string]interface{}{"id": saved.ID, "timeout_seconds": 30},
+		"name": "workflow_run", "arguments": map[string]interface{}{"id": saved.ID, "timeout_seconds": 30, "profile": testProfile},
 		"_meta": map[string]interface{}{"progressToken": "run-7"},
 	})
 	var progress []map[string]interface{}

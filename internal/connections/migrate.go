@@ -54,7 +54,7 @@ func MigrateConnectionsToVault(ctx context.Context, db *sql.DB) (migrated, total
 	// Store.ListAll filters to an exact profile_id match, so there is no
 	// single call that returns connections across every profile — find the
 	// distinct profile IDs first and migrate each in turn.
-	rows, err := db.QueryContext(ctx, `SELECT DISTINCT COALESCE(profile_id,'default') FROM connections`)
+	rows, err := db.QueryContext(ctx, `SELECT DISTINCT profile_id FROM connections WHERE profile_id IS NOT NULL AND profile_id != ''`)
 	if err != nil {
 		return 0, 0, fmt.Errorf("connections.MigrateConnectionsToVault: listing connection profiles: %w", err)
 	}

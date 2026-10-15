@@ -35,11 +35,11 @@ func TestPublicationMCPDeleteRedactGatedAndScoped(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, tool := range []string{"publication_redact", "publication_delete"} {
-		if _, err = callTool(ctx, s, tool, json.RawMessage(`{"id":"`+other.ID+`"}`)); err == nil {
+		if _, err = callToolDefault(ctx, s, tool, json.RawMessage(`{"id":"`+other.ID+`"}`)); err == nil {
 			t.Fatalf("%s crossed profiles", tool)
 		}
 	}
-	raw, err := callTool(ctx, s, "publication_register", json.RawMessage(`{"platform":"custom","kind":"post","body":"ours"}`))
+	raw, err := callToolDefault(ctx, s, "publication_register", json.RawMessage(`{"platform":"custom","kind":"post","body":"ours"}`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,11 +47,11 @@ func TestPublicationMCPDeleteRedactGatedAndScoped(t *testing.T) {
 	if err = json.Unmarshal([]byte(raw), &mine); err != nil {
 		t.Fatalf("register output %v: %s", err, raw)
 	}
-	raw, err = callTool(ctx, s, "publication_redact", json.RawMessage(`{"id":"`+mine.ID+`"}`))
+	raw, err = callToolDefault(ctx, s, "publication_redact", json.RawMessage(`{"id":"`+mine.ID+`"}`))
 	if err != nil || !strings.Contains(raw, "[redacted]") {
 		t.Fatalf("redact: %v %v", raw, err)
 	}
-	if _, err = callTool(ctx, s, "publication_delete", json.RawMessage(`{"id":"`+mine.ID+`"}`)); err != nil {
+	if _, err = callToolDefault(ctx, s, "publication_delete", json.RawMessage(`{"id":"`+mine.ID+`"}`)); err != nil {
 		t.Fatal(err)
 	}
 }

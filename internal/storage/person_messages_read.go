@@ -22,8 +22,8 @@ func nullTimePtr(t sql.NullTime) *time.Time {
 // given ids, or every message of personID when ids is empty. It returns how
 // many were unread before.
 func (d *Database) MarkPersonMessagesRead(profileID, personID string, ids []string) (int, error) {
-	if profileID == "" {
-		profileID = "default"
+	if err := requireProfile(profileID); err != nil {
+		return 0, err
 	}
 	if personID == "" && len(ids) == 0 {
 		return 0, fmt.Errorf("name messages or a person to mark read")
@@ -51,8 +51,8 @@ func (d *Database) MarkPersonMessagesRead(profileID, personID string, ids []stri
 
 // MarkPersonMessageUnread marks one inbound message of the profile unread.
 func (d *Database) MarkPersonMessageUnread(profileID, id string) error {
-	if profileID == "" {
-		profileID = "default"
+	if err := requireProfile(profileID); err != nil {
+		return err
 	}
 	res, err := d.DB.Exec(`UPDATE person_messages SET read_at = NULL
 		WHERE id = ? AND profile_id = ? AND direction = 'inbound'`, id, profileID)
@@ -67,8 +67,8 @@ func (d *Database) MarkPersonMessageUnread(profileID, id string) error {
 
 // CountUnreadPersonMessages counts the profile's unread inbound messages.
 func (d *Database) CountUnreadPersonMessages(profileID string) (int, error) {
-	if profileID == "" {
-		profileID = "default"
+	if err := requireProfile(profileID); err != nil {
+		return 0, err
 	}
 	var n int
 	err := d.DB.QueryRow(`SELECT COUNT(*) FROM person_messages

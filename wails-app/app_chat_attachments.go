@@ -129,7 +129,11 @@ func (a *App) ReadWorkspaceImage(conversationID, path string) (string, error) {
 	if a.chatSup == nil {
 		return "", errors.New("chat supervisor not initialized")
 	}
-	cwd, err := a.chatSup.conversationCwd(a.getActiveProfileID(), conversationID)
+	pid, err := a.profileID()
+	if err != nil {
+		return "", err
+	}
+	cwd, err := a.chatSup.conversationCwd(pid, conversationID)
 	if err != nil {
 		return "", err
 	}

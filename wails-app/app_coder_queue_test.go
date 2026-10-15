@@ -21,7 +21,7 @@ func TestApp_CoderQueue_ShellsOutToTheCLI(t *testing.T) {
 		fakeChatReply{match: "coder queue image", stdout: `{"id":"20261015-120000-abcdef","name":"page.png","dataUrl":"data:image/png;base64,AA=="}` + "\n"},
 	)
 	a, _ := newCLIChatApp(t, bin)
-	a.setActiveProfileID("work")
+	a.selectForTest("work")
 	id := "20261015-120000-abcdef"
 
 	if got := a.QueueList(); got != queueListJSON {

@@ -24,7 +24,7 @@ const (
 
 // accountGate is the gate over this CLI's tree.
 func accountGate() accountgate.Gate {
-	return accountgate.Gate{NewTree: newRootCmd, LoginRequired: newLoginRequiredError}
+	return accountgate.Gate{NewTree: newProbeRootCmd, LoginRequired: newLoginRequiredError}
 }
 
 // gateCommand is the CLI gate: nil lets the command run, the refusal fails it.

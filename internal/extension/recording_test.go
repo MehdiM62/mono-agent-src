@@ -193,6 +193,8 @@ func TestRecordMethodArgsValidation(t *testing.T) {
 		{recordSaveArgs, map[string]any{"draftDir": draft, "force": true, "keepPackageSelectors": true}, "record save " + realDraft + " --force --keep-package-selectors --json"},
 	}
 	for _, g := range good {
+		g.p["profile"] = "work"
+		g.want = "--profile=work " + g.want
 		args, err := g.build(req(g.p))
 		if err != nil || strings.Join(args, " ") != g.want {
 			t.Errorf("%v → %q, %v; want %q", g.p, strings.Join(args, " "), err, g.want)
@@ -265,7 +267,7 @@ func TestRecordVerifyInputsValidation(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(drafts, "rec-1"), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	args, inputs, err := recordVerifyArgs(&Request{Params: map[string]any{"draftDir": "rec-1",
+	args, inputs, err := recordVerifyArgs(&Request{Params: map[string]any{"draftDir": "rec-1", "profile": "work",
 		"inputs": map[string]any{"query": "a=b c", "password": "hunter2"}}})
 	if err != nil || inputs["query"] != "a=b c" || inputs["password"] != "hunter2" {
 		t.Fatalf("inputs = %v, %v", inputs, err)
@@ -339,7 +341,7 @@ func TestRecordVerifyPassesInputsByPrivateFile(t *testing.T) {
 		}
 		run := &fileRunner{fail: fail}
 		srv.SetRecordRunner(run)
-		ext.ask("v1", MethodRecordVerify, map[string]any{"draftDir": "rec-1", "inputs": map[string]any{"pw": "hunter2", "q": "x"}})
+		ext.ask("v1", MethodRecordVerify, map[string]any{"draftDir": "rec-1", "profile": "work", "inputs": map[string]any{"pw": "hunter2", "q": "x"}})
 		reply := ext.settled()
 		if reply.OK == fail || strings.Contains(reply.Error, "hunter2") {
 			t.Fatalf("fail=%v reply = %+v", fail, reply)
@@ -451,7 +453,7 @@ func TestRecordVerifyFailureReturnsTheReport(t *testing.T) {
   "ok": false
 }`
 	srv.SetRecordRunner(exitRunner{out: report})
-	ext.ask("v1", MethodRecordVerify, map[string]any{"draftDir": "rec-1"})
+	ext.ask("v1", MethodRecordVerify, map[string]any{"draftDir": "rec-1", "profile": "work"})
 	reply := ext.settled()
 	if !reply.OK {
 		t.Fatalf("failed verify lost its report: %+v", reply)
@@ -525,7 +527,7 @@ func TestRecordVerifyFailureWithErrorKeyReturnsTheReport(t *testing.T) {
 		t.Fatal(err)
 	}
 	srv.SetRecordRunner(exitRunner{out: verifyFailureReport})
-	ext.ask("v1", MethodRecordVerify, map[string]any{"draftDir": "rec-1"})
+	ext.ask("v1", MethodRecordVerify, map[string]any{"draftDir": "rec-1", "profile": "work"})
 	reply := ext.settled()
 	if !reply.OK {
 		t.Fatalf("failed verify lost its report: %+v", reply)
@@ -555,7 +557,7 @@ func TestRecordSaveConflictPassesCodeAndKeys(t *testing.T) {
 		t.Fatal(err)
 	}
 	srv.SetRecordRunner(exitRunner{out: `{"error":"merge conflict: selectors.json#contact.name_input\nselector(s) contact.name_input differ …","code":"selector_conflict","keys":["contact.name_input","contact.email_input"]}`})
-	ext.ask("s1", MethodRecordSave, map[string]any{"draftDir": "rec-1", "automation": "acme-crm"})
+	ext.ask("s1", MethodRecordSave, map[string]any{"draftDir": "rec-1", "profile": "work", "automation": "acme-crm"})
 	reply := ext.settled()
 	if reply.OK || reply.Code != "selector_conflict" || !strings.Contains(reply.Error, "merge conflict") {
 		t.Fatalf("reply = %+v", reply)

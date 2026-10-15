@@ -237,6 +237,21 @@ func readRecordingMeta(dir string) (*capture.Meta, error) {
 	return meta, nil
 }
 
+// DraftProfile is the profile a draft (a name or a path inside the drafts
+// folder) belongs to: the same answer Summary.Profile gives. Empty when the
+// draft cannot be found, is not a recording, or names no profile.
+func DraftProfile(ref string) string {
+	dir, err := ResolveDraftDir(ref)
+	if err != nil {
+		return ""
+	}
+	meta, err := readRecordingMeta(dir)
+	if err != nil {
+		return ""
+	}
+	return firstNonEmpty(meta.Profile, profileOfStore(filepath.Dir(dir)))
+}
+
 func summaryOf(dir string, meta *capture.Meta) Summary {
 	started := extraString(meta, ExtraStartedAt)
 	if started == "" {

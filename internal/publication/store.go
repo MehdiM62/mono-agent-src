@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/monoes/mono-agent/internal/profiledir"
 )
 
 var ErrNotFound = errors.New("publication not found")
@@ -134,6 +136,9 @@ func (s *Store) Get(ctx context.Context, id string) (*Entry, error) {
 func (s *Store) Register(ctx context.Context, e Entry) (*Entry, error) {
 	if s.db == nil {
 		return nil, errors.New("publication database unavailable")
+	}
+	if s.profileID == "" {
+		return nil, profiledir.ErrNoProfile
 	}
 	for i, raw := range []string{e.URL, e.ParentURL} {
 		if i == 1 && raw != "" && (!strings.ContainsAny(raw, ":/\r\n\t ") || strings.HasPrefix(raw, "urn:") || strings.HasPrefix(raw, "at://")) {

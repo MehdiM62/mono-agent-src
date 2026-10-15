@@ -44,6 +44,7 @@ func TestReadOnlyDBReadsButNeverWrites(t *testing.T) {
 	}
 
 	a := &App{db: db, ctx: ctx}
+	a.selectForTest("default")
 	if out := a.TaskBoard(0); !strings.Contains(out, `"card"`) {
 		t.Fatalf("TaskBoard on the read-only handle: %s", out)
 	}

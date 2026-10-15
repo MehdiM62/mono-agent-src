@@ -312,16 +312,27 @@ func TestResolveDismissAnsweredIsAlready(t *testing.T) {
 	}
 }
 
-func TestResolveDismissNotFoundAndStopped(t *testing.T) {
+func TestResolveDismissNotFound(t *testing.T) {
 	f := newFake()
-	ctx := context.Background()
-	if _, err := Resolve(ctx, f, t.TempDir(), Request{Org: "acme", Ref: "q-nope", Dismiss: true}); !errors.Is(err, ErrNotFound) {
+	if _, err := Resolve(context.Background(), f, t.TempDir(), Request{Org: "acme", Ref: "q-nope", Dismiss: true}); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("unknown question: %v, want ErrNotFound", err)
 	}
+}
+
+// A stopped org still takes a dismissal (monomind queues the note), but
+// not an answer.
+func TestResolveDismissWorksOnAStoppedOrg(t *testing.T) {
+	f := newFake()
 	f.status = "stopped"
-	_, err := Resolve(ctx, f, t.TempDir(), Request{Org: "acme", Ref: "q-1", Dismiss: true})
-	var stopped *NotRunningError
-	if !errors.As(err, &stopped) || len(f.sent) != 0 {
-		t.Fatalf("stopped org: %v, sent %v", err, f.sent)
+	res, err := Resolve(context.Background(), f, t.TempDir(), Request{Org: "acme", Ref: "q-1", Dismiss: true, Text: "stale"})
+	if err != nil || res.Already || res.State != StateDismissed {
+		t.Fatalf("dismiss on a stopped org = %+v, %v", res, err)
+	}
+	f2 := newFake()
+	f2.status = "stopped"
+	_, err = Resolve(context.Background(), f2, t.TempDir(), Request{Org: "acme", Ref: "q-1", Answer: true, Text: "1.2.0"})
+	var nr *NotRunningError
+	if !errors.As(err, &nr) {
+		t.Fatalf("answer on a stopped org: err = %v, want NotRunningError", err)
 	}
 }

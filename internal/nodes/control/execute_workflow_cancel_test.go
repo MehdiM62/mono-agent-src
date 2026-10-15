@@ -21,7 +21,9 @@ func (blockNode) Execute(ctx context.Context, _ workflow.NodeInput, _ map[string
 // returns its ID.
 func (f *subflowFixture) childOf(t *testing.T, parentID string, statuses ...string) string {
 	t.Helper()
-	for deadline := time.Now().Add(10 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
+	// The poll returns as soon as the child is there; the bound only matters on a
+	// machine too loaded to start the run for many seconds.
+	for deadline := time.Now().Add(60 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
 		var id string
 		if err := f.store.RawDB().QueryRow(`SELECT child_execution_id FROM subworkflow_runs WHERE parent_execution_id = ?`, parentID).Scan(&id); err != nil {
 			continue

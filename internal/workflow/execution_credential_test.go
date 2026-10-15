@@ -32,7 +32,7 @@ func TestCredentialFillsOnlyUnsetKeys(t *testing.T) {
 	keyring.MockInit()
 	db := testdb.Open(t).DB
 	store := connections.NewStore(db)
-	c := &connections.Connection{Platform: "github", Method: connections.MethodAPIKey, Label: "gh",
+	c := &connections.Connection{ProfileID: "default", Platform: "github", Method: connections.MethodAPIKey, Label: "gh",
 		Data: map[string]interface{}{"url": "https://conn.example", "token": "t1", "region": "eu"}}
 	if err := store.Save(context.Background(), c); err != nil {
 		t.Fatal(err)
@@ -50,7 +50,7 @@ func TestCredentialFillsOnlyUnsetKeys(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	exec := &workflow.WorkflowExecution{ID: "e", WorkflowID: wf.ID, TriggerData: map[string]interface{}{}}
+	exec := &workflow.WorkflowExecution{ID: "e", WorkflowID: wf.ID, ProfileID: "default", TriggerData: map[string]interface{}{}}
 	if err := workflow.RunExecution(context.Background(), exec, wf, dag, reg, &recStore{}, store, workflow.NewExpressionEngine(), zerolog.Nop()); err != nil {
 		t.Fatal(err)
 	}

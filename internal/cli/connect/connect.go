@@ -101,7 +101,10 @@ func (d Deps) newConnectSetOAuthClientCmd() *cobra.Command {
 			}
 			defer db.Close()
 
-			profileID := d.profileOrDefault()
+			profileID, perr := d.requireProfile()
+			if perr != nil {
+				return perr
+			}
 			if err := connections.NewStore(db.DB).SaveOAuthClient(cmd.Context(), args[0], profileID, clientID, clientSecret); err != nil {
 				return d.ScrubSecrets(fmt.Errorf("saving OAuth client credentials: %w", err), clientSecret)
 			}
@@ -248,7 +251,11 @@ func (d Deps) newConnectListCmd() *cobra.Command {
 // profile, and a not-found error (exit 2) otherwise: another profile's
 // connection is indistinguishable from a missing one.
 func (d Deps) getScopedConnection(cmd *cobra.Command, db *sql.DB, id string) (*connections.Connection, error) {
-	conn, err := connections.NewStore(db).Get(cmd.Context(), id, d.profileOrDefault())
+	pid, perr := d.requireProfile()
+	if perr != nil {
+		return nil, perr
+	}
+	conn, err := connections.NewStore(db).Get(cmd.Context(), id, pid)
 	if err != nil || conn == nil {
 		return nil, d.NotFound("connection %q not found", id)
 	}
@@ -259,7 +266,7 @@ func (d Deps) newConnectTestCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "test <id>",
 		Short: "Test a saved connection by re-validating credentials",
-		Long: "Re-validates a saved connection of the active profile (an expired OAuth token is silently " +
+		Long: "Re-validates a saved connection of the profile named by --profile (an expired OAuth token is silently " +
 			"refreshed first). Exit code 2 when the id is unknown, 4 when validation fails.",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -299,7 +306,7 @@ func (d Deps) newConnectRemoveCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "remove <id>",
 		Short: "Remove a saved connection",
-		Long:  "Removes a saved connection of the active profile and its vault entry. Exit code 2 when the id is unknown.",
+		Long:  "Removes a saved connection of the profile named by --profile and its vault entry. Exit code 2 when the id is unknown.",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			db, err := d.OpenDB()
@@ -316,7 +323,11 @@ func (d Deps) newConnectRemoveCmd() *cobra.Command {
 			if _, err := d.getScopedConnection(cmd, db.DB, args[0]); err != nil {
 				return err
 			}
-			if err := mgr.Remove(cmd.Context(), args[0], d.profileOrDefault()); err != nil {
+			pid, perr := d.requireProfile()
+			if perr != nil {
+				return perr
+			}
+			if err := mgr.Remove(cmd.Context(), args[0], pid); err != nil {
 				return err
 			}
 			if d.JSONOutput() {

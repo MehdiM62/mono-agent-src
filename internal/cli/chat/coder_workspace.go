@@ -298,8 +298,8 @@ func newCoderWorkspaceCmd(cfg *Deps) *cobra.Command {
 
 	defaultCmd := &cobra.Command{
 		Use:   "default",
-		Short: "Set up the active profile's folder as the coder working folder and print it",
-		Long: "A coder chat works in the active profile's own folder unless the user picks another. This " +
+		Short: "Set up the folder of the profile named by --profile as the coder working folder and print it",
+		Long: "A coder chat works in the folder of the profile named by --profile unless the user picks another. This " +
 			"creates it if missing and adds any missing monomind setup files for the runtime (--runtime). " +
 			"Nothing already there is changed. Prints {path, profile{id,name}, source} with --json.",
 		Args: cobra.NoArgs,

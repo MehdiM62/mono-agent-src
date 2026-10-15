@@ -31,7 +31,7 @@ func (s *Server) servedTools() []tool {
 		keep = taskToolNames()
 		// task_approve is served only while the operator allows it for the profile (read now).
 		if s.approveDelegated() {
-			return append(narrow(all, keep), taskApproveTool())
+			return append(narrow(all, keep), scoped([]tool{taskApproveTool()})...)
 		}
 	case s.opts.APIOnly:
 		keep = apiToolNames()

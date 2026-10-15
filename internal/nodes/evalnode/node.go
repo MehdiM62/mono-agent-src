@@ -241,7 +241,11 @@ func writeBack(ctx context.Context, cfg map[string]interface{}, ev workflow.Eval
 	if err != nil {
 		return fmt.Errorf("the dataset row id %q is not a data table row id", ev.RowID)
 	}
-	store := datatable.New(db, vault.ProfileIDFromContext(ctx))
+	profile, perr := vault.ProfileIDFromContext(ctx)
+	if perr != nil {
+		return fmt.Errorf("eval node ran without a profile: %w", perr)
+	}
+	store := datatable.New(db, profile)
 	t, err := store.FindTable(ctx, ref)
 	if err != nil {
 		return err

@@ -18,7 +18,7 @@ func toolWorkflowList(ctx context.Context, s *Server, args json.RawMessage) (int
 	if err != nil {
 		return nil, err
 	}
-	wfs, err := rt.store.ListWorkflows(ctx, rt.profileID)
+	wfs, err := rt.listWorkflows(ctx, profileOf(ctx))
 	if err != nil {
 		return nil, fmt.Errorf("list workflows: %w", err)
 	}
@@ -78,15 +78,23 @@ func toolWorkflowGet(ctx context.Context, s *Server, args json.RawMessage) (inte
 	if err != nil {
 		return nil, fmt.Errorf("get workflow: %w", err)
 	}
-	if wf == nil || crossProfile(wf.ProfileID, rt.profileID) {
+	if wf == nil || !workflowOwned(wf, profileOf(ctx)) {
 		return nil, fmt.Errorf("workflow %q not found", a.ID)
 	}
 	return wf, nil
 }
 
-// crossProfile reports whether a record's owning profile (empty means
-// unscoped/legacy, and is always considered in-profile) differs from the
-// active profile. A cross-profile lookup is surfaced as "not found" by
+// workflowOwned is workflow.OwnedBy for workflows: a workflow with no profile,
+// or a call with none, is owned by nobody (read as "not found" by every
+// caller here).
+func workflowOwned(wf *workflow.Workflow, profileID string) bool {
+	ok, _ := workflow.OwnedBy(wf, profileID)
+	return ok
+}
+
+// crossProfile reports whether a non-workflow record's owning profile (empty
+// means unscoped/legacy, and is considered in-profile) differs from the
+// active profile. Workflows use workflowOwned. A cross-profile lookup is surfaced as "not found" by
 // every caller here, matching internal/httpapi/handlers.go's
 // handleWorkflowGet/handleWorkflowExecutions and
 // internal/workflow/engine.go's checkWorkflowProfile — never a
@@ -94,6 +102,23 @@ func toolWorkflowGet(ctx context.Context, s *Server, args json.RawMessage) (inte
 // profile can't be used to probe for existence.
 func crossProfile(ownerProfileID, activeProfileID string) bool {
 	return ownerProfileID != "" && ownerProfileID != activeProfileID
+}
+
+// listWorkflows is the workflows of one profile. The hybrid store lists every
+// workflow kept as a file whatever profile it belongs to, so those of other
+// profiles are dropped here, by the same rule every by-id lookup applies.
+func (rt *runtime) listWorkflows(ctx context.Context, profileID string) ([]workflow.Workflow, error) {
+	all, err := rt.store.ListWorkflows(ctx, profileID)
+	if err != nil {
+		return nil, err
+	}
+	out := all[:0:0]
+	for _, wf := range all {
+		if workflowOwned(&wf, profileID) {
+			out = append(out, wf)
+		}
+	}
+	return out, nil
 }
 
 // parseWorkflowBytes accepts both the file-store workflow JSON format
@@ -132,7 +157,7 @@ func toolWorkflowValidate(ctx context.Context, s *Server, args json.RawMessage) 
 		if err != nil {
 			return nil, fmt.Errorf("get workflow: %w", err)
 		}
-		if loaded == nil || crossProfile(loaded.ProfileID, rt.profileID) {
+		if loaded == nil || !workflowOwned(loaded, profileOf(ctx)) {
 			return nil, fmt.Errorf("workflow %q not found", a.ID)
 		}
 		wf = *loaded
@@ -190,11 +215,17 @@ func toolWorkflowRun(ctx context.Context, s *Server, args json.RawMessage) (inte
 	if err != nil {
 		return nil, err
 	}
-	if err := rt.ensureEngine(ctx); err != nil {
+	// Another profile's workflow is not found, as for workflow_get: the engine of this
+	// profile would refuse it too, but with a message that says the workflow exists.
+	if owned, gerr := rt.store.GetWorkflow(ctx, a.ID); gerr == nil && owned != nil && !workflowOwned(owned, profileOf(ctx)) {
+		return nil, fmt.Errorf("workflow %q not found", a.ID)
+	}
+	engine, err := rt.ensureEngine(ctx, profileOf(ctx))
+	if err != nil {
 		return nil, err
 	}
 
-	execID, err := rt.engine.TriggerWorkflow(ctx, a.ID, a.Input)
+	execID, err := engine.TriggerWorkflow(ctx, a.ID, a.Input)
 	if err != nil {
 		return nil, fmt.Errorf("trigger workflow: %w", err)
 	}
@@ -299,7 +330,7 @@ func toolWorkflowStatus(ctx context.Context, s *Server, args json.RawMessage) (i
 	if err != nil {
 		return nil, fmt.Errorf("get execution: %w", err)
 	}
-	if exec == nil || crossProfile(exec.ProfileID, rt.profileID) {
+	if exec == nil || crossProfile(exec.ProfileID, profileOf(ctx)) {
 		return nil, fmt.Errorf("execution %q not found", a.ExecutionID)
 	}
 	// Same output pipeline as workflow_run: credential-key redaction (no

@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
+	"github.com/monoes/mono-agent/internal/commsync"
 	"github.com/monoes/mono-agent/internal/hilsuggest"
 	"github.com/monoes/mono-agent/internal/jev/jevconf"
 	"github.com/monoes/mono-agent/internal/nodes/nodeprofile"
@@ -88,6 +89,12 @@ func (n *HumanInLoopNode) Execute(ctx context.Context, input workflow.NodeInput,
 
 	// Expire stale pending rows if a timeout is configured, then re-read.
 	if timeoutMinutes > 0 {
+		expiring := stalePendingIDs(ctx, db, input, timeoutMinutes)
+		defer func() {
+			for _, id := range expiring {
+				_ = commsync.SetStatus(ctx, db, id, commsync.Expired, commsync.Detail{})
+			}
+		}()
 		_, _ = db.ExecContext(ctx,
 			`UPDATE hil_pending SET status='rejected', updated_at=CURRENT_TIMESTAMP
 			 WHERE execution_id=? AND node_id=? AND status='pending' AND created_at < datetime('now', ?)`,
@@ -193,6 +200,7 @@ func (n *HumanInLoopNode) createRows(ctx context.Context, db *sql.DB, input work
 	if err != nil {
 		return false, err
 	}
+	comms := commsItems(ctx, input, profileID)
 	for i := range input.Items {
 		cfg := map[string]interface{}{
 			"readonly_fields": readonlyFields,
@@ -210,14 +218,16 @@ func (n *HumanInLoopNode) createRows(ctx context.Context, db *sql.DB, input work
 		configJSON, _ := json.Marshal(cfg)
 		roJSON, _ := json.Marshal(ro[i])
 		edJSON, _ := json.Marshal(ed[i])
+		id := uuid.New().String()
 		if _, err := db.ExecContext(ctx,
 			`INSERT INTO hil_pending (id, execution_id, workflow_id, node_id, node_name, status, readonly_data, editable_data, edited_data, node_config, profile_id)
 			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, '{}', ?, ?)`,
-			uuid.New().String(), input.ExecutionID, input.WorkflowID, input.NodeID, input.NodeName,
+			id, input.ExecutionID, input.WorkflowID, input.NodeID, input.NodeName,
 			status, string(roJSON), string(edJSON), string(configJSON), profileID,
 		); err != nil {
 			return false, fmt.Errorf("human_in_loop: insert pending record: %w", err)
 		}
+		queueComms(ctx, db, comms[i], id, status)
 	}
 	return decided, nil
 }

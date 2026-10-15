@@ -56,3 +56,14 @@ func TestNoSessionAfterTheDateIsRefusedAndNothingIsWritten(t *testing.T) {
 	}
 	r.assertLocked(r.run("--json", "workflow", "list"), "not_logged_in", true)
 }
+
+// The account gate judges before the profile gate: a locked machine told a scoped command with no
+// --profile answers with the sign-in refusal (exit 4), not "pass --profile" (exit 3).
+func TestTheAccountRefusalComesBeforeTheProfileOne(t *testing.T) {
+	r := newRig(t, rigOptions{enforce: past})
+	res := r.runAsGiven("people", "list")
+	r.assertLocked(res, "not_logged_in", false)
+	if strings.Contains(res.stderr, "--profile") || strings.Contains(res.stdout, "--profile") {
+		t.Fatalf("the profile gate spoke on a locked machine:\n%s%s", res.stdout, res.stderr)
+	}
+}

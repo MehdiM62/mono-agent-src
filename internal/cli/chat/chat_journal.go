@@ -61,6 +61,11 @@ func admitJournaledTurn(store *ai.AIStore, profileID, conversationID, turnID, in
 // runtime starts; its message is the monomind.SandboxStatus* value.
 const noticeAgentSandbox = "agent.sandbox"
 
+// noticeAgentSandboxDetail follows it when the status needs words: the
+// mode a restricted turn really ran in, or why the sandbox-fallback
+// setting was ignored.
+const noticeAgentSandboxDetail = "agent.sandbox.detail"
+
 // turnJournal turns one runtime's protocol events into committed chat
 // events: it coalesces assistant text, bounds tool and notice text, binds
 // the session, and finalizes the turn exactly once. Calls are serialized
@@ -220,6 +225,9 @@ func (j *turnJournal) handle(ev monomind.Event) {
 		// The badge the app shows on the turn; message is the status key.
 		if ev.SandboxStatus != "" {
 			_ = j.appendLocked(chatevents.EventNotice, chatevents.NoticePayload{Code: noticeAgentSandbox, Message: ev.SandboxStatus, Severity: chatevents.SeverityInfo})
+			if detail := sandboxDetail(ev); detail != "" {
+				_ = j.appendLocked(chatevents.EventNotice, chatevents.NoticePayload{Code: noticeAgentSandboxDetail, Message: detail, Severity: chatevents.SeverityInfo})
+			}
 		}
 	case monomind.EventSession:
 		if ev.SessionID != "" {
@@ -344,4 +352,13 @@ func (j *turnJournal) fail(err error) {
 		code = monomind.AgentNotSetupCode
 	}
 	j.finishCode(false, &monomind.TurnResult{Err: &monomind.ProtocolError{Code: monomind.ErrRunnerError, Message: err.Error()}}, code)
+}
+
+// sandboxDetail is the extra line a start event's sandbox verdict carries:
+// the applied mode for a restricted turn, else the fallback note.
+func sandboxDetail(ev monomind.Event) string {
+	if ev.SandboxStatus == monomind.SandboxStatusRestricted && ev.SandboxApplied != "" {
+		return ev.SandboxApplied
+	}
+	return ev.SandboxNote
 }

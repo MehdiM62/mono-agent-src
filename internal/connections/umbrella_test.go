@@ -252,13 +252,13 @@ func TestValidateUmbrellaAccounts(t *testing.T) {
 	t.Cleanup(func() { googleUserinfoURL, microsoftMeURL = oldG, oldM })
 
 	ctx := context.Background()
-	if id, err := ValidateConnection(ctx, &Connection{Platform: "google", Method: MethodOAuth, Data: map[string]interface{}{"access_token": "tok"}}); err != nil || id != "me@example.com" {
+	if id, err := ValidateConnection(ctx, &Connection{ProfileID: "default", Platform: "google", Method: MethodOAuth, Data: map[string]interface{}{"access_token": "tok"}}); err != nil || id != "me@example.com" {
 		t.Errorf("google validate = %q, %v", id, err)
 	}
-	if id, err := ValidateConnection(ctx, &Connection{Platform: "microsoft", Method: MethodOAuth, Data: map[string]interface{}{"access_token": "tok"}}); err != nil || id != "me@contoso.com" {
+	if id, err := ValidateConnection(ctx, &Connection{ProfileID: "default", Platform: "microsoft", Method: MethodOAuth, Data: map[string]interface{}{"access_token": "tok"}}); err != nil || id != "me@contoso.com" {
 		t.Errorf("microsoft validate = %q, %v", id, err)
 	}
-	if _, err := ValidateConnection(ctx, &Connection{Platform: "google", Method: MethodOAuth, Data: map[string]interface{}{"access_token": "bad"}}); err == nil {
+	if _, err := ValidateConnection(ctx, &Connection{ProfileID: "default", Platform: "google", Method: MethodOAuth, Data: map[string]interface{}{"access_token": "bad"}}); err == nil {
 		t.Error("401 must fail validation")
 	}
 }

@@ -33,6 +33,9 @@ func (s *Server) handleDocRelated(ctx context.Context, req *Request, _ ProgressF
 	if !ok {
 		return []map[string]any{}, nil
 	}
+	if !requestHasProfile(req) {
+		return []map[string]any{}, nil // no profile, no brain to ask
+	}
 	scope, err := captureScopeOf(req)
 	if err != nil {
 		return nil, err
@@ -142,6 +145,9 @@ func (s *Server) handleDocAsk(ctx context.Context, req *Request, progress Progre
 	query = strings.TrimSpace(strings.TrimLeft(query, "-"))
 	if query == "" {
 		return nil, &RequestError{Code: CodeUnavailable, Err: fmt.Errorf("doc.ask needs a question")}
+	}
+	if !requestHasProfile(req) {
+		return nil, invalidParam("%s", chooseProfileMessage)
 	}
 	scope, err := captureScopeOf(req)
 	if err != nil {

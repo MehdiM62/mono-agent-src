@@ -375,14 +375,14 @@ func TestStoresUseMigratedSchemaWithoutDDL(t *testing.T) {
 	if err := store.AddAnswer("default", conv.ID, "turn-1", "agent-1", "q1", "yes"); err != nil {
 		t.Fatalf("AddAnswer: %v", err)
 	}
-	if err := store.SaveChatMessage(ai.ChatMessage{WorkflowID: "w", Role: "user", Content: "hi"}); err != nil {
+	if err := store.SaveChatMessage(ai.ChatMessage{WorkflowID: "w", ProfileID: "default", Role: "user", Content: "hi"}); err != nil {
 		t.Fatalf("SaveChatMessage: %v", err)
 	}
 	if _, err := connections.NewManager(db.DB); err != nil {
 		t.Fatal(err)
 	}
 	cs := connections.NewStore(db.DB)
-	if err := cs.Save(ctx, &connections.Connection{Platform: "github", Method: connections.MethodAPIKey, Label: "gh",
+	if err := cs.Save(ctx, &connections.Connection{ProfileID: "default", Platform: "github", Method: connections.MethodAPIKey, Label: "gh",
 		Data: map[string]interface{}{"token": "t"}}); err != nil {
 		t.Fatalf("Save connection: %v", err)
 	}

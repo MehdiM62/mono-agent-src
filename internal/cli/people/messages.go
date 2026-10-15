@@ -42,6 +42,7 @@ func (d Deps) newPeopleMessagesCmd() *cobra.Command {
 func (d Deps) newPeopleMessagesAllCmd() *cobra.Command {
 	var (
 		source string
+		status string
 		limit  int
 		unread bool
 	)
@@ -51,15 +52,19 @@ func (d Deps) newPeopleMessagesAllCmd() *cobra.Command {
 		Short: "List synced messages/interactions across every person (a unified communications feed)",
 		Example: `  monoagentcli people messages all
   monoagentcli people messages all --source outlook --limit 50 --json
-  monoagentcli people messages all --unread`,
+  monoagentcli people messages all --unread
+  monoagentcli people messages all --status pending_approval --json`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := validateMessageStatus(status); err != nil {
+				return d.InvalidInput("%s", err)
+			}
 			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
 			defer db.Close()
 
-			messages, err := db.ListAllPersonMessagesFiltered(d.ProfileID(), source, unread, limit, 0)
+			messages, err := db.ListAllPersonMessagesByStatus(d.ProfileID(), source, status, unread, limit, 0)
 			if err != nil {
 				return fmt.Errorf("listing messages: %w", err)
 			}
@@ -78,7 +83,7 @@ func (d Deps) newPeopleMessagesAllCmd() *cobra.Command {
 				return nil
 			}
 
-			table := d.NewTable(os.Stdout, []string{"ID", "From", "Source", "Direction", "Subject", "Files", "Sent At"}, nil)
+			table := d.NewTable(os.Stdout, []string{"ID", "From", "Source", "Direction", "Status", "Subject", "Files", "Sent At"}, nil)
 
 			for _, m := range messages {
 				shortID := m.ID
@@ -98,7 +103,7 @@ func (d Deps) newPeopleMessagesAllCmd() *cobra.Command {
 					files = fmt.Sprintf("%d", n)
 				}
 				table.Append([]string{
-					shortID, truncateStr(from, 24), m.Source, m.Direction,
+					shortID, truncateStr(from, 24), m.Source, m.Direction, m.Status,
 					truncateStr(m.Subject, 40), files, sentAt,
 				})
 			}
@@ -110,6 +115,7 @@ func (d Deps) newPeopleMessagesAllCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&source, "source", "", "Filter by source")
+	cmd.Flags().StringVar(&status, "status", "", "Filter by status ("+strings.Join(messageStatuses, ", ")+")")
 	cmd.Flags().IntVarP(&limit, "limit", "n", 100, "Maximum number of results")
 	cmd.Flags().BoolVar(&unread, "unread", false, "Only inbound messages not marked read yet")
 
@@ -272,6 +278,10 @@ func (d Deps) newPeopleMessagesShowCmd() *cobra.Command {
 			fmt.Printf("Subject:   %s\n", msg.Subject)
 			fmt.Printf("From:      %s\n", msg.Sender)
 			fmt.Printf("Direction: %s\n", msg.Direction)
+			fmt.Printf("Status:    %s\n", msg.Status)
+			if msg.HilRef != "" {
+				fmt.Printf("Approval:  %s (monoagentcli hil show %s)\n", msg.HilRef, msg.HilRef)
+			}
 			if sentAt != "" {
 				fmt.Printf("Sent:      %s\n", sentAt)
 			}
@@ -338,6 +348,7 @@ func (d Deps) newPeopleMessagesShowCmd() *cobra.Command {
 func (d Deps) newPeopleMessagesListCmd() *cobra.Command {
 	var (
 		source string
+		status string
 		limit  int
 		intent string
 	)
@@ -353,6 +364,9 @@ func (d Deps) newPeopleMessagesListCmd() *cobra.Command {
 			if intent != "" && !slices.Contains(inboxIntents, intent) {
 				return d.InvalidInput("--intent must be one of %s, got %q", strings.Join(inboxIntents, ", "), intent)
 			}
+			if err := validateMessageStatus(status); err != nil {
+				return d.InvalidInput("%s", err)
+			}
 			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
@@ -360,12 +374,24 @@ func (d Deps) newPeopleMessagesListCmd() *cobra.Command {
 			defer db.Close()
 
 			fetch := limit
-			if intent != "" {
+			if intent != "" || status != "" {
 				fetch = maxMessagesScan // filter first, then apply --limit
 			}
 			messages, err := db.ListPersonMessages(args[0], source, d.ProfileID(), fetch, 0)
 			if err != nil {
 				return fmt.Errorf("listing messages: %w", err)
+			}
+			if status != "" {
+				kept := messages[:0]
+				for _, m := range messages {
+					if m.Status == status {
+						kept = append(kept, m)
+					}
+				}
+				messages = kept
+				if intent == "" && len(messages) > limit {
+					messages = messages[:limit]
+				}
 			}
 			if intent != "" {
 				messages = filterMessagesByIntent(messages, intent, limit)
@@ -385,7 +411,7 @@ func (d Deps) newPeopleMessagesListCmd() *cobra.Command {
 				return nil
 			}
 
-			table := d.NewTable(os.Stdout, []string{"ID", "Source", "Direction", "Sender", "Subject", "Files", "Sent At"}, nil)
+			table := d.NewTable(os.Stdout, []string{"ID", "Source", "Direction", "Status", "Sender", "Subject", "Files", "Sent At"}, nil)
 
 			for _, m := range messages {
 				shortID := m.ID
@@ -401,7 +427,7 @@ func (d Deps) newPeopleMessagesListCmd() *cobra.Command {
 					files = fmt.Sprintf("%d", n)
 				}
 				table.Append([]string{
-					shortID, m.Source, m.Direction,
+					shortID, m.Source, m.Direction, m.Status,
 					truncateStr(m.Sender, 20), truncateStr(m.Subject, 30), files, sentAt,
 				})
 			}
@@ -413,6 +439,7 @@ func (d Deps) newPeopleMessagesListCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&source, "source", "", "Filter by source")
+	cmd.Flags().StringVar(&status, "status", "", "Filter by status ("+strings.Join(messageStatuses, ", ")+")")
 	cmd.Flags().IntVarP(&limit, "limit", "n", 100, "Maximum number of results")
 	cmd.Flags().StringVar(&intent, "intent", "", "Only messages classified with this intent ("+strings.Join(inboxIntents, ", ")+"; see people messages classify)")
 
@@ -494,4 +521,17 @@ func getStr(m map[string]interface{}, key string) string {
 		return v
 	}
 	return ""
+}
+
+// messageStatuses are the values person_messages.status takes: draft, sent and
+// failed from compose, and the approval lifecycle of a queued send
+// (internal/commsync): pending_approval -> approved -> sending -> sent, or
+// rejected / failed / expired.
+var messageStatuses = []string{"sent", "draft", "pending_approval", "approved", "sending", "rejected", "failed", "expired"}
+
+func validateMessageStatus(status string) error {
+	if status == "" || slices.Contains(messageStatuses, status) {
+		return nil
+	}
+	return fmt.Errorf("--status must be one of %s, got %q", strings.Join(messageStatuses, ", "), status)
 }

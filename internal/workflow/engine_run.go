@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/monoes/mono-agent/internal/account"
+	"github.com/monoes/mono-agent/internal/commsync"
 	"github.com/monoes/mono-agent/internal/vault"
 	"github.com/rs/zerolog"
 )
@@ -65,7 +66,7 @@ func (e *WorkflowEngine) handleTrigger(workflowID string, nodeID string, items [
 
 	exec := &WorkflowExecution{
 		WorkflowID:    workflowID,
-		ProfileID:     executionProfileID(wf, e.profileID),
+		ProfileID:     executionProfileID(wf),
 		Status:        "QUEUED",
 		TriggerType:   triggerType,
 		TriggerNodeID: nodeID,
@@ -318,7 +319,7 @@ func (e *WorkflowEngine) newManualExecution(ctx context.Context, workflowID stri
 
 	exec := &WorkflowExecution{
 		WorkflowID:    workflowID,
-		ProfileID:     executionProfileID(wf, e.profileID),
+		ProfileID:     executionProfileID(wf),
 		Status:        "QUEUED",
 		TriggerType:   "trigger.manual",
 		TriggerNodeID: manualTriggerNode(wf),
@@ -376,6 +377,7 @@ func (e *WorkflowEngine) cancelExecution(executionID string, cause error) {
 			_, _ = db.ExecContext(dctx,
 				`UPDATE hil_pending SET status='rejected', updated_at=CURRENT_TIMESTAMP WHERE execution_id=? AND status='pending'`,
 				executionID)
+			_ = commsync.SetStatusForExecution(dctx, db, executionID, commsync.Rejected)
 		}
 		e.logger.Info().Str("execution_id", executionID).Msg("engine: queued/waiting execution cancelled")
 		e.onExecutionFinished(executionID) // wakes a parent waiting on this sub-workflow run
@@ -449,7 +451,7 @@ func (e *WorkflowEngine) RetryExecution(ctx context.Context, executionID string)
 	}
 	exec := &WorkflowExecution{
 		WorkflowID:  orig.WorkflowID,
-		ProfileID:   executionProfileID(wf, e.profileID),
+		ProfileID:   executionProfileID(wf),
 		Status:      "QUEUED",
 		TriggerType: orig.TriggerType,
 		// The retry replays the same trigger, so it fires the same branch.
@@ -488,11 +490,11 @@ func (e *WorkflowEngine) runExecution(ctx context.Context, exec *WorkflowExecuti
 	// Use the execution's own profile ID (stamped via executionProfileID at
 	// creation time from the owning workflow), not the engine's — a single
 	// engine instance can be running executions for many different profiles
-	// at once (AllowAllProfiles). Fall back to the engine's profile only for
-	// a legacy execution row with no ProfileID of its own.
+	// at once (AllowAllProfiles). There is no fallback: an execution row
+	// with no ProfileID is refused.
 	profileID := exec.ProfileID
 	if profileID == "" {
-		profileID = e.profileID
+		return fmt.Errorf("execution %s: %w", exec.ID, ErrNoProfile)
 	}
 	ctx = vault.ContextWithProfileID(ctx, profileID)
 	ctx = WithSubWorkflowRunner(ctx, e)

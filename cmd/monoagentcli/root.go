@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -34,8 +35,18 @@ type globalConfig struct {
 	Lang       string // UI locale; see internal/i18n and docs/i18n.md
 }
 
-func newRootCmd() *cobra.Command {
+func newRootCmd() *cobra.Command { return buildRootCmd(true) }
+
+// newProbeRootCmd is a throwaway tree used to find a command or parse flags
+// before the real one runs; it must not install process-wide hooks (the real
+// tree's provider would be replaced by one bound to the probe's config).
+func newProbeRootCmd() *cobra.Command { return buildRootCmd(false) }
+
+func buildRootCmd(installProvider bool) *cobra.Command {
 	cfg := &globalConfig{}
+	if installProvider {
+		installSandboxFallbackProvider(cfg)
+	}
 
 	cmd := &cobra.Command{
 		Use:           "monoagentcli",
@@ -113,6 +124,7 @@ func newRootCmd() *cobra.Command {
 		newAgentCmd(cfg),
 		newChatCmd(cfg),
 		newCoderCmd(cfg),
+		newSandboxCmd(cfg),
 		newOrgCmd(cfg),
 		newMCPCmd(cfg),
 		newHTTPAPICmd(cfg),
@@ -210,7 +222,7 @@ func rejectUnknownSubcommands(cmd *cobra.Command) {
 func expandPath(path string) string { return clicore.ExpandPath(path) }
 
 // initDB creates and returns a database connection, applying migrations.
-// It also resolves cfg.ProfileID: if not set via --profile, reads it from the settings table.
+// It also resolves cfg.ProfileID from --profile (id or name); without the flag it stays empty.
 func initDB(cfg *globalConfig) (*storage.Database, error) {
 	dbPath := expandPath(cfg.DBPath)
 	if err := os.MkdirAll(filepath.Dir(dbPath), 0700); err != nil {
@@ -242,20 +254,12 @@ func initDB(cfg *globalConfig) (*storage.Database, error) {
 		fmt.Fprintf(os.Stderr, "warning: retiring AI provider keys: %v\n", err)
 	}
 	migrateProfilesToPerProfileKeys(db)
-	// Resolve active profile if not overridden on the command line.
-	if cfg.ProfileID == "" {
-		var id string
-		_ = db.DB.QueryRow(`SELECT value FROM settings WHERE key = 'active_profile_id'`).Scan(&id)
-		if id == "" {
-			id = "default"
-		}
-		cfg.ProfileID = id
-	} else {
+	// A profile is only ever named with --profile: there is no active profile
+	// and no fallback. Scoped commands without the flag are refused by the
+	// profile gate before this runs; a global command leaves cfg.ProfileID empty.
+	if cfg.ProfileID != "" {
 		// --profile accepts either a profile's ID or its display name; resolve
-		// to the canonical ID. Without this, --profile <name> silently scoped
-		// every read/write to a profile_id string that matched no real
-		// profile (data landed in "default" instead), since a name and its
-		// ID only coincide for the "default" profile.
+		// to the canonical ID.
 		resolved, err := resolveProfileID(db.DB, cfg.ProfileID)
 		if err != nil {
 			db.Close()
@@ -323,15 +327,15 @@ func migrateProfilesToPerProfileKeys(db *storage.Database) {
 // canonical ID, erroring (exit 3, invalid input) if neither matches any
 // row in `profiles`.
 func resolveProfileID(db *sql.DB, idOrName string) (string, error) {
-	var id string
-	// The reserved machine scope is never a profile id; as a name it is fine.
-	if idOrName != profiledir.MachineProfileID {
-		if err := db.QueryRow(`SELECT id FROM profiles WHERE id = ?`, idOrName).Scan(&id); err == nil {
-			return id, nil
-		}
-	}
-	if err := db.QueryRow(`SELECT id FROM profiles WHERE LOWER(name) = LOWER(?)`, idOrName).Scan(&id); err == nil {
+	id, err := profiledir.Resolve(context.Background(), db, idOrName)
+	var ambiguous *profiledir.AmbiguousError
+	switch {
+	case err == nil:
 		return id, nil
+	case errors.Is(err, profiledir.ErrUnknownProfile):
+		return "", errInvalidInput("profile %q not found (checked both id and name)", idOrName)
+	case errors.As(err, &ambiguous):
+		return "", errInvalidInput("%s", ambiguous.Error())
 	}
-	return "", errInvalidInput("profile %q not found (checked both id and name)", idOrName)
+	return "", errInvalidInput("looking up profile %q: %v", idOrName, err)
 }

@@ -52,7 +52,7 @@ func mcpModelsList(t *testing.T, dbPath, profile string, args map[string]string)
 
 	request, err := json.Marshal(map[string]any{
 		"jsonrpc": "2.0", "id": 1, "method": "tools/call",
-		"params": map[string]any{"name": "api_models_list", "arguments": args},
+		"params": map[string]any{"name": "api_models_list", "arguments": withProfileArg(t, args, profile)},
 	})
 	if err != nil {
 		t.Fatal(err)

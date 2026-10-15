@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/monoes/mono-agent/internal/profiledir"
 )
 
 // dateLayouts are the date forms a date column accepts.
@@ -161,6 +163,9 @@ func (s *Store) write(ctx context.Context, t *Table, fn func(tx *sql.Tx) error) 
 
 // Insert adds rows and returns them as stored.
 func (s *Store) Insert(ctx context.Context, t *Table, rows []map[string]interface{}) ([]map[string]interface{}, error) {
+	if s.profile == "" {
+		return nil, profiledir.ErrNoProfile
+	}
 	out := make([]map[string]interface{}, 0, len(rows))
 	work := *t
 	work.Columns = append([]Column(nil), t.Columns...)
@@ -191,11 +196,17 @@ const DryRunState = "dryRunState"
 // Update sets data on the rows matching f and returns them updated; a dry
 // run returns each row before and after without writing.
 func (s *Store) Update(ctx context.Context, t *Table, f Filter, data map[string]interface{}, dryRun bool) ([]map[string]interface{}, error) {
+	if s.profile == "" {
+		return nil, profiledir.ErrNoProfile
+	}
 	return s.update(ctx, t, f, data, dryRun, false)
 }
 
 // Upsert updates the rows matching f, or inserts data when none match.
 func (s *Store) Upsert(ctx context.Context, t *Table, f Filter, data map[string]interface{}, dryRun bool) ([]map[string]interface{}, error) {
+	if s.profile == "" {
+		return nil, profiledir.ErrNoProfile
+	}
 	return s.update(ctx, t, f, data, dryRun, true)
 }
 
@@ -276,6 +287,9 @@ func (s *Store) update(ctx context.Context, t *Table, f Filter, data map[string]
 // Delete deletes the rows matching f and returns them; a dry run only
 // returns them.
 func (s *Store) Delete(ctx context.Context, t Table, f Filter, dryRun bool) ([]map[string]interface{}, error) {
+	if s.profile == "" {
+		return nil, profiledir.ErrNoProfile
+	}
 	match, err := f.compile(t)
 	if err != nil {
 		return nil, err

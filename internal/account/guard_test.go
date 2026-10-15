@@ -93,7 +93,7 @@ func TestOnRefusedFiresOncePerRefusal(t *testing.T) {
 		if st.State != account.StateLocked || st.Reason != account.ReasonRefused {
 			t.Fatalf("callback got %s/%q", st.State, st.Reason)
 		}
-	case <-time.After(2 * time.Second):
+	case <-time.After(testWait):
 		t.Fatal("OnRefused did not fire")
 	}
 	e.g.Status()
@@ -106,7 +106,7 @@ func TestOnRefusedFiresOncePerRefusal(t *testing.T) {
 	e.g.OnRefused(func(st account.Status) { late <- st })
 	select {
 	case <-late:
-	case <-time.After(2 * time.Second):
+	case <-time.After(testWait):
 		t.Fatal("a callback registered during a refusal must fire at once")
 	}
 	// A new sign-in ends the refusal; a second refusal is a new transition.
@@ -118,7 +118,7 @@ func TestOnRefusedFiresOncePerRefusal(t *testing.T) {
 	refuse()
 	select {
 	case <-got:
-	case <-time.After(2 * time.Second):
+	case <-time.After(testWait):
 		t.Fatal("OnRefused did not fire for the second refusal")
 	}
 }

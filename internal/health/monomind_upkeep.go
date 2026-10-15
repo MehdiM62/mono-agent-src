@@ -50,7 +50,10 @@ func checkMonomindMCPPin(ctx context.Context, env *Env) Result {
 	if err != nil {
 		return Result{Status: StatusSkip, Summary: "handshake failed"}
 	}
-	root := env.ProfileRoot(env.profileID())
+	if env.ProfileID == "" {
+		return noProfile()
+	}
+	root := env.profileRoot()
 	if !monomind.IsInitializedAt(root) {
 		return Result{Status: StatusSkip, Summary: "this profile's folder is not set up for monomind yet"}
 	}
@@ -70,9 +73,9 @@ func fixMonomindRepin(ctx context.Context, env *Env, progress func(string)) erro
 	if env.RepinMonomindProfile == nil || env.ProfileRoot == nil {
 		return fmt.Errorf("monomind init is not available here")
 	}
-	root := env.ProfileRoot(env.profileID())
+	root := env.profileRoot()
 	if root == "" || !monomind.IsInitializedAt(root) {
-		return fmt.Errorf("profile %q has no folder set up for monomind", env.profileID())
+		return fmt.Errorf("profile %q has no folder set up for monomind", env.ProfileID)
 	}
 	return env.RepinMonomindProfile(ctx, root, progress)
 }

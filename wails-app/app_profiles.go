@@ -2,8 +2,9 @@
 //
 // Profiles. The profile rows, their folders and moving a folder all belong
 // to `monoagentcli profile …`; this file forwards to it and keeps only what
-// is the app's own: the in-memory active profile, its file watchers, the
-// native folder picker and revealing a folder in the file manager.
+// is the app's own: the selected profile (profile_selection.go), its file
+// watchers, the native folder picker and revealing a folder in the file
+// manager.
 package main
 
 import (
@@ -50,19 +51,22 @@ func (p cliProfile) info(active bool) ProfileInfo {
 	return ProfileInfo{ID: p.ID, Name: p.Name, IsActive: active, CreatedAt: p.CreatedAt, RootDir: p.RootDir, Icon: p.Icon}
 }
 
+// listProfilesInto reads `profile list` (machine-wide: it names no profile).
+func (a *App) listProfilesInto(rows *[]cliProfile) error {
+	return a.globalJSON(profileCLITimeout, rows, "profile", "list")
+}
+
 // GetProfiles lists every profile (`profile list`). is_active marks the
-// app's own active profile — the one its pages and watchers are scoped
-// to — rather than the CLI's persisted one; the two only differ while
-// another process switches profiles under a running app.
+// profile this window has selected, which only the app knows.
 func (a *App) GetProfiles() ([]ProfileInfo, error) {
 	if err := a.signedOut(); err != nil {
 		return nil, err
 	}
 	var rows []cliProfile
-	if err := a.cliJSON(profileCLITimeout, &rows, "profile", "list"); err != nil {
+	if err := a.listProfilesInto(&rows); err != nil {
 		return nil, err
 	}
-	active := a.getActiveProfileID()
+	active := a.selectedProfileOrEmpty()
 	profiles := make([]ProfileInfo, 0, len(rows))
 	for _, p := range rows {
 		profiles = append(profiles, p.info(p.ID == active))
@@ -70,13 +74,18 @@ func (a *App) GetProfiles() ([]ProfileInfo, error) {
 	return profiles, nil
 }
 
-// GetActiveProfile returns the app's active profile (`profile get`).
+// GetActiveProfile returns the profile this window has selected
+// (`profile get`), or errNoProfile before the first profile exists.
 func (a *App) GetActiveProfile() (*ProfileInfo, error) {
 	if err := a.signedOut(); err != nil {
 		return nil, err
 	}
+	id, err := a.profileID()
+	if err != nil {
+		return nil, err
+	}
 	var p cliProfile
-	if err := a.cliJSON(profileCLITimeout, &p, "profile", "get", a.getActiveProfileID()); err != nil {
+	if err := a.globalJSON(profileCLITimeout, &p, "profile", "get", id); err != nil {
 		return nil, fmt.Errorf("active profile not found: %w", err)
 	}
 	info := p.info(true)
@@ -106,7 +115,14 @@ func (a *App) CreateProfile(name, rootDir, icon string) (*ProfileInfo, error) {
 	} else {
 		a.bootstrapProfileMonograph(p.ID)
 	}
-	info := p.info(false)
+	// The first profile is selected at once; later ones wait to be switched to.
+	if _, err := a.profileID(); err != nil {
+		if err := a.selectProfile(p.ID); err != nil {
+			return nil, err
+		}
+		a.restartProfileWatchers()
+	}
+	info := p.info(p.ID == a.selectedProfileOrEmpty())
 	return &info, nil
 }
 
@@ -121,43 +137,51 @@ func (a *App) createProfile(name, rootDir, icon string) (*cliProfile, error) {
 	// "--" so a name starting with a dash is a name, not a flag.
 	args = append(args, "--", name)
 	var p cliProfile
-	if err := a.runMonoCLI("", &p, args...); err != nil {
+	if err := a.runGlobalCLI("", &p, args...); err != nil {
 		return nil, err
 	}
 	return &p, nil
 }
 
-// SwitchProfile persists the selection (`profile switch`) — which does NOT
-// kill any running workflow subprocesses — then moves the app itself over:
-// its active profile and the watchers scoped to it.
+// SwitchProfile makes id the profile this window shows: the choice is saved
+// in the app's own state file (never in the CLI's settings, and no CLI
+// command changes), then the watchers scoped to the profile move over.
+// Running workflow subprocesses are not touched.
 func (a *App) SwitchProfile(id string) error {
 	if err := a.signedOut(); err != nil {
 		return err
 	}
-	switched, err := a.switchProfile(id)
-	if err != nil {
+	if err := a.selectProfile(id); err != nil {
 		return err
 	}
+	a.restartProfileWatchers()
+	a.emitLog("SYSTEM", "INFO", "Switched to profile: "+id)
+	return nil
+}
+
+// selectProfile checks that id is a profile that exists and saves it as the
+// selection.
+func (a *App) selectProfile(id string) error {
+	var rows []cliProfile
+	if err := a.listProfilesInto(&rows); err != nil {
+		return err
+	}
+	found := false
+	for _, p := range rows {
+		found = found || p.ID == id
+	}
+	if !found {
+		return fmt.Errorf("no profile %q", id)
+	}
+	return a.setSelectedProfile(id)
+}
+
+// restartProfileWatchers moves the watchers scoped to the selected profile.
+func (a *App) restartProfileWatchers() {
 	a.restartOrgWatcher()
 	a.restartDocumentWatcher()
 	a.restartImageWatcher()
 	a.restartTaskWatcher()
-	a.emitLog("SYSTEM", "INFO", "Switched to profile: "+switched)
-	return nil
-}
-
-func (a *App) switchProfile(id string) (string, error) {
-	var res struct {
-		ID string `json:"id"`
-	}
-	if err := a.runMonoCLI("", &res, "profile", "switch", id); err != nil {
-		return "", err
-	}
-	if res.ID == "" {
-		return "", fmt.Errorf("profile switch returned no profile id")
-	}
-	a.setActiveProfileID(res.ID)
-	return res.ID, nil
 }
 
 // ChooseProfileFolder opens a native folder picker and returns the chosen
@@ -260,7 +284,7 @@ func (a *App) MoveProfileFolder(profileID, newRootDir string) error {
 	if err := a.moveProfileFolder(profileID, newRootDir); err != nil {
 		return err
 	}
-	if profileID == a.getActiveProfileID() {
+	if profileID == a.selectedProfileOrEmpty() {
 		a.restartOrgWatcher()
 		a.restartDocumentWatcher()
 		a.restartImageWatcher()
@@ -300,7 +324,10 @@ func (a *App) runProfileMove(args ...string) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	full := scopedCLIArgs(a.getActiveProfileID(), append([]string{"profile", "move"}, args...)...)
+	full, err := a.scopedArgs(append([]string{"profile", "move"}, args...)...)
+	if err != nil {
+		return err
+	}
 	cmd := exec.CommandContext(ctx, cliBin, full...)
 	suppressConsole(cmd)
 	if _, err := cmd.Output(); err != nil {

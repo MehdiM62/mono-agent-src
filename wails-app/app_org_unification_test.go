@@ -212,17 +212,16 @@ func TestGroupAndSendArgs(t *testing.T) {
 }
 
 func TestOrgCLIArgs_GlobalFlagsBeforeOrg(t *testing.T) {
-	got := orgCLIArgs("work", "/p/root", []string{"grant", "list", "growth"})
+	ok := mustArgs(t)
+	got := ok(orgCLIArgs("work", "/p/root", []string{"grant", "list", "growth"}))
 	want := []string{"--profile", "work", "--json", "org", "--project", "/p/root", "grant", "list", "growth"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %q want %q", got, want)
 	}
-	got = orgCLIArgs("", "", []string{"automation", "unassigned"})
-	want = []string{"--json", "org", "automation", "unassigned"}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("got %q want %q", got, want)
+	if got, err := orgCLIArgs("", "", []string{"automation", "unassigned"}); err == nil || got != nil {
+		t.Fatalf("no profile: got %q, %v", got, err)
 	}
-	if got := statusCLIArgs("work"); !reflect.DeepEqual(got, []string{"--profile", "work", "--json", "status"}) {
+	if got := ok(statusCLIArgs("work")); !reflect.DeepEqual(got, []string{"--profile", "work", "--json", "status"}) {
 		t.Fatalf("status args %q", got)
 	}
 }

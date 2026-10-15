@@ -50,6 +50,10 @@ type Env struct {
 	rootDir string
 }
 
+// ErrProfileRequired is returned when no profile is in effect: org commands
+// act on a profile's folder and rows, and there is no implicit "default".
+var ErrProfileRequired = errors.New("org: no profile selected; pass --profile <id|name>")
+
 // New returns an Env on d.
 func New(d Deps) *Env { return &Env{Deps: d} }
 
@@ -57,6 +61,10 @@ func (e *Env) open() {
 	e.once.Do(func() {
 		e.db, e.dbErr = e.OpenDB()
 		if e.dbErr != nil {
+			return
+		}
+		if e.ProfileID() == "" {
+			e.dbErr = ErrProfileRequired
 			return
 		}
 		if err := profiledir.EnsureLayout(e.db.DB, e.ProfileID()); err != nil {

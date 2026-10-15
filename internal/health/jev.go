@@ -34,6 +34,9 @@ func checkJevKey(ctx context.Context, env *Env) Result {
 	if env.JevKey == nil {
 		return Result{Status: StatusSkip, Summary: "not available"}
 	}
+	if env.ProfileID == "" {
+		return noProfile()
+	}
 	source, err := env.JevKey(ctx)
 	if err != nil || source == "" {
 		return Result{Status: StatusWarn, Summary: "no key (Jev is optional; its surfaces stay off without one)", FixID: FixJevKey}
@@ -48,6 +51,9 @@ func checkJevKey(ctx context.Context, env *Env) Result {
 func checkJevAPI(ctx context.Context, env *Env) Result {
 	if env.JevModels == nil || env.JevKey == nil {
 		return Result{Status: StatusSkip, Summary: "not available"}
+	}
+	if env.ProfileID == "" {
+		return noProfile()
 	}
 	if source, err := env.JevKey(ctx); err != nil || source == "" {
 		return Result{Status: StatusSkip, Summary: "no key"}

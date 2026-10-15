@@ -22,14 +22,16 @@
 - Branch builds must not touch the real database: run CLI/tests with a scratch `HOME` under `~/scratch` (never `/tmp`).
 - A push to `master` is a release. Every phase is one PR to an `integration/strict-profile-*` branch; the final enforce flip is its own release with a version bump and release notes.
 
-## Open decisions (need an answer before the phase that depends on them)
+## Decisions (settled 2026-10-15)
 
-| # | Decision | Recommendation | Blocks |
-|---|---|---|---|
-| D1 | How the daemon-hosted HTTP API (`internal/httpapi`) learns the profile | Per request, as a path segment: `/profiles/{profile}/workflows/...`. It shows in logs and cannot be forgotten. `/health`, `/nodes` stay global. The OpenAI-compatible API is unchanged (the profile comes from the API-key row). | Phase 3 |
-| D2 | Extension captures with no chosen profile (today: shared inbox) | Keep the shared inbox as an explicit **Unassigned** pile that a person files into a profile; the extension picker shows "no profile chosen" instead of silently marking one default. Nothing is written into a profile without a choice. | Phase 5 |
-| D3 | `templates` (message templates) | Stay global (machine-wide), confirmed here as a deliberate exception. | none, record it |
-| D4 | Cross-profile commands (`--all-profiles`, `workflow migrate`, `org reconcile`, `chat history reconcile`) | Keep, but they must be spelled explicitly (`--all-profiles`); an empty profile never means "all". | Phase 1 |
+| # | Decision | Answer |
+|---|---|---|
+| D1 | How modules learn the profile (HTTP API, MCP, extension, GUI, daemon) | **Profile communication is mandatory between modules: every message, request and tool call says which profile it is for, and a missing profile is an error.** HTTP API: the profile is a path segment, `/profiles/{profile}/workflows/...`; `/health` and `/nodes*` stay global; the OpenAI-compatible API keeps taking the profile from the API-key row. MCP: required `profile` argument per call. The extension has its own profile selector today (used for saving data); it is retitled as the selector for everything, and every request it sends (capture, chat, record, doc lookup/ask, task add) carries that profile. A new design without any selected or default profile arrives in the next release and is being finalized in another session. |
+| D2 | Extension with no profile chosen | **No Unassigned pile.** The extension picks one profile as its default on first use (the user said randomly; implement as: pick one, persist it, show it clearly in the extension) and captures go to that profile; the user sees which profile is active and can change it. The selection is extension UI state only, and it still sends the profile explicitly on every request. |
+| D3 | `templates` (message templates) | Stay global (machine-wide), a deliberate exception. |
+| D4 | Cross-profile commands (`--all-profiles`, `chat history reconcile`, `workflow migrate`, `db migrate`) | Keep, but they must be spelled explicitly or listed as global in the gate table; an empty profile never means "all". |
+
+Coordination note: the extension selector and the "no selected or default profile" design are being finalized in another session. Do not change `chrome-extension/` profile-selection UI or `internal/extension` request shapes until that session's design is merged; the MCP and HTTP phases do not depend on it.
 
 ## Scope check
 

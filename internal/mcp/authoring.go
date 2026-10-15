@@ -16,7 +16,7 @@ import (
 // connect|disconnect|save` and `workflow node set|remove` (cmd/monoagentcli),
 // which keep their logic in the command: these are the same steps over the
 // same store APIs (GetWorkflow, SaveWorkflowNodes, SaveWorkflowConnections,
-// SaveWorkflow), scoped to the server's profile.
+// SaveWorkflow), scoped to the call's profile.
 func authoringTools() []tool {
 	obj := func(desc string) map[string]interface{} {
 		return map[string]interface{}{"type": "object", "description": desc}
@@ -116,6 +116,7 @@ func authoringTools() []tool {
 		},
 		{
 			name:        "workflow_template_list",
+			global:      true, // reads no profile data
 			description: "List the bundled workflow templates (ready-made workflows shipped with the binary): [{id, name, description, inputs}].",
 			schema:      objSchema(nil),
 			annotations: map[string]bool{"readOnlyHint": true, "idempotentHint": true},
@@ -123,6 +124,7 @@ func authoringTools() []tool {
 		},
 		{
 			name:        "workflow_template_show",
+			global:      true, // reads no profile data
 			description: "Show one bundled workflow template: its description, input keys and full definition.",
 			schema: objSchema(map[string]interface{}{
 				"id": strParam("Template ID from workflow_template_list"),
@@ -143,7 +145,7 @@ func authoringTools() []tool {
 	}
 }
 
-// ownedWorkflow loads a workflow of the server's profile; another profile's
+// ownedWorkflow loads a workflow of the call's profile; another profile's
 // is "not found", like every profile-scoped lookup here. A file-store copy
 // knows no profile, so its SQLite row is asked too.
 func ownedWorkflow(ctx context.Context, rt *runtime, id string) (*workflow.Workflow, error) {
@@ -151,12 +153,12 @@ func ownedWorkflow(ctx context.Context, rt *runtime, id string) (*workflow.Workf
 		return nil, fmt.Errorf("workflow_id is required")
 	}
 	wf, err := rt.store.GetWorkflow(ctx, id)
-	if err != nil || wf == nil || crossProfile(wf.ProfileID, rt.profileID) {
+	if err != nil || wf == nil || !workflowOwned(wf, profileOf(ctx)) {
 		return nil, fmt.Errorf("workflow %q not found", id)
 	}
 	var owner string
 	_ = rt.db.DB.QueryRowContext(ctx, `SELECT COALESCE(profile_id,'') FROM workflows WHERE id = ?`, id).Scan(&owner)
-	if crossProfile(owner, rt.profileID) {
+	if crossProfile(owner, profileOf(ctx)) {
 		return nil, fmt.Errorf("workflow %q not found", id)
 	}
 	return wf, nil
@@ -404,7 +406,7 @@ func toolWorkflowSave(ctx context.Context, s *Server, args json.RawMessage) (int
 	if err != nil {
 		return nil, err
 	}
-	wf := &workflow.Workflow{ID: doc.ID, Name: doc.Name, Description: doc.Description, IsActive: doc.IsActive, ProfileID: rt.profileID}
+	wf := &workflow.Workflow{ID: doc.ID, Name: doc.Name, Description: doc.Description, IsActive: doc.IsActive, ProfileID: profileOf(ctx)}
 	if doc.ID != "" {
 		existing, oerr := ownedWorkflow(ctx, rt, doc.ID)
 		if oerr != nil {
@@ -432,9 +434,9 @@ func toolWorkflowSave(ctx context.Context, s *Server, args json.RawMessage) (int
 	_, _ = rt.db.DB.ExecContext(ctx, `INSERT OR IGNORE INTO workflows
 		(id, name, description, is_active, version, profile_id, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		wf.ID, wf.Name, wf.Description, wf.IsActive, wf.Version, rt.profileID,
+		wf.ID, wf.Name, wf.Description, wf.IsActive, wf.Version, profileOf(ctx),
 		wf.CreatedAt.UTC().Format(time.RFC3339), wf.UpdatedAt.UTC().Format(time.RFC3339))
-	_, _ = rt.db.DB.ExecContext(ctx, `UPDATE workflows SET profile_id = ? WHERE id = ?`, rt.profileID, wf.ID)
+	_, _ = rt.db.DB.ExecContext(ctx, `UPDATE workflows SET profile_id = ? WHERE id = ?`, profileOf(ctx), wf.ID)
 	summary := *wf
 	summary.Nodes, summary.Connections = nil, nil
 	return summary, nil

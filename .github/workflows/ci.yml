@@ -113,6 +113,18 @@ jobs:
         run: bash scripts/lib/mono-test.sh
       - name: Run doctor smoke test
         run: scripts/doctor-smoke.sh "$RUNNER_TEMP/monoagentcli"
+      # The profile gate is enforced (no active profile, no fallback): a scoped
+      # command with no --profile exits 3 and says to pass it, in the real
+      # binary against a throwaway HOME. Regression test for the enforce flip.
+      - name: Profile gate refuses a scoped command without --profile
+        run: |
+          home="$(mktemp -d)"
+          code=0
+          out="$(HOME="$home" USERPROFILE="$home" MONOAGENT_DEV_ENFORCE_FROM=2999-01-01T00:00:00Z \
+            "$RUNNER_TEMP/monoagentcli" --db-path "$home/monoagent.db" people list 2>&1)" || code=$?
+          echo "$out"
+          [ "$code" -eq 3 ] || { echo "want exit 3, got $code"; exit 1; }
+          echo "$out" | grep -q -- "pass --profile" || { echo "missing 'pass --profile' in the refusal"; exit 1; }
       - name: Run tasks MCP smoke test
         run: scripts/tasks-mcp-smoke.sh "$RUNNER_TEMP/monoagentcli"
       - name: Run agent eval reference self-test

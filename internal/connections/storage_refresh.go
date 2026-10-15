@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/monoes/mono-agent/internal/profiledir"
 	"github.com/monoes/mono-agent/internal/secrets"
 )
 
@@ -111,7 +112,7 @@ func (s *Store) RefreshToken(ctx context.Context, conn *Connection) error {
 	// back to env vars.
 	credProfileID := conn.ProfileID
 	if credProfileID == "" {
-		credProfileID = "default"
+		return profiledir.ErrNoProfile
 	}
 	// Umbrella platforms also fall back to their per-product clients.
 	if id, sec := s.lookupOAuthClient(ctx, p.ID, credProfileID); id != "" {
@@ -226,7 +227,7 @@ func (s *Store) releaseRefreshLock(ctx context.Context, connID string) {
 // are stored (including when the table doesn't exist yet).
 func (s *Store) GetOAuthClient(ctx context.Context, platform, profileID string) (clientID, clientSecret string) {
 	if profileID == "" {
-		profileID = "default"
+		return "", ""
 	}
 	var storedSecret string
 	_ = s.db.QueryRowContext(ctx,
@@ -248,7 +249,7 @@ func (s *Store) GetOAuthClient(ctx context.Context, platform, profileID string) 
 // successful OAuth connect with whatever client credentials actually worked.
 func (s *Store) SaveOAuthClient(ctx context.Context, platform, profileID, clientID, clientSecret string) error {
 	if profileID == "" {
-		profileID = "default"
+		return profiledir.ErrNoProfile
 	}
 	// Encrypt the client_secret under the vault envelope (same as connection
 	// data); an empty secret (PKCE-only platforms) stays empty.

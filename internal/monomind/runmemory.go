@@ -276,7 +276,7 @@ func (m *RunMemory) evaluate(ctx context.Context, st *runMemState, id string) (*
 	}
 	pid := wf.ProfileID
 	if pid == "" {
-		pid = "default"
+		return nil, fmt.Errorf("run memory: workflow %s has no profile", id)
 	}
 	var fix *RunFix
 	if ws != nil && !ws.LastOK && out.LatestOK && !ws.LastFailAt.IsZero() && wf.UpdatedAt.After(ws.LastFailAt) {

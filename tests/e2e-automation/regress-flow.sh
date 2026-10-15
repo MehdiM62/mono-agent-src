@@ -21,7 +21,7 @@ DR="$E2E_HOME/.monoagent/recording-drafts"
 # --- 1. record through the real side panel
 REC="${E2E_REC:-$(B record 2>$R/record.err | tail -1)}"
 check record.id "$([ -n "$REC" ] && echo ok)" ok "$REC"
-# where it landed: ~/.monoagent/recordings, or the active profile's recordings/
+# where it landed: ~/.monoagent/recordings, or the recordings/ folder of $E2E_PROFILE
 m --profile "$E2E_PROFILE" record list --json > $R/record-list.json 2>/dev/null
 RD=$(python3 -c 'import json,sys;print([r["dir"] for r in json.load(open(sys.argv[1]))["recordings"] if r["id"]==sys.argv[2]][0])' $R/record-list.json "$REC" 2>/dev/null)
 check record.events "$(j $RD/meta.json 'd["eventCount"] >= 10')" True

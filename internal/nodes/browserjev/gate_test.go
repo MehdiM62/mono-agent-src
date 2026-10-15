@@ -10,6 +10,7 @@ import (
 	"github.com/monoes/mono-agent/internal/browserctl"
 	"github.com/monoes/mono-agent/internal/hilsend"
 	"github.com/monoes/mono-agent/internal/jevpick"
+	"github.com/monoes/mono-agent/internal/vault"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -145,7 +146,7 @@ func gatedRun(t *testing.T, url string, decisions []string, timeout float64) (*g
 	n := &Node{writer: zurich, open: func(context.Context, string) (driver, func(), error) {
 		return drv, func() { drv.closed++ }, nil
 	}}
-	out, err := n.Execute(context.Background(), workflow.NodeInput{}, map[string]interface{}{
+	out, err := n.Execute(vault.ContextWithProfileID(context.Background(), "p1"), workflow.NodeInput{}, map[string]interface{}{
 		"url": "https://shop.example.com/", "goal": "Search for zurich", "api_key": "k", "timeout": timeout,
 	})
 	if err != nil {
@@ -221,7 +222,7 @@ func TestAISubmitChangedSinceApprovalEndsBlocked(t *testing.T) {
 	drv := &guardedDriver{fakeDriver: &fakeDriver{}}
 	drv.g = &fakeGuard{url: "https://shop.example.com/search", decisions: []string{"approved"}, drv: drv.fakeDriver, changed: true}
 	n := &Node{writer: zurich, open: func(context.Context, string) (driver, func(), error) { return drv, func() {}, nil }}
-	out, err := n.Execute(context.Background(), workflow.NodeInput{}, map[string]interface{}{
+	out, err := n.Execute(vault.ContextWithProfileID(context.Background(), "p1"), workflow.NodeInput{}, map[string]interface{}{
 		"url": "https://shop.example.com/", "goal": "Search for zurich", "api_key": "k"})
 	if err != nil {
 		t.Fatal(err)
@@ -243,7 +244,7 @@ func TestAISubmitOnADevPageNeedsNoApproval(t *testing.T) {
 func TestAIRunFailsClosedWithoutAGuard(t *testing.T) {
 	t.Setenv(EnvAICaller, "chat")
 	policyServer(t, nil)
-	_, err := testNode(&fakeDriver{}, zurich).Execute(context.Background(), workflow.NodeInput{},
+	_, err := testNode(&fakeDriver{}, zurich).Execute(vault.ContextWithProfileID(context.Background(), "p1"), workflow.NodeInput{},
 		map[string]interface{}{"url": "https://shop.example.com/", "goal": "Search for zurich", "api_key": "k"})
 	if err == nil || !strings.Contains(err.Error(), "chat started this run") {
 		t.Fatalf("err = %v", err)

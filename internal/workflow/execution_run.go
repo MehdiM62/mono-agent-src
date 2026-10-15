@@ -63,6 +63,11 @@ type runner struct {
 	// parallel is how many independent nodes may run at once (1 = sequential).
 	parallel int
 
+	// hasHIL: the workflow has a Human-in-Loop node, so outbound messages
+	// may be queued in Communications and the nodes they wait for report
+	// how they ended.
+	hasHIL bool
+
 	// activeBefore is the active time of the run's earlier segments (before
 	// a pause); segmentStart is when this segment started. Together they
 	// bound the run by its executionTimeout setting.
@@ -115,6 +120,7 @@ func RunExecution(
 		nodeState:      make(map[string]json.RawMessage),
 		loops:          make(map[string]*loopState),
 		parallel:       1,
+		hasHIL:         dagHasHIL(dag),
 	}
 	for _, tn := range triggerNodes {
 		r.triggerNodeIDs[tn.ID] = true

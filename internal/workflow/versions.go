@@ -195,7 +195,7 @@ func recordVersionTx(ctx context.Context, tx *sql.Tx, w *Workflow, storedVersion
 		}
 		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO workflow_versions (workflow_id, version, snapshot, definition_hash, profile_id, note, created_at)
-			VALUES (?, ?, ?, ?, (SELECT COALESCE(profile_id, 'default') FROM workflows WHERE id = ?), ?, ?)`,
+			VALUES (?, ?, ?, ?, (SELECT profile_id FROM workflows WHERE id = ?), ?, ?)`,
 			w.ID, v, string(data), hash, w.ID, note, time.Now().UTC()); err != nil {
 			return 0, false, fmt.Errorf("recording version %d of workflow %s: %w", v, w.ID, err)
 		}

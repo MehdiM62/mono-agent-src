@@ -57,7 +57,7 @@ func TestRelayFixEvents(t *testing.T) {
 
 // The binding shells out to the CLI's fix, with the active profile.
 func TestMonomindInitRunsTheDoctorFix(t *testing.T) {
-	got := strings.Join(healthFixArgs("p1", fixMonomindProfileInit), " ")
+	got := strings.Join(mustArgs(t)(healthFixArgs("p1", fixMonomindProfileInit)), " ")
 	if got != "--profile p1 --json doctor fix -- monomind.profile_init" {
 		t.Fatalf("args %q", got)
 	}

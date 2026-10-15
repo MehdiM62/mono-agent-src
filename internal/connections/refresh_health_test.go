@@ -77,7 +77,7 @@ func registerHealthPlatform(t *testing.T, id, tokenURL, clientID string) {
 
 func saveHealthOAuthConn(t *testing.T, s *Store, platform string, data map[string]interface{}) *Connection {
 	t.Helper()
-	c := &Connection{Platform: platform, Method: MethodOAuth, Label: "health", Data: data}
+	c := &Connection{ProfileID: "default", Platform: platform, Method: MethodOAuth, Label: "health", Data: data}
 	if err := s.Save(context.Background(), c); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
@@ -172,19 +172,19 @@ func TestHealthRefreshTokenErrors(t *testing.T) {
 		t.Errorf("missing refresh_token err = %v", err)
 	}
 
-	noOAuth := &Connection{Platform: "health-nooauth", Method: MethodOAuth, Data: map[string]interface{}{"refresh_token": "r"}}
+	noOAuth := &Connection{ProfileID: "default", Platform: "health-nooauth", Method: MethodOAuth, Data: map[string]interface{}{"refresh_token": "r"}}
 	if err := s.RefreshToken(ctx, noOAuth); err == nil || !strings.Contains(err.Error(), "no OAuth config") {
 		t.Errorf("platform without OAuth err = %v", err)
 	}
 
 	t.Setenv("MONOAGENT_HEALTH_NOCLIENT_CLIENT_ID", "")
-	noClient := &Connection{Platform: "health-noclient", Method: MethodOAuth, Data: map[string]interface{}{"refresh_token": "r"}}
+	noClient := &Connection{ProfileID: "default", Platform: "health-noclient", Method: MethodOAuth, Data: map[string]interface{}{"refresh_token": "r"}}
 	if err := s.RefreshToken(ctx, noClient); err == nil || !strings.Contains(err.Error(), "MONOAGENT_HEALTH_NOCLIENT_CLIENT_ID") {
 		t.Errorf("missing client id err = %v", err)
 	}
 
 	withRefresh := func() *Connection {
-		return &Connection{Platform: "health-errs", Method: MethodOAuth, Data: map[string]interface{}{"refresh_token": "r", "access_token": "keep"}}
+		return &Connection{ProfileID: "default", Platform: "health-errs", Method: MethodOAuth, Data: map[string]interface{}{"refresh_token": "r", "access_token": "keep"}}
 	}
 
 	ts.respond = func(w http.ResponseWriter, r *http.Request, n int) bool {
@@ -218,7 +218,7 @@ func TestHealthRefreshTokenErrors(t *testing.T) {
 
 	// An unreachable token endpoint is a transport error, not a hang.
 	registerHealthPlatform(t, "health-down", "http://127.0.0.1:1/token", "cid")
-	if err := s.RefreshToken(ctx, &Connection{Platform: "health-down", Method: MethodOAuth, Data: map[string]interface{}{"refresh_token": "r"}}); err == nil || !strings.Contains(err.Error(), "token request") {
+	if err := s.RefreshToken(ctx, &Connection{ProfileID: "default", Platform: "health-down", Method: MethodOAuth, Data: map[string]interface{}{"refresh_token": "r"}}); err == nil || !strings.Contains(err.Error(), "token request") {
 		t.Errorf("unreachable endpoint err = %v", err)
 	}
 }
@@ -254,7 +254,7 @@ func TestHealthRefreshTokenClientCredentialSources(t *testing.T) {
 		t.Errorf("profile client creds not used: %v", f)
 	}
 
-	def := &Connection{Platform: "health-creds", Method: MethodOAuth, Data: map[string]interface{}{"refresh_token": "r"}}
+	def := &Connection{ProfileID: "default", Platform: "health-creds", Method: MethodOAuth, Data: map[string]interface{}{"refresh_token": "r"}}
 	if err := s.Save(ctx, def); err != nil {
 		t.Fatal(err)
 	}
@@ -267,7 +267,7 @@ func TestHealthRefreshTokenClientCredentialSources(t *testing.T) {
 
 	t.Setenv("MONOAGENT_HEALTH_ENV_CLIENT_ID", "env-client")
 	t.Setenv("MONOAGENT_HEALTH_ENV_CLIENT_SECRET", "env-secret")
-	envConn := &Connection{Platform: "health-env", Method: MethodOAuth, Data: map[string]interface{}{"refresh_token": "r"}}
+	envConn := &Connection{ProfileID: "default", Platform: "health-env", Method: MethodOAuth, Data: map[string]interface{}{"refresh_token": "r"}}
 	if err := s.Save(ctx, envConn); err != nil {
 		t.Fatal(err)
 	}
@@ -370,21 +370,21 @@ func TestHealthGetOrResolveRefreshesOnlyNearExpiry(t *testing.T) {
 		"access_token": "fresh", "refresh_token": "r",
 		"expires_at": time.Now().UTC().Add(time.Hour).Format(time.RFC3339),
 	})
-	got, err := s.GetOrResolve(ctx, fresh.ID, "")
+	got, err := s.GetOrResolve(ctx, fresh.ID, "default")
 	if err != nil || got.Data["access_token"] != "fresh" || ts.calls() != 0 {
 		t.Fatalf("fresh token: %v %v calls=%d", got, err, ts.calls())
 	}
 
-	if err := s.Delete(ctx, fresh.ID, ""); err != nil {
+	if err := s.Delete(ctx, fresh.ID, "default"); err != nil {
 		t.Fatal(err)
 	}
 	unparseable := saveHealthOAuthConn(t, s, "health-expiry", map[string]interface{}{
 		"access_token": "odd", "refresh_token": "r", "expires_at": "tomorrow-ish",
 	})
-	if got, _ := s.GetOrResolve(ctx, unparseable.ID, ""); got.Data["access_token"] != "odd" || ts.calls() != 0 {
+	if got, _ := s.GetOrResolve(ctx, unparseable.ID, "default"); got.Data["access_token"] != "odd" || ts.calls() != 0 {
 		t.Errorf("unparseable expiry should be used as-is: %v calls=%d", got.Data, ts.calls())
 	}
-	if err := s.Delete(ctx, unparseable.ID, ""); err != nil {
+	if err := s.Delete(ctx, unparseable.ID, "default"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -393,7 +393,7 @@ func TestHealthGetOrResolveRefreshesOnlyNearExpiry(t *testing.T) {
 		"access_token": "soon", "refresh_token": "r",
 		"expires_at": time.Now().UTC().Add(30 * time.Second).Format(time.RFC3339),
 	})
-	got, err = s.GetOrResolve(ctx, "health-expiry", "")
+	got, err = s.GetOrResolve(ctx, "health-expiry", "default")
 	if err != nil || got.ID != soon.ID {
 		t.Fatalf("resolve by platform: %v %v", got, err)
 	}
@@ -412,12 +412,12 @@ func TestHealthGetOrResolveRefreshesOnlyNearExpiry(t *testing.T) {
 	if err := s.Save(ctx, expired); err != nil {
 		t.Fatal(err)
 	}
-	got, err = s.GetOrResolve(ctx, soon.ID, "")
+	got, err = s.GetOrResolve(ctx, soon.ID, "default")
 	if err != nil || got == nil || got.Data["access_token"] != "access-1" {
 		t.Errorf("failed refresh should still return the connection: %v %v", got, err)
 	}
 
-	if _, err := s.GetOrResolve(ctx, "health-nothing", ""); err == nil {
+	if _, err := s.GetOrResolve(ctx, "health-nothing", "default"); err == nil {
 		t.Error("resolving an unknown id/platform should fail")
 	}
 }
@@ -426,16 +426,16 @@ func TestHealthGetOrResolvePrefersActive(t *testing.T) {
 	ctx := context.Background()
 	db := newTestDB(t)
 	s := NewStore(db)
-	first := &Connection{Platform: "github", Method: MethodAPIKey, Label: "old", Status: "expired", Data: map[string]interface{}{"token": "t1"}}
+	first := &Connection{ProfileID: "default", Platform: "github", Method: MethodAPIKey, Label: "old", Status: "expired", Data: map[string]interface{}{"token": "t1"}}
 	if err := s.Save(ctx, first); err != nil {
 		t.Fatal(err)
 	}
 	time.Sleep(1100 * time.Millisecond) // created_at has second resolution
-	second := &Connection{Platform: "github", Method: MethodAPIKey, Label: "new", Data: map[string]interface{}{"token": "t2"}}
+	second := &Connection{ProfileID: "default", Platform: "github", Method: MethodAPIKey, Label: "new", Data: map[string]interface{}{"token": "t2"}}
 	if err := s.Save(ctx, second); err != nil {
 		t.Fatal(err)
 	}
-	got, err := s.GetOrResolve(ctx, "github", "")
+	got, err := s.GetOrResolve(ctx, "github", "default")
 	if err != nil || got.ID != second.ID {
 		t.Errorf("GetOrResolve picked %v (%v), want the active connection", got, err)
 	}
@@ -443,7 +443,7 @@ func TestHealthGetOrResolvePrefersActive(t *testing.T) {
 		t.Fatal(err)
 	}
 	// No active one left: the oldest is used.
-	if got, _ := s.GetOrResolve(ctx, "github", ""); got.ID != first.ID {
+	if got, _ := s.GetOrResolve(ctx, "github", "default"); got.ID != first.ID {
 		t.Errorf("without an active connection got %s, want the first", got.ID)
 	}
 }
@@ -504,14 +504,14 @@ func TestHealthManagerRefresh(t *testing.T) {
 	if err := mgr.Refresh(ctx, "missing", time.Second); err == nil || !strings.Contains(err.Error(), "not found") {
 		t.Errorf("missing connection err = %v", err)
 	}
-	apiKey := &Connection{Platform: "github", Method: MethodAPIKey, Data: map[string]interface{}{"token": "t"}}
+	apiKey := &Connection{ProfileID: "default", Platform: "github", Method: MethodAPIKey, Data: map[string]interface{}{"token": "t"}}
 	if err := mgr.store.Save(ctx, apiKey); err != nil {
 		t.Fatal(err)
 	}
 	if err := mgr.Refresh(ctx, apiKey.ID, time.Second); err == nil || !strings.Contains(err.Error(), "only OAuth") {
 		t.Errorf("non-OAuth refresh err = %v", err)
 	}
-	unknown := &Connection{Platform: "health-gone", Method: MethodOAuth, Data: map[string]interface{}{"refresh_token": "r"}}
+	unknown := &Connection{ProfileID: "default", Platform: "health-gone", Method: MethodOAuth, Data: map[string]interface{}{"refresh_token": "r"}}
 	if err := mgr.store.Save(ctx, unknown); err != nil {
 		t.Fatal(err)
 	}
@@ -519,7 +519,7 @@ func TestHealthManagerRefresh(t *testing.T) {
 		t.Errorf("unknown platform err = %v", err)
 	}
 
-	c := &Connection{Platform: "health-mgr", Method: MethodOAuth, Label: "before", Status: "expired", Data: map[string]interface{}{"refresh_token": "r0"}}
+	c := &Connection{ProfileID: "default", Platform: "health-mgr", Method: MethodOAuth, Label: "before", Status: "expired", Data: map[string]interface{}{"refresh_token": "r0"}}
 	if err := mgr.store.Save(ctx, c); err != nil {
 		t.Fatal(err)
 	}
@@ -550,7 +550,7 @@ func TestHealthVaultRefLifecycle(t *testing.T) {
 	db := newTestDB(t)
 	s := NewStore(db)
 
-	c := &Connection{Platform: "github", Method: MethodOAuth, Label: "gh", AccountID: "octo",
+	c := &Connection{ProfileID: "default", Platform: "github", Method: MethodOAuth, Label: "gh", AccountID: "octo",
 		Data: map[string]interface{}{"access_token": "gho_secret", "refresh_token": "ghr_secret", "scope": "repo"}}
 	if err := s.Save(ctx, c); err != nil {
 		t.Fatal(err)
@@ -589,14 +589,14 @@ func TestHealthVaultRefLifecycle(t *testing.T) {
 	if err := s.Delete(ctx, c.ID, "work"); err == nil {
 		t.Error("deleting from another profile should fail")
 	}
-	if err := s.Delete(ctx, c.ID, ""); err != nil {
+	if err := s.Delete(ctx, c.ID, "default"); err != nil {
 		t.Fatal(err)
 	}
 	_ = db.QueryRow(`SELECT COUNT(*) FROM vault_secrets WHERE id = ?`, c.VaultRef).Scan(&vaultRows)
 	if vaultRows != 0 {
 		t.Errorf("vault entry survived the connection's delete")
 	}
-	if err := s.Delete(ctx, c.ID, ""); err == nil {
+	if err := s.Delete(ctx, c.ID, "default"); err == nil {
 		t.Error("deleting twice should fail")
 	}
 }
@@ -607,7 +607,7 @@ func TestHealthMigrateProfileBlobs(t *testing.T) {
 	s := NewStore(db)
 
 	// Already on the profile key: nothing to do.
-	c := &Connection{Platform: "github", Method: MethodAPIKey, Data: map[string]interface{}{"note": "x"}}
+	c := &Connection{ProfileID: "default", Platform: "github", Method: MethodAPIKey, Data: map[string]interface{}{"note": "x"}}
 	if err := s.Save(ctx, c); err != nil {
 		t.Fatal(err)
 	}
@@ -762,7 +762,7 @@ func TestHealthValidatorsResolveAccount(t *testing.T) {
 		{"health-unknown", MethodAPIKey, nil, ""},
 	}
 	for _, c := range cases {
-		got, err := ValidateConnection(context.Background(), &Connection{Platform: c.platform, Method: c.method, Data: c.data})
+		got, err := ValidateConnection(context.Background(), &Connection{ProfileID: "default", Platform: c.platform, Method: c.method, Data: c.data})
 		if err != nil {
 			t.Errorf("%s: %v", c.platform, err)
 			continue
@@ -828,7 +828,7 @@ func TestHealthValidatorsFallbacksAndFailures(t *testing.T) {
 	})
 	ctx := context.Background()
 	val := func(platform string, method AuthMethod, data map[string]interface{}) (string, error) {
-		return ValidateConnection(ctx, &Connection{Platform: platform, Method: method, Data: data})
+		return ValidateConnection(ctx, &Connection{ProfileID: "default", Platform: platform, Method: method, Data: data})
 	}
 
 	for _, c := range []struct {
@@ -909,7 +909,7 @@ func TestHealthValidatorsRejectedCredentials(t *testing.T) {
 	for _, platform := range []string{"airtable", "linear", "stripe", "slack", "youtube", "hubspot", "salesforce", "devto", "producthunt", "gmail", "outlook"} {
 		data := map[string]interface{}{"access_token": "t", "api_key": "k", "secret_key": "s"}
 		method := MethodOAuth
-		_, err := ValidateConnection(context.Background(), &Connection{Platform: platform, Method: method, Data: data})
+		_, err := ValidateConnection(context.Background(), &Connection{ProfileID: "default", Platform: platform, Method: method, Data: data})
 		if err == nil {
 			t.Errorf("%s: expected an error for a rejected token", platform)
 			continue
@@ -921,7 +921,7 @@ func TestHealthValidatorsRejectedCredentials(t *testing.T) {
 		}
 	}
 	// Drive's 401 (sheets/drive) is reported in words rather than as a StatusError.
-	if _, err := ValidateConnection(context.Background(), &Connection{Platform: "google_sheets", Data: map[string]interface{}{"access_token": "t"}}); err == nil || !strings.Contains(err.Error(), "401") {
+	if _, err := ValidateConnection(context.Background(), &Connection{ProfileID: "default", Platform: "google_sheets", Data: map[string]interface{}{"access_token": "t"}}); err == nil || !strings.Contains(err.Error(), "401") {
 		t.Errorf("google_sheets 401 err = %v", err)
 	}
 }

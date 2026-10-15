@@ -182,6 +182,16 @@ func TestWorkspaceInitArgsAddPacksToFreshFolders(t *testing.T) {
 	if a := workspaceInitArgs(fresh, "agents"); has(a, "--packs", WorkspacePacks) {
 		t.Errorf("agents target argv %v has --packs", a)
 	}
+	withGit := t.TempDir()
+	os.MkdirAll(filepath.Join(withGit, ".git"), 0o755)
+	if a := workspaceInitArgs(withGit, "claude"); !has(a, "--packs", WorkspacePacks) {
+		t.Errorf("fresh git-initialized folder argv %v lacks --packs", a)
+	}
+	own := t.TempDir()
+	os.WriteFile(filepath.Join(own, "main.go"), []byte("package main"), 0o644)
+	if a := workspaceInitArgs(own, "claude"); has(a, "--packs", WorkspacePacks) {
+		t.Errorf("a folder with the user's own files got --packs: %v", a)
+	}
 	set := t.TempDir()
 	os.MkdirAll(filepath.Join(set, ".monomind"), 0o755)
 	os.WriteFile(filepath.Join(set, ".monomind", "config.yaml"), nil, 0o644)

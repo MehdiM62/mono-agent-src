@@ -2,6 +2,7 @@ package chat
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -34,7 +35,7 @@ type workflowSummary struct {
 func (mt *MonoagentTools) listWorkflows(string) (string, error) {
 	rows, err := mt.db.Query(
 		`SELECT id, name, COALESCE(description,''), is_active, version, created_at, updated_at
-		 FROM workflows WHERE COALESCE(profile_id,'default') = ? ORDER BY updated_at DESC`,
+		 FROM workflows WHERE profile_id = ? ORDER BY updated_at DESC`,
 		mt.ProfileID())
 	if err != nil {
 		return "", fmt.Errorf("query workflows: %w", err)
@@ -141,7 +142,7 @@ func (mt *MonoagentTools) deleteWorkflow(args string) (string, error) {
 	tables := map[string][]map[string]interface{}{}
 	var err error
 	if tables["workflows"], err = snapshotRows(mt.db,
-		`SELECT * FROM workflows WHERE id = ? AND COALESCE(profile_id,'default') = ?`,
+		`SELECT * FROM workflows WHERE id = ? AND profile_id = ?`,
 		a.WorkflowID, mt.ProfileID()); err != nil {
 		return "", fmt.Errorf("snapshot workflow: %w", err)
 	}
@@ -401,8 +402,14 @@ type templateSummary struct {
 }
 
 func (mt *MonoagentTools) listTemplates(string) (string, error) {
-	// Templates are not profile-scoped (shared across the install).
-	rows, err := mt.db.Query(`SELECT id, name, COALESCE(subject,'') FROM templates ORDER BY name`)
+	return ListMessageTemplates(mt.db)
+}
+
+// ListMessageTemplates is the list_templates result: the message templates,
+// which are not profile-scoped (shared across the install), so it needs no
+// tool set and no profile.
+func ListMessageTemplates(db *sql.DB) (string, error) {
+	rows, err := db.Query(`SELECT id, name, COALESCE(subject,'') FROM templates ORDER BY name`)
 	if err != nil {
 		return "", fmt.Errorf("query templates: %w", err)
 	}

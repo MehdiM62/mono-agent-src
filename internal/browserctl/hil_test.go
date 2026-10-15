@@ -84,7 +84,7 @@ func TestAnApprovalWithoutTheOperatorsStampCannotBeUsed(t *testing.T) {
 	actAsHuman(t)
 	ctx := context.Background()
 	db := testdb.Open(t).DB
-	it, err := CreateSubmitItem(ctx, db, SubmitRequest{URL: "https://example.com/", Via: "click",
+	it, err := CreateSubmitItem(ctx, db, SubmitRequest{Profile: "p1", URL: "https://example.com/", Via: "click",
 		RequestedBy: &hilsend.PreparedBy{AgentID: "chat"}})
 	if err != nil || it.RequestedBy.AgentID != "chat" {
 		t.Fatalf("create: %+v, %v", it, err)
@@ -93,10 +93,10 @@ func TestAnApprovalWithoutTheOperatorsStampCannotBeUsed(t *testing.T) {
 	if _, err := db.Exec(`UPDATE hil_pending SET status='approved' WHERE id=?`, it.ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := ClaimSubmitItem(ctx, db, "default", it.ID); !errors.Is(err, ErrApprovedElsewhere) {
+	if _, err := ClaimSubmitItem(ctx, db, "p1", it.ID); !errors.Is(err, ErrApprovedElsewhere) {
 		t.Fatalf("claim of an unstamped approval: %v", err)
 	}
-	if got, _ := GetSubmitItem(ctx, db, "default", it.ID); got.Status != "approved" || got.RequestedBy.AgentID != "chat" {
+	if got, _ := GetSubmitItem(ctx, db, "p1", it.ID); got.Status != "approved" || got.RequestedBy.AgentID != "chat" {
 		t.Fatalf("item = %+v", got)
 	}
 }
@@ -105,15 +105,15 @@ func TestRejectedSubmitCannotBeUsed(t *testing.T) {
 	actAsHuman(t)
 	ctx := context.Background()
 	db := testdb.Open(t).DB
-	it, err := CreateSubmitItem(ctx, db, SubmitRequest{URL: "https://example.com/", Via: "guard", Seq: 3})
+	it, err := CreateSubmitItem(ctx, db, SubmitRequest{Profile: "p1", URL: "https://example.com/", Via: "guard", Seq: 3})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, err := DecideSubmitItem(ctx, db, "default", it.ID, false); err != nil || got.Status != "rejected" || got.ApprovedBy != "" {
+	if got, err := DecideSubmitItem(ctx, db, "p1", it.ID, false); err != nil || got.Status != "rejected" || got.ApprovedBy != "" {
 		t.Fatalf("reject: %+v, %v", got, err)
 	}
 	var se *SubmitStateError
-	if _, err := ClaimSubmitItem(ctx, db, "default", it.ID); !errors.As(err, &se) || se.Status != "rejected" {
+	if _, err := ClaimSubmitItem(ctx, db, "p1", it.ID); !errors.As(err, &se) || se.Status != "rejected" {
 		t.Fatalf("claim of a rejected item: %v", err)
 	}
 }
@@ -122,10 +122,10 @@ func TestOrdinaryHILItemIsNotASubmit(t *testing.T) {
 	ctx := context.Background()
 	db := testdb.Open(t).DB
 	if _, err := db.Exec(`INSERT INTO hil_pending (id, execution_id, workflow_id, node_id, node_name, node_config, profile_id)
-		VALUES ('wf-item', 'e1', 'w1', 'n1', 'Review', '{"readonly_fields":[]}', 'default')`); err != nil {
+		VALUES ('wf-item', 'e1', 'w1', 'n1', 'Review', '{"readonly_fields":[]}', 'p1')`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := GetSubmitItem(ctx, db, "default", "wf-item"); !errors.Is(err, ErrNotSubmitItem) {
+	if _, err := GetSubmitItem(ctx, db, "p1", "wf-item"); !errors.Is(err, ErrNotSubmitItem) {
 		t.Fatalf("get workflow item: %v", err)
 	}
 }

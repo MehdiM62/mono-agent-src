@@ -20,29 +20,44 @@ func refAPICmd() *cobra.Command {
 
 For agents that can't speak stdio JSON-RPC. Same surface as the MCP
 tools (internal/httpapi/ mirrors internal/mcp/'s conventions), plus
-GET /workflows/{id}/executions and POST /workflows/{id}/activate /
-deactivate.
+GET /profiles/{profile}/workflows/{id}/executions and POST
+/profiles/{profile}/workflows/{id}/activate / deactivate. The server
+picks no profile: workflows and HIL items are addressed per profile,
+{profile} being a profile's id or name.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ENDPOINTS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   Always registered (read-only):
-    GET  /health                          unauthenticated liveness/version check
-    GET  /workflows                       list saved workflows
-    GET  /workflows/{id}                  full workflow JSON document
-    GET  /workflows/{id}/executions       recent executions (?limit=)
-    POST /workflows/{id}/validate         validate saved or inline workflow
-    GET  /nodes                           list all node types
-    GET  /nodes/{type}/schema             embedded JSON schema for one node type
-    GET  /hil                             pending Human-in-Loop queue
+    GET  /health
+         unauthenticated liveness/version check
+    GET  /profiles/{profile}/workflows
+         list saved workflows
+    GET  /profiles/{profile}/workflows/{id}
+         full workflow JSON document
+    GET  /profiles/{profile}/workflows/{id}/executions
+         recent executions (?limit=)
+    POST /profiles/{profile}/workflows/{id}/validate
+         validate saved or inline workflow
+    GET  /nodes
+         list all node types (any profile's credential)
+    GET  /nodes/{type}/schema
+         embedded JSON schema for one node type
+    GET  /profiles/{profile}/hil
+         pending Human-in-Loop queue
 
   Only registered with --allow-mutations / MONOAGENT_HTTPAPI_ALLOW_MUTATIONS=1:
-    POST /workflows/{id}/run              trigger a workflow, wait for completion
-    POST /workflows/{id}/activate         activate a workflow's triggers
-    POST /workflows/{id}/deactivate       deactivate a workflow's triggers
-    POST /hil/{id}/approve                approve a pending HIL item
-    POST /hil/{id}/reject                 reject a pending HIL item
+    POST /profiles/{profile}/workflows/{id}/run
+         trigger a workflow, wait for completion
+    POST /profiles/{profile}/workflows/{id}/activate
+         activate a workflow's triggers
+    POST /profiles/{profile}/workflows/{id}/deactivate
+         deactivate a workflow's triggers
+    POST /profiles/{profile}/hil/{id}/approve
+         approve a pending HIL item
+    POST /profiles/{profile}/hil/{id}/reject
+         reject a pending HIL item
 
   Served by monoagentcli daemon (on by default), always, with its own auth:
     POST /org-endpoint/{id}               deliver an org message to an
@@ -58,16 +73,26 @@ AUTH
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   Every request needs "Authorization: Bearer <credential>" except GET
-  /health. The credential is generated on first start and stored in the
-  serving profile's secrets vault (monoagentcli secret list, name
-  "httpapi-token"; monoagentcli secret reveal httpapi-token --reveal to
-  print it). Loopback-only bind by default (127.0.0.1:9322) — override
-  with --addr or MONOAGENT_HTTPAPI_ADDR.
+  /health. Each profile has its own credential, stored in that profile's
+  secrets vault (monoagentcli --profile <p> secret list, name
+  "httpapi-token"; monoagentcli --profile <p> secret reveal httpapi-token
+  --reveal to print it); the server creates it for every profile when it
+  starts. A credential authorizes only the profile it belongs to: the one
+  in the request path. A credential of another profile, a profile that does
+  not exist and a missing credential all get the same 401, so a caller
+  cannot find out which profiles exist. /nodes* takes the credential of any
+  profile. A profile name that two profiles share is answered 409 to the
+  holder of one of their credentials: use the id. Loopback-only bind by
+  default (127.0.0.1:9322) — override with --addr or MONOAGENT_HTTPAPI_ADDR.
 
-  Workflow reads and mutations are scoped to the server's profile,
+  The unprefixed /workflows* and /hil* routes of earlier releases are gone;
+  they answer 404 with a hint naming the new path.
+
+  Workflow reads and mutations are scoped to the profile in the path,
   including when the daemon hosts this API. Another profile's workflow
-  ID returns 404. Legacy workflows with no profile ID belong to default.
-  The daemon's own triggers still serve all profiles internally.
+  ID returns 404. A workflow with no profile ID belongs to nobody (404 for
+  every profile); legacy rows and files are stamped by migration 099 and
+  the file stamp. The daemon's own triggers serve all profiles.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 OPENAI-COMPATIBLE API (/v1)
@@ -195,7 +220,7 @@ OPENAI-COMPATIBLE API (/v1)
 
   The "auto" model lets Jev pick, per request, among the models the listener
   serves (a --context key: among those its own cap allows). It is opt-in per
-  profile: monoagentcli jev enable api_auto, with a Jev key (jev key set, or
+  profile: monoagentcli jev enable api_auto, with the machine-wide Jev key (jev key set, or
   TYPESAFE_API_KEY in the server's environment). What leaves the machine: the
   first 4,000 characters of the last user message (of an image request, its
   prompt), and each candidate's name,
@@ -217,16 +242,17 @@ OPENAI-COMPATIBLE API (/v1)
   once, only its SHA-256 is stored (no vault, no keyring, so it works on a
   headless server):
 
-    monoagentcli api key create --name NAME [--context]
-    monoagentcli api key list [--all-profiles] | show | update | revoke
-    monoagentcli api models        each model with its confinement class and
+    monoagentcli --profile <profile> api key create --name NAME [--context]
+    monoagentcli --profile <profile> api key list [--all-profiles] | show | update | revoke
+    monoagentcli --profile <profile> api models        each model with its confinement class and
                                    whether it makes images, as this shell's
                                    flags, environment and saved settings see it
-    monoagentcli api status        listeners, key count, reachability
+    monoagentcli --profile <profile> api status        listeners, key count, reachability
     monoagentcli api config ...    the server's settings, saved in the database
                                    (see "Server settings" below)
 
-  monoagentcli mcp has the same management as tools, for its own profile:
+  monoagentcli mcp has the same management as tools, for the profile each call names (a
+  required "profile" argument; api_config_get, api_config_set and api_config_apply take none):
   api_key_list, api_models_list, api_status and api_config_get, and with
   --allow-mutations api_key_create (it returns the key once, in its result,
   which puts it in the MCP host's transcript), api_key_update, api_key_revoke,
@@ -385,7 +411,7 @@ OPENAI-COMPATIBLE API (/v1)
   the auto model on. api_config_apply restarts the
   daemon as daemon restart does (it reads the saved settings first and restarts
   nothing when they cannot be used), and interrupts what it is running.
-  api_auto_set switches the api_auto surface of the server's profile on (it needs
+  api_auto_set switches the api_auto surface of the call's profile on (it needs
   --allow-api-exposure on the server, since what leaves the machine is the
   operator's decision, and acknowledge_egress: true, because prompts then go to
   TypeSafe) or off (it needs neither), as jev enable|disable api_auto does, and
@@ -429,10 +455,10 @@ EXAMPLE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   monoagentcli httpapi &
-  monoagentcli --json secret reveal httpapi-token --reveal   # copy "token"
+  monoagentcli --json --profile <profile> secret reveal httpapi-token --reveal   # copy "token"
   curl -s http://127.0.0.1:9322/health
   curl -s -H 'Authorization: Bearer <paste credential here>' \
-    http://127.0.0.1:9322/workflows
+    http://127.0.0.1:9322/profiles/<profile>/workflows
 
 `)
 		},

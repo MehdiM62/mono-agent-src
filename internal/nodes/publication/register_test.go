@@ -77,7 +77,7 @@ func TestRegisterPreservesUpstreamTemplateText(t *testing.T) {
 	if err = db.ApplyMigrations(); err != nil {
 		t.Fatal(err)
 	}
-	ctx := vault.ContextWithDB(context.Background(), db.DB)
+	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db.DB), "default")
 	literal := `Published Go template: {{ $json.secret }}`
 	out, err := (&RegisterNode{}).Execute(ctx, workflow.NodeInput{Items: []workflow.Item{workflow.NewItem(map[string]interface{}{"platform": "blog", "kind": "post", "body": literal})}}, nil)
 	if err != nil {

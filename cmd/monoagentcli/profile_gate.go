@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 	_ "modernc.org/sqlite"
@@ -14,10 +15,10 @@ import (
 )
 
 // The profile gate (internal/cli/profilegate): a command that acts on a
-// profile must be told which one with --profile. It runs in warn mode for one
-// release: the warning goes to stderr and the command runs as before.
-// profileGateMode becomes ModeEnforce when the gate is turned on.
-var profileGateMode = profilegate.ModeWarn
+// profile must be told which one with --profile, or it is refused (exit 3). The
+// gate enforces: there is no active profile and no fallback. ModeWarn stays for
+// the gate package's own tests.
+var profileGateMode = profilegate.ModeEnforce
 
 // installProfileGate makes every command run the gate before it runs. The gate
 // reads whether --profile was given from the parsed flags, so it must come
@@ -30,7 +31,12 @@ func installProfileGate(root *cobra.Command, cfg *globalConfig) {
 	// warning in ModeWarn.
 	gate := func(cmd *cobra.Command) error {
 		list := func() ([]profilegate.ProfileRef, error) { return listProfilesReadOnly(cfg.DBPath) }
-		warning, err := profilegate.Check(cmd, cmd.Flags().Changed("profile"), profileGateMode, list)
+		// An empty value (--profile '' or --profile=) names no profile.
+		given := cmd.Flags().Changed("profile")
+		if f := cmd.Flags().Lookup("profile"); given && f != nil && strings.TrimSpace(f.Value.String()) == "" {
+			given = false
+		}
+		warning, err := profilegate.Check(cmd, given, profileGateMode, list)
 		if err != nil {
 			return errInvalidInput("%s", err.Error())
 		}

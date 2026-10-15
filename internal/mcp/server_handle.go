@@ -145,6 +145,7 @@ func (s *Server) handleToolsCall(ctx context.Context, req rpcRequest) *rpcRespon
 func (s *Server) closeRuntime() {
 	s.rtMu.Lock()
 	rt := s.rt
+	s.rt = nil // a later Serve builds a new runtime; a closed one has no database to resolve a profile with
 	s.rtMu.Unlock()
 	rt.Close()
 }

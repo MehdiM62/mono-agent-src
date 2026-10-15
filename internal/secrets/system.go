@@ -95,7 +95,7 @@ func DeleteCascade(ctx context.Context, db *sql.DB, profileID, id string) error 
 	}
 
 	if table, ok := systemTableForKind[kind]; ok {
-		q := fmt.Sprintf(`DELETE FROM %s WHERE vault_ref = ? AND COALESCE(profile_id,'default') = ?`, table)
+		q := fmt.Sprintf(`DELETE FROM %s WHERE vault_ref = ? AND profile_id = ?`, table)
 		if _, err := db.ExecContext(ctx, q, id, profileID); err != nil {
 			return fmt.Errorf("secrets.DeleteCascade: deleting linked %s row: %w", table, err)
 		}

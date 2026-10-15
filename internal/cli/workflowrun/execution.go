@@ -11,6 +11,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/monoes/mono-agent/internal/cli/clicore"
+	"github.com/monoes/mono-agent/internal/commsync"
 	"github.com/monoes/mono-agent/internal/daemonhb"
 	"github.com/monoes/mono-agent/internal/workflow"
 	"github.com/spf13/cobra"
@@ -57,7 +58,7 @@ func (d Deps) newExecutionCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "execution <execution-id>",
 		Short: "Show one execution with the status and items of every node",
-		Long: "Shows an execution of the active profile and every node it ran. Items " +
+		Long: "Shows an execution of the profile named by --profile and every node it ran. Items " +
 			"are redacted (credential-like keys become ***) and truncated the same way " +
 			"as `workflow run --json`.",
 		Args: cobra.ExactArgs(1),
@@ -270,6 +271,7 @@ func cancelExecution(ctx context.Context, db *sql.DB, profileID, executionID str
 		executionID, profileID); err != nil {
 		return res, fmt.Errorf("reject pending reviews: %w", err)
 	}
+	_ = commsync.SetStatusForExecution(ctx, db, executionID, commsync.Rejected)
 	res.Status = "CANCELLED"
 	// A parent waiting on this run becomes due for resume now rather than on
 	// its poll, and the run's own sub-workflow children stop with it.

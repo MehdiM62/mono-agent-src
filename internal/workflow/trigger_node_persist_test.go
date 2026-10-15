@@ -52,7 +52,7 @@ func TestTriggerNodeID_PersistedThroughAdoptAndRetry(t *testing.T) {
 	eng.queue.Start(ctx)
 
 	// An unowned row (as --no-wait or a dead owner leaves) that t2 fired.
-	row := &WorkflowExecution{WorkflowID: wfID, Status: "QUEUED", TriggerType: "trigger.manual", TriggerNodeID: "t2"}
+	row := &WorkflowExecution{ProfileID: "default", WorkflowID: wfID, Status: "QUEUED", TriggerType: "trigger.manual", TriggerNodeID: "t2"}
 	if err := store.CreateExecution(ctx, row); err != nil {
 		t.Fatal(err)
 	}
@@ -109,7 +109,8 @@ func TestTriggerNodeRecordsOutputItems(t *testing.T) {
 	reg := NewNodeTypeRegistry()
 	reg.Register("test.count.atomic", func() NodeExecutor { return atomicCountNode{runs: &runs} })
 	wf := &Workflow{
-		ID: "wf-trig-out",
+		ProfileID: "default",
+		ID:        "wf-trig-out",
 		Nodes: []WorkflowNode{
 			{ID: "t", WorkflowID: "wf-trig-out", Type: "trigger.webhook", Name: "Hook"},
 			{ID: "n", WorkflowID: "wf-trig-out", Type: "test.count.atomic", Name: "N"},
@@ -121,7 +122,7 @@ func TestTriggerNodeRecordsOutputItems(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
-	exec := &WorkflowExecution{WorkflowID: wf.ID, Status: "RUNNING", TriggerType: "trigger.webhook", TriggerNodeID: "t",
+	exec := &WorkflowExecution{ProfileID: "default", WorkflowID: wf.ID, Status: "RUNNING", TriggerType: "trigger.webhook", TriggerNodeID: "t",
 		TriggerData: map[string]interface{}{"who": "zed"}}
 	if err := store.CreateExecution(ctx, exec); err != nil {
 		t.Fatal(err)

@@ -70,7 +70,7 @@ func ApplyEventToResult(res *TurnResult, ev Event) {
 		}
 	case EventStart:
 		res.incremental = ev.StreamsIncrementally
-		if ev.Sandbox != "" || ev.SandboxUnsupported || ev.SandboxStatus != "" {
+		if ev.Sandbox != "" || ev.SandboxUnsupported || ev.SandboxStatus != "" || ev.SandboxNote != "" {
 			res.Sandbox = ev.SandboxFields
 		}
 		if ev.SandboxStatus != "" {

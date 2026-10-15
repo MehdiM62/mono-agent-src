@@ -35,6 +35,7 @@ func NewRestartCommand(d Deps) *cobra.Command {
 		Example: "  monoagentcli daemon restart\n  monoagentcli daemon restart --json",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			noteDeprecatedProfile(cmd)
 			ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 			defer stop()
 			return runDaemonRestart(ctx, cmd, d)

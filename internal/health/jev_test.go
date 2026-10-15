@@ -9,7 +9,7 @@ import (
 
 func TestJevKeyCheck(t *testing.T) {
 	ctx := context.Background()
-	env := &Env{}
+	env := &Env{ProfileID: "p1"}
 	if res := checkJevKey(ctx, env); res.Status != StatusSkip {
 		t.Fatalf("nil hook: %+v", res)
 	}
@@ -31,7 +31,7 @@ func TestJevKeyCheck(t *testing.T) {
 
 func TestJevAPICheck(t *testing.T) {
 	ctx := context.Background()
-	env := &Env{JevKey: func(context.Context) (string, error) { return "env", nil }}
+	env := &Env{ProfileID: "p1", JevKey: func(context.Context) (string, error) { return "env", nil }}
 	if res := checkJevAPI(ctx, env); res.Status != StatusSkip {
 		t.Fatalf("nil hook: %+v", res)
 	}

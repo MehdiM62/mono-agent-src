@@ -63,7 +63,10 @@ func (a *App) taskCLI(stdin string, args ...string) string {
 	}
 	ctx, cancel := context.WithTimeout(parent, taskCLITimeout)
 	defer cancel()
-	full := scopedCLIArgs(a.getActiveProfileID(), append([]string{"task"}, args...)...)
+	full, err := a.scopedArgs(append([]string{"task"}, args...)...)
+	if err != nil {
+		return aiError(err)
+	}
 	cmd := exec.CommandContext(ctx, cliBin, full...)
 	suppressConsole(cmd)
 	if stdin != "" {
@@ -95,7 +98,11 @@ func (a *App) TaskBoard(doneLimit int) string {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	b, err := tasks.NewStore(a.db).Board(ctx, a.getActiveProfileID(), boardLimit(doneLimit), tasks.Actor{Kind: tasks.Human})
+	pid, err := a.profileID()
+	if err != nil {
+		return aiError(err)
+	}
+	b, err := tasks.NewStore(a.db).Board(ctx, pid, boardLimit(doneLimit), tasks.Actor{Kind: tasks.Human})
 	if err != nil {
 		return aiError(err)
 	}

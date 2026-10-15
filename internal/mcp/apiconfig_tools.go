@@ -27,6 +27,7 @@ func apiConfigTools() []tool {
 		},
 		{
 			name:        "api_config_get",
+			global:      true, // reads no profile data
 			description: "Show the ten saved settings of the OpenAI-compatible API's server, what a server started now would use and what the running daemon started with, each with its state (applied, pending_restart, overridden, ...): the document of `monoagentcli api config show --json`. It changes nothing. " + apiToolsDetails,
 			schema:      objSchema(nil),
 			annotations: map[string]bool{"readOnlyHint": true, "idempotentHint": true},
@@ -35,6 +36,7 @@ func apiConfigTools() []tool {
 		apiConfigSetTool(),
 		{
 			name:        "api_config_apply",
+			global:      true, // reads no profile data
 			description: "Restart the daemon through the service it is registered with so that it reads the saved settings: the document of `monoagentcli daemon restart --json`. It interrupts whatever the daemon is running (workflows, org runs); use it when api_config_get says restart_needed. " + apiToolsDetails,
 			schema:      objSchema(nil),
 			annotations: map[string]bool{"readOnlyHint": false, "destructiveHint": true},
@@ -66,7 +68,7 @@ func toolAPIStatus(ctx context.Context, s *Server, args json.RawMessage) (interf
 	if err != nil {
 		return nil, err
 	}
-	st, err := apiconfig.BuildStatus(ctx, rt.db.DB, s.apiEnv(), rt.profileID)
+	st, err := apiconfig.BuildStatus(ctx, rt.db.DB, s.apiEnv(), profileOf(ctx))
 	if err != nil {
 		var input *apiconfig.InputError
 		if errors.As(err, &input) {

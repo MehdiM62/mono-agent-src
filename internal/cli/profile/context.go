@@ -12,8 +12,8 @@ func (d Deps) newProfileContextCmd() *cobra.Command {
 	var recent int
 	cmd := &cobra.Command{
 		Use:   "context",
-		Short: "Describe the active profile: folder, accounts, and what it holds",
-		Long: "Prints what an agent needs to know about the active profile (or --profile): its name, id and " +
+		Short: "Describe the profile named by --profile: folder, accounts, and what it holds",
+		Long: "Prints what an agent needs to know about the profile named by --profile: its name, id and " +
 			"folder, connected accounts (platform and handle), counts and a few recent items of tasks, documents, " +
 			"people, workflows, orgs and vault items (names only), and the browser extension's status. " +
 			"Secrets, tokens and vault values are never included. The same block is put in coder chats' system prompts.",

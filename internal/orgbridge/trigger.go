@@ -183,7 +183,7 @@ func (s *TriggerSource) Activate(w *workflow.Workflow, node *workflow.WorkflowNo
 		}
 		profile := w.ProfileID
 		if profile == "" {
-			profile = "default"
+			return nil, fmt.Errorf("trigger.org: workflow %s has no profile", w.ID)
 		}
 		root := profiledir.Root(s.DB, profile)
 		unsub := s.Mux.Subscribe(root, f.Org, func(ev Event) {

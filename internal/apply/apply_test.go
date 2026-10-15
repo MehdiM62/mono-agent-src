@@ -49,7 +49,7 @@ func TestPrepareGeneratesDocuments(t *testing.T) {
 	db := newTestDB(t)
 	ctx := vault.ContextWithDB(context.Background(), db.DB)
 	store := applications.NewStore(db.DB)
-	app := &applications.Application{Kind: applications.KindJob, Job: &applications.JobDetails{Title: "Backend Engineer", Company: "Acme", URL: "https://a.example"}}
+	app := &applications.Application{ProfileID: "default", Kind: applications.KindJob, Job: &applications.JobDetails{Title: "Backend Engineer", Company: "Acme", URL: "https://a.example"}}
 	if err := store.Create(ctx, app); err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -77,7 +77,7 @@ func TestPrepareReusesExistingDocumentsOnSecondCall(t *testing.T) {
 	db := newTestDB(t)
 	ctx := vault.ContextWithDB(context.Background(), db.DB)
 	store := applications.NewStore(db.DB)
-	app := &applications.Application{Kind: applications.KindJob, Job: &applications.JobDetails{Title: "Backend Engineer", Company: "Acme", URL: "https://a.example"}}
+	app := &applications.Application{ProfileID: "default", Kind: applications.KindJob, Job: &applications.JobDetails{Title: "Backend Engineer", Company: "Acme", URL: "https://a.example"}}
 	if err := store.Create(ctx, app); err != nil {
 		t.Fatalf("Create: %v", err)
 	}

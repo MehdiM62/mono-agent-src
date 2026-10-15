@@ -49,9 +49,9 @@ func TestEveryEntryPointWorksSignedIn(t *testing.T) {
 		_, body := get(t, base+"/health", "") // open, with no credential, and it says what the account is
 		mustJSON(t, body, &health)
 		health.Account.is(t, "ok", true, true)
-		get(t, base+"/workflows", "") // the first request creates the bearer token in the vault
+		get(t, base+"/profiles/default/workflows", "") // the first request creates the bearer token in the vault
 		token := strings.TrimSpace(r.run("secret", "reveal", "httpapi-token", "--reveal").stdout)
-		if code, body := get(t, base+"/workflows", token); code != 200 || !strings.Contains(body, fast) {
+		if code, body := get(t, base+"/profiles/default/workflows", token); code != 200 || !strings.Contains(body, fast) {
 			t.Fatalf("GET /workflows with the bearer: %d", code)
 		}
 		p.stop()
@@ -60,7 +60,7 @@ func TestEveryEntryPointWorksSignedIn(t *testing.T) {
 	t.Run("mcp", func(t *testing.T) {
 		c := r.sub(t).mcp(nil, "mcp")
 		c.call("initialize", map[string]any{})
-		if text := c.tool("workflow_list", map[string]any{}, nil); !strings.Contains(text, fast) {
+		if text := c.tool("workflow_list", map[string]any{"profile": "default"}, nil); !strings.Contains(text, fast) {
 			t.Fatalf("workflow_list: %s", text)
 		}
 	})

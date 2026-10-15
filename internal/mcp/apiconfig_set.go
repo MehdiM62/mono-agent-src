@@ -77,6 +77,7 @@ func apiConfigSetSchema() map[string]interface{} {
 func apiConfigSetTool() tool {
 	return tool{
 		name:        "api_config_set",
+		global:      true, // reads no profile data
 		description: "Save settings of the OpenAI-compatible API's server (set: {key: value}) or remove saved ones (unset: keys, or all), as `monoagentcli api config set|unset --json`; they take effect when the server next starts (api_config_apply). A change that makes the server reach further is refused unless the operator started this MCP server with --allow-api-exposure, which no argument can replace. " + apiToolsDetails,
 		schema:      apiConfigSetSchema(),
 		annotations: map[string]bool{"readOnlyHint": false},

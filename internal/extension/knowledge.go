@@ -252,6 +252,12 @@ func (s *Server) handleDocLookup(ctx context.Context, req *Request, _ ProgressFu
 	if !ok {
 		return &SavedDocument{Saved: false, URL: target}, nil
 	}
+	// No profile, no brain to ask: the shared brain holds other profiles'
+	// pages. This runs per tab for the badge, so it answers "nothing known"
+	// (the panel stays hidden) rather than an error.
+	if !requestHasProfile(req) {
+		return &SavedDocument{Saved: false, URL: target}, nil
+	}
 	runner := s.knowledgeRunner()
 
 	scope, err := captureScopeOf(req)

@@ -135,9 +135,9 @@ type WorkspaceInit struct {
 }
 
 // InitWorkspace sets dir up as a monomind project without touching any file
-// already there (--if-missing). On a folder not yet set up for monomind it
-// still adds monomind's agent roster (core plus WorkspacePacks), so the
-// user's own repo gains those files on its first coder chat. The
+// already there (--if-missing), so it is safe on the user's own repos. A
+// fresh, empty folder also gets the opt-in agent packs (WorkspacePacks); a
+// folder with content of its own gets monomind's core roster only. The
 // code graph is skipped (--no-graph) so a new chat is ready in seconds;
 // monomind builds it on first use. Only the chat runtime's setup is added
 // (--target, its CoderRuntime.InitTarget): the folder may be the user's own
@@ -193,17 +193,32 @@ func InitWorkspace(ctx context.Context, bin, dir, target string) (*WorkspaceInit
 // ignores the flag and installs everything anyway.
 const WorkspacePacks = "specialists,business"
 
-// workspaceInitArgs is InitWorkspace's argv. Packs are added only to a
-// folder not yet set up for monomind and only for a target with an agent
-// roster (`agents` writes AGENTS.md alone), so an existing project is not
-// given agent files it did not have; a folder that is not set up yet does
-// get the roster, because org-building chats need it.
+// workspaceInitArgs is InitWorkspace's argv. Packs are added only to an
+// empty folder (a fresh coder folder holds just the .git monoagent made)
+// not yet set up for monomind, and only for a target with an agent roster
+// (`agents` writes AGENTS.md alone), so a user's own repo is not given
+// agent files it did not have.
 func workspaceInitArgs(dir, target string) []string {
 	args := []string{"init", "--project", dir, "--if-missing", "--json", "--no-graph", "--target", target, "--yes", "--no-watch", "--no-install"}
-	if target != "agents" && !IsInitializedAt(dir) {
+	if target != "agents" && !IsInitializedAt(dir) && folderIsEmpty(dir) {
 		args = append(args, "--packs", WorkspacePacks)
 	}
 	return args
+}
+
+// folderIsEmpty reports whether dir holds nothing but a .git directory. An
+// unreadable folder counts as not empty, so it gets no packs.
+func folderIsEmpty(dir string) bool {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return false
+	}
+	for _, e := range entries {
+		if e.Name() != ".git" {
+			return false
+		}
+	}
+	return true
 }
 
 // fallbackAgentsMD is the AGENTS.md written for a runtime monomind has no

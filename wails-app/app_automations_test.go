@@ -9,13 +9,14 @@ import (
 )
 
 func TestAutomationCLIArgs(t *testing.T) {
-	got := automationCLIArgs("p1", "automation", "list")
+	ok := mustArgs(t)
+	got := ok(automationCLIArgs("p1", "automation", "list"))
 	want := []string{"--profile", "p1", "--json", "automation", "list"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %v want %v", got, want)
 	}
-	if got := automationCLIArgs("", "record", "list"); !reflect.DeepEqual(got, []string{"--json", "record", "list"}) {
-		t.Fatalf("no profile: got %v", got)
+	if got, err := automationCLIArgs("", "record", "list"); err == nil || got != nil {
+		t.Fatalf("no profile: got %v, %v", got, err)
 	}
 }
 

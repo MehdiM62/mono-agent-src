@@ -13,7 +13,7 @@ import (
 )
 
 // apiTools are the tools over the API keys of the OpenAI-compatible API (/v1) and
-// the models it would serve (spec §8.3). Keys belong to the server's profile: a key
+// the models it would serve (spec §8.3). Keys belong to the call's profile: a key
 // of another profile is "not found". The rules (names, uniqueness, the context
 // switch, the errors) are internal/apikeys', and what api_models_list computes is
 // internal/openaiapi's, the same code `monoagentcli api` runs.
@@ -21,7 +21,7 @@ func apiTools() []tool {
 	return []tool{
 		{
 			name:        "api_key_list",
-			description: "List the active profile's API keys for the OpenAI-compatible API (/v1): metadata only, never a key, since only its SHA-256 is stored. Revoked keys are included only with include_revoked.",
+			description: "List the call's profile's API keys for the OpenAI-compatible API (/v1): metadata only, never a key, since only its SHA-256 is stored. Revoked keys are included only with include_revoked.",
 			schema: objSchema(map[string]interface{}{
 				"include_revoked": boolParam("Also list revoked keys (default false)"),
 			}),
@@ -42,7 +42,7 @@ func apiTools() []tool {
 		},
 		{
 			name:        "api_key_create",
-			description: "Create an API key for the active profile, for the OpenAI-compatible API (/v1): the key is returned ONCE, in the key field, and no tool can show it again. Treat it as a password and give it only to the user, since it is now part of this transcript. " + apiToolsDetails,
+			description: "Create an API key for the call's profile, for the OpenAI-compatible API (/v1): the key is returned ONCE, in the key field, and no tool can show it again. Treat it as a password and give it only to the user, since it is now part of this transcript. " + apiToolsDetails,
 			schema: objSchema(map[string]interface{}{
 				"name":    strParam("Key name, unique among the profile's active keys"),
 				"context": boolParam("Add the profile's own knowledge (documents and captures) to requests made with this key (default false)"),
@@ -54,7 +54,7 @@ func apiTools() []tool {
 		},
 		{
 			name: "api_key_update",
-			description: "Rename an active API key of the active profile and/or switch its knowledge context on or off. Pass name, context or both: an argument left out is not changed, " +
+			description: "Rename an active API key of the call's profile and/or switch its knowledge context on or off. Pass name, context or both: an argument left out is not changed, " +
 				"and context false turns it off. The key itself is not changed and never returned.",
 			schema: objSchema(map[string]interface{}{
 				"id":      strParam("The key's id (key_…) or the name of an active key"),
@@ -67,7 +67,7 @@ func apiTools() []tool {
 		},
 		{
 			name: "api_key_revoke",
-			description: "Revoke an API key of the active profile now: requests made with it are refused from the next request on (a turn already running finishes). " +
+			description: "Revoke an API key of the call's profile now: requests made with it are refused from the next request on (a turn already running finishes). " +
 				"It cannot be undone. Revoking a revoked key by id succeeds.",
 			schema: objSchema(map[string]interface{}{
 				"id": strParam("The key's id (key_…) or the name of an active key"),
@@ -79,13 +79,13 @@ func apiTools() []tool {
 	}
 }
 
-// apiKeys opens the key store of the server's profile.
-func (s *Server) apiKeys() (store *apikeys.Store, profileID string, err error) {
+// apiKeys opens the key store and the profile of the call.
+func (s *Server) apiKeys(ctx context.Context) (store *apikeys.Store, profileID string, err error) {
 	rt, err := s.runtime()
 	if err != nil {
 		return nil, "", err
 	}
-	return apikeys.NewStore(rt.db.DB), rt.profileID, nil
+	return apikeys.NewStore(rt.db.DB), profileOf(ctx), nil
 }
 
 func toolAPIKeyList(ctx context.Context, s *Server, args json.RawMessage) (interface{}, error) {
@@ -95,7 +95,7 @@ func toolAPIKeyList(ctx context.Context, s *Server, args json.RawMessage) (inter
 	if err := decodeArgs(args, &a); err != nil {
 		return nil, err
 	}
-	store, profileID, err := s.apiKeys()
+	store, profileID, err := s.apiKeys(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +121,7 @@ func toolAPIKeyCreate(ctx context.Context, s *Server, args json.RawMessage) (int
 	if err := decodeArgs(args, &a); err != nil {
 		return nil, err
 	}
-	store, profileID, err := s.apiKeys()
+	store, profileID, err := s.apiKeys(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -148,7 +148,7 @@ func toolAPIKeyUpdate(ctx context.Context, s *Server, args json.RawMessage) (int
 	if u.IsEmpty() {
 		return nil, fmt.Errorf("nothing to change: pass name or context")
 	}
-	store, profileID, err := s.apiKeys()
+	store, profileID, err := s.apiKeys(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +165,7 @@ func toolAPIKeyRevoke(ctx context.Context, s *Server, args json.RawMessage) (int
 	if a.ID == "" {
 		return nil, fmt.Errorf("id is required")
 	}
-	store, profileID, err := s.apiKeys()
+	store, profileID, err := s.apiKeys(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -261,6 +261,6 @@ func toolAPIModelsList(ctx context.Context, s *Server, args json.RawMessage) (in
 	}
 	return openaiapi.NewModelsReport(openaiapi.ModelsReportInput{
 		For: a.For, Policy: policy, Source: openaiapi.ReportSourceMCP, Models: models, ImageRuntimes: imageRuntimes, ToolRuntimes: toolRuntimes,
-		Auto: openaiapi.DefaultAuto(rt.db.DB).Status(ctx, rt.profileID),
+		Auto: openaiapi.DefaultAuto(rt.db.DB).Status(ctx, profileOf(ctx)),
 	}), nil
 }

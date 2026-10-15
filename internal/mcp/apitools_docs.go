@@ -17,7 +17,7 @@ const apiToolsDetails = "Full rules: docs topic or resource monoagent://ref/api-
 // told of a tool read it here.
 var apiToolDetails = map[string]string{
 	"api_status": "Show where the OpenAI-compatible API (/v1) listens and whether it answers: the document of `monoagentcli api status --json`. " +
-		"It has the active profile's count of active API keys, whether a daemon is running and the addresses it reports, whether the auto model works for the profile and what it is missing, " +
+		"It has the call's profile's count of active API keys, whether a daemon is running and the addresses it reports, whether the auto model works for the profile and what it is missing, " +
 		"and each listener (the main HTTP API listener, which serves /v1 only while it is bound to loopback, and the dedicated v1_addr listener): its address, whether it is bound to loopback, " +
 		"the confinement class it serves and the classes a key created with context and the auto model are held to on it, where that came from (confinement_source is daemon when the running daemon reported it, " +
 		"and environment when it is worked out from this MCP server's environment, the settings saved with api_config_set and the defaults, which a running server started with flags of its own may not share), " +
@@ -60,7 +60,7 @@ var apiToolDetails = map[string]string{
 		"A daemon that is not registered for auto-start (daemon.autostart is false in api_config_get) is not restarted by anything: the call fails and says that the user can stop it and start `monoagentcli daemon` again, " +
 		"or run `monoagentcli daemon install` to have the system manage it. A daemon started by hand while the service is registered has to be stopped first. " +
 		"Afterwards api_config_get shows what the daemon started with.",
-	"api_auto_set": "Switch the auto model of the OpenAI-compatible API (the Jev surface api_auto) on or off for the active profile, as `monoagentcli jev enable|disable api_auto` does: " +
+	"api_auto_set": "Switch the auto model of the OpenAI-compatible API (the Jev surface api_auto) on or off for the call's profile, as `monoagentcli jev enable|disable api_auto` does: " +
 		"the document of that command's --json (profile_id, surface, enabled and, when switching on, threshold and egress) plus auto, what api_status says of the auto model after the change " +
 		"(available, or what it is missing: the surface, a Jev key). enabled is required. " +
 		"Switching on needs two things, because while it is on the first 4,000 characters of the last user message of each request for the model auto (of an image request, its prompt) " +
@@ -71,8 +71,8 @@ var apiToolDetails = map[string]string{
 		"This tool never creates, stores, uses or shows the Jev key (the user stores it with `monoagentcli jev key set` in their own terminal, or TYPESAFE_API_KEY is set where the server runs): " +
 		"with no key the surface is on and auto stays unavailable, which auto says. " +
 		"It changes nothing else: the profile's threshold, its other Jev surfaces and other profiles are untouched. Which models auto may pick is auto_confinement (api_config_set), not this.",
-	"api_key_list": "List the API keys of the active profile, for the OpenAI-compatible API (/v1): [{id, profile_id, name, prefix, context, created_at, last_used_at, revoked_at}]. Metadata only: a key itself is never part of it, because only its SHA-256 is stored and it was shown once, when it was created. Revoked keys are included only with include_revoked.",
-	"api_key_create": "Create an API key for the active profile, for the OpenAI-compatible API (/v1). The key is returned ONCE, in the key field of the result: " +
+	"api_key_list": "List the API keys of the call's profile, for the OpenAI-compatible API (/v1): [{id, profile_id, name, prefix, context, created_at, last_used_at, revoked_at}]. Metadata only: a key itself is never part of it, because only its SHA-256 is stored and it was shown once, when it was created. Revoked keys are included only with include_revoked.",
+	"api_key_create": "Create an API key for the call's profile, for the OpenAI-compatible API (/v1). The key is returned ONCE, in the key field of the result: " +
 		"only its SHA-256 is stored, so no tool can show it again. It authenticates /v1 requests as this profile and nothing else. " +
 		"Treat it as a password and give it only to the user: it is now part of this conversation's transcript, which the host may keep " +
 		"(`monoagentcli api key create` writes the key to stdout: run by the user in their own terminal it keeps the key out of any transcript, run by an agent through a shell tool it puts the key in that transcript too). " +
@@ -82,7 +82,7 @@ var apiToolDetails = map[string]string{
 	"api_models_list": "List the models the OpenAI-compatible API (/v1) would serve, with each one's confinement class (chat-only, sandboxed or unconfined), " +
 		"its capabilities (text; image for a model of a runtime that makes images; tools for a model that serves tool calling: its runtime is in the list below, monomind can apply the sandbox every turn with tools requires, and for a runtime that is not chat-only run it read-only), " +
 		"whether a listener of the given kind serves it, whether a key created with context may use it, whether the auto model may pick it, " +
-		"and whether the auto model works for the active profile: the document of `monoagentcli api models --json`. " +
+		"and whether the auto model works for the call's profile: the document of `monoagentcli api models --json`. " +
 		"The policy comes from the arguments, else from MONOAGENT_API_CONFINEMENT, MONOAGENT_API_CONTEXT_CONFINEMENT and MONOAGENT_API_AUTO_CONFINEMENT " +
 		"in this MCP server's environment, else from the settings saved for the server (api_config_get shows them, api_config_set changes them), else the listener's defaults. " +
 		"The runtimes that make images come from MONOAGENT_API_IMAGE_RUNTIMES in this environment, else the saved image_runtimes, else codex and antigravity, " +

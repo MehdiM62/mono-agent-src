@@ -1,5 +1,8 @@
 import { useEffect, useRef } from 'react'
 import { X } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import { StatusBadge } from './CommsLinks.jsx'
+import { statusTimeline } from '../lib/commsStatus.js'
 
 // Renders untrusted HTML email content in a sandboxed iframe — no scripts,
 // no same-origin access, no top-level navigation. Falls back to <pre> for
@@ -10,6 +13,7 @@ function isLikelyHTML(body) {
 
 export default function MessageDetailModal({ message, personLabel, onClose }) {
   const overlayRef = useRef(null)
+  const { t } = useTranslation()
 
   useEffect(() => {
     const handler = (e) => { if (e.key === 'Escape') onClose() }
@@ -20,6 +24,7 @@ export default function MessageDetailModal({ message, personLabel, onClose }) {
   if (!message) return null
 
   const html = isLikelyHTML(message.body)
+  const timeline = statusTimeline(message)
 
   return (
     <div
@@ -63,6 +68,21 @@ export default function MessageDetailModal({ message, personLabel, onClose }) {
             <X size={18} />
           </button>
         </div>
+
+        {timeline.length > 0 && (
+          <ol aria-label={t('comms.timeline')} data-testid="status-timeline" style={{
+            display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', listStyle: 'none', margin: 0,
+            padding: '8px 18px', borderBottom: '1px solid #1e3a4f',
+            fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)',
+          }}>
+            {timeline.map((step, i) => (
+              <li key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <StatusBadge status={step.status} />
+                {step.at && <span>{String(step.at).slice(0, 16).replace('T', ' ')}</span>}
+              </li>
+            ))}
+          </ol>
+        )}
 
         {/* Body */}
         <div style={{ flex: 1, overflow: 'hidden', background: '#fff' }}>

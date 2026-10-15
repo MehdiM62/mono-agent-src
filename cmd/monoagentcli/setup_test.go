@@ -32,6 +32,18 @@ func TestStdinIsTerminalRejectsDevNull(t *testing.T) {
 	}
 }
 
+// withTestProfile names the seeded "default" profile unless args name one. The
+// profile gate refuses a scoped command that names none (there is no active
+// profile), so the test helpers that run the whole CLI go through here.
+func withTestProfile(args []string) []string {
+	for _, a := range args {
+		if a == "--profile" || strings.HasPrefix(a, "--profile=") {
+			return args
+		}
+	}
+	return append([]string{"--profile", "default"}, args...)
+}
+
 // runCLI runs `monoagentcli <args>` against a throwaway HOME, stdout and
 // stderr apart.
 func runCLI(t *testing.T, home string, args ...string) (stdout, stderr string, err error) {
@@ -49,7 +61,7 @@ func runCLIIn(t *testing.T, home, stdin string, args ...string) (stdout, stderr 
 	root.SetOut(&out)
 	root.SetErr(&errOut)
 	root.SetIn(strings.NewReader(stdin))
-	root.SetArgs(append(args, "--db-path", filepath.Join(home, ".monoagent", "monoagent.db")))
+	root.SetArgs(append(withTestProfile(args), "--db-path", filepath.Join(home, ".monoagent", "monoagent.db")))
 	err = root.Execute()
 	return out.String(), errOut.String(), err
 }
@@ -158,7 +170,7 @@ func TestFixUntilStableRealChecks(t *testing.T) {
 		home := t.TempDir()
 		t.Setenv("HOME", home)
 		t.Setenv("USERPROFILE", home)
-		cmd := newDoctorCmd(&globalConfig{DBPath: filepath.Join(home, ".monoagent", "monoagent.db"), JSONOutput: jsonOut})
+		cmd := newDoctorCmd(&globalConfig{DBPath: filepath.Join(home, ".monoagent", "monoagent.db"), JSONOutput: jsonOut, ProfileID: "default"})
 		var out bytes.Buffer
 		cmd.SetOut(&out)
 		cmd.SetErr(io.Discard)

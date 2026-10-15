@@ -266,7 +266,7 @@ func TestRunLetsGatedCommandsRunWhenAllowed(t *testing.T) {
 
 	installExpiredSession(t, &account.TransientError{Reason: account.ReasonUnreachable, Settled: true, Err: errors.New("offline")})
 	freshHome(t)
-	code, stdout, stderr := runMain(t, "workflow", "list", "--json")
+	code, stdout, stderr := runMain(t, "--profile", "default", "workflow", "list", "--json")
 	if code != 0 || !strings.HasPrefix(stderr, "monoes.me is unreachable; this login works offline until ") || strings.Contains(stdout, "unreachable") {
 		t.Errorf("grace: exit %d, stdout %q, stderr %q", code, stdout, stderr)
 	}
@@ -316,7 +316,7 @@ func TestRunGivesOnlyGatedCommandsTheCancel(t *testing.T) {
 	if calls != 0 {
 		t.Fatalf("%d cancels for open commands", calls)
 	}
-	runMain(t, "workflow", "list")
+	runMain(t, "--profile", "default", "workflow", "list")
 	if calls != 1 {
 		t.Errorf("%d cancels for a gated command, want 1", calls)
 	}
@@ -391,7 +391,7 @@ func TestRunFailsClosedWhenNoGuardCanBeBuilt(t *testing.T) {
 		t.Errorf("enforced: exit %d, stderr %q", code, stderr)
 	}
 	account.SetEnforceFromForTest(t, time.Time{})
-	if code, _, _ := runMain(t, "workflow", "list"); code != 0 {
+	if code, _, _ := runMain(t, "--profile", "default", "workflow", "list"); code != 0 {
 		t.Errorf("dormant: exit %d", code)
 	}
 }

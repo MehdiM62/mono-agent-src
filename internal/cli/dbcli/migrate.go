@@ -23,8 +23,6 @@ type Deps struct {
 	OpenDB func() (*storage.Database, error)
 	// DBPath is the global --db-path flag.
 	DBPath func() string
-	// ProfileID is the profile in effect; read after OpenDB.
-	ProfileID func() string
 }
 
 // `db migrate` brings the database and every profile's folder up to date:
@@ -37,7 +35,6 @@ type Deps struct {
 type Result struct {
 	SchemaVersion int      `json:"schema_version"` // highest applied migration
 	Applied       int      `json:"applied"`        // migrations applied by this run
-	ActiveProfile string   `json:"active_profile"`
 	Profiles      []string `json:"profiles"`
 	VaultMoved    int      `json:"vault_moved"` // vault files moved into their profile's .monoagent/vault
 	Errors        []string `json:"errors"`      // per-profile failures; none of them stops the others
@@ -69,7 +66,6 @@ func (d Deps) newMigrateCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			res.ActiveProfile = d.ProfileID()
 			after := 0
 			_ = db.DB.QueryRow(`SELECT COUNT(*), COALESCE(MAX(version), 0) FROM schema_migrations`).Scan(&after, &res.SchemaVersion)
 			if after > before {

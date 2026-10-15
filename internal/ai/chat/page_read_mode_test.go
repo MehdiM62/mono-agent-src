@@ -23,10 +23,10 @@ func toolNames(mt *MonoagentTools) []string {
 
 func TestPageReadModeRegistersOnlyTheReadTools(t *testing.T) {
 	db := newMonoagentTestDB(t)
-	full := NewMonoagentTools(db.DB, "/bin/monoagentcli")
+	full := NewMonoagentTools(db.DB, "/bin/monoagentcli", "default")
 	fullNames := toolNames(full)
 
-	mt := NewMonoagentTools(db.DB, "/bin/monoagentcli")
+	mt := NewMonoagentTools(db.DB, "/bin/monoagentcli", "default")
 	mt.SetPageReadOnly()
 	got := toolNames(mt)
 
@@ -62,7 +62,7 @@ func TestPageReadModeRegistersOnlyTheReadTools(t *testing.T) {
 
 func TestPageReadModeNamesTheSensitiveToolsAsExcluded(t *testing.T) {
 	db := newMonoagentTestDB(t)
-	mt := NewMonoagentTools(db.DB, "")
+	mt := NewMonoagentTools(db.DB, "", "default")
 	mt.SetPageReadOnly()
 	have := map[string]bool{}
 	for _, n := range toolNames(mt) {
@@ -85,7 +85,7 @@ func TestPageReadModeNamesTheSensitiveToolsAsExcluded(t *testing.T) {
 
 func TestPageReadModeLeavesTheReadToolsWorking(t *testing.T) {
 	db := newMonoagentTestDB(t)
-	mt := NewMonoagentTools(db.DB, "")
+	mt := NewMonoagentTools(db.DB, "", "default")
 	mt.SetPageReadOnly()
 	if err := mt.checkInjectionGate("save_document"); err == nil {
 		t.Fatal("page-read mode must count the page as untrusted content")
@@ -102,7 +102,7 @@ func TestPageReadModeLeavesTheReadToolsWorking(t *testing.T) {
 // definitions, the same dispatch.
 func TestDefaultModeStillOffersEveryTool(t *testing.T) {
 	db := newMonoagentTestDB(t)
-	mt := NewMonoagentTools(db.DB, "")
+	mt := NewMonoagentTools(db.DB, "", "default")
 	have := map[string]bool{}
 	for _, n := range toolNames(mt) {
 		have[n] = true
@@ -118,7 +118,7 @@ func TestDefaultModeStillOffersEveryTool(t *testing.T) {
 // been seen, whatever confirm says.
 func TestPageContextTripsTheInjectionGate(t *testing.T) {
 	db := newMonoagentTestDB(t)
-	mt := NewMonoagentTools(db.DB, "/bin/monoagentcli")
+	mt := NewMonoagentTools(db.DB, "/bin/monoagentcli", "default")
 	mt.MarkPageContextSeen()
 	stubRunSelfExec(t, func(ctx context.Context, bin string, args ...string) ([]byte, error) {
 		t.Fatal("exec must not run")
