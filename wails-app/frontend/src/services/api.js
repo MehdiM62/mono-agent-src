@@ -206,8 +206,14 @@ export const api = {
   // normal value for the caller to branch on.
   createChatConversation: (workflowID, runtimeID, model, effort = '') =>
     GoApp.CreateChatConversation(workflowID, runtimeID, model, effort).then(parseStreamResult),
-  startChatTurn: (conversationID, turnID, message, tools, allowRuns) =>
-    GoApp.StartChatTurn(conversationID, turnID, message, tools, allowRuns).then(parseStreamResult),
+  // attachments: file paths for a coder turn (see saveChatAttachment).
+  startChatTurn: (conversationID, turnID, message, tools, allowRuns, attachments = []) =>
+    GoApp.StartChatTurn(conversationID, turnID, message, tools, allowRuns, attachments || []).then(parseStreamResult),
+  // A coder chat's attachment, base64 (≤ 20 MB) → a spool file path; and an
+  // image inside the chat's folder (≤ 10 MB) → a data URL. Both reject on
+  // error.
+  saveChatAttachment: (conversationID, name, base64) => GoApp.SaveChatAttachment(conversationID, name, base64),
+  readWorkspaceImage: (conversationID, path) => GoApp.ReadWorkspaceImage(conversationID, path),
   stopChatTurn: (conversationID, turnID) =>
     GoApp.StopChatTurn(conversationID, turnID).then(parseStreamResult),
   // One worker of a dynamic-org turn; the lead and the other workers keep

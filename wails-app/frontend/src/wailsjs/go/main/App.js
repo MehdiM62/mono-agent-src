@@ -1062,6 +1062,10 @@ export function ReadJSONFile(arg1) {
   return window['go']['main']['App']['ReadJSONFile'](arg1);
 }
 
+export function ReadWorkspaceImage(arg1, arg2) {
+  return window['go']['main']['App']['ReadWorkspaceImage'](arg1, arg2);
+}
+
 export function RejectDraftPersonMessage(arg1) {
   return window['go']['main']['App']['RejectDraftPersonMessage'](arg1);
 }
@@ -1152,6 +1156,10 @@ export function RunWorkflow(arg1) {
 
 export function RunWorkflowWithInput(arg1, arg2) {
   return window['go']['main']['App']['RunWorkflowWithInput'](arg1, arg2);
+}
+
+export function SaveChatAttachment(arg1, arg2, arg3) {
+  return window['go']['main']['App']['SaveChatAttachment'](arg1, arg2, arg3);
 }
 
 export function SaveConnectionDirect(arg1, arg2, arg3) {
@@ -1262,8 +1270,8 @@ export function StartAgentValidation(arg1, arg2, arg3) {
   return window['go']['main']['App']['StartAgentValidation'](arg1, arg2, arg3);
 }
 
-export function StartChatTurn(arg1, arg2, arg3, arg4, arg5) {
-  return window['go']['main']['App']['StartChatTurn'](arg1, arg2, arg3, arg4, arg5);
+export function StartChatTurn(arg1, arg2, arg3, arg4, arg5, arg6) {
+  return window['go']['main']['App']['StartChatTurn'](arg1, arg2, arg3, arg4, arg5, arg6);
 }
 
 export function StartOrgGroup(arg1) {

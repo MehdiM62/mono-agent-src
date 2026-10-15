@@ -196,7 +196,7 @@ func startFakeTurn(t *testing.T, sup *chatSupervisor, q *queueLauncher, proc *fa
 	}
 	h.profileID = "default"
 	go proc.writeLine(admissionLine(conversationID, turnID, "active", false))
-	resp, err := sup.startTurn(h, "hi", false, false)
+	resp, err := sup.startTurn(h, "hi", false, false, nil)
 	if err != nil {
 		t.Fatalf("startTurn: %v", err)
 	}
