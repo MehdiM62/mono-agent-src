@@ -15,7 +15,7 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/monoes/mono-agent/internal/profiledir"
+	"github.com/monoes/mono-agent/internal/profileorder"
 )
 
 // errNoProfile is what every binding that needs a profile returns while none
@@ -86,7 +86,7 @@ func chooseProfile(saved string, profiles []cliProfile) (string, error) {
 	}
 	sorted := append([]cliProfile(nil), profiles...)
 	sort.SliceStable(sorted, func(i, j int) bool {
-		return profiledir.Older(sorted[i].CreatedAt, sorted[i].ID, sorted[j].CreatedAt, sorted[j].ID)
+		return profileorder.Older(sorted[i].CreatedAt, sorted[i].ID, sorted[j].CreatedAt, sorted[j].ID)
 	})
 	return sorted[0].ID, nil
 }

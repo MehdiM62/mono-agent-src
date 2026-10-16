@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"fmt"
 	"sort"
+
+	"github.com/monoes/mono-agent/internal/profileorder"
 )
 
 // Listing the profiles a user actually has.
@@ -67,7 +69,7 @@ func List(ctx context.Context, db *sql.DB) ([]Profile, error) {
 	}
 
 	sort.SliceStable(out, func(i, j int) bool {
-		return Older(created[out[i].ID], out[i].ID, created[out[j].ID], out[j].ID)
+		return profileorder.Older(created[out[i].ID], out[i].ID, created[out[j].ID], out[j].ID)
 	})
 	if len(out) > 0 {
 		out[0].Default = true

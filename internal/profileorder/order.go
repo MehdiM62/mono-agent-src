@@ -1,4 +1,4 @@
-package profiledir
+package profileorder
 
 import "time"
 
