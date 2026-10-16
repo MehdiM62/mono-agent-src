@@ -2558,10 +2558,14 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
   chat tool call `chat`, the org side `org`. `off` and a refused site fail the run with the
   refusal's message; `ask` raises the "allow this site?" item and waits like
   a submit; `full-no-approvals` runs without the submit guard.
-- **Not covered.** A workflow an agent activates on a schedule or a webhook
-  runs later in the daemon as the user's own (no mark), and so do
-  sub-workflows of org-side runs, `workflow templates run`, and a run the
-  MCP `workflow_run` tool started that a daemon later resumes.
+- **Not covered.** A workflow you approved (you saved, activated, imported
+  or ran it from the app or your own terminal, and nothing changed it since)
+  runs as your own whatever starts it: one an agent activates on a schedule
+  or a webhook runs later in the daemon with no mark, and so, for such a
+  workflow, do sub-workflows of org-side runs, `workflow templates run`, and
+  a run the MCP `workflow_run` tool started that a daemon later resumes. A
+  workflow the chat, an agent or another workflow wrote or changed since is
+  an AI run whatever starts it.
 - **Honest limit.** A full-access agent can read the bridge token and talk
   to the bridge directly, so the origin policy and the submit guard guard
   against mistakes and instructions a page plants, not against a determined
