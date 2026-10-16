@@ -42,8 +42,15 @@ func RealHome() string { return realHome }
 // at the user's real home.
 const KeepHomeEnv = "MONOAGENT_TESTHOME_KEEP"
 
+// UnderTestEnv marks this process, and every process its tests start, as
+// running under test. internal/monomind reads it (monomind.UnderTestEnv) and
+// then never starts a monomind outside the temp dirs and the test home: the
+// user's real install updates itself over the network and outlives the test.
+const UnderTestEnv = "MONOAGENT_UNDER_TEST"
+
 func run(m *testing.M) int {
 	realHome, _ = os.UserHomeDir()
+	os.Setenv(UnderTestEnv, "1")
 	keepCaches()
 	blockNetwork()
 	if home := os.Getenv("HOME"); os.Getenv(KeepHomeEnv) == "1" && keepable(home) {
