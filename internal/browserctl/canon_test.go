@@ -1,7 +1,10 @@
 package browserctl
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/monoes/mono-agent/internal/testdb"
@@ -132,5 +135,43 @@ func TestOriginIsTheBrowsers(t *testing.T) {
 	}
 	if got := UnicodeHost("xn--bcher-kva.example"); got != "bücher.example" {
 		t.Errorf("UnicodeHost: %q", got)
+	}
+}
+
+// A HIL card for an internationalized host carries its xn-- form next to
+// the Unicode one, however the agent spelled it; a plain host carries
+// neither.
+func TestItemsCarryTheASCIIHost(t *testing.T) {
+	ctx := context.Background()
+	db := testdb.Open(t).DB
+	card := func(id string) (map[string]any, string) {
+		var ro, name string
+		if err := db.QueryRow(`SELECT readonly_data, node_name FROM hil_pending WHERE id = ?`, id).Scan(&ro, &name); err != nil {
+			t.Fatal(err)
+		}
+		var m map[string]any
+		_ = json.Unmarshal([]byte(ro), &m)
+		return m, name
+	}
+	for _, u := range []string{"https://bücher.example/", "https://xn--bcher-kva.example:8443/"} {
+		id, err := AskSite(ctx, db, "p1", KindOther, u, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		m, name := card(id)
+		if m["asciiHost"] != "xn--bcher-kva.example" || m["unicodeHost"] != "bücher.example" || !strings.Contains(name, "(xn--bcher-kva.example)") {
+			t.Errorf("site item for %s: %v %q", u, m, name)
+		}
+	}
+	it, err := CreateSubmitItem(ctx, db, SubmitRequest{Profile: "p1", URL: "https://xn--bcher-kva.example/cart", Via: "click"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m, name := card(it.ID); m["asciiHost"] != "xn--bcher-kva.example" || m["unicodeHost"] != "bücher.example" || name != "Submit on bücher.example (xn--bcher-kva.example)" {
+		t.Errorf("submit item: %v %q", m, name)
+	}
+	id, _ := AskSite(ctx, db, "p1", KindOther, "https://shop.example/", nil)
+	if m, name := card(id); m["asciiHost"] != nil || m["unicodeHost"] != nil || name != "Use shop.example" {
+		t.Errorf("a plain host: %v %q", m, name)
 	}
 }
