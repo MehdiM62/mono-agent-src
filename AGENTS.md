@@ -2590,6 +2590,19 @@ monoagentcli --profile work hil reject <id>
 to `{}` if omitted). Rejection fails the workflow branch — surface the
 consequence to the user before rejecting.
 
+An item whose approval sends a message to a person is the user's to decide:
+anything that can run after the Human-in-Loop node, through other nodes and
+the workflows it calls (`core.execute_workflow`), sends an email, a DM, a
+comment, a post, a connect or a publish, or calls a workflow that can't be
+resolved before it runs. `hil approve|reject` refuse an agent, the chat's runs
+and a workflow's own processes (exit 3), and so do the MCP server's
+`hil_approve`/`hil_reject` and the HTTP API's approve/reject routes (403). It
+stays pending until the user decides it in their own terminal or on the Human
+in Loop page. Every other Human-in-Loop item stays open to agents. An item of
+a run an org started is that org's decision (class `hil:<alias>` at the
+grant's tier, which by default goes to a person); only a tier the user set, or
+autonomy level full, lets the org's decider settle it.
+
 People staged for outreach (saved with category `pending_approval` and a
 drafted introduction) have their own queue, the one the app shows on Human
 in Loop:

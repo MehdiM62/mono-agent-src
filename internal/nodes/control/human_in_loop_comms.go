@@ -36,6 +36,27 @@ func commsItems(ctx context.Context, input workflow.NodeInput, profileID string)
 	return out
 }
 
+// reachableSends reports whether anything that can run once the node's items
+// are approved (commsync.ReachableFrom: every later node, through control
+// nodes and called workflows) sends a message to a person, classified as an
+// agent's sends are (hilsend.IsOutbound), or the engine could not tell: then
+// it fails closed. Run on its own, outside an engine, nothing follows it.
+func reachableSends(ctx context.Context) bool {
+	r, ok := commsync.ReachableFrom(ctx)
+	if !ok {
+		return false
+	}
+	if r.Unresolved {
+		return true
+	}
+	for _, n := range r.Nodes {
+		if hilsend.IsOutbound(n.Type, n.Config) {
+			return true
+		}
+	}
+	return false
+}
+
 // queueComms puts the item in Communications as soon as its approval is
 // queued, and carries an auto-decided outcome over. A failure is logged and
 // never blocks the approval.
