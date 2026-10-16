@@ -268,7 +268,7 @@ func TestPublicationRegisterFromAgentNeedsApproval(t *testing.T) {
 	cfg := sendEnv(t)
 	swapRunner(t)
 	id := queueViaNodeRun(t, cfg, sendConfig)
-	entry := `{"platform":"x","kind":"post","body":"hello","remote_id":"1","published_at":"2026-10-13T10:00:00Z"}`
+	entry := `{"platform":"email","kind":"post","body":"hello","remote_id":"1","published_at":"2026-10-13T10:00:00Z"}`
 	register := func(args ...string) error {
 		cmd := newPublicationCmd(cfg)
 		cmd.SetIn(strings.NewReader(entry))
@@ -288,6 +288,10 @@ func TestPublicationRegisterFromAgentNeedsApproval(t *testing.T) {
 	asAgentProcess(t)
 	if err := register("--approval", id); err != nil {
 		t.Fatalf("register with a sent approval: %v", err)
+	}
+	// One approval registers one publication.
+	if err := register("--approval", id); err == nil || !strings.Contains(err.Error(), "already registered a publication") {
+		t.Fatalf("the approval again: %v", err)
 	}
 	asOperatorProcess(t)
 	if err := register(); err != nil {

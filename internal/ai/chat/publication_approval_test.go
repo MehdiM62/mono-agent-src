@@ -51,7 +51,7 @@ func TestRegisterPublicationNeedsAnApprovedSend(t *testing.T) {
 	db := newMonoagentTestDB(t)
 	mt := NewMonoagentTools(db.DB, "", "default")
 	ctx := context.Background()
-	entry := `{"platform":"blog","kind":"article","title":"Our article"`
+	entry := `{"platform":"email","kind":"article","title":"Our article"`
 	for _, approval := range []string{"", `,"approval":"missing"`} {
 		if _, err := mt.ExecuteContext(ctx, "register_publication", entry+approval+`}`); err == nil ||
 			!strings.Contains(err.Error(), "needs an approved send") || !strings.Contains(err.Error(), "approval") {
@@ -62,8 +62,15 @@ func TestRegisterPublicationNeedsAnApprovedSend(t *testing.T) {
 		t.Fatalf("registered without approval: %v %v", list, err)
 	}
 	id := sentSendIn(t, db.DB, "default")
+	if _, err := mt.ExecuteContext(ctx, "register_publication", `{"platform":"blog","kind":"article","title":"Our article","approval":"`+id+`"}`); err == nil ||
+		!strings.Contains(err.Error(), "not the publication's") {
+		t.Errorf("a publication on another platform: %v", err)
+	}
 	if _, err := mt.ExecuteContext(ctx, "register_publication", entry+`,"approval":"`+id+`"}`); err != nil {
 		t.Errorf("with a sent send: %v", err)
+	}
+	if _, err := mt.ExecuteContext(ctx, "register_publication", entry+`,"approval":"`+id+`"}`); err == nil || !strings.Contains(err.Error(), "already registered a publication") {
+		t.Errorf("the approval again: %v", err)
 	}
 	sendApprovalsOff(t, db.DB)
 	if _, err := mt.ExecuteContext(ctx, "register_publication", entry+`}`); err != nil {

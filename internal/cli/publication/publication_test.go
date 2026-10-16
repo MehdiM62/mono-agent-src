@@ -93,11 +93,11 @@ func (f *fixture) deps(jsonOut bool) Deps {
 			}
 			return nil
 		},
-		RequireApproval: func(string) error {
+		RequireApproval: func(string, publication.Entry) (func(), error) {
 			if err, _ := f.approval.Load().(error); err != nil {
-				return err
+				return func() {}, err
 			}
-			return nil
+			return func() {}, nil
 		},
 	}
 }

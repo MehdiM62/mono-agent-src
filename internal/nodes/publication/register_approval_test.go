@@ -63,7 +63,7 @@ func TestRegisterFromAnAIRunNeedsAnApprovedSend(t *testing.T) {
 	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db.DB), "default")
 	in := workflow.NodeInput{ExecutionID: "execution", NodeID: "register", Items: []workflow.Item{workflow.NewItem(map[string]interface{}{"text": "hello"})}}
 	config := func(approval string) map[string]interface{} {
-		return map[string]interface{}{"platform": "custom", "kind": "post", "body": "{{ $json.text }}", "approval": approval}
+		return map[string]interface{}{"platform": "email", "kind": "post", "body": "{{ $json.text }}", "approval": approval}
 	}
 	count := func() int {
 		entries, err := publication.NewStore(db.DB, "default").List(ctx, publication.Filter{})
@@ -92,8 +92,17 @@ func TestRegisterFromAnAIRunNeedsAnApprovedSend(t *testing.T) {
 	}
 
 	id := sentSend(t, ctx, db.DB)
+	other := config(id)
+	other["platform"] = "custom"
+	if _, err := (&RegisterNode{}).Execute(runs["a chat's run"](), in, other); err == nil || !strings.Contains(err.Error(), "not the publication's") {
+		t.Errorf("a publication on another platform than the send's: %v", err)
+	}
 	if _, err := (&RegisterNode{}).Execute(runs["a chat's run"](), in, config("{{ \""+id+"\" }}")); err != nil {
 		t.Errorf("a chat's run with a sent send: %v", err)
+	}
+	again := workflow.NodeInput{ExecutionID: "execution-2", NodeID: "register", Items: in.Items}
+	if _, err := (&RegisterNode{}).Execute(runs["a chat's run"](), again, config(id)); err == nil || !strings.Contains(err.Error(), "already registered a publication") {
+		t.Errorf("the approval again: %v", err)
 	}
 	if _, err := (&RegisterNode{}).Execute(ctx, workflow.NodeInput{ExecutionID: "mine", NodeID: "register", Items: in.Items}, config("")); err != nil {
 		t.Errorf("the user's own run: %v", err)

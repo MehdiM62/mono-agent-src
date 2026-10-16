@@ -21,7 +21,7 @@ func EntrySchema() map[string]interface{} {
 // its id while the user's approval of sends is on.
 func RegisterSchema() map[string]interface{} {
 	props := EntrySchema()
-	props["approval"] = map[string]interface{}{"type": "string", "description": "The id of the send the user approved, and that was sent, which this publication belongs to: needed while the user's approval of sends is on"}
+	props["approval"] = map[string]interface{}{"type": "string", "description": "The id of the send the user approved, and that was sent, which made this publication (same platform; same remote id where both have one; one approval registers one publication): needed while the user's approval of sends is on"}
 	return props
 }
 
