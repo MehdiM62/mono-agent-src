@@ -333,9 +333,21 @@ func resolveProfileID(db *sql.DB, idOrName string) (string, error) {
 	case err == nil:
 		return id, nil
 	case errors.Is(err, profiledir.ErrUnknownProfile):
-		return "", errInvalidInput("profile %q not found (checked both id and name)", idOrName)
+		msg := fmt.Sprintf("profile %q not found (checked both id and name)", idOrName)
+		if list := profiledir.Describe(context.Background(), db); list != "" {
+			msg += "; available profiles: " + list
+		}
+		return "", profileResolveError{errInvalidInput("%s", msg)}
 	case errors.As(err, &ambiguous):
-		return "", errInvalidInput("%s", ambiguous.Error())
+		return "", profileResolveError{errInvalidInput("%s", ambiguous.Error())}
 	}
 	return "", errInvalidInput("looking up profile %q: %v", idOrName, err)
 }
+
+// profileResolveError is a --profile that names no single profile. The many
+// commands that wrap a database-open failure ("open database: ...") would
+// prefix it with a message that has nothing to do with the database, so
+// reportCommandError prints it on its own; the exit code is unchanged.
+type profileResolveError struct{ error }
+
+func (e profileResolveError) Unwrap() error { return e.error }
