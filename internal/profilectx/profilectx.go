@@ -251,7 +251,7 @@ func probeExtension() Extension {
 // Block renders c as a system-prompt section.
 func (c *Context) Block() string {
 	var b strings.Builder
-	b.WriteString("## Active profile\n\n")
+	b.WriteString("## Profile\n\n")
 	fmt.Fprintf(&b, "You work for the mono-agent profile %q (id %s). Its folder is %s. ", c.Profile.Name, c.Profile.ID, c.Folder)
 	b.WriteString("Everything below belongs to this profile only; other profiles' data is not yours to read or change.\n\n")
 	if len(c.Accounts) == 0 {
