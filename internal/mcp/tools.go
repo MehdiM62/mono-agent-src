@@ -228,7 +228,7 @@ func allTools() []tool {
 		},
 		{
 			name:        "hil_approve",
-			description: "Approve a pending Human-in-Loop item, optionally overriding its editable data with a JSON object",
+			description: "Approve a pending Human-in-Loop item, optionally overriding its editable data with a JSON object. Refused for a browser form submit, a site an agent asked to use and a send: the user decides those in their own terminal or on the Human in Loop page",
 			schema: objSchema(map[string]interface{}{
 				"id": strParam("HIL item ID"),
 				"data": map[string]interface{}{
@@ -242,7 +242,7 @@ func allTools() []tool {
 		},
 		{
 			name:        "hil_reject",
-			description: "Reject a pending Human-in-Loop item (the paused workflow branch fails)",
+			description: "Reject a pending Human-in-Loop item (the paused workflow branch fails). Refused for a browser form submit, a site an agent asked to use and a send: the user decides those",
 			schema: objSchema(map[string]interface{}{
 				"id": strParam("HIL item ID"),
 			}, "id"),

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/monoes/mono-agent/internal/commsync"
+	"github.com/monoes/mono-agent/internal/operator"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -222,6 +223,9 @@ func toolHilApprove(ctx context.Context, s *Server, args json.RawMessage) (inter
 	if err != nil {
 		return nil, err
 	}
+	if err := operator.ItemRefusal(ctx, rt.db.DB, profileOf(ctx), a.ID); err != nil {
+		return nil, err
+	}
 	res, err := rt.db.DB.ExecContext(ctx,
 		`UPDATE hil_pending SET status='approved', edited_data=?, updated_at=CURRENT_TIMESTAMP
 		 WHERE id=? AND status='pending' AND profile_id = ?`,
@@ -249,6 +253,9 @@ func toolHilReject(ctx context.Context, s *Server, args json.RawMessage) (interf
 	}
 	rt, err := s.runtime()
 	if err != nil {
+		return nil, err
+	}
+	if err := operator.ItemRefusal(ctx, rt.db.DB, profileOf(ctx), a.ID); err != nil {
 		return nil, err
 	}
 	res, err := rt.db.DB.ExecContext(ctx,
