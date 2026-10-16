@@ -2643,10 +2643,10 @@ stays pending until the user decides it in their own terminal or on the Human
 in Loop page. The node's `auto_decide` settles it only in a workflow the user
 approved: in one the chat, an agent or a workflow wrote, it waits for the user
 with Jev's suggestion shown. The node's timeout only ever rejects. Every other
-Human-in-Loop item stays open to agents. An item queued by an earlier version
-counts only when it has a Communications entry, which only a send right after
-the node gave it: an older item whose send came further down, or in a called
-workflow, stays open to agents until it is decided.
+Human-in-Loop item stays open to agents. A new item records the decision
+either way (`"outbound"` in its node config); one queued before that was
+recorded counts as one that sends, whatever comes after it, so it is the
+user's until decided.
 
 The same goes for a reply link a waiting node is answered through (a
 `sendAndWait` message's Approve/Disapprove or form link, `core.wait`'s resume
@@ -2658,8 +2658,8 @@ the chat's runs or a workflow's process, and the MCP server's
 working, since the person the message went to answers there, so it can't tell
 that person from an agent that got the token another way (from the database,
 or by signing one with the machine's trace key, which a process with full
-access can read). A reply opened by an earlier version has no mark and keeps
-its links in every view.
+access can read). A reply opened before its decision was recorded counts as
+one in front of a send: an agent gets the note, the user the links.
 
 An item of a run an org started (through a grant or a message to an
 automation role) is that org's decision instead, class `hil:<alias>`. Its tier
