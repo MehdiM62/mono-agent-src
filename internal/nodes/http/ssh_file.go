@@ -44,7 +44,8 @@ func checkSFTPConfig(config map[string]interface{}) error {
 func sftpFiles(ctx context.Context, client *ssh.Client, connect *time.Timer, timeout time.Duration, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
 	// Opening the sftp session is the last step of connecting: within the
 	// connect deadline (connect) and the node's context.
-	sc, err := awaitServer(ctx, client, connect, timeout, "open an sftp session", func() (*sftp.Client, error) { return sftp.NewClient(client) })
+	sc, err := awaitServer(ctx, client, connect, timeout, func() string { return "open an sftp session" },
+		func() (*sftp.Client, error) { return sftp.NewClient(client) })
 	if err != nil {
 		return nil, err
 	}

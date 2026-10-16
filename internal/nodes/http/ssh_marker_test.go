@@ -140,9 +140,9 @@ func TestSSHCommandsCarryTheRunMarker(t *testing.T) {
 	// Another host gets the variable requested and its command as written:
 	// a Windows host's cmd.exe has no export.
 	port, seen := startExecServer(t, envAccept)
-	old := sshTargetIsLocal
-	t.Cleanup(func() { sshTargetIsLocal = old })
-	sshTargetIsLocal = func(context.Context, string) bool { return false }
+	old := sshAddrIsLocal
+	t.Cleanup(func() { sshAddrIsLocal = old })
+	sshAddrIsLocal = func(net.IP) bool { return false }
 	cfg := map[string]interface{}{"host": "127.0.0.1", "port": float64(port), "username": "user",
 		"password": "secret", "command": "echo hi", "timeout_seconds": float64(10)}
 	if _, err := (&SSHNode{}).Execute(context.Background(), workflow.NodeInput{ExecutionID: id}, cfg); err != nil {
@@ -151,7 +151,7 @@ func TestSSHCommandsCarryTheRunMarker(t *testing.T) {
 	if s := <-seen; s.command != "echo hi" || s.env[workflow.EnvWorkflowRun] != id {
 		t.Errorf("another host: command %q, %s=%q", s.command, workflow.EnvWorkflowRun, s.env[workflow.EnvWorkflowRun])
 	}
-	sshTargetIsLocal = old
+	sshAddrIsLocal = old
 	if got := markedCommand("", "true"); got != "export "+workflow.EnvWorkflowRun+"='node-run'; true" {
 		t.Errorf("a node run outside an execution: %q", got)
 	}
