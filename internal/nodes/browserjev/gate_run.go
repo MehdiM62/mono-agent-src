@@ -108,6 +108,7 @@ func (g *runGate) askSite(ctx context.Context, pageURL, origin string) error {
 	case err != nil:
 		return fmt.Errorf("ask the user to allow %s: %w", origin, err)
 	}
+	var approvedAt time.Time
 	for {
 		status, err := g.sites.Decision(ctx, id)
 		if err != nil && ctx.Err() == nil {
@@ -118,11 +119,18 @@ func (g *runGate) askSite(ctx context.Context, pageURL, origin string) error {
 			if g.pol, err = policyFor(ctx, g.who.kind); err != nil {
 				return err
 			}
-			if g.pol.Check(pageURL) != nil {
+			if g.pol.Check(pageURL) == nil {
+				return nil
+			}
+			// The user's approval marks the item, then writes the allow rule:
+			// give the rule a moment before calling the approval someone else's.
+			if approvedAt.IsZero() {
+				approvedAt = time.Now()
+			}
+			if time.Since(approvedAt) >= siteRuleGrace {
 				return g.stop(&gateEnd{"blocked", fmt.Sprintf("%s was approved outside `monoagentcli hil approve` and the Human in Loop page, "+
 					"so it is still not allowed (Human-in-Loop item %s)", origin, id), id})
 			}
-			return nil
 		case "rejected":
 			return g.stop(&gateEnd{"blocked", fmt.Sprintf("the user did not allow %s (Human-in-Loop item %s)", origin, id), id})
 		}
@@ -150,6 +158,10 @@ func runProfile(ctx context.Context) (string, error) {
 	}
 	return id, nil
 }
+
+// siteRuleGrace is how long an approved site item may wait for its allow
+// rule (browserctl.DecideSiteItem writes it right after the status).
+const siteRuleGrace = 2 * time.Second
 
 // siteAsker raises and reads browser.site items; tests replace it.
 type siteAsker interface {
