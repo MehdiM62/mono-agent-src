@@ -45,7 +45,7 @@ func sendsFixture(t *testing.T) (*Service, *fakeOrg) {
 		('e-sum', 'wf-sum', 'WAITING', 'org_tool', '{"org":{"name":"growth","role":"writer","automation":"sum"}}', 'p')`)
 	mustExec(t, s.DB, `INSERT INTO hil_pending (id, execution_id, workflow_id, node_id, node_name, node_config, profile_id) VALUES
 		('hil-send', 'e-send', 'wf-send', 'h', 'Review email', '{"outbound":true}', 'p'),
-		('hil-sum', 'e-sum', 'wf-sum', 'h', 'Review sum', '{}', 'p')`)
+		('hil-sum', 'e-sum', 'wf-sum', 'h', 'Review sum', '{"outbound":false}', 'p')`)
 	return s, org
 }
 

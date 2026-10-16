@@ -32,8 +32,7 @@ func ItemSends(ctx context.Context, db *sql.DB, profileID, org string, it Item, 
 		if err := db.QueryRowContext(ctx, `SELECT COALESCE(node_config, '') FROM hil_pending WHERE id = ?`, it.Ref).Scan(&nc); err != nil {
 			return true
 		}
-		outbound, err := commsync.OutboundHIL(ctx, db, it.Ref, nc)
-		return err != nil || outbound
+		return commsync.OutboundHIL(nc)
 	case it.Kind == KindApproval && strings.HasPrefix(it.Class, "grant:"):
 		return grantSends(ctx, db, profileID, org, strings.TrimPrefix(it.Class, "grant:"), load)
 	}

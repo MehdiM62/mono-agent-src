@@ -46,7 +46,7 @@ func TestNeedsYouListsItemsThatSendAMessageAtFull(t *testing.T) {
 		`INSERT INTO workflow_executions (id, workflow_id, status, trigger_type, trigger_data, profile_id) VALUES ('e-1', '` + f.plainWF + `', 'WAITING', 'org_tool', '{"org":{"name":"growth","role":"writer","automation":"sum"}}', 'default')`,
 		`INSERT INTO hil_pending (id, execution_id, workflow_id, node_id, node_name, node_config, profile_id) VALUES
 			('hil-send', 'e-1', '` + f.plainWF + `', 'h1', 'Review email', '{"outbound":true}', 'default'),
-			('hil-plain', 'e-1', '` + f.plainWF + `', 'h2', 'Review sum', '{}', 'default')`,
+			('hil-plain', 'e-1', '` + f.plainWF + `', 'h2', 'Review sum', '{"outbound":false}', 'default')`,
 	} {
 		if _, err := db.DB.Exec(q); err != nil {
 			t.Fatal(err)
