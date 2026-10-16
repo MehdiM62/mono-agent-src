@@ -181,7 +181,7 @@ monoagentcli --profile work --json workflow run <id>       # execution record + 
 ```
 
 Typical agent loop: `workflow search --json` → inspect template with
-`workflow templates show <id>` → `workflow run --dry-run` → real run with
+`workflow templates show <id>` (`templates list` and `show` need no `--profile`; `templates run` and `use` do) → `workflow run --dry-run` → real run with
 `--json` → read per-node outputs. To build one: `node schema` → write the
 JSON → `workflow validate --json` → `node run` single nodes → `workflow save`
 → dry-run → run (the `monoagent-build` skill walks through it).
@@ -2722,7 +2722,7 @@ monoagentcli --profile work workflow list      # a scoped command names its prof
 
 Machine-wide commands need no `--profile`: `version`, `update`, `config`,
 `message-template`, `agent`, `account`, `db`, `node list|schema`,
-`api config`, `profile list|create|get`, `mcp`, `daemon`, `httpapi`, `ref` and a few more (the list is
+`api config show|set|unset`, `profile list|create|get`, `mcp`, `daemon`, `httpapi`, `ref` and a few more (the list is
 `internal/cli/profilegate/classes.go`). Any command not on that list is scoped.
 
 A scoped command run without `--profile` exits 3 with `pass --profile
