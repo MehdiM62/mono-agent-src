@@ -3,6 +3,7 @@ package browserjev
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -170,5 +171,43 @@ func TestApprovalsBelongToTheRunsProfile(t *testing.T) {
 	page := &fakeGuardPage{}
 	if _, err := armGuard(noProfile, page); err == nil || !strings.Contains(err.Error(), "--profile") || len(page.actions) != 0 {
 		t.Errorf("no profile: no guard is armed: %v %v", err, page.actions)
+	}
+}
+
+// A site the user just said no to, or a profile with too many questions
+// waiting, ends the run blocked with the reason, and nothing new is asked.
+func TestAskLevelRespectsTheSiteAskLimits(t *testing.T) {
+	t.Setenv("CLAUDECODE", "1")
+	ctx := permissionsDB(t, browserctl.KindOther, browserctl.LevelAsk)
+	db := vault.DBFromContext(ctx)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		if _, err := browserctl.DecideSiteItem(ctx, db, "p1", pendingSite(t, db), false); err != nil {
+			t.Errorf("reject: %v", err)
+		}
+	}()
+	if res, _, _, err := levelRun(t, ctx, "https://shop.example.com/", "", 30); err != nil || res["status"] != "blocked" {
+		t.Fatalf("rejected: %v %v", res, err)
+	}
+	<-done
+	count := func() (n int) {
+		_ = db.QueryRow(`SELECT COUNT(*) FROM hil_pending WHERE workflow_id = ?`, browserctl.SiteKind).Scan(&n)
+		return n
+	}
+	before := count()
+	res, _, opened, err := levelRun(t, ctx, "https://shop.example.com/", "", 30)
+	if err != nil || res["status"] != "blocked" || !strings.Contains(res["reason"].(string), "said no") || opened || count() != before {
+		t.Fatalf("asked again right after a no: %v %v opened=%v items %d→%d", res, err, opened, before, count())
+	}
+
+	for i := 0; count() < 25; i++ {
+		if _, err := browserctl.AskSite(ctx, db, "p1", browserctl.KindOther, fmt.Sprintf("https://s%d.example.com/", i), nil); err != nil {
+			break // the store's own limit
+		}
+	}
+	res, _, _, err = levelRun(t, ctx, "https://new.example.com/", "", 30)
+	if err != nil || res["status"] != "blocked" || !strings.Contains(res["reason"].(string), "already wait") {
+		t.Fatalf("too many waiting: %v %v", res, err)
 	}
 }

@@ -78,27 +78,43 @@ func TestEveryWorkerKnowsItsProfileID(t *testing.T) {
 func TestWorkersAreKindCoder(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	ex := &execScript{}
-	c, _ := newTestConductor(t, ex, Limits{MaxAgents: 2, MaxConcurrent: 2})
-	c.Spawn(context.Background(), SpawnRequest{Brief: "task", Access: ProfileQA})
-	c.Wait(context.Background(), nil, 5*time.Second)
-	if len(ex.calls) != 1 || ex.calls[0].Env[browserctl.EnvAgentKind] != browserctl.KindCoder || ex.calls[0].Env[browserctl.EnvAgentKindToken] == "" {
-		t.Fatalf("worker env = %v", ex.calls)
-	}
-	// Its own token, whose record is gone once its run ended.
-	record := filepath.Join(home, ".monoagent", "agent-kinds", ex.calls[0].Env[browserctl.EnvAgentKindToken]+".json")
-	if _, err := os.Stat(record); !os.IsNotExist(err) {
-		t.Errorf("the worker's record outlives its run: %v", err)
-	}
 	for _, k := range append(browserctl.AgentContextEnv(), browserctl.EnvAgentKind, browserctl.EnvAgentKindToken, browserctl.EnvAICaller) {
 		t.Setenv(k, "")
 	}
+	// The worker's run holds until the test has read its kind as the
+	// worker's shell would: with its env, while the run lasts.
+	running, release := make(chan map[string]string), make(chan struct{})
+	ex := &execScript{}
+	c := New(context.Background(), Config{Cwd: "/w", Limits: Limits{MaxAgents: 1, MaxConcurrent: 1},
+		Staffer: &Staffer{Roster: []Model{opus}, Lead: opus}, ReadAccess: true, Emit: &recEmitter{},
+		Exec: func(ctx context.Context, o monomind.ExecOptions, on func(monomind.Event)) (*monomind.TurnResult, error) {
+			running <- o.Env
+			<-release
+			return ex.exec(ctx, o, on)
+		}})
+	defer c.Close()
+	c.Spawn(context.Background(), SpawnRequest{Brief: "task", Access: ProfileQA})
+	env := <-running
+	if env[browserctl.EnvAgentKind] != browserctl.KindCoder || env[browserctl.EnvAgentKindToken] == "" {
+		t.Fatalf("worker env = %v", env)
+	}
 	t.Setenv("MONOMIND_AGENT_EXEC", "1") // monomind's own marker on an agent exec
-	for k, v := range ex.calls[0].Env {
+	for k, v := range env {
 		t.Setenv(k, v)
 	}
 	if got := browserctl.AgentKind(); got != browserctl.KindCoder {
 		t.Errorf("AgentKind() = %q in a worker, want coder", got)
+	}
+	close(release)
+	c.Wait(context.Background(), nil, 5*time.Second)
+	// Its own token, whose record is gone once its run ended: the kind
+	// no longer counts.
+	record := filepath.Join(home, ".monoagent", "agent-kinds", env[browserctl.EnvAgentKindToken]+".json")
+	if _, err := os.Stat(record); !os.IsNotExist(err) {
+		t.Errorf("the worker's record outlives its run: %v", err)
+	}
+	if got := browserctl.AgentKind(); got != browserctl.KindOther {
+		t.Errorf("AgentKind() = %q after the run, want other", got)
 	}
 }
 

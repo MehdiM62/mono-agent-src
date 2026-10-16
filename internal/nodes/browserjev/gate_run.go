@@ -99,7 +99,13 @@ func (g *runGate) check(ctx context.Context, pageURL string) error {
 // policy is read again rather than trusting the item's status.
 func (g *runGate) askSite(ctx context.Context, pageURL, origin string) error {
 	id, err := g.sites.Ask(ctx, g.who.kind, pageURL, &g.who.by)
-	if err != nil {
+	var rejected *browserctl.SiteRejectedError
+	var full *browserctl.SiteAsksFullError
+	switch {
+	case errors.As(err, &rejected), errors.As(err, &full):
+		// The user said no a moment ago, or has too many questions waiting.
+		return g.stop(&gateEnd{"blocked", err.Error(), ""})
+	case err != nil:
 		return fmt.Errorf("ask the user to allow %s: %w", origin, err)
 	}
 	for {
