@@ -2575,24 +2575,36 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
   MCP `node_run` tool runs nodes the same way, since an AI wrote their
   config. JavaScript in `core.code` (goja) and `mcp.call` over HTTP still
   run; so does every step of a workflow the user approved.
-- **Files an unapproved workflow can't touch.** Its file steps go through
-  `fsconfine.Path` (reads) and `fsconfine.WritePath` (writes:
-  `data.write_binary_file`, `data.read_write_file`, `data.spreadsheet`,
-  `http.ftp` downloads, image outputs), which refuse:
+- **Files an unapproved workflow can't touch.** Its file steps, and those of
+  a workflow it called (whose own approval still decides its program steps),
+  go through `fsconfine.Path` (reads) and `fsconfine.WritePath` (writes:
+  `data.write_binary_file`, `data.read_write_file`, `data.spreadsheet` unless
+  it surely reads, `http.ftp` downloads, image outputs). They refuse:
   - reading or writing a hidden file or folder of the user's home (a name
     starting with `.`, plus `AppData` on Windows and `Library` on macOS):
     keys and tokens live there (`~/.ssh`, `~/.monoagent`), and files that
-    run code later (a shell's startup file, an autostart or systemd entry);
-  - writing into a folder of the home on PATH (this process's PATH, plus
-    `~/bin` and `~/go/bin`), where a file runs as a command;
-  - writing a git hook (`.git/hooks/*`) or a `.git/config`, anywhere, the
-    project folder included: git runs them at the next commit.
-  The profile's project folder is otherwise open to them, hidden folders in
-  it included (the user's choice), and a glob skips the matches it may not
-  read. Not covered: other files of the project folder that run on next use
-  (`.envrc`, `package.json` scripts, a `Makefile`, `.husky`,
-  `.claude/settings.json`), an existing executable outside PATH, files
-  outside the home, and sending what it may read over the network.
+    run code later (a shell's startup file, an autostart or systemd entry).
+    MonoAgent's synced attachments (`~/.monoagent/attachments`) stay
+    readable and its export folder (`~/.monoagent/output`) writable;
+  - reading a process's environment (`/proc/*/environ`);
+  - writing into a folder on PATH (this process's, plus `~/bin`, `~/go/bin`,
+    `~/.local/bin`, `/usr/local/bin`, `/opt/homebrew/bin`) or, on Windows, a
+    PowerShell profile folder;
+  - writing a git hook or git config (`.git/hooks/*`, `.git/config*`, those
+    of submodules and worktrees, a bare `*.git`), anywhere.
+  Names compare without case on Windows and macOS. A refusal names the
+  `workflow activate <id>` that approves the workflow.
+- **The project folder is a trusted zone** (the user's choice): the
+  profile's project folder is open to them, hidden folders in it included,
+  git hooks and configs aside. That covers what in it runs on next use
+  (`.claude/settings.json`, `.husky`, `.envrc`, `package.json` scripts, a
+  `Makefile`) and, for a profile on the default folder
+  (`~/.monoagent/profiles/<id>`), the profile's own vault folder. A project
+  folder that is the home or holds it, or lies in another hidden folder of
+  the home, opens nothing; only the operator sets a profile's folder.
+  Also open: the user's files outside hidden folders, files outside the
+  home other than the above, and sending what a workflow may read over the
+  network.
 - **Honest limit.** A full-access agent can read the bridge token and talk
   to the bridge directly, so the origin policy and the submit guard guard
   against mistakes and instructions a page plants, not against a determined
