@@ -40,8 +40,8 @@ func TestCoderTurnsRefuseWorkflowAndChatRuns(t *testing.T) {
 			"a conversation's turn": {"--conversation", conv.ID, "--turn", "t-refused-" + string(rune('a'+i)), "--", "go on"},
 		} {
 			out, err := runChatCmd(t, dbPath, bin, args...)
-			if exitCodeFor(err) != 3 || !strings.Contains(err.Error(), env[0]+" is set") ||
-				!strings.Contains(err.Error(), "start coder chats from the app or your own terminal") {
+			if exitCodeFor(err) != 3 || !strings.Contains(err.Error(), "can't start a coder chat ("+env[0]+" is set)") ||
+				!strings.Contains(err.Error(), "Start it from the app or your own terminal") || !strings.Contains(err.Error(), "coder queue add") {
 				t.Errorf("%s under %s: %v\n%s", name, env[0], err, out)
 			}
 		}

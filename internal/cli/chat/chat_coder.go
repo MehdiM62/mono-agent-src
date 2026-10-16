@@ -309,10 +309,11 @@ func agentSendEnv(journal *turnJournal, role, agentID string) map[string]string 
 // org built must not get one. An agent's shell, which has full access
 // already, and the app's own turns are not refused.
 func refuseCoderFromRuns() error {
-	for _, m := range [][2]string{{workflow.EnvWorkflowRun, "a workflow run"}, {browserctl.EnvAICaller, "the chat"}} {
+	for _, m := range [][2]string{{workflow.EnvWorkflowRun, "a workflow run"}, {browserctl.EnvAICaller, "the chat's run"}} {
 		if strings.TrimSpace(os.Getenv(m[0])) != "" {
 			return &coderError{code: "operator_only", err: &clicore.Error{Code: 3, Msg: fmt.Sprintf(
-				"%s is set, so %s is starting this coder turn: a coder turn has full access to this computer; start coder chats from the app or your own terminal", m[0], m[1])}}
+				"%s can't start a coder chat (%s is set): a coder chat has full access to this computer. Start it from the app or your own terminal, "+
+					"or queue one for the app with `monoagentcli coder queue add --kind ask --note <what to do>` (it reads the browser's active tab) and press Start there", m[1], m[0])}}
 		}
 	}
 	return nil
