@@ -61,9 +61,10 @@ func (r *rig) seedOlderLogin() {
 	access, refresh := r.fake.NewGrant("ada")
 	cmd := exec.Command(os.Args[0], "-test.run=^TestSeedOlderLogin$")
 	// The helper is this test binary: its testhome.Main must keep the rig's HOME, where the
-	// account key it makes has to land (TMPDIR too, so it sees that HOME under the temp dir).
+	// account key it makes has to land. Its TMPDIR is the rig's dir, so it sees that HOME under
+	// the temp dir even when t.TempDir follows a GOTMPDIR the rig's env does not pass on.
 	cmd.Env = r.env(seedEnv+"="+r.home, "SEED_ACCESS="+access, "SEED_REFRESH="+refresh,
-		testhome.KeepHomeEnv+"=1", "TMPDIR="+os.TempDir())
+		testhome.KeepHomeEnv+"=1", "TMPDIR="+r.dir)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		r.t.Fatalf("seeding the older login: %v\n%s", err, out)
 	}
