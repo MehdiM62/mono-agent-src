@@ -622,8 +622,10 @@ existing MCP client config that relies on them.
   set|remove`), `workflow_save` (create or replace a whole workflow document,
   `workflow save`), `workflow_template_instantiate` (a new inactive workflow
   from a template, `workflow templates use`)
-- `node_run` (one node with config and input, as `node run`; an outbound send
-  an agent starts is still queued for approval)
+- `node_run` (one node with config and input, as `node run`; an AI wrote its
+  config, so it runs as in a workflow the user hasn't approved: an outbound
+  send is always queued for approval, and it runs no program and touches
+  no hidden file of the home)
 - `workflow_generate`, the MCP side of `monoagentcli workflow generate
   "<description>" [--runtime auto|claude|codex|...] [--model M] [--name N]
   [--max-attempts N] [--no-save]`: a local AI agent (monomind) writes the
