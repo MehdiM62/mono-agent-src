@@ -130,6 +130,7 @@ func (r *runner) runTask(t *nodeTask) {
 		db := vault.DBFromContext(ctx)
 		if t.node.Type == humanInLoopType {
 			t.ctx = commsync.WithDownstream(ctx, r.wf.Name, downstreamOf(r.dag, t.node.ID))
+			t.ctx = commsync.WithReachable(t.ctx, r.reachableFrom(t.node.ID))
 		} else {
 			commsync.NodeStarted(ctx, db, r.exec.ID, t.node.ID)
 			defer func() {

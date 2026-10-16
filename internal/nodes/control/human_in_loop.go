@@ -201,10 +201,11 @@ func (n *HumanInLoopNode) createRows(ctx context.Context, db *sql.DB, input work
 		return false, err
 	}
 	comms := commsItems(ctx, input, profileID)
-	// The nodes after this one send a message to a person: only the operator
-	// decides its items (operator.ItemRefusal). Every item is marked, even one
-	// that got no Communications entry: the sends follow every item.
-	outbound := false
+	// Something that runs after this node sends a message to a person: only
+	// the operator decides its items (operator.ItemRefusal). Every item is
+	// marked, even one that got no Communications entry: the sends follow
+	// every item.
+	outbound := reachableSends(ctx)
 	for _, c := range comms {
 		outbound = outbound || c != nil
 	}
