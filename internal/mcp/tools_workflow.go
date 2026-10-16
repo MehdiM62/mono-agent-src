@@ -237,6 +237,9 @@ func toolWorkflowRun(ctx context.Context, s *Server, args json.RawMessage) (inte
 	} else {
 		exec = waitForExecution(ctx, rt, execID, timeout)
 	}
+	// An agent reaches this server: a reply's token in the run's data is
+	// hidden from it (workflow.ReplyRedactor), as in workflow_status.
+	workflow.NewReplyRedactor(ctx, rt.db.DB, exec.ID).Execution(exec)
 
 	nodeTypes := map[string]string{}
 	if wf, err := rt.store.GetWorkflow(ctx, exec.WorkflowID); err == nil && wf != nil {
@@ -334,7 +337,9 @@ func toolWorkflowStatus(ctx context.Context, s *Server, args json.RawMessage) (i
 		return nil, fmt.Errorf("execution %q not found", a.ExecutionID)
 	}
 	// Same output pipeline as workflow_run: credential-key redaction (no
-	// opt-out over MCP) followed by the per-item size cap.
+	// opt-out over MCP) followed by the per-item size cap, and reply tokens
+	// hidden.
+	workflow.NewReplyRedactor(ctx, rt.db.DB, exec.ID).Execution(exec)
 	for i := range exec.Nodes {
 		exec.Nodes[i].OutputItems = workflow.RedactAndTruncateItems(exec.Nodes[i].OutputItems)
 	}

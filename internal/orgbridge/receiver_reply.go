@@ -73,6 +73,9 @@ func (r *Receiver) reply(ctx context.Context, j replyJob) error {
 			replyMode = role.Automation.Reply
 		}
 	}
+	// The reply goes to an org's agent: no reply tokens from the run's data
+	// (workflow.ReplyRedactor).
+	workflow.NewReplyRedactor(ctx, r.DB, exec.ID).Execution(exec)
 	body := ReplyBody(exec, replyMode)
 	targetOrg, to := j.org, from
 	if i := strings.IndexByte(from, ':'); i > 0 {

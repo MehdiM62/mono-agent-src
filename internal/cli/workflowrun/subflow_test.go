@@ -67,7 +67,7 @@ func TestWaitForExecutionWaitsThroughSubWorkflows(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := waitForExecution(ctx, engine, id, 30*time.Second, true); err != nil {
+	if err := waitForExecution(ctx, engine, id, 30*time.Second, true, nil); err != nil {
 		t.Fatal(err)
 	}
 	if st, _ := engine.GetExecutionStatus(ctx, id); st != "SUCCESS" {

@@ -114,8 +114,14 @@ func (s *Server) handleWorkflowExecutions(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusInternalServerError, "list executions: "+err.Error())
 		return
 	}
+	ids := make([]string, len(execs))
 	for i := range execs {
 		execs[i].Nodes = nil // list view: summary only, no per-node output items
+		ids[i] = execs[i].ID
+	}
+	rr := workflow.NewReplyRedactor(ctx, s.rt.db.DB, ids...)
+	for i := range execs {
+		rr.Execution(&execs[i])
 	}
 	writeJSON(w, http.StatusOK, execs)
 }
@@ -214,6 +220,9 @@ func (s *Server) handleWorkflowRun(w http.ResponseWriter, r *http.Request) {
 
 	timeout := clampTimeoutSeconds(body.TimeoutSeconds)
 	exec := waitForExecution(ctx, s.rt, execID, timeout)
+	// A key holder can be an agent, as over MCP: reply tokens in the run's
+	// data are hidden (workflow.ReplyRedactor), X-Full-Outputs or not.
+	workflow.NewReplyRedactor(ctx, s.rt.db.DB, exec.ID).Execution(exec)
 
 	nodeTypes := map[string]string{}
 	if wf, err := s.rt.store.GetWorkflow(ctx, exec.WorkflowID); err == nil && wf != nil {

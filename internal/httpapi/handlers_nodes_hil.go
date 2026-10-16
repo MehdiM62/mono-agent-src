@@ -158,6 +158,15 @@ func (s *Server) handleHilList(w http.ResponseWriter, r *http.Request) {
 		_ = json.Unmarshal([]byte(edRaw), &it.EditableData)
 		items = append(items, it)
 	}
+	// As over MCP: no reply tokens in the items' data (workflow.ReplyRedactor).
+	ids := make([]string, len(items))
+	for i, it := range items {
+		ids[i] = it.ExecutionID
+	}
+	rr := workflow.NewReplyRedactor(r.Context(), s.rt.db.DB, ids...)
+	for i := range items {
+		items[i].ReadonlyData, items[i].EditableData = rr.Map(items[i].ReadonlyData), rr.Map(items[i].EditableData)
+	}
 	writeJSON(w, http.StatusOK, items)
 }
 
@@ -187,6 +196,10 @@ func (s *Server) handleHilApprove(w http.ResponseWriter, r *http.Request) {
 	edited, err := json.Marshal(body.Data)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "render data: "+err.Error())
+		return
+	}
+	if err := workflow.CheckReplyEdit(string(edited)); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	res, err := s.rt.db.DB.ExecContext(r.Context(),

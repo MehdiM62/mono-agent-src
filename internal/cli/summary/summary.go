@@ -15,6 +15,7 @@ import (
 	"github.com/monoes/mono-agent/internal/cli/workflowio"
 	"github.com/monoes/mono-agent/internal/daemonhb"
 	"github.com/monoes/mono-agent/internal/extension"
+	"github.com/monoes/mono-agent/internal/operator"
 	"github.com/monoes/mono-agent/internal/storage"
 	"github.com/monoes/mono-agent/internal/summary"
 	"github.com/monoes/mono-agent/internal/workflow"
@@ -58,6 +59,14 @@ func (d Deps) newSummaryCmd() *cobra.Command {
 				}
 			} else {
 				s = summary.Build(cmd.Context(), d.summaryOptions(db, d.ProfileID(), want))
+			}
+			// A run's error can hold a reply's token: a marked process
+			// doesn't get it (workflow.ReplyRedactor).
+			if operator.Marker() != "" && s.Executions != nil {
+				rr := workflow.NewReplyRedactor(cmd.Context(), db.DB)
+				for i := range s.Executions.Recent {
+					s.Executions.Recent[i].Error = rr.String(s.Executions.Recent[i].Error)
+				}
 			}
 			if d.JSONOutput() {
 				return d.WriteJSON(cmd.OutOrStdout(), s)

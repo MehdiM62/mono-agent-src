@@ -131,6 +131,7 @@ func Init(args []string, getenv func(string) string, w io.Writer) {
 		}
 	}
 
+	w = filterWriter{w}
 	opts := &slog.HandlerOptions{Level: levelVar}
 	var h slog.Handler
 	if strings.EqualFold(strings.TrimSpace(getenv(EnvFormat)), "json") {
@@ -154,6 +155,34 @@ func Init(args []string, getenv func(string) string, w io.Writer) {
 	if fileErr != nil {
 		slog.Warn(fileErr.Error())
 	}
+}
+
+// lineFilter rewrites every line Init's logger writes (SetLineFilter).
+var lineFilter atomic.Pointer[func(string) string]
+
+// SetLineFilter has every line the root logger writes, to stderr or the
+// --log-file, pass through f first (nil: none). A process an agent runs
+// hides reply tokens with it (workflow.ReplyRedactor).
+func SetLineFilter(f func(string) string) {
+	if f == nil {
+		lineFilter.Store(nil)
+		return
+	}
+	lineFilter.Store(&f)
+}
+
+// filterWriter is Init's output: each Write is one record, filtered.
+type filterWriter struct{ w io.Writer }
+
+func (fw filterWriter) Write(p []byte) (int, error) {
+	f := lineFilter.Load()
+	if f == nil {
+		return fw.w.Write(p)
+	}
+	if _, err := io.WriteString(fw.w, (*f)(string(p))); err != nil {
+		return 0, err
+	}
+	return len(p), nil
 }
 
 // stdWriter is the log package's output after Init: each line becomes a

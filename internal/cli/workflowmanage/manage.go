@@ -3,6 +3,7 @@ package workflowmanage
 import (
 	"bufio"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -308,6 +309,11 @@ func (d Deps) newExecutionsCmd() *cobra.Command {
 				if err != nil {
 					return fmt.Errorf("list executions: %w", err)
 				}
+				if rr := replyRedactor(cmd.Context(), db.DB); rr != nil {
+					for i := range rows {
+						rows[i].Error = rr.String(rows[i].Error)
+					}
+				}
 				if jsonOut || d.JSONOutput() {
 					return json.NewEncoder(os.Stdout).Encode(rows)
 				}
@@ -343,6 +349,15 @@ func (d Deps) newExecutionsCmd() *cobra.Command {
 			if executions == nil {
 				executions = []workflow.WorkflowExecution{}
 			}
+			ids := make([]string, len(executions))
+			for i, e := range executions {
+				ids[i] = e.ID
+			}
+			if rr := replyRedactor(ctx, db.DB, ids...); rr != nil {
+				for i := range executions {
+					rr.Execution(&executions[i])
+				}
+			}
 
 			if jsonOut || d.JSONOutput() {
 				return json.NewEncoder(os.Stdout).Encode(executions)
@@ -374,6 +389,15 @@ func (d Deps) newExecutionsCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&all, "all", false, "List recent executions across every workflow in the profile, newest first")
 	cmd.Flags().BoolVar(&allProfiles, "all-profiles", false, "With --all: every profile's runs, tagged with their profile")
 	return cmd
+}
+
+// replyRedactor hides reply tokens in a run's error and trigger data from a
+// marked process (workflow.ReplyRedactor); the user's own terminal gets nil.
+func replyRedactor(ctx context.Context, db *sql.DB, executionIDs ...string) *workflow.ReplyRedactor {
+	if operator.Marker() == "" {
+		return nil
+	}
+	return workflow.NewReplyRedactor(ctx, db, executionIDs...)
 }
 
 // newWorkflowCreateCmd creates a blank workflow and prints its ID.
