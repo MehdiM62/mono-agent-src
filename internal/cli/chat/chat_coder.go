@@ -13,6 +13,7 @@ import (
 
 	"github.com/monoes/mono-agent/internal/ai"
 	"github.com/monoes/mono-agent/internal/ai/chatevents"
+	"github.com/monoes/mono-agent/internal/browserctl"
 	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/hilsend"
 	"github.com/monoes/mono-agent/internal/monomind"
@@ -114,6 +115,10 @@ func runCoderTurn(cmd *cobra.Command, cfg *Deps, journal *turnJournal, t coderTu
 		Env:          agentSendEnv(journal, "lead", ""),
 		Attach:       nativeAttachments(st.caps, t.attachments),
 	}
+	// The coder kind of browser permissions, vouched for by a token that
+	// counts while this turn runs (its workers get their own, dynorg).
+	kindDone := addAgentKind(opts.Env, browserctl.KindCoder)
+	defer kindDone()
 	kiloDropped := dropKiloOptions(&opts)
 	onEvent := func(ev monomind.Event) {
 		b, _ := json.Marshal(ev)
@@ -263,6 +268,18 @@ func createCoderConversation(cmd *cobra.Command, cfg *Deps, runtimeID, model, ef
 	}
 	defer closeDB()
 	return store.CreateConversationModeEffort(profileID, "agent", workflowID, runtimeID, "", model, ai.ModeCoder, dir, effort)
+}
+
+// addAgentKind adds kind's vouched environment (browserctl.IssueAgentKind)
+// to env and returns its done.
+func addAgentKind(env map[string]string, kind string) (done func()) {
+	kindEnv, _, done := browserctl.IssueAgentKind(kind)
+	for _, kv := range kindEnv {
+		if k, v, ok := strings.Cut(kv, "="); ok {
+			env[k] = v
+		}
+	}
+	return done
 }
 
 // agentSendEnv marks the agent's process so an outbound send it starts

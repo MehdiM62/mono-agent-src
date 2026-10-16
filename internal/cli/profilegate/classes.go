@@ -99,6 +99,8 @@ var classes = map[string]string{
 	// lists every attached browser, and `browser diff` only compares two
 	// files. Every other browser command drives the profile's browser.
 	"browser allow": ClassGlobal, "browser browsers": ClassGlobal, "browser diff": ClassGlobal,
+	// What each kind of agent may do in the browser: one machine-wide setting.
+	"browser permissions": ClassGlobal,
 
 	// daemon and httpapi serve every profile: each workflow runs under its own
 	// profile and each HTTP request names its profile in the path.

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/monoes/mono-agent/internal/hilsend"
+	"github.com/monoes/mono-agent/internal/profiledir"
 	"github.com/monoes/mono-agent/internal/testdb"
 )
 
@@ -127,5 +128,35 @@ func TestOrdinaryHILItemIsNotASubmit(t *testing.T) {
 	}
 	if _, err := GetSubmitItem(ctx, db, "p1", "wf-item"); !errors.Is(err, ErrNotSubmitItem) {
 		t.Fatalf("get workflow item: %v", err)
+	}
+}
+
+// An item belongs to the profile the caller names: none is refused, never
+// taken for "default".
+func TestSubmitItemsNeedAProfile(t *testing.T) {
+	ctx := context.Background()
+	db := testdb.Open(t).DB
+	if _, err := CreateSubmitItem(ctx, db, SubmitRequest{URL: "https://example.com/", Via: "click"}); !errors.Is(err, profiledir.ErrNoProfile) {
+		t.Fatalf("create with no profile: %v", err)
+	}
+	it, err := CreateSubmitItem(ctx, db, SubmitRequest{Profile: "p1", URL: "https://example.com/", Via: "click"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, err := range map[string]error{
+		"get":     func() error { _, err := GetSubmitItem(ctx, db, "", it.ID); return err }(),
+		"decide":  func() error { _, err := DecideSubmitItem(ctx, db, "", it.ID, true); return err }(),
+		"claim":   func() error { _, err := ClaimSubmitItem(ctx, db, "", it.ID); return err }(),
+		"release": ReleaseSubmitItem(ctx, db, "", it.ID),
+		"finish":  FinishSubmitItem(ctx, db, "", it.ID, nil),
+		"shot":    setSubmitScreenshot(ctx, db, "", it.ID, "/tmp/x.png"),
+		"update":  updateSubmit(ctx, db, "", it.ID, "pending", "approved", submitRecord{Kind: SubmitKind}),
+	} {
+		if !errors.Is(err, profiledir.ErrNoProfile) {
+			t.Errorf("%s with no profile: %v", name, err)
+		}
+	}
+	if got, _ := GetSubmitItem(ctx, db, "p1", it.ID); got.Status != "pending" {
+		t.Fatalf("the item changed: %+v", got)
 	}
 }

@@ -46,6 +46,8 @@ func OrgRun(ctx context.Context, projectRoot, name, task string, dryRun bool) (j
 	// OrgEvents below, the most similar long-running case.
 	cmd := Command(bin, full...)
 	cmd.Env = logging.ChildEnv(ctx, cmd.Env)
+	_, kindDone := withOrgKind(cmd) // its roles are agents of kind org
+	defer kindDone()
 	inRoot(cmd, projectRoot)
 	setProcessGroup(cmd)
 
@@ -119,6 +121,7 @@ func OrgRunStart(ctx context.Context, projectRoot, name, task string) error {
 	}
 	cmd := Command(bin, args...)
 	cmd.Env = logging.ChildEnv(ctx, cmd.Env)
+	kindBind, _ := withOrgKind(cmd) // detached: bound to the run below, never done
 	inRoot(cmd, projectRoot)
 	// A start monomind refuses (R6/R1) exits at once and says why on its
 	// output; keep that (boundedly) to report it instead of a start nobody
@@ -144,6 +147,7 @@ func OrgRunStart(ctx context.Context, projectRoot, name, task string) error {
 		capture.close()
 		return fmt.Errorf("start monomind org run %s: %w", name, err)
 	}
+	kindBind(cmd.Process.Pid) // the kind counts while the run does, not this launcher
 	return watchStart(ctx, cmd, name, capture, func() bool { return runStarted(projectRoot, name, began) })
 }
 

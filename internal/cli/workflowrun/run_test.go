@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/monoes/mono-agent/internal/browserctl"
+	"github.com/monoes/mono-agent/internal/browserctl/browserctltest"
 	"github.com/monoes/mono-agent/internal/nodes/browserjev"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
@@ -186,7 +187,7 @@ func TestStoppedWaitReportsCancelledRun(t *testing.T) {
 // daemon adopting a --no-wait run gates browser.jev's submits too.
 func TestRunMarksAnAgentsRun(t *testing.T) {
 	cfg := runDB(t, true)
-	for _, k := range append(browserctl.AgentContextEnv(), browserjev.EnvAICaller) {
+	for _, k := range append(browserctl.AgentContextEnv(), browserjev.EnvAICaller, browserctl.EnvAgentKind) {
 		t.Setenv(k, "")
 	}
 	mark := func() interface{} {
@@ -222,7 +223,11 @@ func TestRunMarksAnAgentsRun(t *testing.T) {
 		t.Errorf("a chat tool call's run: %v", got)
 	}
 	t.Setenv("CLAUDECODE", "1")
-	if got := mark(); got != "agent" {
-		t.Errorf("an agent shell's run (even with the chat's variable set): %v", got)
+	if got := mark(); got != "other" {
+		t.Errorf("an agent shell's run (even with the chat's variable set) is marked with its kind: %v", got)
+	}
+	browserctltest.AsAgentKind(t, browserctl.KindCoder) // what a coder turn's spawner gives its shell
+	if got := mark(); got != "coder" {
+		t.Errorf("a coder chat's run: %v", got)
 	}
 }

@@ -48,10 +48,11 @@ type driver interface {
 
 // Node implements browser.jev.
 type Node struct {
-	// newClient, writer and open are seams for tests; nil means the real ones.
+	// newClient, writer, open and sites are seams for tests; nil means the real ones.
 	newClient func(ctx context.Context, config map[string]interface{}) (*jev.Client, error)
 	writer    textWriter
 	open      func(ctx context.Context, url string) (driver, func(), error)
+	sites     siteAsker // "allow this site?" items; nil: the database's
 }
 
 func (n *Node) Type() string { return "browser.jev" }
@@ -149,33 +150,11 @@ func (n *Node) run(ctx context.Context, cfg runConfig, client *jev.Client, write
 	defer cancel()
 	started := time.Now()
 
-	// A run an AI caller started is held to the submit gate, and an agent
-	// shell's to the origin policy too (gate_run.go).
-	gate, err := newRunGate(ctx, cfg.url)
+	// A run an AI caller started is held to its kind's browser permissions
+	// and the submit gate (gate_run.go).
+	gate, err := newRunGate(ctx, n.sites)
 	if err != nil {
 		return nil, err
-	}
-	drv, closeTab, err := open(ctx, cfg.url)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		if !gate.keepTab() {
-			closeTab()
-		}
-	}()
-	if err := gate.arm(ctx, drv); err != nil {
-		return nil, err
-	}
-	observe := func() (*jevpick.PageState, error) {
-		p, err := drv.Observe(ctx)
-		if err != nil {
-			return nil, err
-		}
-		if err := gate.checkPage(drv, p.URL); err != nil {
-			return nil, err // none of a page the caller may not read reaches the output
-		}
-		return p, nil
 	}
 
 	// jevSc scrubs every configured value before a Jev request; outSc only
@@ -214,13 +193,45 @@ func (n *Node) run(ctx context.Context, cfg runConfig, client *jev.Client, write
 		return out
 	}
 
-	// Running out of time mid-step is an outcome, not a failure: report the
+	// The gate ending the run (a site the user hasn't allowed yet, ...) and
+	// running out of time mid-step are outcomes, not failures: report the
 	// trace so far instead of discarding it.
 	defer func() {
-		if err != nil && errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		var ended gateEndError
+		switch {
+		case errors.As(err, &ended):
+			result, err = finish(ended.status, ended.reason), nil
+		case err != nil && errors.Is(ctx.Err(), context.DeadlineExceeded):
 			result, err = finish("timeout", fmt.Sprintf("stopped after %s", cfg.timeout)), nil
 		}
 	}()
+
+	// The start URL is checked before any tab opens on it.
+	if err := gate.checkPage(ctx, nil, cfg.url); err != nil {
+		return nil, err
+	}
+	drv, closeTab, err := open(ctx, cfg.url)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if !gate.keepTab() {
+			closeTab()
+		}
+	}()
+	if err := gate.arm(ctx, drv); err != nil {
+		return nil, err
+	}
+	observe := func() (*jevpick.PageState, error) {
+		p, err := drv.Observe(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if err := gate.checkPage(ctx, drv, p.URL); err != nil {
+			return nil, err // none of a page the caller may not read reaches the output
+		}
+		return p, nil
+	}
 	if page, err = observe(); err != nil {
 		return nil, err
 	}

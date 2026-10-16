@@ -5,7 +5,9 @@ package browserjev
 // TYPESAFE_API_KEY is set; JEV_E2E_TEXT_RUNTIME=claude also exercises the
 // monomind text helper (otherwise a canned writer supplies field values).
 //
-//	JEV_E2E_BROWSER=/usr/bin/chromium go test -run E2E -v ./internal/nodes/browserjev/
+//	JEV_E2E_BROWSER=/usr/bin/chromium MONOAGENT_TEST_ALLOW_NETWORK=1 go test -run E2E -v ./internal/nodes/browserjev/
+//
+// (testhome keeps every other test off the network; the Jev API needs it.)
 //
 // The browser is private to the test (own profile, own debug port) and
 // never touches the extension bridge.

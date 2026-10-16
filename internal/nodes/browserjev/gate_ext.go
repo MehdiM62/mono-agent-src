@@ -85,9 +85,9 @@ func armGuard(ctx context.Context, p guardPage) (*extGuard, error) {
 	if db == nil {
 		return nil, errors.New("there is no database to hold its approvals")
 	}
-	profile, perr := vault.ProfileIDFromContext(ctx)
-	if perr != nil {
-		return nil, fmt.Errorf("browser.jev: ran without a profile: %w", perr)
+	profile, err := runProfile(ctx) // before arming: no guard nobody can approve through
+	if err != nil {
+		return nil, err
 	}
 	st, err := p.SubmitGuard(extension.SubmitGuardArm)
 	if err != nil {

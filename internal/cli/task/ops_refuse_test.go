@@ -192,3 +192,34 @@ func TestOperatorCommandsRefusedChangeNothing(t *testing.T) {
 		t.Errorf("the ready task: %+v, events %s", s.Task, s.kinds())
 	}
 }
+
+// What is not the operator's own terminal though no agent named itself (a
+// chat's run, a process a workflow node started) is refused what only the
+// operator decides, and told why; the history of what it may do, and of an
+// agent's work, names whom it named before.
+func TestWhatIsNotTheOperatorsTerminalDecidesNothing(t *testing.T) {
+	t.Parallel()
+	db := newTaskTestDB(t)
+	ready := opsAdd(t, db, "queued", "--ready")
+	inbox := opsAdd(t, db, "waiting")
+	const why = "MONOAGENT_AI_CALLER is set, so the chat is running this command"
+	setenv(t, notOperatorEnv, why)
+	for _, args := range [][]string{{"approve", id(inbox)}, {"move", id(ready), "inbox"}, {"add", "fast", "--ready"}, {"board"}} {
+		if msg, _ := failedTaskJSON(t, db, "default", 3, args...)["error"].(string); !strings.Contains(msg, why+": only the operator can") {
+			t.Errorf("task %s: %q", strings.Join(args, " "), msg)
+		}
+	}
+	added := opsAdd(t, db, "from a run")
+	if task := agentRun(t, db, "claim", id(ready), "--as", "bot"); task.Claim == nil || task.Claim.By != "bot" {
+		t.Errorf("an agent's claim: %+v", task.Claim)
+	}
+	if s := opsShow(t, db, added); s.kinds() != "created" || s.Events[0].Actor != "you" {
+		t.Errorf("an add: events %s, %+v", s.kinds(), s.Events)
+	}
+	if s := opsShow(t, db, ready); s.Events[len(s.Events)-1].Actor != "bot" {
+		t.Errorf("the claim's history: %+v", s.Events)
+	}
+	if s := opsShow(t, db, inbox); s.Task.Status != "inbox" || s.kinds() != "created" {
+		t.Errorf("the inbox task: %+v, events %s", s.Task, s.kinds())
+	}
+}

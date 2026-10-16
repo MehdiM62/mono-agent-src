@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/monoes/mono-agent/internal/browserctl"
+	"github.com/monoes/mono-agent/internal/browserctl/browserctltest"
 	"github.com/monoes/mono-agent/internal/hilsend"
 	"github.com/monoes/mono-agent/internal/jevpick"
 	"github.com/monoes/mono-agent/internal/vault"
@@ -23,22 +24,25 @@ func TestAICaller(t *testing.T) {
 		t.Error("a manual run is the user's")
 	}
 	org := workflow.WithTrigger(ctx, workflow.TriggerTypeOrgTool, map[string]interface{}{"org": map[string]interface{}{"name": "growth", "role": "writer"}})
-	if c, ok := aiCaller(org); !ok || c.name != "org growth" || c.by.Org != "growth" || c.by.Role != "writer" {
+	if c, ok := aiCaller(org); !ok || c.name != "org growth" || c.by.Org != "growth" || c.by.Role != "writer" || c.kind != browserctl.KindOrg {
 		t.Errorf("a granted call: %+v %v", c, ok)
 	}
 	for _, tt := range []string{workflow.TriggerTypeOrgMessage, workflow.TriggerNodeTypeOrg} {
-		if _, ok := aiCaller(workflow.WithTrigger(ctx, tt, nil)); !ok {
-			t.Errorf("%s is the org side", tt)
+		if c, ok := aiCaller(workflow.WithTrigger(ctx, tt, nil)); !ok || c.kind != browserctl.KindOrg {
+			t.Errorf("%s is the org side: %+v", tt, c)
 		}
 	}
-
-	if c, _ := aiCaller(org); c.shell {
-		t.Error("the org side keeps real sites (submit gate only)")
-	}
-	for mark, shell := range map[string]bool{"agent": true, "chat": false, "anything else": true} {
+	// A daemon running a marked `workflow run` uses the kind it was marked with.
+	for mark, kind := range map[string]string{"chat": "chat", "coder": "coder", "org": "org", "other": "other", "agent": "other", "anything": "other"} {
 		c, ok := aiCaller(workflow.WithTrigger(ctx, "trigger.manual", map[string]interface{}{workflow.AICallerKey: mark}))
-		if !ok || c.shell != shell {
-			t.Errorf("a run marked %q (a daemon runs it): %+v %v", mark, c, ok)
+		if !ok || c.kind != kind {
+			t.Errorf("a run marked %q: %+v %v, want kind %s", mark, c, ok, kind)
+		}
+	}
+	// A kind the shell declared but could not prove travels after a "/".
+	for mark, declared := range map[string]string{"other/org": "org", "other/coder": "coder", "other/chat": "", "other/": ""} {
+		if c, _ := aiCaller(workflow.WithTrigger(ctx, "trigger.manual", map[string]interface{}{workflow.AICallerKey: mark})); c.kind != browserctl.KindOther || c.declared != declared {
+			t.Errorf("a run marked %q: %+v, want other declaring %q", mark, c, declared)
 		}
 	}
 	data := map[string]interface{}{"who": "zed"}
@@ -49,18 +53,41 @@ func TestAICaller(t *testing.T) {
 	if MarkAICaller(data); data[workflow.AICallerKey] != "chat" {
 		t.Errorf("a chat tool call's run is marked chat: %v", data)
 	}
-	if c, ok := aiCaller(ctx); !ok || c.name != "chat" || c.by.AgentID != "chat" || c.shell {
+	if c, ok := aiCaller(ctx); !ok || c.name != "chat" || c.by.AgentID != "chat" || c.kind != browserctl.KindChat {
 		t.Errorf("a chat tool call: %+v %v", c, ok)
 	}
 
-	// A shell is a shell even when it sets the chat's variable.
+	// A shell is a shell even when it sets the chat's variable: other, or
+	// coder / org as its markers say.
 	t.Setenv("CLAUDECODE", "1")
 	t.Setenv(hilsend.EnvAgentRole, "qa")
-	if MarkAICaller(data); data[workflow.AICallerKey] != "agent" {
-		t.Errorf("an agent's run is marked agent: %v", data)
+	if MarkAICaller(data); data[workflow.AICallerKey] != "other" {
+		t.Errorf("an agent shell's run is marked other: %v", data)
 	}
-	if c, ok := aiCaller(ctx); !ok || c.name != "an agent (CLAUDECODE)" || c.by.Role != "qa" || !c.shell {
+	if c, ok := aiCaller(ctx); !ok || c.name != "an agent (CLAUDECODE)" || c.by.Role != "qa" || c.kind != browserctl.KindOther {
 		t.Errorf("an agent's shell: %+v %v", c, ok)
+	}
+	browserctltest.AsAgentKind(t, browserctl.KindCoder) // what a coder turn's spawner gives its shell
+	if c, _ := aiCaller(ctx); c.kind != browserctl.KindCoder {
+		t.Errorf("a coder chat's shell: %+v", c)
+	}
+	if MarkAICaller(data); data[workflow.AICallerKey] != "coder" {
+		t.Errorf("a coder shell's run is marked coder: %v", data)
+	}
+	browserctltest.AsAgentKind(t, browserctl.KindOrg)
+	t.Setenv(browserctl.EnvAgentKind, "")
+	t.Setenv("MONOMIND_ORG_ROLE", "writer")
+	if c, _ := aiCaller(ctx); c.kind != browserctl.KindOrg || c.declared != "" {
+		t.Errorf("an org role's shell: %+v", c)
+	}
+	// Without a token to vouch for it, it is other declaring org, and its
+	// run's mark says so.
+	t.Setenv(browserctl.EnvAgentKindToken, "")
+	if c, _ := aiCaller(ctx); c.kind != browserctl.KindOther || c.declared != browserctl.KindOrg {
+		t.Errorf("an unproven org role's shell: %+v", c)
+	}
+	if MarkAICaller(data); data[workflow.AICallerKey] != "other/org" {
+		t.Errorf("an unproven org role's run is marked other/org: %v", data)
 	}
 }
 

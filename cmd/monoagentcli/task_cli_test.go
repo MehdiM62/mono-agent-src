@@ -7,24 +7,25 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/monoes/mono-agent/internal/orgsign"
+	"github.com/monoes/mono-agent/internal/browserctl"
 	"github.com/monoes/mono-agent/internal/storage"
 	"github.com/monoes/mono-agent/internal/testdb"
+	"github.com/monoes/mono-agent/internal/workflow"
 )
 
 // `task` lives in internal/cli/task (tested there). These helpers drive the real `task` group
 // for the tests that stay here: task os, ref tasks, the MCP task tools and the adapter.
 
 // newTaskTestDB is a migrated database and a HOME of its own. The environment
-// is made the operator's: the agent-context markers and MONOAGENT_ACTOR are
-// cleared (a test may run inside an agent's session), so operator commands run.
+// is made the operator's: the agent-context markers, MONOAGENT_ACTOR and the
+// marks of the chat's and a workflow's runs are cleared (a test may run inside
+// an agent's session), so operator commands run.
 func newTaskTestDB(t *testing.T) string {
 	t.Helper()
 	t.Setenv("HOME", t.TempDir())
-	for _, m := range orgsign.AgentContextMarkers() {
+	for _, m := range append(browserctl.AgentContextEnv(), browserctl.EnvAICaller, workflow.EnvWorkflowRun) {
 		t.Setenv(m, "")
 	}
-	t.Setenv("MONOAGENT_ACTOR", "")
 	return testdb.Path(t)
 }
 
@@ -148,6 +149,35 @@ func TestTaskAdapterWiring(t *testing.T) {
 	group := newTaskCmd(&globalConfig{DBPath: db})
 	if os, _, err := group.Find([]string{"os", "status"}); err != nil || os.CommandPath() != "task os status" {
 		t.Errorf("task os is not in the group: %v", err)
+	}
+}
+
+// Only the operator's own terminal decides on the board: the chat's runs and
+// the processes a workflow node starts are refused like an agent's shell,
+// though no agent named itself (internal/operator, #820).
+func TestTaskOperatorDecisionsRefuseTheChatAndWorkflowRuns(t *testing.T) {
+	db := newTaskTestDB(t)
+	addTaskProfileRow(t, db, "work-id", "Work")
+	var inbox, ready addedJSON
+	mustTaskJSON(t, db, "Work", &inbox, "", "add", "Fix", "it")
+	mustTaskJSON(t, db, "Work", &ready, "", "add", "Ship", "it", "--ready")
+	refused := func(env, value string, args ...string) {
+		t.Helper()
+		t.Setenv(env, value)
+		defer t.Setenv(env, "")
+		if doc := failedTaskJSON(t, db, "Work", 3, args...); doc["code"] != "operator_only" || !strings.Contains(doc["error"].(string), env+" is set") {
+			t.Errorf("task %s with %s=%s: %v", strings.Join(args, " "), env, value, doc)
+		}
+	}
+	refused(browserctl.EnvAICaller, "chat", "approve", "1")
+	refused(workflow.EnvWorkflowRun, "x", "move", "2", "inbox")
+	for n, want := range map[string]string{"1": "inbox", "2": "ready"} {
+		var shown struct {
+			Task taskJSON `json:"task"`
+		}
+		if mustTaskJSON(t, db, "Work", &shown, "", "show", n); shown.Task.Status != want {
+			t.Errorf("task %s is %s, want %s", n, shown.Task.Status, want)
+		}
 	}
 }
 

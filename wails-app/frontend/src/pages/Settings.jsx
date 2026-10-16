@@ -12,6 +12,7 @@ import { useJevData } from '../components/settings/useJevData.js'
 import ApiSection from '../components/settings/ApiSection.jsx'
 import VaultKeyringSection from '../components/settings/VaultKeyringSection.jsx'
 import CoderModeSection from '../components/settings/CoderModeSection.jsx'
+import BrowserPermissionsSection from '../components/settings/BrowserPermissionsSection.jsx'
 import SandboxFallbackSection from '../components/settings/SandboxFallbackSection.jsx'
 import ApiKeysSection from '../components/settings/api/ApiKeysSection.jsx'
 import { ScopeGroup } from '../components/settings/ScopeGroup.jsx'
@@ -414,6 +415,14 @@ export default function Settings({ onNavigate, navData, isActive = true }) {
           </div>
 
           <CoderModeSection />
+
+          {/* What AI agents may do in the browsers (machine-wide; plan C8) */}
+          <div style={headingStyle}>
+            <span style={headingText}>Agent Browser Permissions</span>
+            <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+          </div>
+
+          <BrowserPermissionsSection />
 
           {/* Agent sandbox fallback */}
           <div style={headingStyle}>

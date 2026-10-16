@@ -33,6 +33,11 @@ type Deps struct {
 	// Getenv reads the environment that says who the caller is: MONOAGENT_ACTOR and the
 	// agent-context markers of internal/orgsign.
 	Getenv func(key string) string
+	// NotOperator says why this process is not the operator's own terminal
+	// though no agent named itself (internal/operator.Refusal: a chat's run,
+	// a process a workflow node started, any kind of agent), or "". Only what
+	// the operator alone may do reads it: whom the history names is Getenv's.
+	NotOperator func() string
 	// StdinIsTerminal says whether `task agents allow` runs at a terminal, where it may ask.
 	StdinIsTerminal func() bool
 	// DBPath is --db-path as given: `task os` writes it, made absolute, into a menu.

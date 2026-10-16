@@ -182,6 +182,10 @@ export function BindBrowser(arg1, arg2) {
   return window['go']['main']['App']['BindBrowser'](arg1, arg2);
 }
 
+export function BrowserPermissions() {
+  return window['go']['main']['App']['BrowserPermissions']();
+}
+
 export function CancelHealthRun(arg1) {
   return window['go']['main']['App']['CancelHealthRun'](arg1);
 }
@@ -1252,6 +1256,14 @@ export function SetApplicationStatus(arg1, arg2, arg3) {
 
 export function SetAutomationTrust(arg1, arg2) {
   return window['go']['main']['App']['SetAutomationTrust'](arg1, arg2);
+}
+
+export function SetBrowserPermission(arg1, arg2) {
+  return window['go']['main']['App']['SetBrowserPermission'](arg1, arg2);
+}
+
+export function SetBrowserSiteRule(arg1, arg2) {
+  return window['go']['main']['App']['SetBrowserSiteRule'](arg1, arg2);
 }
 
 export function SetChatOrgMode(arg1, arg2) {

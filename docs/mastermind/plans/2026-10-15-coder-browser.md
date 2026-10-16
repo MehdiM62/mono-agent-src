@@ -209,3 +209,76 @@ Policy (agent context only; a human terminal is unrestricted):
 - Integrator: merge all branches, wire C7 glue, full `go test ./...`, an end-to-end run (coder turn screenshots a
   localhost page; extension queues a copy-style; Start runs it; form submit on an allowlisted origin raises a HIL item),
   reviewer pass (security-sensitive), one PR to master — merged only on the user's go (master auto-releases).
+
+## C8 — browser permissions in Settings (user request, 2026-10-15)
+
+User decisions: both "full" variants are levels; default is Dev pages + allowlist; set per agent kind, plus per-site rules.
+
+- **Levels** (ids): `full-no-approvals` (any site, submits go through, no guard), `full` (any site; a submit on a
+  non-local origin waits for HIL approval), `dev` (localhost/dev + sites with an allow rule; submits on allowed real
+  sites wait for approval — today's behaviour), `ask` (like `dev`, but a new site raises a HIL "allow this site?" item
+  instead of a refusal), `off` (agents of that kind can't use the browser at all).
+- **Kinds**: `coder` (coder chats + their dynorg workers), `org` (monomind org roles, org triggers), `chat` (in-app chat
+  and the workflow runs it starts), `other` (any other agent shell, e.g. a Claude Code or Codex session in a terminal).
+  A human terminal (no agent markers) is never restricted.
+- **Defaults**: coder `dev`, other `dev`, chat `full`, org `full` (chat/org keep what they have today through
+  browser.jev; the user can tighten them).
+- **Site rules** (all kinds): `allow` or `block`. `block` wins over every level (even full); `allow` matters for `dev`
+  and `ask`. Local/dev origins are always allowed except at `off`.
+- **Storage**: configs key `browser_agent_permissions` =
+  `{"levels":{"coder":"dev","org":"full","chat":"full","other":"dev"},"sites":[{"origin":"https://github.com","rule":"allow"}]}`;
+  missing kinds fall back to defaults. If the key is absent and `browser_agent_allowlist` exists, its entries seed
+  `sites` as `allow` (one-time, on first write).
+- **Kind detection** (`browserctl.AgentKind()`): agent shell (markers) → `coder` if `MONOAGENT_AGENT_KIND=coder` (set by
+  coder turns and dynorg workers), `org` if `MONOMIND_ORG_ROLE` is set or `MONOAGENT_AGENT_KIND=org`, else `other`.
+  A shell can never be `chat`. `chat` = a run marked `_ai_caller=chat` / `MONOAGENT_AI_CALLER=chat` with no shell
+  markers. browser.jev: shell → kind as above; `_ai_caller=chat` → chat; org trigger types → org; `_ai_caller=agent` → other.
+- **CLI** (machine-wide, profile-gate class global):
+  `browser permissions [--json]` → `{levels, sites, kinds:[{kind,label,level,isDefault}], catalog:[{id,label,description}],
+  you:{kind,level}}` (agents may read it);
+  `browser permissions set <kind> <level>`; `browser permissions site <origin> <allow|block|clear>` — both refused in
+  agent context. `browser allow add|remove|list` stay as aliases of site allow/clear/list.
+- **Errors (exit 3)**: `browser_off` ("browser access is off for coder chats — Settings → Browser permissions"),
+  `site_blocked`, `origin_not_allowed` (dev), `site_needs_approval` with `{hil_id}` (ask). HIL item kind `browser.site`
+  `{origin, url, kind, requested_by}`; `hil approve` (operator only) adds an `allow` rule; reject adds nothing; a
+  pending item for the same origin+kind is reused.
+- **GUI**: Settings → "Agent browser permissions" (`BrowserPermissionsSection.jsx`, next to BrowserBindingsSection):
+  one row per kind with a level picker (label + one-line description), the site-rules list (add origin, allow/block,
+  remove), all via `monoagentcli browser permissions … --json`. HIL page: a card for `browser.site` items
+  ("A coder chat wants to use https://x.com" — Allow / Not now).
+
+## C9 — review fixes for #820 (herder's security review of ebe7d332, 2026-10-16)
+
+1. **Operator-only really means the operator (HIGH).** `requireOperator` (cmd/monoagentcli/hil.go) refuses when any
+   of these hold: `hilsend.Detect()`, `browserctl.AgentKind() != ""`, `MONOAGENT_AI_CALLER` set, or
+   `MONOAGENT_WORKFLOW_RUN` set. Every process a workflow node starts (`system.execute_command` and any other node that
+   execs a program) gets `MONOAGENT_WORKFLOW_RUN=<execution id>` in its env, so nothing a workflow runs, daemon or
+   chat-started, can approve or reject. Audit all `requireOperator` callers.
+2. **Block rules fail closed.** Origins and tab URLs are canonicalised before matching: lowercase, IDNA
+   (`golang.org/x/net/idna` Lookup profile, so fullwidth dots and Unicode map to xn--), trailing dot trimmed, default
+   ports dropped. A **block** on `scheme://host[:port]` or `host` covers that host **and its subdomains, on every scheme
+   and port**. An **allow** stays exact: scheme + host + port, and `*.host` for subdomains. Stored rules are
+   canonicalised on write and on read.
+3. **The agent kind needs a second signal.** A declared kind (`MONOAGENT_AGENT_KIND`, `MONOMIND_ORG_ROLE`) counts
+   only with a valid `MONOAGENT_AGENT_KIND_TOKEN`:
+   - **Issuing:** the spawner (coder turn, dynorg worker, and the org launcher where mono-agent starts it) calls
+     `browserctl.IssueAgentKind(kind) (env []string, bind func(pid int), done func())`. That writes
+     `~/.monoagent/agent-kinds/<token>.json` `{kind, pid, created}` (dir 0700, file 0600); `bind` re-records the
+     started child's pid (detached org run/serve), `done` removes it when the turn ends.
+   - **Valid:** the file exists, its kind matches, and its pid is alive.
+   - **Otherwise (round 2, fail closed):** a shell is kind `other` with `declared` set, and gets the stricter of the
+     declared kind's level and `other`'s (off > ask > dev > full > full-no-approvals). On Linux, sandboxed org role
+     shells can't see the org's pid, so they are always held this way.
+   - **Limit, stated in Settings:** an agent that reads another process's environment can still borrow its kind.
+4. **Org default is `dev`,** as shipped in v0.141.0. Chat stays `full` (submit approvals), as shipped.
+5. **`full-no-approvals` description** says it also allows running scripts on any page, which can read that site's
+   cookies and storage.
+6. **Small fixes:**
+   - **Blocked sites:** `DecideSiteItem` on a blocked origin returns an error and leaves the item pending.
+   - **Atomic saves:** permissions updates are atomic (transaction, or a compare-and-set on the config row).
+   - **AskSite limits:** at most 20 pending site items per profile; a rejected origin+kind is remembered for 10
+     minutes (it is refused without a new item).
+   - **pickTab:** returns `SiteApprovalPendingError` instead of swallowing it.
+7. **Look-alike hosts:**
+   - `browser.site` and `browser.submit` items carry `asciiHost` (the xn-- form) when the host is not ASCII.
+   - The GUI card shows it next to the Unicode form, with a "check the address" hint.

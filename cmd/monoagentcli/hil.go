@@ -17,6 +17,7 @@ import (
 
 	hilcli "github.com/monoes/mono-agent/internal/cli/hil"
 	"github.com/monoes/mono-agent/internal/hilsend"
+	"github.com/monoes/mono-agent/internal/operator"
 	"github.com/monoes/mono-agent/internal/storage"
 )
 
@@ -94,16 +95,22 @@ func hilSendStore(cfg *globalConfig, db *sql.DB) hilsend.Store {
 	return hilsend.Store{DB: db, Profile: cfg.ProfileID}
 }
 
-// requireOperator refuses an agent: it may prepare a send, never decide one.
+// requireOperator refuses whatever is not the operator's own terminal: it
+// may prepare a send, never decide one, nor approve what agents asked for.
 func requireOperator(what string) error {
 	if _, err := callerFor("").operator(what); err != nil {
 		return err
 	}
-	if _, agent := hilsend.Detect(); agent {
-		return operatorOnlyError("%s is set, so an agent is running this command: only the operator can %s; run it in your own terminal", hilsend.EnvAgentContext, what)
+	if why := notOperator(); why != "" {
+		return operatorOnlyError("%s: only the operator can %s; run it in your own terminal", why, what)
 	}
 	return nil
 }
+
+// notOperator says why this process is not the operator's own terminal, or
+// "" (internal/operator): an agent, a process of any kind of agent, a chat
+// tool call's run, or a process a workflow node started.
+func notOperator() string { return operator.Refusal() }
 
 // requirePublicationApproval gates `publication register` from an agent: a
 // publication it claims must be one the operator approved. approvalID names the

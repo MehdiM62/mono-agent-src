@@ -102,6 +102,8 @@ func (n *ExecuteCommandNode) Execute(ctx context.Context, input workflow.NodeInp
 			cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%v", k, v))
 		}
 	}
+	// Last, so the env above can't clear it: what a workflow runs is never the operator.
+	cmd.Env = workflow.RunEnv(cmd.Env, input.ExecutionID)
 
 	stdoutBuf := &limitedBuffer{max: maxCommandOutputBytes}
 	stderrBuf := &limitedBuffer{max: maxCommandOutputBytes}

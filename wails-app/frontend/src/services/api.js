@@ -217,6 +217,11 @@ export const api = {
   // A browser submit approval's screenshot (under ~/.monoagent/browser/hil/)
   // → a data URL; rejects for anything else.
   readHILScreenshot: (path) => GoApp.ReadHILScreenshot(path),
+  // Agent browser permissions (machine-wide, `browser permissions …`):
+  // {levels, sites, kinds, catalog, you}; a refusal rejects with its code.
+  browserPermissions:   () => GoApp.BrowserPermissions().then(parseStreamResult),
+  setBrowserPermission: (kind, level) => GoApp.SetBrowserPermission(kind, level).then(parseStreamResult),
+  setBrowserSiteRule:   (origin, rule) => GoApp.SetBrowserSiteRule(origin, rule).then(parseStreamResult),
   stopChatTurn: (conversationID, turnID) =>
     GoApp.StopChatTurn(conversationID, turnID).then(parseStreamResult),
   // One worker of a dynamic-org turn; the lead and the other workers keep

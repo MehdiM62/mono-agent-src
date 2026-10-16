@@ -78,6 +78,12 @@ func (s *Session) guard(action string) (guardStatus, error) {
 // since the last command (an *AwaitingApproval). It fails closed: a gated
 // tab whose guard cannot be armed is not acted on.
 func (s *Session) BeforeAct(ctx context.Context, db *sql.DB) error {
+	if s.policy.Agent && s.policy.level() == LevelFullNoApprovals && s.tabID > 0 && !blank(s.url) {
+		// No guard at this level: one armed earlier (another level, another
+		// agent) is let go, with its bar.
+		_, _ = s.guard(extension.SubmitGuardDisarm)
+		return nil
+	}
 	if !s.Gated() {
 		return nil
 	}

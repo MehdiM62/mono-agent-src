@@ -39,6 +39,12 @@ var opsAgentContexts = map[string]func(t *testing.T) []string{
 		setenv(t, "CLAUDECODE", "1")
 		return []string{"--as", ""}
 	},
+	// No agent named itself, but this is not the operator's own terminal: a
+	// chat's run, a process a workflow node started (NotOperator).
+	"not the operator's terminal": func(t *testing.T) []string {
+		setenv(t, notOperatorEnv, "MONOAGENT_WORKFLOW_RUN is set, so a workflow run is running this command")
+		return nil
+	},
 }
 
 func TestOperatorCommandsRefuseAnAgentContext(t *testing.T) {

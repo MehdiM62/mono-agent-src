@@ -23,10 +23,7 @@ func newPublicationCmd(cfg *globalConfig) *cobra.Command {
 		NewTable: func(w io.Writer, headers []string) *tablewriter.Table {
 			return newPlainTable(w, headers, nil)
 		},
-		Operator: func(what string) error {
-			_, err := callerFor("").operator(what)
-			return err
-		},
+		Operator:        requireOperator,
 		RequireApproval: func(approvalID string) error { return requirePublicationApproval(cfg, approvalID) },
 	})
 }

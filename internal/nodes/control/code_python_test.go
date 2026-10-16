@@ -159,3 +159,18 @@ func TestCodePython_MissingInterpreter(t *testing.T) {
 		t.Errorf("missing python3: %v", err)
 	}
 }
+
+// The Python child carries the run's marker: what a workflow runs is never
+// the operator.
+func TestPythonMarksTheWorkflowRun(t *testing.T) {
+	needPython(t)
+	t.Setenv(workflow.EnvWorkflowRun, "")
+	items, err := runPy(t, workflow.NodeInput{ExecutionID: "exec-7", Items: pyItems(1)},
+		"import os\nreturn [{'json': {'run': os.environ.get('"+workflow.EnvWorkflowRun+"')}}]", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 || items[0].JSON["run"] != "exec-7" {
+		t.Errorf("items = %v", items)
+	}
+}

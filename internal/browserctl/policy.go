@@ -7,30 +7,45 @@ import (
 	"fmt"
 	"net"
 	"net/url"
-	"sort"
 	"strings"
 )
 
-// The origin policy (plan 2026-10-15-coder-browser, C2). An agent drives
-// local and dev pages, plus the origins the user allowed; a human terminal
-// is unrestricted. It is a courtesy layer against mistakes and page-borne
-// prompt injection, not a sandbox: a full-access agent can read the bridge
-// token and talk to the bridge itself (same stance as internal/orgsign).
+// The origin policy (plan 2026-10-15-coder-browser, C2 and C8). An agent
+// drives what its kind's level allows (permissions.go): local and dev pages
+// at every level but off, other sites by level and by the user's site rules,
+// a block rule winning over every level. A human terminal is unrestricted.
+// It is a courtesy layer against mistakes and page-borne prompt injection,
+// not a sandbox: a full-access agent can read the bridge token and talk to
+// the bridge itself (same stance as internal/orgsign).
 
-// AllowlistSetting is the configs-table row holding the user's allowlist.
+// AllowlistSetting is the configs-table row of the allowlist that came
+// before the permissions; LoadPermissions reads it once as allow rules.
 const AllowlistSetting = "browser_agent_allowlist"
 
 // Policy decides which pages a caller may drive.
 type Policy struct {
-	// Agent: the caller is an agent (IsAgentContext). Nothing is refused
-	// when false.
+	// Agent: the caller is an agent. Nothing is refused when false.
 	Agent bool
-	// Allowlist holds entries as NormalizeAllowEntry returns them:
-	// "scheme://host[:port]" or "*.host".
+	// Kind is the agent's kind and Level its level ("" behaves as dev);
+	// Declared a kind it claimed but could not prove (Caller).
+	Kind     string
+	Declared string
+	Level    string
+	// Allowlist and Blocklist hold the allow and block rules:
+	// "scheme://host[:port]" or "*.host", and for a block also "host".
 	Allowlist []string
+	Blocklist []string
 }
 
-// NotAllowedError is a page an agent may not drive.
+func (p Policy) level() string {
+	if p.Level == "" {
+		return LevelDev
+	}
+	return p.Level
+}
+
+// NotAllowedError is a page an agent may not drive (dev level: not local
+// and no allow rule; or not an http(s) page at all).
 type NotAllowedError struct {
 	Origin string
 	Reason string
@@ -39,24 +54,64 @@ type NotAllowedError struct {
 func (e *NotAllowedError) Error() string {
 	msg := fmt.Sprintf("an agent may drive only local and dev pages and the origins the user allowed: %s is not allowed (%s)", e.Origin, e.Reason)
 	if e.Allowable() {
-		msg += fmt.Sprintf(" — the user can allow it with `monoagentcli browser allow add %s`", e.Origin)
+		msg += fmt.Sprintf(" — the user can allow it with `monoagentcli browser allow add %s` or in Settings → Agent browser permissions", e.Origin)
 	}
 	return msg
 }
 
 // Allowable reports whether the user could put this origin on the allowlist.
 func (e *NotAllowedError) Allowable() bool {
-	return strings.HasPrefix(e.Origin, "http://") || strings.HasPrefix(e.Origin, "https://")
+	_, err := NormalizeAllowEntry(e.Origin)
+	return err == nil
+}
+
+// BrowserOffError: the kind's level is off. Declared is a kind the agent
+// claimed but could not prove, whose level may be the one that is off.
+type BrowserOffError struct {
+	Kind     string
+	Declared string
+}
+
+func (e *BrowserOffError) Error() string {
+	if e.Declared != "" {
+		return fmt.Sprintf("browser access is off: this shell says it is one of the %s, which no token vouches for, so the stricter of that kind's level and %s's applies — Settings → Agent browser permissions",
+			strings.ToLower(KindLabel(e.Declared)), strings.ToLower(KindLabel(e.Kind)))
+	}
+	return fmt.Sprintf("browser access is off for %s — Settings → Agent browser permissions", strings.ToLower(KindLabel(e.Kind)))
+}
+
+// SiteBlockedError: the user blocked the origin for every agent.
+type SiteBlockedError struct{ Origin string }
+
+func (e *SiteBlockedError) Error() string {
+	return fmt.Sprintf("the user blocked %s for agents — Settings → Agent browser permissions", e.Origin)
+}
+
+// SiteNeedsApprovalError: at level ask, a site with no rule needs the
+// user's yes first. Session turns it into a *SiteApprovalPendingError with
+// the HIL item it raised (AskSite).
+type SiteNeedsApprovalError struct {
+	Origin string
+	URL    string
+	Kind   string
+}
+
+func (e *SiteNeedsApprovalError) Error() string {
+	return fmt.Sprintf("%s is a new site for %s: the user has to allow it first", e.Origin, strings.ToLower(KindLabel(e.Kind)))
 }
 
 // Allowed reports whether the caller may drive a page at rawURL.
 func (p Policy) Allowed(rawURL string) bool { return p.Check(rawURL) == nil }
 
-// Check returns nil when the caller may drive a page at rawURL, else a
-// *NotAllowedError naming the origin.
+// Check returns nil when the caller may drive a page at rawURL, else why
+// not: *BrowserOffError, *SiteBlockedError, *NotAllowedError or
+// *SiteNeedsApprovalError.
 func (p Policy) Check(rawURL string) error {
 	if !p.Agent {
 		return nil
+	}
+	if p.level() == LevelOff {
+		return &BrowserOffError{Kind: p.Kind, Declared: p.Declared}
 	}
 	u, err := url.Parse(strings.TrimSpace(rawURL))
 	if err != nil || u.Scheme == "" {
@@ -70,21 +125,41 @@ func (p Policy) Check(rawURL string) error {
 	if u.Hostname() == "" {
 		return &NotAllowedError{Origin: origin, Reason: "no host"}
 	}
-	if IsLocal(rawURL) {
+	// Rules and the page meet in the browser's canonical form (canon.go);
+	// a host we could read differently from the browser matches nothing.
+	host, ok := canonHost(u.Hostname())
+	if !ok {
+		return &NotAllowedError{Origin: origin, Reason: "a host name the browser may read differently"}
+	}
+	for _, e := range p.Blocklist {
+		if blockCovers(e, host) {
+			return &SiteBlockedError{Origin: origin}
+		}
+	}
+	if isLocalHost(host) {
 		return nil
 	}
+	switch p.level() {
+	case LevelFull, LevelFullNoApprovals:
+		return nil
+	}
+	exact := joinOrigin(scheme, host, u.Port())
 	for _, e := range p.Allowlist {
-		if entryMatches(e, u) {
+		if allowMatches(e, exact, host) {
 			return nil
 		}
+	}
+	if p.level() == LevelAsk {
+		return &SiteNeedsApprovalError{Origin: origin, URL: rawURL, Kind: p.Kind}
 	}
 	return &NotAllowedError{Origin: origin, Reason: "not local and not on the allowlist"}
 }
 
 // SubmitGated reports whether a form submit on rawURL waits for a person's
-// approval: an agent on an allowed origin that is not local.
+// approval: an agent on an allowed origin that is not local, unless its
+// level is full-no-approvals.
 func (p Policy) SubmitGated(rawURL string) bool {
-	return p.Agent && p.Allowed(rawURL) && !IsLocal(rawURL)
+	return p.Agent && p.level() != LevelFullNoApprovals && p.Allowed(rawURL) && !IsLocal(rawURL)
 }
 
 // IsLocal reports whether rawURL is an http(s) page on this machine or a
@@ -98,7 +173,12 @@ func IsLocal(rawURL string) bool {
 	if s := strings.ToLower(u.Scheme); s != "http" && s != "https" {
 		return false
 	}
-	host := strings.TrimSuffix(strings.ToLower(u.Hostname()), ".")
+	host, ok := canonHost(u.Hostname())
+	return ok && isLocalHost(host)
+}
+
+// isLocalHost is IsLocal for a host in canonical form.
+func isLocalHost(host string) bool {
 	if host == "" {
 		return false
 	}
@@ -116,22 +196,17 @@ func IsLocal(rawURL string) bool {
 	return false
 }
 
-// Origin is rawURL's scheme://host[:port] with a default port dropped, or a
-// short form of rawURL when it has no host (about:blank, file:).
+// Origin is rawURL's origin as the browser writes it (the extension's
+// `new URL(u).origin`): scheme://host[:port], the host lowercase and in
+// its xn-- form, a default port dropped; or a short form of rawURL when it
+// has no host (about:blank, file:).
 func Origin(rawURL string) string {
 	u, err := url.Parse(strings.TrimSpace(rawURL))
 	if err != nil || u.Host == "" {
 		return shortURL(rawURL)
 	}
-	scheme := strings.ToLower(u.Scheme)
-	host := strings.ToLower(u.Hostname())
-	if strings.Contains(host, ":") {
-		host = "[" + host + "]"
-	}
-	if port := u.Port(); port != "" && port != defaultPort(scheme) {
-		host += ":" + port
-	}
-	return scheme + "://" + host
+	host, _ := asciiHost(u.Hostname())
+	return joinOrigin(strings.ToLower(u.Scheme), host, u.Port())
 }
 
 func shortURL(s string) string {
@@ -155,36 +230,74 @@ func defaultPort(scheme string) string {
 	return ""
 }
 
-// entryMatches reports whether one allowlist entry admits u: an origin
-// entry matches that exact origin; "*.host" matches host and every
-// subdomain of it over http or https on any port.
-func entryMatches(entry string, u *url.URL) bool {
-	host := strings.TrimSuffix(strings.ToLower(u.Hostname()), ".")
-	if rest, ok := strings.CutPrefix(entry, "*."); ok {
+// allowMatches reports whether an allow rule admits a page whose origin
+// and host (canonical) are exact and host: an origin rule admits exactly
+// that origin (scheme, host and port), "*.host" that host and its
+// subdomains over http or https on any port.
+func allowMatches(entry, exact, host string) bool {
+	e, err := NormalizeAllowEntry(entry)
+	if err != nil {
+		return false
+	}
+	if rest, ok := strings.CutPrefix(e, "*."); ok {
 		return host == rest || strings.HasSuffix(host, "."+rest)
 	}
-	return entry == Origin(u.String())
+	return e == exact
+}
+
+// blockCovers reports whether a block rule covers host (canonical): the
+// host it names and every subdomain of it, on any scheme and port.
+func blockCovers(entry, host string) bool {
+	e, err := normalizeSiteEntry(entry, RuleBlock)
+	if err != nil {
+		return false
+	}
+	h := strings.TrimPrefix(e, "*.")
+	if u, err := url.Parse(e); err == nil && u.Host != "" {
+		h = u.Hostname()
+	}
+	return h != "" && (host == h || strings.HasSuffix(host, "."+h))
 }
 
 // NormalizeAllowEntry checks one allowlist entry and returns its stored
-// form: "scheme://host[:port]" (http or https, no path, the default port
-// dropped) or "*.host" (at least two labels, so no whole top-level domain).
+// form: "scheme://host[:port]" (http or https, no path, the host
+// canonical, the default port dropped) or "*.host" (at least two labels,
+// so no whole top-level domain).
 func NormalizeAllowEntry(s string) (string, error) {
-	s = strings.ToLower(strings.TrimSpace(s))
+	s = strings.TrimSpace(s)
 	if rest, ok := strings.CutPrefix(s, "*."); ok {
-		if !validHost(rest) || !strings.Contains(rest, ".") {
+		h, ok := canonHost(rest)
+		if !ok || !validHost(h) || !strings.Contains(h, ".") {
 			return "", fmt.Errorf("%q: a wildcard entry is *.host with at least two labels, such as *.example.com", s)
 		}
-		return "*." + rest, nil
+		return "*." + h, nil
 	}
 	u, err := url.Parse(s)
-	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" {
+	if err != nil || (strings.ToLower(u.Scheme) != "http" && strings.ToLower(u.Scheme) != "https") || u.Hostname() == "" {
 		return "", fmt.Errorf("%q: an entry is scheme://host[:port] (http or https) or *.host", s)
 	}
 	if u.User != nil || (u.Path != "" && u.Path != "/") || u.RawQuery != "" || u.Fragment != "" {
 		return "", fmt.Errorf("%q: an entry is an origin only, with no path, query or credentials", s)
 	}
-	return Origin(s), nil
+	o, ok := canonOrigin(u)
+	if !ok {
+		return "", fmt.Errorf("%q: the browser may read this host name differently", s)
+	}
+	return o, nil
+}
+
+// normalizeSiteEntry is NormalizeAllowEntry for a rule: a block may also
+// name a bare host ("bank.example"), which it covers like its origin form.
+func normalizeSiteEntry(s, rule string) (string, error) {
+	t := strings.TrimSpace(s)
+	if rule != RuleAllow && !strings.Contains(t, "://") && !strings.HasPrefix(t, "*.") {
+		h, ok := canonHost(t)
+		if !ok || (!validHost(h) && net.ParseIP(h) == nil) {
+			return "", fmt.Errorf("%q: a block is scheme://host[:port], host or *.host", s)
+		}
+		return h, nil
+	}
+	return NormalizeAllowEntry(s)
 }
 
 func validHost(h string) bool {
@@ -209,9 +322,18 @@ type allowlistDoc struct {
 	Origins []string `json:"origins"`
 }
 
-// LoadAllowlist reads the user's allowlist; none stored is an empty list.
-// Entries that no longer normalize are dropped.
+// LoadAllowlist is the allow rules of the permissions (LoadPermissions).
 func LoadAllowlist(db *sql.DB) ([]string, error) {
+	p, err := LoadPermissions(db)
+	if err != nil {
+		return nil, err
+	}
+	return p.Sited(RuleAllow), nil
+}
+
+// loadOldAllowlist reads the allowlist setting that came before the
+// permissions; none stored is an empty list.
+func loadOldAllowlist(db *sql.DB) ([]string, error) {
 	var raw string
 	err := db.QueryRow(`SELECT config_data FROM configs WHERE name = ?`, AllowlistSetting).Scan(&raw)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -233,31 +355,23 @@ func LoadAllowlist(db *sql.DB) ([]string, error) {
 	return out, nil
 }
 
-// SaveAllowlist stores entries (normalized, deduplicated, sorted).
+// SaveAllowlist makes entries the permissions' allow rules (block rules
+// are kept; an entry that was blocked becomes allowed).
 func SaveAllowlist(db *sql.DB, entries []string) error {
-	seen := map[string]bool{}
-	doc := allowlistDoc{Origins: []string{}}
-	for _, e := range entries {
-		n, err := NormalizeAllowEntry(e)
-		if err != nil {
-			return err
+	_, err := UpdatePermissions(db, func(p *Permissions) error {
+		kept := []SiteRule{}
+		for _, s := range p.Sites {
+			if s.Rule == RuleBlock {
+				kept = append(kept, s)
+			}
 		}
-		if !seen[n] {
-			seen[n] = true
-			doc.Origins = append(doc.Origins, n)
+		p.Sites = kept
+		for _, e := range entries {
+			if _, _, err := p.SetSite(e, RuleAllow); err != nil {
+				return err
+			}
 		}
-	}
-	sort.Strings(doc.Origins)
-	b, err := json.Marshal(doc)
-	if err != nil {
-		return err
-	}
-	_, err = db.Exec(`INSERT INTO configs (name, config_data, created_at, updated_at)
-		VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-		ON CONFLICT(name) DO UPDATE SET config_data = excluded.config_data, updated_at = excluded.updated_at`,
-		AllowlistSetting, string(b))
-	if err != nil {
-		return fmt.Errorf("saving the browser allowlist: %w", err)
-	}
-	return nil
+		return nil
+	})
+	return err
 }
