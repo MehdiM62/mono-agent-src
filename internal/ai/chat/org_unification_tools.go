@@ -37,9 +37,9 @@ func orgUnificationToolDefs(def func(name, desc string, props map[string]interfa
 			"revoke":            boolParam("Revoke the grant instead of setting it"),
 			"confirm":           boolParam("Must be true to apply; omit to preview"),
 		}, []string{"org_name", "role_id", "automation"}),
-		def("set_org_autonomy", "Change who decides an org's pending approvals, questions, and gates: level manual (a human decides everything), mid (rules approve routine items, the decider handles consequential ones, a human handles irreversible ones), or full (the decider handles everything, no human). Without confirm:true this only previews the change.", map[string]interface{}{
+		def("set_org_autonomy", "Change who decides an org's pending approvals, questions, and gates: level manual (a human decides everything), mid (rules approve routine items, the decider handles consequential ones, a human handles irreversible ones), or full (the decider handles everything, no human: only the user sets it, in their own terminal or the app). Without confirm:true this only previews the change.", map[string]interface{}{
 			"org_name":           strParam("The org's name"),
-			"level":              strParam("manual | mid | full"),
+			"level":              strParam("manual | mid (full is the user's to set and is refused here)"),
 			"decider":            strParam(strings.Join(orgdesign.DeciderKinds, " | ") + " (jev: TypeSafe Jev picks the verdict; the model decider handles questions and anything Jev is unsure of)"),
 			"decider_threshold":  map[string]interface{}{"type": "number", "description": "jev decider only: lowest top-verdict probability Jev decides at, in (0,1] (default 0.8)"},
 			"decider_model":      strParam("Model id for the model decider"),
@@ -192,6 +192,12 @@ func (mt *MonoagentTools) setOrgAutonomy(ctx context.Context, args string) (stri
 	}
 	if err := mt.checkInjectionGate("set_org_autonomy"); err != nil {
 		return "", err
+	}
+	if strings.TrimSpace(a.Level) == orgdesign.LevelFull {
+		// The chat is not the operator: full puts no person in any decision
+		// (`org autonomy set` refuses it from the chat too).
+		return "", fmt.Errorf("set_org_autonomy: level full lets the org's decider handle everything with no person involved, which only the user can choose " +
+			"(`monoagentcli org autonomy set <org> --level full` in their own terminal, or the app); use manual or mid")
 	}
 	if a.Decider != "" && !orgdesign.ValidDeciderKind(a.Decider) {
 		return "", fmt.Errorf("decider %q must be one of %s", a.Decider, strings.Join(orgdesign.DeciderKinds, ", "))
