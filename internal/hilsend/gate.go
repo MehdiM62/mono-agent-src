@@ -86,7 +86,41 @@ func Enabled(db *sql.DB) bool {
 	return on
 }
 
-// Guard is the workflow.ExecGuard that queues agent sends. It is installed by
+// UnapprovedWorkflowAgent is PreparedBy.AgentID on a send that a run of a
+// workflow the user never approved prepared, or a run such a workflow called.
+const UnapprovedWorkflowAgent = "unapproved-workflow"
+
+// unapprovedRun reports whether ctx is a run of a workflow the user never
+// approved (workflow.AIAuthoredFrom: the chat, an agent or a workflow wrote
+// or changed it since the user last saved or activated it, and MCP's
+// node_run), or a run such a workflow called, and names it for the approval
+// card. Its sends wait for approval like an agent's, whoever started the
+// run; a workflow the user approved sends as before, even when the chat
+// starts it.
+func unapprovedRun(ctx context.Context) (PreparedBy, bool) {
+	wf, _ := vault.ExecIDsFromContext(ctx)
+	if workflow.AIAuthoredFrom(ctx) {
+		role := "an unapproved workflow step"
+		if wf != "" {
+			role = "unapproved workflow " + wf
+		}
+		return PreparedBy{AgentID: UnapprovedWorkflowAgent, Role: role, Workflow: wf}, true
+	}
+	if caller, ok := workflow.CalledByUnapproved(workflow.TriggerDataFrom(ctx)); ok {
+		role := "a workflow an unapproved workflow called"
+		switch {
+		case wf != "" && caller != "":
+			role = "workflow " + wf + ", called by unapproved workflow " + caller
+		case caller != "":
+			role = "a workflow unapproved workflow " + caller + " called"
+		}
+		return PreparedBy{AgentID: UnapprovedWorkflowAgent, Role: role, Workflow: wf}, true
+	}
+	return PreparedBy{}, false
+}
+
+// Guard is the workflow.ExecGuard that queues the sends of agents and of
+// workflows the user never approved (unapprovedRun). It is installed by
 // noderegistry.Build, so the engine and `node run` both pass through it.
 func Guard(ctx context.Context, nodeType string, in workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, bool, error) {
 	t, ok := classify(nodeType, config)
@@ -95,7 +129,9 @@ func Guard(ctx context.Context, nodeType string, in workflow.NodeInput, config m
 	}
 	who, agent := Detect()
 	if !agent {
-		return nil, false, nil
+		if who, agent = unapprovedRun(ctx); !agent {
+			return nil, false, nil
+		}
 	}
 	db := vault.DBFromContext(ctx)
 	if db == nil {
