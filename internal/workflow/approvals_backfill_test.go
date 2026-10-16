@@ -145,6 +145,57 @@ func TestBackfillSkipsAWorkflowItCantRead(t *testing.T) {
 	}
 }
 
+// A workflow that is only a file at the backfill (the desktop editor's, an
+// older CLI's: no SQLite row to approve yet) is approved when its file is
+// first synced, with the definition it had at the backfill; one whose file
+// changed in between is not (#831 round 5, C1).
+func TestBackfillApprovesFileOnlyWorkflowsWhenTheySync(t *testing.T) {
+	db, sqlStore := approvalsTestDB(t)
+	ctx := context.Background()
+	dir := t.TempDir()
+	approvalsDir = dir
+	t.Cleanup(func() { approvalsDir = "" })
+	files, err := NewWorkflowFileStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := NewHybridWorkflowStore(files, sqlStore)
+	for _, id := range []string{"wf-file", "wf-file-edited"} {
+		if err := files.SaveWorkflow(ctx, approvalsTestWorkflow(id, 1)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := BackfillApprovals(ctx, db.DB); err != nil {
+		t.Fatal(err)
+	}
+	if err := files.SaveWorkflow(ctx, approvalsTestWorkflow("wf-file-edited", 2)); err != nil { // changed before its first sync
+		t.Fatal(err)
+	}
+	sync := func(id string) {
+		t.Helper()
+		wf, err := files.GetWorkflow(ctx, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		createSQLWorkflow(t, sqlStore, wf)
+		if err := ApproveBackfilledFile(ctx, db.DB, wf); err != nil {
+			t.Fatal(err)
+		}
+	}
+	sync("wf-file")
+	sync("wf-file-edited")
+	if !approved(t, h, "wf-file") {
+		t.Error("a file-only workflow was not approved when it synced")
+	}
+	if approved(t, h, "wf-file-edited") {
+		t.Error("a file-only workflow changed after the backfill was approved")
+	}
+	var left int
+	if err := db.DB.QueryRow(`SELECT COUNT(*) FROM settings WHERE key LIKE ?`, approvalsBackfillFilePrefix+"%").Scan(&left); err != nil || left != 0 {
+		t.Errorf("the backfill's records of synced files: %v, %d left", err, left)
+	}
+}
+
 // A workflow's approvals go with it, whichever way it is deleted: the
 // store's delete, or a delete of its row as the chat's and MCP's tools do
 // (#831 round 4, R4).
