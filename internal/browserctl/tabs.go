@@ -228,12 +228,12 @@ func (s *Session) markLoad() {
 
 // agentOrigin is the origin an agent's console and network reads keep to:
 // what was recorded while the tab was on its current, allowed page ("" for
-// a person, who reads everything).
+// a person, who reads everything), as the extension records it.
 func (s *Session) agentOrigin() string {
 	if !s.policy.Agent || blank(s.url) {
 		return ""
 	}
-	return Origin(s.url)
+	return BrowserOrigin(s.url)
 }
 
 // loadMark is the tab's mark from markLoad (zero: none).
