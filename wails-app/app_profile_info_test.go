@@ -30,7 +30,7 @@ esac
 `))
 	a := newTestApp(t)
 	a.ctx = context.Background()
-	a.setActiveProfileID("work")
+	a.selectForTest("work")
 
 	cat, err := a.GetProfileInfoFields()
 	if err != nil || len(cat.Groups) != 1 || len(cat.Fields) != 2 || !cat.Fields[1].Sensitive {
