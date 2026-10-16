@@ -92,7 +92,7 @@ export default function BrowserPermissionsSection() {
               {k.level === RISKIEST_LEVEL && (
                 <div style={riskText} data-testid="permission-risk">
                   <ShieldAlert size={12} style={{ flexShrink: 0, marginTop: 1 }} />
-                  <span>The riskiest level: these agents can act, submit forms and run scripts on any site, signed in as you, without asking. A script can read that site&apos;s cookies and storage, and a page can steer them.</span>
+                  <span>The riskiest level: these agents act as you on any site, nothing asks you first, and a page these agents visit can steer them.</span>
                 </div>
               )}
             </div>
