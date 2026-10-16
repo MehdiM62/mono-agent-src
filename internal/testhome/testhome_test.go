@@ -35,6 +35,14 @@ func TestHomeIsATempDir(t *testing.T) {
 	}
 }
 
+// Main marks the process (and so every process its tests start) as under
+// test; internal/monomind reads the mark.
+func TestMarksTheProcessUnderTest(t *testing.T) {
+	if os.Getenv(UnderTestEnv) != "1" {
+		t.Fatalf("%s = %q, want 1", UnderTestEnv, os.Getenv(UnderTestEnv))
+	}
+}
+
 func TestDefaultTransportRefusesTheNetwork(t *testing.T) {
 	if os.Getenv(AllowNetworkEnv) == "1" {
 		t.Skip(AllowNetworkEnv + " is set")
