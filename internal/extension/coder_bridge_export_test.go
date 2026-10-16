@@ -1,5 +1,9 @@
 package extension
 
-// CoderAgentEnv lets the external test hold the bridge's list equal to
-// operator.MarkerEnv (an import this package can't make).
-var CoderAgentEnv = coderAgentEnv
+// CoderAgentEnv and CoderTurnEnv let the external test hold the bridge's
+// lists equal to browserctl.AgentContextEnv and operator.MarkerEnv (imports
+// this package can't make).
+var (
+	CoderAgentEnv = coderAgentEnv
+	CoderTurnEnv  = coderTurnEnv
+)

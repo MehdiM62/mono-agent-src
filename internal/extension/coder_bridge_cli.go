@@ -14,36 +14,43 @@ import (
 	"github.com/monoes/mono-agent/internal/orgsign"
 )
 
-// cliCoder is the real coderCLI: this binary. A coder turn it starts
-// (Start: coder.send, which only runs after the desktop-started check) runs
-// without any variable in coderAgentEnv: the person typed it in their
-// browser, so a bridge that happens to run under an agent's shell, a chat or
-// a workflow run must not make it an agent's or a run's turn (the coder-turn
-// gate refuses those). Everything else it runs (Run), and the bridge itself,
-// keep their environment.
+// cliCoder is the real coderCLI: this binary, never with the bridge's agent
+// markers. Every command a coder.* request runs (Run) is without
+// coderAgentEnv: the request came from the person's browser, so a bridge
+// that happens to run under an agent's shell must not make it an agent's
+// request. A coder turn (Start: coder.send, which only runs after the
+// desktop-started check) is also without the run markers (coderTurnEnv): a
+// bridge started from a chat or a workflow run must not make the person's
+// own follow-up a run's turn, which the coder-turn gate refuses. The bridge
+// itself keeps its environment.
 type cliCoder struct{ chat cliChatBackend }
 
-// coderAgentEnv is operator.MarkerEnv, which this package can't import
-// (operator imports it): every variable that makes a process not the
-// operator's own terminal. A test holds the two lists equal.
+// coderAgentEnv is browserctl.AgentContextEnv (the agent markers), and
+// coderTurnEnv is operator.MarkerEnv (those plus the run markers and the
+// agent kind): this package can import neither (both import it), and tests
+// hold each copy equal to its source.
 func coderAgentEnv() []string {
-	return append(orgsign.AgentContextMarkers(), hilsend.EnvAgentContext, "MONOAGENT_ACTOR",
+	return append(orgsign.AgentContextMarkers(), hilsend.EnvAgentContext, "MONOAGENT_ACTOR")
+}
+
+func coderTurnEnv() []string {
+	return append(coderAgentEnv(),
 		"MONOAGENT_WORKFLOW_RUN", "MONOAGENT_AI_CALLER", "MONOAGENT_AGENT_KIND", "MONOAGENT_AGENT_KIND_TOKEN")
 }
 
-// withoutCoderAgentEnv is env minus coderAgentEnv.
-func withoutCoderAgentEnv(env []string) []string {
-	markers := coderAgentEnv()
+// without is env minus the variables named in drop.
+func without(env, drop []string) []string {
 	out := make([]string, 0, len(env))
 	for _, kv := range env {
-		if k, _, _ := strings.Cut(kv, "="); !slices.Contains(markers, k) {
+		if k, _, _ := strings.Cut(kv, "="); !slices.Contains(drop, k) {
 			out = append(out, kv)
 		}
 	}
 	return out
 }
 
-// command builds the child; a turn's runs without coderAgentEnv.
+// command builds the child: a turn's without coderTurnEnv, any other
+// without coderAgentEnv.
 func (c *cliCoder) command(ctx context.Context, stdin string, args []string, turn bool) (*exec.Cmd, error) {
 	bin, err := c.chat.binary()
 	if err != nil {
@@ -52,9 +59,11 @@ func (c *cliCoder) command(ctx context.Context, stdin string, args []string, tur
 	cmd := exec.CommandContext(ctx, bin, args...)
 	cmd.WaitDelay = monomindWaitDelay
 	cmd.Stdin = strings.NewReader(stdin)
+	drop := coderAgentEnv()
 	if turn {
-		cmd.Env = withoutCoderAgentEnv(os.Environ())
+		drop = coderTurnEnv()
 	}
+	cmd.Env = without(os.Environ(), drop)
 	return cmd, nil
 }
 
