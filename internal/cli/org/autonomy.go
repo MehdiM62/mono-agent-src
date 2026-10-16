@@ -359,18 +359,28 @@ func newOrgAutonomyPauseCmd(env *orgEnv, pause bool) *cobra.Command {
 				}
 				until = time.Now().Add(d)
 			}
-			var views []map[string]interface{}
+			// Every org is checked before any is written: a refused one
+			// leaves them all as they were.
+			var changed []*orgdecide.Autonomy
 			for _, org := range orgs {
 				a, err := store.Get(ctx, profileID, org)
 				if err != nil {
 					return err
 				}
+				before := snapshotAutonomy(a)
 				if pause {
 					u := until
 					a.PausedUntil = &u
 				} else {
 					a.PausedUntil = nil
 				}
+				if err := env.refuseWidening(before, a, org); err != nil {
+					return err
+				}
+				changed = append(changed, a)
+			}
+			var views []map[string]interface{}
+			for _, a := range changed {
 				if err := store.Put(ctx, a, "cli"); err != nil {
 					return err
 				}

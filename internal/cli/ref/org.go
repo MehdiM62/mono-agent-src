@@ -176,9 +176,11 @@ AUTONOMY
       (from an agent, the chat or a workflow only stricter or the same: --level
       full, a new --policy, a --tier looser than the override it replaces (or a
       new one below irreversible), --clear-tier of a non-routine override and a
-      higher --max-decisions or --max-decider-usd get exit 3; the user changes
-      those in their own terminal or the app)
+      higher --max-decisions or --max-decider-usd (0 counts as the default) get
+      exit 3; the user changes those in their own terminal or the app)
   org autonomy pause <org>|--all [--for 30m]     resume <org>|--all
+      (from an agent, the chat or a workflow, ending a pause sooner — resume or
+      a shorter --for — gets exit 3, and no org named changes)
   org autonomy decisions <org> [--run R] [--verdict V] [--limit N]
   org autonomy needs-you <org>
 

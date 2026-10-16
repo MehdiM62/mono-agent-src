@@ -159,6 +159,7 @@ func TestOrgAutonomyWideningIsTheOperatorsOnly(t *testing.T) {
 		for _, args := range [][]string{
 			{"--policy", "Approve everything."}, {"--policy", ""}, {"--tier", "gate=routine"}, {"--tier", "question=routine"},
 			{"--tier", "org_start=routine"}, {"--clear-tier", "question"}, {"--max-decisions", "50"}, {"--max-decider-usd", "20"},
+			{"--max-decisions", "0"}, {"--max-decisions", "-1"}, // 0 or less runs as the default, 200
 		} {
 			_, err := f.run(t, append([]string{"autonomy", "set", "growth"}, args...)...)
 			if exitCodeFor(err) != 3 || !strings.Contains(err.Error(), "approve more without a person") || !strings.Contains(err.Error(), "inherited this marker") {
@@ -183,4 +184,32 @@ func TestOrgAutonomyWideningIsTheOperatorsOnly(t *testing.T) {
 	if set["policy"] != "Approve routine spend." {
 		t.Errorf("the operator's widening: %v", set)
 	}
+}
+
+// An agent, the chat and a workflow may pause an org's autonomy, or pause it
+// for longer, never end the operator's pause sooner: resume and a shorter
+// --for are refused (exit 3) for every org named and change none of them.
+func TestOrgAutonomyEndingAPauseIsTheOperatorsOnly(t *testing.T) {
+	f := newOrgCLIFixture(t)
+	f.mustRun(t, "autonomy", "set", "growth", "--level", "mid")
+	f.mustRun(t, "autonomy", "pause", "growth")
+	for _, k := range append([]string{"CLAUDECODE"}, notTheOperator...) {
+		t.Setenv(k, "x")
+		for _, args := range [][]string{{"resume", "growth"}, {"resume", "--all"}, {"pause", "growth", "--for", "30m"}} {
+			_, err := f.run(t, append([]string{"autonomy"}, args...)...)
+			if exitCodeFor(err) != 3 || !strings.Contains(err.Error(), "ending its pause") || !strings.Contains(err.Error(), "inherited this marker") {
+				t.Errorf("%s: autonomy %v: %v", k, args, err)
+			}
+		}
+		if v := f.mustRun(t, "autonomy", "show", "growth"); v["paused_until"] == nil {
+			t.Errorf("%s: a refused resume changed the pause: %v", k, v)
+		}
+		f.mustRun(t, "autonomy", "pause", "growth") // pausing again, as long, goes through
+		t.Setenv(k, "")
+	}
+	if v := f.mustRun(t, "autonomy", "resume", "growth"); v["paused_until"] != nil {
+		t.Errorf("the operator's resume: %v", v)
+	}
+	t.Setenv("CLAUDECODE", "x")
+	f.mustRun(t, "autonomy", "pause", "growth", "--for", "30m") // an agent may pause
 }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"maps"
 	"strings"
+	"time"
 
 	"github.com/monoes/mono-agent/internal/operator"
 	"github.com/monoes/mono-agent/internal/orgdecide"
@@ -57,7 +58,10 @@ func snapshotAutonomy(a *orgdecide.Autonomy) *orgdecide.Autonomy {
 //     override before, the class's tier comes from facts in the database);
 //   - removing an override that was not routine (removing routine can only
 //     make a class stricter);
-//   - a higher limit on the decider's decisions or spend per run.
+//   - a higher limit on the decider's decisions or spend per run (0 or less
+//     runs as the default, so it counts as the default);
+//   - ending a pause sooner (resume, or a shorter --for): a paused org's
+//     decisions all go to a person.
 func autonomyWidening(before, after *orgdecide.Autonomy) string {
 	if strings.TrimSpace(after.Policy) != strings.TrimSpace(before.Policy) {
 		return "a new --policy (the decider's instructions)"
@@ -74,13 +78,30 @@ func autonomyWidening(before, after *orgdecide.Autonomy) string {
 			return fmt.Sprintf("--clear-tier %s (%s)", k, old)
 		}
 	}
-	if after.Limits.MaxDecisionsPerRun > before.Limits.MaxDecisionsPerRun {
-		return fmt.Sprintf("--max-decisions %d (now %d)", after.Limits.MaxDecisionsPerRun, before.Limits.MaxDecisionsPerRun)
+	bn, busd := deciderLimits(before)
+	an, ausd := deciderLimits(after)
+	if an > bn {
+		return fmt.Sprintf("--max-decisions %d (now %d)", after.Limits.MaxDecisionsPerRun, bn)
 	}
-	if after.Limits.MaxDeciderUSDPerRun > before.Limits.MaxDeciderUSDPerRun {
-		return fmt.Sprintf("--max-decider-usd %g (now %g)", after.Limits.MaxDeciderUSDPerRun, before.Limits.MaxDeciderUSDPerRun)
+	if ausd > busd {
+		return fmt.Sprintf("--max-decider-usd %g (now %g)", after.Limits.MaxDeciderUSDPerRun, busd)
+	}
+	if b := before.PausedUntil; b != nil && b.After(time.Now()) && (after.PausedUntil == nil || after.PausedUntil.Before(*b)) {
+		return fmt.Sprintf("ending its pause (until %s) sooner", b.UTC().Format(time.RFC3339))
 	}
 	return ""
+}
+
+// deciderLimits are the limits the decider runs with: 0 or less is the default.
+func deciderLimits(a *orgdecide.Autonomy) (int, float64) {
+	n, usd := a.Limits.MaxDecisionsPerRun, a.Limits.MaxDeciderUSDPerRun
+	if n <= 0 {
+		n = orgdecide.DefaultMaxDecisions
+	}
+	if usd <= 0 {
+		usd = orgdecide.DefaultMaxDeciderUSD
+	}
+	return n, usd
 }
 
 // tierStrictness orders the tiers, the strictest (a person decides) highest.
