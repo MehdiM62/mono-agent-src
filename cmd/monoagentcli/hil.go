@@ -112,13 +112,15 @@ func requireOperator(what string) error {
 // tool call's run, or a process a workflow node started.
 func notOperator() string { return operator.Refusal() }
 
-// requirePublicationApproval gates `publication register` from an agent: a
-// publication it claims must be one the operator approved. approvalID names the
-// send item (as returned when it was queued); an approved send registers its
-// own publication, so this is only for a publication made outside that path.
-// Operators, and profiles that turned sendApproval off, are not asked.
+// requirePublicationApproval gates `publication register` from whatever is not
+// the operator's own terminal (notOperator: an agent, the chat's runs, what a
+// workflow node starts): a publication it claims must be one the operator
+// approved. approvalID names the send item (as returned when it was queued); an
+// approved send registers its own publication, so this is only for a
+// publication made outside that path. Operators, and profiles that turned
+// sendApproval off, are not asked.
 func requirePublicationApproval(cfg *globalConfig, approvalID string) error {
-	if _, agent := hilsend.Detect(); !agent {
+	if notOperator() == "" {
 		return nil
 	}
 	return withImageDB(cfg, func(db *sql.DB) error {
