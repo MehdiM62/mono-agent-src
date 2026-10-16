@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -80,6 +81,10 @@ func toolNodeRun(ctx context.Context, s *Server, args json.RawMessage) (interfac
 	}
 
 	ctx = vault.ContextWithProfileID(vault.ContextWithDB(ctx, rt.db.DB), profileOf(ctx))
+	// An AI wrote this config, as it writes a workflow the user never
+	// approved: the node runs as in such a workflow (no programs on this
+	// computer, approvals for what needs the user's).
+	ctx = workflow.WithAIAuthored(ctx)
 	if queued, handled, gerr := workflow.RunExecGuard(ctx, a.Type, workflow.NodeInput{Items: items}, config); handled {
 		if gerr != nil {
 			return nil, fmt.Errorf("node %s failed: %w", a.Type, gerr)
@@ -96,6 +101,10 @@ func toolNodeRun(ctx context.Context, s *Server, args json.RawMessage) (interfac
 	}
 	outputs, err := factory().Execute(ctx, input, config)
 	recordPublications(ctx, rt, a.Type, config, input, outputs)
+	if errors.Is(err, workflow.ErrUnapprovedProgram) {
+		return nil, fmt.Errorf("node %s runs a program on this computer, which node_run never does for an AI: "+
+			"put the step in a workflow and have the user save or activate it in the app or their own terminal", a.Type)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("node %s failed: %w", a.Type, err)
 	}

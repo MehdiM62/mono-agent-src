@@ -2,7 +2,11 @@ package workflow
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"strings"
+
+	"github.com/monoes/mono-agent/internal/vault"
 )
 
 // Operator approval of workflow definitions (#831 review C). A run of a
@@ -28,6 +32,25 @@ func WithAIAuthored(ctx context.Context) context.Context {
 func AIAuthoredFrom(ctx context.Context) bool {
 	v, _ := ctx.Value(aiAuthoredKey{}).(bool)
 	return v
+}
+
+// ErrUnapprovedProgram is wrapped by RefuseUnapprovedProgram's refusal.
+var ErrUnapprovedProgram = errors.New("a workflow the user has not approved runs no programs on this computer")
+
+// RefuseUnapprovedProgram refuses step what, one that runs a program on this
+// computer (a command, a Python script, a local MCP server, ssh to this
+// machine), in a run of a definition the operator never approved
+// (AIAuthoredFrom). Such a step can do anything the user can, the approvals
+// only the user gives included, so what the chat, an agent or another
+// workflow wrote runs none until the user approves the workflow. A workflow
+// the user approved runs these steps as before.
+func RefuseUnapprovedProgram(ctx context.Context, what, workflowID string) error {
+	if !AIAuthoredFrom(ctx) {
+		return nil
+	}
+	profile, _ := vault.ProfileIDFromContext(ctx)
+	return fmt.Errorf("%s runs a program on this computer, and the chat, an agent or another workflow wrote or changed this workflow since you last saved or activated it: "+
+		"if the change is yours, run `monoagentcli --profile %s workflow activate %s` (or save it in the app): %w", what, profile, workflowID, ErrUnapprovedProgram)
 }
 
 // definitionApprover is a store that keeps the operator's approvals.

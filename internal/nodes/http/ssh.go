@@ -38,6 +38,12 @@ func (n *SSHNode) Execute(ctx context.Context, input workflow.NodeInput, config 
 	if username == "" {
 		return nil, fmt.Errorf("http.ssh: 'username' is required")
 	}
+	// ssh to this machine runs a program here, as a command step would.
+	if workflow.AIAuthoredFrom(ctx) && sshTargetIsLocal(ctx, host) {
+		if err := workflow.RefuseUnapprovedProgram(ctx, "http.ssh to this computer", input.WorkflowID); err != nil {
+			return nil, err
+		}
+	}
 
 	resource, _ := config["resource"].(string)
 	command, _ := config["command"].(string)

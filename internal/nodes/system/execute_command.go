@@ -55,6 +55,9 @@ func (n *ExecuteCommandNode) Execute(ctx context.Context, input workflow.NodeInp
 	if command == "" {
 		return nil, fmt.Errorf("system.execute_command: 'command' is required")
 	}
+	if err := workflow.RefuseUnapprovedProgram(ctx, "system.execute_command", input.WorkflowID); err != nil {
+		return nil, err
+	}
 
 	var args []string
 	if rawArgs, ok := config["args"].([]interface{}); ok {
