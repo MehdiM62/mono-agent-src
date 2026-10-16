@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/monoes/mono-agent/internal/account"
+	"github.com/monoes/mono-agent/internal/storage"
 )
 
 // `db migrate` takes an empty HOME to a migrated database with every
@@ -42,6 +43,18 @@ func TestDBMigrateJSON(t *testing.T) {
 	}
 	if fi, err := os.Stat(filepath.Join(home, ".monoagent", "monoagent.db")); err != nil || fi.Size() == 0 {
 		t.Fatalf("database not created: %v", err)
+	}
+	// The app migrates through this command (it never opens the database
+	// to write), so it also runs the one-time approvals backfill.
+	db, err := storage.NewDatabase(filepath.Join(home, ".monoagent", "monoagent.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var backfilled int
+	err = db.DB.QueryRow(`SELECT COUNT(*) FROM settings WHERE key = 'workflow_approvals.backfilled'`).Scan(&backfilled)
+	db.Close()
+	if err != nil || backfilled != 1 {
+		t.Fatalf("db migrate did not run the approvals backfill: %v, %d", err, backfilled)
 	}
 
 	second := run()
