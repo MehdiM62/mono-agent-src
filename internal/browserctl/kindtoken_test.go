@@ -231,7 +231,8 @@ func TestUnprovenKindFailsClosed(t *testing.T) {
 		{LevelFull, LevelDev, LevelDev}, // the spoof gains nothing
 		{LevelFullNoApprovals, LevelDev, LevelDev},
 		{LevelDev, LevelFull, LevelDev}, // a lost token loosens nothing
-		{LevelAsk, LevelDev, LevelAsk},
+		{LevelAsk, LevelDev, LevelDev},  // dev refuses a new site; ask would raise an approval
+		{LevelDev, LevelAsk, LevelDev},
 		{LevelOff, LevelFullNoApprovals, LevelOff},
 	} {
 		if got := levels(tc.org, tc.other).LevelOf(c); got != tc.want {
