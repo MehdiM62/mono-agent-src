@@ -165,8 +165,22 @@ func TestRegisterSaysHowToApproveAChangedWorkflow(t *testing.T) {
 		t.Errorf("an unapproved definition: %v", err)
 	}
 	chat := workflow.WithTrigger(ctx, "trigger.manual", map[string]interface{}{workflow.AICallerKey: "chat"})
-	if _, err := (&RegisterNode{}).Execute(chat, in, config); err == nil || strings.Contains(err.Error(), "workflow activate") {
+	if _, err := (&RegisterNode{}).Execute(chat, in, config); err == nil || strings.Contains(err.Error(), "workflow activate") ||
+		strings.Contains(err.Error(), "called this one") {
 		t.Errorf("a chat's run is no definition the user can approve: %v", err)
+	}
+	// Called by a workflow the user never approved: that one is to approve
+	// (#831 round 6), named when the call recorded it.
+	called := workflow.WithTrigger(ctx, workflow.TriggerTypeExecuteWorkflow, map[string]interface{}{
+		workflow.AICallerKey: workflow.UnapprovedWorkflowCaller, workflow.UnapprovedCallerKey: "wf-parent"})
+	if _, err = (&RegisterNode{}).Execute(called, in, config); err == nil || !strings.Contains(err.Error(), "the workflow that called this one, wf-parent,") ||
+		!strings.Contains(err.Error(), "`monoagentcli --profile default workflow activate wf-parent`") {
+		t.Errorf("called by an unapproved workflow: %v", err)
+	}
+	unnamed := workflow.WithTrigger(ctx, workflow.TriggerTypeExecuteWorkflow, map[string]interface{}{workflow.AICallerKey: workflow.UnapprovedWorkflowCaller})
+	if _, err = (&RegisterNode{}).Execute(unnamed, in, config); err == nil || !strings.Contains(err.Error(), "the workflow that called this one changed since") ||
+		strings.Contains(err.Error(), "workflow activate") {
+		t.Errorf("called by an unapproved workflow it can't name: %v", err)
 	}
 }
 

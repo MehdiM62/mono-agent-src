@@ -131,6 +131,17 @@ func (*RegisterNode) Execute(ctx context.Context, in workflow.NodeInput, config 
 						"this workflow changed since you last saved or activated it: if the change is yours, run `monoagentcli --profile %s workflow activate %s` "+
 						"(or save it in the app)", i, err, profile, in.WorkflowID)
 				}
+				if caller, ok := workflow.UnapprovedCaller(ctx); ok {
+					// A workflow the user never approved called this one: say
+					// which, and how to approve it.
+					if caller == "" {
+						return nil, fmt.Errorf("publication.register item %d: %w (set approval to the send's id). This run counts as an AI's because "+
+							"the workflow that called this one changed since you last saved or activated it: if the change is yours, save or activate that workflow", i, err)
+					}
+					return nil, fmt.Errorf("publication.register item %d: %w (set approval to the send's id). This run counts as an AI's because "+
+						"the workflow that called this one, %s, changed since you last saved or activated it: if the change is yours, run `monoagentcli --profile %s workflow activate %s` "+
+						"(or save it in the app)", i, err, caller, profile, caller)
+				}
 				return nil, fmt.Errorf("publication.register item %d: %w (set approval to the send's id)", i, err)
 			}
 		}
