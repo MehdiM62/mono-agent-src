@@ -2342,6 +2342,15 @@ monoagentcli --profile work org automation-role add growth --alias publish_post 
   state on GET) and its URL and query string can carry workflow data
   out, and `ai.choose` sends its input to TypeSafe's API. These stay in
   the `consequential` tier, which the decider may approve at `mid`.
+- An item whose approval lets a message to a person go out is the user's
+  at every level and tier: a HIL item in front of a send
+  (`commsync.OutboundHIL`), or a call of a granted automation whose
+  workflow, or a workflow it calls, may send (`hilsend.MaySend`; an
+  unreadable workflow counts as sending). No rule, decider or delegate
+  approves it (`orgdecide.ItemSends`, `RouteItem`), `decision_resolve`
+  refuses it (escalate excepted), and `org autonomy needs-you` lists it.
+  A grant the user made with `--approval none` still calls without a
+  decision: that is their own choice.
 - The official browser read actions (find/list/scrape/export/metrics,
   `readOnlyActions`) are verified on every check against the INSTALLED
   definition, not trusted by name: the package must have `builtin` trust,
