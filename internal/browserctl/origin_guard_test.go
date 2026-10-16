@@ -337,3 +337,37 @@ func TestBlockedSubmitsAreTrackedPerOrigin(t *testing.T) {
 		t.Fatalf("seq 1 on b was taken for a's: %v", err)
 	}
 }
+
+// A tab on an IPv4-mapped address (local: it is 127.0.0.1) takes agent
+// commands: expectOrigin and the reads' origin filter are what the
+// browser itself calls the tab's origin, not the matching key.
+func TestIPv4MappedTabGetsTheBrowsersOrigin(t *testing.T) {
+	setEnv(t, true)
+	f := browserctltest.New()
+	f.AddTab("http://[::ffff:7f00:1]:8080/app", "Coder · Agent", true)
+	s, err := browserctl.Open(browserctl.Options{Profile: "p1", Sender: f})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Send(extension.CmdClick, map[string]interface{}{"selector": "#go"}, 0); err != nil {
+		t.Fatal(err)
+	}
+	if got := expectOrigins(f, extension.CmdClick); len(got) != 1 || got[0] != "http://[::ffff:7f00:1]:8080" {
+		t.Fatalf("click expectOrigin = %v", got)
+	}
+	if _, _, err := s.Console(0, nil, 0); err != nil {
+		t.Fatal(err)
+	}
+	reads := 0
+	for _, c := range f.Calls() {
+		if c.Type == extension.CmdReadConsole {
+			reads++
+			if c.Params["origin"] != "http://[::ffff:7f00:1]:8080" {
+				t.Fatalf("console origin filter = %v", c.Params["origin"])
+			}
+		}
+	}
+	if reads != 1 {
+		t.Fatalf("console reads: %d", reads)
+	}
+}

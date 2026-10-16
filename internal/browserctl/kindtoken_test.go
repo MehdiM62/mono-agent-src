@@ -65,7 +65,7 @@ func TestIssueAgentKindWritesARecord(t *testing.T) {
 	if fi, err := os.Stat(path); err != nil || fi.Mode().Perm() != 0o600 {
 		t.Errorf("record: %v %v", fi.Mode(), err)
 	}
-	if rec, ok := readKindRecord(path); !ok || rec.Kind != KindOrg || rec.PID != os.Getpid() || !rec.live() {
+	if rec, ok := readKindRecord(path); !ok || rec.Kind != KindOrg || rec.PID != os.Getpid() || rec.Start == "" || !rec.live() {
 		t.Errorf("record: %+v %v", rec, ok)
 	}
 	done()
@@ -74,9 +74,9 @@ func TestIssueAgentKindWritesARecord(t *testing.T) {
 	}
 
 	dead, young, old := strings.Repeat("d", 32), strings.Repeat("a", 32), strings.Repeat("b", 32)
-	writeKindRecord(t, dead, kindRecord{Kind: KindOrg, PID: deadPID(t), Created: time.Now()})
-	writeKindRecord(t, young, kindRecord{Kind: KindOrg, Created: time.Now().Add(-time.Hour)})
-	writeKindRecord(t, old, kindRecord{Kind: KindOrg, Created: time.Now().Add(-25 * time.Hour)})
+	writeKindRecord(t, dead, recordFor(KindOrg, deadPID(t), time.Now()))
+	writeKindRecord(t, young, recordFor(KindOrg, os.Getpid(), time.Now().Add(-time.Hour)))
+	writeKindRecord(t, old, recordFor(KindOrg, os.Getpid(), time.Now().Add(-8*24*time.Hour)))
 	_, _, done2 := IssueAgentKind(KindCoder)
 	defer done2()
 	for _, tok := range []string{dead, old} {
@@ -129,21 +129,36 @@ func TestDeclaredKindNeedsAToken(t *testing.T) {
 	}
 
 	dead := strings.Repeat("d", 32)
-	writeKindRecord(t, dead, kindRecord{Kind: KindOrg, PID: deadPID(t), Created: time.Now()})
+	writeKindRecord(t, dead, recordFor(KindOrg, deadPID(t), time.Now()))
 	t.Setenv(EnvAgentKindToken, dead)
 	if k := AgentKind(); k != KindOther {
 		t.Fatalf("a dead spawner: %q", k)
 	}
 	young, old := strings.Repeat("a", 32), strings.Repeat("b", 32)
-	writeKindRecord(t, young, kindRecord{Kind: KindOrg, Created: time.Now().Add(-time.Hour)})
-	writeKindRecord(t, old, kindRecord{Kind: KindOrg, Created: time.Now().Add(-25 * time.Hour)})
+	writeKindRecord(t, young, recordFor(KindOrg, os.Getpid(), time.Now().Add(-6*24*time.Hour)))
+	writeKindRecord(t, old, recordFor(KindOrg, os.Getpid(), time.Now().Add(-8*24*time.Hour)))
 	t.Setenv(EnvAgentKindToken, young)
 	if k := AgentKind(); k != KindOrg {
-		t.Fatalf("no pid, an hour old: %q", k)
+		t.Fatalf("a live spawner, six days old: %q", k)
 	}
 	t.Setenv(EnvAgentKindToken, old)
 	if k := AgentKind(); k != KindOther {
-		t.Fatalf("no pid, a day old: %q", k)
+		t.Fatalf("a live spawner, eight days old: %q", k)
+	}
+	// The pid now belongs to another process (it started at another time).
+	reused := strings.Repeat("c", 32)
+	rec := recordFor(KindOrg, os.Getpid(), time.Now())
+	rec.Start += "1"
+	writeKindRecord(t, reused, rec)
+	t.Setenv(EnvAgentKindToken, reused)
+	if k := AgentKind(); k != KindOther {
+		t.Fatalf("a reused pid: %q", k)
+	}
+	// A record with no start time (an older build's) never counts.
+	rec.Start = ""
+	writeKindRecord(t, reused, rec)
+	if k := AgentKind(); k != KindOther {
+		t.Fatalf("no start time: %q", k)
 	}
 	for _, bad := range []string{"../" + young, strings.ToUpper(young), young + "x"} {
 		t.Setenv(EnvAgentKindToken, bad)
@@ -258,5 +273,23 @@ func TestUnprovenKindFailsClosed(t *testing.T) {
 	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
 	if c := AgentCaller(); c != (Caller{Kind: KindOther, Declared: KindOrg}) || levels(LevelOff, LevelDev).LevelOf(c) != LevelOff {
 		t.Fatalf("unreadable records: %+v", c)
+	}
+}
+
+// processStart tells a running process by when it started, the same each
+// time, and knows no process that has exited.
+func TestProcessStart(t *testing.T) {
+	a, ok := processStart(os.Getpid())
+	if !ok || a == "" {
+		t.Fatalf("this process: %q %v", a, ok)
+	}
+	if b, _ := processStart(os.Getpid()); b != a {
+		t.Fatalf("not stable: %q, %q", a, b)
+	}
+	if s, ok := processStart(deadPID(t)); ok {
+		t.Fatalf("an exited process: %q", s)
+	}
+	if _, ok := processStart(0); ok {
+		t.Fatal("pid 0")
 	}
 }
