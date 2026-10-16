@@ -273,7 +273,7 @@ func createCoderConversation(cmd *cobra.Command, cfg *Deps, runtimeID, model, ef
 // addAgentKind adds kind's vouched environment (browserctl.IssueAgentKind)
 // to env and returns its done.
 func addAgentKind(env map[string]string, kind string) (done func()) {
-	kindEnv, done := browserctl.IssueAgentKind(kind)
+	kindEnv, _, done := browserctl.IssueAgentKind(kind)
 	for _, kv := range kindEnv {
 		if k, v, ok := strings.Cut(kv, "="); ok {
 			env[k] = v

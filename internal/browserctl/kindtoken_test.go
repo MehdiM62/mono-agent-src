@@ -14,7 +14,7 @@ import (
 // (IssueAgentKind), and removes the record when the test ends.
 func asKind(t *testing.T, kind string) {
 	t.Helper()
-	env, done := IssueAgentKind(kind)
+	env, _, done := IssueAgentKind(kind)
 	t.Cleanup(done)
 	for _, kv := range env {
 		k, v, _ := strings.Cut(kv, "=")
@@ -51,7 +51,7 @@ func deadPID(t *testing.T) int {
 // back the environment for the agents; done removes it, and issuing again
 // prunes what a crashed spawner left.
 func TestIssueAgentKindWritesARecord(t *testing.T) {
-	env, done := IssueAgentKind(KindOrg)
+	env, _, done := IssueAgentKind(KindOrg)
 	if len(env) != 2 || env[0] != EnvAgentKind+"=org" || !strings.HasPrefix(env[1], EnvAgentKindToken+"=") {
 		t.Fatalf("env: %q", env)
 	}
@@ -76,7 +76,7 @@ func TestIssueAgentKindWritesARecord(t *testing.T) {
 	writeKindRecord(t, dead, kindRecord{Kind: KindOrg, PID: deadPID(t), Created: time.Now()})
 	writeKindRecord(t, young, kindRecord{Kind: KindOrg, Created: time.Now().Add(-time.Hour)})
 	writeKindRecord(t, old, kindRecord{Kind: KindOrg, Created: time.Now().Add(-25 * time.Hour)})
-	_, done2 := IssueAgentKind(KindCoder)
+	_, _, done2 := IssueAgentKind(KindCoder)
 	defer done2()
 	for _, tok := range []string{dead, old} {
 		if _, err := os.Stat(filepath.Join(dir, tok+".json")); !os.IsNotExist(err) {
@@ -86,7 +86,7 @@ func TestIssueAgentKindWritesARecord(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dir, young+".json")); err != nil {
 		t.Errorf("a live record was pruned: %v", err)
 	}
-	if env, _ := IssueAgentKind(KindChat); env != nil {
+	if env, _, _ := IssueAgentKind(KindChat); env != nil {
 		t.Errorf("chat is never declared: %q", env)
 	}
 }
@@ -110,7 +110,7 @@ func TestDeclaredKindNeedsAToken(t *testing.T) {
 	}
 	t.Setenv("MONOMIND_ORG_ROLE", "")
 
-	env, done := IssueAgentKind(KindOrg)
+	env, _, done := IssueAgentKind(KindOrg)
 	token := strings.TrimPrefix(env[1], EnvAgentKindToken+"=")
 	t.Setenv(EnvAgentKind, KindOrg)
 	t.Setenv(EnvAgentKindToken, token)
@@ -149,5 +149,56 @@ func TestDeclaredKindNeedsAToken(t *testing.T) {
 		if k := AgentKind(); k != KindOther {
 			t.Fatalf("token %q: %q", bad, k)
 		}
+	}
+}
+
+// TestKindTokenSleeper is the child process TestBoundRecordFollowsTheChild
+// starts: it only sleeps.
+func TestKindTokenSleeper(t *testing.T) {
+	if os.Getenv("BROWSERCTL_KIND_SLEEPER") != "1" {
+		t.Skip("a helper process")
+	}
+	time.Sleep(time.Minute)
+}
+
+// A launcher that exits while what it started goes on (a detached org run)
+// binds the record to the started process: it counts while that process
+// runs, though the launcher is gone, and stops when it ends.
+func TestBoundRecordFollowsTheChild(t *testing.T) {
+	actAsHuman(t)
+	t.Setenv(EnvAICaller, "")
+	t.Setenv("CLAUDECODE", "1")
+	env, bind, done := IssueAgentKind(KindOrg)
+	defer done()
+	t.Setenv(EnvAgentKind, KindOrg)
+	t.Setenv(EnvAgentKindToken, strings.TrimPrefix(env[1], EnvAgentKindToken+"="))
+	if k := AgentKind(); k != KindOrg {
+		t.Fatalf("issued: %q", k)
+	}
+	// The launcher has exited: its record names a pid that is gone.
+	dir, _ := KindTokenDir()
+	path := filepath.Join(dir, strings.TrimPrefix(env[1], EnvAgentKindToken+"=")+".json")
+	rec, _ := readKindRecord(path)
+	rec.PID = deadPID(t)
+	if err := writeKindRecordFile(dir, path, rec); err != nil {
+		t.Fatal(err)
+	}
+	if k := AgentKind(); k != KindOther {
+		t.Fatalf("an exited launcher's record still counts: %q", k)
+	}
+	child := exec.Command(os.Args[0], "-test.run=^TestKindTokenSleeper$")
+	child.Env = append(os.Environ(), "BROWSERCTL_KIND_SLEEPER=1")
+	if err := child.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = child.Process.Kill(); _ = child.Wait() }()
+	bind(child.Process.Pid)
+	if k := AgentKind(); k != KindOrg {
+		t.Fatalf("bound to a running child: %q", k)
+	}
+	_ = child.Process.Kill()
+	_ = child.Wait()
+	if k := AgentKind(); k != KindOther {
+		t.Fatalf("the child has ended: %q", k)
 	}
 }

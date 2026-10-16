@@ -45,40 +45,64 @@ func KindTokenDir() (string, error) {
 // IssueAgentKind vouches for kind (KindCoder or KindOrg) for the agents
 // this process starts: it writes the record (dir 0700, file 0600) and
 // returns the environment to give them, MONOAGENT_AGENT_KIND and
-// MONOAGENT_AGENT_KIND_TOKEN as "KEY=value". Call done when the turn ends;
-// it removes the record. The record names this process, so it also stops
-// counting when this process is gone. When it can't be written, env has no
-// token and the agents run as kind other; any other kind gives no env.
-func IssueAgentKind(kind string) (env []string, done func()) {
-	done = func() {}
+// MONOAGENT_AGENT_KIND_TOKEN as "KEY=value". The record names this
+// process and counts while that process runs. A launcher that exits while
+// what it started goes on (a detached org run) calls bind with the started
+// process's pid once it has one: the record then counts while that process
+// runs. Call done when the turn ends; it removes the record. When the
+// record can't be written, env has no token (the agents run as kind other)
+// and bind does nothing; any other kind gives no env.
+func IssueAgentKind(kind string) (env []string, bind func(pid int), done func()) {
+	bind, done = func(int) {}, func() {}
 	if kind != KindCoder && kind != KindOrg {
-		return nil, done
+		return nil, bind, done
 	}
 	env = []string{EnvAgentKind + "=" + kind}
 	dir, err := KindTokenDir()
 	if err != nil || os.MkdirAll(dir, 0o700) != nil || os.Chmod(dir, 0o700) != nil {
-		return env, done
+		return env, bind, done
 	}
 	pruneKindTokens(dir)
 	var b [16]byte
 	if _, err := rand.Read(b[:]); err != nil {
-		return env, done
+		return env, bind, done
 	}
 	token := hex.EncodeToString(b[:])
-	raw, _ := json.Marshal(kindRecord{Kind: kind, PID: os.Getpid(), Created: time.Now().UTC()})
-	// Written aside and renamed, so no reader (or prune) sees it half done.
+	path := filepath.Join(dir, token+".json")
+	created := time.Now().UTC()
+	if writeKindRecordFile(dir, path, kindRecord{Kind: kind, PID: os.Getpid(), Created: created}) != nil {
+		return env, bind, done
+	}
+	bind = func(pid int) {
+		if pid > 0 {
+			_ = writeKindRecordFile(dir, path, kindRecord{Kind: kind, PID: pid, Created: created})
+		}
+	}
+	return append(env, EnvAgentKindToken+"="+token), bind, func() { _ = os.Remove(path) }
+}
+
+// writeKindRecordFile writes rec to path aside and renames it into place,
+// so no reader (or prune) sees it half done.
+func writeKindRecordFile(dir, path string, rec kindRecord) error {
+	raw, _ := json.Marshal(rec)
 	f, err := os.CreateTemp(dir, ".new-*")
 	if err != nil {
-		return env, done
+		return err
 	}
-	_, werr := f.Write(raw)
-	cerr := f.Close()
-	path := filepath.Join(dir, token+".json")
-	if werr != nil || cerr != nil || os.Chmod(f.Name(), 0o600) != nil || os.Rename(f.Name(), path) != nil {
+	_, err = f.Write(raw)
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if err == nil {
+		err = os.Chmod(f.Name(), 0o600)
+	}
+	if err == nil {
+		err = os.Rename(f.Name(), path)
+	}
+	if err != nil {
 		_ = os.Remove(f.Name())
-		return env, done
 	}
-	return append(env, EnvAgentKindToken+"="+token), func() { _ = os.Remove(path) }
+	return err
 }
 
 // kindVouched reports whether this process's MONOAGENT_AGENT_KIND_TOKEN
