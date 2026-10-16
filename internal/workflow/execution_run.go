@@ -141,6 +141,11 @@ func RunExecution(
 	// Org nodes continue the chain trace of whatever started the run, even
 	// when a node between the trigger and them drops the `trace` field.
 	ctx = WithTrigger(ctx, exec.TriggerType, snapshotTrigger(exec.TriggerData))
+	// A run of a definition the operator never approved is an AI run,
+	// whatever started it (approvals.go).
+	if !operatorApproved(ctx, store, wf) {
+		ctx = WithAIAuthored(ctx)
+	}
 	// The execution owns its profile even if a multi-profile daemon's caller
 	// context still holds a process-wide profile.
 	if exec.ProfileID != "" {

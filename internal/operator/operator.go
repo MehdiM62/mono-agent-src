@@ -84,11 +84,13 @@ func Caller() string {
 // process is not the operator's own terminal (Marker), an AI started the run
 // (workflow.AICallerKey, the mark a chat's or an agent's `workflow run`
 // leaves for the engine that runs it: this one, or a daemon that adopts it),
-// or the org side did (a granted call, a message to an automation role, a
-// trigger.org event). A run the user starts from the app, a terminal, a
-// schedule or a webhook is the operator's.
+// the org side did (a granted call, a message to an automation role, a
+// trigger.org event), or the workflow's definition is one the operator never
+// approved (workflow.AIAuthoredFrom: the chat, an agent or a workflow made or
+// changed it since). Any other run the user starts from the app, a terminal,
+// a schedule or a webhook is the operator's.
 func AIRun(ctx context.Context) bool {
-	if Marker() != "" {
+	if Marker() != "" || workflow.AIAuthoredFrom(ctx) {
 		return true
 	}
 	if v, _ := workflow.TriggerDataFrom(ctx)[workflow.AICallerKey].(string); strings.TrimSpace(v) != "" {
@@ -116,4 +118,19 @@ func Refusal() string {
 	default:
 		return m + " is set, so an agent is running this command"
 	}
+}
+
+// ApproveWorkflow records workflow id's current definition as the operator's
+// (workflow.HybridWorkflowStore.ApproveDefinition), so its runs are the
+// operator's again, when this process is the operator's own terminal: the
+// operator saved or activated it, a deliberate review. Anything else leaves
+// the approvals as they were. A store that keeps none is passed over.
+func ApproveWorkflow(ctx context.Context, store any, id string) error {
+	a, ok := store.(interface {
+		ApproveDefinition(ctx context.Context, workflowID string) error
+	})
+	if !ok || id == "" || Marker() != "" {
+		return nil
+	}
+	return a.ApproveDefinition(ctx, id)
 }
