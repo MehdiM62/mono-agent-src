@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -109,5 +110,33 @@ func TestRegisterFromAnAIRunNeedsAnApprovedSend(t *testing.T) {
 	}
 	if n := count(); n != 2 {
 		t.Errorf("%d publications, want 2", n)
+	}
+}
+
+// Each item names its own send: approval is held back from the engine's
+// one-pass resolution and evaluated per item.
+func TestRegisterApprovalIsPerItem(t *testing.T) {
+	asTheUsersRun(t)
+	if !slices.Contains((&RegisterNode{}).PerItemConfigFields(), "approval") {
+		t.Fatal("approval is resolved once for every item")
+	}
+	db, err := storage.NewDatabase(filepath.Join(t.TempDir(), "db.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if err = db.ApplyMigrations(); err != nil {
+		t.Fatal(err)
+	}
+	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db.DB), "default")
+	a, b := sentSend(t, ctx, db.DB), sentSend(t, ctx, db.DB)
+	in := workflow.NodeInput{ExecutionID: "execution", NodeID: "register", Items: []workflow.Item{
+		workflow.NewItem(map[string]interface{}{"text": "one", "hil_id": a}),
+		workflow.NewItem(map[string]interface{}{"text": "two", "hil_id": b}),
+	}}
+	config := map[string]interface{}{"platform": "email", "kind": "post", "body": "{{ $json.text }}", "approval": "{{ $json.hil_id }}"}
+	run := workflow.WithTrigger(ctx, "trigger.manual", map[string]interface{}{workflow.AICallerKey: "chat"})
+	if out, err := (&RegisterNode{}).Execute(run, in, config); err != nil || len(out[0].Items) != 2 {
+		t.Fatalf("two items, two sends: %v %v", out, err)
 	}
 }

@@ -16,7 +16,7 @@ type RegisterNode struct{}
 
 func (*RegisterNode) Type() string { return "publication.register" }
 func (*RegisterNode) PerItemConfigFields() []string {
-	fields := []string{}
+	fields := []string{"approval"} // evaluated per item, like the entry's fields
 	for key := range publication.EntrySchema() {
 		fields = append(fields, key)
 	}

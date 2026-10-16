@@ -3,6 +3,8 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/monoes/mono-agent/internal/ai/chat"
@@ -60,5 +62,36 @@ func TestAChatBuiltWorkflowIsTheOperatorsOnlyOnceTheyActivateIt(t *testing.T) {
 	runWorkflowSubcmd(t, cfg, "activate", created.ID)
 	if n := approvals(); n != 1 {
 		t.Fatalf("the operator's activation recorded %d approvals, want 1", n)
+	}
+}
+
+// `workflow validate` takes publication.register's approval, an expression
+// per item, as a field of the node (#831).
+func TestWorkflowValidateKnowsTheRegisterApproval(t *testing.T) {
+	_, cfg := persistTestEnv(t)
+	file := filepath.Join(t.TempDir(), "wf.json")
+	doc := `{"name":"Publish","nodes":[{"id":"t","type":"trigger.manual","name":"Start"},` +
+		`{"id":"r","type":"publication.register","name":"Register","config":{"platform":"x","kind":"post","body":"hi","approval":"{{ $json.hil_id }}"}}],` +
+		`"connections":[{"source":"t","target":"r"}]}`
+	if err := os.WriteFile(file, []byte(doc), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var rep struct {
+		Valid  bool `json:"valid"`
+		Issues []struct {
+			Field, Code string
+		} `json:"issues"`
+	}
+	out := runWorkflowSubcmd(t, cfg, "validate", "--file", file)
+	if err := json.Unmarshal([]byte(out), &rep); err != nil {
+		t.Fatalf("validate --json: %v\n%s", err, out)
+	}
+	if !rep.Valid {
+		t.Errorf("invalid: %s", out)
+	}
+	for _, is := range rep.Issues {
+		if is.Field == "approval" && is.Code == "unknown_field" {
+			t.Errorf("approval is not a field of publication.register: %s", out)
+		}
 	}
 }
