@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/monoes/mono-agent/internal/operator"
 	"github.com/monoes/mono-agent/internal/profiledir"
 	"github.com/monoes/mono-agent/internal/vault"
 )
@@ -58,10 +59,17 @@ func (d Deps) newProfileMoveCmd() *cobra.Command {
 			"then points the profile at it. The profile's folder setting only changes once both moves " +
 			"succeeded, so a failure leaves the old folder authoritative and the move can be retried. " +
 			"Stop the folder's orgs first (`org serve --stop`) and run `org reconcile` and `org serve` " +
-			"afterwards. --check only validates the destination.",
+			"afterwards. --check only validates the destination.\n\n" +
+			"Only the user moves a profile's folder (" + folderIsTheUsers + "): an agent, the chat or a " +
+			"workflow run is refused (exit 3). --check stays open.",
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			newRoot := strings.TrimSpace(args[1])
+			if !check {
+				if err := d.refuseFolderChoice(); err != nil {
+					return err
+				}
+			}
 			if newRoot == "" {
 				return d.InvalidInput("no folder chosen")
 			}
@@ -136,6 +144,21 @@ func (d Deps) newProfileMoveCmd() *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&check, "check", false, "Only check that the destination is usable; move nothing")
 	return cmd
+}
+
+// folderIsTheUsers says why a profile's folder is the user's choice.
+const folderIsTheUsers = "workflow runs the user never approved may read and write in it, hidden files included"
+
+// refuseFolderChoice refuses setting or changing a profile's folder to anyone
+// but the user (operator.Refusal): the folder is a trusted zone for runs of
+// workflows the user never approved, so an agent pointing it at the home or
+// at ~/.ssh would hand those runs everything there.
+func (d Deps) refuseFolderChoice() error {
+	if why := operator.Refusal(); why != "" {
+		return d.InvalidInput("only the user sets or moves a profile's folder (%s); the user runs this in their own terminal or "+
+			"in the app's profile settings, and a profile created without --root-dir gets its own folder: %s", folderIsTheUsers, why)
+	}
+	return nil
 }
 
 // validateFolderChoice rejects a folder that isn't safe to hand a
