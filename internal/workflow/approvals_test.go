@@ -30,7 +30,10 @@ func TestRunsOfDefinitionsTheOperatorNeverApprovedAreAIRuns(t *testing.T) {
 	if _, err := db.Exec(`CREATE TABLE workflow_versions (workflow_id TEXT, version INTEGER, definition_hash TEXT)`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.Exec(`INSERT INTO workflow_versions VALUES ('wf-old', 1, 'hash-old')`); err != nil {
+	if _, err := db.Exec(`INSERT INTO workflow_versions VALUES ('wf-old', 1, 'hash-old'), ('wf-gone', 1, 'hash-gone')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`INSERT INTO workflows (id, name) VALUES ('wf-old', 'Old')`); err != nil {
 		t.Fatal(err)
 	}
 	migration, err := data.MigrationsFS.ReadFile("migrations/106_workflow_approvals.sql")
@@ -42,6 +45,9 @@ func TestRunsOfDefinitionsTheOperatorNeverApprovedAreAIRuns(t *testing.T) {
 	}
 	if ok, err := store.DefinitionApproved(ctx, "wf-old", "hash-old"); err != nil || !ok {
 		t.Fatalf("a definition versioned before the migration: %v %v", ok, err)
+	}
+	if ok, _ := store.DefinitionApproved(ctx, "wf-gone", "hash-gone"); ok {
+		t.Fatal("a version of a workflow that is gone was approved")
 	}
 
 	var seen bool
