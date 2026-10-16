@@ -201,6 +201,13 @@ func (n *HumanInLoopNode) createRows(ctx context.Context, db *sql.DB, input work
 		return false, err
 	}
 	comms := commsItems(ctx, input, profileID)
+	// The nodes after this one send a message to a person: only the operator
+	// decides its items (operator.ItemRefusal). Every item is marked, even one
+	// that got no Communications entry: the sends follow every item.
+	outbound := false
+	for _, c := range comms {
+		outbound = outbound || c != nil
+	}
 	for i := range input.Items {
 		cfg := map[string]interface{}{
 			"readonly_fields": readonlyFields,
@@ -214,6 +221,9 @@ func (n *HumanInLoopNode) createRows(ctx context.Context, db *sql.DB, input work
 			if plan[i].status != "" {
 				status, decided = plan[i].status, true
 			}
+		}
+		if outbound {
+			cfg[commsync.OutboundKey] = true
 		}
 		configJSON, _ := json.Marshal(cfg)
 		roJSON, _ := json.Marshal(ro[i])
