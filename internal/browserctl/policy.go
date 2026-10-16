@@ -26,9 +26,11 @@ const AllowlistSetting = "browser_agent_allowlist"
 type Policy struct {
 	// Agent: the caller is an agent. Nothing is refused when false.
 	Agent bool
-	// Kind is the agent's kind and Level its level ("" behaves as dev).
-	Kind  string
-	Level string
+	// Kind is the agent's kind and Level its level ("" behaves as dev);
+	// Declared a kind it claimed but could not prove (Caller).
+	Kind     string
+	Declared string
+	Level    string
 	// Allowlist and Blocklist hold the allow and block rules:
 	// "scheme://host[:port]" or "*.host", and for a block also "host".
 	Allowlist []string
@@ -63,10 +65,18 @@ func (e *NotAllowedError) Allowable() bool {
 	return err == nil
 }
 
-// BrowserOffError: the kind's level is off.
-type BrowserOffError struct{ Kind string }
+// BrowserOffError: the kind's level is off. Declared is a kind the agent
+// claimed but could not prove, whose level may be the one that is off.
+type BrowserOffError struct {
+	Kind     string
+	Declared string
+}
 
 func (e *BrowserOffError) Error() string {
+	if e.Declared != "" {
+		return fmt.Sprintf("browser access is off: this shell says it is one of the %s, which no token vouches for, so the stricter of that kind's level and %s's applies — Settings → Agent browser permissions",
+			strings.ToLower(KindLabel(e.Declared)), strings.ToLower(KindLabel(e.Kind)))
+	}
 	return fmt.Sprintf("browser access is off for %s — Settings → Agent browser permissions", strings.ToLower(KindLabel(e.Kind)))
 }
 
@@ -101,7 +111,7 @@ func (p Policy) Check(rawURL string) error {
 		return nil
 	}
 	if p.level() == LevelOff {
-		return &BrowserOffError{Kind: p.Kind}
+		return &BrowserOffError{Kind: p.Kind, Declared: p.Declared}
 	}
 	u, err := url.Parse(strings.TrimSpace(rawURL))
 	if err != nil || u.Scheme == "" {

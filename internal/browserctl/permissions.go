@@ -380,10 +380,15 @@ func (p Permissions) Blocked(rawURL string) bool {
 // PolicyFor is the policy for an agent of kind ("" is a human terminal:
 // unrestricted).
 func (p Permissions) PolicyFor(kind string) Policy {
-	if kind == "" {
+	return p.PolicyForCaller(Caller{Kind: kind})
+}
+
+// PolicyForCaller is the policy for c, at LevelOf(c).
+func (p Permissions) PolicyForCaller(c Caller) Policy {
+	if c.Kind == "" {
 		return Policy{}
 	}
-	return Policy{Agent: true, Kind: kind, Level: p.Level(kind), Allowlist: p.Sited(RuleAllow), Blocklist: p.Sited(RuleBlock)}
+	return Policy{Agent: true, Kind: c.Kind, Declared: c.Declared, Level: p.LevelOf(c), Allowlist: p.Sited(RuleAllow), Blocklist: p.Sited(RuleBlock)}
 }
 
 // Environment that tells kinds of agent apart.
@@ -392,23 +397,57 @@ const (
 	EnvAICaller  = "MONOAGENT_AI_CALLER"  // "chat": a run the in-app chat started
 )
 
-// AgentKind is the kind of agent running this process, "" for a human
-// terminal. An agent shell (IsAgentContext) is the kind it declares —
-// coder with MONOAGENT_AGENT_KIND=coder, org with MONOAGENT_AGENT_KIND=org
-// or MONOMIND_ORG_ROLE — when a token its spawner issued vouches for it
-// (IssueAgentKind), else other: a shell is never chat. chat is a process
-// with MONOAGENT_AI_CALLER=chat and no shell markers.
-func AgentKind() string {
+// Caller is who runs this process, for the browser permissions.
+type Caller struct {
+	// Kind is the kind of agent ("" for the user's own terminal): coder,
+	// org, chat or other.
+	Kind string `json:"kind"`
+	// Declared is a kind (coder or org) the shell declared that no token
+	// vouches for (no token, a bad one, its process gone, the records
+	// unreadable). Kind is then other, and the stricter of the two kinds'
+	// levels applies (LevelOf): a claim never loosens, and neither does a
+	// lost token.
+	Declared string `json:"declared,omitempty"`
+}
+
+// AgentCaller is the caller this process's environment shows. An agent
+// shell (IsAgentContext) is the kind it declares — coder with
+// MONOAGENT_AGENT_KIND=coder, org with MONOAGENT_AGENT_KIND=org or
+// MONOMIND_ORG_ROLE — when a token its spawner issued vouches for it
+// (IssueAgentKind), else other with that kind as Declared: a shell is
+// never chat. chat is a process with MONOAGENT_AI_CALLER=chat and no shell
+// markers.
+func AgentCaller() Caller {
 	if IsAgentContext() {
-		if kind := declaredKind(); kind != "" && kindVouched(kind) {
-			return kind
+		kind := declaredKind()
+		if kind != "" && kindVouched(kind) {
+			return Caller{Kind: kind}
 		}
-		return KindOther
+		return Caller{Kind: KindOther, Declared: kind}
 	}
 	if strings.TrimSpace(os.Getenv(EnvAICaller)) == KindChat {
-		return KindChat
+		return Caller{Kind: KindChat}
 	}
-	return ""
+	return Caller{}
+}
+
+// AgentKind is AgentCaller's kind: "" for a human terminal.
+func AgentKind() string { return AgentCaller().Kind }
+
+// strictness orders the levels, the strictest highest.
+var strictness = map[string]int{LevelFullNoApprovals: 0, LevelFull: 1, LevelDev: 2, LevelAsk: 3, LevelOff: 4}
+
+// LevelOf is the level that binds c: its kind's, and with a kind it
+// declared but could not prove, the stricter of that kind's level and its
+// own (off, ask, dev, full, full-no-approvals, strictest first).
+func (p Permissions) LevelOf(c Caller) string {
+	l := p.Level(c.Kind)
+	if c.Declared != "" {
+		if d := p.Level(c.Declared); strictness[d] > strictness[l] {
+			l = d
+		}
+	}
+	return l
 }
 
 // declaredKind is the kind an agent shell's environment claims.

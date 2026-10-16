@@ -2499,7 +2499,9 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
   the runs the org starts), `chat` (the in-app chat and the workflow runs it
   starts) and `other` (any other agent shell). A declared `coder` or `org`
   counts only with the `MONOAGENT_AGENT_KIND_TOKEN` its spawner issued
-  (`browserctl.IssueAgentKind`); without it a shell is `other`. The levels are
+  (`browserctl.IssueAgentKind`); without it a shell is `other` (with
+  `declared` in `browser permissions`), held to the stricter of the
+  declared kind's level and `other`'s. The levels are
   `full-no-approvals` (any site, submits go through, scripts run on any
   page and can read its cookies and storage), `full` (any site,
   submits on real sites wait for approval), `dev` (local and dev pages plus

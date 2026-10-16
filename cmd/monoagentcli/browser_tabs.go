@@ -30,17 +30,17 @@ func newBrowserBrowsersCmd(cfg *globalConfig) *cobra.Command {
 		Example: "  monoagentcli --json browser browsers",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if kind := browserctl.AgentKind(); kind != "" {
+			if c := browserctl.AgentCaller(); c.Kind != "" {
 				// Machine-wide, but still the browser: refused at level off.
 				off := false
 				if err := withPermissions(cfg, nil, func(p browserctl.Permissions) error {
-					off = p.Level(kind) == browserctl.LevelOff
+					off = p.LevelOf(c) == browserctl.LevelOff
 					return nil
 				}); err != nil {
 					return err
 				}
 				if off {
-					return browserErr(cmd, cfg, &browserctl.BrowserOffError{Kind: kind})
+					return browserErr(cmd, cfg, &browserctl.BrowserOffError{Kind: c.Kind, Declared: c.Declared})
 				}
 			}
 			sender, err := browserBridge()

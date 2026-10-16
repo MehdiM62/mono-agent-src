@@ -30,10 +30,13 @@ type permissionsKind struct {
 }
 
 // permissionsYou is the caller: an agent's kind and level, or "human" and
-// "unrestricted" for the user's own terminal.
+// "unrestricted" for the user's own terminal. Declared is a kind the agent
+// claimed but could not prove: the level is then the stricter of that
+// kind's and its own.
 type permissionsYou struct {
-	Kind  string `json:"kind"`
-	Level string `json:"level"`
+	Kind     string `json:"kind"`
+	Level    string `json:"level"`
+	Declared string `json:"declared,omitempty"`
 }
 
 func newPermissionsDoc(p browserctl.Permissions) permissionsDoc {
@@ -47,8 +50,8 @@ func newPermissionsDoc(p browserctl.Permissions) permissionsDoc {
 		doc.Kinds = append(doc.Kinds, permissionsKind{Kind: k, Label: browserctl.KindLabel(k), Level: l, IsDefault: l == browserctl.DefaultLevels[k]})
 	}
 	doc.You = permissionsYou{Kind: "human", Level: "unrestricted"}
-	if k := browserctl.AgentKind(); k != "" {
-		doc.You = permissionsYou{Kind: k, Level: p.Level(k)}
+	if c := browserctl.AgentCaller(); c.Kind != "" {
+		doc.You = permissionsYou{Kind: c.Kind, Level: p.LevelOf(c), Declared: c.Declared}
 	}
 	return doc
 }
@@ -154,6 +157,10 @@ func printPermissions(cmd *cobra.Command, cfg *globalConfig, p browserctl.Permis
 				fmt.Fprintf(cmd.OutOrStdout(), "  %-6s %s\n", s.Rule, s.Origin)
 			}
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "\nYou: %s (%s)\n", doc.You.Kind, doc.You.Level)
+		if doc.You.Declared != "" {
+			fmt.Fprintf(cmd.OutOrStdout(), "\nYou: %s (%s; you declared %s, which no token vouches for)\n", doc.You.Kind, doc.You.Level, doc.You.Declared)
+		} else {
+			fmt.Fprintf(cmd.OutOrStdout(), "\nYou: %s (%s)\n", doc.You.Kind, doc.You.Level)
+		}
 	})
 }

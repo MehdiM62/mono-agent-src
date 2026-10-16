@@ -18,7 +18,7 @@ func AsAgentKind(t testing.TB, kind string) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
-	env, done := browserctl.IssueAgentKind(kind)
+	env, _, done := browserctl.IssueAgentKind(kind)
 	t.Cleanup(done)
 	if len(env) != 2 {
 		t.Fatalf("no token issued for kind %q: %q", kind, env)

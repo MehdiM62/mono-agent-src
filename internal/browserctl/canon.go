@@ -19,7 +19,8 @@ import (
 
 // asciiHost is host as the browser puts it in an origin: lowercase, mapped
 // by IDNA's Lookup profile, a numeric IPv4 form read as the browser reads
-// it; a trailing dot is kept. ok is false for a name the browser could read
+// it; a trailing dot is kept. An IPv6 literal is written one way, and an
+// IPv4-mapped one as the IPv4 address it reaches. ok is false for a name the browser could read
 // differently from us (a non-ASCII name IDNA rejects, a number that is no
 // IPv4 address): it matches no rule and an agent is refused it.
 func asciiHost(host string) (string, bool) {
@@ -27,8 +28,15 @@ func asciiHost(host string) (string, bool) {
 	if h == "" {
 		return "", false
 	}
-	if strings.Contains(h, ":") { // an IPv6 literal
-		return h, net.ParseIP(h) != nil
+	if strings.Contains(h, ":") { // an IPv6 literal, in one spelling: [0::1] is [::1]
+		ip := net.ParseIP(h)
+		switch {
+		case ip == nil:
+			return h, false
+		case ip.To4() != nil: // IPv4-mapped: [::ffff:a9fe:a9fe] is 169.254.169.254
+			return ip.To4().String(), true
+		}
+		return ip.String(), true
 	}
 	if a, err := idna.Lookup.ToASCII(h); err == nil {
 		h = a
