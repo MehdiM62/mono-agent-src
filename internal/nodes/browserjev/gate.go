@@ -27,6 +27,9 @@ type caller struct {
 	// kind is the kind of agent (browserctl.Kind*), whose level in the
 	// user's browser permissions the run follows.
 	kind string
+	// declared is a kind the agent claimed but could not prove
+	// (browserctl.Caller): its level binds too when it is stricter.
+	declared string
 }
 
 // aiCaller reports who started this run when it was not the user, and its
@@ -44,13 +47,17 @@ func aiCaller(ctx context.Context) (caller, bool) {
 	// A run this process didn't start: the AI caller's `workflow run` marked
 	// it with its kind (MarkAICaller); an unknown mark ("agent") is other.
 	if v, _ := workflow.TriggerDataFrom(ctx)[workflow.AICallerKey].(string); strings.TrimSpace(v) != "" {
-		switch v {
-		case browserctl.KindChat:
-			return caller{name: "chat", by: hilsend.PreparedBy{AgentID: v}, kind: v}, true
-		case browserctl.KindCoder, browserctl.KindOrg:
-			return caller{name: "an agent", by: hilsend.PreparedBy{AgentID: v}, kind: v}, true
+		kind, declared, _ := strings.Cut(v, "/")
+		if declared != browserctl.KindCoder && declared != browserctl.KindOrg {
+			declared = ""
 		}
-		return caller{name: "an agent", by: hilsend.PreparedBy{AgentID: browserctl.KindOther}, kind: browserctl.KindOther}, true
+		switch kind {
+		case browserctl.KindChat:
+			return caller{name: "chat", by: hilsend.PreparedBy{AgentID: kind}, kind: kind, declared: declared}, true
+		case browserctl.KindCoder, browserctl.KindOrg:
+			return caller{name: "an agent", by: hilsend.PreparedBy{AgentID: kind}, kind: kind, declared: declared}, true
+		}
+		return caller{name: "an agent", by: hilsend.PreparedBy{AgentID: browserctl.KindOther}, kind: browserctl.KindOther, declared: declared}, true
 	}
 	switch workflow.TriggerTypeFrom(ctx) {
 	case workflow.TriggerTypeOrgTool, workflow.TriggerTypeOrgMessage, workflow.TriggerNodeTypeOrg:
@@ -70,7 +77,8 @@ func envCaller() (caller, bool) {
 		if m := orgsign.AgentContextMarker(); m != "" {
 			name += " (" + m + ")"
 		}
-		return caller{name: name, by: browserctl.RequestedBy(), kind: browserctl.AgentKind()}, true
+		c := browserctl.AgentCaller()
+		return caller{name: name, by: browserctl.RequestedBy(), kind: c.Kind, declared: c.Declared}, true
 	}
 	if v := strings.TrimSpace(os.Getenv(EnvAICaller)); v != "" {
 		kind := browserctl.KindChat
@@ -85,17 +93,22 @@ func envCaller() (caller, bool) {
 // MarkAICaller marks a run's trigger data with the kind of the AI caller
 // that starts it from this process (`workflow run`), so the engine that runs
 // it — this one, or a daemon that adopts a --no-wait run or resumes a paused
-// one — holds it to the same level.
+// one — holds it to the same level. A kind the caller declared but could
+// not prove follows as "kind/declared" ("other/org").
 func MarkAICaller(data map[string]interface{}) {
 	if c, ok := envCaller(); ok && data != nil {
-		data[workflow.AICallerKey] = c.kind
+		mark := c.kind
+		if c.declared != "" {
+			mark += "/" + c.declared
+		}
+		data[workflow.AICallerKey] = mark
 	}
 }
 
-// policyFor is the policy the user set for agents of kind (Settings → Agent
-// browser permissions), with the site rules. Without a database the
+// policyFor is the policy the user set for who's kind of agent (Settings →
+// Agent browser permissions), with the site rules. Without a database the
 // defaults apply.
-func policyFor(ctx context.Context, kind string) (browserctl.Policy, error) {
+func policyFor(ctx context.Context, who caller) (browserctl.Policy, error) {
 	p := browserctl.DefaultPermissions()
 	if db := vault.DBFromContext(ctx); db != nil {
 		var err error
@@ -103,7 +116,7 @@ func policyFor(ctx context.Context, kind string) (browserctl.Policy, error) {
 			return browserctl.Policy{}, fmt.Errorf("read the browser permissions: %w", err)
 		}
 	}
-	return p.PolicyFor(kind), nil
+	return p.PolicyForCaller(browserctl.Caller{Kind: who.kind, Declared: who.declared}), nil
 }
 
 // blockedSubmit is one submit the guard stopped (C1 submit_guard's blocked[]).

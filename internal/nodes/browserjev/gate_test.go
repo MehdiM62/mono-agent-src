@@ -39,6 +39,12 @@ func TestAICaller(t *testing.T) {
 			t.Errorf("a run marked %q: %+v %v, want kind %s", mark, c, ok, kind)
 		}
 	}
+	// A kind the shell declared but could not prove travels after a "/".
+	for mark, declared := range map[string]string{"other/org": "org", "other/coder": "coder", "other/chat": "", "other/": ""} {
+		if c, _ := aiCaller(workflow.WithTrigger(ctx, "trigger.manual", map[string]interface{}{workflow.AICallerKey: mark})); c.kind != browserctl.KindOther || c.declared != declared {
+			t.Errorf("a run marked %q: %+v, want other declaring %q", mark, c, declared)
+		}
+	}
 	data := map[string]interface{}{"who": "zed"}
 	if MarkAICaller(data); len(data) != 1 {
 		t.Errorf("the user's own run is not marked: %v", data)
@@ -71,8 +77,17 @@ func TestAICaller(t *testing.T) {
 	browserctltest.AsAgentKind(t, browserctl.KindOrg)
 	t.Setenv(browserctl.EnvAgentKind, "")
 	t.Setenv("MONOMIND_ORG_ROLE", "writer")
-	if c, _ := aiCaller(ctx); c.kind != browserctl.KindOrg {
+	if c, _ := aiCaller(ctx); c.kind != browserctl.KindOrg || c.declared != "" {
 		t.Errorf("an org role's shell: %+v", c)
+	}
+	// Without a token to vouch for it, it is other declaring org, and its
+	// run's mark says so.
+	t.Setenv(browserctl.EnvAgentKindToken, "")
+	if c, _ := aiCaller(ctx); c.kind != browserctl.KindOther || c.declared != browserctl.KindOrg {
+		t.Errorf("an unproven org role's shell: %+v", c)
+	}
+	if MarkAICaller(data); data[workflow.AICallerKey] != "other/org" {
+		t.Errorf("an unproven org role's run is marked other/org: %v", data)
 	}
 }
 

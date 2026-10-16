@@ -36,7 +36,7 @@ func newRunGate(ctx context.Context, sites siteAsker) (*runGate, error) {
 		return g, nil
 	}
 	var err error
-	if g.pol, err = policyFor(ctx, g.who.kind); err != nil {
+	if g.pol, err = policyFor(ctx, g.who); err != nil {
 		return nil, err
 	}
 	return g, nil
@@ -116,7 +116,7 @@ func (g *runGate) askSite(ctx context.Context, pageURL, origin string) error {
 		switch status {
 		case "approved":
 			// The user's approval writes the allow rule before it marks the item.
-			if g.pol, err = policyFor(ctx, g.who.kind); err != nil {
+			if g.pol, err = policyFor(ctx, g.who); err != nil {
 				return err
 			}
 			if g.pol.Check(pageURL) != nil {
