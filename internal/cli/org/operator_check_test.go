@@ -109,3 +109,29 @@ func TestOrgGrantWithoutApprovalIsTheOperatorsOnly(t *testing.T) {
 		t.Errorf("the operator's --approval none: %v", gg)
 	}
 }
+
+// Autonomy full puts no person in any decision: an agent, the chat and a
+// workflow are refused it (exit 3, with how to fix an inherited marker),
+// and may set manual or mid; the operator sets full (#831).
+func TestOrgAutonomyFullIsTheOperatorsOnly(t *testing.T) {
+	f := newOrgCLIFixture(t)
+	for _, k := range append([]string{"CLAUDECODE"}, notTheOperator...) {
+		t.Setenv(k, "x")
+		_, err := f.run(t, "autonomy", "set", "growth", "--level", "full")
+		if exitCodeFor(err) != 3 || !strings.Contains(err.Error(), "the user's to choose") || !strings.Contains(err.Error(), "inherited this marker") {
+			t.Errorf("%s: --level full: %v", k, err)
+		}
+		if got := f.mustRun(t, "autonomy", "show", "growth")["level"]; got == "full" {
+			t.Errorf("%s: the level became full", k)
+		}
+		for _, level := range []string{"manual", "mid"} {
+			if set := f.mustRun(t, "autonomy", "set", "growth", "--level", level); set["level"] != level {
+				t.Errorf("%s: --level %s: %v", k, level, set)
+			}
+		}
+		t.Setenv(k, "")
+	}
+	if set := f.mustRun(t, "autonomy", "set", "growth", "--level", "full"); set["level"] != "full" {
+		t.Errorf("the operator's --level full: %v", set)
+	}
+}

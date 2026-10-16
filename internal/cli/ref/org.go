@@ -173,6 +173,8 @@ AUTONOMY
       [--policy TEXT | --policy-file F]
       [--tier <class>=routine|consequential|irreversible]... [--clear-tier C]...
       [--on-decider-failure deny|human] [--max-decisions N] [--max-decider-usd X]
+      (--level full only from the user's own terminal or the app: an agent, the
+      chat and a workflow get exit 3)
   org autonomy pause <org>|--all [--for 30m]     resume <org>|--all
   org autonomy decisions <org> [--run R] [--verdict V] [--limit N]
   org autonomy needs-you <org>

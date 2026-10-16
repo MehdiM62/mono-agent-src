@@ -69,3 +69,27 @@ func TestSetOrgGrant_RefusesApprovalNone(t *testing.T) {
 		}
 	}
 }
+
+// The chat sets manual or mid; full is the user's to choose, refused before
+// anything previews or runs (#831).
+func TestSetOrgAutonomy_RefusesFull(t *testing.T) {
+	db := newMonoagentTestDB(t)
+	mt := NewMonoagentTools(db.DB, "/bin/monoagentcli", "p1")
+	ran := false
+	stubRunSelfExec(t, func(ctx context.Context, bin string, args ...string) ([]byte, error) {
+		ran = true
+		return []byte(`{"v":1}`), nil
+	})
+	for _, confirm := range []string{"", `,"confirm":true`} {
+		_, err := mt.Execute("set_org_autonomy", `{"org_name":"growth","level":"full"`+confirm+`}`)
+		if err == nil || !strings.Contains(err.Error(), "only the user can choose") || !strings.Contains(err.Error(), "use manual or mid") {
+			t.Errorf("level full%s: %v", confirm, err)
+		}
+	}
+	if ran {
+		t.Fatal("a refused level ran the CLI")
+	}
+	if out, err := mt.Execute("set_org_autonomy", `{"org_name":"growth","level":"mid","confirm":true}`); err != nil || !ran {
+		t.Errorf("level mid: %v %s", err, out)
+	}
+}
