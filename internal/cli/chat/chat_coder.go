@@ -17,6 +17,7 @@ import (
 	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/hilsend"
 	"github.com/monoes/mono-agent/internal/monomind"
+	"github.com/monoes/mono-agent/internal/operator"
 	"github.com/monoes/mono-agent/internal/profilectx"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
@@ -313,7 +314,8 @@ func refuseCoderFromRuns() error {
 		if strings.TrimSpace(os.Getenv(m[0])) != "" {
 			return &coderError{code: "operator_only", err: &clicore.Error{Code: 3, Msg: fmt.Sprintf(
 				"%s can't start a coder chat (%s is set): a coder chat has full access to this computer. Start it from the app or your own terminal, "+
-					"or queue one for the app with `monoagentcli coder queue add --kind ask --note <what to do>` (it reads the browser's active tab) and press Start there", m[1], m[0])}}
+					"or queue one for the app with `monoagentcli coder queue add --kind ask --note <what to do>` (it reads the browser's active tab) and press Start there. %s",
+				m[1], m[0], operator.InheritedHint())}}
 		}
 	}
 	return nil

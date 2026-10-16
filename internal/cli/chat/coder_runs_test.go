@@ -41,7 +41,8 @@ func TestCoderTurnsRefuseWorkflowAndChatRuns(t *testing.T) {
 		} {
 			out, err := runChatCmd(t, dbPath, bin, args...)
 			if exitCodeFor(err) != 3 || !strings.Contains(err.Error(), "can't start a coder chat ("+env[0]+" is set)") ||
-				!strings.Contains(err.Error(), "Start it from the app or your own terminal") || !strings.Contains(err.Error(), "coder queue add") {
+				!strings.Contains(err.Error(), "Start it from the app or your own terminal") || !strings.Contains(err.Error(), "coder queue add") ||
+				!strings.Contains(err.Error(), "inherited this marker: restart it from your own terminal or the desktop launcher") {
 				t.Errorf("%s under %s: %v\n%s", name, env[0], err, out)
 			}
 		}
