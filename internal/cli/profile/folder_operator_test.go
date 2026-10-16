@@ -29,13 +29,16 @@ func TestProfileFolderIsTheUsers(t *testing.T) {
 		t.Run(marker, func(t *testing.T) {
 			dbPath := newProfileDocsCLITestDB(t)
 			home := t.TempDir()
+			// A profile the user made, with its folder in place, that a move could take.
+			var mine profileCreateResult
+			mustProfileJSON(t, dbPath, &mine, "create", "Mine")
 			t.Setenv(marker, "1")
 
 			_, err := runProfileJSON(t, dbPath, "create", "evil", "--root-dir", home)
 			if err == nil || exitCodeOf(t, err) != 3 || !strings.Contains(err.Error(), "only the user sets or moves a profile's folder") || !strings.Contains(err.Error(), marker) {
 				t.Fatalf("create --root-dir as %s: %v", marker, err)
 			}
-			_, err = runProfileJSON(t, dbPath, "move", "default", home)
+			_, err = runProfileJSON(t, dbPath, "move", "Mine", home)
 			if err == nil || exitCodeOf(t, err) != 3 || !strings.Contains(err.Error(), marker) {
 				t.Fatalf("move as %s: %v", marker, err)
 			}
@@ -50,8 +53,8 @@ func TestProfileFolderIsTheUsers(t *testing.T) {
 			if n != 0 {
 				t.Fatalf("a refused command changed %d profile(s)", n)
 			}
-			if got := profiledir.Root(db.DB, "default"); got == home {
-				t.Fatalf("the default profile moved to %s", got)
+			if got := profiledir.Root(db.DB, mine.ID); got != mine.RootDir {
+				t.Fatalf("Mine moved to %s", got)
 			}
 
 			var created profileCreateResult
@@ -60,7 +63,7 @@ func TestProfileFolderIsTheUsers(t *testing.T) {
 				t.Fatalf("a plain create as %s: %+v", marker, created)
 			}
 			var checked map[string]interface{}
-			mustProfileJSON(t, dbPath, &checked, "move", "default", filepath.Join(home, "x"), "--check")
+			mustProfileJSON(t, dbPath, &checked, "move", "Mine", filepath.Join(home, "x"), "--check")
 			if checked["moved"] != false {
 				t.Fatalf("--check as %s: %+v", marker, checked)
 			}
