@@ -1,8 +1,10 @@
 package profile
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -54,17 +56,23 @@ type profileJSON struct {
 	Icon      string `json:"icon"`
 }
 
-// lookupProfile resolves nameOrID to a profile row. An exact id wins over a
-// name, so a profile whose name happens to be another's id can't shadow it.
+// lookupProfile resolves nameOrID to a profile row with the rule every other
+// surface uses (profiledir.Resolve): an exact id wins over a name, and a name
+// shared by several profiles is an error rather than a guess.
 func (d Deps) lookupProfile(db *sql.DB, nameOrID string) (*profileJSON, error) {
-	var p profileJSON
-	err := db.QueryRow(`SELECT id, name, created_at, icon FROM profiles
-		WHERE id = ? OR LOWER(name) = LOWER(?)
-		ORDER BY CASE WHEN id = ? THEN 0 ELSE 1 END LIMIT 1`,
-		nameOrID, nameOrID, nameOrID).Scan(&p.ID, &p.Name, &p.CreatedAt, &p.Icon)
-	if err == sql.ErrNoRows {
+	id, err := profiledir.Resolve(context.Background(), db, nameOrID)
+	var ambiguous *profiledir.AmbiguousError
+	switch {
+	case errors.As(err, &ambiguous):
+		return nil, d.InvalidInput("%s", ambiguous.Error())
+	case errors.Is(err, profiledir.ErrUnknownProfile):
 		return nil, d.NotFound("profile %q not found", nameOrID)
+	case err != nil:
+		return nil, fmt.Errorf("look up profile: %w", err)
 	}
+	var p profileJSON
+	err = db.QueryRow(`SELECT id, name, created_at, icon FROM profiles WHERE id = ?`, id).
+		Scan(&p.ID, &p.Name, &p.CreatedAt, &p.Icon)
 	if err != nil {
 		return nil, fmt.Errorf("look up profile: %w", err)
 	}
