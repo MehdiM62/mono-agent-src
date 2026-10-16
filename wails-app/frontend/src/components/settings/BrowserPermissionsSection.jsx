@@ -75,7 +75,9 @@ export default function BrowserPermissionsSection() {
       </div>
       <div style={hint} data-testid="kind-token-note">
         MonoAgent tells coder chats and org roles apart by a token it gives the agents it starts. An agent that reads
-        another process&apos;s environment could borrow that kind.
+        another process&apos;s environment could borrow that kind. Org roles that run in a sandbox (the default on
+        Linux) can&apos;t show their token, so they get the stricter of the Org roles and Other agents levels. Lowering
+        Org roles always applies; raising it above Other agents may not.
       </div>
       {err && <div style={errText} role="alert">{err}</div>}
 

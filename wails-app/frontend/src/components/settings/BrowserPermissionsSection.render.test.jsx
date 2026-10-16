@@ -44,7 +44,9 @@ describe('BrowserPermissionsSection', () => {
     expect(rulesNote).toHaveTextContent('Allow is exact (that scheme, host and port; write *.host for its subdomains) and opens the site to agents at Dev pages + allowed sites or Ask for new sites.')
     // The kinds' limit, said plainly.
     expect(screen.getByTestId('kind-token-note')).toHaveTextContent(
-      "MonoAgent tells coder chats and org roles apart by a token it gives the agents it starts. An agent that reads another process's environment could borrow that kind.")
+      "MonoAgent tells coder chats and org roles apart by a token it gives the agents it starts. An agent that reads another process's environment could borrow that kind. " +
+      "Org roles that run in a sandbox (the default on Linux) can't show their token, so they get the stricter of the Org roles and Other agents levels. " +
+      'Lowering Org roles always applies; raising it above Other agents may not.')
     expect(within(kindRow('coder')).getByText('default')).toBeInTheDocument()
     expect(within(kindRow('other')).queryByText('default')).toBeNull()
     expect(screen.queryByTestId('permission-risk')).toBeNull()
