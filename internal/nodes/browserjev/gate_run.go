@@ -39,6 +39,7 @@ func newRunGate(ctx context.Context, sites siteAsker) (*runGate, error) {
 	if g.pol, err = policyFor(ctx, g.who); err != nil {
 		return nil, err
 	}
+	g.who.kind = g.pol.Kind // an authored run's: the stricter kind (policyFor)
 	return g, nil
 }
 
