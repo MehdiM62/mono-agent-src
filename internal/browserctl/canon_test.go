@@ -175,3 +175,34 @@ func TestItemsCarryTheASCIIHost(t *testing.T) {
 		t.Errorf("a plain host: %v %q", m, name)
 	}
 }
+
+// An IPv6 literal is matched in one spelling, and an IPv4-mapped one as
+// the IPv4 address it reaches: blocks on [::1] and 169.254.169.254 hold.
+func TestIPv6LiteralsAreCanonical(t *testing.T) {
+	pol := policyWith(t, LevelFullNoApprovals, "http://[::1]=block", "169.254.169.254=block")
+	for _, u := range []string{
+		"http://[::1]/", "http://[0:0:0:0:0:0:0:1]/", "http://[0::1]:8080/", "https://[0000::0001]/",
+		"http://169.254.169.254/", "http://[::ffff:169.254.169.254]/", "http://[::ffff:a9fe:a9fe]/", "http://[::FFFF:A9FE:A9FE]:80/",
+		"http://2852039166/",
+	} {
+		var be *SiteBlockedError
+		if err := pol.Check(u); !errors.As(err, &be) {
+			t.Errorf("%s: %v, want blocked", u, err)
+		}
+	}
+	if err := pol.Check("http://[::2]/"); err != nil {
+		t.Errorf("[::2]: %v", err)
+	}
+	for in, want := range map[string]string{
+		"http://[0:0:0:0:0:0:0:1]:8080/": "http://[::1]:8080",
+		"http://[::FFFF:a9fe:a9fe]/":     "http://169.254.169.254",
+		"http://[2001:DB8:0::1]/":        "http://[2001:db8::1]",
+	} {
+		if got := Origin(in); got != want {
+			t.Errorf("Origin(%q) = %q, want %q", in, got, want)
+		}
+	}
+	if got, err := NormalizeAllowEntry("http://[0:0::1]:3000"); err != nil || got != "http://[::1]:3000" {
+		t.Errorf("allow entry: %q %v", got, err)
+	}
+}
