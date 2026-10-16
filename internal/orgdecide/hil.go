@@ -80,11 +80,16 @@ func PendingHIL(ctx context.Context, db *sql.DB, profileID, org string, doc *org
 }
 
 // resolveHIL approves or rejects a HIL item; the paused run resumes on the
-// engine's next poll.
+// engine's next poll. It never approves one whose approval lets a message to
+// a person go out: only the user decides that (`hil approve`), whatever
+// routed it here.
 func resolveHIL(ctx context.Context, db *sql.DB, id string, approve bool) error {
 	status := "rejected"
 	if approve {
 		status = "approved"
+		if ItemSends(ctx, db, "", "", Item{Kind: KindHIL, Ref: id}, nil) {
+			return fmt.Errorf("HIL item %s lets a message to a person go out: only the user decides it (`monoagentcli hil approve|reject %s`)", id, id)
+		}
 	}
 	res, err := db.ExecContext(ctx, `UPDATE hil_pending SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND status = 'pending'`, status, id)
 	if err != nil {

@@ -233,15 +233,46 @@ func (s *Service) Pending(ctx context.Context, profileID, root, org string, a *A
 		runID = st.Run
 	}
 
-	facts := s.tierFacts(ctx, profileID, root, org)
+	// One read of each granted workflow per pass serves its tier and
+	// whether a call of it may send.
+	load := onceEach(s.LoadWorkflow)
+	facts := s.tierFactsWith(ctx, profileID, root, org, load)
 	for i := range items {
 		items[i].Tier = TierFor(items[i].Class, items[i].Requester, a.Tiers, facts)
+		if s.DB != nil {
+			items[i].Sends = ItemSends(ctx, s.DB, profileID, org, items[i], load)
+		}
 	}
 	SortItems(items)
 	return items, runID, partial, nil
 }
 
 func (s *Service) tierFacts(ctx context.Context, profileID, root, org string) TierFacts {
+	return s.tierFactsWith(ctx, profileID, root, org, s.LoadWorkflow)
+}
+
+// onceEach is load reading each workflow once: later reads of the same id
+// get the first read's result. Nil stays nil.
+func onceEach(load orggrant.WorkflowLoader) orggrant.WorkflowLoader {
+	if load == nil {
+		return nil
+	}
+	type read struct {
+		wf  *workflow.Workflow
+		err error
+	}
+	seen := map[string]read{}
+	return func(ctx context.Context, id string) (*workflow.Workflow, error) {
+		if r, ok := seen[id]; ok {
+			return r.wf, r.err
+		}
+		wf, err := load(ctx, id)
+		seen[id] = read{wf, err}
+		return wf, err
+	}
+}
+
+func (s *Service) tierFactsWith(ctx context.Context, profileID, root, org string, load orggrant.WorkflowLoader) TierFacts {
 	grants, _ := orggrant.NewStore(s.DB).ListGrants(ctx, profileID, org, "")
 	doc, _ := orgdesign.Load(root, org)
 	tiers := map[string]string{} // alias → tier, for this pass
@@ -253,7 +284,7 @@ func (s *Service) tierFacts(ctx context.Context, profileID, root, org string) Ti
 			tier := ""
 			for _, g := range grants {
 				if t := g.Automation(); t != nil && t.Alias == alias {
-					tier = s.currentGrantTier(ctx, g)
+					tier = s.currentGrantTier(ctx, g, load)
 					break
 				}
 			}
@@ -288,12 +319,12 @@ func (s *Service) tierFacts(ctx context.Context, profileID, root, org string) Ti
 // workflow now has an outbound node (#284). The raise is also stored, so the
 // display copy catches up on the next reconcile. A workflow that cannot be
 // read leaves the stored tier in force.
-func (s *Service) currentGrantTier(ctx context.Context, g orggrant.Grant) string {
+func (s *Service) currentGrantTier(ctx context.Context, g orggrant.Grant, load orggrant.WorkflowLoader) string {
 	t := g.Automation()
-	if s.LoadWorkflow == nil || t.Tier == orgdesign.TierIrreversible || !orgdesign.ValidTier(t.Tier) {
+	if load == nil || t.Tier == orgdesign.TierIrreversible || !orgdesign.ValidTier(t.Tier) {
 		return t.Tier
 	}
-	wf, err := s.LoadWorkflow(ctx, t.WorkflowID)
+	wf, err := load(ctx, t.WorkflowID)
 	if err != nil || wf == nil || len(orggrant.OutboundNodes(wf)) == 0 {
 		return t.Tier
 	}
@@ -367,12 +398,15 @@ func (s *Service) decide(ctx context.Context, profileID, root, org, runID, level
 		}
 	}
 
-	route := Route(level, it.Tier)
+	route := RouteItem(level, it)
 	if route == RouteRule && it.Kind == KindQuestion {
 		route = RouteDecider // a rule cannot write an answer
 	}
 	switch route {
 	case RouteHuman:
+		if it.Sends {
+			return record("human", VerdictEscalated, "", "approving it lets a message to a person go out, which only a person decides", nil, nil)
+		}
 		return record("human", VerdictEscalated, "", fmt.Sprintf("%s routes %s items to a person", level, it.Tier), nil, nil)
 	case RouteRule:
 		reason := fmt.Sprintf("%s items are approved by rule at %s", it.Tier, level)
