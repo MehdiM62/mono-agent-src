@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"sort"
 )
 
 // Listing the profiles a user actually has.
@@ -37,17 +38,18 @@ func List(ctx context.Context, db *sql.DB) ([]Profile, error) {
 		return nil, fmt.Errorf("profiledir: no database")
 	}
 
-	rows, err := db.QueryContext(ctx, `SELECT id, name FROM profiles ORDER BY created_at ASC, id ASC`)
+	rows, err := db.QueryContext(ctx, `SELECT id, name, created_at FROM profiles`)
 	if err != nil {
 		return nil, fmt.Errorf("profiledir: list profiles: %w", err)
 	}
 	defer rows.Close()
 
 	out := []Profile{}
+	created := map[string]string{}
 	for rows.Next() {
 		var p Profile
-		var name sql.NullString
-		if err := rows.Scan(&p.ID, &name); err != nil {
+		var name, createdAt sql.NullString
+		if err := rows.Scan(&p.ID, &name, &createdAt); err != nil {
 			continue
 		}
 		if !ValidProfileID(p.ID) {
@@ -57,12 +59,16 @@ func List(ctx context.Context, db *sql.DB) ([]Profile, error) {
 		if p.Name == "" {
 			p.Name = p.ID
 		}
+		created[p.ID] = createdAt.String
 		out = append(out, p)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("profiledir: list profiles: %w", err)
 	}
 
+	sort.SliceStable(out, func(i, j int) bool {
+		return Older(created[out[i].ID], out[i].ID, created[out[j].ID], out[j].ID)
+	})
 	if len(out) > 0 {
 		out[0].Default = true
 	}
