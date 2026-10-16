@@ -32,6 +32,7 @@ type claimLock struct {
 	staleAfter time.Duration
 	heartbeat  time.Duration
 	emptyGrace time.Duration
+	breakAge   time.Duration
 	poll       time.Duration
 	timeout    time.Duration
 	pid        int
@@ -82,10 +83,11 @@ func (c *claimLock) breakIfStale() bool {
 	// Only one waiter at a time may judge and remove a claim: otherwise a
 	// second waiter, having read the same stale claim, removes the fresh
 	// claim the first waiter's acquirer has since created.
-	if !c.tryBreakLock() {
+	token, ok := c.tryBreakLock()
+	if !ok {
 		return false
 	}
-	defer c.unlockBreak()
+	defer c.unlockBreak(token)
 
 	seen, err := os.ReadFile(c.path)
 	if err != nil {
@@ -95,37 +97,86 @@ func (c *claimLock) breakIfStale() bool {
 	if !c.stale(string(seen)) {
 		return false
 	}
-	return os.Remove(c.path) == nil
+	return c.removeIfMatches(c.path, string(seen))
 }
 
-// tryBreakLock takes the break lock, an O_EXCL file dropped if its holder
-// crashed. It does not wait.
-func (c *claimLock) tryBreakLock() bool {
+// The break lock follows the claim's ownership discipline: its body carries
+// its owner's nonce ("nonce pid unixnano"), it is published atomically and
+// exclusively, and it is only ever removed after re-verifying the body that
+// was judged, so a waiter never deletes a live break lock it did not see.
+
+// tryBreakLock takes the break lock and returns its token (the body that
+// identifies it). It does not wait. A break lock whose owner is dead or has
+// stood for breakAge is presumed crashed and is removed for the next try.
+func (c *claimLock) tryBreakLock() (string, bool) {
 	bl := c.path + ".break"
-	h, err := os.OpenFile(bl, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
-	if err != nil {
-		if info, serr := os.Stat(bl); serr == nil && time.Since(info.ModTime()) > breakLockAge {
-			_ = os.Remove(bl)
-		}
-		return false
+	token := claimBody(newNonce(), c.pid, time.Now())
+	err := publishExclusive(bl, token)
+	if err == nil {
+		return token, true
 	}
-	h.Close()
-	return true
+	if errors.Is(err, os.ErrExist) {
+		c.breakStaleBreakLock(bl)
+	}
+	return "", false
+}
+
+func (c *claimLock) breakStaleBreakLock(bl string) {
+	seen, err := os.ReadFile(bl)
+	if err != nil {
+		return
+	}
+	stale := false
+	if _, pid, ns, ok := parseClaim(string(seen)); ok {
+		stale = time.Since(time.Unix(0, ns)) > c.breakAge || !c.alive(pid)
+	} else if info, serr := os.Stat(bl); serr == nil {
+		stale = time.Since(info.ModTime()) > c.breakAge
+	}
+	if stale {
+		c.removeIfMatches(bl, string(seen))
+	}
 }
 
 // lockBreak waits for the break lock, giving up after the lock timeout.
-func (c *claimLock) lockBreak() bool {
+func (c *claimLock) lockBreak() (string, bool) {
 	deadline := time.Now().Add(c.timeout)
-	for !c.tryBreakLock() {
+	for {
+		if token, ok := c.tryBreakLock(); ok {
+			return token, true
+		}
 		if time.Now().After(deadline) {
-			return false
+			return "", false
 		}
 		time.Sleep(c.poll)
 	}
-	return true
 }
 
-func (c *claimLock) unlockBreak() { _ = os.Remove(c.path + ".break") }
+// unlockBreak drops the break lock only if it is still the one we took.
+func (c *claimLock) unlockBreak(token string) {
+	c.removeIfMatches(c.path+".break", token)
+}
+
+// removeIfMatches deletes path only if its body is still want, reporting
+// whether the path is now gone because of it. It moves the file to a unique
+// name first (an atomic step), re-reads what it actually moved, and puts it
+// straight back if that is not what the caller judged, so a file replaced
+// after the caller looked is never destroyed.
+func (c *claimLock) removeIfMatches(path, want string) bool {
+	gone := path + "." + newNonce() + ".gone"
+	if err := os.Rename(path, gone); err != nil {
+		return errors.Is(err, os.ErrNotExist)
+	}
+	got, err := os.ReadFile(gone)
+	if err == nil && string(got) == want {
+		_ = os.Remove(gone)
+		return true
+	}
+	if err := linkFile(gone, path); err != nil && !errors.Is(err, os.ErrExist) {
+		_ = os.Rename(gone, path)
+	}
+	_ = os.Remove(gone)
+	return false
+}
 
 // breakLockAge is how long a break lock may stand before its breaker is
 // presumed crashed; breaking takes microseconds.
@@ -237,10 +288,11 @@ func (c *claimLock) stopHeartbeat() {
 // It reports false once the claim is no longer ours; a transient failure
 // returns true so the next tick retries.
 func (c *claimLock) refresh(nonce string) bool {
-	if !c.lockBreak() {
+	token, ok := c.lockBreak()
+	if !ok {
 		return true
 	}
-	defer c.unlockBreak()
+	defer c.unlockBreak(token)
 	body, err := os.ReadFile(c.path)
 	if err != nil {
 		return !errors.Is(err, os.ErrNotExist)

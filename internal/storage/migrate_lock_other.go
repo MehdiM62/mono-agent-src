@@ -36,8 +36,8 @@ func lockFile(f *os.File) error {
 	c := &claimLock{
 		path: f.Name() + ".claim", alive: processAlive,
 		staleAfter: staleLockAge, heartbeat: claimHeartbeat,
-		emptyGrace: claimEmptyGrace,
-		poll:       lockPollInterval, timeout: lockWaitTimeout, pid: os.Getpid(),
+		emptyGrace: claimEmptyGrace, breakAge: breakLockAge,
+		poll: lockPollInterval, timeout: lockWaitTimeout, pid: os.Getpid(),
 	}
 	nonce, err := c.acquire()
 	if err != nil {

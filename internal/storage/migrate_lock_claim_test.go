@@ -13,7 +13,7 @@ import (
 
 func testClaim(path string, alive func(int) bool) *claimLock {
 	return &claimLock{
-		path: path, alive: alive, staleAfter: time.Hour, emptyGrace: 50 * time.Millisecond,
+		path: path, alive: alive, staleAfter: time.Hour, emptyGrace: 50 * time.Millisecond, breakAge: time.Hour,
 		poll: time.Millisecond, timeout: 5 * time.Second, pid: os.Getpid(),
 	}
 }
@@ -255,6 +255,117 @@ func TestClaimIsNeverVisibleHalfWritten(t *testing.T) {
 	rd.Wait()
 	if v := bad.Load(); v != nil {
 		t.Fatalf("observed a partial claim %q", v)
+	}
+}
+
+func TestRemoveIfMatchesLeavesAReplacedFileAlone(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "x.break")
+	if err := os.WriteFile(path, []byte("new-owner"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	c := testClaim(path, func(int) bool { return true })
+	if c.removeIfMatches(path, "the-stale-one-we-judged") {
+		t.Fatal("removed a file that no longer matches what was judged")
+	}
+	if b, _ := os.ReadFile(path); string(b) != "new-owner" {
+		t.Fatalf("file not restored intact: %q", b)
+	}
+	if !c.removeIfMatches(path, "new-owner") {
+		t.Fatal("did not remove a matching file")
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatal("matching file still present")
+	}
+}
+
+func TestUnlockBreakKeepsAnotherOwnersBreakLock(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "db.claim")
+	c := testClaim(path, func(int) bool { return true })
+	mine, ok := c.tryBreakLock()
+	if !ok {
+		t.Fatal("could not take a free break lock")
+	}
+	if err := os.WriteFile(path+".break", []byte("someone else"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	c.unlockBreak(mine)
+	if b, _ := os.ReadFile(path + ".break"); string(b) != "someone else" {
+		t.Fatalf("unlock removed a break lock with a different owner: %q", b)
+	}
+}
+
+func TestBreakLockOfDeadOwnerIsBrokenAndLiveOneRespected(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "db.claim")
+	writeClaim(t, path, "dead-claim", 99999, time.Now())
+	writeClaim(t, path+".break", "dead-breaker", 99999, time.Now())
+	c := testClaim(path, func(pid int) bool { return pid != 99999 })
+	if _, err := c.acquire(); err != nil {
+		t.Fatalf("a dead breaker's lock blocked the claim: %v", err)
+	}
+
+	path2 := filepath.Join(dir, "other.claim")
+	writeClaim(t, path2, "dead-claim", 99999, time.Now())
+	live := fmt.Sprintf("live-breaker %d %d", 4242, time.Now().UnixNano())
+	if err := os.WriteFile(path2+".break", []byte(live), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	c2 := testClaim(path2, func(pid int) bool { return pid != 99999 })
+	c2.timeout = 100 * time.Millisecond
+	if _, err := c2.acquire(); err == nil {
+		t.Fatal("broke the claim while a live break lock was held")
+	}
+	if b, _ := os.ReadFile(path2 + ".break"); string(b) != live {
+		t.Fatalf("a live break lock was removed or altered: %q", b)
+	}
+}
+
+func TestAgedBreakLockIsBroken(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "db.claim")
+	writeClaim(t, path, "dead-claim", 99999, time.Now())
+	writeClaim(t, path+".break", "old-breaker", 4242, time.Now().Add(-time.Hour))
+	c := testClaim(path, func(pid int) bool { return pid != 99999 })
+	c.breakAge = time.Minute
+	if _, err := c.acquire(); err != nil {
+		t.Fatalf("an aged break lock blocked the claim: %v", err)
+	}
+}
+
+// Many waiters racing over a crashed breaker's lock must never hold the
+// break lock together: one waiter breaking it must not delete the fresh lock
+// another waiter has since taken.
+func TestBreakLockStaysExclusiveWhileBreakingACrashedOne(t *testing.T) {
+	for round := 0; round < 20; round++ {
+		path := filepath.Join(t.TempDir(), "db.claim")
+		writeClaim(t, path+".break", "crashed", 99999, time.Now())
+		alive := func(pid int) bool { return pid != 99999 }
+
+		var inside, violations int32
+		var wg sync.WaitGroup
+		for i := 0; i < 12; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				c := testClaim(path, alive)
+				for j := 0; j < 10; j++ {
+					token, ok := c.lockBreak()
+					if !ok {
+						t.Error("could not take the break lock")
+						return
+					}
+					if atomic.AddInt32(&inside, 1) != 1 {
+						atomic.AddInt32(&violations, 1)
+					}
+					time.Sleep(100 * time.Microsecond)
+					atomic.AddInt32(&inside, -1)
+					c.unlockBreak(token)
+				}
+			}()
+		}
+		wg.Wait()
+		if violations != 0 {
+			t.Fatalf("round %d: %d times two waiters held the break lock at once", round, violations)
+		}
 	}
 }
 
