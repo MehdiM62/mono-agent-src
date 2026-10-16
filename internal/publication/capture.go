@@ -476,12 +476,20 @@ func rejected(r map[string]interface{}) bool {
 
 // Record never reports a tracking problem as a publishing failure. The caller
 // logs the warning and keeps the successful remote action's original outcome.
-func Record(ctx context.Context, store *Store, entries []Entry, warn func(string)) {
+// It returns the entries it registered, as the store holds them.
+func Record(ctx context.Context, store *Store, entries []Entry, warn func(string)) []Entry {
 	trackingCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
+	var recorded []Entry
 	for _, e := range entries {
-		if _, err := store.Register(trackingCtx, e); err != nil && warn != nil {
-			warn(fmt.Sprintf("publication tracking failed (platform=%s remote_id=%s url=%s): %v; the remote publication succeeded; do not retry publishing", e.Platform, e.RemoteID, e.URL, err))
+		registered, err := store.Register(trackingCtx, e)
+		if err != nil {
+			if warn != nil {
+				warn(fmt.Sprintf("publication tracking failed (platform=%s remote_id=%s url=%s): %v; the remote publication succeeded; do not retry publishing", e.Platform, e.RemoteID, e.URL, err))
+			}
+			continue
 		}
+		recorded = append(recorded, *registered)
 	}
+	return recorded
 }

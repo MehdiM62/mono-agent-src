@@ -126,7 +126,7 @@ func requirePublicationApproval(cfg *globalConfig, approvalID string, e publicat
 	var claim *hilsend.PublicationClaim
 	err = withImageDB(cfg, func(db *sql.DB) error {
 		var cerr error
-		claim, cerr = hilsend.ClaimPublicationApproval(context.Background(), db, cfg.ProfileID, approvalID, e.Platform, e.RemoteID)
+		claim, cerr = hilsend.ClaimPublicationApproval(context.Background(), db, cfg.ProfileID, approvalID, e)
 		if errors.Is(cerr, hilsend.ErrPublicationNeedsApproval) {
 			return operatorOnlyError("registering a publication from an agent needs an approved send: prepare the send (it is queued for approval, and registers itself once approved), or pass --approval <hil id> of a send that was approved and sent. Asked because %s", notOperator())
 		}

@@ -79,7 +79,10 @@ func (s *SQLiteWorkflowStore) approve(ctx context.Context, wf *Workflow) error {
 	if err != nil {
 		return err
 	}
-	_, err = s.db.ExecContext(ctx, `INSERT OR IGNORE INTO workflow_approvals (workflow_id, definition_hash) VALUES (?, ?)`, wf.ID, hash)
+	// A workflow with no SQLite row (a file nothing synced yet) can't run,
+	// and its approval would have nothing to go with on delete.
+	_, err = s.db.ExecContext(ctx, `INSERT OR IGNORE INTO workflow_approvals (workflow_id, definition_hash)
+		SELECT ?, ? WHERE EXISTS (SELECT 1 FROM workflows WHERE id = ?)`, wf.ID, hash, wf.ID)
 	return err
 }
 

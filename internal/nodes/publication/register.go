@@ -116,10 +116,16 @@ func (*RegisterNode) Execute(ctx context.Context, in workflow.NodeInput, config 
 		}
 		var claim *hilsend.PublicationClaim
 		if aiRun {
-			if claim, err = hilsend.ClaimPublicationApproval(ctx, db, profile, approval, entry.Platform, entry.RemoteID); err != nil {
+			if claim, err = hilsend.ClaimPublicationApproval(ctx, db, profile, approval, entry); err != nil {
 				if why := operator.Refusal(); why != "" {
 					// The engine itself is marked: say so, and how to fix it.
 					return nil, fmt.Errorf("publication.register item %d: %w (set approval to the send's id). This run is not the user's: %s", i, err, why)
+				}
+				if workflow.AIAuthoredFrom(ctx) {
+					// The definition is one the user never approved: say how to.
+					return nil, fmt.Errorf("publication.register item %d: %w (set approval to the send's id). This run counts as an AI's because "+
+						"this workflow changed since you last saved or activated it: if the change is yours, run `monoagentcli --profile %s workflow activate %s` "+
+						"(or save it in the app)", i, err, profile, in.WorkflowID)
 				}
 				return nil, fmt.Errorf("publication.register item %d: %w (set approval to the send's id)", i, err)
 			}

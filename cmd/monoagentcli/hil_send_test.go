@@ -289,9 +289,14 @@ func TestPublicationRegisterFromAgentNeedsApproval(t *testing.T) {
 	if err := register("--approval", id); err != nil {
 		t.Fatalf("register with a sent approval: %v", err)
 	}
-	// One approval registers one publication.
+	// A retry of the same publication passes (its registration is
+	// idempotent); another publication with the approval does not.
+	if err := register("--approval", id); err != nil {
+		t.Fatalf("a retry of the same publication: %v", err)
+	}
+	entry = `{"platform":"email","kind":"post","body":"hello again","remote_id":"2","published_at":"2026-10-13T10:00:00Z"}`
 	if err := register("--approval", id); err == nil || !strings.Contains(err.Error(), "already registered a publication") {
-		t.Fatalf("the approval again: %v", err)
+		t.Fatalf("another publication with the approval: %v", err)
 	}
 	asOperatorProcess(t)
 	if err := register(); err != nil {

@@ -99,7 +99,7 @@ func (mt *MonoagentTools) executePublication(ctx context.Context, name, args str
 		// The chat is not the operator: what it registers is the publication
 		// a send the user approved made, which that approval registers alone,
 		// as `publication register` asks of an agent.
-		claim, cerr := hilsend.ClaimPublicationApproval(ctx, mt.db, mt.ProfileID(), a.Approval, e.Platform, e.RemoteID)
+		claim, cerr := hilsend.ClaimPublicationApproval(ctx, mt.db, mt.ProfileID(), a.Approval, e)
 		if cerr != nil {
 			err = fmt.Errorf("register_publication: %w (pass the send's id as approval)", cerr)
 			break
