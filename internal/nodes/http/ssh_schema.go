@@ -11,8 +11,10 @@ package httpnodes
 // Two fields have no entry in the hand-written schemas/http.ssh.json this
 // replaces, both of which Execute has always read:
 //
-//   - "timeout_seconds" (default 30 in code) bounds how long the remote
-//     command may run before the node cancels it and returns an error.
+//   - "timeout_seconds" (default 30 in code) bounds connecting (the dial,
+//     the handshake, opening the session and its environment request, all
+//     together) and then, again, how long the remote command may run before
+//     the node cancels it and returns an error.
 //   - "known_hosts" switches host key verification from
 //     ssh.InsecureIgnoreHostKey() (the fallback, which logs a WARNING) to a
 //     real known_hosts file check. Security-relevant and previously
@@ -44,5 +46,5 @@ type SSHNodeSchema struct {
 
 	FileName string `json:"file_name" schema:"label=File Name,type=text,help=upload: the remote file name (default the item's file_name， else the binary property name). download: the output file_name (default the remote base name).,depends_on_key=resource,depends_on_values=file"`
 
-	TimeoutSeconds float64 `json:"timeout_seconds" schema:"label=Timeout (seconds),type=number,default=30,help=Command is cancelled if it runs longer than this."`
+	TimeoutSeconds float64 `json:"timeout_seconds" schema:"label=Timeout (seconds),type=number,default=30,help=Connecting must finish within this; then the command is cancelled if it runs longer than this."`
 }

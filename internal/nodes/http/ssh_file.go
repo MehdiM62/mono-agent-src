@@ -41,12 +41,10 @@ func checkSFTPConfig(config map[string]interface{}) error {
 // item's file_name metadata, else the property name. download reads the
 // remote file path into the binary property of a copy of the input item,
 // with file_name (default the remote base name), mime_type and file_size.
-func sftpFiles(ctx context.Context, client *ssh.Client, timeout time.Duration, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
-	// Opening the sftp session waits for the server: within the node's
-	// timeout and context.
-	timer := time.NewTimer(timeout)
-	defer timer.Stop()
-	sc, err := awaitServer(ctx, client, timer, timeout, "open an sftp session", func() (*sftp.Client, error) { return sftp.NewClient(client) })
+func sftpFiles(ctx context.Context, client *ssh.Client, connect *time.Timer, timeout time.Duration, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
+	// Opening the sftp session is the last step of connecting: within the
+	// connect deadline (connect) and the node's context.
+	sc, err := awaitServer(ctx, client, connect, timeout, "open an sftp session", func() (*sftp.Client, error) { return sftp.NewClient(client) })
 	if err != nil {
 		return nil, err
 	}
