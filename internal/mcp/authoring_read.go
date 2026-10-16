@@ -152,6 +152,10 @@ func toolWorkflowExecutions(ctx context.Context, s *Server, args json.RawMessage
 		if rows == nil {
 			rows = []summary.ExecRow{}
 		}
+		rr := workflow.NewReplyRedactor(ctx, rt.db.DB)
+		for i := range rows {
+			rows[i].Error = rr.String(rows[i].Error)
+		}
 		return rows, nil
 	}
 	if _, err := ownedWorkflow(ctx, rt, a.WorkflowID); err != nil {
@@ -163,6 +167,14 @@ func toolWorkflowExecutions(ctx context.Context, s *Server, args json.RawMessage
 	}
 	if execs == nil {
 		execs = []workflow.WorkflowExecution{}
+	}
+	ids := make([]string, len(execs))
+	for i, e := range execs {
+		ids[i] = e.ID
+	}
+	rr := workflow.NewReplyRedactor(ctx, rt.db.DB, ids...)
+	for i := range execs {
+		rr.Execution(&execs[i])
 	}
 	return execs, nil
 }

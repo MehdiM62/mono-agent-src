@@ -14,6 +14,8 @@ import (
 	"github.com/monoes/mono-agent/internal/hilsend"
 	"github.com/monoes/mono-agent/internal/hilsuggest"
 	"github.com/monoes/mono-agent/internal/jev/jevconf"
+	"github.com/monoes/mono-agent/internal/operator"
+	"github.com/monoes/mono-agent/internal/workflow"
 	"github.com/spf13/cobra"
 )
 
@@ -122,6 +124,9 @@ func (d Deps) newHILListCmd() *cobra.Command {
 			if suggest || resuggest {
 				suggestHILItems(cmd.Context(), db.DB, d.ProfileID(), items, resuggest)
 			}
+			if operator.Marker() != "" {
+				hideReplyTokens(cmd.Context(), db.DB, items)
+			}
 
 			if d.JSONOutput() {
 				enc := json.NewEncoder(os.Stdout)
@@ -169,6 +174,20 @@ func (d Deps) newHILListCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&suggest, "suggest", false, "Add TypeSafe Jev's suggestion to each item (computed and stored when missing; needs 'jev enable hil')")
 	cmd.Flags().BoolVar(&resuggest, "resuggest", false, "Recompute and store every suggestion (implies --suggest)")
 	return cmd
+}
+
+// hideReplyTokens hides, for a marked process, the reply tokens in items'
+// data, as in the run's data (workflow.ReplyRedactor): a token there can
+// answer a reply that opens once the item is approved.
+func hideReplyTokens(ctx context.Context, db *sql.DB, items []hilItem) {
+	ids := make([]string, len(items))
+	for i, it := range items {
+		ids[i] = it.ExecutionID
+	}
+	rr := workflow.NewReplyRedactor(ctx, db, ids...)
+	for i := range items {
+		items[i].ReadonlyData, items[i].EditableData = rr.Map(items[i].ReadonlyData), rr.Map(items[i].EditableData)
+	}
 }
 
 // hilSuggestTimeout bounds one `hil list --suggest` run's Jev calls.
@@ -304,6 +323,9 @@ func (d Deps) newHILApproveCmd() *cobra.Command {
 			var check map[string]interface{}
 			if err := json.Unmarshal([]byte(editedData), &check); err != nil {
 				return fmt.Errorf("--data is not valid JSON: %w", err)
+			}
+			if err := workflow.CheckReplyEdit(editedData); err != nil {
+				return d.InvalidInput("--data: %v", err)
 			}
 			db, err := d.OpenDB()
 			if err != nil {

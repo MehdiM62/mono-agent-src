@@ -103,6 +103,7 @@ func executionView(ctx context.Context, rt *runtime, id string, maxBytes int) (m
 	if exec == nil {
 		return nil, false, fmt.Errorf("execution %s not found", id)
 	}
+	workflow.NewReplyRedactor(ctx, rt.db.DB, id).Execution(exec)
 	view := map[string]interface{}{"execution_id": id, "status": strings.ToLower(exec.Status)}
 	switch exec.Status {
 	case "SUCCESS":
@@ -211,6 +212,8 @@ func (s *Server) grantOutput(ctx context.Context, rt *runtime, b *orggrant.Bundl
 	if err != nil || exec == nil {
 		return nil, fmt.Errorf("execution %s not found", a.ExecutionID)
 	}
+	// Before the output is cut into chunks, so no token straddles two.
+	workflow.NewReplyRedactor(ctx, rt.db.DB, exec.ID).Execution(exec)
 	node, text := lastOutput(exec, a.Node)
 	if a.Offset < 0 || a.Offset > len(text) {
 		a.Offset = len(text)

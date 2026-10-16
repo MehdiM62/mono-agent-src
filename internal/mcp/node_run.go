@@ -92,7 +92,7 @@ func toolNodeRun(ctx context.Context, s *Server, args json.RawMessage) (interfac
 		if gerr != nil {
 			return nil, fmt.Errorf("node %s failed: %w", a.Type, gerr)
 		}
-		return renderOutputs(queued), nil
+		return renderOutputs(queued, workflow.NewReplyRedactor(ctx, rt.db.DB)), nil
 	}
 	input := workflow.NodeInput{
 		Items:       items,
@@ -108,10 +108,16 @@ func toolNodeRun(ctx context.Context, s *Server, args json.RawMessage) (interfac
 		return nil, fmt.Errorf("node %s runs a program on this computer, which node_run never does for an AI: "+
 			"put the step in a workflow and have the user save or activate it in the app or their own terminal", a.Type)
 	}
+	// An agent reaches this server: reply tokens in the node's outputs or
+	// error are hidden from it (workflow.ReplyRedactor).
+	rr := workflow.NewReplyRedactor(ctx, rt.db.DB, input.ExecutionID)
 	if err != nil {
+		if msg := rr.String(err.Error()); msg != err.Error() {
+			return nil, fmt.Errorf("node %s failed: %s", a.Type, msg)
+		}
 		return nil, fmt.Errorf("node %s failed: %w", a.Type, err)
 	}
-	return renderOutputs(outputs), nil
+	return renderOutputs(outputs, rr), nil
 }
 
 func unknownNodeType(rt *runtime, nodeType string) error {
@@ -149,11 +155,11 @@ func parseInputItems(raw json.RawMessage) ([]workflow.Item, error) {
 }
 
 // renderOutputs maps each handle to its items, redacted and size-capped as
-// every node output this server returns is.
-func renderOutputs(outputs []workflow.NodeOutput) map[string]interface{} {
+// every node output this server returns is, with rr's reply tokens hidden.
+func renderOutputs(outputs []workflow.NodeOutput, rr *workflow.ReplyRedactor) map[string]interface{} {
 	out := map[string]interface{}{}
 	for _, o := range outputs {
-		items := workflow.RedactAndTruncateItems(o.Items)
+		items := rr.Items(workflow.RedactAndTruncateItems(o.Items))
 		if items == nil {
 			items = []workflow.Item{}
 		}

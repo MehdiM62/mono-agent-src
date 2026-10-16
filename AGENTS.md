@@ -2682,6 +2682,22 @@ or by signing one with the machine's trace key, which a process with full
 access can read). A reply opened before its decision was recorded counts as
 one in front of a send: an agent gets the note, the user the links.
 
+Its token stays out of the run's data too, as a node can put
+`$execution.resumeUrl` or a reply link in its items or its error. Those
+callers see `[reply token hidden]` in its place in `workflow execution`,
+`workflow run`/`retry`/`templates run` (`--json` and text), `workflow
+executions`, `summary`, `hil list`'s item data and the engine's log lines; the
+MCP server (`workflow_run`, `workflow_status`, `workflow_executions`,
+`node_run`, `hil_list`, an org's automation status and output), the HTTP API
+(run, executions, HIL list) and an org automation's reply always do. The token
+is the 43-character end of a `/reply/<token>` link. In a link it is hidden
+unless every reply recorded under it sends nothing (its link is then in the
+waiting list too); a bare one is hidden when a reply that may send is recorded
+under it or it is the shown run's resume token, and in a log line (no database
+to ask) every link token and every bare 43-character base64url string is. An
+approval whose data holds `[reply token hidden]` is refused (exit 3, HTTP 400,
+an MCP error): leave that field out and it keeps its value.
+
 An item of a run an org started (through a grant or a message to an
 automation role) is that org's decision instead, class `hil:<alias>`. Its tier
 is the one the user set for the class (`org autonomy set --tier
