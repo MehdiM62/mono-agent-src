@@ -65,6 +65,11 @@ WHO MAY DO WHAT
   below). board shows the Inbox, so an agent uses "task list". os install and
   os uninstall change the Services menu of the user's Mac, outside the board.
   os status only lists those menus: an agent may run it.
+  What is not the operator's own terminal is refused those too, though no agent named
+  itself: the chat's runs (MONOAGENT_AI_CALLER), a process a workflow node started
+  (MONOAGENT_WORKFLOW_RUN), any agent shell. A task such a caller adds is theirs, never
+  you: chat, workflow:<execution id> or agent:<kind> (so is an agent's that gives no
+  name). show says who added a task (Added by), and the JSON's author.
   DELEGATION (off by default, per profile). The operator can let agents see the board and
   the Inbox ("task agents allow --view": board and the Inbox in list work for an agent,
   and task_list lists it) and let a named agent approve ("task agents allow --view --approve":

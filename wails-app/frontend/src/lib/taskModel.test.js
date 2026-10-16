@@ -282,6 +282,8 @@ describe('card labels', () => {
     expect(sourceChip({ source: { kind: 'chrome', url: '', title: 'Saved page' } })).toEqual({ kind: 'chrome', text: 'Saved page' })
     expect(sourceChip({ source: { kind: 'os', app: 'Safari' } })).toEqual({ kind: 'os', text: 'Safari' })
     expect(sourceChip({ source: { kind: 'agent' } })).toEqual({ kind: 'agent', text: '' })
+    // An agent's task names who added it: an agent, a chat, a workflow run.
+    expect(sourceChip({ source: { kind: 'agent' }, author: 'workflow:exec-7' })).toEqual({ kind: 'agent', text: 'workflow:exec-7' })
     expect(sourceChip({ source: { kind: 'app' } })).toEqual({ kind: 'app', text: '' })
     expect(sourceChip({})).toEqual({ kind: 'cli', text: '' })
   })

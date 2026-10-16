@@ -7,6 +7,7 @@ package operator
 
 import (
 	"os"
+	"strings"
 
 	"github.com/monoes/mono-agent/internal/browserctl"
 	"github.com/monoes/mono-agent/internal/hilsend"
@@ -37,6 +38,29 @@ func Marker() string {
 		}
 	}
 	return "an agent marker"
+}
+
+// Caller names what runs this process when it is not the operator's own
+// terminal, for what it leaves on record (the author of a task it adds):
+// "workflow:<execution id>" for a process a workflow node started, "chat" for
+// the chat's runs, "agent:<kind>" for an agent (browserctl.AgentKind: a kind it
+// could not prove is other); "" for the operator.
+func Caller() string {
+	switch m := Marker(); m {
+	case "":
+		return ""
+	case workflow.EnvWorkflowRun:
+		return "workflow:" + strings.TrimSpace(os.Getenv(m))
+	case browserctl.EnvAICaller:
+		if strings.TrimSpace(os.Getenv(m)) == browserctl.KindChat {
+			return browserctl.KindChat
+		}
+	}
+	kind := browserctl.AgentKind()
+	if kind == "" || kind == browserctl.KindChat {
+		kind = browserctl.KindOther
+	}
+	return "agent:" + kind
 }
 
 // Refusal says why this process is not the operator's own terminal, for an

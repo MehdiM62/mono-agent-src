@@ -238,6 +238,9 @@ func (s *Store) getTx(ctx context.Context, x dbx, profileID string, id int64) (T
 	if err := s.attachLast(ctx, x, ts); err != nil {
 		return Task{}, err
 	}
+	if err := s.attachAuthors(ctx, x, ts); err != nil {
+		return Task{}, err
+	}
 	return ts[0], nil
 }
 

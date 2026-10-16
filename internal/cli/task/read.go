@@ -242,6 +242,9 @@ func printTask(w io.Writer, p tasks.Profile, as string, t tasks.Task, events []t
 		src += ", in " + t.Source.App
 	}
 	fmt.Fprintf(w, "Source:   %s\n", src)
+	if t.Author != "" {
+		fmt.Fprintf(w, "Added by: %s\n", t.Author)
+	}
 	if t.Source.URL != "" {
 		fmt.Fprintf(w, "Link:     %s\n", t.Source.URL)
 	}
