@@ -2575,14 +2575,24 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
   MCP `node_run` tool runs nodes the same way, since an AI wrote their
   config. JavaScript in `core.code` (goja) and `mcp.call` over HTTP still
   run; so does every step of a workflow the user approved.
-- **No hidden files in the home from an unapproved workflow.** Its file
-  writes (`data.write_binary_file`, `data.read_write_file` write,
-  `data.spreadsheet` write, `http.ftp` downloads, image outputs) are refused
-  in a hidden file or folder of the user's home (a name starting with `.`,
-  plus `AppData` on Windows and `Library` on macOS), where a shell's startup
-  file, an autostart or systemd entry or `~/.ssh` would run code later.
-  The profile's project folder is open to them, hidden folders inside it
-  included, and so is everywhere else; reading is unchanged.
+- **Files an unapproved workflow can't touch.** Its file steps go through
+  `fsconfine.Path` (reads) and `fsconfine.WritePath` (writes:
+  `data.write_binary_file`, `data.read_write_file`, `data.spreadsheet`,
+  `http.ftp` downloads, image outputs), which refuse:
+  - reading or writing a hidden file or folder of the user's home (a name
+    starting with `.`, plus `AppData` on Windows and `Library` on macOS):
+    keys and tokens live there (`~/.ssh`, `~/.monoagent`), and files that
+    run code later (a shell's startup file, an autostart or systemd entry);
+  - writing into a folder of the home on PATH (this process's PATH, plus
+    `~/bin` and `~/go/bin`), where a file runs as a command;
+  - writing a git hook (`.git/hooks/*`) or a `.git/config`, anywhere, the
+    project folder included: git runs them at the next commit.
+  The profile's project folder is otherwise open to them, hidden folders in
+  it included (the user's choice), and a glob skips the matches it may not
+  read. Not covered: other files of the project folder that run on next use
+  (`.envrc`, `package.json` scripts, a `Makefile`, `.husky`,
+  `.claude/settings.json`), an existing executable outside PATH, files
+  outside the home, and sending what it may read over the network.
 - **Honest limit.** A full-access agent can read the bridge token and talk
   to the bridge directly, so the origin policy and the submit guard guard
   against mistakes and instructions a page plants, not against a determined
