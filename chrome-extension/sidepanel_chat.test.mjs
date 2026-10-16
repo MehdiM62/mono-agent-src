@@ -38,7 +38,7 @@ class Node_ {
   get textContent() { return this._text + this.children.map((c) => c.textContent).join(""); }
 }
 
-const IDS = ["chat-log", "chat-empty", "chat-input", "chat-send", "chat-stop", "chat-new", "chat-fill", "chat-summarize", "chat-page", "chat-notice", "chat-state"];
+const IDS = ["chat-log", "chat-empty", "chat-input", "chat-send", "chat-stop", "chat-new", "chat-fill", "chat-card", "chat-files", "chat-summarize", "chat-page", "chat-notice", "chat-state"];
 
 function setup({ replies = {}, stored = {}, pageNow = { tabId: 5, url: "https://a.example/p", title: "A page" }, profile = "p-work" } = {}) {
   const els = {};
@@ -388,4 +388,37 @@ test("Fill form, or typing 'fill the form', fills from the profile instead of ch
   assert.equal(t.sent.filter((m) => m.type === "form_fill").length, 2);
   assert.equal(t.sent.some((m) => m.type === "chat_send"), false, "the chat model is never asked");
   assert.equal(t.els["chat-input"].value, "");
+});
+
+test("Fill card and Attach files, or typing for them, run their own fills and tell the result", async () => {
+  const t = setup({
+    replies: {
+      ...READY,
+      card_fill: { ok: true, saved: true, filled: 4 },
+      files_fill: { ok: true, attached: 1, found: 2, names: ["portrait_photo"] },
+    },
+  });
+  await settle();
+  t.els["chat-card"].fire("click");
+  await settle(30);
+  assert.equal(lastOf(t.sent, "card_fill").profile, "p-work");
+  assert.match(t.els["chat-notice"].textContent, /Filled 4 card fields/);
+
+  t.els["chat-files"].fire("click");
+  await settle(30);
+  assert.match(t.els["chat-notice"].textContent, /Attached 1 file \(portrait_photo\)/);
+
+  t.type("fill my card details");
+  t.enter();
+  await settle(30);
+  assert.equal(t.sent.filter((m) => m.type === "card_fill").length, 2, "typing 'fill my card' is the card button, not the form button");
+  assert.equal(t.sent.some((m) => m.type === "form_fill" || m.type === "chat_send"), false);
+});
+
+test("a card that is not saved says where to add it", async () => {
+  const t = setup({ replies: { ...READY, card_fill: { ok: true, saved: false, filled: 0 } } });
+  await settle();
+  t.els["chat-card"].fire("click");
+  await settle(30);
+  assert.match(t.els["chat-notice"].textContent, /No card is saved. Add one on the Info page/);
 });

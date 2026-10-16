@@ -1552,6 +1552,184 @@ export namespace main {
 	        this.summary_status = source["summary_status"];
 	    }
 	}
+	export class ProfileInfoFilled {
+	    key: string;
+	    origin: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ProfileInfoFilled(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.key = source["key"];
+	        this.origin = source["origin"];
+	    }
+	}
+	export class ProfileInfoAIFillResult {
+	    asked: number;
+	    filled: ProfileInfoFilled[];
+	    skipped: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ProfileInfoAIFillResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.asked = source["asked"];
+	        this.filled = this.convertValues(source["filled"], ProfileInfoFilled);
+	        this.skipped = source["skipped"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class ProfileInfoField {
+	    key: string;
+	    label: string;
+	    group: string;
+	    kind: string;
+	    options: string[];
+	    sensitive: boolean;
+	    card: boolean;
+	    autocomplete: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ProfileInfoField(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.key = source["key"];
+	        this.label = source["label"];
+	        this.group = source["group"];
+	        this.kind = source["kind"];
+	        this.options = source["options"];
+	        this.sensitive = source["sensitive"];
+	        this.card = source["card"];
+	        this.autocomplete = source["autocomplete"];
+	    }
+	}
+	export class ProfileInfoGroup {
+	    id: string;
+	    label: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ProfileInfoGroup(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.label = source["label"];
+	    }
+	}
+	export class ProfileInfoCatalog {
+	    groups: ProfileInfoGroup[];
+	    fields: ProfileInfoField[];
+	
+	    static createFrom(source: any = {}) {
+	        return new ProfileInfoCatalog(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.groups = this.convertValues(source["groups"], ProfileInfoGroup);
+	        this.fields = this.convertValues(source["fields"], ProfileInfoField);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class ProfileInfoEntry {
+	    key: string;
+	    value: string;
+	    masked: boolean;
+	    source: string;
+	    origin: string;
+	    updated_at: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ProfileInfoEntry(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.key = source["key"];
+	        this.value = source["value"];
+	        this.masked = source["masked"];
+	        this.source = source["source"];
+	        this.origin = source["origin"];
+	        this.updated_at = source["updated_at"];
+	    }
+	}
+	export class ProfileInfoData {
+	    profile: string;
+	    entries: ProfileInfoEntry[];
+	
+	    static createFrom(source: any = {}) {
+	        return new ProfileInfoData(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.profile = source["profile"];
+	        this.entries = this.convertValues(source["entries"], ProfileInfoEntry);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	
+	
+	
 	export class ProfileInfo {
 	    id: string;
 	    name: string;

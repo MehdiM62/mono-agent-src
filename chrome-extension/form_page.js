@@ -76,6 +76,7 @@
         required: !!el.required,
         filled: type !== "select" && !!el.value,
       };
+      if (el.maxLength > 0 && el.maxLength < 1000) f.maxlength = el.maxLength;
       if (type === "select") {
         f.options = Array.from(el.options).map((o) => clean(o.text)).filter(Boolean);
       }
@@ -115,5 +116,51 @@
     return { filled };
   }
 
-  root.MonoFormPage = { scan, apply };
+  // The words near a file box that has no label of its own: a custom upload
+  // button is usually a div with a caption next to a hidden <input type=file>.
+  function captionOf(el) {
+    const own = labelOf(el);
+    if (own) return own;
+    const box = el.closest("label, li, fieldset, div, section");
+    return box ? clean(box.textContent).slice(0, 120) : "";
+  }
+
+  // File inputs are often hidden behind a styled button, so unlike text
+  // fields they need not be visible.
+  function scanFiles() {
+    const out = [];
+    let n = 0;
+    for (const el of document.querySelectorAll('input[type="file"]')) {
+      if (out.length >= 12) break;
+      if (el.disabled) continue;
+      const id = "f" + ++n;
+      el.setAttribute(ATTR, id);
+      out.push({ id, label: captionOf(el), name: el.getAttribute("name") || el.id || "", accept: el.getAttribute("accept") || "" });
+    }
+    return { url: location.href, files: out };
+  }
+
+  // Puts files into the file boxes the bridge matched, as if chosen in the
+  // browser's own dialog: a DataTransfer carries them, and the page is told.
+  function applyFiles(files) {
+    let attached = 0;
+    for (const f of Array.isArray(files) ? files : []) {
+      if (!f || typeof f.id !== "string" || typeof f.data !== "string") continue;
+      const el = document.querySelector("[" + ATTR + '="' + root.CSS.escape(f.id) + '"]');
+      if (!el || el.disabled || (el.files && el.files.length)) continue;
+      const bin = root.atob(f.data);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      const dt = new root.DataTransfer();
+      dt.items.add(new root.File([bytes], f.name || "file", { type: f.mime || "" }));
+      el.files = dt.files;
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+      el.dispatchEvent(new Event("change", { bubbles: true }));
+      attached++;
+    }
+    for (const el of document.querySelectorAll("[" + ATTR + "]")) el.removeAttribute(ATTR);
+    return { attached };
+  }
+
+  root.MonoFormPage = { scan, apply, scanFiles, applyFiles };
 })(globalThis);
