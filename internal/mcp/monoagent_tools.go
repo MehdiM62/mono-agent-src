@@ -453,6 +453,12 @@ func monoagentAdaptedTools() []tool {
 	return tools
 }
 
+// emptyStringIsAValue lists the required string arguments whose empty string
+// is a real answer: "reports_to" is "" to make a role the root of its org
+// (org_role_add, org_role_set_reports_to). For these the key must be present
+// as a string, but may be empty.
+var emptyStringIsAValue = map[string]bool{"reports_to": true}
+
 // requireStringArgs makes a missing or empty required string argument an
 // explicit error. Without it a call that used the wrong key (say "id" for
 // workflow_id) reached the store with an empty id and answered
@@ -475,7 +481,11 @@ func requireStringArgs(schema map[string]interface{}, next toolHandler) toolHand
 			_ = json.Unmarshal(args, &got)
 		}
 		for _, k := range keys {
-			if v, _ := got[k].(string); v == "" {
+			v, present := got[k].(string)
+			if !present {
+				return nil, fmt.Errorf("invalid_input: the %q argument is required", k)
+			}
+			if v == "" && !emptyStringIsAValue[k] {
 				return nil, fmt.Errorf("invalid_input: the %q argument is required", k)
 			}
 		}
