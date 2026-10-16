@@ -140,3 +140,29 @@ func TestRegisterApprovalIsPerItem(t *testing.T) {
 		t.Fatalf("two items, two sends: %v %v", out, err)
 	}
 }
+
+// A run that counts as an AI's only because its workflow changed since the
+// user approved it says so, and how to approve it (#831 round 4, R1).
+func TestRegisterSaysHowToApproveAChangedWorkflow(t *testing.T) {
+	asTheUsersRun(t)
+	db, err := storage.NewDatabase(filepath.Join(t.TempDir(), "db.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if err = db.ApplyMigrations(); err != nil {
+		t.Fatal(err)
+	}
+	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db.DB), "default")
+	in := workflow.NodeInput{WorkflowID: "wf-7", ExecutionID: "execution", NodeID: "register", Items: []workflow.Item{workflow.NewItem(map[string]interface{}{"text": "hello"})}}
+	config := map[string]interface{}{"platform": "email", "kind": "post", "body": "{{ $json.text }}"}
+	_, err = (&RegisterNode{}).Execute(workflow.WithAIAuthored(ctx), in, config)
+	if err == nil || !strings.Contains(err.Error(), "this workflow changed since you last saved or activated it") ||
+		!strings.Contains(err.Error(), "`monoagentcli --profile default workflow activate wf-7`") {
+		t.Errorf("an unapproved definition: %v", err)
+	}
+	chat := workflow.WithTrigger(ctx, "trigger.manual", map[string]interface{}{workflow.AICallerKey: "chat"})
+	if _, err := (&RegisterNode{}).Execute(chat, in, config); err == nil || strings.Contains(err.Error(), "workflow activate") {
+		t.Errorf("a chat's run is no definition the user can approve: %v", err)
+	}
+}
