@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	aichat "github.com/monoes/mono-agent/internal/ai/chat"
@@ -60,7 +61,7 @@ func intParam(desc string) map[string]interface{} {
 // adapted here — see the plan's Dedup section: each is superseded by an
 // existing native MCP tool.
 func monoagentAdaptedTools() []tool {
-	return []tool{
+	tools := []tool{
 		{
 			name:        "message_list",
 			description: "List message/interaction history, optionally for one person. Results carry an untrusted-content provenance fence.",
@@ -445,5 +446,39 @@ func monoagentAdaptedTools() []tool {
 			mutating:    true,
 			handler:     chatToolHandler("set_org_autonomy"),
 		},
+	}
+	for i := range tools {
+		tools[i].handler = requireStringArgs(tools[i].schema, tools[i].handler)
+	}
+	return tools
+}
+
+// requireStringArgs makes a missing or empty required string argument an
+// explicit error. Without it a call that used the wrong key (say "id" for
+// workflow_id) reached the store with an empty id and answered
+// "workflow  not found".
+func requireStringArgs(schema map[string]interface{}, next toolHandler) toolHandler {
+	required, _ := schema["required"].([]string)
+	props, _ := schema["properties"].(map[string]interface{})
+	var keys []string
+	for _, k := range required {
+		if p, ok := props[k].(map[string]interface{}); ok && p["type"] == "string" {
+			keys = append(keys, k)
+		}
+	}
+	if len(keys) == 0 {
+		return next
+	}
+	return func(ctx context.Context, s *Server, args json.RawMessage) (interface{}, error) {
+		var got map[string]interface{}
+		if len(args) > 0 {
+			_ = json.Unmarshal(args, &got)
+		}
+		for _, k := range keys {
+			if v, _ := got[k].(string); v == "" {
+				return nil, fmt.Errorf("invalid_input: the %q argument is required", k)
+			}
+		}
+		return next(ctx, s, args)
 	}
 }
