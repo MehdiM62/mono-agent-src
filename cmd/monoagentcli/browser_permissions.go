@@ -59,12 +59,15 @@ func newBrowserPermissionsCmd(cfg *globalConfig) *cobra.Command {
 		Short: "What each kind of agent may do in the browser, and the site rules",
 		Long: "Each kind of agent — coder chats, org roles, the in-app chat, other agents (a Claude Code or\n" +
 			"Codex session in a terminal) — has a level:\n" +
-			"  full-no-approvals  any site; form submits go through without asking\n" +
+			"  full-no-approvals  any site; form submits go through without asking, and scripts run on\n" +
+			"                     any page (they can read that site's cookies and storage)\n" +
 			"  full               any site; a form submit on a real site waits for your approval\n" +
-			"  dev                localhost and dev pages plus allowed sites (the default for coder chats)\n" +
+			"  dev                localhost and dev pages plus allowed sites (the default but for the chat)\n" +
 			"  ask                like dev, but a new site asks you first instead of being refused\n" +
 			"  off                no browser at all\n" +
-			"Site rules apply to every kind: allow (for dev and ask) or block (wins at every level).\n" +
+			"Site rules apply to every kind: allow (for dev and ask) admits exactly one origin\n" +
+			"(scheme, host and port; *.host for a host and its subdomains); block covers a host and its\n" +
+			"subdomains on every scheme and port, and wins at every level.\n" +
 			"Your own terminal is never restricted. Agents may read this; only you change it.",
 		Example: `  monoagentcli --json browser permissions
   monoagentcli browser permissions set coder ask
@@ -93,9 +96,9 @@ func newBrowserPermissionsCmd(cfg *globalConfig) *cobra.Command {
 		},
 	})
 	cmd.AddCommand(&cobra.Command{
-		Use:     "site <origin> <allow|block|clear>",
+		Use:     "site <origin|host> <allow|block|clear>",
 		Short:   "Allow or block a site for every kind of agent, or clear its rule",
-		Example: "  monoagentcli browser permissions site https://github.com allow\n  monoagentcli browser permissions site '*.bank.example' block",
+		Example: "  monoagentcli browser permissions site https://github.com allow\n  monoagentcli browser permissions site bank.example block",
 		Args:    cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if browserctl.AgentKind() != "" {
@@ -112,28 +115,22 @@ func newBrowserPermissionsCmd(cfg *globalConfig) *cobra.Command {
 	return cmd
 }
 
-// withPermissions loads the permissions, applies change (nil: none) and
-// saves, then hands them to done.
+// withPermissions applies change (nil: none) to the permissions
+// atomically (browserctl.UpdatePermissions), then hands them to done.
 func withPermissions(cfg *globalConfig, change func(*browserctl.Permissions) error, done func(browserctl.Permissions) error) error {
 	db, err := initDB(cfg)
 	if err != nil {
 		return fmt.Errorf("initializing database: %w", err)
 	}
 	defer db.Close()
-	p, err := browserctl.LoadPermissions(db.DB)
+	var p browserctl.Permissions
+	if change == nil {
+		p, err = browserctl.LoadPermissions(db.DB)
+	} else {
+		p, err = browserctl.UpdatePermissions(db.DB, change)
+	}
 	if err != nil {
 		return err
-	}
-	if change != nil {
-		if err := change(&p); err != nil {
-			return err
-		}
-		if err := browserctl.SavePermissions(db.DB, p); err != nil {
-			return err
-		}
-		if p, err = browserctl.LoadPermissions(db.DB); err != nil {
-			return err
-		}
 	}
 	return done(p)
 }

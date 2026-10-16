@@ -35,14 +35,16 @@ last, else the active tab (for an agent, the active tab of its own tab group).
 
 Run by an agent (Claude Code, Codex, an org role, a coder chat), the commands do what
 that kind of agent's level allows (` + "`browser permissions`" + `, Settings → Agent browser
-permissions): by default coder chats and other agents drive only local and dev pages
-(localhost, *.localhost, 127.0.0.0/8, ::1, *.local, *.test, private network addresses)
-and the sites you allowed, and the in-app chat and org roles any site; a site you
-block is refused at every level, and file: and browser-internal pages never. Refusals
-exit 3 with the code browser_off, site_blocked, origin_not_allowed or
-site_needs_approval (with the hil_id that asks you). An agent's form submit on a page
-that is not local waits for your approval (except at full-no-approvals): exit 3 with
-{"status":"awaiting_approval","hil_id":…}; approve it with
+permissions): by default coder chats, org roles and other agents drive only local and
+dev pages (localhost, *.localhost, 127.0.0.0/8, ::1, *.local, *.test, private network
+addresses) and the sites you allowed, and the in-app chat any site; a site you block
+(and its subdomains, on any scheme and port) is refused at every level, and file: and
+browser-internal pages never. Refusals exit 3 with the code browser_off, site_blocked,
+origin_not_allowed, site_needs_approval (with the hil_id that asks you), site_rejected
+(you said no to it in the last 10 minutes) or site_asks_full (20 sites already wait for
+you). An agent's form submit on a page that is not local waits for your approval
+(except at full-no-approvals): exit 3 with {"status":"awaiting_approval","hil_id":…};
+approve it with
 ` + "`monoagentcli --profile <id> hil approve <hil_id>`" + ` or on the Human in Loop page, then
 the agent runs ` + "`monoagentcli --profile <id> browser submit --hil <hil_id>`" + `. This is
 a guard against mistakes and prompt injection from pages, not a sandbox: an agent
@@ -178,6 +180,8 @@ func browserErr(cmd *cobra.Command, cfg *globalConfig, err error) error {
 	var blocked *browserctl.SiteBlockedError
 	var pending *browserctl.SiteApprovalPendingError
 	var ask *browserctl.SiteNeedsApprovalError
+	var rejected *browserctl.SiteRejectedError
+	var full *browserctl.SiteAsksFullError
 	switch {
 	case errors.As(err, &off):
 		return browserCLIError{error: errInvalidInput("%s", off.Error()), code: "browser_off", extra: map[string]any{"kind": off.Kind}}
@@ -188,6 +192,10 @@ func browserErr(cmd *cobra.Command, cfg *globalConfig, err error) error {
 			extra: map[string]any{"hil_id": pending.HILID, "origin": pending.Origin}}
 	case errors.As(err, &ask):
 		return browserCLIError{error: errInvalidInput("%s", ask.Error()), code: "site_needs_approval", extra: map[string]any{"origin": ask.Origin}}
+	case errors.As(err, &rejected):
+		return browserCLIError{error: errInvalidInput("%s", rejected.Error()), code: "site_rejected", extra: map[string]any{"origin": rejected.Origin}}
+	case errors.As(err, &full):
+		return browserCLIError{error: errInvalidInput("%s", full.Error()), code: "site_asks_full"}
 	case errors.As(err, &aw):
 		if cfg.JSONOutput {
 			_ = writeJSONTo(cmd.OutOrStdout(), map[string]any{

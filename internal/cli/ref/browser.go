@@ -108,15 +108,17 @@ WHERE AN AGENT MAY GO
   workers), org (org roles and the runs the org starts), chat (the in-app chat
   and the workflow runs it starts), other (any other agent shell, such as a
   Claude Code or Codex session in a terminal). Levels:
-    full-no-approvals  any site; form submits go through
+    full-no-approvals  any site; form submits go through, and scripts run on any
+                       page (they can read that site's cookies and storage)
     full               any site; a submit on a page that is not local waits for approval
     dev                local and dev pages plus sites with an allow rule; a submit
                        on an allowed real site waits for approval
     ask                like dev, but a new site asks the user (site_needs_approval)
     off                no browser at all (browser_off)
-  Defaults: coder and other dev, chat and org full. Site rules (allow or block,
-  for every kind): a block wins over every level; an allow matters for dev and
-  ask. Local and dev pages (localhost, *.localhost, 127.0.0.0/8, ::1, *.local,
+  Defaults: coder, org and other dev, chat full. Site rules (allow or block,
+  for every kind): a block covers its host and the host's subdomains on every
+  scheme and port, and wins over every level; an allow admits exactly its
+  origin (or *.host's subdomains) and matters for dev and ask. Local and dev pages (localhost, *.localhost, 127.0.0.0/8, ::1, *.local,
   *.test, private network RFC 1918 hosts) are allowed at every level but off;
   file: and chrome: pages never. Tabs an agent opens go into the tab group
   "Coder · <label>". No cookie commands and no raw CDP for agents.
@@ -125,6 +127,7 @@ WHERE AN AGENT MAY GO
   browser permissions set <kind> <level>    the user's (refused in an agent)
   browser permissions site <origin> <allow|block|clear>
                                             the user's; origin scheme://host[:port] or *.host
+                                            (a block also takes a bare host)
   browser allow list                        the allow rules
   browser allow add <origin>                the same as site <origin> allow
   browser allow remove <origin>             the same as site <origin> clear
@@ -170,6 +173,10 @@ ERRORS AN AGENT ACTS ON (exit 3; --json prints {"error","code"})
   origin_not_allowed   not local and no allow rule (dev)
   site_needs_approval  {hil_id}: the user is asked to allow this site (ask);
                        wait for the decision, then retry
+  site_rejected        the user said no to this site in the last 10 minutes;
+                       don't ask again, tell the user if the task needs it
+  site_asks_full       20 site approvals already wait for the user; ask them
+                       to answer those first
   eval_not_allowed     browser eval on a page that is not local
   origin_changed       the tab left the page the command was checked for (a
                        redirect, a script, the user); nothing ran. See where it
