@@ -3,44 +3,45 @@
 package storage
 
 import (
-	"errors"
-	"fmt"
 	"os"
-	"path/filepath"
+	"sync"
 	"time"
 )
 
-// Without flock the lock is a claim file created with O_EXCL; a claim
-// older than staleLockAge belongs to a crashed holder and is broken.
+// Without flock the lock is the claim-file algorithm in migrate_lock_claim.go
+// (chosen over LockFileEx so one tested implementation serves windows and
+// every other non-unix target).
 const (
 	lockPollInterval = 20 * time.Millisecond
 	lockWaitTimeout  = 120 * time.Second
 	staleLockAge     = 5 * time.Minute
 )
 
+var (
+	heldMu     sync.Mutex
+	heldNonces = map[string]string{}
+)
+
 func lockFile(f *os.File) error {
-	claim := f.Name() + ".claim"
-	deadline := time.Now().Add(lockWaitTimeout)
-	for {
-		h, err := os.OpenFile(claim, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
-		if err == nil {
-			h.Close()
-			return nil
-		}
-		if !errors.Is(err, os.ErrExist) {
-			return err
-		}
-		if info, statErr := os.Stat(claim); statErr == nil && time.Since(info.ModTime()) > staleLockAge {
-			_ = os.Remove(claim)
-			continue
-		}
-		if time.Now().After(deadline) {
-			return fmt.Errorf("another process has held %s for %s", filepath.Base(claim), lockWaitTimeout)
-		}
-		time.Sleep(lockPollInterval)
+	c := &claimLock{
+		path: f.Name() + ".claim", alive: processAlive, maxAge: staleLockAge,
+		poll: lockPollInterval, timeout: lockWaitTimeout, pid: os.Getpid(),
 	}
+	nonce, err := c.acquire()
+	if err != nil {
+		return err
+	}
+	heldMu.Lock()
+	heldNonces[c.path] = nonce
+	heldMu.Unlock()
+	return nil
 }
 
 func unlockFile(f *os.File) error {
-	return os.Remove(f.Name() + ".claim")
+	path := f.Name() + ".claim"
+	heldMu.Lock()
+	nonce := heldNonces[path]
+	delete(heldNonces, path)
+	heldMu.Unlock()
+	return (&claimLock{path: path}).release(nonce)
 }
