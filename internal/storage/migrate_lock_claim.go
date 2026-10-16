@@ -255,6 +255,11 @@ var linkFile = os.Link
 // empty or partial claim. Where hard links are unavailable it falls back to
 // an O_EXCL create followed by the write, which stale() tolerates.
 func publishExclusive(path, body string) error {
+	// Waiters poll this: don't pay for a synced temp file when the answer
+	// is already visibly "taken". The link below remains the real arbiter.
+	if _, err := os.Lstat(path); err == nil {
+		return os.ErrExist
+	}
 	tmp := path + "." + newNonce() + ".tmp"
 	if err := writeSynced(tmp, body); err != nil {
 		_ = os.Remove(tmp)

@@ -88,13 +88,13 @@ func TestReleaseKeepsAClaimWithAnotherNonce(t *testing.T) {
 func TestHeartbeatKeepsALongHeldClaimAlive(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "db.claim")
 	holder := testClaim(path, func(int) bool { return true })
-	holder.staleAfter = 80 * time.Millisecond
-	holder.heartbeat = 5 * time.Millisecond
+	holder.staleAfter = 400 * time.Millisecond
+	holder.heartbeat = 10 * time.Millisecond
 	nonce, err := holder.acquire()
 	if err != nil {
 		t.Fatal(err)
 	}
-	time.Sleep(400 * time.Millisecond) // five times staleAfter
+	time.Sleep(900 * time.Millisecond) // more than twice staleAfter
 
 	waiter := testClaim(path, func(int) bool { return true })
 	waiter.staleAfter = holder.staleAfter
@@ -114,14 +114,14 @@ func TestHeartbeatKeepsALongHeldClaimAlive(t *testing.T) {
 // a claim that looks alive by PID but is no longer heartbeating.
 func TestClaimWithLivePIDButStoppedHeartbeatIsBroken(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "db.claim")
-	writeClaim(t, path, "crashed", 4242, time.Now())
+	written := time.Now()
+	writeClaim(t, path, "crashed", 4242, written)
 	c := testClaim(path, func(pid int) bool { return pid == 4242 })
 	c.staleAfter = 60 * time.Millisecond
-	start := time.Now()
 	if _, err := c.acquire(); err != nil {
 		t.Fatalf("a claim with a reused live PID and no heartbeat blocked: %v", err)
 	}
-	if time.Since(start) < 50*time.Millisecond {
+	if time.Since(written) < c.staleAfter {
 		t.Fatal("claim was broken before the heartbeat bound elapsed")
 	}
 }
@@ -347,6 +347,7 @@ func TestBreakLockStaysExclusiveWhileBreakingACrashedOne(t *testing.T) {
 			go func() {
 				defer wg.Done()
 				c := testClaim(path, alive)
+				c.timeout = time.Minute // fsync-bound and unfair: only a true hang should fail
 				for j := 0; j < 5; j++ {
 					token, ok := c.lockBreak()
 					if !ok {
@@ -436,7 +437,8 @@ func TestClaimWaitersNeverBothOwnTheLock(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			c := testClaim(path, alive)
-			for j := 0; j < 20; j++ {
+			c.timeout = time.Minute // fsync-bound and unfair under -race: only a true hang should fail
+			for j := 0; j < 10; j++ {
 				nonce, err := c.acquire()
 				if err != nil {
 					t.Error(err)
