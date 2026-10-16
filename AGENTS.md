@@ -2584,6 +2584,13 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
   MCP `node_run` tool runs nodes the same way, since an AI wrote their
   config. JavaScript in `core.code` (goja) and `mcp.call` over HTTP still
   run; so does every step of a workflow the user approved.
+- **Sends from an unapproved workflow wait for the user.** `hilsend.Guard`
+  queues each send (email, DM, comment, post, connect, publish) of a run
+  of a workflow the user never approved, or of one such a workflow called
+  (`workflow.CalledByUnapproved`), as a `send:` item, as it does an agent's;
+  PreparedBy.AgentID is `unapproved-workflow`. The sendApproval setting and
+  the always-allow rules apply. A workflow the user approved sends as
+  before, even when the chat starts it.
 - **Files an unapproved workflow can't touch.** Its file steps, and those of
   a workflow it called (whose own approval still decides its program steps),
   go through `fsconfine.Path` (reads) and `fsconfine.WritePath` (writes:
