@@ -16,7 +16,7 @@ import (
 // publication: the call is the chat's doing, so the approved child's register
 // needs an approved send, as the chat running it directly would. Once the
 // user approves the caller too, the same call registers as before (#831
-// round 5, F2).
+// round 5, F2). The refusal names the caller as the workflow to approve.
 func TestAnUnapprovedWorkflowsSubWorkflowIsAnAIRun(t *testing.T) {
 	_, cfg := persistTestEnv(t)
 	asOperatorProcess(t)
@@ -67,6 +67,11 @@ func TestAnUnapprovedWorkflowsSubWorkflowIsAnAIRun(t *testing.T) {
 	}
 	if !strings.Contains(out, "needs an approved send") {
 		t.Errorf("the called workflow's register was not refused for want of an approved send:\n%s", out)
+	}
+	// It names the caller as the workflow to approve (#831 round 6).
+	if !strings.Contains(out, "the workflow that called this one, "+parent+",") ||
+		!strings.Contains(out, "`monoagentcli --profile default workflow activate "+parent+"`") {
+		t.Errorf("the refusal does not say to approve the calling workflow %s:\n%s", parent, out)
 	}
 
 	cfg.JSONOutput = true
