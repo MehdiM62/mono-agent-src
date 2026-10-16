@@ -4,10 +4,13 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/rs/zerolog"
 
 	"github.com/monoes/mono-agent/internal/browserctl"
 	"github.com/monoes/mono-agent/internal/hilsend"
@@ -164,5 +167,58 @@ func TestRegisterSaysHowToApproveAChangedWorkflow(t *testing.T) {
 	chat := workflow.WithTrigger(ctx, "trigger.manual", map[string]interface{}{workflow.AICallerKey: "chat"})
 	if _, err := (&RegisterNode{}).Execute(chat, in, config); err == nil || strings.Contains(err.Error(), "workflow activate") {
 		t.Errorf("a chat's run is no definition the user can approve: %v", err)
+	}
+}
+
+// brokenApprovals is a workflow store whose check of the user's approval
+// keeps failing.
+type brokenApprovals struct{ *workflow.SQLiteWorkflowStore }
+
+func (brokenApprovals) DefinitionApproved(context.Context, string, string) (bool, error) {
+	return false, errors.New("database is locked")
+}
+
+// A register refused because whether the user approved the workflow could
+// not be checked names the store error, not a change the user didn't make
+// (#831 round 5, C4).
+func TestRegisterNamesAFailedApprovalCheck(t *testing.T) {
+	asTheUsersRun(t)
+	db, err := storage.NewDatabase(filepath.Join(t.TempDir(), "db.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if err = db.ApplyMigrations(); err != nil {
+		t.Fatal(err)
+	}
+	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db.DB), "default")
+	store := workflow.NewSQLiteWorkflowStore(db.DB)
+	wf := &workflow.Workflow{ID: "wf-reg", Name: "Registers", ProfileID: "default",
+		Nodes: []workflow.WorkflowNode{
+			{ID: "wf-reg-t", WorkflowID: "wf-reg", Type: "trigger.schedule", Name: "Every hour"},
+			{ID: "wf-reg-r", WorkflowID: "wf-reg", Type: "publication.register", Name: "Register",
+				Config: map[string]interface{}{"platform": "email", "kind": "post", "body": "hello"}},
+		},
+		Connections: []workflow.WorkflowConnection{{ID: "wf-reg-c", WorkflowID: "wf-reg", SourceNodeID: "wf-reg-t", SourceHandle: "main", TargetNodeID: "wf-reg-r", TargetHandle: "main"}},
+	}
+	if err := store.CreateWorkflow(ctx, wf); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveWorkflowNodes(ctx, wf.ID, wf.Nodes); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveWorkflowConnections(ctx, wf.ID, wf.Connections); err != nil {
+		t.Fatal(err)
+	}
+	reg := workflow.NewNodeTypeRegistry()
+	reg.Register("publication.register", func() workflow.NodeExecutor { return &RegisterNode{} })
+	dag, err := workflow.BuildDAG(wf.Nodes, wf.Connections)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exec := &workflow.WorkflowExecution{ID: "exec-reg", WorkflowID: wf.ID, ProfileID: "default", TriggerType: "trigger.schedule", TriggerNodeID: "wf-reg-t"}
+	err = workflow.RunExecution(ctx, exec, wf, dag, reg, brokenApprovals{store}, nil, workflow.NewExpressionEngine(), zerolog.Nop())
+	if err == nil || !strings.Contains(err.Error(), "could not be checked (database is locked)") || strings.Contains(err.Error(), "changed since") {
+		t.Errorf("the register's refusal: %v", err)
 	}
 }

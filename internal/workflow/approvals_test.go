@@ -107,7 +107,7 @@ func TestRunsOfDefinitionsTheOperatorNeverApprovedAreAIRuns(t *testing.T) {
 
 // A store that keeps no approvals approves every run.
 func TestAStoreWithoutApprovalsApprovesEveryRun(t *testing.T) {
-	if !operatorApproved(context.Background(), &stubStore{}, &Workflow{ID: "w"}) {
+	if ok, _ := operatorApproved(context.Background(), &stubStore{}, &Workflow{ID: "w"}); !ok {
 		t.Error("a store without approvals marked a run")
 	}
 }

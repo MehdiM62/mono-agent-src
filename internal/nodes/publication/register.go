@@ -121,6 +121,10 @@ func (*RegisterNode) Execute(ctx context.Context, in workflow.NodeInput, config 
 					// The engine itself is marked: say so, and how to fix it.
 					return nil, fmt.Errorf("publication.register item %d: %w (set approval to the send's id). This run is not the user's: %s", i, err, why)
 				}
+				if cerr := workflow.ApprovalCheckError(ctx); cerr != nil {
+					return nil, fmt.Errorf("publication.register item %d: %w (set approval to the send's id). This run counts as an AI's because "+
+						"whether you approved this workflow could not be checked (%v): run it again", i, err, cerr)
+				}
 				if workflow.AIAuthoredFrom(ctx) {
 					// The definition is one the user never approved: say how to.
 					return nil, fmt.Errorf("publication.register item %d: %w (set approval to the send's id). This run counts as an AI's because "+
