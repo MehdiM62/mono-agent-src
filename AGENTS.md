@@ -2596,15 +2596,16 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
   `workflow activate <id>` that approves the workflow.
 - **The project folder is a trusted zone** (the user's choice): the
   profile's project folder is open to them, hidden folders in it included,
-  git hooks and configs aside. That covers what in it runs on next use
-  (`.claude/settings.json`, `.husky`, `.envrc`, `package.json` scripts, a
-  `Makefile`) and, for a profile on the default folder
-  (`~/.monoagent/profiles/<id>`), the profile's own vault folder. A project
-  folder that is the home or holds it, or lies in another hidden folder of
-  the home, opens nothing; only the operator sets a profile's folder.
-  Also open: the user's files outside hidden folders, files outside the
-  home other than the above, and sending what a workflow may read over the
-  network.
+  and for a profile on the default folder (`~/.monoagent/profiles/<id>`)
+  the profile's own vault folder. Closed there, as everywhere: git hooks and
+  configs, and the files a tool runs the next time the user works in that
+  folder (`.claude/settings*`, `.mcp.json`, `.husky/*`, `.githooks/*`,
+  `.envrc`). Still open in it: build files such as `package.json` scripts
+  or a `Makefile`. A project folder that is the home or holds it, or lies in
+  another hidden folder of the home, opens nothing; only the operator sets a
+  profile's folder. Also open: the user's files outside hidden folders,
+  files outside the home other than the above, and sending what a workflow
+  may read over the network.
 - **Honest limit.** A full-access agent can read the bridge token and talk
   to the bridge directly, so the origin policy and the submit guard guard
   against mistakes and instructions a page plants, not against a determined

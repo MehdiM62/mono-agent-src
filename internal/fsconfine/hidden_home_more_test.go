@@ -79,7 +79,7 @@ func TestAProjectFolderCantOpenTheHome(t *testing.T) {
 	}
 	for _, project := range []string{filepath.Join(home, "code", "proj"), filepath.Join(home, ".monoagent", "profiles", "p1")} {
 		ctx := GuardHiddenHome(context.Background(), Guard{Project: project})
-		if _, err := WritePath(ctx, filepath.Join(project, ".claude", "settings.json")); err != nil {
+		if _, err := WritePath(ctx, filepath.Join(project, ".claude", "commands", "x.md")); err != nil {
 			t.Errorf("project %s: %v", project, err)
 		}
 	}
@@ -153,5 +153,44 @@ func TestNamesCompareWithoutCaseWhereTheFileSystemDoes(t *testing.T) {
 	caseFolds = false
 	if in("/Users/Ada", "/users/ada/.ssh/id") {
 		t.Error("in folds case where the file system doesn't")
+	}
+}
+
+// In the project folder too, a file a tool runs the next time the user works
+// there stays closed to writes; the rest of those folders, and reading, stay
+// open.
+func TestNoFileThatRunsOnNextUse(t *testing.T) {
+	_, home := guardHome(t)
+	project := filepath.Join(home, "code", "proj")
+	if err := os.MkdirAll(project, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	ctx := GuardHiddenHome(context.Background(), Guard{Project: project})
+	for _, rel := range []string{
+		".claude/settings.json", ".claude/settings.local.json", ".mcp.json",
+		".husky/pre-commit", ".husky/_/husky.sh", ".githooks/pre-push", ".envrc", "sub/.envrc",
+	} {
+		p := filepath.Join(project, filepath.FromSlash(rel))
+		if _, err := WritePath(ctx, p); !errors.Is(err, ErrUnapprovedPath) {
+			t.Errorf("write %s: %v", rel, err)
+		}
+		if _, err := Path(ctx, p); err != nil {
+			t.Errorf("read %s: %v", rel, err)
+		}
+	}
+	for _, rel := range []string{".claude/commands/x.md", ".claude/agents/a.md", ".env", "husky.md", "notes/.claude-notes", "envrc.txt"} {
+		if _, err := WritePath(ctx, filepath.Join(project, filepath.FromSlash(rel))); err != nil {
+			t.Errorf("write %s: %v", rel, err)
+		}
+	}
+	if _, err := WritePath(context.Background(), filepath.Join(project, ".envrc")); err != nil {
+		t.Errorf("an approved run: %v", err)
+	}
+	// Where the file system folds case, so does the rule.
+	old := caseFolds
+	t.Cleanup(func() { caseFolds = old })
+	caseFolds = true
+	if _, err := WritePath(ctx, filepath.Join(project, ".CLAUDE", "Settings.json")); !errors.Is(err, ErrUnapprovedPath) {
+		t.Errorf("write .CLAUDE/Settings.json on a case-folding system: %v", err)
 	}
 }

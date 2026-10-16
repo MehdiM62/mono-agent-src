@@ -17,7 +17,8 @@ var ErrUnapprovedPath = errors.New("a workflow the user has not approved can't u
 // Guard is what GuardHiddenHome keeps a run to.
 type Guard struct {
 	// Project is the profile's project folder: a trusted zone (the user's
-	// choice) where only git hooks and git configs stay closed. A folder
+	// choice) where only git hooks and configs and the files that run on
+	// next use (runsOnNextUse) stay closed. A folder
 	// that is or holds the home, or that lies in a hidden folder of the home
 	// other than ~/.monoagent/profiles, doesn't count as one.
 	Project string
@@ -44,9 +45,11 @@ type homeGuardKey struct{}
 //     ~/go/bin, ~/.local/bin, /usr/local/bin and /opt/homebrew/bin), where a
 //     file runs as a command, nor a PowerShell profile folder on Windows;
 //   - write no git hook or git config, anywhere: git runs them at the next
-//     commit.
+//     commit; nor, anywhere, a file a tool runs the next time the user works
+//     in its folder (runsOnNextUse: .claude/settings*, .mcp.json, .husky,
+//     .githooks, .envrc).
 //
-// The project folder is open but for git hooks and configs (Guard).
+// The project folder is open but for those (Guard).
 func GuardHiddenHome(ctx context.Context, g Guard) context.Context {
 	return context.WithValue(ctx, homeGuardKey{}, g)
 }
@@ -100,6 +103,9 @@ func homeRule(ctx context.Context, p, r string, write bool) error {
 	if write {
 		if gitRunsIt(resolved) {
 			return refuse("%s is a git hook or git config, which git runs at the next commit", p)
+		}
+		if what := runsOnNextUse(resolved); what != "" {
+			return refuse("%s is %s, which runs the next time you work in that folder", p, what)
 		}
 		if onPath(home, filepath.Dir(resolved)) {
 			return refuse("%s is in %s, a folder on PATH, where a file runs as a command", p, filepath.Dir(resolved))
@@ -226,6 +232,32 @@ func gitRunsIt(p string) bool {
 		}
 	}
 	return false
+}
+
+// runsOnNextUse names a file a tool runs, or takes commands from, the next
+// time the user works in its folder, "" for any other: Claude Code's
+// settings (their hooks) and its project MCP servers, git hook managers
+// (.husky, .githooks) and direnv's .envrc. In any case.
+func runsOnNextUse(p string) string {
+	parts := strings.Split(fold(p), string(filepath.Separator))
+	last := parts[len(parts)-1]
+	switch last {
+	case ".envrc":
+		return "direnv's .envrc"
+	case ".mcp.json":
+		return "a project's MCP server list (.mcp.json)"
+	}
+	for i := 0; i+1 < len(parts); i++ {
+		switch parts[i] {
+		case ".claude":
+			if i+2 == len(parts) && strings.HasPrefix(last, "settings") {
+				return "Claude Code's settings (their hooks)"
+			}
+		case ".husky", ".githooks":
+			return "a git hook manager's hook"
+		}
+	}
+	return ""
 }
 
 // onPath reports whether dir is a folder on PATH: this process's, plus the
