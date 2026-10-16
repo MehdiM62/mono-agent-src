@@ -9,6 +9,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -172,31 +173,33 @@ func (n *SSHNode) Execute(ctx context.Context, input workflow.NodeInput, config 
 	if resource == "file" {
 		return sftpFiles(ctx, client, connect, timeout, input, config)
 	}
-	session, err := awaitServer(ctx, client, connect, timeout, "open a session", client.NewSession)
-	if err != nil {
-		return nil, err
-	}
-	defer session.Close()
-
 	// What a workflow runs is never the operator (workflow.EnvWorkflowRun),
 	// over ssh too. sshd passes on only the variables AcceptEnv names, so on
 	// this machine, where `monoagentcli hil approve` reaches the user's
 	// database, the command exports the marker as well. Other hosts keep
 	// their command as written: a Windows host's cmd.exe has no export.
-	envDone := make(chan struct{})
-	go func() {
-		_ = session.Setenv(workflow.EnvWorkflowRun, workflow.RunMarker(input.ExecutionID))
-		close(envDone)
-	}()
-	select {
-	case <-envDone:
-	case <-ctx.Done():
-		session.Close()
-		return nil, fmt.Errorf("http.ssh: cancelled: %w", ctx.Err())
-	case <-connect.C:
-		session.Close()
-		return nil, fmt.Errorf("http.ssh: timed out after %s waiting for the server to answer an environment request", timeout)
+	// Opening the session and the environment request end connecting in one
+	// wait, so the connect timer is read once: an answer that came in time
+	// is never taken for a timeout.
+	var opened atomic.Bool
+	session, err := awaitServer(ctx, client, connect, timeout, func() string {
+		if opened.Load() {
+			return "answer an environment request"
+		}
+		return "open a session"
+	}, func() (*ssh.Session, error) {
+		s, err := client.NewSession()
+		if err != nil {
+			return nil, err
+		}
+		opened.Store(true)
+		_ = s.Setenv(workflow.EnvWorkflowRun, workflow.RunMarker(input.ExecutionID))
+		return s, nil
+	})
+	if err != nil {
+		return nil, err
 	}
+	defer session.Close()
 	if exportsMarker(target) {
 		command = markedCommand(input.ExecutionID, command)
 	}
@@ -249,8 +252,8 @@ func (n *SSHNode) Execute(ctx context.Context, input workflow.NodeInput, config 
 
 // awaitServer runs open, a step that waits for the server, until the node's
 // context ends or timer fires; then it closes client, which ends open, and
-// says why.
-func awaitServer[T any](ctx context.Context, client *ssh.Client, timer *time.Timer, timeout time.Duration, what string, open func() (T, error)) (T, error) {
+// says why (what: what the server was being waited for, at that moment).
+func awaitServer[T any](ctx context.Context, client *ssh.Client, timer *time.Timer, timeout time.Duration, what func() string, open func() (T, error)) (T, error) {
 	type result struct {
 		v   T
 		err error
@@ -264,7 +267,7 @@ func awaitServer[T any](ctx context.Context, client *ssh.Client, timer *time.Tim
 	select {
 	case r := <-done:
 		if r.err != nil {
-			return zero, fmt.Errorf("http.ssh: could not %s: %w", what, r.err)
+			return zero, fmt.Errorf("http.ssh: could not %s: %w", what(), r.err)
 		}
 		return r.v, nil
 	case <-ctx.Done():
@@ -272,7 +275,7 @@ func awaitServer[T any](ctx context.Context, client *ssh.Client, timer *time.Tim
 		return zero, fmt.Errorf("http.ssh: cancelled: %w", ctx.Err())
 	case <-timer.C:
 		client.Close()
-		return zero, fmt.Errorf("http.ssh: timed out after %s waiting for the server to %s", timeout, what)
+		return zero, fmt.Errorf("http.ssh: timed out after %s waiting for the server to %s", timeout, what())
 	}
 }
 
