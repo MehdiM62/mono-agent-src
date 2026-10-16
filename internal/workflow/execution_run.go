@@ -155,9 +155,12 @@ func RunExecution(
 	project := profiledir.Root(vault.DBFromContext(ctx), profile)
 	if approved, err := operatorApproved(ctx, store, wf); !approved {
 		ctx = WithUnapproved(withApprovalCheckError(ctx, err), project, ApproveHint(profile, wf.ID))
-	} else if v, _ := exec.TriggerData[AICallerKey].(string); v == UnapprovedWorkflowCaller {
-		ctx = fsconfine.GuardHiddenHome(ctx, FileGuard(project,
-			"this workflow was called by one you haven't approved: save or activate that one in the app or your terminal to let it"))
+	} else if caller, ok := CalledByUnapproved(exec.TriggerData); ok {
+		hint := "this workflow was called by one you haven't approved: save or activate that one in the app or your terminal to let it"
+		if caller != "" {
+			hint = "this workflow was called by " + caller + ", which you haven't approved: " + ApproveHint(profile, caller)
+		}
+		ctx = fsconfine.GuardHiddenHome(ctx, FileGuard(project, hint))
 	}
 	r.ctx = ctx
 

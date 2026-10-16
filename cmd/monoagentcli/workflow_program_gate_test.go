@@ -114,3 +114,59 @@ func TestAWorkflowTheChatBuiltWritesNoHiddenHomeFileUntilApproved(t *testing.T) 
 		t.Fatalf("the approved workflow's write: %q, %v", b, err)
 	}
 }
+
+// A workflow the chat built calls one the user approved that writes
+// ~/.bashrc: the called workflow keeps to the caller's file rules, and the
+// refusal names the caller to approve; once the user approves the caller,
+// the same call writes (#831 round 6, S7).
+func TestAWorkflowAnUnapprovedOneCallsKeepsToItsFileRules(t *testing.T) {
+	home, cfg := persistTestEnv(t)
+	asOperatorProcess(t)
+	rc := filepath.Join(home, ".bashrc")
+	build := func(name string, nodes ...[2]string) string {
+		t.Helper()
+		var wf workflow.Workflow
+		if err := json.Unmarshal([]byte(runWorkflowSubcmd(t, cfg, "create", name)), &wf); err != nil {
+			t.Fatal(err)
+		}
+		prev := ""
+		for _, n := range nodes {
+			var node workflow.WorkflowNode
+			if err := json.Unmarshal([]byte(runWorkflowSubcmd(t, cfg, "node", "add", wf.ID, "--type", n[0], "--name", n[0], "--config", n[1])), &node); err != nil {
+				t.Fatal(err)
+			}
+			if prev != "" {
+				runWorkflowSubcmd(t, cfg, "connect", wf.ID, "--from", prev, "--to", node.ID)
+			}
+			prev = node.ID
+		}
+		return wf.ID
+	}
+	set, _ := json.Marshal(map[string]interface{}{"assignments": []map[string]interface{}{{"field": "text", "value": "echo hi"}}})
+	write, _ := json.Marshal(map[string]interface{}{"file_path": rc, "field": "text", "encoding": "utf8"})
+	child := build("writes-rc", [2]string{workflow.TriggerTypeExecuteWorkflow, `{}`},
+		[2]string{"core.set", string(set)}, [2]string{"data.write_binary_file", string(write)})
+	t.Setenv(browserctl.EnvAICaller, "chat") // the chat builds and activates the caller
+	parent := build("calls-rc", [2]string{"trigger.manual", `{}`},
+		[2]string{"core.execute_workflow", `{"workflowId":"` + child + `"}`})
+	runWorkflowSubcmd(t, cfg, "activate", parent)
+	t.Setenv(browserctl.EnvAICaller, "")
+
+	cfg.JSONOutput = false
+	_, out, _ := runLogsFor(t, cfg, parent)
+	if _, err := os.Stat(rc); err == nil {
+		t.Fatalf("a workflow the chat built had an approved one write ~/.bashrc:\n%s", out)
+	}
+	if !strings.Contains(out, "hidden file or folder") || !strings.Contains(out, "workflow activate "+parent) {
+		t.Errorf("the refusal does not name the caller to approve:\n%s", out)
+	}
+	cfg.JSONOutput = true
+	runWorkflowSubcmd(t, cfg, "activate", parent) // the user approves the caller
+	cfg.JSONOutput = false
+	if _, out, err := runLogsFor(t, cfg, parent); err != nil {
+		t.Fatalf("the approved caller: %v\n%s", err, out)
+	}
+	if b, err := os.ReadFile(rc); err != nil || string(b) != "echo hi" {
+		t.Fatalf("the approved call's write: %q, %v", b, err)
+	}
+}
