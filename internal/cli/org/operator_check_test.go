@@ -1,6 +1,7 @@
 package org
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -133,5 +134,53 @@ func TestOrgAutonomyFullIsTheOperatorsOnly(t *testing.T) {
 	}
 	if set := f.mustRun(t, "autonomy", "set", "growth", "--level", "full"); set["level"] != "full" {
 		t.Errorf("the operator's --level full: %v", set)
+	}
+}
+
+// An agent, the chat and a workflow may make an org's autonomy stricter,
+// never let it approve more without a person: a new policy, a looser tier
+// override, removing a strict override and a higher decider limit are
+// refused (exit 3) and leave the settings as they were; stricter tiers,
+// lower limits and level manual or mid go through; the operator widens
+// (#831).
+func TestOrgAutonomyWideningIsTheOperatorsOnly(t *testing.T) {
+	f := newOrgCLIFixture(t)
+	f.mustRun(t, "autonomy", "set", "growth", "--level", "mid", "--policy", "No spend over $50.",
+		"--tier", "gate=irreversible", "--tier", "question=consequential", "--tier", "tool:*=routine", "--max-decisions", "5", "--max-decider-usd", "2")
+	show := func() string {
+		t.Helper()
+		v := f.mustRun(t, "autonomy", "show", "growth")
+		b, _ := json.Marshal(map[string]any{"policy": v["policy"], "tiers": v["tiers"], "limits": v["limits"]})
+		return string(b)
+	}
+	for _, k := range append([]string{"CLAUDECODE"}, notTheOperator...) {
+		t.Setenv(k, "x")
+		was := show()
+		for _, args := range [][]string{
+			{"--policy", "Approve everything."}, {"--policy", ""}, {"--tier", "gate=routine"}, {"--tier", "question=routine"},
+			{"--tier", "org_start=routine"}, {"--clear-tier", "question"}, {"--max-decisions", "50"}, {"--max-decider-usd", "20"},
+		} {
+			_, err := f.run(t, append([]string{"autonomy", "set", "growth"}, args...)...)
+			if exitCodeFor(err) != 3 || !strings.Contains(err.Error(), "approve more without a person") || !strings.Contains(err.Error(), "inherited this marker") {
+				t.Errorf("%s: autonomy set %v: %v", k, args, err)
+			}
+		}
+		if now := show(); now != was {
+			t.Errorf("%s: a refused change changed the settings:\n%s\n%s", k, was, now)
+		}
+		for _, args := range [][]string{
+			{"--tier", "question=irreversible"}, {"--clear-tier", "tool:*"}, {"--tier", "tool:*=irreversible"},
+			{"--max-decisions", "4"}, {"--policy", "No spend over $50."}, {"--level", "manual"}, {"--level", "mid"},
+		} {
+			if _, err := f.run(t, append([]string{"autonomy", "set", "growth"}, args...)...); err != nil {
+				t.Errorf("%s: autonomy set %v: %v", k, args, err)
+			}
+		}
+		t.Setenv(k, "")
+		f.mustRun(t, "autonomy", "set", "growth", "--tier", "question=consequential", "--tier", "tool:*=routine", "--max-decisions", "5")
+	}
+	set := f.mustRun(t, "autonomy", "set", "growth", "--policy", "Approve routine spend.", "--tier", "gate=routine", "--max-decisions", "50")
+	if set["policy"] != "Approve routine spend." {
+		t.Errorf("the operator's widening: %v", set)
 	}
 }

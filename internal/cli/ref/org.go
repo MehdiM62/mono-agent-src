@@ -173,8 +173,11 @@ AUTONOMY
       [--policy TEXT | --policy-file F]
       [--tier <class>=routine|consequential|irreversible]... [--clear-tier C]...
       [--on-decider-failure deny|human] [--max-decisions N] [--max-decider-usd X]
-      (--level full only from the user's own terminal or the app: an agent, the
-      chat and a workflow get exit 3)
+      (from an agent, the chat or a workflow only stricter or the same: --level
+      full, a new --policy, a --tier looser than the override it replaces (or a
+      new one below irreversible), --clear-tier of a non-routine override and a
+      higher --max-decisions or --max-decider-usd get exit 3; the user changes
+      those in their own terminal or the app)
   org autonomy pause <org>|--all [--for 30m]     resume <org>|--all
   org autonomy decisions <org> [--run R] [--verdict V] [--limit N]
   org autonomy needs-you <org>

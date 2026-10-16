@@ -44,7 +44,7 @@ func orgUnificationToolDefs(def func(name, desc string, props map[string]interfa
 			"decider_threshold":  map[string]interface{}{"type": "number", "description": "jev decider only: lowest top-verdict probability Jev decides at, in (0,1] (default 0.8)"},
 			"decider_model":      strParam("Model id for the model decider"),
 			"decider_runtime":    strParam("Runtime for the model decider (e.g. claude)"),
-			"policy":             strParam("Instructions the decider follows (operator text)"),
+			"policy":             strParam("Instructions the decider follows: the user writes them, and a change from here is refused"),
 			"on_decider_failure": strParam("deny | human — what full does when the decider fails"),
 			"confirm":            boolParam("Must be true to apply; omit to preview"),
 		}, []string{"org_name"}),
@@ -198,6 +198,12 @@ func (mt *MonoagentTools) setOrgAutonomy(ctx context.Context, args string) (stri
 		// (`org autonomy set` refuses it from the chat too).
 		return "", fmt.Errorf("set_org_autonomy: level full lets the org's decider handle everything with no person involved, which only the user can choose " +
 			"(`monoagentcli org autonomy set <org> --level full` in their own terminal, or the app); use manual or mid")
+	}
+	if a.Policy != nil {
+		// The policy is the decider's instructions, and which of two lets
+		// more through can't be told: the user writes it.
+		return "", fmt.Errorf("set_org_autonomy: the policy is the instructions the org's decider follows, which only the user writes " +
+			"(`monoagentcli org autonomy set <org> --policy ...` in their own terminal, or the app); leave policy out")
 	}
 	if a.Decider != "" && !orgdesign.ValidDeciderKind(a.Decider) {
 		return "", fmt.Errorf("decider %q must be one of %s", a.Decider, strings.Join(orgdesign.DeciderKinds, ", "))

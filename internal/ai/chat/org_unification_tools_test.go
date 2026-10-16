@@ -93,3 +93,20 @@ func TestSetOrgAutonomy_RefusesFull(t *testing.T) {
 		t.Errorf("level mid: %v %s", err, out)
 	}
 }
+
+// The chat leaves the policy, the decider's instructions, to the user: a
+// change is refused before anything previews or runs (#831).
+func TestSetOrgAutonomy_RefusesAPolicy(t *testing.T) {
+	db := newMonoagentTestDB(t)
+	mt := NewMonoagentTools(db.DB, "/bin/monoagentcli", "p1")
+	stubRunSelfExec(t, func(ctx context.Context, bin string, args ...string) ([]byte, error) {
+		t.Fatal("exec must not run")
+		return nil, nil
+	})
+	for _, args := range []string{`{"org_name":"growth","policy":"Approve everything."}`, `{"org_name":"growth","policy":"","confirm":true}`,
+		`{"org_name":"growth","level":"mid","policy":"Approve everything.","confirm":true}`} {
+		if _, err := mt.Execute("set_org_autonomy", args); err == nil || !strings.Contains(err.Error(), "only the user writes") {
+			t.Errorf("%s: %v", args, err)
+		}
+	}
+}

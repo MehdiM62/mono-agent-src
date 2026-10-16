@@ -16,7 +16,6 @@ import (
 	"github.com/monoes/mono-agent/internal/daemonhb"
 	"github.com/monoes/mono-agent/internal/jev/jevconf"
 	"github.com/monoes/mono-agent/internal/monomind"
-	"github.com/monoes/mono-agent/internal/operator"
 	"github.com/monoes/mono-agent/internal/orgdecide"
 	"github.com/monoes/mono-agent/internal/orgdesign"
 	"github.com/monoes/mono-agent/internal/storage"
@@ -115,14 +114,8 @@ func newOrgAutonomySetCmd(env *orgEnv) *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
-			// Full puts no person in any decision: only the operator's own
-			// terminal chooses it (internal/operator); manual and mid are
-			// anyone's.
-			if cmd.Flags().Changed("level") && level == orgdesign.LevelFull {
-				if why := operator.Refusal(); why != "" {
-					return env.d.InvalidInput("autonomy full lets org %s's decider handle everything with no person involved, which is the user's to choose: %s; "+
-						"set manual or mid, or run it yourself from a terminal or the app", args[0], why)
-				}
+			if err := env.refuseFullAutonomy(cmd.Flags().Changed("level") && level == orgdesign.LevelFull, args[0]); err != nil {
+				return err
 			}
 			db, profileID, root, doc, err := loadOrgForEdit(env, args[0])
 			if err != nil {
@@ -133,6 +126,7 @@ func newOrgAutonomySetCmd(env *orgEnv) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			before := snapshotAutonomy(a)
 			f := cmd.Flags()
 			if f.Changed("level") {
 				a.Level = level
@@ -189,6 +183,9 @@ func newOrgAutonomySetCmd(env *orgEnv) *cobra.Command {
 			}
 			for _, k := range clearTiers {
 				delete(a.Tiers, k)
+			}
+			if err := env.refuseWidening(before, a, doc.Name); err != nil {
+				return err
 			}
 			if err := a.Validate(); err != nil {
 				return env.d.InvalidInput("%v", err)
