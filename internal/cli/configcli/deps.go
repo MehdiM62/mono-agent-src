@@ -11,4 +11,9 @@ type Deps struct {
 	JSONOutput func() bool
 	// OpenDB opens (and migrates) the database the command is pointed at.
 	OpenDB func() (*storage.Database, error)
+	// RequireOperator refuses whatever is not the operator's own terminal
+	// (the CLI's: exit 3, operator_only): set and delete ask it for a
+	// reserved row (operator.ReservedConfig). Without it they refuse those
+	// rows.
+	RequireOperator func(what string) error
 }

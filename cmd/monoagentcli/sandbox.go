@@ -137,6 +137,9 @@ func newSandboxFallbackCmd(cfg *globalConfig) *cobra.Command {
 			}
 			defer db.Close()
 			if cmd.Flags().Changed("set") {
+				if err := requireOperator("set the sandbox fallback, what an agent turn does without a sandbox"); err != nil {
+					return err
+				}
 				v, ok := monomind.ParseSandboxFallback(set)
 				if !ok {
 					return errInvalidInput("--set %q: must be one of %s", set, strings.Join(monomind.SandboxFallbackValues, ", "))
@@ -161,7 +164,7 @@ func newSandboxFallbackCmd(cfg *globalConfig) *cobra.Command {
 			return nil
 		},
 	}
-	c.Flags().StringVar(&set, "set", "", "Set the value: "+strings.Join(monomind.SandboxFallbackValues, " | "))
+	c.Flags().StringVar(&set, "set", "", "Set the value (operator only): "+strings.Join(monomind.SandboxFallbackValues, " | "))
 	withJSONErrors(cfg, c)
 	return c
 }
