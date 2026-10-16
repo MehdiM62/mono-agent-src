@@ -1,0 +1,27 @@
+{
+  "id": "33b501a5-8d44-454f-bc47-dfb47673f34a",
+  "execution_id": "browser:site:33b501a5-8d44-454f-bc47-dfb47673f34a",
+  "workflow_id": "browser.site",
+  "workflow_name": "",
+  "node_id": "browser.site",
+  "node_name": "Use аpple.com (xn--pple-43d.com)",
+  "status": "pending",
+  "readonly_data": {
+    "asciiHost": "xn--pple-43d.com",
+    "kind": "coder",
+    "origin": "https://xn--pple-43d.com",
+    "requested_by": {
+      "conversationId": "040abd27-0581-419b-817f-99a39f6885b0",
+      "role": "lead"
+    },
+    "unicodeHost": "аpple.com",
+    "url": "https://аpple.com/account/signin"
+  },
+  "editable_data": {},
+  "node_config": {
+    "agentKind": "coder",
+    "kind": "browser.site",
+    "origin": "https://xn--pple-43d.com"
+  },
+  "created_at": "2026-10-16T00:05:03Z"
+}

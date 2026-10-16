@@ -9,6 +9,9 @@ import { api } from '../../services/api.js'
 // readonly_data {origin, url, kind, requested_by}), written against the
 // contract before the CLI that stores it landed.
 import fixture from './__fixtures__/browser-site-item.json'
+// The same for a look-alike host (https://аpple.com, a Cyrillic а):
+// origin in xn-- form, asciiHost and unicodeHost.
+import idnFixture from './__fixtures__/browser-site-item-idn.json'
 
 vi.mock('../../wailsjs/go/main/App', () => ({
   GetHILItems: vi.fn(),
@@ -49,11 +52,7 @@ describe('browser site approval card', () => {
   })
 
   it('shows the ASCII form of a non-Latin host with a check-the-address hint, and nothing for an ASCII host', async () => {
-    const idn = structuredClone(fixture)
-    idn.readonly_data.origin = 'https://аpple.com'
-    idn.readonly_data.url = 'https://аpple.com/account'
-    idn.readonly_data.asciiHost = 'xn--pple-43d.com'
-    WailsApp.GetHILItems.mockResolvedValue([idn])
+    WailsApp.GetHILItems.mockResolvedValue([structuredClone(idnFixture)])
     const { unmount } = render(<HumanInLoop />)
     const card = await screen.findByTestId('browser-site-details')
     expect(card).toHaveTextContent('A coder chat wants to use https://аpple.com')

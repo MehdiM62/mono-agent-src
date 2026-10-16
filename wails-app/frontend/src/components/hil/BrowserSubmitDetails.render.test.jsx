@@ -76,10 +76,13 @@ describe('browser submit approval card', () => {
   })
 
   it('shows the ASCII form of a non-Latin host with a check-the-address hint, and nothing for an ASCII host', async () => {
+    // The CLI's shape for a look-alike host: origin in the browser's xn--
+    // form, the url as the page gave it, asciiHost and unicodeHost.
     const idn = structuredClone(fixture)
-    idn.readonly_data.origin = 'https://shоp.example.com'
+    idn.readonly_data.origin = 'https://xn--shp-ted.example.com'
     idn.readonly_data.url = 'https://shоp.example.com/checkout?step=2'
     idn.readonly_data.asciiHost = 'xn--shp-ted.example.com'
+    idn.readonly_data.unicodeHost = 'shоp.example.com'
     WailsApp.GetHILItems.mockResolvedValue([idn])
     const { unmount } = render(<HumanInLoop />)
     const card = await screen.findByTestId('browser-submit-details')

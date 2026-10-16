@@ -7,8 +7,8 @@ import { ImageLightbox } from '../chat/ChatAttachments.jsx'
 // is not local, held until a person approves it (then `monoagentcli browser
 // submit --hil <id>` sends it, once). readonly_data is {origin, url, form:
 // {action, method, fields: [{name, type, label, value}], submitter},
-// screenshot, requested_by, asciiHost?}. Sensitive values arrive masked as
-// "•••" and are shown as they are.
+// screenshot, requested_by, asciiHost?, unicodeHost?}. Sensitive values
+// arrive masked as "•••" and are shown as they are.
 
 export const BROWSER_SUBMIT = 'browser.submit'
 
@@ -31,6 +31,15 @@ export function requesterParts(by) {
   if (by.agentId) parts.push(`agent ${by.agentId}`)
   if (by.conversationId) parts.push(`chat ${String(by.conversationId).slice(0, 8)}`)
   return parts
+}
+
+// displayOrigin is the origin as a person reads it. An internationalized
+// host (plan C9) comes as the browser's xn-- form in origin, with asciiHost
+// and unicodeHost; the Unicode host is shown in its place.
+export function displayOrigin(ro) {
+  const origin = ro?.origin || ''
+  if (ro?.asciiHost && ro?.unicodeHost && origin.includes(ro.asciiHost)) return origin.replace(ro.asciiHost, ro.unicodeHost)
+  return origin
 }
 
 // AsciiHost is the look-alike check (plan C9): an item whose host has
@@ -104,7 +113,7 @@ export function BrowserSubmitDetails({ item }) {
     <div data-testid="browser-submit-details" style={{ marginBottom: 20 }}>
       <Section label="Submits to">
         <div style={box}>
-          <div style={{ color: '#e2e8f0', fontWeight: 600 }}>{ro.origin || 'an unknown origin'}</div>
+          <div style={{ color: '#e2e8f0', fontWeight: 600 }}>{displayOrigin(ro) || 'an unknown origin'}</div>
           <AsciiHost host={ro.asciiHost} />
           {ro.url && <div style={{ fontFamily: mono, fontSize: 11, marginTop: 2 }}>{ro.url}</div>}
           {(form.method || form.action) && (
