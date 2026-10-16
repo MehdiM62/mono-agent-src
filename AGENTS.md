@@ -2575,6 +2575,14 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
   MCP `node_run` tool runs nodes the same way, since an AI wrote their
   config. JavaScript in `core.code` (goja) and `mcp.call` over HTTP still
   run; so does every step of a workflow the user approved.
+- **No hidden files in the home from an unapproved workflow.** Its file
+  writes (`data.write_binary_file`, `data.read_write_file` write,
+  `data.spreadsheet` write, `http.ftp` downloads, image outputs) are refused
+  in a hidden file or folder of the user's home (a name starting with `.`,
+  plus `AppData` on Windows and `Library` on macOS), where a shell's startup
+  file, an autostart or systemd entry or `~/.ssh` would run code later.
+  The profile's project folder is open to them, hidden folders inside it
+  included, and so is everywhere else; reading is unchanged.
 - **Honest limit.** A full-access agent can read the bridge token and talk
   to the bridge directly, so the origin policy and the submit guard guard
   against mistakes and instructions a page plants, not against a determined
