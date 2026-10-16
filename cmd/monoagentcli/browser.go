@@ -184,7 +184,11 @@ func browserErr(cmd *cobra.Command, cfg *globalConfig, err error) error {
 	var full *browserctl.SiteAsksFullError
 	switch {
 	case errors.As(err, &off):
-		return browserCLIError{error: errInvalidInput("%s", off.Error()), code: "browser_off", extra: map[string]any{"kind": off.Kind}}
+		extra := map[string]any{"kind": off.Kind}
+		if off.Declared != "" {
+			extra["declared"] = off.Declared
+		}
+		return browserCLIError{error: errInvalidInput("%s", off.Error()), code: "browser_off", extra: extra}
 	case errors.As(err, &blocked):
 		return browserCLIError{error: errInvalidInput("%s", blocked.Error()), code: "site_blocked", extra: map[string]any{"origin": blocked.Origin}}
 	case errors.As(err, &pending):

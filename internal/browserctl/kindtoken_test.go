@@ -2,6 +2,7 @@ package browserctl
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -200,5 +201,61 @@ func TestBoundRecordFollowsTheChild(t *testing.T) {
 	_ = child.Wait()
 	if k := AgentKind(); k != KindOther {
 		t.Fatalf("the child has ended: %q", k)
+	}
+}
+
+// A kind a shell declares but can't prove binds it at the stricter of that
+// kind's level and other's: a spoof never gains, and a lost token (none,
+// a dead spawner, records it can't read) never loosens.
+func TestUnprovenKindFailsClosed(t *testing.T) {
+	actAsHuman(t)
+	t.Setenv(EnvAICaller, "")
+	t.Setenv("CLAUDECODE", "1")
+	t.Setenv(EnvAgentKind, KindOrg)
+	t.Setenv(EnvAgentKindToken, "")
+	levels := func(org, other string) Permissions {
+		p := DefaultPermissions()
+		p.SetLevel(KindOrg, org)
+		p.SetLevel(KindOther, other)
+		return p
+	}
+	c := AgentCaller()
+	if c != (Caller{Kind: KindOther, Declared: KindOrg}) {
+		t.Fatalf("caller: %+v", c)
+	}
+	var off *BrowserOffError
+	if err := levels(LevelOff, LevelDev).PolicyForCaller(c).Check("http://localhost:3000/"); !errors.As(err, &off) || off.Declared != KindOrg {
+		t.Fatalf("org off, an unproven org shell: %v", err)
+	}
+	for _, tc := range []struct{ org, other, want string }{
+		{LevelFull, LevelDev, LevelDev}, // the spoof gains nothing
+		{LevelFullNoApprovals, LevelDev, LevelDev},
+		{LevelDev, LevelFull, LevelDev}, // a lost token loosens nothing
+		{LevelAsk, LevelDev, LevelAsk},
+		{LevelOff, LevelFullNoApprovals, LevelOff},
+	} {
+		if got := levels(tc.org, tc.other).LevelOf(c); got != tc.want {
+			t.Errorf("org %s, other %s: %s, want %s", tc.org, tc.other, got, tc.want)
+		}
+	}
+	t.Setenv(EnvAgentKind, "")
+	t.Setenv("MONOMIND_ORG_ROLE", "growth")
+	if got := levels(LevelOff, LevelDev).LevelOf(AgentCaller()); got != LevelOff {
+		t.Errorf("MONOMIND_ORG_ROLE unproven, org off: %s", got)
+	}
+
+	// Proven, the kind's own level applies.
+	asKind(t, KindOrg)
+	if c := AgentCaller(); c != (Caller{Kind: KindOrg}) || levels(LevelFull, LevelDev).LevelOf(c) != LevelFull {
+		t.Fatalf("a vouched org shell: %+v", c)
+	}
+	// The records can't be read (a sandbox): unproven again.
+	dir, _ := KindTokenDir()
+	if err := os.Chmod(dir, 0); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
+	if c := AgentCaller(); c != (Caller{Kind: KindOther, Declared: KindOrg}) || levels(LevelOff, LevelDev).LevelOf(c) != LevelOff {
+		t.Fatalf("unreadable records: %+v", c)
 	}
 }
