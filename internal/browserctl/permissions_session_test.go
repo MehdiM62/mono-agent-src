@@ -76,8 +76,34 @@ func TestAskRaisesASiteItemThatApprovalTurnsIntoARule(t *testing.T) {
 	if _, err := browserctl.DecideSiteItem(ctx, db, "default", pending.HILID, false); err != nil {
 		t.Fatal(err)
 	}
-	if err := other(); !errors.As(err, &pending) {
-		t.Fatalf("after a rejection the site must still be refused: %v", err)
+	var rejected *browserctl.SiteRejectedError
+	if err := other(); !errors.As(err, &rejected) {
+		t.Fatalf("right after a rejection the site is refused without a new item: %v", err)
+	}
+}
+
+// When the policy refuses the page of the tab an agent used last, that is
+// the answer: the session does not quietly act on another tab, and at ask
+// the item it raised is reported.
+func TestLastTabRefusalIsTheAnswer(t *testing.T) {
+	setEnv(t, true)
+	db := testdb.Open(t).DB
+	f := browserctltest.New()
+	f.AddTab("http://localhost:3000/", "Coder · Agent", true)
+	last := f.AddTab("http://localhost:4000/", "Coder · Agent", false)
+	if _, err := browserctl.Open(browserctl.Options{Sender: f, Tab: last, Permissions: perms(t, browserctl.LevelAsk), DB: db, Profile: "p1"}); err != nil {
+		t.Fatal(err)
+	}
+	f.SetURL(last, "https://news.example/")
+	var pending *browserctl.SiteApprovalPendingError
+	if _, err := browserctl.Open(browserctl.Options{Sender: f, Permissions: perms(t, browserctl.LevelAsk), DB: db, Profile: "p1"}); !errors.As(err, &pending) {
+		t.Fatalf("last tab on a new site at ask: %v", err)
+	}
+	p := perms(t, browserctl.LevelDev)
+	p.SetSite("news.example", browserctl.RuleBlock)
+	var blocked *browserctl.SiteBlockedError
+	if _, err := browserctl.Open(browserctl.Options{Sender: f, Permissions: p}); !errors.As(err, &blocked) {
+		t.Fatalf("last tab on a blocked site: %v", err)
 	}
 }
 

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/monoes/mono-agent/internal/browserctl"
@@ -10,13 +11,14 @@ func TestBrowserPermissionsShowAndSet(t *testing.T) {
 	bt := newBrowserTest(t, false)
 	doc := bt.runJSON("permissions")
 	levels := doc["levels"].(map[string]any)
-	if levels["coder"] != "dev" || levels["other"] != "dev" || levels["chat"] != "full" || levels["org"] != "full" {
+	if levels["coder"] != "dev" || levels["other"] != "dev" || levels["chat"] != "full" || levels["org"] != "dev" {
 		t.Fatalf("default levels = %v", levels)
 	}
 	if kinds := doc["kinds"].([]any); len(kinds) != 4 || kinds[0].(map[string]any)["label"] != "Coder chats" || kinds[0].(map[string]any)["isDefault"] != true {
 		t.Fatalf("kinds = %v", kinds)
 	}
-	if cat := doc["catalog"].([]any); len(cat) != 5 || cat[0].(map[string]any)["id"] != "full-no-approvals" || cat[0].(map[string]any)["description"] == "" {
+	if cat := doc["catalog"].([]any); len(cat) != 5 || cat[0].(map[string]any)["id"] != "full-no-approvals" ||
+		!strings.Contains(cat[0].(map[string]any)["description"].(string), "cookies and storage") {
 		t.Fatalf("catalog = %v", cat)
 	}
 	if you := doc["you"].(map[string]any); you["kind"] != "human" || you["level"] != "unrestricted" {
@@ -115,5 +117,51 @@ func TestBrowserPermissionRefusals(t *testing.T) {
 	t.Setenv("CLAUDECODE", "1")
 	if res := bt.runJSON("open", "https://news.example/"); res["url"] != "https://news.example/" {
 		t.Fatalf("open after the user allowed it: %v", res)
+	}
+
+	// A no holds for a while: site_rejected, no new item. A site a block
+	// covers can't be approved (exit 3), and its item stays pending.
+	_, err = bt.run("open", "https://ads.example/")
+	if f, ok := err.(jsonErrorFields); ok {
+		id, _ = f.JSONErrorFields()["hil_id"].(string)
+	}
+	t.Setenv("CLAUDECODE", "")
+	if _, err := runHIL(t, bt.cfg, "reject", id); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("CLAUDECODE", "1")
+	if _, err := bt.run("open", "https://ads.example/"); jsonCode(err) != "site_rejected" || exitCodeFor(err) != 3 {
+		t.Fatalf("right after a no: %v (%s)", err, jsonCode(err))
+	}
+	_, err = bt.run("open", "https://www.shop.example/")
+	if f, ok := err.(jsonErrorFields); ok {
+		id, _ = f.JSONErrorFields()["hil_id"].(string)
+	}
+	t.Setenv("CLAUDECODE", "")
+	bt.runJSON("permissions", "site", "shop.example", "block")
+	if _, err := runHIL(t, bt.cfg, "approve", id); exitCodeFor(err) != 3 {
+		t.Fatalf("approving a blocked site: %v", err)
+	}
+	if it, _ := browserctl.GetSiteItem(t.Context(), db, "default", id); it.Status != "pending" {
+		t.Fatalf("the item: %+v", it)
+	}
+}
+
+// A block takes a bare host, rules are stored canonical, and `allow add`
+// stores the xn-- form of a Unicode host.
+func TestBrowserPermissionsSiteForms(t *testing.T) {
+	bt := newBrowserTest(t, false)
+	bt.runJSON("permissions", "site", "--", "Bank.Example.", "block")
+	bt.runJSON("allow", "add", "HTTPS://Bücher.example:443")
+	doc := bt.runJSON("permissions")
+	got := map[string]string{}
+	for _, s := range doc["sites"].([]any) {
+		got[s.(map[string]any)["origin"].(string)] = s.(map[string]any)["rule"].(string)
+	}
+	if len(got) != 2 || got["bank.example"] != "block" || got["https://xn--bcher-kva.example"] != "allow" {
+		t.Fatalf("sites = %v", got)
+	}
+	if _, err := bt.run("permissions", "site", "--", "github.com", "allow"); exitCodeFor(err) != 3 {
+		t.Fatalf("an allow on a bare host: %v", err)
 	}
 }

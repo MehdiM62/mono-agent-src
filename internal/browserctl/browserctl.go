@@ -191,16 +191,15 @@ func matchBrowser(infos []extension.ConnInfo, q string) (extension.ConnInfo, err
 
 // pickTab chooses the tab: explicit, else the context's last one if it is
 // still open in this browser, else the active tab of the agent's group or
-// (a human) of the browser.
+// (a human) of the browser. When the policy refuses the last one's page
+// (refusedSite), that refusal is the answer.
 func (s *Session) pickTab(explicit int) error {
 	if explicit > 0 {
 		return s.UseTab(explicit)
 	}
 	if s.state.TabID > 0 && s.state.Instance == s.info.Instance {
-		if err := s.UseTab(s.state.TabID); err == nil {
-			return nil
-		} else if errors.As(err, new(*NotAllowedError)) {
-			return err
+		if err := s.UseTab(s.state.TabID); err == nil || refusedSite(err) {
+			return err // a refusal is the agent's to read, not a reason to act elsewhere
 		}
 	}
 	tabs, err := s.ListTabs()
@@ -211,6 +210,15 @@ func (s *Session) pickTab(explicit int) error {
 		return s.UseTab(id)
 	}
 	return ErrNoTab
+}
+
+// refusedSite reports whether err is the policy refusing a tab's page: not
+// allowed, blocked, or waiting for (or refused) the user's approval, which
+// may have raised a HIL item.
+func refusedSite(err error) bool {
+	return errors.As(err, new(*NotAllowedError)) || errors.As(err, new(*SiteBlockedError)) ||
+		errors.As(err, new(*SiteApprovalPendingError)) || errors.As(err, new(*SiteNeedsApprovalError)) ||
+		errors.As(err, new(*SiteRejectedError)) || errors.As(err, new(*SiteAsksFullError))
 }
 
 // defaultTab is the active tab of the agent's group (any tab of it when

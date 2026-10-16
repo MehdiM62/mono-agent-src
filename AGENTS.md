@@ -2497,14 +2497,19 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
   agent). The kinds are `coder` (coder chats and their workers, marked
   `MONOAGENT_AGENT_KIND=coder`), `org` (org roles: `MONOMIND_ORG_ROLE`, and
   the runs the org starts), `chat` (the in-app chat and the workflow runs it
-  starts) and `other` (any other agent shell). The levels are
-  `full-no-approvals` (any site, submits go through), `full` (any site,
+  starts) and `other` (any other agent shell). A declared `coder` or `org`
+  counts only with the `MONOAGENT_AGENT_KIND_TOKEN` its spawner issued
+  (`browserctl.IssueAgentKind`); without it a shell is `other`. The levels are
+  `full-no-approvals` (any site, submits go through, scripts run on any
+  page and can read its cookies and storage), `full` (any site,
   submits on real sites wait for approval), `dev` (local and dev pages plus
   sites with an allow rule), `ask` (like `dev`, but a new site raises an
-  "allow this site?" Human-in-Loop item) and `off`. Defaults: `coder` and
-  `other` `dev`, `chat` and `org` `full`. Site rules (`browser permissions
+  "allow this site?" Human-in-Loop item) and `off`. Defaults: `coder`,
+  `org` and `other` `dev`, `chat` `full`. Site rules (`browser permissions
   site <origin> allow|block|clear`; `browser allow add|remove|list` are
-  aliases) apply to every kind, and a block wins over every level. Local
+  aliases) apply to every kind: a block covers its host and the host's
+  subdomains on every scheme and port and wins over every level; an allow
+  admits exactly its origin (`*.host` for subdomains). Local
   and dev pages (`localhost`, `*.localhost`, `127.0.0.0/8`, `::1`,
   `*.local`, `*.test`, RFC 1918 hosts) are allowed at every level but
   `off`; `file:` and `chrome:` pages never. An agent reads its own kind and

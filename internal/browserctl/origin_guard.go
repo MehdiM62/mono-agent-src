@@ -130,12 +130,17 @@ func (s *Session) forget(id int) {
 
 // check applies the policy to rawURL; at level ask, a new site's refusal
 // becomes the HIL item asking the user (AskSite) when the session has a
-// database.
+// database, or AskSite's own refusal (a recent no, too many items waiting).
 func (s *Session) check(rawURL string) error {
 	err := s.policy.Check(rawURL)
 	var ask *SiteNeedsApprovalError
 	if errors.As(err, &ask) && s.db != nil {
 		id, aerr := AskSite(context.Background(), s.db, s.profile, ask.Kind, rawURL, nil)
+		var rejected *SiteRejectedError
+		var full *SiteAsksFullError
+		if errors.As(aerr, &rejected) || errors.As(aerr, &full) {
+			return aerr
+		}
 		if aerr != nil {
 			return fmt.Errorf("%v (and asking the user failed: %v)", err, aerr)
 		}

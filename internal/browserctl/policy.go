@@ -29,8 +29,8 @@ type Policy struct {
 	// Kind is the agent's kind and Level its level ("" behaves as dev).
 	Kind  string
 	Level string
-	// Allowlist and Blocklist hold the allow and block rules as
-	// NormalizeAllowEntry returns them: "scheme://host[:port]" or "*.host".
+	// Allowlist and Blocklist hold the allow and block rules:
+	// "scheme://host[:port]" or "*.host", and for a block also "host".
 	Allowlist []string
 	Blocklist []string
 }
@@ -59,7 +59,8 @@ func (e *NotAllowedError) Error() string {
 
 // Allowable reports whether the user could put this origin on the allowlist.
 func (e *NotAllowedError) Allowable() bool {
-	return strings.HasPrefix(e.Origin, "http://") || strings.HasPrefix(e.Origin, "https://")
+	_, err := NormalizeAllowEntry(e.Origin)
+	return err == nil
 }
 
 // BrowserOffError: the kind's level is off.
@@ -114,20 +115,27 @@ func (p Policy) Check(rawURL string) error {
 	if u.Hostname() == "" {
 		return &NotAllowedError{Origin: origin, Reason: "no host"}
 	}
+	// Rules and the page meet in the browser's canonical form (canon.go);
+	// a host we could read differently from the browser matches nothing.
+	host, ok := canonHost(u.Hostname())
+	if !ok {
+		return &NotAllowedError{Origin: origin, Reason: "a host name the browser may read differently"}
+	}
 	for _, e := range p.Blocklist {
-		if entryMatches(e, u) {
+		if blockCovers(e, host) {
 			return &SiteBlockedError{Origin: origin}
 		}
 	}
-	if IsLocal(rawURL) {
+	if isLocalHost(host) {
 		return nil
 	}
 	switch p.level() {
 	case LevelFull, LevelFullNoApprovals:
 		return nil
 	}
+	exact := joinOrigin(scheme, host, u.Port())
 	for _, e := range p.Allowlist {
-		if entryMatches(e, u) {
+		if allowMatches(e, exact, host) {
 			return nil
 		}
 	}
@@ -155,7 +163,12 @@ func IsLocal(rawURL string) bool {
 	if s := strings.ToLower(u.Scheme); s != "http" && s != "https" {
 		return false
 	}
-	host := strings.TrimSuffix(strings.ToLower(u.Hostname()), ".")
+	host, ok := canonHost(u.Hostname())
+	return ok && isLocalHost(host)
+}
+
+// isLocalHost is IsLocal for a host in canonical form.
+func isLocalHost(host string) bool {
 	if host == "" {
 		return false
 	}
@@ -173,22 +186,17 @@ func IsLocal(rawURL string) bool {
 	return false
 }
 
-// Origin is rawURL's scheme://host[:port] with a default port dropped, or a
-// short form of rawURL when it has no host (about:blank, file:).
+// Origin is rawURL's origin as the browser writes it (the extension's
+// `new URL(u).origin`): scheme://host[:port], the host lowercase and in
+// its xn-- form, a default port dropped; or a short form of rawURL when it
+// has no host (about:blank, file:).
 func Origin(rawURL string) string {
 	u, err := url.Parse(strings.TrimSpace(rawURL))
 	if err != nil || u.Host == "" {
 		return shortURL(rawURL)
 	}
-	scheme := strings.ToLower(u.Scheme)
-	host := strings.ToLower(u.Hostname())
-	if strings.Contains(host, ":") {
-		host = "[" + host + "]"
-	}
-	if port := u.Port(); port != "" && port != defaultPort(scheme) {
-		host += ":" + port
-	}
-	return scheme + "://" + host
+	host, _ := asciiHost(u.Hostname())
+	return joinOrigin(strings.ToLower(u.Scheme), host, u.Port())
 }
 
 func shortURL(s string) string {
@@ -212,36 +220,74 @@ func defaultPort(scheme string) string {
 	return ""
 }
 
-// entryMatches reports whether one allowlist entry admits u: an origin
-// entry matches that exact origin; "*.host" matches host and every
-// subdomain of it over http or https on any port.
-func entryMatches(entry string, u *url.URL) bool {
-	host := strings.TrimSuffix(strings.ToLower(u.Hostname()), ".")
-	if rest, ok := strings.CutPrefix(entry, "*."); ok {
+// allowMatches reports whether an allow rule admits a page whose origin
+// and host (canonical) are exact and host: an origin rule admits exactly
+// that origin (scheme, host and port), "*.host" that host and its
+// subdomains over http or https on any port.
+func allowMatches(entry, exact, host string) bool {
+	e, err := NormalizeAllowEntry(entry)
+	if err != nil {
+		return false
+	}
+	if rest, ok := strings.CutPrefix(e, "*."); ok {
 		return host == rest || strings.HasSuffix(host, "."+rest)
 	}
-	return entry == Origin(u.String())
+	return e == exact
+}
+
+// blockCovers reports whether a block rule covers host (canonical): the
+// host it names and every subdomain of it, on any scheme and port.
+func blockCovers(entry, host string) bool {
+	e, err := normalizeSiteEntry(entry, RuleBlock)
+	if err != nil {
+		return false
+	}
+	h := strings.TrimPrefix(e, "*.")
+	if u, err := url.Parse(e); err == nil && u.Host != "" {
+		h = u.Hostname()
+	}
+	return h != "" && (host == h || strings.HasSuffix(host, "."+h))
 }
 
 // NormalizeAllowEntry checks one allowlist entry and returns its stored
-// form: "scheme://host[:port]" (http or https, no path, the default port
-// dropped) or "*.host" (at least two labels, so no whole top-level domain).
+// form: "scheme://host[:port]" (http or https, no path, the host
+// canonical, the default port dropped) or "*.host" (at least two labels,
+// so no whole top-level domain).
 func NormalizeAllowEntry(s string) (string, error) {
-	s = strings.ToLower(strings.TrimSpace(s))
+	s = strings.TrimSpace(s)
 	if rest, ok := strings.CutPrefix(s, "*."); ok {
-		if !validHost(rest) || !strings.Contains(rest, ".") {
+		h, ok := canonHost(rest)
+		if !ok || !validHost(h) || !strings.Contains(h, ".") {
 			return "", fmt.Errorf("%q: a wildcard entry is *.host with at least two labels, such as *.example.com", s)
 		}
-		return "*." + rest, nil
+		return "*." + h, nil
 	}
 	u, err := url.Parse(s)
-	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" {
+	if err != nil || (strings.ToLower(u.Scheme) != "http" && strings.ToLower(u.Scheme) != "https") || u.Hostname() == "" {
 		return "", fmt.Errorf("%q: an entry is scheme://host[:port] (http or https) or *.host", s)
 	}
 	if u.User != nil || (u.Path != "" && u.Path != "/") || u.RawQuery != "" || u.Fragment != "" {
 		return "", fmt.Errorf("%q: an entry is an origin only, with no path, query or credentials", s)
 	}
-	return Origin(s), nil
+	o, ok := canonOrigin(u)
+	if !ok {
+		return "", fmt.Errorf("%q: the browser may read this host name differently", s)
+	}
+	return o, nil
+}
+
+// normalizeSiteEntry is NormalizeAllowEntry for a rule: a block may also
+// name a bare host ("bank.example"), which it covers like its origin form.
+func normalizeSiteEntry(s, rule string) (string, error) {
+	t := strings.TrimSpace(s)
+	if rule != RuleAllow && !strings.Contains(t, "://") && !strings.HasPrefix(t, "*.") {
+		h, ok := canonHost(t)
+		if !ok || (!validHost(h) && net.ParseIP(h) == nil) {
+			return "", fmt.Errorf("%q: a block is scheme://host[:port], host or *.host", s)
+		}
+		return h, nil
+	}
+	return NormalizeAllowEntry(s)
 }
 
 func validHost(h string) bool {
@@ -302,21 +348,20 @@ func loadOldAllowlist(db *sql.DB) ([]string, error) {
 // SaveAllowlist makes entries the permissions' allow rules (block rules
 // are kept; an entry that was blocked becomes allowed).
 func SaveAllowlist(db *sql.DB, entries []string) error {
-	p, err := LoadPermissions(db)
-	if err != nil {
-		return err
-	}
-	kept := []SiteRule{}
-	for _, s := range p.Sites {
-		if s.Rule == RuleBlock {
-			kept = append(kept, s)
+	_, err := UpdatePermissions(db, func(p *Permissions) error {
+		kept := []SiteRule{}
+		for _, s := range p.Sites {
+			if s.Rule == RuleBlock {
+				kept = append(kept, s)
+			}
 		}
-	}
-	p.Sites = kept
-	for _, e := range entries {
-		if _, _, err := p.SetSite(e, RuleAllow); err != nil {
-			return err
+		p.Sites = kept
+		for _, e := range entries {
+			if _, _, err := p.SetSite(e, RuleAllow); err != nil {
+				return err
+			}
 		}
-	}
-	return SavePermissions(db, p)
+		return nil
+	})
+	return err
 }
