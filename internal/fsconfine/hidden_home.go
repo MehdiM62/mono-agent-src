@@ -114,7 +114,8 @@ func homeRule(ctx context.Context, p, r string, write bool) error {
 			return refuse("%s is in a PowerShell profile folder, which PowerShell runs at start", p)
 		}
 	}
-	if project := trustedProject(home, g.Project); project != "" && in(project, resolved) {
+	project := trustedProject(home, g.Project)
+	if project != "" && in(project, resolved) {
 		return nil
 	}
 	for _, d := range g.WriteOK {
@@ -140,10 +141,14 @@ func homeRule(ctx context.Context, p, r string, write bool) error {
 			if write {
 				verb = "writes"
 			}
+			why := fmt.Sprintf("it %s no hidden file or folder in your home, and %s is in %s", verb, p, filepath.Join(home, filepath.Join(parts[:i+1]...)))
 			if i == len(parts)-1 {
-				return refuse("it %s no hidden file or folder in your home, and %s is one", verb, p)
+				why = fmt.Sprintf("it %s no hidden file or folder in your home, and %s is one", verb, p)
 			}
-			return refuse("it %s no hidden file or folder in your home, and %s is in %s", verb, p, filepath.Join(home, filepath.Join(parts[:i+1]...)))
+			if note := untrustedProject(home, g.Project, project, resolved); note != "" {
+				why += "; " + note
+			}
+			return refuse("%s", why)
 		}
 	}
 	return nil
@@ -171,6 +176,23 @@ func trustedProject(home, project string) string {
 		}
 	}
 	return root
+}
+
+// untrustedProject explains, for a path in the profile's folder project, why
+// that folder opened nothing (trustedProject said no): "" when the path is
+// not in it or the folder counts.
+func untrustedProject(home, project, trusted, p string) string {
+	if project == "" || trusted != "" {
+		return ""
+	}
+	root, err := resolveExisting(filepath.Clean(project))
+	if err != nil || !in(root, p) {
+		return ""
+	}
+	if in(root, home) {
+		return fmt.Sprintf("the profile's folder %s is your home or holds it, so it doesn't count as a project folder", project)
+	}
+	return fmt.Sprintf("the profile's folder %s lies in a hidden folder of your home, so it doesn't count as a project folder", project)
 }
 
 // dirHolds reports whether d, resolved, holds p.

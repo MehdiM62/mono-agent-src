@@ -194,3 +194,29 @@ func TestNoFileThatRunsOnNextUse(t *testing.T) {
 		t.Errorf("write .CLAUDE/Settings.json on a case-folding system: %v", err)
 	}
 }
+
+// Names compare with case on Linux and the other systems whose file systems
+// do, and without on Windows and macOS. Nothing here resets caseFolds.
+func TestCaseFoldsFollowsTheSystem(t *testing.T) {
+	want := runtime.GOOS == "windows" || runtime.GOOS == "darwin"
+	if caseFolds != want {
+		t.Fatalf("caseFolds = %v on %s, want %v", caseFolds, runtime.GOOS, want)
+	}
+}
+
+// A refusal in a profile folder that doesn't count as a project folder says
+// why it doesn't.
+func TestARefusalSaysWhyTheProfileFolderIsNoProject(t *testing.T) {
+	_, home := guardHome(t)
+	hidden := filepath.Join(home, ".work", "proj")
+	if err := os.MkdirAll(hidden, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for project, want := range map[string]string{hidden: "lies in a hidden folder", home: "is your home or holds it"} {
+		ctx := GuardHiddenHome(context.Background(), Guard{Project: project})
+		_, err := WritePath(ctx, filepath.Join(hidden, "out.csv"))
+		if !errors.Is(err, ErrUnapprovedPath) || !strings.Contains(err.Error(), want) {
+			t.Errorf("project %s: %v, want it to say it %s", project, err, want)
+		}
+	}
+}
