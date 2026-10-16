@@ -2610,15 +2610,33 @@ consequence to the user before rejecting.
 An item whose approval sends a message to a person is the user's to decide:
 anything that can run after the Human-in-Loop node, through other nodes and
 the workflows it calls (`core.execute_workflow`), sends an email, a DM, a
-comment, a post, a connect or a publish, or calls a workflow that can't be
-resolved before it runs. `hil approve|reject` refuse an agent, the chat's runs
-and a workflow's own processes (exit 3), and so do the MCP server's
+comment, a post, a connect or a publish, or may (its operation is an
+expression only the run resolves), or calls a workflow that can't be resolved
+before it runs. Past 5000 nodes reachable from it the item counts as one that
+sends, even if none does. `hil approve|reject` refuse an agent, the chat's
+runs and a workflow's own processes (exit 3), and so do the MCP server's
 `hil_approve`/`hil_reject` and the HTTP API's approve/reject routes (403). It
 stays pending until the user decides it in their own terminal or on the Human
-in Loop page. Every other Human-in-Loop item stays open to agents. An item of
-a run an org started is that org's decision (class `hil:<alias>` at the
-grant's tier, which by default goes to a person); only a tier the user set, or
-autonomy level full, lets the org's decider settle it.
+in Loop page. The node's `auto_decide` settles it only in a workflow the user
+approved: in one the chat, an agent or a workflow wrote, it waits for the user
+with Jev's suggestion shown. The node's timeout only ever rejects. Every other
+Human-in-Loop item stays open to agents. An item queued by an earlier version
+counts only when it has a Communications entry, which only a send right after
+the node gave it: an older item whose send came further down, or in a called
+workflow, stays open to agents until it is decided.
+
+An item of a run an org started (through a grant or a message to an
+automation role) is that org's decision instead, class `hil:<alias>`. Its tier
+is the one the user set for the class (`org autonomy set --tier
+hil:<alias>=…`), else its grant's: irreversible when the workflow has any node
+that isn't read-only (a send, a called workflow, an HTTP write, …),
+consequential otherwise, and unknown aliases are irreversible. At `manual` a
+person decides it; at `mid` a person decides an irreversible item, the org's
+decider a consequential one, and the rule approves a routine one; at `full`
+the decider settles consequential and irreversible ones. So an org settles an
+item that sends a message only at `full`, or at `mid` with a tier the user
+lowered for that class; the chat, an agent or a workflow can't lower a tier or
+set level `full`.
 
 People staged for outreach (saved with category `pending_approval` and a
 drafted introduction) have their own queue, the one the app shows on Human

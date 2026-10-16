@@ -38,9 +38,10 @@ func commsItems(ctx context.Context, input workflow.NodeInput, profileID string)
 
 // reachableSends reports whether anything that can run once the node's items
 // are approved (commsync.ReachableFrom: every later node, through control
-// nodes and called workflows) sends a message to a person, classified as an
-// agent's sends are (hilsend.IsOutbound), or the engine could not tell: then
-// it fails closed. Run on its own, outside an engine, nothing follows it.
+// nodes and called workflows) may send a message to a person, classified as
+// an agent's sends are (hilsend.MaySend: an operation only the run resolves
+// counts), or the engine could not tell: then it fails closed. Run on its
+// own, outside an engine, nothing follows it.
 func reachableSends(ctx context.Context) bool {
 	r, ok := commsync.ReachableFrom(ctx)
 	if !ok {
@@ -50,7 +51,7 @@ func reachableSends(ctx context.Context) bool {
 		return true
 	}
 	for _, n := range r.Nodes {
-		if hilsend.IsOutbound(n.Type, n.Config) {
+		if hilsend.MaySend(n.Type, n.Config) {
 			return true
 		}
 	}

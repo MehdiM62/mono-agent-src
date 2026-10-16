@@ -142,3 +142,20 @@ func TestHILMarksASendInACalledWorkflow(t *testing.T) {
 		t.Error("HIL → another profile's workflow was not marked")
 	}
 }
+
+// An operation only the run resolves counts as sending: a step in front of a
+// node that sends for some operations is the user's unless its operation is
+// a plain value that doesn't send.
+func TestHILMarksATemplatedOperation(t *testing.T) {
+	slack := func(op string) workflow.WorkflowNode {
+		return node("slack", "comm.slack", map[string]interface{}{"operation": op, "channel": "#general", "text": "Hi"})
+	}
+	for _, op := range []string{"{{ $json.op }}", "={{$json.op}}", "post_message"} {
+		if !runAfterHIL(t, []workflow.WorkflowNode{node("set", "transform.set", map[string]interface{}{}), slack(op)}) {
+			t.Errorf("HIL → set → comm.slack operation %q was not marked", op)
+		}
+	}
+	if runAfterHIL(t, []workflow.WorkflowNode{slack("list_channels")}) {
+		t.Error("HIL → comm.slack list_channels (no send) was marked")
+	}
+}
