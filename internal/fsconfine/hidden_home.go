@@ -14,22 +14,45 @@ import (
 // and WritePath.
 var ErrUnapprovedPath = errors.New("a workflow the user has not approved can't use this path")
 
+// Guard is what GuardHiddenHome keeps a run to.
+type Guard struct {
+	// Project is the profile's project folder: a trusted zone (the user's
+	// choice) where only git hooks and git configs stay closed. A folder
+	// that is or holds the home, or that lies in a hidden folder of the home
+	// other than ~/.monoagent/profiles, doesn't count as one.
+	Project string
+	// ReadOK are folders in a hidden folder of the home its steps may still
+	// read (the synced message attachments); WriteOK they may read and write
+	// (the CLI's export folder).
+	ReadOK, WriteOK []string
+	// Approve says how the user approves the workflow, for the refusals.
+	Approve string
+}
+
 type homeGuardKey struct{}
 
 // GuardHiddenHome marks ctx as a run of a workflow the user never approved
-// (internal/workflow). Its file steps then neither read nor write a hidden
-// file or folder of the user's home outside project, the profile's project
-// folder: there live keys and tokens (~/.ssh, ~/.monoagent) and files that
-// run code later (a shell's startup file, an autostart or systemd entry).
-// They also write nothing into a folder of the home on PATH (~/bin), nor git
-// hooks or a git config, which run at the next commit, in the project too.
-func GuardHiddenHome(ctx context.Context, project string) context.Context {
-	return context.WithValue(ctx, homeGuardKey{}, project)
+// (internal/workflow), or one such a workflow called. Its file steps then:
+//   - neither read nor write a hidden file or folder of the user's home (a
+//     name starting with ".", plus Library on macOS and AppData on
+//     Windows): keys and tokens live there (~/.ssh, ~/.monoagent), and files
+//     that run code later (a shell's startup file, an autostart or systemd
+//     entry);
+//   - read no process's environment (/proc/*/environ), where the daemon's
+//     keys can be;
+//   - write nothing into a folder on PATH (this process's, plus ~/bin,
+//     ~/go/bin, ~/.local/bin, /usr/local/bin and /opt/homebrew/bin), where a
+//     file runs as a command, nor a PowerShell profile folder on Windows;
+//   - write no git hook or git config, anywhere: git runs them at the next
+//     commit.
+//
+// The project folder is open but for git hooks and configs (Guard).
+func GuardHiddenHome(ctx context.Context, g Guard) context.Context {
+	return context.WithValue(ctx, homeGuardKey{}, g)
 }
 
 // WritePath is Path for a file a node writes or creates: in a run
-// GuardHiddenHome marked it also refuses git hooks and git configs anywhere
-// and the folders of the home on PATH.
+// GuardHiddenHome marked it also applies the rules for writes.
 func WritePath(ctx context.Context, p string) (string, error) {
 	r, err := confine(ctx, p)
 	if err != nil {
@@ -41,39 +64,66 @@ func WritePath(ctx context.Context, p string) (string, error) {
 	return r, nil
 }
 
-// homeRule applies GuardHiddenHome's rule to p, which confine resolved to r.
-// Symlinks and a relative path (to the working directory) are resolved first,
-// so a link can't lead past it.
+// homeRule applies GuardHiddenHome's rules to p, which confine resolved to
+// r. Symlinks and a relative path (to the working directory) are resolved
+// first, so a link can't lead past them.
 func homeRule(ctx context.Context, p, r string, write bool) error {
-	project, guarded := ctx.Value(homeGuardKey{}).(string)
+	g, guarded := ctx.Value(homeGuardKey{}).(Guard)
 	if !guarded {
 		return nil
 	}
+	approve := g.Approve
+	if approve == "" {
+		approve = "save or activate the workflow in the app or your terminal to let it"
+	}
+	refuse := func(why string, a ...interface{}) error {
+		return fmt.Errorf("%w: %s; %s", ErrUnapprovedPath, fmt.Sprintf(why, a...), approve)
+	}
 	abs, err := filepath.Abs(r)
 	if err != nil {
-		return fmt.Errorf("%w: %s: %v", ErrUnapprovedPath, p, err)
+		return refuse("%s: %v", p, err)
 	}
 	resolved, err := resolveExisting(filepath.Clean(abs))
 	if err != nil {
-		return fmt.Errorf("%w: %s: %v", ErrUnapprovedPath, p, err)
+		return refuse("%s: %v", p, err)
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return fmt.Errorf("%w: %s: no home folder to check against (%v)", ErrUnapprovedPath, p, err)
+		return refuse("%s: no home folder to check against (%v)", p, err)
 	}
 	if h, err := filepath.EvalSymlinks(home); err == nil {
 		home = h
 	}
-	approve := fmt.Sprintf("; save or activate the workflow in the app or your terminal to let it, or use the project folder %s", project)
-	if write && gitRunsIt(resolved) {
-		return fmt.Errorf("%w: %s is a git hook or git config, which git runs at the next commit%s", ErrUnapprovedPath, p, approve)
+	if procEnviron(resolved) {
+		return refuse("%s is a process's environment, where keys can be", p)
 	}
-	if project != "" {
-		if root, err := resolveExisting(filepath.Clean(project)); err == nil && within(root, resolved) {
+	if write {
+		if gitRunsIt(resolved) {
+			return refuse("%s is a git hook or git config, which git runs at the next commit", p)
+		}
+		if onPath(home, filepath.Dir(resolved)) {
+			return refuse("%s is in %s, a folder on PATH, where a file runs as a command", p, filepath.Dir(resolved))
+		}
+		if powerShellProfile(home, resolved) {
+			return refuse("%s is in a PowerShell profile folder, which PowerShell runs at start", p)
+		}
+	}
+	if project := trustedProject(home, g.Project); project != "" && in(project, resolved) {
+		return nil
+	}
+	for _, d := range g.WriteOK {
+		if dirHolds(d, resolved) {
 			return nil
 		}
 	}
-	if !within(home, resolved) {
+	if !write {
+		for _, d := range g.ReadOK {
+			if dirHolds(d, resolved) {
+				return nil
+			}
+		}
+	}
+	if !in(home, resolved) {
 		return nil
 	}
 	rel, _ := filepath.Rel(home, resolved)
@@ -84,15 +134,64 @@ func homeRule(ctx context.Context, p, r string, write bool) error {
 			if write {
 				verb = "writes"
 			}
-			return fmt.Errorf("%w: it %s no hidden file or folder in your home, and %s is in %s%s",
-				ErrUnapprovedPath, verb, p, filepath.Join(home, filepath.Join(parts[:i+1]...)), approve)
+			if i == len(parts)-1 {
+				return refuse("it %s no hidden file or folder in your home, and %s is one", verb, p)
+			}
+			return refuse("it %s no hidden file or folder in your home, and %s is in %s", verb, p, filepath.Join(home, filepath.Join(parts[:i+1]...)))
 		}
-	}
-	if write && onPath(home, filepath.Dir(resolved)) {
-		return fmt.Errorf("%w: %s is in %s, a folder on PATH, where a file runs as a command%s", ErrUnapprovedPath, p, filepath.Dir(resolved), approve)
 	}
 	return nil
 }
+
+// trustedProject is project, resolved, when it counts as the project folder:
+// not the home or a folder above it, and not in a hidden folder of the home
+// other than ~/.monoagent/profiles (the default project folders). "" when it
+// doesn't.
+func trustedProject(home, project string) string {
+	if project == "" {
+		return ""
+	}
+	root, err := resolveExisting(filepath.Clean(project))
+	if err != nil || in(root, home) {
+		return ""
+	}
+	if !in(home, root) || in(filepath.Join(home, ".monoagent", "profiles"), root) {
+		return root
+	}
+	rel, _ := filepath.Rel(home, root)
+	for i, part := range strings.Split(rel, string(filepath.Separator)) {
+		if strings.HasPrefix(part, ".") || i == 0 && hiddenTop(part) {
+			return ""
+		}
+	}
+	return root
+}
+
+// dirHolds reports whether d, resolved, holds p.
+func dirHolds(d, p string) bool {
+	if d == "" {
+		return false
+	}
+	if r, err := resolveExisting(filepath.Clean(d)); err == nil {
+		d = r
+	}
+	return in(d, p)
+}
+
+// caseFolds reports a file system that compares names without case: Windows,
+// and macOS's default.
+var caseFolds = runtime.GOOS == "windows" || runtime.GOOS == "darwin"
+
+// fold is name as the file system compares it.
+func fold(name string) string {
+	if caseFolds {
+		return strings.ToLower(name)
+	}
+	return name
+}
+
+// in is within as the file system compares names.
+func in(root, p string) bool { return within(fold(root), fold(p)) }
 
 // hiddenTop reports a top-level home folder that holds startup entries
 // without a leading dot on this OS.
@@ -101,27 +200,44 @@ func hiddenTop(name string) bool {
 	case "windows":
 		return strings.EqualFold(name, "AppData")
 	case "darwin":
-		return name == "Library"
+		return strings.EqualFold(name, "Library")
 	}
 	return false
 }
 
-// gitRunsIt reports a path git runs or reads its commands from: a file in a
-// .git/hooks folder, or a .git/config.
+// gitRunsIt reports a path git runs or takes its commands from: anything in
+// a hooks folder of a git directory (".git", a bare "*.git", and the
+// modules and worktrees inside one), or a config file there (config,
+// config.worktree). Names compare without case: git on a case-folding
+// file system finds .GIT/HOOKS too.
 func gitRunsIt(p string) bool {
-	parts := strings.Split(p, string(filepath.Separator))
-	for i := 0; i+1 < len(parts); i++ {
-		if parts[i] == ".git" && (parts[i+1] == "hooks" || parts[i+1] == "config" && i+2 == len(parts)) {
+	parts := strings.Split(strings.ToLower(p), string(filepath.Separator))
+	for i, part := range parts {
+		if part != ".git" && !strings.HasSuffix(part, ".git") {
+			continue
+		}
+		for j := i + 1; j+1 < len(parts); j++ {
+			if parts[j] == "hooks" {
+				return true
+			}
+		}
+		if len(parts) > i+1 && strings.HasPrefix(parts[len(parts)-1], "config") {
 			return true
 		}
 	}
 	return false
 }
 
-// onPath reports whether dir, a folder of the home, is on PATH: this
-// process's, plus ~/bin and ~/go/bin, which a login shell often adds.
+// onPath reports whether dir is a folder on PATH: this process's, plus the
+// user folders a login shell often adds (~/bin, ~/go/bin, ~/.local/bin) and
+// the ones a package manager keeps writable (/usr/local/bin,
+// /opt/homebrew/bin).
 func onPath(home, dir string) bool {
-	entries := append(filepath.SplitList(os.Getenv("PATH")), filepath.Join(home, "bin"), filepath.Join(home, "go", "bin"))
+	entries := append(filepath.SplitList(os.Getenv("PATH")),
+		filepath.Join(home, "bin"), filepath.Join(home, "go", "bin"), filepath.Join(home, ".local", "bin"))
+	if runtime.GOOS != "windows" {
+		entries = append(entries, "/usr/local/bin", "/opt/homebrew/bin")
+	}
 	for _, e := range entries {
 		if e == "" || !filepath.IsAbs(e) {
 			continue
@@ -129,9 +245,30 @@ func onPath(home, dir string) bool {
 		if r, err := filepath.EvalSymlinks(e); err == nil {
 			e = r
 		}
-		if within(home, e) && filepath.Clean(e) == dir {
+		if fold(filepath.Clean(e)) == fold(dir) {
 			return true
 		}
 	}
 	return false
+}
+
+// powerShellProfile reports a file in a PowerShell profile folder of the
+// home on Windows (Documents\WindowsPowerShell, Documents\PowerShell), which
+// PowerShell runs at start; elsewhere its profile is in ~/.config.
+func powerShellProfile(home, p string) bool {
+	if runtime.GOOS != "windows" {
+		return false
+	}
+	for _, d := range []string{"WindowsPowerShell", "PowerShell"} {
+		if in(filepath.Join(home, "Documents", d), p) {
+			return true
+		}
+	}
+	return false
+}
+
+// procEnviron reports a process's environment on Linux (/proc/<pid>/environ,
+// or a thread's).
+func procEnviron(p string) bool {
+	return runtime.GOOS == "linux" && strings.HasPrefix(p, "/proc/") && filepath.Base(p) == "environ"
 }

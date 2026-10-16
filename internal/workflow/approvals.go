@@ -4,9 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/monoes/mono-agent/internal/attachments"
 	"github.com/monoes/mono-agent/internal/fsconfine"
 	"github.com/monoes/mono-agent/internal/vault"
 )
@@ -37,11 +40,33 @@ func AIAuthoredFrom(ctx context.Context) bool {
 }
 
 // WithUnapproved marks ctx as a run of a definition the operator never
-// approved (WithAIAuthored), and keeps its file writes out of hidden files
-// and folders in the user's home outside project, the profile's project
-// folder (fsconfine.GuardHiddenHome): such a file can run code later.
-func WithUnapproved(ctx context.Context, project string) context.Context {
-	return fsconfine.GuardHiddenHome(WithAIAuthored(ctx), project)
+// approved (WithAIAuthored) and keeps its file steps to FileGuard: out of
+// the hidden files of the home outside project, the profile's project
+// folder, and out of what runs code later (fsconfine.GuardHiddenHome).
+// approve says how the user approves it, for the refusals.
+func WithUnapproved(ctx context.Context, project, approve string) context.Context {
+	return fsconfine.GuardHiddenHome(WithAIAuthored(ctx), FileGuard(project, approve))
+}
+
+// FileGuard is the fsconfine.Guard of a workflow the user hasn't approved,
+// or one it called: project is the profile's project folder; the synced
+// message attachments may be read and the CLI's export folder
+// (~/.monoagent/output) read and written, though both lie in ~/.monoagent.
+func FileGuard(project, approve string) fsconfine.Guard {
+	g := fsconfine.Guard{Project: project, ReadOK: []string{attachments.Dir()}, Approve: approve}
+	if home, err := os.UserHomeDir(); err == nil {
+		g.WriteOK = []string{filepath.Join(home, ".monoagent", "output")}
+	}
+	return g
+}
+
+// ApproveHint says how the user approves workflow id of profile, for a
+// refusal: "" fields leave the generic advice.
+func ApproveHint(profile, id string) string {
+	if profile == "" || id == "" {
+		return "save or activate the workflow in the app or your terminal to let it"
+	}
+	return fmt.Sprintf("if the change is yours, run `monoagentcli --profile %s workflow activate %s` (or save it in the app) to let it", profile, id)
 }
 
 type approvalCheckErrorKey struct{}

@@ -148,11 +148,16 @@ func RunExecution(
 		ctx = vault.ContextWithProfileID(ctx, exec.ProfileID)
 	}
 	// A run of a definition the operator never approved is an AI run,
-	// whatever started it, and writes no hidden file in the user's home
-	// outside the profile's project folder (approvals.go).
+	// whatever started it, and its file steps keep to FileGuard
+	// (approvals.go). So do those of a workflow such a run called, whose own
+	// approval still decides its program steps.
+	profile, _ := vault.ProfileIDFromContext(ctx)
+	project := profiledir.Root(vault.DBFromContext(ctx), profile)
 	if approved, err := operatorApproved(ctx, store, wf); !approved {
-		profile, _ := vault.ProfileIDFromContext(ctx)
-		ctx = WithUnapproved(withApprovalCheckError(ctx, err), profiledir.Root(vault.DBFromContext(ctx), profile))
+		ctx = WithUnapproved(withApprovalCheckError(ctx, err), project, ApproveHint(profile, wf.ID))
+	} else if v, _ := exec.TriggerData[AICallerKey].(string); v == UnapprovedWorkflowCaller {
+		ctx = fsconfine.GuardHiddenHome(ctx, FileGuard(project,
+			"this workflow was called by one you haven't approved: save or activate that one in the app or your terminal to let it"))
 	}
 	r.ctx = ctx
 

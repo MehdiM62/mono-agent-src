@@ -22,9 +22,9 @@ func (n *SpreadsheetNode) Type() string { return "data.spreadsheet" }
 func (n *SpreadsheetNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
 	operation, _ := config["operation"].(string)
 	filePath, _ := config["file_path"].(string)
-	confine := fsconfine.Path
-	if operation == "write_csv" || operation == "write_xlsx" {
-		confine = fsconfine.WritePath
+	confine := fsconfine.WritePath // unless it surely only reads
+	if operation == "read_csv" || operation == "read_xlsx" {
+		confine = fsconfine.Path
 	}
 	filePath, err := confine(ctx, filePath)
 	if err != nil {

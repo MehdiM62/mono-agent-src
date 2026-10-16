@@ -30,7 +30,7 @@ func TestUnapprovedRunsKeepOutOfHiddenHomeFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Chdir(home)
-	guarded := GuardHiddenHome(context.Background(), project)
+	guarded := GuardHiddenHome(context.Background(), Guard{Project: project})
 	approved := context.Background()
 
 	refusedBoth := []string{

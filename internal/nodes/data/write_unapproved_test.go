@@ -18,7 +18,7 @@ func TestFileNodesWriteNoHiddenHomeFilesForAnUnapprovedWorkflow(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	project := filepath.Join(home, "work")
-	ctx := workflow.WithUnapproved(context.Background(), project)
+	ctx := workflow.WithUnapproved(context.Background(), project, "")
 	in := workflow.NodeInput{Items: []workflow.Item{workflow.NewItem(map[string]interface{}{"text": "echo hi"})}}
 	write := func(path string) error {
 		_, err := (&WriteBinaryFileNode{}).Execute(ctx, in, map[string]interface{}{"file_path": path, "field": "text", "encoding": "utf8"})
@@ -69,12 +69,28 @@ func TestGlobSkipsHiddenHomeFilesForAnUnapprovedWorkflow(t *testing.T) {
 	if err := os.Symlink(filepath.Join(home, ".ssh", "id.txt"), filepath.Join(home, "notes", "sub", "b.txt")); err != nil {
 		t.Fatal(err)
 	}
-	ctx := workflow.WithUnapproved(context.Background(), filepath.Join(home, "work"))
+	ctx := workflow.WithUnapproved(context.Background(), filepath.Join(home, "work"), "")
 	got, err := globFiles(ctx, filepath.Join(home, "notes", "*", "*.txt"), true)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(got) != 1 || filepath.Base(got[0]) != "a.txt" {
 		t.Fatalf("glob read %v, want only notes/sub/a.txt", got)
+	}
+}
+
+// A spreadsheet step whose operation isn't surely a read is held to the
+// write rules: an expression or an unknown operation can't reach a git hook.
+func TestSpreadsheetIsHeldToTheWriteRulesUnlessItSurelyReads(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	project := filepath.Join(home, "work")
+	ctx := workflow.WithUnapproved(context.Background(), project, "")
+	hook := filepath.Join(project, ".git", "hooks", "pre-commit")
+	for _, op := range []string{"{{ $json.op }}", "write_tsv"} {
+		_, err := (&SpreadsheetNode{}).Execute(ctx, workflow.NodeInput{}, map[string]interface{}{"operation": op, "file_path": hook})
+		if !errors.Is(err, fsconfine.ErrUnapprovedPath) {
+			t.Errorf("operation %q: %v", op, err)
+		}
 	}
 }
