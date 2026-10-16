@@ -2595,12 +2595,14 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
     run code later (a shell's startup file, an autostart or systemd entry).
     MonoAgent's synced attachments (`~/.monoagent/attachments`) stay
     readable and its export folder (`~/.monoagent/output`) writable;
-  - reading a process's environment (`/proc/*/environ`);
+  - reading a process's environment, command line or memory
+    (`/proc/*/environ`, `cmdline`, `mem`);
   - writing into a folder on PATH (this process's, plus `~/bin`, `~/go/bin`,
     `~/.local/bin`, `/usr/local/bin`, `/opt/homebrew/bin`) or, on Windows, a
     PowerShell profile folder;
   - writing a git hook or git config (`.git/hooks/*`, `.git/config*`, those
-    of submodules and worktrees, a bare `*.git`), anywhere.
+    of submodules and worktrees, a bare `*.git`, and any git directory found
+    by its `HEAD`, `objects` and `refs`), anywhere.
   Names compare without case on Windows and macOS. A refusal names the
   `workflow activate <id>` that approves the workflow.
 - **The project folder is a trusted zone** (the user's choice): the

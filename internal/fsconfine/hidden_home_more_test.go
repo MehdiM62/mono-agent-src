@@ -131,7 +131,7 @@ func TestNoProcessEnvironment(t *testing.T) {
 	}
 	guardHome(t)
 	ctx := GuardHiddenHome(context.Background(), Guard{})
-	for _, p := range []string{"/proc/self/environ", "/proc/1/environ"} {
+	for _, p := range []string{"/proc/self/environ", "/proc/1/environ", "/proc/self/cmdline", "/proc/self/mem", "/proc/self/task/1/environ"} {
 		if _, err := Path(ctx, p); !errors.Is(err, ErrUnapprovedPath) {
 			t.Errorf("read %s: %v", p, err)
 		}
@@ -217,6 +217,36 @@ func TestARefusalSaysWhyTheProfileFolderIsNoProject(t *testing.T) {
 		_, err := WritePath(ctx, filepath.Join(hidden, "out.csv"))
 		if !errors.Is(err, ErrUnapprovedPath) || !strings.Contains(err.Error(), want) {
 			t.Errorf("project %s: %v, want it to say it %s", project, err, want)
+		}
+	}
+}
+
+// A git directory under another name (--separate-git-dir, a worktree's
+// gitdir) is found by its HEAD, objects and refs: its hooks and config stay
+// closed; its other files, and a folder that merely has a HEAD, stay open.
+func TestAGitDirectoryUnderAnotherNameKeepsItsHooksClosed(t *testing.T) {
+	_, home := guardHome(t)
+	gitdata := filepath.Join(home, "code", "gitdata")
+	notGit := filepath.Join(home, "code", "notes")
+	for _, d := range []string{filepath.Join(gitdata, "objects"), filepath.Join(gitdata, "refs"), notGit} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, f := range []string{filepath.Join(gitdata, "HEAD"), filepath.Join(notGit, "HEAD")} {
+		if err := os.WriteFile(f, []byte("ref: refs/heads/main\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ctx := GuardHiddenHome(context.Background(), Guard{})
+	for _, rel := range []string{"hooks/pre-commit", "config", "config.worktree", "worktrees/w/config.worktree", "modules/m/hooks/x"} {
+		if _, err := WritePath(ctx, filepath.Join(gitdata, filepath.FromSlash(rel))); !errors.Is(err, ErrUnapprovedPath) {
+			t.Errorf("write gitdata/%s: %v", rel, err)
+		}
+	}
+	for _, p := range []string{filepath.Join(gitdata, "description"), filepath.Join(notGit, "hooks", "x"), filepath.Join(notGit, "config")} {
+		if _, err := WritePath(ctx, p); err != nil {
+			t.Errorf("write %s: %v", p, err)
 		}
 	}
 }

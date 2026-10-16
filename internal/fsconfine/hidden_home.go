@@ -39,12 +39,13 @@ type homeGuardKey struct{}
 //     Windows): keys and tokens live there (~/.ssh, ~/.monoagent), and files
 //     that run code later (a shell's startup file, an autostart or systemd
 //     entry);
-//   - read no process's environment (/proc/*/environ), where the daemon's
-//     keys can be;
+//   - read no process's environment, command line or memory
+//     (/proc/*/environ, cmdline, mem), where the daemon's keys can be;
 //   - write nothing into a folder on PATH (this process's, plus ~/bin,
 //     ~/go/bin, ~/.local/bin, /usr/local/bin and /opt/homebrew/bin), where a
 //     file runs as a command, nor a PowerShell profile folder on Windows;
-//   - write no git hook or git config, anywhere: git runs them at the next
+//   - write no git hook or git config, anywhere (a git directory found by
+//     name or by its HEAD, objects and refs): git runs them at the next
 //     commit; nor, anywhere, a file a tool runs the next time the user works
 //     in its folder (runsOnNextUse: .claude/settings*, .mcp.json, .husky,
 //     .githooks, .envrc).
@@ -97,11 +98,11 @@ func homeRule(ctx context.Context, p, r string, write bool) error {
 	if h, err := filepath.EvalSymlinks(home); err == nil {
 		home = h
 	}
-	if procEnviron(resolved) {
-		return refuse("%s is a process's environment, where keys can be", p)
+	if procSecret(resolved) {
+		return refuse("%s is a process's environment, command line or memory, where keys can be", p)
 	}
 	if write {
-		if gitRunsIt(resolved) {
+		if gitRunsIt(resolved) || inGitDir(resolved) {
 			return refuse("%s is a git hook or git config, which git runs at the next commit", p)
 		}
 		if what := runsOnNextUse(resolved); what != "" {
@@ -321,8 +322,44 @@ func powerShellProfile(home, p string) bool {
 	return false
 }
 
-// procEnviron reports a process's environment on Linux (/proc/<pid>/environ,
-// or a thread's).
-func procEnviron(p string) bool {
-	return runtime.GOOS == "linux" && strings.HasPrefix(p, "/proc/") && filepath.Base(p) == "environ"
+// procSecret reports a process's environment, command line or memory on
+// Linux (/proc/<pid>/environ, cmdline, mem, or a thread's), where keys can
+// be.
+func procSecret(p string) bool {
+	if runtime.GOOS != "linux" || !strings.HasPrefix(p, "/proc/") {
+		return false
+	}
+	switch filepath.Base(p) {
+	case "environ", "cmdline", "mem":
+		return true
+	}
+	return false
+}
+
+// inGitDir reports a hook or config of a git directory whatever its name: a
+// folder with HEAD, objects and refs (a --separate-git-dir, or the one a
+// worktree's .git file points to), which gitRunsIt can't tell by name.
+func inGitDir(p string) bool {
+	for d := filepath.Dir(p); ; d = filepath.Dir(d) {
+		if isGitDir(d) {
+			rel, err := filepath.Rel(d, p)
+			return err == nil && gitRunsIt(filepath.Join(".git", rel))
+		}
+		if parent := filepath.Dir(d); parent == d {
+			return false
+		}
+	}
+}
+
+func isGitDir(d string) bool {
+	head, err := os.Stat(filepath.Join(d, "HEAD"))
+	if err != nil || head.IsDir() {
+		return false
+	}
+	for _, sub := range []string{"objects", "refs"} {
+		if fi, err := os.Stat(filepath.Join(d, sub)); err != nil || !fi.IsDir() {
+			return false
+		}
+	}
+	return true
 }
