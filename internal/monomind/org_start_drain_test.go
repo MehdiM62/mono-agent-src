@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/monoes/mono-agent/internal/testhome"
 )
 
 // Exercise actual process exit: a goroutine truncating in this test process
@@ -43,10 +45,21 @@ func TestStartDrainOutlivesLauncher(t *testing.T) {
 		t.Skip("Node.js not installed")
 	}
 	root := t.TempDir()
+	// The launcher exits from inside the test, so a test home of its own would
+	// never be removed: it keeps the one it is given (testhome.KeepHomeEnv), in
+	// a temp dir where a leftover would show.
+	home := filepath.Join(root, "home")
+	if err := os.Mkdir(home, 0o755); err != nil {
+		t.Fatal(err)
+	}
 	launcher := exec.Command(os.Args[0], "-test.run=^TestStartDrainOutlivesLauncher$")
-	launcher.Env = append(os.Environ(), helperEnv+"="+root)
+	launcher.Env = append(os.Environ(), helperEnv+"="+root,
+		testhome.KeepHomeEnv+"=1", "HOME="+home, "USERPROFILE="+home, "TMPDIR="+root)
 	if out, err := launcher.CombinedOutput(); err != nil {
 		t.Fatalf("launcher: %v: %s", err, out)
+	}
+	if left, _ := filepath.Glob(filepath.Join(root, "monoagent-testhome-*")); len(left) > 0 {
+		t.Fatalf("the launcher left a test home behind: %v", left)
 	}
 	for _, name := range []string{"writer-pid", "drainer-pid"} {
 		b, err := os.ReadFile(filepath.Join(root, name))
