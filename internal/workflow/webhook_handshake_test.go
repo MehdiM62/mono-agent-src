@@ -209,11 +209,11 @@ func TestHandshakeOnfleetCheck(t *testing.T) {
 }
 
 func TestHandshakeMailchimpBareGet(t *testing.T) {
-	s, fired := handshakeServer(t, nil)
+	s, _ := handshakeServer(t, nil)
 	if rec := serve(s, httptest.NewRequest(http.MethodGet, "/webhook/hs", nil)); rec.Code != 405 {
 		t.Fatalf("bare GET without answer_get: %d, want 405", rec.Code)
 	}
-	s, fired = handshakeServer(t, func(r *WebhookRegistration) { r.AnswerGet = true })
+	s, fired := handshakeServer(t, func(r *WebhookRegistration) { r.AnswerGet = true })
 	rec := serve(s, httptest.NewRequest(http.MethodGet, "/webhook/hs", nil))
 	if rec.Code != 200 || rec.Body.Len() != 0 {
 		t.Fatalf("mailchimp: %d %q", rec.Code, rec.Body.String())
