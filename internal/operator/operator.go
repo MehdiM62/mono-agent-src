@@ -3,6 +3,21 @@
 // chat's runs and whatever a workflow node starts. What only the operator
 // may decide (approvals, browser permissions, org signatures, an org role's
 // full access) is refused unless Marker is "".
+//
+// The check reads marks, not identity. A process is the operator's when its
+// own environment carries none of the variables agents, the chat's runs and
+// workflow nodes are started with, and, on Linux, none of its parent
+// processes (up to ancestorMaxDepth of them) carries MONOAGENT_WORKFLOW_RUN or
+// MONOAGENT_AI_CALLER or is a `monomind agent exec`. So a process that
+// clears its own environment still counts as an agent's while its parents
+// show where it came from; one that also leaves that line of parents (a
+// double fork that hands it to init, a job given to systemd or cron, a
+// process another user's account starts) counts as the operator, and on
+// macOS and Windows, where there is no parent check, clearing the
+// environment is enough. An agent with a shell can also edit the database or
+// mono-agent's files directly. This keeps honest agents and prompt-injected
+// ones that only run commands away from the operator's decisions; it is a
+// courtesy layer, not a sandbox.
 package operator
 
 import (
@@ -20,7 +35,8 @@ import (
 // operator's own terminal, or "" for the operator: a process a workflow node
 // started (workflow.EnvWorkflowRun, which a chat or an org can have built),
 // a chat tool call's run (browserctl.EnvAICaller), an agent (hilsend.Detect)
-// or any kind of agent (browserctl.AgentKind).
+// or any kind of agent (browserctl.AgentKind); else what marks one of its
+// parent processes (ancestorMarker: "a parent process's …").
 func Marker() string {
 	for _, k := range []string{workflow.EnvWorkflowRun, browserctl.EnvAICaller} {
 		if os.Getenv(k) != "" {
@@ -28,7 +44,7 @@ func Marker() string {
 		}
 	}
 	if _, agent := hilsend.Detect(); !agent && browserctl.AgentKind() == "" {
-		return ""
+		return ancestorMarker()
 	}
 	if m := orgsign.AgentContextMarker(); m != "" {
 		return m
@@ -95,6 +111,8 @@ func Refusal() string {
 		return m + " is set, so a workflow run is running this command"
 	case browserctl.EnvAICaller:
 		return m + " is set, so the chat is running this command"
+	case ancestorWorkflowRun, ancestorAICaller, ancestorAgentExec:
+		return m + " marks it, so a workflow run, the chat or an agent started this command, whatever its own environment says"
 	default:
 		return m + " is set, so an agent is running this command"
 	}
