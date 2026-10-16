@@ -97,11 +97,7 @@ func ClaimPublicationApproval(ctx context.Context, db *sql.DB, profile, approval
 		}
 		return none, ErrPublicationApprovalUsed
 	}
-	sent := strings.TrimSpace(p.Account.Platform)
-	if sent == "" {
-		sent = strings.TrimSpace(p.Channel)
-	}
-	if !strings.EqualFold(sent, strings.TrimSpace(e.Platform)) {
+	if sent := sentPlatform(rp.NodeType, p); !strings.EqualFold(sent, strings.TrimSpace(e.Platform)) {
 		return none, &PublicationMismatchError{"platform", sent, e.Platform}
 	}
 	if id, mine := sentRemoteID(p.Result), strings.TrimSpace(e.RemoteID); id != "" && id != mine {
@@ -126,6 +122,19 @@ func ClaimPublicationApproval(ctx context.Context, db *sql.DB, profile, approval
 		return none, ErrPublicationApprovalUsed
 	}
 	return &PublicationClaim{id: r.id, profile: profile, before: r.nc, after: string(claimed)}, nil
+}
+
+// sentPlatform is the platform a send of nodeType published on, as
+// publication.Normalize names it: a service or comm node's is its name
+// (service.devto: devto), not the node family its card's account shows.
+func sentPlatform(nodeType string, p Payload) string {
+	if family, name, _ := strings.Cut(nodeType, "."); (family == "service" || family == "comm") && p.Account.Platform == family {
+		return name
+	}
+	if platform := strings.TrimSpace(p.Account.Platform); platform != "" {
+		return platform
+	}
+	return strings.TrimSpace(p.Channel)
 }
 
 // sentRemoteID is the remote id a sent send's node returned (`node run

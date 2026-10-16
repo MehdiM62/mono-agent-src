@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/monoes/mono-agent/internal/publication"
+	"github.com/monoes/mono-agent/internal/workflow"
 )
 
 // sentEmail queues an email as an agent and has the user approve it; the
@@ -131,6 +132,34 @@ func TestASendsOwnRegistrationSpendsItsApproval(t *testing.T) {
 	}
 	if claim, err := ClaimPublicationApproval(ctx, db, "p1", id, own); err != nil || claim != nil {
 		t.Errorf("the send's own publication again: %v %v", claim, err)
+	}
+}
+
+// A service or comm node's send is on the platform its publication names
+// (service.devto: devto), not on the node family its card shows: its
+// publication, registered by hand when tracking failed, passes.
+func TestAServiceSendsPublicationIsOnItsPlatform(t *testing.T) {
+	asAgent(t)
+	db := testDB(t)
+	ctx := context.Background()
+	out, handled, err := Guard(ctxFor(db), "service.devto", workflow.NodeInput{},
+		map[string]interface{}{"operation": "publish_article", "title": "Hello", "body_markdown": "Hi all"})
+	if err != nil || !handled {
+		t.Fatalf("Guard handled=%v err=%v", handled, err)
+	}
+	id := out[0].Items[0].JSON["hil_id"].(string)
+	run := func(context.Context, Run) (json.RawMessage, error) {
+		return json.RawMessage(`{"main":[{"json":{"id":"4242"}}]}`), nil
+	}
+	if _, err := Resolve(ctx, Store{db, "p1"}, id, true, Edit{}, false, run); err != nil {
+		t.Fatal(err)
+	}
+	var mismatch *PublicationMismatchError
+	if _, err := ClaimPublicationApproval(ctx, db, "p1", id, publication.Entry{Platform: "hashnode", Kind: "article", RemoteID: "4242"}); !errors.As(err, &mismatch) {
+		t.Errorf("another platform: %v", err)
+	}
+	if claim, err := ClaimPublicationApproval(ctx, db, "p1", id, publication.Entry{Platform: "devto", Kind: "article", RemoteID: "4242"}); err != nil || claim == nil {
+		t.Errorf("the devto send's article: %v %v", claim, err)
 	}
 }
 
