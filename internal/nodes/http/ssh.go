@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -138,6 +139,15 @@ func (n *SSHNode) Execute(ctx context.Context, input workflow.NodeInput, config 
 		return nil, fmt.Errorf("http.ssh: session failed: %w", err)
 	}
 	defer session.Close()
+	// What a workflow runs is never the operator (workflow.EnvWorkflowRun),
+	// over ssh too. sshd passes on only the variables AcceptEnv names, so on
+	// this machine, where `monoagentcli hil approve` reaches the user's
+	// database, the command exports the marker as well. Other hosts keep
+	// their command as written: a Windows host's cmd.exe has no export.
+	_ = session.Setenv(workflow.EnvWorkflowRun, workflow.RunMarker(input.ExecutionID))
+	if sshTargetIsLocal(ctx, host) {
+		command = markedCommand(input.ExecutionID, command)
+	}
 
 	var stdoutBuf, stderrBuf bytes.Buffer
 	session.Stdout = &stdoutBuf
@@ -184,4 +194,11 @@ func (n *SSHNode) Execute(ctx context.Context, input workflow.NodeInput, config 
 	}
 
 	return []workflow.NodeOutput{{Handle: handle, Items: []workflow.Item{resultItem}}}, nil
+}
+
+// markedCommand is command after an export of the run's marker
+// (workflow.EnvWorkflowRun), single-quoted for the remote shell.
+func markedCommand(executionID, command string) string {
+	marker := "'" + strings.ReplaceAll(workflow.RunMarker(executionID), "'", `'\''`) + "'"
+	return "export " + workflow.EnvWorkflowRun + "=" + marker + "; " + command
 }

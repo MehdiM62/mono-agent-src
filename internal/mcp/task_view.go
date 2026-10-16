@@ -28,7 +28,8 @@ const listNotesRunes = 1000
 // taskView is a task as the task tools return it: the CLI's document (spec 4.3)
 // with every text a person, an agent or a capture wrote under a name ending in
 // _untrusted, and the source flattened so those names say what they hold. Ids,
-// statuses, positions, times, the claim and the last event are plain.
+// statuses, positions, times, the author, the claim and the last event are
+// plain.
 type taskView struct {
 	ID                   int64            `json:"id"`
 	ProfileID            string           `json:"profile_id"`
@@ -40,6 +41,7 @@ type taskView struct {
 	SourceURLUntrusted   string           `json:"source_url_untrusted"`
 	SourceTitleUntrusted string           `json:"source_title_untrusted"`
 	SourceAppUntrusted   string           `json:"source_app_untrusted"`
+	Author               string           `json:"author"`
 	Claim                *tasks.Claim     `json:"claim"`
 	LastEvent            *tasks.LastEvent `json:"last_event"`
 	CreatedAt            time.Time        `json:"created_at"`
@@ -63,7 +65,7 @@ func viewOf(t tasks.Task) taskView {
 		ID: t.ID, ProfileID: t.ProfileID, TitleUntrusted: t.Title, NotesUntrusted: t.Notes,
 		Status: t.Status, Position: t.Position, SourceKind: t.Source.Kind,
 		SourceURLUntrusted: t.Source.URL, SourceTitleUntrusted: t.Source.Title, SourceAppUntrusted: t.Source.App,
-		Claim: t.Claim, LastEvent: t.LastEvent, CreatedAt: t.CreatedAt, UpdatedAt: t.UpdatedAt,
+		Author: t.Author, Claim: t.Claim, LastEvent: t.LastEvent, CreatedAt: t.CreatedAt, UpdatedAt: t.UpdatedAt,
 	}
 }
 

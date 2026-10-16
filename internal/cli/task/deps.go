@@ -38,6 +38,10 @@ type Deps struct {
 	// a process a workflow node started, any kind of agent), or "". Only what
 	// the operator alone may do reads it: whom the history names is Getenv's.
 	NotOperator func() string
+	// AddedBy names that caller, for the author of a task it adds
+	// (internal/operator.Caller: chat, workflow:<execution id>, agent:<kind>),
+	// or "" for the operator.
+	AddedBy func() string
 	// StdinIsTerminal says whether `task agents allow` runs at a terminal, where it may ask.
 	StdinIsTerminal func() bool
 	// DBPath is --db-path as given: `task os` writes it, made absolute, into a menu.

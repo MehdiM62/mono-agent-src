@@ -51,11 +51,12 @@ func TestATaskViewNamesEveryTextUntrusted(t *testing.T) {
 	v := asDoc(t, viewOf(tasks.Task{
 		ID: 7, ProfileID: "default", Title: "the title", Notes: "the notes", Status: tasks.StatusInProgress, Position: 2048,
 		Source:    tasks.Source{Kind: "chrome", URL: "https://example.com/a", Title: "the page", App: "the app"},
+		Author:    "agent:z#0003",
 		Claim:     &tasks.Claim{By: "agent:x#0001", Until: until, Stale: true},
 		LastEvent: &tasks.LastEvent{Actor: "agent:y#0002", Kind: "claimed", At: happened},
 		CreatedAt: created, UpdatedAt: changed,
 	}))
-	want := []string{"claim", "created_at", "id", "last_event", "notes_untrusted", "position", "profile_id",
+	want := []string{"author", "claim", "created_at", "id", "last_event", "notes_untrusted", "position", "profile_id",
 		"source_app_untrusted", "source_kind", "source_title_untrusted", "source_url_untrusted", "status", "title_untrusted", "updated_at"}
 	if got := docKeys(v); !equalStrings(got, want) {
 		t.Errorf("a task's fields are %v, want exactly %v", got, want)
@@ -65,6 +66,8 @@ func TestATaskViewNamesEveryTextUntrusted(t *testing.T) {
 		"source_title_untrusted": "the page", "source_app_untrusted": "the app", "source_kind": "chrome",
 		"status": "in_progress", "id": float64(7), "profile_id": "default", "position": float64(2048),
 		"created_at": "2026-10-05T08:15:00Z", "updated_at": "2026-10-06T09:50:00Z",
+		// The author is a name, as the claim's holder and an event's actor are: plain.
+		"author": "agent:z#0003",
 	} {
 		if v[k] != want {
 			t.Errorf("%s = %v, want %v", k, v[k], want)
@@ -311,7 +314,7 @@ func TestThePinnedFieldListsMatchTheStructTags(t *testing.T) {
 		v    any
 		want []string
 	}{
-		{taskView{}, []string{"claim", "created_at", "id", "last_event", "notes_untrusted", "position", "profile_id",
+		{taskView{}, []string{"author", "claim", "created_at", "id", "last_event", "notes_untrusted", "position", "profile_id",
 			"source_app_untrusted", "source_kind", "source_title_untrusted", "source_url_untrusted", "status", "title_untrusted", "updated_at"}},
 		{eventView{}, []string{"actor", "at", "from_status", "id", "kind", "note_untrusted", "to_status"}},
 		{tasks.Claim{}, []string{"by", "stale", "until"}},

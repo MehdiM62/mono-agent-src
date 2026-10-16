@@ -141,7 +141,10 @@ type LastEvent struct {
 	At    time.Time `json:"at"`
 }
 
-// Task is a card on a profile's board.
+// Task is a card on a profile's board. Its Author is who added it, as its
+// created event names them: you, an agent's name, chrome or os, and for what
+// is not the operator's own terminal chat, workflow:<execution id> or
+// agent:<kind>.
 type Task struct {
 	ID        int64      `json:"id"`
 	ProfileID string     `json:"profile_id"`
@@ -150,6 +153,7 @@ type Task struct {
 	Status    Status     `json:"status"`
 	Position  int64      `json:"position"`
 	Source    Source     `json:"source"`
+	Author    string     `json:"author"`
 	Claim     *Claim     `json:"claim"`
 	LastEvent *LastEvent `json:"last_event"`
 	CreatedAt time.Time  `json:"created_at"`

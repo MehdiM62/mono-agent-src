@@ -57,6 +57,7 @@ func TestTaskShowTextPrintsTheTaskItsHolderAndItsHistory(t *testing.T) {
 Profile:  Work
 Status:   In progress
 Source:   chrome, Invoice page, in Chrome
+Added by: chrome
 Link:     https://example.com/p?q=1
 Held by:  bot until %s
 Created:  %s
@@ -91,7 +92,7 @@ func TestTaskShowTextOmitsWhatTheTaskDoesNotHave(t *testing.T) {
 	seedTaskEvent(t, db, id, created, "you", "created", "", "inbox", "")
 	out, _, err := runTask(t, db, "default", false, "", "show", strconv.FormatInt(id, 10))
 	// Events without a note carry no caution, and nothing says a note was cut.
-	want := fmt.Sprintf("#%d  plain\nProfile:  Default\nStatus:   Inbox\nSource:   cli\nCreated:  %s\n\nHistory:\n  %s  you          created -> inbox\n",
+	want := fmt.Sprintf("#%d  plain\nProfile:  Default\nStatus:   Inbox\nSource:   cli\nAdded by: you\nCreated:  %s\n\nHistory:\n  %s  you          created -> inbox\n",
 		id, created.In(zone).Format("2006-01-02 15:04"), created.In(zone).Format("01-02 15:04"))
 	if err != nil || out != want {
 		t.Errorf("show as text: %v\n%s\nwant:\n%s", err, out, want)
