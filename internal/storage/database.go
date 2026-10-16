@@ -113,6 +113,19 @@ func (d *Database) ApplyMigrations() error {
 	return d.applyMigrations()
 }
 
+// recordMigrationSQL tolerates an already-recorded version: an applier that
+// ran without the cross-process lock may have recorded it first.
+const recordMigrationSQL = "INSERT OR IGNORE INTO schema_migrations (version, filename) VALUES (?, ?)"
+
+type migrationExecer interface {
+	Exec(query string, args ...any) (sql.Result, error)
+}
+
+func recordMigration(e migrationExecer, version int, filename string) error {
+	_, err := e.Exec(recordMigrationSQL, version, filename)
+	return err
+}
+
 func (d *Database) applyMigrations() error {
 	ctx := context.Background()
 
@@ -272,7 +285,7 @@ func (d *Database) applyMigrations() error {
 		}
 
 		// Record the migration as applied.
-		if _, err := tx.Exec("INSERT OR IGNORE INTO schema_migrations (version, filename) VALUES (?, ?)", m.version, m.filename); err != nil {
+		if err := recordMigration(tx, m.version, m.filename); err != nil {
 			tx.Rollback()
 			return fmt.Errorf("recording migration %d: %w", m.version, err)
 		}
