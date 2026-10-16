@@ -56,23 +56,36 @@ func TestHILMarksItemsThatLetAMessageGoOut(t *testing.T) {
 	}
 }
 
-// An item queued before the mark existed is still the operator's when it has
-// a Communications row: only an outbound workflow item gets one.
-func TestHILOutboundItemQueuedBeforeTheMark(t *testing.T) {
-	r := newCommsRig(t, "comm.email_send", map[string]interface{}{"to": "ada@example.test", "subject": "Hi", "body": "Hello"}, nil,
-		map[string]interface{}{})
+// An item queued before the decision was recorded is the operator's,
+// whatever it sends: one in front of nothing that sends, with no
+// Communications row, too. A new item records the decision both ways.
+func TestHILItemQueuedBeforeTheDecisionIsTheOperators(t *testing.T) {
+	r := newCommsRig(t, "transform.set", map[string]interface{}{"field": "x"}, nil, map[string]interface{}{})
 	if err := r.run(""); !errors.Is(err, workflow.ErrExecutionPaused) {
 		t.Fatalf("first run = %v", err)
 	}
+	if v, ok := r.nodeConfig()[commsync.OutboundKey].(bool); !ok || v {
+		t.Fatalf("a new item in front of nothing that sends: outbound = %v (recorded %v)", v, ok)
+	}
 	id := r.hilID()
+	if err := operator.ItemRefusal(r.ctx, r.db, "default", id); err != nil {
+		t.Fatalf("a new item that sends nothing was refused: %v", err)
+	}
 	if _, err := r.db.Exec(`UPDATE hil_pending SET node_config = '{"readonly_fields":null,"editable_fields":null}' WHERE id = ?`, id); err != nil {
 		t.Fatal(err)
 	}
-	if out, err := commsync.OutboundHIL(r.ctx, r.db, id, `{}`); err != nil || !out {
-		t.Fatalf("OutboundHIL of an old row = %v, %v", out, err)
+	var n int
+	r.db.QueryRow(`SELECT COUNT(*) FROM person_messages WHERE hil_ref = ?`, id).Scan(&n)
+	if n != 0 {
+		t.Fatalf("setup: %d Communications rows", n)
 	}
 	var only *operator.ItemError
 	if err := operator.ItemRefusal(r.ctx, r.db, "default", id); !errors.As(err, &only) || !only.Message {
 		t.Fatalf("ItemRefusal of an old row = %v", err)
+	}
+	for nc, want := range map[string]bool{`{"outbound":false}`: false, `{"outbound":true}`: true, `{}`: true, `not json`: true, `{"outbound":"no"}`: true} {
+		if got := commsync.OutboundHIL(nc); got != want {
+			t.Errorf("OutboundHIL(%s) = %v, want %v", nc, got, want)
+		}
 	}
 }

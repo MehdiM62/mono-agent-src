@@ -27,7 +27,7 @@ func hilItems(t *testing.T, db *sql.DB) (submit, site, send, node string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, row := range [][2]string{{"send-1", `{"kind":"send"}`}, {"node-1", `{}`}} {
+	for _, row := range [][2]string{{"send-1", `{"kind":"send"}`}, {"node-1", `{"outbound":false}`}} {
 		if _, err := db.Exec(`INSERT INTO hil_pending (id, execution_id, workflow_id, node_id, node_name, status, node_config, profile_id)
 			VALUES (?, 'ex-1', 'wf-1', 'n', 'Review', 'pending', ?, 'p1')`, row[0], row[1]); err != nil {
 			t.Fatal(err)

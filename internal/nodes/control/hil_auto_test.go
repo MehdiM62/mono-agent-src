@@ -139,7 +139,7 @@ func TestHILAuto_AbsentRowsUnchanged(t *testing.T) {
 	for _, v := range []string{"alpha", "bravo", "charlie"} {
 		want = append(want, dbRow{
 			Status: "pending", Readonly: `{"to":"` + v + `@example.com"}`, Editable: `{"caption":"` + v + `"}`, Edited: "{}",
-			Config: `{"editable_fields":["caption"],"readonly_fields":["to"]}`, Profile: "default",
+			Config: `{"editable_fields":["caption"],"outbound":false,"readonly_fields":["to"]}`, Profile: "default",
 			Exec: "e1", WF: "w1", Node: "n1", Name: "Review",
 		})
 	}

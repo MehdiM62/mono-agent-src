@@ -35,6 +35,7 @@ func TestHILOutboundItemIsTheOperators(t *testing.T) {
 	add("out-1", `{"outbound":true}`)
 	add("out-2", `{"outbound":true}`)
 	add("old-1", `{}`)
+	add("old-2", `{"readonly_fields":null}`) // queued before the decision was recorded, no Communications row
 	if _, err := commsync.Queue(t.Context(), db.DB, commsync.Item{HilRef: "old-1", Profile: "default", Platform: "email", Action: "email",
 		Recipient: commsync.Recipient{Name: "Ada", Handle: "ada@example.test"}, Text: "Hi Ada"}); err != nil {
 		t.Fatal(err)
@@ -44,14 +45,14 @@ func TestHILOutboundItemIsTheOperators(t *testing.T) {
 		asOperatorProcess(t)
 		t.Setenv(m[0], m[1])
 		for _, verb := range []string{"approve", "reject"} {
-			for _, id := range []string{"out-1", "old-1"} {
+			for _, id := range []string{"out-1", "old-1", "old-2"} {
 				if _, err := runHIL(t, cfg, verb, id); exitCodeFor(err) != 3 || status(id) != "pending" {
 					t.Errorf("%s set: hil %s %s: %v (exit %d), left %s", m[0], verb, id, err, exitCodeFor(err), status(id))
 				}
 			}
 		}
 		plain := "plain-" + m[0]
-		add(plain, `{}`)
+		add(plain, `{"outbound":false}`)
 		if _, err := runHIL(t, cfg, "approve", plain, "--data", `{"x":1}`); err != nil || status(plain) != "approved" {
 			t.Errorf("%s set: a plain workflow item: %v, %s", m[0], err, status(plain))
 		}

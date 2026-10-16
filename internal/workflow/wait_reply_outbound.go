@@ -62,6 +62,12 @@ func messagesAfter(ctx context.Context) bool {
 	return false
 }
 
+// replyOutbound is spec's recorded decision; a reply opened before it was
+// recorded counts as one that lets a message to a person go out.
+func replyOutbound(spec WaitReplySpec) bool {
+	return spec.Outbound == nil || *spec.Outbound
+}
+
 // replyHiddenNote stands in for a marked reply's links.
 const replyHiddenNote = "answering it lets a message to a person go out, so its links are the user's: the person it was sent to answers through them, and the user sees them in their own terminal or the app"
 

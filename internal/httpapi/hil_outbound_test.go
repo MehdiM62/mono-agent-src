@@ -18,7 +18,8 @@ func TestHilRoutesRefuseAnItemThatMessagesSomeone(t *testing.T) {
 	s := newTestServer(t, true)
 	tok := testToken(t, s, "default")
 	db, ctx := s.rt.db.DB, context.Background()
-	for _, row := range [][2]string{{"out-1", `{"outbound":true}`}, {"old-1", `{}`}, {"plain-1", `{}`}, {"plain-2", `{}`}} {
+	for _, row := range [][2]string{{"out-1", `{"outbound":true}`}, {"old-1", `{}`}, {"old-2", `{"readonly_fields":null}`},
+		{"plain-1", `{"outbound":false}`}, {"plain-2", `{"outbound":false}`}} {
 		if _, err := db.Exec(`INSERT INTO hil_pending (id, execution_id, workflow_id, node_id, node_name, status, node_config, profile_id)
 			VALUES (?, 'ex-1', 'wf-1', 'n', 'Review', 'pending', ?, 'default')`, row[0], row[1]); err != nil {
 			t.Fatal(err)
@@ -36,7 +37,7 @@ func TestHilRoutesRefuseAnItemThatMessagesSomeone(t *testing.T) {
 		return st
 	}
 	for _, action := range []string{"approve", "reject"} {
-		for _, id := range []string{"out-1", "old-1"} {
+		for _, id := range []string{"out-1", "old-1", "old-2"} {
 			rw := doReq(t, s, "POST", "/profiles/default/hil/"+id+"/"+action, tok, nil)
 			if rw.Code != http.StatusForbidden || !strings.Contains(rw.Body.String(), "message to a person") || status(id) != "pending" {
 				t.Errorf("%s %s: %d %s, left %s", action, id, rw.Code, rw.Body.String(), status(id))

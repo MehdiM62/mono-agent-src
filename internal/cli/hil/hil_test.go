@@ -218,7 +218,7 @@ func TestHILShortIDResolvesToPendingItem(t *testing.T) {
 	}
 	defer db.Close()
 	for _, id := range []string{"72f9b394-aaaa", "2ae3a8b0-aaaa", "2ae3a8b0-bbbb"} {
-		if _, err := db.Exec(`INSERT INTO hil_pending (id, execution_id, workflow_id, node_id, node_name, status, profile_id) VALUES (?, 'e', 'w', 'n', 'N', 'pending', 'default')`, id); err != nil {
+		if _, err := db.Exec(`INSERT INTO hil_pending (id, execution_id, workflow_id, node_id, node_name, status, node_config, profile_id) VALUES (?, 'e', 'w', 'n', 'N', 'pending', '{"outbound":false}', 'default')`, id); err != nil {
 			t.Fatal(err)
 		}
 	}

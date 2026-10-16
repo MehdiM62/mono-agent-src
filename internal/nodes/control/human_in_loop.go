@@ -234,9 +234,9 @@ func (n *HumanInLoopNode) createRows(ctx context.Context, db *sql.DB, input work
 				status, decided = plan[i].status, true
 			}
 		}
-		if outbound {
-			cfg[commsync.OutboundKey] = true
-		}
+		// Recorded both ways, so "checked: nothing sends" can be told from an
+		// item queued before the check, which counts as sending.
+		cfg[commsync.OutboundKey] = outbound
 		configJSON, _ := json.Marshal(cfg)
 		roJSON, _ := json.Marshal(ro[i])
 		edJSON, _ := json.Marshal(ed[i])

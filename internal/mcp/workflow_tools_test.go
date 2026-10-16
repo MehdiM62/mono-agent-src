@@ -344,7 +344,7 @@ func TestWorkflowStatusShowsResumeURL(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := rt.db.DB.Exec(`INSERT INTO wait_replies (execution_id, node_id, run_index, workflow_id, token, kind, spec)
-		VALUES ('exec-wait','wait',0,'wf-wait','tokWait','webhook','{"kind":"webhook"}')`); err != nil {
+		VALUES ('exec-wait','wait',0,'wf-wait','tokWait','webhook','{"kind":"webhook","outbound":false}')`); err != nil {
 		t.Fatal(err)
 	}
 
