@@ -137,9 +137,17 @@ func (n *SSHNode) Execute(ctx context.Context, input workflow.NodeInput, config 
 	// The host key is checked against the host as configured (addr); the
 	// connection goes to an address resolveSSHTarget checked.
 	addr := fmt.Sprintf("%s:%d", host, port)
-	dialer := &net.Dialer{Deadline: connectBy}
+	// Each address gets an equal share of what is left of the connect
+	// deadline (the last one all of it), so one that never answers — a
+	// broken IPv6 route ahead of a working IPv4 address — leaves time for
+	// the next; the first that connects is used.
 	var netConn net.Conn
-	for _, a := range target.dial {
+	for i, a := range target.dial {
+		by := connectBy
+		if left := len(target.dial) - i; left > 1 {
+			by = time.Now().Add(time.Until(connectBy) / time.Duration(left))
+		}
+		dialer := &net.Dialer{Deadline: by}
 		if netConn, err = dialer.DialContext(ctx, "tcp", net.JoinHostPort(a, strconv.Itoa(port))); err == nil {
 			break
 		}
