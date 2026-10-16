@@ -2,7 +2,7 @@
   "levels": {
     "chat": "full",
     "coder": "dev",
-    "org": "full",
+    "org": "dev",
     "other": "ask"
   },
   "sites": [
@@ -25,7 +25,7 @@
     {
       "kind": "org",
       "label": "Org roles",
-      "level": "full",
+      "level": "dev",
       "isDefault": true
     },
     {
@@ -45,7 +45,7 @@
     {
       "id": "full-no-approvals",
       "label": "Full access, no approvals",
-      "description": "Any site; form submits go through without asking you."
+      "description": "Any site; form submits go through without asking you, and scripts run on any page, where they can read that site's cookies and storage."
     },
     {
       "id": "full",

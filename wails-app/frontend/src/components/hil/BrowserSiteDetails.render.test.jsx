@@ -9,6 +9,9 @@ import { api } from '../../services/api.js'
 // readonly_data {origin, url, kind, requested_by}), written against the
 // contract before the CLI that stores it landed.
 import fixture from './__fixtures__/browser-site-item.json'
+// The same for a look-alike host (https://аpple.com, a Cyrillic а):
+// origin in xn-- form, asciiHost and unicodeHost.
+import idnFixture from './__fixtures__/browser-site-item-idn.json'
 
 vi.mock('../../wailsjs/go/main/App', () => ({
   GetHILItems: vi.fn(),
@@ -46,6 +49,22 @@ describe('browser site approval card', () => {
     expect(within(card).getByText('coder chat agent · chat 040abd27')).toBeInTheDocument()
     expect(screen.queryByText('Context Info')).toBeNull()
     expect(screen.getByText('browser')).toBeInTheDocument()
+  })
+
+  it('shows the ASCII form of a non-Latin host with a check-the-address hint, and nothing for an ASCII host', async () => {
+    WailsApp.GetHILItems.mockResolvedValue([structuredClone(idnFixture)])
+    const { unmount } = render(<HumanInLoop />)
+    const card = await screen.findByTestId('browser-site-details')
+    expect(card).toHaveTextContent('A coder chat wants to use https://аpple.com')
+    const check = within(card).getByTestId('ascii-host')
+    expect(check).toHaveTextContent('ASCII form: xn--pple-43d.com')
+    expect(check).toHaveTextContent('Check the address: this site uses non-Latin characters')
+    unmount()
+
+    WailsApp.GetHILItems.mockResolvedValue([structuredClone(fixture)])
+    render(<HumanInLoop />)
+    expect(await screen.findByTestId('browser-site-details')).toBeInTheDocument()
+    expect(screen.queryByTestId('ascii-host')).toBeNull()
   })
 
   it('Allow approves the item and Not now rejects it', async () => {
