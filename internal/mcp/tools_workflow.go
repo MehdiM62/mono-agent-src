@@ -347,6 +347,9 @@ func toolWorkflowStatus(ctx context.Context, s *Server, args json.RawMessage) (i
 	if err != nil {
 		return nil, err
 	}
+	// An agent reaches this server: a reply that lets a message to a person
+	// go out is that person's or the user's to answer, so its links stay out.
+	waiting = workflow.RedactReplies(waiting)
 	return struct {
 		*workflow.WorkflowExecution
 		Waiting []workflow.PendingReply `json:"waiting_for,omitempty"`

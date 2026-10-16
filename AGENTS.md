@@ -2634,8 +2634,9 @@ anything that can run after the Human-in-Loop node, through other nodes and
 the workflows it calls (`core.execute_workflow`), sends an email, a DM, a
 comment, a post, a connect or a publish, or may (its operation is an
 expression only the run resolves), or calls a workflow that can't be resolved
-before it runs. Past 5000 nodes reachable from it the item counts as one that
-sends, even if none does. `hil approve|reject` refuse an agent, the chat's
+before it runs. Past 5000 nodes reachable from it, or in a run another
+workflow called (whose later steps run in the caller), the item counts as one
+that sends, even if none does. `hil approve|reject` refuse an agent, the chat's
 runs and a workflow's own processes (exit 3), and so do the MCP server's
 `hil_approve`/`hil_reject` and the HTTP API's approve/reject routes (403). It
 stays pending until the user decides it in their own terminal or on the Human
@@ -2646,6 +2647,19 @@ Human-in-Loop item stays open to agents. An item queued by an earlier version
 counts only when it has a Communications entry, which only a send right after
 the node gave it: an older item whose send came further down, or in a called
 workflow, stays open to agents until it is decided.
+
+The same goes for a reply link a waiting node is answered through (a
+`sendAndWait` message's Approve/Disapprove or form link, `core.wait`'s resume
+URL or form) when what runs after that node may send a message to a person,
+judged the same way when the reply opens: `workflow execution` from an agent,
+the chat's runs or a workflow's process, and the MCP server's
+`workflow_status`, list the reply with a `note` instead of its `url` and
+`links`; the user's own terminal and the app show them. The link itself keeps
+working, since the person the message went to answers there, so it can't tell
+that person from an agent that got the token another way (from the database,
+or by signing one with the machine's trace key, which a process with full
+access can read). A reply opened by an earlier version has no mark and keeps
+its links in every view.
 
 An item of a run an org started (through a grant or a message to an
 automation role) is that org's decision instead, class `hil:<alias>`. Its tier

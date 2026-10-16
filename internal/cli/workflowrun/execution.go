@@ -13,6 +13,7 @@ import (
 	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/commsync"
 	"github.com/monoes/mono-agent/internal/daemonhb"
+	"github.com/monoes/mono-agent/internal/operator"
 	"github.com/monoes/mono-agent/internal/workflow"
 	"github.com/spf13/cobra"
 )
@@ -86,6 +87,10 @@ func (d Deps) newExecutionCmd() *cobra.Command {
 				fmt.Fprintf(os.Stdout, "Class: %s\n", detail.ErrorClass)
 			}
 			for _, p := range detail.Waiting {
+				if p.Note != "" {
+					fmt.Fprintf(os.Stdout, "Waiting at %s for a %s reply: %s\n", p.NodeID, p.Kind, p.Note)
+					continue
+				}
 				fmt.Fprintf(os.Stdout, "Waiting at %s for a %s reply: %s\n", p.NodeID, p.Kind, p.URL)
 				for _, l := range p.Links {
 					if l.URL != p.URL {
@@ -156,6 +161,12 @@ func executionDetail(ctx context.Context, db *sql.DB, profileID, executionID str
 	if d.Status == "WAITING" {
 		if d.Waiting, err = workflow.PendingReplies(ctx, db, executionID); err != nil {
 			return d, err
+		}
+		// A reply that lets a message to a person go out is answered by
+		// that person or the user, not an agent, the chat's runs or a
+		// workflow's process: they don't get its links.
+		if operator.Marker() != "" {
+			d.Waiting = workflow.RedactReplies(d.Waiting)
 		}
 	}
 	return d, nil

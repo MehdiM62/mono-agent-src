@@ -24,6 +24,9 @@ const (
 // queues), it doesn't stop at the first node of a branch.
 func (r *runner) reachableFrom(nodeID string) commsync.Reachable {
 	var out commsync.Reachable
+	// A run another workflow called hands its output back to the caller,
+	// whose later nodes this run can't see: fail closed.
+	out.Unresolved = r.exec != nil && r.exec.TriggerType == TriggerTypeExecuteWorkflow
 	seen := map[string]bool{nodeID: true}
 	var nodes []WorkflowNode
 	queue := []string{nodeID}
