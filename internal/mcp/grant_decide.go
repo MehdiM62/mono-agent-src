@@ -108,6 +108,15 @@ func (s *Server) callDecisionTool(ctx context.Context, rt *runtime, b *orggrant.
 	if verdict == "answer" && strings.TrimSpace(a.Answer) == "" {
 		return nil, true, fmt.Errorf("verdict answer needs answer text")
 	}
+	// A message to a person is the user's to approve: no grant lets a
+	// decider role settle an item whose approval lets one go out.
+	var load orggrant.WorkflowLoader
+	if rt.store != nil {
+		load = rt.store.GetWorkflow
+	}
+	if verdict != "escalate" && orgdecide.ItemSends(ctx, rt.db.DB, b.ProfileID, d.OrgName, d.Item, load) {
+		return nil, true, fmt.Errorf("%s: decision %s lets a message to a person go out, which only the user decides: leave it to them", codeRefusedGrant, a.ID)
+	}
 	if ok, err := store.CloseDelegation(ctx, d.ID, orgdecide.DelegationResolved); err != nil || !ok {
 		return nil, true, fmt.Errorf("decision %s was resolved by someone else", a.ID)
 	}
