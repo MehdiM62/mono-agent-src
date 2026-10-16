@@ -139,13 +139,31 @@ func (n *SSHNode) Execute(ctx context.Context, input workflow.NodeInput, config 
 		return nil, fmt.Errorf("http.ssh: session failed: %w", err)
 	}
 	defer session.Close()
+	// The node's timeout and context hold from here: the environment request
+	// and the command each wait for the server.
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+
 	// What a workflow runs is never the operator (workflow.EnvWorkflowRun),
 	// over ssh too. sshd passes on only the variables AcceptEnv names, so on
 	// this machine, where `monoagentcli hil approve` reaches the user's
 	// database, the command exports the marker as well. Other hosts keep
 	// their command as written: a Windows host's cmd.exe has no export.
-	_ = session.Setenv(workflow.EnvWorkflowRun, workflow.RunMarker(input.ExecutionID))
-	if sshTargetIsLocal(ctx, host) {
+	envDone := make(chan struct{})
+	go func() {
+		_ = session.Setenv(workflow.EnvWorkflowRun, workflow.RunMarker(input.ExecutionID))
+		close(envDone)
+	}()
+	select {
+	case <-envDone:
+	case <-ctx.Done():
+		session.Close()
+		return nil, fmt.Errorf("http.ssh: cancelled: %w", ctx.Err())
+	case <-timer.C:
+		session.Close()
+		return nil, fmt.Errorf("http.ssh: timed out after %s waiting for the server to answer an environment request", timeout)
+	}
+	if exportsMarker(ctx, host) {
 		command = markedCommand(input.ExecutionID, command)
 	}
 
@@ -157,9 +175,6 @@ func (n *SSHNode) Execute(ctx context.Context, input workflow.NodeInput, config 
 	// the configured timeout. session.Run itself has no deadline, so without
 	// this a hung remote command would block the node forever and ignore
 	// cancellation.
-	timer := time.NewTimer(timeout)
-	defer timer.Stop()
-
 	runErrCh := make(chan error, 1)
 	go func() { runErrCh <- session.Run(command) }()
 

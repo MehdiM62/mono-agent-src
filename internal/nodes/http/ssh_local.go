@@ -3,12 +3,24 @@ package httpnodes
 import (
 	"context"
 	"net"
+	"runtime"
 	"strings"
 )
 
 // sshTargetIsLocal reports whether an ssh node's host is this machine (a
 // variable so tests can stand in a remote host).
 var sshTargetIsLocal = isThisMachine
+
+// goos is the OS this machine runs (a variable so tests can stand in
+// Windows).
+var goos = runtime.GOOS
+
+// exportsMarker reports whether an ssh command to host gets the run marker's
+// export: on this machine, unless it runs Windows, whose OpenSSH runs
+// commands in cmd.exe, which has no export.
+func exportsMarker(ctx context.Context, host string) bool {
+	return goos != "windows" && sshTargetIsLocal(ctx, host)
+}
 
 // lookupHost and lookupCNAME resolve a name (variables so tests can stand
 // in a resolver).
