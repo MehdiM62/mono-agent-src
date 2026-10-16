@@ -389,7 +389,7 @@ jobs:
 
       - name: Storage migration lock (Windows)
         if: runner.os == 'Windows'
-        run: go test ./internal/storage/ -run 'Lock|Migrat|Concurrent|RecordMigration|Ping' -count=1 -timeout 10m
+        run: go test ./internal/storage/ -run 'TestLockFileEx|TestLockHolderHelper|TestApplyMigrationsConcurrentProcesses|TestRecordMigration|TestNewDatabaseGivesUpOnALockedDatabase|TestNewDatabaseRetriesBusyThenSucceeds' -count=1 -timeout 10m
 
   # Social platforms are built by default; this job keeps the opt-out
   # (-tags nosocial) build compiling and passing.

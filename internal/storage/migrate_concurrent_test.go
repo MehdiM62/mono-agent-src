@@ -43,6 +43,13 @@ func TestApplyMigrationsConcurrentProcesses(t *testing.T) {
 	const n = 6
 	cmds := make([]*exec.Cmd, n)
 	outs := make([]*os.File, n)
+	t.Cleanup(func() { // also on an early t.Fatal, before the loop below closes them
+		for _, o := range outs {
+			if o != nil {
+				o.Close()
+			}
+		}
+	})
 	for i := range cmds {
 		out, err := os.Create(filepath.Join(dir, "out"+string(rune('a'+i))))
 		if err != nil {
@@ -66,6 +73,8 @@ func TestApplyMigrationsConcurrentProcesses(t *testing.T) {
 			b, _ := os.ReadFile(outs[i].Name())
 			t.Errorf("process %d failed: %v\n%s", i, err, b)
 		}
+		// Windows cannot remove a directory that holds an open file.
+		outs[i].Close()
 	}
 
 	db, err := NewDatabase(dbPath)
