@@ -267,7 +267,7 @@ User decisions: both "full" variants are levels; default is Dev pages + allowlis
      started child's pid (detached org run/serve), `done` removes it when the turn ends.
    - **Valid:** the file exists, its kind matches, and its pid is alive.
    - **Otherwise (round 2, fail closed):** a shell is kind `other` with `declared` set, and gets the stricter of the
-     declared kind's level and `other`'s (off > ask > dev > full > full-no-approvals). On Linux, sandboxed org role
+     declared kind's level and `other`'s (off > dev > ask > full > full-no-approvals). On Linux, sandboxed org role
      shells can't see the org's pid, so they are always held this way.
    - **Limit, stated in Settings:** an agent that reads another process's environment can still borrow its kind.
 4. **Org default is `dev`,** as shipped in v0.141.0. Chat stays `full` (submit approvals), as shipped.

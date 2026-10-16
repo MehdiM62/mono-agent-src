@@ -434,12 +434,13 @@ func AgentCaller() Caller {
 // AgentKind is AgentCaller's kind: "" for a human terminal.
 func AgentKind() string { return AgentCaller().Kind }
 
-// strictness orders the levels, the strictest highest.
-var strictness = map[string]int{LevelFullNoApprovals: 0, LevelFull: 1, LevelDev: 2, LevelAsk: 3, LevelOff: 4}
+// strictness orders the levels, the strictest highest. dev is stricter than
+// ask: dev refuses a new site, ask lets the agent raise an approval for it.
+var strictness = map[string]int{LevelFullNoApprovals: 0, LevelFull: 1, LevelAsk: 2, LevelDev: 3, LevelOff: 4}
 
 // LevelOf is the level that binds c: its kind's, and with a kind it
 // declared but could not prove, the stricter of that kind's level and its
-// own (off, ask, dev, full, full-no-approvals, strictest first).
+// own (off, dev, ask, full, full-no-approvals, strictest first).
 func (p Permissions) LevelOf(c Caller) string {
 	l := p.Level(c.Kind)
 	if c.Declared != "" {
