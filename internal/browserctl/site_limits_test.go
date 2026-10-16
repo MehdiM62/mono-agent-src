@@ -130,3 +130,73 @@ func TestAskSiteLimits(t *testing.T) {
 		t.Fatalf("a no from 11 minutes ago still holds: %v", err)
 	}
 }
+
+// Approving adds the allow rule first and marks the item approved only
+// then. A failed rule write leaves the item pending; a failed status write
+// after it leaves the rule (the user's intent) and approving again marks
+// the item.
+func TestApprovingWritesTheRuleBeforeTheStatus(t *testing.T) {
+	ctx := context.Background()
+	db := testdb.Open(t).DB
+	status := func(id string) string {
+		it, err := GetSiteItem(ctx, db, "p1", id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return it.Status
+	}
+	allowed := func(origin string) bool {
+		p, err := LoadPermissions(db)
+		return err == nil && p.Rule(origin) == RuleAllow
+	}
+
+	// Order: while the rule is being written, the item is still pending.
+	id, _ := AskSite(ctx, db, "p1", KindOther, "https://a.example/", nil)
+	afterPermissionsRead = func() {
+		afterPermissionsRead = nil
+		if s := status(id); s != "pending" {
+			t.Errorf("the item was %s before its rule was written", s)
+		}
+	}
+	t.Cleanup(func() { afterPermissionsRead = nil })
+	if it, err := DecideSiteItem(ctx, db, "p1", id, true); err != nil || it.Status != "approved" || !allowed("https://a.example") {
+		t.Fatalf("approve: %+v %v", it, err)
+	}
+
+	// The rule write fails: the item stays pending, no rule.
+	id, _ = AskSite(ctx, db, "p1", KindOther, "https://b.example/", nil)
+	if _, err := db.Exec(`UPDATE configs SET config_data = '{' WHERE name = ?`, PermissionsSetting); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := DecideSiteItem(ctx, db, "p1", id, true); err == nil {
+		t.Fatal("approved with an unreadable permissions row")
+	}
+	if s := status(id); s != "pending" {
+		t.Fatalf("after a failed rule write the item is %s", s)
+	}
+	if err := SavePermissions(db, DefaultPermissions()); err != nil {
+		t.Fatal(err)
+	}
+	if allowed("https://b.example") {
+		t.Fatal("a rule was written")
+	}
+
+	// The status write fails after the rule is in: the rule stands, the
+	// item stays pending, and approving again marks it.
+	if _, err := db.Exec(`CREATE TRIGGER no_approve BEFORE UPDATE OF status ON hil_pending
+		WHEN NEW.status = 'approved' BEGIN SELECT RAISE(ABORT, 'forced'); END`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := DecideSiteItem(ctx, db, "p1", id, true); err == nil {
+		t.Fatal("the status write was forced to fail")
+	}
+	if s := status(id); s != "pending" || !allowed("https://b.example") {
+		t.Fatalf("after a failed status write: item %s, rule %v", s, allowed("https://b.example"))
+	}
+	if _, err := db.Exec(`DROP TRIGGER no_approve`); err != nil {
+		t.Fatal(err)
+	}
+	if it, err := DecideSiteItem(ctx, db, "p1", id, true); err != nil || it.Status != "approved" {
+		t.Fatalf("approving again: %+v %v", it, err)
+	}
+}

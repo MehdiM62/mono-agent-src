@@ -226,29 +226,34 @@ func findSite(ctx context.Context, db *sql.DB, profile, id string) (SiteItem, si
 
 // DecideSiteItem approves or rejects a pending site item for the operator
 // (`hil approve|reject` call it after refusing an agent). Approving adds an
-// allow rule for its origin; rejecting adds nothing. A site a block rule
-// covers can't be approved (*SiteBlockedDecisionError): the item stays
-// pending, for the user to reject or to approve once the block is gone.
+// allow rule for its origin first and only then marks the item approved,
+// so whoever sees "approved" finds the rule; when adding the rule fails
+// the item stays pending. A site a block rule covers can't be approved
+// (*SiteBlockedDecisionError): the item stays pending, for the user to
+// reject or to approve once the block is gone. Rejecting adds nothing.
 func DecideSiteItem(ctx context.Context, db *sql.DB, profile, id string, approve bool) (SiteItem, error) {
 	it, rec, err := findSite(ctx, db, profile, id)
 	if err != nil {
 		return it, err
 	}
-	status := it.Status
-	if status != "pending" {
-		return it, &SubmitStateError{ID: id, Status: status, Profile: profile}
+	if it.Status != "pending" {
+		return it, &SubmitStateError{ID: id, Status: it.Status, Profile: profile}
 	}
 	to := "rejected"
 	if approve {
 		to = "approved"
-		p, err := LoadPermissions(db)
-		if err != nil {
+		if _, err := UpdatePermissions(db, func(p *Permissions) error {
+			if p.Blocked(rec.Origin) {
+				return &SiteBlockedDecisionError{ID: id, Origin: rec.Origin}
+			}
+			_, _, err := p.SetSite(rec.Origin, RuleAllow)
+			return err
+		}); err != nil {
 			return it, err
 		}
-		if p.Blocked(rec.Origin) {
-			return it, &SiteBlockedDecisionError{ID: id, Origin: rec.Origin}
-		}
 	}
+	// Approved with the rule in place: if this fails, the rule stands and
+	// approving again marks the item.
 	rec.DecidedAt = time.Now().UTC().Format(time.RFC3339)
 	raw, _ := json.Marshal(rec)
 	res, err := db.ExecContext(ctx, `UPDATE hil_pending SET status = ?, node_config = ?, updated_at = CURRENT_TIMESTAMP
@@ -260,17 +265,5 @@ func DecideSiteItem(ctx context.Context, db *sql.DB, profile, id string, approve
 		return it, &SubmitStateError{ID: id, Status: "decided", Profile: profile}
 	}
 	it.Status = to
-	if approve {
-		// A block added meanwhile wins: no allow rule then.
-		if _, err := UpdatePermissions(db, func(p *Permissions) error {
-			if p.Blocked(rec.Origin) {
-				return nil
-			}
-			_, _, err := p.SetSite(rec.Origin, RuleAllow)
-			return err
-		}); err != nil {
-			return it, err
-		}
-	}
 	return it, nil
 }
