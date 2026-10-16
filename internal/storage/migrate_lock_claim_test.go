@@ -369,6 +369,60 @@ func TestBreakLockStaysExclusiveWhileBreakingACrashedOne(t *testing.T) {
 	}
 }
 
+// The old holder's release must not delete a claim that was broken and
+// replaced between its ownership check and its removal.
+func TestReleaseLeavesAClaimReplacedMidRelease(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "db.claim")
+	c := testClaim(path, func(int) bool { return true })
+	nonce, err := c.acquire()
+	if err != nil {
+		t.Fatal(err)
+	}
+	newBody := claimBody("new-holder", 4242, time.Now())
+	afterReleaseRead = func() {
+		_ = os.Remove(path)
+		if err := os.WriteFile(path, []byte(newBody), 0o600); err != nil {
+			t.Error(err)
+		}
+	}
+	t.Cleanup(func() { afterReleaseRead = nil })
+	if err := c.release(nonce); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(path); string(b) != newBody {
+		t.Fatalf("old holder's release destroyed the replacement claim: %q", b)
+	}
+}
+
+// Release is serialised with breakers: it waits out a held break lock.
+func TestReleaseWaitsForTheBreakLock(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "db.claim")
+	c := testClaim(path, func(int) bool { return true })
+	nonce, err := c.acquire()
+	if err != nil {
+		t.Fatal(err)
+	}
+	other := testClaim(path, func(int) bool { return true })
+	token, ok := other.tryBreakLock()
+	if !ok {
+		t.Fatal("could not take the break lock")
+	}
+	done := make(chan error, 1)
+	go func() { done <- c.release(nonce) }()
+	select {
+	case <-done:
+		t.Fatal("release ran while a breaker held the break lock")
+	case <-time.After(50 * time.Millisecond):
+	}
+	other.unlockBreak(token)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatal("release did not remove our claim")
+	}
+}
+
 // Many waiters racing to break one stale claim must still serialise.
 func TestClaimWaitersNeverBothOwnTheLock(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "db.claim")

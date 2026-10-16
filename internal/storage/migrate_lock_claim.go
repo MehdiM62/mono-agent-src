@@ -321,9 +321,21 @@ func writeSynced(path, body string) error {
 	return errors.Join(werr, serr, h.Close())
 }
 
-// release removes the claim only if it still carries our nonce.
+// afterReleaseRead is a test seam between release's ownership check and its
+// removal, where a claim could be broken and replaced.
+var afterReleaseRead func()
+
+// release removes the claim only if it still carries our nonce. The check
+// and the removal happen under the break lock, so no waiter can break and
+// replace the claim between them, and the removal itself re-verifies the
+// body it checked, so a replaced claim is never deleted.
 func (c *claimLock) release(nonce string) error {
 	c.stopHeartbeat()
+	token, ok := c.lockBreak()
+	if !ok {
+		return fmt.Errorf("could not take the break lock to release %s", filepath.Base(c.path))
+	}
+	defer c.unlockBreak(token)
 	body, err := os.ReadFile(c.path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -334,5 +346,9 @@ func (c *claimLock) release(nonce string) error {
 	if f := strings.Fields(string(body)); len(f) == 0 || f[0] != nonce {
 		return nil
 	}
-	return os.Remove(c.path)
+	if afterReleaseRead != nil {
+		afterReleaseRead()
+	}
+	c.removeIfMatches(c.path, string(body))
+	return nil
 }

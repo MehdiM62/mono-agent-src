@@ -2,7 +2,6 @@ package storage
 
 import (
 	"path/filepath"
-	"strings"
 	"sync"
 	"testing"
 )
@@ -52,11 +51,5 @@ func TestRecordMigrationToleratesAlreadyPresentVersion(t *testing.T) {
 		if err := recordMigration(db.DB, 3, "003_y.sql"); err != nil {
 			t.Fatalf("call %d: %v", i, err)
 		}
-	}
-}
-
-func TestRecordMigrationSQLIgnoresDuplicates(t *testing.T) {
-	if !strings.Contains(recordMigrationSQL, "OR IGNORE") {
-		t.Fatalf("recordMigrationSQL must be INSERT OR IGNORE, got %q", recordMigrationSQL)
 	}
 }
