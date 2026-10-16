@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -111,6 +112,36 @@ func TestBackfillApprovesTheCurrentDefinitions(t *testing.T) {
 	}
 	if approved(t, h, "wf-edited") {
 		t.Error("a definition changed after the backfill was approved by it")
+	}
+}
+
+// A workflow whose file can't be read is skipped: the others are approved,
+// and the step is done (#831 round 5, F5).
+func TestBackfillSkipsAWorkflowItCantRead(t *testing.T) {
+	db, sqlStore := approvalsTestDB(t)
+	ctx := context.Background()
+	dir := t.TempDir()
+	approvalsDir = dir
+	t.Cleanup(func() { approvalsDir = "" })
+	files, err := NewWorkflowFileStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := NewHybridWorkflowStore(files, sqlStore)
+	createSQLWorkflow(t, sqlStore, approvalsTestWorkflow("wf-a-corrupt", 1))
+	createSQLWorkflow(t, sqlStore, approvalsTestWorkflow("wf-b-fine", 1))
+	if err := os.WriteFile(filepath.Join(dir, "wf-a-corrupt.json"), []byte("{not json"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := BackfillApprovals(ctx, db.DB); err != nil {
+		t.Fatal(err)
+	}
+	if !approved(t, h, "wf-b-fine") {
+		t.Error("a workflow after one that can't be read was not approved")
+	}
+	var done int
+	if err := db.DB.QueryRow(`SELECT COUNT(*) FROM settings WHERE key = ?`, approvalsBackfilledKey).Scan(&done); err != nil || done != 1 {
+		t.Errorf("the backfill is not marked done: %v, %d", err, done)
 	}
 }
 

@@ -25,6 +25,7 @@ var approvalsDir = ""
 // never saved through the store or never run, or whose file was edited by
 // hand, would otherwise have become an AI's. The definition is the one the
 // engine runs: the workflow's file when it has one, else its SQLite rows. A
+// workflow that can't be read is logged and left unapproved; a database
 // failure leaves the step to the next open.
 func BackfillApprovals(ctx context.Context, db *sql.DB) error {
 	var done string
@@ -77,7 +78,8 @@ func approveCurrentDefinitions(ctx context.Context, db *sql.DB) error {
 	for _, id := range ids {
 		wf, err := store.GetWorkflow(ctx, id)
 		if err != nil {
-			return err
+			log.Printf("workflow approvals: workflow %s can't be read, so it is not approved (save or activate it to approve it): %v", id, err)
+			continue
 		}
 		if wf == nil {
 			continue
