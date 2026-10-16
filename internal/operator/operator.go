@@ -41,6 +41,16 @@ func Marker() string {
 	return "an agent marker"
 }
 
+// MarkerEnv is every environment variable Marker reads (with
+// browserctl.AgentKind behind it): what a process must not carry for its
+// children to count as the operator's. The extension bridge removes exactly
+// these from the side panel's coder turns (internal/extension, a test holds
+// its copy equal).
+func MarkerEnv() []string {
+	return append(browserctl.AgentContextEnv(), workflow.EnvWorkflowRun, browserctl.EnvAICaller,
+		browserctl.EnvAgentKind, browserctl.EnvAgentKindToken)
+}
+
 // Caller names what runs this process when it is not the operator's own
 // terminal, for what it leaves on record (the author of a task it adds):
 // "workflow:<execution id>" for a process a workflow node started, "chat" for

@@ -14,20 +14,44 @@ import (
 	"github.com/monoes/mono-agent/internal/orgsign"
 )
 
-// cliCoder is the real coderCLI: this binary, with every agent-context
-// variable removed from the child's env (coderAgentEnv). The request came
-// from the person's browser, so a bridge that happens to run under an
-// agent's shell must not make it an agent's request.
+// cliCoder is the real coderCLI: this binary, never with the bridge's agent
+// markers. Every command a coder.* request runs (Run) is without
+// coderAgentEnv: the request came from the person's browser, so a bridge
+// that happens to run under an agent's shell must not make it an agent's
+// request. A coder turn (Start: coder.send, which only runs after the
+// desktop-started check) is also without the run markers (coderTurnEnv): a
+// bridge started from a chat or a workflow run must not make the person's
+// own follow-up a run's turn, which the coder-turn gate refuses. The bridge
+// itself keeps its environment.
 type cliCoder struct{ chat cliChatBackend }
 
-// coderAgentEnv is every variable the `browser` commands' agent detector
-// reads: browserctl.AgentContextEnv, which this package can't import
-// (browserctl imports it). A test holds the two lists equal.
+// coderAgentEnv is browserctl.AgentContextEnv (the agent markers), and
+// coderTurnEnv is operator.MarkerEnv (those plus the run markers and the
+// agent kind): this package can import neither (both import it), and tests
+// hold each copy equal to its source.
 func coderAgentEnv() []string {
 	return append(orgsign.AgentContextMarkers(), hilsend.EnvAgentContext, "MONOAGENT_ACTOR")
 }
 
-func (c *cliCoder) command(ctx context.Context, stdin string, args []string) (*exec.Cmd, error) {
+func coderTurnEnv() []string {
+	return append(coderAgentEnv(),
+		"MONOAGENT_WORKFLOW_RUN", "MONOAGENT_AI_CALLER", "MONOAGENT_AGENT_KIND", "MONOAGENT_AGENT_KIND_TOKEN")
+}
+
+// without is env minus the variables named in drop.
+func without(env, drop []string) []string {
+	out := make([]string, 0, len(env))
+	for _, kv := range env {
+		if k, _, _ := strings.Cut(kv, "="); !slices.Contains(drop, k) {
+			out = append(out, kv)
+		}
+	}
+	return out
+}
+
+// command builds the child: a turn's without coderTurnEnv, any other
+// without coderAgentEnv.
+func (c *cliCoder) command(ctx context.Context, stdin string, args []string, turn bool) (*exec.Cmd, error) {
 	bin, err := c.chat.binary()
 	if err != nil {
 		return nil, err
@@ -35,17 +59,16 @@ func (c *cliCoder) command(ctx context.Context, stdin string, args []string) (*e
 	cmd := exec.CommandContext(ctx, bin, args...)
 	cmd.WaitDelay = monomindWaitDelay
 	cmd.Stdin = strings.NewReader(stdin)
-	markers := coderAgentEnv()
-	for _, kv := range os.Environ() {
-		if k, _, _ := strings.Cut(kv, "="); !slices.Contains(markers, k) {
-			cmd.Env = append(cmd.Env, kv)
-		}
+	drop := coderAgentEnv()
+	if turn {
+		drop = coderTurnEnv()
 	}
+	cmd.Env = without(os.Environ(), drop)
 	return cmd, nil
 }
 
 func (c *cliCoder) Run(ctx context.Context, stdin string, args ...string) ([]byte, error) {
-	cmd, err := c.command(ctx, stdin, args)
+	cmd, err := c.command(ctx, stdin, args, false)
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +92,7 @@ func (p *execProc) Stdout() io.Reader { return p.out }
 func (p *execProc) Wait() error       { return p.cmd.Wait() }
 
 func (c *cliCoder) Start(ctx context.Context, stdin string, args ...string) (coderProc, error) {
-	cmd, err := c.command(ctx, stdin, args)
+	cmd, err := c.command(ctx, stdin, args, true)
 	if err != nil {
 		return nil, err
 	}
