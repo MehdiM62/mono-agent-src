@@ -22,7 +22,7 @@ var agentsAllowStdinIsTerminal = stdinIsTerminal
 
 // taskCallerDeps is the part of taskDeps that needs no globalConfig: who the caller is (from
 // this process's environment) and the CLI's errors.
-var taskCallerDeps = taskcli.Deps{Getenv: os.Getenv, NotOperator: operator.Refusal, NotFound: errNotFound, InvalidInput: errInvalidInput}
+var taskCallerDeps = taskcli.Deps{Getenv: os.Getenv, NotOperator: operator.Refusal, AddedBy: operator.Caller, NotFound: errNotFound, InvalidInput: errInvalidInput}
 
 func taskDeps(cfg *globalConfig) taskcli.Deps {
 	d := taskCallerDeps

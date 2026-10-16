@@ -8,10 +8,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/monoes/mono-agent/internal/browserctl"
 	"github.com/monoes/mono-agent/internal/hilsend"
 	"github.com/monoes/mono-agent/internal/orgsign"
 	"github.com/monoes/mono-agent/internal/profiledir"
 	"github.com/monoes/mono-agent/internal/storage"
+	"github.com/monoes/mono-agent/internal/workflow"
 )
 
 // sendEnv is a migrated DB under a scratch HOME. The process starts as the
@@ -25,7 +27,7 @@ func sendEnv(t *testing.T) *globalConfig {
 
 func asOperatorProcess(t *testing.T) {
 	t.Helper()
-	for _, k := range append(orgsign.AgentContextMarkers(), hilsend.EnvAgentContext, "MONOAGENT_ACTOR",
+	for _, k := range append(orgsign.AgentContextMarkers(), hilsend.EnvAgentContext, "MONOAGENT_ACTOR", browserctl.EnvAICaller, workflow.EnvWorkflowRun,
 		hilsend.EnvApprovalID, hilsend.EnvApprovalProof, hilsend.EnvConversation, hilsend.EnvAgentRole, hilsend.EnvAgentID) {
 		t.Setenv(k, "")
 	}
@@ -290,6 +292,23 @@ func TestPublicationRegisterFromAgentNeedsApproval(t *testing.T) {
 	asOperatorProcess(t)
 	if err := register(); err != nil {
 		t.Fatalf("operator register: %v", err)
+	}
+}
+
+// The chat's runs and what a workflow node starts are not the operator either,
+// whatever agent markers they lack: a publication they register needs an
+// approved send too (C10).
+func TestPublicationRegisterFromAChatOrWorkflowRunNeedsApproval(t *testing.T) {
+	cfg := sendEnv(t)
+	entry := `{"platform":"x","kind":"post","body":"hello","remote_id":"1","published_at":"2026-10-13T10:00:00Z"}`
+	for _, env := range [][2]string{{browserctl.EnvAICaller, "chat"}, {workflow.EnvWorkflowRun, "exec-7"}} {
+		t.Setenv(env[0], env[1])
+		cmd := newPublicationCmd(cfg)
+		cmd.SetIn(strings.NewReader(entry))
+		if _, err := runSendCLI(t, cfg, cmd, "register", "--stdin-json"); err == nil || !strings.Contains(err.Error(), "needs an approved send") {
+			t.Errorf("register with %s set: %v", env[0], err)
+		}
+		t.Setenv(env[0], "")
 	}
 }
 

@@ -156,7 +156,7 @@ under data_property_name (default "data").`,
 }`,
 		Inputs:  "none for a command; for resource file, one transfer per input item",
 		Outputs: "command: stdout, stderr, exit_code; file upload: success, path, file_size; file download: the input item plus file_name, mime_type, file_size, path and the file in binary_property",
-		Notes:   `resource "file" transfers files over SFTP (n8n's SSH file resource): operation "upload" sends each input item's binary_property (default "data"; bytes or a base64 field) into the remote directory path, named file_name, else the item's file_name, else the property name; operation "download" reads the remote file path into binary_property. A leading ~/ in path is the login user's home.`,
+		Notes:   `resource "file" transfers files over SFTP (n8n's SSH file resource): operation "upload" sends each input item's binary_property (default "data"; bytes or a base64 field) into the remote directory path, named file_name, else the item's file_name, else the property name; operation "download" reads the remote file path into binary_property. A leading ~/ in path is the login user's home. A command runs as ` + "`export MONOAGENT_WORKFLOW_RUN='<execution id>'; <command>`" + ` (the variable is also requested, for an sshd whose AcceptEnv allows it): what a workflow runs is never the operator, there either, so the remote shell must take a POSIX export.`,
 	},
 }
 

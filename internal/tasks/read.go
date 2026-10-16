@@ -115,6 +115,9 @@ func (s *Store) queryTasks(ctx context.Context, x dbx, q string, args ...any) ([
 	if err := s.attachLast(ctx, x, out); err != nil {
 		return nil, err
 	}
+	if err := s.attachAuthors(ctx, x, out); err != nil {
+		return nil, err
+	}
 	return out, nil
 }
 

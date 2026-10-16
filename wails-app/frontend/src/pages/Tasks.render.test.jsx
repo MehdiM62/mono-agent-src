@@ -209,6 +209,16 @@ describe('Tasks page', () => {
       expect(within(screen.getByText('Task 8').closest('[data-task-id]')).getByTestId('tag')).toHaveTextContent('Result')
     })
 
+    it('names who added an agent task on its card', async () => {
+      api.board.mockResolvedValue({ rev: 1, counts: {}, tasks: {
+        inbox: [card(9, { source: { kind: 'agent' }, author: 'workflow:exec-7' }), card(10, { source: { kind: 'agent' }, author: 'chat' })],
+      } })
+      render(<Tasks />)
+      await screen.findByText('Task 9')
+      expect(within(screen.getByText('Task 9').closest('[data-task-id]')).getByText('workflow:exec-7')).toBeInTheDocument()
+      expect(within(screen.getByText('Task 10').closest('[data-task-id]')).getByText('chat')).toBeInTheDocument()
+    })
+
     it('says a lease that ended, in Spanish too', async () => {
       const until = new Date(Date.now() - 4 * 60000 - 5000).toISOString()
       api.board.mockResolvedValue({ rev: 1, counts: {}, tasks: { in_progress: [card(6, { claim: { by: 'bot', until } })] } })

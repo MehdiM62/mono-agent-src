@@ -241,13 +241,14 @@ export function hostOf(url) {
 
 // sourceChip says how a card shows where it came from (spec §10): kind picks
 // the icon (globe, app window, terminal, spark, board); text is the domain
-// for Chrome or the app's name for the OS menu, '' for the kind's own word.
+// for Chrome, the app's name for the OS menu or who added an agent's task (an
+// agent's name, chat, workflow:<id>, agent:<kind>), '' for the kind's own word.
 export function sourceChip(t) {
   const s = t.source || {}
   switch (s.kind) {
     case 'chrome': return { kind: 'chrome', text: hostOf(s.url) || s.title || '' }
     case 'os': return { kind: 'os', text: s.app || '' }
-    case 'agent': return { kind: 'agent', text: '' }
+    case 'agent': return { kind: 'agent', text: t.author || '' }
     case 'app': return { kind: 'app', text: '' }
     default: return { kind: 'cli', text: '' }
   }
