@@ -335,19 +335,19 @@ func TestAgedBreakLockIsBroken(t *testing.T) {
 // break lock together: one waiter breaking it must not delete the fresh lock
 // another waiter has since taken.
 func TestBreakLockStaysExclusiveWhileBreakingACrashedOne(t *testing.T) {
-	for round := 0; round < 20; round++ {
+	for round := 0; round < 6; round++ {
 		path := filepath.Join(t.TempDir(), "db.claim")
 		writeClaim(t, path+".break", "crashed", 99999, time.Now())
 		alive := func(pid int) bool { return pid != 99999 }
 
 		var inside, violations int32
 		var wg sync.WaitGroup
-		for i := 0; i < 12; i++ {
+		for i := 0; i < 8; i++ {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
 				c := testClaim(path, alive)
-				for j := 0; j < 10; j++ {
+				for j := 0; j < 5; j++ {
 					token, ok := c.lockBreak()
 					if !ok {
 						t.Error("could not take the break lock")

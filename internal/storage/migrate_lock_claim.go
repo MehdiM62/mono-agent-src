@@ -2,6 +2,7 @@ package storage
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -102,8 +103,8 @@ func (c *claimLock) breakIfStale() bool {
 
 // The break lock follows the claim's ownership discipline: its body carries
 // its owner's nonce ("nonce pid unixnano"), it is published atomically and
-// exclusively, and it is only ever removed after re-verifying the body that
-// was judged, so a waiter never deletes a live break lock it did not see.
+// exclusively, its owner removes it only if it is still the one it took, and
+// a crashed one is removed by exactly one waiter (see breakStaleBreakLock).
 
 // tryBreakLock takes the break lock and returns its token (the body that
 // identifies it). It does not wait. A break lock whose owner is dead or has
@@ -132,8 +133,36 @@ func (c *claimLock) breakStaleBreakLock(bl string) {
 	} else if info, serr := os.Stat(bl); serr == nil {
 		stale = time.Since(info.ModTime()) > c.breakAge
 	}
-	if stale {
-		c.removeIfMatches(bl, string(seen))
+	if !stale {
+		return
+	}
+	// Removing by name cannot be made safe: between judging the crashed
+	// lock and removing it, another waiter may have removed it and a third
+	// published a live one, which a by-name removal would delete. So the
+	// right to remove one particular crashed lock is itself claimed with an
+	// exclusive marker named for that lock's body. Exactly one waiter wins
+	// it; while it holds it nobody else may remove or replace the lock (a
+	// new lock can only appear once the old one is gone), so the removal is
+	// of exactly what was judged. Markers are kept, not removed, so a late
+	// waiter holding the same stale read cannot win again; they are swept
+	// once old.
+	sum := sha256.Sum256(seen)
+	marker := bl + "." + hex.EncodeToString(sum[:8]) + ".taken"
+	if publishExclusive(marker, "taken") != nil {
+		return
+	}
+	if again, err := os.ReadFile(bl); err == nil && string(again) == string(seen) {
+		_ = os.Remove(bl)
+	}
+	sweepMarkers(bl, 10*c.breakAge)
+}
+
+func sweepMarkers(bl string, olderThan time.Duration) {
+	old, _ := filepath.Glob(bl + ".*.taken")
+	for _, m := range old {
+		if info, err := os.Stat(m); err == nil && time.Since(info.ModTime()) > olderThan {
+			_ = os.Remove(m)
+		}
 	}
 }
 
