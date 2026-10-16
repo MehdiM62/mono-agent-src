@@ -18,6 +18,7 @@ import (
 	"github.com/monoes/mono-agent/internal/hilsend"
 	"github.com/monoes/mono-agent/internal/monomind"
 	"github.com/monoes/mono-agent/internal/profilectx"
+	"github.com/monoes/mono-agent/internal/workflow"
 )
 
 // coderTurn is one full-access turn: the agent runs as a full session of
@@ -78,6 +79,9 @@ func dropKiloOptions(opts *monomind.ExecOptions) string {
 // runCoderTurn runs t through monomind with full access. journal is nil for
 // a plain `chat --mode coder` turn, which prints raw events instead.
 func runCoderTurn(cmd *cobra.Command, cfg *Deps, journal *turnJournal, t coderTurn) error {
+	if err := refuseCoderFromRuns(); err != nil {
+		return err
+	}
 	ctx := cmd.Context()
 	db, err := cfg.OpenDB()
 	if err != nil {
@@ -169,6 +173,9 @@ func runCoderTurn(cmd *cobra.Command, cfg *Deps, journal *turnJournal, t coderTu
 // runPlainCoderTurn is `chat --mode coder`: one unjournaled turn in the
 // folder c picks, with the --attach files copied into it.
 func runPlainCoderTurn(cmd *cobra.Command, cfg *Deps, c coderFolderChoice, t coderTurn, attach []string) error {
+	if err := refuseCoderFromRuns(); err != nil {
+		return err // before the folder is set up and the files copied
+	}
 	src, err := attachmentSources(attach)
 	if err != nil {
 		return err
@@ -294,4 +301,19 @@ func agentSendEnv(journal *turnJournal, role, agentID string) map[string]string 
 		env[hilsend.EnvConversation] = journal.conversationID
 	}
 	return env
+}
+
+// refuseCoderFromRuns refuses a coder turn that a workflow's process or the
+// chat's runs start (workflow.EnvWorkflowRun, browserctl.EnvAICaller): a
+// coder turn has full access to this computer, so a workflow a chat or an
+// org built must not get one. An agent's shell, which has full access
+// already, and the app's own turns are not refused.
+func refuseCoderFromRuns() error {
+	for _, m := range [][2]string{{workflow.EnvWorkflowRun, "a workflow run"}, {browserctl.EnvAICaller, "the chat"}} {
+		if strings.TrimSpace(os.Getenv(m[0])) != "" {
+			return &coderError{code: "operator_only", err: &clicore.Error{Code: 3, Msg: fmt.Sprintf(
+				"%s is set, so %s is starting this coder turn: a coder turn has full access to this computer; start coder chats from the app or your own terminal", m[0], m[1])}}
+		}
+	}
+	return nil
 }

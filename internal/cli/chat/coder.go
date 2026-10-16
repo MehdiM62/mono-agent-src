@@ -235,7 +235,8 @@ func newCoderCmd(cfg *Deps) *cobra.Command {
 			"read or change any file your user can, with no approval prompts, and it loads your normal " +
 			"setup for that agent (its instructions files, skills, hooks, MCP servers). It is off until " +
 			"enabled here. Web pages and files in the folder can carry instructions that steer it, so " +
-			"only point it at folders you trust.",
+			"only point it at folders you trust. A workflow's processes and the chat's runs can't start a " +
+			"coder turn: start coder chats from the app or your own terminal.",
 	}
 	cmd.AddCommand(newCoderStatusCmd(cfg), newCoderEnableCmd(cfg), newCoderDisableCmd(cfg), newCoderSetCmd(cfg), newCoderWorkspaceCmd(cfg), newCoderStopBackgroundCmd(cfg),
 		newCoderQueueCmd(cfg), newCoderProjectsCmd(cfg), newCoderListCmd(cfg))
