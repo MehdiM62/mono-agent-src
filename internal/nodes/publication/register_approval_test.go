@@ -177,6 +177,14 @@ func TestRegisterSaysHowToApproveAChangedWorkflow(t *testing.T) {
 		!strings.Contains(err.Error(), "`monoagentcli --profile default workflow activate wf-parent`") {
 		t.Errorf("called by an unapproved workflow: %v", err)
 	}
+	// The chat ran the unapproved caller: approving it would not make this
+	// run the user's, so the text stays the chat's.
+	byChat := workflow.WithTrigger(ctx, workflow.TriggerTypeExecuteWorkflow, map[string]interface{}{
+		workflow.AICallerKey: "chat", workflow.UnapprovedCallerKey: "wf-parent"})
+	if _, err = (&RegisterNode{}).Execute(byChat, in, config); err == nil || strings.Contains(err.Error(), "workflow activate") ||
+		strings.Contains(err.Error(), "called this one") {
+		t.Errorf("called by an unapproved workflow the chat ran: %v", err)
+	}
 	unnamed := workflow.WithTrigger(ctx, workflow.TriggerTypeExecuteWorkflow, map[string]interface{}{workflow.AICallerKey: workflow.UnapprovedWorkflowCaller})
 	if _, err = (&RegisterNode{}).Execute(unnamed, in, config); err == nil || !strings.Contains(err.Error(), "the workflow that called this one changed since") ||
 		strings.Contains(err.Error(), "workflow activate") {
