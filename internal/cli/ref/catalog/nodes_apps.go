@@ -5,7 +5,7 @@ package catalog
 
 // nodeDocsPublication is the "publication" category of the node catalogue.
 var nodeDocsPublication = []nodeDoc{
-	{Type: "publication.register", Category: "publication", Short: "Record a successful publication from a custom publisher", Description: "Registers already-published content in this profile; it does not publish. Use after custom HTTP/code/shell publishers. Built-in publishers record automatically.", Config: `{ "platform": "my-blog", "kind": "article", "body": "{{ $json.text }}", "url": "{{ $json.url }}" }`, Inputs: "items with publication fields (error/success:false items are skipped)", Outputs: "registered publication records", Notes: "Use a stable idempotency_key to retry registration safely. See ref publication."},
+	{Type: "publication.register", Category: "publication", Short: "Record a successful publication from a custom publisher", Description: "Registers already-published content in this profile; it does not publish. Use after custom HTTP/code/shell publishers. Built-in publishers record automatically.", Config: `{ "platform": "my-blog", "kind": "article", "body": "{{ $json.text }}", "url": "{{ $json.url }}" }`, Inputs: "items with publication fields (error/success:false items are skipped)", Outputs: "registered publication records", Notes: "Use a stable idempotency_key to retry registration safely. In a run an AI started (the chat's or an agent's workflow run, the org side), while the user's approval of sends is on, set approval to the id of the send the user approved and that was sent, or the node fails. See ref publication."},
 }
 
 // nodeDocsApplications is the "applications" category of the node catalogue.

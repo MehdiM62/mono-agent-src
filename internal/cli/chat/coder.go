@@ -294,7 +294,10 @@ func newCoderStatusCmd(cfg *Deps) *cobra.Command {
 
 func newCoderEnableCmd(cfg *Deps) *cobra.Command {
 	var yes bool
-	c := coderSettingsCmd(cfg, "enable", "Enable coder mode (full-access chats)", func(_ *cobra.Command, s *coderSettings) error {
+	c := coderSettingsCmd(cfg, "enable", "Enable coder mode (full-access chats; operator only)", func(_ *cobra.Command, s *coderSettings) error {
+		if err := cfg.RequireOperator("enable coder mode, which runs chats with full access to this computer"); err != nil {
+			return err
+		}
 		if !yes {
 			return clicore.InvalidInput("coder mode gives the agent full access to this computer; pass --yes-i-understand to enable it")
 		}

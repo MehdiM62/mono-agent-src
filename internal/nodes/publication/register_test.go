@@ -12,6 +12,7 @@ import (
 )
 
 func TestRegisterBatchUsesEachItemAndScopesProfile(t *testing.T) {
+	asTheUsersRun(t)
 	db, err := storage.NewDatabase(filepath.Join(t.TempDir(), "db.sqlite"))
 	if err != nil {
 		t.Fatal(err)
@@ -69,6 +70,7 @@ func TestRegisterRequiresDatabase(t *testing.T) {
 }
 
 func TestRegisterPreservesUpstreamTemplateText(t *testing.T) {
+	asTheUsersRun(t)
 	db, err := storage.NewDatabase(filepath.Join(t.TempDir(), "db.sqlite"))
 	if err != nil {
 		t.Fatal(err)

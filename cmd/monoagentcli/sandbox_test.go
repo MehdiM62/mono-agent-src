@@ -23,10 +23,12 @@ func withFallbackCaps(t *testing.T, caps ...string) {
 	t.Cleanup(func() { capabilityProbe = old })
 }
 
-// newSandboxTestDB makes a migrated database under a throwaway HOME.
+// newSandboxTestDB makes a migrated database under a throwaway HOME, for
+// the operator's own terminal.
 func newSandboxTestDB(t *testing.T) string {
 	t.Helper()
 	t.Setenv("HOME", t.TempDir())
+	asOperatorProcess(t) // setting the fallback is the operator's
 	dbPath := filepath.Join(t.TempDir(), "sandbox-test.db")
 	db, err := storage.NewDatabase(dbPath)
 	if err != nil {

@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/monoes/mono-agent/internal/hilsend"
+	"github.com/monoes/mono-agent/internal/operator"
 	"github.com/monoes/mono-agent/internal/publication"
 	"github.com/monoes/mono-agent/internal/vault"
 	"github.com/monoes/mono-agent/internal/workflow"
@@ -33,6 +35,10 @@ func (*RegisterNode) Execute(ctx context.Context, in workflow.NodeInput, config 
 		return nil, fmt.Errorf("publication.register: ran without a profile: %w", perr)
 	}
 	store := publication.NewStore(db, profile)
+	// A run an AI started is not the operator's: what it registers belongs to
+	// a send the user approved and that was sent, named by approval, as
+	// `publication register` asks of an agent.
+	aiRun := operator.AIRun(ctx)
 	items := in.Items
 	if len(items) == 0 {
 		items = []workflow.Item{workflow.NewItem(nil)}
@@ -48,6 +54,16 @@ func (*RegisterNode) Execute(ctx context.Context, in workflow.NodeInput, config 
 		fields := map[string]interface{}{}
 		expressions := workflow.NewExpressionEngine()
 		exprCtx := workflow.ExpressionContext{JSON: item.JSON, Node: in.NodeOutputs, WorkflowID: in.WorkflowID, ExecutionID: in.ExecutionID}
+		if aiRun {
+			approval, _ := config["approval"].(string)
+			approval, err := expressions.EvaluateString(approval, exprCtx)
+			if err != nil {
+				return nil, fmt.Errorf("publication.register item %d field approval: %w", i, err)
+			}
+			if err := hilsend.PublicationApproved(ctx, db, profile, approval); err != nil {
+				return nil, fmt.Errorf("publication.register item %d: %w (set approval to its id)", i, err)
+			}
+		}
 		for key := range publication.EntrySchema() {
 			value, exists := item.JSON[key]
 			fromConfig := false

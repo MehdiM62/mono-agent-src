@@ -91,10 +91,6 @@ var hilSendRunner = func(cfg *globalConfig) hilsend.Runner {
 	}
 }
 
-func hilSendStore(cfg *globalConfig, db *sql.DB) hilsend.Store {
-	return hilsend.Store{DB: db, Profile: cfg.ProfileID}
-}
-
 // requireOperator refuses whatever is not the operator's own terminal: it
 // may prepare a send, never decide one, nor approve what agents asked for.
 func requireOperator(what string) error {
@@ -124,13 +120,8 @@ func requirePublicationApproval(cfg *globalConfig, approvalID string) error {
 		return nil
 	}
 	return withImageDB(cfg, func(db *sql.DB) error {
-		if !hilsend.Enabled(db) {
+		if hilsend.PublicationApproved(context.Background(), db, cfg.ProfileID, approvalID) == nil {
 			return nil
-		}
-		if approvalID != "" {
-			if p, err := hilSendStore(cfg, db).Get(context.Background(), approvalID); err == nil && p.State == hilsend.StateSent {
-				return nil
-			}
 		}
 		return operatorOnlyError("registering a publication from an agent needs an approved send: prepare the send (it is queued for approval, and registers itself once approved), or pass --approval <hil id> of a send that was approved and sent")
 	})
