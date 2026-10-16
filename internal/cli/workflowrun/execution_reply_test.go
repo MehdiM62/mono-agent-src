@@ -19,7 +19,8 @@ func TestWorkflowExecutionHidesARepliesLinksFromAnAgent(t *testing.T) {
 		('e-wait','w1','WAITING','trigger.manual','default','2026-09-26 10:00:00');
 		INSERT INTO wait_replies (execution_id, node_id, run_index, workflow_id, token, kind, spec) VALUES
 		('e-wait','ask',0,'w1','tokAsk','approval','{"kind":"approval","approval_type":"double","outbound":true}'),
-		('e-wait','wait',0,'w1','tokWait','webhook','{"kind":"webhook","execution_url":true}')`); err != nil {
+		('e-wait','wait',0,'w1','tokWait','webhook','{"kind":"webhook","execution_url":true,"outbound":false}'),
+		('e-wait','old',0,'w1','tokOld','approval','{"kind":"approval"}')`); err != nil {
 		t.Fatal(err)
 	}
 	asOperator := func() {
@@ -38,8 +39,10 @@ func TestWorkflowExecutionHidesARepliesLinksFromAnAgent(t *testing.T) {
 		if err := json.Unmarshal([]byte(out), &d); err != nil {
 			t.Fatalf("%v\n%s", err, out)
 		}
-		if strings.Contains(out, "tokAsk") != (operator.Marker() == "") {
-			t.Errorf("the send's reply token in the output: %v, operator: %v\n%s", strings.Contains(out, "tokAsk"), operator.Marker() == "", out)
+		for _, tok := range []string{"tokAsk", "tokOld"} {
+			if strings.Contains(out, tok) != (operator.Marker() == "") {
+				t.Errorf("%s in the output: %v, operator: %v\n%s", tok, strings.Contains(out, tok), operator.Marker() == "", out)
+			}
 		}
 		return d
 	}
@@ -48,8 +51,9 @@ func TestWorkflowExecutionHidesARepliesLinksFromAnAgent(t *testing.T) {
 		asOperator()
 		t.Setenv(m[0], m[1])
 		d := detail()
-		if len(d.Waiting) != 2 || d.Waiting[0].URL != "" || d.Waiting[0].Links != nil || !d.Waiting[0].Outbound ||
-			!strings.Contains(d.Waiting[0].Note, "message to a person") || d.Waiting[1].URL != "http://127.0.0.1:19721/reply/tokWait" {
+		if len(d.Waiting) != 3 || d.Waiting[0].URL != "" || d.Waiting[0].Links != nil || !d.Waiting[0].Outbound ||
+			!strings.Contains(d.Waiting[0].Note, "message to a person") || d.Waiting[1].URL != "http://127.0.0.1:19721/reply/tokWait" ||
+			d.Waiting[2].URL != "" || !d.Waiting[2].Outbound {
 			t.Errorf("%s set: waiting_for = %+v", m[0], d.Waiting)
 		}
 		cfg.JSONOutput = false
@@ -61,7 +65,8 @@ func TestWorkflowExecutionHidesARepliesLinksFromAnAgent(t *testing.T) {
 
 	asOperator()
 	d := detail()
-	if len(d.Waiting) != 2 || d.Waiting[0].URL != "http://127.0.0.1:19721/reply/tokAsk" || len(d.Waiting[0].Links) != 2 || d.Waiting[0].Note != "" {
+	if len(d.Waiting) != 3 || d.Waiting[0].URL != "http://127.0.0.1:19721/reply/tokAsk" || len(d.Waiting[0].Links) != 2 || d.Waiting[0].Note != "" ||
+		d.Waiting[2].URL != "http://127.0.0.1:19721/reply/tokOld" {
 		t.Errorf("the user's terminal: waiting_for = %+v", d.Waiting)
 	}
 }

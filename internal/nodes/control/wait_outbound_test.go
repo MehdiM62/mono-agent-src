@@ -65,7 +65,10 @@ func replyMarked(t *testing.T, r *commsRig) bool {
 	if err := json.Unmarshal([]byte(spec), &s); err != nil {
 		t.Fatal(err)
 	}
-	return s.Outbound
+	if s.Outbound == nil {
+		t.Fatalf("the reply's decision was not recorded: %s", spec)
+	}
+	return *s.Outbound
 }
 
 // A wait answered through a reply link (core.wait's resume URL here) in

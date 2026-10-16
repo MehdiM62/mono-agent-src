@@ -12,9 +12,10 @@ import (
 
 // A workflow Human-in-Loop item whose approval lets a message to a person go
 // out (commsync.OutboundHIL: an email, a DM, a comment, a post, a connect or a
-// publish after the node) is the operator's to decide, like a send: an agent,
-// the chat's runs and a workflow's own processes are refused, and the item
-// stays pending. Every other workflow item stays open to them.
+// publish after the node), or one queued before that was recorded, is the
+// operator's to decide, like a send: an agent, the chat's runs and a
+// workflow's own processes are refused, and the item stays pending. Every
+// other workflow item stays open to them.
 
 // requireOperatorIfOutbound refuses all but the operator when id is such an
 // item; an item that isn't there is left to the decision to report.
@@ -33,11 +34,7 @@ func (d Deps) requireOperatorIfOutbound(cmd *cobra.Command, id string) error {
 	if err != nil {
 		return fmt.Errorf("reading HIL item %s: %w", id, err)
 	}
-	outbound, err := commsync.OutboundHIL(cmd.Context(), db.DB, id, nc)
-	if err != nil {
-		return err
-	}
-	if outbound {
+	if commsync.OutboundHIL(nc) {
 		return d.RequireOperator("approve or reject a workflow step that sends a message to someone")
 	}
 	return nil

@@ -26,7 +26,7 @@ func TestHilRoutesRefuseWhatOnlyTheOperatorDecides(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, row := range [][2]string{{"send-1", `{"kind":"send"}`}, {"node-1", `{}`}, {"node-2", `{}`}} {
+	for _, row := range [][2]string{{"send-1", `{"kind":"send"}`}, {"node-1", `{"outbound":false}`}, {"node-2", `{"outbound":false}`}} {
 		if _, err := db.Exec(`INSERT INTO hil_pending (id, execution_id, workflow_id, node_id, node_name, status, node_config, profile_id)
 			VALUES (?, 'ex-1', 'wf-1', 'n', 'Review', 'pending', ?, 'default')`, row[0], row[1]); err != nil {
 			t.Fatal(err)
