@@ -2567,6 +2567,14 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
   a run the MCP `workflow_run` tool started that a daemon later resumes. A
   workflow the chat, an agent or another workflow wrote or changed since is
   an AI run whatever starts it.
+- **No programs from an unapproved workflow.** Such a workflow's steps that
+  run a program on this computer (`system.execute_command`, `core.code` in
+  Python, `mcp.call` with a stdio server, `http.ssh` to this machine) fail
+  with "runs a program on this computer" and how to approve it: a program
+  can do anything the user can, the approvals only they give included. The
+  MCP `node_run` tool runs nodes the same way, since an AI wrote their
+  config. JavaScript in `core.code` (goja) and `mcp.call` over HTTP still
+  run; so does every step of a workflow the user approved.
 - **Honest limit.** A full-access agent can read the bridge token and talk
   to the bridge directly, so the origin policy and the submit guard guard
   against mistakes and instructions a page plants, not against a determined
