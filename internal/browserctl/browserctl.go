@@ -114,10 +114,10 @@ func Open(o Options) (*Session, error) {
 	if o.Permissions != nil {
 		perms = *o.Permissions
 	}
-	policy := perms.PolicyFor(AgentKind())
+	policy := perms.PolicyForCaller(AgentCaller())
 	policy.Allowlist = append(policy.Allowlist, o.Allowlist...)
 	if policy.Agent && policy.level() == LevelOff {
-		return nil, &BrowserOffError{Kind: policy.Kind} // no command at all, a listing included
+		return nil, &BrowserOffError{Kind: policy.Kind, Declared: policy.Declared} // no command at all, a listing included
 	}
 	s := &Session{
 		sender:  sender,

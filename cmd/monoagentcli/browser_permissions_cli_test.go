@@ -165,3 +165,26 @@ func TestBrowserPermissionsSiteForms(t *testing.T) {
 		t.Fatalf("an allow on a bare host: %v", err)
 	}
 }
+
+// An agent that says it is an org role but has no token is other at the
+// stricter of org's level and other's: with org off, it gets no browser.
+func TestBrowserUnprovenKindFailsClosed(t *testing.T) {
+	bt := newBrowserTest(t, true)
+	t.Setenv(browserctl.EnvAgentKind, browserctl.KindOrg)
+	t.Setenv(browserctl.EnvAgentKindToken, "")
+	p := browserctl.DefaultPermissions()
+	p.SetLevel(browserctl.KindOrg, browserctl.LevelOff)
+	if err := browserctl.SavePermissions(bt.db().DB, p); err != nil {
+		t.Fatal(err)
+	}
+	if you := bt.runJSON("permissions")["you"].(map[string]any); you["kind"] != "other" || you["level"] != "off" || you["declared"] != "org" {
+		t.Fatalf("you = %v", you)
+	}
+	for _, args := range [][]string{{"tabs"}, {"browsers"}, {"open", "http://localhost:3000/"}} {
+		_, err := bt.run(args...)
+		f, _ := err.(jsonErrorFields)
+		if jsonCode(err) != "browser_off" || f == nil || f.JSONErrorFields()["declared"] != "org" {
+			t.Fatalf("%v: %v (%s)", args, err, jsonCode(err))
+		}
+	}
+}
