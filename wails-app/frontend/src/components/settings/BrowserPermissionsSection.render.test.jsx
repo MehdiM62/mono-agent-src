@@ -27,18 +27,24 @@ describe('BrowserPermissionsSection', () => {
   it('shows a level picker per agent kind with the catalog labels and descriptions, and marks defaults', async () => {
     render(<BrowserPermissionsSection />)
     expect(await screen.findByText('Coder chats')).toBeInTheDocument()
-    expect(['coder', 'org', 'chat', 'other'].map(k => within(kindRow(k)).getByRole('combobox').value)).toEqual(['dev', 'full', 'full', 'ask'])
+    expect(['coder', 'org', 'chat', 'other'].map(k => within(kindRow(k)).getByRole('combobox').value)).toEqual(['dev', 'dev', 'full', 'ask'])
     // The picker shows the labels; each description is the option's title.
     const options = within(kindRow('coder')).getAllByRole('option').map(o => [o.textContent, o.title])
     expect(options).toEqual([
-      ['⚠ Full access, no approvals', 'Any site; form submits go through without asking you.'],
+      ['⚠ Full access, no approvals', "Any site; form submits go through without asking you, and scripts run on any page, where they can read that site's cookies and storage."],
       ['Full access', 'Any site; a form submit on a real site waits for your approval.'],
       ['Dev pages + allowed sites', 'Localhost and dev pages, plus sites you allow; submits on real sites wait for your approval.'],
       ['Ask for new sites', 'Like dev pages + allowed sites, but a new site asks you first instead of being refused.'],
       ['Off', "This kind of agent can't use the browser."],
     ])
     expect(within(kindRow('coder')).getByText('Localhost and dev pages, plus sites you allow; submits on real sites wait for your approval.')).toBeInTheDocument()
-    expect(screen.getByText(/Allow opens a site to agents at Dev pages \+ allowed sites or Ask for new sites/)).toBeInTheDocument()
+    // Block covers subdomains on any scheme and port; allow is exact (plan C9).
+    const rulesNote = screen.getByTestId('site-rules-note')
+    expect(rulesNote).toHaveTextContent('Block keeps every agent off a site and all its subdomains, on any scheme and port, whatever its level.')
+    expect(rulesNote).toHaveTextContent('Allow is exact (that scheme, host and port; write *.host for its subdomains) and opens the site to agents at Dev pages + allowed sites or Ask for new sites.')
+    // The kinds' limit, said plainly.
+    expect(screen.getByTestId('kind-token-note')).toHaveTextContent(
+      "MonoAgent tells coder chats and org roles apart by a token it gives the agents it starts. An agent that reads another process's environment could borrow that kind.")
     expect(within(kindRow('coder')).getByText('default')).toBeInTheDocument()
     expect(within(kindRow('other')).queryByText('default')).toBeNull()
     expect(screen.queryByTestId('permission-risk')).toBeNull()
@@ -55,6 +61,9 @@ describe('BrowserPermissionsSection', () => {
     const warning = await screen.findByTestId('permission-risk')
     expect(kindRow('coder')).toContainElement(warning)
     expect(warning).toHaveTextContent('riskiest level')
+    expect(warning).toHaveTextContent('nothing asks you first, and a page these agents visit can steer them')
+    // What the level exposes is the catalog's own description, shown above it.
+    expect(kindRow('coder')).toHaveTextContent("scripts run on any page, where they can read that site's cookies and storage")
   })
 
   it('lists site rules, adds one and removes one', async () => {
