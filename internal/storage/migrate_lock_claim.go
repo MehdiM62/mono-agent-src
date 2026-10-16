@@ -19,10 +19,9 @@ import (
 //
 // A claim is stale when its holder's PID is not alive, or when it is older
 // than maxAge (guards against PID reuse and unparseable claims). A stale
-// claim is broken by renaming it to a unique name and checking the renamed
-// file is the one that was judged stale, so two waiters never both take
-// ownership, and a release only removes a claim that still carries the
-// releaser's own nonce.
+// claim is judged and removed under a short-lived break lock, so two waiters
+// never both take ownership, and a release only removes a claim that still
+// carries the releaser's own nonce.
 type claimLock struct {
 	path    string
 	alive   func(pid int) bool
@@ -72,28 +71,35 @@ func (c *claimLock) acquire() (string, error) {
 // breakIfStale removes the claim if it is stale and reports whether the
 // claim slot is now free to try again.
 func (c *claimLock) breakIfStale() bool {
+	// Only one waiter at a time may judge and remove a claim: otherwise a
+	// second waiter, having read the same stale claim, removes the fresh
+	// claim the first waiter's acquirer has since created. The break lock
+	// is itself an O_EXCL file, dropped if its breaker crashed.
+	bl := c.path + ".break"
+	h, err := os.OpenFile(bl, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	if err != nil {
+		if info, serr := os.Stat(bl); serr == nil && time.Since(info.ModTime()) > breakLockAge {
+			_ = os.Remove(bl)
+		}
+		return false
+	}
+	h.Close()
+	defer os.Remove(bl)
+
 	seen, err := os.ReadFile(c.path)
 	if err != nil {
-		// Vanished between create and read: just retry.
+		// Vanished since the failed create: just retry.
 		return errors.Is(err, os.ErrNotExist)
 	}
 	if !c.stale(string(seen)) {
 		return false
 	}
-	grave := c.path + ".stale." + newNonce()
-	if err := os.Rename(c.path, grave); err != nil {
-		return false
-	}
-	defer os.Remove(grave)
-	got, err := os.ReadFile(grave)
-	if err == nil && string(got) == string(seen) {
-		return true
-	}
-	// We moved a claim that was replaced after we read it: put it back if
-	// the slot is still free (Link fails if it is not).
-	_ = os.Link(grave, c.path)
-	return false
+	return os.Remove(c.path) == nil
 }
+
+// breakLockAge is how long a break lock may stand before its breaker is
+// presumed crashed; breaking takes microseconds.
+const breakLockAge = 30 * time.Second
 
 func (c *claimLock) stale(body string) bool {
 	f := strings.Fields(body)
