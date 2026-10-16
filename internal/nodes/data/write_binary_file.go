@@ -22,7 +22,7 @@ func (n *WriteBinaryFileNode) Execute(ctx context.Context, input workflow.NodeIn
 	if filePath == "" {
 		return nil, fmt.Errorf("data.write_binary_file: file_path is required")
 	}
-	filePath, err := fsconfine.Path(ctx, filePath)
+	filePath, err := fsconfine.WritePath(ctx, filePath)
 	if err != nil {
 		return nil, fmt.Errorf("data.write_binary_file: %w", err)
 	}

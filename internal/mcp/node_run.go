@@ -14,6 +14,7 @@ import (
 
 	"github.com/monoes/mono-agent/internal/connections"
 	"github.com/monoes/mono-agent/internal/hilsend"
+	"github.com/monoes/mono-agent/internal/profiledir"
 	"github.com/monoes/mono-agent/internal/publication"
 	"github.com/monoes/mono-agent/internal/vault"
 	"github.com/monoes/mono-agent/internal/workflow"
@@ -83,8 +84,9 @@ func toolNodeRun(ctx context.Context, s *Server, args json.RawMessage) (interfac
 	ctx = vault.ContextWithProfileID(vault.ContextWithDB(ctx, rt.db.DB), profileOf(ctx))
 	// An AI wrote this config, as it writes a workflow the user never
 	// approved: the node runs as in such a workflow (no programs on this
-	// computer, approvals for what needs the user's).
-	ctx = workflow.WithAIAuthored(ctx)
+	// computer, no hidden files in the user's home outside the project
+	// folder, approvals for what needs the user's).
+	ctx = workflow.WithUnapproved(ctx, profiledir.Root(rt.db.DB, profileOf(ctx)))
 	if queued, handled, gerr := workflow.RunExecGuard(ctx, a.Type, workflow.NodeInput{Items: items}, config); handled {
 		if gerr != nil {
 			return nil, fmt.Errorf("node %s failed: %w", a.Type, gerr)

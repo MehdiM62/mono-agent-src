@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/monoes/mono-agent/internal/fsconfine"
 	"github.com/monoes/mono-agent/internal/vault"
 )
 
@@ -32,6 +33,14 @@ func WithAIAuthored(ctx context.Context) context.Context {
 func AIAuthoredFrom(ctx context.Context) bool {
 	v, _ := ctx.Value(aiAuthoredKey{}).(bool)
 	return v
+}
+
+// WithUnapproved marks ctx as a run of a definition the operator never
+// approved (WithAIAuthored), and keeps its file writes out of hidden files
+// and folders in the user's home outside project, the profile's project
+// folder (fsconfine.GuardHiddenHome): such a file can run code later.
+func WithUnapproved(ctx context.Context, project string) context.Context {
+	return fsconfine.GuardHiddenHome(WithAIAuthored(ctx), project)
 }
 
 // ErrUnapprovedProgram is wrapped by RefuseUnapprovedProgram's refusal.
