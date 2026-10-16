@@ -3,6 +3,7 @@ package httpnodes
 import (
 	"context"
 	"errors"
+	"net"
 	"testing"
 	"time"
 
@@ -25,9 +26,9 @@ func TestSSHToThisComputerIsRefusedInAnUnapprovedWorkflow(t *testing.T) {
 		t.Fatalf("the refused step reached the server: %q", s.command)
 	case <-time.After(200 * time.Millisecond):
 	}
-	old := sshTargetIsLocal
-	t.Cleanup(func() { sshTargetIsLocal = old })
-	sshTargetIsLocal = func(context.Context, string) bool { return false }
+	old := sshAddrIsLocal
+	t.Cleanup(func() { sshAddrIsLocal = old })
+	sshAddrIsLocal = func(net.IP) bool { return false }
 	if _, err := (&SSHNode{}).Execute(ctx, in, cfg); err != nil {
 		t.Fatalf("another host: %v", err)
 	}

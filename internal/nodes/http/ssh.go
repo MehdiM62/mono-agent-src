@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -38,13 +39,6 @@ func (n *SSHNode) Execute(ctx context.Context, input workflow.NodeInput, config 
 	if username == "" {
 		return nil, fmt.Errorf("http.ssh: 'username' is required")
 	}
-	// ssh to this machine runs a program here, as a command step would.
-	if workflow.AIAuthoredFrom(ctx) && sshTargetIsLocal(ctx, host) {
-		if err := workflow.RefuseUnapprovedProgram(ctx, "http.ssh to this computer", input.WorkflowID); err != nil {
-			return nil, err
-		}
-	}
-
 	resource, _ := config["resource"].(string)
 	command, _ := config["command"].(string)
 	switch resource {
@@ -65,6 +59,26 @@ func (n *SSHNode) Execute(ctx context.Context, input workflow.NodeInput, config 
 		timeoutSecs = int(v)
 	}
 	timeout := time.Duration(timeoutSecs) * time.Second
+
+	// Connecting — resolving the host, the dial, the handshake
+	// (ClientConfig.Timeout covers only ssh.Dial), opening the session and
+	// its environment request — has one deadline, timeout_seconds from now,
+	// and ends when the node's context does; the command then has
+	// timeout_seconds of its own. The host is resolved once: whether it is
+	// this machine is decided on the addresses then dialled.
+	connectBy := time.Now().Add(timeout)
+	resolveCtx, endResolve := context.WithDeadline(ctx, connectBy)
+	target, err := resolveSSHTarget(resolveCtx, host)
+	endResolve()
+	if err != nil {
+		return nil, fmt.Errorf("http.ssh: dial failed: %w", err)
+	}
+	// ssh to this machine runs a program here, as a command step would.
+	if workflow.AIAuthoredFrom(ctx) && target.local {
+		if err := workflow.RefuseUnapprovedProgram(ctx, "http.ssh to this computer", input.WorkflowID); err != nil {
+			return nil, err
+		}
+	}
 
 	// Build auth methods
 	var authMethods []ssh.AuthMethod
@@ -119,15 +133,16 @@ func (n *SSHNode) Execute(ctx context.Context, input workflow.NodeInput, config 
 		Timeout:         timeout,
 	}
 
+	// The host key is checked against the host as configured (addr); the
+	// connection goes to an address resolveSSHTarget checked.
 	addr := fmt.Sprintf("%s:%d", host, port)
-
-	// Connecting — the dial, the handshake (ClientConfig.Timeout covers
-	// only ssh.Dial), opening the session and its environment request — has
-	// one deadline, timeout_seconds from now, and ends when the node's
-	// context does; the command then has timeout_seconds of its own.
-	connectBy := time.Now().Add(timeout)
 	dialer := &net.Dialer{Deadline: connectBy}
-	netConn, err := dialer.DialContext(ctx, "tcp", addr)
+	var netConn net.Conn
+	for _, a := range target.dial {
+		if netConn, err = dialer.DialContext(ctx, "tcp", net.JoinHostPort(a, strconv.Itoa(port))); err == nil {
+			break
+		}
+	}
 	if err != nil {
 		if ctx.Err() == nil && !time.Now().Before(connectBy) {
 			return nil, fmt.Errorf("http.ssh: timed out after %s connecting (dial)", timeout)
@@ -182,7 +197,7 @@ func (n *SSHNode) Execute(ctx context.Context, input workflow.NodeInput, config 
 		session.Close()
 		return nil, fmt.Errorf("http.ssh: timed out after %s waiting for the server to answer an environment request", timeout)
 	}
-	if exportsMarker(ctx, host) {
+	if exportsMarker(target) {
 		command = markedCommand(input.ExecutionID, command)
 	}
 
