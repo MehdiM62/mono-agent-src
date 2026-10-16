@@ -70,6 +70,12 @@ func SyncFileWorkflowsToSQL(ctx context.Context, db *sql.DB, dir string) ([]stri
 		if err := syncOneWorkflowToSQL(ctx, db, sqlStore, wf); err != nil {
 			continue
 		}
+		// A workflow that was only this file when approvals arrived is
+		// approved now that it has a row, if its definition is unchanged;
+		// a failure syncs it again on the next call.
+		if err := workflow.ApproveBackfilledFile(ctx, db, wf); err != nil {
+			continue
+		}
 		marker[name] = stamp
 		changed = true
 		synced = append(synced, wf.ID)

@@ -150,9 +150,9 @@ func RunExecution(
 	// A run of a definition the operator never approved is an AI run,
 	// whatever started it, and writes no hidden file in the user's home
 	// outside the profile's project folder (approvals.go).
-	if !operatorApproved(ctx, store, wf) {
+	if approved, err := operatorApproved(ctx, store, wf); !approved {
 		profile, _ := vault.ProfileIDFromContext(ctx)
-		ctx = WithUnapproved(ctx, profiledir.Root(vault.DBFromContext(ctx), profile))
+		ctx = WithUnapproved(withApprovalCheckError(ctx, err), profiledir.Root(vault.DBFromContext(ctx), profile))
 	}
 	r.ctx = ctx
 

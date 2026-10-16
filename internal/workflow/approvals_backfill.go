@@ -7,11 +7,17 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
 // approvalsBackfilledKey is the settings row that says backfillApprovals ran.
 const approvalsBackfilledKey = "workflow_approvals.backfilled"
+
+// approvalsBackfillFilePrefix keys the settings rows that keep, for a
+// workflow that was only a file at the backfill (no SQLite row to approve),
+// the hash of the definition it had then (ApproveBackfilledFile).
+const approvalsBackfillFilePrefix = "workflow_approvals.backfill_file:"
 
 // approvalsDir is where the CLI keeps workflow files (a variable so tests
 // can point it elsewhere); "" reads the default, ~/.monoagent/workflows.
@@ -25,7 +31,10 @@ var approvalsDir = ""
 // never saved through the store or never run, or whose file was edited by
 // hand, would otherwise have become an AI's. The definition is the one the
 // engine runs: the workflow's file when it has one, else its SQLite rows. A
-// failure leaves the step to the next open.
+// workflow only a file holds yet is approved when its file is first synced,
+// if it still has that definition then (ApproveBackfilledFile). A workflow
+// that can't be read is logged and left unapproved; a database failure
+// leaves the step to the next open.
 func BackfillApprovals(ctx context.Context, db *sql.DB) error {
 	var done string
 	if err := db.QueryRowContext(ctx, `SELECT value FROM settings WHERE key = ?`, approvalsBackfilledKey).Scan(&done); !errors.Is(err, sql.ErrNoRows) {
@@ -74,10 +83,13 @@ func approveCurrentDefinitions(ctx context.Context, db *sql.DB) error {
 	if err := rows.Err(); err != nil {
 		return err
 	}
+	hasRow := make(map[string]bool, len(ids))
 	for _, id := range ids {
+		hasRow[id] = true
 		wf, err := store.GetWorkflow(ctx, id)
 		if err != nil {
-			return err
+			log.Printf("workflow approvals: workflow %s can't be read, so it is not approved (save or activate it to approve it): %v", id, err)
+			continue
 		}
 		if wf == nil {
 			continue
@@ -86,5 +98,57 @@ func approveCurrentDefinitions(ctx context.Context, db *sql.DB) error {
 			return err
 		}
 	}
+	if files == nil {
+		return nil
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return err
+	}
+	for _, e := range entries {
+		name, ok := strings.CutSuffix(e.Name(), ".json")
+		if e.IsDir() || !ok {
+			continue
+		}
+		wf, err := files.GetWorkflow(ctx, name)
+		if err != nil {
+			log.Printf("workflow approvals: workflow file %s can't be read, so it is not approved (save or activate it to approve it): %v", e.Name(), err)
+			continue
+		}
+		if wf == nil || wf.ID == "" || hasRow[wf.ID] {
+			continue
+		}
+		hash, err := definitionHash(wf)
+		if err != nil {
+			log.Printf("workflow approvals: workflow file %s is not approved: %v", e.Name(), err)
+			continue
+		}
+		if _, err := db.ExecContext(ctx, `INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)`,
+			approvalsBackfillFilePrefix+wf.ID, hash); err != nil {
+			return err
+		}
+	}
 	return nil
+}
+
+// ApproveBackfilledFile approves wf, a workflow file just synced into
+// SQLite, when it was only a file at the backfill (BackfillApprovals) and
+// still has the definition it had then. A definition changed since is left
+// unapproved. Either way the backfill's record of it goes.
+func ApproveBackfilledFile(ctx context.Context, db *sql.DB, wf *Workflow) error {
+	key := approvalsBackfillFilePrefix + wf.ID
+	var hash string
+	if err := db.QueryRowContext(ctx, `SELECT value FROM settings WHERE key = ?`, key).Scan(&hash); err != nil {
+		if errors.Is(err, sql.ErrNoRows) || strings.Contains(err.Error(), "no such table") {
+			return nil
+		}
+		return err
+	}
+	if current, err := definitionHash(wf); err == nil && current == hash {
+		if err := NewSQLiteWorkflowStore(db).approve(ctx, wf); err != nil {
+			return err
+		}
+	}
+	_, err := db.ExecContext(ctx, `DELETE FROM settings WHERE key = ?`, key)
+	return err
 }

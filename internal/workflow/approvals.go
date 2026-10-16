@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/monoes/mono-agent/internal/fsconfine"
 	"github.com/monoes/mono-agent/internal/vault"
@@ -43,6 +44,25 @@ func WithUnapproved(ctx context.Context, project string) context.Context {
 	return fsconfine.GuardHiddenHome(WithAIAuthored(ctx), project)
 }
 
+type approvalCheckErrorKey struct{}
+
+// withApprovalCheckError records on ctx the store error that kept the run
+// from telling whether the operator approved its definition (nil: none).
+func withApprovalCheckError(ctx context.Context, err error) context.Context {
+	if err == nil {
+		return ctx
+	}
+	return context.WithValue(ctx, approvalCheckErrorKey{}, err)
+}
+
+// ApprovalCheckError is the store error that kept the run in ctx from
+// telling whether the operator approved its definition, so it runs as
+// unapproved (AIAuthoredFrom); nil when the check worked. A refusal names it.
+func ApprovalCheckError(ctx context.Context) error {
+	err, _ := ctx.Value(approvalCheckErrorKey{}).(error)
+	return err
+}
+
 // ErrUnapprovedProgram is wrapped by RefuseUnapprovedProgram's refusal.
 var ErrUnapprovedProgram = errors.New("a workflow the user has not approved runs no programs on this computer")
 
@@ -57,6 +77,10 @@ func RefuseUnapprovedProgram(ctx context.Context, what, workflowID string) error
 	if !AIAuthoredFrom(ctx) {
 		return nil
 	}
+	if err := ApprovalCheckError(ctx); err != nil {
+		return fmt.Errorf("%s runs a program on this computer, and whether you approved this workflow could not be checked (%v): run it again: %w",
+			what, err, ErrUnapprovedProgram)
+	}
 	profile, _ := vault.ProfileIDFromContext(ctx)
 	return fmt.Errorf("%s runs a program on this computer, and the chat, an agent or another workflow wrote or changed this workflow since you last saved or activated it: "+
 		"if the change is yours, run `monoagentcli --profile %s workflow activate %s` (or save it in the app): %w", what, profile, workflowID, ErrUnapprovedProgram)
@@ -68,19 +92,27 @@ type definitionApprover interface {
 }
 
 // operatorApproved reports whether wf's definition is one the operator
-// approved. A store that keeps no approvals approves everything; an error
-// approves nothing.
-func operatorApproved(ctx context.Context, store WorkflowStore, wf *Workflow) bool {
+// approved. A store that keeps no approvals approves everything. A store
+// error is tried once more, since a transient one would refuse a legitimate
+// run's steps; one that persists approves nothing and is returned.
+func operatorApproved(ctx context.Context, store WorkflowStore, wf *Workflow) (bool, error) {
 	a, ok := store.(definitionApprover)
 	if !ok {
-		return true
+		return true, nil
 	}
 	hash, err := definitionHash(wf)
 	if err != nil {
-		return false
+		return false, err
 	}
 	approved, err := a.DefinitionApproved(ctx, wf.ID, hash)
-	return err == nil && approved
+	if err != nil {
+		select {
+		case <-ctx.Done():
+		case <-time.After(100 * time.Millisecond):
+		}
+		approved, err = a.DefinitionApproved(ctx, wf.ID, hash)
+	}
+	return err == nil && approved, err
 }
 
 // DefinitionApproved reports whether the operator approved definition hash
