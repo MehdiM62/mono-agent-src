@@ -45,10 +45,10 @@ const FORM = `<!doctype html><meta charset=utf-8><body>
 </script>`;
 
 describe("form_page.js in a browser", { skip, concurrency: 1 }, () => {
-  async function open() {
+  async function open(html = FORM) {
     dir = await mkdtemp(join(tmpdir(), "mono-form-"));
     const page = join(dir, "form.html");
-    await writeFile(page, FORM, "utf8");
+    await writeFile(page, html, "utf8");
     await browser.navigate(fileUrl(page));
     await browser.evaluate(await readFile(join(HERE, "form_page.js"), "utf8"));
   }
@@ -84,6 +84,38 @@ describe("form_page.js in a browser", { skip, concurrency: 1 }, () => {
     assert.equal(await browser.evaluate('document.querySelector("[name=last]").value'), "Typed already");
     assert.equal(await browser.evaluate('document.querySelector("[name=title]").value'), "Ms.");
     assert.deepEqual(await json("window.__events"), ["first", "title"]);
+    assert.equal(await browser.evaluate('document.querySelectorAll("[data-mono-fill]").length'), 0);
+  });
+
+  it("reports a field's length limit", async () => {
+    await open('<!doctype html><meta charset=utf-8><input name=year maxlength=2><input name=free>');
+    const by = Object.fromEntries((await json("MonoFormPage.scan()")).fields.map((f) => [f.name, f]));
+    assert.equal(by.year.maxlength, 2);
+    assert.equal("maxlength" in by.free, false);
+  });
+
+  it("finds file boxes even when hidden, and attaches a file like the browser's own dialog", async () => {
+    await open(`<!doctype html><meta charset=utf-8><body>
+      <div class=row>Upload your photo <button type=button>Choose</button><input type=file name=pic accept="image/*" style="display:none"></div>
+      <label>Passport scan <input type=file name=pass></label>
+      <input type=file name=done><script>
+        window.__events = [];
+        document.addEventListener("change", (e) => window.__events.push(e.target.name + ":" + e.target.files.length));
+        document.querySelector("[name=done]").addEventListener("click", () => {});
+      </script>`);
+    const scan = await json("MonoFormPage.scanFiles()");
+    const by = Object.fromEntries(scan.files.map((f) => [f.name, f]));
+    assert.match(by.pic.label, /Upload your photo/);
+    assert.equal(by.pic.accept, "image/*");
+    assert.equal(by.pass.label, "Passport scan");
+    assert.equal(scan.files.length, 3);
+    const data = Buffer.from("hello-image").toString("base64");
+    const done = await json(`MonoFormPage.applyFiles(${JSON.stringify([{ id: by.pic.id, name: "portrait_photo.jpg", mime: "image/jpeg", data }, { id: "f99", name: "x", mime: "", data }])})`);
+    assert.equal(done.attached, 1);
+    assert.equal(await browser.evaluate('document.querySelector("[name=pic]").files[0].name'), "portrait_photo.jpg");
+    assert.equal(await browser.evaluate('document.querySelector("[name=pic]").files[0].size'), 11);
+    assert.equal(await browser.evaluate('document.querySelector("[name=pic]").files[0].type'), "image/jpeg");
+    assert.deepEqual(await json("window.__events"), ["pic:1"]);
     assert.equal(await browser.evaluate('document.querySelectorAll("[data-mono-fill]").length'), 0);
   });
 });

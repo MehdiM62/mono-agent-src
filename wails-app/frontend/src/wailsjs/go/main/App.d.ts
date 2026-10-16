@@ -5,6 +5,8 @@ import {storage} from '../models';
 import {connections} from '../models';
 import {workflow} from '../models';
 
+export function AIFillProfileInfo(arg1:string,arg2:string):Promise<main.ProfileInfoAIFillResult>;
+
 export function APIConfigReset(arg1:boolean,arg2:boolean):Promise<main.APIConfigChange>;
 
 export function APIConfigSet(arg1:Record<string, string>,arg2:boolean,arg3:boolean):Promise<main.APIConfigChange>;
@@ -116,6 +118,8 @@ export function ChooseProfileFolder():Promise<string>;
 export function ChooseWorkflowFile():Promise<string>;
 
 export function ClearLogs():Promise<void>;
+
+export function ClearProfileInfo(arg1:string):Promise<void>;
 
 export function CoderDisable():Promise<string>;
 
@@ -320,6 +324,12 @@ export function GetProfileDocument(arg1:string):Promise<main.ProfileDocument>;
 export function GetProfileDocumentData(arg1:string):Promise<string>;
 
 export function GetProfileDocumentText(arg1:string):Promise<string>;
+
+export function GetProfileInfo():Promise<main.ProfileInfoData>;
+
+export function GetProfileInfoFields():Promise<main.ProfileInfoCatalog>;
+
+export function GetProfileInfoPhoto(arg1:string):Promise<string>;
 
 export function GetProfiles():Promise<Array<main.ProfileInfo>>;
 
@@ -581,6 +591,8 @@ export function ResumeOrgAutonomy(arg1:string):Promise<string>;
 
 export function RevealProfileFolder(arg1:string):Promise<void>;
 
+export function RevealProfileInfo(arg1:string):Promise<string>;
+
 export function RollbackAutomation(arg1:string):Promise<string>;
 
 export function RunHealthCheck(arg1:string):Promise<string>;
@@ -648,6 +660,10 @@ export function SetOrgGrant(arg1:string,arg2:string):Promise<string>;
 export function SetOrgRoleReportsTo(arg1:string,arg2:string,arg3:string):Promise<string>;
 
 export function SetOrgSchedule(arg1:string,arg2:string):Promise<string>;
+
+export function SetProfileInfo(arg1:string,arg2:string):Promise<void>;
+
+export function SetProfileInfoPhoto(arg1:string,arg2:string):Promise<void>;
 
 export function SetWorkflowActive(arg1:string,arg2:boolean):Promise<void>;
 

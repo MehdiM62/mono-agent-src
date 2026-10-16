@@ -8,8 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-
-	"github.com/monoes/mono-agent/internal/daemonhb"
 )
 
 // Agent kind tokens (plan C9 item 3). A declared kind (MONOAGENT_AGENT_KIND,
@@ -24,13 +22,23 @@ import (
 // EnvAgentKindToken names the record that vouches for EnvAgentKind.
 const EnvAgentKindToken = "MONOAGENT_AGENT_KIND_TOKEN"
 
-// kindTokenMaxAge is how long a record with no spawner pid counts.
-const kindTokenMaxAge = 24 * time.Hour
+// kindTokenMaxAge: an older record never counts, its process alive or not.
+const kindTokenMaxAge = 7 * 24 * time.Hour
 
+// kindRecord vouches for Kind while the process PID runs: the one that
+// started at Start (processStart), so a pid the system reuses for another
+// process doesn't count.
 type kindRecord struct {
 	Kind    string    `json:"kind"`
 	PID     int       `json:"pid"`
+	Start   string    `json:"start"`
 	Created time.Time `json:"created"`
+}
+
+// recordFor is the record vouching for kind while process pid runs.
+func recordFor(kind string, pid int, created time.Time) kindRecord {
+	start, _ := processStart(pid)
+	return kindRecord{Kind: kind, PID: pid, Start: start, Created: created}
 }
 
 // KindTokenDir is where the records live: ~/.monoagent/agent-kinds.
@@ -46,7 +54,8 @@ func KindTokenDir() (string, error) {
 // this process starts: it writes the record (dir 0700, file 0600) and
 // returns the environment to give them, MONOAGENT_AGENT_KIND and
 // MONOAGENT_AGENT_KIND_TOKEN as "KEY=value". The record names this
-// process and counts while that process runs. A launcher that exits while
+// process, with its start time, and counts while that very process runs
+// (not one the system later gives its pid), for at most seven days. A launcher that exits while
 // what it started goes on (a detached org run) calls bind with the started
 // process's pid once it has one: the record then counts while that process
 // runs. Call done when the turn ends; it removes the record. When the
@@ -70,12 +79,12 @@ func IssueAgentKind(kind string) (env []string, bind func(pid int), done func())
 	token := hex.EncodeToString(b[:])
 	path := filepath.Join(dir, token+".json")
 	created := time.Now().UTC()
-	if writeKindRecordFile(dir, path, kindRecord{Kind: kind, PID: os.Getpid(), Created: created}) != nil {
+	if writeKindRecordFile(dir, path, recordFor(kind, os.Getpid(), created)) != nil {
 		return env, bind, done
 	}
 	bind = func(pid int) {
 		if pid > 0 {
-			_ = writeKindRecordFile(dir, path, kindRecord{Kind: kind, PID: pid, Created: created})
+			_ = writeKindRecordFile(dir, path, recordFor(kind, pid, created))
 		}
 	}
 	return append(env, EnvAgentKindToken+"="+token), bind, func() { _ = os.Remove(path) }
@@ -120,13 +129,15 @@ func kindVouched(kind string) bool {
 	return ok && rec.Kind == kind && rec.live()
 }
 
-// live: the spawner still runs, or (no pid recorded) the record is younger
-// than kindTokenMaxAge.
+// live: the record is younger than kindTokenMaxAge, and the process it
+// names runs and is the one that started when the record says (a pid the
+// system reused for another process doesn't count).
 func (r kindRecord) live() bool {
-	if r.PID > 0 {
-		return daemonhb.ProcessAlive(r.PID)
+	if r.Created.IsZero() || time.Since(r.Created) >= kindTokenMaxAge || r.Start == "" {
+		return false
 	}
-	return !r.Created.IsZero() && time.Since(r.Created) < kindTokenMaxAge
+	start, ok := processStart(r.PID)
+	return ok && start == r.Start
 }
 
 func readKindRecord(path string) (kindRecord, bool) {
