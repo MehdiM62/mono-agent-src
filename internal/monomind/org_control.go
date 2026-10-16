@@ -202,6 +202,7 @@ func OrgServeStart(ctx context.Context, projectRoot string) (pid int, alreadyRun
 	}
 	defer logf.Close()
 	cmd := Command(bin, "org", "serve", "--cross-process")
+	withOrgKind(cmd) // detached: the kind counts while this process runs
 	inRoot(cmd, projectRoot)
 	cmd.Stdout = logf
 	cmd.Stderr = logf
@@ -222,6 +223,7 @@ func OrgServeRun(ctx context.Context, projectRoot string) error {
 		return err
 	}
 	cmd := Command(bin, "org", "serve", "--cross-process")
+	defer withOrgKind(cmd)() // its roles are agents of kind org
 	inRoot(cmd, projectRoot)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

@@ -44,7 +44,7 @@ func newBrowserAllowCmd(cfg *globalConfig) *cobra.Command {
 		Example: "  monoagentcli browser allow add https://staging.example.com\n  monoagentcli browser allow add '*.example.com'",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if browserctl.AgentKind() != "" {
+			if notOperator() != "" {
 				return operatorOnlyError("an agent may not change which sites agents drive: ask the user to run `monoagentcli browser allow add %s` in their own terminal", args[0])
 			}
 			entry, err := browserctl.NormalizeAllowEntry(args[0])
@@ -67,7 +67,7 @@ func newBrowserAllowCmd(cfg *globalConfig) *cobra.Command {
 		Example: "  monoagentcli browser allow remove https://staging.example.com",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if browserctl.AgentKind() != "" {
+			if notOperator() != "" {
 				return operatorOnlyError("an agent may not change which sites agents drive: ask the user to run `monoagentcli browser allow remove %s` in their own terminal", args[0])
 			}
 			entry, err := browserctl.NormalizeAllowEntry(args[0])

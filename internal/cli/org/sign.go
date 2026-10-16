@@ -14,6 +14,7 @@ import (
 
 	"github.com/monoes/mono-agent/internal/cli/orgenv"
 	"github.com/monoes/mono-agent/internal/monomind"
+	"github.com/monoes/mono-agent/internal/operator"
 	"github.com/monoes/mono-agent/internal/orgdesign"
 	"github.com/monoes/mono-agent/internal/orgsign"
 )
@@ -87,7 +88,7 @@ func newOrgSignCmd(env *orgEnv) *cobra.Command {
 			}
 			res.Supported = true
 			if !env.d.StdinIsTerminal() {
-				res.BlockedBy = orgsign.AgentContextMarker()
+				res.BlockedBy = operator.Marker()
 			}
 			st := orgenv.SignStatus(ctx, root, name, raw)
 			res.State, res.Detail = st.State, st.Detail
@@ -127,8 +128,10 @@ func newOrgSignCmd(env *orgEnv) *cobra.Command {
 				return env.d.InvalidInput("refusing to sign: %s is set — this is an org role or agent turn, and only the operator signs org definitions", m)
 			}
 			// A coding agent (the chat assistant included) runs commands with
-			// no terminal: under its markers, --yes needs a person at a TTY.
-			if m := orgsign.AgentContextMarker(); m != "" && yes && !env.d.StdinIsTerminal() {
+			// no terminal, and so does whatever a workflow node starts (which a
+			// chat or an org can have built): under any of their markers
+			// (internal/operator), --yes needs a person at a TTY.
+			if m := operator.Marker(); m != "" && yes && !env.d.StdinIsTerminal() {
 				return &orgSignBlocked{marker: m, org: name}
 			}
 			if cmd.Flags().Changed("expect-hash") && expect == "" {

@@ -1,0 +1,55 @@
+// Package operator tells the operator's own terminal from everything else
+// that runs mono-agent's CLI: an agent, a process of any kind of agent, the
+// chat's runs and whatever a workflow node starts. What only the operator
+// may decide (approvals, browser permissions, org signatures, an org role's
+// full access) is refused unless Marker is "".
+package operator
+
+import (
+	"os"
+
+	"github.com/monoes/mono-agent/internal/browserctl"
+	"github.com/monoes/mono-agent/internal/hilsend"
+	"github.com/monoes/mono-agent/internal/orgsign"
+	"github.com/monoes/mono-agent/internal/workflow"
+)
+
+// Marker names the environment variable that makes this process not the
+// operator's own terminal, or "" for the operator: a process a workflow node
+// started (workflow.EnvWorkflowRun, which a chat or an org can have built),
+// a chat tool call's run (browserctl.EnvAICaller), an agent (hilsend.Detect)
+// or any kind of agent (browserctl.AgentKind).
+func Marker() string {
+	for _, k := range []string{workflow.EnvWorkflowRun, browserctl.EnvAICaller} {
+		if os.Getenv(k) != "" {
+			return k
+		}
+	}
+	if _, agent := hilsend.Detect(); !agent && browserctl.AgentKind() == "" {
+		return ""
+	}
+	if m := orgsign.AgentContextMarker(); m != "" {
+		return m
+	}
+	for _, k := range []string{hilsend.EnvAgentContext, "MONOAGENT_ACTOR", browserctl.EnvAgentKind} {
+		if os.Getenv(k) != "" {
+			return k
+		}
+	}
+	return "an agent marker"
+}
+
+// Refusal says why this process is not the operator's own terminal, for an
+// error message, or "" for the operator.
+func Refusal() string {
+	switch m := Marker(); m {
+	case "":
+		return ""
+	case workflow.EnvWorkflowRun:
+		return m + " is set, so a workflow run is running this command"
+	case browserctl.EnvAICaller:
+		return m + " is set, so the chat is running this command"
+	default:
+		return m + " is set, so an agent is running this command"
+	}
+}

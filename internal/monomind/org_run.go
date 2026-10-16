@@ -46,6 +46,7 @@ func OrgRun(ctx context.Context, projectRoot, name, task string, dryRun bool) (j
 	// OrgEvents below, the most similar long-running case.
 	cmd := Command(bin, full...)
 	cmd.Env = logging.ChildEnv(ctx, cmd.Env)
+	defer withOrgKind(cmd)() // its roles are agents of kind org
 	inRoot(cmd, projectRoot)
 	setProcessGroup(cmd)
 
@@ -119,6 +120,7 @@ func OrgRunStart(ctx context.Context, projectRoot, name, task string) error {
 	}
 	cmd := Command(bin, args...)
 	cmd.Env = logging.ChildEnv(ctx, cmd.Env)
+	withOrgKind(cmd) // detached: the kind counts while this process runs
 	inRoot(cmd, projectRoot)
 	// A start monomind refuses (R6/R1) exits at once and says why on its
 	// output; keep that (boundedly) to report it instead of a start nobody

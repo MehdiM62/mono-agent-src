@@ -1,6 +1,8 @@
 package chat
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -31,17 +33,29 @@ func TestCoderBrowserPrompt(t *testing.T) {
 // A coder turn's process is an agent of kind coder: its browser permissions
 // are the coder level (browserctl.AgentKind).
 func TestCoderTurnsAreKindCoder(t *testing.T) {
-	for _, k := range append(browserctl.AgentContextEnv(), browserctl.EnvAgentKind, browserctl.EnvAICaller) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	for _, k := range append(browserctl.AgentContextEnv(), browserctl.EnvAgentKind, browserctl.EnvAgentKindToken, browserctl.EnvAICaller) {
 		t.Setenv(k, "")
 	}
 	env := agentSendEnv(nil, "lead", "")
-	if env[browserctl.EnvAgentKind] != browserctl.KindCoder {
+	done := addAgentKind(env, browserctl.KindCoder)
+	token := env[browserctl.EnvAgentKindToken]
+	if env[browserctl.EnvAgentKind] != browserctl.KindCoder || token == "" {
 		t.Fatalf("env = %v", env)
+	}
+	record := filepath.Join(home, ".monoagent", "agent-kinds", token+".json")
+	if _, err := os.Stat(record); err != nil {
+		t.Fatalf("the turn's token has no record: %v", err)
 	}
 	for k, v := range env {
 		t.Setenv(k, v)
 	}
 	if got := browserctl.AgentKind(); got != browserctl.KindCoder {
 		t.Errorf("AgentKind() = %q in a coder turn, want coder", got)
+	}
+	done()
+	if _, err := os.Stat(record); !os.IsNotExist(err) {
+		t.Errorf("the record outlives the turn: %v", err)
 	}
 }

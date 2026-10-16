@@ -245,7 +245,15 @@ func (c *Conductor) execOnce(ctx context.Context, w *worker, m Model, prompt, re
 		opts.Env = map[string]string{}
 	}
 	opts.Env["MONOAGENT_AGENT_ROLE"], opts.Env["MONOAGENT_AGENT_ID"] = w.staff.Role, w.id
-	opts.Env[browserctl.EnvAgentKind] = browserctl.KindCoder // a coder chat's worker: the coder level of browser permissions
+	// A coder chat's worker: the coder kind of browser permissions, vouched
+	// for by a token of its own that counts while this run does.
+	kindEnv, kindDone := browserctl.IssueAgentKind(browserctl.KindCoder)
+	defer kindDone()
+	for _, kv := range kindEnv {
+		if k, v, ok := strings.Cut(kv, "="); ok {
+			opts.Env[k] = v
+		}
+	}
 	dir := c.workDir(w)
 	opts.Runtime, opts.Model, opts.Cwd, opts.Prompt, opts.Resume = m.Runtime, m.Model, dir, prompt, resume
 	opts.Effort = ""
