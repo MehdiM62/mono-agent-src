@@ -6,6 +6,7 @@
 package operator
 
 import (
+	"context"
 	"os"
 	"strings"
 
@@ -61,6 +62,27 @@ func Caller() string {
 		kind = browserctl.KindOther
 	}
 	return "agent:" + kind
+}
+
+// AIRun reports whether the workflow run in ctx is not the operator's: this
+// process is not the operator's own terminal (Marker), an AI started the run
+// (workflow.AICallerKey, the mark a chat's or an agent's `workflow run`
+// leaves for the engine that runs it: this one, or a daemon that adopts it),
+// or the org side did (a granted call, a message to an automation role, a
+// trigger.org event). A run the user starts from the app, a terminal, a
+// schedule or a webhook is the operator's.
+func AIRun(ctx context.Context) bool {
+	if Marker() != "" {
+		return true
+	}
+	if v, _ := workflow.TriggerDataFrom(ctx)[workflow.AICallerKey].(string); strings.TrimSpace(v) != "" {
+		return true
+	}
+	switch workflow.TriggerTypeFrom(ctx) {
+	case workflow.TriggerTypeOrgTool, workflow.TriggerTypeOrgMessage, workflow.TriggerNodeTypeOrg:
+		return true
+	}
+	return false
 }
 
 // Refusal says why this process is not the operator's own terminal, for an

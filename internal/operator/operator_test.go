@@ -1,6 +1,7 @@
 package operator
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -68,5 +69,29 @@ func TestCaller(t *testing.T) {
 	browserctltest.AsAgentKind(t, browserctl.KindCoder)
 	if got := Caller(); got != "agent:coder" {
 		t.Errorf("a coder chat's shell: %q", got)
+	}
+}
+
+// A run an AI started, the org side's and any run in a process that is not
+// the operator's are not the operator's; the user's own runs are.
+func TestAIRun(t *testing.T) {
+	asOperator(t)
+	ctx := context.Background()
+	if AIRun(ctx) || AIRun(workflow.WithTrigger(ctx, "trigger.manual", map[string]interface{}{"who": "me"})) {
+		t.Fatal("the user's own run")
+	}
+	for name, run := range map[string]context.Context{
+		"a chat's mark":   workflow.WithTrigger(ctx, "trigger.manual", map[string]interface{}{workflow.AICallerKey: "chat"}),
+		"an agent's mark": workflow.WithTrigger(ctx, "trigger.manual", map[string]interface{}{workflow.AICallerKey: "other/org"}),
+		"an org's call":   workflow.WithTrigger(ctx, workflow.TriggerTypeOrgTool, nil),
+		"trigger.org":     workflow.WithTrigger(ctx, workflow.TriggerNodeTypeOrg, nil),
+	} {
+		if !AIRun(run) {
+			t.Errorf("%s is the operator's", name)
+		}
+	}
+	t.Setenv(workflow.EnvWorkflowRun, "exec-7")
+	if !AIRun(ctx) {
+		t.Error("a run in a process a workflow node started is the operator's")
 	}
 }
