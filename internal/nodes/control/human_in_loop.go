@@ -209,6 +209,11 @@ func (n *HumanInLoopNode) createRows(ctx context.Context, db *sql.DB, input work
 	for _, c := range comms {
 		outbound = outbound || c != nil
 	}
+	// A workflow the user hasn't approved (the chat, an agent or a workflow
+	// wrote it: workflow.AIAuthoredFrom) never settles such an item itself,
+	// whatever its auto_decide says: it waits for the user. The user's own
+	// workflows keep their auto_decide: that is the user delegating.
+	holdForUser := outbound && workflow.AIAuthoredFrom(ctx)
 	for i := range input.Items {
 		cfg := map[string]interface{}{
 			"readonly_fields": readonlyFields,
@@ -219,7 +224,13 @@ func (n *HumanInLoopNode) createRows(ctx context.Context, db *sql.DB, input work
 			for k, v := range plan[i].extra {
 				cfg[k] = v
 			}
-			if plan[i].status != "" {
+			switch {
+			case plan[i].status == "":
+			case holdForUser:
+				delete(cfg, "decided_by")
+				delete(cfg, "p")
+				cfg["auto_decide_skipped"] = autoDecideHeld
+			default:
 				status, decided = plan[i].status, true
 			}
 		}
@@ -294,6 +305,10 @@ type autoDecideCfg struct {
 	approveAbove float64
 	rejectAbove  float64 // 0 = never auto-reject
 }
+
+// autoDecideHeld is why auto_decide left an item of a workflow the user
+// hasn't approved pending: it lets a message to a person go out.
+const autoDecideHeld = "a workflow you haven't approved can't settle a step that sends a message to a person: it waits for you"
 
 // autoDecideTimeout bounds all Jev calls of one node run.
 const autoDecideTimeout = 30 * time.Second
