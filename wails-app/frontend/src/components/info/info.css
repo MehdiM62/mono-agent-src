@@ -1,0 +1,35 @@
+.info-lead { margin: 0 0 14px; color: var(--text-secondary); font-size: 12.5px; line-height: 1.5; max-width: 70ch; }
+.info-banner { display: flex; gap: 8px; align-items: flex-start; padding: 8px 12px; margin-bottom: 14px; border-radius: var(--radius); font-size: 12px; line-height: 1.45; }
+.info-banner.is-ok { background: var(--cyan-glow); border: 1px solid var(--border-bright); color: var(--text); }
+.info-banner.is-error { background: var(--danger-surface); border: 1px solid var(--danger-border); color: var(--text); }
+.info-section { border: 1px solid var(--border); border-radius: var(--radius-lg); margin-bottom: 12px; background: var(--surface); }
+.info-section-head { display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px 14px; background: transparent; border: 0; color: var(--text); cursor: pointer; font-family: var(--font-display); font-size: 13px; font-weight: 700; text-align: left; border-radius: var(--radius-lg); }
+.info-section-head:hover { background: var(--elevated); }
+.info-section-head:focus-visible, .info-btn:focus-visible, .info-input:focus-visible { outline: 2px solid var(--cyan); outline-offset: 1px; }
+.info-section-count { margin-left: auto; font-family: var(--font-mono); font-size: 10.5px; font-weight: 400; color: var(--text-muted); }
+.info-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px 16px; padding: 4px 14px 14px; }
+.info-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.info-field.is-wide { grid-column: 1 / -1; }
+.info-label-row { display: flex; align-items: center; gap: 6px; min-height: 16px; }
+.info-label { font-size: 11px; color: var(--text-secondary); font-family: var(--font-mono); }
+.info-badge { font-family: var(--font-mono); font-size: 9px; padding: 0 5px; border-radius: 8px; color: var(--purple-light); border: 1px solid var(--purple); line-height: 14px; cursor: help; }
+.info-status { margin-left: auto; font-size: 10.5px; font-family: var(--font-mono); color: var(--text-muted); }
+.info-status.is-error { color: var(--red); }
+.info-input { width: 100%; box-sizing: border-box; background-color: var(--base); border: 1px solid var(--border); border-radius: var(--radius); padding: 6px 8px; color: var(--text); font-family: var(--font-mono); font-size: 12px; color-scheme: dark; }
+.info-input:hover { border-color: var(--border-bright); }
+textarea.info-input { min-height: 140px; resize: vertical; line-height: 1.5; font-family: var(--font-body); }
+.info-input.is-error, select.is-error { border-color: var(--danger-border); }
+.info-error-text { font-size: 11px; color: var(--red); min-height: 15px; line-height: 15px; }
+.info-secret { display: flex; gap: 6px; align-items: center; }
+.info-secret-value { flex: 1; min-width: 0; width: auto; border-style: dashed; text-overflow: ellipsis; }
+.info-error-text.is-hint { color: var(--text-muted); }
+.info-btn { display: inline-flex; align-items: center; gap: 4px; padding: 5px 9px; background: var(--elevated); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text-secondary); font-family: var(--font-mono); font-size: 11px; cursor: pointer; white-space: nowrap; }
+.info-btn:hover:not(:disabled) { color: var(--cyan); border-color: var(--border-bright); }
+.info-btn:disabled { opacity: 0.5; cursor: default; }
+.info-photo { display: flex; align-items: center; gap: 8px; }
+.info-photo-box { width: 56px; height: 56px; flex-shrink: 0; border: 1px solid var(--border); border-radius: var(--radius); background: var(--base); display: flex; align-items: center; justify-content: center; overflow: hidden; color: var(--text-muted); font-size: 10px; font-family: var(--font-mono); }
+.info-photo-box img { width: 100%; height: 100%; object-fit: cover; }
+.info-card-note { margin: 0 0 8px; padding: 8px 14px 0; font-size: 12px; color: var(--text-secondary); line-height: 1.45; }
+@media (prefers-reduced-motion: reduce) { .info-btn { transition: none; } }
+select.form-select { width: 100%; box-sizing: border-box; }
+.info-input, select.form-select { min-height: 34px; }

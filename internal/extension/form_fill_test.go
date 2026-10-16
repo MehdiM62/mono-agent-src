@@ -16,6 +16,9 @@ type fakeFiller struct {
 	prompt  string
 	queries []string
 	runtime string
+	info    []InfoValue
+	infoErr error
+	calls   int // Complete calls
 }
 
 func (f *fakeFiller) Facts(_ context.Context, _ string, q []string) ([]FormFact, error) {
@@ -23,7 +26,10 @@ func (f *fakeFiller) Facts(_ context.Context, _ string, q []string) ([]FormFact,
 	return f.facts, f.factErr
 }
 
+func (f *fakeFiller) Info(context.Context, string) ([]InfoValue, error) { return f.info, f.infoErr }
+
 func (f *fakeFiller) Complete(_ context.Context, runtime, _ string, prompt string) (string, error) {
+	f.calls++
 	f.runtime, f.prompt = runtime, prompt
 	return f.answer, nil
 }
@@ -165,5 +171,109 @@ func TestFormFillRefusals(t *testing.T) {
 		"profile": "p1", "fields": []any{fld("a", "A", "text", nil)},
 	}, nil); errCode(err) != CodeUnavailable {
 		t.Errorf("search down: %v", err)
+	}
+}
+
+var testInfo = []InfoValue{
+	{Key: "first_name", Label: "First name", Kind: "text", Autocomplete: "given-name", Value: "Ada"},
+	{Key: "last_name", Label: "Last name", Kind: "text", Autocomplete: "family-name", Value: "Lovelace"},
+	{Key: "title", Label: "Title", Kind: "select", Value: "Ms."},
+	{Key: "email", Label: "Email", Kind: "email", Autocomplete: "email", Value: "ada@example.com"},
+	{Key: "phone", Label: "Mobile phone", Kind: "phone", Autocomplete: "tel", Value: "+49 1234"},
+	{Key: "country", Label: "Country", Kind: "country", Autocomplete: "country-name", Value: "Germany"},
+	{Key: "date_of_birth", Label: "Date of birth", Kind: "date", Autocomplete: "bday", Value: "1815-12-10"},
+	{Key: "passport_number", Label: "Passport number", Kind: "text", Sensitive: true, Value: "X1234567"},
+}
+
+func vals(r *FormFillReply) map[string]string {
+	m := map[string]string{}
+	for _, v := range r.Values {
+		m[v.ID] = v.Value + "@" + v.Source
+	}
+	return m
+}
+
+func TestFormFillInfoAnswersExactlyWithNoModel(t *testing.T) {
+	f := &fakeFiller{info: testInfo, answer: "must not be used"}
+	got, err := callChat(t, fillSrv(f), MethodFormFill, map[string]any{
+		"profile": "p1",
+		"fields": []any{
+			fld("a", "First Name", "text", map[string]any{"name": "firstName"}),
+			fld("b", "Surname *", "text", nil),
+			fld("c", "Title", "select", map[string]any{"options": []any{"Mr.", "Ms.", "Dr."}}),
+			fld("d", "Where do we write?", "email", nil),
+			fld("e", "Ring me", "tel", nil),
+			fld("f", "Land", "select", map[string]any{"autocomplete": "billing country-name", "options": []any{"Austria", "DE - Germany"}}),
+			fld("g", "Passport number", "text", nil),
+		},
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{
+		"a": "Ada@Profile info", "b": "Lovelace@Profile info", "c": "Ms.@Profile info", "d": "ada@example.com@Profile info",
+		"e": "+49 1234@Profile info", "f": "DE - Germany@Profile info", "g": "X1234567@Profile info",
+	}
+	g := vals(got.(*FormFillReply))
+	for k, v := range want {
+		if g[k] != v {
+			t.Errorf("%s = %q, want %q", k, g[k], v)
+		}
+	}
+	if f.calls != 0 || f.queries != nil {
+		t.Errorf("nothing was left to ask: model calls %d, searches %v", f.calls, f.queries)
+	}
+}
+
+func TestFormFillSendsTheModelTheRestButNeverIDNumbers(t *testing.T) {
+	f := &fakeFiller{
+		info:   testInfo,
+		facts:  []FormFact{{Source: "/docs/cv.pdf", Text: "Lives at 1 Analytical Way"}},
+		answer: `{"values":{"x":{"value":"1 Analytical Way","fact":1},"y":{"value":"10/12/1815","fact":2}}}`,
+	}
+	got, err := callChat(t, fillSrv(f), MethodFormFill, map[string]any{
+		"profile": "p1",
+		"fields": []any{
+			fld("n", "First name", "text", nil),
+			fld("x", "Street and number", "text", nil),
+			fld("y", "Date of birth (DD/MM/YYYY)", "text", nil), // a date in a text box: a layout to decide
+			fld("p", "Passport number", "text", nil),
+		},
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	g := vals(got.(*FormFillReply))
+	if g["n"] != "Ada@Profile info" || g["p"] != "X1234567@Profile info" || g["x"] != "1 Analytical Way@cv.pdf" || g["y"] != "10/12/1815@Profile info" {
+		t.Errorf("values %v", g)
+	}
+	if strings.Contains(f.prompt, "X1234567") || strings.Contains(f.prompt, `"n"`) || strings.Contains(f.prompt, `"p"`) {
+		t.Errorf("the prompt carries an ID number or an already-answered field:\n%s", f.prompt)
+	}
+	if !strings.Contains(f.prompt, "First name: Ada") || !strings.Contains(f.prompt, "Lives at 1 Analytical Way") {
+		t.Errorf("the prompt lacks the info or the documents:\n%s", f.prompt)
+	}
+}
+
+func TestFormFillWorksWithoutInfoAndWhenInfoFails(t *testing.T) {
+	f := &fakeFiller{infoErr: errors.New("no table"), facts: []FormFact{{Source: "a.txt", Text: "Ada"}}, answer: `{"values":{"a":{"value":"Ada","fact":1}}}`}
+	got, err := callChat(t, fillSrv(f), MethodFormFill, map[string]any{
+		"profile": "p1", "fields": []any{fld("a", "Name of person", "text", nil)},
+	}, nil)
+	if err != nil || vals(got.(*FormFillReply))["a"] != "Ada@a.txt" {
+		t.Errorf("%v %v", got, err)
+	}
+}
+
+func TestFormFillKeepsInfoValuesWhenTheModelFails(t *testing.T) {
+	f := &fakeFiller{info: testInfo, facts: []FormFact{{Source: "a", Text: "x"}}, answer: "no json"}
+	got, err := callChat(t, fillSrv(f), MethodFormFill, map[string]any{
+		"profile": "p1", "fields": []any{fld("a", "First name", "text", nil), fld("b", "Something odd", "text", nil)},
+	}, nil)
+	if err != nil {
+		t.Fatalf("an exact answer was thrown away: %v", err)
+	}
+	if r := got.(*FormFillReply); len(r.Values) != 1 || r.Values[0].ID != "a" || r.Skipped != 1 {
+		t.Errorf("%+v", r)
 	}
 }
