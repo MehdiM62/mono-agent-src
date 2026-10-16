@@ -19,11 +19,12 @@ import "strings"
 //     sandbox for it (`sandbox fallback --set`).
 //   - automation.autoRepair: the recorder applies selector repairs without
 //     asking (automation.AutoRepairConfig).
+//   - coder_projects: the folder a site's queued coder chats work in, with
+//     full access (`coder projects map|unmap`).
 //
 // Not reserved: memory.runs (the run-memory opt-out), workflow.error_workflow
-// (the default error workflow, which any workflow can also name for itself),
-// coder_projects (the folder a queued coder chat works in; the user starts
-// it) and the social actions' selector configs. The task board's agent
+// (the default error workflow, which any workflow can also name for itself)
+// and the social actions' selector configs. The task board's agent
 // access, the send always-allow rules and org grants live in other tables,
 // which `config` does not reach.
 var reservedConfigs = []string{
@@ -32,6 +33,7 @@ var reservedConfigs = []string{
 	"coder_mode",
 	"sandbox.fallback",
 	"automation.autoRepair",
+	"coder_projects",
 }
 
 // ReservedConfig reports whether name is a reserved config row, in any case

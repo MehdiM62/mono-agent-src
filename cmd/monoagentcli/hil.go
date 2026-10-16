@@ -18,6 +18,7 @@ import (
 	hilcli "github.com/monoes/mono-agent/internal/cli/hil"
 	"github.com/monoes/mono-agent/internal/hilsend"
 	"github.com/monoes/mono-agent/internal/operator"
+	"github.com/monoes/mono-agent/internal/publication"
 	"github.com/monoes/mono-agent/internal/storage"
 )
 
@@ -110,19 +111,34 @@ func notOperator() string { return operator.Refusal() }
 
 // requirePublicationApproval gates `publication register` from whatever is not
 // the operator's own terminal (notOperator: an agent, the chat's runs, what a
-// workflow node starts): a publication it claims must be one the operator
-// approved. approvalID names the send item (as returned when it was queued); an
-// approved send registers its own publication, so this is only for a
-// publication made outside that path. Operators, and profiles that turned
-// sendApproval off, are not asked.
-func requirePublicationApproval(cfg *globalConfig, approvalID string) error {
+// workflow node starts): a publication it claims must be the one a send the
+// operator approved made, and that approval registers it alone
+// (hilsend.ClaimPublicationApproval). approvalID names the send item (as returned
+// when it was queued); an approved send registers its own publication, so this is
+// only for a publication made outside that path. Operators, and profiles that
+// turned sendApproval off, are not asked. release gives the claim back when the
+// registration fails.
+func requirePublicationApproval(cfg *globalConfig, approvalID string, e publication.Entry) (release func(), err error) {
+	release = func() {}
 	if notOperator() == "" {
-		return nil
+		return release, nil
 	}
-	return withImageDB(cfg, func(db *sql.DB) error {
-		if hilsend.PublicationApproved(context.Background(), db, cfg.ProfileID, approvalID) == nil {
-			return nil
+	var claim *hilsend.PublicationClaim
+	err = withImageDB(cfg, func(db *sql.DB) error {
+		var cerr error
+		claim, cerr = hilsend.ClaimPublicationApproval(context.Background(), db, cfg.ProfileID, approvalID, e.Platform, e.RemoteID)
+		if errors.Is(cerr, hilsend.ErrPublicationNeedsApproval) {
+			return operatorOnlyError("registering a publication from an agent needs an approved send: prepare the send (it is queued for approval, and registers itself once approved), or pass --approval <hil id> of a send that was approved and sent")
 		}
-		return operatorOnlyError("registering a publication from an agent needs an approved send: prepare the send (it is queued for approval, and registers itself once approved), or pass --approval <hil id> of a send that was approved and sent")
+		if cerr != nil {
+			return operatorOnlyError("%v", cerr)
+		}
+		return nil
 	})
+	if err != nil || claim == nil {
+		return release, err
+	}
+	return func() {
+		_ = withImageDB(cfg, func(db *sql.DB) error { claim.Release(context.Background(), db); return nil })
+	}, nil
 }

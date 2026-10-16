@@ -181,10 +181,15 @@ func newCoderProjectsCmd(cfg *Deps) *cobra.Command {
 	return cmd
 }
 
-// changeCoderProjects applies change to the map. An agent may not: the map
-// decides which folder a queued chat's full-access agent works in.
+// changeCoderProjects applies change to the map. Only the operator may: the
+// map decides which folder a queued chat's full-access agent works in. An
+// agent is told so first; a workflow's processes and the chat's runs are
+// refused too.
 func changeCoderProjects(cmd *cobra.Command, cfg *Deps, change func([]coderProject) ([]coderProject, error)) error {
 	if err := refuseInAgent("changing which folder a site's coder chats use"); err != nil {
+		return err
+	}
+	if err := cfg.RequireOperator("change which folder a site's coder chats use"); err != nil {
 		return err
 	}
 	db, err := cfg.OpenDB()

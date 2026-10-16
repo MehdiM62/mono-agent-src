@@ -52,3 +52,20 @@ func TestSetOrgGrant_RefusedAfterSyncedComms(t *testing.T) {
 		}
 	}
 }
+
+// A grant the chat makes always asks first: approval none is the user's to
+// give, refused before anything runs (#831).
+func TestSetOrgGrant_RefusesApprovalNone(t *testing.T) {
+	db := newMonoagentTestDB(t)
+	mt := NewMonoagentTools(db.DB, "/bin/monoagentcli", "p1")
+	stubRunSelfExec(t, func(ctx context.Context, bin string, args ...string) ([]byte, error) {
+		t.Fatal("exec must not run")
+		return nil, nil
+	})
+	for _, confirm := range []string{"", `,"confirm":true`} {
+		_, err := mt.Execute("set_org_grant", `{"org_name":"growth","role_id":"lead","automation":"publish_post","approval":"none"`+confirm+`}`)
+		if err == nil || !strings.Contains(err.Error(), "only the user can grant") || !strings.Contains(err.Error(), "omit approval") {
+			t.Fatalf("approval none%s: %v", confirm, err)
+		}
+	}
+}

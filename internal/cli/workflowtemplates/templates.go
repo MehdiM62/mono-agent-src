@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/monoes/mono-agent/internal/i18n"
+	"github.com/monoes/mono-agent/internal/operator"
 	"github.com/monoes/mono-agent/internal/workflow"
 	"github.com/spf13/cobra"
 )
@@ -342,6 +343,9 @@ func (d Deps) newTemplatesUseCmd() *cobra.Command {
 			ctx := context.Background()
 			if err := d.CreateWorkflow(ctx, store, &wf, false); err != nil {
 				return err
+			}
+			if err := operator.ApproveWorkflow(ctx, store, wf.ID); err != nil {
+				fmt.Fprintf(os.Stderr, "warning: recording this workflow as yours failed, so its runs count as an AI's until you save or activate it again: %v\n", err)
 			}
 
 			if d.JSONOutput() {

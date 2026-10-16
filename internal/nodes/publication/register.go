@@ -54,14 +54,12 @@ func (*RegisterNode) Execute(ctx context.Context, in workflow.NodeInput, config 
 		fields := map[string]interface{}{}
 		expressions := workflow.NewExpressionEngine()
 		exprCtx := workflow.ExpressionContext{JSON: item.JSON, Node: in.NodeOutputs, WorkflowID: in.WorkflowID, ExecutionID: in.ExecutionID}
+		approval := ""
 		if aiRun {
-			approval, _ := config["approval"].(string)
-			approval, err := expressions.EvaluateString(approval, exprCtx)
-			if err != nil {
+			text, _ := config["approval"].(string)
+			var err error
+			if approval, err = expressions.EvaluateString(text, exprCtx); err != nil {
 				return nil, fmt.Errorf("publication.register item %d field approval: %w", i, err)
-			}
-			if err := hilsend.PublicationApproved(ctx, db, profile, approval); err != nil {
-				return nil, fmt.Errorf("publication.register item %d: %w (set approval to its id)", i, err)
 			}
 		}
 		for key := range publication.EntrySchema() {
@@ -116,8 +114,15 @@ func (*RegisterNode) Execute(ctx context.Context, in workflow.NodeInput, config 
 		if entry.IdempotencyKey == "" && in.ExecutionID != "" {
 			entry.IdempotencyKey = fmt.Sprintf("registration:%s:%s:%d", in.ExecutionID, in.NodeID, i)
 		}
+		var claim *hilsend.PublicationClaim
+		if aiRun {
+			if claim, err = hilsend.ClaimPublicationApproval(ctx, db, profile, approval, entry.Platform, entry.RemoteID); err != nil {
+				return nil, fmt.Errorf("publication.register item %d: %w (set approval to the send's id)", i, err)
+			}
+		}
 		registered, err := store.Register(ctx, entry)
 		if err != nil {
+			claim.Release(ctx, db)
 			return nil, fmt.Errorf("publication.register item %d: %w", i, err)
 		}
 		encoded, _ := json.Marshal(registered)

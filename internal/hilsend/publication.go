@@ -3,27 +3,120 @@ package hilsend
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"strconv"
+	"strings"
+	"time"
 )
 
-// ErrPublicationNeedsApproval refuses a publication registered by whatever is
-// not the operator's own terminal (an agent, the chat, an AI-started run)
-// that names no send the operator approved and that was sent.
-var ErrPublicationNeedsApproval = errors.New("registering a publication from an agent needs an approved send: prepare the send (it is queued for approval, and registers itself once approved), or name the id of a send that was approved and sent")
+var (
+	// ErrPublicationNeedsApproval refuses a publication registered by
+	// whatever is not the operator's own terminal (an agent, the chat, an
+	// AI-started run) that names no send the operator approved and that was
+	// sent.
+	ErrPublicationNeedsApproval = errors.New("registering a publication from an agent needs an approved send: prepare the send (it is queued for approval, and registers itself once approved), or name the id of a send that was approved and sent")
+	// ErrPublicationApprovalUsed refuses an approval that already registered
+	// a publication: one approval registers one publication.
+	ErrPublicationApprovalUsed = errors.New("that approved send already registered a publication: one approval registers one publication")
+)
 
-// PublicationApproved checks a publication that whatever is not the
-// operator's own terminal registers: with approvals of sends on (Enabled),
-// approvalID must name a send of profile that was approved and sent. The
-// operator's own registrations need no check, and the caller decides who
-// that is.
-func PublicationApproved(ctx context.Context, db *sql.DB, profile, approvalID string) error {
-	if !Enabled(db) {
-		return nil
+// PublicationMismatchError refuses a publication that is not the one the
+// approved send made: What (platform, remote id) differs.
+type PublicationMismatchError struct{ What, Send, Publication string }
+
+func (e *PublicationMismatchError) Error() string {
+	return fmt.Sprintf("the approved send's %s is %q, not the publication's %q: an approval registers only the publication its send made", e.What, e.Send, e.Publication)
+}
+
+// PublicationClaim is an approval a registration claimed; nil when none was
+// needed.
+type PublicationClaim struct{ id, profile, before, after string }
+
+// Release gives the claim back, when the registration then failed.
+func (c *PublicationClaim) Release(ctx context.Context, db *sql.DB) {
+	if c == nil {
+		return
 	}
-	if approvalID != "" {
-		if p, err := (Store{DB: db, Profile: profile}).Get(ctx, approvalID); err == nil && p.State == StateSent {
-			return nil
+	_, _ = db.ExecContext(ctx, `UPDATE hil_pending SET node_config = ? WHERE id = ? AND profile_id = ? AND node_config = ?`,
+		c.before, c.id, c.profile, c.after)
+}
+
+// ClaimPublicationApproval checks a publication that whatever is not the
+// operator's own terminal registers, and claims the approval for it. With
+// approvals of sends on (Enabled), approvalID must name a send of profile
+// that was approved and sent, made on the publication's platform, whose
+// returned remote id (where the send's result and the publication both
+// have one) is the publication's, and that no registration claimed before.
+// The claim is nil when approvals of sends are off. The operator's own
+// registrations need no check; the caller decides who that is.
+func ClaimPublicationApproval(ctx context.Context, db *sql.DB, profile, approvalID, platform, remoteID string) (*PublicationClaim, error) {
+	var none *PublicationClaim
+	if !Enabled(db) {
+		return none, nil
+	}
+	if strings.TrimSpace(approvalID) == "" {
+		return none, ErrPublicationNeedsApproval
+	}
+	r, err := (Store{DB: db, Profile: profile}).find(ctx, approvalID)
+	if err != nil {
+		return none, ErrPublicationNeedsApproval
+	}
+	p, rp, err := r.payload()
+	if err != nil || p.State != StateSent {
+		return none, ErrPublicationNeedsApproval
+	}
+	if rp.Publication != "" {
+		return none, ErrPublicationApprovalUsed
+	}
+	sent := strings.TrimSpace(p.Account.Platform)
+	if sent == "" {
+		sent = strings.TrimSpace(p.Channel)
+	}
+	if !strings.EqualFold(sent, strings.TrimSpace(platform)) {
+		return none, &PublicationMismatchError{"platform", sent, platform}
+	}
+	if id, mine := sentRemoteID(p.Result), strings.TrimSpace(remoteID); id != "" && mine != "" && id != mine {
+		return none, &PublicationMismatchError{"remote id", id, mine}
+	}
+	rp.Publication = "claimed " + time.Now().UTC().Format(time.RFC3339)
+	claimed, err := json.Marshal(rp)
+	if err != nil {
+		return none, err
+	}
+	// The row as it was read: a registration that claimed it in between
+	// changed it, and this one finds nothing to update.
+	res, err := db.ExecContext(ctx, `UPDATE hil_pending SET node_config = ?, updated_at = CURRENT_TIMESTAMP
+		WHERE id = ? AND profile_id = ? AND status = 'sent' AND node_config = ?`, string(claimed), r.id, profile, r.nc)
+	if err != nil {
+		return none, err
+	}
+	if n, _ := res.RowsAffected(); n != 1 {
+		return none, ErrPublicationApprovalUsed
+	}
+	return &PublicationClaim{id: r.id, profile: profile, before: r.nc, after: string(claimed)}, nil
+}
+
+// sentRemoteID is the remote id a sent send's node returned (`node run
+// --output json`: {"main":[{"json":{...}}]}): the first of its main items'
+// that names one.
+func sentRemoteID(result any) string {
+	out, _ := result.(map[string]any)
+	items, _ := out["main"].([]any)
+	for _, it := range items {
+		m, _ := it.(map[string]any)
+		j, _ := m["json"].(map[string]any)
+		for _, k := range []string{"remote_id", "post_id", "comment_id", "message_id", "id", "uri"} {
+			switch v := j[k].(type) {
+			case string:
+				if v = strings.TrimSpace(v); v != "" {
+					return v
+				}
+			case float64:
+				return strconv.FormatFloat(v, 'f', -1, 64)
+			}
 		}
 	}
-	return ErrPublicationNeedsApproval
+	return ""
 }

@@ -164,7 +164,7 @@ live under ~/.monoagent/attachments/<message>/.
   delete <key>      Delete a config entry
   set and delete of a row that gates approvals, permissions or sandboxing
   (browser_agent_permissions, browser_agent_allowlist, coder_mode,
-  sandbox.fallback, automation.autoRepair) are the operator's own: an agent,
+  sandbox.fallback, automation.autoRepair, coder_projects) are the operator's own: an agent,
   the chat's runs and workflow processes get exit 3, operator_only`,
 		Examples: []string{
 			"monoagentcli config list",

@@ -32,7 +32,7 @@ func orgUnificationToolDefs(def func(name, desc string, props map[string]interfa
 			"mode":              strParam("run (default) | trigger | status"),
 			"wait":              boolParam("Wait for the run and return its output (default true)"),
 			"timeout_seconds":   intParam("Seconds to wait when wait is true (default 600)"),
-			"approval":          strParam("none | required — required makes every call a decision routed by the org's autonomy level; omit for the safe default"),
+			"approval":          strParam("required (the default) makes every call a decision routed by the org's autonomy level; none is the user's to give and is refused here"),
 			"max_calls_per_run": intParam("Calls allowed per org run (default 20)"),
 			"revoke":            boolParam("Revoke the grant instead of setting it"),
 			"confirm":           boolParam("Must be true to apply; omit to preview"),
@@ -135,6 +135,12 @@ func (mt *MonoagentTools) setOrgGrant(ctx context.Context, args string) (string,
 	}
 	if err := mt.checkInjectionGate("set_org_grant"); err != nil {
 		return "", err
+	}
+	if strings.TrimSpace(a.Approval) == "none" && !a.Revoke {
+		// The chat is not the operator: a grant it makes always asks first
+		// (`org grant add` refuses none from it, and defaults to required).
+		return "", fmt.Errorf("set_org_grant: approval none lets the role run the automation without asking, which only the user can grant " +
+			"(`monoagentcli org grant add ... --approval none` in their own terminal, or the app); omit approval for a grant whose calls ask first")
 	}
 	var cli []string
 	if a.Revoke {

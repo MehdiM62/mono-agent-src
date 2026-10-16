@@ -64,6 +64,7 @@ func TestConfigReservedRowsAreTheOperators(t *testing.T) {
 		"coder_mode":                `{"sendApproval":false}`,
 		"sandbox.fallback":          "run",
 		"automation.autoRepair":     "true",
+		"coder_projects":            `[{"origin":"https://bank.example.org","dir":"/"}]`,
 	}
 	for name := range reserved {
 		if err := run("set", name, "operator's"); err != nil {
@@ -135,5 +136,58 @@ func TestCoderEnableAndSandboxFallbackAreTheOperators(t *testing.T) {
 	}
 	if rep, code, out := runSandboxCLI(t, dbPath, "--set", "strictest"); code != 0 || rep.Value != "strictest" {
 		t.Errorf("the operator sets the sandbox fallback: exit %d %s", code, out)
+	}
+}
+
+// Where a full-access chat works and how far it may go are the operator's:
+// coder set's limits and the site-to-folder map refuse the chat, a workflow
+// and an agent, and change nothing; the other coder set flags stay open
+// (#831).
+func TestCoderLimitsAndProjectsAreTheOperators(t *testing.T) {
+	dbPath := newSandboxTestDB(t)
+	t.Setenv(monomind.EnvOverride, filepath.Join(t.TempDir(), "no-monomind"))
+	monomind.ResetCapabilityCache()
+	t.Cleanup(monomind.ResetCapabilityCache)
+	cfg := &globalConfig{DBPath: dbPath, ProfileID: "default", JSONOutput: true}
+	coder := func(args ...string) error {
+		var err error
+		captureStdout(t, func() {
+			cmd := newCoderCmd(cfg)
+			cmd.SetArgs(args)
+			cmd.SilenceErrors, cmd.SilenceUsage = true, true
+			err = cmd.Execute()
+		})
+		return err
+	}
+	project := t.TempDir()
+	limits := [][]string{
+		{"set", "--budget-usd", "500"}, {"set", "--max-turns", "900"}, {"set", "--timeout", "100h"},
+		{"set", "--workspace-root", project}, {"set", "--org-max-agents", "20"}, {"set", "--org-max-concurrent", "10"},
+		{"set", "--org-budget-usd", "500"},
+	}
+	for _, c := range notTheOperator {
+		t.Setenv(c.env, c.value)
+		for _, args := range append(limits, []string{"projects", "map", "https://bank.example.org", project}, []string{"projects", "unmap", "https://bank.example.org"}) {
+			if err := coder(args...); exitCode(err) != 3 {
+				t.Errorf("%s: coder %s: %v", c.name, strings.Join(args, " "), err)
+			}
+		}
+		if c.env != "CLAUDECODE" {
+			if err := coder("set", "--org-router", "jev"); err != nil {
+				t.Errorf("%s: an open coder set flag: %v", c.name, err)
+			}
+		}
+		t.Setenv(c.env, "")
+	}
+	if v, ok := configValue(t, dbPath, "coder_mode"); ok && (strings.Contains(v, "500") || strings.Contains(v, project)) {
+		t.Errorf("a limit changed: %s", v)
+	}
+	if v, ok := configValue(t, dbPath, "coder_projects"); ok && strings.Contains(v, "bank.example.org") {
+		t.Errorf("the map changed: %s", v)
+	}
+	for _, args := range append(limits, []string{"projects", "map", "https://bank.example.org", project}) {
+		if err := coder(args...); err != nil {
+			t.Errorf("the operator: coder %s: %v", strings.Join(args, " "), err)
+		}
 	}
 }

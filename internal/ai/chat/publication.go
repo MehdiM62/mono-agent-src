@@ -95,19 +95,23 @@ func (mt *MonoagentTools) executePublication(ctx context.Context, name, args str
 		if err = json.Unmarshal([]byte(args), &a); err != nil {
 			break
 		}
-		// The chat is not the operator: what it registers belongs to a send
-		// the user approved, as `publication register` asks of an agent.
-		if err = hilsend.PublicationApproved(ctx, mt.db, mt.ProfileID(), a.Approval); err != nil {
-			err = fmt.Errorf("register_publication: %w (pass its id as approval)", err)
+		e := a.Entry
+		// The chat is not the operator: what it registers is the publication
+		// a send the user approved made, which that approval registers alone,
+		// as `publication register` asks of an agent.
+		claim, cerr := hilsend.ClaimPublicationApproval(ctx, mt.db, mt.ProfileID(), a.Approval, e.Platform, e.RemoteID)
+		if cerr != nil {
+			err = fmt.Errorf("register_publication: %w (pass the send's id as approval)", cerr)
 			break
 		}
-		e := a.Entry
 		// When the call runs on behalf of an org, the context decides who
 		// published; caller-supplied identity is discarded.
 		if src := workflow.PublicationSource(ctx, workflow.NodeInput{}); src.OrgID != "" || src.RoleID != "" || src.AgentID != "" {
 			e.OrgID, e.RoleID, e.AgentID = src.OrgID, src.RoleID, src.AgentID
 		}
-		result, err = store.Register(ctx, e)
+		if result, err = store.Register(ctx, e); err != nil {
+			claim.Release(ctx, mt.db)
+		}
 	}
 	if err != nil {
 		return "", true, err

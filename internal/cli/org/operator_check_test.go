@@ -84,3 +84,28 @@ func TestOrgSignIsTheOperatorsOnly(t *testing.T) {
 		t.Fatalf("the operator's sign = %v (calls %v)", signed, s.calls)
 	}
 }
+
+// A grant that lets a role run an automation without asking is the
+// operator's to give: an agent, the chat and a workflow are refused
+// --approval none, and their grants ask first even for an automation with
+// no outbound nodes; the operator's defaults are unchanged (#831).
+func TestOrgGrantWithoutApprovalIsTheOperatorsOnly(t *testing.T) {
+	f := newOrgCLIFixture(t)
+	f.mustRun(t, "automation", "add", "growth", "--workflow", f.plainWF, "--alias", "summarize")
+	for _, k := range append([]string{"CLAUDECODE"}, notTheOperator...) {
+		t.Setenv(k, "x")
+		if _, err := f.run(t, "grant", "add", "growth", "--role", "lead", "--automation", "summarize", "--approval", "none"); exitCodeFor(err) != 3 ||
+			!strings.Contains(err.Error(), "the user's to give") {
+			t.Errorf("%s: --approval none: %v", k, err)
+		}
+		g := f.mustRun(t, "grant", "add", "growth", "--role", "lead", "--automation", "summarize")
+		if gg := g["grant"].(map[string]interface{}); gg["approval"] != "required" {
+			t.Errorf("%s: a grant without --approval: %v", k, gg)
+		}
+		t.Setenv(k, "")
+	}
+	g := f.mustRun(t, "grant", "add", "growth", "--role", "lead", "--automation", "summarize", "--approval", "none")
+	if gg := g["grant"].(map[string]interface{}); gg["approval"] != "none" {
+		t.Errorf("the operator's --approval none: %v", gg)
+	}
+}
