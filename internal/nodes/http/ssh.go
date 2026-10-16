@@ -122,27 +122,41 @@ func (n *SSHNode) Execute(ctx context.Context, input workflow.NodeInput, config 
 		return nil, fmt.Errorf("http.ssh: dial failed: %w", err)
 	}
 
+	// The handshake waits for the server too (ClientConfig.Timeout covers only
+	// ssh.Dial): the connection's deadline bounds it by the node's timeout,
+	// and a cancelled context ends it.
+	deadline := time.Now().Add(timeout)
+	_ = netConn.SetDeadline(deadline)
+	stopHandshake := context.AfterFunc(ctx, func() { _ = netConn.SetDeadline(time.Now()) })
 	sshConn, chans, reqs, err := ssh.NewClientConn(netConn, addr, sshConfig)
+	stopHandshake()
 	if err != nil {
 		netConn.Close()
+		if ctx.Err() != nil {
+			return nil, fmt.Errorf("http.ssh: cancelled: %w", ctx.Err())
+		}
+		if !time.Now().Before(deadline) {
+			return nil, fmt.Errorf("http.ssh: timed out after %s waiting for the ssh handshake", timeout)
+		}
 		return nil, fmt.Errorf("http.ssh: handshake failed: %w", err)
 	}
+	_ = netConn.SetDeadline(time.Time{})
 	client := ssh.NewClient(sshConn, chans, reqs)
 	defer client.Close()
 
 	if resource == "file" {
-		return sftpFiles(ctx, client, input, config)
+		return sftpFiles(ctx, client, timeout, input, config)
 	}
 
-	session, err := client.NewSession()
-	if err != nil {
-		return nil, fmt.Errorf("http.ssh: session failed: %w", err)
-	}
-	defer session.Close()
-	// The node's timeout and context hold from here: the environment request
-	// and the command each wait for the server.
+	// The node's timeout and context hold from here: opening the session,
+	// the environment request and the command each wait for the server.
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
+	session, err := awaitServer(ctx, client, timer, timeout, "open a session", client.NewSession)
+	if err != nil {
+		return nil, err
+	}
+	defer session.Close()
 
 	// What a workflow runs is never the operator (workflow.EnvWorkflowRun),
 	// over ssh too. sshd passes on only the variables AcceptEnv names, so on
@@ -209,6 +223,35 @@ func (n *SSHNode) Execute(ctx context.Context, input workflow.NodeInput, config 
 	}
 
 	return []workflow.NodeOutput{{Handle: handle, Items: []workflow.Item{resultItem}}}, nil
+}
+
+// awaitServer runs open, a step that waits for the server, until the node's
+// context ends or timer fires; then it closes client, which ends open, and
+// says why.
+func awaitServer[T any](ctx context.Context, client *ssh.Client, timer *time.Timer, timeout time.Duration, what string, open func() (T, error)) (T, error) {
+	type result struct {
+		v   T
+		err error
+	}
+	done := make(chan result, 1)
+	go func() {
+		v, err := open()
+		done <- result{v, err}
+	}()
+	var zero T
+	select {
+	case r := <-done:
+		if r.err != nil {
+			return zero, fmt.Errorf("http.ssh: could not %s: %w", what, r.err)
+		}
+		return r.v, nil
+	case <-ctx.Done():
+		client.Close()
+		return zero, fmt.Errorf("http.ssh: cancelled: %w", ctx.Err())
+	case <-timer.C:
+		client.Close()
+		return zero, fmt.Errorf("http.ssh: timed out after %s waiting for the server to %s", timeout, what)
+	}
 }
 
 // markedCommand is command after an export of the run's marker
