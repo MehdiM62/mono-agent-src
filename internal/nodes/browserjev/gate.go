@@ -59,6 +59,11 @@ func aiCaller(ctx context.Context) (caller, bool) {
 			declared = ""
 		}
 		switch kind {
+		case workflow.UnapprovedWorkflowCaller:
+			// A workflow called by one the user never approved: held as that
+			// workflow is (the stricter of chat's and other's levels).
+			return caller{name: "a workflow the user hasn't approved", by: hilsend.PreparedBy{AgentID: workflow.UnapprovedWorkflowCaller},
+				kind: browserctl.KindOther, authored: true}, true
 		case browserctl.KindChat:
 			return caller{name: "chat", by: hilsend.PreparedBy{AgentID: kind}, kind: kind, declared: declared}, true
 		case browserctl.KindCoder, browserctl.KindOrg:
