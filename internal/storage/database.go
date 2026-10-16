@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -52,7 +53,17 @@ func NewDatabase(dbPath string) (*Database, error) {
 	}
 
 	// Verify the connection is usable.
-	if err := db.Ping(); err != nil {
+	// The first open of a fresh file switches it to WAL, which needs an
+	// exclusive lock the busy timeout does not cover; a concurrent first
+	// start can hit SQLITE_BUSY here, so retry briefly.
+	var pingErr error
+	for i := 0; i < 100; i++ {
+		if pingErr = db.Ping(); pingErr == nil || !strings.Contains(pingErr.Error(), "SQLITE_BUSY") {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if err := pingErr; err != nil {
 		db.Close()
 		return nil, fmt.Errorf("pinging database: %w", err)
 	}
@@ -66,6 +77,25 @@ func NewDatabase(dbPath string) (*Database, error) {
 // Migrations are applied in filename order (e.g. 001_initial.sql before
 // 002_add_feature.sql).
 func (d *Database) ApplyMigrations() error {
+	// Concurrent first starts (the desktop app launches several CLI calls at
+	// once) would each see the same pending set and race to apply it. A
+	// cross-process lock serialises them; the applied set is read after the
+	// lock is held, so the losers find everything already recorded.
+	if d.dbPath != "" && !strings.Contains(d.dbPath, ":memory:") {
+		lf, err := os.OpenFile(d.dbPath+".migrate.lock", os.O_CREATE|os.O_RDWR, 0o600)
+		if err != nil {
+			return fmt.Errorf("opening migration lock: %w", err)
+		}
+		defer lf.Close()
+		if err := lockFile(lf); err != nil {
+			return fmt.Errorf("taking migration lock: %w", err)
+		}
+		defer unlockFile(lf)
+	}
+	return d.applyMigrations()
+}
+
+func (d *Database) applyMigrations() error {
 	ctx := context.Background()
 
 	// Migrations run on a single dedicated connection with foreign key
@@ -224,7 +254,7 @@ func (d *Database) ApplyMigrations() error {
 		}
 
 		// Record the migration as applied.
-		if _, err := tx.Exec("INSERT INTO schema_migrations (version, filename) VALUES (?, ?)", m.version, m.filename); err != nil {
+		if _, err := tx.Exec("INSERT OR IGNORE INTO schema_migrations (version, filename) VALUES (?, ?)", m.version, m.filename); err != nil {
 			tx.Rollback()
 			return fmt.Errorf("recording migration %d: %w", m.version, err)
 		}
