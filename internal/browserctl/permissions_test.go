@@ -204,3 +204,49 @@ func TestDefaultLevelsAndTheRiskyOne(t *testing.T) {
 		t.Errorf("full-no-approvals: %q", d.Description)
 	}
 }
+
+// A row written before the schema with org=full (a pre-release default)
+// has org reset to its default once, and is saved back with the schema;
+// a choice made after that is kept, and so is the rest of the old row.
+func TestPermissionsSchemaResetsAPreReleaseOrgFull(t *testing.T) {
+	db := testdb.Open(t).DB
+	if _, err := db.Exec(`INSERT INTO configs (name, config_data) VALUES (?, ?)`, PermissionsSetting,
+		`{"levels":{"org":"full","coder":"ask","chat":"full"},"sites":[{"origin":"https://github.com","rule":"allow"}]}`); err != nil {
+		t.Fatal(err)
+	}
+	p, err := LoadPermissions(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Level(KindOrg) != LevelDev || p.Level(KindCoder) != LevelAsk || p.Level(KindChat) != LevelFull || p.Rule("https://github.com") != RuleAllow {
+		t.Fatalf("read: %+v", p)
+	}
+	var raw string
+	if err := db.QueryRow(`SELECT config_data FROM configs WHERE name = ?`, PermissionsSetting).Scan(&raw); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(raw, `"schema":2`) || strings.Contains(raw, `"org":"full"`) {
+		t.Fatalf("saved back: %s", raw)
+	}
+	if _, err := UpdatePermissions(db, func(p *Permissions) error { return p.SetLevel(KindOrg, LevelFull) }); err != nil {
+		t.Fatal(err)
+	}
+	if p, _ := LoadPermissions(db); p.Level(KindOrg) != LevelFull {
+		t.Fatalf("org=full chosen after the reset: %s", p.Level(KindOrg))
+	}
+
+	// A schema-2 row's org=full and an old row's other org level are kept.
+	for _, row := range []string{`{"schema":2,"levels":{"org":"full"},"sites":[]}`, `{"levels":{"org":"ask"},"sites":[]}`} {
+		db := testdb.Open(t).DB
+		if _, err := db.Exec(`INSERT INTO configs (name, config_data) VALUES (?, ?)`, PermissionsSetting, row); err != nil {
+			t.Fatal(err)
+		}
+		want := LevelFull
+		if !strings.Contains(row, "schema") {
+			want = LevelAsk
+		}
+		if p, _ := LoadPermissions(db); p.Level(KindOrg) != want {
+			t.Errorf("%s: org %s", row, p.Level(KindOrg))
+		}
+	}
+}
