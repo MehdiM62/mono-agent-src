@@ -32,14 +32,15 @@ var (
 )
 
 // ReplyRedactor hides reply tokens in text shown to an agent. A token stays
-// only when every reply recorded under it is marked as sending nothing, as
-// its links then are in the waiting list too; a token of a reply that is
-// marked, or was opened before the mark was recorded, or of no recorded
-// reply at all (an execution's resume URL before its core.wait opens) is
-// hidden. In a link (/reply/<token>) the token is always one; a bare
-// 43-character string is one when a reply is recorded under it or it is the
-// resume token of an execution being shown. With no database to tell, every
-// link's token and every bare 43-character base64url string is hidden.
+// only when every reply recorded under it is one node's and marked as
+// sending nothing, as its links then are in the waiting list too. A token of
+// a reply that is marked, or was opened before the mark was recorded, or is
+// shared (an execution's resume URL, a chat session's: replyShared), or of
+// no recorded reply at all (an execution's resume URL before its core.wait
+// opens) is hidden. In a link (/reply/<token>) the token is always one; a
+// bare 43-character string is one when a reply is recorded under it or it is
+// the resume token of an execution being shown. With no database to tell,
+// every link's token and every bare 43-character base64url string is hidden.
 //
 // A nil *ReplyRedactor hides nothing: the view of the user's own terminal.
 type ReplyRedactor struct {
@@ -54,11 +55,11 @@ type ReplyRedactor struct {
 
 type replyTokenState struct {
 	recorded bool // a reply is recorded under the token
-	outbound bool // one of them is not marked as sending nothing
+	hidden   bool // one of them may send, or the token is shared
 }
 
 // shown reports whether a token known to be a reply token may stay.
-func (s replyTokenState) shown() bool { return s.recorded && !s.outbound }
+func (s replyTokenState) shown() bool { return s.recorded && !s.hidden }
 
 // NewReplyRedactor hides the tokens of the replies in db (nil: every
 // candidate, see ReplyRedactor). executionIDs are the executions being
@@ -93,7 +94,7 @@ func NewReplyRedactor(ctx context.Context, db *sql.DB, executionIDs ...string) *
 // state looks token up once; a failed lookup counts as a marked reply.
 func (r *ReplyRedactor) state(token string) replyTokenState {
 	if r.db == nil {
-		return replyTokenState{recorded: true, outbound: true}
+		return replyTokenState{recorded: true, hidden: true}
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -106,7 +107,7 @@ func (r *ReplyRedactor) state(token string) replyTokenState {
 }
 
 func (r *ReplyRedactor) load(token string) replyTokenState {
-	failed := replyTokenState{recorded: true, outbound: true}
+	failed := replyTokenState{recorded: true, hidden: true}
 	rows, err := r.db.QueryContext(r.ctx, `SELECT spec FROM wait_replies WHERE token = ?`, token)
 	if err != nil {
 		return failed
@@ -121,7 +122,7 @@ func (r *ReplyRedactor) load(token string) replyTokenState {
 		var spec WaitReplySpec
 		_ = json.Unmarshal([]byte(specJSON), &spec)
 		s.recorded = true
-		s.outbound = s.outbound || replyOutbound(spec)
+		s.hidden = s.hidden || replyOutbound(spec) || replyShared(spec)
 	}
 	if rows.Err() != nil {
 		return failed
@@ -150,7 +151,7 @@ func (r *ReplyRedactor) String(s string) string {
 		if len(m) != replyTokenLen {
 			return m
 		}
-		if st := r.state(m); st.recorded && st.outbound {
+		if st := r.state(m); st.recorded && st.hidden {
 			return ReplyTokenHidden
 		}
 		return m

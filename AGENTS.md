@@ -2680,7 +2680,13 @@ working, since the person the message went to answers there, so it can't tell
 that person from an agent that got the token another way (from the database,
 or by signing one with the machine's trace key, which a process with full
 access can read). A reply opened before its decision was recorded counts as
-one in front of a send: an agent gets the note, the user the links.
+one in front of a send: an agent gets the note, the user the links. So does
+a reply on a shared link, whatever comes after it: the run's resume URL
+(`core.wait`, a form's steps, a callback URL a node hands to another system)
+answers every such reply of the run, and a chat session's link every reply in
+the session, a later one of which may send. Only a node's own reply link (a
+`sendAndWait` message's) in front of nothing that sends is listed for an
+agent.
 
 Its token stays out of the run's data too, as a node can put
 `$execution.resumeUrl` or a reply link in its items or its error. Those
@@ -2691,10 +2697,11 @@ MCP server (`workflow_run`, `workflow_status`, `workflow_executions`,
 `node_run`, `hil_list`, an org's automation status and output), the HTTP API
 (run, executions, HIL list) and an org automation's reply always do. The token
 is the 43-character end of a `/reply/<token>` link. In a link it is hidden
-unless every reply recorded under it sends nothing (its link is then in the
-waiting list too); a bare one is hidden when a reply that may send is recorded
-under it or it is the shown run's resume token, and in a log line (no database
-to ask) every link token and every bare 43-character base64url string is. An
+unless every reply recorded under it is a node's own and sends nothing (its
+link is then in the waiting list too); a bare one is hidden when a reply that
+may send or a shared link is recorded under it, or it is the shown run's
+resume token, and in a log line (no database to ask) every link token and
+every bare 43-character base64url string is. An
 approval whose data holds `[reply token hidden]` is refused (exit 3, HTTP 400,
 an MCP error): leave that field out and it keeps its value.
 

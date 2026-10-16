@@ -68,16 +68,33 @@ func replyOutbound(spec WaitReplySpec) bool {
 	return spec.Outbound == nil || *spec.Outbound
 }
 
-// replyHiddenNote stands in for a marked reply's links.
-const replyHiddenNote = "answering it lets a message to a person go out, so its links are the user's: the person it was sent to answers through them, and the user sees them in their own terminal or the app"
+// replyShared reports whether spec's token is shared by other replies: an
+// execution's resume URL answers every core.wait and form step of the run,
+// a chat session's token every reply in the session. One opened later may
+// let a message go out, whatever this one's decision, so the token is kept
+// from agents like a marked reply's.
+func replyShared(spec WaitReplySpec) bool {
+	return spec.ExecutionURL || spec.ChatSession != ""
+}
+
+// replyHiddenNote stands in for a marked reply's links, replySharedNote for
+// the links of a reply whose token other replies share.
+const (
+	replyHiddenNote = "answering it lets a message to a person go out, so its links are the user's: the person it was sent to answers through them, and the user sees them in their own terminal or the app"
+	replySharedNote = "its link is the run's resume URL (or the chat session's), which answers every reply of the run or session, one of which may let a message to a person go out, so it is the user's: they see it in their own terminal or the app"
+)
 
 // RedactReplies leaves out the links of every reply that lets a message to a
-// person go out, for a view an agent reaches. Others are kept as they are.
+// person go out, or whose token other replies share, for a view an agent
+// reaches. Others are kept as they are.
 func RedactReplies(replies []PendingReply) []PendingReply {
 	out := make([]PendingReply, len(replies))
 	for i, p := range replies {
-		if p.Outbound {
+		switch {
+		case p.Outbound:
 			p.URL, p.Links, p.Note = "", nil, replyHiddenNote
+		case p.Shared:
+			p.URL, p.Links, p.Note = "", nil, replySharedNote
 		}
 		out[i] = p
 	}

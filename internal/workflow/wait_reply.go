@@ -394,9 +394,11 @@ type PendingReply struct {
 	URL       string      `json:"url"`
 	Links     []ReplyLink `json:"links,omitempty"`
 	ExpiresAt string      `json:"expires_at,omitempty"`
-	// Outbound: answering it lets a message to a person go out. Note says
-	// why RedactReplies left URL and Links out.
+	// Outbound: answering it lets a message to a person go out. Shared: its
+	// token answers other replies too (replyShared). Note says why
+	// RedactReplies left URL and Links out.
 	Outbound bool   `json:"outbound,omitempty"`
+	Shared   bool   `json:"shared,omitempty"`
 	Note     string `json:"note,omitempty"`
 }
 
@@ -421,7 +423,7 @@ func PendingReplies(ctx context.Context, db *sql.DB, executionID string) ([]Pend
 		var spec WaitReplySpec
 		_ = json.Unmarshal([]byte(specJSON), &spec)
 		r := replyOf(token, p.Kind, spec)
-		p.URL, p.Links, p.Outbound = r.URL, r.Links, replyOutbound(spec)
+		p.URL, p.Links, p.Outbound, p.Shared = r.URL, r.Links, replyOutbound(spec), replyShared(spec)
 		out = append(out, p)
 	}
 	return out, rows.Err()
