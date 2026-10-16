@@ -176,7 +176,7 @@ jobs:
           GOOS=linux   GOARCH=arm64 CGO_ENABLED=0 go build -ldflags "$LD" -o dist/monoagentcli-linux-arm64    ./cmd/monoagentcli
           GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -ldflags "$LD" -o dist/monoagentcli-windows-amd64.exe ./cmd/monoagentcli
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: cli-binaries-linux-windows
           # Release builds are published by the release job; keeping them longer only fills the free artifact quota.
@@ -231,7 +231,7 @@ jobs:
             echo "::notice::SIP is not enforced on this runner, so DYLD stripping cannot be observed; the hardened runtime flag was verified statically only"
           fi
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: cli-binaries-macos
           # Release builds are published by the release job; keeping them longer only fills the free artifact quota.
@@ -308,7 +308,7 @@ jobs:
           mkdir -p dist
           (cd wails-app/build/bin && zip -r "../../../dist/MonoAgent-darwin-arm64.zip" "MonoAgent.app")
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: macos-arm64-app
           # Release builds are published by the release job; keeping them longer only fills the free artifact quota.
@@ -369,7 +369,7 @@ jobs:
           cp wails-app/build/bin/monoagent-ui.exe dist/MonoAgent-windows-amd64.exe
           cp wails-app/monoagentcli.exe dist/monoagentcli-windows-amd64-bundled.exe
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: windows-app
           # Release builds are published by the release job; keeping them longer only fills the free artifact quota.
@@ -443,7 +443,7 @@ jobs:
           cp NOTICE dist/linux-pkg/NOTICE
           tar -czf dist/MonoAgent-linux-amd64.tar.gz -C dist/linux-pkg MonoAgent-linux-amd64 monoagentcli NOTICE
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: linux-app
           # Release builds are published by the release job; keeping them longer only fills the free artifact quota.
@@ -464,7 +464,7 @@ jobs:
           cp NOTICE chrome-extension/NOTICE
           zip -r dist/monoagent-chrome-extension.zip chrome-extension -x '*.DS_Store' '*.test.mjs'
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: chrome-extension
           # Release builds are published by the release job; keeping them longer only fills the free artifact quota.
@@ -538,7 +538,7 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: unsigned-manifest
           # Release builds are published by the release job; keeping them longer only fills the free artifact quota.
@@ -850,7 +850,7 @@ jobs:
 
       - name: Upload the signed manifest
         if: steps.gate.outputs.enabled == 'true'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: signed-manifest
           # Release builds are published by the release job; keeping them longer only fills the free artifact quota.
