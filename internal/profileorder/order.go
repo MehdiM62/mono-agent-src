@@ -1,6 +1,9 @@
 package profileorder
 
-import "time"
+import (
+	"sort"
+	"time"
+)
 
 // The one definition of "oldest profile", shared by the extension bridge's
 // default marker (List) and the desktop app's first selection. The database
@@ -42,4 +45,13 @@ func Older(createdA, idA, createdB, idB string) bool {
 		return createdA < createdB
 	}
 	return idA < idB
+}
+
+// Sort orders rows oldest profile first by Older, for call sites that read
+// created_at from the profiles table (never ORDER BY it in SQL: the text
+// compare disagrees with Older across the two stored formats).
+func Sort[T any](rows []T, created, id func(T) string) {
+	sort.SliceStable(rows, func(i, j int) bool {
+		return Older(created(rows[i]), id(rows[i]), created(rows[j]), id(rows[j]))
+	})
 }

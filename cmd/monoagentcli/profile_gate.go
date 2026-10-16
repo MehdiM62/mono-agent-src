@@ -12,6 +12,7 @@ import (
 	_ "modernc.org/sqlite"
 
 	"github.com/monoes/mono-agent/internal/cli/profilegate"
+	"github.com/monoes/mono-agent/internal/profileorder"
 )
 
 // The profile gate (internal/cli/profilegate): a command that acts on a
@@ -89,18 +90,32 @@ func listProfilesReadOnly(dbPath string) ([]profilegate.ProfileRef, error) {
 		return nil, err
 	}
 	defer db.Close()
-	rows, err := db.Query(`SELECT id, name FROM profiles ORDER BY created_at, id`)
+	rows, err := db.Query(`SELECT id, name, created_at FROM profiles`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var refs []profilegate.ProfileRef
+	type row struct {
+		ref     profilegate.ProfileRef
+		created string
+	}
+	var all []row
 	for rows.Next() {
-		var r profilegate.ProfileRef
-		if err := rows.Scan(&r.ID, &r.Name); err != nil {
+		var r row
+		var created sql.NullString
+		if err := rows.Scan(&r.ref.ID, &r.ref.Name, &created); err != nil {
 			return nil, err
 		}
-		refs = append(refs, r)
+		r.created = created.String
+		all = append(all, r)
 	}
-	return refs, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	profileorder.Sort(all, func(r row) string { return r.created }, func(r row) string { return r.ref.ID })
+	var refs []profilegate.ProfileRef
+	for _, r := range all {
+		refs = append(refs, r.ref)
+	}
+	return refs, nil
 }

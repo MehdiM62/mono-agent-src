@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/monoes/mono-agent/internal/profiledir"
+	"github.com/monoes/mono-agent/internal/profileorder"
 )
 
 // printJSON writes v to stdout as indented JSON. Small shared helper for the
@@ -91,7 +92,7 @@ func (d Deps) newProfileListCmd() *cobra.Command {
 			}
 			defer db.Close()
 
-			rows, err := db.DB.Query(`SELECT id, name, created_at, icon FROM profiles ORDER BY created_at ASC`)
+			rows, err := db.DB.Query(`SELECT id, name, created_at, icon FROM profiles`)
 			if err != nil {
 				return fmt.Errorf("list profiles: %w", err)
 			}
@@ -106,6 +107,7 @@ func (d Deps) newProfileListCmd() *cobra.Command {
 			if err := rows.Err(); err != nil {
 				return err
 			}
+			profileorder.Sort(profiles, func(p profileJSON) string { return p.CreatedAt }, func(p profileJSON) string { return p.ID })
 			// Root reads profiles.root_dir, so only once the cursor is closed.
 			for i := range profiles {
 				profiles[i].RootDir = profiledir.Root(db.DB, profiles[i].ID)

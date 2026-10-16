@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/monoes/mono-agent/internal/profileorder"
 )
 
 // The one rule that turns what a person typed into a profile id, shared by the
@@ -49,21 +51,35 @@ func Candidates(ctx context.Context, db *sql.DB, nameOrID string) ([]string, err
 			return nil, err
 		}
 	}
-	rows, err := db.QueryContext(ctx, `SELECT id FROM profiles WHERE LOWER(name) = LOWER(?) ORDER BY created_at, id`, nameOrID)
+	rows, err := db.QueryContext(ctx, `SELECT id, created_at FROM profiles WHERE LOWER(name) = LOWER(?)`, nameOrID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var ids []string
+	var found []createdRow
 	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
+		var r createdRow
+		var created sql.NullString
+		if err := rows.Scan(&r.id, &created); err != nil {
 			return nil, err
 		}
-		ids = append(ids, id)
+		r.created = created.String
+		found = append(found, r)
 	}
-	return ids, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	profileorder.Sort(found, func(r createdRow) string { return r.created }, func(r createdRow) string { return r.id })
+	var ids []string
+	for _, r := range found {
+		ids = append(ids, r.id)
+	}
+	return ids, nil
 }
+
+// createdRow is a profile id with its stored created_at, read to be ordered
+// by profileorder (created_at has two stored formats, so SQL cannot order it).
+type createdRow struct{ id, created string }
 
 // Resolve returns the id of the profile nameOrID names. It fails with
 // ErrUnknownProfile when none does, with an *AmbiguousError (ErrAmbiguousProfile)
@@ -82,21 +98,30 @@ func Resolve(ctx context.Context, db *sql.DB, nameOrID string) (string, error) {
 	return "", &AmbiguousError{Name: nameOrID, IDs: ids}
 }
 
-// Describe lists the profiles a caller may pass, "Work (a1), Home (b2)", oldest
-// first. It is empty when there are none or the lookup fails.
+// Describe lists every profile as "name (id)", "Work (a1), Home (b2)", oldest
+// first by profileorder (a missing name shows as empty; unlike List it skips
+// nothing and does not fall back to the id). It is empty when there are no
+// profiles or the lookup fails; a row that cannot be read is left out.
 func Describe(ctx context.Context, db *sql.DB) string {
-	rows, err := db.QueryContext(ctx, `SELECT id, name FROM profiles ORDER BY created_at, id`)
+	rows, err := db.QueryContext(ctx, `SELECT id, name, created_at FROM profiles`)
 	if err != nil {
 		return ""
 	}
 	defer rows.Close()
-	var parts []string
+	type described struct{ id, name, created string }
+	var found []described
 	for rows.Next() {
-		var id string
-		var name sql.NullString
-		if rows.Scan(&id, &name) == nil {
-			parts = append(parts, fmt.Sprintf("%s (%s)", name.String, id))
+		var d described
+		var name, created sql.NullString
+		if rows.Scan(&d.id, &name, &created) == nil {
+			d.name, d.created = name.String, created.String
+			found = append(found, d)
 		}
+	}
+	profileorder.Sort(found, func(d described) string { return d.created }, func(d described) string { return d.id })
+	parts := make([]string, 0, len(found))
+	for _, d := range found {
+		parts = append(parts, fmt.Sprintf("%s (%s)", d.name, d.id))
 	}
 	return strings.Join(parts, ", ")
 }
