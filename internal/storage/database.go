@@ -24,6 +24,13 @@ type Database struct {
 	dbPath string
 }
 
+// pingDeadline bounds how long the first open retries a locked database;
+// pingContext is the probe (replaced in tests).
+var (
+	pingDeadline = 10 * time.Second
+	pingContext  = func(ctx context.Context, db *sql.DB) error { return db.PingContext(ctx) }
+)
+
 // NewDatabase opens (or creates) a SQLite database at dbPath and configures it
 // for production use: WAL journal mode, a busy timeout of 5 seconds, and
 // foreign key enforcement.
@@ -56,10 +63,21 @@ func NewDatabase(dbPath string) (*Database, error) {
 	// The first open of a fresh file switches it to WAL, which needs an
 	// exclusive lock the busy timeout does not cover; a concurrent first
 	// start can hit SQLITE_BUSY here, so retry briefly.
+	pingCtx, cancelPing := context.WithTimeout(context.Background(), pingDeadline)
+	defer cancelPing()
 	var pingErr error
-	for i := 0; i < 100; i++ {
-		if pingErr = db.Ping(); pingErr == nil || !strings.Contains(pingErr.Error(), "SQLITE_BUSY") {
+	for {
+		pingErr = pingContext(pingCtx, db)
+		if pingErr == nil {
 			break
+		}
+		busy := strings.Contains(pingErr.Error(), "SQLITE_BUSY")
+		if !busy && pingCtx.Err() == nil {
+			break
+		}
+		if pingCtx.Err() != nil {
+			db.Close()
+			return nil, fmt.Errorf("database %s stayed locked for %s: %w", absPath, pingDeadline, pingErr)
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
