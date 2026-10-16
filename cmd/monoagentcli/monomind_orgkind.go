@@ -9,8 +9,7 @@ import (
 // agent, org (browser permissions); monomind can't import browserctl, which
 // imports it.
 func init() {
-	monomind.OrgKindEnv = func() ([]string, func()) {
-		env, _, done := browserctl.IssueAgentKind(browserctl.KindOrg)
-		return env, done
+	monomind.OrgKindEnv = func() ([]string, func(int), func()) {
+		return browserctl.IssueAgentKind(browserctl.KindOrg)
 	}
 }

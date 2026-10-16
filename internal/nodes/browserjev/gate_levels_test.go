@@ -69,6 +69,26 @@ func TestOrgAndUserRuns(t *testing.T) {
 	}
 }
 
+// A shell that says it is an org role without a token to prove it is held
+// to the stricter of the org's level and its own (other), here and in a
+// daemon that runs its marked `workflow run`.
+func TestAnUnprovenKindBindsAtTheStricterLevel(t *testing.T) {
+	ctx := permissionsDB(t, browserctl.KindOrg, browserctl.LevelOff)
+	const local = "http://localhost:5173/" // other's level, dev, allows it
+	t.Setenv("MONOMIND_ORG_ROLE", "writer")
+	if _, _, opened, err := levelRun(t, ctx, local, "", 30); err == nil || opened || !strings.Contains(err.Error(), "no token vouches for") {
+		t.Fatalf("an unproven org shell with org off: opened=%v err=%v", opened, err)
+	}
+	t.Setenv("MONOMIND_ORG_ROLE", "")
+	for mark, refused := range map[string]bool{"other/org": true, "other": false} {
+		marked := workflow.WithTrigger(ctx, "trigger.manual", map[string]interface{}{workflow.AICallerKey: mark})
+		res, _, _, err := levelRun(t, marked, local, "", 30)
+		if refused && (err == nil || !strings.Contains(err.Error(), "browser access is off")) || !refused && (err != nil || res["status"] != "done") {
+			t.Errorf("a run marked %q with org off: %v %v", mark, res, err)
+		}
+	}
+}
+
 // pendingSite waits for the run's browser.site item and returns its id.
 func pendingSite(t *testing.T, db *sql.DB) string {
 	t.Helper()

@@ -195,9 +195,21 @@ func (d Deps) agentContextMarker() string {
 
 func (c Caller) isAgent() bool { return c.actor.Kind == tasks.Agent }
 
-// operator returns the operator's actor, or the refusal an agent-driven caller gets.
+// notOperator is NotOperator's answer, "" without one.
+func (d Deps) notOperator() string {
+	if d.NotOperator == nil {
+		return ""
+	}
+	return d.NotOperator()
+}
+
+// operator returns the operator's actor, or the refusal an agent-driven caller gets, as
+// does one that no agent named but that is not the operator's own terminal (NotOperator).
 func (c Caller) operator(what string) (tasks.Actor, error) {
 	if !c.isAgent() {
+		if why := c.d.notOperator(); why != "" {
+			return tasks.Actor{}, c.d.operatorOnlyError("%s: only the operator can %s; run it in your own terminal", why, what)
+		}
 		return c.actor, nil
 	}
 	why := "--as or MONOAGENT_ACTOR names an agent"

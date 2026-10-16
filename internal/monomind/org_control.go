@@ -202,7 +202,7 @@ func OrgServeStart(ctx context.Context, projectRoot string) (pid int, alreadyRun
 	}
 	defer logf.Close()
 	cmd := Command(bin, "org", "serve", "--cross-process")
-	withOrgKind(cmd) // detached: the kind counts while this process runs
+	kindBind, _ := withOrgKind(cmd) // detached: bound to the daemon below, never done
 	inRoot(cmd, projectRoot)
 	cmd.Stdout = logf
 	cmd.Stderr = logf
@@ -212,6 +212,7 @@ func OrgServeStart(ctx context.Context, projectRoot string) (pid int, alreadyRun
 	if err != nil {
 		return 0, false, fmt.Errorf("start monomind org serve: %w", err)
 	}
+	kindBind(cmd.Process.Pid) // the kind counts while the daemon does, not this launcher
 	go func() { _ = cmd.Wait() }()
 	return cmd.Process.Pid, false, nil
 }
@@ -223,7 +224,8 @@ func OrgServeRun(ctx context.Context, projectRoot string) error {
 		return err
 	}
 	cmd := Command(bin, "org", "serve", "--cross-process")
-	defer withOrgKind(cmd)() // its roles are agents of kind org
+	_, kindDone := withOrgKind(cmd) // its roles are agents of kind org
+	defer kindDone()
 	inRoot(cmd, projectRoot)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
