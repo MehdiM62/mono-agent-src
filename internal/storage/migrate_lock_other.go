@@ -14,17 +14,26 @@ import (
 const (
 	lockPollInterval = 20 * time.Millisecond
 	lockWaitTimeout  = 120 * time.Second
-	staleLockAge     = 5 * time.Minute
+	// A holder rewrites its claim every claimHeartbeat; a claim whose
+	// last heartbeat is older than staleLockAge is abandoned.
+	claimHeartbeat = 10 * time.Second
+	staleLockAge   = 60 * time.Second
 )
 
+type heldClaim struct {
+	lock  *claimLock
+	nonce string
+}
+
 var (
-	heldMu     sync.Mutex
-	heldNonces = map[string]string{}
+	heldMu sync.Mutex
+	held   = map[string]heldClaim{}
 )
 
 func lockFile(f *os.File) error {
 	c := &claimLock{
-		path: f.Name() + ".claim", alive: processAlive, maxAge: staleLockAge,
+		path: f.Name() + ".claim", alive: processAlive,
+		staleAfter: staleLockAge, heartbeat: claimHeartbeat,
 		poll: lockPollInterval, timeout: lockWaitTimeout, pid: os.Getpid(),
 	}
 	nonce, err := c.acquire()
@@ -32,7 +41,7 @@ func lockFile(f *os.File) error {
 		return err
 	}
 	heldMu.Lock()
-	heldNonces[c.path] = nonce
+	held[c.path] = heldClaim{c, nonce}
 	heldMu.Unlock()
 	return nil
 }
@@ -40,8 +49,11 @@ func lockFile(f *os.File) error {
 func unlockFile(f *os.File) error {
 	path := f.Name() + ".claim"
 	heldMu.Lock()
-	nonce := heldNonces[path]
-	delete(heldNonces, path)
+	h, ok := held[path]
+	delete(held, path)
 	heldMu.Unlock()
-	return (&claimLock{path: path}).release(nonce)
+	if !ok {
+		return nil
+	}
+	return h.lock.release(h.nonce)
 }

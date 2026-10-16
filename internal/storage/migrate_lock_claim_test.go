@@ -12,7 +12,7 @@ import (
 
 func testClaim(path string, alive func(int) bool) *claimLock {
 	return &claimLock{
-		path: path, alive: alive, maxAge: time.Hour,
+		path: path, alive: alive, staleAfter: time.Hour,
 		poll: time.Millisecond, timeout: 5 * time.Second, pid: os.Getpid(),
 	}
 }
@@ -51,7 +51,7 @@ func TestClaimOfLiveHolderIsRespected(t *testing.T) {
 	}
 }
 
-func TestClaimOlderThanMaxAgeIsBrokenEvenIfPIDLooksAlive(t *testing.T) {
+func TestClaimWithoutRecentHeartbeatIsBrokenEvenIfPIDLooksAlive(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "db.claim")
 	writeClaim(t, path, "old", 4242, time.Now().Add(-2*time.Hour))
 	c := testClaim(path, func(int) bool { return true })
@@ -79,6 +79,70 @@ func TestReleaseKeepsAClaimWithAnotherNonce(t *testing.T) {
 	}
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
 		t.Fatal("release did not remove our own claim")
+	}
+}
+
+// A live holder that heartbeats is never judged stale by total age, however
+// long it holds the claim.
+func TestHeartbeatKeepsALongHeldClaimAlive(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "db.claim")
+	holder := testClaim(path, func(int) bool { return true })
+	holder.staleAfter = 80 * time.Millisecond
+	holder.heartbeat = 5 * time.Millisecond
+	nonce, err := holder.acquire()
+	if err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(400 * time.Millisecond) // five times staleAfter
+
+	waiter := testClaim(path, func(int) bool { return true })
+	waiter.staleAfter = holder.staleAfter
+	waiter.timeout = 100 * time.Millisecond
+	if _, err := waiter.acquire(); err == nil {
+		t.Fatal("a heartbeating holder lost its claim to a waiter")
+	}
+	if err := holder.release(nonce); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatal("release left the claim behind")
+	}
+}
+
+// A crashed holder whose PID was reused by an unrelated live process leaves
+// a claim that looks alive by PID but is no longer heartbeating.
+func TestClaimWithLivePIDButStoppedHeartbeatIsBroken(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "db.claim")
+	writeClaim(t, path, "crashed", 4242, time.Now())
+	c := testClaim(path, func(pid int) bool { return pid == 4242 })
+	c.staleAfter = 60 * time.Millisecond
+	start := time.Now()
+	if _, err := c.acquire(); err != nil {
+		t.Fatalf("a claim with a reused live PID and no heartbeat blocked: %v", err)
+	}
+	if time.Since(start) < 50*time.Millisecond {
+		t.Fatal("claim was broken before the heartbeat bound elapsed")
+	}
+}
+
+// The heartbeat must stop refreshing once the claim is no longer ours.
+func TestHeartbeatDoesNotRefreshAClaimOwnedBySomeoneElse(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "db.claim")
+	c := testClaim(path, func(int) bool { return true })
+	c.heartbeat = 5 * time.Millisecond
+	nonce, err := c.acquire()
+	if err != nil {
+		t.Fatal(err)
+	}
+	stolen := time.Now().Add(-time.Minute)
+	writeClaim(t, path, "someone-else", 1, stolen)
+	time.Sleep(100 * time.Millisecond)
+	want := fmt.Sprintf("someone-else 1 %d", stolen.UnixNano())
+	if b, _ := os.ReadFile(path); string(b) != want {
+		t.Fatalf("heartbeat overwrote another owner's claim: %q", b)
+	}
+	if err := c.release(nonce); err != nil {
+		t.Fatal(err)
 	}
 }
 
