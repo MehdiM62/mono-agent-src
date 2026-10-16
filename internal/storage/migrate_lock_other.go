@@ -18,6 +18,8 @@ const (
 	// last heartbeat is older than staleLockAge is abandoned.
 	claimHeartbeat = 10 * time.Second
 	staleLockAge   = 60 * time.Second
+	// An empty or unparseable claim is left alone this long.
+	claimEmptyGrace = 10 * time.Second
 )
 
 type heldClaim struct {
@@ -34,7 +36,8 @@ func lockFile(f *os.File) error {
 	c := &claimLock{
 		path: f.Name() + ".claim", alive: processAlive,
 		staleAfter: staleLockAge, heartbeat: claimHeartbeat,
-		poll: lockPollInterval, timeout: lockWaitTimeout, pid: os.Getpid(),
+		emptyGrace: claimEmptyGrace,
+		poll:       lockPollInterval, timeout: lockWaitTimeout, pid: os.Getpid(),
 	}
 	nonce, err := c.acquire()
 	if err != nil {

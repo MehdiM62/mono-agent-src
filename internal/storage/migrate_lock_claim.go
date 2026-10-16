@@ -31,6 +31,7 @@ type claimLock struct {
 	alive      func(pid int) bool
 	staleAfter time.Duration
 	heartbeat  time.Duration
+	emptyGrace time.Duration
 	poll       time.Duration
 	timeout    time.Duration
 	pid        int
@@ -57,14 +58,8 @@ func (c *claimLock) acquire() (string, error) {
 	body := claimBody(nonce, c.pid, time.Now())
 	deadline := time.Now().Add(c.timeout)
 	for {
-		h, err := os.OpenFile(c.path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+		err := publishExclusive(c.path, body)
 		if err == nil {
-			_, werr := h.WriteString(body)
-			cerr := h.Close()
-			if werr != nil || cerr != nil {
-				_ = os.Remove(c.path)
-				return "", errors.Join(werr, cerr)
-			}
 			c.startHeartbeat(nonce)
 			return nonce, nil
 		}
@@ -137,21 +132,70 @@ func (c *claimLock) unlockBreak() { _ = os.Remove(c.path + ".break") }
 const breakLockAge = 30 * time.Second
 
 func (c *claimLock) stale(body string) bool {
-	f := strings.Fields(body)
-	if len(f) == 3 {
-		pid, perr := strconv.Atoi(f[1])
-		ns, serr := strconv.ParseInt(f[2], 10, 64)
-		if perr == nil && serr == nil {
-			if time.Since(time.Unix(0, ns)) > c.staleAfter {
-				return true
-			}
-			return !c.alive(pid)
+	if _, pid, ns, ok := parseClaim(body); ok {
+		if time.Since(time.Unix(0, ns)) > c.staleAfter {
+			return true
 		}
+		return !c.alive(pid)
 	}
-	// Unparseable (e.g. a holder caught between create and write): only
-	// the file's age can condemn it.
+	// Empty or unparseable (a holder that crashed mid-write on a filesystem
+	// without hard links, or a truncated body): never judged from its
+	// content, only from the file's age, and only after a short grace so a
+	// claim being written right now is left alone.
 	info, err := os.Stat(c.path)
-	return err == nil && time.Since(info.ModTime()) > c.staleAfter
+	return err == nil && time.Since(info.ModTime()) > c.emptyGrace
+}
+
+// parseClaim reads "nonce pid unixnano". The timestamp must have the full
+// width of a current UnixNano, so a body cut short mid-number is rejected
+// rather than read as a moment in 1970.
+func parseClaim(body string) (nonce string, pid int, ns int64, ok bool) {
+	f := strings.Fields(body)
+	if len(f) != 3 {
+		return "", 0, 0, false
+	}
+	pid, perr := strconv.Atoi(f[1])
+	ns, serr := strconv.ParseInt(f[2], 10, 64)
+	if perr != nil || serr != nil || pid <= 0 || ns < minClaimNanos {
+		return "", 0, 0, false
+	}
+	return f[0], pid, ns, true
+}
+
+// minClaimNanos is 2001-09-09, the first moment UnixNano has 19 digits.
+const minClaimNanos = 1_000_000_000_000_000_000
+
+// linkFile is os.Link; a test swaps it to exercise the no-hard-link path.
+var linkFile = os.Link
+
+// publishExclusive makes path appear with its complete body or not at all,
+// and fails with os.ErrExist if it already exists. The body is written and
+// synced to a unique temp file in the same directory and hard-linked into
+// place, so a crash leaves at worst a stray temp file and never a visible
+// empty or partial claim. Where hard links are unavailable it falls back to
+// an O_EXCL create followed by the write, which stale() tolerates.
+func publishExclusive(path, body string) error {
+	tmp := path + "." + newNonce() + ".tmp"
+	if err := writeSynced(tmp, body); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	defer os.Remove(tmp)
+	err := linkFile(tmp, path)
+	if err == nil || errors.Is(err, os.ErrExist) {
+		return err
+	}
+	h, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	if err != nil {
+		return err
+	}
+	_, werr := h.WriteString(body)
+	serr := h.Sync()
+	if err := errors.Join(werr, serr, h.Close()); err != nil {
+		_ = os.Remove(path)
+		return err
+	}
+	return nil
 }
 
 // startHeartbeat keeps the claim fresh until stopHeartbeat.

@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,7 +13,7 @@ import (
 
 func testClaim(path string, alive func(int) bool) *claimLock {
 	return &claimLock{
-		path: path, alive: alive, staleAfter: time.Hour,
+		path: path, alive: alive, staleAfter: time.Hour, emptyGrace: 50 * time.Millisecond,
 		poll: time.Millisecond, timeout: 5 * time.Second, pid: os.Getpid(),
 	}
 }
@@ -143,6 +144,117 @@ func TestHeartbeatDoesNotRefreshAClaimOwnedBySomeoneElse(t *testing.T) {
 	}
 	if err := c.release(nonce); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// An empty or truncated claim is never judged stale at once (a truncated
+// timestamp must not read as 1970); it is broken only after the grace.
+func TestEmptyOrTruncatedClaimIsBrokenOnlyAfterGrace(t *testing.T) {
+	for name, body := range map[string]string{
+		"empty":     "",
+		"no-fields": "abcdef",
+		"truncated": fmt.Sprintf("abc 4242 %d", 17),
+		"cut-pid":   "abc 42",
+	} {
+		t.Run(name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "db.claim")
+			if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			c := testClaim(path, func(int) bool { return false })
+			c.emptyGrace = 200 * time.Millisecond
+			c.timeout = 50 * time.Millisecond
+			if _, err := c.acquire(); err == nil {
+				t.Fatal("a just-written unparseable claim was broken at once")
+			}
+			c.timeout = 5 * time.Second
+			start := time.Now()
+			if _, err := c.acquire(); err != nil {
+				t.Fatalf("an abandoned unparseable claim was never broken: %v", err)
+			}
+			if time.Since(start) > 2*time.Second {
+				t.Fatalf("took %s after the grace", time.Since(start))
+			}
+		})
+	}
+}
+
+// A crash between writing the temp file and publishing it leaves only a
+// stray temp file, which never blocks anyone.
+func TestStrayTempFileNeverBlocks(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "db.claim")
+	if err := os.WriteFile(path+".deadbeef.tmp", []byte("abc 4242"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	c := testClaim(path, func(int) bool { return true })
+	c.timeout = 100 * time.Millisecond
+	if _, err := c.acquire(); err != nil {
+		t.Fatalf("stray temp file blocked the lock: %v", err)
+	}
+}
+
+// Without hard links the claim is still exclusive and complete.
+func TestClaimPublishFallsBackWithoutHardLinks(t *testing.T) {
+	old := linkFile
+	linkFile = func(string, string) error { return errors.New("hard links not supported") }
+	t.Cleanup(func() { linkFile = old })
+
+	path := filepath.Join(t.TempDir(), "db.claim")
+	c := testClaim(path, func(int) bool { return true })
+	nonce, err := c.acquire()
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := os.ReadFile(path)
+	if got, _, _, ok := parseClaim(string(b)); !ok || got != nonce {
+		t.Fatalf("fallback claim body = %q", b)
+	}
+	other := testClaim(path, func(int) bool { return true })
+	other.timeout = 50 * time.Millisecond
+	if _, err := other.acquire(); err == nil {
+		t.Fatal("fallback publish was not exclusive")
+	}
+}
+
+// A reader polling the claim while holders come and go never sees a claim
+// without its complete body.
+func TestClaimIsNeverVisibleHalfWritten(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "db.claim")
+	stop := make(chan struct{})
+	var bad atomic.Value
+	var rd sync.WaitGroup
+	rd.Add(1)
+	go func() {
+		defer rd.Done()
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			b, err := os.ReadFile(path)
+			if err != nil {
+				continue
+			}
+			if _, _, _, ok := parseClaim(string(b)); !ok {
+				bad.Store(string(b))
+			}
+		}
+	}()
+	c := testClaim(path, func(int) bool { return true })
+	for i := 0; i < 300; i++ {
+		nonce, err := c.acquire()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := c.release(nonce); err != nil {
+			t.Fatal(err)
+		}
+	}
+	close(stop)
+	rd.Wait()
+	if v := bad.Load(); v != nil {
+		t.Fatalf("observed a partial claim %q", v)
 	}
 }
 
