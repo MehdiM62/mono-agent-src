@@ -24,7 +24,16 @@ func Main(m *testing.M) {
 	os.Exit(run(m))
 }
 
+// realHome is the home directory as it was before Main replaced it.
+var realHome string
+
+// RealHome is the user's own home directory, as it was before Main replaced
+// it. Only an opt-in live test (behind a build tag) that reads the user's
+// state on purpose uses it; everything else belongs in the test home.
+func RealHome() string { return realHome }
+
 func run(m *testing.M) int {
+	realHome, _ = os.UserHomeDir()
 	keepCaches()
 	blockNetwork()
 	dir, err := os.MkdirTemp("", "monoagent-testhome-")

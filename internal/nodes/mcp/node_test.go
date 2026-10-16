@@ -14,6 +14,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/zalando/go-keyring"
+
+	"github.com/monoes/mono-agent/internal/testhome"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -22,7 +25,8 @@ func TestMain(m *testing.M) {
 		runFakeStdio()
 		os.Exit(0)
 	}
-	os.Exit(m.Run())
+	keyring.MockInit()
+	testhome.Main(m)
 }
 
 // stdioConfig returns a config that spawns this test binary as the fake

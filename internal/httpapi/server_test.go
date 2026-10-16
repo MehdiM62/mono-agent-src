@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -19,6 +18,7 @@ import (
 	"github.com/monoes/mono-agent/internal/noderegistry"
 	"github.com/monoes/mono-agent/internal/scheduler"
 	"github.com/monoes/mono-agent/internal/storage"
+	"github.com/monoes/mono-agent/internal/testhome"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -27,7 +27,7 @@ import (
 // pattern as internal/secrets's own tests.
 func TestMain(m *testing.M) {
 	keyring.MockInit()
-	os.Exit(m.Run())
+	testhome.Main(m)
 }
 
 // newTestServer builds a Server backed by a fresh temp SQLite DB (real
