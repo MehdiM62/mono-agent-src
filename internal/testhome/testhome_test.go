@@ -21,6 +21,15 @@ func TestHomeIsATempDir(t *testing.T) {
 	if os.Getenv("GOCACHE") == "" || strings.HasPrefix(os.Getenv("GOCACHE"), home) {
 		t.Fatalf("GOCACHE = %q, want the real build cache", os.Getenv("GOCACHE"))
 	}
+	cfg, err := os.UserConfigDir()
+	if err != nil || !strings.HasPrefix(cfg, home) {
+		t.Fatalf("UserConfigDir = %q (%v), want one inside the test home %s", cfg, err, home)
+	}
+	for _, k := range []string{"XDG_DATA_HOME", "XDG_STATE_HOME"} {
+		if !strings.HasPrefix(os.Getenv(k), home) {
+			t.Fatalf("%s = %q, want one inside the test home", k, os.Getenv(k))
+		}
+	}
 }
 
 func TestDefaultTransportRefusesTheNetwork(t *testing.T) {
@@ -54,6 +63,18 @@ func TestDefaultTransportReachesLoopback(t *testing.T) {
 	for _, a := range []string{"monoes.me:443", "10.0.0.1:80", "localhost.example.com:80"} {
 		if isLoopback(a) {
 			t.Errorf("isLoopback(%q) = true", a)
+		}
+	}
+}
+
+func TestKeepHomeOnlyUnderTheTempDir(t *testing.T) {
+	inside := t.TempDir()
+	if !underTempDir(inside) {
+		t.Fatalf("%s is under the temp dir", inside)
+	}
+	for _, dir := range []string{"", RealHome(), "/", os.TempDir()} {
+		if underTempDir(dir) {
+			t.Errorf("%q must not count as a test home to keep", dir)
 		}
 	}
 }

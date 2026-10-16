@@ -9,7 +9,9 @@ import (
 )
 
 // processStart is when process pid started, as the kernel tells it
-// (kinfo_proc's p_starttime). ok is false when there is no such process.
+// (kinfo_proc's p_starttime). It is wall-clock time, so unlike Linux's
+// ticks since boot it doesn't repeat after a reboot. ok is false when
+// there is no such process.
 func processStart(pid int) (string, bool) {
 	if pid <= 0 {
 		return "", false

@@ -9,10 +9,16 @@ import (
 )
 
 // processStart is when process pid started, as the kernel tells it:
-// /proc/<pid>/stat field 22 (clock ticks since boot). ok is false when no
-// such process can be seen (gone, or another pid namespace).
+// /proc/<pid>/stat field 22, clock ticks since boot, prefixed with this
+// boot's id ("<boot id>:<ticks>"), as the same pid can start at the same
+// tick after another boot. ok is false when no such process can be seen
+// (gone, or another pid namespace) or the boot id can't be read.
 func processStart(pid int) (string, bool) {
 	if pid <= 0 {
+		return "", false
+	}
+	boot, err := os.ReadFile("/proc/sys/kernel/random/boot_id")
+	if err != nil || len(strings.TrimSpace(string(boot))) == 0 {
 		return "", false
 	}
 	raw, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/stat")
@@ -29,5 +35,5 @@ func processStart(pid int) (string, bool) {
 	if len(fields) < 20 {
 		return "", false
 	}
-	return fields[19], true
+	return strings.TrimSpace(string(boot)) + ":" + fields[19], true
 }
