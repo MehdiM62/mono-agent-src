@@ -11,6 +11,7 @@ package testhome
 import (
 	"fmt"
 	"os"
+	"os/user"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -34,16 +35,18 @@ var realHome string
 func RealHome() string { return realHome }
 
 // KeepHomeEnv, set to 1 by a test that starts its own test binary as a helper
-// process with a HOME of its own (a rig's home), makes Main in that helper keep
-// that HOME instead of replacing it. It is honoured only for a HOME under the
-// temp dir, so it can never point a test at the user's real home.
+// process with a HOME of its own (a rig's home, or the test's own test home),
+// makes Main in that helper keep that HOME instead of replacing it. It is
+// honoured only for a HOME under the temp dir that is neither the account's
+// real home nor a folder holding it (keepable), so it can never point a test
+// at the user's real home.
 const KeepHomeEnv = "MONOAGENT_TESTHOME_KEEP"
 
 func run(m *testing.M) int {
 	realHome, _ = os.UserHomeDir()
 	keepCaches()
 	blockNetwork()
-	if home := os.Getenv("HOME"); os.Getenv(KeepHomeEnv) == "1" && underTempDir(home) {
+	if home := os.Getenv("HOME"); os.Getenv(KeepHomeEnv) == "1" && keepable(home) {
 		return m.Run()
 	}
 	dir, err := os.MkdirTemp("", "monoagent-testhome-")
@@ -87,13 +90,44 @@ func setIfUnset(key, value string) {
 	}
 }
 
-// underTempDir reports whether dir lies inside the temp dir (os.TempDir,
-// which follows TMPDIR), symlinks resolved.
+// underTempDir reports whether dir lies inside a temp dir, symlinks
+// resolved: os.TempDir (which follows TMPDIR), or GOTMPDIR, where t.TempDir
+// makes its dirs when that is set.
 func underTempDir(dir string) bool {
 	if dir == "" {
 		return false
 	}
-	tmp, err := filepath.EvalSymlinks(os.TempDir())
+	d, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		return false
+	}
+	for _, root := range []string{os.TempDir(), os.Getenv("GOTMPDIR")} {
+		if root == "" {
+			continue
+		}
+		tmp, err := filepath.EvalSymlinks(root)
+		if err == nil && d != tmp && within(d, tmp) {
+			return true
+		}
+	}
+	return false
+}
+
+// keepable reports whether a HOME handed to a helper process may be kept: it
+// lies under the temp dir and is neither the account's real home (from the
+// user database, not $HOME, which a test run may have moved) nor a folder
+// that holds it. The temp dir can sit above the home as well as below it
+// (TMPDIR=/ or ~/scratch/…), so "under the temp dir" alone does not rule
+// those out.
+func keepable(dir string) bool {
+	if !underTempDir(dir) {
+		return false
+	}
+	u, err := user.Current()
+	if err != nil || u.HomeDir == "" {
+		return false
+	}
+	home, err := filepath.EvalSymlinks(u.HomeDir)
 	if err != nil {
 		return false
 	}
@@ -101,6 +135,11 @@ func underTempDir(dir string) bool {
 	if err != nil {
 		return false
 	}
-	rel, err := filepath.Rel(tmp, d)
-	return err == nil && rel != "." && rel != ".." && !filepath.IsAbs(rel) && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+	return !within(home, d)
+}
+
+// within reports whether path is dir or lies under it (both resolved).
+func within(path, dir string) bool {
+	rel, err := filepath.Rel(dir, path)
+	return err == nil && !filepath.IsAbs(rel) && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
