@@ -2558,8 +2558,9 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
   chat tool call `chat`, the org side `org`. `off` and a refused site fail the run with the
   refusal's message; `ask` raises the "allow this site?" item and waits like
   a submit; `full-no-approvals` runs without the submit guard.
-- **Not covered.** A workflow you approved (you saved, activated, imported
-  or ran it from the app or your own terminal, and nothing changed it since)
+- **Not covered.** A workflow you approved (you saved, changed, activated or
+  imported it from the app or your own terminal, and nothing else changed it
+  since; a plain `workflow run` does not approve)
   runs as your own whatever starts it: one an agent activates on a schedule
   or a webhook runs later in the daemon with no mark, and so, for such a
   workflow, do sub-workflows of org-side runs, `workflow templates run`, and
