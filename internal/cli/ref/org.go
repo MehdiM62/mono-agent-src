@@ -179,8 +179,8 @@ AUTONOMY
       higher --max-decisions or --max-decider-usd (0 counts as the default) get
       exit 3; the user changes those in their own terminal or the app)
   org autonomy pause <org>|--all [--for 30m]     resume <org>|--all
-      (from an agent, the chat or a workflow, ending a pause sooner — resume or
-      a shorter --for — gets exit 3, and no org named changes)
+      (from an agent, the chat or a workflow, resume of a paused org gets exit
+      3 and no org named changes; a shorter --for keeps a longer pause)
   org autonomy decisions <org> [--run R] [--verdict V] [--limit N]
   org autonomy needs-you <org>
 

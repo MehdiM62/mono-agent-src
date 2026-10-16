@@ -92,6 +92,17 @@ func autonomyWidening(before, after *orgdecide.Autonomy) string {
 	return ""
 }
 
+// pauseUntil is when a pause asked to end at until ends for org a: what is
+// not the operator's own terminal never ends a pause sooner, so an org
+// already paused for longer keeps its pause (and `pause --all` still pauses
+// the rest).
+func pauseUntil(a *orgdecide.Autonomy, until time.Time) time.Time {
+	if operator.Refusal() != "" && a.PausedUntil != nil && a.PausedUntil.After(until) {
+		return *a.PausedUntil
+	}
+	return until
+}
+
 // deciderLimits are the limits the decider runs with: 0 or less is the default.
 func deciderLimits(a *orgdecide.Autonomy) (int, float64) {
 	n, usd := a.Limits.MaxDecisionsPerRun, a.Limits.MaxDeciderUSDPerRun

@@ -369,7 +369,7 @@ func newOrgAutonomyPauseCmd(env *orgEnv, pause bool) *cobra.Command {
 				}
 				before := snapshotAutonomy(a)
 				if pause {
-					u := until
+					u := pauseUntil(a, until)
 					a.PausedUntil = &u
 				} else {
 					a.PausedUntil = nil

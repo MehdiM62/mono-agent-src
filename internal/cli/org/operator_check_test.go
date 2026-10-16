@@ -9,6 +9,7 @@ import (
 
 	"github.com/monoes/mono-agent/internal/browserctl"
 	"github.com/monoes/mono-agent/internal/monomind"
+	"github.com/monoes/mono-agent/internal/orgdesign"
 	"github.com/monoes/mono-agent/internal/orgsign/orgsigntest"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
@@ -187,22 +188,36 @@ func TestOrgAutonomyWideningIsTheOperatorsOnly(t *testing.T) {
 }
 
 // An agent, the chat and a workflow may pause an org's autonomy, or pause it
-// for longer, never end the operator's pause sooner: resume and a shorter
-// --for are refused (exit 3) for every org named and change none of them.
+// for longer, never end the operator's pause sooner: resume is refused (exit
+// 3) for every org named and changes none of them, and a shorter --for
+// leaves a longer pause as it is while it pauses the other orgs.
 func TestOrgAutonomyEndingAPauseIsTheOperatorsOnly(t *testing.T) {
 	f := newOrgCLIFixture(t)
+	if _, err := orgdesign.Save(f.root, orgdesign.NewOrg("ops", "run ops", orgdesign.NewOrgOptions{})); err != nil {
+		t.Fatal(err)
+	}
 	f.mustRun(t, "autonomy", "set", "growth", "--level", "mid")
 	f.mustRun(t, "autonomy", "pause", "growth")
 	for _, k := range append([]string{"CLAUDECODE"}, notTheOperator...) {
 		t.Setenv(k, "x")
-		for _, args := range [][]string{{"resume", "growth"}, {"resume", "--all"}, {"pause", "growth", "--for", "30m"}} {
+		for _, args := range [][]string{{"resume", "growth"}, {"resume", "--all"}} {
 			_, err := f.run(t, append([]string{"autonomy"}, args...)...)
 			if exitCodeFor(err) != 3 || !strings.Contains(err.Error(), "ending its pause") || !strings.Contains(err.Error(), "inherited this marker") {
 				t.Errorf("%s: autonomy %v: %v", k, args, err)
 			}
 		}
-		if v := f.mustRun(t, "autonomy", "show", "growth"); v["paused_until"] == nil {
-			t.Errorf("%s: a refused resume changed the pause: %v", k, v)
+		was := f.mustRun(t, "autonomy", "show", "growth")["paused_until"]
+		if was == nil {
+			t.Errorf("%s: a refused resume ended the pause", k)
+		}
+		for _, args := range [][]string{{"pause", "growth", "--for", "30m"}, {"pause", "--all", "--for", "30m"}} {
+			f.mustRun(t, append([]string{"autonomy"}, args...)...)
+			if now := f.mustRun(t, "autonomy", "show", "growth")["paused_until"]; now != was {
+				t.Errorf("%s: autonomy %v moved the pause from %v to %v", k, args, was, now)
+			}
+		}
+		if f.mustRun(t, "autonomy", "show", "ops")["paused_until"] == nil {
+			t.Errorf("%s: pause --all left ops unpaused", k)
 		}
 		f.mustRun(t, "autonomy", "pause", "growth") // pausing again, as long, goes through
 		t.Setenv(k, "")
