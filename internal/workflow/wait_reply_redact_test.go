@@ -113,3 +113,44 @@ func TestCheckReplyEdit(t *testing.T) {
 		t.Errorf("err = %v", err)
 	}
 }
+
+// An execution's resume URL and a chat session's token answer other replies
+// too, so they stay hidden even when every reply open under them sends
+// nothing, in the text and the waiting list; a node's own reply that sends
+// nothing keeps its token and its link.
+func TestReplyRedactorHidesSharedTokens(t *testing.T) {
+	sendsByType(t)
+	f := newReplyFixture(t)
+	quiet := after(f.ctx, commsync.Reachable{})
+	open := func(node string, spec WaitReplySpec) WaitReply {
+		t.Helper()
+		in := f.in
+		in.NodeID = node
+		r, err := NewWaitReply(quiet, in, spec)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return r
+	}
+	run := open("wait", WaitReplySpec{Kind: WaitReplyWebhook, ExecutionURL: true})
+	chat := open("ask", WaitReplySpec{Kind: WaitReplyFreeText, ChatSession: "session-1"})
+	own := open("own", WaitReplySpec{Kind: WaitReplyFreeText})
+
+	got := NewReplyRedactor(f.ctx, f.db).String(strings.Join([]string{run.URL, chat.Token, own.URL, own.Token}, " "))
+	if strings.Contains(got, run.Token) || strings.Contains(got, chat.Token) || !strings.Contains(got, own.URL+" "+own.Token) {
+		t.Errorf("redacted: %s", got)
+	}
+	pending, err := PendingReplies(f.ctx, f.db, "e1")
+	if err != nil || len(pending) != 3 {
+		t.Fatalf("pending = %+v, %v", pending, err)
+	}
+	shown := RedactReplies(pending)
+	for _, p := range shown[:2] {
+		if p.URL != "" || p.Links != nil || !p.Shared || p.Outbound || !strings.Contains(p.Note, "resume URL") {
+			t.Errorf("shared reply kept its link: %+v", p)
+		}
+	}
+	if shown[2].URL != own.URL || shown[2].Shared || shown[2].Note != "" {
+		t.Errorf("a node's own reply: %+v", shown[2])
+	}
+}
