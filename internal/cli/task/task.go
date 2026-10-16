@@ -11,6 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/monoes/mono-agent/internal/operator"
 	"github.com/monoes/mono-agent/internal/orgsign"
 	"github.com/monoes/mono-agent/internal/tasks"
 )
@@ -236,7 +237,7 @@ func (c Caller) operator(what string) (tasks.Actor, error) {
 	case c.marker != "" && c.envBlank:
 		why = c.marker + " is set and MONOAGENT_ACTOR is set to a blank value, so an agent is running this command"
 	case c.marker != "":
-		why = c.marker + " is set, so an agent is running this command"
+		why = c.marker + " is set, so an agent is running this command. " + operator.InheritedHint()
 	case c.asBlank:
 		why = "--as is given with no name, which counts as an agent"
 	case c.envBlank:

@@ -113,21 +113,37 @@ func AIRun(ctx context.Context) bool {
 	return false
 }
 
-// Refusal says why this process is not the operator's own terminal, for an
-// error message, or "" for the operator.
+// inheritedHint says how to fix a refusal the user meets on their own
+// action. A long-lived process started from a marked one (an agent's shell,
+// a chat's or a workflow's run) inherits its marker, and so does everything
+// it starts: the user's own actions through it are refused too. That fails
+// closed on purpose; clearing the marker in the process would let an
+// agent-started daemon's runs pass for the user's.
+const inheritedHint = "if you started the MonoAgent app, the daemon or the browser bridge from an agent shell, a chat or a workflow run, " +
+	"it inherited this marker: restart it from your own terminal or the desktop launcher " +
+	"(`systemctl --user restart monoagent-bridge` for the bridge service, `systemctl --user restart monoagent-daemon` for the daemon)"
+
+// InheritedHint is inheritedHint as a sentence of its own, for a refusal
+// that does not go through Refusal.
+func InheritedHint() string { return "If" + strings.TrimPrefix(inheritedHint, "if") + "." }
+
+// Refusal says why this process is not the operator's own terminal, and how
+// to fix a marker it inherited, for an error message; "" for the operator.
 func Refusal() string {
+	why := ""
 	switch m := Marker(); m {
 	case "":
 		return ""
 	case workflow.EnvWorkflowRun:
-		return m + " is set, so a workflow run is running this command"
+		why = m + " is set, so a workflow run is running this command"
 	case browserctl.EnvAICaller:
-		return m + " is set, so the chat is running this command"
+		why = m + " is set, so the chat is running this command"
 	case ancestorWorkflowRun, ancestorAICaller, ancestorAgentExec:
-		return m + " marks it, so a workflow run, the chat or an agent started this command, whatever its own environment says"
+		why = m + " marks it, so a workflow run, the chat or an agent started this command, whatever its own environment says"
 	default:
-		return m + " is set, so an agent is running this command"
+		why = m + " is set, so an agent is running this command"
 	}
+	return why + " (" + inheritedHint + ")"
 }
 
 // ApproveWorkflow records workflow id's current definition as the operator's

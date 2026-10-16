@@ -125,3 +125,23 @@ func TestApproveWorkflow(t *testing.T) {
 		t.Errorf("a store without approvals: %v", err)
 	}
 }
+
+// A refusal says how to fix a marker a long-lived process inherited: the
+// app, the daemon or the bridge started from a marked shell refuses the
+// user's own actions until it is started again from their own terminal.
+func TestRefusalSaysHowToFixAnInheritedMarker(t *testing.T) {
+	for _, k := range []string{workflow.EnvWorkflowRun, browserctl.EnvAICaller, "CLAUDECODE"} {
+		asOperator(t)
+		t.Setenv(k, "x")
+		r := Refusal()
+		for _, want := range []string{k + " is set", "the MonoAgent app, the daemon or the browser bridge", "inherited this marker",
+			"restart it from your own terminal or the desktop launcher", "`systemctl --user restart monoagent-bridge`"} {
+			if !strings.Contains(r, want) {
+				t.Errorf("%s: %q lacks %q", k, r, want)
+			}
+		}
+	}
+	if h := InheritedHint(); !strings.HasPrefix(h, "If you started the MonoAgent app") || !strings.HasSuffix(h, "for the daemon).") {
+		t.Errorf("InheritedHint() = %q", h)
+	}
+}

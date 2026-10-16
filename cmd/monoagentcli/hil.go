@@ -128,10 +128,10 @@ func requirePublicationApproval(cfg *globalConfig, approvalID string, e publicat
 		var cerr error
 		claim, cerr = hilsend.ClaimPublicationApproval(context.Background(), db, cfg.ProfileID, approvalID, e.Platform, e.RemoteID)
 		if errors.Is(cerr, hilsend.ErrPublicationNeedsApproval) {
-			return operatorOnlyError("registering a publication from an agent needs an approved send: prepare the send (it is queued for approval, and registers itself once approved), or pass --approval <hil id> of a send that was approved and sent")
+			return operatorOnlyError("registering a publication from an agent needs an approved send: prepare the send (it is queued for approval, and registers itself once approved), or pass --approval <hil id> of a send that was approved and sent. Asked because %s", notOperator())
 		}
 		if cerr != nil {
-			return operatorOnlyError("%v", cerr)
+			return operatorOnlyError("%v (asked because %s)", cerr, notOperator())
 		}
 		return nil
 	})

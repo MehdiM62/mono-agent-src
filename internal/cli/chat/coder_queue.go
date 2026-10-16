@@ -18,6 +18,7 @@ import (
 
 	"github.com/monoes/mono-agent/internal/browserctl"
 	"github.com/monoes/mono-agent/internal/cli/clicore"
+	"github.com/monoes/mono-agent/internal/operator"
 )
 
 // `coder queue …`: coder chats the browser extension queued (C5 of
@@ -171,7 +172,7 @@ func refuseInAgent(what string) error {
 		}
 	}
 	return &coderError{code: "agent_context", err: &clicore.Error{Code: 3,
-		Msg: fmt.Sprintf("%s is refused inside an agent (%s is set): only the person does that", what, m)}}
+		Msg: fmt.Sprintf("%s is refused inside an agent (%s is set): only the person does that. %s", what, m, operator.InheritedHint())}}
 }
 
 func printQueueJSON(cmd *cobra.Command, v any) error {

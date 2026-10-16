@@ -16,7 +16,7 @@ type RegisterNode struct{}
 
 func (*RegisterNode) Type() string { return "publication.register" }
 func (*RegisterNode) PerItemConfigFields() []string {
-	fields := []string{}
+	fields := []string{"approval"} // evaluated per item, like the entry's fields
 	for key := range publication.EntrySchema() {
 		fields = append(fields, key)
 	}
@@ -117,6 +117,10 @@ func (*RegisterNode) Execute(ctx context.Context, in workflow.NodeInput, config 
 		var claim *hilsend.PublicationClaim
 		if aiRun {
 			if claim, err = hilsend.ClaimPublicationApproval(ctx, db, profile, approval, entry.Platform, entry.RemoteID); err != nil {
+				if why := operator.Refusal(); why != "" {
+					// The engine itself is marked: say so, and how to fix it.
+					return nil, fmt.Errorf("publication.register item %d: %w (set approval to the send's id). This run is not the user's: %s", i, err, why)
+				}
 				return nil, fmt.Errorf("publication.register item %d: %w (set approval to the send's id)", i, err)
 			}
 		}
