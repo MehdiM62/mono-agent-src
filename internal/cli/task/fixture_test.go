@@ -121,6 +121,10 @@ func setenv(t testing.TB, key, value string) {
 	})
 }
 
+// notOperatorEnv is the test environment's stand-in for what NotOperator
+// reads (internal/operator): its value is the reason it gives.
+const notOperatorEnv = "test: not the operator"
+
 func getenv(t testing.TB) func(string) string {
 	root := rootName(t)
 	return func(key string) string {
@@ -194,6 +198,7 @@ func testDeps(t testing.TB, dbPath, profile string, jsonOut bool) Deps {
 		},
 		WithJSONErrors: func(cmd *cobra.Command) { withJSONErrors(jsonOut, cmd) },
 		Getenv:         getenv(t),
+		NotOperator:    func() string { return getenv(t)(notOperatorEnv) },
 		StdinIsTerminal: func() bool {
 			envMu.Lock()
 			defer envMu.Unlock()
