@@ -250,3 +250,19 @@ func TestPermissionsSchemaResetsAPreReleaseOrgFull(t *testing.T) {
 		}
 	}
 }
+
+// StricterKind picks the kind whose level is stricter, the first on a tie.
+func TestStricterKind(t *testing.T) {
+	p := DefaultPermissions() // chat full, other dev
+	if k := p.StricterKind(KindOther, KindChat); k != KindOther {
+		t.Errorf("defaults: %s", k)
+	}
+	p.SetLevel(KindChat, LevelOff)
+	if k := p.StricterKind(KindOther, KindChat); k != KindChat {
+		t.Errorf("chat off: %s", k)
+	}
+	p.SetLevel(KindChat, LevelDev)
+	if k := p.StricterKind(KindOther, KindChat); k != KindOther {
+		t.Errorf("a tie: %s", k)
+	}
+}

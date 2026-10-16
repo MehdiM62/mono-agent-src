@@ -406,6 +406,15 @@ func (p Permissions) Blocked(rawURL string) bool {
 	return errors.As(Policy{Agent: true, Level: LevelFullNoApprovals, Blocklist: p.Sited(RuleBlock)}.Check(rawURL), &be)
 }
 
+// StricterKind is whichever of kinds a and b has the stricter level in p
+// (a when they have the same one), for a caller that could be either.
+func (p Permissions) StricterKind(a, b string) string {
+	if strictness[p.Level(b)] > strictness[p.Level(a)] {
+		return b
+	}
+	return a
+}
+
 // PolicyFor is the policy for an agent of kind ("" is a human terminal:
 // unrestricted).
 func (p Permissions) PolicyFor(kind string) Policy {

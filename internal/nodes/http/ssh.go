@@ -115,18 +115,20 @@ func (n *SSHNode) Execute(ctx context.Context, input workflow.NodeInput, config 
 
 	addr := fmt.Sprintf("%s:%d", host, port)
 
-	// Dial with context
-	dialer := &net.Dialer{Timeout: timeout}
+	// Connecting — the dial, the handshake (ClientConfig.Timeout covers
+	// only ssh.Dial), opening the session and its environment request — has
+	// one deadline, timeout_seconds from now, and ends when the node's
+	// context does; the command then has timeout_seconds of its own.
+	connectBy := time.Now().Add(timeout)
+	dialer := &net.Dialer{Deadline: connectBy}
 	netConn, err := dialer.DialContext(ctx, "tcp", addr)
 	if err != nil {
+		if ctx.Err() == nil && !time.Now().Before(connectBy) {
+			return nil, fmt.Errorf("http.ssh: timed out after %s connecting (dial)", timeout)
+		}
 		return nil, fmt.Errorf("http.ssh: dial failed: %w", err)
 	}
-
-	// The handshake waits for the server too (ClientConfig.Timeout covers only
-	// ssh.Dial): the connection's deadline bounds it by the node's timeout,
-	// and a cancelled context ends it.
-	deadline := time.Now().Add(timeout)
-	_ = netConn.SetDeadline(deadline)
+	_ = netConn.SetDeadline(connectBy)
 	stopHandshake := context.AfterFunc(ctx, func() { _ = netConn.SetDeadline(time.Now()) })
 	sshConn, chans, reqs, err := ssh.NewClientConn(netConn, addr, sshConfig)
 	stopHandshake()
@@ -135,7 +137,7 @@ func (n *SSHNode) Execute(ctx context.Context, input workflow.NodeInput, config 
 		if ctx.Err() != nil {
 			return nil, fmt.Errorf("http.ssh: cancelled: %w", ctx.Err())
 		}
-		if !time.Now().Before(deadline) {
+		if !time.Now().Before(connectBy) {
 			return nil, fmt.Errorf("http.ssh: timed out after %s waiting for the ssh handshake", timeout)
 		}
 		return nil, fmt.Errorf("http.ssh: handshake failed: %w", err)
@@ -144,15 +146,12 @@ func (n *SSHNode) Execute(ctx context.Context, input workflow.NodeInput, config 
 	client := ssh.NewClient(sshConn, chans, reqs)
 	defer client.Close()
 
+	connect := time.NewTimer(time.Until(connectBy))
+	defer connect.Stop()
 	if resource == "file" {
-		return sftpFiles(ctx, client, timeout, input, config)
+		return sftpFiles(ctx, client, connect, timeout, input, config)
 	}
-
-	// The node's timeout and context hold from here: opening the session,
-	// the environment request and the command each wait for the server.
-	timer := time.NewTimer(timeout)
-	defer timer.Stop()
-	session, err := awaitServer(ctx, client, timer, timeout, "open a session", client.NewSession)
+	session, err := awaitServer(ctx, client, connect, timeout, "open a session", client.NewSession)
 	if err != nil {
 		return nil, err
 	}
@@ -173,7 +172,7 @@ func (n *SSHNode) Execute(ctx context.Context, input workflow.NodeInput, config 
 	case <-ctx.Done():
 		session.Close()
 		return nil, fmt.Errorf("http.ssh: cancelled: %w", ctx.Err())
-	case <-timer.C:
+	case <-connect.C:
 		session.Close()
 		return nil, fmt.Errorf("http.ssh: timed out after %s waiting for the server to answer an environment request", timeout)
 	}
@@ -189,6 +188,8 @@ func (n *SSHNode) Execute(ctx context.Context, input workflow.NodeInput, config 
 	// the configured timeout. session.Run itself has no deadline, so without
 	// this a hung remote command would block the node forever and ignore
 	// cancellation.
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
 	runErrCh := make(chan error, 1)
 	go func() { runErrCh <- session.Run(command) }()
 

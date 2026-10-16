@@ -111,3 +111,108 @@ func TestSSHStallingServerCantHoldTheNode(t *testing.T) {
 		t.Errorf("cancelled handshake: %s %v", took, err)
 	}
 }
+
+// startSlowServer runs an in-process SSH server on 127.0.0.1 that waits
+// delay before its handshake, then stalls at stage: "session" (never
+// answers a channel open), "env" (never answers the environment request)
+// or "command" (runs the command, which never ends).
+func startSlowServer(t *testing.T, delay time.Duration, stage string) int {
+	t.Helper()
+	_, key, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	signer, err := ssh.NewSignerFromKey(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := &ssh.ServerConfig{NoClientAuth: true}
+	cfg.AddHostKey(signer)
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var mu sync.Mutex
+	var conns []net.Conn
+	t.Cleanup(func() {
+		ln.Close()
+		mu.Lock()
+		defer mu.Unlock()
+		for _, c := range conns {
+			c.Close()
+		}
+	})
+	go func() {
+		for {
+			nc, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			mu.Lock()
+			conns = append(conns, nc)
+			mu.Unlock()
+			go func() {
+				time.Sleep(delay)
+				_, chans, reqs, err := ssh.NewServerConn(nc, cfg)
+				if err != nil {
+					return
+				}
+				go ssh.DiscardRequests(reqs)
+				for nch := range chans {
+					if stage == "session" {
+						continue // never accepted, never rejected
+					}
+					_, in, err := nch.Accept()
+					if err != nil {
+						return
+					}
+					go func() {
+						for req := range in {
+							if stage == "command" {
+								req.Reply(true, nil) // env taken, exec started, never ends
+							}
+						}
+					}()
+				}
+			}()
+		}
+	}()
+	return ln.Addr().(*net.TCPAddr).Port
+}
+
+// Connecting has one deadline, timeout_seconds, however its time is spread
+// over the dial, the handshake, the session and its environment request;
+// the command then has timeout_seconds of its own.
+func TestSSHConnectingHasOneDeadline(t *testing.T) {
+	const timeout, delay = 2 * time.Second, 1500 * time.Millisecond
+	run := func(port int, extra map[string]interface{}) (time.Duration, error) {
+		cfg := map[string]interface{}{"host": "127.0.0.1", "port": float64(port), "username": "user",
+			"password": "x", "command": "true", "timeout_seconds": timeout.Seconds()}
+		for k, v := range extra {
+			cfg[k] = v
+		}
+		start := time.Now()
+		_, err := (&SSHNode{}).Execute(context.Background(), workflow.NodeInput{ExecutionID: "e1"}, cfg)
+		return time.Since(start), err
+	}
+	sftpDownload := map[string]interface{}{"resource": "file", "operation": "download", "path": "/etc/hostname"}
+	for _, tc := range []struct {
+		stage string
+		extra map[string]interface{}
+		want  string
+	}{
+		{"session", nil, "open a session"},
+		{"env", nil, "environment request"},
+		{"session", sftpDownload, "open an sftp session"},
+	} {
+		took, err := run(startSlowServer(t, delay, tc.stage), tc.extra)
+		if took > timeout+750*time.Millisecond || err == nil || !strings.Contains(err.Error(), tc.want) {
+			t.Errorf("a slow handshake, then stalled at %s %v: %s %v", tc.stage, tc.extra != nil, took, err)
+		}
+	}
+	// The command keeps its own timeout_seconds after a slow connect.
+	took, err := run(startSlowServer(t, delay, "command"), nil)
+	if took < delay+timeout-250*time.Millisecond || err == nil || !strings.Contains(err.Error(), "command timed out") {
+		t.Errorf("a slow connect, then a command that never ends: %s %v", took, err)
+	}
+}
