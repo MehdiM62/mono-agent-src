@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/monoes/mono-agent/internal/operator"
+	"github.com/monoes/mono-agent/internal/peoplereview"
 	"github.com/monoes/mono-agent/internal/storage"
 	"github.com/spf13/cobra"
 )
@@ -86,6 +88,9 @@ func (d Deps) newPeopleImportCmd() *cobra.Command {
 
 			now := time.Now().UTC()
 			var imported int
+			// Run by anyone but the user, the import may not approve anyone
+			// for outreach (peoplereview.NotOperatorCategory).
+			notOperator := operator.Refusal()
 
 			for _, raw := range rawPeople {
 				username, _ := raw["platform_username"].(string)
@@ -121,6 +126,19 @@ func (d Deps) newPeopleImportCmd() *cobra.Command {
 				personID := storage.NewID()
 				if id, ok := raw["id"].(string); ok && id != "" {
 					personID = id
+				}
+
+				if notOperator != "" {
+					stored, err := peoplereview.StoredPerson(cmd.Context(), tx, d.ProfileID(), strings.ToLower(platform), username)
+					if err != nil {
+						tx.Rollback()
+						return err
+					}
+					category, err = peoplereview.NotOperatorCategory(stored, category, category != "", introduction, "an import an agent, the chat or a workflow runs")
+					if err != nil {
+						tx.Rollback()
+						return d.InvalidInput("importing %s: %v (%s); nothing was imported", username, err, notOperator)
+					}
 				}
 
 				_, err := stmt.Exec(
