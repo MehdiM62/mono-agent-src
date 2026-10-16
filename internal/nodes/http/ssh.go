@@ -140,10 +140,14 @@ func (n *SSHNode) Execute(ctx context.Context, input workflow.NodeInput, config 
 	}
 	defer session.Close()
 	// What a workflow runs is never the operator (workflow.EnvWorkflowRun),
-	// on a remote host too. sshd passes on only the variables AcceptEnv
-	// names, so the command exports the marker as well.
+	// over ssh too. sshd passes on only the variables AcceptEnv names, so on
+	// this machine, where `monoagentcli hil approve` reaches the user's
+	// database, the command exports the marker as well. Other hosts keep
+	// their command as written: a Windows host's cmd.exe has no export.
 	_ = session.Setenv(workflow.EnvWorkflowRun, workflow.RunMarker(input.ExecutionID))
-	command = markedCommand(input.ExecutionID, command)
+	if sshTargetIsLocal(ctx, host) {
+		command = markedCommand(input.ExecutionID, command)
+	}
 
 	var stdoutBuf, stderrBuf bytes.Buffer
 	session.Stdout = &stdoutBuf
