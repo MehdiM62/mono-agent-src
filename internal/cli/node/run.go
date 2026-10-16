@@ -323,7 +323,11 @@ platform name to override. Token refresh is handled automatically for OAuth conn
 				entries := publication.Normalize(publication.CaptureInput{NodeType: nodeType, Config: config, Outputs: pubOutputs,
 					Source: workflow.PublicationSource(ctx, input)})
 				hilsend.Attribute(ctx, rawDB, d.ProfileID(), entries)
-				publication.Record(ctx, publication.NewStore(rawDB, d.ProfileID()), entries, func(msg string) { fmt.Fprintln(os.Stderr, "Warning:", msg) })
+				recorded := publication.Record(ctx, publication.NewStore(rawDB, d.ProfileID()), entries, func(msg string) { fmt.Fprintln(os.Stderr, "Warning:", msg) })
+				// An approved send's run registered its publication itself, and
+				// so spends the approval on it; when tracking failed, the
+				// approval is left for registering it by hand.
+				hilsend.ConsumeForSend(ctx, rawDB, d.ProfileID(), recorded)
 			}
 
 			if err != nil {
