@@ -2501,7 +2501,11 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
   counts only with the `MONOAGENT_AGENT_KIND_TOKEN` its spawner issued
   (`browserctl.IssueAgentKind`); without it a shell is `other` (with
   `declared` in `browser permissions`), held to the stricter of the
-  declared kind's level and `other`'s. The levels are
+  declared kind's level and `other`'s. The token is valid while the process
+  it was bound to runs; a role shell that cannot see that process (on Linux
+  an org role's sandboxed Bash runs in its own pid namespace) is held the
+  same way, so raising `org` above `other` has no effect for sandboxed
+  roles, while lowering it does. The levels are
   `full-no-approvals` (any site, submits go through, scripts run on any
   page and can read its cookies and storage), `full` (any site,
   submits on real sites wait for approval), `dev` (local and dev pages plus

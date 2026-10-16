@@ -262,11 +262,13 @@ User decisions: both "full" variants are levels; default is Dev pages + allowlis
 3. **The agent kind needs a second signal.** A declared kind (`MONOAGENT_AGENT_KIND`, `MONOMIND_ORG_ROLE`) counts
    only with a valid `MONOAGENT_AGENT_KIND_TOKEN`:
    - **Issuing:** the spawner (coder turn, dynorg worker, and the org launcher where mono-agent starts it) calls
-     `browserctl.IssueAgentKind(kind) (env []string, done func())`. That writes
-     `~/.monoagent/agent-kinds/<token>.json` `{kind, pid, created}` (dir 0700, file 0600) and removes it when the turn
-     ends.
-   - **Valid:** the file exists, its kind matches, and its pid is alive (or it is younger than 24 h).
-   - **Otherwise:** a shell is kind `other`.
+     `browserctl.IssueAgentKind(kind) (env []string, bind func(pid int), done func())`. That writes
+     `~/.monoagent/agent-kinds/<token>.json` `{kind, pid, created}` (dir 0700, file 0600); `bind` re-records the
+     started child's pid (detached org run/serve), `done` removes it when the turn ends.
+   - **Valid:** the file exists, its kind matches, and its pid is alive.
+   - **Otherwise (round 2, fail closed):** a shell is kind `other` with `declared` set, and gets the stricter of the
+     declared kind's level and `other`'s (off > ask > dev > full > full-no-approvals). On Linux, sandboxed org role
+     shells can't see the org's pid, so they are always held this way.
    - **Limit, stated in Settings:** an agent that reads another process's environment can still borrow its kind.
 4. **Org default is `dev`,** as shipped in v0.141.0. Chat stays `full` (submit approvals), as shipped.
 5. **`full-no-approvals` description** says it also allows running scripts on any page, which can read that site's
