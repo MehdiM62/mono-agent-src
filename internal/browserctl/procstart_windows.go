@@ -12,8 +12,9 @@ import (
 const stillActive = 259
 
 // processStart is when process pid started, as the kernel tells it
-// (GetProcessTimes' creation time). ok is false when there is no such
-// running process, or it can't be opened.
+// (GetProcessTimes' creation time). It is wall-clock time, so unlike
+// Linux's ticks since boot it doesn't repeat after a reboot. ok is false
+// when there is no such running process, or it can't be opened.
 func processStart(pid int) (string, bool) {
 	if pid <= 0 {
 		return "", false
