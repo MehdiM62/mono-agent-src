@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/monoes/mono-agent/internal/apikeys"
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/storage"
 	"github.com/monoes/mono-agent/internal/testdb"
 )
@@ -48,8 +49,14 @@ func errorOf(code int) func(format string, a ...interface{}) error {
 }
 
 // run runs `api key <args>` on the database at dbPath as profile and returns stdout and stderr
-// separately. stdin is never a terminal, so `revoke` does not ask.
+// separately. stdin is never a terminal, so `revoke` does not ask. It runs as the operator.
 func run(t *testing.T, dbPath, profile string, jsonOut bool, args ...string) (stdout, stderr string, err error) {
+	t.Helper()
+	return runAs(t, "", dbPath, profile, jsonOut, args...)
+}
+
+// runAs is run in a process refusal says is not the operator's ("" for the operator).
+func runAs(t *testing.T, refusal, dbPath, profile string, jsonOut bool, args ...string) (stdout, stderr string, err error) {
 	t.Helper()
 	cmd := NewCommand(Deps{
 		JSONOutput:      func() bool { return jsonOut },
@@ -63,6 +70,7 @@ func run(t *testing.T, dbPath, profile string, jsonOut bool, args ...string) (st
 			enc.SetIndent("", "  ")
 			return enc.Encode(v)
 		},
+		Refusal: func() string { return refusal },
 	})
 	var out, errb bytes.Buffer
 	cmd.SetOut(&out)
@@ -370,5 +378,25 @@ func TestAPIKeyRevokeAsksOnATerminal(t *testing.T) {
 	}
 	if out, _, _ := run(t, db, "default", true, "list"); strings.TrimSpace(out) != "[]" {
 		t.Errorf("the key is still active after yes: %s", out)
+	}
+}
+
+// A key signs in as the profile: only the operator creates one. Anything
+// else is refused with exit 3 and the code operator_only, and no key is
+// made; listing, updating and revoking stay open (#845 review, item 5).
+func TestAPIKeyCreateIsTheOperatorsOnly(t *testing.T) {
+	t.Parallel()
+	db := testdb.Path(t)
+	_, _, err := runAs(t, "CLAUDECODE is set, so an agent is running this command", db, "default", true, "create", "--name", "agent-made")
+	var fields interface{ JSONErrorFields() map[string]any }
+	if clicore.ExitCodeFor(err) != 3 || !errors.As(err, &fields) || fields.JSONErrorFields()["code"] != "operator_only" || !strings.Contains(err.Error(), "CLAUDECODE") {
+		t.Fatalf("an agent's create: %v", err)
+	}
+	out, _, err := run(t, db, "default", true, "list")
+	if err != nil || strings.Contains(out, "agent-made") {
+		t.Fatalf("a refused create made a key: %v %s", err, out)
+	}
+	if _, _, err := run(t, db, "default", true, "create", "--name", "mine"); err != nil {
+		t.Fatalf("the operator's create: %v", err)
 	}
 }

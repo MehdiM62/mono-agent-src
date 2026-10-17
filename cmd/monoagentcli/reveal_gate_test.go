@@ -108,3 +108,31 @@ func TestCommandsThatPrintSecretsAreTheOperatorsOnly(t *testing.T) {
 		t.Errorf("the operator's export wrote nothing: %v", err)
 	}
 }
+
+// `api key create` makes a key that signs in as the profile: an agent's
+// shell, the chat and a workflow are refused (exit 3, operator_only) and no
+// key is made, while the desktop app's own argv (wails-app APIKeyCreate:
+// --profile <id> --json api key create --name=<name>) makes one as the user.
+func TestAPIKeyCreateIsTheOperatorsOnly(t *testing.T) {
+	account.SetEnforceFromForTest(t, time.Time{})
+	asOperatorProcess(t)
+	home := t.TempDir()
+	if _, _, err := runCLIIn(t, home, "", "--json", "db", "migrate"); err != nil {
+		t.Fatal(err)
+	}
+	for _, marker := range []string{"CLAUDECODE", browserctl.EnvAICaller, workflow.EnvWorkflowRun} {
+		t.Setenv(marker, "1")
+		out, _, err := runCLIIn(t, home, "", "--profile", "default", "--json", "api", "key", "create", "--name=agent-made")
+		if exitCodeFor(err) != 3 || jsonCode(err) != "operator_only" || strings.Contains(out, "agent-made") {
+			t.Errorf("%s set: api key create: exit %d, code %q, %v\n%s", marker, exitCodeFor(err), jsonCode(err), err, out)
+		}
+		t.Setenv(marker, "")
+	}
+	out, _, err := runCLIIn(t, home, "", "--profile", "default", "--json", "api", "key", "create", "--name=app-key")
+	if err != nil || !strings.Contains(out, `"key"`) {
+		t.Fatalf("the app's api key create: %v\n%s", err, out)
+	}
+	if list, _, err := runCLIIn(t, home, "", "--profile", "default", "--json", "api", "key", "list"); err != nil || strings.Contains(list, "agent-made") || !strings.Contains(list, "app-key") {
+		t.Fatalf("keys: %v\n%s", err, list)
+	}
+}
