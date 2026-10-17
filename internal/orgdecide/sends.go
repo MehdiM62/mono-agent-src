@@ -3,6 +3,7 @@ package orgdecide
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"strings"
 
 	"github.com/monoes/mono-agent/internal/commsync"
@@ -23,9 +24,9 @@ const sendsMaxDepth = 8
 // ItemSends reports whether approving it, an item of org in profileID, lets
 // a message to a person go out: a Human-in-Loop item whose approval
 // releases one (commsync.OutboundHIL), or a call of a granted automation
-// whose workflow, as load reads it now, may send (workflowSends). What can't
-// be told counts as sending.
-func ItemSends(ctx context.Context, db *sql.DB, profileID, org string, it Item, load orggrant.WorkflowLoader) bool {
+// whose workflow, as workflows reads it now, may send (workflowSends). What
+// can't be told counts as sending; nil workflows tells nothing.
+func ItemSends(ctx context.Context, db *sql.DB, profileID, org string, it Item, workflows workflow.SubWorkflowReader) bool {
 	switch {
 	case it.Kind == KindHIL:
 		var nc string
@@ -34,7 +35,7 @@ func ItemSends(ctx context.Context, db *sql.DB, profileID, org string, it Item, 
 		}
 		return commsync.OutboundHIL(nc)
 	case it.Kind == KindApproval && strings.HasPrefix(it.Class, "grant:"):
-		return grantSends(ctx, db, profileID, org, strings.TrimPrefix(it.Class, "grant:"), load)
+		return grantSends(ctx, db, profileID, org, strings.TrimPrefix(it.Class, "grant:"), workflows)
 	}
 	return false
 }
@@ -42,28 +43,36 @@ func ItemSends(ctx context.Context, db *sql.DB, profileID, org string, it Item, 
 // grantSends reports whether a call of org's automation alias may send: its
 // grant's workflow does (workflowSends), or there is no grant or workflow to
 // tell by.
-func grantSends(ctx context.Context, db *sql.DB, profileID, org, alias string, load orggrant.WorkflowLoader) bool {
+func grantSends(ctx context.Context, db *sql.DB, profileID, org, alias string, workflows workflow.SubWorkflowReader) bool {
 	grants, err := orggrant.NewStore(db).ListGrants(ctx, profileID, org, "")
-	if err != nil || load == nil {
+	if err != nil || workflows == nil {
 		return true
 	}
 	for _, g := range grants {
 		if t := g.Automation(); t != nil && t.Alias == alias {
-			wf, err := load(ctx, t.WorkflowID)
+			wf, err := workflows.GetWorkflow(ctx, t.WorkflowID)
 			if err != nil || wf == nil {
 				return true
 			}
-			return workflowSends(ctx, load, wf, map[string]bool{wf.ID: true}, 0)
+			c := calls{profileID: profileID, workflows: workflows}
+			return c.workflowSends(ctx, wf, map[string]bool{wf.ID: true}, 0)
 		}
 	}
 	return true
 }
 
+// calls reads the workflows a granted one calls, as execution does.
+type calls struct {
+	profileID string
+	workflows workflow.SubWorkflowReader
+}
+
 // workflowSends reports whether running wf may send a message to a person:
 // one of its nodes (disabled ones too), or of a workflow it calls
-// (core.execute_workflow, by id), is a send as an agent's sends are
-// classified (hilsend.MaySend). A call it can't follow counts as sending.
-func workflowSends(ctx context.Context, load orggrant.WorkflowLoader, wf *workflow.Workflow, called map[string]bool, depth int) bool {
+// (core.execute_workflow, found as a run finds it:
+// workflow.ResolveSubWorkflow), is a send as an agent's sends are classified
+// (hilsend.MaySend). A call it can't follow counts as sending.
+func (c calls) workflowSends(ctx context.Context, wf *workflow.Workflow, called map[string]bool, depth int) bool {
 	for _, n := range wf.Nodes {
 		_ = n.ParseConfig()
 		if hilsend.MaySend(n.Type, n.Config) {
@@ -80,14 +89,40 @@ func workflowSends(ctx context.Context, load orggrant.WorkflowLoader, wf *workfl
 		if called[ref] {
 			continue
 		}
-		sub, err := load(ctx, ref)
+		sub, err := workflow.ResolveSubWorkflow(ctx, c.workflows, ref, c.profileID)
 		if err != nil || sub == nil {
 			return true
 		}
-		called[ref] = true
-		if workflowSends(ctx, load, sub, called, depth+1) {
+		if called[sub.ID] {
+			continue
+		}
+		called[ref], called[sub.ID] = true, true
+		if c.workflowSends(ctx, sub, called, depth+1) {
 			return true
 		}
 	}
 	return false
+}
+
+// workflowReads is a workflow.SubWorkflowReader over a loader and a
+// lister; what either lacks can't be read.
+type workflowReads struct {
+	load orggrant.WorkflowLoader
+	list func(ctx context.Context, profileID string) ([]workflow.Workflow, error)
+}
+
+var errNoWorkflows = errors.New("orgdecide: workflows can't be read here")
+
+func (r workflowReads) GetWorkflow(ctx context.Context, id string) (*workflow.Workflow, error) {
+	if r.load == nil {
+		return nil, errNoWorkflows
+	}
+	return r.load(ctx, id)
+}
+
+func (r workflowReads) ListWorkflows(ctx context.Context, profileID string) ([]workflow.Workflow, error) {
+	if r.list == nil {
+		return nil, errNoWorkflows
+	}
+	return r.list(ctx, profileID)
 }

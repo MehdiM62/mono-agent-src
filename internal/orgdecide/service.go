@@ -98,9 +98,13 @@ type Service struct {
 	// routes as irreversible before any save or reconcile raises its row.
 	// Nil routes by the stored tier alone.
 	LoadWorkflow orggrant.WorkflowLoader
-	Interval     time.Duration
-	Logf         func(format string, args ...interface{})
-	now          func() time.Time
+	// ListWorkflows lists a profile's workflows as execution does (files
+	// first), so a workflow a granted one calls by name is found as a run
+	// finds it. Nil leaves such a call unresolved: it counts as sending.
+	ListWorkflows func(ctx context.Context, profileID string) ([]workflow.Workflow, error)
+	Interval      time.Duration
+	Logf          func(format string, args ...interface{})
+	now           func() time.Time
 
 	jevWarned sync.Map // profile/org → struct{}: "jev without a key" logged once
 }
@@ -240,7 +244,7 @@ func (s *Service) Pending(ctx context.Context, profileID, root, org string, a *A
 	for i := range items {
 		items[i].Tier = TierFor(items[i].Class, items[i].Requester, a.Tiers, facts)
 		if s.DB != nil {
-			items[i].Sends = ItemSends(ctx, s.DB, profileID, org, items[i], load)
+			items[i].Sends = ItemSends(ctx, s.DB, profileID, org, items[i], workflowReads{load, s.ListWorkflows})
 		}
 	}
 	SortItems(items)

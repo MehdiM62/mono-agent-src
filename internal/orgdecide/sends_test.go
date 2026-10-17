@@ -135,37 +135,128 @@ func TestAVerdictNeverApprovesAnItemInFrontOfASend(t *testing.T) {
 }
 
 // What a call of a granted automation may do, read before the run: a send
-// in a workflow it calls counts, and so does what can't be told.
+// in a workflow it calls counts, and so does what can't be told. A called
+// workflow is found as a run finds it (workflow.ResolveSubWorkflow): by id,
+// else by the name exactly one workflow of the profile has now; a name none
+// or two have, or another profile's, can't be told.
 func TestGrantSendsFollowsCalledWorkflowsAndFailsClosed(t *testing.T) {
 	ctx := context.Background()
 	db := newDB(t)
 	call := func(ref string) *workflow.Workflow {
-		return &workflow.Workflow{ID: "wf-caller", Nodes: []workflow.WorkflowNode{
+		return &workflow.Workflow{ID: "wf-caller", ProfileID: "p", Nodes: []workflow.WorkflowNode{
 			{ID: "c", Type: "core.execute_workflow", Config: map[string]interface{}{"workflowId": ref}}}}
+	}
+	plain := func(id, name, profile string) *workflow.Workflow {
+		return &workflow.Workflow{ID: id, Name: name, ProfileID: profile, Nodes: []workflow.WorkflowNode{{ID: "s", Type: "core.set"}}}
 	}
 	workflows := map[string]*workflow.Workflow{
 		"wf-caller-send":  call("wf-send"),
 		"wf-caller-sum":   call("wf-sum"),
 		"wf-caller-expr":  call("{{ $json.id }}"),
 		"wf-caller-ghost": call("wf-ghost"),
-		"wf-send":         {ID: "wf-send", Nodes: []workflow.WorkflowNode{{ID: "e", Type: "comm.email_send", Config: map[string]interface{}{"to": "a@b.test"}}}},
-		"wf-sum":          {ID: "wf-sum", Nodes: []workflow.WorkflowNode{{ID: "s", Type: "core.set"}}},
+		// By name, as a run resolves a call (#831 follow-up 6).
+		"wf-caller-named-send": call("Sender"),
+		"wf-caller-named-sum":  call("Summer"),
+		"wf-caller-twin":       call("Twin"),
+		"wf-caller-nobody":     call("Nobody"),
+		"wf-caller-elsewhere":  call("Elsewhere"),
+		"wf-send": {ID: "wf-send", Name: "Sender", ProfileID: "p", Nodes: []workflow.WorkflowNode{
+			{ID: "e", Type: "comm.email_send", Config: map[string]interface{}{"to": "a@b.test"}}}},
+		"wf-sum":    plain("wf-sum", "Summer", "p"),
+		"wf-twin-1": plain("wf-twin-1", "Twin", "p"),
+		"wf-twin-2": plain("wf-twin-2", "Twin", "p"),
+		"wf-other":  plain("wf-other", "Elsewhere", "other-profile"),
 	}
-	load := func(_ context.Context, id string) (*workflow.Workflow, error) { return workflows[id], nil }
+	reads := workflowReads{
+		load: func(_ context.Context, id string) (*workflow.Workflow, error) { return workflows[id], nil },
+		list: func(_ context.Context, profile string) ([]workflow.Workflow, error) {
+			var out []workflow.Workflow
+			for _, wf := range workflows {
+				if wf.ProfileID == profile {
+					out = append(out, *wf)
+				}
+			}
+			return out, nil
+		},
+	}
 	gs := orggrant.NewStore(db)
-	for _, id := range []string{"wf-caller-send", "wf-caller-sum", "wf-caller-expr", "wf-caller-ghost"} {
+	for id := range workflows {
+		alias, ok := strings.CutPrefix(id, "wf-caller-")
+		if !ok {
+			continue
+		}
 		if _, err := gs.UpsertGrant(ctx, orggrant.GrantInput{ProfileID: "p", OrgName: "growth", RoleID: "writer",
-			Tool: orggrant.Tool{Alias: strings.TrimPrefix(id, "wf-caller-"), WorkflowID: id, Tier: orgdesign.TierConsequential}}); err != nil {
+			Tool: orggrant.Tool{Alias: alias, WorkflowID: id, Tier: orgdesign.TierConsequential}}); err != nil {
 			t.Fatal(err)
 		}
 	}
-	for alias, want := range map[string]bool{"send": true, "sum": false, "expr": true, "ghost": true, "no-grant": true} {
+	for alias, want := range map[string]bool{"send": true, "sum": false, "expr": true, "ghost": true, "no-grant": true,
+		"named-send": true, "named-sum": false, "twin": true, "nobody": true, "elsewhere": true} {
 		it := Item{Kind: KindApproval, Class: "grant:" + alias}
-		if got := ItemSends(ctx, db, "p", "growth", it, load); got != want {
+		if got := ItemSends(ctx, db, "p", "growth", it, reads); got != want {
 			t.Errorf("grant:%s sends = %v, want %v", alias, got, want)
 		}
 	}
 	if !ItemSends(ctx, db, "p", "growth", Item{Kind: KindApproval, Class: "grant:sum"}, nil) {
 		t.Error("a call of a workflow nothing can read counts as not sending")
+	}
+	if !ItemSends(ctx, db, "p", "growth", Item{Kind: KindApproval, Class: "grant:named-sum"}, workflowReads{load: reads.load}) {
+		t.Error("a call by name with no list to find it in counts as not sending")
+	}
+}
+
+// A workflow that is only a file (the desktop editor's, not synced to the
+// database) and a granted workflow calls by its name is found as a run
+// finds it, files first: the daemon decides that call by what the file
+// holds (#833 review).
+func TestAFileOnlyWorkflowCalledByNameIsFound(t *testing.T) {
+	ctx := context.Background()
+	org := &fakeOrg{approvals: []map[string]interface{}{
+		{"roleId": "writer", "action": "monoagent__automation_quiet", "question": "run it", "ts": 1, "approved": nil, "requestId": "req-quiet"},
+		{"roleId": "writer", "action": "monoagent__automation_loud", "question": "run it", "ts": 2, "approved": nil, "requestId": "req-loud"},
+	}}
+	dec := &scriptedDecider{replies: map[string]string{KindApproval: `{"verdict":"approve","rationale":"fine"}`}}
+	s := newTestService(t, org, dec)
+	files, err := workflow.NewWorkflowFileStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	sqlStore := workflow.NewSQLiteWorkflowStore(s.DB)
+	hybrid := workflow.NewHybridWorkflowStore(files, sqlStore)
+	s.LoadWorkflow, s.ListWorkflows = hybrid.GetWorkflow, hybrid.ListWorkflows
+	for _, wf := range []*workflow.Workflow{
+		{ID: "wf-quiet-child", Name: "Quiet child", ProfileID: "p", Nodes: []workflow.WorkflowNode{{ID: "qs", Type: "core.set", Name: "Set"}}},
+		{ID: "wf-loud-child", Name: "Loud child", ProfileID: "p", Nodes: []workflow.WorkflowNode{
+			{ID: "le", Type: "comm.email_send", Name: "Email", Config: map[string]interface{}{"to": "a@b.test", "subject": "Hi", "body": "x"}}}},
+	} {
+		if err := files.SaveWorkflow(ctx, wf); err != nil { // a file only: no row
+			t.Fatal(err)
+		}
+	}
+	for alias, child := range map[string]string{"quiet": "Quiet child", "loud": "Loud child"} {
+		id := "wf-calls-" + alias
+		if err := sqlStore.CreateWorkflow(ctx, &workflow.Workflow{ID: id, Name: id, ProfileID: "p"}); err != nil {
+			t.Fatal(err)
+		}
+		if err := sqlStore.SaveWorkflowNodes(ctx, id, []workflow.WorkflowNode{
+			{ID: id + "-c", WorkflowID: id, Type: "core.execute_workflow", Name: "Call", Config: map[string]interface{}{"workflowId": child}}}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := orggrant.NewStore(s.DB).UpsertGrant(ctx, orggrant.GrantInput{ProfileID: "p", OrgName: "growth", RoleID: "writer",
+			Tool: orggrant.Tool{Alias: alias, WorkflowID: id, Tier: orgdesign.TierConsequential}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	a := Defaults("p", "growth")
+	a.Level = orgdesign.LevelFull
+	if err := s.Store.Put(ctx, a, "cli"); err != nil {
+		t.Fatal(err)
+	}
+	ds, err := s.ProcessOrg(ctx, "p", t.TempDir(), "growth")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := byRef(ds); got["req-quiet"] != "model:test/approved" || got["req-loud"] != "human/escalated" {
+		t.Fatalf("decisions = %v, want the quiet call decided and the loud one a person's", got)
 	}
 }

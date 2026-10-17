@@ -123,7 +123,7 @@ func TestUnapprovedWorkflowsSendWaits(t *testing.T) {
 	}
 	p := items[0]
 	if p.State != StatePending || p.Text != "Hi Ada" || p.Recipient.Name != "ada@example.test" ||
-		p.PreparedBy != (PreparedBy{AgentID: UnapprovedWorkflowAgent, Role: "unapproved workflow wf1", Workflow: "wf1"}) {
+		p.PreparedBy != (PreparedBy{AgentID: UnapprovedWorkflowAgent, Role: "unapproved workflow wf1", Workflow: "wf1", System: true}) {
 		t.Fatalf("item = %+v", p)
 	}
 	if len(out) != 1 || out[0].JSON["pending"] != true || out[0].JSON["hil_id"] != p.ID {
@@ -151,7 +151,7 @@ func TestCalledByAnUnapprovedWorkflowWaits(t *testing.T) {
 	if len(sent) != 0 || len(items) != 1 {
 		t.Fatalf("sent %d, queued %d", len(sent), len(items))
 	}
-	if want := (PreparedBy{AgentID: UnapprovedWorkflowAgent, Role: "workflow wf1, called by unapproved workflow parent-wf", Workflow: "wf1"}); items[0].PreparedBy != want {
+	if want := (PreparedBy{AgentID: UnapprovedWorkflowAgent, Role: "workflow wf1, called by unapproved workflow parent-wf", Workflow: "wf1", System: true}); items[0].PreparedBy != want {
 		t.Fatalf("preparedBy = %+v, want %+v", items[0].PreparedBy, want)
 	}
 }

@@ -93,11 +93,24 @@ describe('AskCard: send approval', () => {
     expect(screen.getByTestId('ask-account')).toHaveTextContent('outlook · me@acme.test')
     expect(card).toHaveTextContent('Release notes for v1.2')
     expect(screen.getByTestId('ask-text').textContent).toBe(sendEmail.text)
-    expect(card).toHaveTextContent('Prepared by Developer. Nothing is sent until you approve.')
+    // An agent names itself: the card shows that as its claim (#833 N4).
+    expect(screen.getByTestId('ask-prepared-by')).toHaveTextContent('Prepared by an agent that says it is "Developer". Nothing is sent until you approve.')
     fireEvent.click(within(screen.getByTestId('ask-recipient')).getByText('profile'))
     expect(hilApi.openUrl).toHaveBeenCalledWith('https://www.linkedin.com/in/sam-rivera')
     fireEvent.click(within(screen.getByTestId('ask-recipient')).getByText('open person'))
     expect(onNavigate).toHaveBeenCalledWith('people', { person: 'p-42' })
+  })
+
+  it("names MonoAgent's own preparer as is: an unapproved workflow", () => {
+    const ask = normalizeAsk({ ...sendEmail, preparedBy: { role: 'unapproved workflow wf1', agentId: 'unapproved-workflow', workflow: 'wf1', system: true } })
+    render(<AskCard ask={ask} nameOf={nameOf} />)
+    expect(screen.getByTestId('ask-prepared-by')).toHaveTextContent('Prepared by unapproved workflow wf1. Nothing is sent until you approve.')
+  })
+
+  it("shows an agent's description of itself as its claim, even one that looks like MonoAgent's", () => {
+    const ask = normalizeAsk({ ...sendEmail, preparedBy: { role: 'You (approved earlier today)', agentId: 'agent-x' } })
+    render(<AskCard ask={ask} nameOf={nameOf} />)
+    expect(screen.getByTestId('ask-prepared-by')).toHaveTextContent('Prepared by an agent that says it is "You (approved earlier today)".')
   })
 
   it('previews every attachment: an image inline, a file with name, size and Open, a link', async () => {

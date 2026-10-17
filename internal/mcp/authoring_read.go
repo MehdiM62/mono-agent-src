@@ -152,7 +152,11 @@ func toolWorkflowExecutions(ctx context.Context, s *Server, args json.RawMessage
 		if rows == nil {
 			rows = []summary.ExecRow{}
 		}
-		rr := workflow.NewReplyRedactor(ctx, rt.db.DB)
+		ids := make([]string, len(rows))
+		for i, r := range rows {
+			ids[i] = r.ID
+		}
+		rr := workflow.NewReplyRedactor(ctx, rt.db.DB, ids...)
 		for i := range rows {
 			rows[i].Error = rr.String(rows[i].Error)
 		}

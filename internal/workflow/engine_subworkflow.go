@@ -30,7 +30,7 @@ func (e *WorkflowEngine) StartSubWorkflow(ctx context.Context, req SubWorkflowSt
 	if perr != nil {
 		return "", fmt.Errorf("sub-workflow ran without a profile: %w", perr)
 	}
-	wf, err := e.resolveSubWorkflow(ctx, req.Workflow, profileID)
+	wf, err := ResolveSubWorkflow(ctx, e.store, req.Workflow, profileID)
 	if err != nil {
 		return "", err
 	}
@@ -158,14 +158,23 @@ func CalledByUnapproved(triggerData map[string]interface{}) (workflowID string, 
 	return "", mark == UnapprovedWorkflowCaller
 }
 
-// resolveSubWorkflow finds the workflow ref names: an ID first, then an exact
-// name within profileID. A workflow of another profile is never returned.
-func (e *WorkflowEngine) resolveSubWorkflow(ctx context.Context, ref, profileID string) (*Workflow, error) {
+// SubWorkflowReader is what finding a called workflow reads: a workflow by
+// ID, and a profile's workflows (the engine's store: files first).
+type SubWorkflowReader interface {
+	GetWorkflow(ctx context.Context, id string) (*Workflow, error)
+	ListWorkflows(ctx context.Context, profileID string) ([]Workflow, error)
+}
+
+// ResolveSubWorkflow finds the workflow a call's ref names, as a run's
+// core.execute_workflow does: an ID first, then an exact name within
+// profileID, which one workflow alone may have. A workflow of another
+// profile is never returned.
+func ResolveSubWorkflow(ctx context.Context, store SubWorkflowReader, ref, profileID string) (*Workflow, error) {
 	ref = strings.TrimSpace(ref)
 	if ref == "" {
 		return nil, fmt.Errorf("%w: sub-workflow: no workflow given", ErrInvalidConfig)
 	}
-	wf, err := e.store.GetWorkflow(ctx, ref)
+	wf, err := store.GetWorkflow(ctx, ref)
 	if err != nil {
 		return nil, fmt.Errorf("sub-workflow: load workflow: %w", err)
 	}
@@ -179,7 +188,7 @@ func (e *WorkflowEngine) resolveSubWorkflow(ctx context.Context, ref, profileID 
 		}
 		return wf, nil
 	}
-	all, err := e.store.ListWorkflows(ctx, profileID)
+	all, err := store.ListWorkflows(ctx, profileID)
 	if err != nil {
 		return nil, fmt.Errorf("sub-workflow: list workflows: %w", err)
 	}
@@ -197,7 +206,7 @@ func (e *WorkflowEngine) resolveSubWorkflow(ctx context.Context, ref, profileID 
 		return nil, fmt.Errorf("sub-workflow %q: %w", ref, ErrWorkflowNotFound)
 	}
 	// ListWorkflows may leave nodes out; load the full record.
-	return e.store.GetWorkflow(ctx, match.ID)
+	return store.GetWorkflow(ctx, match.ID)
 }
 
 // subWorkflowTriggerNode picks the child's "When called by another workflow"

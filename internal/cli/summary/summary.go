@@ -63,7 +63,11 @@ func (d Deps) newSummaryCmd() *cobra.Command {
 			// A run's error can hold a reply's token: a marked process
 			// doesn't get it (workflow.ReplyRedactor).
 			if operator.Marker() != "" && s.Executions != nil {
-				rr := workflow.NewReplyRedactor(cmd.Context(), db.DB)
+				ids := make([]string, len(s.Executions.Recent))
+				for i, r := range s.Executions.Recent {
+					ids[i] = r.ID
+				}
+				rr := workflow.NewReplyRedactor(cmd.Context(), db.DB, ids...)
 				for i := range s.Executions.Recent {
 					s.Executions.Recent[i].Error = rr.String(s.Executions.Recent[i].Error)
 				}

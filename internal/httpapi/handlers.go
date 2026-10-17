@@ -212,6 +212,7 @@ func (s *Server) handleWorkflowRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	workflow.StripEngineKeys(body.Input)
 	execID, err := engine.TriggerWorkflow(ctx, id, body.Input)
 	if err != nil {
 		writeErrorFor(w, err)

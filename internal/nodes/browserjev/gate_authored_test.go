@@ -59,7 +59,7 @@ func TestAIAuthoredRunIsHeldLikeAnAI(t *testing.T) {
 	var rec struct {
 		AgentKind string `json:"agentKind"`
 	}
-	if json.Unmarshal([]byte(nc), &rec) != nil || rec.AgentKind != browserctl.KindChat || !strings.Contains(ro, "unapproved-workflow") {
+	if json.Unmarshal([]byte(nc), &rec) != nil || rec.AgentKind != browserctl.KindChat || !strings.Contains(ro, `"agentId":"unapproved-workflow","system":true`) {
 		t.Errorf("the site item: %s %s", nc, ro)
 	}
 
@@ -71,7 +71,7 @@ func TestAIAuthoredRunIsHeldLikeAnAI(t *testing.T) {
 	n := &Node{writer: zurich, open: func(context.Context, string) (driver, func(), error) { return drv, func() {}, nil }}
 	out, err := n.Execute(workflow.WithAIAuthored(ctx), workflow.NodeInput{}, map[string]interface{}{
 		"url": site, "goal": "Search for zurich", "api_key": "k", "timeout": float64(30)})
-	if err != nil || out[0].Items[0].JSON["status"] != "done" || !drv.armed || len(drv.g.asked) != 1 || drv.g.asked[0].AgentID != "unapproved-workflow" {
+	if err != nil || out[0].Items[0].JSON["status"] != "done" || !drv.armed || len(drv.g.asked) != 1 || drv.g.asked[0].AgentID != "unapproved-workflow" || !drv.g.asked[0].System {
 		t.Fatalf("authored, full: %v armed=%v asked=%v", err, drv.armed, drv.g.asked)
 	}
 }

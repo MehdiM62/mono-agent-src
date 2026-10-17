@@ -47,8 +47,8 @@ type homeGuardKey struct{}
 //   - write no git hook or git config, anywhere (a git directory found by
 //     name or by its HEAD, objects and refs): git runs them at the next
 //     commit; nor, anywhere, a file a tool runs the next time the user works
-//     in its folder (runsOnNextUse: .claude/settings*, .mcp.json, .husky,
-//     .githooks, .envrc).
+//     in its folder (runsOnNextUse: .claude/settings*, .claude/hooks,
+//     .claude/helpers, CLAUDE.md, .mcp.json, .husky, .githooks, .envrc).
 //
 // The project folder is open but for those (Guard).
 func GuardHiddenHome(ctx context.Context, g Guard) context.Context {
@@ -104,6 +104,9 @@ func homeRule(ctx context.Context, p, r string, write bool) error {
 	if write {
 		if gitRunsIt(resolved) || inGitDir(resolved) {
 			return refuse("%s is a git hook or git config, which git runs at the next commit", p)
+		}
+		if fold(filepath.Base(resolved)) == ".git" {
+			return refuse("%s is a .git file, which can point git at another folder's hooks", p)
 		}
 		if what := runsOnNextUse(resolved); what != "" {
 			return refuse("%s is %s, which runs the next time you work in that folder", p, what)
@@ -258,9 +261,12 @@ func gitRunsIt(p string) bool {
 }
 
 // runsOnNextUse names a file a tool runs, or takes commands from, the next
-// time the user works in its folder, "" for any other: Claude Code's
-// settings (their hooks) and its project MCP servers, git hook managers
-// (.husky, .githooks) and direnv's .envrc. In any case.
+// time the user works in its folder, "" for any other: anything in Claude
+// Code's .claude (settings and hooks, the scripts hooks run, commands,
+// skills, agents), AI agents' instructions (CLAUDE.md, CLAUDE.local.md,
+// AGENTS.md, GEMINI.md, .cursorrules, .cursor/rules,
+// .github/copilot-instructions.md), project MCP servers (.mcp.json), git
+// hook managers (.husky, .githooks) and direnv's .envrc.
 func runsOnNextUse(p string) string {
 	parts := strings.Split(fold(p), string(filepath.Separator))
 	last := parts[len(parts)-1]
@@ -269,15 +275,30 @@ func runsOnNextUse(p string) string {
 		return "direnv's .envrc"
 	case ".mcp.json":
 		return "a project's MCP server list (.mcp.json)"
+	case fold(".cursorrules"):
+		return "Cursor's rules (.cursorrules)"
+	}
+	for _, name := range []string{"CLAUDE.md", "CLAUDE.local.md", "AGENTS.md", "GEMINI.md"} {
+		if last == fold(name) {
+			return "an AI agent's instructions (" + name + ")"
+		}
 	}
 	for i := 0; i+1 < len(parts); i++ {
 		switch parts[i] {
 		case ".claude":
-			if i+2 == len(parts) && strings.HasPrefix(last, "settings") {
-				return "Claude Code's settings (their hooks)"
-			}
+			// settings and their hooks, the scripts hooks run, commands,
+			// skills and agents: each runs or instructs the next session.
+			return "Claude Code's configuration (.claude)"
 		case ".husky", ".githooks":
 			return "a git hook manager's hook"
+		case ".cursor":
+			if parts[i+1] == "rules" {
+				return "Cursor's rules (.cursor/rules)"
+			}
+		case ".github":
+			if parts[i+1] == fold("copilot-instructions.md") {
+				return "Copilot's instructions (.github/copilot-instructions.md)"
+			}
 		}
 	}
 	return ""
@@ -351,13 +372,36 @@ func inGitDir(p string) bool {
 	}
 }
 
+// isGitDir reports a git directory: objects and refs folders and a HEAD
+// that reads as git writes it ("ref: refs/…" or an object name), so a folder
+// that merely has those three names is none. Git needs no config file.
 func isGitDir(d string) bool {
-	head, err := os.Stat(filepath.Join(d, "HEAD"))
-	if err != nil || head.IsDir() {
-		return false
-	}
 	for _, sub := range []string{"objects", "refs"} {
 		if fi, err := os.Stat(filepath.Join(d, sub)); err != nil || !fi.IsDir() {
+			return false
+		}
+	}
+	f, err := os.Open(filepath.Join(d, "HEAD"))
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+	buf := make([]byte, 256)
+	n, _ := f.Read(buf)
+	return gitHead(strings.TrimSpace(string(buf[:n])))
+}
+
+// gitHead reports whether head reads as a git HEAD: a symbolic ref, or a
+// SHA-1 or SHA-256 object name.
+func gitHead(head string) bool {
+	if strings.HasPrefix(head, "ref: refs/") {
+		return true
+	}
+	if len(head) != 40 && len(head) != 64 {
+		return false
+	}
+	for _, c := range head {
+		if !strings.ContainsRune("0123456789abcdef", c) {
 			return false
 		}
 	}

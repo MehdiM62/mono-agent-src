@@ -309,7 +309,11 @@ func (d Deps) newExecutionsCmd() *cobra.Command {
 				if err != nil {
 					return fmt.Errorf("list executions: %w", err)
 				}
-				if rr := replyRedactor(cmd.Context(), db.DB); rr != nil {
+				ids := make([]string, len(rows))
+				for i, r := range rows {
+					ids[i] = r.ID
+				}
+				if rr := replyRedactor(cmd.Context(), db.DB, ids...); rr != nil {
 					for i := range rows {
 						rows[i].Error = rr.String(rows[i].Error)
 					}
