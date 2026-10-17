@@ -28,4 +28,13 @@ describe('quoteClaim', () => {
     expect(quoteClaim('a\u{E0041}b')).toBe('"a\\u{E0041}b"')
     expect(quoteClaim('\u{E0001}x\u{E007F}')).toBe('"\\u{E0001}x\\u{E007F}"')
   })
+  it('shows variation selectors, private-use characters and noncharacters as escapes', () => {
+    expect(quoteClaim('a\uFE0Fb\u{E0100}c')).toBe('"a\\uFE0Fb\\u{E0100}c"')
+    expect(quoteClaim('a\uE000b\u{F0000}c')).toBe('"a\\uE000b\\u{F0000}c"')
+    expect(quoteClaim('a\u{10FFFF}b\uFDD0c')).toBe('"a\\u{10FFFF}b\\uFDD0c"')
+  })
+  it('keeps the combining marks a script needs', () => {
+    expect(quoteClaim('नमस्ते')).toBe('"नमस्ते"')
+    expect(quoteClaim('e\u0301')).toBe('"e\u0301"')
+  })
 })
