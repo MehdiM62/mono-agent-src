@@ -187,6 +187,13 @@ func TestReplyRedactorHidesATokensForms(t *testing.T) {
 		"spaced split":     fmt.Sprint(strings.Split(resume, "")),
 		"quoted split":     `"` + strings.Join(strings.Split(tok, ""), `", "`) + `"`,
 		"upper case":       strings.ToUpper(tok),
+		"dash join":        strings.Join(strings.Split(tok, ""), "-"),
+		"underscore join":  strings.Join(strings.Split(resume, ""), "_"),
+		"plus join":        strings.Join(strings.Split(tok, ""), "+"),
+		"slash join":       strings.Join(strings.Split(tok, ""), "/"),
+		"ZZ between":       strings.ReplaceAll(resume, "", "ZZ"),
+		"xyz between":      strings.ReplaceAll(tok, "", "xyz"),
+		"a, between":       strings.ReplaceAll(tok, "", "a, "),
 	}
 	for name, form := range forms {
 		got := rr.String("see " + form + " here")
@@ -194,7 +201,7 @@ func TestReplyRedactorHidesATokensForms(t *testing.T) {
 			t.Errorf("%s: %q", name, got)
 			continue
 		}
-		if sk, _ := skeleton(got); strings.Contains(string(sk), strings.ToLower(tok[10:18])) {
+		if strings.Contains(lettersOf(got), strings.ToLower(tok[10:18])) {
 			t.Errorf("%s: a piece of the token stayed: %q", name, got)
 		}
 	}
@@ -209,5 +216,64 @@ func TestReplyRedactorHidesATokensForms(t *testing.T) {
 		if got := rr.String(keep); got != keep {
 			t.Errorf("changed %q to %q", keep, got)
 		}
+	}
+}
+
+// lettersOf is s's characters in the base64 alphabets, lowercased.
+func lettersOf(s string) string {
+	var b strings.Builder
+	for i := 0; i < len(s); i++ {
+		if c := alphabet[s[i]]; c != 0 {
+			b.WriteByte(c)
+		}
+	}
+	return b.String()
+}
+
+// A token cut into pieces of 5 to 7 characters, one per value: 5 or more
+// short values of one item holding such a piece have it hidden. Fewer, or a
+// piece inside a longer text, are left: those are as likely chance.
+func TestReplyRedactorHidesATokenCutAcrossValues(t *testing.T) {
+	f := newReplyFixture(t)
+	resume, err := ExecutionResumeURL("e1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tok := resume[strings.LastIndex(resume, "/")+1:]
+	rr := NewReplyRedactor(f.ctx, f.db, "e1")
+	cut := map[string]interface{}{"name": "kept"}
+	for i := 0; i < 7; i++ {
+		cut[fmt.Sprint("p", i)] = tok[6*i : 6*i+6]
+	}
+	got := rr.Map(cut)
+	for i := 0; i < 7; i++ {
+		if v := got[fmt.Sprint("p", i)]; v != ReplyTokenHidden {
+			t.Errorf("p%d = %v", i, v)
+		}
+	}
+	if got["name"] != "kept" {
+		t.Errorf("name = %v", got["name"])
+	}
+	in := map[string]interface{}{"a": tok[:6], "b": tok[6:12], "c": tok[12:18], "d": tok[18:24],
+		"text": strings.Repeat("lorem ipsum ", 8) + tok[24:30]}
+	if got := rr.Map(in); fmt.Sprint(got) != fmt.Sprint(in) {
+		t.Errorf("four short values and a long one: %v", got)
+	}
+}
+
+// A text too long to scan is replaced by a note, not shown; the user's own
+// view keeps it.
+func TestReplyRedactorReplacesATextTooLongToScan(t *testing.T) {
+	f := newReplyFixture(t)
+	big := strings.Repeat("a", maxReplyScan+1)
+	got := NewReplyRedactor(f.ctx, f.db, "e1").Items([]Item{{JSON: map[string]interface{}{"page": big, "n": "ok"}, Binary: map[string][]byte{"file": []byte(big)}}})
+	if got[0].JSON["page"] != ReplyTooLarge || got[0].JSON["n"] != "ok" || string(got[0].Binary["file"]) != ReplyTooLarge {
+		t.Errorf("page %.40v…, n %v, file %.40s…", got[0].JSON["page"], got[0].JSON["n"], got[0].Binary["file"])
+	}
+	if mine := (*ReplyRedactor)(nil).String(big); mine != big {
+		t.Error("the user's view lost the text")
+	}
+	if fit := strings.Repeat("a", maxReplyScan); NewReplyRedactor(f.ctx, f.db, "e1").String(fit) != fit {
+		t.Error("a text at the limit was not scanned")
 	}
 }
