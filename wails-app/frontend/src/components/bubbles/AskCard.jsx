@@ -291,7 +291,13 @@ function SendBody({ ask, nameOf, canAct, busy, outcome, onDecide, onNavigate }) 
       )}
       {edited && pending && <Muted style={{ marginTop: 2 }}>{t('ask.edited')}</Muted>}
       <Attachments ask={ask} />
-      {preparer && <Muted style={{ marginTop: 4 }}>{t('ask.preparedBy', { name: preparer })}</Muted>}
+      {/* An agent names itself, so its name is its claim; only MonoAgent's
+          own label (preparedBy.system: an unapproved workflow) is shown as is. */}
+      {preparer && (
+        <Muted style={{ marginTop: 4 }}>
+          <span data-testid="ask-prepared-by">{t(ask.preparedBy?.system ? 'ask.preparedBy' : 'ask.preparedByClaim', { name: preparer })}</span>
+        </Muted>
+      )}
       {pending ? (
         <div className="ask-actions">
           <button type="button" className="btn btn-primary btn-sm" data-testid="ask-approve" disabled={!canAct || busy || !text.trim()}

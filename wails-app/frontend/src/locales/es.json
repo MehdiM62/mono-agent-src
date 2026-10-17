@@ -1554,6 +1554,7 @@
     "textLabel": "Texto exacto que se enviará",
     "edited": "Editado: al aprobar se envía este texto.",
     "preparedBy": "Preparado por {{name}}. No se envía nada hasta que apruebes.",
+    "preparedByClaim": "Preparado por un agente que dice ser \"{{name}}\". No se envía nada hasta que apruebes.",
     "edit": "Editar",
     "doneEditing": "Terminar edición",
     "attachments_one": "{{count}} adjunto",
