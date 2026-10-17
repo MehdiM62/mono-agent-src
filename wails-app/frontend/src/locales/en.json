@@ -1685,6 +1685,11 @@
   "info": {
     "title": "Info",
     "subtitle": "Details MonoAgent fills into websites for you. Anything the AI missed, add yourself.",
+    "typeLabel": "Profile type",
+    "typePerson": "Person",
+    "typeBusiness": "Business",
+    "subtitleBusiness": "Company details MonoAgent fills into websites for you, including who owns and runs the business. Your personal details are kept and come back if you switch to Person.",
+    "typeFailed": "Could not change the profile type: {{message}}",
     "aiFill": "AI fill",
     "aiFilling": "Reading your documents…",
     "aiFillHint": "Fills empty fields from your documents. Never changes what you typed.",

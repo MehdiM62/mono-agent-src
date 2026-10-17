@@ -20,6 +20,7 @@ const maxProfileInfoPhotoBytes = 10 * 1024 * 1024
 type ProfileInfoGroup struct {
 	ID    string `json:"id"`
 	Label string `json:"label"`
+	Scope string `json:"scope"` // "person", "business", or "" for both
 }
 
 // ProfileInfoField is one entry of the field catalog, the only list of

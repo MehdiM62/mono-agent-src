@@ -52,6 +52,11 @@ var infoAliases = map[string]string{
 	"jobtitle": "job_title", "occupation": "job_title", "position": "job_title",
 	"website": "website", "url": "website", "linkedin": "linkedin", "github": "github",
 	"passport": "passport_number", "passportnumber": "passport_number", "taxid": "tax_id", "tin": "tax_id",
+	"companyname": "company_name", "businessname": "company_name", "legalname": "company_name", "organizationname": "company_name",
+	"vat": "vat_id", "vatid": "vat_id", "vatnumber": "vat_id", "vatno": "vat_id", "vatregistrationnumber": "vat_id",
+	"companynumber": "company_registration", "registrationnumber": "company_registration", "companyregistrationnumber": "company_registration",
+	"crn": "company_registration", "tradingname": "trading_name", "dba": "trading_name",
+	"eori": "eori_number", "duns": "duns", "dunsnumber": "duns", "lei": "lei", "giin": "giin",
 	"iban": "iban", "bic": "bic", "swift": "bic", "swiftcode": "bic",
 }
 

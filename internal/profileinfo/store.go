@@ -99,6 +99,20 @@ func Get(ctx context.Context, db *sql.DB, profile string, reveal bool) ([]Entry,
 	return out, nil
 }
 
+// TypeOf is what the profile is: ScopeBusiness when its profile type is
+// Business, else ScopePerson.
+func TypeOf(ctx context.Context, db *sql.DB, profile string) (string, error) {
+	var v string
+	err := db.QueryRowContext(ctx, `SELECT value FROM profile_info WHERE profile_id = ? AND key = ?`, profile, TypeKey).Scan(&v)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return "", err
+	}
+	if strings.EqualFold(v, "Business") {
+		return ScopeBusiness, nil
+	}
+	return ScopePerson, nil
+}
+
 // Values returns the plain values of the fields keep accepts, for the AI step
 // and the extension; an encrypted field is decrypted only if keep takes it.
 func Values(ctx context.Context, db *sql.DB, profile string, keep func(Field) bool) (map[string]string, error) {
