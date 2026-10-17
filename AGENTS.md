@@ -563,11 +563,35 @@ dangerous calls.
 - `secret_list` (metadata only — vault values are never returned by any tool;
   the one secret a tool returns is the new key of `api_key_create`, below).
   Printing a decrypted secret is the operator's only
-  (`internal/cli/revealgate`, exit 3 otherwise): `secret reveal`, `secret
-  export`, `connect get-oauth-client --reveal`, `profile info get --reveal`,
-  `node run vault.secret_get` and `workflow run --full-outputs`. Names,
-  masked values and metadata stay open. `vault.secret_get` decrypts nothing
-  in a run of a workflow the user hasn't approved (MCP `node_run` included).
+  (`internal/cli/revealgate`; otherwise exit 3, code `operator_only`):
+  `secret reveal`, `secret export`, `connect get-oauth-client --reveal`,
+  `profile info get --reveal`, `node run vault.secret_get` and `workflow run
+  --full-outputs`. So is `api key create`, which mints a key. Names, masked
+  values and metadata stay open. No secret reference resolves in a run of
+  a definition the user hasn't approved: `secrets.Resolve` refuses under
+  `secrets.RefuseResolving`, which `workflow.WithAIAuthored` and
+  `WithUnapproved` set. That covers `@secret:` refs in any config,
+  `{{secret:…}}` lookups, `mcp.call`, `browser.jev`, `vault.secret_get` and
+  `trigger.sse` headers; the step fails naming the reference, never the
+  value. CLI `node run` from a marked process runs as an unapproved step
+  (`WithUnapproved`), like MCP `node_run`, so the program and hidden-home
+  gates apply to it too; `record verify|replay` from one reads no secret.
+  Put the step in a workflow and have the user save or activate it. Still
+  open:
+  - an approved workflow resolves its secrets whoever runs it, and a value
+    a step outputs under a field name the redaction doesn't know shows in
+    its `--json` output;
+  - the HTTP API's `X-Full-Outputs: 1` gives whoever holds an API key
+    unredacted outputs;
+  - by the user's decision, a step that picks its own URL (`http.request`)
+    may use a saved connection's credential in any run, so a run can send
+    that token to any address.
+
+  The app reveals by running these commands as the user, and the CLI can't
+  tell it from an agent that runs the same command from an unmarked
+  process. Like every operator check, this stops mistakes and planted
+  instructions; it is not a barrier against an agent with full access to the
+  computer (see the markers under coding agents).
 - `person_list`, `person_get`
 - `message_list`, `message_get` (results carry an untrusted-content
   provenance fence)
@@ -1774,7 +1798,12 @@ monoagentcli --profile work chat --mode coder --cwd ~/code/app -- "…"   # one 
   `QWEN_CODE`, `DSH_SHELL`, `DSH_SESSION_ID`, and `MONOMIND_CLINE_TURN` /
   `MONOMIND_AIDER` (set by monomind's runners, since cline and aider set
   none of their own). A shell that sets the generic `AI_AGENT` or `AGENT`
-  itself is refused too.
+  itself is refused too. Every operator check reads these markers. On
+  Linux any of them in a parent process counts too, as does a parent
+  that is a `monomind agent exec` turn, up to 32 levels up; a deeper
+  chain counts as marked. A process whose marked parents have exited (a
+  `setsid -f` child) counts as the operator, and on macOS and Windows only
+  the process's own environment is read.
 - **cline, aider, DeepSeek Harness (`dsh`) and pi** have no model-listing
   command, so `agent models` reports them unsupported and mono-agent
   offers a curated list. It includes free OpenRouter models
