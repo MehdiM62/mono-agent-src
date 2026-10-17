@@ -2,7 +2,11 @@ package mcp
 
 import (
 	"context"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/zalando/go-keyring"
@@ -29,5 +33,41 @@ func TestNodeRunRefusesToDecryptAVaultEntry(t *testing.T) {
 	}
 	if list, err := callNamed(t, s, "secret_list", map[string]interface{}{}); err != nil || !strings.Contains(list, "kept") || strings.Contains(list, "vsecret-777") {
 		t.Fatalf("secret_list: %v\n%s", err, list)
+	}
+}
+
+// Nor does an @secret reference in a node_run step resolve: the step is
+// refused, and nothing is sent where the AI pointed it.
+func TestNodeRunResolvesNoSecretReference(t *testing.T) {
+	keyring.MockInit()
+	s := newTestServerAllowMutations(t, true)
+	rt, err := s.runtime()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := secrets.Add(context.Background(), rt.db.DB, testProfile, "secret", "vs", map[string]string{"secret": "vsecret-777"}, "", "", ""); err != nil {
+		t.Fatal(err)
+	}
+	var mu sync.Mutex
+	var got []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		mu.Lock()
+		got = append(got, string(b))
+		mu.Unlock()
+	}))
+	defer srv.Close()
+	text, err := callNamed(t, s, "node_run", map[string]interface{}{"type": "http.request",
+		"config": map[string]interface{}{"url": srv.URL, "method": "POST", "body": "@secret:vs"}})
+	if err != nil {
+		text += err.Error()
+	}
+	if !strings.Contains(text, "@secret:vs is not read from the vault") || strings.Contains(text, "vsecret-777") {
+		t.Errorf("node_run http.request with a secret reference:\n%s", text)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(got) != 0 {
+		t.Fatalf("node_run sent %q", got)
 	}
 }

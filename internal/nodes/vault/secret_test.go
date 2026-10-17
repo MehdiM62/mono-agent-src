@@ -308,7 +308,7 @@ func TestSecretGetRefusedInAnUnapprovedRun(t *testing.T) {
 	}
 	get := &SecretGetNode{}
 	out, err := get.Execute(workflow.WithAIAuthored(ctx), input, map[string]interface{}{"name": "kept"})
-	if err == nil || !strings.Contains(err.Error(), "save or activate it") || out != nil {
+	if err == nil || !strings.Contains(err.Error(), "which this run may not") || out != nil {
 		t.Fatalf("an unapproved run's vault.secret_get: %v %v", out, err)
 	}
 	if _, err := get.Execute(ctx, input, map[string]interface{}{"name": "kept"}); err != nil {

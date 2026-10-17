@@ -114,7 +114,9 @@ func (r *runner) resolveFor(t *nodeTask, item Item) (map[string]interface{}, err
 			return nil, fmt.Errorf("resolve config: ran without a profile: %w", perr)
 		}
 		_ = vault.ResolveConfig(t.ctx, vaultDB, resolved)
-		_ = secrets.ResolveConfig(t.ctx, vaultDB, profile, resolved)
+		if err := secrets.ResolveConfig(t.ctx, vaultDB, profile, resolved); err != nil {
+			return nil, fmt.Errorf("resolve config: %w", err)
+		}
 	}
 	return resolved, nil
 }

@@ -68,7 +68,9 @@ func (r *runner) resolveSubNodes(rootID string, exprCtx ExpressionContext, depth
 				return nil, fmt.Errorf("sub-node %s (%s) ran without a profile: %w", n.ID, n.Name, perr)
 			}
 			_ = vault.ResolveConfig(r.ctx, db, resolved)
-			_ = secrets.ResolveConfig(r.ctx, db, profile, resolved)
+			if err := secrets.ResolveConfig(r.ctx, db, profile, resolved); err != nil {
+				return nil, fmt.Errorf("sub-node %s (%s): %w", n.ID, n.Name, err)
+			}
 		}
 		children, err := r.resolveSubNodes(n.ID, exprCtx, depth+1)
 		if err != nil {
@@ -115,7 +117,9 @@ func (r *runner) callTool(ctx context.Context, n WorkflowNode, base ExpressionCo
 			return nil, fmt.Errorf("tool %q ran without a profile: %w", n.Name, perr)
 		}
 		_ = vault.ResolveConfig(ctx, db, resolved)
-		_ = secrets.ResolveConfig(ctx, db, profile, resolved)
+		if err := secrets.ResolveConfig(ctx, db, profile, resolved); err != nil {
+			return nil, fmt.Errorf("tool %q: %w", n.Name, err)
+		}
 	}
 	outs, err := executor.Execute(ctx, NodeInput{
 		Items: []Item{NewItem(args)}, NodeOutputs: r.nodeOutputs,
