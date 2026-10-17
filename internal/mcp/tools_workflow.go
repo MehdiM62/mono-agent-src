@@ -225,6 +225,7 @@ func toolWorkflowRun(ctx context.Context, s *Server, args json.RawMessage) (inte
 		return nil, err
 	}
 
+	workflow.StripEngineKeys(a.Input)
 	execID, err := engine.TriggerWorkflow(ctx, a.ID, a.Input)
 	if err != nil {
 		return nil, fmt.Errorf("trigger workflow: %w", err)
