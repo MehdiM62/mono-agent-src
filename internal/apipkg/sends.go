@@ -80,7 +80,7 @@ func (s *Sends) UnmarshalJSON(b []byte) error {
 	type plain Sends
 	var p plain
 	if err := json.Unmarshal(b, &p); err != nil {
-		return fmt.Errorf("sends is false or {action, to, text, subject, if}: %w", err)
+		return fmt.Errorf("sends is false or {action, to, text, subject, to_label, to_unset, if}: %w", err)
 	}
 	*s = Sends(p)
 	return nil
