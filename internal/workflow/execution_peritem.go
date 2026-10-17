@@ -108,7 +108,7 @@ func (r *runner) resolveFor(t *nodeTask, item Item) (map[string]interface{}, err
 		return nil, fmt.Errorf("resolve config: %w", err)
 	}
 	restorePerItemFields(resolved, state)
-	if err := checkLiteralFields(t.executor, t.perItem.config, resolved); err != nil {
+	if err := checkStoredFields(t.executor, t.perItem.config, resolved); err != nil {
 		return nil, fmt.Errorf("resolve config: %w", err)
 	}
 	if vaultDB := vault.DBFromContext(t.ctx); vaultDB != nil {

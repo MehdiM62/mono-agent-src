@@ -9,6 +9,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/monoes/mono-agent/internal/connections"
+	"github.com/monoes/mono-agent/internal/secrets"
 	"github.com/monoes/mono-agent/internal/vault"
 )
 
@@ -110,11 +111,23 @@ func isUnsetConfigValue(v interface{}) bool {
 	return v == nil || (isStr && s == "")
 }
 
-// checkLiteralFields refuses resolved when its credential_id, or a field
+// checkStoredFields refuses resolved when its credential_id, or a field
 // executor names a vault entry by (LiteralConfigResolver), isn't the value
 // stored holds as written: an expression produced it, from the run's data
-// or otherwise. It runs before references resolve.
-func checkLiteralFields(executor NodeExecutor, stored, resolved map[string]interface{}) error {
+// or otherwise. So does a reference an expression put in the text of a field
+// executor resolves references inside (SecretTextResolver). It runs before
+// references resolve.
+func checkStoredFields(executor NodeExecutor, stored, resolved map[string]interface{}) error {
+	if t, ok := executor.(SecretTextResolver); ok {
+		for _, f := range t.SecretTextFields() {
+			if path, found := secrets.DataReference(stored[f], resolved[f], true); found {
+				if path != "" {
+					f += "." + path
+				}
+				return fmt.Errorf("%q: %w: only one written as it is in the workflow resolves", f, secrets.ErrDataReference)
+			}
+		}
+	}
 	fields := []string{"credential_id"}
 	if l, ok := executor.(LiteralConfigResolver); ok {
 		fields = append(fields, l.LiteralConfigFields()...)

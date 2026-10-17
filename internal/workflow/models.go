@@ -139,6 +139,16 @@ type LiteralConfigResolver interface {
 	LiteralConfigFields() []string
 }
 
+// SecretTextResolver is implemented by nodes that resolve @secret references
+// inside the text of some fields (mcp.call's headers and env: "Bearer
+// @secret:x"), not only in a value that starts with one. In those fields a
+// value an expression produced that holds "@secret:" anywhere refuses the
+// step (secrets.DataReference).
+type SecretTextResolver interface {
+	NodeExecutor
+	SecretTextFields() []string
+}
+
 // Workflow is the top-level entity stored in the workflows table.
 type Workflow struct {
 	ID          string    `json:"id" db:"id"`

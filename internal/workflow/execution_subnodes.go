@@ -65,7 +65,7 @@ func (r *runner) resolveSubNodes(rootID string, exprCtx ExpressionContext, depth
 			return nil, fmt.Errorf("sub-node %s (%s): resolve config: %w", n.ID, n.Name, err)
 		}
 		restorePerItemFields(resolved, held)
-		if err := checkLiteralFields(executor, stored, resolved); err != nil {
+		if err := checkStoredFields(executor, stored, resolved); err != nil {
 			return nil, fmt.Errorf("sub-node %s (%s): %w", n.ID, n.Name, err)
 		}
 		if db := vault.DBFromContext(r.ctx); db != nil {
@@ -120,7 +120,7 @@ func (r *runner) callTool(ctx context.Context, n WorkflowNode, base ExpressionCo
 		return nil, fmt.Errorf("tool %q: resolve config: %w", n.Name, err)
 	}
 	restorePerItemFields(resolved, held)
-	if err := checkLiteralFields(executor, stored, resolved); err != nil {
+	if err := checkStoredFields(executor, stored, resolved); err != nil {
 		return nil, fmt.Errorf("tool %q: %w", n.Name, err)
 	}
 	if db := vault.DBFromContext(ctx); db != nil {

@@ -45,6 +45,16 @@ func ResolveRefusal(ctx context.Context) string {
 	return why
 }
 
+// RefusedReference is the refusal of ref under a context RefuseResolving
+// marked, as Resolve gives it, or nil: for a reader of the vault that doesn't
+// go through Resolve.
+func RefusedReference(ctx context.Context, ref string) error {
+	if why := ResolveRefusal(ctx); why != "" {
+		return &refusedError{ref + " is not read from the vault: " + why}
+	}
+	return nil
+}
+
 // Resolve turns a `@secret:<name>` reference into a decrypted value stored
 // in the vault under profileID. Strings that do not carry the `@secret:`
 // prefix are returned unchanged. Returns an error if the reference is
@@ -55,8 +65,8 @@ func Resolve(ctx context.Context, db *sql.DB, profileID, ref string) (string, er
 	if !strings.HasPrefix(ref, secretRefPrefix) {
 		return ref, nil
 	}
-	if why := ResolveRefusal(ctx); why != "" {
-		return ref, &refusedError{ref + " is not read from the vault: " + why}
+	if err := RefusedReference(ctx, ref); err != nil {
+		return ref, err
 	}
 	name := strings.TrimPrefix(ref, secretRefPrefix)
 
@@ -104,15 +114,17 @@ func Resolve(ctx context.Context, db *sql.DB, profileID, ref string) (string, er
 //
 // stored is the same config as the workflow holds it, before its expressions
 // were evaluated into config. A reference is the workflow's own only where
-// stored holds it as it is, in a value with no expression: "@secret:" in any
-// value an expression produced (the run's input, a webhook body, an earlier
-// step's output, or text the expression built) is refused at any depth of
-// config, whatever node would read it, and the step doesn't run.
+// stored holds it as it is, in a value with no expression. A value an
+// expression produced (the run's input, a webhook body, an earlier step's
+// output, or text the expression built) that a resolver would read as a
+// reference, one that starts with "@secret:" after any spaces, is refused at
+// any depth of config, and the step doesn't run. Other text that holds
+// "@secret:" stays text (see DataReference).
 func ResolveConfig(ctx context.Context, db *sql.DB, profileID string, stored, config map[string]interface{}) error {
 	if db == nil {
 		return nil
 	}
-	if path, ok := dataReference(stored, config, ""); ok {
+	if path, ok := dataReference(stored, config, "", false); ok {
 		return fmt.Errorf("%q: %w: only one written as it is in the workflow resolves", path, ErrDataReference)
 	}
 	for k, v := range config {
@@ -137,11 +149,21 @@ func ResolveConfig(ctx context.Context, db *sql.DB, profileID string, stored, co
 	return nil
 }
 
-// dataReference is the path in resolved of a string that holds "@secret:"
-// where stored, at the same path, isn't that same string free of
-// expressions. It walks maps and lists of any type, since an expression can
+// DataReference reports where in resolved a value an expression produced
+// would be read as a @secret reference: a string that starts with "@secret:"
+// after any spaces (what ResolveConfig, browser.jev's values and ai.choose's
+// key resolve), or, with inText, one that holds it anywhere (a field whose
+// node resolves references inside its text, as mcp.call's headers and env
+// do: "Bearer @secret:x"). stored is the same value as the workflow holds
+// it; a string it holds as written, with no expression, is the workflow's
+// own. path is "" when resolved itself is that string.
+func DataReference(stored, resolved interface{}, inText bool) (path string, found bool) {
+	return dataReference(stored, resolved, "", inText)
+}
+
+// dataReference walks maps and lists of any type, since an expression can
 // return typed ones (split's []string).
-func dataReference(stored, resolved interface{}, path string) (string, bool) {
+func dataReference(stored, resolved interface{}, path string, inText bool) (string, bool) {
 	r := reflect.ValueOf(resolved)
 	for r.Kind() == reflect.Interface || r.Kind() == reflect.Pointer {
 		if r.IsNil() {
@@ -154,7 +176,10 @@ func dataReference(stored, resolved interface{}, path string) (string, bool) {
 		if s, ok := literal(stored); ok && s == r.String() {
 			return "", false
 		}
-		return path, strings.Contains(r.String(), secretRefPrefix)
+		if inText {
+			return path, strings.Contains(r.String(), secretRefPrefix)
+		}
+		return path, strings.HasPrefix(strings.TrimSpace(r.String()), secretRefPrefix)
 	case reflect.Map:
 		for _, k := range r.MapKeys() {
 			key := fmt.Sprint(k.Interface())
@@ -162,7 +187,7 @@ func dataReference(stored, resolved interface{}, path string) (string, bool) {
 			if path != "" {
 				p = path + "." + key
 			}
-			if found, ok := dataReference(storedAt(stored, k), r.MapIndex(k).Interface(), p); ok {
+			if found, ok := dataReference(storedAt(stored, k), r.MapIndex(k).Interface(), p, inText); ok {
 				return found, true
 			}
 		}
@@ -171,7 +196,7 @@ func dataReference(stored, resolved interface{}, path string) (string, bool) {
 			return "", false // bytes are a file's content, which nothing resolves
 		}
 		for i := 0; i < r.Len(); i++ {
-			if found, ok := dataReference(storedAt(stored, reflect.ValueOf(i)), r.Index(i).Interface(), fmt.Sprintf("%s[%d]", path, i)); ok {
+			if found, ok := dataReference(storedAt(stored, reflect.ValueOf(i)), r.Index(i).Interface(), fmt.Sprintf("%s[%d]", path, i), inText); ok {
 				return found, true
 			}
 		}

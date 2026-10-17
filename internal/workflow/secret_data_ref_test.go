@@ -26,10 +26,11 @@ func (p configProbe) Execute(_ context.Context, _ NodeInput, config map[string]i
 
 // A webhook's body reaches an approved workflow's fields through its
 // expressions, and a @secret reference in it resolves nowhere: not as the
-// whole value, not built by the expression from pieces, not inside a header.
-// The step is refused, naming the field, and the value is in no error. The
-// workflow's own reference, in the same step, resolves once the data holds
-// none (#845 review: secret references as data).
+// whole value, not built by the expression from pieces, not after an empty
+// expression. The step is refused, naming the field, and the value is in no
+// error. Text that only mentions "@secret:" runs as text. The workflow's own
+// reference, in the same step, resolves once the data holds none (#845
+// review: secret references as data).
 func TestASecretReferenceInAWebhooksBodyResolvesNowhere(t *testing.T) {
 	keyring.MockInit()
 	db, sqlStore := approvalsTestDB(t)
@@ -41,11 +42,11 @@ func TestASecretReferenceInAWebhooksBodyResolvesNowhere(t *testing.T) {
 		field string
 		body  map[string]interface{}
 	}{
-		"the whole value":          {"{{ $json.body.msg }}", map[string]interface{}{"msg": "@secret:vs"}},
-		"built from two pieces":    {"{{ $json.body.a }}{{ $json.body.b }}", map[string]interface{}{"a": "@sec", "b": "ret:vs"}},
-		"built by the expression":  {`@sec{{ "ret:" }}{{ $json.body.name }}`, map[string]interface{}{"name": "vs"}},
-		"inside a longer value":    {"Bearer {{ $json.body.msg }}", map[string]interface{}{"msg": "@secret:vs"}},
-		"in an object it returned": {"{{ json $json.body.values }}", map[string]interface{}{"values": map[string]interface{}{"pin": "@secret:vs"}}},
+		"the whole value":           {"{{ $json.body.msg }}", map[string]interface{}{"msg": "@secret:vs"}},
+		"built from two pieces":     {"{{ $json.body.a }}{{ $json.body.b }}", map[string]interface{}{"a": "@sec", "b": "ret:vs"}},
+		"built by the expression":   {`@sec{{ "ret:" }}{{ $json.body.name }}`, map[string]interface{}{"name": "vs"}},
+		"after an empty expression": {"{{ $json.body.p }}@secret:vs", map[string]interface{}{"p": ""}},
+		"in an object it returned":  {"{{ json $json.body.values }}", map[string]interface{}{"values": map[string]interface{}{"pin": "@secret:vs"}}},
 	} {
 		var got []map[string]interface{}
 		err := runHookedWorkflow(t, ctx, sqlStore, &got, map[string]interface{}{"own": "@secret:vs", "msg": c.field}, c.body)
@@ -57,12 +58,20 @@ func TestASecretReferenceInAWebhooksBodyResolvesNowhere(t *testing.T) {
 		}
 	}
 
-	var got []map[string]interface{}
-	if err := runHookedWorkflow(t, ctx, sqlStore, &got, map[string]interface{}{"own": "@secret:vs", "msg": "{{ $json.body.msg }}"}, map[string]interface{}{"msg": "hello"}); err != nil {
-		t.Fatalf("a body without a reference: %v", err)
-	}
-	if len(got) != 1 || got[0]["own"] != "vsecret-777" || got[0]["msg"] != "hello" {
-		t.Errorf("the approved workflow's own reference: the step ran with %v", got)
+	for _, c := range []struct{ field, msg, want string }{
+		{"{{ $json.body.msg }}", "hello", "hello"},
+		{"{{ $json.body.msg }}", "please see the @secret: docs, or x@secret:vs", "please see the @secret: docs, or x@secret:vs"},
+		{"Bearer {{ $json.body.msg }}", "@secret:vs", "Bearer @secret:vs"},
+		{"{{ $json.body.p }}@secret:vs", "", "re: @secret:vs"},
+	} {
+		var got []map[string]interface{}
+		body := map[string]interface{}{"msg": c.msg, "p": "re: "}
+		if err := runHookedWorkflow(t, ctx, sqlStore, &got, map[string]interface{}{"own": "@secret:vs", "msg": c.field}, body); err != nil {
+			t.Fatalf("%q from a body that only mentions a reference: %v", c.want, err)
+		}
+		if len(got) != 1 || got[0]["own"] != "vsecret-777" || got[0]["msg"] != c.want {
+			t.Errorf("%q: the step ran with %v, want its own reference resolved and the text as it came", c.want, got)
+		}
 	}
 }
 

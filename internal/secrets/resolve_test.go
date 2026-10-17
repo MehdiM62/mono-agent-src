@@ -197,9 +197,12 @@ func TestResolveConfigRefusesAReferenceThatCameFromData(t *testing.T) {
 		"built by the expression": {
 			map[string]interface{}{"message": `@sec{{ "ret:vs" }}`},
 			map[string]interface{}{"message": "@secret:vs"}, `"message"`},
-		"inside a longer value": {
-			map[string]interface{}{"headers": map[string]interface{}{"Authorization": "Bearer {{ $json.t }}"}},
-			map[string]interface{}{"headers": map[string]interface{}{"Authorization": "Bearer @secret:vs"}}, `"headers.Authorization"`},
+		"after spaces": {
+			map[string]interface{}{"api_key": "{{ $json.k }}"},
+			map[string]interface{}{"api_key": "  @secret:vs"}, `"api_key"`},
+		"after an expression that came out empty": {
+			map[string]interface{}{"message": "{{ $json.p }}@secret:vs"},
+			map[string]interface{}{"message": "@secret:vs"}, `"message"`},
 		"in an object an expression returned": {
 			map[string]interface{}{"values": "{{ $json.values }}"},
 			map[string]interface{}{"values": map[string]interface{}{"pin": "@secret:vs"}}, `"values.pin"`},
@@ -261,5 +264,36 @@ func TestARefusedReferenceSaysWhyOnce(t *testing.T) {
 	}
 	if !errors.Is(err, ErrResolveRefused) || v != "@secret:vs" {
 		t.Errorf("Resolve = %q, %v; want the reference back and ErrResolveRefused", v, err)
+	}
+}
+
+// Text an expression produced that holds "@secret:" anywhere but at its
+// start is no reference to any resolver here: it stays text, and the step
+// runs with it unresolved. An outside sender can't halt an approved step
+// with it (#845 code review, 2).
+func TestTextThatMentionsASecretReferenceStaysText(t *testing.T) {
+	db := newSecretsTestDB(t)
+	ctx := context.Background()
+	if _, err := Add(ctx, db.DB, "default", "secret", "vs", map[string]string{"secret": "vsecret-777"}, "", "", ""); err != nil {
+		t.Fatal(err)
+	}
+	stored := map[string]interface{}{"body": "{{ $json.body }}", "subject": "{{ $json.p }}@secret:vs",
+		"headers": map[string]interface{}{"Authorization": "Bearer {{ $json.t }}"}}
+	config := map[string]interface{}{"body": "please see the @secret: docs, or x@secret:y", "subject": "re: @secret:vs",
+		"headers": map[string]interface{}{"Authorization": "Bearer @secret:vs"}}
+	if err := ResolveConfig(ctx, db.DB, "default", stored, config); err != nil {
+		t.Fatalf("text that mentions a reference: %v", err)
+	}
+	if fmt.Sprint(config) != fmt.Sprint(map[string]interface{}{"body": "please see the @secret: docs, or x@secret:y", "subject": "re: @secret:vs",
+		"headers": map[string]interface{}{"Authorization": "Bearer @secret:vs"}}) {
+		t.Errorf("config = %v, want the text as it came", config)
+	}
+	// In a field whose node resolves references inside its text (mcp.call's
+	// headers), the same header is one.
+	if path, ok := DataReference(stored["headers"], config["headers"], true); !ok || path != "Authorization" {
+		t.Errorf("a header an mcp.call would expand: %q, %v", path, ok)
+	}
+	if _, ok := DataReference(stored["body"], config["body"], false); ok {
+		t.Error("text in the middle was taken for a reference")
 	}
 }

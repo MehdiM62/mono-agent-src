@@ -232,7 +232,7 @@ func (r *runner) prepare(node WorkflowNode) (*nodeTask, error) {
 		return nil, fmt.Errorf("node %s (%s): resolve config: %w", node.ID, node.Name, err)
 	}
 	restorePerItemFields(resolvedConfig, fieldState)
-	if err := checkLiteralFields(executor, stored, resolvedConfig); err != nil {
+	if err := checkStoredFields(executor, stored, resolvedConfig); err != nil {
 		return nil, fmt.Errorf("node %s (%s): %w", node.ID, node.Name, err)
 	}
 
