@@ -106,7 +106,7 @@ func (d Deps) newSecretImportCmd() *cobra.Command {
 				return ErrProfileRequired
 			}
 
-			imported, skipped, err := secrets.Import(cmd.Context(), db.DB, profileID, passphrase, data,
+			imported, skipped, err := secrets.Import(writeCtx(cmd.Context()), db.DB, profileID, passphrase, data,
 				rematerializeConnection, rematerializeSession)
 			if err != nil {
 				return fmt.Errorf("importing vault: %w", err)

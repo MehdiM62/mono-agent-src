@@ -210,9 +210,9 @@ func (d Deps) newSecretAddCmd() *cobra.Command {
 				return ErrProfileRequired
 			}
 
-			id, err := secrets.Add(cmd.Context(), db.DB, profileID, kind, name, fields, username, url, notes)
+			id, err := secrets.Add(writeCtx(cmd.Context()), db.DB, profileID, kind, name, fields, username, url, notes)
 			if err != nil {
-				return fmt.Errorf("adding secret: %w", err)
+				return writeErr("adding secret", err)
 			}
 			if d.JSONOutput() {
 				enc := json.NewEncoder(cmd.OutOrStdout())
