@@ -1,4 +1,10 @@
 .info-lead { margin: 0 0 14px; color: var(--text-secondary); font-size: 12.5px; line-height: 1.5; max-width: 70ch; }
+.info-type { display: inline-flex; margin: 0 0 12px; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.info-type-btn { padding: 6px 16px; background: var(--base); border: 0; color: var(--text-secondary); font-family: var(--font-mono); font-size: 12px; cursor: pointer; }
+.info-type-btn + .info-type-btn { border-left: 1px solid var(--border); }
+.info-type-btn:hover:not(:disabled) { color: var(--cyan); }
+.info-type-btn.is-on { background: var(--elevated); color: var(--cyan); font-weight: 700; }
+.info-type-btn:focus-visible { outline: 2px solid var(--cyan); outline-offset: -2px; }
 .info-banner { display: flex; gap: 8px; align-items: flex-start; padding: 8px 12px; margin-bottom: 14px; border-radius: var(--radius); font-size: 12px; line-height: 1.45; }
 .info-banner.is-ok { background: var(--cyan-glow); border: 1px solid var(--border-bright); color: var(--text); }
 .info-banner.is-error { background: var(--danger-surface); border: 1px solid var(--danger-border); color: var(--text); }

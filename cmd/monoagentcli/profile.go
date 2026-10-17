@@ -6,6 +6,7 @@ import (
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 
+	"github.com/monoes/mono-agent/internal/cli/extensioncli"
 	profilecli "github.com/monoes/mono-agent/internal/cli/profile"
 	"github.com/monoes/mono-agent/internal/storage"
 )
@@ -24,6 +25,7 @@ func profileDeps(cfg *globalConfig) profilecli.Deps {
 	d.NewTable = func(w io.Writer, headers []string) *tablewriter.Table {
 		return newPlainTable(w, headers, nil)
 	}
+	d.UnbindBrowsers = extensioncli.UnbindProfile
 	d.WithJSONErrors = func(cmd *cobra.Command) { withJSONErrors(cfg, cmd) }
 	d.Reported = func(err error) error { return reportedError{Err: err} }
 	return d

@@ -129,8 +129,15 @@ func TestProfileGetPrefersIDOverName(t *testing.T) {
 	dbPath := newProfileDocsCLITestDB(t)
 	var a profileCreateResult
 	mustProfileJSON(t, dbPath, &a, "create", "Alpha")
-	var b profileCreateResult
-	mustProfileJSON(t, dbPath, &b, "create", a.ID) // named after Alpha's id
+	// A profile named after Alpha's id: `create` refuses that name now, so the row is written directly.
+	db, err := storage.NewDatabase(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.DB.Exec(`INSERT INTO profiles (id, name, created_at) VALUES ('b-id', ?, '2026-10-17T00:00:00Z')`, a.ID); err != nil {
+		t.Fatal(err)
+	}
+	db.Close()
 
 	var got profileJSON
 	mustProfileJSON(t, dbPath, &got, "get", a.ID)
