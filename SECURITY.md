@@ -77,7 +77,8 @@ messages, not a barrier:
 
 - An agent is recognised by markers in its environment. On Linux, markers
   in its parent processes count too, up to 32 levels; a deeper chain
-  counts as marked. A process whose marked parents have exited (`setsid`)
+  counts as marked, which also refuses your own terminal when it runs
+  that deep (nested multiplexers or containers). A process whose marked parents have exited (`setsid`)
   is treated as you, and so is any process on macOS and Windows that clears
   its environment.
 - The desktop app reveals by running the same commands as you. The CLI
