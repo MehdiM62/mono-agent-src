@@ -264,7 +264,7 @@ The desktop app does everything through these commands; they are equally usable 
   - `login test <id>` and `login delete <id>` (delete also removes the vault entry).
   - `connect list|test|remove|refresh` are profile-scoped.
   - `connect save <platform> --method M --stdin-json`: field values arrive on stdin.
-  - `connect get-oauth-client <platform> [--reveal]` and `connect set-oauth-client <platform> --client-id X [--client-secret-stdin]`. Secrets travel on stdin and are only printed with `--reveal`.
+  - `connect get-oauth-client <platform> [--reveal]` and `connect set-oauth-client <platform> --client-id X [--client-secret-stdin]`. Secrets travel on stdin and are only printed with `--reveal`. `--reveal` is the user's own: an agent, the chat or a workflow is refused (exit 3).
   - `connect for-node <node-type>` and `connect oauth <platform>` (progress is NDJSON on stderr).
   - `connect resources <credential-id> --platform P --type T [--query Q]` lists a connection's spreadsheets, folders, labels or channels for the node editor's picker.
 - **Profiles:**
@@ -561,7 +561,13 @@ dangerous calls.
 - `hil_list`
 - `vault_item_list`, `vault_item_get_path`, `profile_document_search`
 - `secret_list` (metadata only — vault values are never returned by any tool;
-  the one secret a tool returns is the new key of `api_key_create`, below)
+  the one secret a tool returns is the new key of `api_key_create`, below).
+  Printing a decrypted secret is the operator's only
+  (`internal/cli/revealgate`, exit 3 otherwise): `secret reveal`, `secret
+  export`, `connect get-oauth-client --reveal`, `profile info get --reveal`,
+  `node run vault.secret_get` and `workflow run --full-outputs`. Names,
+  masked values and metadata stay open. `vault.secret_get` decrypts nothing
+  in a run of a workflow the user hasn't approved (MCP `node_run` included).
 - `person_list`, `person_get`
 - `message_list`, `message_get` (results carry an untrusted-content
   provenance fence)
@@ -837,7 +843,8 @@ same 401, so a caller cannot learn which profiles exist (`/nodes*` takes any
 profile's token). Output items go
 through the same redaction as `workflow run --json` — pass
 `X-Full-Outputs: 1` to opt out per request, mirroring
-`workflow run --full-outputs`. Workflow reads and mutations are scoped to
+`workflow run --full-outputs` (the CLI flag is the operator's only; the
+header isn't gated). Workflow reads and mutations are scoped to
 the profile in the path in both standalone and daemon-hosted mode: another
 profile's workflow ID returns 404. A workflow with no profile ID belongs
 to nobody (404 for every profile); legacy rows and files are stamped by
