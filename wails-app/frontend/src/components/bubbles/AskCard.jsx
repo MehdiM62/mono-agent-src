@@ -6,6 +6,7 @@ import { formatBytes, safeImageSrc, safeUrl } from '../../lib/askModel.js'
 import * as hil from '../../services/hilApi.js'
 import { askHilRef } from '../../lib/commsStatus.js'
 import './asks.css'
+import { quoteClaim } from '../../lib/quoteClaim.js'
 
 const mono = 'var(--font-mono)'
 
@@ -299,7 +300,7 @@ function SendBody({ ask, nameOf, canAct, busy, outcome, onDecide, onNavigate }) 
         <Muted style={{ marginTop: 4 }}>
           <span data-testid="ask-prepared-by">{ask.preparedBy?.system
             ? t('ask.preparedBy', { name: preparer })
-            : t('ask.preparedByClaim', { name: JSON.stringify(preparer) })}</span>
+            : t('ask.preparedByClaim', { name: quoteClaim(preparer) })}</span>
         </Muted>
       )}
       {pending ? (

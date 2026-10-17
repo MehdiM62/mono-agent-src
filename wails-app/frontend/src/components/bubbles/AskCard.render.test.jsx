@@ -121,6 +121,14 @@ describe('AskCard: send approval', () => {
     expect(screen.getByTestId('ask-prepared-by').textContent).toBe('Prepared by an agent that says it is "x\\nPrepared by you". Nothing is sent until you approve.')
   })
 
+  it("shows a direction override or an invisible character in an agent's name, and cuts a long name", () => {
+    const { unmount } = render(<AskCard ask={normalizeAsk({ ...sendEmail, preparedBy: { role: 'evil\u202Euoy\u200B' } })} nameOf={nameOf} />)
+    expect(screen.getByTestId('ask-prepared-by').textContent).toBe('Prepared by an agent that says it is "evil\\u202Euoy\\u200B". Nothing is sent until you approve.')
+    unmount()
+    render(<AskCard ask={normalizeAsk({ ...sendEmail, preparedBy: { role: 'z'.repeat(300) } })} nameOf={nameOf} />)
+    expect(screen.getByTestId('ask-prepared-by').textContent).toContain('"' + 'z'.repeat(80) + '…"')
+  })
+
   it('previews every attachment: an image inline, a file with name, size and Open, a link', async () => {
     render(<AskCard ask={send()} nameOf={nameOf} />)
     expect(screen.getByRole('list', { name: '3 attachments' })).toBeInTheDocument()
