@@ -90,6 +90,9 @@ func TestAnUnapprovedWorkflowResolvesNoSecret(t *testing.T) {
 	if !strings.Contains(stored, "@secret:vs is not read from the vault") {
 		t.Errorf("the stored run does not say the reference was refused:\n%s", stored)
 	}
+	if strings.Contains(stored, secrets.ErrResolveRefused.Error()) {
+		t.Errorf("the refusal repeats what its reason says:\n%s", stored)
+	}
 
 	cfg.JSONOutput = true
 	runWorkflowSubcmd(t, cfg, "activate", created.ID) // the user approves it
