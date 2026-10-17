@@ -441,7 +441,7 @@
       "operation": "create",
       "title": "Create a organization",
       "sends": false,
-      "sends_reason": "Create a organization: changes Zammad data, not a message",
+      "sends_reason": "Create an organization: changes Zammad data, not a message",
       "method": "POST",
       "path": "/organizations",
       "body": {
@@ -481,7 +481,7 @@
       "operation": "delete",
       "title": "Delete a organization",
       "sends": false,
-      "sends_reason": "Delete a organization: changes Zammad data, not a message",
+      "sends_reason": "Delete an organization: changes Zammad data, not a message",
       "method": "DELETE",
       "path": "/organizations/{{ p.id }}",
       "fields": [
@@ -543,7 +543,7 @@
       "operation": "update",
       "title": "Update a organization",
       "sends": false,
-      "sends_reason": "Update a organization: changes Zammad data, not a message",
+      "sends_reason": "Update an organization: changes Zammad data, not a message",
       "method": "PUT",
       "path": "/organizations/{{ p.id }}",
       "body": {

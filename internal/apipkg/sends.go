@@ -36,9 +36,11 @@ type Sends struct {
 	// If names the params the op only sends with: it sends when one of them
 	// is set (true, or any value but false, "" or an empty list), a param's
 	// field default included. "param=value" sends when the param has that
-	// value. Sendy creates a campaign and sends it only with sendCampaign; a
-	// Google Calendar event invites only with additionalFields.attendees;
-	// Home Assistant notifies only with "domain=notify".
+	// value, "param!=value" when it is unset or has another. Sendy creates
+	// a campaign and sends it only with sendCampaign; a Google Calendar
+	// event invites only with additionalFields.attendees; Home Assistant
+	// notifies only with "domain=notify"; Onfleet texts a task's recipient
+	// unless recipientSkipSMSNotifications is true.
 	If Cond `json:"if,omitempty"`
 }
 
@@ -80,7 +82,7 @@ func (s *Sends) UnmarshalJSON(b []byte) error {
 	type plain Sends
 	var p plain
 	if err := json.Unmarshal(b, &p); err != nil {
-		return fmt.Errorf("sends is false or {action, to, text, subject, if}: %w", err)
+		return fmt.Errorf("sends is false or {action, to, text, subject, to_label, to_unset, if}: %w", err)
 	}
 	*s = Sends(p)
 	return nil
@@ -120,6 +122,7 @@ func (o *Operation) checkSends(where string, fields map[string]bool) []string {
 	for _, keys := range [][]string{s.To, s.Text, s.Subject, s.If} {
 		for _, k := range keys {
 			name, _, _ := strings.Cut(k, "=")
+			name = strings.TrimSuffix(name, "!")
 			if head, _, _ := strings.Cut(name, "."); name == "" || !fields[head] {
 				add("sends names %q, which is not one of the op's fields", k)
 			}
@@ -200,9 +203,9 @@ func SendsSome(nodeType string) bool {
 
 // sends reports whether the op, run with config, sends: it is annotated,
 // and one of its If params (when it names some) is set, or has the value
-// "param=value" names, as the run sees it: unset params take their field
-// default. A template the run has yet to resolve counts as set, and as any
-// value.
+// "param=value" names (or, for "param!=value", is unset or has another),
+// as the run sees it: unset params take their field default. A template
+// the run has yet to resolve counts as set, and as any value.
 func (o *Operation) sends(config map[string]any) bool {
 	s := o.Sends
 	if s == nil || s.None {
@@ -218,11 +221,21 @@ func (o *Operation) sends(config map[string]any) bool {
 	applyDefaults(o, params)
 	for _, k := range s.If {
 		name, want, eq := strings.Cut(k, "=")
-		v := paramAt(params, name)
-		if !eq && isSet(v) {
+		not := strings.HasSuffix(name, "!")
+		v := paramAt(params, strings.TrimSuffix(name, "!"))
+		got := strings.TrimSpace(fmt.Sprint(v))
+		switch {
+		case !eq:
+			if isSet(v) {
+				return true
+			}
+		case v != nil && hasTemplate(got):
 			return true
-		}
-		if got := strings.TrimSpace(fmt.Sprint(v)); eq && v != nil && (hasTemplate(got) || strings.EqualFold(got, want)) {
+		case not:
+			if v == nil || !strings.EqualFold(got, want) {
+				return true
+			}
+		case v != nil && strings.EqualFold(got, want):
 			return true
 		}
 	}

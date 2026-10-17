@@ -87,7 +87,7 @@
       "operation": "create",
       "title": "Create a account",
       "sends": false,
-      "sends_reason": "Create a account: changes Freshworks CRM data, not a message",
+      "sends_reason": "Create an account: changes Freshworks CRM data, not a message",
       "method": "POST",
       "path": "/sales_accounts",
       "fields": [
@@ -136,7 +136,7 @@
       "operation": "delete",
       "title": "Delete a account",
       "sends": false,
-      "sends_reason": "Delete a account: changes Freshworks CRM data, not a message",
+      "sends_reason": "Delete an account: changes Freshworks CRM data, not a message",
       "method": "DELETE",
       "path": "/sales_accounts/{{ p.accountId }}",
       "fields": [
@@ -212,7 +212,7 @@
       "operation": "update",
       "title": "Update a account",
       "sends": false,
-      "sends_reason": "Update a account: changes Freshworks CRM data, not a message",
+      "sends_reason": "Update an account: changes Freshworks CRM data, not a message",
       "method": "PUT",
       "path": "/sales_accounts/{{ p.accountId }}",
       "fields": [
@@ -339,7 +339,7 @@
       "operation": "delete",
       "title": "Delete a appointment",
       "sends": false,
-      "sends_reason": "Delete a appointment: changes Freshworks CRM data, not a message",
+      "sends_reason": "Delete an appointment: changes Freshworks CRM data, not a message",
       "method": "DELETE",
       "path": "/appointments/{{ p.appointmentId }}",
       "fields": [
@@ -1027,7 +1027,7 @@
       "operation": "create",
       "title": "Create a salesActivity",
       "sends": false,
-      "sends_reason": "Create a salesActivity: changes Freshworks CRM data, not a message",
+      "sends_reason": "Create a sales activity: changes Freshworks CRM data, not a message",
       "method": "POST",
       "path": "/sales_activities",
       "fields": [
@@ -1114,7 +1114,7 @@
       "operation": "delete",
       "title": "Delete a salesActivity",
       "sends": false,
-      "sends_reason": "Delete a salesActivity: changes Freshworks CRM data, not a message",
+      "sends_reason": "Delete a sales activity: changes Freshworks CRM data, not a message",
       "method": "DELETE",
       "path": "/sales_activities/{{ p.salesActivityId }}",
       "fields": [
@@ -1136,7 +1136,7 @@
       "operation": "update",
       "title": "Update a salesActivity",
       "sends": false,
-      "sends_reason": "Update a salesActivity: changes Freshworks CRM data, not a message",
+      "sends_reason": "Update a sales activity: changes Freshworks CRM data, not a message",
       "method": "PUT",
       "path": "/sales_activities/{{ p.salesActivityId }}",
       "fields": [

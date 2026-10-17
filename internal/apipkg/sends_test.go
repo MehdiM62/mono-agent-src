@@ -23,6 +23,7 @@ func TestSendsAnnotationIsChecked(t *testing.T) {
 		`,"sends":{"action":"email","text":["body.reply"],"if":["to","body.x"]}`:                                      "",
 		`,"sends":{"action":"email","if":["to","nobody.x"]}`:                                                          `"nobody.x"`,
 		`,"sends":{"action":"post","to":["to"],"to_label":{"to":"channel"},"to_unset":"the team","if":"body=urgent"}`: "",
+		`,"sends":{"action":"post","if":"body!=quiet"}`:                                                               "",
 		`,"sends":{"action":"post","to_label":{"body":"channel"}}`:                                                    "to_label",
 		`,"sends":true`: "sends",
 	} {
@@ -77,7 +78,8 @@ func TestSendsIf(t *testing.T) {
 // A param the config leaves out counts as its field's default, as the run
 // sees it: Okta's activate is true unless the config says otherwise, and
 // so the activation email waits. "param=value" sends on that value only,
-// or on a template the run resolves.
+// "param!=value" unless the param has that value, and both on a template
+// the run resolves.
 func TestSendsIfSeesDefaultsAndValues(t *testing.T) {
 	op := Operation{Fields: []workflow.NodeSchemaField{{Key: "activate", Type: "boolean", Default: true}, {Key: "domain", Type: "string"}},
 		Sends: &Sends{Action: "invite", If: Cond{"activate"}}}
@@ -88,6 +90,16 @@ func TestSendsIfSeesDefaultsAndValues(t *testing.T) {
 			t.Errorf("activate: sends(%s) = %v, want %v", config, got, want)
 		}
 	}
+	op.Sends.If = Cond{"options.skipSMS!=true"}
+	for config, want := range map[string]bool{`{}`: true, `{"options":{}}`: true, `{"options":{"skipSMS":false}}`: true,
+		`{"options":{"skipSMS":"false"}}`: true, `{"options":{"skipSMS":true}}`: false, `{"options":{"skipSMS":" TRUE "}}`: false,
+		`{"options":{"skipSMS":"{{ $json.quiet }}"}}`: true} {
+		var c map[string]any
+		_ = json.Unmarshal([]byte(config), &c)
+		if got := op.sends(c); got != want {
+			t.Errorf("skipSMS: sends(%s) = %v, want %v", config, got, want)
+		}
+	}
 	op.Sends.If = Cond{"domain=notify", "domain=tts"}
 	for config, want := range map[string]bool{`{}`: false, `{"domain":"light"}`: false, `{"domain":" Notify "}`: true,
 		`{"domain":"tts"}`: true, `{"domain":"{{ $json.domain }}"}`: true} {
@@ -96,5 +108,15 @@ func TestSendsIfSeesDefaultsAndValues(t *testing.T) {
 		if got := op.sends(c); got != want {
 			t.Errorf("domain: sends(%s) = %v, want %v", config, got, want)
 		}
+	}
+}
+
+// A sends block that is neither false nor the object says what the object
+// holds, every key included.
+func TestTheSendsParseErrorListsEveryKey(t *testing.T) {
+	var s Sends
+	err := json.Unmarshal([]byte(`{"to":"ada@example.test"}`), &s)
+	if err == nil || !strings.Contains(err.Error(), "{action, to, text, subject, to_label, to_unset, if}") {
+		t.Errorf("err = %v", err)
 	}
 }

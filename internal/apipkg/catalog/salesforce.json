@@ -1047,7 +1047,7 @@
       "operation": "create",
       "title": "Create a opportunity",
       "sends": false,
-      "sends_reason": "Create a opportunity: changes Salesforce data, not a message",
+      "sends_reason": "Create an opportunity: changes Salesforce data, not a message",
       "method": "POST",
       "path": "/sobjects/opportunity",
       "fields": [
@@ -1114,7 +1114,7 @@
       "operation": "upsert",
       "title": "Create or update a opportunity",
       "sends": false,
-      "sends_reason": "Create or update a opportunity: changes Salesforce data, not a message",
+      "sends_reason": "Create or update an opportunity: changes Salesforce data, not a message",
       "method": "PATCH",
       "path": "/sobjects/opportunity/{{ p.externalId }}/{{ p.externalIdValue }}",
       "fields": [
@@ -1193,7 +1193,7 @@
       "operation": "update",
       "title": "Update a opportunity",
       "sends": false,
-      "sends_reason": "Update a opportunity: changes Salesforce data, not a message",
+      "sends_reason": "Update an opportunity: changes Salesforce data, not a message",
       "method": "PATCH",
       "path": "/sobjects/opportunity/{{ p.opportunityId }}",
       "fields": [
@@ -1321,7 +1321,7 @@
       "operation": "delete",
       "title": "Delete a opportunity",
       "sends": false,
-      "sends_reason": "Delete a opportunity: changes Salesforce data, not a message",
+      "sends_reason": "Delete an opportunity: changes Salesforce data, not a message",
       "method": "DELETE",
       "path": "/sobjects/opportunity/{{ p.opportunityId }}",
       "fields": [
@@ -1346,7 +1346,7 @@
       "operation": "addNote",
       "title": "Add a note to a opportunity",
       "sends": false,
-      "sends_reason": "Add a note to a opportunity: changes Salesforce data, not a message",
+      "sends_reason": "Add a note to an opportunity: changes Salesforce data, not a message",
       "method": "POST",
       "path": "/sobjects/note",
       "fields": [
@@ -1387,7 +1387,7 @@
       "operation": "create",
       "title": "Create a account",
       "sends": false,
-      "sends_reason": "Create a account: changes Salesforce data, not a message",
+      "sends_reason": "Create an account: changes Salesforce data, not a message",
       "method": "POST",
       "path": "/sobjects/account",
       "fields": [
@@ -1468,7 +1468,7 @@
       "operation": "upsert",
       "title": "Create or update a account",
       "sends": false,
-      "sends_reason": "Create or update a account: changes Salesforce data, not a message",
+      "sends_reason": "Create or update an account: changes Salesforce data, not a message",
       "method": "PATCH",
       "path": "/sobjects/account/{{ p.externalId }}/{{ p.externalIdValue }}",
       "fields": [
@@ -1561,7 +1561,7 @@
       "operation": "update",
       "title": "Update a account",
       "sends": false,
-      "sends_reason": "Update a account: changes Salesforce data, not a message",
+      "sends_reason": "Update an account: changes Salesforce data, not a message",
       "method": "PATCH",
       "path": "/sobjects/account/{{ p.accountId }}",
       "fields": [
@@ -1713,7 +1713,7 @@
       "operation": "delete",
       "title": "Delete a account",
       "sends": false,
-      "sends_reason": "Delete a account: changes Salesforce data, not a message",
+      "sends_reason": "Delete an account: changes Salesforce data, not a message",
       "method": "DELETE",
       "path": "/sobjects/account/{{ p.accountId }}",
       "fields": [
@@ -1738,7 +1738,7 @@
       "operation": "addNote",
       "title": "Add a note to a account",
       "sends": false,
-      "sends_reason": "Add a note to a account: changes Salesforce data, not a message",
+      "sends_reason": "Add a note to an account: changes Salesforce data, not a message",
       "method": "POST",
       "path": "/sobjects/note",
       "fields": [

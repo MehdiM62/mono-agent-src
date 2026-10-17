@@ -106,8 +106,15 @@
       "resource": "task",
       "operation": "create",
       "title": "Create a task",
-      "sends": false,
-      "sends_reason": "a work item, open by the user's decision",
+      "sends": {
+        "action": "dm",
+        "to": [
+          "additionalFields.recipient.recipientProperties.recipientName",
+          "additionalFields.recipient.recipientProperties.recipientPhone"
+        ],
+        "to_unset": "the task's recipient",
+        "if": "additionalFields.recipient.recipientProperties.recipientSkipSMSNotifications!=true"
+      },
       "method": "POST",
       "path": "/tasks",
       "fields": [

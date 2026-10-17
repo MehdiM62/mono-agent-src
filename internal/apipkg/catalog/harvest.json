@@ -756,7 +756,7 @@
       "operation": "create",
       "title": "Create a estimate",
       "sends": false,
-      "sends_reason": "Create a estimate: changes Harvest data, not a message",
+      "sends_reason": "Create an estimate: changes Harvest data, not a message",
       "method": "POST",
       "path": "/estimates",
       "fields": [
@@ -804,7 +804,7 @@
       "operation": "delete",
       "title": "Delete a estimate",
       "sends": false,
-      "sends_reason": "Delete a estimate: changes Harvest data, not a message",
+      "sends_reason": "Delete an estimate: changes Harvest data, not a message",
       "method": "DELETE",
       "path": "/estimates/{{ p.id }}",
       "fields": [
@@ -856,7 +856,7 @@
       "operation": "update",
       "title": "Update a estimate",
       "sends": false,
-      "sends_reason": "Update a estimate: changes Harvest data, not a message",
+      "sends_reason": "Update an estimate: changes Harvest data, not a message",
       "method": "PATCH",
       "path": "/estimates/{{ p.id }}",
       "fields": [
@@ -962,7 +962,7 @@
       "operation": "create",
       "title": "Create a expense",
       "sends": false,
-      "sends_reason": "Create a expense: changes Harvest data, not a message",
+      "sends_reason": "Create an expense: changes Harvest data, not a message",
       "method": "POST",
       "path": "/expenses",
       "fields": [
@@ -1020,7 +1020,7 @@
       "operation": "delete",
       "title": "Delete a expense",
       "sends": false,
-      "sends_reason": "Delete a expense: changes Harvest data, not a message",
+      "sends_reason": "Delete an expense: changes Harvest data, not a message",
       "method": "DELETE",
       "path": "/expenses/{{ p.id }}",
       "fields": [
@@ -1072,7 +1072,7 @@
       "operation": "update",
       "title": "Update a expense",
       "sends": false,
-      "sends_reason": "Update a expense: changes Harvest data, not a message",
+      "sends_reason": "Update an expense: changes Harvest data, not a message",
       "method": "PATCH",
       "path": "/expenses/{{ p.id }}",
       "fields": [
@@ -1176,7 +1176,7 @@
       "operation": "create",
       "title": "Create a invoice",
       "sends": false,
-      "sends_reason": "Create a invoice: changes Harvest data, not a message",
+      "sends_reason": "Create an invoice: changes Harvest data, not a message",
       "method": "POST",
       "path": "/invoices",
       "fields": [
@@ -1228,7 +1228,7 @@
       "operation": "delete",
       "title": "Delete a invoice",
       "sends": false,
-      "sends_reason": "Delete a invoice: changes Harvest data, not a message",
+      "sends_reason": "Delete an invoice: changes Harvest data, not a message",
       "method": "DELETE",
       "path": "/invoices/{{ p.id }}",
       "fields": [
@@ -1280,7 +1280,7 @@
       "operation": "update",
       "title": "Update a invoice",
       "sends": false,
-      "sends_reason": "Update a invoice: changes Harvest data, not a message",
+      "sends_reason": "Update an invoice: changes Harvest data, not a message",
       "method": "PATCH",
       "path": "/invoices/{{ p.id }}",
       "fields": [
