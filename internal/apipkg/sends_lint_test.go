@@ -241,18 +241,30 @@ func TestTheSendLintSeesRecipients(t *testing.T) {
 	}
 }
 
-// Each word the review added names whom a write reaches, as a param or a
-// collection's option.
-func TestTheSendLintKnowsMoreRecipientWords(t *testing.T) {
+// Each recipient word names whom a write reaches, as a param or a
+// collection's option, and each has a case here: a word added without one
+// fails.
+func TestTheSendLintKnowsEveryRecipientWord(t *testing.T) {
+	keys := []string{"recipient", "recipients", "receiver", "receivers", "addressee", "addressees", "email", "emails",
+		"mailTo", "mail_to", "mailto", "phone", "mobile", "tel", "telephone", "msisdn", "sms", "cc", "bcc", "attendee",
+		"attendees", "guest", "guests", "participant", "participants", "invitee", "invitees", "invite", "invites",
+		"invitation", "subscriber", "subscribers", "activate", "activation", "notify", "notification", "notifications",
+		"welcome", "toTel", "receiverPhone", "guestList", "smsNumber"}
 	var ops []Operation
 	var want []string
-	for _, key := range []string{"receiver", "addressee", "tel", "telephone", "msisdn", "sms", "mailTo", "mail_to", "guests",
-		"participants", "invites", "subscribers", "toTel", "receiverPhone", "guestList", "smsNumber"} {
+	listed := map[string]bool{}
+	for _, key := range keys {
 		ops = append(ops, Operation{Resource: "r", Operation: key, Method: "POST", Path: "/x",
 			Fields: []workflow.NodeSchemaField{{Key: "options", Type: "collection", Options: []string{key}}}})
 		want = append(want, "acme r/"+key)
+		listed[strings.ToLower(key)] = true
 	}
 	if got := undecidedSends([]*Package{{ID: "acme", Operations: ops}}); !reflect.DeepEqual(got, want) {
 		t.Errorf("undecided = %v, want %v", got, want)
+	}
+	for w := range recipientWords {
+		if !listed[w] {
+			t.Errorf("recipient word %q has no case here", w)
+		}
 	}
 }

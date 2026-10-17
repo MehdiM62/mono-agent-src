@@ -2514,8 +2514,19 @@
       "resource": "ticket",
       "operation": "create",
       "title": "Create a ticket",
-      "sends": false,
-      "sends_reason": "a work item, open by the user's decision",
+      "sends": {
+        "action": "email",
+        "to": [
+          "additionalFields.cc_emails"
+        ],
+        "text": [
+          "description"
+        ],
+        "subject": [
+          "subject"
+        ],
+        "if": "additionalFields.cc_emails"
+      },
       "method": "POST",
       "path": "/tickets",
       "fields": [

@@ -225,14 +225,35 @@ func TestTheReviewedSendsStayDecided(t *testing.T) {
 		{"app.calendly", cfg{"resource": "scheduledEvent", "operation": "cancel", "eventUuid": "ev1", "reason": "Ill"}, "ev1"},
 		{"app.msg91", cfg{"resource": "sms", "operation": "send", "to": "+15550100", "message": "Hi"}, "+15550100"},
 		{"app.invoice_ninja", cfg{"resource": "invoice", "operation": "email", "invoiceId": "inv9"}, "the client of invoice inv9"},
-		// Creating a ticket is a work item, by the user's decision; a public
-		// reply or a note on one is a comment, and waits.
+		// Creating or updating a ticket is a work item, by the user's
+		// decision; a public reply or a note on one is a comment, and waits,
+		// and so does a create or update that emails someone beyond the
+		// ticket's requester (an email article, CCs, Zendesk's JSON or
+		// recipient).
 		{"app.zendesk", cfg{"resource": "ticket", "operation": "create", "description": "We fixed it"}, "-"},
+		{"app.zendesk", cfg{"resource": "ticket", "operation": "create", "description": "Hi", "jsonParameters": true,
+			"additionalFieldsJson": `{"email_ccs": [{"user_email": "bob@example.test"}]}`}, "the ticket's requester"},
+		{"app.zendesk", cfg{"resource": "ticket", "operation": "create", "description": "Hi",
+			"additionalFields": cfg{"recipient": "support@example.test"}}, "the ticket's requester"},
 		{"app.zendesk", cfg{"resource": "ticket", "operation": "update", "id": "T1", "updateFields": cfg{"status": "solved"}}, "-"},
 		{"app.zendesk", cfg{"resource": "ticket", "operation": "update", "id": "T1", "updateFields": cfg{"publicReply": "Fixed"}}, "T1"},
+		// Assigning a ticket notifies a colleague, as assigning an issue
+		// does: a work item, open.
+		{"app.zendesk", cfg{"resource": "ticket", "operation": "update", "id": "T1", "updateFields": cfg{"assigneeEmail": "bob@example.test"}}, "-"},
 		{"app.zammad", cfg{"resource": "ticket", "operation": "create", "title": "Login", "group": "Users", "customer": "ada@example.test"}, "-"},
+		{"app.zammad", cfg{"resource": "ticket", "operation": "create", "title": "Login", "group": "Users", "customer": "ada@example.test",
+			"article": cfg{"articleDetails": cfg{"type": "note", "body": "Called her"}}}, "-"},
+		{"app.zammad", cfg{"resource": "ticket", "operation": "create", "title": "Login", "group": "Users", "customer": "ada@example.test",
+			"article": cfg{"articleDetails": cfg{"type": "email", "to": "bob@example.test", "body": "Fixed"}}}, "bob@example.test"},
 		{"app.zammad", cfg{"resource": "ticket", "operation": "update", "id": "T2", "updateFields": cfg{"note": "Fixed"}}, "T2"},
+		{"app.freshdesk", cfg{"resource": "ticket", "operation": "create", "requesterIdentificationValue": "ada@example.test"}, "-"},
+		{"app.freshdesk", cfg{"resource": "ticket", "operation": "create", "requesterIdentificationValue": "ada@example.test",
+			"options": cfg{"ccEmails": "bob@example.test"}}, "bob@example.test"},
 		{"app.freshdesk", cfg{"resource": "ticket", "operation": "update", "ticketId": "T3"}, "-"},
+		{"app.freshdesk", cfg{"resource": "ticket", "operation": "update", "ticketId": "T3", "updateFields": cfg{"ccEmails": "bob@example.test"}}, "bob@example.test"},
+		{"app.freshservice", cfg{"resource": "ticket", "operation": "create", "email": "ada@example.test", "subject": "Login"}, "-"},
+		{"app.freshservice", cfg{"resource": "ticket", "operation": "create", "email": "ada@example.test", "subject": "Login",
+			"additionalFields": cfg{"cc_emails": "bob@example.test"}}, "bob@example.test"},
 		{"app.okta", cfg{"resource": "user", "operation": "create", "email": "ada@example.test", "login": "ada"}, "ada@example.test"},
 		{"app.okta", cfg{"resource": "user", "operation": "create", "email": "ada@example.test", "activate": false}, "-"},
 		{"app.okta", cfg{"resource": "user", "operation": "delete", "userId": "u1"}, "-"},
@@ -242,7 +263,6 @@ func TestTheReviewedSendsStayDecided(t *testing.T) {
 		{"app.gotify", cfg{"resource": "message", "operation": "create", "message": "Done"}, "the Gotify app's subscribers"},
 		{"app.brevo", cfg{"resource": "sender", "operation": "create", "name": "Ada", "email": "ada@example.test"}, "ada@example.test"},
 		{"comm.telegram", cfg{"resource": "message", "operation": "pinChatMessage", "chatId": "42", "messageId": "7"}, "42"},
-		{"app.freshdesk", cfg{"resource": "ticket", "operation": "create", "requesterIdentificationValue": "ada@example.test"}, "-"},
 		{"service.github", cfg{"resource": "issue", "operation": "create", "owner": "o", "repository": "r", "title": "Bug"}, "-"},
 	} {
 		out, handled, err := hilsend.Guard(sendsCtx(db), c.nodeType, workflow.NodeInput{}, c.config)
