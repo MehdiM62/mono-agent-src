@@ -704,7 +704,7 @@
       "step1Continue": "Lo entiendo, continuar",
       "step2Total": "Esto no se puede deshacer. Se eliminarán {{count}} elementos guardados para siempre.",
       "step2Active": "Es el perfil que estás usando: la app cambiará a otro.",
-      "step2Backup": "Primero se guarda una copia de toda la base de datos en la carpeta de copias junto a ella. Contiene todos los perfiles, no solo este, no está cifrada y nunca se borra automáticamente (`monoagentcli profile backups purge` elimina estas copias). La clave del vault del perfil se elimina, así que los secretos del vault de esa copia no se pueden descifrar. Los orgs de este perfil se detienen primero, y un daemon en marcha puede conservar sus disparadores hasta reiniciarse.",
+      "step2Backup": "Primero se guarda una copia de toda la base de datos en la carpeta de copias junto a ella. Contiene todos los perfiles, no solo este, no está cifrada y nunca se borra automáticamente (`monoagentcli profile backups purge` elimina estas copias). La clave del vault del perfil se elimina, así que los secretos del vault de esa copia no se pueden descifrar. Los orgs de este perfil se detienen primero y los navegadores vinculados a él se desvinculan.",
       "step2Ack": "Entiendo que no se puede deshacer",
       "step2Continue": "Sí, continuar",
       "step3Intro": "Última comprobación. Escribe {{name}} para eliminarlo.",

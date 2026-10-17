@@ -577,3 +577,45 @@ func TestSettingsDeleteEscapesWildcardsInTheProfileID(t *testing.T) {
 		t.Fatalf("settings left: %v, want only the other profiles' keys", keys)
 	}
 }
+
+func TestDeleteUnbindsTheProfilesBrowsers(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		unbind   func(context.Context, string) (int, error)
+		wantN    int
+		wantWarn bool
+	}{
+		{"unbound", nil, 2, false},
+		{"fails", nil, 0, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dbPath := newProfileDocsCLITestDB(t)
+			id := createTestProfile(t, dbPath, "doomed")
+			createTestProfile(t, dbPath, "other")
+			var got string
+			cfg := &testConfig{DBPath: dbPath, JSONOutput: true}
+			d := testDeps(cfg)
+			d.UnbindBrowsers = func(_ context.Context, profileID string) (int, error) {
+				got = profileID
+				if tc.wantWarn {
+					return 0, fmt.Errorf("bridge unreachable")
+				}
+				return 2, nil
+			}
+			cmd := NewCommand(d)
+			cmd.SetArgs([]string{"delete", id, "--yes-delete-profile", "doomed"})
+			var runErr error
+			out := captureStdout(t, func() { runErr = cmd.Execute() })
+			if runErr != nil {
+				t.Fatal(runErr)
+			}
+			var res profileImpact
+			if err := json.Unmarshal([]byte(out), &res); err != nil {
+				t.Fatalf("%v: %s", err, out)
+			}
+			if got != id || res.BrowsersUnbound != tc.wantN || (len(res.Warnings) > 0) != tc.wantWarn {
+				t.Errorf("unbind called with %q, unbound %d, warnings %v; want %q, %d, warning %v", got, res.BrowsersUnbound, res.Warnings, id, tc.wantN, tc.wantWarn)
+			}
+		})
+	}
+}

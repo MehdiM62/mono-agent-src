@@ -42,6 +42,8 @@ type profileImpact struct {
 	Backup string `json:"backup,omitempty"`
 	// KeyRemoved says the profile's vault key left the OS keychain.
 	KeyRemoved bool `json:"key_removed,omitempty"`
+	// BrowsersUnbound is how many connected browsers bound to the profile were unbound.
+	BrowsersUnbound int `json:"browsers_unbound,omitempty"`
 	// Warnings are steps after the delete that did not finish.
 	Warnings []string `json:"warnings,omitempty"`
 }
@@ -242,6 +244,13 @@ func (d Deps) newProfileDeleteCmd() *cobra.Command {
 			for _, name := range wfFiles {
 				if err := os.Remove(filepath.Join(wfDir, name)); err != nil && !os.IsNotExist(err) {
 					impact.Warnings = append(impact.Warnings, fmt.Sprintf("workflow file %s was not removed: %v", name, err))
+				}
+			}
+			if d.UnbindBrowsers != nil {
+				if n, err := d.UnbindBrowsers(ctx, p.ID); err != nil {
+					impact.Warnings = append(impact.Warnings, "browsers bound to the profile were not all unbound (`monoagentcli extension unbind <browser>`): "+err.Error())
+				} else {
+					impact.BrowsersUnbound = n
 				}
 			}
 			removed, kerr := secrets.DeleteProfileKEK(p.ID)

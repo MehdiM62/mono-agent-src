@@ -255,3 +255,30 @@ func printBrowserTable(out io.Writer, rows []browserRow) {
 	}
 	_ = tw.Flush()
 }
+
+// UnbindProfile makes every connected browser bound to profileID unbound
+// again, for deleting the profile, and returns how many it changed. No bridge
+// running is nothing to do. A browser that is not connected keeps its binding
+// in its extension until it connects and is unbound by hand.
+func UnbindProfile(ctx context.Context, profileID string) (int, error) {
+	_, base, ok := findRunningBridgeCtx(ctx)
+	if !ok {
+		return 0, nil
+	}
+	sender := extension.NewRemoteSender(base)
+	infos, err := sender.Browsers()
+	if err != nil {
+		return 0, fmt.Errorf("listing browsers: %w", err)
+	}
+	n := 0
+	for _, b := range infos {
+		if b.Profile != profileID || b.Legacy {
+			continue
+		}
+		if err := sender.SetBinding(b.Instance, "", ""); err != nil {
+			return n, fmt.Errorf("unbinding %s: %w", b.Instance, err)
+		}
+		n++
+	}
+	return n, nil
+}

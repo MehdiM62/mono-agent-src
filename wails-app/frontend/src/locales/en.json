@@ -704,7 +704,7 @@
       "step1Continue": "I understand, continue",
       "step2Total": "This cannot be undone. {{count}} stored items will be deleted for good.",
       "step2Active": "This is the profile you are using: the app will switch to another one.",
-      "step2Backup": "First, a copy of the whole database is saved in the backups folder next to it. It holds every profile, not only this one, is not encrypted, and is never deleted automatically (`monoagentcli profile backups purge` removes these copies). The profile's vault key is deleted, so the vault secrets in that copy cannot be decrypted. Running orgs of this profile are stopped first, and a running daemon may keep its triggers until it restarts.",
+      "step2Backup": "First, a copy of the whole database is saved in the backups folder next to it. It holds every profile, not only this one, is not encrypted, and is never deleted automatically (`monoagentcli profile backups purge` removes these copies). The profile's vault key is deleted, so the vault secrets in that copy cannot be decrypted. Running orgs of this profile are stopped first, and browsers bound to it are unbound.",
       "step2Ack": "I understand this cannot be undone",
       "step2Continue": "Yes, continue",
       "step3Intro": "Final check. Type {{name}} to delete it.",
