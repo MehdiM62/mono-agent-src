@@ -2736,19 +2736,22 @@ every bare 43-character base64url string is. The shown runs' hidden tokens
 forms: a piece of 8 characters or more (16 in hex), the token reversed, in hex
 or in base64 (either alphabet, any alignment, so a whole URL encoded counts),
 and any of those with other characters in between (spaces, commas, quotes, a
-list of its characters) or with the same 1 to 3 characters between every two
+list of its characters) or with the same 1 to 6 characters between every two
 of its characters (`-`, `ZZ`), whatever their case. Within one item, 5 or more
 values of up to 64 characters that each hold a piece of 5 characters or more
 of a token have those pieces hidden too. A text over 16 MB is not scanned: an
 agent gets `[too large to scan for reply tokens; view it from your own
-terminal]` in its place. A template can still emit a token in forms MonoAgent
-doesn't recognise (char codes, a cipher, pieces padded with text); an
-unapproved run's sends queue for the user, so this matters mainly for
-workflows the user approved. Nor can it keep a token from a process with a
-shell or file access, which can read the database or sign one with the
-machine's trace key. An approval whose data holds `[reply token hidden]` is
-refused (exit 3, HTTP 400, an MCP error): leave that field out and it keeps
-its value.
+terminal]` in its place.
+
+This hiding is a speed bump for accidents, not a boundary. The workflow's
+author controls the templates, and any transform outside those forms gets a
+token through: a filler of 7 characters or more, pieces of 4 or fewer, pieces
+inside longer fields, a substitution cipher, char codes. Nor can it keep a
+token from a process with a shell or file access, which can read the database
+or sign one with the machine's trace key. What stops a determined workflow the
+user hasn't approved is that its sends and its program steps wait for the
+user. An approval whose data holds `[reply token hidden]` is refused (exit 3,
+HTTP 400, an MCP error): leave that field out and it keeps its value.
 
 An item of a run an org started (through a grant or a message to an
 automation role) is that org's decision instead, class `hil:<alias>`. Its tier
