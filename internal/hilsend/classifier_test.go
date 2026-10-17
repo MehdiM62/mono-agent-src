@@ -2,6 +2,7 @@ package hilsend
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/monoes/mono-agent/internal/workflow"
@@ -92,3 +93,28 @@ func TestASendsTextInACollection(t *testing.T) {
 	}
 }
 
+// A send whose credential is written into its config can't wait for
+// approval, which keeps no credentials: it is refused, with how to fix it,
+// not queued as a card that can only fail. One resolved from a saved
+// connection waits as before.
+func TestAnInlineCredentialIsRefusedNotQueued(t *testing.T) {
+	asAgent(t)
+	db := testDB(t)
+	SetClassifier(fakeClassifier{})
+	t.Cleanup(func() { SetClassifier(nil) })
+	inline := map[string]interface{}{"operation": "send", "to": "+15550100", "text": "Hi",
+		"credential": map[string]interface{}{"api_key": "k"}}
+	if _, handled, err := Guard(ctxFor(db), "app.fake", workflow.NodeInput{}, inline); !handled || err == nil ||
+		!strings.Contains(err.Error(), "connect save") || !strings.Contains(err.Error(), "credential_id") {
+		t.Fatalf("inline: handled=%v err=%v", handled, err)
+	}
+	var n int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM hil_pending`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("queued %d item(s), %v", n, err)
+	}
+	saved := map[string]interface{}{"operation": "send", "to": "+15550100", "text": "Hi", "credential_id": "fake",
+		"api_key": "k", "credential": map[string]interface{}{"api_key": "k"}}
+	if out, handled, err := Guard(ctxFor(db), "app.fake", workflow.NodeInput{}, saved); !handled || err != nil || len(out[0].Items) != 1 {
+		t.Fatalf("saved: handled=%v err=%v", handled, err)
+	}
+}

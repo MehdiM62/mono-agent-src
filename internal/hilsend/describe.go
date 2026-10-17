@@ -345,6 +345,21 @@ func stripSecrets(config map[string]interface{}) map[string]interface{} {
 	return out
 }
 
+// inlineCredential reports whether config carries a credential written into
+// it (an app node's "credential" map) rather than one resolved from a saved
+// connection, which also fills its fields at the top level (credential_id,
+// or `node run` finding the platform's connection). stripSecrets drops it,
+// and the approved run would have none.
+func inlineCredential(config map[string]interface{}) bool {
+	cred, _ := config["credential"].(map[string]interface{})
+	for k := range cred {
+		if _, ok := config[k]; !ok {
+			return true
+		}
+	}
+	return false
+}
+
 // accountOf reads the sending account from config.
 func accountOf(nodeType string, config map[string]interface{}) Account {
 	platform, _, _ := strings.Cut(nodeType, ".")
