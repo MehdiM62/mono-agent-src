@@ -63,8 +63,8 @@ func TestCommandsThatPrintSecretsAreTheOperatorsOnly(t *testing.T) {
 		t.Setenv(marker, "1")
 		for _, args := range gated {
 			out, err := run("", args...)
-			if exitCodeFor(err) != 3 || !strings.Contains(err.Error(), "prints decrypted secrets") {
-				t.Errorf("%s set: %v: exit %d, %v", marker, args[1:], exitCodeFor(err), err)
+			if exitCodeFor(err) != 3 || jsonCode(err) != "operator_only" || !strings.Contains(err.Error(), "prints decrypted secrets") {
+				t.Errorf("%s set: %v: exit %d, code %q, %v", marker, args[1:], exitCodeFor(err), jsonCode(err), err)
 			}
 			for _, secret := range []string{"vsecret-777", "client-s3cret", "P1234567"} {
 				if strings.Contains(out, secret) {
