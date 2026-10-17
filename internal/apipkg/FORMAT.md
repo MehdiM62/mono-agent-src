@@ -137,7 +137,9 @@ Calendar event waits only when it has attendees
 (`"if": "additionalFields.attendees"`). A field the config leaves out counts
 as its default (Okta's `activate` is true, so an activation email waits).
 `"field=value"` sends only on that value (`"if": ["domain=notify",
-"domain=tts"]` for Home Assistant). When a `to` field holds an id rather
+"domain=tts"]` for Home Assistant), and `"field!=value"` unless the field has
+that value: Onfleet texts a task's recipient unless
+`recipientSkipSMSNotifications` is true. When a `to` field holds an id rather
 than an address, `to_label` says what it is, and the card shows "the
 client of invoice inv9", not "inv9"; `to_unset` is what the card shows when
 no `to` field is set.
