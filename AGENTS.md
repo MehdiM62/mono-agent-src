@@ -2593,6 +2593,11 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
   PreparedBy.AgentID is `unapproved-workflow`. The sendApproval setting and
   the always-allow rules apply. A workflow the user approved sends as
   before, even when the chat starts it.
+  Not yet covered: sends from the n8n-parity `app.*` operations (email,
+  SMS and voice, chat, social and public posts, invoices that email a
+  customer, tracker comments and invites) don't go through Guard, from an
+  agent or an unapproved workflow alike; tracked in monoes/mono-agent-src#832.
+  A generic `http.request` can POST to any API, a mail API included.
 - **Files an unapproved workflow can't touch.** Its file steps, and those of
   a workflow it called (whose own approval still decides its program steps),
   go through `fsconfine.Path` (reads) and `fsconfine.WritePath` (writes:
