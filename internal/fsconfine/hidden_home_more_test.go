@@ -176,6 +176,11 @@ func TestNoFileThatRunsOnNextUse(t *testing.T) {
 		".cursor/mcp.json", ".github/workflows/ci.yml", ".windsurfrules", ".aider.conf.yml",
 		".codex/config.toml", ".gemini/settings.json", ".continue/config.json", ".vscode/tasks.json",
 		".zed/settings.json", ".zed/tasks.json",
+		".cursor/hooks.json", ".cursor/environment.json", ".cursor/settings.json", ".windsurf/rules/r.md",
+		".clinerules", ".clinerules/r.md", ".roo/mcp.json", ".roorules", ".kiro/steering/s.md", ".amazonq/rules/r.md",
+		".opencode/agent/a.md", "opencode.json", ".github/agents/a.md", ".github/instructions/i.md",
+		".github/prompts/p.md", ".gitlab-ci.yml", ".circleci/config.yml", ".pre-commit-config.yaml",
+		"lefthook.yml", ".mise.toml", ".devcontainer/devcontainer.json", ".vscode/launch.json",
 	} {
 		p := filepath.Join(project, filepath.FromSlash(rel))
 		if _, err := WritePath(ctx, p); !errors.Is(err, ErrUnapprovedPath) {
@@ -185,7 +190,7 @@ func TestNoFileThatRunsOnNextUse(t *testing.T) {
 			t.Errorf("read %s: %v", rel, err)
 		}
 	}
-	for _, rel := range []string{".env", "husky.md", "notes/.claude-notes", "envrc.txt", "CLAUDE.md.bak", "README.md", ".cursor/settings.json", ".github/ISSUE_TEMPLATE/bug.md", ".vscode/settings.json", ".zed/notes.md"} {
+	for _, rel := range []string{".env", "husky.md", "notes/.claude-notes", "envrc.txt", "CLAUDE.md.bak", "README.md", ".github/ISSUE_TEMPLATE/bug.md", ".vscode/settings.json", ".zed/notes.md", "opencode.json.bak", "docs/lefthook.md"} {
 		if _, err := WritePath(ctx, filepath.Join(project, filepath.FromSlash(rel))); err != nil {
 			t.Errorf("write %s: %v", rel, err)
 		}

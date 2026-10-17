@@ -272,49 +272,29 @@ func gitRunsIt(p string) bool {
 func runsOnNextUse(p string) string {
 	parts := strings.Split(fold(p), string(filepath.Separator))
 	last := parts[len(parts)-1]
-	switch last {
-	case ".envrc":
-		return "direnv's .envrc"
-	case ".mcp.json":
-		return "a project's MCP server list (.mcp.json)"
-	case fold(".cursorrules"):
-		return "Cursor's rules (.cursorrules)"
-	case fold(".windsurfrules"):
-		return "Windsurf's rules (.windsurfrules)"
-	case fold(".aider.conf.yml"):
-		return "aider's configuration (.aider.conf.yml)"
-	}
-	for _, name := range []string{"CLAUDE.md", "CLAUDE.local.md", "AGENTS.md", "GEMINI.md"} {
+	for name, what := range nextUseFiles {
 		if last == fold(name) {
-			return "an AI agent's instructions (" + name + ")"
+			return what + " (" + name + ")"
 		}
 	}
 	for i := 0; i+1 < len(parts); i++ {
-		switch parts[i] {
-		case ".claude":
-			// settings and their hooks, the scripts hooks run, commands,
-			// skills and agents: each runs or instructs the next session.
-			return "Claude Code's configuration (.claude)"
-		case ".husky", ".githooks":
-			return "a git hook manager's hook"
-		case ".codex", ".gemini", ".continue":
-			// Their settings, MCP servers, rules and prompts load at the
-			// next session.
-			return "an AI tool's configuration (" + parts[i] + ")"
-		case ".cursor":
-			if parts[i+1] == "rules" || i+2 == len(parts) && last == "mcp.json" {
-				return "Cursor's rules or MCP servers (.cursor)"
+		dir, below := parts[i], parts[i+1]
+		for name, what := range nextUseDirs {
+			if dir == fold(name) {
+				return what + " (" + name + ")"
 			}
+		}
+		switch dir {
 		case ".github":
-			if parts[i+1] == fold("copilot-instructions.md") {
-				return "Copilot's instructions (.github/copilot-instructions.md)"
-			}
-			if parts[i+1] == "workflows" {
+			switch below {
+			case fold("copilot-instructions.md"), "agents", "instructions", "prompts":
+				return "Copilot's instructions, agents or prompts (.github)"
+			case "workflows":
 				return "a GitHub Actions workflow, which runs at the next push"
 			}
 		case ".vscode":
-			if i+2 == len(parts) && last == "tasks.json" {
-				return "VS Code's tasks (.vscode/tasks.json), which can run when the folder opens"
+			if i+2 == len(parts) && (last == "tasks.json" || last == "launch.json") {
+				return "VS Code's tasks or launch configurations (.vscode), which can run when the folder opens"
 			}
 		case ".zed":
 			if i+2 == len(parts) && (last == "settings.json" || last == "tasks.json") {
@@ -323,6 +303,50 @@ func runsOnNextUse(p string) string {
 		}
 	}
 	return ""
+}
+
+// nextUseFiles are file names a tool runs or takes its commands from, by
+// what they are.
+var nextUseFiles = map[string]string{
+	".envrc":                  "direnv's environment",
+	".mcp.json":               "a project's MCP server list",
+	".cursorrules":            "Cursor's rules",
+	".windsurfrules":          "Windsurf's rules",
+	".clinerules":             "Cline's rules",
+	".roorules":               "Roo's rules",
+	".aider.conf.yml":         "aider's configuration",
+	"opencode.json":           "opencode's configuration",
+	"CLAUDE.md":               "an AI agent's instructions",
+	"CLAUDE.local.md":         "an AI agent's instructions",
+	"AGENTS.md":               "an AI agent's instructions",
+	"GEMINI.md":               "an AI agent's instructions",
+	".gitlab-ci.yml":          "a GitLab CI pipeline, which runs at the next push",
+	".pre-commit-config.yaml": "pre-commit's hooks",
+	"lefthook.yml":            "lefthook's git hooks",
+	"lefthook.yaml":           "lefthook's git hooks",
+	".lefthook.yml":           "lefthook's git hooks",
+	".mise.toml":              "mise's tasks and environment",
+	"mise.toml":               "mise's tasks and environment",
+}
+
+// nextUseDirs are folders whose every file a tool runs, loads or takes its
+// commands from at the next session.
+var nextUseDirs = map[string]string{
+	".claude":       "Claude Code's configuration",
+	".codex":        "an AI tool's configuration",
+	".gemini":       "an AI tool's configuration",
+	".continue":     "an AI tool's configuration",
+	".cursor":       "Cursor's configuration",
+	".windsurf":     "Windsurf's configuration",
+	".clinerules":   "Cline's rules",
+	".roo":          "Roo's configuration",
+	".kiro":         "Kiro's configuration",
+	".amazonq":      "Amazon Q's configuration",
+	".opencode":     "opencode's configuration",
+	".devcontainer": "a dev container's configuration",
+	".circleci":     "a CircleCI pipeline, which runs at the next push",
+	".husky":        "a git hook manager's hooks",
+	".githooks":     "a git hook manager's hooks",
 }
 
 // onPath reports whether dir is a folder on PATH: this process's, plus the

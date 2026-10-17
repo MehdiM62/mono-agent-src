@@ -2634,9 +2634,12 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
     of submodules and worktrees, a bare `*.git`, and any git directory found
     by its `objects`, `refs` and a `HEAD` that reads as git's), anywhere.
     The check is per write, so a folder whose hook was written before it
-    became a git directory keeps that hook. Git only runs it when pointed
-    at that folder: by a `.git` pointer file (refused), a name ending in
-    `.git` (refused by name), or the user's own `GIT_DIR` or core config.
+    became a git directory keeps that hook, and a config-first order
+    (config, then hooks, then `HEAD`, `objects` and `refs`) is allowed.
+    Git runs it only when it finds that folder: through a `.git` pointer
+    file (refused), a name ending in `.git` (refused by name), the user's
+    own `GIT_DIR` or core config, or the user running git inside a folder
+    that looks like a bare repository (git discovers it there).
   Names compare without case on Windows and macOS. A refusal names the
   `workflow activate <id>` that approves the workflow.
 - **The project folder is a trusted zone** (the user's choice): the
@@ -2644,13 +2647,19 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
   and for a profile on the default folder (`~/.monoagent/profiles/<id>`)
   the profile's own vault folder. Closed there, as everywhere: git hooks and
   configs, and the files a tool runs the next time the user works in that
-  folder or instructs the next AI session there (anything in `.claude/`,
-  `.codex/`, `.gemini/` and `.continue/`, `CLAUDE.md`, `CLAUDE.local.md`,
-  `AGENTS.md`, `GEMINI.md`, `.cursorrules`, `.cursor/rules/*`,
-  `.cursor/mcp.json`, `.windsurfrules`, `.aider.conf.yml`,
-  `.github/copilot-instructions.md`, `.github/workflows/*`, `.mcp.json`,
-  `.vscode/tasks.json`, `.zed/settings.json`, `.zed/tasks.json`,
-  `.husky/*`, `.githooks/*`, `.envrc`), and a `.git` pointer file. Still open in it: build files such as `package.json` scripts
+  folder or instructs the next AI session there, and a `.git` pointer file:
+  AI tools' folders (`.claude/`, `.codex/`, `.gemini/`, `.continue/`,
+  `.cursor/`, `.windsurf/`, `.roo/`, `.kiro/`, `.amazonq/`, `.opencode/`),
+  agent instructions (`CLAUDE.md`, `CLAUDE.local.md`, `AGENTS.md`,
+  `GEMINI.md`, `.cursorrules`, `.windsurfrules`, `.clinerules`,
+  `.roorules`, `.github/copilot-instructions.md`, `.github/agents`,
+  `.github/instructions`, `.github/prompts`), tool configs (`.mcp.json`,
+  `opencode.json`, `.aider.conf.yml`), CI pipelines
+  (`.github/workflows/*`, `.gitlab-ci.yml`, `.circleci/`), hook managers
+  (`.husky/*`, `.githooks/*`, `.pre-commit-config.yaml`, `lefthook.yml`)
+  and the dev environment (`.envrc`, `.mise.toml`, `.devcontainer/`,
+  `.vscode/tasks.json` and `launch.json`, `.zed/settings.json` and
+  `tasks.json`). `.vscode/settings.json` stays open. Still open in it: build files such as `package.json` scripts
   or a `Makefile`. A project folder that is the home or holds it, or lies in
   another hidden folder of the home, opens nothing; only the operator sets a
   profile's folder. Also open: the user's files outside hidden folders,
