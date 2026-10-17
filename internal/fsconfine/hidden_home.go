@@ -289,8 +289,8 @@ func runsOnNextUse(p string) string {
 			switch below {
 			case fold("copilot-instructions.md"), "agents", "instructions", "prompts":
 				return "Copilot's instructions, agents or prompts (.github)"
-			case "workflows":
-				return "a GitHub Actions workflow, which runs at the next push"
+			case "workflows", "actions":
+				return "a GitHub Actions workflow or action, which runs at the next push"
 			}
 		case ".vscode":
 			if i+2 == len(parts) && (last == "tasks.json" || last == "launch.json") {
@@ -327,6 +327,18 @@ var nextUseFiles = map[string]string{
 	".lefthook.yml":           "lefthook's git hooks",
 	".mise.toml":              "mise's tasks and environment",
 	"mise.toml":               "mise's tasks and environment",
+	".goosehints":             "Goose's instructions",
+	"QWEN.md":                 "an AI agent's instructions",
+	"CODEX.md":                "an AI agent's instructions",
+	"AGENT.md":                "an AI agent's instructions",
+	"agents.md":               "an AI agent's instructions",
+	"crush.json":              "Crush's configuration",
+	".devcontainer.json":      "a dev container's configuration",
+	"Jenkinsfile":             "a Jenkins pipeline, which runs at the next push",
+	"azure-pipelines.yml":     "an Azure pipeline, which runs at the next push",
+	".travis.yml":             "a Travis CI pipeline, which runs at the next push",
+	"bitbucket-pipelines.yml": "a Bitbucket pipeline, which runs at the next push",
+	".gitpod.yml":             "Gitpod's workspace tasks",
 }
 
 // nextUseDirs are folders whose every file a tool runs, loads or takes its
@@ -347,6 +359,16 @@ var nextUseDirs = map[string]string{
 	".circleci":     "a CircleCI pipeline, which runs at the next push",
 	".husky":        "a git hook manager's hooks",
 	".githooks":     "a git hook manager's hooks",
+	".idea":         "a JetBrains IDE's configuration",
+	".trae":         "Trae's configuration",
+	".junie":        "Junie's configuration",
+	".goose":        "Goose's configuration",
+	".augment":      "Augment's configuration",
+	".qwen":         "Qwen Code's configuration",
+	".agents":       "an AI agent's configuration",
+	".agent":        "an AI agent's configuration",
+	".copilot":      "Copilot's configuration",
+	".buildkite":    "a Buildkite pipeline, which runs at the next push",
 }
 
 // onPath reports whether dir is a folder on PATH: this process's, plus the

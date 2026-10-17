@@ -181,6 +181,11 @@ func TestNoFileThatRunsOnNextUse(t *testing.T) {
 		".opencode/agent/a.md", "opencode.json", ".github/agents/a.md", ".github/instructions/i.md",
 		".github/prompts/p.md", ".gitlab-ci.yml", ".circleci/config.yml", ".pre-commit-config.yaml",
 		"lefthook.yml", ".mise.toml", ".devcontainer/devcontainer.json", ".vscode/launch.json",
+		".github/actions/setup/action.yml", ".idea/workspace.xml", ".trae/rules/r.md", ".junie/guidelines.md",
+		".goosehints", ".goose/config.yaml", ".augment/rules/r.md", ".qwen/settings.json", "QWEN.md", "crush.json",
+		".agents/skills/s/SKILL.md", ".agent/rules.md", ".copilot/mcp.json", "CODEX.md", "AGENT.md", "agents.md",
+		"Jenkinsfile", "azure-pipelines.yml", ".travis.yml", "bitbucket-pipelines.yml", ".buildkite/pipeline.yml",
+		".gitpod.yml", ".devcontainer.json",
 	} {
 		p := filepath.Join(project, filepath.FromSlash(rel))
 		if _, err := WritePath(ctx, p); !errors.Is(err, ErrUnapprovedPath) {

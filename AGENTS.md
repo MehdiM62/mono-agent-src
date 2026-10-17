@@ -2661,17 +2661,22 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
   configs, and the files a tool runs the next time the user works in that
   folder or instructs the next AI session there, and a `.git` pointer file:
   AI tools' folders (`.claude/`, `.codex/`, `.gemini/`, `.continue/`,
-  `.cursor/`, `.windsurf/`, `.roo/`, `.kiro/`, `.amazonq/`, `.opencode/`),
-  agent instructions (`CLAUDE.md`, `CLAUDE.local.md`, `AGENTS.md`,
-  `GEMINI.md`, `.cursorrules`, `.windsurfrules`, `.clinerules`,
-  `.roorules`, `.github/copilot-instructions.md`, `.github/agents`,
-  `.github/instructions`, `.github/prompts`), tool configs (`.mcp.json`,
-  `opencode.json`, `.aider.conf.yml`), CI pipelines
-  (`.github/workflows/*`, `.gitlab-ci.yml`, `.circleci/`), hook managers
+  `.cursor/`, `.windsurf/`, `.roo/`, `.kiro/`, `.amazonq/`, `.opencode/`,
+  `.trae/`, `.junie/`, `.goose/`, `.augment/`, `.qwen/`, `.agents/`,
+  `.agent/`, `.copilot/`), agent instructions (`CLAUDE.md`,
+  `CLAUDE.local.md`, `AGENTS.md`, `agents.md`, `AGENT.md`, `GEMINI.md`,
+  `QWEN.md`, `CODEX.md`, `.goosehints`, `.cursorrules`, `.windsurfrules`,
+  `.clinerules`, `.roorules`, `.github/copilot-instructions.md`,
+  `.github/agents`, `.github/instructions`, `.github/prompts`), tool
+  configs (`.mcp.json`, `opencode.json`, `crush.json`, `.aider.conf.yml`),
+  CI pipelines (`.github/workflows/*`, `.github/actions/*`,
+  `.gitlab-ci.yml`, `.circleci/`, `Jenkinsfile`, `azure-pipelines.yml`,
+  `.travis.yml`, `bitbucket-pipelines.yml`, `.buildkite/`), hook managers
   (`.husky/*`, `.githooks/*`, `.pre-commit-config.yaml`, `lefthook.yml`)
   and the dev environment (`.envrc`, `.mise.toml`, `.devcontainer/`,
-  `.vscode/tasks.json` and `launch.json`, `.zed/settings.json` and
-  `tasks.json`). `.vscode/settings.json` stays open. Still open in it: build files such as `package.json` scripts
+  `.devcontainer.json`, `.gitpod.yml`, `.idea/`, `.vscode/tasks.json` and
+  `launch.json`, `.zed/settings.json` and `tasks.json`).
+  `.vscode/settings.json` stays open. Still open in it: build files such as `package.json` scripts
   or a `Makefile`. A project folder that is the home or holds it, or lies in
   another hidden folder of the home, opens nothing; only the operator sets a
   profile's folder. Also open: the user's files outside hidden folders,

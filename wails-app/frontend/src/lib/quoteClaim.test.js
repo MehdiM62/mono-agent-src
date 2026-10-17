@@ -19,4 +19,9 @@ describe('quoteClaim', () => {
   it('keeps ordinary text, accents and emoji as they are', () => {
     expect(quoteClaim('Équipe ventes 🚀')).toBe('"Équipe ventes 🚀"')
   })
+  it('shows C1 controls and non-ASCII spaces as escapes, keeps the ASCII space', () => {
+    expect(quoteClaim('a\u0085b')).toBe('"a\\u0085b"')
+    expect(quoteClaim('a\u3000b\u00A0c')).toBe('"a\\u3000b\\u00A0c"')
+    expect(quoteClaim('a b')).toBe('"a b"')
+  })
 })
