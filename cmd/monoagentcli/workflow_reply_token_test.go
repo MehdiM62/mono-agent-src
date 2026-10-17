@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -116,5 +117,66 @@ func TestReplyTokenInALogLineIsHiddenFromAMarkedProcess(t *testing.T) {
 	theirs, _, _ := runLogsFor(t, cfg, created.ID, "--log-level=warn")
 	if strings.Contains(theirs, token) || !strings.Contains(theirs, "/reply/"+workflow.ReplyTokenHidden) {
 		t.Errorf("the chat's log lines:\n%s", theirs)
+	}
+}
+
+// The review's template transforms: each half of a slice, printf "%x" and a
+// split, put in a node's data by a run the chat started. The chat's views
+// have none of them; the user's terminal has all of them.
+func TestTransformedReplyTokenIsHiddenFromAMarkedProcess(t *testing.T) {
+	_, cfg := persistTestEnv(t)
+	t.Setenv("MONOAGENT_PUBLIC_URL", "http://127.0.0.1:19727")
+	asOperatorProcess(t)
+	var created workflow.Workflow
+	if err := json.Unmarshal([]byte(runWorkflowSubcmd(t, cfg, "create", "resume-transformed")), &created); err != nil {
+		t.Fatal(err)
+	}
+	var ids []string
+	for _, n := range [][3]string{
+		{"trigger.manual", "Start", `{}`},
+		{"core.set", "Keep", `{"head":"{{ slice $execution.resumeUrl 0 50 }}","tail":"{{ slice $execution.resumeUrl 50 }}",` +
+			`"hex":"{{ printf \"%x\" $execution.resumeUrl }}","chars":"{{ split \"\" $execution.resumeUrl }}"}`},
+		{"core.wait", "Wait", `{"resume":"webhook"}`},
+		{"comm.email_send", "Mail", `{"to":"ada@example.test","subject":"Hi","body":"{{ $json.head }}{{ $json.tail }}"}`},
+	} {
+		var node workflow.WorkflowNode
+		if err := json.Unmarshal([]byte(runWorkflowSubcmd(t, cfg, "node", "add", created.ID, "--type", n[0], "--name", n[1], "--config", n[2])), &node); err != nil {
+			t.Fatal(err)
+		}
+		if len(ids) > 0 {
+			runWorkflowSubcmd(t, cfg, "connect", created.ID, "--from", ids[len(ids)-1], "--to", node.ID)
+		}
+		ids = append(ids, node.ID)
+	}
+	runWorkflowSubcmd(t, cfg, "activate", created.ID)
+
+	t.Setenv("MONOAGENT_AI_CALLER", "chat")
+	ran := runWorkflowSubcmd(t, cfg, "run", created.ID, "--timeout", "30s")
+	var rec struct {
+		ExecutionID string `json:"execution_id"`
+	}
+	if err := json.Unmarshal([]byte(ran), &rec); err != nil {
+		t.Fatal(err)
+	}
+	resume, err := workflow.ExecutionResumeURL(rec.ExecutionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	token := resume[strings.LastIndex(resume, "/")+1:]
+	forms := []string{resume[:50], resume[50:], fmt.Sprintf("%x", token), strings.Join(strings.Split(token, ""), " ")}
+	shown := runWorkflowSubcmd(t, cfg, "execution", rec.ExecutionID)
+	for _, out := range []string{ran, shown} {
+		for _, form := range forms {
+			if strings.Contains(out, form) {
+				t.Errorf("the chat got %q:\n%s", form, out)
+			}
+		}
+	}
+	asOperatorProcess(t)
+	mine := runWorkflowSubcmd(t, cfg, "execution", rec.ExecutionID)
+	for _, form := range forms {
+		if !strings.Contains(mine, form) {
+			t.Errorf("the user's terminal lost %q:\n%s", form, mine)
+		}
 	}
 }
