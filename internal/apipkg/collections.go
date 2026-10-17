@@ -122,3 +122,22 @@ func objectsOf(v any) []map[string]any {
 	}
 	return nil
 }
+
+// Undeclared lists what running nodeType with config would send that its
+// op doesn't declare (see undeclared): for an app node, or a native node
+// a package extends; nil for any other node type.
+func Undeclared(nodeType string, config map[string]any) []string {
+	if pkg, ok := ForNodeType(nodeType); ok {
+		op, err := pkg.resolveOp(config)
+		if err != nil {
+			return nil
+		}
+		return op.undeclared(config)
+	}
+	if pkg := extensionFor(nodeType); pkg != nil {
+		if op, ok := pkg.Op(strings.TrimSpace(str(config["resource"])), strings.TrimSpace(str(config["operation"]))); ok {
+			return op.undeclared(config)
+		}
+	}
+	return nil
+}
