@@ -2618,7 +2618,9 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
   and `"param=value"` sends only on that value (Home Assistant's
   `domain=notify`), `"param!=value"` unless it has that value (an Onfleet
   task texts its recipient unless `recipientSkipSMSNotifications` is
-  true). `to_label` names a recipient param that holds an id
+  true; unset counts), and `"param not in a|b|c"` when the param is set to
+  none of those (unset doesn't count: Zammad's
+  `article.articleDetails.type not in note|web|phone`). `to_label` names a recipient param that holds an id
   ("the client of invoice inv9"), `to_unset` the recipient when none is set
   ("the appointment's attendees"). Such a card names no address: `--always-allow` is
   refused on it (`hilsend.ErrAlwaysLabel`), no allow rule matches it, and its
@@ -2630,8 +2632,9 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
   Creating or updating issues, tasks and tickets is no message, by the
   user's decision ("a work item, open by the user's decision"); their
   comments are, and so is a ticket create or update that emails someone
-  beyond its requester (`if`: a Zammad article of type email,
-  Freshdesk/Freshservice CCs, Zendesk's jsonParameters or recipient). That
+  beyond its requester (`if`: a Zammad article whose type is not note,
+  web or phone, or that has a `to` or `cc`; Freshdesk/Freshservice CCs;
+  Zendesk's jsonParameters or recipient). That
   holds for every helpdesk, Zendesk and Zammad included; assigning a
   ticket stays open. The catalog lint
   (`TestCatalogSendsAreDecided`) makes every write of a messaging package,
