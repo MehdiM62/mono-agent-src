@@ -65,7 +65,8 @@ func TestChatBashPromptCommandsAreAllowed(t *testing.T) {
 // #288 (review of #295): the chat assistant can't reach the operator's own
 // org commands — signing, full-access grants, quarantine approvals, and
 // monomind's create (it signs what it writes) — through either binary,
-// while the org work it does is still allowed.
+// nor monomind's own approve, gate-approve and answer, which skip the check
+// `monoagentcli org` makes, while the org work it does is still allowed.
 func TestChatBashCantSignOrGrant(t *testing.T) {
 	for _, cmd := range []string{
 		"monomind org sign growth --yes", "monomind org sign --all --yes", "monomind org sign growth",
@@ -74,6 +75,10 @@ func TestChatBashCantSignOrGrant(t *testing.T) {
 		"monoagentcli org sign growth --yes --expect-hash abc", "monoagentcli org sign growth",
 		"monoagentcli org role set-access growth lead full", "monoagentcli org --project /p sign growth --yes",
 		"monomind org", "monoagentcli org",
+		// Settling an org's item with no check of whether a message to a
+		// person goes out (#831 follow-up N1c): the chat uses monoagentcli.
+		"monomind org approve growth lead act", "monomind org gate-approve growth gate-1",
+		"monomind org answer growth q-1 yes",
 	} {
 		if allowedBashCommand(cmd) {
 			t.Errorf("chat Bash allows %q", cmd)
@@ -83,7 +88,9 @@ func TestChatBashCantSignOrGrant(t *testing.T) {
 		"monoagentcli org create-json x --project /p --json {}", "monoagentcli org status growth",
 		"monoagentcli org automation add growth --workflow w --alias a", "monoagentcli org automation-role add growth",
 		"monoagentcli org grant add growth --role r --automation a", "monoagentcli org autonomy set growth --level mid",
-		"monomind org approve growth lead act", "monomind org status", "monomind org run growth",
+		"monomind org deny growth lead act", "monomind org gate-reject growth gate-1", "monomind org approvals growth",
+		"monoagentcli org approve growth lead act", "monoagentcli org answer growth q-1 yes",
+		"monomind org status", "monomind org run growth",
 		"monoagentcli workflow create x --profile p",
 	} {
 		if !allowedBashCommand(cmd) {

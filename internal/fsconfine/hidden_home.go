@@ -47,8 +47,8 @@ type homeGuardKey struct{}
 //   - write no git hook or git config, anywhere (a git directory found by
 //     name or by its HEAD, objects and refs): git runs them at the next
 //     commit; nor, anywhere, a file a tool runs the next time the user works
-//     in its folder (runsOnNextUse: .claude/settings*, .mcp.json, .husky,
-//     .githooks, .envrc).
+//     in its folder (runsOnNextUse: .claude/settings*, .claude/hooks,
+//     .claude/helpers, CLAUDE.md, .mcp.json, .husky, .githooks, .envrc).
 //
 // The project folder is open but for those (Guard).
 func GuardHiddenHome(ctx context.Context, g Guard) context.Context {
@@ -259,8 +259,9 @@ func gitRunsIt(p string) bool {
 
 // runsOnNextUse names a file a tool runs, or takes commands from, the next
 // time the user works in its folder, "" for any other: Claude Code's
-// settings (their hooks) and its project MCP servers, git hook managers
-// (.husky, .githooks) and direnv's .envrc. In any case.
+// settings (their hooks), the scripts its hooks run (.claude/hooks,
+// .claude/helpers), its instructions (CLAUDE.md) and its project MCP
+// servers, git hook managers (.husky, .githooks) and direnv's .envrc.
 func runsOnNextUse(p string) string {
 	parts := strings.Split(fold(p), string(filepath.Separator))
 	last := parts[len(parts)-1]
@@ -269,12 +270,17 @@ func runsOnNextUse(p string) string {
 		return "direnv's .envrc"
 	case ".mcp.json":
 		return "a project's MCP server list (.mcp.json)"
+	case fold("CLAUDE.md"):
+		return "Claude Code's instructions (CLAUDE.md)"
 	}
 	for i := 0; i+1 < len(parts); i++ {
 		switch parts[i] {
 		case ".claude":
 			if i+2 == len(parts) && strings.HasPrefix(last, "settings") {
 				return "Claude Code's settings (their hooks)"
+			}
+			if sub := parts[i+1]; i+2 < len(parts) && (sub == "hooks" || sub == "helpers") {
+				return "a script Claude Code's hooks run (.claude/" + sub + ")"
 			}
 		case ".husky", ".githooks":
 			return "a git hook manager's hook"
@@ -351,6 +357,9 @@ func inGitDir(p string) bool {
 	}
 }
 
+// isGitDir reports a git directory: HEAD, objects and refs, plus a config
+// file (every repository and bare one has it) or a commondir (a worktree's
+// own git directory), so a folder that merely has the three is none.
 func isGitDir(d string) bool {
 	head, err := os.Stat(filepath.Join(d, "HEAD"))
 	if err != nil || head.IsDir() {
@@ -361,5 +370,10 @@ func isGitDir(d string) bool {
 			return false
 		}
 	}
-	return true
+	for _, f := range []string{"config", "commondir"} {
+		if fi, err := os.Stat(filepath.Join(d, f)); err == nil && !fi.IsDir() {
+			return true
+		}
+	}
+	return false
 }

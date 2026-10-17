@@ -1,6 +1,8 @@
 package workflow
 
 import (
+	"encoding/base64"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -152,5 +154,60 @@ func TestReplyRedactorHidesSharedTokens(t *testing.T) {
 	}
 	if shown[2].URL != own.URL || shown[2].Shared || shown[2].Note != "" {
 		t.Errorf("a node's own reply: %+v", shown[2])
+	}
+}
+
+// A template can change a token before it lands in the run's data: the
+// shown run's tokens are hidden in the forms tokenForms lists, each half of
+// a slice, hex, base64, the reversal and a split with separators included. A
+// reply's token that stays shown keeps every form, and other text is left
+// alone.
+func TestReplyRedactorHidesATokensForms(t *testing.T) {
+	sendsByType(t)
+	f := newReplyFixture(t)
+	resume, err := ExecutionResumeURL("e1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tok := resume[strings.LastIndex(resume, "/")+1:]
+	own, err := NewWaitReply(after(f.ctx, commsync.Reachable{}), f.in, WaitReplySpec{Kind: WaitReplyFreeText})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rr := NewReplyRedactor(f.ctx, f.db, "e1")
+	forms := map[string]string{
+		"first half":       resume[:len(resume)-22],
+		"second half":      tok[21:],
+		"hex of the url":   fmt.Sprintf("%x", resume),
+		"HEX of the token": fmt.Sprintf("%X", tok),
+		"base64 of token":  base64.StdEncoding.EncodeToString([]byte(tok)),
+		"base64 of url":    base64.StdEncoding.EncodeToString([]byte("x" + resume)),
+		"base64url of url": base64.RawURLEncoding.EncodeToString([]byte("xy" + resume)),
+		"reversed url":     reversed(resume),
+		"spaced split":     fmt.Sprint(strings.Split(resume, "")),
+		"quoted split":     `"` + strings.Join(strings.Split(tok, ""), `", "`) + `"`,
+		"upper case":       strings.ToUpper(tok),
+	}
+	for name, form := range forms {
+		got := rr.String("see " + form + " here")
+		if !strings.HasPrefix(got, "see ") || !strings.HasSuffix(got, " here") || !strings.Contains(got, ReplyTokenHidden) {
+			t.Errorf("%s: %q", name, got)
+			continue
+		}
+		if sk, _ := skeleton(got); strings.Contains(string(sk), strings.ToLower(tok[10:18])) {
+			t.Errorf("%s: a piece of the token stayed: %q", name, got)
+		}
+	}
+	chars := make([]interface{}, len(tok))
+	for i, c := range tok {
+		chars[i] = string(c)
+	}
+	if m := rr.Map(map[string]interface{}{"chars": chars, "other": "kept"}); m["chars"] != nil || !strings.Contains(fmt.Sprint(m), ReplyTokenHidden) {
+		t.Errorf("a list of the token's characters: %v", m)
+	}
+	for _, keep := range []string{own.URL, fmt.Sprintf("%x", own.Token), reversed(own.Token), "a plain sentence about tokens", strings.Repeat("ab", 30)} {
+		if got := rr.String(keep); got != keep {
+			t.Errorf("changed %q to %q", keep, got)
+		}
 	}
 }

@@ -252,13 +252,15 @@ var chatAgentOrgSubcommands = []string{
 }
 
 // chatMonomindOrgSubcommands are the `monomind org` subcommands a chat may
-// run: all of them but sign, role, approve-paths and create. monomind
-// matches a prefix only up to a space, so "approve" can't admit
-// approve-paths — and "automation" doesn't admit automation-role, which
-// is listed itself.
+// run: all of them but sign, role, approve-paths, create, and approve,
+// gate-approve and answer, which settle an org's items with no check of
+// whether a message to a person goes out (the chat uses `monoagentcli org`
+// for those). monomind matches a prefix only up to a space, so "approvals"
+// can't admit approve — and "automation" doesn't admit automation-role,
+// which is listed itself.
 var chatMonomindOrgSubcommands = []string{
-	"answer", "approvals", "approve", "branch", "costs", "decisions", "delete", "deny", "events",
-	"flow", "gate-approve", "gate-reject", "gates", "inbox", "list", "logs", "mark-complete", "memory",
+	"approvals", "branch", "costs", "decisions", "delete", "deny", "events",
+	"flow", "gate-reject", "gates", "inbox", "list", "logs", "mark-complete", "memory",
 	"migrate", "pause", "questions", "reload", "replay", "report", "resume", "resume-from", "run", "serve", "skills",
 	"status", "stop", "supervisor", "test-loop", "validate", "watch",
 }

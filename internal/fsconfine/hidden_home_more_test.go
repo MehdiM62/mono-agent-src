@@ -169,6 +169,7 @@ func TestNoFileThatRunsOnNextUse(t *testing.T) {
 	for _, rel := range []string{
 		".claude/settings.json", ".claude/settings.local.json", ".mcp.json",
 		".husky/pre-commit", ".husky/_/husky.sh", ".githooks/pre-push", ".envrc", "sub/.envrc",
+		".claude/hooks/pre-tool.sh", ".claude/helpers/router.cjs", "CLAUDE.md", "docs/CLAUDE.md",
 	} {
 		p := filepath.Join(project, filepath.FromSlash(rel))
 		if _, err := WritePath(ctx, p); !errors.Is(err, ErrUnapprovedPath) {
@@ -178,7 +179,7 @@ func TestNoFileThatRunsOnNextUse(t *testing.T) {
 			t.Errorf("read %s: %v", rel, err)
 		}
 	}
-	for _, rel := range []string{".claude/commands/x.md", ".claude/agents/a.md", ".env", "husky.md", "notes/.claude-notes", "envrc.txt"} {
+	for _, rel := range []string{".claude/commands/x.md", ".claude/agents/a.md", ".claude/hooks", ".env", "husky.md", "notes/.claude-notes", "envrc.txt", "CLAUDE.md.bak", "README.md"} {
 		if _, err := WritePath(ctx, filepath.Join(project, filepath.FromSlash(rel))); err != nil {
 			t.Errorf("write %s: %v", rel, err)
 		}
@@ -233,7 +234,13 @@ func TestAGitDirectoryUnderAnotherNameKeepsItsHooksClosed(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	for _, f := range []string{filepath.Join(gitdata, "HEAD"), filepath.Join(notGit, "HEAD")} {
+	lookalike := filepath.Join(home, "code", "lookalike") // HEAD, objects and refs, but no config
+	for _, d := range []string{filepath.Join(lookalike, "objects"), filepath.Join(lookalike, "refs")} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, f := range []string{filepath.Join(gitdata, "HEAD"), filepath.Join(gitdata, "config"), filepath.Join(notGit, "HEAD"), filepath.Join(lookalike, "HEAD")} {
 		if err := os.WriteFile(f, []byte("ref: refs/heads/main\n"), 0o644); err != nil {
 			t.Fatal(err)
 		}
@@ -244,7 +251,7 @@ func TestAGitDirectoryUnderAnotherNameKeepsItsHooksClosed(t *testing.T) {
 			t.Errorf("write gitdata/%s: %v", rel, err)
 		}
 	}
-	for _, p := range []string{filepath.Join(gitdata, "description"), filepath.Join(notGit, "hooks", "x"), filepath.Join(notGit, "config")} {
+	for _, p := range []string{filepath.Join(gitdata, "description"), filepath.Join(notGit, "hooks", "x"), filepath.Join(notGit, "config"), filepath.Join(lookalike, "hooks", "x")} {
 		if _, err := WritePath(ctx, p); err != nil {
 			t.Errorf("write %s: %v", p, err)
 		}

@@ -2351,6 +2351,13 @@ monoagentcli --profile work org automation-role add growth --alias publish_post 
   unreadable workflow counts as sending). No rule, decider or delegate
   approves it (`orgdecide.ItemSends`, `RouteItem`), `decision_resolve`
   refuses it (escalate excepted), and `org autonomy needs-you` lists it.
+  `org approve` and `org chat approve` of such a call are the operator's
+  only (exit 3 with the operator refusal otherwise; deny stays open), and
+  the chat's Bash allowlist leaves out `monomind org approve|gate-approve|answer`.
+  A called workflow is found by id, else by a name exactly one workflow of
+  the profile has now (as `StartSubWorkflow` finds it); anything else
+  counts as sending. `monomind org approve` run directly by an agent shell
+  is not checked (monoes/monomind#677).
   A grant the user made with `--approval none` still calls without a
   decision: that is their own choice.
 - The official browser read actions (find/list/scrape/export/metrics,
@@ -2593,6 +2600,17 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
   PreparedBy.AgentID is `unapproved-workflow`. The sendApproval setting and
   the always-allow rules apply. A workflow the user approved sends as
   before, even when the chat starts it.
+  Covered are the message node types `internal/hilsend` classifies
+  (email, Outlook, Gmail, Slack, Telegram, Twilio including voice calls,
+  WhatsApp, Discord including embeds, Reddit, Mastodon, Bluesky, dev.to,
+  Hashnode, Product Hunt, YouTube, and the browser social
+  send/comment/publish/follow actions). `hil show <id>` (text) prints
+  `Prepared by: <role>`.
+  Not yet covered: sends from the n8n-parity `app.*` operations (email,
+  SMS and voice, chat, social and public posts, invoices that email a
+  customer, tracker comments and invites) don't go through Guard, from an
+  agent or an unapproved workflow alike; tracked in monoes/mono-agent-src#832.
+  A generic `http.request` can POST to any API, a mail API included.
 - **Files an unapproved workflow can't touch.** Its file steps, and those of
   a workflow it called (whose own approval still decides its program steps),
   go through `fsconfine.Path` (reads) and `fsconfine.WritePath` (writes:
@@ -2619,7 +2637,8 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
   and for a profile on the default folder (`~/.monoagent/profiles/<id>`)
   the profile's own vault folder. Closed there, as everywhere: git hooks and
   configs, and the files a tool runs the next time the user works in that
-  folder (`.claude/settings*`, `.mcp.json`, `.husky/*`, `.githooks/*`,
+  folder (`.claude/settings*`, `.claude/hooks/*`, `.claude/helpers/*`,
+  `CLAUDE.md`, `.mcp.json`, `.husky/*`, `.githooks/*`,
   `.envrc`). Still open in it: build files such as `package.json` scripts
   or a `Makefile`. A project folder that is the home or holds it, or lies in
   another hidden folder of the home, opens nothing; only the operator sets a
@@ -2701,9 +2720,18 @@ unless every reply recorded under it is a node's own and sends nothing (its
 link is then in the waiting list too); a bare one is hidden when a reply that
 may send or a shared link is recorded under it, or it is the shown run's
 resume token, and in a log line (no database to ask) every link token and
-every bare 43-character base64url string is. An
-approval whose data holds `[reply token hidden]` is refused (exit 3, HTTP 400,
-an MCP error): leave that field out and it keeps its value.
+every bare 43-character base64url string is. The shown runs' hidden tokens
+(their replies' and their resume tokens) are also hidden by value, in these
+forms: a piece of 8 characters or more (16 in hex), the token reversed, in hex
+or in base64 (either alphabet, any alignment, so a whole URL encoded counts),
+and any of those with other characters in between (spaces, commas, quotes, a
+list of its characters), whatever their case. Anything else gets through:
+shorter pieces kept apart, a split joined with `-`, `_`, `+` or `/`, any other
+encoding. This keeps a token out of what an agent is shown; it can't keep a
+token from a process with a shell or file access, which can read the database
+or sign one with the machine's trace key. An approval whose data holds
+`[reply token hidden]` is refused (exit 3, HTTP 400, an MCP error): leave that
+field out and it keeps its value.
 
 An item of a run an org started (through a grant or a message to an
 automation role) is that org's decision instead, class `hil:<alias>`. Its tier
