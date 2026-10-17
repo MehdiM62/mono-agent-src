@@ -560,13 +560,15 @@ dangerous calls.
   description for values), `node_schema`
 - `hil_list`
 - `vault_item_list`, `vault_item_get_path`, `profile_document_search`
-- `secret_list` (metadata only — vault values are never returned by any tool;
-  the one secret a tool returns is the new key of `api_key_create`, below).
+- `secret_list` (metadata only — no tool returns a secret; `api_key_create`,
+  `api_key_update` and `api_key_revoke` change no key, below).
   Printing a decrypted secret is the operator's only
   (`internal/cli/revealgate`; otherwise exit 3, code `operator_only`):
   `secret reveal`, `secret export`, `connect get-oauth-client --reveal`,
   `profile info get --reveal`, `node run vault.secret_get` and `workflow run
-  --full-outputs`. So is `api key create`, which mints a key. Names, masked
+  --full-outputs`. So are `api key create|update|revoke` and `org
+  teardown-profile` (`--dry-run` stays open), which mint, widen or revoke a
+  key. Names, masked
   values and metadata stay open. No secret reference resolves in a run of
   a definition the user hasn't approved: `secrets.Resolve` refuses under
   `secrets.RefuseResolving`, which `workflow.WithAIAuthored` and
@@ -574,9 +576,16 @@ dangerous calls.
   `{{secret:…}}` lookups, `mcp.call`, `browser.jev`, `vault.secret_get` and
   `trigger.sse` headers; the step fails naming the reference, never the
   value. CLI `node run` from a marked process runs as an unapproved step
-  (`WithUnapproved`), like MCP `node_run`, so the program and hidden-home
+  (`WithUnapprovedStep`), like MCP `node_run`, so the program and hidden-home
   gates apply to it too; `record verify|replay` from one reads no secret.
-  Put the step in a workflow and have the user save or activate it. Still
+  Put the step in a workflow and have the user save or activate it. Even in
+  an approved workflow a reference resolves only where the stored config
+  holds it as written (`secrets.ResolveConfig` gets the stored config): one
+  that the run's data or an expression produced (its input, a webhook body,
+  an earlier step, a parent workflow, `@sec{{…}}`) fails the step with
+  `ErrDataReference`, naming the field, never the value. So data containing
+  "@secret:" in a field fails that step, and a value mixing a literal
+  reference with an expression must be split into two fields. Still
   open:
   - an approved workflow resolves its secrets whoever runs it, and a value
     a step outputs under a field name the redaction doesn't know shows in
@@ -680,24 +689,17 @@ existing MCP client config that relies on them.
   agent's verbs on the task board, acting as the agent the server names after
   its client (`agent:<client>#<4 hex>`); no tool approves, edits, moves or
   archives a task
-- `api_key_create`, `api_key_update`, `api_key_revoke` — the server profile's
-  API keys, under the rules of `api key create|update|revoke` (names, the
-  context switch, the errors); a key of another profile is "not found". A name
-  can be neither a key (anything holding `sk-ma-`, in any case) nor the shape
-  of a key id (`key_` and 12 characters of a-z and 2-7), because `api_key_list`
-  shows names: a key pasted where a name goes is refused, by the key store, so
-  by `api key create|update` too. No error of any `api_*` tool repeats an
-  argument, since a caller may paste a key anywhere.
-  `api_key_revoke` is annotated destructive and asks for no confirmation: the
-  host gates it. **`api_key_create` is the one tool that returns a secret:** the
-  new key, once, in the `key` field of its result. Only its SHA-256 is stored,
-  so no tool, `api_key_list` included, can show it again. It also makes the key
-  part of the MCP host's transcript, which the host may keep and, for a hosted
-  model, send to its provider. `monoagentcli --profile work api key create` writes the key to
-  its stdout (also with `--json`): run in your own terminal it stays out of any
-  transcript, but run by an agent through a shell tool it lands in that
-  transcript too. The `api_*` tools are MCP only (the chat assistant has
-  none), and a grant-mode server serves none of them.
+- `api_key_create`, `api_key_update`, `api_key_revoke` — listed under
+  `--allow-mutations`, and every call is refused: an MCP caller is an AI,
+  and only the user creates, changes or revokes an API key. The refusal names
+  the command the user runs (`monoagentcli --profile <id> api key
+  create|update|revoke` in their own terminal, or the app), which refuses an
+  agent, the chat and a workflow too (exit 3, `operator_only`). No error of
+  any `api_*` tool repeats an argument, since a caller may paste a key
+  anywhere. `api key create` writes the key to its stdout (also with
+  `--json`), so run it in your own terminal, not through an agent's shell
+  tool. The `api_*` tools are MCP only (the chat assistant has none), and a
+  grant-mode server serves none of them.
 - `api_config_set` — saves or removes settings of the API's server (`set`: an
   object of setting keys to values, `max_concurrent` also a number; `unset`: a
   list of keys, or the word `all`), under the rules of `api config set|unset`
@@ -819,8 +821,8 @@ or `--grant`.
 `api_*` tools) and `monoagent://node/<type>` (a node's schema). Grant mode and
 `--tasks-only` serve no resources, `--api-only` only `api-tools`. A
 `workflow_run` call that carries `_meta.progressToken` gets
-`notifications/progress`; JSON results also come back as `structuredContent`
-(not `api_key_create`), and `workflow_run`, `workflow_status` and
+`notifications/progress`; JSON results also come back as `structuredContent`,
+and `workflow_run`, `workflow_status` and
 `workflow_validate` declare an `outputSchema`.
 
 **Grant mode.** `monoagentcli mcp --grant <id> --profile <id>` is the tool
@@ -974,11 +976,11 @@ a key. It lives in `internal/openaiapi/`; the spec is
   `monoagentcli mcp` serves the same key management, the model list, the status
   and the server's settings as tools for its own profile, with no
   `--all-profiles`: `api_key_list`, `api_models_list`, `api_status` and
-  `api_config_get`, and with `--allow-mutations` `api_key_create`,
-  `api_key_update`, `api_key_revoke`, `api_config_set`, `api_config_apply` and
-  `api_auto_set` (see [MCP server](#mcp-server): creating a key there puts it in
-  the host's transcript, and a change of the settings that makes the server reach
-  further, or the auto model switched on, needs the operator's
+  `api_config_get`, and with `--allow-mutations` `api_config_set`,
+  `api_config_apply` and `api_auto_set`, plus `api_key_create`,
+  `api_key_update` and `api_key_revoke`, which refuse every call (see
+  [MCP server](#mcp-server): only the user manages keys; a change of the
+  settings that makes the server reach further, or the auto model switched on, needs the operator's
   `--allow-api-exposure`; `--api-only` serves a model these tools and no other).
   `org teardown-profile` revokes a profile's keys. A key never opens the
   legacy routes, and the legacy token never opens `/v1`. Revoking applies to

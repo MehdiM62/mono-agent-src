@@ -85,7 +85,10 @@ messages, not a barrier:
   can't tell the app from an agent that runs them from an unmarked process.
 - A workflow you approved resolves its secrets whoever runs it, and a value
   a step outputs under a field name the redaction doesn't know shows in its
-  output.
+  output. Only the references written in it resolve, though: one that the
+  run's data or an expression produced (an agent's `--input`, a webhook
+  body, a parent workflow) is refused, so the caller can't choose which
+  secret a workflow reads.
 - The HTTP API's `X-Full-Outputs: 1` gives whoever holds an API key
   unredacted outputs.
 - By your decision, a step that picks its own address (`http.request`) can
@@ -782,14 +785,13 @@ effect on the next request. A request authenticates as the key's profile and
 as nothing else; a key of another profile is "not found" in every command
 except `api key list --all-profiles`, which lists every profile's keys
 (metadata only, never a secret) to whoever can run it on this machine.
-The MCP tools over keys (`api_key_list`, and with `mcp --allow-mutations`
-`api_key_create`, `api_key_update` and `api_key_revoke`) act on the MCP
-server's own profile only. `api_key_create` returns the new key in its result,
-once, so that key passes through the MCP host: into its transcript and, for a
-hosted model, to its provider. When that matters, run `api key create` in your
-own terminal and not through an agent's shell tool: it writes the key to its
-stdout (also with `--json`), so whatever runs it, an agent included, receives
-the key. A key is refused as the name of a key (names are listed, and one
+`api_key_list` (MCP) lists the MCP server's own profile's keys, metadata
+only. No MCP tool creates, changes, revokes or returns a key: `api_key_create`,
+`api_key_update` and `api_key_revoke` refuse every call, since an MCP caller is
+an AI. `api key create|update|revoke` and `org teardown-profile` are your own:
+an agent, the chat or a workflow is refused (exit 3, `operator_only`). Run
+`api key create` in your own terminal, not through an agent's shell tool: it
+writes the key to its stdout (also with `--json`). A key is refused as the name of a key (names are listed, and one
 holding `sk-ma-` or shaped like a key id is refused), and no error of these
 tools repeats an argument.
 The legacy HTTP API token (vault entry `httpapi-token`) is a separate
