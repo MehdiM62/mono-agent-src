@@ -8,6 +8,7 @@ import (
 
 	"github.com/zalando/go-keyring"
 
+	"github.com/monoes/mono-agent/internal/cli/workflowrun"
 	"github.com/monoes/mono-agent/internal/secrets"
 	"github.com/monoes/mono-agent/internal/storage"
 	"github.com/monoes/mono-agent/internal/workflow"
@@ -23,6 +24,7 @@ func TestASecretReferenceInARunsInputResolvesNowhere(t *testing.T) {
 	keyring.MockInit()
 	_, cfg := persistTestEnv(t)
 	asOperatorProcess(t)
+	workflowrun.FullOutputs = false // a global --full-outputs binds; no flag is parsed here
 	db, err := storage.NewDatabase(cfg.DBPath)
 	if err != nil {
 		t.Fatal(err)

@@ -12,6 +12,7 @@ import (
 
 	"github.com/monoes/mono-agent/internal/account"
 	"github.com/monoes/mono-agent/internal/browserctl"
+	"github.com/monoes/mono-agent/internal/cli/workflowrun"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -154,6 +155,9 @@ func TestTheOperatorsFullOutputsShowUnredactedOutput(t *testing.T) {
 	account.SetEnforceFromForTest(t, time.Time{})
 	keyring.MockInit()
 	asOperatorProcess(t)
+	// --full-outputs binds a package global, which a later test's own
+	// newWorkflowCmd would otherwise inherit.
+	t.Cleanup(func() { workflowrun.FullOutputs = false })
 	home := t.TempDir()
 	run := func(args ...string) string {
 		t.Helper()
