@@ -263,10 +263,12 @@ func gitRunsIt(p string) bool {
 // runsOnNextUse names a file a tool runs, or takes commands from, the next
 // time the user works in its folder, "" for any other: anything in Claude
 // Code's .claude (settings and hooks, the scripts hooks run, commands,
-// skills, agents), AI agents' instructions (CLAUDE.md, CLAUDE.local.md,
-// AGENTS.md, GEMINI.md, .cursorrules, .cursor/rules,
-// .github/copilot-instructions.md), project MCP servers (.mcp.json), git
-// hook managers (.husky, .githooks) and direnv's .envrc.
+// skills, agents), AI agents' instructions and configuration (CLAUDE.md,
+// CLAUDE.local.md, AGENTS.md, GEMINI.md, .cursorrules, .cursor/rules,
+// .cursor/mcp.json, .windsurfrules, .aider.conf.yml, .codex, .gemini,
+// .continue, .github/copilot-instructions.md), project MCP servers
+// (.mcp.json), editor tasks (.vscode/tasks.json, .zed), GitHub Actions
+// workflows, git hook managers (.husky, .githooks) and direnv's .envrc.
 func runsOnNextUse(p string) string {
 	parts := strings.Split(fold(p), string(filepath.Separator))
 	last := parts[len(parts)-1]
@@ -277,6 +279,10 @@ func runsOnNextUse(p string) string {
 		return "a project's MCP server list (.mcp.json)"
 	case fold(".cursorrules"):
 		return "Cursor's rules (.cursorrules)"
+	case fold(".windsurfrules"):
+		return "Windsurf's rules (.windsurfrules)"
+	case fold(".aider.conf.yml"):
+		return "aider's configuration (.aider.conf.yml)"
 	}
 	for _, name := range []string{"CLAUDE.md", "CLAUDE.local.md", "AGENTS.md", "GEMINI.md"} {
 		if last == fold(name) {
@@ -291,13 +297,28 @@ func runsOnNextUse(p string) string {
 			return "Claude Code's configuration (.claude)"
 		case ".husky", ".githooks":
 			return "a git hook manager's hook"
+		case ".codex", ".gemini", ".continue":
+			// Their settings, MCP servers, rules and prompts load at the
+			// next session.
+			return "an AI tool's configuration (" + parts[i] + ")"
 		case ".cursor":
-			if parts[i+1] == "rules" {
-				return "Cursor's rules (.cursor/rules)"
+			if parts[i+1] == "rules" || i+2 == len(parts) && last == "mcp.json" {
+				return "Cursor's rules or MCP servers (.cursor)"
 			}
 		case ".github":
 			if parts[i+1] == fold("copilot-instructions.md") {
 				return "Copilot's instructions (.github/copilot-instructions.md)"
+			}
+			if parts[i+1] == "workflows" {
+				return "a GitHub Actions workflow, which runs at the next push"
+			}
+		case ".vscode":
+			if i+2 == len(parts) && last == "tasks.json" {
+				return "VS Code's tasks (.vscode/tasks.json), which can run when the folder opens"
+			}
+		case ".zed":
+			if i+2 == len(parts) && (last == "settings.json" || last == "tasks.json") {
+				return "Zed's settings or tasks (.zed)"
 			}
 		}
 	}

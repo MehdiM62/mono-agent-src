@@ -2633,6 +2633,10 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
   - writing a git hook or git config (`.git/hooks/*`, `.git/config*`, those
     of submodules and worktrees, a bare `*.git`, and any git directory found
     by its `objects`, `refs` and a `HEAD` that reads as git's), anywhere.
+    The check is per write, so a folder whose hook was written before it
+    became a git directory keeps that hook. Git only runs it when pointed
+    at that folder: by a `.git` pointer file (refused), a name ending in
+    `.git` (refused by name), or the user's own `GIT_DIR` or core config.
   Names compare without case on Windows and macOS. A refusal names the
   `workflow activate <id>` that approves the workflow.
 - **The project folder is a trusted zone** (the user's choice): the
@@ -2641,8 +2645,11 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
   the profile's own vault folder. Closed there, as everywhere: git hooks and
   configs, and the files a tool runs the next time the user works in that
   folder or instructs the next AI session there (anything in `.claude/`,
-  `CLAUDE.md`, `CLAUDE.local.md`, `AGENTS.md`, `GEMINI.md`, `.cursorrules`,
-  `.cursor/rules/*`, `.github/copilot-instructions.md`, `.mcp.json`,
+  `.codex/`, `.gemini/` and `.continue/`, `CLAUDE.md`, `CLAUDE.local.md`,
+  `AGENTS.md`, `GEMINI.md`, `.cursorrules`, `.cursor/rules/*`,
+  `.cursor/mcp.json`, `.windsurfrules`, `.aider.conf.yml`,
+  `.github/copilot-instructions.md`, `.github/workflows/*`, `.mcp.json`,
+  `.vscode/tasks.json`, `.zed/settings.json`, `.zed/tasks.json`,
   `.husky/*`, `.githooks/*`, `.envrc`), and a `.git` pointer file. Still open in it: build files such as `package.json` scripts
   or a `Makefile`. A project folder that is the home or holds it, or lies in
   another hidden folder of the home, opens nothing; only the operator sets a

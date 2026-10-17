@@ -173,6 +173,9 @@ func TestNoFileThatRunsOnNextUse(t *testing.T) {
 		".claude/commands/x.md", ".claude/agents/a.md", ".claude/skills/s/SKILL.md", ".claude/hooks",
 		"CLAUDE.local.md", "AGENTS.md", "GEMINI.md", ".cursorrules", ".cursor/rules/x.mdc",
 		".github/copilot-instructions.md",
+		".cursor/mcp.json", ".github/workflows/ci.yml", ".windsurfrules", ".aider.conf.yml",
+		".codex/config.toml", ".gemini/settings.json", ".continue/config.json", ".vscode/tasks.json",
+		".zed/settings.json", ".zed/tasks.json",
 	} {
 		p := filepath.Join(project, filepath.FromSlash(rel))
 		if _, err := WritePath(ctx, p); !errors.Is(err, ErrUnapprovedPath) {
@@ -182,7 +185,7 @@ func TestNoFileThatRunsOnNextUse(t *testing.T) {
 			t.Errorf("read %s: %v", rel, err)
 		}
 	}
-	for _, rel := range []string{".env", "husky.md", "notes/.claude-notes", "envrc.txt", "CLAUDE.md.bak", "README.md", ".cursor/settings.json", ".github/workflows/ci.yml"} {
+	for _, rel := range []string{".env", "husky.md", "notes/.claude-notes", "envrc.txt", "CLAUDE.md.bak", "README.md", ".cursor/settings.json", ".github/ISSUE_TEMPLATE/bug.md", ".vscode/settings.json", ".zed/notes.md"} {
 		if _, err := WritePath(ctx, filepath.Join(project, filepath.FromSlash(rel))); err != nil {
 			t.Errorf("write %s: %v", rel, err)
 		}
