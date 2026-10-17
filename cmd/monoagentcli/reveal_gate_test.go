@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -134,5 +135,47 @@ func TestAPIKeyCreateIsTheOperatorsOnly(t *testing.T) {
 	}
 	if list, _, err := runCLIIn(t, home, "", "--profile", "default", "--json", "api", "key", "list"); err != nil || strings.Contains(list, "agent-made") || !strings.Contains(list, "app-key") {
 		t.Fatalf("keys: %v\n%s", err, list)
+	}
+}
+
+// The user's own `workflow run --full-outputs` shows a step's output
+// unredacted, which the default --json masks under a credential-like key.
+func TestTheOperatorsFullOutputsShowUnredactedOutput(t *testing.T) {
+	account.SetEnforceFromForTest(t, time.Time{})
+	keyring.MockInit()
+	asOperatorProcess(t)
+	home := t.TempDir()
+	run := func(args ...string) string {
+		t.Helper()
+		var out, errOut string
+		var err error
+		printed := captureStdout(t, func() { out, errOut, err = runCLIIn(t, home, "", args...) })
+		if err != nil {
+			t.Fatalf("%v: %v\n%s%s%s", args, err, printed, out, errOut)
+		}
+		return printed + out
+	}
+	run("--json", "db", "migrate")
+	var wf workflow.Workflow
+	if err := json.Unmarshal([]byte(run("--json", "workflow", "create", "keys")), &wf); err != nil {
+		t.Fatal(err)
+	}
+	node := func(typ, config string) string {
+		var n workflow.WorkflowNode
+		if err := json.Unmarshal([]byte(run("--json", "workflow", "node", "add", wf.ID, "--type", typ, "--name", typ, "--config", config)), &n); err != nil {
+			t.Fatal(err)
+		}
+		return n.ID
+	}
+	trig := node("trigger.manual", `{}`)
+	set := node("core.set", `{"assignments":[{"field":"api_key","value":"sk-live-123"}]}`)
+	run("--json", "workflow", "connect", wf.ID, "--from", trig, "--to", set)
+	run("--json", "workflow", "activate", wf.ID)
+
+	if out := run("--json", "workflow", "run", wf.ID, "--timeout", "30s"); strings.Contains(out, "sk-live-123") {
+		t.Fatalf("the default --json shows the value:\n%s", out)
+	}
+	if out := run("--json", "workflow", "run", wf.ID, "--timeout", "30s", "--full-outputs"); !strings.Contains(out, "sk-live-123") {
+		t.Fatalf("the user's --full-outputs masks the value:\n%s", out)
 	}
 }
