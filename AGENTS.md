@@ -2629,7 +2629,7 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
     PowerShell profile folder;
   - writing a git hook or git config (`.git/hooks/*`, `.git/config*`, those
     of submodules and worktrees, a bare `*.git`, and any git directory found
-    by its `HEAD`, `objects` and `refs`), anywhere.
+    by its `objects`, `refs` and a `HEAD` that reads as git's), anywhere.
   Names compare without case on Windows and macOS. A refusal names the
   `workflow activate <id>` that approves the workflow.
 - **The project folder is a trusted zone** (the user's choice): the
@@ -2637,9 +2637,10 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
   and for a profile on the default folder (`~/.monoagent/profiles/<id>`)
   the profile's own vault folder. Closed there, as everywhere: git hooks and
   configs, and the files a tool runs the next time the user works in that
-  folder (`.claude/settings*`, `.claude/hooks/*`, `.claude/helpers/*`,
-  `CLAUDE.md`, `.mcp.json`, `.husky/*`, `.githooks/*`,
-  `.envrc`). Still open in it: build files such as `package.json` scripts
+  folder or instructs the next AI session there (anything in `.claude/`,
+  `CLAUDE.md`, `CLAUDE.local.md`, `AGENTS.md`, `GEMINI.md`, `.cursorrules`,
+  `.cursor/rules/*`, `.github/copilot-instructions.md`, `.mcp.json`,
+  `.husky/*`, `.githooks/*`, `.envrc`), and a `.git` pointer file. Still open in it: build files such as `package.json` scripts
   or a `Makefile`. A project folder that is the home or holds it, or lies in
   another hidden folder of the home, opens nothing; only the operator sets a
   profile's folder. Also open: the user's files outside hidden folders,
