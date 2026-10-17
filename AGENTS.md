@@ -2682,12 +2682,14 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
   `.clinerules`, `.roorules`, `.continuerules`, `.kilocodemodes`, `.rules`,
   `.github/copilot-instructions.md`,
   `.github/agents`, `.github/instructions`, `.github/prompts`), tool
-  configs (`.mcp.json`, `opencode.json`, `crush.json`, `.crush.json`,
-  `.aider.conf.yml`),
+  configs (`.mcp.json`, `.claude.json`, `opencode.json`, `crush.json`,
+  `.crush.json`, `.aider.conf.yml`),
   CI pipelines (`.github/workflows/*`, `.github/actions/*`,
-  `.gitlab-ci.yml`, `.circleci/`, `Jenkinsfile`, `azure-pipelines.yml`,
-  `.travis.yml`, `bitbucket-pipelines.yml`, `.buildkite/`, `.drone.yml`,
-  `cloudbuild.yaml`, `appveyor.yml`), hook managers
+  `.gitlab-ci.yml`, `.gitlab/ci/`, `.circleci/`, `Jenkinsfile`,
+  `azure-pipelines.yml`, `.travis.yml`, `bitbucket-pipelines.yml`,
+  `.buildkite/`, `.drone.yml`/`.yaml`, `cloudbuild.yaml`/`.yml`/`.json`,
+  `appveyor.yml`/`.yaml`/`.appveyor.yml`, `.woodpecker.yml`/`.yaml`,
+  `.woodpecker/`, `.semaphore/`, `bitrise.yml`, `codemagic.yaml`), hook managers
   (`.husky/*`, `.githooks/*`, `.pre-commit-config.yaml`, `lefthook.yml`)
   and the dev environment (`.envrc`, `.mise.toml`, `.devcontainer/`,
   `.devcontainer.json`, `.gitpod.yml`, `.replit`, `.idea/`,

@@ -187,7 +187,10 @@ func TestNoFileThatRunsOnNextUse(t *testing.T) {
 		"Jenkinsfile", "azure-pipelines.yml", ".travis.yml", "bitbucket-pipelines.yml", ".buildkite/pipeline.yml",
 		".gitpod.yml", ".devcontainer.json",
 		".crush.json", ".kilocode/rules/r.md", ".kilocodemodes", ".continuerules", ".rules", ".replit",
-		".drone.yml", "cloudbuild.yaml", "appveyor.yml", ".zed/keymap.json",
+		".drone.yml", "cloudbuild.yaml", "appveyor.yml", ".zed/keymap.json", ".appveyor.yml", "appveyor.yaml",
+		"cloudbuild.yml", "cloudbuild.json", ".drone.yaml", ".woodpecker.yml", ".woodpecker.yaml",
+		".woodpecker/build.yml", ".semaphore/semaphore.yml", "bitrise.yml", "codemagic.yaml",
+		".gitlab/ci/build.yml", ".claude.json",
 	} {
 		p := filepath.Join(project, filepath.FromSlash(rel))
 		if _, err := WritePath(ctx, p); !errors.Is(err, ErrUnapprovedPath) {
@@ -197,7 +200,8 @@ func TestNoFileThatRunsOnNextUse(t *testing.T) {
 			t.Errorf("read %s: %v", rel, err)
 		}
 	}
-	for _, rel := range []string{".env", "husky.md", "notes/.claude-notes", "envrc.txt", "CLAUDE.md.bak", "README.md", ".github/ISSUE_TEMPLATE/bug.md", ".vscode/settings.json", ".zed/notes.md", "opencode.json.bak", "docs/lefthook.md"} {
+	for _, rel := range []string{".env", "husky.md", "notes/.claude-notes", "envrc.txt", "CLAUDE.md.bak", "README.md", ".github/ISSUE_TEMPLATE/bug.md", ".vscode/settings.json", ".zed/notes.md", "opencode.json.bak", "docs/lefthook.md",
+		".gitlab/issue_templates/bug.md", ".gitlab/CODEOWNERS"} {
 		if _, err := WritePath(ctx, filepath.Join(project, filepath.FromSlash(rel))); err != nil {
 			t.Errorf("write %s: %v", rel, err)
 		}

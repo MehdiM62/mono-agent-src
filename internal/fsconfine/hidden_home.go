@@ -292,6 +292,10 @@ func runsOnNextUse(p string) string {
 			case "workflows", "actions":
 				return "a GitHub Actions workflow or action, which runs at the next push"
 			}
+		case ".gitlab":
+			if below == "ci" {
+				return "a GitLab CI pipeline's part (.gitlab/ci), which runs at the next push"
+			}
 		case ".vscode":
 			if i+2 == len(parts) && (last == "tasks.json" || last == "launch.json") {
 				return "VS Code's tasks or launch configurations (.vscode), which can run when the folder opens"
@@ -303,81 +307,6 @@ func runsOnNextUse(p string) string {
 		}
 	}
 	return ""
-}
-
-// nextUseFiles are file names a tool runs or takes its commands from, by
-// what they are.
-var nextUseFiles = map[string]string{
-	".envrc":                  "direnv's environment",
-	".mcp.json":               "a project's MCP server list",
-	".cursorrules":            "Cursor's rules",
-	".windsurfrules":          "Windsurf's rules",
-	".clinerules":             "Cline's rules",
-	".roorules":               "Roo's rules",
-	".aider.conf.yml":         "aider's configuration",
-	"opencode.json":           "opencode's configuration",
-	"CLAUDE.md":               "an AI agent's instructions",
-	"CLAUDE.local.md":         "an AI agent's instructions",
-	"AGENTS.md":               "an AI agent's instructions",
-	"GEMINI.md":               "an AI agent's instructions",
-	".gitlab-ci.yml":          "a GitLab CI pipeline, which runs at the next push",
-	".pre-commit-config.yaml": "pre-commit's hooks",
-	"lefthook.yml":            "lefthook's git hooks",
-	"lefthook.yaml":           "lefthook's git hooks",
-	".lefthook.yml":           "lefthook's git hooks",
-	".mise.toml":              "mise's tasks and environment",
-	"mise.toml":               "mise's tasks and environment",
-	".goosehints":             "Goose's instructions",
-	"QWEN.md":                 "an AI agent's instructions",
-	"CODEX.md":                "an AI agent's instructions",
-	"AGENT.md":                "an AI agent's instructions",
-	"agents.md":               "an AI agent's instructions",
-	"crush.json":              "Crush's configuration",
-	".devcontainer.json":      "a dev container's configuration",
-	"Jenkinsfile":             "a Jenkins pipeline, which runs at the next push",
-	"azure-pipelines.yml":     "an Azure pipeline, which runs at the next push",
-	".travis.yml":             "a Travis CI pipeline, which runs at the next push",
-	"bitbucket-pipelines.yml": "a Bitbucket pipeline, which runs at the next push",
-	".gitpod.yml":             "Gitpod's workspace tasks",
-	".crush.json":             "Crush's configuration",
-	".kilocodemodes":          "Kilo Code's modes",
-	".continuerules":          "Continue's rules",
-	".rules":                  "an AI agent's rules",
-	".replit":                 "Replit's run configuration",
-	".drone.yml":              "a Drone pipeline, which runs at the next push",
-	"cloudbuild.yaml":         "a Cloud Build pipeline, which runs at the next push",
-	"appveyor.yml":            "an AppVeyor pipeline, which runs at the next push",
-}
-
-// nextUseDirs are folders whose every file a tool runs, loads or takes its
-// commands from at the next session.
-var nextUseDirs = map[string]string{
-	".claude":       "Claude Code's configuration",
-	".codex":        "an AI tool's configuration",
-	".gemini":       "an AI tool's configuration",
-	".continue":     "an AI tool's configuration",
-	".cursor":       "Cursor's configuration",
-	".windsurf":     "Windsurf's configuration",
-	".clinerules":   "Cline's rules",
-	".roo":          "Roo's configuration",
-	".kiro":         "Kiro's configuration",
-	".amazonq":      "Amazon Q's configuration",
-	".opencode":     "opencode's configuration",
-	".devcontainer": "a dev container's configuration",
-	".circleci":     "a CircleCI pipeline, which runs at the next push",
-	".husky":        "a git hook manager's hooks",
-	".githooks":     "a git hook manager's hooks",
-	".idea":         "a JetBrains IDE's configuration",
-	".trae":         "Trae's configuration",
-	".junie":        "Junie's configuration",
-	".goose":        "Goose's configuration",
-	".augment":      "Augment's configuration",
-	".qwen":         "Qwen Code's configuration",
-	".agents":       "an AI agent's configuration",
-	".agent":        "an AI agent's configuration",
-	".copilot":      "Copilot's configuration",
-	".buildkite":    "a Buildkite pipeline, which runs at the next push",
-	".kilocode":     "Kilo Code's configuration",
 }
 
 // onPath reports whether dir is a folder on PATH: this process's, plus the
