@@ -24,6 +24,8 @@ func TestSendsAnnotationIsChecked(t *testing.T) {
 		`,"sends":{"action":"email","if":["to","nobody.x"]}`:                                                          `"nobody.x"`,
 		`,"sends":{"action":"post","to":["to"],"to_label":{"to":"channel"},"to_unset":"the team","if":"body=urgent"}`: "",
 		`,"sends":{"action":"post","if":"body!=quiet"}`:                                                               "",
+		`,"sends":{"action":"post","if":"body.type not in note|web"}`:                                                 "",
+		`,"sends":{"action":"post","if":"nobody.type not in note|web"}`:                                               `"nobody.type not in note|web"`,
 		`,"sends":{"action":"post","to_label":{"body":"channel"}}`:                                                    "to_label",
 		`,"sends":true`: "sends",
 	} {
@@ -98,6 +100,19 @@ func TestSendsIfSeesDefaultsAndValues(t *testing.T) {
 		_ = json.Unmarshal([]byte(config), &c)
 		if got := op.sends(c); got != want {
 			t.Errorf("skipSMS: sends(%s) = %v, want %v", config, got, want)
+		}
+	}
+	// Set to none of the values: an article that isn't a note, web or phone
+	// one, an unknown or templated type included; no article is none.
+	op.Sends.If = Cond{"article.type not in note|web|phone"}
+	for config, want := range map[string]bool{`{}`: false, `{"article":{}}`: false, `{"article":{"type":""}}`: false,
+		`{"article":{"type":"note"}}`: false, `{"article":{"type":" Phone "}}`: false, `{"article":{"type":"web"}}`: false,
+		`{"article":{"type":"email"}}`: true, `{"article":{"type":"sms"}}`: true, `{"article":{"type":"twitter status"}}`: true,
+		`{"article":{"type":"carrier pigeon"}}`: true, `{"article":{"type":"{{ $json.kind }}"}}`: true} {
+		var c map[string]any
+		_ = json.Unmarshal([]byte(config), &c)
+		if got := op.sends(c); got != want {
+			t.Errorf("article type: sends(%s) = %v, want %v", config, got, want)
 		}
 	}
 	op.Sends.If = Cond{"domain=notify", "domain=tts"}

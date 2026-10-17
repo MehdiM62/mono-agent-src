@@ -137,23 +137,27 @@ Calendar event waits only when it has attendees
 (`"if": "additionalFields.attendees"`). A field the config leaves out counts
 as its default (Okta's `activate` is true, so an activation email waits).
 `"field=value"` sends only on that value (`"if": ["domain=notify",
-"domain=tts"]` for Home Assistant), and `"field!=value"` unless the field has
-that value: Onfleet texts a task's recipient unless
-`recipientSkipSMSNotifications` is true. When a `to` field holds an id rather
-than an address, `to_label` says what it is, and the card shows "the
-client of invoice inv9", not "inv9"; `to_unset` is what the card shows when
-no `to` field is set.
+"domain=tts"]` for Home Assistant), `"field!=value"` unless the field has
+that value (unset counts: Onfleet texts a task's recipient unless
+`recipientSkipSMSNotifications` is true), and `"field not in a|b|c"` when
+the field is set to none of those values (unset doesn't count: a Zammad
+ticket goes out with an article that isn't a note, web or phone one, an
+unknown or templated type included, and not without one). When a `to`
+field holds an id rather than an address, `to_label` says what it is, and
+the card shows "the client of invoice inv9", not "inv9"; `to_unset` is what
+the card shows when no `to` field is set.
 
 Comments and invites on shared trackers count: they reach people. Creating
 or updating issues, tasks and tickets does not, by the user's decision: it
 says `"sends": false` with "a work item, open by the user's decision"
 (their comments are sends). A ticket's create or update that emails someone
-beyond its requester waits, with `if`: an email article (Zammad), CCs
-(Freshdesk, Freshservice), Zendesk's JSON fields or recipient. An op that
-only looks like a send (a queue or webhook for programs, a lookup, a
-notification to the user's own devices) says `"sends": false` with
-`"sends_reason"`; so does what the user decided stays open (file sharing,
-money movement), with the reason saying so.
+beyond its requester waits, with `if`: a Zammad article other than a note,
+web or phone one, or one with a `to` or `cc`; CCs (Freshdesk,
+Freshservice); Zendesk's JSON fields or recipient. An op that only looks
+like a send (a queue or webhook for programs, a lookup, a notification to
+the user's own devices) says `"sends": false` with `"sends_reason"`; so
+does what the user decided stays open (file sharing, money movement), with
+the reason saying so.
 `TestCatalogSendsAreDecided` fails for a catalog op that has neither when:
 
 - its package is a messaging one (it has an annotated send, or it is a mail,

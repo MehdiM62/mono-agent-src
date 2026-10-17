@@ -74,8 +74,11 @@ func TestEveryAnnotatedSendQueues(t *testing.T) {
 			s := o.Sends
 			if len(s.If) > 0 {
 				// "param=value" is set to its value, a bare param to true;
-				// "param!=value" sends while the param is unset.
-				if name, value, eq := strings.Cut(s.If[0], "="); eq {
+				// "param!=value" sends while the param is unset, and "param
+				// not in a|b" once it is set to something else.
+				if name, _, ok := strings.Cut(s.If[0], " not in "); ok {
+					setParam(config, name, "other")
+				} else if name, value, eq := strings.Cut(s.If[0], "="); eq {
 					if !strings.HasSuffix(name, "!") {
 						setParam(config, name, value)
 					}
@@ -244,10 +247,30 @@ func TestTheReviewedSendsStayDecided(t *testing.T) {
 		// does: a work item, open.
 		{"app.zendesk", cfg{"resource": "ticket", "operation": "update", "id": "T1", "updateFields": cfg{"assigneeEmail": "bob@example.test"}}, "-"},
 		{"app.zammad", cfg{"resource": "ticket", "operation": "create", "title": "Login", "group": "Users", "customer": "ada@example.test"}, "-"},
+		// A Zammad article goes out unless it is a note, web or phone one,
+		// and one with a "to" goes out whatever its type.
 		{"app.zammad", cfg{"resource": "ticket", "operation": "create", "title": "Login", "group": "Users", "customer": "ada@example.test",
 			"article": cfg{"articleDetails": cfg{"type": "note", "body": "Called her"}}}, "-"},
 		{"app.zammad", cfg{"resource": "ticket", "operation": "create", "title": "Login", "group": "Users", "customer": "ada@example.test",
+			"article": cfg{"articleDetails": cfg{"type": "web", "body": "Called her"}}}, "-"},
+		{"app.zammad", cfg{"resource": "ticket", "operation": "create", "title": "Login", "group": "Users", "customer": "ada@example.test",
+			"article": cfg{"articleDetails": cfg{"type": "phone", "body": "Called her"}}}, "-"},
+		{"app.zammad", cfg{"resource": "ticket", "operation": "create", "title": "Login", "group": "Users", "customer": "ada@example.test",
 			"article": cfg{"articleDetails": cfg{"type": "email", "to": "bob@example.test", "body": "Fixed"}}}, "bob@example.test"},
+		{"app.zammad", cfg{"resource": "ticket", "operation": "create", "title": "Login", "group": "Users", "customer": "ada@example.test",
+			"article": cfg{"articleDetails": cfg{"type": "sms", "to": "+15550001", "body": "Fixed"}}}, "+15550001"},
+		{"app.zammad", cfg{"resource": "ticket", "operation": "create", "title": "Login", "group": "Users", "customer": "ada@example.test",
+			"article": cfg{"articleDetails": cfg{"type": "twitter status", "body": "Fixed"}}}, "ada@example.test"},
+		{"app.zammad", cfg{"resource": "ticket", "operation": "create", "title": "Login", "group": "Users", "customer": "ada@example.test",
+			"article": cfg{"articleDetails": cfg{"type": "twitter direct-message", "body": "Fixed"}}}, "ada@example.test"},
+		{"app.zammad", cfg{"resource": "ticket", "operation": "create", "title": "Login", "group": "Users", "customer": "ada@example.test",
+			"article": cfg{"articleDetails": cfg{"type": "facebook feed post", "body": "Fixed"}}}, "ada@example.test"},
+		{"app.zammad", cfg{"resource": "ticket", "operation": "create", "title": "Login", "group": "Users", "customer": "ada@example.test",
+			"article": cfg{"articleDetails": cfg{"type": "telegram personal-message", "body": "Fixed"}}}, "ada@example.test"},
+		{"app.zammad", cfg{"resource": "ticket", "operation": "create", "title": "Login", "group": "Users", "customer": "ada@example.test",
+			"article": cfg{"articleDetails": cfg{"type": "whatsapp message", "body": "Fixed"}}}, "ada@example.test"},
+		{"app.zammad", cfg{"resource": "ticket", "operation": "create", "title": "Login", "group": "Users", "customer": "ada@example.test",
+			"article": cfg{"articleDetails": cfg{"type": "note", "to": "bob@example.test", "body": "Fixed"}}}, "bob@example.test"},
 		{"app.zammad", cfg{"resource": "ticket", "operation": "update", "id": "T2", "updateFields": cfg{"note": "Fixed"}}, "T2"},
 		{"app.freshdesk", cfg{"resource": "ticket", "operation": "create", "requesterIdentificationValue": "ada@example.test"}, "-"},
 		{"app.freshdesk", cfg{"resource": "ticket", "operation": "create", "requesterIdentificationValue": "ada@example.test",
