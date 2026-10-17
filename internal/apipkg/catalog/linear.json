@@ -65,6 +65,8 @@
       "resource": "issue",
       "operation": "create",
       "title": "Create an issue",
+      "sends": false,
+      "sends_reason": "Create an issue: changes Linear data, not a message",
       "method": "POST",
       "path": "/graphql",
       "fields": [
@@ -110,6 +112,8 @@
       "resource": "issue",
       "operation": "addLink",
       "title": "Add a link to an issue",
+      "sends": false,
+      "sends_reason": "Add a link to an issue: changes Linear data, not a message",
       "method": "POST",
       "path": "/graphql",
       "fields": [
@@ -141,6 +145,8 @@
       "resource": "issue",
       "operation": "delete",
       "title": "Delete an issue",
+      "sends": false,
+      "sends_reason": "Delete an issue: changes Linear data, not a message",
       "method": "POST",
       "path": "/graphql",
       "fields": [
@@ -165,6 +171,8 @@
       "resource": "issue",
       "operation": "get",
       "title": "Get an issue",
+      "sends": false,
+      "sends_reason": "Get an issue: a read, not a message",
       "method": "POST",
       "path": "/graphql",
       "fields": [
@@ -189,6 +197,8 @@
       "resource": "issue",
       "operation": "getAll",
       "title": "Get many issues",
+      "sends": false,
+      "sends_reason": "Get many issues: a read, not a message",
       "method": "POST",
       "path": "/graphql",
       "fields": [
@@ -227,6 +237,8 @@
       "resource": "issue",
       "operation": "update",
       "title": "Update an issue",
+      "sends": false,
+      "sends_reason": "Update an issue: changes Linear data, not a message",
       "method": "POST",
       "path": "/graphql",
       "fields": [

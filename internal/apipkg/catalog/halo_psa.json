@@ -106,6 +106,8 @@
       "resource": "client",
       "operation": "create",
       "title": "Create a client",
+      "sends": false,
+      "sends_reason": "Create a client: changes HaloPSA data, not a message",
       "method": "POST",
       "path": "/client",
       "fields": [
@@ -139,6 +141,8 @@
       "resource": "client",
       "operation": "delete",
       "title": "Delete a client",
+      "sends": false,
+      "sends_reason": "Delete a client: changes HaloPSA data, not a message",
       "method": "DELETE",
       "path": "/client/{{ p.clientId }}",
       "fields": [
@@ -239,6 +243,8 @@
       "resource": "client",
       "operation": "update",
       "title": "Update a client",
+      "sends": false,
+      "sends_reason": "Update a client: changes HaloPSA data, not a message",
       "method": "POST",
       "path": "/client",
       "fields": [
@@ -273,6 +279,8 @@
       "resource": "site",
       "operation": "create",
       "title": "Create a site",
+      "sends": false,
+      "sends_reason": "Create a site: changes HaloPSA data, not a message",
       "method": "POST",
       "path": "/site",
       "fields": [
@@ -318,6 +326,8 @@
       "resource": "site",
       "operation": "delete",
       "title": "Delete a site",
+      "sends": false,
+      "sends_reason": "Delete a site: changes HaloPSA data, not a message",
       "method": "DELETE",
       "path": "/site/{{ p.siteId }}",
       "fields": [
@@ -418,6 +428,8 @@
       "resource": "site",
       "operation": "update",
       "title": "Update a site",
+      "sends": false,
+      "sends_reason": "Update a site: changes HaloPSA data, not a message",
       "method": "POST",
       "path": "/site",
       "fields": [
@@ -452,6 +464,8 @@
       "resource": "ticket",
       "operation": "delete",
       "title": "Delete a ticket",
+      "sends": false,
+      "sends_reason": "Delete a ticket: changes HaloPSA data, not a message",
       "method": "DELETE",
       "path": "/tickets/{{ p.ticketId }}",
       "fields": [
@@ -467,6 +481,15 @@
       "resource": "ticket",
       "operation": "create",
       "title": "Create a ticket",
+      "sends": {
+        "action": "comment",
+        "text": [
+          "details"
+        ],
+        "subject": [
+          "summary"
+        ]
+      },
       "method": "POST",
       "path": "/tickets",
       "fields": [
@@ -598,6 +621,8 @@
       "resource": "ticket",
       "operation": "update",
       "title": "Update a ticket",
+      "sends": false,
+      "sends_reason": "Update a ticket: changes HaloPSA data, not a message",
       "method": "POST",
       "path": "/tickets",
       "fields": [
@@ -632,6 +657,8 @@
       "resource": "user",
       "operation": "create",
       "title": "Create a user",
+      "sends": false,
+      "sends_reason": "Create a user: changes HaloPSA data, not a message",
       "method": "POST",
       "path": "/users",
       "fields": [
@@ -673,6 +700,8 @@
       "resource": "user",
       "operation": "delete",
       "title": "Delete a user",
+      "sends": false,
+      "sends_reason": "Delete a user: changes HaloPSA data, not a message",
       "method": "DELETE",
       "path": "/users/{{ p.userId }}",
       "fields": [
@@ -773,6 +802,8 @@
       "resource": "user",
       "operation": "update",
       "title": "Update a user",
+      "sends": false,
+      "sends_reason": "Update a user: changes HaloPSA data, not a message",
       "method": "POST",
       "path": "/users",
       "fields": [

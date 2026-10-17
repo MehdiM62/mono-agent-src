@@ -132,6 +132,8 @@
       "resource": "message",
       "operation": "delete",
       "title": "Delete a message",
+      "sends": false,
+      "sends_reason": "Delete a message: changes Gotify data, not a message",
       "method": "DELETE",
       "path": "/message/{{ p.messageId }}",
       "fields": [

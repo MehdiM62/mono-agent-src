@@ -82,6 +82,8 @@
       "resource": "task",
       "operation": "create",
       "title": "Create a task",
+      "sends": false,
+      "sends_reason": "Create a task: changes Asana data, not a message",
       "method": "POST",
       "path": "/tasks",
       "body": {
@@ -129,6 +131,8 @@
       "resource": "task",
       "operation": "delete",
       "title": "Delete a task",
+      "sends": false,
+      "sends_reason": "Delete a task: changes Asana data, not a message",
       "method": "DELETE",
       "path": "/tasks/{{ p.id }}",
       "output": {
@@ -216,6 +220,8 @@
       "resource": "task",
       "operation": "move",
       "title": "Move a task to a section",
+      "sends": false,
+      "sends_reason": "Move a task to a section: changes Asana data, not a message",
       "method": "POST",
       "path": "/sections/{{ p.section }}/addTask",
       "body": {
@@ -279,6 +285,8 @@
       "resource": "task",
       "operation": "update",
       "title": "Update a task",
+      "sends": false,
+      "sends_reason": "Update a task: changes Asana data, not a message",
       "method": "PUT",
       "path": "/tasks/{{ p.id }}",
       "body": {
@@ -318,6 +326,8 @@
       "resource": "subtask",
       "operation": "create",
       "title": "Create a subtask",
+      "sends": false,
+      "sends_reason": "Create a subtask: changes Asana data, not a message",
       "method": "POST",
       "path": "/tasks/{{ p.taskId }}/subtasks",
       "body": {
@@ -469,6 +479,8 @@
       "resource": "taskComment",
       "operation": "remove",
       "title": "Remove a comment",
+      "sends": false,
+      "sends_reason": "Remove a comment: changes Asana data, not a message",
       "method": "DELETE",
       "path": "/stories/{{ p.id }}",
       "fields": [
@@ -484,6 +496,8 @@
       "resource": "taskProject",
       "operation": "add",
       "title": "Add a task to a project",
+      "sends": false,
+      "sends_reason": "Add a task to a project: changes Asana data, not a message",
       "method": "POST",
       "path": "/tasks/{{ p.id }}/addProject",
       "body": {
@@ -522,6 +536,8 @@
       "resource": "taskProject",
       "operation": "remove",
       "title": "Remove a task from a project",
+      "sends": false,
+      "sends_reason": "Remove a task from a project: changes Asana data, not a message",
       "method": "POST",
       "path": "/tasks/{{ p.id }}/removeProject",
       "body": {
@@ -548,6 +564,8 @@
       "resource": "taskTag",
       "operation": "add",
       "title": "Add a tag to a task",
+      "sends": false,
+      "sends_reason": "Add a tag to a task: changes Asana data, not a message",
       "method": "POST",
       "path": "/tasks/{{ p.id }}/addTag",
       "body": {
@@ -574,6 +592,8 @@
       "resource": "taskTag",
       "operation": "remove",
       "title": "Remove a tag from a task",
+      "sends": false,
+      "sends_reason": "Remove a tag from a task: changes Asana data, not a message",
       "method": "POST",
       "path": "/tasks/{{ p.id }}/removeTag",
       "body": {
@@ -655,6 +675,8 @@
       "resource": "project",
       "operation": "create",
       "title": "Create a project",
+      "sends": false,
+      "sends_reason": "Create a project: changes Asana data, not a message",
       "method": "POST",
       "path": "/teams/{{ p.team }}/projects",
       "body": {
@@ -704,6 +726,8 @@
       "resource": "project",
       "operation": "delete",
       "title": "Delete a project",
+      "sends": false,
+      "sends_reason": "Delete a project: changes Asana data, not a message",
       "method": "DELETE",
       "path": "/projects/{{ p.id }}",
       "fields": [
@@ -771,6 +795,8 @@
       "resource": "project",
       "operation": "update",
       "title": "Update a project",
+      "sends": false,
+      "sends_reason": "Update a project: changes Asana data, not a message",
       "method": "PUT",
       "path": "/projects/{{ p.id }}",
       "body": {

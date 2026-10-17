@@ -48,6 +48,19 @@
       "resource": "event",
       "operation": "create",
       "title": "Create an event",
+      "sends": {
+        "action": "invite",
+        "to": [
+          "additionalFields.attendees"
+        ],
+        "text": [
+          "additionalFields.description"
+        ],
+        "subject": [
+          "additionalFields.summary"
+        ],
+        "if": "additionalFields.attendees"
+      },
       "description": "Dates without a UTC offset need Additional fields → timezone (an IANA name such as Europe/Berlin).",
       "method": "POST",
       "path": "/calendars/{{ p.calendar | rl }}/events",
@@ -175,6 +188,13 @@
       "resource": "event",
       "operation": "delete",
       "title": "Delete an event",
+      "sends": {
+        "action": "email",
+        "to": [
+          "eventId"
+        ],
+        "if": "options.sendUpdates"
+      },
       "method": "DELETE",
       "path": "/calendars/{{ p.calendar | rl }}/events/{{ p.eventId }}",
       "fields": [
@@ -329,6 +349,19 @@
       "resource": "event",
       "operation": "update",
       "title": "Update an event",
+      "sends": {
+        "action": "invite",
+        "to": [
+          "updateFields.attendees",
+          "eventId"
+        ],
+        "text": [
+          "updateFields.description"
+        ],
+        "subject": [
+          "updateFields.summary"
+        ]
+      },
       "method": "PATCH",
       "path": "/calendars/{{ p.calendar | rl }}/events/{{ p.eventId }}",
       "fields": [
@@ -459,6 +492,8 @@
       "resource": "calendar",
       "operation": "availability",
       "title": "Check availability",
+      "sends": false,
+      "sends_reason": "checks free and busy times: a read, not a message",
       "description": "Returns the free/busy result for the calendar (Google's calendars map); busy is empty when the calendar is free.",
       "method": "POST",
       "path": "/freeBusy",

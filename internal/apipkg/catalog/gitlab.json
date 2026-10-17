@@ -90,6 +90,8 @@
       "resource": "issue",
       "operation": "create",
       "title": "Create an issue",
+      "sends": false,
+      "sends_reason": "Create an issue: changes GitLab data, not a message",
       "method": "POST",
       "path": "/projects/{{ p.owner }}%2F{{ p.repository }}/issues",
       "fields": [
@@ -196,6 +198,8 @@
       "resource": "issue",
       "operation": "edit",
       "title": "Edit an issue",
+      "sends": false,
+      "sends_reason": "Edit an issue: changes GitLab data, not a message",
       "method": "PUT",
       "path": "/projects/{{ p.owner }}%2F{{ p.repository }}/issues/{{ p.issueNumber }}",
       "fields": [
@@ -273,6 +277,8 @@
       "resource": "issue",
       "operation": "lock",
       "title": "Lock an issue discussion",
+      "sends": false,
+      "sends_reason": "Lock an issue discussion: changes GitLab data, not a message",
       "method": "PUT",
       "path": "/projects/{{ p.owner }}%2F{{ p.repository }}/issues/{{ p.issueNumber }}",
       "fields": [
@@ -418,6 +424,18 @@
       "resource": "release",
       "operation": "create",
       "title": "Create a release",
+      "sends": {
+        "action": "publish",
+        "to": [
+          "repository"
+        ],
+        "text": [
+          "additionalFields.description"
+        ],
+        "subject": [
+          "additionalFields.name"
+        ]
+      },
       "method": "POST",
       "path": "/projects/{{ p.owner }}%2F{{ p.repository }}/releases",
       "fields": [
@@ -460,6 +478,8 @@
       "resource": "release",
       "operation": "delete",
       "title": "Delete a release",
+      "sends": false,
+      "sends_reason": "Delete a release: changes GitLab data, not a message",
       "method": "DELETE",
       "path": "/projects/{{ p.projectId }}/releases/{{ p.tag_name }}",
       "fields": [
@@ -549,6 +569,18 @@
       "resource": "release",
       "operation": "update",
       "title": "Update a release",
+      "sends": {
+        "action": "publish",
+        "to": [
+          "tag_name"
+        ],
+        "text": [
+          "additionalFields.description"
+        ],
+        "subject": [
+          "additionalFields.name"
+        ]
+      },
       "method": "PUT",
       "path": "/projects/{{ p.projectId }}/releases/{{ p.tag_name }}",
       "fields": [
@@ -587,6 +619,8 @@
       "resource": "file",
       "operation": "create",
       "title": "Create a file",
+      "sends": false,
+      "sends_reason": "Create a file: changes GitLab data, not a message",
       "method": "POST",
       "path": "/projects/{{ p.owner }}%2F{{ p.repository }}/repository/files/{{ p.filePath }}",
       "fields": [
@@ -669,6 +703,8 @@
       "resource": "file",
       "operation": "delete",
       "title": "Delete a file",
+      "sends": false,
+      "sends_reason": "Delete a file: changes GitLab data, not a message",
       "method": "DELETE",
       "path": "/projects/{{ p.owner }}%2F{{ p.repository }}/repository/files/{{ p.filePath }}",
       "fields": [
@@ -726,6 +762,8 @@
       "resource": "file",
       "operation": "edit",
       "title": "Edit a file",
+      "sends": false,
+      "sends_reason": "Edit a file: changes GitLab data, not a message",
       "method": "PUT",
       "path": "/projects/{{ p.owner }}%2F{{ p.repository }}/repository/files/{{ p.filePath }}",
       "fields": [

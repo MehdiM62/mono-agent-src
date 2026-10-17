@@ -219,6 +219,8 @@
       "resource": "category",
       "operation": "create",
       "title": "Create a category",
+      "sends": false,
+      "sends_reason": "Create a category: changes Discourse data, not a message",
       "method": "POST",
       "path": "/categories.json",
       "fields": [
@@ -282,6 +284,8 @@
       "resource": "category",
       "operation": "update",
       "title": "Update a category",
+      "sends": false,
+      "sends_reason": "Update a category: changes Discourse data, not a message",
       "method": "PUT",
       "path": "/categories/{{ p.categoryId }}.json",
       "fields": [
@@ -321,6 +325,8 @@
       "resource": "group",
       "operation": "create",
       "title": "Create a group",
+      "sends": false,
+      "sends_reason": "Create a group: changes Discourse data, not a message",
       "method": "POST",
       "path": "/admin/groups.json",
       "fields": [
@@ -389,6 +395,8 @@
       "resource": "group",
       "operation": "update",
       "title": "Update a group",
+      "sends": false,
+      "sends_reason": "Update a group: changes Discourse data, not a message",
       "method": "PUT",
       "path": "/groups/{{ p.groupId }}.json",
       "fields": [
@@ -415,6 +423,12 @@
       "resource": "user",
       "operation": "create",
       "title": "Create a user",
+      "sends": {
+        "action": "invite",
+        "to": [
+          "email"
+        ]
+      },
       "method": "POST",
       "path": "/users.json",
       "fields": [
@@ -559,6 +573,8 @@
       "resource": "userGroup",
       "operation": "add",
       "title": "Add users to a group",
+      "sends": false,
+      "sends_reason": "Add users to a group: changes Discourse data, not a message",
       "method": "PUT",
       "path": "/groups/{{ p.groupId }}/members.json",
       "fields": [
@@ -584,6 +600,8 @@
       "resource": "userGroup",
       "operation": "remove",
       "title": "Remove users from a group",
+      "sends": false,
+      "sends_reason": "Remove users from a group: changes Discourse data, not a message",
       "method": "DELETE",
       "path": "/groups/{{ p.groupId }}/members.json",
       "fields": [

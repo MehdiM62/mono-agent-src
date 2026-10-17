@@ -159,6 +159,12 @@
       "resource": "subscriber",
       "operation": "add",
       "title": "Subscribe an email to a list",
+      "sends": {
+        "action": "email",
+        "to": [
+          "email"
+        ]
+      },
       "method": "POST",
       "path": "/subscribe",
       "body_type": "form",
@@ -207,6 +213,8 @@
       "resource": "subscriber",
       "operation": "count",
       "title": "Count active subscribers of a list",
+      "sends": false,
+      "sends_reason": "Count active subscribers of a list: a read, not a message",
       "method": "POST",
       "path": "/api/subscribers/active-subscriber-count.php",
       "body_type": "form",
@@ -231,6 +239,8 @@
       "resource": "subscriber",
       "operation": "delete",
       "title": "Delete a subscriber from a list",
+      "sends": false,
+      "sends_reason": "Delete a subscriber from a list: changes Sendy data, not a message",
       "method": "POST",
       "path": "/api/subscribers/delete.php",
       "body_type": "form",
@@ -263,6 +273,8 @@
       "resource": "subscriber",
       "operation": "remove",
       "title": "Unsubscribe an email from a list",
+      "sends": false,
+      "sends_reason": "Unsubscribe an email from a list: changes Sendy data, not a message",
       "method": "POST",
       "path": "/unsubscribe",
       "body_type": "form",
@@ -295,6 +307,8 @@
       "resource": "subscriber",
       "operation": "status",
       "title": "Get a subscriber's status",
+      "sends": false,
+      "sends_reason": "Get a subscriber's status: a read, not a message",
       "method": "POST",
       "path": "/api/subscribers/subscription-status.php",
       "body_type": "form",

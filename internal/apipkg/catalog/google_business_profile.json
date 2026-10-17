@@ -184,6 +184,8 @@
       "resource": "post",
       "operation": "delete",
       "title": "Delete a post",
+      "sends": false,
+      "sends_reason": "Delete a post: changes Google Business Profile data, not a message",
       "method": "DELETE",
       "path": "/{{ p.post | rl | path }}",
       "fields": [
@@ -420,6 +422,8 @@
       "resource": "review",
       "operation": "delete",
       "title": "Delete a review reply",
+      "sends": false,
+      "sends_reason": "Delete a review reply: changes Google Business Profile data, not a message",
       "method": "DELETE",
       "path": "/{{ p.account | rl | path }}/{{ p.location | rl | path }}/reviews/{{ p.review | rl | re:'reviews/([^/]+)' }}/reply",
       "fields": [

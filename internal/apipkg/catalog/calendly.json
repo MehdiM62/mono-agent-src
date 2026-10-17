@@ -151,6 +151,15 @@
       "resource": "scheduledEvent",
       "operation": "cancel",
       "title": "Cancel a scheduled event",
+      "sends": {
+        "action": "email",
+        "to": [
+          "eventUuid"
+        ],
+        "text": [
+          "reason"
+        ]
+      },
       "method": "POST",
       "path": "/scheduled_events/{{ p.eventUuid }}/cancellation",
       "body": {

@@ -190,6 +190,8 @@
       "resource": "subscriptions",
       "operation": "read",
       "title": "Mark a room as read",
+      "sends": false,
+      "sends_reason": "Mark a room as read: changes Rocket.Chat data, not a message",
       "method": "POST",
       "path": "/api/v1/subscriptions.read",
       "fields": [

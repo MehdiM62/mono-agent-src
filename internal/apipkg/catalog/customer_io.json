@@ -84,6 +84,8 @@
       "resource": "customer",
       "operation": "upsert",
       "title": "Create or update a customer",
+      "sends": false,
+      "sends_reason": "Create or update a customer: changes Customer.io data, not a message",
       "method": "PUT",
       "path": "/customers/{{ p.id }}",
       "fields": [
@@ -131,6 +133,8 @@
       "resource": "customer",
       "operation": "delete",
       "title": "Delete a customer",
+      "sends": false,
+      "sends_reason": "Delete a customer: changes Customer.io data, not a message",
       "method": "DELETE",
       "path": "/customers/{{ p.id }}",
       "fields": [
@@ -149,6 +153,15 @@
       "resource": "event",
       "operation": "track",
       "title": "Track a customer event",
+      "sends": {
+        "action": "email",
+        "to": [
+          "customerId"
+        ],
+        "text": [
+          "eventName"
+        ]
+      },
       "method": "POST",
       "path": "/customers/{{ p.customerId }}/events",
       "fields": [
@@ -201,6 +214,12 @@
       "resource": "event",
       "operation": "trackAnonymous",
       "title": "Track an anonymous event",
+      "sends": {
+        "action": "email",
+        "text": [
+          "eventName"
+        ]
+      },
       "method": "POST",
       "path": "/events",
       "fields": [
@@ -333,6 +352,8 @@
       "resource": "segment",
       "operation": "add",
       "title": "Add customers to a segment",
+      "sends": false,
+      "sends_reason": "Add customers to a segment: changes Customer.io data, not a message",
       "method": "POST",
       "path": "/segments/{{ p.segmentId }}/add_customers",
       "fields": [
@@ -360,6 +381,8 @@
       "resource": "segment",
       "operation": "remove",
       "title": "Remove customers from a segment",
+      "sends": false,
+      "sends_reason": "Remove customers from a segment: changes Customer.io data, not a message",
       "method": "POST",
       "path": "/segments/{{ p.segmentId }}/remove_customers",
       "fields": [

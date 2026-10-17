@@ -91,6 +91,8 @@
       "resource": "issue",
       "operation": "create",
       "title": "Create an issue",
+      "sends": false,
+      "sends_reason": "Create an issue: changes GitHub data, not a message",
       "method": "POST",
       "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/issues",
       "fields": [
@@ -192,6 +194,8 @@
       "resource": "issue",
       "operation": "edit",
       "title": "Edit an issue",
+      "sends": false,
+      "sends_reason": "Edit an issue: changes GitHub data, not a message",
       "method": "PATCH",
       "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/issues/{{ p.issueNumber }}",
       "fields": [
@@ -270,6 +274,8 @@
       "resource": "issue",
       "operation": "lock",
       "title": "Lock an issue",
+      "sends": false,
+      "sends_reason": "Lock an issue: changes GitHub data, not a message",
       "method": "PUT",
       "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/issues/{{ p.issueNumber }}/lock",
       "fields": [
@@ -314,6 +320,8 @@
       "resource": "file",
       "operation": "create",
       "title": "Create a file",
+      "sends": false,
+      "sends_reason": "Create a file: changes GitHub data, not a message",
       "method": "PUT",
       "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/contents/{{ p.filePath | re:'^(.*?)/*$' }}",
       "fields": [
@@ -389,6 +397,8 @@
       "resource": "file",
       "operation": "delete",
       "title": "Delete a file",
+      "sends": false,
+      "sends_reason": "Delete a file: changes GitHub data, not a message",
       "method": "DELETE",
       "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/contents/{{ p.filePath | re:'^(.*?)/*$' }}",
       "fields": [
@@ -449,6 +459,8 @@
       "resource": "file",
       "operation": "edit",
       "title": "Edit a file",
+      "sends": false,
+      "sends_reason": "Edit a file: changes GitHub data, not a message",
       "method": "PUT",
       "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/contents/{{ p.filePath | re:'^(.*?)/*$' }}",
       "fields": [
@@ -689,6 +701,8 @@
       "resource": "pullRequest",
       "operation": "create",
       "title": "Create a pull request",
+      "sends": false,
+      "sends_reason": "Create a pull request: changes GitHub data, not a message",
       "method": "POST",
       "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/pulls",
       "fields": [
@@ -749,6 +763,8 @@
       "resource": "pullRequest",
       "operation": "update",
       "title": "Update a pull request",
+      "sends": false,
+      "sends_reason": "Update a pull request: changes GitHub data, not a message",
       "method": "PATCH",
       "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/pulls/{{ p.pullRequestNumber }}",
       "fields": [
@@ -793,6 +809,8 @@
       "resource": "pullRequest",
       "operation": "close",
       "title": "Close a pull request",
+      "sends": false,
+      "sends_reason": "Close a pull request: changes GitHub data, not a message",
       "method": "PATCH",
       "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/pulls/{{ p.pullRequestNumber }}",
       "fields": [
@@ -825,6 +843,8 @@
       "resource": "pullRequest",
       "operation": "reopen",
       "title": "Reopen a pull request",
+      "sends": false,
+      "sends_reason": "Reopen a pull request: changes GitHub data, not a message",
       "method": "PATCH",
       "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/pulls/{{ p.pullRequestNumber }}",
       "fields": [
@@ -1054,6 +1074,8 @@
       "resource": "pullRequest",
       "operation": "merge",
       "title": "Merge a pull request",
+      "sends": false,
+      "sends_reason": "Merge a pull request: changes GitHub data, not a message",
       "method": "PUT",
       "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/pulls/{{ p.pullRequestNumber }}/merge",
       "fields": [
@@ -1111,6 +1133,18 @@
       "resource": "release",
       "operation": "create",
       "title": "Create a release",
+      "sends": {
+        "action": "publish",
+        "to": [
+          "repository"
+        ],
+        "text": [
+          "additionalFields.body"
+        ],
+        "subject": [
+          "additionalFields.name"
+        ]
+      },
       "method": "POST",
       "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/releases",
       "fields": [
@@ -1156,6 +1190,8 @@
       "resource": "release",
       "operation": "delete",
       "title": "Delete a release",
+      "sends": false,
+      "sends_reason": "Delete a release: changes GitHub data, not a message",
       "method": "DELETE",
       "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/releases/{{ p.release_id }}",
       "fields": [
@@ -1253,6 +1289,18 @@
       "resource": "release",
       "operation": "update",
       "title": "Update a release",
+      "sends": {
+        "action": "publish",
+        "to": [
+          "repository"
+        ],
+        "text": [
+          "additionalFields.body"
+        ],
+        "subject": [
+          "additionalFields.name"
+        ]
+      },
       "method": "PATCH",
       "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/releases/{{ p.release_id }}",
       "fields": [
@@ -1839,6 +1887,8 @@
       "resource": "workflow",
       "operation": "dispatch",
       "title": "Dispatch a workflow run",
+      "sends": false,
+      "sends_reason": "runs one of the repository's GitHub Actions workflows, the account's own automation as it was built, not a message MonoAgent writes",
       "method": "POST",
       "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/actions/workflows/{{ p.workflowId | rl }}/dispatches",
       "fields": [
@@ -1883,6 +1933,8 @@
       "resource": "workflow",
       "operation": "dispatchAndWait",
       "title": "Dispatch a workflow run and wait for it to call back",
+      "sends": false,
+      "sends_reason": "runs one of the repository's GitHub Actions workflows, the account's own automation as it was built, not a message MonoAgent writes",
       "description": "The run's inputs get resumeUrl, the execution's resume URL; the node waits until the GitHub workflow calls it (e.g. curl -X POST -d '{...}' \"${{ inputs.resumeUrl }}\") and outputs the call's JSON body.",
       "method": "POST",
       "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/actions/workflows/{{ p.workflowId | rl }}/dispatches",
@@ -1942,6 +1994,8 @@
       "resource": "workflow",
       "operation": "disable",
       "title": "Disable a workflow",
+      "sends": false,
+      "sends_reason": "Disable a workflow: changes GitHub data, not a message",
       "method": "PUT",
       "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/actions/workflows/{{ p.workflowId | rl }}/disable",
       "fields": [
@@ -1970,6 +2024,8 @@
       "resource": "workflow",
       "operation": "enable",
       "title": "Enable a workflow",
+      "sends": false,
+      "sends_reason": "Enable a workflow: changes GitHub data, not a message",
       "method": "PUT",
       "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/actions/workflows/{{ p.workflowId | rl }}/enable",
       "fields": [

@@ -88,6 +88,8 @@
       "resource": "channel",
       "operation": "create",
       "title": "Create a channel",
+      "sends": false,
+      "sends_reason": "Create a channel: changes Discord data, not a message",
       "method": "POST",
       "path": "/guilds/{{ p.guildId | rl }}/channels",
       "fields": [
@@ -143,6 +145,8 @@
       "resource": "channel",
       "operation": "deleteChannel",
       "title": "Delete a channel",
+      "sends": false,
+      "sends_reason": "Delete a channel: changes Discord data, not a message",
       "method": "DELETE",
       "path": "/channels/{{ p.channelId | rl }}",
       "fields": [
@@ -231,6 +235,8 @@
       "resource": "channel",
       "operation": "update",
       "title": "Update a channel",
+      "sends": false,
+      "sends_reason": "Update a channel: changes Discord data, not a message",
       "method": "PATCH",
       "path": "/channels/{{ p.channelId | rl }}",
       "fields": [
@@ -471,6 +477,8 @@
       "resource": "message",
       "operation": "deleteMessage",
       "title": "Delete a message",
+      "sends": false,
+      "sends_reason": "Delete a message: changes Discord data, not a message",
       "method": "DELETE",
       "path": "/channels/{{ p.channelId | rl }}/messages/{{ p.messageId }}",
       "fields": [
@@ -601,6 +609,8 @@
       "resource": "message",
       "operation": "react",
       "title": "React to a message",
+      "sends": false,
+      "sends_reason": "React to a message: changes Discord data, not a message",
       "method": "PUT",
       "path": "/channels/{{ p.channelId | rl }}/messages/{{ p.messageId }}/reactions/{{ p.emoji }}/@me",
       "fields": [
@@ -700,6 +710,8 @@
       "resource": "member",
       "operation": "ban",
       "title": "Ban a member",
+      "sends": false,
+      "sends_reason": "Ban a member: changes Discord data, not a message",
       "method": "PUT",
       "path": "/guilds/{{ p.guildId | rl }}/bans/{{ p.userId | rl }}",
       "fields": [
@@ -758,6 +770,8 @@
       "resource": "member",
       "operation": "kick",
       "title": "Kick a member",
+      "sends": false,
+      "sends_reason": "Kick a member: changes Discord data, not a message",
       "method": "DELETE",
       "path": "/guilds/{{ p.guildId | rl }}/members/{{ p.userId | rl }}",
       "fields": [
@@ -889,6 +903,8 @@
       "resource": "member",
       "operation": "timeout",
       "title": "Time out a member",
+      "sends": false,
+      "sends_reason": "Time out a member: changes Discord data, not a message",
       "method": "PATCH",
       "path": "/guilds/{{ p.guildId | rl }}/members/{{ p.userId | rl }}",
       "fields": [
@@ -948,6 +964,8 @@
       "resource": "member",
       "operation": "unban",
       "title": "Unban a member",
+      "sends": false,
+      "sends_reason": "Unban a member: changes Discord data, not a message",
       "method": "DELETE",
       "path": "/guilds/{{ p.guildId | rl }}/bans/{{ p.userId | rl }}",
       "fields": [

@@ -114,6 +114,8 @@
       "resource": "user",
       "operation": "create",
       "title": "Create a user",
+      "sends": false,
+      "sends_reason": "Create a user: changes Zammad data, not a message",
       "method": "POST",
       "path": "/users",
       "body": {
@@ -166,6 +168,8 @@
       "resource": "user",
       "operation": "delete",
       "title": "Delete a user",
+      "sends": false,
+      "sends_reason": "Delete a user: changes Zammad data, not a message",
       "method": "DELETE",
       "path": "/users/{{ p.id }}",
       "fields": [
@@ -255,6 +259,8 @@
       "resource": "user",
       "operation": "update",
       "title": "Update a user",
+      "sends": false,
+      "sends_reason": "Update a user: changes Zammad data, not a message",
       "method": "PUT",
       "path": "/users/{{ p.id }}",
       "body": {
@@ -300,6 +306,8 @@
       "resource": "group",
       "operation": "create",
       "title": "Create a group",
+      "sends": false,
+      "sends_reason": "Create a group: changes Zammad data, not a message",
       "method": "POST",
       "path": "/groups",
       "body": {
@@ -334,6 +342,8 @@
       "resource": "group",
       "operation": "delete",
       "title": "Delete a group",
+      "sends": false,
+      "sends_reason": "Delete a group: changes Zammad data, not a message",
       "method": "DELETE",
       "path": "/groups/{{ p.id }}",
       "fields": [
@@ -394,6 +404,8 @@
       "resource": "group",
       "operation": "update",
       "title": "Update a group",
+      "sends": false,
+      "sends_reason": "Update a group: changes Zammad data, not a message",
       "method": "PUT",
       "path": "/groups/{{ p.id }}",
       "body": {
@@ -428,6 +440,8 @@
       "resource": "organization",
       "operation": "create",
       "title": "Create a organization",
+      "sends": false,
+      "sends_reason": "Create a organization: changes Zammad data, not a message",
       "method": "POST",
       "path": "/organizations",
       "body": {
@@ -466,6 +480,8 @@
       "resource": "organization",
       "operation": "delete",
       "title": "Delete a organization",
+      "sends": false,
+      "sends_reason": "Delete a organization: changes Zammad data, not a message",
       "method": "DELETE",
       "path": "/organizations/{{ p.id }}",
       "fields": [
@@ -526,6 +542,8 @@
       "resource": "organization",
       "operation": "update",
       "title": "Update a organization",
+      "sends": false,
+      "sends_reason": "Update a organization: changes Zammad data, not a message",
       "method": "PUT",
       "path": "/organizations/{{ p.id }}",
       "body": {
@@ -563,6 +581,20 @@
       "resource": "ticket",
       "operation": "create",
       "title": "Create a ticket",
+      "sends": {
+        "action": "comment",
+        "to": [
+          "article.articleDetails.to",
+          "customer"
+        ],
+        "text": [
+          "article.articleDetails.body"
+        ],
+        "subject": [
+          "article.articleDetails.subject",
+          "title"
+        ]
+      },
       "method": "POST",
       "path": "/tickets",
       "body": {
@@ -631,6 +663,8 @@
       "resource": "ticket",
       "operation": "delete",
       "title": "Delete a ticket",
+      "sends": false,
+      "sends_reason": "Delete a ticket: changes Zammad data, not a message",
       "method": "DELETE",
       "path": "/tickets/{{ p.id }}",
       "fields": [
@@ -698,6 +732,16 @@
       "resource": "ticket",
       "operation": "update",
       "title": "Update a ticket",
+      "sends": {
+        "action": "comment",
+        "to": [
+          "id"
+        ],
+        "text": [
+          "updateFields.note"
+        ],
+        "if": "updateFields.note"
+      },
       "method": "PUT",
       "path": "/tickets/{{ p.id }}",
       "body": {

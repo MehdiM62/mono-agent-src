@@ -91,6 +91,8 @@
       "resource": "alert",
       "operation": "create",
       "title": "Create an alert",
+      "sends": false,
+      "sends_reason": "Create an alert: changes TheHive 5 data, not a message",
       "method": "POST",
       "path": "/v1/alert",
       "body": {
@@ -183,6 +185,8 @@
       "resource": "alert",
       "operation": "deleteAlert",
       "title": "Delete an alert",
+      "sends": false,
+      "sends_reason": "Delete an alert: changes TheHive 5 data, not a message",
       "method": "DELETE",
       "path": "/v1/alert/{{ p.alertId | rl | re:'/alerts/(~[0-9]+)/details' }}",
       "fields": [
@@ -198,6 +202,8 @@
       "resource": "alert",
       "operation": "executeResponder",
       "title": "Run a Cortex responder",
+      "sends": false,
+      "sends_reason": "runs a Cortex responder, the account's own automation as it was built, not a message MonoAgent writes",
       "method": "POST",
       "path": "/connector/cortex/action",
       "body": {
@@ -302,6 +308,8 @@
       "resource": "alert",
       "operation": "merge",
       "title": "Merge an alert into a case",
+      "sends": false,
+      "sends_reason": "Merge an alert into a case: changes TheHive 5 data, not a message",
       "method": "POST",
       "path": "/alert/{{ p.alertId | rl | re:'/alerts/(~[0-9]+)/details' }}/merge/{{ p.caseId | rl | re:'/cases/(~[0-9]+)/details' }}",
       "fields": [
@@ -323,6 +331,8 @@
       "resource": "alert",
       "operation": "promote",
       "title": "Promote an alert to a case",
+      "sends": false,
+      "sends_reason": "Promote an alert to a case: changes TheHive 5 data, not a message",
       "method": "POST",
       "path": "/v1/alert/{{ p.alertId | rl | re:'/alerts/(~[0-9]+)/details' }}/case",
       "body": {
@@ -350,6 +360,8 @@
       "resource": "alert",
       "operation": "search",
       "title": "Search alerts",
+      "sends": false,
+      "sends_reason": "Search alerts: a read, not a message",
       "method": "POST",
       "path": "/v1/query",
       "body": {
@@ -466,6 +478,8 @@
       "resource": "alert",
       "operation": "update",
       "title": "Update",
+      "sends": false,
+      "sends_reason": "Update an alert: changes TheHive 5 data, not a message",
       "method": "PATCH",
       "path": "/v1/alert/{{ (p.alertUpdateFields.matchingColumns | csv | prefix:',' | suffix:',' | matches:',id,') | then:((p.alertUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertUpdateFields.schema | pluck:'id')) | default:p.alertUpdateFields.value) | get:'id') | default:'_bulk' }}",
       "before": {
@@ -529,6 +543,8 @@
       "resource": "alert",
       "operation": "status",
       "title": "Set an alert's status",
+      "sends": false,
+      "sends_reason": "Set an alert's status: changes TheHive 5 data, not a message",
       "method": "PATCH",
       "path": "/v1/alert/{{ p.alertId | rl | re:'/alerts/(~[0-9]+)/details' }}",
       "body": {
@@ -558,6 +574,8 @@
       "resource": "case",
       "operation": "create",
       "title": "Create a case",
+      "sends": false,
+      "sends_reason": "Create a case: changes TheHive 5 data, not a message",
       "method": "POST",
       "path": "/v1/case",
       "body": {
@@ -591,6 +609,8 @@
       "resource": "case",
       "operation": "addAttachment",
       "title": "Attach files to a case",
+      "sends": false,
+      "sends_reason": "Attach files to a case: changes TheHive 5 data, not a message",
       "method": "POST",
       "path": "/v1/case/{{ p.caseId | rl | re:'/cases/(~[0-9]+)/details' }}/attachments",
       "body_type": "multipart",
@@ -634,6 +654,8 @@
       "resource": "case",
       "operation": "deleteAttachment",
       "title": "Delete a case attachment",
+      "sends": false,
+      "sends_reason": "Delete a case attachment: changes TheHive 5 data, not a message",
       "method": "DELETE",
       "path": "/v1/case/{{ p.caseId | rl | re:'/cases/(~[0-9]+)/details' }}/attachment/{{ p.attachmentId }}",
       "fields": [
@@ -655,6 +677,8 @@
       "resource": "case",
       "operation": "deleteCase",
       "title": "Delete a case",
+      "sends": false,
+      "sends_reason": "Delete a case: changes TheHive 5 data, not a message",
       "method": "DELETE",
       "path": "/v1/case/{{ p.caseId | rl | re:'/cases/(~[0-9]+)/details' }}",
       "fields": [
@@ -670,6 +694,8 @@
       "resource": "case",
       "operation": "executeResponder",
       "title": "Run a Cortex responder",
+      "sends": false,
+      "sends_reason": "runs a Cortex responder, the account's own automation as it was built, not a message MonoAgent writes",
       "method": "POST",
       "path": "/connector/cortex/action",
       "body": {
@@ -729,6 +755,8 @@
       "resource": "case",
       "operation": "get",
       "title": "Get a case",
+      "sends": false,
+      "sends_reason": "Get a case: a read, not a message",
       "method": "POST",
       "path": "/v1/query",
       "query": {
@@ -817,6 +845,8 @@
       "resource": "case",
       "operation": "search",
       "title": "Search cases",
+      "sends": false,
+      "sends_reason": "Search cases: a read, not a message",
       "method": "POST",
       "path": "/v1/query",
       "body": {
@@ -933,6 +963,8 @@
       "resource": "case",
       "operation": "update",
       "title": "Update",
+      "sends": false,
+      "sends_reason": "Update a case: changes TheHive 5 data, not a message",
       "method": "PATCH",
       "path": "/v1/case/{{ (p.caseUpdateFields.matchingColumns | csv | prefix:',' | suffix:',' | matches:',id,') | then:((p.caseUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.caseUpdateFields.schema | pluck:'id')) | default:p.caseUpdateFields.value) | get:'id') | default:'_bulk' }}",
       "before": {
@@ -1039,6 +1071,8 @@
       "resource": "comment",
       "operation": "deleteComment",
       "title": "Delete a comment",
+      "sends": false,
+      "sends_reason": "Delete a comment: changes TheHive 5 data, not a message",
       "method": "DELETE",
       "path": "/v1/comment/{{ p.commentId | rl }}",
       "fields": [
@@ -1054,6 +1088,8 @@
       "resource": "comment",
       "operation": "search",
       "title": "Search comments",
+      "sends": false,
+      "sends_reason": "Search comments: a read, not a message",
       "method": "POST",
       "path": "/v1/query",
       "body": {
@@ -1239,6 +1275,8 @@
       "resource": "log",
       "operation": "create",
       "title": "Create a task log",
+      "sends": false,
+      "sends_reason": "Create a task log: changes TheHive 5 data, not a message",
       "method": "POST",
       "path": "/v1/task/{{ p.taskId | rl }}/log",
       "body_type": "multipart",
@@ -1315,6 +1353,8 @@
       "resource": "log",
       "operation": "addAttachment",
       "title": "Attach files to a task log",
+      "sends": false,
+      "sends_reason": "Attach files to a task log: changes TheHive 5 data, not a message",
       "method": "POST",
       "path": "/v1/log/{{ p.logId | rl }}/attachments",
       "body_type": "multipart",
@@ -1346,6 +1386,8 @@
       "resource": "log",
       "operation": "deleteLog",
       "title": "Delete a task log",
+      "sends": false,
+      "sends_reason": "Delete a task log: changes TheHive 5 data, not a message",
       "method": "DELETE",
       "path": "/v1/log/{{ p.logId | rl }}",
       "fields": [
@@ -1361,6 +1403,8 @@
       "resource": "log",
       "operation": "deleteAttachment",
       "title": "Delete a task log attachment",
+      "sends": false,
+      "sends_reason": "Delete a task log attachment: changes TheHive 5 data, not a message",
       "method": "DELETE",
       "path": "/v1/log/{{ p.logId | rl }}/attachments/{{ p.attachmentId }}",
       "fields": [
@@ -1382,6 +1426,8 @@
       "resource": "log",
       "operation": "executeResponder",
       "title": "Run a Cortex responder",
+      "sends": false,
+      "sends_reason": "runs a Cortex responder, the account's own automation as it was built, not a message MonoAgent writes",
       "method": "POST",
       "path": "/connector/cortex/action",
       "body": {
@@ -1441,6 +1487,8 @@
       "resource": "log",
       "operation": "get",
       "title": "Get a task log",
+      "sends": false,
+      "sends_reason": "Get a task log: a read, not a message",
       "method": "POST",
       "path": "/v1/query",
       "body": {
@@ -1464,6 +1512,8 @@
       "resource": "log",
       "operation": "search",
       "title": "Search task logs",
+      "sends": false,
+      "sends_reason": "Search task logs: a read, not a message",
       "method": "POST",
       "path": "/v1/query",
       "body": {
@@ -1601,6 +1651,8 @@
       "resource": "observable",
       "operation": "create",
       "title": "Create an observable",
+      "sends": false,
+      "sends_reason": "Create an observable: changes TheHive 5 data, not a message",
       "method": "POST",
       "path": "/v1/{{ p.createIn | default:'case' }}/{{ p.id | rl | re:'/(?:alerts|cases)/(~[0-9]+)/details' }}/observable",
       "body_type": "multipart",
@@ -1704,6 +1756,8 @@
       "resource": "observable",
       "operation": "deleteObservable",
       "title": "Delete an observable",
+      "sends": false,
+      "sends_reason": "Delete an observable: changes TheHive 5 data, not a message",
       "method": "DELETE",
       "path": "/v1/observable/{{ p.observableId | rl }}",
       "fields": [
@@ -1719,6 +1773,8 @@
       "resource": "observable",
       "operation": "executeAnalyzer",
       "title": "Run a Cortex analyzer",
+      "sends": false,
+      "sends_reason": "Run a Cortex analyzer: changes TheHive 5 data, not a message",
       "method": "POST",
       "path": "/connector/cortex/job",
       "body": {
@@ -1761,6 +1817,8 @@
       "resource": "observable",
       "operation": "executeResponder",
       "title": "Run a Cortex responder",
+      "sends": false,
+      "sends_reason": "runs a Cortex responder, the account's own automation as it was built, not a message MonoAgent writes",
       "method": "POST",
       "path": "/connector/cortex/action",
       "body": {
@@ -1820,6 +1878,8 @@
       "resource": "observable",
       "operation": "get",
       "title": "Get an observable",
+      "sends": false,
+      "sends_reason": "Get an observable: a read, not a message",
       "method": "POST",
       "path": "/v1/query",
       "query": {
@@ -1846,6 +1906,8 @@
       "resource": "observable",
       "operation": "search",
       "title": "Search observables",
+      "sends": false,
+      "sends_reason": "Search observables: a read, not a message",
       "method": "POST",
       "path": "/v1/query",
       "body": {
@@ -1998,6 +2060,8 @@
       "resource": "observable",
       "operation": "update",
       "title": "Update",
+      "sends": false,
+      "sends_reason": "Update an observable: changes TheHive 5 data, not a message",
       "method": "PATCH",
       "path": "/v1/observable/{{ (p.observableUpdateFields.matchingColumns | csv | prefix:',' | suffix:',' | matches:',id,') | then:((p.observableUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.observableUpdateFields.schema | pluck:'id')) | default:p.observableUpdateFields.value) | get:'id') | default:'_bulk' }}",
       "before": {
@@ -2061,6 +2125,8 @@
       "resource": "page",
       "operation": "create",
       "title": "Create a page",
+      "sends": false,
+      "sends_reason": "Create a page: changes TheHive 5 data, not a message",
       "method": "POST",
       "path": "/v1{{ p.location | default:'case' | eq:'case' | then:'/case/' }}{{ p.location | default:'case' | eq:'case' | then:(p.caseId | rl | re:'/cases/(~[0-9]+)/details') }}/page",
       "body": {
@@ -2108,6 +2174,8 @@
       "resource": "page",
       "operation": "deletePage",
       "title": "Delete a page",
+      "sends": false,
+      "sends_reason": "Delete a page: changes TheHive 5 data, not a message",
       "method": "DELETE",
       "path": "/v1{{ p.location | default:'knowledgeBase' | eq:'case' | then:'/case/' }}{{ p.location | default:'knowledgeBase' | eq:'case' | then:(p.caseId | rl | re:'/cases/(~[0-9]+)/details') }}/page/{{ p.pageId | rl }}",
       "fields": [
@@ -2138,6 +2206,8 @@
       "resource": "page",
       "operation": "search",
       "title": "Search pages",
+      "sends": false,
+      "sends_reason": "Search pages: a read, not a message",
       "method": "POST",
       "path": "/v1/query",
       "body": {
@@ -2275,6 +2345,8 @@
       "resource": "page",
       "operation": "update",
       "title": "Update a page",
+      "sends": false,
+      "sends_reason": "Update a page: changes TheHive 5 data, not a message",
       "method": "PATCH",
       "path": "/v1{{ p.location | default:'case' | eq:'case' | then:'/case/' }}{{ p.location | default:'case' | eq:'case' | then:(p.caseId | rl | re:'/cases/(~[0-9]+)/details') }}/page/{{ p.pageId | rl }}",
       "body": {
@@ -2326,6 +2398,8 @@
       "resource": "query",
       "operation": "executeQuery",
       "title": "Run a TheHive query",
+      "sends": false,
+      "sends_reason": "Run a TheHive query: a read, not a message",
       "method": "POST",
       "path": "/v1/query",
       "body": {
@@ -2346,6 +2420,8 @@
       "resource": "task",
       "operation": "create",
       "title": "Create a task",
+      "sends": false,
+      "sends_reason": "Create a task: changes TheHive 5 data, not a message",
       "method": "POST",
       "path": "/v1/case/{{ p.caseId | rl | re:'/cases/(~[0-9]+)/details' }}/task",
       "body": {
@@ -2385,6 +2461,8 @@
       "resource": "task",
       "operation": "deleteTask",
       "title": "Delete a task",
+      "sends": false,
+      "sends_reason": "Delete a task: changes TheHive 5 data, not a message",
       "method": "DELETE",
       "path": "/v1/task/{{ p.taskId | rl }}",
       "fields": [
@@ -2400,6 +2478,8 @@
       "resource": "task",
       "operation": "executeResponder",
       "title": "Run a Cortex responder",
+      "sends": false,
+      "sends_reason": "runs a Cortex responder, the account's own automation as it was built, not a message MonoAgent writes",
       "method": "POST",
       "path": "/connector/cortex/action",
       "body": {
@@ -2459,6 +2539,8 @@
       "resource": "task",
       "operation": "get",
       "title": "Get a task",
+      "sends": false,
+      "sends_reason": "Get a task: a read, not a message",
       "method": "POST",
       "path": "/v1/query",
       "query": {
@@ -2485,6 +2567,8 @@
       "resource": "task",
       "operation": "search",
       "title": "Search tasks",
+      "sends": false,
+      "sends_reason": "Search tasks: a read, not a message",
       "method": "POST",
       "path": "/v1/query",
       "body": {
@@ -2622,6 +2706,8 @@
       "resource": "task",
       "operation": "update",
       "title": "Update",
+      "sends": false,
+      "sends_reason": "Update a task: changes TheHive 5 data, not a message",
       "method": "PATCH",
       "path": "/v1/task/{{ (p.taskUpdateFields.matchingColumns | csv | prefix:',' | suffix:',' | matches:',id,') | then:((p.taskUpdateFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.taskUpdateFields.schema | pluck:'id')) | default:p.taskUpdateFields.value) | get:'id') | default:'_bulk' }}",
       "before": {

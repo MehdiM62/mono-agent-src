@@ -237,6 +237,8 @@
       "resource": "webhook",
       "operation": "create",
       "title": "Create a webhook",
+      "sends": false,
+      "sends_reason": "Create a webhook: changes Tally data, not a message",
       "description": "Tally POSTs every new submission of the form to the URL.",
       "method": "POST",
       "path": "/webhooks",

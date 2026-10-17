@@ -57,6 +57,12 @@
       "resource": "subscriber",
       "operation": "create",
       "title": "Create or update a subscriber",
+      "sends": {
+        "action": "email",
+        "to": [
+          "email"
+        ]
+      },
       "method": "POST",
       "path": "/subscribers",
       "fields": [
@@ -166,6 +172,13 @@
       "resource": "subscriber",
       "operation": "update",
       "title": "Update a subscriber",
+      "sends": {
+        "action": "email",
+        "to": [
+          "subscriberId"
+        ],
+        "if": "updateFields.resend_autoresponders"
+      },
       "method": "PUT",
       "path": "/subscribers/{{ p.subscriberId }}",
       "fields": [

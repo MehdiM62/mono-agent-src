@@ -505,6 +505,8 @@
       "resource": "portfolio",
       "operation": "create",
       "title": "Create a portfolio",
+      "sends": false,
+      "sends_reason": "Create a portfolio: changes SecurityScorecard data, not a message",
       "method": "POST",
       "path": "/portfolios",
       "fields": [
@@ -542,6 +544,8 @@
       "resource": "portfolio",
       "operation": "delete",
       "title": "Delete a portfolio",
+      "sends": false,
+      "sends_reason": "Delete a portfolio: changes SecurityScorecard data, not a message",
       "method": "DELETE",
       "path": "/portfolios/{{ p.portfolioId }}",
       "fields": [
@@ -589,6 +593,8 @@
       "resource": "portfolio",
       "operation": "update",
       "title": "Update a portfolio",
+      "sends": false,
+      "sends_reason": "Update a portfolio: changes SecurityScorecard data, not a message",
       "method": "PUT",
       "path": "/portfolios/{{ p.portfolioId }}",
       "fields": [
@@ -632,6 +638,8 @@
       "resource": "portfolioCompany",
       "operation": "add",
       "title": "Add a company to a portfolio",
+      "sends": false,
+      "sends_reason": "Add a company to a portfolio: changes SecurityScorecard data, not a message",
       "method": "PUT",
       "path": "/portfolios/{{ p.portfolioId }}/companies/{{ p.domain }}",
       "fields": [
@@ -702,6 +710,8 @@
       "resource": "portfolioCompany",
       "operation": "remove",
       "title": "Remove a company from a portfolio",
+      "sends": false,
+      "sends_reason": "Remove a company from a portfolio: changes SecurityScorecard data, not a message",
       "method": "DELETE",
       "path": "/portfolios/{{ p.portfolioId }}/companies/{{ p.domain }}",
       "fields": [
@@ -782,6 +792,8 @@
       "resource": "report",
       "operation": "generate",
       "title": "Generate a report",
+      "sends": false,
+      "sends_reason": "Generate a report: changes SecurityScorecard data, not a message",
       "method": "POST",
       "path": "/reports/{{ p.report }}",
       "fields": [

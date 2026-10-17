@@ -70,6 +70,12 @@
       "resource": "form",
       "operation": "addSubscriber",
       "title": "Add a subscriber",
+      "sends": {
+        "action": "email",
+        "to": [
+          "email"
+        ]
+      },
       "method": "POST",
       "path": "/forms/{{ p.id }}/subscribe",
       "body": {
@@ -329,6 +335,8 @@
       "resource": "customField",
       "operation": "update",
       "title": "Rename a custom field",
+      "sends": false,
+      "sends_reason": "Rename a custom field: changes ConvertKit data, not a message",
       "method": "PUT",
       "path": "/custom_fields/{{ p.id }}",
       "body": {
@@ -353,6 +361,8 @@
       "resource": "customField",
       "operation": "create",
       "title": "Create a custom field",
+      "sends": false,
+      "sends_reason": "Create a custom field: changes ConvertKit data, not a message",
       "method": "POST",
       "path": "/custom_fields",
       "body": {
@@ -371,6 +381,8 @@
       "resource": "customField",
       "operation": "delete",
       "title": "Delete a custom field",
+      "sends": false,
+      "sends_reason": "Delete a custom field: changes ConvertKit data, not a message",
       "method": "DELETE",
       "path": "/custom_fields/{{ p.id }}",
       "fields": [
@@ -431,6 +443,8 @@
       "resource": "tag",
       "operation": "create",
       "title": "Create tags",
+      "sends": false,
+      "sends_reason": "Create tags: changes ConvertKit data, not a message",
       "method": "POST",
       "path": "/tags",
       "body": {
@@ -485,6 +499,8 @@
       "resource": "tagSubscriber",
       "operation": "add",
       "title": "Add a subscriber",
+      "sends": false,
+      "sends_reason": "Add a subscriber: changes ConvertKit data, not a message",
       "method": "POST",
       "path": "/tags/{{ p.tagId }}/subscribe",
       "body": {
@@ -579,6 +595,8 @@
       "resource": "tagSubscriber",
       "operation": "delete",
       "title": "Remove a tag from a subscriber",
+      "sends": false,
+      "sends_reason": "Remove a tag from a subscriber: changes ConvertKit data, not a message",
       "method": "POST",
       "path": "/tags/{{ p.tagId }}/unsubscribe",
       "body": {

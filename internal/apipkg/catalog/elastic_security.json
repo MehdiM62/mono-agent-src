@@ -86,6 +86,8 @@
       "resource": "case",
       "operation": "create",
       "title": "Create a case",
+      "sends": false,
+      "sends_reason": "Create a case: changes Elastic Security data, not a message",
       "method": "POST",
       "path": "/cases",
       "fields": [
@@ -220,6 +222,8 @@
       "resource": "case",
       "operation": "delete",
       "title": "Delete a case",
+      "sends": false,
+      "sends_reason": "Delete a case: changes Elastic Security data, not a message",
       "method": "DELETE",
       "path": "/cases",
       "fields": [
@@ -325,6 +329,8 @@
       "resource": "case",
       "operation": "update",
       "title": "Update a case",
+      "sends": false,
+      "sends_reason": "Update a case: changes Elastic Security data, not a message",
       "method": "PATCH",
       "path": "/cases",
       "fields": [
@@ -478,6 +484,8 @@
       "resource": "caseComment",
       "operation": "remove",
       "title": "Remove a comment",
+      "sends": false,
+      "sends_reason": "Remove a comment: changes Elastic Security data, not a message",
       "method": "DELETE",
       "path": "/cases/{{ p.caseId }}/comments/{{ p.commentId }}",
       "fields": [
@@ -561,6 +569,8 @@
       "resource": "caseTag",
       "operation": "add",
       "title": "Add a tag to a case",
+      "sends": false,
+      "sends_reason": "Add a tag to a case: changes Elastic Security data, not a message",
       "method": "PATCH",
       "path": "/cases",
       "fields": [
@@ -605,6 +615,8 @@
       "resource": "caseTag",
       "operation": "remove",
       "title": "Remove a tag from a case",
+      "sends": false,
+      "sends_reason": "Remove a tag from a case: changes Elastic Security data, not a message",
       "method": "PATCH",
       "path": "/cases",
       "fields": [
@@ -647,6 +659,8 @@
       "resource": "connector",
       "operation": "create",
       "title": "Create a connector",
+      "sends": false,
+      "sends_reason": "Create a connector: changes Elastic Security data, not a message",
       "method": "POST",
       "path": "/actions/connector",
       "fields": [

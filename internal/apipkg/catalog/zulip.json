@@ -105,6 +105,8 @@
       "resource": "message",
       "operation": "delete",
       "title": "Delete a message",
+      "sends": false,
+      "sends_reason": "Delete a message: changes Zulip data, not a message",
       "method": "DELETE",
       "path": "/messages/{{ p.messageId }}",
       "fields": [
@@ -248,6 +250,17 @@
       "resource": "stream",
       "operation": "create",
       "title": "Subscribe to (and create) streams",
+      "sends": {
+        "action": "post",
+        "to": [
+          "additionalFields.principals"
+        ],
+        "if": [
+          "additionalFields.principals",
+          "additionalFields.announce",
+          "jsonParameters"
+        ]
+      },
       "method": "POST",
       "path": "/users/me/subscriptions",
       "body": {
@@ -305,6 +318,8 @@
       "resource": "stream",
       "operation": "delete",
       "title": "Delete a stream",
+      "sends": false,
+      "sends_reason": "Delete a stream: changes Zulip data, not a message",
       "method": "DELETE",
       "path": "/streams/{{ p.streamId }}",
       "fields": [
@@ -376,6 +391,8 @@
       "resource": "stream",
       "operation": "update",
       "title": "Update a stream",
+      "sends": false,
+      "sends_reason": "Update a stream: changes Zulip data, not a message",
       "method": "PATCH",
       "path": "/streams/{{ p.streamId }}",
       "body": {
@@ -426,6 +443,8 @@
       "resource": "user",
       "operation": "create",
       "title": "Create a user",
+      "sends": false,
+      "sends_reason": "Create a user: changes Zulip data, not a message",
       "method": "POST",
       "path": "/users",
       "body": {
@@ -466,6 +485,8 @@
       "resource": "user",
       "operation": "deactivate",
       "title": "Deactivate a user",
+      "sends": false,
+      "sends_reason": "Deactivate a user: changes Zulip data, not a message",
       "method": "DELETE",
       "path": "/users/{{ p.userId }}",
       "fields": [
@@ -536,6 +557,8 @@
       "resource": "user",
       "operation": "update",
       "title": "Update a user",
+      "sends": false,
+      "sends_reason": "Update a user: changes Zulip data, not a message",
       "method": "PATCH",
       "path": "/users/{{ p.userId }}",
       "body": {

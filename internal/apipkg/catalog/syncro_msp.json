@@ -94,6 +94,8 @@
       "resource": "contact",
       "operation": "create",
       "title": "Create a contact",
+      "sends": false,
+      "sends_reason": "Create a contact: changes SyncroMSP data, not a message",
       "method": "POST",
       "path": "/contacts",
       "fields": [
@@ -141,6 +143,8 @@
       "resource": "contact",
       "operation": "delete",
       "title": "Delete a contact",
+      "sends": false,
+      "sends_reason": "Delete a contact: changes SyncroMSP data, not a message",
       "method": "DELETE",
       "path": "/contacts/{{ p.contactId }}",
       "fields": [
@@ -171,6 +175,8 @@
       "resource": "contact",
       "operation": "update",
       "title": "Update a contact",
+      "sends": false,
+      "sends_reason": "Update a contact: changes SyncroMSP data, not a message",
       "method": "PUT",
       "path": "/contacts/{{ p.contactId }}",
       "fields": [
@@ -268,6 +274,8 @@
       "resource": "customer",
       "operation": "create",
       "title": "Create a customer",
+      "sends": false,
+      "sends_reason": "Create a customer: changes SyncroMSP data, not a message",
       "method": "POST",
       "path": "/customers",
       "fields": [
@@ -325,6 +333,8 @@
       "resource": "customer",
       "operation": "delete",
       "title": "Delete a customer",
+      "sends": false,
+      "sends_reason": "Delete a customer: changes SyncroMSP data, not a message",
       "method": "DELETE",
       "path": "/customers/{{ p.customerId }}",
       "fields": [
@@ -358,6 +368,8 @@
       "resource": "customer",
       "operation": "update",
       "title": "Update a customer",
+      "sends": false,
+      "sends_reason": "Update a customer: changes SyncroMSP data, not a message",
       "method": "PUT",
       "path": "/customers/{{ p.customerId }}",
       "fields": [
@@ -458,6 +470,8 @@
       "resource": "rmm",
       "operation": "create",
       "title": "Create an RMM alert",
+      "sends": false,
+      "sends_reason": "Create an RMM alert: changes SyncroMSP data, not a message",
       "method": "POST",
       "path": "/rmm_alerts",
       "fields": [
@@ -503,6 +517,8 @@
       "resource": "rmm",
       "operation": "delete",
       "title": "Delete an RMM alert",
+      "sends": false,
+      "sends_reason": "Delete an RMM alert: changes SyncroMSP data, not a message",
       "method": "DELETE",
       "path": "/rmm_alerts/{{ p.alertId }}",
       "fields": [
@@ -536,6 +552,8 @@
       "resource": "rmm",
       "operation": "mute",
       "title": "Mute an RMM alert",
+      "sends": false,
+      "sends_reason": "Mute an RMM alert: changes SyncroMSP data, not a message",
       "method": "POST",
       "path": "/rmm_alerts/{{ p.alertId }}/mute",
       "fields": [
@@ -604,6 +622,15 @@
       "resource": "ticket",
       "operation": "create",
       "title": "Create a ticket",
+      "sends": {
+        "action": "comment",
+        "to": [
+          "customerId"
+        ],
+        "subject": [
+          "subject"
+        ]
+      },
       "method": "POST",
       "path": "/tickets",
       "fields": [
@@ -649,6 +676,8 @@
       "resource": "ticket",
       "operation": "delete",
       "title": "Delete a ticket",
+      "sends": false,
+      "sends_reason": "Delete a ticket: changes SyncroMSP data, not a message",
       "method": "DELETE",
       "path": "/tickets/{{ p.ticketId }}",
       "fields": [
@@ -682,6 +711,8 @@
       "resource": "ticket",
       "operation": "update",
       "title": "Update a ticket",
+      "sends": false,
+      "sends_reason": "Update a ticket: changes SyncroMSP data, not a message",
       "method": "PUT",
       "path": "/tickets/{{ p.ticketId }}",
       "fields": [

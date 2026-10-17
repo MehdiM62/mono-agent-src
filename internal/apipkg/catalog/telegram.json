@@ -216,6 +216,8 @@
       "resource": "message",
       "operation": "deleteMessage",
       "title": "Delete a message",
+      "sends": false,
+      "sends_reason": "Delete a message: changes Telegram data, not a message",
       "method": "POST",
       "path": "/deleteMessage",
       "fields": [
@@ -400,6 +402,8 @@
       "resource": "message",
       "operation": "pinChatMessage",
       "title": "Pin a message",
+      "sends": false,
+      "sends_reason": "Pin a message: changes Telegram data, not a message",
       "method": "POST",
       "path": "/pinChatMessage",
       "fields": [
@@ -436,6 +440,8 @@
       "resource": "message",
       "operation": "unpinChatMessage",
       "title": "Unpin a message",
+      "sends": false,
+      "sends_reason": "Unpin a message: changes Telegram data, not a message",
       "method": "POST",
       "path": "/unpinChatMessage",
       "fields": [
@@ -1991,6 +1997,8 @@
       "resource": "chat",
       "operation": "get",
       "title": "Get a chat",
+      "sends": false,
+      "sends_reason": "Get a chat: a read, not a message",
       "method": "POST",
       "path": "/getChat",
       "fields": [
@@ -2010,6 +2018,8 @@
       "resource": "chat",
       "operation": "administrators",
       "title": "Get a chat's administrators",
+      "sends": false,
+      "sends_reason": "Get a chat's administrators: a read, not a message",
       "method": "POST",
       "path": "/getChatAdministrators",
       "fields": [
@@ -2032,6 +2042,8 @@
       "resource": "chat",
       "operation": "member",
       "title": "Get a chat member",
+      "sends": false,
+      "sends_reason": "Get a chat member: a read, not a message",
       "method": "POST",
       "path": "/getChatMember",
       "fields": [
@@ -2058,6 +2070,8 @@
       "resource": "chat",
       "operation": "leave",
       "title": "Leave a chat",
+      "sends": false,
+      "sends_reason": "Leave a chat: changes Telegram data, not a message",
       "method": "POST",
       "path": "/leaveChat",
       "fields": [
@@ -2077,6 +2091,8 @@
       "resource": "chat",
       "operation": "setDescription",
       "title": "Set a chat's description",
+      "sends": false,
+      "sends_reason": "Set a chat's description: changes Telegram data, not a message",
       "method": "POST",
       "path": "/setChatDescription",
       "fields": [
@@ -2103,6 +2119,8 @@
       "resource": "chat",
       "operation": "setTitle",
       "title": "Set a chat's title",
+      "sends": false,
+      "sends_reason": "Set a chat's title: changes Telegram data, not a message",
       "method": "POST",
       "path": "/setChatTitle",
       "fields": [
@@ -2129,6 +2147,19 @@
       "resource": "callback",
       "operation": "answerQuery",
       "title": "Answer a callback query",
+      "sends": {
+        "action": "dm",
+        "to": [
+          "queryId"
+        ],
+        "text": [
+          "additionalFields.text"
+        ],
+        "if": [
+          "additionalFields.text",
+          "additionalFields.url"
+        ]
+      },
       "method": "POST",
       "path": "/answerCallbackQuery",
       "fields": [
@@ -2160,6 +2191,15 @@
       "resource": "callback",
       "operation": "answerInlineQuery",
       "title": "Answer an inline query",
+      "sends": {
+        "action": "dm",
+        "to": [
+          "queryId"
+        ],
+        "text": [
+          "results"
+        ]
+      },
       "method": "POST",
       "path": "/answerInlineQuery",
       "fields": [
@@ -2199,6 +2239,8 @@
       "resource": "file",
       "operation": "get",
       "title": "Get a file (and download it)",
+      "sends": false,
+      "sends_reason": "Get a file (and download it): a read, not a message",
       "method": "{{ p.download | eq:'true' | then:'GET' | default:'POST' }}",
       "path": "/{{ p.download | eq:'true' | then:'file/' }}bot{{ cred.bot_token }}/{{ p.download | eq:'true' | then:pre.result.file_path | default:'getFile' | path }}",
       "base_url": "https://api.telegram.org",

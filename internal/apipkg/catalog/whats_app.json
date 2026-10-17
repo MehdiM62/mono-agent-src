@@ -449,6 +449,8 @@
       "resource": "media",
       "operation": "mediaUpload",
       "title": "Upload media",
+      "sends": false,
+      "sends_reason": "Upload media: changes WhatsApp Business Cloud data, not a message",
       "method": "POST",
       "path": "/{{ p.phoneNumberId }}/media",
       "body": {
@@ -505,6 +507,8 @@
       "resource": "media",
       "operation": "mediaDelete",
       "title": "Delete media",
+      "sends": false,
+      "sends_reason": "Delete media: changes WhatsApp Business Cloud data, not a message",
       "method": "DELETE",
       "path": "/{{ p.mediaDeleteId }}",
       "fields": [

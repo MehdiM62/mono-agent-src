@@ -106,6 +106,8 @@
       "resource": "document",
       "operation": "update",
       "title": "Update a document",
+      "sends": false,
+      "sends_reason": "Update a document: changes Google Docs data, not a message",
       "description": "Applies the listed actions in one batchUpdate call.",
       "method": "POST",
       "path": "/documents/{{ p.documentURL | gid }}:batchUpdate",

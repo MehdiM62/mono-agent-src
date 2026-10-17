@@ -146,6 +146,8 @@
       "resource": "message",
       "operation": "delete",
       "title": "Delete a post",
+      "sends": false,
+      "sends_reason": "Delete a post: changes Mattermost data, not a message",
       "method": "DELETE",
       "path": "/posts/{{ p.postId }}",
       "fields": [
@@ -204,6 +206,8 @@
       "resource": "channel",
       "operation": "create",
       "title": "Create a channel",
+      "sends": false,
+      "sends_reason": "Create a channel: changes Mattermost data, not a message",
       "method": "POST",
       "path": "/channels",
       "fields": [
@@ -248,6 +252,15 @@
       "resource": "channel",
       "operation": "addUser",
       "title": "Add a user to a channel",
+      "sends": {
+        "action": "invite",
+        "to": [
+          "userId"
+        ],
+        "text": [
+          "channelId"
+        ]
+      },
       "method": "POST",
       "path": "/channels/{{ p.channelId }}/members",
       "fields": [
@@ -272,6 +285,8 @@
       "resource": "channel",
       "operation": "delete",
       "title": "Delete (archive) a channel",
+      "sends": false,
+      "sends_reason": "Delete (archive) a channel: changes Mattermost data, not a message",
       "method": "DELETE",
       "path": "/channels/{{ p.channelId }}",
       "fields": [
@@ -344,6 +359,8 @@
       "resource": "channel",
       "operation": "restore",
       "title": "Restore a channel",
+      "sends": false,
+      "sends_reason": "Restore a channel: changes Mattermost data, not a message",
       "method": "POST",
       "path": "/channels/{{ p.channelId }}/restore",
       "fields": [
@@ -359,6 +376,8 @@
       "resource": "channel",
       "operation": "search",
       "title": "Search channels of a team",
+      "sends": false,
+      "sends_reason": "Search channels of a team: a read, not a message",
       "method": "POST",
       "path": "/teams/{{ p.teamId }}/channels/search",
       "fields": [
@@ -414,6 +433,8 @@
       "resource": "reaction",
       "operation": "create",
       "title": "Add a reaction",
+      "sends": false,
+      "sends_reason": "Add a reaction: changes Mattermost data, not a message",
       "method": "POST",
       "path": "/reactions",
       "fields": [
@@ -448,6 +469,8 @@
       "resource": "reaction",
       "operation": "delete",
       "title": "Remove a reaction",
+      "sends": false,
+      "sends_reason": "Remove a reaction: changes Mattermost data, not a message",
       "method": "DELETE",
       "path": "/users/{{ p.userId }}/posts/{{ p.postId }}/reactions/{{ p.emojiName | replace:':','' }}",
       "fields": [
@@ -506,6 +529,12 @@
       "resource": "user",
       "operation": "create",
       "title": "Create a user",
+      "sends": {
+        "action": "invite",
+        "to": [
+          "email"
+        ]
+      },
       "method": "POST",
       "path": "/users",
       "fields": [
@@ -578,6 +607,8 @@
       "resource": "user",
       "operation": "deactive",
       "title": "Deactivate a user",
+      "sends": false,
+      "sends_reason": "Deactivate a user: changes Mattermost data, not a message",
       "method": "DELETE",
       "path": "/users/{{ p.userId }}",
       "fields": [
@@ -608,6 +639,8 @@
       "resource": "user",
       "operation": "getById",
       "title": "Get users by ID",
+      "sends": false,
+      "sends_reason": "Get users by ID: a read, not a message",
       "method": "POST",
       "path": "/users/ids",
       "fields": [

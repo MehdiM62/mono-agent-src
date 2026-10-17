@@ -183,6 +183,8 @@
       "resource": "channel",
       "operation": "update",
       "title": "Update a channel",
+      "sends": false,
+      "sends_reason": "Update a channel: changes YouTube (n8n operations) data, not a message",
       "method": "PUT",
       "path": "/channels",
       "fields": [
@@ -220,6 +222,8 @@
       "resource": "channel",
       "operation": "uploadBanner",
       "title": "Upload a channel banner",
+      "sends": false,
+      "sends_reason": "Upload a channel banner: changes YouTube (n8n operations) data, not a message",
       "method": "POST",
       "base_url": "https://www.googleapis.com/upload/youtube/v3",
       "path": "/channelBanners/insert",
@@ -343,6 +347,8 @@
       "resource": "playlist",
       "operation": "create",
       "title": "Create a playlist",
+      "sends": false,
+      "sends_reason": "Create a playlist: changes YouTube (n8n operations) data, not a message",
       "method": "POST",
       "path": "/playlists",
       "fields": [
@@ -388,6 +394,8 @@
       "resource": "playlist",
       "operation": "delete",
       "title": "Delete a playlist",
+      "sends": false,
+      "sends_reason": "Delete a playlist: changes YouTube (n8n operations) data, not a message",
       "method": "DELETE",
       "path": "/playlists",
       "fields": [
@@ -468,6 +476,8 @@
       "resource": "playlist",
       "operation": "update",
       "title": "Update a playlist",
+      "sends": false,
+      "sends_reason": "Update a playlist: changes YouTube (n8n operations) data, not a message",
       "method": "PUT",
       "path": "/playlists",
       "fields": [
@@ -518,6 +528,8 @@
       "resource": "playlistItem",
       "operation": "add",
       "title": "Add a video to a playlist",
+      "sends": false,
+      "sends_reason": "Add a video to a playlist: changes YouTube (n8n operations) data, not a message",
       "method": "POST",
       "path": "/playlistItems",
       "fields": [
@@ -571,6 +583,8 @@
       "resource": "playlistItem",
       "operation": "delete",
       "title": "Delete a playlist item",
+      "sends": false,
+      "sends_reason": "Delete a playlist item: changes YouTube (n8n operations) data, not a message",
       "method": "DELETE",
       "path": "/playlistItems",
       "fields": [
@@ -780,6 +794,8 @@
       "resource": "video",
       "operation": "delete",
       "title": "Delete a video",
+      "sends": false,
+      "sends_reason": "Delete a video: changes YouTube (n8n operations) data, not a message",
       "method": "DELETE",
       "path": "/videos",
       "fields": [
@@ -862,6 +878,8 @@
       "resource": "video",
       "operation": "rate",
       "title": "Rate a video",
+      "sends": false,
+      "sends_reason": "Rate a video: changes YouTube (n8n operations) data, not a message",
       "method": "POST",
       "path": "/videos/rate",
       "fields": [

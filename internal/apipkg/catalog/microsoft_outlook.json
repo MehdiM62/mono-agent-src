@@ -245,6 +245,8 @@
       "resource": "message",
       "operation": "delete",
       "title": "Delete a message",
+      "sends": false,
+      "sends_reason": "Delete a message: changes Microsoft Outlook data, not a message",
       "method": "DELETE",
       "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
       "path": "/messages/{{ p.messageId | rl }}",
@@ -538,6 +540,8 @@
       "resource": "message",
       "operation": "move",
       "title": "Move a message",
+      "sends": false,
+      "sends_reason": "Move a message: changes Microsoft Outlook data, not a message",
       "method": "POST",
       "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
       "path": "/messages/{{ p.messageId | rl }}/move",
@@ -1014,6 +1018,8 @@
       "resource": "draft",
       "operation": "create",
       "title": "Create a draft",
+      "sends": false,
+      "sends_reason": "Create a draft: changes Microsoft Outlook data, not a message",
       "method": "POST",
       "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
       "path": "/messages",
@@ -1116,6 +1122,8 @@
       "resource": "draft",
       "operation": "delete",
       "title": "Delete a draft",
+      "sends": false,
+      "sends_reason": "Delete a draft: changes Microsoft Outlook data, not a message",
       "method": "DELETE",
       "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
       "path": "/messages/{{ p.draftId | rl }}",
@@ -1301,6 +1309,8 @@
       "resource": "draft",
       "operation": "update",
       "title": "Update a draft",
+      "sends": false,
+      "sends_reason": "Update a draft: changes Microsoft Outlook data, not a message",
       "method": "PATCH",
       "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
       "path": "/messages/{{ p.draftId | rl }}",
@@ -1389,6 +1399,8 @@
       "resource": "folder",
       "operation": "create",
       "title": "Create a folder",
+      "sends": false,
+      "sends_reason": "Create a folder: changes Microsoft Outlook data, not a message",
       "method": "POST",
       "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
       "path": "/mailFolders{{ p.options.folderId | rl | then:'/' }}{{ p.options.folderId | rl }}{{ p.options.folderId | rl | then:'/childFolders' }}",
@@ -1424,6 +1436,8 @@
       "resource": "folder",
       "operation": "delete",
       "title": "Delete a folder",
+      "sends": false,
+      "sends_reason": "Delete a folder: changes Microsoft Outlook data, not a message",
       "method": "DELETE",
       "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
       "path": "/mailFolders/{{ p.folderId | rl }}",
@@ -1568,6 +1582,8 @@
       "resource": "folder",
       "operation": "update",
       "title": "Rename a folder",
+      "sends": false,
+      "sends_reason": "Rename a folder: changes Microsoft Outlook data, not a message",
       "method": "PATCH",
       "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
       "path": "/mailFolders/{{ p.folderId | rl }}",
@@ -1812,6 +1828,8 @@
       "resource": "calendar",
       "operation": "create",
       "title": "Create a calendar",
+      "sends": false,
+      "sends_reason": "Create a calendar: changes Microsoft Outlook data, not a message",
       "scope_group": "calendar",
       "method": "POST",
       "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
@@ -1849,6 +1867,8 @@
       "resource": "calendar",
       "operation": "delete",
       "title": "Delete a calendar",
+      "sends": false,
+      "sends_reason": "Delete a calendar: changes Microsoft Outlook data, not a message",
       "scope_group": "calendar",
       "method": "DELETE",
       "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
@@ -1900,6 +1920,8 @@
       "resource": "calendar",
       "operation": "update",
       "title": "Update a calendar",
+      "sends": false,
+      "sends_reason": "Update a calendar: changes Microsoft Outlook data, not a message",
       "scope_group": "calendar",
       "method": "PATCH",
       "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
@@ -2020,6 +2042,8 @@
       "resource": "contact",
       "operation": "create",
       "title": "Create a contact",
+      "sends": false,
+      "sends_reason": "Create a contact: changes Microsoft Outlook data, not a message",
       "scope_group": "contacts",
       "method": "POST",
       "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
@@ -2100,6 +2124,8 @@
       "resource": "contact",
       "operation": "delete",
       "title": "Delete a contact",
+      "sends": false,
+      "sends_reason": "Delete a contact: changes Microsoft Outlook data, not a message",
       "scope_group": "contacts",
       "method": "DELETE",
       "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
@@ -2173,6 +2199,8 @@
       "resource": "contact",
       "operation": "update",
       "title": "Update a contact",
+      "sends": false,
+      "sends_reason": "Update a contact: changes Microsoft Outlook data, not a message",
       "scope_group": "contacts",
       "method": "PATCH",
       "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
@@ -2345,6 +2373,19 @@
       "resource": "event",
       "operation": "create",
       "title": "Create an event",
+      "sends": {
+        "action": "invite",
+        "to": [
+          "additionalFields.attendees"
+        ],
+        "text": [
+          "additionalFields.body"
+        ],
+        "subject": [
+          "subject"
+        ],
+        "if": "additionalFields.attendees"
+      },
       "scope_group": "calendar",
       "method": "POST",
       "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
@@ -2440,6 +2481,12 @@
       "resource": "event",
       "operation": "delete",
       "title": "Delete an event",
+      "sends": {
+        "action": "email",
+        "to": [
+          "eventId"
+        ]
+      },
       "scope_group": "calendar",
       "method": "DELETE",
       "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
@@ -2513,6 +2560,19 @@
       "resource": "event",
       "operation": "update",
       "title": "Update an event",
+      "sends": {
+        "action": "invite",
+        "to": [
+          "additionalFields.attendees",
+          "eventId"
+        ],
+        "text": [
+          "additionalFields.body"
+        ],
+        "subject": [
+          "additionalFields.subject"
+        ]
+      },
       "scope_group": "calendar",
       "method": "PATCH",
       "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",

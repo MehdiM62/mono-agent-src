@@ -333,7 +333,7 @@
       "operation": "pushButton",
       "title": "Push a button",
       "sends": false,
-      "sends_reason": "presses a button in a Coda doc: that doc's own automation",
+      "sends_reason": "runs the doc's own automation (whatever its author built the button to do), not a message MonoAgent writes",
       "method": "POST",
       "path": "/docs/{{ p.docId }}/tables/{{ p.tableId }}/rows/{{ p.rowId }}/buttons/{{ p.columnId }}",
       "fields": [
@@ -698,7 +698,7 @@
       "operation": "pushViewButton",
       "title": "Push a view button",
       "sends": false,
-      "sends_reason": "presses a button in a Coda doc: that doc's own automation",
+      "sends_reason": "runs the doc's own automation (whatever its author built the button to do), not a message MonoAgent writes",
       "method": "POST",
       "path": "/docs/{{ p.docId }}/tables/{{ p.viewId }}/rows/{{ p.rowId }}/buttons/{{ p.columnId }}",
       "fields": [

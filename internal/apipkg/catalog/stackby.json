@@ -41,6 +41,8 @@
       "resource": "",
       "operation": "append",
       "title": "Append rows",
+      "sends": false,
+      "sends_reason": "Append rows: changes Stackby data, not a message",
       "description": "Sends one request with a row per input item, using the listed columns of each item",
       "method": "POST",
       "path": "/rowcreate/{{ p.stackId }}/{{ p.table }}",
