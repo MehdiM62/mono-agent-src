@@ -15,6 +15,13 @@ const secretRefPrefix = "@secret:"
 // a context RefuseResolving marked.
 var ErrResolveRefused = errors.New("secret references are not read from the vault here")
 
+// refusedError is that refusal: the reference and why, which already says
+// what ErrResolveRefused would.
+type refusedError struct{ msg string }
+
+func (e *refusedError) Error() string { return e.msg }
+func (e *refusedError) Unwrap() error { return ErrResolveRefused }
+
 // ErrDataReference is wrapped by the refusal of a @secret reference that a
 // step's config holds only once its expressions were evaluated.
 var ErrDataReference = errors.New("a @secret reference that came from the run's data or an expression is not read from the vault")
@@ -48,7 +55,7 @@ func Resolve(ctx context.Context, db *sql.DB, profileID, ref string) (string, er
 		return ref, nil
 	}
 	if why := ResolveRefusal(ctx); why != "" {
-		return ref, fmt.Errorf("%s is not read from the vault: %s: %w", ref, why, ErrResolveRefused)
+		return ref, &refusedError{ref + " is not read from the vault: " + why}
 	}
 	name := strings.TrimPrefix(ref, secretRefPrefix)
 

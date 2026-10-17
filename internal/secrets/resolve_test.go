@@ -240,3 +240,20 @@ func TestResolveConfigRefusesAReferenceThatCameFromData(t *testing.T) {
 		t.Errorf("config = %v, want api_key resolved", config)
 	}
 }
+
+// A refused reference says which and why, once: the reason already says the
+// vault isn't read, so the refusal doesn't repeat it (#845 code review, 5).
+func TestARefusedReferenceSaysWhyOnce(t *testing.T) {
+	db := newSecretsTestDB(t)
+	ctx := RefuseResolving(context.Background(), "the chat wrote this workflow: approve it with `workflow activate wf-1`")
+	if _, err := Add(ctx, db.DB, "default", "secret", "vs", map[string]string{"secret": "vsecret-777"}, "", "", ""); err != nil {
+		t.Fatal(err)
+	}
+	v, err := Resolve(ctx, db.DB, "default", "@secret:vs")
+	if want := "@secret:vs is not read from the vault: the chat wrote this workflow: approve it with `workflow activate wf-1`"; err == nil || err.Error() != want {
+		t.Errorf("refusal %q, want %q", err, want)
+	}
+	if !errors.Is(err, ErrResolveRefused) || v != "@secret:vs" {
+		t.Errorf("Resolve = %q, %v; want the reference back and ErrResolveRefused", v, err)
+	}
+}
