@@ -53,7 +53,7 @@ func NewCommand(d Deps) *cobra.Command {
 		newOrgDecisionsCmd(root),
 		newOrgMemoryCmd(root),
 		newOrgAnswerCmd(root),
-		newOrgApproveCmd(root),
+		newOrgApproveCmd(root, env.refuseSendingApproval),
 		newOrgDenyCmd(root),
 		newOrgGateApproveCmd(root),
 		newOrgGateRejectCmd(root),
@@ -403,12 +403,15 @@ func newOrgAnswerCmd(root func() string) *cobra.Command {
 	}
 }
 
-func newOrgApproveCmd(root func() string) *cobra.Command {
+func newOrgApproveCmd(root func() string, refuse func(ctx context.Context, org, action string) error) *cobra.Command {
 	return &cobra.Command{
 		Use:   "approve <name> <role> <action>",
 		Short: "Approve a pending tool-approval request",
 		Args:  cobra.ExactArgs(3),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := refuse(cmd.Context(), args[0], args[2]); err != nil {
+				return err
+			}
 			out, err := monomind.OrgApprove(cmd.Context(), root(), args[0], args[1], args[2])
 			if err != nil {
 				return err
