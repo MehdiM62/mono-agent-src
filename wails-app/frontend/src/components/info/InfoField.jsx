@@ -77,7 +77,7 @@ function InfoValueField({ field, entry, onSave }) {
   let control
   if (showSecret) {
     control = (
-      <div className="info-secret">
+      <div className={`info-secret${revealed === null ? '' : ' is-shown'}`}>
         <input id={id} className={`info-input info-secret-value${revealed === null ? ' is-blurred' : ''}`} readOnly value={revealed ?? stored} aria-describedby={`${id}-msg`} />
         <button type="button" className="info-btn" onClick={() => { setDraft(''); setChanging(true) }} aria-label={`${t('info.change')}: ${field.label}`}>{t('info.change')}</button>
         <button type="button" className="info-btn info-eye" onClick={revealed === null ? reveal : hide} aria-pressed={revealed !== null}
