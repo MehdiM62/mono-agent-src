@@ -142,6 +142,8 @@ func TestTheCardNamesARecipientThatIsNoAddress(t *testing.T) {
 	}{
 		{map[string]interface{}{"operation": "remind", "invoiceId": "inv9"}, "the client of invoice inv9", ""},
 		{map[string]interface{}{"operation": "remind"}, "the invoice's client", ""},
+		// The op names its recipient: a "user" in the config is no guess for it.
+		{map[string]interface{}{"operation": "remind", "user": "bob"}, "the invoice's client", ""},
 		{map[string]interface{}{"operation": "remind", "email": "ada@example.test", "invoiceId": "inv9"}, "Ada Lovelace", "p2"},
 	} {
 		out, handled, err := Guard(ctxFor(db), "app.fake", workflow.NodeInput{}, c.config)
