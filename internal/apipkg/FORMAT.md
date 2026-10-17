@@ -125,7 +125,7 @@ card in the Human in Loop queue, `internal/hilsend`) instead of going out:
   "subject": ["subject"],        // optional
   "if": "sendCampaign",          // optional: the op sends only when this field is set
   "to_label": {"invoiceId": "the client of invoice"}, // optional: a "to" field that holds no address
-  "to_unset": "the ticket's requester"                // optional: the card's recipient when no "to" is set
+  "to_unset": "the appointment's attendees"           // optional: the card's recipient when no "to" is set
 }
 ```
 
@@ -164,10 +164,11 @@ stays open (file sharing, money movement), with the reason saying so.
   GET to `/sendhttp.php` does. An op on settings ("updateNotificationSettings")
   counts its send verbs only; or
 - it writes, in any package, and has a param or a collection option for whom
-  it reaches (to, toEmail, recipient, email, phone, mobile, attendees,
-  invitees, cc, bcc) or a switch that has the service message someone
-  (activate, sendEmail, notify, welcome, invite): a new user's activation
-  email, an event's invitations.
+  it reaches (to, toEmail, recipient, receiver, addressee, email, mailTo,
+  phone, tel, telephone, msisdn, sms, mobile, attendees, guests,
+  participants, invitees, invites, subscribers, cc, bcc) or a switch that
+  has the service message someone (activate, sendEmail, notify, welcome,
+  invite): a new user's activation email, an event's invitations.
 
 An op without `sends` runs as before. The lint covers the built-in catalog
 only: a package the user installs (`~/.monoagent/apipkgs`, which also

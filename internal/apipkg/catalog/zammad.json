@@ -581,20 +581,8 @@
       "resource": "ticket",
       "operation": "create",
       "title": "Create a ticket",
-      "sends": {
-        "action": "comment",
-        "to": [
-          "article.articleDetails.to",
-          "customer"
-        ],
-        "text": [
-          "article.articleDetails.body"
-        ],
-        "subject": [
-          "article.articleDetails.subject",
-          "title"
-        ]
-      },
+      "sends": false,
+      "sends_reason": "a work item, open by the user's decision",
       "method": "POST",
       "path": "/tickets",
       "body": {
