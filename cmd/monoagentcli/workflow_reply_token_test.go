@@ -121,10 +121,10 @@ func TestReplyTokenInALogLineIsHiddenFromAMarkedProcess(t *testing.T) {
 }
 
 // The reviews' template transforms: each half of a slice, printf "%x", a
-// split, a join with "-", "ZZ" put between every character, and the token
-// cut into seven 6-character pieces in separate fields, put in a node's data
-// by a run the chat started. The chat's views have none of them; the user's
-// terminal has all of them.
+// split, a join with "-", "ZZ" or "abcdef" put between every character, and
+// the token cut into seven 6-character pieces in separate fields, put in a
+// node's data by a run the chat started. The chat's views have none of
+// them; the user's terminal has all of them.
 func TestTransformedReplyTokenIsHiddenFromAMarkedProcess(t *testing.T) {
 	_, cfg := persistTestEnv(t)
 	t.Setenv("MONOAGENT_PUBLIC_URL", "http://127.0.0.1:19727")
@@ -139,6 +139,7 @@ func TestTransformedReplyTokenIsHiddenFromAMarkedProcess(t *testing.T) {
 		{"core.set", "Keep", `{"head":"{{ slice $execution.resumeUrl 0 50 }}","tail":"{{ slice $execution.resumeUrl 50 }}",` +
 			`"hex":"{{ printf \"%x\" $execution.resumeUrl }}","chars":"{{ split \"\" $execution.resumeUrl }}",` +
 			`"dashes":"{{ join \"-\" (split \"\" $execution.resumeUrl) }}","zz":"{{ replace \"\" \"ZZ\" $execution.resumeUrl }}",` +
+			`"six":"{{ replace \"\" \"abcdef\" $execution.resumeUrl }}",` +
 			pieceFields(29, 6, 7) + `}`},
 		{"core.wait", "Wait", `{"resume":"webhook"}`},
 		{"comm.email_send", "Mail", `{"to":"ada@example.test","subject":"Hi","body":"{{ $json.head }}{{ $json.tail }}"}`},
@@ -168,7 +169,8 @@ func TestTransformedReplyTokenIsHiddenFromAMarkedProcess(t *testing.T) {
 	}
 	token := resume[strings.LastIndex(resume, "/")+1:]
 	forms := []string{resume[:50], resume[50:], fmt.Sprintf("%x", token), strings.Join(strings.Split(token, ""), " "),
-		strings.Join(strings.Split(token[:10], ""), "-"), strings.Join(strings.Split(token[:10], ""), "ZZ")}
+		strings.Join(strings.Split(token[:10], ""), "-"), strings.Join(strings.Split(token[:10], ""), "ZZ"),
+		strings.Join(strings.Split(token[:10], ""), "abcdef")}
 	for i := 0; i < 7; i++ {
 		forms = append(forms, `"`+token[6*i:6*i+6]+`"`)
 	}

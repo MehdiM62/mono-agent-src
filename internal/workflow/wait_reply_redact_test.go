@@ -3,6 +3,7 @@ package workflow
 import (
 	"encoding/base64"
 	"fmt"
+	"math/rand"
 	"strings"
 	"testing"
 
@@ -194,6 +195,9 @@ func TestReplyRedactorHidesATokensForms(t *testing.T) {
 		"ZZ between":       strings.ReplaceAll(resume, "", "ZZ"),
 		"xyz between":      strings.ReplaceAll(tok, "", "xyz"),
 		"a, between":       strings.ReplaceAll(tok, "", "a, "),
+		"abcd between":     strings.ReplaceAll(resume, "", "abcd"),
+		"5-dash join":      strings.Join(strings.Split(tok, ""), "-----"),
+		"q1w2e3 between":   strings.ReplaceAll(tok, "", "q1w2e3"),
 	}
 	for name, form := range forms {
 		got := rr.String("see " + form + " here")
@@ -275,5 +279,42 @@ func TestReplyRedactorReplacesATextTooLongToScan(t *testing.T) {
 	}
 	if fit := strings.Repeat("a", maxReplyScan); NewReplyRedactor(f.ctx, f.db, "e1").String(fit) != fit {
 		t.Error("a text at the limit was not scanned")
+	}
+}
+
+// Random text (words, fillers repeated between characters, base64 runs) has
+// nothing hidden: the forms of a token are too long to turn up by chance.
+func TestReplyRedactorLeavesRandomTextAlone(t *testing.T) {
+	sendsByType(t)
+	f := newReplyFixture(t)
+	if _, err := NewWaitReply(after(f.ctx, commsync.Reachable{Nodes: []commsync.Node{{Type: "comm.email_send"}}}), f.in, WaitReplySpec{Kind: WaitReplyApproval}); err != nil {
+		t.Fatal(err)
+	}
+	rnd := rand.New(rand.NewSource(7))
+	const letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+/-_"
+	word := func(n int) string {
+		b := make([]byte, n)
+		for i := range b {
+			b[i] = letters[rnd.Intn(len(letters))]
+		}
+		return string(b)
+	}
+	var b strings.Builder
+	for b.Len() < 2<<20 {
+		switch rnd.Intn(4) {
+		case 0:
+			b.WriteString(word(1 + rnd.Intn(12)))
+		case 1:
+			b.WriteString(strings.Join(strings.Split(word(20), ""), word(1+rnd.Intn(6))))
+		case 2:
+			b.WriteString(word(40 + rnd.Intn(200)))
+		default:
+			b.WriteString(strings.ReplaceAll(word(30), "", word(1+rnd.Intn(6))))
+		}
+		b.WriteString([]string{" ", ", ", "\n", "/", "-"}[rnd.Intn(5)])
+	}
+	text := b.String()
+	if got := NewReplyRedactor(f.ctx, f.db, "e1").String(text); got != text {
+		t.Errorf("random text changed: %d hidden", strings.Count(got, ReplyTokenHidden))
 	}
 }
