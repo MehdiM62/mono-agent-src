@@ -52,6 +52,20 @@ var nextUseFiles = map[string]string{
 	"bitrise.yml":             "a Bitrise pipeline, which runs at the next push",
 	"codemagic.yaml":          "a Codemagic pipeline, which runs at the next push",
 	".claude.json":            "Claude Code's configuration",
+	"azure-pipelines.yaml":    "an Azure pipeline, which runs at the next push",
+	".gitlab-ci.yaml":         "a GitLab CI pipeline, which runs at the next push",
+	".travis.yaml":            "a Travis CI pipeline, which runs at the next push",
+	"buildspec.yml":           "an AWS CodeBuild build, which runs at the next push",
+	"buildspec.yaml":          "an AWS CodeBuild build, which runs at the next push",
+	"buildkite.yml":           "a Buildkite pipeline, which runs at the next push",
+	".buildkite.yml":          "a Buildkite pipeline, which runs at the next push",
+	".cirrus.yml":             "a Cirrus CI pipeline, which runs at the next push",
+	"wercker.yml":             "a Wercker pipeline, which runs at the next push",
+	"codefresh.yml":           "a Codefresh pipeline, which runs at the next push",
+	".gocd.yml":               "a GoCD pipeline, which runs at the next push",
+	"concourse.yml":           "a Concourse pipeline, which runs at the next push",
+	"netlify.toml":            "Netlify's build, which runs at the next push",
+	"vercel.json":             "Vercel's build, which runs at the next push",
 }
 
 // nextUseDirs are folders whose every file a tool runs, loads or takes its

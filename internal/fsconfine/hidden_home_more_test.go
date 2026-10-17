@@ -190,7 +190,10 @@ func TestNoFileThatRunsOnNextUse(t *testing.T) {
 		".drone.yml", "cloudbuild.yaml", "appveyor.yml", ".zed/keymap.json", ".appveyor.yml", "appveyor.yaml",
 		"cloudbuild.yml", "cloudbuild.json", ".drone.yaml", ".woodpecker.yml", ".woodpecker.yaml",
 		".woodpecker/build.yml", ".semaphore/semaphore.yml", "bitrise.yml", "codemagic.yaml",
-		".gitlab/ci/build.yml", ".claude.json",
+		".gitlab/ci/build.yml", ".claude.json", "azure-pipelines.yaml", ".gitlab-ci.yaml", ".travis.yaml",
+		"buildspec.yml", "buildspec.yaml", "buildkite.yml", ".buildkite.yml", ".cirrus.yml", "wercker.yml",
+		"codefresh.yml", ".gocd.yml", "concourse.yml", "netlify.toml", "vercel.json",
+		"CLOUDBUILD.YML", "Claude.md", ".CLAUDE/settings.json", ".GitHub/Workflows/ci.yml", "sub/.Envrc",
 	} {
 		p := filepath.Join(project, filepath.FromSlash(rel))
 		if _, err := WritePath(ctx, p); !errors.Is(err, ErrUnapprovedPath) {

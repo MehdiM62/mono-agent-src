@@ -269,25 +269,28 @@ func gitRunsIt(p string) bool {
 // .continue, .github/copilot-instructions.md), project MCP servers
 // (.mcp.json), editor tasks (.vscode/tasks.json, .zed), GitHub Actions
 // workflows, git hook managers (.husky, .githooks) and direnv's .envrc.
+//
+// Names match without case on every system: the file reaches a CI service,
+// an editor or a checkout on a system that folds case (CLOUDBUILD.YAML).
 func runsOnNextUse(p string) string {
-	parts := strings.Split(fold(p), string(filepath.Separator))
+	parts := strings.Split(strings.ToLower(p), string(filepath.Separator))
 	last := parts[len(parts)-1]
 	for name, what := range nextUseFiles {
-		if last == fold(name) {
+		if last == strings.ToLower(name) {
 			return what + " (" + name + ")"
 		}
 	}
 	for i := 0; i+1 < len(parts); i++ {
 		dir, below := parts[i], parts[i+1]
 		for name, what := range nextUseDirs {
-			if dir == fold(name) {
+			if dir == strings.ToLower(name) {
 				return what + " (" + name + ")"
 			}
 		}
 		switch dir {
 		case ".github":
 			switch below {
-			case fold("copilot-instructions.md"), "agents", "instructions", "prompts":
+			case "copilot-instructions.md", "agents", "instructions", "prompts":
 				return "Copilot's instructions, agents or prompts (.github)"
 			case "workflows", "actions":
 				return "a GitHub Actions workflow or action, which runs at the next push"

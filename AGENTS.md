@@ -2696,13 +2696,17 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
   `azure-pipelines.yml`, `.travis.yml`, `bitbucket-pipelines.yml`,
   `.buildkite/`, `.drone.yml`/`.yaml`, `cloudbuild.yaml`/`.yml`/`.json`,
   `appveyor.yml`/`.yaml`/`.appveyor.yml`, `.woodpecker.yml`/`.yaml`,
-  `.woodpecker/`, `.semaphore/`, `bitrise.yml`, `codemagic.yaml`), hook managers
+  `.woodpecker/`, `.semaphore/`, `bitrise.yml`, `codemagic.yaml`,
+  `buildspec.yml`, `.cirrus.yml`, `wercker.yml`, `codefresh.yml`,
+  `.gocd.yml`, `concourse.yml`, `netlify.toml`, `vercel.json`, and the
+  `.yaml` spellings of Azure, GitLab and Travis files), hook managers
   (`.husky/*`, `.githooks/*`, `.pre-commit-config.yaml`, `lefthook.yml`)
   and the dev environment (`.envrc`, `.mise.toml`, `.devcontainer/`,
   `.devcontainer.json`, `.gitpod.yml`, `.replit`, `.idea/`,
   `.vscode/tasks.json` and `launch.json`, `.zed/settings.json`,
-  `tasks.json` and `keymap.json`).
-  `.vscode/settings.json` stays open. Still open in it: build files such as `package.json` scripts
+  `tasks.json` and `keymap.json`). These names match without case on
+  every system (`CLOUDBUILD.YML` too): the file can reach a CI service or
+  a checkout that folds case. `.vscode/settings.json` stays open. Still open in it: build files such as `package.json` scripts
   or a `Makefile`. A project folder that is the home or holds it, or lies in
   another hidden folder of the home, opens nothing; only the operator sets a
   profile's folder. Also open: the user's files outside hidden folders,
