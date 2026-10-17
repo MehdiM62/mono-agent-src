@@ -55,6 +55,13 @@ func buildWebhookItem(r *http.Request, body []byte, pathKey, authHeader string) 
 		for k, v := range obj {
 			data[k] = v
 		}
+		// Nor does it set the engine's own fields at the top level: who
+		// started the run (StripEngineKeys), or the items a run starts with
+		// (SubWorkflowItemsKey), which would let one delivery replace the
+		// request's item with as many items as it lists. $json.body keeps
+		// them as sent.
+		StripEngineKeys(data)
+		delete(data, SubWorkflowItemsKey)
 	}
 	meta := map[string]interface{}{
 		"query":   flattenValues(r.URL.Query()),

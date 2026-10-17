@@ -174,7 +174,8 @@ func TestAWorkflowAnUnapprovedOneCallsKeepsToItsFileRules(t *testing.T) {
 
 // `workflow run --input` can't plant the engine's own marks: the run's
 // trigger data keeps the caller's fields and none of _ai_caller,
-// _unapproved_caller, _items and _subworkflow it was given.
+// _unapproved_caller and _subworkflow it was given, and its _items still
+// feed the trigger its items.
 func TestWorkflowRunInputCantPlantTheEnginesMarks(t *testing.T) {
 	_, cfg := persistTestEnv(t)
 	asOperatorProcess(t)
@@ -189,7 +190,7 @@ func TestWorkflowRunInputCantPlantTheEnginesMarks(t *testing.T) {
 	runWorkflowSubcmd(t, cfg, "activate", created.ID)
 	cmd := newWorkflowCmd(cfg)
 	cmd.SetArgs([]string{"run", created.ID, "--timeout", "30s", "--input",
-		`{"keep":"yes","_ai_caller":"unapproved-workflow","_unapproved_caller":"wf-x","_items":[1],"_subworkflow":{}}`})
+		`{"keep":"yes","_ai_caller":"unapproved-workflow","_unapproved_caller":"wf-x","_items":[{"n":1},{"n":2}],"_subworkflow":{}}`})
 	captureStdout(t, func() {
 		if err := cmd.Execute(); err != nil {
 			t.Fatal(err)
@@ -200,8 +201,10 @@ func TestWorkflowRunInputCantPlantTheEnginesMarks(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	var raw string
-	if err := db.DB.QueryRow(`SELECT trigger_data FROM workflow_executions WHERE workflow_id = ? ORDER BY rowid DESC LIMIT 1`, created.ID).Scan(&raw); err != nil {
+	var raw, out string
+	if err := db.DB.QueryRow(`SELECT e.trigger_data, n.output_items FROM workflow_executions e
+		JOIN workflow_execution_nodes n ON n.execution_id = e.id AND n.node_id = ?
+		WHERE e.workflow_id = ? ORDER BY e.rowid DESC LIMIT 1`, trig.ID, created.ID).Scan(&raw, &out); err != nil {
 		t.Fatal(err)
 	}
 	var td map[string]interface{}
@@ -211,9 +214,18 @@ func TestWorkflowRunInputCantPlantTheEnginesMarks(t *testing.T) {
 	if td["keep"] != "yes" {
 		t.Errorf("the caller's own field is gone: %v", td)
 	}
-	for _, k := range []string{"_ai_caller", "_unapproved_caller", "_items", "_subworkflow"} {
+	for _, k := range []string{"_ai_caller", "_unapproved_caller", "_subworkflow"} {
 		if _, ok := td[k]; ok {
 			t.Errorf("--input planted %s: %v", k, td)
 		}
+	}
+	// _items is the caller's way to pass several items, and still feeds
+	// them to the trigger (#833 review).
+	var items []workflow.Item
+	if err := json.Unmarshal([]byte(out), &items); err != nil {
+		t.Fatalf("the trigger's output %q: %v", out, err)
+	}
+	if len(items) != 2 || items[0].JSON["n"] != float64(1) || items[1].JSON["n"] != float64(2) {
+		t.Errorf("--input _items fed %v, want two items", items)
 	}
 }

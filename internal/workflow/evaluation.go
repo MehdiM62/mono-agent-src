@@ -99,8 +99,15 @@ func (e *WorkflowEngine) StartEvaluationCase(ctx context.Context, workflowID, tr
 	if err := e.checkWorkflowProfile(wf); err != nil {
 		return "", fmt.Errorf("engine: %w", err)
 	}
+	// The row is data a dataset holds, not the engine's: it carries none of
+	// the engine's fields into the case's item.
+	item := make(map[string]interface{}, len(row))
+	for k, v := range row {
+		item[k] = v
+	}
+	StripEngineKeys(item)
 	data := map[string]interface{}{
-		SubWorkflowItemsKey: []interface{}{row},
+		SubWorkflowItemsKey: []interface{}{item},
 		EvaluationKey: map[string]interface{}{
 			"run_id": c.RunID, "case_id": c.CaseID, "row_id": c.RowID, "row_number": c.RowNumber, "table": c.Table,
 		},
