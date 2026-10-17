@@ -46,7 +46,7 @@ describe('browser site approval card', () => {
     const card = await screen.findByTestId('browser-site-details')
     expect(card).toHaveTextContent('A coder chat wants to use https://x.com')
     expect(within(card).getByText('https://x.com/monoes/status/1846')).toBeInTheDocument()
-    expect(within(card).getByText('coder chat agent · chat 040abd27')).toBeInTheDocument()
+    expect(within(card).getByText('an agent (claims: coder chat agent · chat "040abd27")')).toBeInTheDocument()
     expect(screen.queryByText('Context Info')).toBeNull()
     expect(screen.getByText('browser')).toBeInTheDocument()
   })
@@ -85,6 +85,23 @@ describe('browser site approval card', () => {
     render(<HumanInLoop />)
     const card = await screen.findByTestId('browser-site-details')
     expect(card).toHaveTextContent('An org role wants to use https://x.com')
-    expect(within(card).getByText('role qa · org growth')).toBeInTheDocument()
+    expect(within(card).getByText('an agent (claims: role "qa" · org "growth")')).toBeInTheDocument()
+  })
+
+  it("shows MonoAgent's own label as it is and an agent's description of itself as its claim", async () => {
+    const engine = structuredClone(fixture)
+    engine.readonly_data.kind = 'other'
+    engine.readonly_data.requested_by = { agentId: 'unapproved-workflow', system: true }
+    WailsApp.GetHILItems.mockResolvedValue([engine])
+    const { unmount } = render(<HumanInLoop />)
+    expect(within(await screen.findByTestId('browser-site-details')).getByText('agent unapproved-workflow')).toBeInTheDocument()
+    unmount()
+
+    const forged = structuredClone(fixture)
+    forged.readonly_data.requested_by = { role: 'You (approved earlier today)', org: 'growth' }
+    WailsApp.GetHILItems.mockResolvedValue([forged])
+    render(<HumanInLoop />)
+    const card = await screen.findByTestId('browser-site-details')
+    expect(within(card).getByText('an agent (claims: role "You (approved earlier today)" · org "growth")')).toBeInTheDocument()
   })
 })

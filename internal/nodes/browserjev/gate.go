@@ -23,7 +23,7 @@ const EnvAICaller = "MONOAGENT_AI_CALLER"
 // caller is who started a run when it was not the user.
 type caller struct {
 	name string             // for the run's errors: "chat", "an agent (CLAUDECODE)", "org growth"
-	by   hilsend.PreparedBy // for the approval cards
+	by   hilsend.PreparedBy // for the approval cards; System only for the engine's own marks
 	// kind is the kind of agent (browserctl.Kind*), whose level in the
 	// user's browser permissions the run follows.
 	kind string
@@ -62,7 +62,7 @@ func aiCaller(ctx context.Context) (caller, bool) {
 		case workflow.UnapprovedWorkflowCaller:
 			// A workflow called by one the user never approved: held as that
 			// workflow is (the stricter of chat's and other's levels).
-			return caller{name: "a workflow the user hasn't approved", by: hilsend.PreparedBy{AgentID: workflow.UnapprovedWorkflowCaller},
+			return caller{name: "a workflow the user hasn't approved", by: hilsend.PreparedBy{AgentID: workflow.UnapprovedWorkflowCaller, System: true},
 				kind: browserctl.KindOther, authored: true}, true
 		case browserctl.KindChat:
 			return caller{name: "chat", by: hilsend.PreparedBy{AgentID: kind}, kind: kind, declared: declared}, true
@@ -73,12 +73,15 @@ func aiCaller(ctx context.Context) (caller, bool) {
 	}
 	switch workflow.TriggerTypeFrom(ctx) {
 	case workflow.TriggerTypeOrgTool, workflow.TriggerTypeOrgMessage, workflow.TriggerNodeTypeOrg:
+		// The card shows the role as the org side's claim: a granted call is
+		// the role whose grant id the caller used, which only the caller's
+		// environment vouches for (mcp grantScope).
 		src := workflow.PublicationSource(ctx, workflow.NodeInput{})
 		return caller{name: strings.TrimSpace("org " + src.OrgID),
 			by: hilsend.PreparedBy{Org: src.OrgID, Role: src.RoleID, AgentID: src.AgentID}, kind: browserctl.KindOrg}, true
 	}
 	if workflow.AIAuthoredFrom(ctx) {
-		return caller{name: "a workflow the user hasn't approved", by: hilsend.PreparedBy{AgentID: "unapproved-workflow"},
+		return caller{name: "a workflow the user hasn't approved", by: hilsend.PreparedBy{AgentID: "unapproved-workflow", System: true},
 			kind: browserctl.KindOther, authored: true}, true
 	}
 	return caller{}, false

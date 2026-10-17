@@ -10,6 +10,8 @@
 // engine and `node run` consult Guard before a node runs.
 package hilsend
 
+import "strconv"
+
 // State is a send item's lifecycle position.
 type State string
 
@@ -75,6 +77,12 @@ type Payload struct {
 
 // PreparedBy names who prepared the send. Org is set for an org role,
 // ConversationID for a coder chat.
+//
+// An agent's process names itself (Detect reads its environment), so
+// whatever it says is a claim; Label shows it as one. System marks the one
+// kind MonoAgent derives itself, a run of a workflow the user never
+// approved (unapprovedRun, and browser.jev's aiCaller for the browser
+// cards); nothing in an environment sets it.
 type PreparedBy struct {
 	Role           string `json:"role,omitempty"`
 	AgentID        string `json:"agentId,omitempty"`
@@ -83,6 +91,25 @@ type PreparedBy struct {
 	// Workflow is the workflow whose run prepared the send, when that run is
 	// why it waits (UnapprovedWorkflowAgent).
 	Workflow string `json:"workflow,omitempty"`
+	System   bool   `json:"system,omitempty"`
+}
+
+// Label is the "prepared by" the user reads: MonoAgent's own label as it
+// is ("unapproved workflow wf1"), an agent's as what it claims to be
+// (`an agent (claims: "outreach")`, quoted so it can't pass for more), or
+// "" when there is nothing to show.
+func (p PreparedBy) Label() string {
+	if p.System && p.Role != "" {
+		return p.Role
+	}
+	claim := p.Role
+	if claim == "" {
+		claim = p.AgentID
+	}
+	if claim == "" {
+		return ""
+	}
+	return "an agent (claims: " + strconv.Quote(claim) + ")"
 }
 
 // Account is the connected account the send goes out from.

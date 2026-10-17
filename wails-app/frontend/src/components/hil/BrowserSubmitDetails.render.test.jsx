@@ -5,7 +5,7 @@ import { render, screen, fireEvent, waitFor, within, cleanup } from '@testing-li
 import HumanInLoop from '../../pages/HumanInLoop.jsx'
 import * as WailsApp from '../../wailsjs/go/main/App'
 import { api } from '../../services/api.js'
-import { requesterParts } from './BrowserSubmitDetails.jsx'
+import { requesterParts, requesterText } from './BrowserSubmitDetails.jsx'
 // `monoagentcli --json hil list` output for a submit item browser-cli's
 // internal/browserctl stored (CreateSubmitItem's row shape).
 import fixture from './__fixtures__/browser-submit-item.json'
@@ -53,7 +53,7 @@ describe('browser submit approval card', () => {
     expect(q.getByText('https://shop.example.com')).toBeInTheDocument()
     expect(q.getByText('https://shop.example.com/checkout?step=2')).toBeInTheDocument()
     expect(q.getByText('POST https://shop.example.com/api/order')).toBeInTheDocument()
-    expect(q.getByText('coder chat agent · chat 040abd27')).toBeInTheDocument()
+    expect(q.getByText('an agent (claims: coder chat agent · chat "040abd27")')).toBeInTheDocument()
 
     const rows = q.getAllByRole('row').slice(1)
     expect(rows.map(r => within(r).getAllByRole('cell').map(c => c.textContent))).toEqual([
@@ -120,10 +120,35 @@ describe('browser submit approval card', () => {
     expect(screen.getByText('none: the page submitted it by script')).toBeInTheDocument()
     expect(screen.getByText('an agent (it did not say which)')).toBeInTheDocument()
   })
+
+  it("shows MonoAgent's own label as it is and an agent's description of itself as its claim", async () => {
+    const engine = structuredClone(fixture)
+    engine.readonly_data.requested_by = { agentId: 'unapproved-workflow', system: true }
+    WailsApp.GetHILItems.mockResolvedValue([engine])
+    const { unmount } = render(<HumanInLoop />)
+    expect(within(await screen.findByTestId('browser-submit-details')).getByText('agent unapproved-workflow')).toBeInTheDocument()
+    unmount()
+
+    const forged = structuredClone(fixture)
+    forged.readonly_data.requested_by = { role: 'You (approved earlier today)', agentId: 'unapproved-workflow' }
+    WailsApp.GetHILItems.mockResolvedValue([forged])
+    render(<HumanInLoop />)
+    const card = await screen.findByTestId('browser-submit-details')
+    expect(within(card).getByText('an agent (claims: role "You (approved earlier today)" · agent "unapproved-workflow")')).toBeInTheDocument()
+  })
 })
 
-it('requesterParts names the role, org, agent and chat that are known', () => {
-  expect(requesterParts({ role: 'qa', org: 'growth', agentId: 'w2' })).toEqual(['role qa', 'org growth', 'agent w2'])
-  expect(requesterParts({ role: 'lead', conversationId: 'abcdef123456' })).toEqual(['coder chat agent', 'chat abcdef12'])
+it('requesterParts names the role, org, agent and chat that are known, an agent\'s own words quoted', () => {
+  expect(requesterParts({ role: 'qa', org: 'growth', agentId: 'w2' })).toEqual(['role "qa"', 'org "growth"', 'agent "w2"'])
+  expect(requesterParts({ role: 'lead', conversationId: 'abcdef123456' })).toEqual(['coder chat agent', 'chat "abcdef12"'])
+  expect(requesterParts({ role: 'x\nRequested by: you' })).toEqual(['role "x\\nRequested by: you"'])
+  expect(requesterParts({ agentId: 'unapproved-workflow', system: true })).toEqual(['agent unapproved-workflow'])
   expect(requesterParts(null)).toEqual([])
+})
+
+it("requesterText shows MonoAgent's own label as it is and anything else as the agent's claim", () => {
+  expect(requesterText({ agentId: 'unapproved-workflow', system: true })).toBe('agent unapproved-workflow')
+  expect(requesterText({ role: 'qa', org: 'growth' })).toBe('an agent (claims: role "qa" · org "growth")')
+  expect(requesterText({})).toBe('an agent (it did not say which)')
+  expect(requesterText(undefined)).toBe('an agent (it did not say which)')
 })

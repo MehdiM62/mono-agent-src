@@ -148,6 +148,7 @@ func (d Deps) newTemplatesRunCmd() *cobra.Command {
 					return fmt.Errorf("invalid --input JSON (expected a JSON object): %w", err)
 				}
 			}
+			workflow.StripEngineKeys(triggerData)
 			if err := checkTemplateInputs(templateInputKeys(args[0]), triggerData); err != nil {
 				return err
 			}
@@ -273,6 +274,7 @@ func (d Deps) newRunCmd() *cobra.Command {
 					return clicore.InvalidInput("invalid --input JSON (expected a JSON object): %v", err)
 				}
 			}
+			workflow.StripEngineKeys(triggerData)
 			// An agent's run stays its own in a daemon (--no-wait, a resume).
 			browserjev.MarkAICaller(triggerData)
 

@@ -2354,9 +2354,12 @@ monoagentcli --profile work org automation-role add growth --alias publish_post 
   `org approve` and `org chat approve` of such a call are the operator's
   only (exit 3 with the operator refusal otherwise; deny stays open), and
   the chat's Bash allowlist leaves out `monomind org approve|gate-approve|answer`.
-  A called workflow is found by id, else by a name exactly one workflow of
-  the profile has now (as `StartSubWorkflow` finds it); anything else
-  counts as sending. `monomind org approve` run directly by an agent shell
+  A called workflow is found with the engine's own lookup
+  (`workflow.ResolveSubWorkflow`: by id, else the one workflow of the
+  profile with that exact name, files first); anything else counts as
+  sending. For anything but the operator, `org approve` checks the stored
+  action of the pending approval that matches role and action exactly, and
+  refuses when none does. `monomind org approve` run directly by an agent shell
   is not checked (monoes/monomind#677).
   A grant the user made with `--approval none` still calls without a
   decision: that is their own choice.
@@ -2629,7 +2632,7 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
     PowerShell profile folder;
   - writing a git hook or git config (`.git/hooks/*`, `.git/config*`, those
     of submodules and worktrees, a bare `*.git`, and any git directory found
-    by its `HEAD`, `objects` and `refs`), anywhere.
+    by its `objects`, `refs` and a `HEAD` that reads as git's), anywhere.
   Names compare without case on Windows and macOS. A refusal names the
   `workflow activate <id>` that approves the workflow.
 - **The project folder is a trusted zone** (the user's choice): the
@@ -2637,9 +2640,10 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
   and for a profile on the default folder (`~/.monoagent/profiles/<id>`)
   the profile's own vault folder. Closed there, as everywhere: git hooks and
   configs, and the files a tool runs the next time the user works in that
-  folder (`.claude/settings*`, `.claude/hooks/*`, `.claude/helpers/*`,
-  `CLAUDE.md`, `.mcp.json`, `.husky/*`, `.githooks/*`,
-  `.envrc`). Still open in it: build files such as `package.json` scripts
+  folder or instructs the next AI session there (anything in `.claude/`,
+  `CLAUDE.md`, `CLAUDE.local.md`, `AGENTS.md`, `GEMINI.md`, `.cursorrules`,
+  `.cursor/rules/*`, `.github/copilot-instructions.md`, `.mcp.json`,
+  `.husky/*`, `.githooks/*`, `.envrc`), and a `.git` pointer file. Still open in it: build files such as `package.json` scripts
   or a `Makefile`. A project folder that is the home or holds it, or lies in
   another hidden folder of the home, opens nothing; only the operator sets a
   profile's folder. Also open: the user's files outside hidden folders,
@@ -2725,13 +2729,19 @@ every bare 43-character base64url string is. The shown runs' hidden tokens
 forms: a piece of 8 characters or more (16 in hex), the token reversed, in hex
 or in base64 (either alphabet, any alignment, so a whole URL encoded counts),
 and any of those with other characters in between (spaces, commas, quotes, a
-list of its characters), whatever their case. Anything else gets through:
-shorter pieces kept apart, a split joined with `-`, `_`, `+` or `/`, any other
-encoding. This keeps a token out of what an agent is shown; it can't keep a
-token from a process with a shell or file access, which can read the database
-or sign one with the machine's trace key. An approval whose data holds
-`[reply token hidden]` is refused (exit 3, HTTP 400, an MCP error): leave that
-field out and it keeps its value.
+list of its characters) or with the same 1 to 3 characters between every two
+of its characters (`-`, `ZZ`), whatever their case. Within one item, 5 or more
+values of up to 64 characters that each hold a piece of 5 characters or more
+of a token have those pieces hidden too. A text over 16 MB is not scanned: an
+agent gets `[too large to scan for reply tokens; view it from your own
+terminal]` in its place. A template can still emit a token in forms MonoAgent
+doesn't recognise (char codes, a cipher, pieces padded with text); an
+unapproved run's sends queue for the user, so this matters mainly for
+workflows the user approved. Nor can it keep a token from a process with a
+shell or file access, which can read the database or sign one with the
+machine's trace key. An approval whose data holds `[reply token hidden]` is
+refused (exit 3, HTTP 400, an MCP error): leave that field out and it keeps
+its value.
 
 An item of a run an org started (through a grant or a message to an
 automation role) is that org's decision instead, class `hil:<alias>`. Its tier

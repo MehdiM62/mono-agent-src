@@ -104,7 +104,7 @@ func unapprovedRun(ctx context.Context) (PreparedBy, bool) {
 		if wf != "" {
 			role = "unapproved workflow " + wf
 		}
-		return PreparedBy{AgentID: UnapprovedWorkflowAgent, Role: role, Workflow: wf}, true
+		return PreparedBy{AgentID: UnapprovedWorkflowAgent, Role: role, Workflow: wf, System: true}, true
 	}
 	if caller, ok := workflow.CalledByUnapproved(workflow.TriggerDataFrom(ctx)); ok {
 		role := "a workflow an unapproved workflow called"
@@ -114,7 +114,7 @@ func unapprovedRun(ctx context.Context) (PreparedBy, bool) {
 		case caller != "":
 			role = "a workflow unapproved workflow " + caller + " called"
 		}
-		return PreparedBy{AgentID: UnapprovedWorkflowAgent, Role: role, Workflow: wf}, true
+		return PreparedBy{AgentID: UnapprovedWorkflowAgent, Role: role, Workflow: wf, System: true}, true
 	}
 	return PreparedBy{}, false
 }

@@ -1596,6 +1596,7 @@
     "textLabel": "Exact text that will be sent",
     "edited": "Edited: approving sends this text.",
     "preparedBy": "Prepared by {{name}}. Nothing is sent until you approve.",
+    "preparedByClaim": "Prepared by an agent that says it is \"{{name}}\". Nothing is sent until you approve.",
     "edit": "Edit",
     "doneEditing": "Done editing",
     "attachments_one": "{{count}} attachment",

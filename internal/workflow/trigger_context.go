@@ -141,6 +141,21 @@ const TriggerNodeTypeOrg = "trigger.org"
 // the trigger's item.
 const AICallerKey = "_ai_caller"
 
+// engineKeys are the trigger-data fields only the engine writes: who
+// started a run (AICallerKey, UnapprovedCallerKey) and what a calling
+// workflow passed (SubWorkflowItemsKey, SubWorkflowParentKey).
+var engineKeys = []string{AICallerKey, UnapprovedCallerKey, SubWorkflowItemsKey, SubWorkflowParentKey}
+
+// StripEngineKeys removes from data, a caller's input (`workflow run
+// --input`, the HTTP API, MCP), the fields only the engine writes, so no
+// caller can pass its run off as another's: a planted unapproved-workflow
+// mark would show on an approval card as MonoAgent's own.
+func StripEngineKeys(data map[string]interface{}) {
+	for _, k := range engineKeys {
+		delete(data, k)
+	}
+}
+
 // withoutTrace returns a copy of data without its field key.
 func withoutTrace(data map[string]interface{}, key string) map[string]interface{} {
 	out := make(map[string]interface{}, len(data))

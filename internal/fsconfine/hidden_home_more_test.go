@@ -79,7 +79,7 @@ func TestAProjectFolderCantOpenTheHome(t *testing.T) {
 	}
 	for _, project := range []string{filepath.Join(home, "code", "proj"), filepath.Join(home, ".monoagent", "profiles", "p1")} {
 		ctx := GuardHiddenHome(context.Background(), Guard{Project: project})
-		if _, err := WritePath(ctx, filepath.Join(project, ".claude", "commands", "x.md")); err != nil {
+		if _, err := WritePath(ctx, filepath.Join(project, "notes", "x.md")); err != nil {
 			t.Errorf("project %s: %v", project, err)
 		}
 	}
@@ -170,6 +170,9 @@ func TestNoFileThatRunsOnNextUse(t *testing.T) {
 		".claude/settings.json", ".claude/settings.local.json", ".mcp.json",
 		".husky/pre-commit", ".husky/_/husky.sh", ".githooks/pre-push", ".envrc", "sub/.envrc",
 		".claude/hooks/pre-tool.sh", ".claude/helpers/router.cjs", "CLAUDE.md", "docs/CLAUDE.md",
+		".claude/commands/x.md", ".claude/agents/a.md", ".claude/skills/s/SKILL.md", ".claude/hooks",
+		"CLAUDE.local.md", "AGENTS.md", "GEMINI.md", ".cursorrules", ".cursor/rules/x.mdc",
+		".github/copilot-instructions.md",
 	} {
 		p := filepath.Join(project, filepath.FromSlash(rel))
 		if _, err := WritePath(ctx, p); !errors.Is(err, ErrUnapprovedPath) {
@@ -179,7 +182,7 @@ func TestNoFileThatRunsOnNextUse(t *testing.T) {
 			t.Errorf("read %s: %v", rel, err)
 		}
 	}
-	for _, rel := range []string{".claude/commands/x.md", ".claude/agents/a.md", ".claude/hooks", ".env", "husky.md", "notes/.claude-notes", "envrc.txt", "CLAUDE.md.bak", "README.md"} {
+	for _, rel := range []string{".env", "husky.md", "notes/.claude-notes", "envrc.txt", "CLAUDE.md.bak", "README.md", ".cursor/settings.json", ".github/workflows/ci.yml"} {
 		if _, err := WritePath(ctx, filepath.Join(project, filepath.FromSlash(rel))); err != nil {
 			t.Errorf("write %s: %v", rel, err)
 		}
@@ -234,14 +237,18 @@ func TestAGitDirectoryUnderAnotherNameKeepsItsHooksClosed(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	lookalike := filepath.Join(home, "code", "lookalike") // HEAD, objects and refs, but no config
+	lookalike := filepath.Join(home, "code", "lookalike") // HEAD, objects and refs, but HEAD is no git HEAD
 	for _, d := range []string{filepath.Join(lookalike, "objects"), filepath.Join(lookalike, "refs")} {
 		if err := os.MkdirAll(d, 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}
-	for _, f := range []string{filepath.Join(gitdata, "HEAD"), filepath.Join(gitdata, "config"), filepath.Join(notGit, "HEAD"), filepath.Join(lookalike, "HEAD")} {
-		if err := os.WriteFile(f, []byte("ref: refs/heads/main\n"), 0o644); err != nil {
+	for f, head := range map[string]string{
+		filepath.Join(gitdata, "HEAD"):   "ref: refs/heads/main\n", // no config file: git needs none
+		filepath.Join(notGit, "HEAD"):    "ref: refs/heads/main\n",
+		filepath.Join(lookalike, "HEAD"): "the head of the document\n",
+	} {
+		if err := os.WriteFile(f, []byte(head), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -254,6 +261,27 @@ func TestAGitDirectoryUnderAnotherNameKeepsItsHooksClosed(t *testing.T) {
 	for _, p := range []string{filepath.Join(gitdata, "description"), filepath.Join(notGit, "hooks", "x"), filepath.Join(notGit, "config"), filepath.Join(lookalike, "hooks", "x")} {
 		if _, err := WritePath(ctx, p); err != nil {
 			t.Errorf("write %s: %v", p, err)
+		}
+	}
+}
+
+// A .git file points git at another folder's hooks: an unapproved run
+// writes none.
+func TestNoGitPointerFile(t *testing.T) {
+	_, home := guardHome(t)
+	ctx := GuardHiddenHome(context.Background(), Guard{Project: filepath.Join(home, "code")})
+	if _, err := WritePath(ctx, filepath.Join(home, "code", "proj", ".git")); !errors.Is(err, ErrUnapprovedPath) {
+		t.Fatalf("write proj/.git: %v", err)
+	}
+}
+
+func TestGitHead(t *testing.T) {
+	for head, want := range map[string]bool{
+		"ref: refs/heads/main": true, "0123456789abcdef0123456789abcdef01234567": true,
+		strings.Repeat("a", 64): true, "hello": false, "ref: heads/main": false, strings.Repeat("g", 40): false,
+	} {
+		if gitHead(head) != want {
+			t.Errorf("gitHead(%q) = %v", head, !want)
 		}
 	}
 }

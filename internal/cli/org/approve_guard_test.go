@@ -56,14 +56,20 @@ func seedSendingGrants(t *testing.T, dbPath, org, role string) {
 
 // `org approve` of a call of an automation that sends a message to a person
 // is the user's own: an agent, the chat or a workflow is refused (exit 3)
-// and nothing reaches monomind. Denying it, and approving anything else,
-// stay theirs (#831 follow-up N1c).
+// and nothing reaches monomind, and so is an action no pending approval has
+// exactly. Denying it, and approving anything else, stay theirs (#831
+// follow-up N1c).
 func TestOrgApproveOfASendingAutomationIsTheOperatorsOnly(t *testing.T) {
 	dir := t.TempDir()
 	argsLog := filepath.Join(dir, "args.log")
 	bin := filepath.Join(dir, "monomind")
+	pending := `{"v":1,"items":[` +
+		`{"roleId":"writer","action":"monoagent__automation_send","question":"q","ts":1,"approved":null,"requestId":"r1"},` +
+		`{"roleId":"writer","action":"monoagent__automation_sum","question":"q","ts":2,"approved":null,"requestId":"r2"},` +
+		`{"roleId":"writer","action":"Bash","question":"q","ts":3,"approved":null,"requestId":"r3"}]}`
 	if err := os.WriteFile(bin, []byte("#!/bin/sh\n"+
 		`if [ "$1" = "--version" ]; then echo '{"v":1,"version":"9.0.0","min_caller":"1.0.0","capabilities":["agent-exec","agent-scan","org-json-v1"]}'; exit 0; fi`+"\n"+
+		`case "$*" in *"org approvals"*) echo '`+pending+`'; exit 0 ;; esac`+"\n"+
 		`echo "$*" >> '`+argsLog+"'\necho '{\"v\":1,\"ok\":true}'\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -93,6 +99,16 @@ func TestOrgApproveOfASendingAutomationIsTheOperatorsOnly(t *testing.T) {
 		if err := run("approve", "growth", "writer", "monoagent__automation_send"); exitCodeFor(err) != 3 || !strings.Contains(err.Error(), "only the user approves") {
 			t.Errorf("%s set: approve of a sending automation: %v", k, err)
 		}
+		// A variant of its action, which a looser match in monomind might
+		// take for it, matches no pending approval exactly (#833 review, N3).
+		for _, variant := range []string{"MONOAGENT__AUTOMATION_SEND", " monoagent__automation_send", "monoagent__automation_send "} {
+			if err := run("approve", "growth", "writer", variant); exitCodeFor(err) != 3 || !strings.Contains(err.Error(), "no pending approval of exactly") {
+				t.Errorf("%s set: approve of %q: %v", k, variant, err)
+			}
+		}
+		if err := run("approve", "growth", "Writer", "monoagent__automation_sum"); exitCodeFor(err) != 3 {
+			t.Errorf("%s set: approve as another role's spelling: %v", k, err)
+		}
 		for _, args := range [][]string{
 			{"deny", "growth", "writer", "monoagent__automation_send"},
 			{"approve", "growth", "writer", "monoagent__automation_sum"},
@@ -104,11 +120,18 @@ func TestOrgApproveOfASendingAutomationIsTheOperatorsOnly(t *testing.T) {
 		}
 		t.Setenv(k, "")
 	}
-	if strings.Contains(logged(), "approve growth writer monoagent__automation_send") {
+	approvedSend := func() bool {
+		for _, line := range strings.Split(logged(), "\n") {
+			if strings.HasPrefix(line, "org approve ") && strings.Contains(strings.ToLower(line), "monoagent__automation_send") {
+				return true
+			}
+		}
+		return false
+	}
+	if approvedSend() {
 		t.Fatalf("an approval of a sending automation reached monomind:\n%s", logged())
 	}
-	if err := run("approve", "growth", "writer", "monoagent__automation_send"); err != nil ||
-		!strings.Contains(logged(), "approve growth writer monoagent__automation_send") {
+	if err := run("approve", "growth", "writer", "monoagent__automation_send"); err != nil || !approvedSend() {
 		t.Fatalf("the operator's approval: %v\n%s", err, logged())
 	}
 }

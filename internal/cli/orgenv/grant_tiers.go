@@ -18,12 +18,38 @@ import (
 // store is opened with open on first use; the loader is safe for
 // concurrent use.
 func GrantWorkflowLoader(db *storage.Database, open func(*storage.Database) *workflow.HybridWorkflowStore) orggrant.WorkflowLoader {
-	var once sync.Once
-	var store *workflow.HybridWorkflowStore
-	return func(ctx context.Context, id string) (*workflow.Workflow, error) {
-		once.Do(func() { store = open(db) })
-		return store.GetWorkflow(ctx, id)
-	}
+	return GrantWorkflows(db, open).GetWorkflow
+}
+
+// GrantWorkflows reads workflows as execution does (files first): one by
+// id, as GrantWorkflowLoader, and a profile's list, so a workflow a granted
+// one calls by name is found as a run finds it. The store is opened with
+// open on first use; it is safe for concurrent use.
+func GrantWorkflows(db *storage.Database, open func(*storage.Database) *workflow.HybridWorkflowStore) *LazyWorkflows {
+	return &LazyWorkflows{db: db, open: open}
+}
+
+// LazyWorkflows is GrantWorkflows' reader.
+type LazyWorkflows struct {
+	once  sync.Once
+	db    *storage.Database
+	open  func(*storage.Database) *workflow.HybridWorkflowStore
+	store *workflow.HybridWorkflowStore
+}
+
+func (l *LazyWorkflows) get() *workflow.HybridWorkflowStore {
+	l.once.Do(func() { l.store = l.open(l.db) })
+	return l.store
+}
+
+// GetWorkflow reads one workflow, its file first.
+func (l *LazyWorkflows) GetWorkflow(ctx context.Context, id string) (*workflow.Workflow, error) {
+	return l.get().GetWorkflow(ctx, id)
+}
+
+// ListWorkflows lists a profile's workflows, files first.
+func (l *LazyWorkflows) ListWorkflows(ctx context.Context, profileID string) ([]workflow.Workflow, error) {
+	return l.get().ListWorkflows(ctx, profileID)
 }
 
 // RaiseGrantTiersForWorkflow runs after a workflow is saved: every grant of

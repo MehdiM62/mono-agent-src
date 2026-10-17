@@ -150,7 +150,8 @@ func (s *Services) Start(ctx context.Context, engine *workflow.WorkflowEngine) {
 		return ProfileRoots(s.db.DB)
 	})
 	svc.Logf = s.logf
-	svc.LoadWorkflow = orgenv.GrantWorkflowLoader(s.db, s.openWorkflowStore)
+	wfs := orgenv.GrantWorkflows(s.db, s.openWorkflowStore)
+	svc.LoadWorkflow, svc.ListWorkflows = wfs.GetWorkflow, wfs.ListWorkflows
 	svc.WorkflowFacts = func(ctx context.Context, profileID, workflowID string) string {
 		return s.workflowFacts(ctx, s.db, workflowID)
 	}

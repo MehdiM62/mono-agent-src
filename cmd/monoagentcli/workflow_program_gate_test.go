@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/monoes/mono-agent/internal/browserctl"
+	"github.com/monoes/mono-agent/internal/storage"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -168,5 +169,51 @@ func TestAWorkflowAnUnapprovedOneCallsKeepsToItsFileRules(t *testing.T) {
 	}
 	if b, err := os.ReadFile(rc); err != nil || string(b) != "echo hi" {
 		t.Fatalf("the approved call's write: %q, %v", b, err)
+	}
+}
+
+// `workflow run --input` can't plant the engine's own marks: the run's
+// trigger data keeps the caller's fields and none of _ai_caller,
+// _unapproved_caller, _items and _subworkflow it was given.
+func TestWorkflowRunInputCantPlantTheEnginesMarks(t *testing.T) {
+	_, cfg := persistTestEnv(t)
+	asOperatorProcess(t)
+	var created workflow.Workflow
+	if err := json.Unmarshal([]byte(runWorkflowSubcmd(t, cfg, "create", "plain")), &created); err != nil {
+		t.Fatal(err)
+	}
+	var trig workflow.WorkflowNode
+	if err := json.Unmarshal([]byte(runWorkflowSubcmd(t, cfg, "node", "add", created.ID, "--type", "trigger.manual", "--name", "Start")), &trig); err != nil {
+		t.Fatal(err)
+	}
+	runWorkflowSubcmd(t, cfg, "activate", created.ID)
+	cmd := newWorkflowCmd(cfg)
+	cmd.SetArgs([]string{"run", created.ID, "--timeout", "30s", "--input",
+		`{"keep":"yes","_ai_caller":"unapproved-workflow","_unapproved_caller":"wf-x","_items":[1],"_subworkflow":{}}`})
+	captureStdout(t, func() {
+		if err := cmd.Execute(); err != nil {
+			t.Fatal(err)
+		}
+	})
+	db, err := storage.NewDatabase(cfg.DBPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	var raw string
+	if err := db.DB.QueryRow(`SELECT trigger_data FROM workflow_executions WHERE workflow_id = ? ORDER BY rowid DESC LIMIT 1`, created.ID).Scan(&raw); err != nil {
+		t.Fatal(err)
+	}
+	var td map[string]interface{}
+	if err := json.Unmarshal([]byte(raw), &td); err != nil {
+		t.Fatalf("trigger_data %q: %v", raw, err)
+	}
+	if td["keep"] != "yes" {
+		t.Errorf("the caller's own field is gone: %v", td)
+	}
+	for _, k := range []string{"_ai_caller", "_unapproved_caller", "_items", "_subworkflow"} {
+		if _, ok := td[k]; ok {
+			t.Errorf("--input planted %s: %v", k, td)
+		}
 	}
 }
