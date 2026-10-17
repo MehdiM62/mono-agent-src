@@ -2,6 +2,8 @@
 package main
 
 import (
+	"errors"
+	"fmt"
 	"io/fs"
 	"path/filepath"
 	"strings"
@@ -182,9 +184,53 @@ func (a *App) OpenAnyFilesPicker(title string) []string {
 	return paths
 }
 
-// OpenFolderFilesPicker opens a folder picker and returns every regular file
-// under the chosen folder (recursively, skipping hidden files and folders).
-// Empty if cancelled.
+// Caps for a folder upload: choosing a whole home folder must not queue an
+// unbounded import.
+const (
+	maxFolderFiles = 5000
+	maxFolderBytes = 2 << 30
+)
+
+// walkFolderFiles lists the regular files under dir, recursively. Hidden
+// entries (dot-names below dir; dir itself may be dot-named), symlinks and
+// unreadable entries are skipped and reported in skipped. over is set, and the
+// walk stops, once the file count or total size passes the caps.
+func walkFolderFiles(dir string) (files, skipped []string, total int64, over bool) {
+	stop := errors.New("over cap")
+	_ = filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			skipped = append(skipped, p)
+			return nil
+		}
+		if p != dir && strings.HasPrefix(d.Name(), ".") {
+			skipped = append(skipped, p)
+			if d.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if d.IsDir() {
+			return nil
+		}
+		info, ierr := d.Info()
+		if !d.Type().IsRegular() || ierr != nil {
+			skipped = append(skipped, p)
+			return nil
+		}
+		files = append(files, p)
+		total += info.Size()
+		if len(files) > maxFolderFiles || total > maxFolderBytes {
+			over = true
+			return stop
+		}
+		return nil
+	})
+	return files, skipped, total, over
+}
+
+// OpenFolderFilesPicker opens a folder picker and returns the files to
+// upload from the chosen folder, after the user confirms the file count and
+// total size. Empty if cancelled, declined, or over the caps.
 func (a *App) OpenFolderFilesPicker(title string) []string {
 	if a.signedOut() != nil {
 		return nil
@@ -193,21 +239,31 @@ func (a *App) OpenFolderFilesPicker(title string) []string {
 	if err != nil || dir == "" {
 		return nil
 	}
-	var files []string
-	_ = filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return nil
-		}
-		if p != dir && strings.HasPrefix(d.Name(), ".") {
-			if d.IsDir() {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if d.Type().IsRegular() {
-			files = append(files, p)
-		}
+	files, skipped, total, over := walkFolderFiles(dir)
+	if over {
+		_, _ = runtime.MessageDialog(a.ctx, runtime.MessageDialogOptions{
+			Type: runtime.ErrorDialog, Title: "Folder too large",
+			Message: fmt.Sprintf("%s holds more than %d files or %d GB. Choose a smaller folder.", dir, maxFolderFiles, maxFolderBytes>>30),
+		})
 		return nil
+	}
+	if len(files) == 0 {
+		return nil
+	}
+	msg := fmt.Sprintf("Upload %d files (%.1f MB) from %s?", len(files), float64(total)/(1<<20), dir)
+	if len(skipped) > 0 {
+		shown := skipped
+		if len(shown) > 10 {
+			shown = shown[:10]
+		}
+		msg += fmt.Sprintf("\n\n%d hidden, symlinked or unreadable entries will be skipped:\n%s", len(skipped), strings.Join(shown, "\n"))
+	}
+	choice, err := runtime.MessageDialog(a.ctx, runtime.MessageDialogOptions{
+		Type: runtime.QuestionDialog, Title: "Upload folder", Message: msg,
+		Buttons: []string{"Upload", "Cancel"}, DefaultButton: "Cancel", CancelButton: "Cancel",
 	})
+	if err != nil || choice != "Upload" {
+		return nil
+	}
 	return files
 }
