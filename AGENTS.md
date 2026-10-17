@@ -567,10 +567,17 @@ dangerous calls.
   `secret reveal`, `secret export`, `connect get-oauth-client --reveal`,
   `profile info get --reveal`, `node run vault.secret_get` and `workflow run
   --full-outputs`. So is `api key create`, which mints a key. Names, masked
-  values and metadata stay open. No secret resolves (`@secret:`,
-  `{{secret:…}}`, `vault.secret_get`) in a run of a workflow the user hasn't
-  approved, in MCP `node_run` or in a marked process's `node run`: put the
-  step in a workflow and have the user save or activate it. Still open:
+  values and metadata stay open. No secret reference resolves in a run of
+  a definition the user hasn't approved: `secrets.Resolve` refuses under
+  `secrets.RefuseResolving`, which `workflow.WithAIAuthored` and
+  `WithUnapproved` set. That covers `@secret:` refs in any config,
+  `{{secret:…}}` lookups, `mcp.call`, `browser.jev`, `vault.secret_get` and
+  `trigger.sse` headers; the step fails naming the reference, never the
+  value. CLI `node run` from a marked process runs as an unapproved step
+  (`WithUnapproved`), like MCP `node_run`, so the program and hidden-home
+  gates apply to it too; `record verify|replay` from one reads no secret.
+  Put the step in a workflow and have the user save or activate it. Still
+  open:
   - an approved workflow resolves its secrets whoever runs it, and a value
     a step outputs under a field name the redaction doesn't know shows in
     its `--json` output;
