@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/monoes/mono-agent/internal/capturesummary"
+	"github.com/monoes/mono-agent/internal/cli/revealgate"
 	"github.com/monoes/mono-agent/internal/profileinfo"
 )
 
@@ -76,6 +77,11 @@ func (d Deps) newInfoGetCmd() *cobra.Command {
 		Short: "Show the stored values; ID, bank and card numbers are masked unless --reveal",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if reveal {
+				if err := revealgate.Refuse("profile info get --reveal"); err != nil {
+					return err
+				}
+			}
 			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)

@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	browserpkg "github.com/monoes/mono-agent/internal/browser"
+	"github.com/monoes/mono-agent/internal/cli/revealgate"
 	cfgpkg "github.com/monoes/mono-agent/internal/config"
 	"github.com/monoes/mono-agent/internal/connections"
 	"github.com/monoes/mono-agent/internal/hilsend"
@@ -118,6 +119,12 @@ platform name to override. Token refresh is handled automatically for OAuth conn
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			nodeType := args[0]
+			// Its output is a vault entry's decrypted fields.
+			if nodeType == "vault.secret_get" {
+				if err := revealgate.Refuse("node run vault.secret_get"); err != nil {
+					return err
+				}
+			}
 
 			// --stdin reads {"config":{...},"input":[...]} from stdin so secrets in
 			// config (DB passwords, API keys) never appear in argv, which is
