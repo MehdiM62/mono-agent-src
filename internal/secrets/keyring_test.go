@@ -2,6 +2,8 @@ package secrets
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -216,4 +218,34 @@ func TestGetOrCreateKEK_StragglerDoesNotRaceWithFreshAttempt(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+}
+
+// The file-based fallback KEK is removed with the profile, and the answer says
+// whether anything was there to remove.
+func TestDeleteProfileKEKRemovesTheFileFallbackToo(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	if removed, err := DeleteProfileKEK("gone"); err != nil || removed {
+		t.Fatalf("no key anywhere: removed %v, err %v, want false and nil", removed, err)
+	}
+	path := fileKeyringPath("gone")
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	other := fileKeyringPath("kept")
+	if err := os.WriteFile(other, []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	removed, err := DeleteProfileKEK("gone")
+	if err != nil || !removed {
+		t.Fatalf("file key: removed %v, err %v, want true and nil", removed, err)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Errorf("the file key is still there: %v", err)
+	}
+	if _, err := os.Stat(other); err != nil {
+		t.Errorf("another profile's file key was touched: %v", err)
+	}
 }

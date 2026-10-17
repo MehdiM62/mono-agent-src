@@ -67,6 +67,14 @@ func SyncFileWorkflowsToSQL(ctx context.Context, db *sql.DB, dir string) ([]stri
 		if err != nil || wf == nil || wf.ID == "" {
 			continue
 		}
+		// A file of a profile that no longer exists (deleted, or copied from
+		// one) must not come back as a row of a profile that is gone.
+		if wf.ProfileID != "" {
+			var n int
+			if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM profiles WHERE id = ?`, wf.ProfileID).Scan(&n); err != nil || n == 0 {
+				continue
+			}
+		}
 		if err := syncOneWorkflowToSQL(ctx, db, sqlStore, wf); err != nil {
 			continue
 		}

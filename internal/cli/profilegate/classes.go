@@ -67,6 +67,9 @@ var classes = map[string]string{
 
 	"profile list": ClassGlobal, "profile create": ClassGlobal, "profile get": ClassGlobal,
 	"profile folder": ClassGlobal, "profile move": ClassGlobal, "profile projects": ClassGlobal,
+	// update and delete take the profile positionally, like folder and move;
+	// backups act on the machine's snapshot folder.
+	"profile update": ClassGlobal, "profile delete": ClassGlobal, "profile backups": ClassGlobal,
 
 	"node list": ClassGlobal, "node palette": ClassGlobal, "node schema": ClassGlobal, "node curl": ClassGlobal,
 

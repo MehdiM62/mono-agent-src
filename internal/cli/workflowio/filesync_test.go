@@ -54,3 +54,34 @@ func TestSyncFileWorkflowsToSQL(t *testing.T) {
 		t.Error("the marker must not live inside the workflow folder")
 	}
 }
+
+// A file of a profile that does not exist is not mirrored: after the profile
+// was deleted, a copy of its file must not come back as a row.
+func TestSyncFileWorkflowsToSQLSkipsFilesOfAMissingProfile(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	db, err := storage.NewDatabase(testdb.Path(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	dir := filepath.Join(t.TempDir(), "workflows")
+	files, err := workflow.NewWorkflowFileStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	wf := &workflow.Workflow{ID: "ghost-wf", Name: "ghost", ProfileID: "no-such-profile", Version: 1, CreatedAt: now, UpdatedAt: now,
+		Nodes: []workflow.WorkflowNode{{ID: "g-trigger", WorkflowID: "ghost-wf", Type: "trigger.manual", Name: "Start", Config: map[string]any{}}}}
+	if err := files.SaveWorkflow(ctx, wf); err != nil {
+		t.Fatal(err)
+	}
+	if synced, err := SyncFileWorkflowsToSQL(ctx, db.DB, dir); err != nil || len(synced) != 0 {
+		t.Fatalf("sync: %v %v, want nothing synced", synced, err)
+	}
+	var n int
+	db.DB.QueryRow(`SELECT COUNT(*) FROM workflows WHERE id = 'ghost-wf'`).Scan(&n)
+	if n != 0 {
+		t.Fatalf("a workflow of a missing profile came back as a row")
+	}
+}
