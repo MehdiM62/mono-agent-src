@@ -165,7 +165,9 @@ func (d Deps) newProfileCreateCmd() *cobra.Command {
 		Short: "Create a new profile",
 		Long: "Create a new profile. --root-dir points its data at a folder of your choice instead of " +
 			"~/.monoagent/profiles/<id>/ (an absolute path; an existing, non-empty folder such as a coding " +
-			"project is fine). --icon is an id from the shared agent-avatars manifest.",
+			"project is fine). Only the user chooses that folder (" + folderIsTheUsers + "): an agent, the " +
+			"chat or a workflow run is refused --root-dir (exit 3). --icon is an id from the shared " +
+			"agent-avatars manifest.",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := strings.TrimSpace(args[0])
@@ -174,6 +176,9 @@ func (d Deps) newProfileCreateCmd() *cobra.Command {
 			}
 			rootDir = strings.TrimSpace(rootDir)
 			if rootDir != "" {
+				if err := d.refuseFolderChoice(); err != nil {
+					return err
+				}
 				if err := d.validateFolderChoice(rootDir); err != nil {
 					return err
 				}

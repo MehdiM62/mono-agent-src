@@ -59,6 +59,11 @@ func (n *CodeNode) Execute(ctx context.Context, input workflow.NodeInput, config
 	}
 
 	if lang, _ := config["language"].(string); lang == "python" {
+		// JavaScript runs in goja, with no way out of it; Python is a
+		// program on this computer.
+		if err := workflow.RefuseUnapprovedProgram(ctx, "core.code (python)", input.WorkflowID); err != nil {
+			return nil, err
+		}
 		return runPython(ctx, input, config, code, codeTimeout(config))
 	}
 

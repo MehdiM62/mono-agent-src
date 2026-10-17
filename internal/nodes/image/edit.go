@@ -315,7 +315,7 @@ func writeEditedFile(ctx context.Context, s editSettings, inPath, ext string, da
 		if s.OutputDir != "" {
 			dir = expandHome(s.OutputDir)
 		}
-		out, err = fsconfine.Path(ctx, filepath.Join(dir, filepath.Base(s.FileName)))
+		out, err = fsconfine.WritePath(ctx, filepath.Join(dir, filepath.Base(s.FileName)))
 	} else {
 		base := inPath
 		if base == "" {

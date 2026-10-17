@@ -104,7 +104,7 @@ func writeFile(ctx context.Context, item workflow.Item, cfg map[string]interface
 	if name == "" {
 		return nil, fmt.Errorf("file_name: is required for operation write (the path to write)")
 	}
-	path, err := fsconfine.Path(ctx, name)
+	path, err := fsconfine.WritePath(ctx, name)
 	if err != nil {
 		return nil, fmt.Errorf("file_name: %w", err)
 	}

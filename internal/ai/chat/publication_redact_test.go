@@ -16,6 +16,7 @@ func TestPublicationDeleteRedactOperatorOnly(t *testing.T) {
 		t.Setenv(m, "")
 	}
 	db := newMonoagentTestDB(t)
+	sendApprovalsOff(t, db.DB)
 	mt := NewMonoagentTools(db.DB, "", "default")
 	other := NewMonoagentTools(db.DB, "", "other")
 	ctx := context.Background()

@@ -312,7 +312,26 @@ func (d *Database) applyMigrations() error {
 	// reliably, so it runs as a Go step after the schema migrations above
 	// have created workflow_node_targets (030_workflow_action_bridge.sql).
 	// Self-idempotent: no-ops once the actions table is gone.
-	return MigrateActionsToWorkflows(ctx, d.DB)
+	if err := MigrateActionsToWorkflows(ctx, d.DB); err != nil {
+		return err
+	}
+	for _, step := range afterMigrations {
+		if err := step(ctx, d.DB); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// afterMigrations are data steps packages this one cannot import need once
+// the schema is current (RegisterAfterMigrations).
+var afterMigrations []func(ctx context.Context, db *sql.DB) error
+
+// RegisterAfterMigrations adds step to what ApplyMigrations runs last, on
+// every open: it must be idempotent, and cheap once its work is done. Call
+// it from an init.
+func RegisterAfterMigrations(step func(ctx context.Context, db *sql.DB) error) {
+	afterMigrations = append(afterMigrations, step)
 }
 
 // migration is one embedded schema migration file.

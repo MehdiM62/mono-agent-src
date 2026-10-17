@@ -62,7 +62,7 @@ func (s *Session) guardCmd(cmd *extension.Command) error {
 	if cmd.Params == nil {
 		cmd.Params = map[string]interface{}{}
 	}
-	cmd.Params[ExpectOriginParam] = Origin(s.url)
+	cmd.Params[ExpectOriginParam] = BrowserOrigin(s.url)
 	return nil
 }
 

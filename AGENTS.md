@@ -622,8 +622,10 @@ existing MCP client config that relies on them.
   set|remove`), `workflow_save` (create or replace a whole workflow document,
   `workflow save`), `workflow_template_instantiate` (a new inactive workflow
   from a template, `workflow templates use`)
-- `node_run` (one node with config and input, as `node run`; an outbound send
-  an agent starts is still queued for approval)
+- `node_run` (one node with config and input, as `node run`; an AI wrote its
+  config, so it runs as in a workflow the user hasn't approved: an outbound
+  send is always queued for approval, and it runs no program and touches
+  no hidden file of the home)
 - `workflow_generate`, the MCP side of `monoagentcli workflow generate
   "<description>" [--runtime auto|claude|codex|...] [--model M] [--name N]
   [--max-attempts N] [--no-save]`: a local AI agent (monomind) writes the
@@ -2342,6 +2344,15 @@ monoagentcli --profile work org automation-role add growth --alias publish_post 
   state on GET) and its URL and query string can carry workflow data
   out, and `ai.choose` sends its input to TypeSafe's API. These stay in
   the `consequential` tier, which the decider may approve at `mid`.
+- An item whose approval lets a message to a person go out is the user's
+  at every level and tier: a HIL item in front of a send
+  (`commsync.OutboundHIL`), or a call of a granted automation whose
+  workflow, or a workflow it calls, may send (`hilsend.MaySend`; an
+  unreadable workflow counts as sending). No rule, decider or delegate
+  approves it (`orgdecide.ItemSends`, `RouteItem`), `decision_resolve`
+  refuses it (escalate excepted), and `org autonomy needs-you` lists it.
+  A grant the user made with `--approval none` still calls without a
+  decision: that is their own choice.
 - The official browser read actions (find/list/scrape/export/metrics,
   `readOnlyActions`) are verified on every check against the INSTALLED
   definition, not trusted by name: the package must have `builtin` trust,
@@ -2558,10 +2569,63 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
   chat tool call `chat`, the org side `org`. `off` and a refused site fail the run with the
   refusal's message; `ask` raises the "allow this site?" item and waits like
   a submit; `full-no-approvals` runs without the submit guard.
-- **Not covered.** A workflow an agent activates on a schedule or a webhook
-  runs later in the daemon as the user's own (no mark), and so do
-  sub-workflows of org-side runs, `workflow templates run`, and a run the
-  MCP `workflow_run` tool started that a daemon later resumes.
+- **Not covered.** A workflow you approved (you saved, changed, activated or
+  imported it from the app or your own terminal, and nothing else changed it
+  since; a plain `workflow run` does not approve)
+  runs as your own whatever starts it: one an agent activates on a schedule
+  or a webhook runs later in the daemon with no mark, and so, for such a
+  workflow, do sub-workflows of org-side runs, `workflow templates run`, and
+  a run the MCP `workflow_run` tool started that a daemon later resumes. A
+  workflow the chat, an agent or another workflow wrote or changed since is
+  an AI run whatever starts it.
+- **No programs from an unapproved workflow.** Such a workflow's steps that
+  run a program on this computer (`system.execute_command`, `core.code` in
+  Python, `mcp.call` with a stdio server, `http.ssh` to this machine) fail
+  with "runs a program on this computer" and how to approve it: a program
+  can do anything the user can, the approvals only they give included. The
+  MCP `node_run` tool runs nodes the same way, since an AI wrote their
+  config. JavaScript in `core.code` (goja) and `mcp.call` over HTTP still
+  run; so does every step of a workflow the user approved.
+- **Sends from an unapproved workflow wait for the user.** `hilsend.Guard`
+  queues each send (email, DM, comment, post, connect, publish) of a run
+  of a workflow the user never approved, or of one such a workflow called
+  (`workflow.CalledByUnapproved`), as a `send:` item, as it does an agent's;
+  PreparedBy.AgentID is `unapproved-workflow`. The sendApproval setting and
+  the always-allow rules apply. A workflow the user approved sends as
+  before, even when the chat starts it.
+- **Files an unapproved workflow can't touch.** Its file steps, and those of
+  a workflow it called (whose own approval still decides its program steps),
+  go through `fsconfine.Path` (reads) and `fsconfine.WritePath` (writes:
+  `data.write_binary_file`, `data.read_write_file`, `data.spreadsheet` unless
+  it surely reads, `http.ftp` downloads, image outputs). They refuse:
+  - reading or writing a hidden file or folder of the user's home (a name
+    starting with `.`, plus `AppData` on Windows and `Library` on macOS):
+    keys and tokens live there (`~/.ssh`, `~/.monoagent`), and files that
+    run code later (a shell's startup file, an autostart or systemd entry).
+    MonoAgent's synced attachments (`~/.monoagent/attachments`) stay
+    readable and its export folder (`~/.monoagent/output`) writable;
+  - reading a process's environment, command line or memory
+    (`/proc/*/environ`, `cmdline`, `mem`);
+  - writing into a folder on PATH (this process's, plus `~/bin`, `~/go/bin`,
+    `~/.local/bin`, `/usr/local/bin`, `/opt/homebrew/bin`) or, on Windows, a
+    PowerShell profile folder;
+  - writing a git hook or git config (`.git/hooks/*`, `.git/config*`, those
+    of submodules and worktrees, a bare `*.git`, and any git directory found
+    by its `HEAD`, `objects` and `refs`), anywhere.
+  Names compare without case on Windows and macOS. A refusal names the
+  `workflow activate <id>` that approves the workflow.
+- **The project folder is a trusted zone** (the user's choice): the
+  profile's project folder is open to them, hidden folders in it included,
+  and for a profile on the default folder (`~/.monoagent/profiles/<id>`)
+  the profile's own vault folder. Closed there, as everywhere: git hooks and
+  configs, and the files a tool runs the next time the user works in that
+  folder (`.claude/settings*`, `.mcp.json`, `.husky/*`, `.githooks/*`,
+  `.envrc`). Still open in it: build files such as `package.json` scripts
+  or a `Makefile`. A project folder that is the home or holds it, or lies in
+  another hidden folder of the home, opens nothing; only the operator sets a
+  profile's folder. Also open: the user's files outside hidden folders,
+  files outside the home other than the above, and sending what a workflow
+  may read over the network.
 - **Honest limit.** A full-access agent can read the bridge token and talk
   to the bridge directly, so the origin policy and the submit guard guard
   against mistakes and instructions a page plants, not against a determined
@@ -2585,6 +2649,74 @@ monoagentcli --profile work hil reject <id>
 `--data` overrides the item's editable fields with a JSON object (defaults
 to `{}` if omitted). Rejection fails the workflow branch — surface the
 consequence to the user before rejecting.
+
+An item whose approval sends a message to a person is the user's to decide:
+anything that can run after the Human-in-Loop node, through other nodes and
+the workflows it calls (`core.execute_workflow`), sends an email, a DM, a
+comment, a post, a connect or a publish, or may (its operation is an
+expression only the run resolves), or calls a workflow that can't be resolved
+before it runs. Past 5000 nodes reachable from it, or in a run another
+workflow called (whose later steps run in the caller), the item counts as one
+that sends, even if none does. `hil approve|reject` refuse an agent, the chat's
+runs and a workflow's own processes (exit 3), and so do the MCP server's
+`hil_approve`/`hil_reject` and the HTTP API's approve/reject routes (403). It
+stays pending until the user decides it in their own terminal or on the Human
+in Loop page. The node's `auto_decide` settles it only in a workflow the user
+approved: in one the chat, an agent or a workflow wrote, it waits for the user
+with Jev's suggestion shown. The node's timeout only ever rejects. Every other
+Human-in-Loop item stays open to agents. A new item records the decision
+either way (`"outbound"` in its node config); one queued before that was
+recorded counts as one that sends, whatever comes after it, so it is the
+user's until decided.
+
+The same goes for a reply link a waiting node is answered through (a
+`sendAndWait` message's Approve/Disapprove or form link, `core.wait`'s resume
+URL or form) when what runs after that node may send a message to a person,
+judged the same way when the reply opens: `workflow execution` from an agent,
+the chat's runs or a workflow's process, and the MCP server's
+`workflow_status`, list the reply with a `note` instead of its `url` and
+`links`; the user's own terminal and the app show them. The link itself keeps
+working, since the person the message went to answers there, so it can't tell
+that person from an agent that got the token another way (from the database,
+or by signing one with the machine's trace key, which a process with full
+access can read). A reply opened before its decision was recorded counts as
+one in front of a send: an agent gets the note, the user the links. So does
+a reply on a shared link, whatever comes after it: the run's resume URL
+(`core.wait`, a form's steps, a callback URL a node hands to another system)
+answers every such reply of the run, and a chat session's link every reply in
+the session, a later one of which may send. Only a node's own reply link (a
+`sendAndWait` message's) in front of nothing that sends is listed for an
+agent.
+
+Its token stays out of the run's data too, as a node can put
+`$execution.resumeUrl` or a reply link in its items or its error. Those
+callers see `[reply token hidden]` in its place in `workflow execution`,
+`workflow run`/`retry`/`templates run` (`--json` and text), `workflow
+executions`, `summary`, `hil list`'s item data and the engine's log lines; the
+MCP server (`workflow_run`, `workflow_status`, `workflow_executions`,
+`node_run`, `hil_list`, an org's automation status and output), the HTTP API
+(run, executions, HIL list) and an org automation's reply always do. The token
+is the 43-character end of a `/reply/<token>` link. In a link it is hidden
+unless every reply recorded under it is a node's own and sends nothing (its
+link is then in the waiting list too); a bare one is hidden when a reply that
+may send or a shared link is recorded under it, or it is the shown run's
+resume token, and in a log line (no database to ask) every link token and
+every bare 43-character base64url string is. An
+approval whose data holds `[reply token hidden]` is refused (exit 3, HTTP 400,
+an MCP error): leave that field out and it keeps its value.
+
+An item of a run an org started (through a grant or a message to an
+automation role) is that org's decision instead, class `hil:<alias>`. Its tier
+is the one the user set for the class (`org autonomy set --tier
+hil:<alias>=…`), else its grant's: irreversible when the workflow has any node
+that isn't read-only (a send, a called workflow, an HTTP write, …),
+consequential otherwise, and unknown aliases are irreversible. At `manual` a
+person decides it; at `mid` a person decides an irreversible item, the org's
+decider a consequential one, and the rule approves a routine one; at `full`
+the decider settles consequential and irreversible ones. So an org settles an
+item that sends a message only at `full`, or at `mid` with a tier the user
+lowered for that class; the chat, an agent or a workflow can't lower a tier or
+set level `full`.
 
 People staged for outreach (saved with category `pending_approval` and a
 drafted introduction) have their own queue, the one the app shows on Human

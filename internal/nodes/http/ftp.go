@@ -53,7 +53,11 @@ func (n *FTPNode) Execute(ctx context.Context, input workflow.NodeInput, config 
 	// C-46: confine the local side to the org workdir before dialling.
 	if localPath != "" {
 		var err error
-		if localPath, err = fsconfine.Path(ctx, localPath); err != nil {
+		confine := fsconfine.WritePath // a download writes it
+		if operation == "upload" {
+			confine = fsconfine.Path
+		}
+		if localPath, err = confine(ctx, localPath); err != nil {
 			return nil, fmt.Errorf("http.ftp: local_path: %w", err)
 		}
 	}

@@ -14,6 +14,7 @@ import (
 
 	"github.com/monoes/mono-agent/internal/browserctl"
 	"github.com/monoes/mono-agent/internal/monomind"
+	"github.com/monoes/mono-agent/internal/testhome"
 )
 
 // The binary vouches for the org kind of the role shells its org runs start.
@@ -41,9 +42,8 @@ func TestOrgLaunchesIssueAnOrgKindToken(t *testing.T) {
 // launcher that started it exits, while the org runs, and no longer once
 // the org has ended.
 func TestDetachedOrgKeepsItsKindAfterTheLauncherExits(t *testing.T) {
-	const helperEnv, homeEnv = "MONOAGENT_TEST_ORG_LAUNCHER", "MONOAGENT_TEST_ORG_HOME"
+	const helperEnv = "MONOAGENT_TEST_ORG_LAUNCHER"
 	if root := os.Getenv(helperEnv); root != "" {
-		os.Setenv("HOME", os.Getenv(homeEnv)) // testhome gave this process a HOME of its own
 		if err := monomind.OrgRunStart(context.Background(), root, "sec", ""); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
@@ -56,7 +56,14 @@ func TestDetachedOrgKeepsItsKindAfterTheLauncherExits(t *testing.T) {
 	if _, err := exec.LookPath("node"); err != nil {
 		t.Skip("Node.js not installed") // org run --start drains its output through node
 	}
-	home, root := t.TempDir(), t.TempDir()
+	// The launcher exits from inside the test, so a test home of its own would
+	// never be removed: it keeps this test's HOME (testhome.KeepHomeEnv), which
+	// lies in a temp dir of the launcher's where a leftover would show.
+	tmp, root := t.TempDir(), t.TempDir()
+	home := filepath.Join(tmp, "home")
+	if err := os.Mkdir(home, 0o755); err != nil {
+		t.Fatal(err)
+	}
 	t.Setenv("HOME", home)
 	rt := filepath.Join(root, ".monomind", "orgs", "sec", "runtime.json")
 	if err := os.MkdirAll(filepath.Dir(rt), 0o755); err != nil {
@@ -72,9 +79,13 @@ func TestDetachedOrgKeepsItsKindAfterTheLauncherExits(t *testing.T) {
 		t.Fatal(err)
 	}
 	launcher := exec.Command(os.Args[0], "-test.run=^TestDetachedOrgKeepsItsKindAfterTheLauncherExits$")
-	launcher.Env = append(os.Environ(), helperEnv+"="+root, homeEnv+"="+home, monomind.EnvOverride+"="+bin)
+	launcher.Env = append(os.Environ(), helperEnv+"="+root, monomind.EnvOverride+"="+bin,
+		testhome.KeepHomeEnv+"=1", "USERPROFILE="+home, "TMPDIR="+tmp)
 	if out, err := launcher.CombinedOutput(); err != nil {
 		t.Fatalf("launcher: %v: %s", err, out)
+	}
+	if left, _ := filepath.Glob(filepath.Join(tmp, "monoagent-testhome-*")); len(left) > 0 {
+		t.Fatalf("the launcher left a test home behind: %v", left)
 	}
 	var run struct {
 		PID int `json:"pid"`

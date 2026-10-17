@@ -13,6 +13,7 @@ import (
 	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/commsync"
 	"github.com/monoes/mono-agent/internal/daemonhb"
+	"github.com/monoes/mono-agent/internal/operator"
 	"github.com/monoes/mono-agent/internal/workflow"
 	"github.com/spf13/cobra"
 )
@@ -86,6 +87,10 @@ func (d Deps) newExecutionCmd() *cobra.Command {
 				fmt.Fprintf(os.Stdout, "Class: %s\n", detail.ErrorClass)
 			}
 			for _, p := range detail.Waiting {
+				if p.Note != "" {
+					fmt.Fprintf(os.Stdout, "Waiting at %s for a %s reply: %s\n", p.NodeID, p.Kind, p.Note)
+					continue
+				}
 				fmt.Fprintf(os.Stdout, "Waiting at %s for a %s reply: %s\n", p.NodeID, p.Kind, p.URL)
 				for _, l := range p.Links {
 					if l.URL != p.URL {
@@ -128,6 +133,15 @@ func executionDetail(ctx context.Context, db *sql.DB, profileID, executionID str
 	if err != nil {
 		return d, fmt.Errorf("get execution: %w", err)
 	}
+	// A reply's token in the run's data (a node can put $execution.resumeUrl
+	// or a reply link in its items or its error) is hidden from an agent, the
+	// chat's runs and a workflow's process, as its links are below
+	// (workflow.ReplyRedactor).
+	var rr *workflow.ReplyRedactor
+	if operator.Marker() != "" {
+		rr = workflow.NewReplyRedactor(ctx, db, executionID)
+	}
+	d.Error = rr.String(d.Error)
 
 	rows, err := db.QueryContext(ctx, `SELECT id, node_id, node_name, status,
 	                                COALESCE(error_message,''), COALESCE(started_at,''), COALESCE(finished_at,''),
@@ -147,7 +161,8 @@ func executionDetail(ctx context.Context, db *sql.DB, profileID, executionID str
 			&n.StartedAt, &n.FinishedAt, &in, &out, &n.RetryCount, &n.ErrorClass, &n.ErrorHint); err != nil {
 			return d, fmt.Errorf("scan execution node: %w", err)
 		}
-		n.InputItems, n.OutputItems = redactedItemsJSON(in), redactedItemsJSON(out)
+		n.InputItems, n.OutputItems = redactedItemsJSON(in, rr), redactedItemsJSON(out, rr)
+		n.ErrorMessage, n.ErrorHint = rr.String(n.ErrorMessage), rr.String(n.ErrorHint)
 		d.Nodes = append(d.Nodes, n)
 	}
 	if err := rows.Err(); err != nil {
@@ -157,6 +172,12 @@ func executionDetail(ctx context.Context, db *sql.DB, profileID, executionID str
 		if d.Waiting, err = workflow.PendingReplies(ctx, db, executionID); err != nil {
 			return d, err
 		}
+		// A reply that lets a message to a person go out is answered by
+		// that person or the user, not an agent, the chat's runs or a
+		// workflow's process: they don't get its links.
+		if operator.Marker() != "" {
+			d.Waiting = workflow.RedactReplies(d.Waiting)
+		}
 	}
 	return d, nil
 }
@@ -164,16 +185,16 @@ func executionDetail(ctx context.Context, db *sql.DB, profileID, executionID str
 // redactedItemsJSON runs a stored input_items/output_items value through the
 // redaction every execution-output surface uses — nodes like
 // vault.secret_get put decrypted credentials into the item stream and rely
-// on display-boundary masking. A value that is not an item array comes back
-// as a JSON string, unchanged.
-func redactedItemsJSON(raw string) json.RawMessage {
+// on display-boundary masking — and rr's reply-token hiding (nil: none). A
+// value that is not an item array comes back as a JSON string.
+func redactedItemsJSON(raw string, rr *workflow.ReplyRedactor) json.RawMessage {
 	var items []workflow.Item
 	if err := json.Unmarshal([]byte(raw), &items); err == nil {
-		if b, err := json.Marshal(workflow.RedactAndTruncateItems(items)); err == nil {
+		if b, err := json.Marshal(rr.Items(workflow.RedactAndTruncateItems(items))); err == nil {
 			return b
 		}
 	}
-	b, _ := json.Marshal(raw)
+	b, _ := json.Marshal(rr.String(raw))
 	return b
 }
 

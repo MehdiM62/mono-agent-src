@@ -10,6 +10,7 @@ import (
 	"os"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
@@ -40,10 +41,13 @@ func checkSFTPConfig(config map[string]interface{}) error {
 // item's file_name metadata, else the property name. download reads the
 // remote file path into the binary property of a copy of the input item,
 // with file_name (default the remote base name), mime_type and file_size.
-func sftpFiles(ctx context.Context, client *ssh.Client, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
-	sc, err := sftp.NewClient(client)
+func sftpFiles(ctx context.Context, client *ssh.Client, connect *time.Timer, timeout time.Duration, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
+	// Opening the sftp session is the last step of connecting: within the
+	// connect deadline (connect) and the node's context.
+	sc, err := awaitServer(ctx, client, connect, timeout, func() string { return "open an sftp session" },
+		func() (*sftp.Client, error) { return sftp.NewClient(client) })
 	if err != nil {
-		return nil, fmt.Errorf("http.ssh: sftp session failed: %w", err)
+		return nil, err
 	}
 	defer sc.Close()
 	stop := context.AfterFunc(ctx, func() { sc.Close() })

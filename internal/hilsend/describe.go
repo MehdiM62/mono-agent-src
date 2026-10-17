@@ -109,6 +109,29 @@ func IsOutbound(nodeType string, config map[string]interface{}) bool {
 	return ok
 }
 
+// MaySend reports whether running nodeType with config could send, judged
+// before the run: it does (IsOutbound), or it is a node type that sends for
+// some operations and its operation is an expression ("{{ … }}", or n8n's
+// "=…") only the run resolves. A check made ahead of the run fails closed on
+// it; the run itself resolves the operation before Guard sees it.
+func MaySend(nodeType string, config map[string]interface{}) bool {
+	if IsOutbound(nodeType, config) {
+		return true
+	}
+	r, ok := outbound[nodeType]
+	return ok && r.ops != nil && isExpression(config["operation"])
+}
+
+// isExpression reports whether v is a template the run resolves.
+func isExpression(v interface{}) bool {
+	s, ok := v.(string)
+	if !ok {
+		return false
+	}
+	s = strings.TrimSpace(s)
+	return strings.Contains(s, "{{") || strings.HasPrefix(s, "=")
+}
+
 func str(v interface{}) string {
 	switch x := v.(type) {
 	case string:

@@ -13,6 +13,7 @@ import (
 
 	"github.com/monoes/mono-agent/internal/cli/orgenv"
 	"github.com/monoes/mono-agent/internal/monomind"
+	"github.com/monoes/mono-agent/internal/operator"
 	"github.com/monoes/mono-agent/internal/orgdesign"
 	"github.com/monoes/mono-agent/internal/orggrant"
 	"github.com/monoes/mono-agent/internal/storage"
@@ -227,15 +228,22 @@ func newOrgGrantAddCmd(env *orgEnv) *cobra.Command {
 				return err
 			}
 			outbound := orggrant.OutboundNodes(wf)
+			// What is not the operator's own terminal (an agent, the chat,
+			// a workflow: internal/operator) grants only calls that ask first.
+			why := operator.Refusal()
 			if !cmd.Flags().Changed("approval") {
 				// C-34: side effects outside mono-agent need a decision by default.
 				approval = "none"
-				if len(outbound) > 0 {
+				if len(outbound) > 0 || why != "" {
 					approval = "required"
 				}
 			}
 			if approval != "none" && approval != "required" {
 				return fmt.Errorf("--approval must be none or required")
+			}
+			if approval == "none" && why != "" {
+				return env.d.InvalidInput("a grant with --approval none lets role %q run %q without asking, which is the user's to give: %s; "+
+					"leave --approval out (or pass required), or run it yourself from a terminal or the app", role, alias, why)
 			}
 			store := orggrant.NewStore(db.DB)
 			existing, _ := store.ListGrants(ctx, profileID, doc.Name, role)
@@ -289,7 +297,7 @@ func newOrgGrantAddCmd(env *orgEnv) *cobra.Command {
 	c.Flags().StringVar(&mode, "mode", "run", "run | trigger | status")
 	c.Flags().BoolVar(&wait, "wait", true, "Wait for the run to finish and return its output")
 	c.Flags().IntVar(&timeout, "timeout", orggrant.DefaultTimeoutSeconds, "Seconds to wait when --wait")
-	c.Flags().StringVar(&approval, "approval", "none", "none | required (default: required when the workflow has outbound nodes)")
+	c.Flags().StringVar(&approval, "approval", "none", "none | required (default: required when the workflow has outbound nodes, or when an agent, the chat or a workflow asks; none is operator only)")
 	c.Flags().IntVar(&maxRun, "max-calls-per-run", orggrant.DefaultMaxCallsPerRun, "Calls allowed per org run")
 	c.Flags().IntVar(&maxDay, "max-calls-per-day", orggrant.DefaultMaxCallsPerDay, "Calls allowed per day")
 	c.Flags().IntVar(&maxOut, "max-output-bytes", orggrant.DefaultMaxOutputBytes, "Output bytes returned to the role per call")

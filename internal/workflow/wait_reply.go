@@ -79,6 +79,11 @@ type WaitReplySpec struct {
 	RespondWith  string `json:"respond_with,omitempty"`
 	RedirectURL  string `json:"redirect_url,omitempty"`
 	ResponseText string `json:"response_text,omitempty"`
+	// Outbound records whether answering the reply lets a message to a
+	// person go out (wait_reply_outbound.go). NewWaitReply sets it, true or
+	// false; a node can't clear a true. nil is a reply opened before it was
+	// recorded, which counts as one that does (replyOutbound).
+	Outbound *bool `json:"outbound,omitempty"`
 }
 
 // WaitReplyField is one field of a reply form.
@@ -265,6 +270,8 @@ func NewWaitReply(ctx context.Context, input NodeInput, spec WaitReplySpec) (Wai
 	if err != nil {
 		return WaitReply{}, fmt.Errorf("wait reply: %w", err)
 	}
+	outbound := (spec.Outbound != nil && *spec.Outbound) || messagesAfter(ctx)
+	spec.Outbound = &outbound
 	specJSON, _ := json.Marshal(spec)
 	var expires interface{}
 	if !spec.Limit.IsZero() {
@@ -387,6 +394,12 @@ type PendingReply struct {
 	URL       string      `json:"url"`
 	Links     []ReplyLink `json:"links,omitempty"`
 	ExpiresAt string      `json:"expires_at,omitempty"`
+	// Outbound: answering it lets a message to a person go out. Shared: its
+	// token answers other replies too (replyShared). Note says why
+	// RedactReplies left URL and Links out.
+	Outbound bool   `json:"outbound,omitempty"`
+	Shared   bool   `json:"shared,omitempty"`
+	Note     string `json:"note,omitempty"`
 }
 
 // PendingReplies lists executionID's unanswered replies, oldest first, so
@@ -410,7 +423,7 @@ func PendingReplies(ctx context.Context, db *sql.DB, executionID string) ([]Pend
 		var spec WaitReplySpec
 		_ = json.Unmarshal([]byte(specJSON), &spec)
 		r := replyOf(token, p.Kind, spec)
-		p.URL, p.Links = r.URL, r.Links
+		p.URL, p.Links, p.Outbound, p.Shared = r.URL, r.Links, replyOutbound(spec), replyShared(spec)
 		out = append(out, p)
 	}
 	return out, rows.Err()

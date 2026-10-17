@@ -130,6 +130,8 @@ func TestPeopleAdapterWiring(t *testing.T) {
 	}
 
 	// Review sends find their workflow in the CLI's store and run it with `workflow run`.
+	// Only the user approves, so this runs as the user's own terminal.
+	asOperatorProcess(t)
 	if _, err := db.DB.Exec(`INSERT INTO workflows (id, name, profile_id, is_active) VALUES ('wf-off', 'Off', 'default', 0), ('wf-on', 'On', 'default', 1)`); err != nil {
 		t.Fatal(err)
 	}

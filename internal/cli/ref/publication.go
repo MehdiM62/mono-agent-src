@@ -61,6 +61,17 @@ It accepts known publication fields from incoming items or per-item config
 expressions, such as body="{{ $json.text }}", and attaches workflow/run/node IDs.
 Items explicitly marked success:false or containing an error are skipped.
 
+While the user's approval of sends is on, what is not the operator's own terminal
+registers only a publication that belongs to a send the user approved and that
+was sent, named by its id: publication register --approval <id> from an agent,
+the chat's runs or a workflow's processes; approval in the register_publication
+and publication_register tools; and the node's approval field in a run an AI
+started (the chat's or an agent's workflow run, the org side) and in every run of
+a workflow the chat, an agent or a workflow made or changed since you last saved
+or activated it from the app or your own terminal. The send must have
+gone out on the publication's platform and, where both have one, returned its
+remote id; one approval registers one publication.
+
 MCP: publication_list, publication_get and publication_stats are read-only.
 publication_register requires mcp --allow-mutations. Assistant tools expose the
 same profile-scoped history. Org grant mode retains its existing capability rules.

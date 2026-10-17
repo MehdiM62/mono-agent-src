@@ -7,6 +7,9 @@ import (
 	"log"
 	"net"
 	"os"
+	"strconv"
+	"strings"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -37,7 +40,6 @@ func (n *SSHNode) Execute(ctx context.Context, input workflow.NodeInput, config 
 	if username == "" {
 		return nil, fmt.Errorf("http.ssh: 'username' is required")
 	}
-
 	resource, _ := config["resource"].(string)
 	command, _ := config["command"].(string)
 	switch resource {
@@ -58,6 +60,26 @@ func (n *SSHNode) Execute(ctx context.Context, input workflow.NodeInput, config 
 		timeoutSecs = int(v)
 	}
 	timeout := time.Duration(timeoutSecs) * time.Second
+
+	// Connecting — resolving the host, the dial, the handshake
+	// (ClientConfig.Timeout covers only ssh.Dial), opening the session and
+	// its environment request — has one deadline, timeout_seconds from now,
+	// and ends when the node's context does; the command then has
+	// timeout_seconds of its own. The host is resolved once: whether it is
+	// this machine is decided on the addresses then dialled.
+	connectBy := time.Now().Add(timeout)
+	resolveCtx, endResolve := context.WithDeadline(ctx, connectBy)
+	target, err := resolveSSHTarget(resolveCtx, host)
+	endResolve()
+	if err != nil {
+		return nil, fmt.Errorf("http.ssh: dial failed: %w", err)
+	}
+	// ssh to this machine runs a program here, as a command step would.
+	if workflow.AIAuthoredFrom(ctx) && target.local {
+		if err := workflow.RefuseUnapprovedProgram(ctx, "http.ssh to this computer", input.WorkflowID); err != nil {
+			return nil, err
+		}
+	}
 
 	// Build auth methods
 	var authMethods []ssh.AuthMethod
@@ -112,32 +134,83 @@ func (n *SSHNode) Execute(ctx context.Context, input workflow.NodeInput, config 
 		Timeout:         timeout,
 	}
 
+	// The host key is checked against the host as configured (addr); the
+	// connection goes to an address resolveSSHTarget checked.
 	addr := fmt.Sprintf("%s:%d", host, port)
-
-	// Dial with context
-	dialer := &net.Dialer{Timeout: timeout}
-	netConn, err := dialer.DialContext(ctx, "tcp", addr)
+	// Each address gets an equal share of what is left of the connect
+	// deadline (the last one all of it), so one that never answers — a
+	// broken IPv6 route ahead of a working IPv4 address — leaves time for
+	// the next; the first that connects is used.
+	var netConn net.Conn
+	for i, a := range target.dial {
+		by := connectBy
+		if left := len(target.dial) - i; left > 1 {
+			by = time.Now().Add(time.Until(connectBy) / time.Duration(left))
+		}
+		dialer := &net.Dialer{Deadline: by}
+		if netConn, err = dialer.DialContext(ctx, "tcp", net.JoinHostPort(a, strconv.Itoa(port))); err == nil {
+			break
+		}
+	}
 	if err != nil {
+		if ctx.Err() == nil && !time.Now().Before(connectBy) {
+			return nil, fmt.Errorf("http.ssh: timed out after %s connecting (dial)", timeout)
+		}
 		return nil, fmt.Errorf("http.ssh: dial failed: %w", err)
 	}
-
+	_ = netConn.SetDeadline(connectBy)
+	stopHandshake := context.AfterFunc(ctx, func() { _ = netConn.SetDeadline(time.Now()) })
 	sshConn, chans, reqs, err := ssh.NewClientConn(netConn, addr, sshConfig)
+	stopHandshake()
 	if err != nil {
 		netConn.Close()
+		if ctx.Err() != nil {
+			return nil, fmt.Errorf("http.ssh: cancelled: %w", ctx.Err())
+		}
+		if !time.Now().Before(connectBy) {
+			return nil, fmt.Errorf("http.ssh: timed out after %s waiting for the ssh handshake", timeout)
+		}
 		return nil, fmt.Errorf("http.ssh: handshake failed: %w", err)
 	}
+	_ = netConn.SetDeadline(time.Time{})
 	client := ssh.NewClient(sshConn, chans, reqs)
 	defer client.Close()
 
+	connect := time.NewTimer(time.Until(connectBy))
+	defer connect.Stop()
 	if resource == "file" {
-		return sftpFiles(ctx, client, input, config)
+		return sftpFiles(ctx, client, connect, timeout, input, config)
 	}
-
-	session, err := client.NewSession()
+	// What a workflow runs is never the operator (workflow.EnvWorkflowRun),
+	// over ssh too. sshd passes on only the variables AcceptEnv names, so on
+	// this machine, where `monoagentcli hil approve` reaches the user's
+	// database, the command exports the marker as well. Other hosts keep
+	// their command as written: a Windows host's cmd.exe has no export.
+	// Opening the session and the environment request end connecting in one
+	// wait, so the connect timer is read once: an answer that came in time
+	// is never taken for a timeout.
+	var opened atomic.Bool
+	session, err := awaitServer(ctx, client, connect, timeout, func() string {
+		if opened.Load() {
+			return "answer an environment request"
+		}
+		return "open a session"
+	}, func() (*ssh.Session, error) {
+		s, err := client.NewSession()
+		if err != nil {
+			return nil, err
+		}
+		opened.Store(true)
+		_ = s.Setenv(workflow.EnvWorkflowRun, workflow.RunMarker(input.ExecutionID))
+		return s, nil
+	})
 	if err != nil {
-		return nil, fmt.Errorf("http.ssh: session failed: %w", err)
+		return nil, err
 	}
 	defer session.Close()
+	if exportsMarker(target) {
+		command = markedCommand(input.ExecutionID, command)
+	}
 
 	var stdoutBuf, stderrBuf bytes.Buffer
 	session.Stdout = &stdoutBuf
@@ -149,7 +222,6 @@ func (n *SSHNode) Execute(ctx context.Context, input workflow.NodeInput, config 
 	// cancellation.
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
-
 	runErrCh := make(chan error, 1)
 	go func() { runErrCh <- session.Run(command) }()
 
@@ -184,4 +256,40 @@ func (n *SSHNode) Execute(ctx context.Context, input workflow.NodeInput, config 
 	}
 
 	return []workflow.NodeOutput{{Handle: handle, Items: []workflow.Item{resultItem}}}, nil
+}
+
+// awaitServer runs open, a step that waits for the server, until the node's
+// context ends or timer fires; then it closes client, which ends open, and
+// says why (what: what the server was being waited for, at that moment).
+func awaitServer[T any](ctx context.Context, client *ssh.Client, timer *time.Timer, timeout time.Duration, what func() string, open func() (T, error)) (T, error) {
+	type result struct {
+		v   T
+		err error
+	}
+	done := make(chan result, 1)
+	go func() {
+		v, err := open()
+		done <- result{v, err}
+	}()
+	var zero T
+	select {
+	case r := <-done:
+		if r.err != nil {
+			return zero, fmt.Errorf("http.ssh: could not %s: %w", what(), r.err)
+		}
+		return r.v, nil
+	case <-ctx.Done():
+		client.Close()
+		return zero, fmt.Errorf("http.ssh: cancelled: %w", ctx.Err())
+	case <-timer.C:
+		client.Close()
+		return zero, fmt.Errorf("http.ssh: timed out after %s waiting for the server to %s", timeout, what())
+	}
+}
+
+// markedCommand is command after an export of the run's marker
+// (workflow.EnvWorkflowRun), single-quoted for the remote shell.
+func markedCommand(executionID, command string) string {
+	marker := "'" + strings.ReplaceAll(workflow.RunMarker(executionID), "'", `'\''`) + "'"
+	return "export " + workflow.EnvWorkflowRun + "=" + marker + "; " + command
 }

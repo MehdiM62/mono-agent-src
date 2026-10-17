@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/monoes/mono-agent/internal/commsync"
+	"github.com/monoes/mono-agent/internal/operator"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -197,6 +198,16 @@ func toolHilList(ctx context.Context, s *Server, args json.RawMessage) (interfac
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate HIL items: %w", err)
 	}
+	// A reply token in an item's data can answer a reply that opens once
+	// the item is approved: an agent doesn't get it (workflow.ReplyRedactor).
+	ids := make([]string, len(items))
+	for i, it := range items {
+		ids[i] = it.ExecutionID
+	}
+	rr := workflow.NewReplyRedactor(ctx, rt.db.DB, ids...)
+	for i := range items {
+		items[i].ReadonlyData, items[i].EditableData = rr.Map(items[i].ReadonlyData), rr.Map(items[i].EditableData)
+	}
 	return items, nil
 }
 
@@ -218,8 +229,14 @@ func toolHilApprove(ctx context.Context, s *Server, args json.RawMessage) (inter
 	if err != nil {
 		return nil, fmt.Errorf("render data: %w", err)
 	}
+	if err := workflow.CheckReplyEdit(string(edited)); err != nil {
+		return nil, err
+	}
 	rt, err := s.runtime()
 	if err != nil {
+		return nil, err
+	}
+	if err := operator.ItemRefusal(ctx, rt.db.DB, profileOf(ctx), a.ID); err != nil {
 		return nil, err
 	}
 	res, err := rt.db.DB.ExecContext(ctx,
@@ -249,6 +266,9 @@ func toolHilReject(ctx context.Context, s *Server, args json.RawMessage) (interf
 	}
 	rt, err := s.runtime()
 	if err != nil {
+		return nil, err
+	}
+	if err := operator.ItemRefusal(ctx, rt.db.DB, profileOf(ctx), a.ID); err != nil {
 		return nil, err
 	}
 	res, err := rt.db.DB.ExecContext(ctx,

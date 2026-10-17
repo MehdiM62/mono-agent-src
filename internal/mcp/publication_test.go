@@ -37,6 +37,7 @@ func TestPublicationMCPProfileScope(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer s.closeRuntime()
+	sendApprovalsOff(t, rt.db.DB)
 	ctx := context.Background()
 	other, err := publication.NewStore(rt.db.DB, "other").Register(ctx, publication.Entry{Platform: "custom", Kind: "post", Body: "private to other profile"})
 	if err != nil {

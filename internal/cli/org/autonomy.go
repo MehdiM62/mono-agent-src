@@ -110,10 +110,13 @@ func newOrgAutonomySetCmd(env *orgEnv) *cobra.Command {
 	var tiers, clearTiers []string
 	c := &cobra.Command{
 		Use:   "set <org>",
-		Short: "Change an org's autonomy level, decider, tiers, or policy",
+		Short: "Change an org's autonomy level, decider, tiers, or policy (level full is operator only)",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
+			if err := env.refuseFullAutonomy(cmd.Flags().Changed("level") && level == orgdesign.LevelFull, args[0]); err != nil {
+				return err
+			}
 			db, profileID, root, doc, err := loadOrgForEdit(env, args[0])
 			if err != nil {
 				return err
@@ -123,6 +126,7 @@ func newOrgAutonomySetCmd(env *orgEnv) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			before := snapshotAutonomy(a)
 			f := cmd.Flags()
 			if f.Changed("level") {
 				a.Level = level
@@ -179,6 +183,9 @@ func newOrgAutonomySetCmd(env *orgEnv) *cobra.Command {
 			}
 			for _, k := range clearTiers {
 				delete(a.Tiers, k)
+			}
+			if err := env.refuseWidening(before, a, doc.Name); err != nil {
+				return err
 			}
 			if err := a.Validate(); err != nil {
 				return env.d.InvalidInput("%v", err)
@@ -352,18 +359,28 @@ func newOrgAutonomyPauseCmd(env *orgEnv, pause bool) *cobra.Command {
 				}
 				until = time.Now().Add(d)
 			}
-			var views []map[string]interface{}
+			// Every org is checked before any is written: a refused one
+			// leaves them all as they were.
+			var changed []*orgdecide.Autonomy
 			for _, org := range orgs {
 				a, err := store.Get(ctx, profileID, org)
 				if err != nil {
 					return err
 				}
+				before := snapshotAutonomy(a)
 				if pause {
-					u := until
+					u := pauseUntil(a, until)
 					a.PausedUntil = &u
 				} else {
 					a.PausedUntil = nil
 				}
+				if err := env.refuseWidening(before, a, org); err != nil {
+					return err
+				}
+				changed = append(changed, a)
+			}
+			var views []map[string]interface{}
+			for _, a := range changed {
 				if err := store.Put(ctx, a, "cli"); err != nil {
 					return err
 				}

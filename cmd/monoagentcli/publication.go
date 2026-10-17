@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	publicationcli "github.com/monoes/mono-agent/internal/cli/publication"
+	"github.com/monoes/mono-agent/internal/publication"
 	"github.com/monoes/mono-agent/internal/storage"
 )
 
@@ -23,7 +24,9 @@ func newPublicationCmd(cfg *globalConfig) *cobra.Command {
 		NewTable: func(w io.Writer, headers []string) *tablewriter.Table {
 			return newPlainTable(w, headers, nil)
 		},
-		Operator:        requireOperator,
-		RequireApproval: func(approvalID string) error { return requirePublicationApproval(cfg, approvalID) },
+		Operator: requireOperator,
+		RequireApproval: func(approvalID string, e publication.Entry) (func(), error) {
+			return requirePublicationApproval(cfg, approvalID, e)
+		},
 	})
 }

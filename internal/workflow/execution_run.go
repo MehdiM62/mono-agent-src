@@ -11,6 +11,7 @@ import (
 
 	"github.com/monoes/mono-agent/internal/connections"
 	"github.com/monoes/mono-agent/internal/fsconfine"
+	"github.com/monoes/mono-agent/internal/profiledir"
 	"github.com/monoes/mono-agent/internal/vault"
 	"github.com/rs/zerolog"
 )
@@ -145,6 +146,21 @@ func RunExecution(
 	// context still holds a process-wide profile.
 	if exec.ProfileID != "" {
 		ctx = vault.ContextWithProfileID(ctx, exec.ProfileID)
+	}
+	// A run of a definition the operator never approved is an AI run,
+	// whatever started it, and its file steps keep to FileGuard
+	// (approvals.go). So do those of a workflow such a run called, whose own
+	// approval still decides its program steps.
+	profile, _ := vault.ProfileIDFromContext(ctx)
+	project := profiledir.Root(vault.DBFromContext(ctx), profile)
+	if approved, err := operatorApproved(ctx, store, wf); !approved {
+		ctx = WithUnapproved(withApprovalCheckError(ctx, err), project, ApproveHint(profile, wf.ID))
+	} else if caller, ok := CalledByUnapproved(exec.TriggerData); ok {
+		hint := "this workflow was called by one you haven't approved: save or activate that one in the app or your terminal to let it"
+		if caller != "" {
+			hint = "this workflow was called by " + caller + ", which you haven't approved: " + ApproveHint(profile, caller)
+		}
+		ctx = fsconfine.GuardHiddenHome(ctx, FileGuard(project, hint))
 	}
 	r.ctx = ctx
 

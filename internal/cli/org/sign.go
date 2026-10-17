@@ -256,7 +256,7 @@ type orgSignBlocked struct{ marker, org string }
 func (e *orgSignBlocked) Error() string {
 	return fmt.Sprintf("refusing to sign: %s is set and there is no terminal, so an AI agent may be running this "+
 		"(or the app was started from an AI-agent shell). Sign it yourself: `monoagentcli org sign %s` in a normal terminal, "+
-		"or the app started normally", e.marker, e.org)
+		"or the app started normally. %s", e.marker, e.org, operator.InheritedHint())
 }
 
 func (e *orgSignBlocked) JSONErrorFields() map[string]any {

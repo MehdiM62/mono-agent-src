@@ -182,6 +182,7 @@ func newOrgCLIFixture(t *testing.T) *orgCLIFixture {
 		t.Fatal(err)
 	}
 	t.Setenv("MONOMIND_BIN", fake)
+	asOrgOperator(t) // a test from an agent's shell inherits its markers
 
 	dbPath := filepath.Join(home, "test.db")
 	db, err := storage.NewDatabase(dbPath)

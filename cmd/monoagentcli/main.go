@@ -17,6 +17,8 @@ import (
 	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/i18n"
 	"github.com/monoes/mono-agent/internal/logging"
+	"github.com/monoes/mono-agent/internal/operator"
+	"github.com/monoes/mono-agent/internal/workflow"
 )
 
 // version/buildDate are set via -ldflags in release builds (see
@@ -77,6 +79,17 @@ func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
 }
 
+// agentLogFilter keeps reply tokens out of the log lines of a process an
+// agent, the chat's runs or a workflow's process started (a node's error can
+// hold one); with no database open yet, every candidate is hidden
+// (workflow.ReplyRedactor). The user's own terminal gets nil: no filter.
+func agentLogFilter() func(string) string {
+	if operator.Marker() == "" {
+		return nil
+	}
+	return workflow.NewReplyRedactor(context.Background(), nil).String
+}
+
 // run is the command line without the process: it gates args on the monoes.me
 // account (account_gate.go), executes them and returns the exit code, so a
 // test can call it. Tests that call newRootCmd().Execute() skip the gate by
@@ -86,6 +99,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 		args = []string{} // cobra reads os.Args for a nil slice
 	}
 	// The root logger, before anything can log (see internal/logging).
+	logging.SetLineFilter(agentLogFilter())
 	logging.Init(args, os.Getenv, os.Stderr)
 
 	// Locale must be resolved before newRootCmd() builds the command tree,

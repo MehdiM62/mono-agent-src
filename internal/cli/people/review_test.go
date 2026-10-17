@@ -18,6 +18,7 @@ import (
 func newReviewCLITestDB(t *testing.T) (*testConfig, *storage.Database) {
 	t.Helper()
 	t.Setenv("HOME", t.TempDir())
+	asOperator(t)
 	dbPath := filepath.Join(t.TempDir(), "review.db")
 	db, err := storage.NewDatabase(dbPath)
 	if err != nil {

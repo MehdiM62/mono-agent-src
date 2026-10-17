@@ -96,7 +96,22 @@ func FromTriggerData(ctx context.Context, td map[string]interface{}) context.Con
 // wherever it points. Residual risk: a process that swaps a directory for a
 // symlink between this check and the open (TOCTOU) is not stopped; that
 // needs the role to already have a shell, which is caveat C-2.
+//
+// In a run GuardHiddenHome marked, Path also refuses a hidden file or folder
+// of the user's home outside the project folder (hidden_home.go).
 func Path(ctx context.Context, p string) (string, error) {
+	r, err := confine(ctx, p)
+	if err != nil {
+		return "", err
+	}
+	if err := homeRule(ctx, p, r, false); err != nil {
+		return "", err
+	}
+	return r, nil
+}
+
+// confine is Path's org-workdir confinement alone.
+func confine(ctx context.Context, p string) (string, error) {
 	c, ok := ctx.Value(ctxKey{}).(confinement)
 	if !ok {
 		return p, nil

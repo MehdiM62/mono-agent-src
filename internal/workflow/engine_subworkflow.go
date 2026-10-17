@@ -54,6 +54,17 @@ func (e *WorkflowEngine) StartSubWorkflow(ctx context.Context, req SubWorkflowSt
 			data[k] = v
 		}
 	}
+	// It inherits the parent's being an AI run too, so it cannot do what the
+	// parent may not. Not the parent's lack of approval itself: the child's
+	// own approval decides that, as when the chat runs it directly.
+	if mark := subWorkflowAICaller(ctx, parentData); mark != "" {
+		data[AICallerKey] = mark
+	}
+	// And which workflow the user never approved is up the chain, whoever
+	// started it (CalledByUnapproved).
+	if id, ok := subWorkflowUnapprovedCaller(ctx, parentData); ok {
+		data[UnapprovedCallerKey] = id
+	}
 
 	exec := &WorkflowExecution{
 		WorkflowID:  wf.ID,
@@ -87,6 +98,64 @@ func (e *WorkflowEngine) StartSubWorkflow(ctx context.Context, req SubWorkflowSt
 		return exec.ID, fmt.Errorf("sub-workflow: %w", ErrQueueFull)
 	}
 	return exec.ID, nil
+}
+
+// UnapprovedWorkflowCaller is the AI-caller mark (AICallerKey) of a
+// sub-workflow that a workflow the user never approved started.
+const UnapprovedWorkflowCaller = "unapproved-workflow"
+
+// UnapprovedCallerKey is the trigger-data field that names the workflow
+// the user never approved that called this run, directly or further up the
+// chain (CalledByUnapproved), whatever AI-caller mark the run carries. It
+// never reaches the child's items, which are SubWorkflowItemsKey's.
+const UnapprovedCallerKey = "_unapproved_caller"
+
+// subWorkflowAICaller is the AI-caller mark of a sub-workflow the run in ctx
+// starts: the parent's own (an AI's `workflow run`, or an earlier call's),
+// "org" (browserctl.KindOrg) when the org side started the parent, and
+// UnapprovedWorkflowCaller when the user never approved the parent's
+// definition; "" for the user's own run.
+func subWorkflowAICaller(ctx context.Context, parentData map[string]interface{}) string {
+	if v, _ := parentData[AICallerKey].(string); strings.TrimSpace(v) != "" {
+		return v
+	}
+	switch TriggerTypeFrom(ctx) {
+	case TriggerTypeOrgTool, TriggerTypeOrgMessage, TriggerNodeTypeOrg:
+		return "org"
+	}
+	if AIAuthoredFrom(ctx) {
+		return UnapprovedWorkflowCaller
+	}
+	return ""
+}
+
+// subWorkflowUnapprovedCaller reports whether a sub-workflow the run in ctx
+// starts is called by a workflow the user never approved, and which: the
+// one that called the parent, else the parent when its own definition is
+// unapproved ("" when the run's context doesn't name it).
+func subWorkflowUnapprovedCaller(ctx context.Context, parentData map[string]interface{}) (string, bool) {
+	if id, ok := CalledByUnapproved(parentData); ok && id != "" {
+		return id, true
+	}
+	if AIAuthoredFrom(ctx) {
+		id, _ := vault.ExecIDsFromContext(ctx)
+		return id, true
+	}
+	_, ok := CalledByUnapproved(parentData)
+	return "", ok
+}
+
+// CalledByUnapproved reports whether the run with triggerData was called,
+// directly or further up the chain, by a workflow the user never approved,
+// whoever started it, and that workflow's id when known (a call queued
+// before ids were recorded carries only the UnapprovedWorkflowCaller mark).
+func CalledByUnapproved(triggerData map[string]interface{}) (workflowID string, ok bool) {
+	if v, present := triggerData[UnapprovedCallerKey]; present {
+		id, _ := v.(string)
+		return strings.TrimSpace(id), true
+	}
+	mark, _ := triggerData[AICallerKey].(string)
+	return "", mark == UnapprovedWorkflowCaller
 }
 
 // resolveSubWorkflow finds the workflow ref names: an ID first, then an exact

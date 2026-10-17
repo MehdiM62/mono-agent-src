@@ -34,6 +34,9 @@ type Item struct {
 	Name      string                   `json:"-"` // gate name
 	WaitingMS int64                    `json:"-"` // epoch ms the item appeared
 	Hash      string                   `json:"-"`
+	// Sends: approving the item lets a message to a person go out
+	// (ItemSends), so only a person decides it (RouteItem).
+	Sends bool `json:"-"`
 }
 
 // ClassForAction maps an approval action to its decision class (contracts
@@ -131,6 +134,15 @@ func Route(level, tier string) string {
 		return RouteDecider
 	}
 	return RouteHuman
+}
+
+// RouteItem is Route for it: an item whose approval lets a message to a
+// person go out (Item.Sends) goes to a person at every level and tier.
+func RouteItem(level string, it Item) string {
+	if it.Sends {
+		return RouteHuman
+	}
+	return Route(level, it.Tier)
 }
 
 // hashItem keys the repeat-denial rule: kind, requester, and normalized

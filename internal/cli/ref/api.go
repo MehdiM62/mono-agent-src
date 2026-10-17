@@ -58,6 +58,10 @@ ENDPOINTS
          approve a pending HIL item
     POST /profiles/{profile}/hil/{id}/reject
          reject a pending HIL item
+         (both 403 for a browser form submit, a site an agent asked to
+         use, a send, and a workflow step whose approval sends a message
+         to a person: the user decides those with hil approve|reject in
+         their own terminal or on the Human in Loop page)
 
   Served by monoagentcli daemon (on by default), always, with its own auth:
     POST /org-endpoint/{id}               deliver an org message to an

@@ -122,6 +122,10 @@ func (r *runner) resolveFor(t *nodeTask, item Item) (map[string]interface{}, err
 // runTask executes a prepared node with retry. Safe to call concurrently
 // for independent tasks: it touches only the task and the store.
 func (r *runner) runTask(t *nodeTask) {
+	// A reply the node opens is marked when what runs after it may send a
+	// message to a person (wait_reply_outbound.go); worked out only then.
+	nodeID := t.node.ID
+	t.ctx = withRunsAfter(t.ctx, func() commsync.Reachable { return r.reachableFrom(nodeID) })
 	ctx := t.ctx
 	// Communications: tell a Human-in-Loop node what it is approving, and
 	// mark the approved messages that wait for any other node as sending
@@ -130,6 +134,7 @@ func (r *runner) runTask(t *nodeTask) {
 		db := vault.DBFromContext(ctx)
 		if t.node.Type == humanInLoopType {
 			t.ctx = commsync.WithDownstream(ctx, r.wf.Name, downstreamOf(r.dag, t.node.ID))
+			t.ctx = commsync.WithReachable(t.ctx, r.reachableFrom(t.node.ID))
 		} else {
 			commsync.NodeStarted(ctx, db, r.exec.ID, t.node.ID)
 			defer func() {

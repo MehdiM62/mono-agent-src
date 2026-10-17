@@ -132,7 +132,7 @@ func buildOutputPath(ctx context.Context, inputPath, outputDir, suffix, ext stri
 	}
 	ext = strings.TrimPrefix(ext, ".")
 	ts := fmt.Sprintf("%d", time.Now().UnixNano()/1e6)
-	out, err := fsconfine.Path(ctx, filepath.Join(dir, fmt.Sprintf("%s_%s_%s.%s", base, suffix, ts, ext)))
+	out, err := fsconfine.WritePath(ctx, filepath.Join(dir, fmt.Sprintf("%s_%s_%s.%s", base, suffix, ts, ext)))
 	if err != nil {
 		return "", err
 	}

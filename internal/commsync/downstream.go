@@ -30,3 +30,29 @@ func DownstreamFrom(ctx context.Context) (workflowName string, nodes []Node) {
 	d, _ := ctx.Value(downstreamKey{}).(downstream)
 	return d.workflow, d.nodes
 }
+
+type reachableKey struct{}
+
+// Reachable is everything that can run once a Human-in-Loop node's items are
+// approved: every node reachable from it in its workflow, control nodes and
+// disabled ones included, and the nodes of the workflows those call
+// (core.execute_workflow), as far as the engine could resolve them. Unresolved
+// says something reachable could not be resolved (a sub-workflow named by an
+// expression, missing, ambiguous or nested too deep), so the node counts its
+// items as outbound.
+type Reachable struct {
+	Nodes      []Node
+	Unresolved bool
+}
+
+// WithReachable attaches what can run after a HIL node to ctx.
+func WithReachable(ctx context.Context, r Reachable) context.Context {
+	return context.WithValue(ctx, reachableKey{}, r)
+}
+
+// ReachableFrom returns what WithReachable attached; ok is false outside an
+// engine run. Callers must not modify the nodes.
+func ReachableFrom(ctx context.Context) (r Reachable, ok bool) {
+	r, ok = ctx.Value(reachableKey{}).(Reachable)
+	return r, ok
+}

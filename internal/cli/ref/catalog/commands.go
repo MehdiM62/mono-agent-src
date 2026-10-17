@@ -161,7 +161,11 @@ live under ~/.monoagent/attachments/<message>/.
 		Flags: `  list              List all config entries
   set <key> <val>   Set a config value
   get <key>         Get a config value
-  delete <key>      Delete a config entry`,
+  delete <key>      Delete a config entry
+  set and delete of a row that gates approvals, permissions or sandboxing
+  (browser_agent_permissions, browser_agent_allowlist, coder_mode,
+  sandbox.fallback, automation.autoRepair, coder_projects) are the operator's own: an agent,
+  the chat's runs and workflow processes get exit 3, operator_only`,
 		Examples: []string{
 			"monoagentcli config list",
 			`monoagentcli config set INSTAGRAM_POST_LIKING.like_button "//button[@aria-label='Like']"`,

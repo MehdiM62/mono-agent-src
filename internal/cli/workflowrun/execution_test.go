@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/monoes/mono-agent/internal/daemonhb"
+	"github.com/monoes/mono-agent/internal/operator"
 	"github.com/monoes/mono-agent/internal/storage"
 )
 
@@ -299,6 +300,11 @@ func TestReadProcessCommandLineSelf(t *testing.T) {
 // links can only be resumed through its URL, so the detail names it.
 func TestWorkflowExecutionDetailShowsResumeURL(t *testing.T) {
 	cfg, db := seedExecutionDB(t)
+	// The user's own terminal: an agent doesn't get a reply opened before
+	// its decision was recorded (execution_reply_test.go).
+	for _, k := range operator.MarkerEnv() {
+		t.Setenv(k, "")
+	}
 	t.Setenv("MONOAGENT_PUBLIC_URL", "http://127.0.0.1:19721")
 	if _, err := db.DB.Exec(`INSERT INTO workflow_executions (id, workflow_id, status, trigger_type, profile_id, created_at) VALUES
 		('e-wait','w1','WAITING','trigger.manual','default','2026-09-26 10:00:00');

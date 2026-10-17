@@ -26,7 +26,7 @@ func TestHILItemsOfOrgRunsAreRouted(t *testing.T) {
 	mustExec(`INSERT INTO workflows (id, name, profile_id) VALUES ('wf', 'Publish', 'p')`)
 	mustExec(`INSERT INTO workflow_executions (id, workflow_id, status, trigger_type, trigger_data, profile_id) VALUES ('e-org', 'wf', 'WAITING', 'org_tool', '{"org":{"name":"growth","role":"writer","automation":"publish"}}', 'p')`)
 	mustExec(`INSERT INTO workflow_executions (id, workflow_id, status, trigger_type, profile_id) VALUES ('e-solo', 'wf', 'WAITING', 'trigger.manual', 'p')`)
-	mustExec(`INSERT INTO hil_pending (id, execution_id, workflow_id, node_id, node_name, readonly_data, profile_id) VALUES ('hil-org', 'e-org', 'wf', 'n', 'Review post', '{"text":"hello"}', 'p')`)
+	mustExec(`INSERT INTO hil_pending (id, execution_id, workflow_id, node_id, node_name, readonly_data, node_config, profile_id) VALUES ('hil-org', 'e-org', 'wf', 'n', 'Review post', '{"text":"hello"}', '{"outbound":false}', 'p')`)
 	mustExec(`INSERT INTO hil_pending (id, execution_id, workflow_id, node_id, node_name, profile_id) VALUES ('hil-solo', 'e-solo', 'wf', 'n', 'Review', 'p')`)
 	if _, err := orggrant.NewStore(db).UpsertGrant(ctx, orggrant.GrantInput{ProfileID: "p", OrgName: "growth", RoleID: "writer",
 		Tool: orggrant.Tool{Alias: "publish", WorkflowID: "wf", Tier: orgdesign.TierConsequential}}); err != nil {

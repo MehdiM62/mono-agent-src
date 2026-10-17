@@ -80,6 +80,9 @@ type PreparedBy struct {
 	AgentID        string `json:"agentId,omitempty"`
 	ConversationID string `json:"conversationId,omitempty"`
 	Org            string `json:"org,omitempty"`
+	// Workflow is the workflow whose run prepared the send, when that run is
+	// why it waits (UnapprovedWorkflowAgent).
+	Workflow string `json:"workflow,omitempty"`
 }
 
 // Account is the connected account the send goes out from.

@@ -19,7 +19,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/zalando/go-keyring"
+
 	"github.com/monoes/mono-agent/internal/bot/bottest"
+	"github.com/monoes/mono-agent/internal/testhome"
 )
 
 func TestMain(m *testing.M) {
@@ -32,7 +35,8 @@ func TestMain(m *testing.M) {
 	scrollSettle = 300 * time.Millisecond
 	publishTimeout = 4 * time.Second
 	sendVerificationTimeout = 3 * time.Second
-	os.Exit(m.Run())
+	keyring.MockInit()
+	testhome.Main(m)
 }
 
 type fx map[string]interface{}

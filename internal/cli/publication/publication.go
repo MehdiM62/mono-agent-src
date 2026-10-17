@@ -36,8 +36,9 @@ type Deps struct {
 	// context) what only the operator may do; nil for the operator.
 	Operator func(what string) error
 	// RequireApproval refuses `register` from an agent unless approvalID is an approved, sent
-	// send (when approvals of sends are on); nil for the operator.
-	RequireApproval func(approvalID string) error
+	// send that made e (when approvals of sends are on), and claims it: release gives the
+	// claim back when the registration fails. A no-op release and nil for the operator.
+	RequireApproval func(approvalID string, e publication.Entry) (release func(), err error)
 }
 
 // truncate shortens s to n bytes for a table cell, ending in "..." when it cuts (the CLI's
@@ -181,12 +182,14 @@ func NewCommand(d Deps) *cobra.Command {
 		if err := json.Unmarshal(input, &e); err != nil {
 			return d.InvalidInput("invalid publication JSON: %v", err)
 		}
-		if err := d.RequireApproval(approval); err != nil {
+		release, err := d.RequireApproval(approval, e)
+		if err != nil {
 			return err
 		}
 		return d.withStore(func(store *publication.Store) error {
 			registered, err := store.Register(cmd.Context(), e)
 			if err != nil {
+				release()
 				return err
 			}
 			return d.printPublication(cmd, registered)

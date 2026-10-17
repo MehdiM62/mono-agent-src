@@ -10,6 +10,8 @@ import (
 	"sync"
 
 	"github.com/rs/zerolog"
+
+	"github.com/monoes/mono-agent/internal/operator"
 )
 
 // ---------------------------------------------------------------------------
@@ -300,7 +302,9 @@ func (cm *ConfigManager) generateConfig(
 	cfg.ConfigName = strings.TrimSuffix(cfg.ConfigName, ".json")
 
 	// Persist to DB and cache for future lookups.
-	cm.persistAndCache(baseName, cfg)
+	if err := cm.persistAndCache(baseName, cfg); err != nil {
+		return nil, err
+	}
 	return cfg, nil
 }
 
@@ -308,8 +312,14 @@ func (cm *ConfigManager) generateConfig(
 // Helpers
 // ---------------------------------------------------------------------------
 
-// persistAndCache saves a config to the DB (if available) and caches it.
-func (cm *ConfigManager) persistAndCache(baseName string, cfg *Config) {
+// persistAndCache saves a config to the DB (if available) and caches it. A
+// generated config's name is the local AI's choice: one that names a
+// reserved setting (operator.ReservedConfig) is refused, neither saved nor
+// cached.
+func (cm *ConfigManager) persistAndCache(baseName string, cfg *Config) error {
+	if operator.ReservedConfig(cfg.ConfigName) {
+		return reservedConfigError(cfg.ConfigName)
+	}
 	if cm.db != nil {
 		data, err := json.Marshal(cfg)
 		if err == nil {
@@ -319,6 +329,7 @@ func (cm *ConfigManager) persistAndCache(baseName string, cfg *Config) {
 		}
 	}
 	cm.cacheConfig(baseName, cfg)
+	return nil
 }
 
 // parseAPIConfig converts a raw API response map into a *Config.
