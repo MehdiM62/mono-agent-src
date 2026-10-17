@@ -60,6 +60,18 @@ var infoAliases = map[string]string{
 	"iban": "iban", "bic": "bic", "swift": "bic", "swiftcode": "bic",
 }
 
+// businessAliases are the same generic names for a business profile, whose
+// person keys are hidden: "email" is the company's, "name" its contact person.
+// They apply only where infoAliases found no key the profile holds.
+var businessAliases = map[string]string{
+	"email": "company_email", "emailaddress": "company_email", "mail": "company_email", "youremail": "company_email",
+	"phone": "company_phone", "phonenumber": "company_phone", "telephone": "company_phone", "tel": "company_phone",
+	"mobile": "company_phone", "company": "company_name", "organization": "company_name", "organisation": "company_name",
+	"country": "company_country", "name": "contact_name", "fullname": "contact_name", "yourname": "contact_name",
+	"address": "company_address", "street": "company_address", "streetaddress": "company_address",
+	"jobtitle": "contact_role", "position": "contact_role", "role": "contact_role",
+}
+
 // autocompleteKeys maps HTML autocomplete tokens the catalog does not carry.
 var autocompleteKeys = map[string]string{
 	"street-address": "address_line1", "tel-national": "phone", "tel-local": "phone",
@@ -133,6 +145,14 @@ func matchInfo(fields []FormField, info []InfoValue) (values []FormValue, rest [
 			index[alias] = key
 		}
 	}
+	for alias, key := range businessAliases {
+		if _, taken := index[alias]; taken {
+			continue
+		}
+		if _, ok := byKey[key]; ok {
+			index[alias] = key
+		}
+	}
 	for _, f := range fields {
 		var candidates []string
 		if tok := lastToken(f.Autocomplete); tok != "" {
@@ -149,9 +169,9 @@ func matchInfo(fields []FormField, info []InfoValue) (values []FormValue, rest [
 		}
 		switch f.Type {
 		case "email":
-			candidates = append(candidates, "email")
+			candidates = append(candidates, "email", "company_email")
 		case "tel":
-			candidates = append(candidates, "phone")
+			candidates = append(candidates, "phone", "company_phone")
 		}
 		if v, ok := exactValue(f, candidates, byKey); ok {
 			values = append(values, FormValue{ID: f.ID, Value: v, Source: InfoSource})

@@ -70,6 +70,11 @@ func TestBusinessValuesSurviveSwitchingBackToPerson(t *testing.T) {
 	if err := Set(bg, db, "p1", "company_name", "Acme GmbH", SourceUser, ""); err != nil {
 		t.Fatal(err)
 	}
+	for _, typ := range []string{"Business", "Person"} {
+		if err := Set(bg, db, "p1", TypeKey, typ, SourceUser, ""); err != nil {
+			t.Fatal(err)
+		}
+	}
 	got, _ := Get(bg, db, "p1", false)
 	found := false
 	for _, e := range got {
