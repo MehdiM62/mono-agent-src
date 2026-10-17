@@ -1,11 +1,9 @@
 package main
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"sort"
-	"syscall"
 	"testing"
 )
 
