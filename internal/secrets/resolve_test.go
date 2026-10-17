@@ -209,6 +209,12 @@ func TestResolveConfigRefusesAReferenceThatCameFromData(t *testing.T) {
 		"next to the workflow's own reference": {
 			map[string]interface{}{"x": "@secret:vs {{ $json.y }}"},
 			map[string]interface{}{"x": "@secret:vs @secret:other"}, `"x"`},
+		"in a list of strings an expression returned": {
+			map[string]interface{}{"tags": "{{ split $json.t \",\" }}"},
+			map[string]interface{}{"tags": []string{"a", "@secret:vs"}}, `"tags[1]"`},
+		"in a map of strings an expression returned": {
+			map[string]interface{}{"env": "{{ $json.env }}"},
+			map[string]interface{}{"env": map[string]string{"TOKEN": "@secret:vs"}}, `"env.TOKEN"`},
 		"in a field the workflow doesn't have": {
 			map[string]interface{}{},
 			map[string]interface{}{"token": "@secret:vs"}, `"token"`},

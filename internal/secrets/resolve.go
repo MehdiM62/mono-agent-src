@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"reflect"
 	"strings"
 )
 
@@ -138,36 +139,76 @@ func ResolveConfig(ctx context.Context, db *sql.DB, profileID string, stored, co
 
 // dataReference is the path in resolved of a string that holds "@secret:"
 // where stored, at the same path, isn't that same string free of
-// expressions.
+// expressions. It walks maps and lists of any type, since an expression can
+// return typed ones (split's []string).
 func dataReference(stored, resolved interface{}, path string) (string, bool) {
-	switch r := resolved.(type) {
-	case string:
-		if s, ok := stored.(string); ok && s == r && !strings.Contains(s, "{{") {
+	r := reflect.ValueOf(resolved)
+	for r.Kind() == reflect.Interface || r.Kind() == reflect.Pointer {
+		if r.IsNil() {
 			return "", false
 		}
-		return path, strings.Contains(r, secretRefPrefix)
-	case map[string]interface{}:
-		sm, _ := stored.(map[string]interface{})
-		for k, v := range r {
-			p := k
+		r = r.Elem()
+	}
+	switch r.Kind() {
+	case reflect.String:
+		if s, ok := literal(stored); ok && s == r.String() {
+			return "", false
+		}
+		return path, strings.Contains(r.String(), secretRefPrefix)
+	case reflect.Map:
+		for _, k := range r.MapKeys() {
+			key := fmt.Sprint(k.Interface())
+			p := key
 			if path != "" {
-				p = path + "." + k
+				p = path + "." + key
 			}
-			if found, ok := dataReference(sm[k], v, p); ok {
+			if found, ok := dataReference(storedAt(stored, k), r.MapIndex(k).Interface(), p); ok {
 				return found, true
 			}
 		}
-	case []interface{}:
-		ss, _ := stored.([]interface{})
-		for i, v := range r {
-			var sv interface{}
-			if i < len(ss) {
-				sv = ss[i]
-			}
-			if found, ok := dataReference(sv, v, fmt.Sprintf("%s[%d]", path, i)); ok {
+	case reflect.Slice, reflect.Array:
+		if r.Type().Elem().Kind() == reflect.Uint8 {
+			return "", false // bytes are a file's content, which nothing resolves
+		}
+		for i := 0; i < r.Len(); i++ {
+			if found, ok := dataReference(storedAt(stored, reflect.ValueOf(i)), r.Index(i).Interface(), fmt.Sprintf("%s[%d]", path, i)); ok {
 				return found, true
 			}
 		}
 	}
 	return "", false
+}
+
+// literal is stored as a string with no expression in it.
+func literal(stored interface{}) (string, bool) {
+	v := reflect.ValueOf(stored)
+	if v.Kind() != reflect.String || strings.Contains(v.String(), "{{") {
+		return "", false
+	}
+	return v.String(), true
+}
+
+// storedAt is stored's element at key (a map key or a list index), nil when
+// it has none.
+func storedAt(stored interface{}, key reflect.Value) interface{} {
+	v := reflect.ValueOf(stored)
+	for v.Kind() == reflect.Interface || v.Kind() == reflect.Pointer {
+		if v.IsNil() {
+			return nil
+		}
+		v = v.Elem()
+	}
+	switch v.Kind() {
+	case reflect.Map:
+		if key.Type().ConvertibleTo(v.Type().Key()) {
+			if e := v.MapIndex(key.Convert(v.Type().Key())); e.IsValid() {
+				return e.Interface()
+			}
+		}
+	case reflect.Slice, reflect.Array:
+		if key.Kind() == reflect.Int && int(key.Int()) < v.Len() {
+			return v.Index(int(key.Int())).Interface()
+		}
+	}
+	return nil
 }
