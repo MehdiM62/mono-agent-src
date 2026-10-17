@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Trash2 } from 'lucide-react'
-import { GetActiveProfile, UpdateProfile, GetProfileDeleteSummary, DeleteProfile } from '../../wailsjs/go/main/App'
+import { UpdateProfile, GetProfileDeleteSummary, DeleteProfile } from '../../wailsjs/go/main/App'
 import { iconUrl } from '../orgdesigner/roleIcons.js'
 import IconPickerModal from '../orgdesigner/IconPickerModal.jsx'
 
@@ -85,7 +85,7 @@ function DeleteProfileDialog({ profile, onClose, onDeleted }) {
           <div style={{ ...mono, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
             This cannot be undone. {total > 0 ? `${total} stored item${total === 1 ? '' : 's'} will be gone for good` : 'The profile will be gone for good'},
             and the app has no way to restore it. A copy of the database is saved first, in the backups folder next to it. Running orgs of this profile are stopped first.
-            {profile.is_active && ' This is your active profile: the app will switch to another one.'}
+            {' This is the profile you are using: the app will switch to another one.'}
           </div>
         )}
 
@@ -128,26 +128,21 @@ function DeleteProfileDialog({ profile, onClose, onDeleted }) {
   )
 }
 
-/** ProfileSection — rename the active profile, change its icon, or delete it. */
-export default function ProfileSection({ isActive = true }) {
-  const [profile, setProfile] = useState(null)
-  const [name, setName] = useState('')
+/** ProfileSection — rename the profile Settings shows, change its icon, or delete it. */
+export default function ProfileSection({ profile }) {
+  const [name, setName] = useState(profile?.name || '')
   const [iconPickerOpen, setIconPickerOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [status, setStatus] = useState('')
 
-  const load = useCallback(() => {
-    GetActiveProfile().then(p => { setProfile(p); setName(p?.name || '') }).catch(() => {})
-  }, [])
-  useEffect(() => { if (isActive) load() }, [isActive, load])
+  useEffect(() => { setName(profile?.name || '') }, [profile?.name])
 
-  if (!profile) return null
+  if (!profile?.id) return null
 
   const save = async (nextName, nextIcon) => {
     setStatus('')
     try {
-      const p = await UpdateProfile(profile.id, nextName, nextIcon)
-      setProfile(p); setName(p.name)
+      await UpdateProfile(profile.id, nextName, nextIcon)
       setStatus('Saved')
       // The sidebar's profile switcher reads the list on load.
       window.location.reload()

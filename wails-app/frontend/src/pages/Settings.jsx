@@ -343,7 +343,7 @@ export default function Settings({ onNavigate, navData, isActive = true }) {
   const readProfile = useCallback((reloadJev) => {
     try {
       GetActiveProfile().then(p => {
-        setProfile({ id: p?.id || '', name: p?.name || '' })
+        setProfile({ id: p?.id || '', name: p?.name || '', icon: p?.icon || '' })
         if (reloadJev) jevLoad()
       }).catch(() => {})
     } catch { /* no name: the heading says "the active profile" */ }
@@ -503,7 +503,7 @@ export default function Settings({ onNavigate, navData, isActive = true }) {
             <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
           </div>
 
-          <ProfileSection isActive={isActive} />
+          <ProfileSection profile={profile} />
 
           <BrowserBindingsSection />
 
