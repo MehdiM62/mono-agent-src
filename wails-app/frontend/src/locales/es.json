@@ -700,7 +700,7 @@
       "step1Intro": "Esto se perderá de forma permanente:",
       "counting": "Contando…",
       "noData": "Sin datos guardados.",
-      "step1Detail": "Incluye sus personas y mensajes, flujos de trabajo y sus archivos, tareas, publicaciones, elementos del vault y documentos, credenciales y claves de API, chats y orgs, y su clave del vault en el llavero del sistema. Su carpeta {{folder}} se conserva en el disco; solo se borran los registros de la app sobre el perfil.",
+      "step1Detail": "Incluye sus personas y mensajes, flujos de trabajo y sus archivos, tareas, publicaciones, elementos del vault y documentos, credenciales y claves de API, chats y orgs, y su clave del vault. NO incluye su carpeta {{folder}} ni sus adjuntos de mensajes sincronizados (en ~/.monoagent/attachments): siguen en el disco.",
       "step1Continue": "Lo entiendo, continuar",
       "step2Total": "Esto no se puede deshacer. Se eliminarán {{count}} elementos guardados para siempre.",
       "step2Active": "Es el perfil que estás usando: la app cambiará a otro.",

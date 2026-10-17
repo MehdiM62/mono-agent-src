@@ -700,7 +700,7 @@
       "step1Intro": "These will be permanently lost:",
       "counting": "Counting…",
       "noData": "No stored data.",
-      "step1Detail": "That includes its people and messages, workflows and their files, tasks, publications, vault items and documents, credentials and API keys, chats and orgs, and its vault key in the OS keychain. Its folder {{folder}} is kept on disk; only the app's records of the profile are deleted.",
+      "step1Detail": "That includes its people and messages, workflows and their files, tasks, publications, vault items and documents, credentials and API keys, chats and orgs, and its vault key. It does NOT include its folder {{folder}} or its synced message attachments (in ~/.monoagent/attachments): those stay on disk.",
       "step1Continue": "I understand, continue",
       "step2Total": "This cannot be undone. {{count}} stored items will be deleted for good.",
       "step2Active": "This is the profile you are using: the app will switch to another one.",

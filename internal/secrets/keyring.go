@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"os"
 	"sync"
 
 	"github.com/zalando/go-keyring"
@@ -227,22 +228,36 @@ func fetchLegacyKEK() (kek []byte, found bool, err error) {
 	return key, true, nil
 }
 
-// DeleteProfileKEK removes profileID's KEK from the OS keychain and forgets
-// it in this process, for deleting the profile: its vault secrets, in any
-// copy of the database, can no longer be decrypted afterwards. A KEK that is
-// not there is not an error.
-func DeleteProfileKEK(profileID string) error {
+// DeleteProfileKEK removes profileID's KEK from the OS keychain and the
+// file-based fallback (~/.monoagent/vault/.file-keyring-<id>), and forgets it
+// in this process, for deleting the profile: its vault secrets, in any copy of
+// the database, can no longer be decrypted afterwards. removed says whether a
+// key was actually found and removed; a KEK that is not there is not an error.
+// The passphrase file the fallback is unlocked with is the user's own and is
+// left alone.
+func DeleteProfileKEK(profileID string) (removed bool, err error) {
 	if profileID == "" {
-		return fmt.Errorf("secrets: no profile to delete the key of")
+		return false, fmt.Errorf("secrets: no profile to delete the key of")
 	}
 	keyringIOMu.Lock()
-	err := keyring.Delete(keyringService, kekAccount(profileID))
+	kerr := keyring.Delete(keyringService, kekAccount(profileID))
 	keyringIOMu.Unlock()
 	kekAttemptsMu.Lock()
 	delete(kekAttempts, profileID)
 	kekAttemptsMu.Unlock()
-	if err != nil && !errors.Is(err, keyring.ErrNotFound) {
-		return err
+	if kerr == nil {
+		removed = true
 	}
-	return nil
+	ferr := os.Remove(fileKeyringPath(profileID))
+	if ferr == nil {
+		removed = true
+	}
+	switch {
+	case ferr != nil && !errors.Is(ferr, os.ErrNotExist):
+		return removed, ferr
+	case kerr != nil && !errors.Is(kerr, keyring.ErrNotFound) && !removed:
+		// No keychain to ask and no file key: nothing is known to be gone.
+		return false, kerr
+	}
+	return removed, nil
 }

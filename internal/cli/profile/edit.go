@@ -12,7 +12,9 @@ import (
 	"unicode/utf8"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/text/unicode/norm"
 
+	"github.com/monoes/mono-agent/internal/attachments"
 	"github.com/monoes/mono-agent/internal/operator"
 	"github.com/monoes/mono-agent/internal/secrets"
 	"github.com/monoes/mono-agent/internal/workflow"
@@ -69,15 +71,40 @@ func validateProfileName(name string) error {
 	}
 	for _, r := range name {
 		switch {
-		case unicode.IsControl(r):
-			return fmt.Errorf("profile name cannot contain control characters")
+		case unicode.IsControl(r) || unicode.Is(unicode.Cf, r) || unicode.Is(unicode.Zl, r) || unicode.Is(unicode.Zp, r) ||
+			(unicode.Is(unicode.Zs, r) && r != ' '):
+			return fmt.Errorf("profile name cannot contain control, invisible or unusual space characters")
 		case r == '/' || r == '\\':
 			return fmt.Errorf("profile name cannot contain / or \\")
 		case r == '‎' || r == '‏' || r == '؜' || (r >= '‪' && r <= '‮') || (r >= '⁦' && r <= '⁩'):
 			return fmt.Errorf("profile name cannot contain text-direction control characters")
 		}
 	}
+	for _, word := range strings.Fields(name) {
+		if mixesScripts(word) {
+			return fmt.Errorf("profile name cannot mix Latin letters with Cyrillic or Greek ones in one word (look-alike letters)")
+		}
+	}
 	return nil
+}
+
+// fold is a name as compared with other profiles' names: compatibility-
+// normalized (full-width and styled letters become plain ones) and lower-cased.
+func fold(s string) string { return strings.ToLower(norm.NFKC.String(s)) }
+
+// mixesScripts reports a word that has Latin letters together with Cyrillic or
+// Greek ones, the way a look-alike of another name is spelled.
+func mixesScripts(word string) bool {
+	var latin, other bool
+	for _, r := range word {
+		switch {
+		case unicode.Is(unicode.Latin, r):
+			latin = true
+		case unicode.Is(unicode.Cyrillic, r), unicode.Is(unicode.Greek, r):
+			other = true
+		}
+	}
+	return latin && other
 }
 
 func (d Deps) newProfileUpdateCmd() *cobra.Command {
@@ -113,14 +140,19 @@ func (d Deps) newProfileUpdateCmd() *cobra.Command {
 				return err
 			}
 			if nameSet {
-				var other string
-				err := db.DB.QueryRow(`SELECT id FROM profiles WHERE id <> ? AND (LOWER(name) = LOWER(?) OR LOWER(id) = LOWER(?))`, p.ID, name, name).Scan(&other)
-				if err == nil {
-					return d.InvalidInput("%q is already the name or id of another profile", name)
-				}
-				if err != sql.ErrNoRows {
+				others, err := db.DB.Query(`SELECT id, name FROM profiles WHERE id <> ?`, p.ID)
+				if err != nil {
 					return fmt.Errorf("check profile name: %w", err)
 				}
+				want := fold(name)
+				for others.Next() {
+					var oid, oname string
+					if others.Scan(&oid, &oname) == nil && (fold(oname) == want || fold(oid) == want) {
+						others.Close()
+						return d.InvalidInput("%q is already, or looks the same as, the name or id of another profile", name)
+					}
+				}
+				others.Close()
 				p.Name = name
 			}
 			if iconSet {
@@ -150,41 +182,58 @@ func workflowFilesDir() (string, error) {
 	return filepath.Join(home, ".monoagent", "workflows"), nil
 }
 
-// profileWorkflowFiles are the ids of the profile's workflow files: those
-// whose file says it is the profile's, and those of the workflows the
-// database has for it (a file can exist for a workflow the database lost).
-func profileWorkflowFiles(ctx context.Context, profileID string, dbIDs []string) (*workflow.WorkflowFileStore, []string, error) {
-	dir, err := workflowFilesDir()
+// profileWorkflowFiles are the names of the profile's workflow files in dir:
+// those whose file says it is the profile's (whatever the file is called) and
+// the <id>.json of a workflow the database has for the profile when the file
+// names no profile. A file whose workflow id is a row of another profile is
+// never taken, whatever profile it claims.
+func profileWorkflowFiles(ctx context.Context, db *sql.DB, profileID string) (dir string, names []string, err error) {
+	dir, err = workflowFilesDir()
 	if err != nil {
-		return nil, nil, err
+		return "", nil, err
 	}
-	if _, err := os.Stat(dir); err != nil {
-		return nil, nil, nil
-	}
-	fs, err := workflow.NewWorkflowFileStore(dir)
+	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return nil, nil, err
+		if os.IsNotExist(err) {
+			return dir, nil, nil
+		}
+		return "", nil, err
 	}
-	listed, err := fs.ListWorkflows(ctx)
-	if err != nil {
-		return nil, nil, err
-	}
-	ids := map[string]bool{}
-	for _, w := range listed {
-		if w.ProfileID == profileID {
-			ids[w.ID] = true
+	for _, e := range entries {
+		base, ok := strings.CutSuffix(e.Name(), ".json")
+		if !ok || !e.Type().IsRegular() {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(dir, e.Name()))
+		if err != nil {
+			continue
+		}
+		wf, err := workflow.ParseWorkflowFileBytes(data)
+		if err != nil {
+			continue
+		}
+		var owner sql.NullString
+		for _, id := range []string{wf.ID, base} {
+			if id == "" {
+				continue
+			}
+			var o string
+			if db.QueryRowContext(ctx, `SELECT profile_id FROM workflows WHERE id = ?`, id).Scan(&o) == nil {
+				if o != profileID {
+					owner = sql.NullString{String: o, Valid: true}
+					break
+				}
+				owner = sql.NullString{String: o, Valid: true}
+			}
+		}
+		switch {
+		case owner.Valid && owner.String != profileID:
+			continue // a row of another profile has this id
+		case wf.ProfileID == profileID, wf.ProfileID == "" && owner.Valid:
+			names = append(names, e.Name())
 		}
 	}
-	for _, id := range dbIDs {
-		if _, statErr := os.Stat(filepath.Join(dir, id+".json")); statErr == nil {
-			ids[id] = true
-		}
-	}
-	out := make([]string, 0, len(ids))
-	for id := range ids {
-		out = append(out, id)
-	}
-	return fs, out, nil
+	return dir, names, nil
 }
 
 func (d Deps) newProfileDeleteCmd() *cobra.Command {
@@ -242,30 +291,30 @@ func (d Deps) newProfileDeleteCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("backing up the database before deleting (nothing was deleted): %w", err)
 			}
-			wfIDs, tables, err := deleteProfile(ctx, db.DB, p.ID)
+			wfDir, wfFiles, ferr := profileWorkflowFiles(ctx, db.DB, p.ID)
+			if ferr != nil {
+				return fmt.Errorf("listing the profile's workflow files (nothing was deleted): %w", ferr)
+			}
+			tables, err := deleteProfile(ctx, db.DB, p.ID)
 			if err != nil {
 				return err
 			}
 			impact.Tables = tables
 			// After the commit: files and the keychain are not part of the transaction.
-			if fs, ids, ferr := profileWorkflowFiles(ctx, p.ID, wfIDs); ferr != nil {
-				impact.Warnings = append(impact.Warnings, "workflow files were not removed: "+ferr.Error())
-			} else {
-				for _, id := range ids {
-					if err := fs.DeleteWorkflow(ctx, id); err != nil {
-						impact.Warnings = append(impact.Warnings, fmt.Sprintf("workflow file %s was not removed: %v", id, err))
-					}
+			for _, name := range wfFiles {
+				if err := os.Remove(filepath.Join(wfDir, name)); err != nil && !os.IsNotExist(err) {
+					impact.Warnings = append(impact.Warnings, fmt.Sprintf("workflow file %s was not removed: %v", name, err))
 				}
 			}
-			if err := secrets.DeleteProfileKEK(p.ID); err != nil {
-				impact.Warnings = append(impact.Warnings, "the vault key stays in the OS keychain: "+err.Error())
-			} else {
-				impact.KeyRemoved = true
+			removed, kerr := secrets.DeleteProfileKEK(p.ID)
+			impact.KeyRemoved = removed
+			if kerr != nil {
+				impact.Warnings = append(impact.Warnings, "the vault key may remain: "+kerr.Error())
 			}
 			if d.JSONOutput() {
 				return printJSON(impact)
 			}
-			fmt.Printf("Deleted profile: %s (%s)\nDatabase backup: %s\n%s\nIts folder %s was left on disk.\n", p.Name, p.ID, impact.Backup, backupNote, p.RootDir)
+			fmt.Printf("Deleted profile: %s (%s)\nDatabase backup: %s\n%s\nIts folder %s was left on disk, and so were its synced message attachments (%s).\n", p.Name, p.ID, impact.Backup, backupNote, p.RootDir, attachments.Dir())
 			for _, w := range impact.Warnings {
 				fmt.Printf("warning: %s\n", w)
 			}
@@ -286,8 +335,7 @@ func (d Deps) printDeleteSummary(ctx context.Context, db *sql.DB, p *profileJSON
 	if err != nil {
 		return err
 	}
-	wfIDs, _ := queryStrings(ctx, db, `SELECT id FROM workflows WHERE profile_id = ?`, p.ID)
-	if _, files, err := profileWorkflowFiles(ctx, p.ID, wfIDs); err == nil && len(files) > 0 {
+	if _, files, err := profileWorkflowFiles(ctx, db, p.ID); err == nil && len(files) > 0 {
 		tables = append(tables, profileTable{Table: "workflow files", Rows: len(files)})
 	}
 	impact := profileImpact{Profile: *p, Tables: tables, FolderKept: true}
@@ -298,7 +346,7 @@ func (d Deps) printDeleteSummary(ctx context.Context, db *sql.DB, p *profileJSON
 	for _, t := range tables {
 		fmt.Printf("  %-32s %d\n", t.Table, t.Rows)
 	}
-	fmt.Printf("and its vault key in the OS keychain. Its folder %s would be left on disk.\n", p.RootDir)
+	fmt.Printf("and its vault key. Its folder %s and its synced message attachments (%s) would be left on disk.\n", p.RootDir, attachments.Dir())
 	return nil
 }
 
@@ -309,56 +357,51 @@ func refuseRunning(ctx context.Context, q scopeQuerier, id string) error {
 		return fmt.Errorf("check running workflows: %w", err)
 	}
 	if n > 0 {
-		return fmt.Errorf("the profile has %d running or queued workflow execution(s): stop them first", n)
+		return fmt.Errorf("the profile has %d running or queued workflow execution(s): let them finish or cancel them first with `monoagentcli workflow execution cancel <execution-id>` (an execution left RUNNING by a crashed run also blocks the delete until it is cancelled)", n)
 	}
 	return nil
 }
 
 // deleteProfile removes everything the profile owns, and then the profile,
 // all or nothing. What it owns is read inside the transaction, so a row added
-// since the caller looked is not missed. It returns the ids of the profile's
-// workflows and what was removed.
-func deleteProfile(ctx context.Context, db *sql.DB, id string) ([]string, []profileTable, error) {
+// since the caller looked is not missed. It returns what was removed.
+func deleteProfile(ctx context.Context, db *sql.DB, id string) ([]profileTable, error) {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	defer tx.Rollback()
 	// Rows in child tables that reference these through their own keys are
 	// checked at commit, after the cascades have run.
 	if _, err := tx.ExecContext(ctx, `PRAGMA defer_foreign_keys = ON`); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	if err := refuseRunning(ctx, tx, id); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	scope, err := profileScope(ctx, tx)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	tables, err := countScope(ctx, tx, scope, id)
 	if err != nil {
-		return nil, nil, err
-	}
-	wfIDs, err := queryStrings(ctx, tx, `SELECT id FROM workflows WHERE profile_id = ?`, id)
-	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	for _, e := range scope {
 		if _, err := tx.ExecContext(ctx, `DELETE FROM "`+e.Table+`" WHERE `+e.Where, sql.Named("p", id)); err != nil {
-			return nil, nil, fmt.Errorf("delete from %s: %w", e.Table, err)
+			return nil, fmt.Errorf("delete from %s: %w", e.Table, err)
 		}
 	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM profiles WHERE id = ?`, id); err != nil {
-		return nil, nil, fmt.Errorf("delete profile: %w", err)
+		return nil, fmt.Errorf("delete profile: %w", err)
 	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM settings WHERE key = 'active_profile_id' AND value = ?`, id); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	if err := tx.Commit(); err != nil {
-		return nil, nil, fmt.Errorf("delete profile: %w", err)
+		return nil, fmt.Errorf("delete profile: %w", err)
 	}
-	return wfIDs, tables, nil
+	return tables, nil
 }
 
 func (d Deps) newProfileBackupsCmd() *cobra.Command {

@@ -314,6 +314,19 @@ func TestProfileNamesAndIconsAreValidated(t *testing.T) {
 	dbPath := newProfileDocsCLITestDB(t)
 	id := createTestProfile(t, dbPath, "work")
 	other := createTestProfile(t, dbPath, "home")
+	bidi := []string{}
+	for r := '\u2066'; r <= '\u2069'; r++ {
+		bidi = append(bidi, "ab"+string(r)+"cd")
+	}
+	invisible := []string{"a\u200bb", "a\u200db", "a\u2028b", "\ufeffab", "a\u2060b", "\u200b\u200b", "a\u00a0b", "D\u0435fault"}
+	for _, bad := range append(append([]string{}, bidi...), invisible...) {
+		if _, err := runProfileCmd(t, dbPath, "update", id, "--name", bad); err == nil {
+			t.Errorf("name %q was accepted", bad)
+		}
+	}
+	if _, err := runProfileCmd(t, dbPath, "update", id, "--name", "ＨＯＭＥ"); err == nil {
+		t.Error("a full-width spelling of another profile's name was accepted")
+	}
 	for _, bad := range []string{"", "a\x1b[31mb", "a\nb", "../../etc", "a/b", `a\b`, strings.Repeat("a", 65), "abc\u202edef", other} {
 		if _, err := runProfileCmd(t, dbPath, "update", id, "--name", bad); err == nil {
 			t.Errorf("name %q was accepted", bad)
@@ -326,31 +339,6 @@ func TestProfileNamesAndIconsAreValidated(t *testing.T) {
 	}
 	if _, err := runProfileCmd(t, dbPath, "update", id, "--name", "Büro 2", "--icon", ""); err != nil {
 		t.Errorf("a plain name was refused: %v", err)
-	}
-}
-
-func TestProfileDeleteRefusesWhileWorkflowsRun(t *testing.T) {
-	dbPath := newProfileDocsCLITestDB(t)
-	id := createTestProfile(t, dbPath, "busy")
-	createTestProfile(t, dbPath, "other")
-	db, err := storage.NewDatabase(dbPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, q := range []string{
-		`INSERT INTO workflows (id, name, profile_id) VALUES ('w1', 'w', '` + id + `')`,
-		`INSERT INTO workflow_executions (id, workflow_id, status, profile_id) VALUES ('e1', 'w1', 'RUNNING', '` + id + `')`,
-	} {
-		if _, err := db.DB.Exec(q); err != nil {
-			t.Fatal(err)
-		}
-	}
-	db.Close()
-	if _, err := runProfileCmd(t, dbPath, "delete", id, "--yes-delete-profile", "busy"); err == nil || !strings.Contains(err.Error(), "running") {
-		t.Fatalf("err %v, want a refusal naming the running executions", err)
-	}
-	if _, err := runCaptured(t, dbPath, "get", id); err != nil {
-		t.Fatalf("the profile must still exist: %v", err)
 	}
 }
 
@@ -377,5 +365,85 @@ func TestProfileBackupsPurge(t *testing.T) {
 	}
 	if _, err := os.Stat(res.Backup); !os.IsNotExist(err) {
 		t.Fatalf("the backup is still there: %v", err)
+	}
+}
+
+func TestProfileDeleteRefusesRunningAndQueuedExecutions(t *testing.T) {
+	for _, status := range []string{"RUNNING", "QUEUED"} {
+		t.Run(status, func(t *testing.T) {
+			dbPath := newProfileDocsCLITestDB(t)
+			id := createTestProfile(t, dbPath, "busy")
+			createTestProfile(t, dbPath, "other")
+			db, err := storage.NewDatabase(dbPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, q := range []string{
+				`INSERT INTO workflows (id, name, profile_id) VALUES ('w1', 'w', '` + id + `')`,
+				`INSERT INTO workflow_executions (id, workflow_id, status, profile_id) VALUES ('e1', 'w1', '` + status + `', '` + id + `')`,
+			} {
+				if _, err := db.DB.Exec(q); err != nil {
+					t.Fatal(err)
+				}
+			}
+			defer db.Close()
+			if _, err := runProfileCmd(t, dbPath, "delete", id, "--yes-delete-profile", "busy"); err == nil || !strings.Contains(err.Error(), "execution cancel") {
+				t.Fatalf("err %v, want a refusal that says how to cancel", err)
+			}
+			// The check inside the transaction holds on its own: an execution that
+			// started after the first check is not deleted under.
+			if _, err := deleteProfile(context.Background(), db.DB, id); err == nil {
+				t.Fatal("deleteProfile went ahead over a " + status + " execution")
+			}
+			var n int
+			db.DB.QueryRow(`SELECT COUNT(*) FROM workflows WHERE profile_id = ?`, id).Scan(&n)
+			if n != 1 {
+				t.Errorf("the refused delete removed rows: %d workflows left, want 1", n)
+			}
+		})
+	}
+}
+
+func TestWorkflowFilesGoByTheirProfileFieldNotTheirName(t *testing.T) {
+	dbPath := newProfileDocsCLITestDB(t)
+	id := createTestProfile(t, dbPath, "doomed")
+	other := createTestProfile(t, dbPath, "other")
+	db, err := storage.NewDatabase(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.DB.Exec(`INSERT INTO workflows (id, name, profile_id) VALUES ('theirs', 'w', ?), ('mine', 'w', ?)`, other, id); err != nil {
+		t.Fatal(err)
+	}
+	db.Close()
+	dir := filepath.Join(os.Getenv("HOME"), ".monoagent", "workflows")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	file := func(name, wfID, profile string) string {
+		path := filepath.Join(dir, name)
+		body := `{"id":"` + wfID + `","name":"w","profile_id":"` + profile + `","nodes":[],"connections":[]}`
+		if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return path
+	}
+	mine := file("mine.json", "mine", id)
+	copyOf := file("copyof.json", "mine", id)
+	ghost := file("ghost.json", "ghost", id)
+	decoy := file("decoy.json", "theirs", id) // claims the deleted profile, carries another profile's workflow
+	theirs := file("theirs.json", "theirs", other)
+	if _, err := runProfileCmd(t, dbPath, "delete", id, "--yes-delete-profile", "doomed"); err != nil {
+		t.Fatal(err)
+	}
+	for _, gone := range []string{mine, copyOf, ghost} {
+		if _, err := os.Stat(gone); !os.IsNotExist(err) {
+			t.Errorf("%s was left behind: %v", filepath.Base(gone), err)
+		}
+	}
+	for _, kept := range []string{decoy, theirs} {
+		if _, err := os.Stat(kept); err != nil {
+			t.Errorf("%s was deleted but belongs to another profile's workflow: %v", filepath.Base(kept), err)
+		}
 	}
 }

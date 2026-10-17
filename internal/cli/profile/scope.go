@@ -37,7 +37,7 @@ var derivedScope = []scopeEntry{
 	{Table: "wait_replies", Where: `workflow_id IN ` + wfOfProfile + ` OR execution_id IN ` + execOfProfile},
 	{Table: "subworkflow_runs", Where: `parent_execution_id IN ` + execOfProfile + ` OR child_execution_id IN ` + execOfProfile},
 	{Table: "workflow_daily_counters", Where: `profile_key = @p`},
-	{Table: "settings", Where: `key = 'task_agent_access:' || @p OR key LIKE 'jev.' || @p || '.%'`},
+	{Table: "settings", Where: `key = 'task_agent_access:' || @p OR key LIKE 'jev.' || replace(replace(replace(@p, '\', '\\'), '%', '\%'), '_', '\_') || '.%' ESCAPE '\'`},
 }
 
 // profileScope lists, for the database q reads, every table with rows of the
