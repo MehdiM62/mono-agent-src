@@ -112,6 +112,30 @@ Use n8n's parameter names verbatim as field keys (`taskId`, `additionalFields`,
 `returnAll`, `limit`, `updateFields`, …) so an n8n node's `parameters` object
 drops in unchanged. The API's own names go in `query`/`body` keys.
 
+**Sends** (`sends`): an op that sends a message to people or posts in public
+says so, and says where its parts are, so a send that an agent or a workflow
+the user never approved starts waits for the user's approval (an approval
+card in the Human in Loop queue, `internal/hilsend`) instead of going out:
+
+```jsonc
+"sends": {
+  "action": "email",             // email | dm | post | comment | publish | connect | invite
+  "to": ["toEmail"],             // the recipient's field(s), first set wins (the card)
+  "text": ["text", "html"],      // the message's field(s)
+  "subject": ["subject"],        // optional
+  "if": "sendCampaign"           // optional: the op sends only when this field is true
+}
+```
+
+Comments and invites on shared trackers count: they reach people. An op that
+only looks like a send (a queue or webhook for programs, a lookup, a share
+of a file, a notification to the user's own devices) says `"sends": false`
+with `"sends_reason"`. `TestCatalogSendsAreDecided` fails for a catalog op
+whose name says it sends (send, message, sms, email, mail, notify, publish,
+reply, comment, post, tweet, push, invite, call, voice, campaign, broadcast,
+dm, share; not a read such as get, list, search or check) and that has
+neither. An op without `sends` runs as before.
+
 **Dispatch and wait** (n8n's `dispatchAndWait`): `"wait": {"method": "POST",
 "limit": "options.limitWaitTime.values"}` sends the request once (first item)
 with `{{ hook.url }}` bound to the execution's resume URL, then pauses the run

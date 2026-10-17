@@ -363,6 +363,19 @@
         "error_when": { "type": "string" },
         "error_message": { "type": "string" },
         "query_style": { "type": "string", "enum": ["", "brackets"] },
+        "sends": {
+          "description": "false, or what the op sends to people (FORMAT.md §3)",
+          "required": ["action"],
+          "additionalProperties": false,
+          "properties": {
+            "action": { "type": "string", "enum": ["email", "dm", "post", "comment", "publish", "connect", "invite"] },
+            "to": { "type": "array", "items": { "type": "string" } },
+            "text": { "type": "array", "items": { "type": "string" } },
+            "subject": { "type": "array", "items": { "type": "string" } },
+            "if": { "type": "string" }
+          }
+        },
+        "sends_reason": { "type": "string", "minLength": 1 },
         "stream": { "$ref": "#/$defs/stream" },
         "wait": {
           "type": "object",

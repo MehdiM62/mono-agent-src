@@ -179,6 +179,7 @@ func (o *Operation) check(where string, credKeys map[string]bool) []string {
 			add("n8n_param_map: %q maps to %q, which is not one of the op's fields", n8n, ours)
 		}
 	}
+	probs = append(probs, o.checkSends(where, fields)...)
 	return probs
 }
 
