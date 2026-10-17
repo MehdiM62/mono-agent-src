@@ -2618,11 +2618,15 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
   and `"param=value"` sends only on that value (Home Assistant's
   `domain=notify`). `to_label` names a recipient param that holds an id
   ("the client of invoice inv9"), `to_unset` the recipient when none is set
-  ("the ticket's requester"). Besides messaging packages, the lint asks
-  about any app's write with a recipient-like param or a message switch.
+  ("the appointment's attendees"). Besides messaging packages, the lint asks
+  about any app's write with a recipient-like param (to, recipient,
+  receiver, addressee, email, mailTo, phone, tel, msisdn, sms, attendees,
+  guests, participants, invitees, invites, subscribers, cc, bcc) or a
+  message switch.
   Creating or updating issues, tasks and tickets is no message, by the
   user's decision ("a work item, open by the user's decision"); their
-  comments are. The catalog lint
+  comments are; that holds for every helpdesk, Zendesk and Zammad
+  included. The catalog lint
   (`TestCatalogSendsAreDecided`) makes every write of a messaging package,
   and any op whose name, path or description says it sends, carry `sends`
   or `sends: false` with a reason. It covers the built-in catalog only: a
