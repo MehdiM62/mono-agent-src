@@ -1688,6 +1688,11 @@
   "info": {
     "title": "Info",
     "subtitle": "Datos que MonoAgent rellena por ti en sitios web. Lo que la IA no encuentre, añádelo tú.",
+    "typeLabel": "Tipo de perfil",
+    "typePerson": "Persona",
+    "typeBusiness": "Empresa",
+    "subtitleBusiness": "Datos de la empresa que MonoAgent rellena por ti en sitios web, incluidos los propietarios y la dirección. Tus datos personales se conservan y vuelven si cambias a Persona.",
+    "typeFailed": "No se pudo cambiar el tipo de perfil: {{message}}",
     "aiFill": "Rellenar con IA",
     "aiFilling": "Leyendo tus documentos…",
     "aiFillHint": "Rellena los campos vacíos con tus documentos. Nunca cambia lo que escribiste.",

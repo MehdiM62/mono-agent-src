@@ -1629,6 +1629,7 @@ export namespace main {
 	export class ProfileInfoGroup {
 	    id: string;
 	    label: string;
+	    scope: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new ProfileInfoGroup(source);
@@ -1638,6 +1639,7 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.label = source["label"];
+	        this.scope = source["scope"];
 	    }
 	}
 	export class ProfileInfoCatalog {

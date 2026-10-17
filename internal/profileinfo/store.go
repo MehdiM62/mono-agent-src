@@ -85,9 +85,19 @@ func Get(ctx context.Context, db *sql.DB, profile string, reveal bool) ([]Entry,
 			continue
 		}
 		if fd.Encrypted() {
-			plain, err := secrets.DecryptBlob(ctx, db, profile, e.Value)
-			if err != nil {
-				return nil, fmt.Errorf("decrypting %s: %w", fd.Key, err)
+			var plain []byte
+			if strings.HasPrefix(e.Value, encPrefix) {
+				plain, err = secrets.DecryptBlob(ctx, db, profile, e.Value)
+				if err != nil {
+					return nil, fmt.Errorf("decrypting %s: %w", fd.Key, err)
+				}
+			} else {
+				// A value an earlier build stored in plain text: seal it, but a
+				// failure (read-only handle, locked keyring) must not fail the read.
+				if plain, err = sealStored(ctx, db, profile, fd.Key, e.Value); err != nil {
+					fmt.Fprintf(os.Stderr, "warning: profileinfo: could not encrypt %s in place: %v\n", fd.Key, err)
+					plain = []byte(e.Value)
+				}
 			}
 			e.Value = string(plain)
 			if !reveal {
@@ -97,6 +107,40 @@ func Get(ctx context.Context, db *sql.DB, profile string, reveal bool) ([]Entry,
 		out = append(out, e)
 	}
 	return out, nil
+}
+
+// TypeOf is what the profile is: ScopeBusiness when its profile type is
+// Business, else ScopePerson.
+func TypeOf(ctx context.Context, db *sql.DB, profile string) (string, error) {
+	var v string
+	err := db.QueryRowContext(ctx, `SELECT value FROM profile_info WHERE profile_id = ? AND key = ?`, profile, TypeKey).Scan(&v)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return "", err
+	}
+	if strings.EqualFold(v, "Business") {
+		return ScopeBusiness, nil
+	}
+	return ScopePerson, nil
+}
+
+// encPrefix starts every value secrets.EncryptBlob stores.
+const encPrefix = "vaultenc:v1:"
+
+// sealStored encrypts, in place, a value of an encrypted field that an earlier
+// build stored as plain text (it only started encrypting some fields later),
+// and returns the plain value. The row's source, origin and time are kept.
+func sealStored(ctx context.Context, db *sql.DB, profile, key, plain string) ([]byte, error) {
+	if plain == "" {
+		return nil, nil
+	}
+	sealed, err := secrets.EncryptBlob(ctx, db, profile, []byte(plain))
+	if err != nil {
+		return nil, err
+	}
+	if _, err := db.ExecContext(ctx, `UPDATE profile_info SET value = ? WHERE profile_id = ? AND key = ? AND value = ?`, sealed, profile, key, plain); err != nil {
+		return nil, err
+	}
+	return []byte(plain), nil
 }
 
 // Values returns the plain values of the fields keep accepts, for the AI step
