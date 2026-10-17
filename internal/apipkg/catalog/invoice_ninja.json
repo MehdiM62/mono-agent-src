@@ -509,7 +509,7 @@
       "operation": "delete",
       "title": "Delete a expense",
       "sends": false,
-      "sends_reason": "Delete a expense: changes Invoice Ninja data, not a message",
+      "sends_reason": "Delete an expense: changes Invoice Ninja data, not a message",
       "method": "DELETE",
       "path": "/expenses/{{ p.expenseId }}",
       "fields": [
@@ -584,6 +584,9 @@
           "additionalFields.email",
           "additionalFields.client"
         ],
+        "to_label": {
+          "additionalFields.client": "client"
+        },
         "if": "additionalFields.emailInvoice"
       },
       "method": "POST",
@@ -710,7 +713,10 @@
         "action": "email",
         "to": [
           "invoiceId"
-        ]
+        ],
+        "to_label": {
+          "invoiceId": "the client of invoice"
+        }
       },
       "method": "{{ p.apiVersion | eq:'v4' | then:'POST' | default:'GET' }}",
       "path": "/{{ p.apiVersion | eq:'v4' | then:'email_invoice' | default:'invoices/' }}{{ p.apiVersion | ne:'v4' | then:p.invoiceId }}{{ p.apiVersion | ne:'v4' | then:'/email' }}",
@@ -742,7 +748,7 @@
       "operation": "delete",
       "title": "Delete a invoice",
       "sends": false,
-      "sends_reason": "Delete a invoice: changes Invoice Ninja data, not a message",
+      "sends_reason": "Delete an invoice: changes Invoice Ninja data, not a message",
       "method": "DELETE",
       "path": "/invoices/{{ p.invoiceId }}",
       "fields": [
@@ -1151,7 +1157,10 @@
         "action": "email",
         "to": [
           "quoteId"
-        ]
+        ],
+        "to_label": {
+          "quoteId": "the client of quote"
+        }
       },
       "method": "{{ p.apiVersion | eq:'v4' | then:'POST' | default:'GET' }}",
       "path": "/{{ p.apiVersion | eq:'v4' | then:'email_invoice' | default:'quotes/' }}{{ p.apiVersion | ne:'v4' | then:p.quoteId }}{{ p.apiVersion | ne:'v4' | then:'/email' }}",

@@ -269,84 +269,47 @@ func gitRunsIt(p string) bool {
 // .continue, .github/copilot-instructions.md), project MCP servers
 // (.mcp.json), editor tasks (.vscode/tasks.json, .zed), GitHub Actions
 // workflows, git hook managers (.husky, .githooks) and direnv's .envrc.
+//
+// Names match without case on every system: the file reaches a CI service,
+// an editor or a checkout on a system that folds case (CLOUDBUILD.YAML).
 func runsOnNextUse(p string) string {
-	parts := strings.Split(fold(p), string(filepath.Separator))
+	parts := strings.Split(strings.ToLower(p), string(filepath.Separator))
 	last := parts[len(parts)-1]
 	for name, what := range nextUseFiles {
-		if last == fold(name) {
+		if last == strings.ToLower(name) {
 			return what + " (" + name + ")"
 		}
 	}
 	for i := 0; i+1 < len(parts); i++ {
 		dir, below := parts[i], parts[i+1]
 		for name, what := range nextUseDirs {
-			if dir == fold(name) {
+			if dir == strings.ToLower(name) {
 				return what + " (" + name + ")"
 			}
 		}
 		switch dir {
 		case ".github":
 			switch below {
-			case fold("copilot-instructions.md"), "agents", "instructions", "prompts":
+			case "copilot-instructions.md", "agents", "instructions", "prompts":
 				return "Copilot's instructions, agents or prompts (.github)"
-			case "workflows":
-				return "a GitHub Actions workflow, which runs at the next push"
+			case "workflows", "actions":
+				return "a GitHub Actions workflow or action, which runs at the next push"
+			}
+		case ".gitlab":
+			if below == "ci" {
+				return "a GitLab CI pipeline's part (.gitlab/ci), which runs at the next push"
 			}
 		case ".vscode":
 			if i+2 == len(parts) && (last == "tasks.json" || last == "launch.json") {
 				return "VS Code's tasks or launch configurations (.vscode), which can run when the folder opens"
 			}
 		case ".zed":
-			if i+2 == len(parts) && (last == "settings.json" || last == "tasks.json") {
-				return "Zed's settings or tasks (.zed)"
+			if i+2 == len(parts) && (last == "settings.json" || last == "tasks.json" || last == "keymap.json") {
+				return "Zed's settings, tasks or keymap (.zed)"
 			}
 		}
 	}
 	return ""
-}
-
-// nextUseFiles are file names a tool runs or takes its commands from, by
-// what they are.
-var nextUseFiles = map[string]string{
-	".envrc":                  "direnv's environment",
-	".mcp.json":               "a project's MCP server list",
-	".cursorrules":            "Cursor's rules",
-	".windsurfrules":          "Windsurf's rules",
-	".clinerules":             "Cline's rules",
-	".roorules":               "Roo's rules",
-	".aider.conf.yml":         "aider's configuration",
-	"opencode.json":           "opencode's configuration",
-	"CLAUDE.md":               "an AI agent's instructions",
-	"CLAUDE.local.md":         "an AI agent's instructions",
-	"AGENTS.md":               "an AI agent's instructions",
-	"GEMINI.md":               "an AI agent's instructions",
-	".gitlab-ci.yml":          "a GitLab CI pipeline, which runs at the next push",
-	".pre-commit-config.yaml": "pre-commit's hooks",
-	"lefthook.yml":            "lefthook's git hooks",
-	"lefthook.yaml":           "lefthook's git hooks",
-	".lefthook.yml":           "lefthook's git hooks",
-	".mise.toml":              "mise's tasks and environment",
-	"mise.toml":               "mise's tasks and environment",
-}
-
-// nextUseDirs are folders whose every file a tool runs, loads or takes its
-// commands from at the next session.
-var nextUseDirs = map[string]string{
-	".claude":       "Claude Code's configuration",
-	".codex":        "an AI tool's configuration",
-	".gemini":       "an AI tool's configuration",
-	".continue":     "an AI tool's configuration",
-	".cursor":       "Cursor's configuration",
-	".windsurf":     "Windsurf's configuration",
-	".clinerules":   "Cline's rules",
-	".roo":          "Roo's configuration",
-	".kiro":         "Kiro's configuration",
-	".amazonq":      "Amazon Q's configuration",
-	".opencode":     "opencode's configuration",
-	".devcontainer": "a dev container's configuration",
-	".circleci":     "a CircleCI pipeline, which runs at the next push",
-	".husky":        "a git hook manager's hooks",
-	".githooks":     "a git hook manager's hooks",
 }
 
 // onPath reports whether dir is a folder on PATH: this process's, plus the

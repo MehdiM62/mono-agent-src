@@ -68,6 +68,16 @@
       "resource": "order",
       "operation": "create",
       "title": "Create an order",
+      "sends": {
+        "action": "email",
+        "to": [
+          "additionalFields.email"
+        ],
+        "if": [
+          "additionalFields.sendReceipt",
+          "additionalFields.sendFulfillmentReceipt"
+        ]
+      },
       "method": "POST",
       "path": "/orders.json",
       "fields": [
@@ -163,6 +173,8 @@
       "resource": "order",
       "operation": "delete",
       "title": "Delete an order",
+      "sends": false,
+      "sends_reason": "Delete an order: changes Shopify data, not a message",
       "method": "DELETE",
       "path": "/orders/{{ p.orderId }}.json",
       "fields": [
@@ -278,6 +290,8 @@
       "resource": "order",
       "operation": "update",
       "title": "Update an order",
+      "sends": false,
+      "sends_reason": "Update an order: changes Shopify data, not a message",
       "method": "PUT",
       "path": "/orders/{{ p.orderId }}.json",
       "fields": [
@@ -331,6 +345,8 @@
       "resource": "product",
       "operation": "create",
       "title": "Create a product",
+      "sends": false,
+      "sends_reason": "Create a product: changes Shopify data, not a message",
       "method": "POST",
       "path": "/products.json",
       "fields": [
@@ -375,6 +391,8 @@
       "resource": "product",
       "operation": "delete",
       "title": "Delete a product",
+      "sends": false,
+      "sends_reason": "Delete a product: changes Shopify data, not a message",
       "method": "DELETE",
       "path": "/products/{{ p.productId }}.json",
       "fields": [
@@ -480,6 +498,8 @@
       "resource": "product",
       "operation": "update",
       "title": "Update a product",
+      "sends": false,
+      "sends_reason": "Update a product: changes Shopify data, not a message",
       "method": "PUT",
       "path": "/products/{{ p.productId }}.json",
       "fields": [

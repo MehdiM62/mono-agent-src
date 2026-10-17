@@ -194,7 +194,7 @@
       "operation": "delete",
       "title": "Delete a agent",
       "sends": false,
-      "sends_reason": "Delete a agent: changes Freshservice data, not a message",
+      "sends_reason": "Delete an agent: changes Freshservice data, not a message",
       "method": "DELETE",
       "path": "/agents/{{ p.agentId }}",
       "fields": [
@@ -298,7 +298,7 @@
       "operation": "update",
       "title": "Update a agent",
       "sends": false,
-      "sends_reason": "Update a agent: changes Freshservice data, not a message",
+      "sends_reason": "Update an agent: changes Freshservice data, not a message",
       "method": "PUT",
       "path": "/agents/{{ p.agentId }}",
       "fields": [
@@ -344,7 +344,7 @@
       "operation": "create",
       "title": "Create a agentGroup",
       "sends": false,
-      "sends_reason": "Create a agentGroup: changes Freshservice data, not a message",
+      "sends_reason": "Create an agent group: changes Freshservice data, not a message",
       "method": "POST",
       "path": "/groups",
       "fields": [
@@ -381,7 +381,7 @@
       "operation": "delete",
       "title": "Delete a agentGroup",
       "sends": false,
-      "sends_reason": "Delete a agentGroup: changes Freshservice data, not a message",
+      "sends_reason": "Delete an agent group: changes Freshservice data, not a message",
       "method": "DELETE",
       "path": "/groups/{{ p.agentGroupId }}",
       "fields": [
@@ -450,7 +450,7 @@
       "operation": "update",
       "title": "Update a agentGroup",
       "sends": false,
-      "sends_reason": "Update a agentGroup: changes Freshservice data, not a message",
+      "sends_reason": "Update an agent group: changes Freshservice data, not a message",
       "method": "PUT",
       "path": "/groups/{{ p.agentGroupId }}",
       "fields": [
@@ -606,7 +606,7 @@
       "operation": "delete",
       "title": "Delete a announcement",
       "sends": false,
-      "sends_reason": "Delete a announcement: changes Freshservice data, not a message",
+      "sends_reason": "Delete an announcement: changes Freshservice data, not a message",
       "method": "DELETE",
       "path": "/announcements/{{ p.announcementId }}",
       "fields": [
@@ -724,7 +724,7 @@
       "operation": "create",
       "title": "Create a asset",
       "sends": false,
-      "sends_reason": "Create a asset: changes Freshservice data, not a message",
+      "sends_reason": "Create an asset: changes Freshservice data, not a message",
       "method": "POST",
       "path": "/assets",
       "fields": [
@@ -765,7 +765,7 @@
       "operation": "delete",
       "title": "Delete a asset",
       "sends": false,
-      "sends_reason": "Delete a asset: changes Freshservice data, not a message",
+      "sends_reason": "Delete an asset: changes Freshservice data, not a message",
       "method": "DELETE",
       "path": "/assets/{{ p.assetDisplayId }}",
       "fields": [
@@ -863,7 +863,7 @@
       "operation": "update",
       "title": "Update a asset",
       "sends": false,
-      "sends_reason": "Update a asset: changes Freshservice data, not a message",
+      "sends_reason": "Update an asset: changes Freshservice data, not a message",
       "method": "PUT",
       "path": "/assets/{{ p.assetDisplayId }}",
       "fields": [
@@ -896,7 +896,7 @@
       "operation": "create",
       "title": "Create a assetType",
       "sends": false,
-      "sends_reason": "Create a assetType: changes Freshservice data, not a message",
+      "sends_reason": "Create an asset type: changes Freshservice data, not a message",
       "method": "POST",
       "path": "/asset_types",
       "fields": [
@@ -930,7 +930,7 @@
       "operation": "delete",
       "title": "Delete a assetType",
       "sends": false,
-      "sends_reason": "Delete a assetType: changes Freshservice data, not a message",
+      "sends_reason": "Delete an asset type: changes Freshservice data, not a message",
       "method": "DELETE",
       "path": "/asset_types/{{ p.assetTypeId }}",
       "fields": [
@@ -999,7 +999,7 @@
       "operation": "update",
       "title": "Update a assetType",
       "sends": false,
-      "sends_reason": "Update a assetType: changes Freshservice data, not a message",
+      "sends_reason": "Update an asset type: changes Freshservice data, not a message",
       "method": "PUT",
       "path": "/asset_types/{{ p.assetTypeId }}",
       "fields": [
@@ -2224,7 +2224,7 @@
       "operation": "create",
       "title": "Create a requesterGroup",
       "sends": false,
-      "sends_reason": "Create a requesterGroup: changes Freshservice data, not a message",
+      "sends_reason": "Create a requester group: changes Freshservice data, not a message",
       "method": "POST",
       "path": "/requester_groups",
       "fields": [
@@ -2257,7 +2257,7 @@
       "operation": "delete",
       "title": "Delete a requesterGroup",
       "sends": false,
-      "sends_reason": "Delete a requesterGroup: changes Freshservice data, not a message",
+      "sends_reason": "Delete a requester group: changes Freshservice data, not a message",
       "method": "DELETE",
       "path": "/requester_groups/{{ p.requesterGroupId }}",
       "fields": [
@@ -2326,7 +2326,7 @@
       "operation": "update",
       "title": "Update a requesterGroup",
       "sends": false,
-      "sends_reason": "Update a requesterGroup: changes Freshservice data, not a message",
+      "sends_reason": "Update a requester group: changes Freshservice data, not a message",
       "method": "PUT",
       "path": "/requester_groups/{{ p.requesterGroupId }}",
       "fields": [
@@ -2515,16 +2515,17 @@
       "operation": "create",
       "title": "Create a ticket",
       "sends": {
-        "action": "comment",
+        "action": "email",
         "to": [
-          "email"
+          "additionalFields.cc_emails"
         ],
         "text": [
           "description"
         ],
         "subject": [
           "subject"
-        ]
+        ],
+        "if": "additionalFields.cc_emails"
       },
       "method": "POST",
       "path": "/tickets",
@@ -2694,7 +2695,7 @@
       "operation": "update",
       "title": "Update a ticket",
       "sends": false,
-      "sends_reason": "Update a ticket: changes Freshservice data, not a message",
+      "sends_reason": "a work item, open by the user's decision",
       "method": "PUT",
       "path": "/tickets/{{ p.ticketId }}",
       "fields": [

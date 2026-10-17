@@ -63,6 +63,17 @@
       "resource": "activity",
       "operation": "create",
       "title": "Create a activity",
+      "sends": {
+        "action": "invite",
+        "text": [
+          "additionalFields.description"
+        ],
+        "subject": [
+          "title"
+        ],
+        "to_unset": "the activity's invitees",
+        "if": "additionalFields.isCalendarInvite"
+      },
       "method": "POST",
       "path": "/v1/activities",
       "fields": [
@@ -130,6 +141,8 @@
       "resource": "activity",
       "operation": "delete",
       "title": "Delete a activity",
+      "sends": false,
+      "sends_reason": "Delete an activity: changes Salesmate data, not a message",
       "method": "DELETE",
       "path": "/v1/activities/{{ p.id }}",
       "fields": [
@@ -170,6 +183,8 @@
       "resource": "activity",
       "operation": "getAll",
       "title": "Get many activitys",
+      "sends": false,
+      "sends_reason": "Get many activities: a read, not a message",
       "method": "POST",
       "path": "/v2/activities/search",
       "fields": [
@@ -261,6 +276,22 @@
       "resource": "activity",
       "operation": "update",
       "title": "Update a activity",
+      "sends": {
+        "action": "invite",
+        "to": [
+          "id"
+        ],
+        "text": [
+          "updateFields.description"
+        ],
+        "subject": [
+          "updateFields.title"
+        ],
+        "to_label": {
+          "id": "the invitees of activity"
+        },
+        "if": "updateFields.isCalendarInvite"
+      },
       "method": "PUT",
       "path": "/v1/activities/{{ p.id }}",
       "fields": [
@@ -318,6 +349,8 @@
       "resource": "company",
       "operation": "create",
       "title": "Create a company",
+      "sends": false,
+      "sends_reason": "Create a company: changes Salesmate data, not a message",
       "method": "POST",
       "path": "/v1/companies",
       "fields": [
@@ -382,6 +415,8 @@
       "resource": "company",
       "operation": "delete",
       "title": "Delete a company",
+      "sends": false,
+      "sends_reason": "Delete a company: changes Salesmate data, not a message",
       "method": "DELETE",
       "path": "/v1/companies/{{ p.id }}",
       "fields": [
@@ -422,6 +457,8 @@
       "resource": "company",
       "operation": "getAll",
       "title": "Get many companys",
+      "sends": false,
+      "sends_reason": "Get many companies: a read, not a message",
       "method": "POST",
       "path": "/v2/companies/search",
       "fields": [
@@ -513,6 +550,8 @@
       "resource": "company",
       "operation": "update",
       "title": "Update a company",
+      "sends": false,
+      "sends_reason": "Update a company: changes Salesmate data, not a message",
       "method": "PUT",
       "path": "/v1/companies/{{ p.id }}",
       "fields": [
@@ -572,6 +611,8 @@
       "resource": "deal",
       "operation": "create",
       "title": "Create a deal",
+      "sends": false,
+      "sends_reason": "Create a deal: changes Salesmate data, not a message",
       "method": "POST",
       "path": "/v1/deals",
       "fields": [
@@ -670,6 +711,8 @@
       "resource": "deal",
       "operation": "delete",
       "title": "Delete a deal",
+      "sends": false,
+      "sends_reason": "Delete a deal: changes Salesmate data, not a message",
       "method": "DELETE",
       "path": "/v1/deals/{{ p.id }}",
       "fields": [
@@ -710,6 +753,8 @@
       "resource": "deal",
       "operation": "getAll",
       "title": "Get many deals",
+      "sends": false,
+      "sends_reason": "Get many deals: a read, not a message",
       "method": "POST",
       "path": "/v2/deals/search",
       "fields": [
@@ -801,6 +846,8 @@
       "resource": "deal",
       "operation": "update",
       "title": "Update a deal",
+      "sends": false,
+      "sends_reason": "Update a deal: changes Salesmate data, not a message",
       "method": "PUT",
       "path": "/v1/deals/{{ p.id }}",
       "fields": [

@@ -55,6 +55,12 @@
       "resource": "affiliate",
       "operation": "create",
       "title": "Create an affiliate",
+      "sends": {
+        "action": "invite",
+        "to": [
+          "email"
+        ]
+      },
       "method": "POST",
       "path": "/affiliates/",
       "fields": [
@@ -107,6 +113,8 @@
       "resource": "affiliate",
       "operation": "delete",
       "title": "Delete an affiliate",
+      "sends": false,
+      "sends_reason": "Delete an affiliate: changes Tapfiliate data, not a message",
       "method": "DELETE",
       "path": "/affiliates/{{ p.affiliateId }}/",
       "fields": [
@@ -228,6 +236,8 @@
       "resource": "affiliateMetadata",
       "operation": "remove",
       "title": "Remove a metadata key",
+      "sends": false,
+      "sends_reason": "Remove a metadata key: changes Tapfiliate data, not a message",
       "method": "DELETE",
       "path": "/affiliates/{{ p.affiliateId }}/meta-data/{{ p.key }}/",
       "fields": [
@@ -254,6 +264,8 @@
       "resource": "affiliateMetadata",
       "operation": "update",
       "title": "Update a metadata key",
+      "sends": false,
+      "sends_reason": "Update a metadata key: changes Tapfiliate data, not a message",
       "method": "PUT",
       "path": "/affiliates/{{ p.affiliateId }}/meta-data/",
       "fields": [
@@ -286,6 +298,16 @@
       "resource": "programAffiliate",
       "operation": "add",
       "title": "Add an affiliate to a program",
+      "sends": {
+        "action": "email",
+        "to": [
+          "affiliateId"
+        ],
+        "to_label": {
+          "affiliateId": "affiliate"
+        },
+        "if": "additionalFields.approved"
+      },
       "method": "POST",
       "path": "/programs/{{ p.programId }}/affiliates/",
       "fields": [
@@ -323,6 +345,15 @@
       "resource": "programAffiliate",
       "operation": "approve",
       "title": "Approve an affiliate in a program",
+      "sends": {
+        "action": "email",
+        "to": [
+          "affiliateId"
+        ],
+        "to_label": {
+          "affiliateId": "affiliate"
+        }
+      },
       "method": "PUT",
       "path": "/programs/{{ p.programId }}/affiliates/{{ p.affiliateId }}/approved/",
       "fields": [
@@ -344,6 +375,8 @@
       "resource": "programAffiliate",
       "operation": "disapprove",
       "title": "Disapprove an affiliate in a program",
+      "sends": false,
+      "sends_reason": "Disapprove an affiliate in a program: changes Tapfiliate data, not a message",
       "method": "DELETE",
       "path": "/programs/{{ p.programId }}/affiliates/{{ p.affiliateId }}/approved/",
       "fields": [

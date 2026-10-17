@@ -64,16 +64,17 @@
       "operation": "create",
       "title": "Create a ticket",
       "sends": {
-        "action": "comment",
+        "action": "email",
         "to": [
-          "requesterIdentificationValue"
+          "options.ccEmails"
         ],
         "text": [
           "options.description"
         ],
         "subject": [
           "options.subject"
-        ]
+        ],
+        "if": "options.ccEmails"
       },
       "method": "POST",
       "path": "/tickets",
@@ -274,8 +275,13 @@
       "resource": "ticket",
       "operation": "update",
       "title": "Update a ticket",
-      "sends": false,
-      "sends_reason": "Update a ticket: changes Freshdesk data, not a message",
+      "sends": {
+        "action": "email",
+        "to": [
+          "updateFields.ccEmails"
+        ],
+        "if": "updateFields.ccEmails"
+      },
       "method": "PUT",
       "path": "/tickets/{{ p.ticketId }}",
       "fields": [

@@ -39,6 +39,8 @@ func (d Deps) hilSendError(err error) error {
 		return d.NotFound("send item not found")
 	case errors.Is(err, hilsend.ErrNotSend):
 		return d.InvalidInput("that Human-in-Loop item is not a send item")
+	case errors.Is(err, hilsend.ErrAlwaysLabel):
+		return d.InvalidInput(err.Error())
 	}
 	return err
 }
@@ -95,7 +97,8 @@ func (d Deps) newHILResolveCmd() *cobra.Command {
 		Long: "Decide a pending send item. --approve performs the exact previewed payload once (with --edit-text / " +
 			"--edit-subject applied first) through the original node and records the publication; --reject marks " +
 			"it rejected and never sends. Deciding again is a no-op that reports the item's state. " +
-			"--always-allow (with --approve) lets later sends to the same destination from an agent go out without a card.",
+			"--always-allow (with --approve) lets later sends to the same destination from an agent go out without a card; " +
+			"it is refused for a card whose recipient is a description (\"the ticket's requester\"), which stays pending.",
 		Example: `  monoagentcli --json hil resolve 7c1e --approve
   monoagentcli --json hil resolve 7c1e --approve --edit-text "Hi Ada, shorter version"
   monoagentcli --json hil resolve 7c1e --reject`,

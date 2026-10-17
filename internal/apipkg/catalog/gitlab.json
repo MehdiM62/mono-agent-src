@@ -91,7 +91,7 @@
       "operation": "create",
       "title": "Create an issue",
       "sends": false,
-      "sends_reason": "Create an issue: changes GitLab data, not a message",
+      "sends_reason": "a work item, open by the user's decision",
       "method": "POST",
       "path": "/projects/{{ p.owner }}%2F{{ p.repository }}/issues",
       "fields": [
@@ -199,7 +199,7 @@
       "operation": "edit",
       "title": "Edit an issue",
       "sends": false,
-      "sends_reason": "Edit an issue: changes GitLab data, not a message",
+      "sends_reason": "a work item, open by the user's decision",
       "method": "PUT",
       "path": "/projects/{{ p.owner }}%2F{{ p.repository }}/issues/{{ p.issueNumber }}",
       "fields": [

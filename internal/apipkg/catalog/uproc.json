@@ -3231,7 +3231,7 @@
       "operation": "sendLinkedinVisit",
       "title": "Send linkedin visit",
       "sends": false,
-      "sends_reason": "visits a LinkedIn profile; no message",
+      "sends_reason": "visits a LinkedIn profile: the person can see the visit among their profile's viewers, but gets no message",
       "method": "POST",
       "path": "/process",
       "body": {

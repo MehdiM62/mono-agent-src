@@ -50,6 +50,8 @@
       "resource": "email",
       "operation": "check",
       "title": "Check an email address",
+      "sends": false,
+      "sends_reason": "checks an email address: a read, not a message",
       "method": "POST",
       "path": "/singleEmail:check",
       "fields": [

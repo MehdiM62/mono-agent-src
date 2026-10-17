@@ -48,13 +48,24 @@ func Resolve(ctx context.Context, st Store, id string, approve bool, edit Edit, 
 		p, _, err := st.reject(ctx, id)
 		return p, err
 	}
+	if always {
+		// Before the edit and the claim: the item stays pending, as it was,
+		// for a plain approve. claim checks again on what it claims.
+		p, err := st.Get(ctx, id)
+		if err != nil {
+			return p, err
+		}
+		if p.Recipient.Label {
+			return p, ErrAlwaysLabel
+		}
+	}
 	if edit.Text != nil || edit.Subject != nil {
 		// A non-pending item can't be edited; claim below reports its state.
 		if _, err := st.Edit(ctx, id, edit.Text, edit.Subject); err != nil && errors.Is(err, ErrNotFound) {
 			return Payload{}, err
 		}
 	}
-	p, rp, proof, claimed, err := st.claim(ctx, id)
+	p, rp, proof, claimed, err := st.claim(ctx, id, always)
 	if err != nil || !claimed {
 		return p, err
 	}

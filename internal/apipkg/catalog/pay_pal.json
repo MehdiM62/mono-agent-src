@@ -72,14 +72,19 @@
       "sends": {
         "action": "email",
         "text": [
-          "additionalFields.emailMessage"
+          "additionalFields.emailMessage",
+          "additionalFields.note"
         ],
         "subject": [
           "additionalFields.emailSubject"
         ],
+        "to_unset": "the payout's receivers",
         "if": [
           "additionalFields.emailSubject",
-          "additionalFields.emailMessage"
+          "additionalFields.emailMessage",
+          "additionalFields.note",
+          "itemsUi.itemsValues.note",
+          "jsonParameters"
         ]
       },
       "method": "POST",

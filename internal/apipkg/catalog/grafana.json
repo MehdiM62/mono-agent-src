@@ -209,6 +209,8 @@
       "resource": "team",
       "operation": "create",
       "title": "Create a team",
+      "sends": false,
+      "sends_reason": "Create a team: changes Grafana data, not a message",
       "method": "POST",
       "path": "/teams",
       "fields": [
@@ -308,6 +310,8 @@
       "resource": "team",
       "operation": "update",
       "title": "Update a team",
+      "sends": false,
+      "sends_reason": "Update a team: changes Grafana data, not a message",
       "method": "PUT",
       "path": "/teams/{{ p.teamId }}",
       "fields": [

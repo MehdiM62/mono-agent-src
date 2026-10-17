@@ -2,7 +2,10 @@ package apipkg
 
 import (
 	"fmt"
+	"slices"
 	"strings"
+
+	"github.com/monoes/mono-agent/internal/workflow"
 )
 
 func (o *Operation) check(where string, credKeys map[string]bool) []string {
@@ -180,7 +183,26 @@ func (o *Operation) check(where string, credKeys map[string]bool) []string {
 		}
 	}
 	probs = append(probs, o.checkSends(where, fields)...)
+	for k, sub := range o.Subfields {
+		coll, opt, _ := strings.Cut(k, ".")
+		if f := o.field(coll); f == nil || f.Type != "collection" && f.Type != "fixedCollection" || !slices.Contains(f.Options, opt) {
+			add("subfields names %q, which is no option of a collection field", k)
+		}
+		if len(sub) == 0 {
+			add("subfields %q lists no field", k)
+		}
+	}
 	return probs
+}
+
+// field is o's field of key, or nil.
+func (o *Operation) field(key string) *workflow.NodeSchemaField {
+	for i := range o.Fields {
+		if o.Fields[i].Key == key {
+			return &o.Fields[i]
+		}
+	}
+	return nil
 }
 
 // checkTemplates parses every template string in v and checks that p.X
