@@ -129,6 +129,16 @@ type PerItemConfigResolver interface {
 	PerItemConfigFields() []string
 }
 
+// LiteralConfigResolver is implemented by nodes with a field that names a
+// vault entry to read (mcp.call's server, vault.secret_get's name). Such a
+// field, like every node's credential_id, must hold its value as written in
+// the workflow: RunExecution refuses a step where an expression produced it,
+// since the run's data must not choose which entry is read.
+type LiteralConfigResolver interface {
+	NodeExecutor
+	LiteralConfigFields() []string
+}
+
 // Workflow is the top-level entity stored in the workflows table.
 type Workflow struct {
 	ID          string    `json:"id" db:"id"`

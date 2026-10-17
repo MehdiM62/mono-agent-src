@@ -48,7 +48,7 @@ func TestASecretReferenceInAWebhooksBodyResolvesNowhere(t *testing.T) {
 		"in an object it returned": {"{{ json $json.body.values }}", map[string]interface{}{"values": map[string]interface{}{"pin": "@secret:vs"}}},
 	} {
 		var got []map[string]interface{}
-		err := runHookedWorkflow(t, ctx, sqlStore, &got, c.field, c.body)
+		err := runHookedWorkflow(t, ctx, sqlStore, &got, map[string]interface{}{"own": "@secret:vs", "msg": c.field}, c.body)
 		if !errors.Is(err, secrets.ErrDataReference) || !strings.Contains(err.Error(), `"msg`) {
 			t.Errorf("%s: %v, want the step refused for a reference in msg that came from data", name, err)
 		}
@@ -58,7 +58,7 @@ func TestASecretReferenceInAWebhooksBodyResolvesNowhere(t *testing.T) {
 	}
 
 	var got []map[string]interface{}
-	if err := runHookedWorkflow(t, ctx, sqlStore, &got, "{{ $json.body.msg }}", map[string]interface{}{"msg": "hello"}); err != nil {
+	if err := runHookedWorkflow(t, ctx, sqlStore, &got, map[string]interface{}{"own": "@secret:vs", "msg": "{{ $json.body.msg }}"}, map[string]interface{}{"msg": "hello"}); err != nil {
 		t.Fatalf("a body without a reference: %v", err)
 	}
 	if len(got) != 1 || got[0]["own"] != "vsecret-777" || got[0]["msg"] != "hello" {
@@ -67,9 +67,8 @@ func TestASecretReferenceInAWebhooksBodyResolvesNowhere(t *testing.T) {
 }
 
 // runHookedWorkflow runs an approved workflow whose webhook body is body and
-// whose probe step has msg (an expression) next to the workflow's own
-// @secret:vs.
-func runHookedWorkflow(t *testing.T, ctx context.Context, store *SQLiteWorkflowStore, got *[]map[string]interface{}, msg string, body map[string]interface{}) error {
+// whose probe step has config.
+func runHookedWorkflow(t *testing.T, ctx context.Context, store *SQLiteWorkflowStore, got *[]map[string]interface{}, config, body map[string]interface{}) error {
 	t.Helper()
 	id := "wf-" + uuid.NewString()[:8]
 	reg := NewNodeTypeRegistry()
@@ -77,7 +76,7 @@ func runHookedWorkflow(t *testing.T, ctx context.Context, store *SQLiteWorkflowS
 	wf := &Workflow{ID: id, Name: id, ProfileID: "default",
 		Nodes: []WorkflowNode{
 			{ID: id + "-t", WorkflowID: id, Type: "trigger.webhook", Name: "Hook"},
-			{ID: id + "-p", WorkflowID: id, Type: "test.configprobe", Name: "Probe", Config: map[string]interface{}{"own": "@secret:vs", "msg": msg}},
+			{ID: id + "-p", WorkflowID: id, Type: "test.configprobe", Name: "Probe", Config: config},
 		},
 		Connections: []WorkflowConnection{{ID: id + "-c", WorkflowID: id, SourceNodeID: id + "-t", SourceHandle: "main", TargetNodeID: id + "-p", TargetHandle: "main"}},
 	}

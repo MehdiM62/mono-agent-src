@@ -50,7 +50,9 @@ func resolveForItem(ctx context.Context, base map[string]interface{}, fields []s
 		if perr != nil {
 			return nil, fmt.Errorf("db node ran without a profile: %w", perr)
 		}
-		_ = vault.ResolveConfig(ctx, vaultDB, resolved)
+		if err := vault.ResolveConfig(ctx, vaultDB, overlay, resolved); err != nil {
+			return nil, err
+		}
 		if err := secrets.ResolveConfig(ctx, vaultDB, profile, overlay, resolved); err != nil {
 			return nil, err
 		}

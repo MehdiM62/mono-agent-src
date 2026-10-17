@@ -2,6 +2,8 @@ package workflow
 
 import (
 	"context"
+	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/rs/zerolog"
@@ -106,4 +108,31 @@ func mergeCredential(ctx context.Context, connStore *connections.Store, logger z
 func isUnsetConfigValue(v interface{}) bool {
 	s, isStr := v.(string)
 	return v == nil || (isStr && s == "")
+}
+
+// checkLiteralFields refuses resolved when its credential_id, or a field
+// executor names a vault entry by (LiteralConfigResolver), isn't the value
+// stored holds as written: an expression produced it, from the run's data
+// or otherwise. It runs before references resolve.
+func checkLiteralFields(executor NodeExecutor, stored, resolved map[string]interface{}) error {
+	fields := []string{"credential_id"}
+	if l, ok := executor.(LiteralConfigResolver); ok {
+		fields = append(fields, l.LiteralConfigFields()...)
+	}
+	for _, f := range fields {
+		v, set := resolved[f]
+		if !set || v == nil || v == "" {
+			continue
+		}
+		s, isText := stored[f].(string)
+		if (!isText || !strings.Contains(s, "{{")) && reflect.DeepEqual(stored[f], v) {
+			continue
+		}
+		what := "the vault entry's name"
+		if f == "credential_id" {
+			what = "the saved connection"
+		}
+		return fmt.Errorf("%q: %s must be written in the workflow, not taken from its data", f, what)
+	}
+	return nil
 }

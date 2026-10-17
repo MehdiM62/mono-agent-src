@@ -232,6 +232,9 @@ func (r *runner) prepare(node WorkflowNode) (*nodeTask, error) {
 		return nil, fmt.Errorf("node %s (%s): resolve config: %w", node.ID, node.Name, err)
 	}
 	restorePerItemFields(resolvedConfig, fieldState)
+	if err := checkLiteralFields(executor, stored, resolvedConfig); err != nil {
+		return nil, fmt.Errorf("node %s (%s): %w", node.ID, node.Name, err)
+	}
 
 	// Resolve @img-NNN references to absolute vault file paths.
 	if vaultDB := vault.DBFromContext(ctx); vaultDB != nil {
@@ -239,7 +242,9 @@ func (r *runner) prepare(node WorkflowNode) (*nodeTask, error) {
 		if perr != nil {
 			return nil, fmt.Errorf("node %s (%s) ran without a profile: %w", node.ID, node.Name, perr)
 		}
-		_ = vault.ResolveConfig(ctx, vaultDB, resolvedConfig)
+		if err := vault.ResolveConfig(ctx, vaultDB, stored, resolvedConfig); err != nil {
+			return nil, fmt.Errorf("node %s (%s): %w", node.ID, node.Name, err)
+		}
 		// Resolve @secret:<name> references to decrypted vault values; a run
 		// the user hasn't approved resolves none, and the step doesn't run.
 		if err := secrets.ResolveConfig(ctx, vaultDB, profile, stored, resolvedConfig); err != nil {

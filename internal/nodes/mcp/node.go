@@ -448,3 +448,7 @@ func stringMap(v interface{}) (map[string]string, error) {
 	}
 	return out, nil
 }
+
+// LiteralConfigFields: server names the vault entry the server is read from
+// (workflow.LiteralConfigResolver).
+func (n *CallNode) LiteralConfigFields() []string { return []string{"server"} }
