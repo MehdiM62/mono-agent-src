@@ -274,6 +274,11 @@ type Operation struct {
 	// it does.
 	Sends       *Sends `json:"sends,omitempty"`
 	SendsReason string `json:"sends_reason,omitempty"`
+	// Subfields declares the keys of an option whose value is an object (or
+	// a list of them), keyed "collection.option": a request that merges the
+	// option with another key may send (collections.go). An option without
+	// an entry is not checked.
+	Subfields map[string][]string `json:"subfields,omitempty"`
 }
 
 // Wait is how a dispatch-and-wait op waits for its callback.

@@ -136,6 +136,10 @@ list; a template the run has yet to resolve counts as set), so a Google
 Calendar event waits only when it has attendees
 (`"if": "additionalFields.attendees"`). A field the config leaves out counts
 as its default (Okta's `activate` is true, so an activation email waits).
+A list on a field's path fans out: `"itemsUi.itemsValues.note"` is set when
+any item has a note (a PayPal payout), and
+`"updateFields.customFieldsUi.customFieldPairs.name=article"` holds when a
+Zammad custom field is named article.
 `"field=value"` sends only on that value (`"if": ["domain=notify",
 "domain=tts"]` for Home Assistant), `"field!=value"` unless the field has
 that value (unset counts: Onfleet texts a task's recipient unless
@@ -227,6 +231,17 @@ Same shape as the workflow editor's `NodeSchemaField`:
 - `default` is applied when the config lacks the key.
 - n8n `collection`/`fixedCollection` → `collection` (same key, e.g.
   `additionalFields`), with `options` = the inner n8n names.
+- A request that merges a collection whole (`"$merge": "{{ p.additionalFields }}"`)
+  sends whatever keys it holds, so a key the collection's `options` don't
+  list may send, whatever the op's `sends` says: an agent's run, or an
+  unapproved workflow's, waits for approval, with a card that names the
+  keys ("whoever its undeclared fields (article) reach"); everyone else's
+  runs as before. So does a key of an option object the op doesn't list in
+  `"subfields": {"article.articleDetails": ["subject", "body", "type", "to",
+  …]}` (an option with no entry there isn't judged), and such a collection
+  or option given as an expression. Raw JSON goes through the params an op
+  declares for it (`jsonParameters` with `additionalFieldsJson` and the
+  like), and its `sends` says what they do.
 - n8n `resourceLocator` → `text`; read it with `| rl` (§5), which accepts
   both a plain value and n8n's `{"__rl":true,"mode":"id","value":"x"}`.
 - n8n `options` with values loaded from the API (`loadOptionsMethod`) →

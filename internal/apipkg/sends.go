@@ -35,12 +35,14 @@ type Sends struct {
 	ToUnset string            `json:"to_unset,omitempty"`
 	// If names the params the op only sends with: it sends when one of them
 	// is set (true, or any value but false, "" or an empty list), a param's
-	// field default included. "param=value" sends when the param has that
-	// value, "param!=value" when it is unset or has another, and "param not
-	// in a|b|c" when it is set to none of those. Sendy creates a campaign
-	// and sends it only with sendCampaign; a Google Calendar event invites
-	// only with additionalFields.attendees; Home Assistant notifies only
-	// with "domain=notify"; Onfleet texts a task's recipient unless
+	// field default included; a list on a param's path is set when one of
+	// its elements is, and has a value when one of them does.
+	// "param=value" sends when the param has that value, "param!=value"
+	// when it is unset or has another, and "param not in a|b|c" when it is
+	// set to none of those. Sendy creates a campaign and sends it only with
+	// sendCampaign; a Google Calendar event invites only with
+	// additionalFields.attendees; Home Assistant notifies only with
+	// "domain=notify"; Onfleet texts a task's recipient unless
 	// recipientSkipSMSNotifications is true; a Zammad article goes out
 	// unless it is a note, web or phone one.
 	If Cond `json:"if,omitempty"`
@@ -155,15 +157,23 @@ type Send struct {
 // SendOf reports whether running nodeType with config would send, as the
 // op that config selects is annotated: an app node's package op (its
 // default op when config names none), or the op a package adds to a native
-// node. An op without a sends annotation, or one the config doesn't select,
-// is not one.
+// node. A config with a key the op doesn't declare in a collection its
+// request merges whole (collections.go) may send too, whatever the op's
+// annotation. Anything else is not a send.
 func SendOf(nodeType string, config map[string]any) (Send, bool) {
 	if pkg, ok := ForNodeType(nodeType); ok {
 		op, err := pkg.resolveOp(config)
-		if err != nil || !op.sends(config) {
+		if err != nil {
 			return Send{}, false
 		}
 		s := op.Sends
+		if !op.sends(config) {
+			keys := op.undeclared(config)
+			if len(keys) == 0 {
+				return Send{}, false
+			}
+			s = op.undeclaredSend(keys)
+		}
 		perItem := pkg.fieldKeys()
 		if op.Batch {
 			perItem = nil // one request for every item: one card
@@ -177,10 +187,17 @@ func SendOf(nodeType string, config map[string]any) (Send, bool) {
 			return Send{}, false
 		}
 		op, ok := pkg.Op(strings.TrimSpace(str(config["resource"])), opName)
-		if !ok || !op.sends(config) {
+		if !ok {
 			return Send{}, false
 		}
 		s := op.Sends
+		if !op.sends(config) {
+			keys := op.undeclared(config)
+			if len(keys) == 0 {
+				return Send{}, false
+			}
+			s = op.undeclaredSend(keys)
+		}
 		return Send{Action: s.Action, To: s.To, Text: s.Text, Subject: s.Subject, ToLabel: s.ToLabel, ToUnset: s.ToUnset}, true
 	}
 	return Send{}, false
@@ -243,7 +260,7 @@ func (o *Operation) sends(config map[string]any) bool {
 		got := strings.TrimSpace(fmt.Sprint(v))
 		switch {
 		case !eq:
-			if isSet(v) {
+			if slices.ContainsFunc(condValues(params, name), isSet) {
 				return true
 			}
 		case v != nil && hasTemplate(got):
@@ -252,11 +269,41 @@ func (o *Operation) sends(config map[string]any) bool {
 			if v == nil || !strings.EqualFold(got, want) {
 				return true
 			}
-		case v != nil && strings.EqualFold(got, want):
+		case slices.ContainsFunc(condValues(params, name), func(x any) bool {
+			got := strings.TrimSpace(fmt.Sprint(x))
+			return x != nil && (hasTemplate(got) || strings.EqualFold(got, want))
+		}):
 			return true
 		}
 	}
 	return false
+}
+
+// condValues is the values at a bare condition's param name. A list on the
+// way fans out to its elements: "itemsUi.itemsValues.note" is every
+// item's note, and is set when one of them is.
+func condValues(params map[string]any, name string) []any {
+	if v, ok := params[name]; ok || !strings.Contains(name, ".") {
+		return []any{v}
+	}
+	var walk func(v any, path []string) []any
+	walk = func(v any, path []string) []any {
+		if len(path) == 0 {
+			return []any{v}
+		}
+		switch c := v.(type) {
+		case map[string]any:
+			return walk(c[path[0]], path[1:])
+		case []any:
+			var out []any
+			for _, e := range c {
+				out = append(out, walk(e, path)...)
+			}
+			return out
+		}
+		return nil
+	}
+	return walk(params, strings.Split(name, "."))
 }
 
 func isSet(v any) bool {

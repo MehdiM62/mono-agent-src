@@ -124,8 +124,14 @@ func setAt(m map[string]interface{}, key string, v interface{}) {
 // recipient params that is set, labelled when the op says what it holds
 // ("invoice inv9"), else the op's name for no recipient ("the ticket's
 // requester"). labelled reports a name that is no person's to look up.
+// An op that names its recipient when none of its params is set means
+// that name, not a guess from the config's to, user or channel keys.
 func (t target) recipientOf(config map[string]interface{}) (r Recipient, labelled bool) {
-	key, to := firstKey(config, append(append([]string{}, t.to...), toKeys...))
+	keys := append([]string{}, t.to...)
+	if t.toUnset == "" {
+		keys = append(keys, toKeys...)
+	}
+	key, to := firstKey(config, keys)
 	switch to = strings.TrimSpace(to); {
 	case to == "" && t.toUnset != "":
 		return Recipient{Name: t.toUnset, Label: true}, true

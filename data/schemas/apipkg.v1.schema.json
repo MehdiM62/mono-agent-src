@@ -378,6 +378,11 @@
           }
         },
         "sends_reason": { "type": "string", "minLength": 1 },
+        "subfields": {
+          "description": "the fields of a collection option whose value is an object, keyed collection.option (collections.go)",
+          "type": "object",
+          "additionalProperties": { "type": "array", "items": { "type": "string" } }
+        },
         "stream": { "$ref": "#/$defs/stream" },
         "wait": {
           "type": "object",
