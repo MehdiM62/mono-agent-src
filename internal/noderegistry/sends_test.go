@@ -73,10 +73,17 @@ func TestEveryAnnotatedSendQueues(t *testing.T) {
 			}
 			s := o.Sends
 			if len(s.If) > 0 {
-				setParam(config, s.If[0], true)
+				// "param=value" is set to its value, a bare param to true.
+				if name, value, eq := strings.Cut(s.If[0], "="); eq {
+					setParam(config, name, value)
+				} else {
+					setParam(config, name, true)
+				}
 			}
+			to := s.ToUnset // the card's recipient
 			if len(s.To) > 0 {
 				setParam(config, s.To[0], "ada@example.test")
+				to = strings.TrimSpace(s.ToLabel[s.To[0]] + " ada@example.test")
 			}
 			if len(s.Text) > 0 {
 				setParam(config, s.Text[0], "Hi Ada")
@@ -93,7 +100,7 @@ func TestEveryAnnotatedSendQueues(t *testing.T) {
 			if item.Action != s.Action {
 				t.Errorf("%s: queued as %q, annotated %q", key, item.Action, s.Action)
 			}
-			if p.Extends == "" && (item.Channel != p.ID || (len(s.To) > 0 && item.Recipient.Name != "ada@example.test") ||
+			if p.Extends == "" && (item.Channel != p.ID || item.Recipient.Name != to ||
 				(len(s.Text) > 0 && item.Text != "Hi Ada")) {
 				t.Errorf("%s: card %+v", key, item)
 			}
@@ -198,3 +205,4 @@ func TestAConditionalSendWaitsOnlyWhenItSends(t *testing.T) {
 		t.Error("an invoice emailed as it is created went out")
 	}
 }
+

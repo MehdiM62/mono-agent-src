@@ -198,7 +198,7 @@ func prepare(st Store, nodeType string, t target, who PreparedBy, config map[str
 		textField, text := firstKey(o.config, t.text)
 		subjectField, subject := firstKey(o.config, t.subject)
 		rec := o.recipient
-		if rec.PersonID == "" {
+		if rec.PersonID == "" && !o.labelled {
 			rec = st.person(t, nodeType, rec)
 		}
 		p := Payload{

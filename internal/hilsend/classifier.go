@@ -14,7 +14,11 @@ type Classified struct {
 	Action            string
 	Channel           string
 	To, Text, Subject []string
-	PerItem           []string
+	// ToLabel names what a To param holds when it is no address ("invoice"),
+	// ToUnset the recipient when no To param is set.
+	ToLabel map[string]string
+	ToUnset string
+	PerItem []string
 }
 
 // Classifier classifies node types this package's table doesn't know: the
@@ -84,9 +88,8 @@ func splitPerItem(t target, config map[string]interface{}, input workflow.NodeIn
 				cfg[k] = v
 			}
 		}
-		_, to := firstKey(cfg, append(append([]string{}, t.to...), toKeys...))
-		to = strings.TrimSpace(to)
-		out = append(out, one{recipient: Recipient{Name: to, ProfileURL: profileLike(to)}, config: cfg, input: []map[string]interface{}{it.JSON}})
+		rec, labelled := t.recipientOf(cfg)
+		out = append(out, one{recipient: rec, labelled: labelled, config: cfg, input: []map[string]interface{}{it.JSON}})
 	}
 	return out
 }
@@ -115,4 +118,19 @@ func setAt(m map[string]interface{}, key string, v interface{}) {
 	sub = cloneMap(sub)
 	setAt(sub, rest, v)
 	m[head] = sub
+}
+
+// recipientOf names who a send goes to on its card: the first of its
+// recipient params that is set, labelled when the op says what it holds
+// ("invoice inv9"), else the op's name for no recipient ("the ticket's
+// requester"). labelled reports a name that is no person's to look up.
+func (t target) recipientOf(config map[string]interface{}) (r Recipient, labelled bool) {
+	key, to := firstKey(config, append(append([]string{}, t.to...), toKeys...))
+	switch to = strings.TrimSpace(to); {
+	case to == "" && t.toUnset != "":
+		return Recipient{Name: t.toUnset}, true
+	case to != "" && t.toLabel[key] != "":
+		return Recipient{Name: t.toLabel[key] + " " + to}, true
+	}
+	return Recipient{Name: to, ProfileURL: profileLike(to)}, false
 }

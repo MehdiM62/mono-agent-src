@@ -21,6 +21,9 @@ func (fakeClassifier) Classify(nodeType string, config map[string]interface{}) (
 		return Classified{Action: ActionDM, Channel: "fake", To: []string{"to"}, Text: []string{"text"}, PerItem: []string{"to", "text"}}, true
 	case "reply":
 		return Classified{Action: ActionComment, Channel: "fake", To: []string{"ticket"}, Text: []string{"updateFields.publicReply"}}, true
+	case "remind":
+		return Classified{Action: ActionEmail, Channel: "fake", To: []string{"email", "invoiceId"},
+			ToLabel: map[string]string{"invoiceId": "the client of invoice"}, ToUnset: "the invoice's client"}, true
 	}
 	return Classified{}, false
 }
@@ -116,5 +119,38 @@ func TestAnInlineCredentialIsRefusedNotQueued(t *testing.T) {
 		"api_key": "k", "credential": map[string]interface{}{"api_key": "k"}}
 	if out, handled, err := Guard(ctxFor(db), "app.fake", workflow.NodeInput{}, saved); !handled || err != nil || len(out[0].Items) != 1 {
 		t.Fatalf("saved: handled=%v err=%v", handled, err)
+	}
+}
+
+// A send whose recipient param is not an address shows what it is (the
+// client of an invoice, not "inv9"), and one with none set shows who it
+// goes to; neither is looked up as a person, however one is written. An
+// address shows as it is.
+func TestTheCardNamesARecipientThatIsNoAddress(t *testing.T) {
+	asAgent(t)
+	db := testDB(t)
+	SetClassifier(fakeClassifier{})
+	t.Cleanup(func() { SetClassifier(nil) })
+	if _, err := db.Exec(`INSERT INTO people (id, platform_username, platform, full_name, contact_details) VALUES
+		('p1', 'inv', 'EMAIL', 'Not a client', 'the client of invoice inv9'), ('p2', 'ada', 'EMAIL', 'Ada Lovelace', 'ada@example.test')`); err != nil {
+		t.Fatal(err)
+	}
+	st := Store{db, "p1"}
+	for _, c := range []struct {
+		config         map[string]interface{}
+		name, personID string
+	}{
+		{map[string]interface{}{"operation": "remind", "invoiceId": "inv9"}, "the client of invoice inv9", ""},
+		{map[string]interface{}{"operation": "remind"}, "the invoice's client", ""},
+		{map[string]interface{}{"operation": "remind", "email": "ada@example.test", "invoiceId": "inv9"}, "Ada Lovelace", "p2"},
+	} {
+		out, handled, err := Guard(ctxFor(db), "app.fake", workflow.NodeInput{}, c.config)
+		if !handled || err != nil {
+			t.Fatalf("%v: handled=%v err=%v", c.config, handled, err)
+		}
+		p, err := st.Get(ctxFor(db), out[0].Items[0].JSON["hil_id"].(string))
+		if err != nil || p.Recipient.Name != c.name || p.Recipient.PersonID != c.personID {
+			t.Errorf("%v: recipient %+v, %v; want %q (person %q)", c.config, p.Recipient, err, c.name, c.personID)
+		}
 	}
 }
