@@ -29,7 +29,7 @@ func (env *orgEnv) refuseSendingApproval(ctx context.Context, org, action string
 	if err != nil {
 		return env.d.InvalidInput("approving %s may let a message to a person go out, and that can't be checked (%v): %s; deny it, or approve it yourself from a terminal or the app", action, err, why)
 	}
-	if orgdecide.ItemSends(ctx, db.DB, profileID, org, it, orgenv.GrantWorkflowLoader(db, env.OpenWorkflowStore)) {
+	if orgdecide.ItemSends(ctx, db.DB, profileID, org, it, orgenv.GrantWorkflows(db, env.OpenWorkflowStore)) {
 		return env.d.InvalidInput("approving %s lets a message to a person go out, which only the user approves: %s; deny it, or approve it yourself from a terminal or the app", action, why)
 	}
 	return nil

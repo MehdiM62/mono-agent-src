@@ -10,6 +10,7 @@ import (
 	"github.com/monoes/mono-agent/internal/orgdecide"
 	"github.com/monoes/mono-agent/internal/orggrant"
 	"github.com/monoes/mono-agent/internal/profiledir"
+	"github.com/monoes/mono-agent/internal/workflow"
 )
 
 // Decision tools for a boss or parent decider role (plan §7.7). The role
@@ -110,11 +111,11 @@ func (s *Server) callDecisionTool(ctx context.Context, rt *runtime, b *orggrant.
 	}
 	// A message to a person is the user's to approve: no grant lets a
 	// decider role settle an item whose approval lets one go out.
-	var load orggrant.WorkflowLoader
+	var workflows workflow.SubWorkflowReader
 	if rt.store != nil {
-		load = rt.store.GetWorkflow
+		workflows = rt.store
 	}
-	if verdict != "escalate" && orgdecide.ItemSends(ctx, rt.db.DB, b.ProfileID, d.OrgName, d.Item, load) {
+	if verdict != "escalate" && orgdecide.ItemSends(ctx, rt.db.DB, b.ProfileID, d.OrgName, d.Item, workflows) {
 		return nil, true, fmt.Errorf("%s: decision %s lets a message to a person go out, which only the user decides: leave it to them", codeRefusedGrant, a.ID)
 	}
 	if ok, err := store.CloseDelegation(ctx, d.ID, orgdecide.DelegationResolved); err != nil || !ok {
