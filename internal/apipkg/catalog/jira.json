@@ -483,6 +483,12 @@
       "resource": "issue",
       "operation": "notify",
       "title": "Send an issue notification",
+      "sends": {
+        "action": "email",
+        "to": [
+          "issueKey"
+        ]
+      },
       "method": "POST",
       "path": "/api/2/issue/{{ p.issueKey }}/notify",
       "fields": [
@@ -1000,6 +1006,15 @@
       "resource": "issueComment",
       "operation": "add",
       "title": "Add a comment",
+      "sends": {
+        "action": "comment",
+        "to": [
+          "issueKey"
+        ],
+        "text": [
+          "comment"
+        ]
+      },
       "method": "POST",
       "path": "/api/{{ p.options.wikiMarkup | eq:'true' | then:'2' | default:(p.jiraVersion | default:'cloud' | prefix:'~' | replace:'~serverPat','~server' | eq:'~server' | then:'2' | default:'3') }}/issue/{{ p.issueKey }}/comment",
       "fields": [
@@ -1281,6 +1296,15 @@
       "resource": "issueComment",
       "operation": "update",
       "title": "Update a comment",
+      "sends": {
+        "action": "comment",
+        "to": [
+          "issueKey"
+        ],
+        "text": [
+          "comment"
+        ]
+      },
       "method": "PUT",
       "path": "/api/{{ p.options.wikiMarkup | eq:'true' | then:'2' | default:(p.jiraVersion | default:'cloud' | prefix:'~' | replace:'~serverPat','~server' | eq:'~server' | then:'2' | default:'3') }}/issue/{{ p.issueKey }}/comment/{{ p.commentId }}",
       "fields": [

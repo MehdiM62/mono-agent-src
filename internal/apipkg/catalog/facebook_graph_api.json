@@ -155,6 +155,15 @@
       "resource": "",
       "operation": "POST",
       "title": "Write (POST) to a Graph API node or edge",
+      "sends": {
+        "action": "post",
+        "to": [
+          "node"
+        ],
+        "text": [
+          "edge"
+        ]
+      },
       "method": "POST",
       "path": "https://{{ p.hostUrl | default:'graph.facebook.com' }}/{{ p.graphApiVersion | path }}{{ p.graphApiVersion | then:'/' }}{{ p.node | path }}{{ p.edge | then:'/' }}{{ p.edge | path }}",
       "fields": [

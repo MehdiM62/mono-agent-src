@@ -172,6 +172,12 @@
       "resource": "coorganizer",
       "operation": "create",
       "title": "Add a co-organizer",
+      "sends": {
+        "action": "invite",
+        "to": [
+          "email"
+        ]
+      },
       "method": "POST",
       "path": "/organizers/{{ cred.organizer_key }}/webinars/{{ p.webinarKey | rl }}/coorganizers",
       "fields": [
@@ -285,6 +291,12 @@
       "resource": "coorganizer",
       "operation": "reinvite",
       "title": "Resend a co-organizer invitation",
+      "sends": {
+        "action": "invite",
+        "to": [
+          "coorganizerKey"
+        ]
+      },
       "method": "POST",
       "path": "/organizers/{{ cred.organizer_key }}/webinars/{{ p.webinarKey | rl }}/coorganizers/{{ p.coorganizerKey }}/resendInvitation",
       "fields": [
@@ -320,6 +332,12 @@
       "resource": "panelist",
       "operation": "create",
       "title": "Add a panelist",
+      "sends": {
+        "action": "invite",
+        "to": [
+          "email"
+        ]
+      },
       "method": "POST",
       "path": "/organizers/{{ cred.organizer_key }}/webinars/{{ p.webinarKey | rl }}/panelists",
       "fields": [
@@ -410,6 +428,12 @@
       "resource": "panelist",
       "operation": "reinvite",
       "title": "Resend a panelist invitation",
+      "sends": {
+        "action": "invite",
+        "to": [
+          "panelistKey"
+        ]
+      },
       "method": "POST",
       "path": "/organizers/{{ cred.organizer_key }}/webinars/{{ p.webinarKey | rl }}/panelists/{{ p.panelistKey }}/resendInvitation",
       "fields": [
@@ -436,6 +460,12 @@
       "resource": "registrant",
       "operation": "create",
       "title": "Register someone for a webinar",
+      "sends": {
+        "action": "invite",
+        "to": [
+          "email"
+        ]
+      },
       "method": "POST",
       "path": "/organizers/{{ cred.organizer_key }}/webinars/{{ p.webinarKey | rl }}/registrants",
       "fields": [

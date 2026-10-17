@@ -312,6 +312,15 @@
       "resource": "lead",
       "operation": "create",
       "title": "Add a lead to a campaign",
+      "sends": {
+        "action": "email",
+        "to": [
+          "email"
+        ],
+        "text": [
+          "campaignId"
+        ]
+      },
       "method": "POST",
       "path": "/campaigns/{{ p.campaignId }}/leads/{{ p.email }}",
       "fields": [

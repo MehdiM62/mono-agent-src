@@ -445,6 +445,8 @@
       "resource": "genie",
       "operation": "createMessage",
       "title": "Ask a follow-up question",
+      "sends": false,
+      "sends_reason": "asks Databricks Genie, an AI, a question; reaches no person",
       "method": "POST",
       "path": "/api/2.0/genie/spaces/{{ p.spaceId }}/conversations/{{ p.conversationId }}/messages",
       "fields": [

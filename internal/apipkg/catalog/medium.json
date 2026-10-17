@@ -63,6 +63,15 @@
       "resource": "post",
       "operation": "create",
       "title": "Create a post",
+      "sends": {
+        "action": "publish",
+        "text": [
+          "content"
+        ],
+        "subject": [
+          "title"
+        ]
+      },
       "method": "POST",
       "description": "Posts under your own profile, or under a publication when publication is on",
       "before": {

@@ -2852,6 +2852,15 @@
       "resource": "communication",
       "operation": "sendLinkedinInvitation",
       "title": "Send linkedin invitation",
+      "sends": {
+        "action": "connect",
+        "to": [
+          "profile"
+        ],
+        "text": [
+          "message"
+        ]
+      },
       "method": "POST",
       "path": "/process",
       "body": {
@@ -2893,6 +2902,18 @@
       "resource": "communication",
       "operation": "sendEmailCustom",
       "title": "Send email custom",
+      "sends": {
+        "action": "email",
+        "to": [
+          "email_to"
+        ],
+        "text": [
+          "body"
+        ],
+        "subject": [
+          "subject"
+        ]
+      },
       "method": "POST",
       "path": "/process",
       "body": {
@@ -2948,6 +2969,15 @@
       "resource": "communication",
       "operation": "sendMobileSms",
       "title": "Send mobile sms",
+      "sends": {
+        "action": "dm",
+        "to": [
+          "mobile"
+        ],
+        "text": [
+          "text"
+        ]
+      },
       "method": "POST",
       "path": "/process",
       "body": {
@@ -2996,6 +3026,16 @@
       "resource": "communication",
       "operation": "sendLinkedinInvitationOrMessage",
       "title": "Send linkedin invitation or message",
+      "sends": {
+        "action": "connect",
+        "to": [
+          "profile"
+        ],
+        "text": [
+          "message1",
+          "message2"
+        ]
+      },
       "method": "POST",
       "path": "/process",
       "body": {
@@ -3044,6 +3084,8 @@
       "resource": "communication",
       "operation": "sendLinkedinVisit",
       "title": "Send linkedin visit",
+      "sends": false,
+      "sends_reason": "visits a LinkedIn profile; no message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -3078,6 +3120,15 @@
       "resource": "communication",
       "operation": "sendLinkedinMessage",
       "title": "Send linkedin message",
+      "sends": {
+        "action": "dm",
+        "to": [
+          "profile"
+        ],
+        "text": [
+          "message"
+        ]
+      },
       "method": "POST",
       "path": "/process",
       "body": {
@@ -12450,6 +12501,8 @@
       "resource": "personal",
       "operation": "sendPersonEmailToList",
       "title": "Send person email to list",
+      "sends": false,
+      "sends_reason": "adds an email address to a uProc list; sends nothing",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -12491,6 +12544,8 @@
       "resource": "personal",
       "operation": "sendPersonProfileToList",
       "title": "Send person profile to list",
+      "sends": false,
+      "sends_reason": "adds a profile to a uProc list; sends nothing",
       "method": "POST",
       "path": "/process",
       "body": {

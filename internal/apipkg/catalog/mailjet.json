@@ -91,6 +91,19 @@
       "resource": "email",
       "operation": "send",
       "title": "Send an email",
+      "sends": {
+        "action": "email",
+        "to": [
+          "toEmail"
+        ],
+        "text": [
+          "text",
+          "html"
+        ],
+        "subject": [
+          "subject"
+        ]
+      },
       "method": "POST",
       "path": "/v3.1/send",
       "fields": [
@@ -222,6 +235,15 @@
       "resource": "email",
       "operation": "sendTemplate",
       "title": "Send a template email",
+      "sends": {
+        "action": "email",
+        "to": [
+          "toEmail"
+        ],
+        "text": [
+          "templateId"
+        ]
+      },
       "method": "POST",
       "path": "/v3.1/send",
       "fields": [
@@ -341,6 +363,15 @@
       "resource": "sms",
       "operation": "send",
       "title": "Send an SMS",
+      "sends": {
+        "action": "dm",
+        "to": [
+          "to"
+        ],
+        "text": [
+          "text"
+        ]
+      },
       "method": "POST",
       "path": "/v4/sms-send",
       "fields": [

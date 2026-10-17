@@ -74,6 +74,17 @@
       "resource": "message",
       "operation": "create",
       "title": "Send a message",
+      "sends": {
+        "action": "post",
+        "to": [
+          "roomId",
+          "toPersonEmail",
+          "toPersonId"
+        ],
+        "text": [
+          "text"
+        ]
+      },
       "method": "POST",
       "path": "/messages",
       "body": {
@@ -261,6 +272,13 @@
       "resource": "message",
       "operation": "update",
       "title": "Edit a message",
+      "sends": {
+        "action": "post",
+        "text": [
+          "text",
+          "markdownText"
+        ]
+      },
       "method": "PUT",
       "path": "/messages/{{ p.messageId }}",
       "before": {

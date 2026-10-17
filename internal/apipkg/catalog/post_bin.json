@@ -123,6 +123,8 @@
       "resource": "request",
       "operation": "send",
       "title": "Send a test request",
+      "sends": false,
+      "sends_reason": "sends a test request to a PostBin bin, a request inspector",
       "method": "POST",
       "path": "/{{ p.binId | re:'(\\d{13}-\\d{13})' }}",
       "fields": [

@@ -47,6 +47,12 @@
       "resource": "alert",
       "operation": "send",
       "title": "Send an alert",
+      "sends": {
+        "action": "post",
+        "text": [
+          "message"
+        ]
+      },
       "method": "POST",
       "path": "/webhook/{{ cred.team_secret }}",
       "body_type": "multipart",

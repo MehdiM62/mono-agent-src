@@ -481,6 +481,15 @@
       "resource": "cardComment",
       "operation": "create",
       "title": "Add a comment to a card",
+      "sends": {
+        "action": "comment",
+        "to": [
+          "cardId"
+        ],
+        "text": [
+          "comment"
+        ]
+      },
       "method": "POST",
       "path": "/boards/{{ p.boardId }}/cards/{{ p.cardId }}/comments",
       "body": {

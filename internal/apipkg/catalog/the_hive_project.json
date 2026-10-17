@@ -996,6 +996,15 @@
       "resource": "comment",
       "operation": "add",
       "title": "Add a comment",
+      "sends": {
+        "action": "comment",
+        "to": [
+          "id"
+        ],
+        "text": [
+          "message"
+        ]
+      },
       "method": "POST",
       "path": "/v1/{{ p.addTo | default:'alert' }}/{{ p.id | rl | re:'/(?:alerts|cases)/(~[0-9]+)/details' }}/comment",
       "body": {
@@ -1197,6 +1206,15 @@
       "resource": "comment",
       "operation": "update",
       "title": "Update a comment",
+      "sends": {
+        "action": "comment",
+        "to": [
+          "commentId"
+        ],
+        "text": [
+          "message"
+        ]
+      },
       "method": "PATCH",
       "path": "/v1/comment/{{ p.commentId | rl }}",
       "body": {

@@ -672,6 +672,15 @@
       "resource": "comment",
       "operation": "create",
       "title": "Create a comment",
+      "sends": {
+        "action": "comment",
+        "to": [
+          "commentTaskId"
+        ],
+        "text": [
+          "commentContent"
+        ]
+      },
       "method": "POST",
       "path": "/comments",
       "body": {
@@ -757,6 +766,12 @@
       "resource": "comment",
       "operation": "update",
       "title": "Update a comment",
+      "sends": {
+        "action": "comment",
+        "to": [
+          "commentId"
+        ]
+      },
       "method": "POST",
       "path": "/comments/{{ p.commentId }}",
       "body": {

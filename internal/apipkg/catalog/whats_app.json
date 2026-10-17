@@ -90,6 +90,15 @@
       "resource": "message",
       "operation": "sendTemplate",
       "title": "Send a template message",
+      "sends": {
+        "action": "dm",
+        "to": [
+          "recipientPhoneNumber"
+        ],
+        "text": [
+          "template"
+        ]
+      },
       "method": "POST",
       "path": "/{{ p.phoneNumberId }}/messages",
       "body": {
@@ -198,6 +207,15 @@
       "resource": "message",
       "operation": "send",
       "title": "Send a message",
+      "sends": {
+        "action": "dm",
+        "to": [
+          "recipientPhoneNumber"
+        ],
+        "text": [
+          "textBody"
+        ]
+      },
       "method": "POST",
       "path": "/{{ p.phoneNumberId }}/messages",
       "body": {

@@ -47,6 +47,15 @@
       "resource": "message",
       "operation": "push",
       "title": "Push a message",
+      "sends": {
+        "action": "dm",
+        "to": [
+          "userKey"
+        ],
+        "text": [
+          "message"
+        ]
+      },
       "method": "POST",
       "path": "/messages.json",
       "fields": [

@@ -892,6 +892,15 @@
       "resource": "video",
       "operation": "update",
       "title": "Update a video",
+      "sends": {
+        "action": "publish",
+        "to": [
+          "videoId"
+        ],
+        "subject": [
+          "title"
+        ]
+      },
       "method": "PUT",
       "path": "/videos",
       "fields": [
@@ -967,6 +976,12 @@
       "resource": "video",
       "operation": "upload",
       "title": "Upload a video",
+      "sends": {
+        "action": "publish",
+        "subject": [
+          "title"
+        ]
+      },
       "method": "POST",
       "base_url": "https://www.googleapis.com/upload/youtube/v3",
       "path": "/videos",

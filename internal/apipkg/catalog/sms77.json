@@ -56,6 +56,15 @@
       "resource": "sms",
       "operation": "send",
       "title": "Send an SMS",
+      "sends": {
+        "action": "dm",
+        "to": [
+          "to"
+        ],
+        "text": [
+          "message"
+        ]
+      },
       "method": "POST",
       "path": "/sms",
       "body_type": "form",
@@ -105,6 +114,15 @@
       "resource": "voice",
       "operation": "send",
       "title": "Call a number and read a text",
+      "sends": {
+        "action": "dm",
+        "to": [
+          "to"
+        ],
+        "text": [
+          "message"
+        ]
+      },
       "method": "POST",
       "path": "/voice",
       "body_type": "form",

@@ -81,6 +81,15 @@
       "resource": "campaign",
       "operation": "addContact",
       "title": "Add a contact to a campaign",
+      "sends": {
+        "action": "email",
+        "to": [
+          "contactEmail"
+        ],
+        "text": [
+          "campaignId"
+        ]
+      },
       "method": "POST",
       "path": "/graphql",
       "fields": [
@@ -139,6 +148,8 @@
       "resource": "campaign",
       "operation": "create",
       "title": "Create a campaign",
+      "sends": false,
+      "sends_reason": "creates a campaign; nothing is sent until it starts (campaign/start)",
       "method": "POST",
       "path": "/graphql",
       "fields": [
@@ -275,6 +286,12 @@
       "resource": "campaign",
       "operation": "start",
       "title": "Start a campaign",
+      "sends": {
+        "action": "email",
+        "to": [
+          "campaignId"
+        ]
+      },
       "method": "POST",
       "path": "/graphql",
       "fields": [

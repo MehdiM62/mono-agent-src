@@ -58,6 +58,15 @@
       "resource": "sms",
       "operation": "send",
       "title": "Send an SMS",
+      "sends": {
+        "action": "dm",
+        "to": [
+          "to"
+        ],
+        "text": [
+          "message"
+        ]
+      },
       "method": "POST",
       "path": "/rest/2/sms",
       "body_type": "form",
@@ -111,6 +120,15 @@
       "resource": "voice",
       "operation": "send",
       "title": "Make a text-to-speech call",
+      "sends": {
+        "action": "dm",
+        "to": [
+          "to"
+        ],
+        "text": [
+          "message"
+        ]
+      },
       "method": "POST",
       "path": "/rest/2/voice/dial",
       "body_type": "form",

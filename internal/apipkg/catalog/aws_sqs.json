@@ -74,6 +74,8 @@
       "resource": "",
       "operation": "sendMessage",
       "title": "Send a message to a queue",
+      "sends": false,
+      "sends_reason": "puts a message on an SQS queue for programs to read, not for a person",
       "method": "POST",
       "path": "/{{ p.queue | re:'^https?://[^/]+/(.*)$' | path }}",
       "body_type": "form",

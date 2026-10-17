@@ -131,6 +131,12 @@
       "resource": "tweet",
       "operation": "create",
       "title": "Post a tweet",
+      "sends": {
+        "action": "post",
+        "text": [
+          "text"
+        ]
+      },
       "method": "POST",
       "path": "/tweets",
       "body": {
@@ -432,6 +438,15 @@
       "resource": "directMessage",
       "operation": "create",
       "title": "Send a direct message",
+      "sends": {
+        "action": "dm",
+        "to": [
+          "user"
+        ],
+        "text": [
+          "text"
+        ]
+      },
       "method": "POST",
       "path": "/dm_conversations/with/{{ pres.0.data.id | default:(p.user | rl) }}/messages",
       "before": [

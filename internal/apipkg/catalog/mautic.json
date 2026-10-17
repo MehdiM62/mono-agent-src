@@ -461,6 +461,15 @@
       "resource": "contact",
       "operation": "sendEmail",
       "title": "Send a campaign email to a contact",
+      "sends": {
+        "action": "email",
+        "to": [
+          "contactId"
+        ],
+        "text": [
+          "campaignEmailId"
+        ]
+      },
       "method": "POST",
       "path": "/emails/{{ p.campaignEmailId }}/contact/{{ p.contactId }}/send",
       "fields": [
@@ -839,6 +848,15 @@
       "resource": "campaignContact",
       "operation": "add",
       "title": "Add a contact to campaign",
+      "sends": {
+        "action": "email",
+        "to": [
+          "contactId"
+        ],
+        "text": [
+          "campaignId"
+        ]
+      },
       "method": "POST",
       "path": "/campaigns/{{ p.campaignId }}/contact/{{ p.contactId }}/add",
       "fields": [
@@ -965,6 +983,12 @@
       "resource": "segmentEmail",
       "operation": "send",
       "title": "Send a segment email",
+      "sends": {
+        "action": "email",
+        "to": [
+          "segmentEmailId"
+        ]
+      },
       "method": "POST",
       "path": "/emails/{{ p.segmentEmailId }}/send",
       "fields": [

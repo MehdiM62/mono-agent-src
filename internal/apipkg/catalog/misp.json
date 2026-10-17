@@ -397,6 +397,12 @@
       "resource": "event",
       "operation": "publish",
       "title": "Publish an event",
+      "sends": {
+        "action": "publish",
+        "to": [
+          "eventId"
+        ]
+      },
       "method": "POST",
       "path": "/events/publish/{{ p.eventId }}",
       "fields": [

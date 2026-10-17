@@ -52,6 +52,19 @@
       "resource": "push",
       "operation": "create",
       "title": "Create a push",
+      "sends": {
+        "action": "dm",
+        "to": [
+          "value",
+          "target"
+        ],
+        "text": [
+          "body"
+        ],
+        "subject": [
+          "title"
+        ]
+      },
       "method": "POST",
       "path": "/pushes",
       "fields": [
@@ -225,6 +238,8 @@
       "resource": "push",
       "operation": "update",
       "title": "Dismiss or restore a push",
+      "sends": false,
+      "sends_reason": "dismisses or restores a push; sends nothing",
       "method": "POST",
       "path": "/pushes/{{ p.pushId }}",
       "fields": [

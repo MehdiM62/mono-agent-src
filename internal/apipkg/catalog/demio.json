@@ -128,6 +128,15 @@
       "resource": "event",
       "operation": "register",
       "title": "Register someone for an event",
+      "sends": {
+        "action": "invite",
+        "to": [
+          "email"
+        ],
+        "text": [
+          "eventId"
+        ]
+      },
       "method": "PUT",
       "path": "/event/register",
       "fields": [

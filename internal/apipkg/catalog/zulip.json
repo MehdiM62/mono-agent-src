@@ -68,6 +68,15 @@
       "resource": "message",
       "operation": "sendPrivate",
       "title": "Send a direct message",
+      "sends": {
+        "action": "dm",
+        "to": [
+          "to"
+        ],
+        "text": [
+          "content"
+        ]
+      },
       "method": "POST",
       "path": "/messages",
       "body": {
@@ -126,6 +135,18 @@
       "resource": "message",
       "operation": "sendStream",
       "title": "Send a message to a stream",
+      "sends": {
+        "action": "post",
+        "to": [
+          "stream"
+        ],
+        "text": [
+          "content"
+        ],
+        "subject": [
+          "topic"
+        ]
+      },
       "method": "POST",
       "path": "/messages",
       "body": {
@@ -160,6 +181,12 @@
       "resource": "message",
       "operation": "update",
       "title": "Update a message",
+      "sends": {
+        "action": "post",
+        "to": [
+          "messageId"
+        ]
+      },
       "method": "PATCH",
       "path": "/messages/{{ p.messageId }}",
       "body": {
@@ -192,6 +219,8 @@
       "resource": "message",
       "operation": "updateFile",
       "title": "Upload a file",
+      "sends": false,
+      "sends_reason": "uploads a file to the user's Zulip; posts nothing",
       "method": "POST",
       "path": "/user_uploads",
       "body_type": "multipart",

@@ -64,6 +64,15 @@
       "resource": "messageConversation",
       "operation": "create",
       "title": "Send a message in a conversation",
+      "sends": {
+        "action": "dm",
+        "to": [
+          "conversationId"
+        ],
+        "text": [
+          "content"
+        ]
+      },
       "method": "POST",
       "path": "/conversation_messages/add",
       "body": {
@@ -213,6 +222,12 @@
       "resource": "messageConversation",
       "operation": "update",
       "title": "Update a conversation message",
+      "sends": {
+        "action": "dm",
+        "to": [
+          "id"
+        ]
+      },
       "method": "POST",
       "path": "/conversation_messages/update",
       "body": {
@@ -464,6 +479,15 @@
       "resource": "comment",
       "operation": "create",
       "title": "Create a comment",
+      "sends": {
+        "action": "comment",
+        "to": [
+          "threadId"
+        ],
+        "text": [
+          "content"
+        ]
+      },
       "method": "POST",
       "path": "/comments/add",
       "body": {
@@ -631,6 +655,12 @@
       "resource": "comment",
       "operation": "update",
       "title": "Update a comment",
+      "sends": {
+        "action": "comment",
+        "to": [
+          "commentId"
+        ]
+      },
       "method": "POST",
       "path": "/comments/update",
       "body": {

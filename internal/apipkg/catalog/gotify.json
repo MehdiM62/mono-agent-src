@@ -70,6 +70,8 @@
       "resource": "message",
       "operation": "create",
       "title": "Send a message",
+      "sends": false,
+      "sends_reason": "posts to the user's own Gotify server, which their own apps read",
       "method": "POST",
       "path": "/message",
       "fields": [

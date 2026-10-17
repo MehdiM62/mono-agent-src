@@ -341,6 +341,18 @@
       "resource": "mail",
       "operation": "send",
       "title": "Send an email",
+      "sends": {
+        "action": "email",
+        "to": [
+          "toEmail"
+        ],
+        "text": [
+          "contentValue"
+        ],
+        "subject": [
+          "subject"
+        ]
+      },
       "method": "POST",
       "path": "/mail/send",
       "fields": [

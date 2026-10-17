@@ -77,6 +77,18 @@
       "resource": "",
       "operation": "publish",
       "title": "Publish a message to a topic",
+      "sends": {
+        "action": "post",
+        "to": [
+          "topic"
+        ],
+        "text": [
+          "message"
+        ],
+        "subject": [
+          "subject"
+        ]
+      },
       "method": "POST",
       "path": "/",
       "body_type": "form",

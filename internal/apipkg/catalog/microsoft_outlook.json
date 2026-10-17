@@ -115,6 +115,18 @@
       "resource": "message",
       "operation": "send",
       "title": "Send a message",
+      "sends": {
+        "action": "email",
+        "to": [
+          "toRecipients"
+        ],
+        "text": [
+          "bodyContent"
+        ],
+        "subject": [
+          "subject"
+        ]
+      },
       "method": "POST",
       "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
       "path": "/sendMail",
@@ -562,6 +574,12 @@
       "resource": "message",
       "operation": "reply",
       "title": "Reply to a message",
+      "sends": {
+        "action": "email",
+        "text": [
+          "message"
+        ]
+      },
       "method": "POST",
       "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
       "path": "/messages/{{ p.messageId | rl }}/{{ p.replyToSenderOnly | then:'createReply' | default:'createReplyAll' }}",
@@ -700,6 +718,8 @@
       "resource": "message",
       "operation": "update",
       "title": "Update a message",
+      "sends": false,
+      "sends_reason": "changes a message in the user's own mailbox (flags, categories); sends nothing",
       "method": "PATCH",
       "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
       "path": "/messages/{{ p.messageId | rl }}",
@@ -800,6 +820,8 @@
       "resource": "messageAttachment",
       "operation": "add",
       "title": "Add an attachment",
+      "sends": false,
+      "sends_reason": "attaches a file to a message or draft in the user's own mailbox; sends nothing",
       "method": "POST",
       "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
       "path": "/messages/{{ p.messageId | rl }}/attachments",
@@ -1221,6 +1243,15 @@
       "resource": "draft",
       "operation": "send",
       "title": "Send a draft",
+      "sends": {
+        "action": "email",
+        "to": [
+          "to"
+        ],
+        "text": [
+          "draftId"
+        ]
+      },
       "method": "POST",
       "base_url": "https://graph.microsoft.com/v1.0{{ p.mailbox | rl | prefix:'/users/' | default:'/me' }}",
       "path": "/messages/{{ p.draftId | rl }}/send",

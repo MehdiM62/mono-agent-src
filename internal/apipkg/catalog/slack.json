@@ -82,6 +82,16 @@
       "resource": "message",
       "operation": "post",
       "title": "Send a message",
+      "sends": {
+        "action": "post",
+        "to": [
+          "channelId",
+          "user"
+        ],
+        "text": [
+          "text"
+        ]
+      },
       "method": "POST",
       "path": "/chat.{{ p.otherOptions.ephemeral | then:'postEphemeral' | default:'postMessage' }}",
       "fields": [
@@ -323,6 +333,16 @@
       "resource": "message",
       "operation": "schedule",
       "title": "Schedule a message",
+      "sends": {
+        "action": "post",
+        "to": [
+          "channelId",
+          "user"
+        ],
+        "text": [
+          "text"
+        ]
+      },
       "method": "POST",
       "path": "/chat.scheduleMessage",
       "fields": [
@@ -504,6 +524,15 @@
       "resource": "message",
       "operation": "update",
       "title": "Update a message",
+      "sends": {
+        "action": "post",
+        "to": [
+          "channelId"
+        ],
+        "text": [
+          "text"
+        ]
+      },
       "method": "POST",
       "path": "/chat.update",
       "fields": [
@@ -794,6 +823,15 @@
       "resource": "channel",
       "operation": "invite",
       "title": "Invite users to a channel",
+      "sends": {
+        "action": "invite",
+        "to": [
+          "userIds"
+        ],
+        "text": [
+          "channelId"
+        ]
+      },
       "method": "POST",
       "path": "/conversations.invite",
       "fields": [

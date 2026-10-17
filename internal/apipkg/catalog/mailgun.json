@@ -54,6 +54,19 @@
       "resource": "",
       "operation": "send",
       "title": "Send an email",
+      "sends": {
+        "action": "email",
+        "to": [
+          "toEmail"
+        ],
+        "text": [
+          "text",
+          "html"
+        ],
+        "subject": [
+          "subject"
+        ]
+      },
       "description": "Attachments: every binary property named in attachments (comma-separated) is sent",
       "method": "POST",
       "path": "/messages",

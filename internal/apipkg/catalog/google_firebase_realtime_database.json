@@ -131,6 +131,8 @@
       "resource": "",
       "operation": "push",
       "title": "Push a child",
+      "sends": false,
+      "sends_reason": "adds a child to a Firebase database; reaches no person",
       "method": "POST",
       "path": "https://{{ p.projectId }}.{{ p.region }}/{{ p.path | path }}.json",
       "fields": [

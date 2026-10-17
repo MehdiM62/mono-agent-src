@@ -267,6 +267,15 @@
       "resource": "comment",
       "operation": "addComment",
       "title": "Add a comment to an issue",
+      "sends": {
+        "action": "comment",
+        "to": [
+          "issueId"
+        ],
+        "text": [
+          "comment"
+        ]
+      },
       "method": "POST",
       "path": "/graphql",
       "fields": [

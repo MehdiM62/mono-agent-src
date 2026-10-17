@@ -1012,6 +1012,8 @@
       "resource": "email",
       "operation": "createRecord",
       "title": "Record a sent email",
+      "sends": false,
+      "sends_reason": "records an email that was already sent; sends nothing",
       "method": "POST",
       "path": "/emails",
       "fields": [
@@ -1145,6 +1147,15 @@
       "resource": "email",
       "operation": "send",
       "title": "Send an email",
+      "sends": {
+        "action": "email",
+        "to": [
+          "contactIds"
+        ],
+        "subject": [
+          "subject"
+        ]
+      },
       "description": "Attachments from binary properties (attachmentsBinary) are not sent yet; give base64 data in attachmentsValues.",
       "method": "POST",
       "path": "/emails/queue",
