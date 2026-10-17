@@ -130,21 +130,20 @@ export default function Documents({ isActive = true }) {
     await api.initializeMonomindProfile()
   }
 
+  const [uploading, setUploading] = useState(false)
   const uploadPaths = async (paths) => {
-    if (!paths || paths.length === 0) return
-    let failed = 0
-    let unindexed = 0
-    for (const path of paths) {
-      try {
-        const result = await WailsApp.UploadProfileDocument(path, '')
-        if (!result.indexed) unindexed++
-      } catch (e) {
-        failed++
-      }
+    if (!paths || paths.length === 0 || uploading) return
+    setUploading(true)
+    try {
+      const r = await WailsApp.UploadProfileDocuments(paths)
+      if (r.failed.length) notify('upload', `${r.failed.length} of ${paths.length} uploads failed: ${r.failed.slice(0, 3).join('; ')}`)
+      else if (r.unindexed) notify('upload', `Uploaded, but ${r.unindexed} not indexed for search (monomind missing or indexing failed).`)
+    } catch (e) {
+      notify('upload', 'Upload failed: ' + e)
+    } finally {
+      setUploading(false)
+      load()
     }
-    if (failed) notify('upload', `${failed} of ${paths.length} uploads failed.`)
-    else if (unindexed) notify('upload', `Uploaded, but ${unindexed} not indexed for search (monomind missing or indexing failed).`)
-    load()
   }
 
   const handleUpload = async () => uploadPaths(await WailsApp.OpenAnyFilesPicker('Select documents to upload'))
@@ -326,8 +325,8 @@ export default function Documents({ isActive = true }) {
         <button style={btnStyle} disabled={bulkBusy !== null} onClick={() => runBulkIndex(docs)}>
           <PlayCircle size={13} /> {bulkBusy === 'index' ? `Indexing… (${bulkProgress.done}/${bulkProgress.total})` : 'Index all'}
         </button>
-        <button style={btnStyle} onClick={handleUpload}><Upload size={13} /> Upload</button>
-        <button style={btnStyle} onClick={handleUploadFolder}><Upload size={13} /> Upload folder</button>
+        <button style={btnStyle} disabled={uploading} onClick={handleUpload}><Upload size={13} /> {uploading ? 'Uploading…' : 'Upload'}</button>
+        <button style={btnStyle} disabled={uploading} onClick={handleUploadFolder}><Upload size={13} /> Upload folder</button>
       </div>
 
       <form onSubmit={handleSearch} style={{ display: 'flex', gap: 8 }}>

@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"io/fs"
 	"path/filepath"
+	"sort"
 	"strings"
 
+	"github.com/monoes/mono-agent/internal/docscan"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -191,19 +193,39 @@ const (
 	maxFolderBytes = 2 << 30
 )
 
-// walkFolderFiles lists the regular files under dir, recursively. Hidden
-// entries (dot-names below dir; dir itself may be dot-named), symlinks and
-// unreadable entries are skipped and reported in skipped. over is set, and the
-// walk stops, once the file count or total size passes the caps.
-func walkFolderFiles(dir string) (files, skipped []string, total int64, over bool) {
+// folderWalk is walkFolderFiles' result.
+type folderWalk struct {
+	files       []string       // document files to upload
+	byExt       map[string]int // files per extension
+	total       int64          // bytes in files
+	skipped     []string       // first few hidden, symlinked or unreadable entries
+	skippedN    int            // all of them
+	unsupported int            // regular files that are not documents (docscan.IsDocumentFile)
+	over        bool           // caps passed; the walk stopped
+}
+
+const maxSkippedListed = 10
+
+// walkFolderFiles lists the document files under dir, recursively, using the
+// same allowlist as the profile folder scan (docscan.IsDocumentFile), so keys,
+// config and code never enter the vault. Hidden entries (dot-names below dir;
+// dir itself may be dot-named), symlinks and unreadable entries are skipped.
+func walkFolderFiles(dir string) folderWalk {
+	w := folderWalk{byExt: map[string]int{}}
 	stop := errors.New("over cap")
+	skip := func(p string) {
+		w.skippedN++
+		if len(w.skipped) < maxSkippedListed {
+			w.skipped = append(w.skipped, p)
+		}
+	}
 	_ = filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
-			skipped = append(skipped, p)
+			skip(p)
 			return nil
 		}
 		if p != dir && strings.HasPrefix(d.Name(), ".") {
-			skipped = append(skipped, p)
+			skip(p)
 			if d.IsDir() {
 				return filepath.SkipDir
 			}
@@ -214,23 +236,28 @@ func walkFolderFiles(dir string) (files, skipped []string, total int64, over boo
 		}
 		info, ierr := d.Info()
 		if !d.Type().IsRegular() || ierr != nil {
-			skipped = append(skipped, p)
+			skip(p)
 			return nil
 		}
-		files = append(files, p)
-		total += info.Size()
-		if len(files) > maxFolderFiles || total > maxFolderBytes {
-			over = true
+		if !docscan.IsDocumentFile(d.Name()) {
+			w.unsupported++
+			return nil
+		}
+		w.files = append(w.files, p)
+		w.byExt[strings.ToLower(strings.TrimPrefix(filepath.Ext(d.Name()), "."))]++
+		w.total += info.Size()
+		if len(w.files) > maxFolderFiles || w.total > maxFolderBytes {
+			w.over = true
 			return stop
 		}
 		return nil
 	})
-	return files, skipped, total, over
+	return w
 }
 
-// OpenFolderFilesPicker opens a folder picker and returns the files to
-// upload from the chosen folder, after the user confirms the file count and
-// total size. Empty if cancelled, declined, or over the caps.
+// OpenFolderFilesPicker opens a folder picker and returns the document files
+// to upload from the chosen folder, after the user confirms. Empty if
+// cancelled, declined, empty or over the caps.
 func (a *App) OpenFolderFilesPicker(title string) []string {
 	if a.signedOut() != nil {
 		return nil
@@ -239,24 +266,29 @@ func (a *App) OpenFolderFilesPicker(title string) []string {
 	if err != nil || dir == "" {
 		return nil
 	}
-	files, skipped, total, over := walkFolderFiles(dir)
-	if over {
-		_, _ = runtime.MessageDialog(a.ctx, runtime.MessageDialogOptions{
-			Type: runtime.ErrorDialog, Title: "Folder too large",
-			Message: fmt.Sprintf("%s holds more than %d files or %d GB. Choose a smaller folder.", dir, maxFolderFiles, maxFolderBytes>>30),
-		})
+	info := func(t, m string) {
+		_, _ = runtime.MessageDialog(a.ctx, runtime.MessageDialogOptions{Type: runtime.InfoDialog, Title: t, Message: m})
+	}
+	w := walkFolderFiles(dir)
+	if w.over {
+		info("Folder too large", fmt.Sprintf("%s holds more than %d documents or %d GB. Choose a smaller folder.", dir, maxFolderFiles, maxFolderBytes>>30))
 		return nil
 	}
-	if len(files) == 0 {
+	if len(w.files) == 0 {
+		info("Nothing to upload", fmt.Sprintf("%s has no supported documents (%d other files, %d hidden or unreadable entries ignored).", dir, w.unsupported, w.skippedN))
 		return nil
 	}
-	msg := fmt.Sprintf("Upload %d files (%.1f MB) from %s?", len(files), float64(total)/(1<<20), dir)
-	if len(skipped) > 0 {
-		shown := skipped
-		if len(shown) > 10 {
-			shown = shown[:10]
-		}
-		msg += fmt.Sprintf("\n\n%d hidden, symlinked or unreadable entries will be skipped:\n%s", len(skipped), strings.Join(shown, "\n"))
+	exts := make([]string, 0, len(w.byExt))
+	for e, n := range w.byExt {
+		exts = append(exts, fmt.Sprintf("%s ×%d", e, n))
+	}
+	sort.Strings(exts)
+	msg := fmt.Sprintf("Upload %d documents (%.1f MB) from %s?\n%s\n\nUploaded documents are copied into your profile and become searchable by chat, form-fill and AI agents.", len(w.files), float64(w.total)/(1<<20), dir, strings.Join(exts, ", "))
+	if w.unsupported > 0 {
+		msg += fmt.Sprintf("\n\n%d files of other types will be ignored.", w.unsupported)
+	}
+	if w.skippedN > 0 {
+		msg += fmt.Sprintf("\n%d hidden, symlinked or unreadable entries will be skipped, e.g.:\n%s", w.skippedN, strings.Join(w.skipped, "\n"))
 	}
 	choice, err := runtime.MessageDialog(a.ctx, runtime.MessageDialogOptions{
 		Type: runtime.QuestionDialog, Title: "Upload folder", Message: msg,
@@ -265,5 +297,47 @@ func (a *App) OpenFolderFilesPicker(title string) []string {
 	if err != nil || choice != "Upload" {
 		return nil
 	}
-	return files
+	return w.files
+}
+
+// BatchUploadResult is UploadProfileDocuments' return value.
+type BatchUploadResult struct {
+	Uploaded  int      `json:"uploaded"`
+	Unindexed int      `json:"unindexed"`
+	Failed    []string `json:"failed"` // "path: reason"
+}
+
+// UploadProfileDocuments uploads paths into the profile that is selected when
+// it is called -- resolved once, so switching profiles mid-batch cannot
+// misfile the rest. One batch runs at a time.
+func (a *App) UploadProfileDocuments(paths []string) (*BatchUploadResult, error) {
+	if err := a.signedOut(); err != nil {
+		return nil, err
+	}
+	if !a.docBatchBusy.CompareAndSwap(false, true) {
+		return nil, errors.New("an upload is already running")
+	}
+	defer a.docBatchBusy.Store(false)
+	id, err := a.profileID()
+	if err != nil {
+		return nil, err
+	}
+	res := &BatchUploadResult{Failed: []string{}}
+	for _, path := range paths {
+		args, err := scopedCLIArgs(id, "profile", "upload-document", path)
+		var one UploadResult
+		if err == nil {
+			err = a.runCLIArgs("", &one, args)
+		}
+		switch {
+		case err != nil:
+			res.Failed = append(res.Failed, fmt.Sprintf("%s: %v", filepath.Base(path), err))
+		case !one.Indexed:
+			res.Unindexed++
+			res.Uploaded++
+		default:
+			res.Uploaded++
+		}
+	}
+	return res, nil
 }

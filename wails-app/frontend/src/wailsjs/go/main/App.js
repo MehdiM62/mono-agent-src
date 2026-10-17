@@ -1486,6 +1486,10 @@ export function UpdateVaultImageLabel(arg1, arg2) {
   return window['go']['main']['App']['UpdateVaultImageLabel'](arg1, arg2);
 }
 
+export function UploadProfileDocuments(arg1) {
+  return window['go']['main']['App']['UploadProfileDocuments'](arg1);
+}
+
 export function UploadProfileDocument(arg1, arg2) {
   return window['go']['main']['App']['UploadProfileDocument'](arg1, arg2);
 }

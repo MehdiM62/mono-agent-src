@@ -22,6 +22,10 @@ func TestWalkFolderFiles(t *testing.T) {
 	write("a.txt", "a")
 	write("sub/b.txt", "bb")
 	write(".env", "secret")
+	write("prod.env", "secret")
+	write("id_rsa", "secret")
+	write("creds.json", "secret")
+	write("AGENTS.md", "tool config")
 	write(".git/config", "x")
 	outside := t.TempDir()
 	if err := os.WriteFile(filepath.Join(outside, "o.txt"), []byte("o"), 0o644); err != nil {
@@ -34,12 +38,12 @@ func TestWalkFolderFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	files, skipped, total, over := walkFolderFiles(root)
-	if over {
+	w := walkFolderFiles(root)
+	if w.over {
 		t.Fatal("unexpectedly over cap")
 	}
 	var rel []string
-	for _, f := range files {
+	for _, f := range w.files {
 		r, _ := filepath.Rel(root, f)
 		rel = append(rel, r)
 	}
@@ -47,10 +51,16 @@ func TestWalkFolderFiles(t *testing.T) {
 	if len(rel) != 2 || rel[0] != "a.txt" || rel[1] != filepath.Join("sub", "b.txt") {
 		t.Fatalf("files = %v", rel)
 	}
-	if total != 3 {
-		t.Fatalf("total = %d", total)
+	if w.total != 3 {
+		t.Fatalf("total = %d", w.total)
 	}
-	if len(skipped) != 4 { // .env, .git, linkdir, link.txt
-		t.Fatalf("skipped = %v", skipped)
+	if w.skippedN != 4 { // .env, .git, linkdir, link.txt
+		t.Fatalf("skipped = %v", w.skipped)
+	}
+	if w.unsupported != 4 { // prod.env, id_rsa, creds.json, AGENTS.md
+		t.Fatalf("unsupported = %d", w.unsupported)
+	}
+	if w.byExt["txt"] != 2 {
+		t.Fatalf("byExt = %v", w.byExt)
 	}
 }

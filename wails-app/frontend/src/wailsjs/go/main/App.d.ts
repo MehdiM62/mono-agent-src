@@ -744,6 +744,8 @@ export function UpdateTagColor(arg1:string,arg2:string):Promise<boolean>;
 
 export function UpdateVaultImageLabel(arg1:string,arg2:string):Promise<void>;
 
+export function UploadProfileDocuments(arg1:Array<string>):Promise<main.BatchUploadResult>;
+
 export function UploadProfileDocument(arg1:string,arg2:string):Promise<main.UploadResult>;
 
 export function ValidateAutomation(arg1:string):Promise<string>;
