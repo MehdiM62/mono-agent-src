@@ -2351,6 +2351,13 @@ monoagentcli --profile work org automation-role add growth --alias publish_post 
   unreadable workflow counts as sending). No rule, decider or delegate
   approves it (`orgdecide.ItemSends`, `RouteItem`), `decision_resolve`
   refuses it (escalate excepted), and `org autonomy needs-you` lists it.
+  `org approve` and `org chat approve` of such a call are the operator's
+  only (exit 3 with the operator refusal otherwise; deny stays open), and
+  the chat's Bash allowlist leaves out `monomind org approve|gate-approve|answer`.
+  A called workflow is found by id, else by a name exactly one workflow of
+  the profile has now (as `StartSubWorkflow` finds it); anything else
+  counts as sending. `monomind org approve` run directly by an agent shell
+  is not checked (monoes/monomind#677).
   A grant the user made with `--approval none` still calls without a
   decision: that is their own choice.
 - The official browser read actions (find/list/scrape/export/metrics,
