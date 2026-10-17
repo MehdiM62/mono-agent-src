@@ -109,7 +109,8 @@ func (env *orgEnv) orgSummaryFor(ctx context.Context, root string, db *storage.D
 	var svc *orgdecide.Service
 	if dbErr == nil {
 		svc = orgdecide.NewService(db.DB, nil)
-		svc.LoadWorkflow = orgenv.GrantWorkflowLoader(db, env.OpenWorkflowStore)
+		wfs := orgenv.GrantWorkflows(db, env.OpenWorkflowStore)
+		svc.LoadWorkflow, svc.ListWorkflows = wfs.GetWorkflow, wfs.ListWorkflows
 	}
 	now := time.Now()
 	rows := make([]orgSummaryRow, len(names))

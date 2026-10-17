@@ -120,7 +120,8 @@ func newOrgAutonomyNeedsYouCmd(env *orgEnv) *cobra.Command {
 // daemon escalated or could not decide.
 func (env *orgEnv) needsYou(ctx context.Context, db *storage.Database, profileID, root, org string) ([]map[string]interface{}, error) {
 	svc := orgdecide.NewService(db.DB, nil)
-	svc.LoadWorkflow = orgenv.GrantWorkflowLoader(db, env.OpenWorkflowStore)
+	wfs := orgenv.GrantWorkflows(db, env.OpenWorkflowStore)
+	svc.LoadWorkflow, svc.ListWorkflows = wfs.GetWorkflow, wfs.ListWorkflows
 	a, err := svc.Store.Get(ctx, profileID, org)
 	if err != nil {
 		return nil, err
