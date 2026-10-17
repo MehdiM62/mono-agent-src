@@ -2616,7 +2616,9 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
   be a collection's option (`updateFields.publicReply`). `if` reads a
   param's field default when the config leaves it out (Okta's activate),
   and `"param=value"` sends only on that value (Home Assistant's
-  `domain=notify`). `to_label` names a recipient param that holds an id
+  `domain=notify`), `"param!=value"` unless it has that value (an Onfleet
+  task texts its recipient unless `recipientSkipSMSNotifications` is
+  true). `to_label` names a recipient param that holds an id
   ("the client of invoice inv9"), `to_unset` the recipient when none is set
   ("the appointment's attendees"). Such a card names no address: `--always-allow` is
   refused on it (`hilsend.ErrAlwaysLabel`), no allow rule matches it, and its
