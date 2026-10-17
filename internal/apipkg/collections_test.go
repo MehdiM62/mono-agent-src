@@ -137,6 +137,7 @@ func TestSubfieldsAreChecked(t *testing.T) {
 	for sub, want := range map[string]string{
 		`{"article.details":["type","body"]}`: "",
 		`{"article.other":["type"]}`:          `subfields names "article.other"`,
+		`{"nope.details":["type"]}`:           `subfields names "nope.details"`,
 		`{"note.details":["type"]}`:           `subfields names "note.details"`,
 		`{"article.details":[]}`:              `subfields "article.details" lists no field`,
 	} {
