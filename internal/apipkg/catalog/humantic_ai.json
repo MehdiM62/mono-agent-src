@@ -52,6 +52,8 @@
       "resource": "profile",
       "operation": "create",
       "title": "Create a profile",
+      "sends": false,
+      "sends_reason": "Create a profile: changes Humantic AI data, not a message",
       "description": "Analyses a LinkedIn URL or email address given as the user ID, or a resume file when Send resume is on",
       "method": "{{ p.sendResume | eq:'true' | then:'POST' | default:'GET' }}",
       "path": "/user-profile/create",

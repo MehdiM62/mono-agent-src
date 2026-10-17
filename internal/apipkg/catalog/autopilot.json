@@ -66,6 +66,8 @@
       "resource": "contact",
       "operation": "upsert",
       "title": "Create or update a contact",
+      "sends": false,
+      "sends_reason": "Create or update a contact: changes Autopilot data, not a message",
       "method": "POST",
       "path": "/contact",
       "body": {
@@ -126,6 +128,8 @@
       "resource": "contact",
       "operation": "delete",
       "title": "Delete a contact",
+      "sends": false,
+      "sends_reason": "Delete a contact: changes Autopilot data, not a message",
       "method": "DELETE",
       "path": "/contact/{{ p.contactId }}",
       "fields": [
@@ -220,6 +224,8 @@
       "resource": "contactList",
       "operation": "add",
       "title": "Add a contact to a list",
+      "sends": false,
+      "sends_reason": "Add a contact to a list: changes Autopilot data, not a message",
       "method": "POST",
       "path": "/list/{{ p.listId }}/contact/{{ p.contactId }}",
       "fields": [
@@ -301,6 +307,8 @@
       "resource": "contactList",
       "operation": "remove",
       "title": "Remove a contact from a list",
+      "sends": false,
+      "sends_reason": "Remove a contact from a list: changes Autopilot data, not a message",
       "method": "DELETE",
       "path": "/list/{{ p.listId }}/contact/{{ p.contactId }}",
       "fields": [
@@ -323,6 +331,8 @@
       "resource": "list",
       "operation": "create",
       "title": "Create a list",
+      "sends": false,
+      "sends_reason": "Create a list: changes Autopilot data, not a message",
       "method": "POST",
       "path": "/list",
       "body": {

@@ -92,6 +92,12 @@
       "resource": "member",
       "operation": "create",
       "title": "Add a member to an audience",
+      "sends": {
+        "action": "email",
+        "to": [
+          "email"
+        ]
+      },
       "method": "POST",
       "path": "/lists/{{ p.list }}/members",
       "fields": [
@@ -227,6 +233,8 @@
       "resource": "member",
       "operation": "delete",
       "title": "Permanently delete a member",
+      "sends": false,
+      "sends_reason": "Permanently delete a member: changes Mailchimp data, not a message",
       "method": "POST",
       "path": "/lists/{{ p.list }}/members/{{ p.email | lower }}/actions/delete-permanent",
       "fields": [
@@ -344,6 +352,13 @@
       "resource": "member",
       "operation": "update",
       "title": "Update a member",
+      "sends": {
+        "action": "email",
+        "to": [
+          "email"
+        ],
+        "if": "updateFields.status"
+      },
       "method": "PUT",
       "path": "/lists/{{ p.list }}/members/{{ p.email | lower }}",
       "fields": [
@@ -443,6 +458,8 @@
       "resource": "memberTag",
       "operation": "create",
       "title": "Add tags to a member",
+      "sends": false,
+      "sends_reason": "Add tags to a member: changes Mailchimp data, not a message",
       "method": "POST",
       "path": "/lists/{{ p.list }}/members/{{ p.email | lower }}/tags",
       "fields": [
@@ -496,6 +513,8 @@
       "resource": "memberTag",
       "operation": "delete",
       "title": "Remove tags from a member",
+      "sends": false,
+      "sends_reason": "Remove tags from a member: changes Mailchimp data, not a message",
       "method": "POST",
       "path": "/lists/{{ p.list }}/members/{{ p.email | lower }}/tags",
       "fields": [
@@ -650,6 +669,8 @@
       "resource": "campaign",
       "operation": "delete",
       "title": "Delete a campaign",
+      "sends": false,
+      "sends_reason": "Delete a campaign: changes Mailchimp data, not a message",
       "method": "DELETE",
       "path": "/campaigns/{{ p.campaignId }}",
       "fields": [
@@ -685,6 +706,8 @@
       "resource": "campaign",
       "operation": "replicate",
       "title": "Replicate a campaign",
+      "sends": false,
+      "sends_reason": "Replicate a campaign: changes Mailchimp data, not a message",
       "method": "POST",
       "path": "/campaigns/{{ p.campaignId }}/actions/replicate",
       "fields": [

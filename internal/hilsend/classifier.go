@@ -90,3 +90,29 @@ func splitPerItem(t target, config map[string]interface{}, input workflow.NodeIn
 	}
 	return out
 }
+
+// valueAt is m's value at a send's param name: a top-level param, or for
+// "a.b" option b of collection param a (an API package's annotated op,
+// "updateFields.publicReply").
+func valueAt(m map[string]interface{}, key string) interface{} {
+	if v, ok := m[key]; ok || !strings.Contains(key, ".") {
+		return v
+	}
+	head, rest, _ := strings.Cut(key, ".")
+	sub, _ := m[head].(map[string]interface{})
+	return valueAt(sub, rest)
+}
+
+// setAt sets m's value at key as valueAt reads it, copying the collection it
+// writes into.
+func setAt(m map[string]interface{}, key string, v interface{}) {
+	head, rest, dotted := strings.Cut(key, ".")
+	if _, ok := m[key]; ok || !dotted {
+		m[key] = v
+		return
+	}
+	sub, _ := m[head].(map[string]interface{})
+	sub = cloneMap(sub)
+	setAt(sub, rest, v)
+	m[head] = sub
+}

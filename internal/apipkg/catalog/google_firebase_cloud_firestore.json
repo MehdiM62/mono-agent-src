@@ -307,6 +307,8 @@
       "resource": "document",
       "operation": "query",
       "title": "Run a query",
+      "sends": false,
+      "sends_reason": "Run a query: a read, not a message",
       "method": "POST",
       "path": "/{{ p.projectId }}/databases/{{ p.database }}/documents:runQuery",
       "description": "Sends the structured query JSON as is ($1-style query parameters are not substituted).",

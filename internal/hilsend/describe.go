@@ -164,7 +164,7 @@ func str(v interface{}) string {
 // or the first key when none has.
 func firstKey(m map[string]interface{}, keys []string) (key, val string) {
 	for _, k := range keys {
-		if v := str(m[k]); v != "" {
+		if v := str(valueAt(m, k)); v != "" {
 			return k, v
 		}
 	}
@@ -343,6 +343,21 @@ func stripSecrets(config map[string]interface{}) map[string]interface{} {
 		out[k] = v
 	}
 	return out
+}
+
+// inlineCredential reports whether config carries a credential written into
+// it (an app node's "credential" map) rather than one resolved from a saved
+// connection, which also fills its fields at the top level (credential_id,
+// or `node run` finding the platform's connection). stripSecrets drops it,
+// and the approved run would have none.
+func inlineCredential(config map[string]interface{}) bool {
+	cred, _ := config["credential"].(map[string]interface{})
+	for k := range cred {
+		if _, ok := config[k]; !ok {
+			return true
+		}
+	}
+	return false
 }
 
 // accountOf reads the sending account from config.

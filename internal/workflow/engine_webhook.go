@@ -89,10 +89,7 @@ func (e *WorkflowEngine) handleWebhookTrigger(workflowID, nodeID string, items [
 		}
 	}
 
-	triggerData := make(map[string]interface{})
-	if len(items) > 0 && items[0].JSON != nil {
-		triggerData = items[0].JSON
-	}
+	triggerData := eventTriggerData(items)
 	exec := &WorkflowExecution{
 		WorkflowID:  workflowID,
 		ProfileID:   executionProfileID(wf),

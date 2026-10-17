@@ -142,14 +142,16 @@ const TriggerNodeTypeOrg = "trigger.org"
 const AICallerKey = "_ai_caller"
 
 // engineKeys are the trigger-data fields only the engine writes: who
-// started a run (AICallerKey, UnapprovedCallerKey) and what a calling
-// workflow passed (SubWorkflowItemsKey, SubWorkflowParentKey).
-var engineKeys = []string{AICallerKey, UnapprovedCallerKey, SubWorkflowItemsKey, SubWorkflowParentKey}
+// started a run (AICallerKey, UnapprovedCallerKey) and which call started it
+// (SubWorkflowParentKey). SubWorkflowItemsKey is not one: a caller may pass
+// several items with it.
+var engineKeys = []string{AICallerKey, UnapprovedCallerKey, SubWorkflowParentKey}
 
 // StripEngineKeys removes from data, a caller's input (`workflow run
-// --input`, the HTTP API, MCP), the fields only the engine writes, so no
-// caller can pass its run off as another's: a planted unapproved-workflow
-// mark would show on an approval card as MonoAgent's own.
+// --input`, the HTTP API, MCP, a webhook's body, an evaluation's row), the
+// fields only the engine writes, so no caller can pass its run off as
+// another's: a planted unapproved-workflow mark would show on an approval
+// card as MonoAgent's own.
 func StripEngineKeys(data map[string]interface{}) {
 	for _, k := range engineKeys {
 		delete(data, k)

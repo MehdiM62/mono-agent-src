@@ -121,6 +121,8 @@
       "resource": "issue",
       "operation": "create",
       "title": "Create an issue",
+      "sends": false,
+      "sends_reason": "Create an issue: changes Jira Software data, not a message",
       "method": "POST",
       "path": "/api/2/issue",
       "fields": [
@@ -291,6 +293,8 @@
       "resource": "issue",
       "operation": "delete",
       "title": "Delete an issue",
+      "sends": false,
+      "sends_reason": "Delete an issue: changes Jira Software data, not a message",
       "method": "DELETE",
       "path": "/api/2/issue/{{ p.issueKey }}",
       "fields": [
@@ -408,6 +412,8 @@
       "resource": "issue",
       "operation": "getAll",
       "title": "Search issues",
+      "sends": false,
+      "sends_reason": "Search issues: a read, not a message",
       "description": "Cloud pages with nextPageToken; Server returns the first page only",
       "method": "POST",
       "path": "/api/2/search{{ p.jiraVersion | default:'cloud' | prefix:'~' | replace:'~serverPat','~server' | ne:'~server' | then:'/jql' }}",
@@ -674,6 +680,8 @@
       "resource": "issue",
       "operation": "update",
       "title": "Update an issue",
+      "sends": false,
+      "sends_reason": "Update an issue: changes Jira Software data, not a message",
       "method": "PUT",
       "path": "/api/2/issue/{{ p.issueKey }}",
       "fields": [
@@ -777,6 +785,8 @@
       "resource": "issueAttachment",
       "operation": "add",
       "title": "Add an attachment",
+      "sends": false,
+      "sends_reason": "Add an attachment: changes Jira Software data, not a message",
       "method": "POST",
       "path": "/api/{{ p.jiraVersion | default:'cloud' | prefix:'~' | replace:'~serverPat','~server' | eq:'~server' | then:'2' | default:'3' }}/issue/{{ p.issueKey }}/attachments",
       "body_type": "multipart",
@@ -964,6 +974,8 @@
       "resource": "issueAttachment",
       "operation": "remove",
       "title": "Remove an attachment",
+      "sends": false,
+      "sends_reason": "Remove an attachment: changes Jira Software data, not a message",
       "method": "DELETE",
       "path": "/api/{{ p.jiraVersion | default:'cloud' | prefix:'~' | replace:'~serverPat','~server' | eq:'~server' | then:'2' | default:'3' }}/attachment/{{ p.attachmentId }}",
       "fields": [
@@ -1247,6 +1259,8 @@
       "resource": "issueComment",
       "operation": "remove",
       "title": "Remove a comment",
+      "sends": false,
+      "sends_reason": "Remove a comment: changes Jira Software data, not a message",
       "method": "DELETE",
       "path": "/api/{{ p.jiraVersion | default:'cloud' | prefix:'~' | replace:'~serverPat','~server' | eq:'~server' | then:'2' | default:'3' }}/issue/{{ p.issueKey }}/comment/{{ p.commentId }}",
       "fields": [
@@ -1410,6 +1424,12 @@
       "resource": "user",
       "operation": "create",
       "title": "Create a user",
+      "sends": {
+        "action": "invite",
+        "to": [
+          "emailAddress"
+        ]
+      },
       "method": "POST",
       "path": "/api/{{ p.jiraVersion | default:'cloud' | prefix:'~' | replace:'~serverPat','~server' | eq:'~server' | then:'2' | default:'3' }}/user",
       "fields": [
@@ -1475,6 +1495,8 @@
       "resource": "user",
       "operation": "delete",
       "title": "Delete a user",
+      "sends": false,
+      "sends_reason": "Delete a user: changes Jira Software data, not a message",
       "method": "DELETE",
       "path": "/api/{{ p.jiraVersion | default:'cloud' | prefix:'~' | replace:'~serverPat','~server' | eq:'~server' | then:'2' | default:'3' }}/user",
       "fields": [

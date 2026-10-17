@@ -116,6 +116,8 @@
       "resource": "message",
       "operation": "delete",
       "title": "Delete a message",
+      "sends": false,
+      "sends_reason": "Delete a message: changes Google Chat data, not a message",
       "method": "DELETE",
       "path": "/{{ p.messageId | path }}",
       "fields": [

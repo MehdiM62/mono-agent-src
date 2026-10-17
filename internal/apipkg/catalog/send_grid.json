@@ -55,6 +55,8 @@
       "resource": "list",
       "operation": "create",
       "title": "Create a list",
+      "sends": false,
+      "sends_reason": "Create a list: changes SendGrid data, not a message",
       "method": "POST",
       "path": "/marketing/lists",
       "fields": [
@@ -73,6 +75,8 @@
       "resource": "list",
       "operation": "delete",
       "title": "Delete a list",
+      "sends": false,
+      "sends_reason": "Delete a list: changes SendGrid data, not a message",
       "method": "DELETE",
       "path": "/marketing/lists/{{ p.listId }}",
       "fields": [
@@ -155,6 +159,8 @@
       "resource": "list",
       "operation": "update",
       "title": "Rename a list",
+      "sends": false,
+      "sends_reason": "Rename a list: changes SendGrid data, not a message",
       "method": "PATCH",
       "path": "/marketing/lists/{{ p.listId }}",
       "fields": [
@@ -179,6 +185,8 @@
       "resource": "contact",
       "operation": "upsert",
       "title": "Create or update a contact",
+      "sends": false,
+      "sends_reason": "Create or update a contact: changes SendGrid data, not a message",
       "method": "PUT",
       "path": "/marketing/contacts",
       "fields": [
@@ -231,6 +239,8 @@
       "resource": "contact",
       "operation": "delete",
       "title": "Delete contacts",
+      "sends": false,
+      "sends_reason": "Delete contacts: changes SendGrid data, not a message",
       "method": "DELETE",
       "path": "/marketing/contacts",
       "fields": [
@@ -256,6 +266,8 @@
       "resource": "contact",
       "operation": "get",
       "title": "Get a contact",
+      "sends": false,
+      "sends_reason": "Get a contact: a read, not a message",
       "method": "{{ p.by | eq:'email' | then:'POST' | default:'GET' }}",
       "path": "/marketing/contacts/{{ p.by | eq:'email' | then:'search' | default:p.contactId }}",
       "fields": [
@@ -300,6 +312,8 @@
       "resource": "contact",
       "operation": "getAll",
       "title": "Get many contacts",
+      "sends": false,
+      "sends_reason": "Get many contacts: a read, not a message",
       "method": "{{ p.filters.query | then:'POST' | default:'GET' }}",
       "path": "/marketing/contacts{{ p.filters.query | then:'/search' }}",
       "fields": [

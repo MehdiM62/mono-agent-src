@@ -292,6 +292,25 @@
       "resource": "incident",
       "operation": "update",
       "title": "Update an incident",
+      "sends": {
+        "action": "post",
+        "to": [
+          "incidentId"
+        ],
+        "text": [
+          "updateFields.resolution",
+          "updateFields.details"
+        ],
+        "subject": [
+          "updateFields.title"
+        ],
+        "if": [
+          "updateFields.escalationLevel",
+          "updateFields.escalationPolicyId",
+          "updateFields.status",
+          "updateFields.resolution"
+        ]
+      },
       "method": "PUT",
       "path": "/incidents/{{ p.incidentId }}",
       "headers": {

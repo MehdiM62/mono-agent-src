@@ -97,6 +97,8 @@
       "resource": "bank_transaction",
       "operation": "create",
       "title": "Create a bank transaction",
+      "sends": false,
+      "sends_reason": "Create a bank transaction: changes Invoice Ninja data, not a message",
       "method": "POST",
       "path": "/bank_transactions",
       "fields": [
@@ -132,6 +134,8 @@
       "resource": "bank_transaction",
       "operation": "delete",
       "title": "Delete a bank transaction",
+      "sends": false,
+      "sends_reason": "Delete a bank transaction: changes Invoice Ninja data, not a message",
       "method": "DELETE",
       "path": "/bank_transactions/{{ p.bankTransactionId }}",
       "fields": [
@@ -226,6 +230,8 @@
       "resource": "bank_transaction",
       "operation": "matchPayment",
       "title": "Match a bank transaction to a payment",
+      "sends": false,
+      "sends_reason": "Match a bank transaction to a payment: changes Invoice Ninja data, not a message",
       "method": "POST",
       "path": "/bank_transactions/match",
       "fields": [
@@ -255,6 +261,8 @@
       "resource": "client",
       "operation": "create",
       "title": "Create a client",
+      "sends": false,
+      "sends_reason": "Create a client: changes Invoice Ninja data, not a message",
       "method": "POST",
       "path": "/clients",
       "fields": [
@@ -340,6 +348,8 @@
       "resource": "client",
       "operation": "delete",
       "title": "Delete a client",
+      "sends": false,
+      "sends_reason": "Delete a client: changes Invoice Ninja data, not a message",
       "method": "DELETE",
       "path": "/clients/{{ p.clientId }}",
       "fields": [
@@ -440,6 +450,8 @@
       "resource": "expense",
       "operation": "create",
       "title": "Create an expense",
+      "sends": false,
+      "sends_reason": "Create an expense: changes Invoice Ninja data, not a message",
       "method": "POST",
       "path": "/expenses",
       "fields": [
@@ -496,6 +508,8 @@
       "resource": "expense",
       "operation": "delete",
       "title": "Delete a expense",
+      "sends": false,
+      "sends_reason": "Delete a expense: changes Invoice Ninja data, not a message",
       "method": "DELETE",
       "path": "/expenses/{{ p.expenseId }}",
       "fields": [
@@ -564,6 +578,14 @@
       "resource": "invoice",
       "operation": "create",
       "title": "Create an invoice",
+      "sends": {
+        "action": "email",
+        "to": [
+          "additionalFields.email",
+          "additionalFields.client"
+        ],
+        "if": "additionalFields.emailInvoice"
+      },
       "method": "POST",
       "path": "/invoices",
       "fields": [
@@ -684,6 +706,12 @@
       "resource": "invoice",
       "operation": "email",
       "title": "Email an invoice",
+      "sends": {
+        "action": "email",
+        "to": [
+          "invoiceId"
+        ]
+      },
       "method": "{{ p.apiVersion | eq:'v4' | then:'POST' | default:'GET' }}",
       "path": "/{{ p.apiVersion | eq:'v4' | then:'email_invoice' | default:'invoices/' }}{{ p.apiVersion | ne:'v4' | then:p.invoiceId }}{{ p.apiVersion | ne:'v4' | then:'/email' }}",
       "fields": [
@@ -713,6 +741,8 @@
       "resource": "invoice",
       "operation": "delete",
       "title": "Delete a invoice",
+      "sends": false,
+      "sends_reason": "Delete a invoice: changes Invoice Ninja data, not a message",
       "method": "DELETE",
       "path": "/invoices/{{ p.invoiceId }}",
       "fields": [
@@ -829,6 +859,8 @@
       "resource": "payment",
       "operation": "create",
       "title": "Create a payment",
+      "sends": false,
+      "sends_reason": "Create a payment: changes Invoice Ninja data, not a message",
       "description": "Reads the invoice first to find its client",
       "method": "POST",
       "path": "/payments",
@@ -896,6 +928,8 @@
       "resource": "payment",
       "operation": "delete",
       "title": "Delete a payment",
+      "sends": false,
+      "sends_reason": "Delete a payment: changes Invoice Ninja data, not a message",
       "method": "DELETE",
       "path": "/payments/{{ p.paymentId }}",
       "fields": [
@@ -996,6 +1030,8 @@
       "resource": "quote",
       "operation": "create",
       "title": "Create a quote",
+      "sends": false,
+      "sends_reason": "Create a quote: changes Invoice Ninja data, not a message",
       "method": "POST",
       "path": "/{{ p.apiVersion | eq:'v4' | then:'invoices' | default:'quotes' }}",
       "fields": [
@@ -1111,6 +1147,12 @@
       "resource": "quote",
       "operation": "email",
       "title": "Email a quote",
+      "sends": {
+        "action": "email",
+        "to": [
+          "quoteId"
+        ]
+      },
       "method": "{{ p.apiVersion | eq:'v4' | then:'POST' | default:'GET' }}",
       "path": "/{{ p.apiVersion | eq:'v4' | then:'email_invoice' | default:'quotes/' }}{{ p.apiVersion | ne:'v4' | then:p.quoteId }}{{ p.apiVersion | ne:'v4' | then:'/email' }}",
       "fields": [
@@ -1140,6 +1182,8 @@
       "resource": "quote",
       "operation": "delete",
       "title": "Delete a quote",
+      "sends": false,
+      "sends_reason": "Delete a quote: changes Invoice Ninja data, not a message",
       "method": "DELETE",
       "path": "/{{ p.apiVersion | eq:'v4' | then:'invoices' | default:'quotes' }}/{{ p.quoteId }}",
       "fields": [
@@ -1275,6 +1319,8 @@
       "resource": "task",
       "operation": "create",
       "title": "Create a task",
+      "sends": false,
+      "sends_reason": "Create a task: changes Invoice Ninja data, not a message",
       "method": "POST",
       "path": "/tasks",
       "fields": [
@@ -1326,6 +1372,8 @@
       "resource": "task",
       "operation": "delete",
       "title": "Delete a task",
+      "sends": false,
+      "sends_reason": "Delete a task: changes Invoice Ninja data, not a message",
       "method": "DELETE",
       "path": "/tasks/{{ p.taskId }}",
       "fields": [

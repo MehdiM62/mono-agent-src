@@ -192,6 +192,8 @@
       "resource": "message",
       "operation": "delete",
       "title": "Delete a message",
+      "sends": false,
+      "sends_reason": "Delete a message: changes Slack data, not a message",
       "method": "POST",
       "path": "/chat.delete",
       "fields": [
@@ -234,6 +236,8 @@
       "resource": "message",
       "operation": "deleteScheduled",
       "title": "Delete a scheduled message",
+      "sends": false,
+      "sends_reason": "Delete a scheduled message: changes Slack data, not a message",
       "method": "POST",
       "path": "/chat.deleteScheduledMessage",
       "fields": [
@@ -619,6 +623,8 @@
       "resource": "channel",
       "operation": "create",
       "title": "Create a channel",
+      "sends": false,
+      "sends_reason": "Create a channel: changes Slack data, not a message",
       "method": "POST",
       "path": "/conversations.create",
       "fields": [
@@ -652,6 +658,8 @@
       "resource": "channel",
       "operation": "archive",
       "title": "Archive a channel",
+      "sends": false,
+      "sends_reason": "Archive a channel: changes Slack data, not a message",
       "method": "POST",
       "path": "/conversations.archive",
       "fields": [
@@ -671,6 +679,8 @@
       "resource": "channel",
       "operation": "close",
       "title": "Close a direct message or multi-person direct message",
+      "sends": false,
+      "sends_reason": "Close a direct message or multi-person direct message: changes Slack data, not a message",
       "method": "POST",
       "path": "/conversations.close",
       "fields": [
@@ -690,6 +700,8 @@
       "resource": "channel",
       "operation": "get",
       "title": "Get a channel",
+      "sends": false,
+      "sends_reason": "Get a channel: a read, not a message",
       "method": "POST",
       "path": "/conversations.info",
       "fields": [
@@ -862,6 +874,8 @@
       "resource": "channel",
       "operation": "join",
       "title": "Join a channel",
+      "sends": false,
+      "sends_reason": "Join a channel: changes Slack data, not a message",
       "method": "POST",
       "path": "/conversations.join",
       "fields": [
@@ -884,6 +898,8 @@
       "resource": "channel",
       "operation": "kick",
       "title": "Remove a user from a channel",
+      "sends": false,
+      "sends_reason": "Remove a user from a channel: changes Slack data, not a message",
       "method": "POST",
       "path": "/conversations.kick",
       "fields": [
@@ -910,6 +926,8 @@
       "resource": "channel",
       "operation": "leave",
       "title": "Leave a channel",
+      "sends": false,
+      "sends_reason": "Leave a channel: changes Slack data, not a message",
       "method": "POST",
       "path": "/conversations.leave",
       "fields": [
@@ -990,6 +1008,8 @@
       "resource": "channel",
       "operation": "open",
       "title": "Open or resume a direct message",
+      "sends": false,
+      "sends_reason": "opens a direct message conversation; nothing is posted until a message is sent",
       "method": "POST",
       "path": "/conversations.open",
       "fields": [
@@ -1018,6 +1038,8 @@
       "resource": "channel",
       "operation": "rename",
       "title": "Rename a channel",
+      "sends": false,
+      "sends_reason": "Rename a channel: changes Slack data, not a message",
       "method": "POST",
       "path": "/conversations.rename",
       "fields": [
@@ -1109,6 +1131,8 @@
       "resource": "channel",
       "operation": "setPurpose",
       "title": "Set a channel's purpose",
+      "sends": false,
+      "sends_reason": "sets a channel's purpose, a label its members see; not a message",
       "method": "POST",
       "path": "/conversations.setPurpose",
       "fields": [
@@ -1138,6 +1162,8 @@
       "resource": "channel",
       "operation": "setTopic",
       "title": "Set a channel's topic",
+      "sends": false,
+      "sends_reason": "sets a channel's topic, a label its members see; not a message",
       "method": "POST",
       "path": "/conversations.setTopic",
       "fields": [
@@ -1167,6 +1193,8 @@
       "resource": "channel",
       "operation": "unarchive",
       "title": "Unarchive a channel",
+      "sends": false,
+      "sends_reason": "Unarchive a channel: changes Slack data, not a message",
       "method": "POST",
       "path": "/conversations.unarchive",
       "fields": [
@@ -1339,6 +1367,8 @@
       "resource": "reaction",
       "operation": "add",
       "title": "Add a reaction",
+      "sends": false,
+      "sends_reason": "Add a reaction: changes Slack data, not a message",
       "method": "POST",
       "path": "/reactions.add",
       "fields": [
@@ -1398,6 +1428,8 @@
       "resource": "reaction",
       "operation": "remove",
       "title": "Remove a reaction",
+      "sends": false,
+      "sends_reason": "Remove a reaction: changes Slack data, not a message",
       "method": "POST",
       "path": "/reactions.remove",
       "fields": [
@@ -1431,6 +1463,8 @@
       "resource": "star",
       "operation": "add",
       "title": "Star an item",
+      "sends": false,
+      "sends_reason": "Star an item: changes Slack data, not a message",
       "method": "POST",
       "path": "/stars.add",
       "fields": [
@@ -1482,6 +1516,8 @@
       "resource": "star",
       "operation": "delete",
       "title": "Remove a star",
+      "sends": false,
+      "sends_reason": "Remove a star: changes Slack data, not a message",
       "method": "POST",
       "path": "/stars.remove",
       "fields": [
@@ -1655,6 +1691,8 @@
       "resource": "user",
       "operation": "updateProfile",
       "title": "Update a user's profile",
+      "sends": false,
+      "sends_reason": "Update a user's profile: changes Slack data, not a message",
       "method": "POST",
       "path": "/users.profile.set",
       "fields": [
@@ -1696,6 +1734,8 @@
       "resource": "userGroup",
       "operation": "create",
       "title": "Create a user group",
+      "sends": false,
+      "sends_reason": "Create a user group: changes Slack data, not a message",
       "method": "POST",
       "path": "/usergroups.create",
       "fields": [
@@ -1731,6 +1771,8 @@
       "resource": "userGroup",
       "operation": "disable",
       "title": "Disable a user group",
+      "sends": false,
+      "sends_reason": "Disable a user group: changes Slack data, not a message",
       "method": "POST",
       "path": "/usergroups.disable",
       "fields": [
@@ -1762,6 +1804,8 @@
       "resource": "userGroup",
       "operation": "enable",
       "title": "Enable a user group",
+      "sends": false,
+      "sends_reason": "Enable a user group: changes Slack data, not a message",
       "method": "POST",
       "path": "/usergroups.enable",
       "fields": [
@@ -1878,6 +1922,8 @@
       "resource": "userGroup",
       "operation": "update",
       "title": "Update a user group",
+      "sends": false,
+      "sends_reason": "Update a user group: changes Slack data, not a message",
       "method": "POST",
       "path": "/usergroups.update",
       "fields": [
@@ -1914,6 +1960,8 @@
       "resource": "userGroup",
       "operation": "updateUsers",
       "title": "Add users to a user group",
+      "sends": false,
+      "sends_reason": "Add users to a user group: changes Slack data, not a message",
       "description": "Keeps the current members and adds the given users",
       "method": "POST",
       "path": "/usergroups.users.update",

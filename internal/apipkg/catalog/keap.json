@@ -88,6 +88,8 @@
       "resource": "company",
       "operation": "create",
       "title": "Create a company",
+      "sends": false,
+      "sends_reason": "Create a company: changes Keap data, not a message",
       "method": "POST",
       "path": "/companies",
       "fields": [
@@ -215,6 +217,8 @@
       "resource": "contact",
       "operation": "upsert",
       "title": "Create or update a contact",
+      "sends": false,
+      "sends_reason": "Create or update a contact: changes Keap data, not a message",
       "method": "PUT",
       "path": "/contacts",
       "fields": [
@@ -351,6 +355,8 @@
       "resource": "contact",
       "operation": "delete",
       "title": "Delete a contact",
+      "sends": false,
+      "sends_reason": "Delete a contact: changes Keap data, not a message",
       "method": "DELETE",
       "path": "/contacts/{{ p.contactId | int }}",
       "fields": [
@@ -455,6 +461,8 @@
       "resource": "contactNote",
       "operation": "create",
       "title": "Create a note",
+      "sends": false,
+      "sends_reason": "Create a note: changes Keap data, not a message",
       "method": "POST",
       "path": "/notes",
       "fields": [
@@ -495,6 +503,8 @@
       "resource": "contactNote",
       "operation": "delete",
       "title": "Delete a note",
+      "sends": false,
+      "sends_reason": "Delete a note: changes Keap data, not a message",
       "method": "DELETE",
       "path": "/notes/{{ p.noteId }}",
       "fields": [
@@ -576,6 +586,8 @@
       "resource": "contactNote",
       "operation": "update",
       "title": "Update a note",
+      "sends": false,
+      "sends_reason": "Update a note: changes Keap data, not a message",
       "method": "PATCH",
       "path": "/notes/{{ p.noteId }}",
       "fields": [
@@ -611,6 +623,8 @@
       "resource": "contactTag",
       "operation": "create",
       "title": "Add tags to a contact",
+      "sends": false,
+      "sends_reason": "Add tags to a contact: changes Keap data, not a message",
       "method": "POST",
       "path": "/contacts/{{ p.contactId | int }}/tags",
       "fields": [
@@ -636,6 +650,8 @@
       "resource": "contactTag",
       "operation": "delete",
       "title": "Remove tags from a contact",
+      "sends": false,
+      "sends_reason": "Remove tags from a contact: changes Keap data, not a message",
       "method": "DELETE",
       "path": "/contacts/{{ p.contactId | int }}/tags",
       "fields": [
@@ -705,6 +721,8 @@
       "resource": "ecommerceOrder",
       "operation": "create",
       "title": "Create an order",
+      "sends": false,
+      "sends_reason": "Create an order: changes Keap data, not a message",
       "method": "POST",
       "path": "/orders",
       "fields": [
@@ -821,6 +839,8 @@
       "resource": "ecommerceOrder",
       "operation": "delete",
       "title": "Delete an order",
+      "sends": false,
+      "sends_reason": "Delete an order: changes Keap data, not a message",
       "method": "DELETE",
       "path": "/orders/{{ p.orderId | int }}",
       "fields": [
@@ -895,6 +915,8 @@
       "resource": "ecommerceProduct",
       "operation": "create",
       "title": "Create a product",
+      "sends": false,
+      "sends_reason": "Create a product: changes Keap data, not a message",
       "method": "POST",
       "path": "/products",
       "fields": [
@@ -933,6 +955,8 @@
       "resource": "ecommerceProduct",
       "operation": "delete",
       "title": "Delete a product",
+      "sends": false,
+      "sends_reason": "Delete a product: changes Keap data, not a message",
       "method": "DELETE",
       "path": "/products/{{ p.productId }}",
       "fields": [
@@ -1077,6 +1101,8 @@
       "resource": "email",
       "operation": "deleteRecord",
       "title": "Delete an email record",
+      "sends": false,
+      "sends_reason": "Delete an email record: changes Keap data, not a message",
       "method": "DELETE",
       "path": "/emails/{{ p.emailRecordId | int }}",
       "fields": [
@@ -1230,6 +1256,8 @@
       "resource": "file",
       "operation": "delete",
       "title": "Delete a file",
+      "sends": false,
+      "sends_reason": "Delete a file: changes Keap data, not a message",
       "method": "DELETE",
       "path": "/files/{{ p.fileId | int }}",
       "fields": [
@@ -1303,6 +1331,8 @@
       "resource": "file",
       "operation": "upload",
       "title": "Upload a file",
+      "sends": false,
+      "sends_reason": "Upload a file: changes Keap data, not a message",
       "method": "POST",
       "path": "/files",
       "body_type": "json",

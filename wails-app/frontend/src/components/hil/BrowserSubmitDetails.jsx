@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { AlertTriangle } from 'lucide-react'
 import { api } from '../../services/api.js'
 import { ImageLightbox } from '../chat/ChatAttachments.jsx'
+import { quoteClaim } from '../../lib/quoteClaim.js'
 
 // A browser submit approval: a form an agent tried to submit on a page that
 // is not local, held until a person approves it (then `monoagentcli browser
@@ -27,7 +28,7 @@ export function isBrowserSubmit(item) {
 // (by.system: a workflow the user hasn't approved) is not.
 export function requesterParts(by) {
   if (!by || typeof by !== 'object') return []
-  const q = by.system ? String : JSON.stringify
+  const q = by.system ? String : (v) => quoteClaim(v)
   const parts = []
   if (by.role) parts.push(by.role === 'lead' && by.conversationId ? 'coder chat agent' : `role ${q(by.role)}`)
   if (by.org) parts.push(`org ${q(by.org)}`)

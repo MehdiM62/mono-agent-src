@@ -2610,8 +2610,20 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
   send/comment/publish/follow actions) and every API package op that
   declares `"sends"` (`internal/apipkg/FORMAT.md` §3: the `app.*` nodes and
   the ops packages add to native nodes). An app step resolves its recipient
-  per input item, so each item is its own card. `hil show <id>` (text)
-  prints `Prepared by: <role>`. Not covered (open): `http.request` to any
+  per input item, so each item is its own card. An op that sends only
+  sometimes says when with `if` (a Google Calendar event only with
+  attendees, an Invoice Ninja invoice only with emailInvoice); a field may
+  be a collection's option (`updateFields.publicReply`). The catalog lint
+  (`TestCatalogSendsAreDecided`) makes every write of a messaging package,
+  and any op whose name, path or description says it sends, carry `sends`
+  or `sends: false` with a reason. It covers the built-in catalog only: a
+  package the user installs in `~/.monoagent/apipkgs` without `sends` sends
+  as before. A send whose credential is written into its config
+  (`"credential": {…}`) is refused, not queued: an approval keeps no
+  credentials; save it with `connect save` and use `credential_id`.
+  `hil show <id>` (text) prints MonoAgent's own label as it is
+  (`Prepared by: unapproved workflow <id>`) and an agent's as its claim
+  (`Prepared by: an agent (claims: "…")`). Not covered (open): `http.request` to any
   API, a mail API included, and a program step (`system.execute_command`,
   `core.code`) in a workflow the user approved.
 - **Files an unapproved workflow can't touch.** Its file steps, and those of
@@ -2633,6 +2645,13 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
   - writing a git hook or git config (`.git/hooks/*`, `.git/config*`, those
     of submodules and worktrees, a bare `*.git`, and any git directory found
     by its `objects`, `refs` and a `HEAD` that reads as git's), anywhere.
+    The check is per write, so a folder whose hook was written before it
+    became a git directory keeps that hook, and a config-first order
+    (config, then hooks, then `HEAD`, `objects` and `refs`) is allowed.
+    Git runs it only when it finds that folder: through a `.git` pointer
+    file (refused), a name ending in `.git` (refused by name), the user's
+    own `GIT_DIR` or core config, or the user running git inside a folder
+    that looks like a bare repository (git discovers it there).
   Names compare without case on Windows and macOS. A refusal names the
   `workflow activate <id>` that approves the workflow.
 - **The project folder is a trusted zone** (the user's choice): the
@@ -2640,10 +2659,19 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
   and for a profile on the default folder (`~/.monoagent/profiles/<id>`)
   the profile's own vault folder. Closed there, as everywhere: git hooks and
   configs, and the files a tool runs the next time the user works in that
-  folder or instructs the next AI session there (anything in `.claude/`,
-  `CLAUDE.md`, `CLAUDE.local.md`, `AGENTS.md`, `GEMINI.md`, `.cursorrules`,
-  `.cursor/rules/*`, `.github/copilot-instructions.md`, `.mcp.json`,
-  `.husky/*`, `.githooks/*`, `.envrc`), and a `.git` pointer file. Still open in it: build files such as `package.json` scripts
+  folder or instructs the next AI session there, and a `.git` pointer file:
+  AI tools' folders (`.claude/`, `.codex/`, `.gemini/`, `.continue/`,
+  `.cursor/`, `.windsurf/`, `.roo/`, `.kiro/`, `.amazonq/`, `.opencode/`),
+  agent instructions (`CLAUDE.md`, `CLAUDE.local.md`, `AGENTS.md`,
+  `GEMINI.md`, `.cursorrules`, `.windsurfrules`, `.clinerules`,
+  `.roorules`, `.github/copilot-instructions.md`, `.github/agents`,
+  `.github/instructions`, `.github/prompts`), tool configs (`.mcp.json`,
+  `opencode.json`, `.aider.conf.yml`), CI pipelines
+  (`.github/workflows/*`, `.gitlab-ci.yml`, `.circleci/`), hook managers
+  (`.husky/*`, `.githooks/*`, `.pre-commit-config.yaml`, `lefthook.yml`)
+  and the dev environment (`.envrc`, `.mise.toml`, `.devcontainer/`,
+  `.vscode/tasks.json` and `launch.json`, `.zed/settings.json` and
+  `tasks.json`). `.vscode/settings.json` stays open. Still open in it: build files such as `package.json` scripts
   or a `Makefile`. A project folder that is the home or holds it, or lies in
   another hidden folder of the home, opens nothing; only the operator sets a
   profile's folder. Also open: the user's files outside hidden folders,
@@ -2729,19 +2757,22 @@ every bare 43-character base64url string is. The shown runs' hidden tokens
 forms: a piece of 8 characters or more (16 in hex), the token reversed, in hex
 or in base64 (either alphabet, any alignment, so a whole URL encoded counts),
 and any of those with other characters in between (spaces, commas, quotes, a
-list of its characters) or with the same 1 to 3 characters between every two
+list of its characters) or with the same 1 to 6 characters between every two
 of its characters (`-`, `ZZ`), whatever their case. Within one item, 5 or more
 values of up to 64 characters that each hold a piece of 5 characters or more
 of a token have those pieces hidden too. A text over 16 MB is not scanned: an
 agent gets `[too large to scan for reply tokens; view it from your own
-terminal]` in its place. A template can still emit a token in forms MonoAgent
-doesn't recognise (char codes, a cipher, pieces padded with text); an
-unapproved run's sends queue for the user, so this matters mainly for
-workflows the user approved. Nor can it keep a token from a process with a
-shell or file access, which can read the database or sign one with the
-machine's trace key. An approval whose data holds `[reply token hidden]` is
-refused (exit 3, HTTP 400, an MCP error): leave that field out and it keeps
-its value.
+terminal]` in its place.
+
+This hiding is a speed bump for accidents, not a boundary. The workflow's
+author controls the templates, and any transform outside those forms gets a
+token through: a filler of 7 characters or more, pieces of 4 or fewer, pieces
+inside longer fields, a substitution cipher, char codes. Nor can it keep a
+token from a process with a shell or file access, which can read the database
+or sign one with the machine's trace key. What stops a determined workflow the
+user hasn't approved is that its sends and its program steps wait for the
+user. An approval whose data holds `[reply token hidden]` is refused (exit 3,
+HTTP 400, an MCP error): leave that field out and it keeps its value.
 
 An item of a run an org started (through a grant or a message to an
 automation role) is that org's decision instead, class `hil:<alias>`. Its tier

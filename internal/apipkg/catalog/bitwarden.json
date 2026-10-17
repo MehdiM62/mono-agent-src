@@ -107,6 +107,8 @@
       "resource": "collection",
       "operation": "delete",
       "title": "Delete a collection",
+      "sends": false,
+      "sends_reason": "Delete a collection: changes Bitwarden data, not a message",
       "method": "DELETE",
       "path": "/public/collections/{{ p.collectionId }}",
       "fields": [
@@ -152,6 +154,8 @@
       "resource": "collection",
       "operation": "update",
       "title": "Update a collection",
+      "sends": false,
+      "sends_reason": "Update a collection: changes Bitwarden data, not a message",
       "method": "PUT",
       "path": "/public/collections/{{ p.collectionId }}",
       "body": {
@@ -247,6 +251,8 @@
       "resource": "group",
       "operation": "create",
       "title": "Create a group",
+      "sends": false,
+      "sends_reason": "Create a group: changes Bitwarden data, not a message",
       "method": "POST",
       "path": "/public/groups",
       "body": {
@@ -290,6 +296,8 @@
       "resource": "group",
       "operation": "delete",
       "title": "Delete a group",
+      "sends": false,
+      "sends_reason": "Delete a group: changes Bitwarden data, not a message",
       "method": "DELETE",
       "path": "/public/groups/{{ p.groupId }}",
       "fields": [
@@ -350,6 +358,8 @@
       "resource": "group",
       "operation": "update",
       "title": "Update a group",
+      "sends": false,
+      "sends_reason": "Update a group: changes Bitwarden data, not a message",
       "method": "PUT",
       "path": "/public/groups/{{ p.groupId }}",
       "body": {
@@ -390,6 +400,8 @@
       "resource": "group",
       "operation": "updateMembers",
       "title": "Set a group's members",
+      "sends": false,
+      "sends_reason": "Set a group's members: changes Bitwarden data, not a message",
       "method": "PUT",
       "path": "/public/groups/{{ p.groupId }}/member-ids",
       "body": {
@@ -490,6 +502,8 @@
       "resource": "member",
       "operation": "delete",
       "title": "Remove a member",
+      "sends": false,
+      "sends_reason": "Remove a member: changes Bitwarden data, not a message",
       "method": "DELETE",
       "path": "/public/members/{{ p.memberId }}",
       "fields": [
@@ -550,6 +564,8 @@
       "resource": "member",
       "operation": "update",
       "title": "Update a member",
+      "sends": false,
+      "sends_reason": "Update a member: changes Bitwarden data, not a message",
       "method": "PUT",
       "path": "/public/members/{{ p.memberId }}",
       "body": {
@@ -589,6 +605,8 @@
       "resource": "member",
       "operation": "updateGroups",
       "title": "Set a member's groups",
+      "sends": false,
+      "sends_reason": "Set a member's groups: changes Bitwarden data, not a message",
       "method": "PUT",
       "path": "/public/members/{{ p.memberId }}/group-ids",
       "body": {

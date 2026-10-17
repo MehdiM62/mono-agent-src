@@ -403,7 +403,7 @@
       "operation": "share",
       "title": "Share a file",
       "sends": false,
-      "sends_reason": "shares a file or folder: a data-sharing step, not a message (any notice the service sends about it is its own)",
+      "sends_reason": "file sharing, open by the user's decision",
       "method": "POST",
       "path": "/files/{{ p.fileId | rl }}/permissions",
       "fields": [
@@ -734,7 +734,7 @@
       "operation": "share",
       "title": "Share a folder",
       "sends": false,
-      "sends_reason": "shares a file or folder: a data-sharing step, not a message (any notice the service sends about it is its own)",
+      "sends_reason": "file sharing, open by the user's decision",
       "method": "POST",
       "path": "/files/{{ p.folderNoRootId | rl }}/permissions",
       "fields": [

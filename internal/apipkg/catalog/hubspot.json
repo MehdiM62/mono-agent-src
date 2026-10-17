@@ -121,6 +121,8 @@
       "resource": "contact",
       "operation": "upsert",
       "title": "Create or update a contact",
+      "sends": false,
+      "sends_reason": "Create or update a contact: changes HubSpot data, not a message",
       "method": "POST",
       "path": "/contacts/v1/contact/createOrUpdate/email/{{ p.email }}",
       "fields": [

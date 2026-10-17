@@ -79,6 +79,8 @@
       "resource": "card",
       "operation": "create",
       "title": "Create a card",
+      "sends": false,
+      "sends_reason": "Create a card: changes Wekan data, not a message",
       "method": "POST",
       "path": "/boards/{{ p.boardId }}/lists/{{ p.listId }}/cards",
       "body": {
@@ -144,6 +146,8 @@
       "resource": "card",
       "operation": "delete",
       "title": "Delete a card",
+      "sends": false,
+      "sends_reason": "Delete a card: changes Wekan data, not a message",
       "method": "DELETE",
       "path": "/boards/{{ p.boardId }}/lists/{{ p.listId }}/cards/{{ p.cardId }}",
       "before": {
@@ -279,6 +283,8 @@
       "resource": "card",
       "operation": "update",
       "title": "Update a card",
+      "sends": false,
+      "sends_reason": "Update a card: changes Wekan data, not a message",
       "method": "PUT",
       "path": "/boards/{{ p.boardId }}/lists/{{ p.listId }}/cards/{{ p.cardId }}",
       "body": {
@@ -343,6 +349,8 @@
       "resource": "board",
       "operation": "create",
       "title": "Create a board",
+      "sends": false,
+      "sends_reason": "Create a board: changes Wekan data, not a message",
       "method": "POST",
       "path": "/boards",
       "body": {
@@ -393,6 +401,8 @@
       "resource": "board",
       "operation": "delete",
       "title": "Delete a board",
+      "sends": false,
+      "sends_reason": "Delete a board: changes Wekan data, not a message",
       "method": "DELETE",
       "path": "/boards/{{ p.boardId }}",
       "before": {
@@ -542,6 +552,8 @@
       "resource": "cardComment",
       "operation": "delete",
       "title": "Delete a comment",
+      "sends": false,
+      "sends_reason": "Delete a comment: changes Wekan data, not a message",
       "method": "DELETE",
       "path": "/boards/{{ p.boardId }}/cards/{{ p.cardId }}/comments/{{ p.commentId }}",
       "before": {
@@ -730,6 +742,8 @@
       "resource": "checklist",
       "operation": "create",
       "title": "Create a checklist",
+      "sends": false,
+      "sends_reason": "Create a checklist: changes Wekan data, not a message",
       "method": "POST",
       "path": "/boards/{{ p.boardId }}/cards/{{ p.cardId }}/checklists",
       "body": {
@@ -784,6 +798,8 @@
       "resource": "checklist",
       "operation": "delete",
       "title": "Delete a checklist",
+      "sends": false,
+      "sends_reason": "Delete a checklist: changes Wekan data, not a message",
       "method": "DELETE",
       "path": "/boards/{{ p.boardId }}/cards/{{ p.cardId }}/checklists/{{ p.checklistId }}",
       "before": {
@@ -916,6 +932,8 @@
       "resource": "checklistItem",
       "operation": "delete",
       "title": "Delete a checklist item",
+      "sends": false,
+      "sends_reason": "Delete a checklist item: changes Wekan data, not a message",
       "method": "DELETE",
       "path": "/boards/{{ p.boardId }}/cards/{{ p.cardId }}/checklists/{{ p.checklistId }}/items/{{ p.checklistItemId }}",
       "before": {
@@ -964,6 +982,8 @@
       "resource": "checklistItem",
       "operation": "update",
       "title": "Update a checklist item",
+      "sends": false,
+      "sends_reason": "Update a checklist item: changes Wekan data, not a message",
       "method": "PUT",
       "path": "/boards/{{ p.boardId }}/cards/{{ p.cardId }}/checklists/{{ p.checklistId }}/items/{{ p.checklistItemId }}",
       "body": {
@@ -1025,6 +1045,8 @@
       "resource": "list",
       "operation": "create",
       "title": "Create a list",
+      "sends": false,
+      "sends_reason": "Create a list: changes Wekan data, not a message",
       "method": "POST",
       "path": "/boards/{{ p.boardId }}/lists",
       "body": {
@@ -1058,6 +1080,8 @@
       "resource": "list",
       "operation": "delete",
       "title": "Delete a list",
+      "sends": false,
+      "sends_reason": "Delete a list: changes Wekan data, not a message",
       "method": "DELETE",
       "path": "/boards/{{ p.boardId }}/lists/{{ p.listId }}",
       "before": {

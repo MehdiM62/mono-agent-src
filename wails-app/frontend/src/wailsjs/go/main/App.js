@@ -330,6 +330,10 @@ export function DeletePeople(arg1) {
   return window['go']['main']['App']['DeletePeople'](arg1);
 }
 
+export function DeleteProfile(arg1) {
+  return window['go']['main']['App']['DeleteProfile'](arg1);
+}
+
 export function DeleteProfileDocument(arg1) {
   return window['go']['main']['App']['DeleteProfileDocument'](arg1);
 }
@@ -652,6 +656,10 @@ export function GetProfileInfoFields() {
 
 export function GetProfileInfoPhoto(arg1) {
   return window['go']['main']['App']['GetProfileInfoPhoto'](arg1);
+}
+
+export function GetProfileDeleteSummary(arg1) {
+  return window['go']['main']['App']['GetProfileDeleteSummary'](arg1);
 }
 
 export function GetProfiles() {
@@ -1444,6 +1452,10 @@ export function TestSession(arg1) {
 
 export function UninstallAutomation(arg1) {
   return window['go']['main']['App']['UninstallAutomation'](arg1);
+}
+
+export function UpdateProfile(arg1, arg2, arg3) {
+  return window['go']['main']['App']['UpdateProfile'](arg1, arg2, arg3);
 }
 
 export function UpdateOrgRole(arg1, arg2, arg3) {

@@ -2,70 +2,32 @@ package apipkg
 
 import (
 	"reflect"
-	"regexp"
 	"strings"
 	"testing"
 )
 
-// sendWords mark an op name that sends to people; readVerbs, as an op's
-// first word, one that only reads or files things.
-var (
-	sendWords = map[string]bool{"send": true, "message": true, "messages": true, "sms": true, "mms": true, "email": true,
-		"mail": true, "notification": true, "notify": true, "publish": true, "reply": true, "comment": true, "post": true,
-		"tweet": true, "push": true, "invite": true, "reinvite": true, "call": true, "voice": true, "campaign": true,
-		"broadcast": true, "dm": true, "share": true}
-	readVerbs = map[string]bool{"get": true, "getall": true, "list": true, "search": true, "count": true, "check": true,
-		"analyze": true, "predict": true, "mark": true, "move": true, "delete": true, "remove": true, "pause": true,
-		"resolve": true, "close": true, "leave": true, "pin": true, "unpin": true, "undo": true, "soft": true, "lock": true,
-		"duplicate": true, "replicate": true, "react": true, "like": true, "retweet": true, "rate": true, "execute": true,
-		"status": true, "track": true}
-	camelHump  = regexp.MustCompile(`([a-z0-9])([A-Z])`)
-	nonWordRun = regexp.MustCompile(`[^A-Za-z0-9]+`)
-)
-
-func opWords(s string) []string {
-	var out []string
-	for _, w := range nonWordRun.Split(camelHump.ReplaceAllString(s, "$1 $2"), -1) {
-		if w != "" {
-			out = append(out, strings.ToLower(w))
-		}
-	}
-	return out
-}
-
-// The catalog lint: an op whose name says it sends (a send word in its
-// resource or operation, a write method, and not a read verb first) must
-// say whether it does: "sends": {…}, or "sends": false with a reason. A new
-// package cannot leave a send out of the user's approvals by saying nothing.
+// The catalog lint (sends_lint_test.go): an op that may send says whether
+// it does, "sends": {…} or "sends": false with a reason, so a new package
+// cannot leave a send out of the user's approvals by saying nothing.
 func TestCatalogSendsAreDecided(t *testing.T) {
 	pkgs := catalogPackages(t)
-	var undecided []string
+	ids := map[string]bool{}
 	sends := 0
 	for _, p := range pkgs {
+		ids[p.ID] = true
 		for _, o := range p.Operations {
 			if o.Sends != nil && !o.Sends.None {
 				sends++
 			}
-			switch strings.ToUpper(o.Method) {
-			case "POST", "PUT", "PATCH":
-			default:
-				continue
-			}
-			ow := opWords(o.Operation)
-			if len(ow) == 0 || readVerbs[ow[0]] {
-				continue
-			}
-			named := false
-			for _, w := range append(opWords(o.Resource), ow...) {
-				named = named || sendWords[w]
-			}
-			if named && o.Sends == nil {
-				undecided = append(undecided, p.ID+" "+o.Resource+"/"+o.Operation)
-			}
 		}
 	}
-	if len(undecided) > 0 {
-		t.Errorf("%d op(s) look like sends but say neither \"sends\": {…} nor \"sends\": false with a sends_reason (FORMAT.md §3):\n  %s",
+	for id := range messagingPackages {
+		if !ids[id] {
+			t.Errorf("messagingPackages names %s, which is not in the catalog", id)
+		}
+	}
+	if undecided := undecidedSends(pkgs); len(undecided) > 0 {
+		t.Errorf("%d op(s) may send but say neither \"sends\": {…} nor \"sends\": false with a sends_reason (FORMAT.md §3):\n  %s",
 			len(undecided), strings.Join(undecided, "\n  "))
 	}
 	if sends < 150 {

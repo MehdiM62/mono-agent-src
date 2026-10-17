@@ -138,6 +138,15 @@
       "resource": "ticket",
       "operation": "create",
       "title": "Create a ticket",
+      "sends": {
+        "action": "comment",
+        "text": [
+          "description"
+        ],
+        "subject": [
+          "additionalFields.subject"
+        ]
+      },
       "method": "POST",
       "path": "/tickets.json",
       "body": {
@@ -201,6 +210,8 @@
       "resource": "ticket",
       "operation": "delete",
       "title": "Delete a ticket",
+      "sends": false,
+      "sends_reason": "Delete a ticket: changes Zendesk data, not a message",
       "method": "DELETE",
       "path": "/{{ p.ticketType | eq:'suspended' | then:'suspended_tickets' | default:'tickets' }}/{{ p.id }}.json",
       "output": {
@@ -326,6 +337,8 @@
       "resource": "ticket",
       "operation": "recover",
       "title": "Recover a suspended ticket",
+      "sends": false,
+      "sends_reason": "Recover a suspended ticket: changes Zendesk data, not a message",
       "method": "PUT",
       "path": "/suspended_tickets/{{ p.id }}/recover.json",
       "output": {
@@ -344,6 +357,19 @@
       "resource": "ticket",
       "operation": "update",
       "title": "Update a ticket",
+      "sends": {
+        "action": "comment",
+        "to": [
+          "id"
+        ],
+        "text": [
+          "updateFields.publicReply"
+        ],
+        "if": [
+          "updateFields.publicReply",
+          "jsonParameters"
+        ]
+      },
       "method": "PUT",
       "path": "/tickets/{{ p.id }}.json",
       "body": {
@@ -461,6 +487,13 @@
       "resource": "user",
       "operation": "create",
       "title": "Create a user",
+      "sends": {
+        "action": "invite",
+        "to": [
+          "additionalFields.email",
+          "name"
+        ]
+      },
       "method": "POST",
       "path": "/users.json",
       "body": {
@@ -516,6 +549,8 @@
       "resource": "user",
       "operation": "delete",
       "title": "Delete a user",
+      "sends": false,
+      "sends_reason": "Delete a user: changes Zendesk data, not a message",
       "method": "DELETE",
       "path": "/users/{{ p.id }}.json",
       "output": {
@@ -675,6 +710,8 @@
       "resource": "user",
       "operation": "update",
       "title": "Update a user",
+      "sends": false,
+      "sends_reason": "Update a user: changes Zendesk data, not a message",
       "method": "PUT",
       "path": "/users/{{ p.id }}.json",
       "body": {
@@ -729,6 +766,8 @@
       "resource": "organization",
       "operation": "create",
       "title": "Create an organization",
+      "sends": false,
+      "sends_reason": "Create an organization: changes Zendesk data, not a message",
       "method": "POST",
       "path": "/organizations.json",
       "body": {
@@ -779,6 +818,8 @@
       "resource": "organization",
       "operation": "delete",
       "title": "Delete an organization",
+      "sends": false,
+      "sends_reason": "Delete an organization: changes Zendesk data, not a message",
       "method": "DELETE",
       "path": "/organizations/{{ p.id }}.json",
       "output": {
@@ -866,6 +907,8 @@
       "resource": "organization",
       "operation": "update",
       "title": "Update an organization",
+      "sends": false,
+      "sends_reason": "Update an organization: changes Zendesk data, not a message",
       "method": "PUT",
       "path": "/organizations/{{ p.id }}.json",
       "body": {

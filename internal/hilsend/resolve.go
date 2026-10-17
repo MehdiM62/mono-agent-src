@@ -65,10 +65,10 @@ func Resolve(ctx context.Context, st Store, id string, approve bool, edit Edit, 
 	}
 	cfg := cloneMap(rp.Config)
 	if rp.TextField != "" {
-		cfg[rp.TextField] = p.Text
+		setAt(cfg, rp.TextField, p.Text)
 	}
 	if rp.SubjectKey != "" && p.Subject != "" {
-		cfg[rp.SubjectKey] = p.Subject
+		setAt(cfg, rp.SubjectKey, p.Subject)
 	}
 	result, runErr := run(ctx, Run{NodeType: rp.NodeType, Config: cfg, Input: rp.Input, ApprovalID: p.ID, Proof: proof, PreparedBy: p.PreparedBy})
 	out, err := st.finish(ctx, p.ID, result, runErr)

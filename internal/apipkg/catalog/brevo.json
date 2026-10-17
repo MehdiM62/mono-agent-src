@@ -271,6 +271,8 @@
       "resource": "contact",
       "operation": "create",
       "title": "Create a contact",
+      "sends": false,
+      "sends_reason": "Create a contact: changes Brevo data, not a message",
       "method": "POST",
       "path": "/v3/contacts",
       "fields": [
@@ -300,6 +302,8 @@
       "resource": "contact",
       "operation": "upsert",
       "title": "Create or update a contact",
+      "sends": false,
+      "sends_reason": "Create or update a contact: changes Brevo data, not a message",
       "method": "POST",
       "path": "/v3/contacts",
       "fields": [
@@ -335,6 +339,8 @@
       "resource": "contact",
       "operation": "delete",
       "title": "Delete a contact",
+      "sends": false,
+      "sends_reason": "Delete a contact: changes Brevo data, not a message",
       "method": "DELETE",
       "path": "/v3/contacts/{{ p.identifier }}",
       "fields": [
@@ -426,6 +432,8 @@
       "resource": "contact",
       "operation": "update",
       "title": "Update a contact",
+      "sends": false,
+      "sends_reason": "Update a contact: changes Brevo data, not a message",
       "method": "PUT",
       "path": "/v3/contacts/{{ p.identifier }}",
       "fields": [
@@ -460,6 +468,8 @@
       "resource": "attribute",
       "operation": "create",
       "title": "Create an attribute",
+      "sends": false,
+      "sends_reason": "Create an attribute: changes Brevo data, not a message",
       "method": "POST",
       "path": "/v3/contacts/attributes/{{ p.attributeCategory }}/{{ p.attributeName }}",
       "fields": [
@@ -537,6 +547,8 @@
       "resource": "attribute",
       "operation": "update",
       "title": "Update an attribute",
+      "sends": false,
+      "sends_reason": "Update an attribute: changes Brevo data, not a message",
       "method": "PUT",
       "path": "/v3/contacts/attributes/{{ p.updateAttributeCategory }}/{{ p.updateAttributeName }}",
       "fields": [
@@ -589,6 +601,8 @@
       "resource": "attribute",
       "operation": "delete",
       "title": "Delete an attribute",
+      "sends": false,
+      "sends_reason": "Delete an attribute: changes Brevo data, not a message",
       "method": "DELETE",
       "path": "/v3/contacts/attributes/{{ p.deleteAttributeCategory }}/{{ p.deleteAttributeName }}",
       "fields": [
@@ -650,6 +664,8 @@
       "resource": "sender",
       "operation": "create",
       "title": "Create a sender",
+      "sends": false,
+      "sends_reason": "adds a sender address; Brevo emails that address only to verify it",
       "method": "POST",
       "path": "/v3/senders",
       "fields": [
@@ -677,6 +693,8 @@
       "resource": "sender",
       "operation": "delete",
       "title": "Delete a sender",
+      "sends": false,
+      "sends_reason": "Delete a sender: changes Brevo data, not a message",
       "method": "DELETE",
       "path": "/v3/senders/{{ p.id }}",
       "fields": [

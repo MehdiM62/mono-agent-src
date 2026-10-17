@@ -84,6 +84,8 @@
       "resource": "alert",
       "operation": "create",
       "title": "Create an alert",
+      "sends": false,
+      "sends_reason": "Create an alert: changes TheHive (3/4) data, not a message",
       "method": "POST",
       "path": "/alert",
       "before": {
@@ -247,6 +249,8 @@
       "resource": "alert",
       "operation": "count",
       "title": "Count alerts",
+      "sends": false,
+      "sends_reason": "Count alerts: a read, not a message",
       "method": "POST",
       "path": "/v1/query",
       "query": {
@@ -332,6 +336,8 @@
       "resource": "alert",
       "operation": "executeResponder",
       "title": "Run a Cortex responder",
+      "sends": false,
+      "sends_reason": "runs a Cortex responder, the account's own automation as it was built, not a message MonoAgent writes",
       "method": "POST",
       "path": "/connector/cortex/action",
       "body": {
@@ -418,6 +424,8 @@
       "resource": "alert",
       "operation": "getAll",
       "title": "Get many alerts",
+      "sends": false,
+      "sends_reason": "Get many alerts: a read, not a message",
       "method": "POST",
       "path": "{{ cred.api_version | eq:'v1' | then:'/v1/query' | default:'/alert/_search' }}",
       "query": {
@@ -595,6 +603,8 @@
       "resource": "alert",
       "operation": "markAsRead",
       "title": "Mark an alert as read",
+      "sends": false,
+      "sends_reason": "Mark an alert as read: changes TheHive (3/4) data, not a message",
       "method": "POST",
       "path": "/alert/{{ p.id }}/markAsRead",
       "fields": [
@@ -610,6 +620,8 @@
       "resource": "alert",
       "operation": "markAsUnread",
       "title": "Mark an alert as unread",
+      "sends": false,
+      "sends_reason": "Mark an alert as unread: changes TheHive (3/4) data, not a message",
       "method": "POST",
       "path": "/alert/{{ p.id }}/markAsUnread",
       "fields": [
@@ -625,6 +637,8 @@
       "resource": "alert",
       "operation": "merge",
       "title": "Merge an alert into a case",
+      "sends": false,
+      "sends_reason": "Merge an alert into a case: changes TheHive (3/4) data, not a message",
       "method": "POST",
       "path": "/alert/{{ p.id }}/merge/{{ p.caseId }}",
       "fields": [
@@ -646,6 +660,8 @@
       "resource": "alert",
       "operation": "promote",
       "title": "Promote an alert to a case",
+      "sends": false,
+      "sends_reason": "Promote an alert to a case: changes TheHive (3/4) data, not a message",
       "method": "POST",
       "path": "/alert/{{ p.id }}/createCase",
       "body": {
@@ -673,6 +689,8 @@
       "resource": "alert",
       "operation": "update",
       "title": "Update an alert",
+      "sends": false,
+      "sends_reason": "Update an alert: changes TheHive (3/4) data, not a message",
       "method": "PATCH",
       "path": "/alert/{{ p.id }}",
       "before": {
@@ -759,6 +777,8 @@
       "resource": "case",
       "operation": "getAll",
       "title": "Get many cases",
+      "sends": false,
+      "sends_reason": "Get many cases: a read, not a message",
       "method": "POST",
       "path": "{{ cred.api_version | eq:'v1' | then:'/v1/query' | default:'/case/_search' }}",
       "query": {
@@ -943,6 +963,8 @@
       "resource": "case",
       "operation": "count",
       "title": "Count cases",
+      "sends": false,
+      "sends_reason": "Count cases: a read, not a message",
       "method": "POST",
       "path": "/v1/query",
       "query": {
@@ -1035,6 +1057,8 @@
       "resource": "case",
       "operation": "create",
       "title": "Create a case",
+      "sends": false,
+      "sends_reason": "Create a case: changes TheHive (3/4) data, not a message",
       "method": "POST",
       "path": "/case",
       "before": {
@@ -1154,6 +1178,8 @@
       "resource": "case",
       "operation": "executeResponder",
       "title": "Run a Cortex responder",
+      "sends": false,
+      "sends_reason": "runs a Cortex responder, the account's own automation as it was built, not a message MonoAgent writes",
       "method": "POST",
       "path": "/connector/cortex/action",
       "body": {
@@ -1213,6 +1239,8 @@
       "resource": "case",
       "operation": "get",
       "title": "Get a case",
+      "sends": false,
+      "sends_reason": "Get a case: a read, not a message",
       "method": "{{ cred.api_version | eq:'v1' | then:'POST' | default:'GET' }}",
       "path": "{{ cred.api_version | eq:'v1' | then:'/v1/query' | default:'/case/' }}{{ cred.api_version | ne:'v1' | then:p.id }}",
       "query": {
@@ -1244,6 +1272,8 @@
       "resource": "case",
       "operation": "update",
       "title": "Update a case",
+      "sends": false,
+      "sends_reason": "Update a case: changes TheHive (3/4) data, not a message",
       "method": "PATCH",
       "path": "/case/{{ p.id }}",
       "before": {
@@ -1323,6 +1353,8 @@
       "resource": "log",
       "operation": "getAll",
       "title": "Get many logs of a task",
+      "sends": false,
+      "sends_reason": "Get many logs of a task: a read, not a message",
       "method": "POST",
       "path": "{{ cred.api_version | eq:'v1' | then:'/v1/query' | default:'/case/task/log/_search' }}",
       "query": {
@@ -1420,6 +1452,8 @@
       "resource": "log",
       "operation": "create",
       "title": "Create a task log",
+      "sends": false,
+      "sends_reason": "Create a task log: changes TheHive (3/4) data, not a message",
       "method": "POST",
       "path": "/case/task/{{ p.taskId }}/log",
       "body_type": "multipart",
@@ -1487,6 +1521,8 @@
       "resource": "log",
       "operation": "executeResponder",
       "title": "Run a Cortex responder",
+      "sends": false,
+      "sends_reason": "runs a Cortex responder, the account's own automation as it was built, not a message MonoAgent writes",
       "method": "POST",
       "path": "/connector/cortex/action",
       "body": {
@@ -1546,6 +1582,8 @@
       "resource": "log",
       "operation": "get",
       "title": "Get a log",
+      "sends": false,
+      "sends_reason": "Get a log: a read, not a message",
       "method": "{{ cred.api_version | eq:'v1' | then:'POST' | default:'POST' }}",
       "path": "{{ cred.api_version | eq:'v1' | then:'/v1/query' | default:'/case/task/log/_search' }}",
       "query": {
@@ -1583,6 +1621,8 @@
       "resource": "observable",
       "operation": "getAll",
       "title": "Get many observables of a case",
+      "sends": false,
+      "sends_reason": "Get many observables of a case: a read, not a message",
       "method": "POST",
       "path": "{{ cred.api_version | eq:'v1' | then:'/v1/query' | default:'/case/artifact/_search' }}",
       "query": {
@@ -1676,6 +1716,8 @@
       "resource": "observable",
       "operation": "count",
       "title": "Count observables",
+      "sends": false,
+      "sends_reason": "Count observables: a read, not a message",
       "method": "POST",
       "path": "/v1/query",
       "query": {
@@ -1775,6 +1817,8 @@
       "resource": "observable",
       "operation": "create",
       "title": "Create an observable",
+      "sends": false,
+      "sends_reason": "Create an observable: changes TheHive (3/4) data, not a message",
       "method": "POST",
       "path": "/case/{{ p.caseId }}/artifact",
       "body_type": "multipart",
@@ -1890,6 +1934,8 @@
       "resource": "observable",
       "operation": "executeAnalyzer",
       "title": "Run a Cortex analyzer",
+      "sends": false,
+      "sends_reason": "Run a Cortex analyzer: changes TheHive (3/4) data, not a message",
       "method": "POST",
       "path": "/connector/cortex/job",
       "body": {
@@ -1932,6 +1978,8 @@
       "resource": "observable",
       "operation": "executeResponder",
       "title": "Run a Cortex responder",
+      "sends": false,
+      "sends_reason": "runs a Cortex responder, the account's own automation as it was built, not a message MonoAgent writes",
       "method": "POST",
       "path": "/connector/cortex/action",
       "body": {
@@ -1991,6 +2039,8 @@
       "resource": "observable",
       "operation": "get",
       "title": "Get a observable",
+      "sends": false,
+      "sends_reason": "Get a observable: a read, not a message",
       "method": "{{ cred.api_version | eq:'v1' | then:'POST' | default:'GET' }}",
       "path": "{{ cred.api_version | eq:'v1' | then:'/v1/query' | default:'/case/artifact/' }}{{ cred.api_version | ne:'v1' | then:p.id }}",
       "query": {
@@ -2022,6 +2072,8 @@
       "resource": "observable",
       "operation": "search",
       "title": "Search observables",
+      "sends": false,
+      "sends_reason": "Search observables: a read, not a message",
       "method": "POST",
       "path": "{{ cred.api_version | eq:'v1' | then:'/v1/query' | default:'/case/artifact/_search' }}",
       "query": {
@@ -2223,6 +2275,8 @@
       "resource": "observable",
       "operation": "update",
       "title": "Update an observable",
+      "sends": false,
+      "sends_reason": "Update an observable: changes TheHive (3/4) data, not a message",
       "method": "PATCH",
       "path": "/case/artifact/{{ p.id }}",
       "body": {
@@ -2261,6 +2315,8 @@
       "resource": "task",
       "operation": "getAll",
       "title": "Get many tasks of a case",
+      "sends": false,
+      "sends_reason": "Get many tasks of a case: a read, not a message",
       "method": "POST",
       "path": "{{ cred.api_version | eq:'v1' | then:'/v1/query' | default:'/case/task/_search' }}",
       "query": {
@@ -2358,6 +2414,8 @@
       "resource": "task",
       "operation": "count",
       "title": "Count tasks",
+      "sends": false,
+      "sends_reason": "Count tasks: a read, not a message",
       "method": "POST",
       "path": "/v1/query",
       "query": {
@@ -2433,6 +2491,8 @@
       "resource": "task",
       "operation": "create",
       "title": "Create a task",
+      "sends": false,
+      "sends_reason": "Create a task: changes TheHive (3/4) data, not a message",
       "method": "POST",
       "path": "/case/{{ p.caseId }}/task",
       "body": {
@@ -2490,6 +2550,8 @@
       "resource": "task",
       "operation": "executeResponder",
       "title": "Run a Cortex responder",
+      "sends": false,
+      "sends_reason": "runs a Cortex responder, the account's own automation as it was built, not a message MonoAgent writes",
       "method": "POST",
       "path": "/connector/cortex/action",
       "body": {
@@ -2549,6 +2611,8 @@
       "resource": "task",
       "operation": "get",
       "title": "Get a task",
+      "sends": false,
+      "sends_reason": "Get a task: a read, not a message",
       "method": "{{ cred.api_version | eq:'v1' | then:'POST' | default:'GET' }}",
       "path": "{{ cred.api_version | eq:'v1' | then:'/v1/query' | default:'/case/task/' }}{{ cred.api_version | ne:'v1' | then:p.id }}",
       "query": {
@@ -2580,6 +2644,8 @@
       "resource": "task",
       "operation": "search",
       "title": "Search tasks",
+      "sends": false,
+      "sends_reason": "Search tasks: a read, not a message",
       "method": "POST",
       "path": "{{ cred.api_version | eq:'v1' | then:'/v1/query' | default:'/case/task/_search' }}",
       "query": {
@@ -2737,6 +2803,8 @@
       "resource": "task",
       "operation": "update",
       "title": "Update a task",
+      "sends": false,
+      "sends_reason": "Update a task: changes TheHive (3/4) data, not a message",
       "method": "PATCH",
       "path": "/case/task/{{ p.id }}",
       "body": {

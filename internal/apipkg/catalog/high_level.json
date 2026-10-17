@@ -83,6 +83,8 @@
       "resource": "contact",
       "operation": "create",
       "title": "Create or update a contact",
+      "sends": false,
+      "sends_reason": "Create or update a contact: changes HighLevel data, not a message",
       "method": "POST",
       "path": "/contacts/upsert/",
       "fields": [
@@ -157,6 +159,8 @@
       "resource": "contact",
       "operation": "delete",
       "title": "Delete a contact",
+      "sends": false,
+      "sends_reason": "Delete a contact: changes HighLevel data, not a message",
       "method": "DELETE",
       "path": "/contacts/{{ p.contactId }}/",
       "fields": [
@@ -249,6 +253,8 @@
       "resource": "contact",
       "operation": "update",
       "title": "Update a contact",
+      "sends": false,
+      "sends_reason": "Update a contact: changes HighLevel data, not a message",
       "method": "PUT",
       "path": "/contacts/{{ p.contactId }}/",
       "fields": [
@@ -302,6 +308,8 @@
       "resource": "opportunity",
       "operation": "create",
       "title": "Create an opportunity",
+      "sends": false,
+      "sends_reason": "Create an opportunity: changes HighLevel data, not a message",
       "method": "POST",
       "path": "/opportunities/",
       "fields": [
@@ -364,6 +372,8 @@
       "resource": "opportunity",
       "operation": "delete",
       "title": "Delete an opportunity",
+      "sends": false,
+      "sends_reason": "Delete an opportunity: changes HighLevel data, not a message",
       "method": "DELETE",
       "path": "/opportunities/{{ p.opportunityId }}",
       "fields": [
@@ -455,6 +465,8 @@
       "resource": "opportunity",
       "operation": "update",
       "title": "Update an opportunity",
+      "sends": false,
+      "sends_reason": "Update an opportunity: changes HighLevel data, not a message",
       "method": "PUT",
       "path": "/opportunities/{{ p.opportunityId }}",
       "fields": [
@@ -488,6 +500,8 @@
       "resource": "task",
       "operation": "create",
       "title": "Create a task",
+      "sends": false,
+      "sends_reason": "Create a task: changes HighLevel data, not a message",
       "method": "POST",
       "path": "/contacts/{{ p.contactId | rl }}/tasks/",
       "fields": [
@@ -544,6 +558,8 @@
       "resource": "task",
       "operation": "delete",
       "title": "Delete a task",
+      "sends": false,
+      "sends_reason": "Delete a task: changes HighLevel data, not a message",
       "method": "DELETE",
       "path": "/contacts/{{ p.contactId | rl }}/tasks/{{ p.taskId }}/",
       "fields": [
@@ -629,6 +645,8 @@
       "resource": "task",
       "operation": "update",
       "title": "Update a task",
+      "sends": false,
+      "sends_reason": "Update a task: changes HighLevel data, not a message",
       "method": "PUT",
       "path": "/contacts/{{ p.contactId | rl }}/tasks/{{ p.taskId }}/",
       "fields": [
@@ -678,6 +696,15 @@
       "resource": "calendar",
       "operation": "bookAppointment",
       "title": "Book an appointment",
+      "sends": {
+        "action": "invite",
+        "to": [
+          "contactId"
+        ],
+        "subject": [
+          "additionalFields.title"
+        ]
+      },
       "method": "POST",
       "path": "/calendars/events/appointments",
       "fields": [

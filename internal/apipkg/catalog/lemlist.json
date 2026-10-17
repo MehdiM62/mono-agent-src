@@ -213,6 +213,8 @@
       "resource": "enrich",
       "operation": "enrichLead",
       "title": "Enrich a lead",
+      "sends": false,
+      "sends_reason": "Enrich a lead: changes lemlist data, not a message",
       "method": "POST",
       "path": "/leads/{{ p.leadId }}/enrich/",
       "fields": [
@@ -258,6 +260,8 @@
       "resource": "enrich",
       "operation": "enrichPerson",
       "title": "Enrich a person",
+      "sends": false,
+      "sends_reason": "Enrich a person: changes lemlist data, not a message",
       "method": "POST",
       "path": "/enrich/",
       "fields": [
@@ -370,6 +374,8 @@
       "resource": "lead",
       "operation": "delete",
       "title": "Remove a lead from a campaign",
+      "sends": false,
+      "sends_reason": "Remove a lead from a campaign: changes lemlist data, not a message",
       "method": "DELETE",
       "path": "/campaigns/{{ p.campaignId }}/leads/{{ p.email }}",
       "fields": [
@@ -409,6 +415,8 @@
       "resource": "lead",
       "operation": "unsubscribe",
       "title": "Unsubscribe a lead from a campaign",
+      "sends": false,
+      "sends_reason": "Unsubscribe a lead from a campaign: changes lemlist data, not a message",
       "method": "DELETE",
       "path": "/campaigns/{{ p.campaignId }}/leads/{{ p.email }}",
       "fields": [
@@ -444,6 +452,8 @@
       "resource": "unsubscribe",
       "operation": "add",
       "title": "Add an unsubscribed email",
+      "sends": false,
+      "sends_reason": "Add an unsubscribed email: changes lemlist data, not a message",
       "method": "POST",
       "path": "/unsubscribes/{{ p.email }}",
       "fields": [
@@ -459,6 +469,8 @@
       "resource": "unsubscribe",
       "operation": "delete",
       "title": "Remove an unsubscribed email",
+      "sends": false,
+      "sends_reason": "Remove an unsubscribed email: changes lemlist data, not a message",
       "method": "DELETE",
       "path": "/unsubscribes/{{ p.email }}",
       "fields": [

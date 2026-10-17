@@ -169,6 +169,7 @@ export function DeleteOrgSection(arg1:string,arg2:string,arg3:string):Promise<st
 
 export function DeletePeople(arg1:Array<string>):Promise<void>;
 
+export function DeleteProfile(arg1:string):Promise<string>;
 export function DeleteProfileDocument(arg1:string):Promise<void>;
 
 export function DeleteRecording(arg1:string):Promise<string>;
@@ -331,6 +332,7 @@ export function GetProfileInfoFields():Promise<main.ProfileInfoCatalog>;
 
 export function GetProfileInfoPhoto(arg1:string):Promise<string>;
 
+export function GetProfileDeleteSummary(arg1:string):Promise<main.ProfileDeleteSummary>;
 export function GetProfiles():Promise<Array<main.ProfileInfo>>;
 
 export function GetRecentExecutions(arg1:number):Promise<Array<main.WorkflowExecutionSummary>>;
@@ -727,6 +729,7 @@ export function TestSession(arg1:number):Promise<string>;
 
 export function UninstallAutomation(arg1:string):Promise<string>;
 
+export function UpdateProfile(arg1:string,arg2:string,arg3:string):Promise<main.ProfileInfo>;
 export function UpdateOrgRole(arg1:string,arg2:string,arg3:string):Promise<string>;
 
 export function UpdateOrgSection(arg1:string,arg2:string,arg3:string):Promise<string>;

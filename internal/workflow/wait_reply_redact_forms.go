@@ -39,7 +39,7 @@ const (
 	hexPiece    = 16
 	fieldPiece  = 5
 	pieceFields = 5
-	maxFiller   = 3
+	maxFiller   = 6
 )
 
 // pieceValue is the longest value that counts towards pieceFields: a value
@@ -154,14 +154,14 @@ var alphabet = func() (t [256]byte) {
 
 // formScan reads text one string at a time (several make one text: a list's
 // elements) and reports where a form of a token is, in one pass with no
-// allocation per character. It keeps the last 64 alphabet characters, so a
+// allocation per character. It keeps the last ring alphabet characters, so a
 // form whose characters are p apart (2 ≤ p ≤ maxFiller+1) is read back from
 // them where the filler between the last two repeats the one before.
 type formScan struct {
 	f     *tokenForms
 	k     int            // alphabet characters read
-	chars [64]byte       // the last 64 of them
-	at    [64]int        // and their offsets
+	chars [ring]byte     // the last ring of them
+	at    [ring]int      // and their offsets
 	last  uint64         // the last 8, packed
 	prev  uint64         // the 8 before those
 	piece bool           // checkPiece and a fieldPiece piece was read
@@ -179,7 +179,7 @@ func (sc *formScan) feed(s string, off int) {
 		}
 		k := sc.k
 		sc.k++
-		sc.chars[k&63], sc.at[k&63] = c, off+i
+		sc.chars[k&(ring-1)], sc.at[k&(ring-1)] = c, off+i
 		sc.prev = sc.prev<<8 | sc.last>>56
 		sc.last = sc.last<<8 | uint64(c)
 		if sc.check && !sc.piece && k >= fieldPiece-1 {
@@ -190,16 +190,23 @@ func (sc *formScan) feed(s string, off int) {
 		if k >= tokenPiece-1 {
 			sc.match(k, 1, sc.prev, sc.last, off+i+1)
 		}
+		// The filler of the last gap must be the one of the gap before. Most
+		// characters are let go at once: the character before this one
+		// (the filler's first) is nowhere it would have to be repeated.
+		filler := sc.last >> 8 & 0xff
+		x := sc.last ^ filler*0x0101010101010101
+		if (x-0x0101010101010101)&^x&0x8080808080000000 == 0 && byte(sc.prev) != byte(filler) {
+			continue
+		}
 		for p := 2; p <= maxFiller+1; p++ {
-			// The filler of the last gap is the one of the gap before.
-			if k < (tokenPiece-1)*p || (sc.last>>8)&fillerMask[p] != (sc.last>>(8*(p+1)))&fillerMask[p] {
+			if k < (tokenPiece-1)*p || !sc.fillerRepeats(k, p) {
 				continue
 			}
 			var hi, lo uint64
 			for j := 2*tokenPiece - 1; j >= 0; j-- {
 				var b uint64
-				if back := j * p; back <= k && back < 64 {
-					b = uint64(sc.chars[(k-back)&63])
+				if back := j * p; back <= k && back < ring {
+					b = uint64(sc.chars[(k-back)&(ring-1)])
 				}
 				if j >= tokenPiece {
 					hi = hi<<8 | b
@@ -212,6 +219,21 @@ func (sc *formScan) feed(s string, off int) {
 	}
 }
 
+// ring is how many alphabet characters formScan keeps: enough for a hex
+// piece at the widest step.
+const ring = 128
+
+// fillerRepeats reports whether the p-1 characters before character k are
+// the p-1 before character k-p.
+func (sc *formScan) fillerRepeats(k, p int) bool {
+	for j := 1; j < p; j++ {
+		if sc.chars[(k-j)&(ring-1)] != sc.chars[(k-j-p)&(ring-1)] {
+			return false
+		}
+	}
+	return true
+}
+
 // match reports a form ending at character k (end in the text) whose
 // characters are p apart: lo its last 8, hi the 8 before.
 func (sc *formScan) match(k, p int, hi, lo uint64, end int) {
@@ -220,17 +242,14 @@ func (sc *formScan) match(k, p int, hi, lo uint64, end int) {
 		return
 	}
 	if _, ok := f.p8[lo]; ok {
-		sc.found(sc.at[(k-(tokenPiece-1)*p)&63], end)
+		sc.found(sc.at[(k-(tokenPiece-1)*p)&(ring-1)], end)
 	}
-	if back := (hexPiece - 1) * p; back <= k && back < 64 {
+	if back := (hexPiece - 1) * p; back <= k && back < ring {
 		if _, ok := f.p16[[2]uint64{hi, lo}]; ok {
-			sc.found(sc.at[(k-back)&63], end)
+			sc.found(sc.at[(k-back)&(ring-1)], end)
 		}
 	}
 }
-
-// fillerMask[p] covers the p-1 characters between two at step p.
-var fillerMask = [maxFiller + 2]uint64{0, 0, 0xff, 0xffff, 0xffffff}
 
 // spans are the merged [start, end) stretches of s holding a form, and
 // whether s, if short enough to be one of an item's values a token was cut

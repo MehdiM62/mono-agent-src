@@ -354,6 +354,8 @@
       "resource": "message",
       "operation": "delete",
       "title": "Delete a message",
+      "sends": false,
+      "sends_reason": "Delete a message: changes Gmail (n8n operations) data, not a message",
       "method": "DELETE",
       "path": "/messages/{{ p.messageId }}",
       "fields": [
@@ -369,6 +371,8 @@
       "resource": "message",
       "operation": "markAsRead",
       "title": "Mark as read",
+      "sends": false,
+      "sends_reason": "Mark as read: changes Gmail (n8n operations) data, not a message",
       "method": "POST",
       "path": "/messages/{{ p.messageId }}/modify",
       "fields": [
@@ -389,6 +393,8 @@
       "resource": "message",
       "operation": "markAsUnread",
       "title": "Mark as unread",
+      "sends": false,
+      "sends_reason": "Mark as unread: changes Gmail (n8n operations) data, not a message",
       "method": "POST",
       "path": "/messages/{{ p.messageId }}/modify",
       "fields": [
@@ -437,6 +443,8 @@
       "resource": "message",
       "operation": "removeLabels",
       "title": "Remove labels",
+      "sends": false,
+      "sends_reason": "Remove labels: changes Gmail (n8n operations) data, not a message",
       "method": "POST",
       "path": "/messages/{{ p.messageId }}/modify",
       "fields": [
@@ -491,6 +499,8 @@
       "resource": "label",
       "operation": "create",
       "title": "Create a label",
+      "sends": false,
+      "sends_reason": "Create a label: changes Gmail (n8n operations) data, not a message",
       "method": "POST",
       "path": "/labels",
       "fields": [
@@ -522,6 +532,8 @@
       "resource": "label",
       "operation": "delete",
       "title": "Delete a label",
+      "sends": false,
+      "sends_reason": "Delete a label: changes Gmail (n8n operations) data, not a message",
       "method": "DELETE",
       "path": "/labels/{{ p.labelId }}",
       "fields": [
@@ -552,6 +564,8 @@
       "resource": "draft",
       "operation": "create",
       "title": "Create a draft",
+      "sends": false,
+      "sends_reason": "Create a draft: changes Gmail (n8n operations) data, not a message",
       "method": "POST",
       "base_url": "https://gmail.googleapis.com/upload/gmail/v1/users/me",
       "path": "/drafts",
@@ -611,6 +625,8 @@
       "resource": "draft",
       "operation": "delete",
       "title": "Delete a draft",
+      "sends": false,
+      "sends_reason": "Delete a draft: changes Gmail (n8n operations) data, not a message",
       "method": "DELETE",
       "path": "/drafts/{{ p.messageId }}",
       "fields": [
@@ -759,6 +775,8 @@
       "resource": "thread",
       "operation": "addLabels",
       "title": "Add labels",
+      "sends": false,
+      "sends_reason": "Add labels: changes Gmail (n8n operations) data, not a message",
       "method": "POST",
       "path": "/threads/{{ p.threadId }}/modify",
       "fields": [
@@ -785,6 +803,8 @@
       "resource": "thread",
       "operation": "delete",
       "title": "Delete a thread",
+      "sends": false,
+      "sends_reason": "Delete a thread: changes Gmail (n8n operations) data, not a message",
       "method": "DELETE",
       "path": "/threads/{{ p.threadId }}",
       "fields": [
@@ -842,6 +862,8 @@
       "resource": "thread",
       "operation": "removeLabels",
       "title": "Remove labels",
+      "sends": false,
+      "sends_reason": "Remove labels: changes Gmail (n8n operations) data, not a message",
       "method": "POST",
       "path": "/threads/{{ p.threadId }}/modify",
       "fields": [
@@ -959,6 +981,8 @@
       "resource": "thread",
       "operation": "trash",
       "title": "Trash a thread",
+      "sends": false,
+      "sends_reason": "Trash a thread: changes Gmail (n8n operations) data, not a message",
       "method": "POST",
       "path": "/threads/{{ p.threadId }}/trash",
       "fields": [
@@ -974,6 +998,8 @@
       "resource": "thread",
       "operation": "untrash",
       "title": "Untrash a thread",
+      "sends": false,
+      "sends_reason": "Untrash a thread: changes Gmail (n8n operations) data, not a message",
       "method": "POST",
       "path": "/threads/{{ p.threadId }}/untrash",
       "fields": [

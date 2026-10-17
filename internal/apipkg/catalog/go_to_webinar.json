@@ -225,6 +225,8 @@
       "resource": "coorganizer",
       "operation": "delete",
       "title": "Remove a co-organizer",
+      "sends": false,
+      "sends_reason": "Remove a co-organizer: changes GoTo Webinar data, not a message",
       "method": "DELETE",
       "path": "/organizers/{{ cred.organizer_key }}/webinars/{{ p.webinarKey | rl }}/coorganizers/{{ p.coorganizerKey }}",
       "fields": [
@@ -371,6 +373,8 @@
       "resource": "panelist",
       "operation": "delete",
       "title": "Remove a panelist",
+      "sends": false,
+      "sends_reason": "Remove a panelist: changes GoTo Webinar data, not a message",
       "method": "DELETE",
       "path": "/organizers/{{ cred.organizer_key }}/webinars/{{ p.webinarKey | rl }}/panelists/{{ p.panelistKey }}",
       "fields": [
@@ -539,6 +543,8 @@
       "resource": "registrant",
       "operation": "delete",
       "title": "Delete a registrant",
+      "sends": false,
+      "sends_reason": "Delete a registrant: changes GoTo Webinar data, not a message",
       "method": "DELETE",
       "path": "/organizers/{{ cred.organizer_key }}/webinars/{{ p.webinarKey | rl }}/registrants/{{ p.registrantKey }}",
       "fields": [
@@ -734,6 +740,8 @@
       "resource": "webinar",
       "operation": "create",
       "title": "Create a webinar",
+      "sends": false,
+      "sends_reason": "Create a webinar: changes GoTo Webinar data, not a message",
       "method": "POST",
       "path": "/organizers/{{ cred.organizer_key }}/webinars",
       "fields": [
@@ -778,6 +786,13 @@
       "resource": "webinar",
       "operation": "delete",
       "title": "Cancel a webinar",
+      "sends": {
+        "action": "email",
+        "to": [
+          "webinarKey"
+        ],
+        "if": "additionalFields.sendCancellationEmails"
+      },
       "method": "DELETE",
       "path": "/organizers/{{ cred.organizer_key }}/webinars/{{ p.webinarKey }}",
       "fields": [
@@ -854,6 +869,19 @@
       "resource": "webinar",
       "operation": "update",
       "title": "Update a webinar",
+      "sends": {
+        "action": "email",
+        "to": [
+          "webinarKey"
+        ],
+        "text": [
+          "updateFields.description"
+        ],
+        "subject": [
+          "updateFields.subject"
+        ],
+        "if": "notifyParticipants"
+      },
       "method": "PUT",
       "path": "/organizers/{{ cred.organizer_key }}/webinars/{{ p.webinarKey }}",
       "fields": [

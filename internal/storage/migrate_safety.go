@@ -82,11 +82,16 @@ func (d *Database) snapshotBeforeMigrate(ctx context.Context, conn *sql.Conn, la
 }
 
 func (d *Database) writeSnapshot(ctx context.Context, conn *sql.Conn, lastApplied int) (string, error) {
+	name := fmt.Sprintf("pre-migrate-%s-v%03d.db", migrateNow().UTC().Format("20060102T150405"), lastApplied)
+	return d.writeSnapshotAs(ctx, conn, name)
+}
+
+// writeSnapshotAs writes the snapshot to <backups>/<name>.
+func (d *Database) writeSnapshotAs(ctx context.Context, conn *sql.Conn, name string) (string, error) {
 	dir := d.backupsDir()
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return "", err
 	}
-	name := fmt.Sprintf("pre-migrate-%s-v%03d.db", migrateNow().UTC().Format("20060102T150405"), lastApplied)
 	path := filepath.Join(dir, name)
 	// VACUUM INTO accepts an existing empty file, so the snapshot is
 	// created 0600 up front instead of being chmod'ed after it was written.
@@ -176,4 +181,31 @@ func (d *Database) SchemaAhead(ctx context.Context) (dbVersion, binaryVersion in
 		return 0, binaryVersion, false, fmt.Errorf("reading schema_migrations: %w", err)
 	}
 	return dbVersion, binaryVersion, dbVersion > binaryVersion, nil
+}
+
+// SnapshotBeforeProfileDelete writes a consistent copy of the database to
+// <backups>/pre-delete-profile-<UTC timestamp>.db (mode 0600) and returns its
+// path. Unlike the pre-migrate snapshots these are never pruned, and a
+// database that cannot be snapshotted is an error: the delete must not go on
+// without its backup.
+func (d *Database) SnapshotBeforeProfileDelete(ctx context.Context) (string, error) {
+	if !d.isFileBacked() {
+		return "", fmt.Errorf("storage: the database is not a file, so it cannot be backed up")
+	}
+	conn, err := d.DB.Conn(ctx)
+	if err != nil {
+		return "", err
+	}
+	defer conn.Close()
+	return d.writeSnapshotAs(ctx, conn, fmt.Sprintf("pre-delete-profile-%s.db", migrateNow().UTC().Format("20060102T150405")))
+}
+
+// ProfileDeleteBackups lists the pre-delete-profile-*.db snapshots, oldest first.
+func (d *Database) ProfileDeleteBackups() ([]string, error) {
+	paths, err := filepath.Glob(filepath.Join(d.backupsDir(), "pre-delete-profile-*.db"))
+	if err != nil {
+		return nil, err
+	}
+	sort.Strings(paths)
+	return paths, nil
 }

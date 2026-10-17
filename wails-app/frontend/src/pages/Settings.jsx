@@ -14,6 +14,7 @@ import VaultKeyringSection from '../components/settings/VaultKeyringSection.jsx'
 import CoderModeSection from '../components/settings/CoderModeSection.jsx'
 import BrowserPermissionsSection from '../components/settings/BrowserPermissionsSection.jsx'
 import SandboxFallbackSection from '../components/settings/SandboxFallbackSection.jsx'
+import ProfileSection from '../components/settings/ProfileSection.jsx'
 import ApiKeysSection from '../components/settings/api/ApiKeysSection.jsx'
 import { ScopeGroup } from '../components/settings/ScopeGroup.jsx'
 
@@ -342,7 +343,7 @@ export default function Settings({ onNavigate, navData, isActive = true }) {
   const readProfile = useCallback((reloadJev) => {
     try {
       GetActiveProfile().then(p => {
-        setProfile({ id: p?.id || '', name: p?.name || '' })
+        setProfile({ id: p?.id || '', name: p?.name || '', icon: p?.icon || '' })
         if (reloadJev) jevLoad()
       }).catch(() => {})
     } catch { /* no name: the heading says "the active profile" */ }
@@ -495,6 +496,14 @@ export default function Settings({ onNavigate, navData, isActive = true }) {
               onClick={() => onNavigate?.('connections')}
             />
           </div>
+
+          {/* Profile: name, icon, delete */}
+          <div style={headingStyle}>
+            <span style={headingText}>{t('settings.profile.sectionTitle')}</span>
+            <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+          </div>
+
+          <ProfileSection profile={profile} />
 
           <BrowserBindingsSection />
 

@@ -772,6 +772,8 @@
       "resource": "activity",
       "operation": "create",
       "title": "Create a activity",
+      "sends": false,
+      "sends_reason": "Create a activity: changes Odoo data, not a message",
       "method": "POST",
       "path": "/json{{ cred.api_key | then:'/2/mail.activity/create' | default:'rpc' }}",
       "fields": [
@@ -1127,6 +1129,8 @@
       "resource": "activity",
       "operation": "update",
       "title": "Update a activity",
+      "sends": false,
+      "sends_reason": "Update a activity: changes Odoo data, not a message",
       "method": "POST",
       "path": "/json{{ cred.api_key | then:'/2/mail.activity/write' | default:'rpc' }}",
       "fields": [

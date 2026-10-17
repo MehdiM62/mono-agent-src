@@ -158,6 +158,11 @@ func Guard(ctx context.Context, nodeType string, in workflow.NodeInput, config m
 	if allowed && len(prepared) > 0 {
 		return nil, false, nil
 	}
+	if inlineCredential(config) {
+		// The card would ask the user to approve a send that can only fail.
+		return nil, true, fmt.Errorf("%s sends outward, so here it waits for the operator's approval, but its credential is written into its config and an approval keeps no credentials: "+
+			"save it as a connection (monoagentcli connect save) and set credential_id to it", nodeType)
+	}
 	items := make([]workflow.Item, 0, len(prepared))
 	for _, p := range prepared {
 		q, err := st.create(ctx, p.payload, p.replay)

@@ -251,6 +251,8 @@
       "resource": "",
       "operation": "DELETE",
       "title": "Delete a Graph API node or edge",
+      "sends": false,
+      "sends_reason": "Delete a Graph API node or edge: changes Facebook Graph API data, not a message",
       "method": "DELETE",
       "path": "https://{{ p.hostUrl | default:'graph.facebook.com' }}/{{ p.graphApiVersion | path }}{{ p.graphApiVersion | then:'/' }}{{ p.node | path }}{{ p.edge | then:'/' }}{{ p.edge | path }}",
       "fields": [

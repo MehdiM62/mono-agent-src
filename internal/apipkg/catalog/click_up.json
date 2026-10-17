@@ -116,6 +116,8 @@
       "resource": "task",
       "operation": "create",
       "title": "Create a task",
+      "sends": false,
+      "sends_reason": "Create a task: changes ClickUp data, not a message",
       "method": "POST",
       "path": "/list/{{ p.list }}/task",
       "body": {
@@ -212,6 +214,8 @@
       "resource": "task",
       "operation": "delete",
       "title": "Delete a task",
+      "sends": false,
+      "sends_reason": "Delete a task: changes ClickUp data, not a message",
       "method": "DELETE",
       "path": "/task/{{ p.id }}",
       "fields": [
@@ -444,6 +448,8 @@
       "resource": "task",
       "operation": "setCustomField",
       "title": "Set a custom field",
+      "sends": false,
+      "sends_reason": "Set a custom field: changes ClickUp data, not a message",
       "method": "POST",
       "path": "/task/{{ p.task }}/field/{{ p.field }}",
       "body": {
@@ -491,6 +497,8 @@
       "resource": "task",
       "operation": "update",
       "title": "Update a task",
+      "sends": false,
+      "sends_reason": "Update a task: changes ClickUp data, not a message",
       "method": "PUT",
       "path": "/task/{{ p.id }}",
       "body": {
@@ -572,6 +580,8 @@
       "resource": "checklist",
       "operation": "create",
       "title": "Create a checklist",
+      "sends": false,
+      "sends_reason": "Create a checklist: changes ClickUp data, not a message",
       "method": "POST",
       "path": "/task/{{ p.task }}/checklist",
       "body": {
@@ -610,6 +620,8 @@
       "resource": "checklist",
       "operation": "delete",
       "title": "Delete a checklist",
+      "sends": false,
+      "sends_reason": "Delete a checklist: changes ClickUp data, not a message",
       "method": "DELETE",
       "path": "/checklist/{{ p.checklist }}",
       "fields": [
@@ -636,6 +648,8 @@
       "resource": "checklist",
       "operation": "update",
       "title": "Update a checklist",
+      "sends": false,
+      "sends_reason": "Update a checklist: changes ClickUp data, not a message",
       "method": "PUT",
       "path": "/checklist/{{ p.checklist }}",
       "body": {
@@ -679,6 +693,8 @@
       "resource": "checklistItem",
       "operation": "create",
       "title": "Create a checklist item",
+      "sends": false,
+      "sends_reason": "Create a checklist item: changes ClickUp data, not a message",
       "method": "POST",
       "path": "/checklist/{{ p.checklist }}/checklist_item",
       "body": {
@@ -727,6 +743,8 @@
       "resource": "checklistItem",
       "operation": "delete",
       "title": "Delete a checklist item",
+      "sends": false,
+      "sends_reason": "Delete a checklist item: changes ClickUp data, not a message",
       "method": "DELETE",
       "path": "/checklist/{{ p.checklist }}/checklist_item/{{ p.checklistItem }}",
       "fields": [
@@ -759,6 +777,8 @@
       "resource": "checklistItem",
       "operation": "update",
       "title": "Update a checklist item",
+      "sends": false,
+      "sends_reason": "Update a checklist item: changes ClickUp data, not a message",
       "method": "PUT",
       "path": "/checklist/{{ p.checklist }}/checklist_item/{{ p.checklistItem }}",
       "body": {
@@ -879,6 +899,8 @@
       "resource": "comment",
       "operation": "delete",
       "title": "Delete a comment",
+      "sends": false,
+      "sends_reason": "Delete a comment: changes ClickUp data, not a message",
       "method": "DELETE",
       "path": "/comment/{{ p.comment }}",
       "fields": [
@@ -1012,6 +1034,8 @@
       "resource": "folder",
       "operation": "create",
       "title": "Create a folder",
+      "sends": false,
+      "sends_reason": "Create a folder: changes ClickUp data, not a message",
       "method": "POST",
       "path": "/space/{{ p.space }}/folder",
       "body": {
@@ -1053,6 +1077,8 @@
       "resource": "folder",
       "operation": "delete",
       "title": "Delete a folder",
+      "sends": false,
+      "sends_reason": "Delete a folder: changes ClickUp data, not a message",
       "method": "DELETE",
       "path": "/folder/{{ p.folder }}",
       "fields": [
@@ -1194,6 +1220,8 @@
       "resource": "folder",
       "operation": "update",
       "title": "Update a folder",
+      "sends": false,
+      "sends_reason": "Update a folder: changes ClickUp data, not a message",
       "method": "PUT",
       "path": "/folder/{{ p.folder }}",
       "body": {
@@ -1244,6 +1272,8 @@
       "resource": "goal",
       "operation": "create",
       "title": "Create a goal",
+      "sends": false,
+      "sends_reason": "Create a goal: changes ClickUp data, not a message",
       "method": "POST",
       "path": "/team/{{ p.team }}/goal",
       "body": {
@@ -1304,6 +1334,8 @@
       "resource": "goal",
       "operation": "delete",
       "title": "Delete a goal",
+      "sends": false,
+      "sends_reason": "Delete a goal: changes ClickUp data, not a message",
       "method": "DELETE",
       "path": "/goal/{{ p.goal }}",
       "fields": [
@@ -1406,6 +1438,8 @@
       "resource": "goal",
       "operation": "update",
       "title": "Update a goal",
+      "sends": false,
+      "sends_reason": "Update a goal: changes ClickUp data, not a message",
       "method": "PUT",
       "path": "/goal/{{ p.goal }}",
       "body": {
@@ -1464,6 +1498,8 @@
       "resource": "goalKeyResult",
       "operation": "create",
       "title": "Create a key result",
+      "sends": false,
+      "sends_reason": "Create a key result: changes ClickUp data, not a message",
       "method": "POST",
       "path": "/goal/{{ p.goal }}/key_result",
       "body": {
@@ -1541,6 +1577,8 @@
       "resource": "goalKeyResult",
       "operation": "delete",
       "title": "Delete a key result",
+      "sends": false,
+      "sends_reason": "Delete a key result: changes ClickUp data, not a message",
       "method": "DELETE",
       "path": "/key_result/{{ p.keyResult }}",
       "fields": [
@@ -1567,6 +1605,8 @@
       "resource": "goalKeyResult",
       "operation": "update",
       "title": "Update a key result",
+      "sends": false,
+      "sends_reason": "Update a key result: changes ClickUp data, not a message",
       "method": "PUT",
       "path": "/key_result/{{ p.keyResult }}",
       "body": {
@@ -1671,6 +1711,8 @@
       "resource": "list",
       "operation": "create",
       "title": "Create a list",
+      "sends": false,
+      "sends_reason": "Create a list: changes ClickUp data, not a message",
       "method": "POST",
       "path": "/{{ p.folderless | eq:'true' | then:'space' | default:'folder' }}/{{ p.folderless | eq:'true' | then:p.space | default:p.folder }}/list",
       "body": {
@@ -1744,6 +1786,8 @@
       "resource": "list",
       "operation": "delete",
       "title": "Delete a list",
+      "sends": false,
+      "sends_reason": "Delete a list: changes ClickUp data, not a message",
       "method": "DELETE",
       "path": "/list/{{ p.list }}",
       "fields": [
@@ -1967,6 +2011,8 @@
       "resource": "list",
       "operation": "update",
       "title": "Update a list",
+      "sends": false,
+      "sends_reason": "Update a list: changes ClickUp data, not a message",
       "method": "PUT",
       "path": "/list/{{ p.list }}",
       "body": {
@@ -2041,6 +2087,8 @@
       "resource": "spaceTag",
       "operation": "create",
       "title": "Create a space tag",
+      "sends": false,
+      "sends_reason": "Create a space tag: changes ClickUp data, not a message",
       "method": "POST",
       "path": "/space/{{ p.space }}/tag",
       "body": {
@@ -2094,6 +2142,8 @@
       "resource": "spaceTag",
       "operation": "delete",
       "title": "Delete a space tag",
+      "sends": false,
+      "sends_reason": "Delete a space tag: changes ClickUp data, not a message",
       "method": "DELETE",
       "path": "/space/{{ p.space }}/tag/{{ p.name }}",
       "fields": [
@@ -2172,6 +2222,8 @@
       "resource": "spaceTag",
       "operation": "update",
       "title": "Update a space tag",
+      "sends": false,
+      "sends_reason": "Update a space tag: changes ClickUp data, not a message",
       "method": "PUT",
       "path": "/space/{{ p.space }}/tag/{{ p.name }}",
       "body": {
@@ -2231,6 +2283,8 @@
       "resource": "taskDependency",
       "operation": "create",
       "title": "Create a task dependency",
+      "sends": false,
+      "sends_reason": "Create a task dependency: changes ClickUp data, not a message",
       "method": "POST",
       "path": "/task/{{ p.task }}/dependency",
       "body": {
@@ -2266,6 +2320,8 @@
       "resource": "taskDependency",
       "operation": "delete",
       "title": "Delete a task dependency",
+      "sends": false,
+      "sends_reason": "Delete a task dependency: changes ClickUp data, not a message",
       "method": "DELETE",
       "path": "/task/{{ p.task }}/dependency",
       "query": {
@@ -2301,6 +2357,8 @@
       "resource": "taskList",
       "operation": "add",
       "title": "Add a task to a list",
+      "sends": false,
+      "sends_reason": "Add a task to a list: changes ClickUp data, not a message",
       "method": "POST",
       "path": "/list/{{ p.listId }}/task/{{ p.taskId }}",
       "fields": [
@@ -2333,6 +2391,8 @@
       "resource": "taskList",
       "operation": "remove",
       "title": "Remove a task from a list",
+      "sends": false,
+      "sends_reason": "Remove a task from a list: changes ClickUp data, not a message",
       "method": "DELETE",
       "path": "/list/{{ p.listId }}/task/{{ p.taskId }}",
       "fields": [
@@ -2365,6 +2425,8 @@
       "resource": "taskTag",
       "operation": "add",
       "title": "Add a tag to a task",
+      "sends": false,
+      "sends_reason": "Add a tag to a task: changes ClickUp data, not a message",
       "method": "POST",
       "path": "/task/{{ p.taskId }}/tag/{{ p.tagName }}",
       "query": {
@@ -2410,6 +2472,8 @@
       "resource": "taskTag",
       "operation": "remove",
       "title": "Remove a tag from a task",
+      "sends": false,
+      "sends_reason": "Remove a tag from a task: changes ClickUp data, not a message",
       "method": "DELETE",
       "path": "/task/{{ p.taskId }}/tag/{{ p.tagName }}",
       "query": {
@@ -2455,6 +2519,8 @@
       "resource": "timeEntry",
       "operation": "create",
       "title": "Create a time entry",
+      "sends": false,
+      "sends_reason": "Create a time entry: changes ClickUp data, not a message",
       "method": "POST",
       "path": "/team/{{ p.team }}/time_entries",
       "body": {
@@ -2548,6 +2614,8 @@
       "resource": "timeEntry",
       "operation": "delete",
       "title": "Delete a time entry",
+      "sends": false,
+      "sends_reason": "Delete a time entry: changes ClickUp data, not a message",
       "method": "DELETE",
       "path": "/team/{{ p.team }}/time_entries/{{ p.timeEntry }}",
       "output": {
@@ -2685,6 +2753,8 @@
       "resource": "timeEntry",
       "operation": "start",
       "title": "Start a timer",
+      "sends": false,
+      "sends_reason": "Start a timer: changes ClickUp data, not a message",
       "method": "POST",
       "path": "/team/{{ p.team }}/time_entries/start",
       "body": {
@@ -2734,6 +2804,8 @@
       "resource": "timeEntry",
       "operation": "stop",
       "title": "Stop the running timer",
+      "sends": false,
+      "sends_reason": "Stop the running timer: changes ClickUp data, not a message",
       "method": "POST",
       "path": "/team/{{ p.team }}/time_entries/stop",
       "output": {
@@ -2763,6 +2835,8 @@
       "resource": "timeEntry",
       "operation": "update",
       "title": "Update a time entry",
+      "sends": false,
+      "sends_reason": "Update a time entry: changes ClickUp data, not a message",
       "method": "PUT",
       "path": "/team/{{ p.team }}/time_entries/{{ p.timeEntry }}",
       "body": {
@@ -2850,6 +2924,8 @@
       "resource": "timeEntryTag",
       "operation": "add",
       "title": "Add tags to time entries",
+      "sends": false,
+      "sends_reason": "Add tags to time entries: changes ClickUp data, not a message",
       "method": "POST",
       "path": "/team/{{ p.team }}/time_entries/tags",
       "body": {
@@ -2944,6 +3020,8 @@
       "resource": "timeEntryTag",
       "operation": "remove",
       "title": "Remove tags from time entries",
+      "sends": false,
+      "sends_reason": "Remove tags from time entries: changes ClickUp data, not a message",
       "method": "DELETE",
       "path": "/team/{{ p.team }}/time_entries/tags",
       "body": {

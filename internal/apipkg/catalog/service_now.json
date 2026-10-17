@@ -179,6 +179,8 @@
       "resource": "user",
       "operation": "create",
       "title": "Create a user",
+      "sends": false,
+      "sends_reason": "Create a user: changes ServiceNow data, not a message",
       "method": "POST",
       "path": "/now/table/sys_user",
       "fields": [
@@ -231,6 +233,8 @@
       "resource": "user",
       "operation": "delete",
       "title": "Delete a user",
+      "sends": false,
+      "sends_reason": "Delete a user: changes ServiceNow data, not a message",
       "method": "DELETE",
       "path": "/now/table/sys_user/{{ p.id }}",
       "fields": [
@@ -300,6 +304,8 @@
       "resource": "user",
       "operation": "update",
       "title": "Update a user",
+      "sends": false,
+      "sends_reason": "Update a user: changes ServiceNow data, not a message",
       "method": "PATCH",
       "path": "/now/table/sys_user/{{ p.id }}",
       "fields": [
@@ -353,6 +359,8 @@
       "resource": "attachment",
       "operation": "upload",
       "title": "Upload an attachment to a record",
+      "sends": false,
+      "sends_reason": "Upload an attachment to a record: changes ServiceNow data, not a message",
       "method": "POST",
       "path": "/now/attachment/file",
       "fields": [
@@ -402,6 +410,8 @@
       "resource": "attachment",
       "operation": "delete",
       "title": "Delete an attachment",
+      "sends": false,
+      "sends_reason": "Delete an attachment: changes ServiceNow data, not a message",
       "method": "DELETE",
       "path": "/now/attachment/{{ p.attachmentId }}",
       "fields": [
@@ -763,6 +773,8 @@
       "resource": "incident",
       "operation": "create",
       "title": "Create an incident",
+      "sends": false,
+      "sends_reason": "Create an incident: changes ServiceNow data, not a message",
       "method": "POST",
       "path": "/now/table/incident",
       "fields": [
@@ -807,6 +819,8 @@
       "resource": "incident",
       "operation": "delete",
       "title": "Delete an incident",
+      "sends": false,
+      "sends_reason": "Delete an incident: changes ServiceNow data, not a message",
       "method": "DELETE",
       "path": "/now/table/incident/{{ p.id }}",
       "fields": [
@@ -876,6 +890,8 @@
       "resource": "incident",
       "operation": "update",
       "title": "Update an incident",
+      "sends": false,
+      "sends_reason": "Update an incident: changes ServiceNow data, not a message",
       "method": "PATCH",
       "path": "/now/table/incident/{{ p.id }}",
       "fields": [
@@ -962,6 +978,8 @@
       "resource": "tableRecord",
       "operation": "create",
       "title": "Create a table record",
+      "sends": false,
+      "sends_reason": "Create a table record: changes ServiceNow data, not a message",
       "method": "POST",
       "path": "/now/table/{{ p.tableName }}",
       "fields": [
@@ -1013,6 +1031,8 @@
       "resource": "tableRecord",
       "operation": "delete",
       "title": "Delete a table record",
+      "sends": false,
+      "sends_reason": "Delete a table record: changes ServiceNow data, not a message",
       "method": "DELETE",
       "path": "/now/table/{{ p.tableName }}/{{ p.id }}",
       "fields": [
@@ -1094,6 +1114,8 @@
       "resource": "tableRecord",
       "operation": "update",
       "title": "Update a table record",
+      "sends": false,
+      "sends_reason": "Update a table record: changes ServiceNow data, not a message",
       "method": "PATCH",
       "path": "/now/table/{{ p.tableName }}/{{ p.id }}",
       "fields": [
