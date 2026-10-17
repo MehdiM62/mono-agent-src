@@ -62,6 +62,37 @@ and implemented in [`internal/secrets`](internal/secrets):
 - Plaintext values are only decrypted in memory when a workflow runs or when
   you explicitly run `monoagentcli secret reveal <name> --reveal`
 
+### Who can read a decrypted secret
+
+The commands that print a decrypted value (`secret reveal --reveal`,
+`secret export`, `connect get-oauth-client --reveal`, `profile info get
+--reveal`, `node run vault.secret_get`, `workflow run --full-outputs`) and
+`api key create` are refused (exit 3, `operator_only`) to a process the CLI
+recognises as an agent, the in-app chat or a workflow run. No secret
+resolves in a workflow you haven't approved, or in a step an agent runs on
+its own (`node run`, MCP `node_run`).
+
+This is a deterrent against mistakes and instructions planted in pages or
+messages, not a barrier:
+
+- An agent is recognised by markers in its environment. On Linux, markers
+  in its parent processes count too, up to 32 levels; a deeper chain
+  counts as marked. A process whose marked parents have exited (`setsid`)
+  is treated as you, and so is any process on macOS and Windows that clears
+  its environment.
+- The desktop app reveals by running the same commands as you. The CLI
+  can't tell the app from an agent that runs them from an unmarked process.
+- A workflow you approved resolves its secrets whoever runs it, and a value
+  a step outputs under a field name the redaction doesn't know shows in its
+  output.
+- The HTTP API's `X-Full-Outputs: 1` gives whoever holds an API key
+  unredacted outputs.
+- By your decision, a step that picks its own address (`http.request`) can
+  use a saved connection in any run, so a workflow can send that
+  connection's token to any address.
+- An agent with full access to your computer can do anything you can,
+  including reading the keyring.
+
 ### File-based keyring fallback (weaker posture)
 
 When `MONOAGENT_ALLOW_FILE_KEYRING=1` is set and no OS keyring is
