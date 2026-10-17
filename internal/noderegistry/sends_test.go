@@ -289,13 +289,17 @@ func TestTheReviewedSendsStayDecided(t *testing.T) {
 		{"app.gotify", cfg{"resource": "message", "operation": "create", "message": "Done"}, "the Gotify app's subscribers"},
 		{"app.brevo", cfg{"resource": "sender", "operation": "create", "name": "Ada", "email": "ada@example.test"}, "ada@example.test"},
 		{"comm.telegram", cfg{"resource": "message", "operation": "pinChatMessage", "chatId": "42", "messageId": "7"}, "42"},
-		// Onfleet texts a task's recipient unless told to skip it.
+		// Onfleet texts a task's recipient unless told to skip it; the card
+		// names the phone the text goes to, so an always-allow rule is one
+		// phone's, not every phone's under one name.
 		{"app.onfleet", cfg{"resource": "task", "operation": "create", "additionalFields": cfg{"recipient": cfg{"recipientProperties": cfg{
 			"recipientName": "Ada", "recipientPhone": "+15550100", "recipientSkipSMSNotifications": true}}}}, "-"},
 		{"app.onfleet", cfg{"resource": "task", "operation": "create", "additionalFields": cfg{"recipient": cfg{"recipientProperties": cfg{
-			"recipientName": "Ada", "recipientPhone": "+15550100", "recipientSkipSMSNotifications": false}}}}, "Ada"},
+			"recipientName": "Ada", "recipientPhone": "+15550100", "recipientSkipSMSNotifications": false}}}}, "+15550100"},
 		{"app.onfleet", cfg{"resource": "task", "operation": "create", "additionalFields": cfg{"recipient": cfg{"recipientProperties": cfg{
 			"recipientPhone": "+15550100"}}}}, "+15550100"},
+		{"app.onfleet", cfg{"resource": "task", "operation": "create", "additionalFields": cfg{"recipient": cfg{"recipientProperties": cfg{
+			"recipientName": "Ada"}}}}, "Ada"},
 		{"app.onfleet", cfg{"resource": "task", "operation": "create"}, "the task's recipient"},
 		{"service.github", cfg{"resource": "issue", "operation": "create", "owner": "o", "repository": "r", "title": "Bug"}, "-"},
 	} {
