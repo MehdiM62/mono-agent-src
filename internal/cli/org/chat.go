@@ -264,6 +264,9 @@ func runOrgChatResolve(cmd *cobra.Command, env *orgEnv, req orgchat.Request) err
 	if err != nil {
 		return err
 	}
+	if req.Approve {
+		req.Allow = func(action string) error { return env.refuseSendingApproval(cmd.Context(), req.Org, action) }
+	}
 	res, err := orgchat.Resolve(cmd.Context(), orgChatClient, root, req)
 	if err != nil {
 		var stopped *orgchat.NotRunningError

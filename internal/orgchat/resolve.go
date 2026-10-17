@@ -90,6 +90,9 @@ type Request struct {
 	Dismiss bool // a question, closed without an answer
 	Approve bool
 	Text    string
+	// Allow, when set, is asked before an approval is approved, with its
+	// action; its error refuses it and nothing is sent.
+	Allow func(action string) error
 }
 
 // Result is what resolving did. Already means the item had been resolved
@@ -227,6 +230,11 @@ func Resolve(ctx context.Context, c Client, root string, req Request) (*Result, 
 		res.State = StateDenied
 		if req.Approve {
 			res.State = StateApproved
+			if req.Allow != nil {
+				if err := req.Allow(a.Action); err != nil {
+					return nil, err
+				}
+			}
 		}
 		requestID := ""
 		if a.RequestID != nil {

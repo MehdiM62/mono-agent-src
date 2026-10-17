@@ -53,17 +53,26 @@ func grantSends(ctx context.Context, db *sql.DB, profileID, org, alias string, l
 			if err != nil || wf == nil {
 				return true
 			}
-			return workflowSends(ctx, load, wf, map[string]bool{wf.ID: true}, 0)
+			c := calls{db: db, profileID: profileID, load: load}
+			return c.workflowSends(ctx, wf, map[string]bool{wf.ID: true}, 0)
 		}
 	}
 	return true
 }
 
+// calls reads the workflows a granted one calls, as execution does.
+type calls struct {
+	db        *sql.DB
+	profileID string
+	load      orggrant.WorkflowLoader
+}
+
 // workflowSends reports whether running wf may send a message to a person:
 // one of its nodes (disabled ones too), or of a workflow it calls
-// (core.execute_workflow, by id), is a send as an agent's sends are
-// classified (hilsend.MaySend). A call it can't follow counts as sending.
-func workflowSends(ctx context.Context, load orggrant.WorkflowLoader, wf *workflow.Workflow, called map[string]bool, depth int) bool {
+// (core.execute_workflow, resolved as calledWorkflow says), is a send as an
+// agent's sends are classified (hilsend.MaySend). A call it can't follow
+// counts as sending.
+func (c calls) workflowSends(ctx context.Context, wf *workflow.Workflow, called map[string]bool, depth int) bool {
 	for _, n := range wf.Nodes {
 		_ = n.ParseConfig()
 		if hilsend.MaySend(n.Type, n.Config) {
@@ -80,14 +89,52 @@ func workflowSends(ctx context.Context, load orggrant.WorkflowLoader, wf *workfl
 		if called[ref] {
 			continue
 		}
-		sub, err := load(ctx, ref)
-		if err != nil || sub == nil {
+		sub := c.calledWorkflow(ctx, ref)
+		if sub == nil {
 			return true
 		}
-		called[ref] = true
-		if workflowSends(ctx, load, sub, called, depth+1) {
+		if called[sub.ID] {
+			continue
+		}
+		called[ref], called[sub.ID] = true, true
+		if c.workflowSends(ctx, sub, called, depth+1) {
 			return true
 		}
 	}
 	return false
+}
+
+// calledWorkflow is the workflow a core.execute_workflow call names, as
+// StartSubWorkflow resolves it: by id, else by its exact name when exactly
+// one workflow of the profile has it, as that workflow is now. nil when that
+// can't be told: no workflow or two have the name, or a read failed.
+func (c calls) calledWorkflow(ctx context.Context, ref string) *workflow.Workflow {
+	if wf, err := c.load(ctx, ref); err != nil {
+		return nil
+	} else if wf != nil {
+		return wf
+	}
+	rows, err := c.db.QueryContext(ctx, `SELECT id FROM workflows WHERE name = ? AND profile_id = ?`, ref, c.profileID)
+	if err != nil {
+		return nil
+	}
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return nil
+		}
+		ids = append(ids, id)
+	}
+	rows.Close()
+	if rows.Err() != nil || len(ids) != 1 {
+		return nil
+	}
+	// Its name as it is now: a file may have renamed it since its row.
+	wf, err := c.load(ctx, ids[0])
+	if err != nil || wf == nil || wf.Name != ref {
+		return nil
+	}
+	return wf
 }
