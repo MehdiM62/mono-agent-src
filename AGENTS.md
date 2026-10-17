@@ -2619,7 +2619,8 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
   and for a profile on the default folder (`~/.monoagent/profiles/<id>`)
   the profile's own vault folder. Closed there, as everywhere: git hooks and
   configs, and the files a tool runs the next time the user works in that
-  folder (`.claude/settings*`, `.mcp.json`, `.husky/*`, `.githooks/*`,
+  folder (`.claude/settings*`, `.claude/hooks/*`, `.claude/helpers/*`,
+  `CLAUDE.md`, `.mcp.json`, `.husky/*`, `.githooks/*`,
   `.envrc`). Still open in it: build files such as `package.json` scripts
   or a `Makefile`. A project folder that is the home or holds it, or lies in
   another hidden folder of the home, opens nothing; only the operator sets a
