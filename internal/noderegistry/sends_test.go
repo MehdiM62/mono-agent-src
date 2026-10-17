@@ -225,7 +225,14 @@ func TestTheReviewedSendsStayDecided(t *testing.T) {
 		{"app.calendly", cfg{"resource": "scheduledEvent", "operation": "cancel", "eventUuid": "ev1", "reason": "Ill"}, "ev1"},
 		{"app.msg91", cfg{"resource": "sms", "operation": "send", "to": "+15550100", "message": "Hi"}, "+15550100"},
 		{"app.invoice_ninja", cfg{"resource": "invoice", "operation": "email", "invoiceId": "inv9"}, "the client of invoice inv9"},
-		{"app.zendesk", cfg{"resource": "ticket", "operation": "create", "description": "We fixed it"}, "the ticket's requester"},
+		// Creating a ticket is a work item, by the user's decision; a public
+		// reply or a note on one is a comment, and waits.
+		{"app.zendesk", cfg{"resource": "ticket", "operation": "create", "description": "We fixed it"}, "-"},
+		{"app.zendesk", cfg{"resource": "ticket", "operation": "update", "id": "T1", "updateFields": cfg{"status": "solved"}}, "-"},
+		{"app.zendesk", cfg{"resource": "ticket", "operation": "update", "id": "T1", "updateFields": cfg{"publicReply": "Fixed"}}, "T1"},
+		{"app.zammad", cfg{"resource": "ticket", "operation": "create", "title": "Login", "group": "Users", "customer": "ada@example.test"}, "-"},
+		{"app.zammad", cfg{"resource": "ticket", "operation": "update", "id": "T2", "updateFields": cfg{"note": "Fixed"}}, "T2"},
+		{"app.freshdesk", cfg{"resource": "ticket", "operation": "update", "ticketId": "T3"}, "-"},
 		{"app.okta", cfg{"resource": "user", "operation": "create", "email": "ada@example.test", "login": "ada"}, "ada@example.test"},
 		{"app.okta", cfg{"resource": "user", "operation": "create", "email": "ada@example.test", "activate": false}, "-"},
 		{"app.okta", cfg{"resource": "user", "operation": "delete", "userId": "u1"}, "-"},

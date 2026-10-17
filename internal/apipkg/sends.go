@@ -30,7 +30,7 @@ type Sends struct {
 	// ToLabel names what a To param holds when it is not an address the
 	// card can show as it is ("invoiceId": "invoice" shows "invoice inv9");
 	// ToUnset is the card's recipient when no To param is set ("the
-	// ticket's requester").
+	// appointment's attendees").
 	ToLabel map[string]string `json:"to_label,omitempty"`
 	ToUnset string            `json:"to_unset,omitempty"`
 	// If names the params the op only sends with: it sends when one of them

@@ -125,7 +125,7 @@ card in the Human in Loop queue, `internal/hilsend`) instead of going out:
   "subject": ["subject"],        // optional
   "if": "sendCampaign",          // optional: the op sends only when this field is set
   "to_label": {"invoiceId": "the client of invoice"}, // optional: a "to" field that holds no address
-  "to_unset": "the ticket's requester"                // optional: the card's recipient when no "to" is set
+  "to_unset": "the appointment's attendees"           // optional: the card's recipient when no "to" is set
 }
 ```
 
