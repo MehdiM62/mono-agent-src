@@ -2,12 +2,15 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/monoes/mono-agent/internal/docscan"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -183,6 +186,7 @@ func (a *App) OpenAnyFilesPicker(title string) []string {
 	if err != nil {
 		return nil
 	}
+	a.issueDocPaths(paths)
 	return paths
 }
 
@@ -191,6 +195,10 @@ func (a *App) OpenAnyFilesPicker(title string) []string {
 const (
 	maxFolderFiles = 5000
 	maxFolderBytes = 2 << 30
+	// maxFolderVisited bounds the entries walked, documents or not.
+	maxFolderVisited = 200000
+	// uploadFileTimeout bounds one `profile upload-document` call (copy + index).
+	uploadFileTimeout = 5 * time.Minute
 )
 
 // folderWalk is walkFolderFiles' result.
@@ -219,7 +227,12 @@ func walkFolderFiles(dir string) folderWalk {
 			w.skipped = append(w.skipped, p)
 		}
 	}
+	visited := 0
 	_ = filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
+		if visited++; visited > maxFolderVisited {
+			w.over = true
+			return stop
+		}
 		if err != nil {
 			skip(p)
 			return nil
@@ -297,6 +310,7 @@ func (a *App) OpenFolderFilesPicker(title string) []string {
 	if err != nil || choice != "Upload" {
 		return nil
 	}
+	a.issueDocPaths(w.files)
 	return w.files
 }
 
@@ -307,31 +321,77 @@ type BatchUploadResult struct {
 	Failed    []string `json:"failed"` // "path: reason"
 }
 
-// UploadProfileDocuments uploads paths into the profile that is selected when
-// it is called -- resolved once, so switching profiles mid-batch cannot
-// misfile the rest. One batch runs at a time.
+// issueDocPaths records the paths a picker handed to the frontend,
+// replacing any earlier set: UploadProfileDocuments takes only these.
+func (a *App) issueDocPaths(paths []string) {
+	set := make(map[string]bool, len(paths))
+	for _, p := range paths {
+		set[p] = true
+	}
+	a.pickedDocsMu.Lock()
+	a.pickedDocs = set
+	a.pickedDocsMu.Unlock()
+}
+
+// takeDocPaths returns the issued set and clears it, so a batch consumes it.
+func (a *App) takeDocPaths() map[string]bool {
+	a.pickedDocsMu.Lock()
+	defer a.pickedDocsMu.Unlock()
+	set := a.pickedDocs
+	a.pickedDocs = nil
+	return set
+}
+
+// UploadProfileDocuments uploads paths -- only ones a picker just issued --
+// into the profile that is selected when it is called, resolved once, so
+// switching profiles mid-batch cannot misfile the rest. One batch runs at a
+// time.
 func (a *App) UploadProfileDocuments(paths []string) (*BatchUploadResult, error) {
 	if err := a.signedOut(); err != nil {
 		return nil, err
 	}
-	if !a.docBatchBusy.CompareAndSwap(false, true) {
-		return nil, errors.New("an upload is already running")
-	}
-	defer a.docBatchBusy.Store(false)
 	id, err := a.profileID()
 	if err != nil {
 		return nil, err
 	}
-	res := &BatchUploadResult{Failed: []string{}}
-	for _, path := range paths {
-		args, err := scopedCLIArgs(id, "profile", "upload-document", path)
+	return a.uploadBatch(paths, func(ctx context.Context, path string) (UploadResult, error) {
 		var one UploadResult
+		args, err := scopedCLIArgs(id, "profile", "upload-document", path)
 		if err == nil {
-			err = a.runCLIArgs("", &one, args)
+			err = a.runCLIArgsCtx(ctx, "", &one, args)
 		}
+		return one, err
+	})
+}
+
+// uploadBatch runs upload for each path that a picker issued and that is
+// still a regular file (not a symlink, FIFO or device), each under its own
+// timeout so the busy flag always releases.
+func (a *App) uploadBatch(paths []string, upload func(ctx context.Context, path string) (UploadResult, error)) (*BatchUploadResult, error) {
+	if !a.docBatchBusy.CompareAndSwap(false, true) {
+		return nil, errors.New("an upload is already running")
+	}
+	defer a.docBatchBusy.Store(false)
+	issued := a.takeDocPaths()
+	res := &BatchUploadResult{Failed: []string{}}
+	fail := func(path string, err error) {
+		res.Failed = append(res.Failed, fmt.Sprintf("%s: %v", filepath.Base(path), err))
+	}
+	for _, path := range paths {
+		if !issued[path] {
+			fail(path, errors.New("not chosen in the file picker"))
+			continue
+		}
+		if fi, err := os.Lstat(path); err != nil || !fi.Mode().IsRegular() {
+			fail(path, errors.New("not a regular file"))
+			continue
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), uploadFileTimeout)
+		one, err := upload(ctx, path)
+		cancel()
 		switch {
 		case err != nil:
-			res.Failed = append(res.Failed, fmt.Sprintf("%s: %v", filepath.Base(path), err))
+			fail(path, err)
 		case !one.Indexed:
 			res.Unindexed++
 			res.Uploaded++
