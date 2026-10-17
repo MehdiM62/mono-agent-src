@@ -138,3 +138,28 @@ func TestSensitiveFieldsAreEncryptedAtRest(t *testing.T) {
 		t.Errorf("only %d sensitive fields", n)
 	}
 }
+
+func TestPlainTextValuesOfNowEncryptedFieldsAreSealedOnFirstRead(t *testing.T) {
+	db, _ := newDB(t)
+	// What the previous build stored: vat_id was not yet sensitive.
+	if _, err := db.Exec(`INSERT INTO profile_info (profile_id, key, value, source, origin, updated_at) VALUES ('p1','vat_id','DE123456789','ai','cv.pdf','2026-10-01T00:00:00Z')`); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 2; i++ {
+		got, err := Get(bg, db, "p1", true)
+		if err != nil || len(got) != 1 || got[0].Value != "DE123456789" || got[0].Source != SourceAI || got[0].Origin != "cv.pdf" || got[0].UpdatedAt != "2026-10-01T00:00:00Z" {
+			t.Fatalf("read %d: %+v %v", i, got, err)
+		}
+	}
+	var raw string
+	if err := db.QueryRow(`SELECT value FROM profile_info WHERE key = 'vat_id'`).Scan(&raw); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(raw, encPrefix) || strings.Contains(raw, "DE123") {
+		t.Errorf("still stored as %q", raw)
+	}
+	masked, _ := Get(bg, db, "p1", false)
+	if !masked[0].Masked || strings.Contains(masked[0].Value, "DE123") {
+		t.Errorf("not masked: %+v", masked[0])
+	}
+}

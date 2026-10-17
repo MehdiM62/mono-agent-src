@@ -85,9 +85,14 @@ func Get(ctx context.Context, db *sql.DB, profile string, reveal bool) ([]Entry,
 			continue
 		}
 		if fd.Encrypted() {
-			plain, err := secrets.DecryptBlob(ctx, db, profile, e.Value)
-			if err != nil {
-				return nil, fmt.Errorf("decrypting %s: %w", fd.Key, err)
+			var plain []byte
+			if strings.HasPrefix(e.Value, encPrefix) {
+				plain, err = secrets.DecryptBlob(ctx, db, profile, e.Value)
+				if err != nil {
+					return nil, fmt.Errorf("decrypting %s: %w", fd.Key, err)
+				}
+			} else if plain, err = sealStored(ctx, db, profile, fd.Key, e.Value); err != nil {
+				return nil, fmt.Errorf("encrypting %s: %w", fd.Key, err)
 			}
 			e.Value = string(plain)
 			if !reveal {
@@ -111,6 +116,26 @@ func TypeOf(ctx context.Context, db *sql.DB, profile string) (string, error) {
 		return ScopeBusiness, nil
 	}
 	return ScopePerson, nil
+}
+
+// encPrefix starts every value secrets.EncryptBlob stores.
+const encPrefix = "vaultenc:v1:"
+
+// sealStored encrypts, in place, a value of an encrypted field that an earlier
+// build stored as plain text (it only started encrypting some fields later),
+// and returns the plain value. The row's source, origin and time are kept.
+func sealStored(ctx context.Context, db *sql.DB, profile, key, plain string) ([]byte, error) {
+	if plain == "" {
+		return nil, nil
+	}
+	sealed, err := secrets.EncryptBlob(ctx, db, profile, []byte(plain))
+	if err != nil {
+		return nil, err
+	}
+	if _, err := db.ExecContext(ctx, `UPDATE profile_info SET value = ? WHERE profile_id = ? AND key = ? AND value = ?`, sealed, profile, key, plain); err != nil {
+		return nil, err
+	}
+	return []byte(plain), nil
 }
 
 // Values returns the plain values of the fields keep accepts, for the AI step
