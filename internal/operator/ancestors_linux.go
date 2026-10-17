@@ -13,21 +13,32 @@ import (
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
-// ancestorMarker names what marks one of this process's parents (up to
-// ancestorMaxDepth, below init): processMarker; "" when none does. A parent whose
-// /proc entries can't be read (another user's) is passed over.
+// ancestorMarker names what marks one of this process's parents, below
+// init: processMarker, or ancestorTooDeep; "" when none does. A parent
+// whose /proc entries can't be read (another user's) ends the walk.
 func ancestorMarker() string {
 	if testing.Testing() && !ancestorsInTests {
 		return ""
 	}
-	pid := os.Getppid()
-	for depth := 0; depth < ancestorMaxDepth && pid > 1 && pid != ancestorsStopAt; depth++ {
-		if m := processMarker(pid); m != "" {
+	return walkAncestors(os.Getppid(), processMarker, parentOf)
+}
+
+// walkAncestors climbs from pid through parent and names the first process
+// marker marks; "" when it reaches init (pid 1), ancestorsStopAt or a
+// parent it can't read first. A chain still climbing after ancestorMaxDepth
+// processes counts as marked (ancestorTooDeep): nesting that many clean
+// shells is how a marked caller would put its mark out of reach.
+func walkAncestors(pid int, marker func(int) string, parent func(int) (int, bool)) string {
+	for depth := 0; pid > 1 && pid != ancestorsStopAt; depth++ {
+		if depth == ancestorMaxDepth {
+			return ancestorTooDeep
+		}
+		if m := marker(pid); m != "" {
 			return m
 		}
-		ppid, ok := parentOf(pid)
+		ppid, ok := parent(pid)
 		if !ok {
-			break
+			return ""
 		}
 		pid = ppid
 	}

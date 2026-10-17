@@ -278,7 +278,9 @@ func resolveItemFields(ctx context.Context, engine *workflow.ExpressionEngine, b
 			return nil, fmt.Errorf("%s: ran without a profile: %w", node, perr)
 		}
 		_ = vault.ResolveConfig(ctx, vaultDB, resolved)
-		_ = secrets.ResolveConfig(ctx, vaultDB, profile, resolved)
+		if err := secrets.ResolveConfig(ctx, vaultDB, profile, resolved); err != nil {
+			return nil, fmt.Errorf("%s: %w", node, err)
+		}
 	}
 
 	itemConfig := make(map[string]interface{}, len(base))

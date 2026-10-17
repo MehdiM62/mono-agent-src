@@ -12,12 +12,12 @@ import (
 )
 
 // Refuse refuses what, a command that prints decrypted secrets, when this
-// process is not the operator's own terminal (operator.Refusal): exit 3
-// with the reason. It is nil for the operator.
+// process is not the operator's own terminal (operator.Refusal): exit 3 and
+// the code operator_only, with the reason. It is nil for the operator.
 func Refuse(what string) error {
 	why := operator.Refusal()
 	if why == "" {
 		return nil
 	}
-	return clicore.InvalidInput("%s prints decrypted secrets, which only the user reads: %s; run it yourself in your terminal or the app", what, why)
+	return clicore.OperatorOnly("%s prints decrypted secrets, which only the user reads: %s; run it yourself in your terminal or the app", what, why)
 }

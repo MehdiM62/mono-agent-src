@@ -237,8 +237,11 @@ func (r *runner) prepare(node WorkflowNode) (*nodeTask, error) {
 			return nil, fmt.Errorf("node %s (%s) ran without a profile: %w", node.ID, node.Name, perr)
 		}
 		_ = vault.ResolveConfig(ctx, vaultDB, resolvedConfig)
-		// Resolve @secret:<name> references to decrypted vault values.
-		_ = secrets.ResolveConfig(ctx, vaultDB, profile, resolvedConfig)
+		// Resolve @secret:<name> references to decrypted vault values; a run
+		// the user hasn't approved resolves none, and the step doesn't run.
+		if err := secrets.ResolveConfig(ctx, vaultDB, profile, resolvedConfig); err != nil {
+			return nil, fmt.Errorf("node %s (%s): %w", node.ID, node.Name, err)
+		}
 	}
 
 	// AI sub-nodes attached through ai_… connections, resolved for the node.

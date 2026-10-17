@@ -11,6 +11,7 @@ import (
 
 	"github.com/monoes/mono-agent/internal/attachments"
 	"github.com/monoes/mono-agent/internal/fsconfine"
+	"github.com/monoes/mono-agent/internal/secrets"
 	"github.com/monoes/mono-agent/internal/vault"
 )
 
@@ -27,9 +28,16 @@ import (
 type aiAuthoredKey struct{}
 
 // WithAIAuthored marks ctx as a run of a definition the operator never
-// approved.
+// approved. No secret resolves in it (secrets.RefuseResolving): a step it
+// runs could send the value anywhere, or show it in an error or an output.
 func WithAIAuthored(ctx context.Context) context.Context {
-	return context.WithValue(ctx, aiAuthoredKey{}, true)
+	return secrets.RefuseResolving(context.WithValue(ctx, aiAuthoredKey{}, true), unapprovedSecrets(ApproveHint("", "")))
+}
+
+// unapprovedSecrets is why a run of a definition the operator never
+// approved reads no secret; approve says how the user approves it.
+func unapprovedSecrets(approve string) string {
+	return "the chat, an agent or another workflow wrote or changed what this run runs since you last saved or activated it: " + approve
 }
 
 // AIAuthoredFrom reports whether ctx is a run of a definition the operator
@@ -45,7 +53,8 @@ func AIAuthoredFrom(ctx context.Context) bool {
 // folder, and out of what runs code later (fsconfine.GuardHiddenHome).
 // approve says how the user approves it, for the refusals.
 func WithUnapproved(ctx context.Context, project, approve string) context.Context {
-	return fsconfine.GuardHiddenHome(WithAIAuthored(ctx), FileGuard(project, approve))
+	ctx = secrets.RefuseResolving(WithAIAuthored(ctx), unapprovedSecrets(approve))
+	return fsconfine.GuardHiddenHome(ctx, FileGuard(project, approve))
 }
 
 // FileGuard is the fsconfine.Guard of a workflow the user hasn't approved,

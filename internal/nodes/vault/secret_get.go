@@ -40,11 +40,11 @@ func (n *SecretGetNode) Type() string { return "vault.secret_get" }
 
 func (n *SecretGetNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
 	// What the chat, an agent or another workflow wrote reads no secret until
-	// the user approves it: its next step could send the value anywhere, and
-	// the run's output shows it to whoever started it.
-	if workflow.AIAuthoredFrom(ctx) {
-		return nil, fmt.Errorf("vault.secret_get decrypts a vault entry, and the chat, an agent or another workflow wrote or changed this workflow " +
-			"since you last saved or activated it: if the change is yours, save or activate it in the app or your terminal")
+	// the user approves it (secrets.RefuseResolving, as for every @secret
+	// reference): its next step could send the value anywhere, and the run's
+	// output shows it to whoever started it.
+	if why := secrets.ResolveRefusal(ctx); why != "" {
+		return nil, fmt.Errorf("vault.secret_get decrypts a vault entry, which this run may not: %s", why)
 	}
 	name, _ := config["name"].(string)
 	if name == "" {

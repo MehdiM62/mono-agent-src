@@ -138,6 +138,8 @@ func Refusal() string {
 		why = m + " is set, so a workflow run is running this command"
 	case browserctl.EnvAICaller:
 		why = m + " is set, so the chat is running this command"
+	case ancestorTooDeep:
+		why = "it runs under " + m + " processes, which can hide an agent, the chat or a workflow run that started it, so it counts as theirs"
 	default:
 		if strings.HasPrefix(m, ancestorPrefix) {
 			why = m + " marks it, so a workflow run, the chat or an agent started this command, whatever its own environment says"

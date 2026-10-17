@@ -19,6 +19,8 @@ import (
 	"github.com/monoes/mono-agent/internal/logging"
 	"github.com/monoes/mono-agent/internal/nodes"
 	peoplenodes "github.com/monoes/mono-agent/internal/nodes/people"
+	"github.com/monoes/mono-agent/internal/operator"
+	"github.com/monoes/mono-agent/internal/profiledir"
 	"github.com/monoes/mono-agent/internal/publication"
 	"github.com/monoes/mono-agent/internal/secrets"
 	"github.com/monoes/mono-agent/internal/vault"
@@ -316,6 +318,14 @@ platform name to override. Token refresh is handled automatically for OAuth conn
 			// local tool process; they are not read from the user's node payload.
 			if org, role := os.Getenv("MONOMIND_ORG_NAME"), os.Getenv("MONOMIND_ORG_ROLE"); org != "" && role != "" {
 				ctx = workflow.WithTrigger(ctx, workflow.TriggerTypeOrgTool, map[string]interface{}{"org": map[string]interface{}{"name": org, "role": role}})
+			}
+			// What an agent, the chat or a workflow runs here was written by
+			// them, not approved by the user: it runs as a step of a workflow
+			// the user hasn't approved (no secret resolves, no program runs, no
+			// hidden file in the home is written), as MCP node_run's does.
+			if operator.Refusal() != "" {
+				ctx = workflow.WithUnapproved(ctx, profiledir.Root(rawDB, d.ProfileID()),
+					"node run never does that for an agent: put the step in a workflow and have the user save or activate it")
 			}
 			outputs, err := executor.Execute(ctx, input, config)
 			if rawDB != nil {

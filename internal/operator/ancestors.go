@@ -1,6 +1,8 @@
 package operator
 
 import (
+	"strconv"
+
 	"github.com/monoes/mono-agent/internal/browserctl"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
@@ -15,8 +17,13 @@ const (
 	ancestorAgentExec   = "a parent process (monomind agent exec)"
 )
 
-// ancestorMaxDepth is how many parent processes Marker looks at.
+// ancestorMaxDepth is how many parent processes Marker looks at; a chain
+// that goes on past them is ancestorTooDeep.
 const ancestorMaxDepth = 32
+
+// ancestorTooDeep is what Marker names for a parent chain deeper than
+// ancestorMaxDepth.
+var ancestorTooDeep = "a parent chain deeper than " + strconv.Itoa(ancestorMaxDepth)
 
 // ancestorsInTests turns the parent check on inside a test binary. It is off
 // there by default: `go test` run from an agent's session would make every
