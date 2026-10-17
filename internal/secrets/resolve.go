@@ -15,6 +15,10 @@ const secretRefPrefix = "@secret:"
 // a context RefuseResolving marked.
 var ErrResolveRefused = errors.New("secret references are not read from the vault here")
 
+// ErrDataReference is wrapped by the refusal of a @secret reference that a
+// step's config holds only once its expressions were evaluated.
+var ErrDataReference = errors.New("a @secret reference that came from the run's data or an expression is not read from the vault")
+
 type refuseResolvingKey struct{}
 
 // RefuseResolving marks ctx: no @secret reference resolves under it, nor a
@@ -89,9 +93,19 @@ func Resolve(ctx context.Context, db *sql.DB, profileID, ref string) (string, er
 // code (see internal/workflow/execution.go, right after its
 // vault.ResolveConfig call). A reference ctx refuses (RefuseResolving) is
 // the one error it returns: the step must not run with it.
-func ResolveConfig(ctx context.Context, db *sql.DB, profileID string, config map[string]interface{}) error {
+//
+// stored is the same config as the workflow holds it, before its expressions
+// were evaluated into config. A reference is the workflow's own only where
+// stored holds it as it is, in a value with no expression: "@secret:" in any
+// value an expression produced (the run's input, a webhook body, an earlier
+// step's output, or text the expression built) is refused at any depth of
+// config, whatever node would read it, and the step doesn't run.
+func ResolveConfig(ctx context.Context, db *sql.DB, profileID string, stored, config map[string]interface{}) error {
 	if db == nil {
 		return nil
+	}
+	if path, ok := dataReference(stored, config, ""); ok {
+		return fmt.Errorf("%q: %w: only one written as it is in the workflow resolves", path, ErrDataReference)
 	}
 	for k, v := range config {
 		s, ok := v.(string)
@@ -113,4 +127,40 @@ func ResolveConfig(ctx context.Context, db *sql.DB, profileID string, config map
 		config[k] = resolved
 	}
 	return nil
+}
+
+// dataReference is the path in resolved of a string that holds "@secret:"
+// where stored, at the same path, isn't that same string free of
+// expressions.
+func dataReference(stored, resolved interface{}, path string) (string, bool) {
+	switch r := resolved.(type) {
+	case string:
+		if s, ok := stored.(string); ok && s == r && !strings.Contains(s, "{{") {
+			return "", false
+		}
+		return path, strings.Contains(r, secretRefPrefix)
+	case map[string]interface{}:
+		sm, _ := stored.(map[string]interface{})
+		for k, v := range r {
+			p := k
+			if path != "" {
+				p = path + "." + k
+			}
+			if found, ok := dataReference(sm[k], v, p); ok {
+				return found, true
+			}
+		}
+	case []interface{}:
+		ss, _ := stored.([]interface{})
+		for i, v := range r {
+			var sv interface{}
+			if i < len(ss) {
+				sv = ss[i]
+			}
+			if found, ok := dataReference(sv, v, fmt.Sprintf("%s[%d]", path, i)); ok {
+				return found, true
+			}
+		}
+	}
+	return "", false
 }

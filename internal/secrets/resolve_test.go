@@ -2,6 +2,10 @@ package secrets
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"maps"
+	"strings"
 	"testing"
 )
 
@@ -113,7 +117,7 @@ func TestResolveConfig_SuccessfulResolution(t *testing.T) {
 	config := map[string]interface{}{
 		"api_key": "@secret:e1",
 	}
-	if err := ResolveConfig(ctx, db.DB, "default", config); err != nil {
+	if err := ResolveConfig(ctx, db.DB, "default", maps.Clone(config), config); err != nil {
 		t.Fatalf("ResolveConfig: %v", err)
 	}
 	if config["api_key"] != "v-alpha1" {
@@ -132,7 +136,7 @@ func TestResolveConfig_MissingSecretLeavesRefUnchanged(t *testing.T) {
 	config := map[string]interface{}{
 		"api_key": "@secret:e0",
 	}
-	if err := ResolveConfig(ctx, db.DB, "default", config); err != nil {
+	if err := ResolveConfig(ctx, db.DB, "default", maps.Clone(config), config); err != nil {
 		t.Fatalf("ResolveConfig must not error on a missing entry: %v", err)
 	}
 	if config["api_key"] != "@secret:e0" {
@@ -155,7 +159,7 @@ func TestResolveConfig_OnlyReplacesMatchingValues(t *testing.T) {
 		"max_calls": 5,
 		"nested":    map[string]interface{}{"still": "untouched"},
 	}
-	if err := ResolveConfig(ctx, db.DB, "default", config); err != nil {
+	if err := ResolveConfig(ctx, db.DB, "default", maps.Clone(config), config); err != nil {
 		t.Fatalf("ResolveConfig: %v", err)
 	}
 	if config["api_key"] != "v-alpha1" {
@@ -170,5 +174,69 @@ func TestResolveConfig_OnlyReplacesMatchingValues(t *testing.T) {
 	nested, ok := config["nested"].(map[string]interface{})
 	if !ok || nested["still"] != "untouched" {
 		t.Fatalf("nested should be untouched, got %v", config["nested"])
+	}
+}
+
+// A reference resolves only where the workflow holds it as it is. "@secret:"
+// in a value an expression produced, at any depth, is refused before anything
+// resolves, naming where it is and not what it says; the workflow's own
+// references, nested ones too, pass (#845 review: secret references as data).
+func TestResolveConfigRefusesAReferenceThatCameFromData(t *testing.T) {
+	db := newSecretsTestDB(t)
+	ctx := context.Background()
+	if _, err := Add(ctx, db.DB, "default", "secret", "vs", map[string]string{"secret": "vsecret-777"}, "", "", ""); err != nil {
+		t.Fatal(err)
+	}
+	for name, c := range map[string]struct {
+		stored, resolved map[string]interface{}
+		path             string
+	}{
+		"the run's data in a field": {
+			map[string]interface{}{"message": "{{ $json.msg }}"},
+			map[string]interface{}{"message": "@secret:vs"}, `"message"`},
+		"built by the expression": {
+			map[string]interface{}{"message": `@sec{{ "ret:vs" }}`},
+			map[string]interface{}{"message": "@secret:vs"}, `"message"`},
+		"inside a longer value": {
+			map[string]interface{}{"headers": map[string]interface{}{"Authorization": "Bearer {{ $json.t }}"}},
+			map[string]interface{}{"headers": map[string]interface{}{"Authorization": "Bearer @secret:vs"}}, `"headers.Authorization"`},
+		"in an object an expression returned": {
+			map[string]interface{}{"values": "{{ $json.values }}"},
+			map[string]interface{}{"values": map[string]interface{}{"pin": "@secret:vs"}}, `"values.pin"`},
+		"in a list": {
+			map[string]interface{}{"args": []interface{}{"a", "{{ $json.b }}"}},
+			map[string]interface{}{"args": []interface{}{"a", "@secret:vs"}}, `"args[1]"`},
+		"next to the workflow's own reference": {
+			map[string]interface{}{"x": "@secret:vs {{ $json.y }}"},
+			map[string]interface{}{"x": "@secret:vs @secret:other"}, `"x"`},
+		"in a field the workflow doesn't have": {
+			map[string]interface{}{},
+			map[string]interface{}{"token": "@secret:vs"}, `"token"`},
+	} {
+		resolved := maps.Clone(c.resolved)
+		err := ResolveConfig(ctx, db.DB, "default", c.stored, resolved)
+		if !errors.Is(err, ErrDataReference) || !strings.Contains(err.Error(), c.path) {
+			t.Errorf("%s: %v, want a refusal that names %s", name, err, c.path)
+			continue
+		}
+		if strings.Contains(err.Error(), "vsecret-777") || strings.Contains(err.Error(), "@secret:vs") {
+			t.Errorf("%s: the refusal repeats the value: %v", name, err)
+		}
+		if strings.Contains(fmt.Sprint(resolved), "vsecret-777") {
+			t.Errorf("%s: resolved %v", name, resolved)
+		}
+	}
+
+	// The workflow's own references: at the top, which resolves, and nested,
+	// which a node reads itself (mcp.call headers), next to data without one.
+	stored := map[string]interface{}{"api_key": "@secret:vs", "message": "{{ $json.msg }}",
+		"headers": map[string]interface{}{"Authorization": "Bearer @secret:vs"}}
+	config := map[string]interface{}{"api_key": "@secret:vs", "message": "hello",
+		"headers": map[string]interface{}{"Authorization": "Bearer @secret:vs"}}
+	if err := ResolveConfig(ctx, db.DB, "default", stored, config); err != nil {
+		t.Fatalf("the workflow's own references: %v", err)
+	}
+	if config["api_key"] != "vsecret-777" || config["message"] != "hello" {
+		t.Errorf("config = %v, want api_key resolved", config)
 	}
 }

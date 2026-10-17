@@ -56,6 +56,7 @@ func (r *runner) resolveSubNodes(rootID string, exprCtx ExpressionContext, depth
 				perItem = res.PerItemConfigFields()
 			}
 		}
+		stored, _ := cloneConfigValue(cfg).(map[string]interface{})
 		held := extractPerItemFields(cfg, perItem)
 		resolved, err := r.expr.ResolveConfig(cfg, exprCtx)
 		if err != nil {
@@ -68,7 +69,7 @@ func (r *runner) resolveSubNodes(rootID string, exprCtx ExpressionContext, depth
 				return nil, fmt.Errorf("sub-node %s (%s) ran without a profile: %w", n.ID, n.Name, perr)
 			}
 			_ = vault.ResolveConfig(r.ctx, db, resolved)
-			if err := secrets.ResolveConfig(r.ctx, db, profile, resolved); err != nil {
+			if err := secrets.ResolveConfig(r.ctx, db, profile, stored, resolved); err != nil {
 				return nil, fmt.Errorf("sub-node %s (%s): %w", n.ID, n.Name, err)
 			}
 		}
@@ -105,6 +106,7 @@ func (r *runner) callTool(ctx context.Context, n WorkflowNode, base ExpressionCo
 	}
 	exprCtx := base
 	exprCtx.JSON = args
+	stored, _ := cloneConfigValue(cfg).(map[string]interface{})
 	held := extractPerItemFields(cfg, perItem)
 	resolved, err := r.expr.ResolveConfig(cfg, exprCtx)
 	if err != nil {
@@ -117,7 +119,7 @@ func (r *runner) callTool(ctx context.Context, n WorkflowNode, base ExpressionCo
 			return nil, fmt.Errorf("tool %q ran without a profile: %w", n.Name, perr)
 		}
 		_ = vault.ResolveConfig(ctx, db, resolved)
-		if err := secrets.ResolveConfig(ctx, db, profile, resolved); err != nil {
+		if err := secrets.ResolveConfig(ctx, db, profile, stored, resolved); err != nil {
 			return nil, fmt.Errorf("tool %q: %w", n.Name, err)
 		}
 	}

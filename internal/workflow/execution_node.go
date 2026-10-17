@@ -223,6 +223,9 @@ func (r *runner) prepare(node WorkflowNode) (*nodeTask, error) {
 		perItemFields = resolver.PerItemConfigFields()
 	}
 	plan := r.planPerItem(node, executor, config, len(inputItems), perItemFields, exprCtx)
+	// The config as the workflow holds it, which a @secret reference must
+	// be in to resolve (secrets.ResolveConfig).
+	stored, _ := cloneConfigValue(config).(map[string]interface{})
 	fieldState := extractPerItemFields(config, perItemFields)
 	resolvedConfig, err := r.expr.ResolveConfig(config, exprCtx)
 	if err != nil {
@@ -239,7 +242,7 @@ func (r *runner) prepare(node WorkflowNode) (*nodeTask, error) {
 		_ = vault.ResolveConfig(ctx, vaultDB, resolvedConfig)
 		// Resolve @secret:<name> references to decrypted vault values; a run
 		// the user hasn't approved resolves none, and the step doesn't run.
-		if err := secrets.ResolveConfig(ctx, vaultDB, profile, resolvedConfig); err != nil {
+		if err := secrets.ResolveConfig(ctx, vaultDB, profile, stored, resolvedConfig); err != nil {
 			return nil, fmt.Errorf("node %s (%s): %w", node.ID, node.Name, err)
 		}
 	}
