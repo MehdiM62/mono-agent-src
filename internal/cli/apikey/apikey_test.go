@@ -360,6 +360,7 @@ func TestAPIKeyRevokeAsksOnATerminal(t *testing.T) {
 			StdinIsTerminal: func() bool { return true },
 			NotFound:        errorOf(2),
 			InvalidInput:    errorOf(3),
+			Refusal:         func() string { return "" },
 		})
 		var out bytes.Buffer
 		cmd.SetOut(&out)
@@ -381,22 +382,40 @@ func TestAPIKeyRevokeAsksOnATerminal(t *testing.T) {
 	}
 }
 
-// A key signs in as the profile: only the operator creates one. Anything
-// else is refused with exit 3 and the code operator_only, and no key is
-// made; listing, updating and revoking stay open (#845 review, item 5).
-func TestAPIKeyCreateIsTheOperatorsOnly(t *testing.T) {
+// A key signs in as the profile: only the operator creates one, changes
+// what it reaches or revokes it, which cuts off whatever uses it. Anything
+// else is refused with exit 3 and the code operator_only, and no key is made
+// or changed; listing and showing stay open (#845 review, item 5).
+func TestAPIKeyCreateUpdateAndRevokeAreTheOperatorsOnly(t *testing.T) {
 	t.Parallel()
 	db := testdb.Path(t)
-	_, _, err := runAs(t, "CLAUDECODE is set, so an agent is running this command", db, "default", true, "create", "--name", "agent-made")
-	var fields interface{ JSONErrorFields() map[string]any }
-	if clicore.ExitCodeFor(err) != 3 || !errors.As(err, &fields) || fields.JSONErrorFields()["code"] != "operator_only" || !strings.Contains(err.Error(), "CLAUDECODE") {
-		t.Fatalf("an agent's create: %v", err)
-	}
-	out, _, err := run(t, db, "default", true, "list")
-	if err != nil || strings.Contains(out, "agent-made") {
-		t.Fatalf("a refused create made a key: %v %s", err, out)
-	}
+	const agent = "CLAUDECODE is set, so an agent is running this command"
 	if _, _, err := run(t, db, "default", true, "create", "--name", "mine"); err != nil {
 		t.Fatalf("the operator's create: %v", err)
+	}
+	for _, args := range [][]string{
+		{"create", "--name", "agent-made"},
+		{"update", "mine", "--context"},
+		{"update", "mine", "--name", "renamed"},
+		{"revoke", "mine", "--yes"},
+	} {
+		_, _, err := runAs(t, agent, db, "default", true, args...)
+		var fields interface{ JSONErrorFields() map[string]any }
+		if clicore.ExitCodeFor(err) != 3 || !errors.As(err, &fields) || fields.JSONErrorFields()["code"] != "operator_only" || !strings.Contains(err.Error(), "CLAUDECODE") {
+			t.Errorf("an agent's %v: %v", args, err)
+		}
+	}
+	for _, args := range [][]string{{"list", "--include-revoked"}, {"show", "mine"}} {
+		out, _, err := runAs(t, agent, db, "default", true, args...)
+		if err != nil || strings.Contains(out, "agent-made") || strings.Contains(out, "renamed") ||
+			!strings.Contains(out, `"name": "mine"`) || !strings.Contains(out, `"context": false`) || !strings.Contains(out, `"revoked_at": null`) {
+			t.Errorf("an agent's %v after the refusals: %v\n%s", args, err, out)
+		}
+	}
+	if _, _, err := run(t, db, "default", true, "update", "mine", "--context"); err != nil {
+		t.Fatalf("the operator's update: %v", err)
+	}
+	if _, _, err := run(t, db, "default", true, "revoke", "mine", "--yes"); err != nil {
+		t.Fatalf("the operator's revoke: %v", err)
 	}
 }

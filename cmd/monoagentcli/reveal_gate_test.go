@@ -110,31 +110,41 @@ func TestCommandsThatPrintSecretsAreTheOperatorsOnly(t *testing.T) {
 	}
 }
 
-// `api key create` makes a key that signs in as the profile: an agent's
-// shell, the chat and a workflow are refused (exit 3, operator_only) and no
-// key is made, while the desktop app's own argv (wails-app APIKeyCreate:
-// --profile <id> --json api key create --name=<name>) makes one as the user.
-func TestAPIKeyCreateIsTheOperatorsOnly(t *testing.T) {
+// `api key create` makes a key that signs in as the profile, `api key
+// update` changes what it reaches and `api key revoke` cuts off whatever uses
+// it: an agent's shell, the chat and a workflow are refused (exit 3,
+// operator_only) and no key is made or changed, while the desktop app's own
+// argv (wails-app: --profile <id> --json api key create --name=<name>, and
+// update and revoke the same way) does it as the user.
+func TestAPIKeyCreateUpdateAndRevokeAreTheOperatorsOnly(t *testing.T) {
 	account.SetEnforceFromForTest(t, time.Time{})
 	asOperatorProcess(t)
 	home := t.TempDir()
 	if _, _, err := runCLIIn(t, home, "", "--json", "db", "migrate"); err != nil {
 		t.Fatal(err)
 	}
-	for _, marker := range []string{"CLAUDECODE", browserctl.EnvAICaller, workflow.EnvWorkflowRun} {
-		t.Setenv(marker, "1")
-		out, _, err := runCLIIn(t, home, "", "--profile", "default", "--json", "api", "key", "create", "--name=agent-made")
-		if exitCodeFor(err) != 3 || jsonCode(err) != "operator_only" || strings.Contains(out, "agent-made") {
-			t.Errorf("%s set: api key create: exit %d, code %q, %v\n%s", marker, exitCodeFor(err), jsonCode(err), err, out)
-		}
-		t.Setenv(marker, "")
-	}
 	out, _, err := runCLIIn(t, home, "", "--profile", "default", "--json", "api", "key", "create", "--name=app-key")
 	if err != nil || !strings.Contains(out, `"key"`) {
 		t.Fatalf("the app's api key create: %v\n%s", err, out)
 	}
-	if list, _, err := runCLIIn(t, home, "", "--profile", "default", "--json", "api", "key", "list"); err != nil || strings.Contains(list, "agent-made") || !strings.Contains(list, "app-key") {
-		t.Fatalf("keys: %v\n%s", err, list)
+	for _, marker := range []string{"CLAUDECODE", browserctl.EnvAICaller, workflow.EnvWorkflowRun} {
+		t.Setenv(marker, "1")
+		for _, args := range [][]string{{"create", "--name=agent-made"}, {"update", "app-key", "--context"}, {"revoke", "app-key", "--yes"}} {
+			out, _, err := runCLIIn(t, home, "", append([]string{"--profile", "default", "--json", "api", "key"}, args...)...)
+			if exitCodeFor(err) != 3 || jsonCode(err) != "operator_only" || strings.Contains(out, "agent-made") {
+				t.Errorf("%s set: api key %v: exit %d, code %q, %v\n%s", marker, args, exitCodeFor(err), jsonCode(err), err, out)
+			}
+		}
+		t.Setenv(marker, "")
+	}
+	list, _, err := runCLIIn(t, home, "", "--profile", "default", "--json", "api", "key", "list", "--include-revoked")
+	if err != nil || strings.Contains(list, "agent-made") || !strings.Contains(list, "app-key") || !strings.Contains(list, `"context": false`) || !strings.Contains(list, `"revoked_at": null`) {
+		t.Fatalf("keys after the refusals: %v\n%s", err, list)
+	}
+	for _, args := range [][]string{{"update", "app-key", "--context"}, {"revoke", "app-key", "--yes"}} {
+		if out, _, err := runCLIIn(t, home, "", append([]string{"--profile", "default", "--json", "api", "key"}, args...)...); err != nil {
+			t.Errorf("the app's api key %v: %v\n%s", args, err, out)
+		}
 	}
 }
 

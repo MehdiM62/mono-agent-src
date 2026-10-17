@@ -259,11 +259,12 @@ OPENAI-COMPATIBLE API (/v1)
   monoagentcli mcp has the same management as tools, for the profile each call names (a
   required "profile" argument; api_config_get, api_config_set and api_config_apply take none):
   api_key_list, api_models_list, api_status and api_config_get, and with
-  --allow-mutations api_key_update, api_key_revoke, api_config_set,
-  api_config_apply and api_auto_set (see "Server settings"). api_key_create
-  is listed too and makes no key: only the user creates one, with api key
-  create in their own terminal (an agent, the chat or a workflow is refused)
-  or in the app.
+  --allow-mutations api_config_set, api_config_apply and api_auto_set (see
+  "Server settings"). With --allow-mutations api_key_create, api_key_update
+  and api_key_revoke are listed too and change no key: only the user
+  creates, changes or revokes one, with api key create|update|revoke in
+  their own terminal (an agent, the chat or a workflow is refused) or in
+  the app.
 
   --context adds excerpts of the profile's own knowledge to requests made
   with the key; only chat-only models serve such a key unless the server

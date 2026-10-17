@@ -90,32 +90,33 @@ func (w *wireSession) finish() string {
 	return w.out.String()
 }
 
-// No key is on the wire: api_key_create makes none, and the key the user made is in no
-// list, update, revoke or error, including the answers to calls that go wrong, and to
-// a caller that pastes the key where an id or a name goes.
+// No key is on the wire: the key tools change none, and the key the user made is
+// in no list or error, including the answers to calls that go wrong, and to a
+// caller that pastes the key where an id or a name goes.
 func TestNoKeyIsOnTheWire(t *testing.T) {
 	s, _ := newAPIKeyServer(t, true)
 	id, secret := createKey(t, s, "wire", true)
 	w := newWireSession(t, s)
 
-	if text, isErr := w.call("api_key_create", map[string]any{"name": "made", "context": true}); !isErr {
-		t.Fatalf("api_key_create made a key: %s", scrubbed(text))
+	for _, c := range []struct {
+		name string
+		args map[string]any
+	}{
+		{"api_key_create", map[string]any{"name": "made", "context": true}},
+		{"api_key_update", map[string]any{"id": id, "name": "wire-2", "context": false}},
+		{"api_key_revoke", map[string]any{"id": id}},
+		{"api_key_update", map[string]any{"id": secret, "name": "x"}}, // the key pasted where an id goes
+		{"api_key_revoke", map[string]any{"id": secret}},              // the same
+		{"api_key_update", map[string]any{"id": id, "name": secret}},  // the key pasted where a name goes
+		{"api_key_create", map[string]any{"name": secret}},            // the same, for a new key
+	} {
+		if text, isErr := w.call(c.name, c.args); !isErr {
+			t.Errorf("%s changed a key: %s", c.name, scrubbed(text))
+		}
 	}
 	w.call("api_key_list", nil)
 	w.call("api_key_list", map[string]any{"include_revoked": true})
-	w.call("api_key_update", map[string]any{"id": id, "name": "wire-2", "context": false})
-	w.call("api_key_update", map[string]any{"id": "wire-2"})                 // nothing to change
-	w.call("api_key_update", map[string]any{"id": secret, "name": "x"})      // the key pasted where an id goes
-	w.call("api_key_revoke", map[string]any{"id": secret})                   // the same
-	w.call("api_key_update", map[string]any{"id": id, "name": secret})       // the key pasted where a name goes
-	w.call("api_key_create", map[string]any{"name": secret})                 // the same, for a new key
-	w.call("api_key_list", map[string]any{"include_revoked": true})          // it must not be listed
-	w.call("api_key_revoke", map[string]any{"id": id})                       // revoked
-	w.call("api_key_revoke", map[string]any{"id": id})                       // revoked again
-	w.call("api_key_revoke", map[string]any{"id": "key_zzzzzzzzzzzz"})       // unknown
-	w.call("api_key_list", map[string]any{"include_revoked": true})          // the revoked key, listed
-	w.call("api_key_list", map[string]any{"include_revoked": "yes"})         // a malformed call
-	w.call("api_key_create", map[string]any{"name": "wire-3", "context": 1}) // a malformed call
+	w.call("api_key_list", map[string]any{"include_revoked": "yes"}) // a malformed call
 	out := w.finish()
 
 	if keyRE.MatchString(out) {
