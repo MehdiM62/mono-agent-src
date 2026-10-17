@@ -110,3 +110,13 @@ func TestSendsIfSeesDefaultsAndValues(t *testing.T) {
 		}
 	}
 }
+
+// A sends block that is neither false nor the object says what the object
+// holds, every key included.
+func TestTheSendsParseErrorListsEveryKey(t *testing.T) {
+	var s Sends
+	err := json.Unmarshal([]byte(`{"to":"ada@example.test"}`), &s)
+	if err == nil || !strings.Contains(err.Error(), "{action, to, text, subject, to_label, to_unset, if}") {
+		t.Errorf("err = %v", err)
+	}
+}
