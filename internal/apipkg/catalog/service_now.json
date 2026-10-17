@@ -774,7 +774,7 @@
       "operation": "create",
       "title": "Create an incident",
       "sends": false,
-      "sends_reason": "Create an incident: changes ServiceNow data, not a message",
+      "sends_reason": "a work item, open by the user's decision",
       "method": "POST",
       "path": "/now/table/incident",
       "fields": [
@@ -891,7 +891,7 @@
       "operation": "update",
       "title": "Update an incident",
       "sends": false,
-      "sends_reason": "Update an incident: changes ServiceNow data, not a message",
+      "sends_reason": "a work item, open by the user's decision",
       "method": "PATCH",
       "path": "/now/table/incident/{{ p.id }}",
       "fields": [

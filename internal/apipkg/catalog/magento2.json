@@ -70,6 +70,12 @@
       "resource": "customer",
       "operation": "create",
       "title": "Create a customer",
+      "sends": {
+        "action": "invite",
+        "to": [
+          "email"
+        ]
+      },
       "method": "POST",
       "path": "/rest/V1/customers",
       "fields": [
@@ -149,6 +155,8 @@
       "resource": "customer",
       "operation": "delete",
       "title": "Delete a customer",
+      "sends": false,
+      "sends_reason": "Delete a customer: changes Magento 2 data, not a message",
       "method": "DELETE",
       "path": "/rest/default/V1/customers/{{ p.customerId }}",
       "fields": [
@@ -288,6 +296,8 @@
       "resource": "customer",
       "operation": "update",
       "title": "Update a customer",
+      "sends": false,
+      "sends_reason": "Update a customer: changes Magento 2 data, not a message",
       "method": "PUT",
       "path": "/rest/V1/customers/{{ p.customerId }}",
       "fields": [
@@ -381,6 +391,8 @@
       "resource": "invoice",
       "operation": "create",
       "title": "Create an invoice for an order",
+      "sends": false,
+      "sends_reason": "Create an invoice for an order: changes Magento 2 data, not a message",
       "method": "POST",
       "path": "/rest/default/V1/order/{{ p.orderId }}/invoice",
       "fields": [
@@ -401,6 +413,8 @@
       "resource": "order",
       "operation": "cancel",
       "title": "Cancel an order",
+      "sends": false,
+      "sends_reason": "Cancel an order: changes Magento 2 data, not a message",
       "method": "POST",
       "path": "/rest/default/V1/orders/{{ p.orderId }}/cancel",
       "fields": [
@@ -540,6 +554,8 @@
       "resource": "order",
       "operation": "ship",
       "title": "Ship an order",
+      "sends": false,
+      "sends_reason": "Ship an order: changes Magento 2 data, not a message",
       "method": "POST",
       "path": "/rest/default/V1/order/{{ p.orderId }}/ship",
       "fields": [
@@ -560,6 +576,8 @@
       "resource": "product",
       "operation": "create",
       "title": "Create a product",
+      "sends": false,
+      "sends_reason": "Create a product: changes Magento 2 data, not a message",
       "method": "POST",
       "path": "/rest/default/V1/products",
       "fields": [
@@ -620,6 +638,8 @@
       "resource": "product",
       "operation": "delete",
       "title": "Delete a product",
+      "sends": false,
+      "sends_reason": "Delete a product: changes Magento 2 data, not a message",
       "method": "DELETE",
       "path": "/rest/default/V1/products/{{ p.sku }}",
       "fields": [
@@ -759,6 +779,8 @@
       "resource": "product",
       "operation": "update",
       "title": "Update a product",
+      "sends": false,
+      "sends_reason": "Update a product: changes Magento 2 data, not a message",
       "method": "PUT",
       "path": "/rest/default/V1/products/{{ p.sku }}",
       "fields": [

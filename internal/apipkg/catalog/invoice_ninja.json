@@ -584,6 +584,9 @@
           "additionalFields.email",
           "additionalFields.client"
         ],
+        "to_label": {
+          "additionalFields.client": "client"
+        },
         "if": "additionalFields.emailInvoice"
       },
       "method": "POST",
@@ -710,7 +713,10 @@
         "action": "email",
         "to": [
           "invoiceId"
-        ]
+        ],
+        "to_label": {
+          "invoiceId": "the client of invoice"
+        }
       },
       "method": "{{ p.apiVersion | eq:'v4' | then:'POST' | default:'GET' }}",
       "path": "/{{ p.apiVersion | eq:'v4' | then:'email_invoice' | default:'invoices/' }}{{ p.apiVersion | ne:'v4' | then:p.invoiceId }}{{ p.apiVersion | ne:'v4' | then:'/email' }}",
@@ -1151,7 +1157,10 @@
         "action": "email",
         "to": [
           "quoteId"
-        ]
+        ],
+        "to_label": {
+          "quoteId": "the client of quote"
+        }
       },
       "method": "{{ p.apiVersion | eq:'v4' | then:'POST' | default:'GET' }}",
       "path": "/{{ p.apiVersion | eq:'v4' | then:'email_invoice' | default:'quotes/' }}{{ p.apiVersion | ne:'v4' | then:p.quoteId }}{{ p.apiVersion | ne:'v4' | then:'/email' }}",

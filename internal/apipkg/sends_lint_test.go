@@ -6,6 +6,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/monoes/mono-agent/internal/workflow"
 )
 
 // The send lint (TestCatalogSendsAreDecided): an op has to say whether it
@@ -16,7 +18,11 @@ import (
 //     method included, whatever the op is called; or
 //   - a send word is in its name, path or description, it is not a read (a
 //     read verb first and no send verb in its name), and it writes or a send
-//     verb names it (a GET to /sendhttp.php).
+//     verb names it (a GET to /sendhttp.php); or
+//   - it writes, in any package, and has a param (or a collection option)
+//     for whom it reaches (to, recipient, email, phone, attendees,
+//     invitees, cc, bcc) or a switch that has the service message someone
+//     (activate, sendEmail, notify, welcome, invite): recipientParam.
 //
 // An op on settings ("updateNotificationSettings") counts its send verbs
 // only, not its send nouns.
@@ -42,6 +48,14 @@ var (
 		"freshdesk": true, "freshservice": true, "get_response": true, "gotify": true, "halo_psa": true,
 		"intercom": true, "iterable": true, "mailer_lite": true, "msg91": true, "postmark": true, "pushcut": true,
 		"service_now": true, "syncro_msp": true, "the_hive": true, "vero": true, "zammad": true, "zendesk": true}
+	recipientWords = map[string]bool{"recipient": true, "recipients": true, "email": true, "emails": true, "attendee": true,
+		"attendees": true, "invitee": true, "invitees": true, "phone": true, "mobile": true, "cc": true, "bcc": true,
+		"activate": true, "activation": true, "notify": true, "notification": true, "notifications": true, "welcome": true,
+		"invite": true, "invitation": true}
+	// toObjects follow "to" in a param that names a recipient (toEmail),
+	// unlike toPath or toDate.
+	toObjects = map[string]bool{"email": true, "emails": true, "number": true, "numbers": true, "address": true,
+		"addresses": true, "phone": true, "recipients": true, "user": true, "users": true, "whatsapp": true}
 	camelHump  = regexp.MustCompile(`([a-z0-9])([A-Z])`)
 	nonWordRun = regexp.MustCompile(`[^A-Za-z0-9]+`)
 )
@@ -71,6 +85,40 @@ func anyWord(words []string, is func(string) bool) bool {
 	return false
 }
 
+// recipientParam: a param key that says whom a write reaches, or switches
+// on a message to someone (sendEmail, activate).
+func recipientParam(key string) bool {
+	w := opWords(key)
+	switch {
+	case len(w) == 0:
+		return false
+	case w[0] == "to":
+		return len(w) == 1 || toObjects[w[1]]
+	case w[0] == "send" && len(w) > 1:
+		return true
+	}
+	return anyWord(w, func(x string) bool { return recipientWords[x] })
+}
+
+// hasRecipientParam reports a param of o, or an option of one of its
+// collections, that recipientParam takes for one.
+func hasRecipientParam(o Operation) bool {
+	for _, f := range o.Fields {
+		if recipientParam(f.Key) {
+			return true
+		}
+		if f.Type != "collection" && f.Type != "fixedCollection" {
+			continue // a select's options are values, not params
+		}
+		for _, opt := range f.Options {
+			if recipientParam(opt) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // undecidedSends lists the ops of pkgs the lint wants a decision on.
 func undecidedSends(pkgs []*Package) []string {
 	var out []string
@@ -94,7 +142,7 @@ func undecidedSends(pkgs []*Package) []string {
 			named := anyWord(name, isSend) || anyWord(path, isSend) || anyWord(opWords(o.Description), isSend)
 			verbNamed := anyWord(name, isSendVerb) || anyWord(path, isSendVerb)
 			read := len(op) > 0 && readVerbs[op[0]] && !anyWord(name, isSendVerb)
-			if (messaging && writes) || (named && !read && (writes || verbNamed)) {
+			if (messaging && writes) || (writes && hasRecipientParam(o)) || (named && !read && (writes || verbNamed)) {
 				out = append(out, p.ID+" "+o.Resource+"/"+o.Operation)
 			}
 		}
@@ -149,5 +197,35 @@ func TestTheSendLintLeavesSettingsAlone(t *testing.T) {
 	}}
 	if got := undecidedSends([]*Package{p}); !reflect.DeepEqual(got, []string{"acme_tasks user/sendNotification", "acme_tasks user/sendSettingsEmail"}) {
 		t.Errorf("undecided = %v", got)
+	}
+}
+
+// Any package's write that has a recipient-like param, or a switch that has
+// the service message someone, needs a decision: it may reach the person
+// (an activation email, an invite to attendees). A path that starts with
+// "to", a select's values and a read are none.
+func TestTheSendLintSeesRecipients(t *testing.T) {
+	param := func(keys ...string) []workflow.NodeSchemaField {
+		var out []workflow.NodeSchemaField
+		for _, k := range keys {
+			out = append(out, workflow.NodeSchemaField{Key: k, Type: "string"})
+		}
+		return out
+	}
+	p := &Package{ID: "acme_hr", Operations: []Operation{
+		{Resource: "user", Operation: "create", Method: "POST", Path: "/users", Fields: param("firstName", "workEmail")},
+		{Resource: "user", Operation: "delete", Method: "DELETE", Path: "/users/1", Fields: param("userId", "sendEmail")},
+		{Resource: "user", Operation: "activate", Method: "POST", Path: "/users/1/lifecycle", Fields: param("userId", "activate")},
+		{Resource: "event", Operation: "create", Method: "POST", Path: "/events", Fields: []workflow.NodeSchemaField{
+			{Key: "additionalFields", Type: "collection", Options: []string{"location", "attendees"}}}},
+		{Resource: "file", Operation: "copy", Method: "POST", Path: "/copy", Fields: param("toPath", "fromPath")},
+		{Resource: "user", Operation: "getAll", Method: "GET", Path: "/users", Fields: param("email")},
+		{Resource: "channel", Operation: "set", Method: "POST", Path: "/channel", Fields: []workflow.NodeSchemaField{
+			{Key: "kind", Type: "select", Options: []string{"email", "sms"}}}},
+	}}
+	got := undecidedSends([]*Package{p})
+	want := []string{"acme_hr user/create", "acme_hr user/delete", "acme_hr user/activate", "acme_hr event/create"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("undecided = %v, want %v", got, want)
 	}
 }

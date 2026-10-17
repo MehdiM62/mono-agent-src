@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -26,10 +27,18 @@ type Sends struct {
 	To      []string `json:"to,omitempty"`
 	Text    []string `json:"text,omitempty"`
 	Subject []string `json:"subject,omitempty"`
+	// ToLabel names what a To param holds when it is not an address the
+	// card can show as it is ("invoiceId": "invoice" shows "invoice inv9");
+	// ToUnset is the card's recipient when no To param is set ("the
+	// ticket's requester").
+	ToLabel map[string]string `json:"to_label,omitempty"`
+	ToUnset string            `json:"to_unset,omitempty"`
 	// If names the params the op only sends with: it sends when one of them
-	// is set (true, or any value but false, "" or an empty list). Sendy
-	// creates a campaign and sends it only with sendCampaign; a Google
-	// Calendar event invites only with additionalFields.attendees.
+	// is set (true, or any value but false, "" or an empty list), a param's
+	// field default included. "param=value" sends when the param has that
+	// value. Sendy creates a campaign and sends it only with sendCampaign; a
+	// Google Calendar event invites only with additionalFields.attendees;
+	// Home Assistant notifies only with "domain=notify".
 	If Cond `json:"if,omitempty"`
 }
 
@@ -110,9 +119,15 @@ func (o *Operation) checkSends(where string, fields map[string]bool) []string {
 	}
 	for _, keys := range [][]string{s.To, s.Text, s.Subject, s.If} {
 		for _, k := range keys {
-			if head, _, _ := strings.Cut(k, "."); k == "" || !fields[head] {
+			name, _, _ := strings.Cut(k, "=")
+			if head, _, _ := strings.Cut(name, "."); name == "" || !fields[head] {
 				add("sends names %q, which is not one of the op's fields", k)
 			}
+		}
+	}
+	for k := range s.ToLabel {
+		if !slices.Contains(s.To, k) {
+			add("sends.to_label names %q, which is not in sends.to", k)
 		}
 	}
 	return probs
@@ -124,6 +139,8 @@ type Send struct {
 	Action            string
 	Channel           string // the app, for the card; "" for a native node's extension
 	To, Text, Subject []string
+	ToLabel           map[string]string
+	ToUnset           string
 	// PerItem lists the params the node resolves per input item (an app
 	// node's fields); a native node's extension resolves none.
 	PerItem []string
@@ -145,7 +162,8 @@ func SendOf(nodeType string, config map[string]any) (Send, bool) {
 		if op.Batch {
 			perItem = nil // one request for every item: one card
 		}
-		return Send{Action: s.Action, Channel: pkg.ID, To: s.To, Text: s.Text, Subject: s.Subject, PerItem: perItem}, true
+		return Send{Action: s.Action, Channel: pkg.ID, To: s.To, Text: s.Text, Subject: s.Subject,
+			ToLabel: s.ToLabel, ToUnset: s.ToUnset, PerItem: perItem}, true
 	}
 	if pkg := extensionFor(nodeType); pkg != nil {
 		opName := strings.TrimSpace(str(config["operation"]))
@@ -157,7 +175,7 @@ func SendOf(nodeType string, config map[string]any) (Send, bool) {
 			return Send{}, false
 		}
 		s := op.Sends
-		return Send{Action: s.Action, To: s.To, Text: s.Text, Subject: s.Subject}, true
+		return Send{Action: s.Action, To: s.To, Text: s.Text, Subject: s.Subject, ToLabel: s.ToLabel, ToUnset: s.ToUnset}, true
 	}
 	return Send{}, false
 }
@@ -181,8 +199,10 @@ func SendsSome(nodeType string) bool {
 }
 
 // sends reports whether the op, run with config, sends: it is annotated,
-// and one of its If params (when it names some) is set. A template the run
-// has yet to resolve counts as set.
+// and one of its If params (when it names some) is set, or has the value
+// "param=value" names, as the run sees it: unset params take their field
+// default. A template the run has yet to resolve counts as set, and as any
+// value.
 func (o *Operation) sends(config map[string]any) bool {
 	s := o.Sends
 	if s == nil || s.None {
@@ -191,8 +211,18 @@ func (o *Operation) sends(config map[string]any) bool {
 	if len(s.If) == 0 {
 		return true
 	}
+	params := make(map[string]any, len(config))
+	for k, v := range config {
+		params[k] = v
+	}
+	applyDefaults(o, params)
 	for _, k := range s.If {
-		if isSet(paramAt(config, k)) {
+		name, want, eq := strings.Cut(k, "=")
+		v := paramAt(params, name)
+		if !eq && isSet(v) {
+			return true
+		}
+		if got := strings.TrimSpace(fmt.Sprint(v)); eq && v != nil && (hasTemplate(got) || strings.EqualFold(got, want)) {
 			return true
 		}
 	}

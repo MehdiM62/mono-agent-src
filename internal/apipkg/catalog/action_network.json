@@ -294,6 +294,8 @@
       "resource": "person",
       "operation": "create",
       "title": "Create a person",
+      "sends": false,
+      "sends_reason": "Create a person: changes Action Network data, not a message",
       "method": "POST",
       "path": "/people",
       "body": {
@@ -410,6 +412,8 @@
       "resource": "person",
       "operation": "update",
       "title": "Update a person",
+      "sends": false,
+      "sends_reason": "Update a person: changes Action Network data, not a message",
       "method": "PUT",
       "path": "/people/{{ p.personId }}",
       "body": {

@@ -1574,6 +1574,8 @@
       "resource": "person",
       "operation": "create",
       "title": "Create a person",
+      "sends": false,
+      "sends_reason": "Create a person: changes Pipedrive data, not a message",
       "method": "POST",
       "path": "/api/v2/persons",
       "fields": [
@@ -1784,6 +1786,8 @@
       "resource": "person",
       "operation": "update",
       "title": "Update a person",
+      "sends": false,
+      "sends_reason": "Update a person: changes Pipedrive data, not a message",
       "method": "PATCH",
       "path": "/api/v2/persons/{{ p.personId }}",
       "fields": [

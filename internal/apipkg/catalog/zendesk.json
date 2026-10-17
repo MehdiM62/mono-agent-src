@@ -145,7 +145,8 @@
         ],
         "subject": [
           "additionalFields.subject"
-        ]
+        ],
+        "to_unset": "the ticket's requester"
       },
       "method": "POST",
       "path": "/tickets.json",

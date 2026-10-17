@@ -80,6 +80,8 @@
       "resource": "product",
       "operation": "create",
       "title": "Create a product",
+      "sends": false,
+      "sends_reason": "Create a product: changes WooCommerce data, not a message",
       "method": "POST",
       "path": "/products",
       "body": {
@@ -189,6 +191,8 @@
       "resource": "product",
       "operation": "delete",
       "title": "Delete a product",
+      "sends": false,
+      "sends_reason": "Delete a product: changes WooCommerce data, not a message",
       "method": "DELETE",
       "path": "/products/{{ p.productId }}",
       "query": {
@@ -293,6 +297,8 @@
       "resource": "product",
       "operation": "update",
       "title": "Update a product",
+      "sends": false,
+      "sends_reason": "Update a product: changes WooCommerce data, not a message",
       "method": "PUT",
       "path": "/products/{{ p.productId }}",
       "body": {
@@ -402,6 +408,8 @@
       "resource": "order",
       "operation": "create",
       "title": "Create an order",
+      "sends": false,
+      "sends_reason": "an order record, not a message; a status change sends the shop's own order emails as it set them up",
       "method": "POST",
       "path": "/orders",
       "body": {
@@ -564,6 +572,8 @@
       "resource": "order",
       "operation": "delete",
       "title": "Delete an order",
+      "sends": false,
+      "sends_reason": "Delete an order: changes WooCommerce data, not a message",
       "method": "DELETE",
       "path": "/orders/{{ p.orderId }}",
       "query": {
@@ -654,6 +664,8 @@
       "resource": "order",
       "operation": "update",
       "title": "Update an order",
+      "sends": false,
+      "sends_reason": "an order record, not a message; a status change sends the shop's own order emails as it set them up",
       "method": "PUT",
       "path": "/orders/{{ p.orderId }}",
       "body": {
@@ -821,6 +833,12 @@
       "resource": "customer",
       "operation": "create",
       "title": "Create a customer",
+      "sends": {
+        "action": "invite",
+        "to": [
+          "email"
+        ]
+      },
       "method": "POST",
       "path": "/customers",
       "body": {
@@ -857,6 +875,8 @@
       "resource": "customer",
       "operation": "delete",
       "title": "Delete a customer",
+      "sends": false,
+      "sends_reason": "Delete a customer: changes WooCommerce data, not a message",
       "method": "DELETE",
       "path": "/customers/{{ p.customerId }}",
       "query": {
@@ -931,6 +951,8 @@
       "resource": "customer",
       "operation": "update",
       "title": "Update a customer",
+      "sends": false,
+      "sends_reason": "Update a customer: changes WooCommerce data, not a message",
       "method": "PUT",
       "path": "/customers/{{ p.customerId }}",
       "body": {

@@ -92,7 +92,7 @@
       "operation": "create",
       "title": "Create an issue",
       "sends": false,
-      "sends_reason": "Create an issue: changes GitHub data, not a message",
+      "sends_reason": "a work item, open by the user's decision",
       "method": "POST",
       "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/issues",
       "fields": [
@@ -195,7 +195,7 @@
       "operation": "edit",
       "title": "Edit an issue",
       "sends": false,
-      "sends_reason": "Edit an issue: changes GitHub data, not a message",
+      "sends_reason": "a work item, open by the user's decision",
       "method": "PATCH",
       "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/issues/{{ p.issueNumber }}",
       "fields": [
@@ -702,7 +702,7 @@
       "operation": "create",
       "title": "Create a pull request",
       "sends": false,
-      "sends_reason": "Create a pull request: changes GitHub data, not a message",
+      "sends_reason": "a work item, open by the user's decision",
       "method": "POST",
       "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/pulls",
       "fields": [
@@ -764,7 +764,7 @@
       "operation": "update",
       "title": "Update a pull request",
       "sends": false,
-      "sends_reason": "Update a pull request: changes GitHub data, not a message",
+      "sends_reason": "a work item, open by the user's decision",
       "method": "PATCH",
       "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/pulls/{{ p.pullRequestNumber }}",
       "fields": [

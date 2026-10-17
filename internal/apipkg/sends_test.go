@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/monoes/mono-agent/internal/workflow"
 )
 
 func TestSendsAnnotationIsChecked(t *testing.T) {
@@ -15,11 +17,13 @@ func TestSendsAnnotationIsChecked(t *testing.T) {
 		`,"sends":{"action":"email","to":["to"],"text":["body"]}`: "",
 		`,"sends":false,"sends_reason":"a queue"`:                 "",
 		`,"sends":false`: "needs a sends_reason",
-		`,"sends":{"action":"shout","to":["to"]}`:                                "action",
-		`,"sends":{"action":"email","to":["nobody"]}`:                            `"nobody"`,
-		`,"sends_reason":"why"`:                                                  "sends_reason without",
-		`,"sends":{"action":"email","text":["body.reply"],"if":["to","body.x"]}`: "",
-		`,"sends":{"action":"email","if":["to","nobody.x"]}`:                     `"nobody.x"`,
+		`,"sends":{"action":"shout","to":["to"]}`:                                                                     "action",
+		`,"sends":{"action":"email","to":["nobody"]}`:                                                                 `"nobody"`,
+		`,"sends_reason":"why"`:                                                                                       "sends_reason without",
+		`,"sends":{"action":"email","text":["body.reply"],"if":["to","body.x"]}`:                                      "",
+		`,"sends":{"action":"email","if":["to","nobody.x"]}`:                                                          `"nobody.x"`,
+		`,"sends":{"action":"post","to":["to"],"to_label":{"to":"channel"},"to_unset":"the team","if":"body=urgent"}`: "",
+		`,"sends":{"action":"post","to_label":{"body":"channel"}}`:                                                    "to_label",
 		`,"sends":true`: "sends",
 	} {
 		_, err := Parse([]byte(base(sends)), "test")
@@ -33,7 +37,8 @@ func TestSendsAnnotationIsChecked(t *testing.T) {
 }
 
 func TestSendsRoundTrips(t *testing.T) {
-	for _, raw := range []string{`false`, `{"action":"dm","to":["to"],"text":["message"],"if":"go"}`, `{"action":"invite","if":["a","b.c"]}`} {
+	for _, raw := range []string{`false`, `{"action":"dm","to":["to"],"text":["message"],"if":"go"}`, `{"action":"invite","if":["a","b.c"]}`,
+		`{"action":"email","to":["invoiceId"],"to_label":{"invoiceId":"invoice"},"to_unset":"the client"}`} {
 		var s Sends
 		if err := json.Unmarshal([]byte(raw), &s); err != nil {
 			t.Fatal(err)
@@ -65,6 +70,31 @@ func TestSendsIf(t *testing.T) {
 	} {
 		if got := op.sends(c.config); got != c.want {
 			t.Errorf("sends(%v) = %v, want %v", c.config, got, c.want)
+		}
+	}
+}
+
+// A param the config leaves out counts as its field's default, as the run
+// sees it: Okta's activate is true unless the config says otherwise, and
+// so the activation email waits. "param=value" sends on that value only,
+// or on a template the run resolves.
+func TestSendsIfSeesDefaultsAndValues(t *testing.T) {
+	op := Operation{Fields: []workflow.NodeSchemaField{{Key: "activate", Type: "boolean", Default: true}, {Key: "domain", Type: "string"}},
+		Sends: &Sends{Action: "invite", If: Cond{"activate"}}}
+	for config, want := range map[string]bool{`{}`: true, `{"activate":false}`: false, `{"activate":"false"}`: false} {
+		var c map[string]any
+		_ = json.Unmarshal([]byte(config), &c)
+		if got := op.sends(c); got != want {
+			t.Errorf("activate: sends(%s) = %v, want %v", config, got, want)
+		}
+	}
+	op.Sends.If = Cond{"domain=notify", "domain=tts"}
+	for config, want := range map[string]bool{`{}`: false, `{"domain":"light"}`: false, `{"domain":" Notify "}`: true,
+		`{"domain":"tts"}`: true, `{"domain":"{{ $json.domain }}"}`: true} {
+		var c map[string]any
+		_ = json.Unmarshal([]byte(config), &c)
+		if got := op.sends(c); got != want {
+			t.Errorf("domain: sends(%s) = %v, want %v", config, got, want)
 		}
 	}
 }

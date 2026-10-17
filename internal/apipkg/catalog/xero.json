@@ -55,6 +55,8 @@
       "resource": "invoice",
       "operation": "create",
       "title": "Create an invoice",
+      "sends": false,
+      "sends_reason": "SentToContact only marks the invoice as sent in Xero; Xero emails no one",
       "method": "POST",
       "path": "/Invoices",
       "body": {
@@ -241,6 +243,8 @@
       "resource": "invoice",
       "operation": "update",
       "title": "Update an invoice",
+      "sends": false,
+      "sends_reason": "SentToContact only marks the invoice as sent in Xero; Xero emails no one",
       "method": "POST",
       "path": "/Invoices/{{ p.invoiceId }}",
       "body": {
@@ -324,6 +328,8 @@
       "resource": "contact",
       "operation": "create",
       "title": "Create a contact",
+      "sends": false,
+      "sends_reason": "Create a contact: changes Xero data, not a message",
       "method": "POST",
       "path": "/Contacts",
       "body": {
@@ -498,6 +504,8 @@
       "resource": "contact",
       "operation": "update",
       "title": "Update a contact",
+      "sends": false,
+      "sends_reason": "Update a contact: changes Xero data, not a message",
       "method": "POST",
       "path": "/Contacts/{{ p.contactId }}",
       "body": {

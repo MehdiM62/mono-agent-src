@@ -635,6 +635,8 @@
       "resource": "folder",
       "operation": "update",
       "title": "Update a folder",
+      "sends": false,
+      "sends_reason": "Update a folder: changes Box data, not a message",
       "method": "PUT",
       "path": "/folders/{{ p.folderId }}",
       "query": {

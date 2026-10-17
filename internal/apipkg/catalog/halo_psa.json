@@ -481,15 +481,8 @@
       "resource": "ticket",
       "operation": "create",
       "title": "Create a ticket",
-      "sends": {
-        "action": "comment",
-        "text": [
-          "details"
-        ],
-        "subject": [
-          "summary"
-        ]
-      },
+      "sends": false,
+      "sends_reason": "a work item, open by the user's decision",
       "method": "POST",
       "path": "/tickets",
       "fields": [
@@ -622,7 +615,7 @@
       "operation": "update",
       "title": "Update a ticket",
       "sends": false,
-      "sends_reason": "Update a ticket: changes HaloPSA data, not a message",
+      "sends_reason": "a work item, open by the user's decision",
       "method": "POST",
       "path": "/tickets",
       "fields": [
