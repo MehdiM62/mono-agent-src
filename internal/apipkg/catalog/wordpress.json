@@ -108,6 +108,12 @@
       "resource": "post",
       "operation": "create",
       "title": "Create a post",
+      "sends": {
+        "action": "publish",
+        "subject": [
+          "title"
+        ]
+      },
       "method": "POST",
       "path": "/posts",
       "body": {
@@ -253,6 +259,12 @@
       "resource": "post",
       "operation": "update",
       "title": "Update a post",
+      "sends": {
+        "action": "publish",
+        "to": [
+          "postId"
+        ]
+      },
       "method": "POST",
       "path": "/posts/{{ p.postId }}",
       "body": {

@@ -71,6 +71,18 @@
       "resource": "post",
       "operation": "create",
       "title": "Submit a post",
+      "sends": {
+        "action": "post",
+        "to": [
+          "subreddit"
+        ],
+        "text": [
+          "text"
+        ],
+        "subject": [
+          "title"
+        ]
+      },
       "method": "POST",
       "path": "/api/submit",
       "fields": [
@@ -307,6 +319,15 @@
       "resource": "postComment",
       "operation": "create",
       "title": "Comment on a post",
+      "sends": {
+        "action": "comment",
+        "to": [
+          "postId"
+        ],
+        "text": [
+          "commentText"
+        ]
+      },
       "method": "POST",
       "path": "/api/comment",
       "fields": [
@@ -404,6 +425,15 @@
       "resource": "postComment",
       "operation": "reply",
       "title": "Reply to a comment",
+      "sends": {
+        "action": "comment",
+        "to": [
+          "commentId"
+        ],
+        "text": [
+          "replyText"
+        ]
+      },
       "method": "POST",
       "path": "/api/comment",
       "fields": [

@@ -78,6 +78,15 @@
       "resource": "post",
       "operation": "create",
       "title": "Create a post or topic",
+      "sends": {
+        "action": "post",
+        "text": [
+          "content"
+        ],
+        "subject": [
+          "title"
+        ]
+      },
       "method": "POST",
       "path": "/posts.json",
       "fields": [
@@ -160,6 +169,15 @@
       "resource": "post",
       "operation": "update",
       "title": "Update a post",
+      "sends": {
+        "action": "post",
+        "to": [
+          "postId"
+        ],
+        "text": [
+          "content"
+        ]
+      },
       "method": "PUT",
       "path": "/posts/{{ p.postId }}.json",
       "fields": [

@@ -700,6 +700,12 @@
       "resource": "campaign",
       "operation": "resend",
       "title": "Create a resend of a campaign",
+      "sends": {
+        "action": "email",
+        "to": [
+          "campaignId"
+        ]
+      },
       "method": "POST",
       "path": "/campaigns/{{ p.campaignId }}/actions/create-resend",
       "fields": [
@@ -715,6 +721,12 @@
       "resource": "campaign",
       "operation": "send",
       "title": "Send a campaign",
+      "sends": {
+        "action": "email",
+        "to": [
+          "campaignId"
+        ]
+      },
       "method": "POST",
       "path": "/campaigns/{{ p.campaignId }}/actions/send",
       "fields": [

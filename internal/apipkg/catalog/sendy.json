@@ -58,6 +58,16 @@
       "resource": "campaign",
       "operation": "create",
       "title": "Create a campaign",
+      "sends": {
+        "action": "email",
+        "text": [
+          "htmlText"
+        ],
+        "subject": [
+          "subject"
+        ],
+        "if": "sendCampaign"
+      },
       "method": "POST",
       "path": "/api/campaigns/create.php",
       "body_type": "form",

@@ -48,6 +48,15 @@
       "resource": "message",
       "operation": "send",
       "title": "Send a message",
+      "sends": {
+        "action": "post",
+        "to": [
+          "channelId"
+        ],
+        "text": [
+          "content"
+        ]
+      },
       "method": "POST",
       "path": "/actions/message/save",
       "body": {

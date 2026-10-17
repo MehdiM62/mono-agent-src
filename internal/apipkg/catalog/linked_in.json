@@ -66,6 +66,12 @@
       "resource": "post",
       "operation": "create",
       "title": "Create a post",
+      "sends": {
+        "action": "post",
+        "text": [
+          "text"
+        ]
+      },
       "description": "Text, article and image posts. Images and article thumbnails are registered with LinkedIn, uploaded, then attached.",
       "method": "POST",
       "path": "/posts",

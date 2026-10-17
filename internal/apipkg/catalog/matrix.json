@@ -73,6 +73,15 @@
       "resource": "message",
       "operation": "create",
       "title": "Send a message to a room",
+      "sends": {
+        "action": "post",
+        "to": [
+          "roomId"
+        ],
+        "text": [
+          "text"
+        ]
+      },
       "method": "PUT",
       "path": "/rooms/{{ p.roomId }}/send/m.room.message/{{ uuid }}",
       "fields": [
@@ -206,6 +215,12 @@
       "resource": "media",
       "operation": "upload",
       "title": "Upload media and send it to a room",
+      "sends": {
+        "action": "post",
+        "to": [
+          "roomId"
+        ]
+      },
       "method": "PUT",
       "before": {
         "upload": true,
@@ -303,6 +318,12 @@
       "resource": "room",
       "operation": "invite",
       "title": "Invite a user to a room",
+      "sends": {
+        "action": "invite",
+        "to": [
+          "userId"
+        ]
+      },
       "method": "POST",
       "path": "/rooms/{{ p.roomId }}/invite",
       "fields": [

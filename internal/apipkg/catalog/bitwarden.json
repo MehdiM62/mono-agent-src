@@ -430,6 +430,12 @@
       "resource": "member",
       "operation": "create",
       "title": "Invite a member",
+      "sends": {
+        "action": "invite",
+        "to": [
+          "email"
+        ]
+      },
       "method": "POST",
       "path": "/public/members/",
       "body": {

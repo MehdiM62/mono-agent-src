@@ -209,6 +209,15 @@
       "resource": "post",
       "operation": "create",
       "title": "Create a post (Admin API)",
+      "sends": {
+        "action": "publish",
+        "text": [
+          "content"
+        ],
+        "subject": [
+          "title"
+        ]
+      },
       "method": "POST",
       "path": "/ghost/api/v2/admin/posts",
       "fields": [
@@ -318,6 +327,12 @@
       "resource": "post",
       "operation": "update",
       "title": "Update a post (Admin API)",
+      "sends": {
+        "action": "publish",
+        "to": [
+          "postId"
+        ]
+      },
       "method": "PUT",
       "path": "/ghost/api/v2/admin/posts/{{ p.postId }}",
       "fields": [

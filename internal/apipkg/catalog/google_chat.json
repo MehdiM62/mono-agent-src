@@ -49,6 +49,15 @@
       "resource": "message",
       "operation": "create",
       "title": "Create a message",
+      "sends": {
+        "action": "post",
+        "to": [
+          "spaceId"
+        ],
+        "text": [
+          "messageJson"
+        ]
+      },
       "method": "POST",
       "path": "/{{ p.spaceId | path }}/messages",
       "fields": [
@@ -139,6 +148,15 @@
       "resource": "message",
       "operation": "update",
       "title": "Update a message",
+      "sends": {
+        "action": "post",
+        "to": [
+          "messageId"
+        ],
+        "text": [
+          "updateFieldsJson"
+        ]
+      },
       "method": "PUT",
       "path": "/{{ p.messageId | path }}",
       "fields": [

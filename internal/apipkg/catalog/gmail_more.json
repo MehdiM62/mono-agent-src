@@ -57,6 +57,18 @@
       "resource": "message",
       "operation": "send",
       "title": "Send a message",
+      "sends": {
+        "action": "email",
+        "to": [
+          "sendTo"
+        ],
+        "text": [
+          "message"
+        ],
+        "subject": [
+          "subject"
+        ]
+      },
       "method": "POST",
       "base_url": "https://gmail.googleapis.com/upload/gmail/v1/users/me",
       "path": "/messages/send",
@@ -129,6 +141,12 @@
       "resource": "message",
       "operation": "reply",
       "title": "Reply to a message",
+      "sends": {
+        "action": "email",
+        "text": [
+          "message"
+        ]
+      },
       "method": "POST",
       "base_url": "https://gmail.googleapis.com/upload/gmail/v1/users/me",
       "path": "/messages/send",
@@ -391,6 +409,8 @@
       "resource": "message",
       "operation": "addLabels",
       "title": "Add labels",
+      "sends": false,
+      "sends_reason": "labels a message in the user's own mailbox; sends nothing",
       "method": "POST",
       "path": "/messages/{{ p.messageId }}/modify",
       "fields": [
@@ -848,6 +868,12 @@
       "resource": "thread",
       "operation": "reply",
       "title": "Reply to a message",
+      "sends": {
+        "action": "email",
+        "text": [
+          "message"
+        ]
+      },
       "method": "POST",
       "base_url": "https://gmail.googleapis.com/upload/gmail/v1/users/me",
       "path": "/messages/send",

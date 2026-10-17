@@ -812,6 +812,15 @@
       "resource": "comment",
       "operation": "create",
       "title": "Create a comment",
+      "sends": {
+        "action": "comment",
+        "to": [
+          "id"
+        ],
+        "text": [
+          "commentText"
+        ]
+      },
       "method": "POST",
       "path": "/{{ p.commentOn }}/{{ p.id }}/comment",
       "body": {
@@ -955,6 +964,12 @@
       "resource": "comment",
       "operation": "update",
       "title": "Update a comment",
+      "sends": {
+        "action": "comment",
+        "to": [
+          "comment"
+        ]
+      },
       "method": "PUT",
       "path": "/comment/{{ p.comment }}",
       "body": {

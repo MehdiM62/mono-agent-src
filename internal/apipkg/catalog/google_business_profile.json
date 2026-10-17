@@ -47,6 +47,15 @@
       "resource": "post",
       "operation": "create",
       "title": "Create a post",
+      "sends": {
+        "action": "post",
+        "text": [
+          "summary"
+        ],
+        "subject": [
+          "title"
+        ]
+      },
       "method": "POST",
       "path": "/{{ p.account | rl | path }}/{{ p.location | rl | path }}/localPosts",
       "fields": [
@@ -281,6 +290,12 @@
       "resource": "post",
       "operation": "update",
       "title": "Update a post",
+      "sends": {
+        "action": "post",
+        "to": [
+          "post"
+        ]
+      },
       "method": "PATCH",
       "path": "/{{ p.post | rl | path }}",
       "fields": [
@@ -481,6 +496,15 @@
       "resource": "review",
       "operation": "reply",
       "title": "Reply to a review",
+      "sends": {
+        "action": "comment",
+        "to": [
+          "review"
+        ],
+        "text": [
+          "reply"
+        ]
+      },
       "method": "PUT",
       "path": "/{{ p.account | rl | path }}/{{ p.location | rl | path }}/reviews/{{ p.review | rl | re:'reviews/([^/]+)' }}/reply",
       "fields": [

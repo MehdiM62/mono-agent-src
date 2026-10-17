@@ -298,6 +298,8 @@
       "resource": "service",
       "operation": "call",
       "title": "Call a service",
+      "sends": false,
+      "sends_reason": "calls a service of the user's own Home Assistant (their devices)",
       "method": "POST",
       "path": "/services/{{ p.domain }}/{{ p.service }}",
       "fields": [

@@ -840,6 +840,15 @@
       "resource": "estimate",
       "operation": "send",
       "title": "Email a estimate",
+      "sends": {
+        "action": "email",
+        "to": [
+          "email"
+        ],
+        "text": [
+          "estimateId"
+        ]
+      },
       "method": "POST",
       "path": "/estimate/{{ p.estimateId }}/send",
       "fields": [
@@ -1148,6 +1157,15 @@
       "resource": "invoice",
       "operation": "send",
       "title": "Email a invoice",
+      "sends": {
+        "action": "email",
+        "to": [
+          "email"
+        ],
+        "text": [
+          "invoiceId"
+        ]
+      },
       "method": "POST",
       "path": "/invoice/{{ p.invoiceId }}/send",
       "fields": [
@@ -1493,6 +1511,15 @@
       "resource": "payment",
       "operation": "send",
       "title": "Email a payment",
+      "sends": {
+        "action": "email",
+        "to": [
+          "email"
+        ],
+        "text": [
+          "paymentId"
+        ]
+      },
       "method": "POST",
       "path": "/payment/{{ p.paymentId }}/send",
       "fields": [

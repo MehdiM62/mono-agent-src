@@ -56,6 +56,12 @@
       "resource": "notification",
       "operation": "send",
       "title": "Send a notification",
+      "sends": {
+        "action": "post",
+        "text": [
+          "message"
+        ]
+      },
       "description": "Image files are uploaded from the input item's binary field named in imageUi.imageValue.binaryProperty",
       "method": "POST",
       "path": "/notify",

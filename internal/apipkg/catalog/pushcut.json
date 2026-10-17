@@ -50,6 +50,8 @@
       "resource": "notification",
       "operation": "send",
       "title": "Send a notification",
+      "sends": false,
+      "sends_reason": "fires a notification the user defined on their own devices",
       "method": "POST",
       "path": "/notifications/{{ p.notificationName }}",
       "fields": [
