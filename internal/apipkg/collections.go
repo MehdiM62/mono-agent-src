@@ -19,22 +19,26 @@ import (
 // Raw JSON goes through the params an op declares for it (jsonParameters,
 // additionalFieldsJson), which its annotation judges.
 
-// mergeUse finds a param a template uses whole: p.updateFields or
-// p.article.articleDetails, followed by a filter or the template's end.
-var mergeUse = regexp.MustCompile(`p\.(\w+)(\.\w+)?\s*(?:\||\}\})`)
+// mergeUse finds a param a template uses whole (p.updateFields or
+// p.article.articleDetails, followed by a filter or the template's end),
+// and the keys of a pick that lets only those through ("{{ p.editFields |
+// pick:'title,body' }}").
+var mergeUse = regexp.MustCompile(`p\.(\w+)(\.\w+)?\s*(?:\|\s*pick:'([^']*)'|\||\}\})`)
 
-// merged is how o's requests use a param path: whole.
+// merged is how o's requests use a param path: whole, or only the keys a
+// pick names.
 type merged struct {
-	whole bool
+	whole  bool
+	picked map[string]bool
 }
 
 // sends reports whether a key k of the path goes out.
-func (m *merged) sends(k string) bool { return m != nil && m.whole }
+func (m *merged) sends(k string) bool { return m != nil && (m.whole || m.picked[k]) }
 
 var mergeCache sync.Map // *Operation → map[string]*merged
 
 // merges is how o's requests use its param paths ("updateFields",
-// "article.articleDetails").
+// "article.articleDetails"); a path used whole anywhere is whole.
 func (o *Operation) merges() map[string]*merged {
 	if v, ok := mergeCache.Load(o); ok {
 		return v.(map[string]*merged)
@@ -42,7 +46,19 @@ func (o *Operation) merges() map[string]*merged {
 	b, _ := json.Marshal([]any{o.Path, o.Query, o.Body, o.Headers, o.Before, o.Also, o.Bulk})
 	out := map[string]*merged{}
 	for _, m := range mergeUse.FindAllStringSubmatch(string(b), -1) {
-		out[m[1]+m[2]] = &merged{whole: true}
+		path := m[1] + m[2]
+		u := out[path]
+		if u == nil {
+			u = &merged{picked: map[string]bool{}}
+			out[path] = u
+		}
+		if !strings.Contains(m[0], "pick:") {
+			u.whole = true
+			continue
+		}
+		for _, k := range strings.Split(m[3], ",") {
+			u.picked[strings.TrimSpace(k)] = true
+		}
 	}
 	mergeCache.Store(o, out)
 	return out
@@ -53,10 +69,10 @@ func (o *Operation) merges() map[string]*merged {
 type undeclaredKey struct{ name, path string }
 
 // undeclared lists what config sends that o doesn't declare: a key of a
-// collection its requests use whole that isn't one of the collection's
-// options, a key of an option object that isn't one of its subfields, or
-// such a collection or option given as an expression (its keys are the
-// run's).
+// collection its requests use whole (or pick) that isn't one of the
+// collection's options, a key of an option object that isn't one of its
+// subfields, or such a collection or option given as an expression (its
+// keys are the run's). A key a pick leaves out never goes out.
 func (o *Operation) undeclared(config map[string]any) []undeclaredKey {
 	uses := o.merges()
 	var out []undeclaredKey
@@ -67,7 +83,7 @@ func (o *Operation) undeclared(config map[string]any) []undeclaredKey {
 		use := uses[f.Key]
 		v := config[f.Key]
 		if s, ok := v.(string); ok && hasTemplate(s) {
-			if use != nil && use.whole || o.hasSubfields(f.Key) {
+			if use != nil && (use.whole || o.picksUndeclared(use, f.Options)) || o.hasSubfields(f.Key) {
 				out = append(out, undeclaredKey{f.Key + " (an expression)", f.Key})
 			}
 			continue
@@ -101,6 +117,16 @@ func (o *Operation) undeclared(config map[string]any) []undeclaredKey {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].name < out[j].name })
 	return slices.Compact(out)
+}
+
+// picksUndeclared reports a pick that names a key options don't declare.
+func (o *Operation) picksUndeclared(use *merged, options []string) bool {
+	for k := range use.picked {
+		if !slices.Contains(options, k) {
+			return true
+		}
+	}
+	return false
 }
 
 // hasSubfields reports an option of collection coll with declared subfields.

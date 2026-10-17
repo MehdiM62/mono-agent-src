@@ -17,8 +17,14 @@ func TestUndeclaredKeys(t *testing.T) {
 	            {"key":"filters","label":"Filters","type":"collection","options":["status"]}],
 	  "subfields":{"article.details":["type","body"]},
 	  "query":{"status":"{{ p.filters.status }}"},
-	  "body":{"$merge":"{{ p.additionalFields | omit:'x' }}","article":"{{ p.article.details }}"}}`))
-	op := &p.Operations[0]
+	  "body":{"$merge":"{{ p.additionalFields | omit:'x' }}","article":"{{ p.article.details }}"}},
+	 {"resource":"","operation":"edit","title":"Edit","method":"PATCH","path":"/things/1",
+	  "fields":[{"key":"editFields","label":"Edit","type":"collection","options":["title"]}],
+	  "body":{"$merge":"{{ p.editFields | pick:'title,zz' }}"}},
+	 {"resource":"","operation":"tidy","title":"Tidy","method":"PATCH","path":"/things/2",
+	  "fields":[{"key":"editFields","label":"Edit","type":"collection","options":["title","body"]}],
+	  "body":{"$merge":"{{ p.editFields | pick:'title' }}"}}`))
+	op, edit, tidy := &p.Operations[0], &p.Operations[1], &p.Operations[2]
 	for name, c := range map[string]struct {
 		op     *Operation
 		config map[string]any
@@ -37,6 +43,13 @@ func TestUndeclaredKeys(t *testing.T) {
 			[]string{"additionalFields (an expression)"}},
 		"an option object as an expression": {op, map[string]any{"article": map[string]any{"details": "{{ $json.d }}"}},
 			[]string{"details (an expression)"}},
+		// A pick lets only the keys it names through: another key never
+		// goes out, a key it names that the options don't declare does.
+		"a key a pick leaves out": {edit, map[string]any{"editFields": map[string]any{"title": "T", "other": 1}}, nil},
+		"a key a pick names":      {edit, map[string]any{"editFields": map[string]any{"zz": 1}}, []string{"zz"}},
+		"a picked collection as an expression, the pick naming an undeclared key": {edit, map[string]any{"editFields": "{{ $json.e }}"},
+			[]string{"editFields (an expression)"}},
+		"a picked collection as an expression, the pick naming declared keys": {tidy, map[string]any{"editFields": "{{ $json.e }}"}, nil},
 	} {
 		if got := keyNames(c.op.undeclared(c.config)); !reflect.DeepEqual(got, c.want) {
 			t.Errorf("%s: %v, want %v", name, got, c.want)
@@ -66,6 +79,9 @@ func TestSendOfTakesUndeclaredKeysForASend(t *testing.T) {
 			"updateFields": map[string]any{"articles": []any{map[string]any{"type": "twitter status", "body": "tweet"}}}}, "comment", "(articles)"},
 		"trello card update, a raw key": {"app.trello", map[string]any{"resource": "card", "operation": "update", "id": "c1",
 			"updateFields": map[string]any{"zz_extra": "x"}}, "post", "(zz_extra)"},
+		"github pull request edit, a key its pick leaves out": {"service.github", map[string]any{"resource": "pullRequest",
+			"operation": "update", "owner": "o", "repository": "r", "pullRequestNumber": "7",
+			"editFields": map[string]any{"title": "T", "zz_extra": 1}}, "", ""},
 		"zammad update, a state": {"app.zammad", map[string]any{"resource": "ticket", "operation": "update", "id": "5",
 			"updateFields": map[string]any{"state_id": 2}}, "", ""},
 		"zammad update, a note": {"app.zammad", map[string]any{"resource": "ticket", "operation": "update", "id": "5",

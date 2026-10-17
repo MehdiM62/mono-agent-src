@@ -392,6 +392,9 @@ func TestUndeclaredKeysWaitOnlyInAGatedRun(t *testing.T) {
 		"a raw key on a Trello card update": {"app.trello", cfg{"resource": "card", "operation": "update", "id": "c1",
 			"updateFields": cfg{"zz_extra": "x", "name": "N"}}, "whoever its undeclared fields (zz_extra) reach", hilsend.ActionPost,
 			"trello card/update with fields it doesn't declare:\nupdateFields.zz_extra: \"x\""},
+		// A pick lets only the keys it names through.
+		"a key GitHub's pull request edit leaves out": {"service.github", cfg{"resource": "pullRequest", "operation": "update",
+			"owner": "o", "repository": "r", "pullRequestNumber": "7", "editFields": cfg{"title": "T", "zz_extra": 1}}, "-", "", ""},
 	} {
 		asOperator(t)
 		if _, handled, err := hilsend.Guard(sendsCtx(db), c.nodeType, workflow.NodeInput{}, c.config); handled || err != nil {
