@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"regexp"
 	"strings"
 	"sync"
 )
@@ -23,13 +22,12 @@ const ReplyTokenHidden = "[reply token hidden]"
 // characters: an HMAC-SHA256, unpadded; see validReplyToken).
 const replyTokenLen = 43
 
-var (
-	// replyLinkPattern is a reply link's token, the link URL-encoded or not.
-	replyLinkPattern = regexp.MustCompile(`(?:/|%2[fF])reply(?:/|%2[fF])[A-Za-z0-9_-]{43}`)
-	// base64urlRun is a run of base64url characters; one of exactly 43 may
-	// be a bare token.
-	base64urlRun = regexp.MustCompile(`[A-Za-z0-9_-]+`)
-)
+// maxReplyScan is the longest text String reads. A longer one could hold a
+// token and would take too long to read, so it is replaced by ReplyTooLarge.
+const maxReplyScan = 16 << 20
+
+// ReplyTooLarge stands in for a text too long to scan for reply tokens.
+const ReplyTooLarge = "[too large to scan for reply tokens; view it from your own terminal]"
 
 // ReplyRedactor hides reply tokens in text shown to an agent. A token stays
 // only when every reply recorded under it is one node's and marked as
@@ -44,7 +42,8 @@ var (
 //
 // The hidden tokens of the executions shown (their replies' tokens and their
 // resume tokens) are hidden by value too, in the forms tokenForms lists: a
-// piece of one, reversed, hex or base64, split up by other characters.
+// piece of one, reversed, hex or base64, split up by other characters. A
+// text over maxReplyScan is not read: it is replaced by ReplyTooLarge.
 //
 // A nil *ReplyRedactor hides nothing: the view of the user's own terminal.
 type ReplyRedactor struct {
@@ -150,26 +149,89 @@ func (r *ReplyRedactor) load(token string) replyTokenState {
 
 // String is s with its hidden reply tokens replaced by ReplyTokenHidden.
 func (r *ReplyRedactor) String(s string) string {
-	if r == nil || len(s) < tokenPiece {
-		return s
+	out, _ := r.str(s)
+	return out
+}
+
+// str is String, and whether s holds a fieldPiece piece of a shown
+// execution's token.
+func (r *ReplyRedactor) str(s string) (string, bool) {
+	if r == nil || len(s) < fieldPiece {
+		return s, false
 	}
-	s = replyLinkPattern.ReplaceAllStringFunc(s, func(m string) string {
-		cut := len(m) - replyTokenLen
-		if r.state(m[cut:]).shown() {
-			return m
+	if len(s) > maxReplyScan {
+		return ReplyTooLarge, false
+	}
+	s, piece := r.known().hide(r.hideLinks(s))
+	return r.hideBare(s), piece
+}
+
+// hideLinks hides the token of each reply link in s (/reply/<token>,
+// URL-encoded or not) that may not stay.
+func (r *ReplyRedactor) hideLinks(s string) string {
+	var spans [][2]int
+	for i := 0; ; {
+		j := strings.Index(s[i:], "reply")
+		if j < 0 {
+			break
 		}
-		return m[:cut] + ReplyTokenHidden
-	})
-	s = r.known().hide(s)
-	return base64urlRun.ReplaceAllStringFunc(s, func(m string) string {
-		if len(m) != replyTokenLen {
-			return m
+		j += i
+		i = j + len("reply")
+		if !(j >= 1 && s[j-1] == '/' || j >= 3 && s[j-3:j-1] == "%2" && (s[j-1] == 'F' || s[j-1] == 'f')) {
+			continue
 		}
-		if st := r.state(m); st.recorded && st.hidden {
-			return ReplyTokenHidden
+		t := i
+		switch {
+		case t < len(s) && s[t] == '/':
+			t++
+		case t+3 <= len(s) && s[t:t+2] == "%2" && (s[t+2] == 'F' || s[t+2] == 'f'):
+			t += 3
+		default:
+			continue
 		}
-		return m
-	})
+		if t+replyTokenLen > len(s) || !base64urlOnly(s[t:t+replyTokenLen]) {
+			continue
+		}
+		if !r.state(s[t : t+replyTokenLen]).shown() {
+			spans = append(spans, [2]int{t, t + replyTokenLen})
+		}
+		i = t + replyTokenLen
+	}
+	return replaceSpans(s, spans)
+}
+
+// hideBare hides each run of exactly replyTokenLen base64url characters in
+// s that is a hidden reply's token.
+func (r *ReplyRedactor) hideBare(s string) string {
+	var spans [][2]int
+	for i := 0; i < len(s); {
+		if !base64url(s[i]) {
+			i++
+			continue
+		}
+		j := i + 1
+		for j < len(s) && base64url(s[j]) {
+			j++
+		}
+		if j-i == replyTokenLen {
+			if st := r.state(s[i:j]); st.recorded && st.hidden {
+				spans = append(spans, [2]int{i, j})
+			}
+		}
+		i = j
+	}
+	return replaceSpans(s, spans)
+}
+
+func base64url(c byte) bool { return alphabet[c] != 0 && c != '+' && c != '/' }
+
+func base64urlOnly(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if !base64url(s[i]) {
+			return false
+		}
+	}
+	return true
 }
 
 // Value is v with String applied to every string in it, map keys included.
@@ -177,21 +239,39 @@ func (r *ReplyRedactor) Value(v interface{}) interface{} {
 	if r == nil {
 		return v
 	}
+	return (&replyWalk{r: r}).value(v)
+}
+
+// replyWalk is one walk over an item: it counts the values holding a
+// fieldPiece piece of a shown execution's token, and notes a list whose
+// strings spread one.
+type replyWalk struct {
+	r      *ReplyRedactor
+	pieces int
+	spread bool
+}
+
+func (w *replyWalk) value(v interface{}) interface{} {
 	switch t := v.(type) {
 	case nil, bool, float64, json.Number:
 		return v
 	case string:
-		return r.String(t)
+		s, piece := w.r.str(t)
+		if piece {
+			w.pieces++
+		}
+		return s
 	case map[string]interface{}:
 		out := make(map[string]interface{}, len(t))
 		for k, x := range t {
-			out[r.String(k)] = r.Value(x)
+			out[w.r.String(k)] = w.value(x)
 		}
 		return out
 	case []interface{}:
+		w.spread = w.spread || w.r.known().spreads(t)
 		out := make([]interface{}, len(t))
 		for i, x := range t {
-			out[i] = r.Value(x)
+			out[i] = w.value(x)
 		}
 		return out
 	}
@@ -200,7 +280,7 @@ func (r *ReplyRedactor) Value(v interface{}) interface{} {
 	if err != nil {
 		return v
 	}
-	s := r.String(string(b))
+	s := w.r.String(string(b))
 	if s == string(b) {
 		return v
 	}
@@ -211,18 +291,39 @@ func (r *ReplyRedactor) Value(v interface{}) interface{} {
 	return out
 }
 
-// Map is Value for a map (nil stays nil). A shown execution's token spread
-// over several of its values (a list of its characters) hides the map as a
-// whole.
+// Map is Value for a map (nil stays nil), as one item: a shown execution's
+// token spread over a list of its strings hides the map as a whole, and
+// pieceFields or more of its values each holding a fieldPiece piece of one
+// have those pieces hidden too.
 func (r *ReplyRedactor) Map(m map[string]interface{}) map[string]interface{} {
 	if r == nil || m == nil {
 		return m
 	}
-	out, _ := r.Value(m).(map[string]interface{})
-	if b, err := json.Marshal(out); err == nil && r.known().holds(string(b)) {
+	w := &replyWalk{r: r}
+	out, _ := w.value(m).(map[string]interface{})
+	switch {
+	case w.spread:
 		return map[string]interface{}{"note": ReplyTokenHidden + " (spread over several values)"}
+	case w.pieces >= pieceFields:
+		out, _ = hidePiecesIn(r.known(), out).(map[string]interface{})
 	}
 	return out
+}
+
+func hidePiecesIn(f *tokenForms, v interface{}) interface{} {
+	switch t := v.(type) {
+	case string:
+		return f.hidePieces(t)
+	case map[string]interface{}:
+		for k, x := range t {
+			t[k] = hidePiecesIn(f, x)
+		}
+	case []interface{}:
+		for i, x := range t {
+			t[i] = hidePiecesIn(f, x)
+		}
+	}
+	return v
 }
 
 // Items is items with their reply tokens hidden, in the JSON and in the
