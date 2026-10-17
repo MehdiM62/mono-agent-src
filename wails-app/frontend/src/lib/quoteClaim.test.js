@@ -33,6 +33,14 @@ describe('quoteClaim', () => {
     expect(quoteClaim('a\uE000b\u{F0000}c')).toBe('"a\\uE000b\\u{F0000}c"')
     expect(quoteClaim('a\u{10FFFF}b\uFDD0c')).toBe('"a\\u{10FFFF}b\\uFDD0c"')
   })
+  it("keeps an emoji's presentation selector, escapes a stray or repeated one", () => {
+    expect(quoteClaim('❤️ team')).toBe('"❤️ team"')
+    expect(quoteClaim('1️⃣ first')).toBe('"1️⃣ first"')
+    expect(quoteClaim('🚀\uFE0F')).toBe('"🚀\uFE0F"')
+    expect(quoteClaim('a\uFE0F')).toBe('"a\\uFE0F"')
+    expect(quoteClaim('❤\uFE0F\uFE0F')).toBe('"❤\uFE0F\\uFE0F"')
+    expect(quoteClaim('❤\uFE0E')).toBe('"❤\\uFE0E"')
+  })
   it('keeps the combining marks a script needs', () => {
     expect(quoteClaim('नमस्ते')).toBe('"नमस्ते"')
     expect(quoteClaim('e\u0301')).toBe('"e\u0301"')
