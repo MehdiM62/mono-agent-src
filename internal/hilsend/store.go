@@ -35,6 +35,9 @@ var (
 	ErrNotFound = errors.New("send item not found")
 	// ErrNotSend: the HIL item exists but is not a send item.
 	ErrNotSend = errors.New("not a send item")
+	// ErrAlwaysLabel: always allow asked for a send whose recipient is a
+	// label, which would let any later send with that label through.
+	ErrAlwaysLabel = errors.New("always allow needs an address or handle, and this send's recipient is a description that fits any send of its kind; approve it without always allow")
 )
 
 // replay is what approving needs to run the node again.

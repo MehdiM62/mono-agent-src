@@ -48,6 +48,12 @@ func Resolve(ctx context.Context, st Store, id string, approve bool, edit Edit, 
 		p, _, err := st.reject(ctx, id)
 		return p, err
 	}
+	if always {
+		// Before anything runs: the item stays pending for a plain approve.
+		if p, err := st.Get(ctx, id); err == nil && p.Recipient.Label {
+			return p, ErrAlwaysLabel
+		}
+	}
 	if edit.Text != nil || edit.Subject != nil {
 		// A non-pending item can't be edited; claim below reports its state.
 		if _, err := st.Edit(ctx, id, edit.Text, edit.Subject); err != nil && errors.Is(err, ErrNotFound) {

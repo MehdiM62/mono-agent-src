@@ -153,7 +153,10 @@ func Guard(ctx context.Context, nodeType string, in workflow.NodeInput, config m
 	prepared := prepare(st, nodeType, t, who, config, in)
 	allowed := true
 	for _, p := range prepared {
-		allowed = allowed && st.Allowed(ctx, p.payload.Action, p.payload.Account.Platform, p.payload.Account.Handle, keyOf(p.payload.Recipient))
+		// A label ("the ticket's requester") names no destination a rule
+		// could stand for: every such send gets its card.
+		allowed = allowed && !p.payload.Recipient.Label &&
+			st.Allowed(ctx, p.payload.Action, p.payload.Account.Platform, p.payload.Account.Handle, keyOf(p.payload.Recipient))
 	}
 	if allowed && len(prepared) > 0 {
 		return nil, false, nil

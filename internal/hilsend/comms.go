@@ -36,8 +36,9 @@ func commsItem(profile string, p Payload, rp replay) commsync.Item {
 		it.Platform = "email"
 	}
 	// A post, publish or channel message is addressed to nobody: it is linked
-	// to our own account. The destination stays in the metadata.
-	if p.Action == ActionPost || p.Action == ActionPublish {
+	// to our own account. The destination stays in the metadata. So is a
+	// send to a label ("the ticket's requester"), which is nobody's People row.
+	if p.Action == ActionPost || p.Action == ActionPublish || p.Recipient.Label {
 		it.Meta["target"] = p.Recipient
 		return it
 	}
@@ -98,7 +99,7 @@ func WorkflowItems(profile, workflowName string, downstream []commsync.Node, ite
 			"name": workflowName, "target_nodes": targets, "target_node_type": first.Type,
 		}
 		it.Recipient = workflowRecipient(t, first.Type, cfg, item, p.Action)
-		if p.Action == ActionPost || p.Action == ActionPublish {
+		if _, labelled := t.recipientOf(cfg); labelled || p.Action == ActionPost || p.Action == ActionPublish {
 			it.Recipient = commsync.Recipient{}
 		}
 		// The field of the HIL item that holds the text, when the node's own

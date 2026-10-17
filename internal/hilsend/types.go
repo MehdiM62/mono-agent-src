@@ -119,11 +119,14 @@ type Account struct {
 }
 
 // Recipient is who receives it. PersonID is set when the people table knows
-// them; the card then shows the person's profile.
+// them; the card then shows the person's profile. Label: Name describes the
+// recipient ("the ticket's requester", "the client of invoice inv9") and is
+// no address, so no always-allow rule and no People row is keyed on it.
 type Recipient struct {
 	PersonID   string `json:"personId,omitempty"`
 	Name       string `json:"name"`
 	ProfileURL string `json:"profileUrl,omitempty"`
+	Label      bool   `json:"label,omitempty"`
 }
 
 // Attachment is one previewable item. Kind is image, file or link.

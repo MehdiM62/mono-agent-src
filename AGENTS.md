@@ -2618,7 +2618,9 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
   and `"param=value"` sends only on that value (Home Assistant's
   `domain=notify`). `to_label` names a recipient param that holds an id
   ("the client of invoice inv9"), `to_unset` the recipient when none is set
-  ("the appointment's attendees"). Besides messaging packages, the lint asks
+  ("the appointment's attendees"). Such a card names no address: `--always-allow` is
+  refused on it (`hilsend.ErrAlwaysLabel`), no allow rule matches it, and its
+  Communications row is the account's own, not a People row. Besides messaging packages, the lint asks
   about any app's write with a recipient-like param (to, recipient,
   receiver, addressee, email, mailTo, phone, tel, msisdn, sms, attendees,
   guests, participants, invitees, invites, subscribers, cc, bcc) or a

@@ -24,4 +24,8 @@ describe('quoteClaim', () => {
     expect(quoteClaim('a\u3000b\u00A0c')).toBe('"a\\u3000b\\u00A0c"')
     expect(quoteClaim('a b')).toBe('"a b"')
   })
+  it('shows a format character above U+FFFF whole, not as \\uXXXX and a stray digit', () => {
+    expect(quoteClaim('a\u{E0041}b')).toBe('"a\\u{E0041}b"')
+    expect(quoteClaim('\u{E0001}x\u{E007F}')).toBe('"\\u{E0001}x\\u{E007F}"')
+  })
 })
