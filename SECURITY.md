@@ -94,6 +94,11 @@ messages, not a barrier:
 - By your decision, a step that picks its own address (`http.request`) can
   use a saved connection in any run, so a workflow can send that
   connection's token to any address.
+- Writing secrets, connections and profiles stays open to an agent on
+  purpose (`secret add|update|rm`, `connect save|set-oauth-client`,
+  `profile create`): none of them shows a decrypted value. The exception is
+  the HTTP API's own bearer, the vault entry `httpapi-token`, which only you
+  write, since whoever sets it chooses what the API accepts.
 - An agent with full access to your computer can do anything you can,
   including reading the keyring.
 

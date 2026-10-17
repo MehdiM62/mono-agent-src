@@ -568,7 +568,10 @@ dangerous calls.
   `profile info get --reveal`, `node run vault.secret_get` and `workflow run
   --full-outputs`. So are `api key create|update|revoke` and `org
   teardown-profile` (`--dry-run` stays open), which mint, widen or revoke a
-  key. Names, masked
+  key, and `api config set|unset` (not `--dry-run`), `jev enable` and `jev
+  key set`, which widen what the API server reaches or where the profile's
+  data goes. `extension pair` stays open (an agent can read the token file),
+  and so does `image.vault_get` taking its id from data, by design. Names, masked
   values and metadata stay open. No secret reference resolves in a run of
   a definition the user hasn't approved: `secrets.Resolve` refuses under
   `secrets.RefuseResolving`, which `workflow.WithAIAuthored` and
@@ -583,9 +586,16 @@ dangerous calls.
   holds it as written (`secrets.ResolveConfig` gets the stored config): one
   that the run's data or an expression produced (its input, a webhook body,
   an earlier step, a parent workflow, `@sec{{…}}`) fails the step with
-  `ErrDataReference`, naming the field, never the value. So data containing
-  "@secret:" in a field fails that step, and a value mixing a literal
-  reference with an expression must be split into two fields. Still
+  `ErrDataReference`, naming the field, never the value, when it would be
+  read as one: it starts with `@secret:` (after spaces). Elsewhere such
+  text is inert, except in a field whose node expands references inside
+  text (`mcp.call` headers and env), where any `@secret:` from data is
+  refused. An `@img` ref, a `credential_id` and a field naming a vault
+  entry (`mcp.call` server, `vault.secret_get` name) must be written in the
+  workflow too; one an expression produced refuses the step. Node authors:
+  a node that resolves references inside a field's text implements
+  `workflow.SecretTextResolver`; one with a field that names a vault entry
+  or a saved session implements `workflow.LiteralConfigResolver`. Still
   open:
   - an approved workflow resolves its secrets whoever runs it, and a value
     a step outputs under a field name the redaction doesn't know shows in
