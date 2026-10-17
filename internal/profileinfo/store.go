@@ -91,8 +91,13 @@ func Get(ctx context.Context, db *sql.DB, profile string, reveal bool) ([]Entry,
 				if err != nil {
 					return nil, fmt.Errorf("decrypting %s: %w", fd.Key, err)
 				}
-			} else if plain, err = sealStored(ctx, db, profile, fd.Key, e.Value); err != nil {
-				return nil, fmt.Errorf("encrypting %s: %w", fd.Key, err)
+			} else {
+				// A value an earlier build stored in plain text: seal it, but a
+				// failure (read-only handle, locked keyring) must not fail the read.
+				if plain, err = sealStored(ctx, db, profile, fd.Key, e.Value); err != nil {
+					fmt.Fprintf(os.Stderr, "warning: profileinfo: could not encrypt %s in place: %v\n", fd.Key, err)
+					plain = []byte(e.Value)
+				}
 			}
 			e.Value = string(plain)
 			if !reveal {

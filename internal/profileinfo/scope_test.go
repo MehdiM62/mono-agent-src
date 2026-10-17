@@ -163,3 +163,43 @@ func TestPlainTextValuesOfNowEncryptedFieldsAreSealedOnFirstRead(t *testing.T) {
 		t.Errorf("not masked: %+v", masked[0])
 	}
 }
+
+func TestAReadThatCannotSealStillReturnsTheValue(t *testing.T) {
+	db, _ := newDB(t)
+	if _, err := db.Exec(`INSERT INTO profile_info (profile_id, key, value, source, origin, updated_at) VALUES ('p1','vat_id','DE123456789','user','','t'),('p1','first_name','Ada','user','','t')`); err != nil {
+		t.Fatal(err)
+	}
+	db.SetMaxOpenConns(1)
+	if _, err := db.Exec(`PRAGMA query_only = ON`); err != nil {
+		t.Fatal(err)
+	}
+	got, err := Get(bg, db, "p1", true)
+	if err != nil || len(got) != 2 {
+		t.Fatalf("read failed: %+v %v", got, err)
+	}
+	vals := map[string]string{}
+	for _, e := range got {
+		vals[e.Key] = e.Value
+	}
+	if vals["vat_id"] != "DE123456789" || vals["first_name"] != "Ada" {
+		t.Errorf("values: %v", vals)
+	}
+}
+
+func TestSealingNeverOverwritesANewerValue(t *testing.T) {
+	db, _ := newDB(t)
+	if _, err := db.Exec(`INSERT INTO profile_info (profile_id, key, value, source, origin, updated_at) VALUES ('p1','vat_id','OLD-PLAIN','user','','t')`); err != nil {
+		t.Fatal(err)
+	}
+	// A write lands between the read of the old plain text and its sealing.
+	if err := Set(bg, db, "p1", "vat_id", "NEW-VALUE", SourceUser, ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := sealStored(bg, db, "p1", "vat_id", "OLD-PLAIN"); err != nil {
+		t.Fatal(err)
+	}
+	got, err := Get(bg, db, "p1", true)
+	if err != nil || len(got) != 1 || got[0].Value != "NEW-VALUE" {
+		t.Errorf("the newer value was lost: %+v %v", got, err)
+	}
+}

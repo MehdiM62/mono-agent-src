@@ -264,7 +264,7 @@ var Catalog = []Field{
 	sens(f("biz_owners", "owner_tax_id", "Owner's tax ID", Text, "")),
 	f("biz_owners", "owner_email", "Owner's email", Email, ""),
 	f("biz_owners", "owner_phone", "Owner's phone", Phone, ""),
-	f("biz_owners", "other_owners", "Other owners with 25% or more (name, share, date of birth)", Textarea, ""),
+	f("biz_owners", "other_owners", "Other owners with 25% or more (names and shares)", Textarea, ""),
 	f("biz_owners", "directors", "Directors or board members", Textarea, ""),
 	f("biz_owners", "legal_representative", "Legal representative", Text, ""),
 	f("biz_owners", "legal_representative_title", "Legal representative's title", Text, ""),
