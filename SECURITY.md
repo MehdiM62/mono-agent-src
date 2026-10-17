@@ -98,7 +98,9 @@ messages, not a barrier:
   purpose (`secret add|update|rm`, `connect save|set-oauth-client`,
   `profile create`): none of them shows a decrypted value. The exception is
   the HTTP API's own bearer, the vault entry `httpapi-token`, which only you
-  write, since whoever sets it chooses what the API accepts.
+  write, since whoever sets it chooses what the API accepts. That one name
+  is refused in the secrets package itself unless the write comes from the
+  server or your own command, so a new writer can't reach it by accident.
 - An agent with full access to your computer can do anything you can,
   including reading the keyring.
 

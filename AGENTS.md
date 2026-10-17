@@ -569,8 +569,12 @@ dangerous calls.
   --full-outputs`. So are `api key create|update|revoke` and `org
   teardown-profile` (`--dry-run` stays open), which mint, widen or revoke a
   key, and `api config set|unset` (not `--dry-run`), `jev enable` and `jev
-  key set`, which widen what the API server reaches or where the profile's
-  data goes. `extension pair` stays open (an agent can read the token file),
+  key set|remove|adopt`, which widen what the API server reaches or where
+  the profile's data goes. `httpapi-token` is a reserved vault entry: only
+  the server and the user's own `secret add|update|rm|import` write it
+  (`secrets.ErrReservedEntry` otherwise, checked in the secrets package);
+  tools and workflows read secrets' metadata and write other entries as
+  before. `extension pair` stays open (an agent can read the token file),
   and so does `image.vault_get` taking its id from data, by design. Names, masked
   values and metadata stay open. No secret reference resolves in a run of
   a definition the user hasn't approved: `secrets.Resolve` refuses under
@@ -590,9 +594,9 @@ dangerous calls.
   read as one: it starts with `@secret:` (after spaces). Elsewhere such
   text is inert, except in a field whose node expands references inside
   text (`mcp.call` headers and env), where any `@secret:` from data is
-  refused. An `@img` ref, a `credential_id` and a field naming a vault
-  entry (`mcp.call` server, `vault.secret_get` name) must be written in the
-  workflow too; one an expression produced refuses the step. Node authors:
+  refused. An `@img` ref, a `credential_id`, a browser node's `username`
+  and a field naming a vault entry (`mcp.call` server, `vault.secret_get`
+  name) must be written in the workflow too; one an expression produced refuses the step. Node authors:
   a node that resolves references inside a field's text implements
   `workflow.SecretTextResolver`; one with a field that names a vault entry
   or a saved session implements `workflow.LiteralConfigResolver`. Still
