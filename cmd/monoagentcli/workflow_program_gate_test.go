@@ -229,3 +229,43 @@ func TestWorkflowRunInputCantPlantTheEnginesMarks(t *testing.T) {
 		t.Errorf("--input _items fed %v, want two items", items)
 	}
 }
+
+// An agent's `workflow run` keeps the mark that says an agent started it:
+// stripping a run's input and an event's payload leaves the engine's own
+// marks alone (#836 review). A sub-workflow keeps its caller's marks the
+// same way (TestAnUnapprovedWorkflowsSubWorkflowIsAnAIRun).
+func TestAnAgentsWorkflowRunKeepsItsMark(t *testing.T) {
+	_, cfg := persistTestEnv(t)
+	asOperatorProcess(t)
+	var created workflow.Workflow
+	if err := json.Unmarshal([]byte(runWorkflowSubcmd(t, cfg, "create", "plain")), &created); err != nil {
+		t.Fatal(err)
+	}
+	runWorkflowSubcmd(t, cfg, "node", "add", created.ID, "--type", "trigger.manual", "--name", "Start")
+	runWorkflowSubcmd(t, cfg, "activate", created.ID)
+
+	asAgentProcess(t)
+	cmd := newWorkflowCmd(cfg)
+	cmd.SetArgs([]string{"run", created.ID, "--timeout", "30s", "--input", `{"_ai_caller":"chat"}`})
+	captureStdout(t, func() {
+		if err := cmd.Execute(); err != nil {
+			t.Fatal(err)
+		}
+	})
+	db, err := storage.NewDatabase(cfg.DBPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	var raw string
+	if err := db.DB.QueryRow(`SELECT trigger_data FROM workflow_executions WHERE workflow_id = ? ORDER BY rowid DESC LIMIT 1`, created.ID).Scan(&raw); err != nil {
+		t.Fatal(err)
+	}
+	var td map[string]interface{}
+	if err := json.Unmarshal([]byte(raw), &td); err != nil {
+		t.Fatal(err)
+	}
+	if mark, _ := td[workflow.AICallerKey].(string); mark == "" || mark == "chat" {
+		t.Fatalf("an agent's run is marked %q, want its own kind: %v", mark, td)
+	}
+}
