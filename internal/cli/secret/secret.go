@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/monoes/mono-agent/internal/cli/revealgate"
 	"github.com/monoes/mono-agent/internal/secrets"
 
 	"github.com/spf13/cobra"
@@ -327,6 +328,9 @@ func (d Deps) newRevealCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if !yes {
 				return fmt.Errorf("pass --reveal explicitly to print field value(s)")
+			}
+			if err := revealgate.Refuse("secret reveal"); err != nil {
+				return err
 			}
 			return d.revealAndPrint(cmd, args[0])
 		},
