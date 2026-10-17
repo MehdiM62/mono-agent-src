@@ -174,8 +174,11 @@ func (d Deps) newProfileCreateCmd() *cobra.Command {
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := strings.TrimSpace(args[0])
-			if name == "" {
-				return d.InvalidInput("profile name cannot be empty")
+			if err := validateProfileName(name); err != nil {
+				return d.InvalidInput("%v", err)
+			}
+			if err := d.validateIcon(strings.TrimSpace(icon)); err != nil {
+				return err
 			}
 			rootDir = strings.TrimSpace(rootDir)
 			if rootDir != "" {
@@ -191,6 +194,9 @@ func (d Deps) newProfileCreateCmd() *cobra.Command {
 				return err
 			}
 			defer db.Close()
+			if err := d.checkNameFree(db.DB, name, ""); err != nil {
+				return err
+			}
 
 			id := uuid.New().String()
 			now := time.Now().UTC().Format("2006-01-02T15:04:05Z")

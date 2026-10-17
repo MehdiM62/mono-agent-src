@@ -6,13 +6,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
-	"unicode"
-	"unicode/utf8"
 
 	"github.com/spf13/cobra"
-	"golang.org/x/text/unicode/norm"
 
 	"github.com/monoes/mono-agent/internal/attachments"
 	"github.com/monoes/mono-agent/internal/operator"
@@ -51,61 +47,11 @@ type profileImpact struct {
 }
 
 const (
-	maxProfileNameRunes = 64
 	// backupNote is said wherever a backup path is.
 	backupNote = "It is a full copy of the database (every profile, not only this one), it is not encrypted, " +
-		"and it is never deleted automatically: `monoagentcli profile backups purge` removes these copies."
+		"and it is never deleted automatically: `monoagentcli profile backups purge` removes these copies. " +
+		"The profile's vault key is deleted, so the vault secrets in that copy cannot be decrypted."
 )
-
-var iconID = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,63}$`)
-
-// validateProfileName rejects names that are empty, long, hold control or
-// bidirectional-control characters or path separators, or that spell another
-// profile's id (an id wins over a name when a profile is looked up).
-func validateProfileName(name string) error {
-	if name == "" {
-		return fmt.Errorf("profile name cannot be empty")
-	}
-	if utf8.RuneCountInString(name) > maxProfileNameRunes {
-		return fmt.Errorf("profile name is longer than %d characters", maxProfileNameRunes)
-	}
-	for _, r := range name {
-		switch {
-		case unicode.IsControl(r) || unicode.Is(unicode.Cf, r) || unicode.Is(unicode.Zl, r) || unicode.Is(unicode.Zp, r) ||
-			(unicode.Is(unicode.Zs, r) && r != ' '):
-			return fmt.Errorf("profile name cannot contain control, invisible or unusual space characters")
-		case r == '/' || r == '\\':
-			return fmt.Errorf("profile name cannot contain / or \\")
-		case r == '‎' || r == '‏' || r == '؜' || (r >= '‪' && r <= '‮') || (r >= '⁦' && r <= '⁩'):
-			return fmt.Errorf("profile name cannot contain text-direction control characters")
-		}
-	}
-	for _, word := range strings.Fields(name) {
-		if mixesScripts(word) {
-			return fmt.Errorf("profile name cannot mix Latin letters with Cyrillic or Greek ones in one word (look-alike letters)")
-		}
-	}
-	return nil
-}
-
-// fold is a name as compared with other profiles' names: compatibility-
-// normalized (full-width and styled letters become plain ones) and lower-cased.
-func fold(s string) string { return strings.ToLower(norm.NFKC.String(s)) }
-
-// mixesScripts reports a word that has Latin letters together with Cyrillic or
-// Greek ones, the way a look-alike of another name is spelled.
-func mixesScripts(word string) bool {
-	var latin, other bool
-	for _, r := range word {
-		switch {
-		case unicode.Is(unicode.Latin, r):
-			latin = true
-		case unicode.Is(unicode.Cyrillic, r), unicode.Is(unicode.Greek, r):
-			other = true
-		}
-	}
-	return latin && other
-}
 
 func (d Deps) newProfileUpdateCmd() *cobra.Command {
 	var name, icon string
@@ -127,8 +73,10 @@ func (d Deps) newProfileUpdateCmd() *cobra.Command {
 					return d.InvalidInput("%v", err)
 				}
 			}
-			if iconSet && icon != "" && !iconID.MatchString(icon) {
-				return d.InvalidInput("icon must be an id from the avatar manifest (lowercase letters, digits, - and _)")
+			if iconSet {
+				if err := d.validateIcon(icon); err != nil {
+					return err
+				}
 			}
 			db, err := d.OpenDB()
 			if err != nil {
@@ -140,19 +88,9 @@ func (d Deps) newProfileUpdateCmd() *cobra.Command {
 				return err
 			}
 			if nameSet {
-				others, err := db.DB.Query(`SELECT id, name FROM profiles WHERE id <> ?`, p.ID)
-				if err != nil {
-					return fmt.Errorf("check profile name: %w", err)
+				if err := d.checkNameFree(db.DB, name, p.ID); err != nil {
+					return err
 				}
-				want := fold(name)
-				for others.Next() {
-					var oid, oname string
-					if others.Scan(&oid, &oname) == nil && (fold(oname) == want || fold(oid) == want) {
-						others.Close()
-						return d.InvalidInput("%q is already, or looks the same as, the name or id of another profile", name)
-					}
-				}
-				others.Close()
 				p.Name = name
 			}
 			if iconSet {
