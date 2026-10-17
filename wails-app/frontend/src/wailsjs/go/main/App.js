@@ -1022,6 +1022,14 @@ export function NodeConfigFromCurl(arg1) {
   return window['go']['main']['App']['NodeConfigFromCurl'](arg1);
 }
 
+export function OpenAnyFilesPicker(arg1) {
+  return window['go']['main']['App']['OpenAnyFilesPicker'](arg1);
+}
+
+export function OpenFolderFilesPicker(arg1) {
+  return window['go']['main']['App']['OpenFolderFilesPicker'](arg1);
+}
+
 export function OpenAnyFilePicker(arg1) {
   return window['go']['main']['App']['OpenAnyFilePicker'](arg1);
 }

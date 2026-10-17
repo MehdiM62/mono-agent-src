@@ -515,6 +515,10 @@ export function NodeConfigFromCurl(arg1:string):Promise<main.CurlImport>;
 
 export function OpenAnyFilePicker(arg1:string):Promise<string>;
 
+export function OpenAnyFilesPicker(arg1:string):Promise<Array<string>>;
+
+export function OpenFolderFilesPicker(arg1:string):Promise<Array<string>>;
+
 export function OpenJSONFilePicker(arg1:string):Promise<string>;
 
 export function OpenPathWithOS(arg1:string):Promise<void>;

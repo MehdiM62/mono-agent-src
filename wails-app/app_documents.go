@@ -2,6 +2,10 @@
 package main
 
 import (
+	"io/fs"
+	"path/filepath"
+	"strings"
+
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -163,4 +167,47 @@ func (a *App) OpenAnyFilePicker(title string) string {
 		return ""
 	}
 	return path
+}
+
+// OpenAnyFilesPicker is OpenAnyFilePicker with multi-select: it returns every
+// chosen path (empty if cancelled).
+func (a *App) OpenAnyFilesPicker(title string) []string {
+	if a.signedOut() != nil {
+		return nil
+	}
+	paths, err := runtime.OpenMultipleFilesDialog(a.ctx, runtime.OpenDialogOptions{Title: title})
+	if err != nil {
+		return nil
+	}
+	return paths
+}
+
+// OpenFolderFilesPicker opens a folder picker and returns every regular file
+// under the chosen folder (recursively, skipping hidden files and folders).
+// Empty if cancelled.
+func (a *App) OpenFolderFilesPicker(title string) []string {
+	if a.signedOut() != nil {
+		return nil
+	}
+	dir, err := runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{Title: title})
+	if err != nil || dir == "" {
+		return nil
+	}
+	var files []string
+	_ = filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if p != dir && strings.HasPrefix(d.Name(), ".") {
+			if d.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if d.Type().IsRegular() {
+			files = append(files, p)
+		}
+		return nil
+	})
+	return files
 }

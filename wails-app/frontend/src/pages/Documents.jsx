@@ -130,21 +130,25 @@ export default function Documents({ isActive = true }) {
     await api.initializeMonomindProfile()
   }
 
-  const handleUpload = async () => {
-    const path = await WailsApp.OpenAnyFilePicker('Select a document to upload')
-    if (!path) return
-    try {
-      const result = await WailsApp.UploadProfileDocument(path, '')
-      if (!result.indexed) {
-        notify('upload', isMonomindMissing(result.index_error)
-          ? 'Uploaded, but not indexed for search — monomind isn\'t installed.'
-          : 'Uploaded, but indexing failed: ' + result.index_error)
+  const uploadPaths = async (paths) => {
+    if (!paths || paths.length === 0) return
+    let failed = 0
+    let unindexed = 0
+    for (const path of paths) {
+      try {
+        const result = await WailsApp.UploadProfileDocument(path, '')
+        if (!result.indexed) unindexed++
+      } catch (e) {
+        failed++
       }
-      load()
-    } catch (e) {
-      notify('upload', 'Upload failed: ' + e)
     }
+    if (failed) notify('upload', `${failed} of ${paths.length} uploads failed.`)
+    else if (unindexed) notify('upload', `Uploaded, but ${unindexed} not indexed for search (monomind missing or indexing failed).`)
+    load()
   }
+
+  const handleUpload = async () => uploadPaths(await WailsApp.OpenAnyFilesPicker('Select documents to upload'))
+  const handleUploadFolder = async () => uploadPaths(await WailsApp.OpenFolderFilesPicker('Select a folder to upload'))
 
   // Returns whether indexing succeeded, so bulk callers (runBulkIndex) can
   // tally failures for their own summary notify() without duplicating this
@@ -323,6 +327,7 @@ export default function Documents({ isActive = true }) {
           <PlayCircle size={13} /> {bulkBusy === 'index' ? `Indexing… (${bulkProgress.done}/${bulkProgress.total})` : 'Index all'}
         </button>
         <button style={btnStyle} onClick={handleUpload}><Upload size={13} /> Upload</button>
+        <button style={btnStyle} onClick={handleUploadFolder}><Upload size={13} /> Upload folder</button>
       </div>
 
       <form onSubmit={handleSearch} style={{ display: 'flex', gap: 8 }}>
