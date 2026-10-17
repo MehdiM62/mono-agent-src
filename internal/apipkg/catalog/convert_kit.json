@@ -195,6 +195,15 @@
       "resource": "sequence",
       "operation": "addSubscriber",
       "title": "Add a subscriber",
+      "sends": {
+        "action": "email",
+        "to": [
+          "email"
+        ],
+        "text": [
+          "id"
+        ]
+      },
       "method": "POST",
       "path": "/sequences/{{ p.id }}/subscribe",
       "body": {

@@ -55,6 +55,15 @@
       "resource": "sms",
       "operation": "send",
       "title": "Send an SMS",
+      "sends": {
+        "action": "dm",
+        "to": [
+          "to"
+        ],
+        "text": [
+          "message"
+        ]
+      },
       "method": "POST",
       "path": "/sms/json",
       "body_type": "form",

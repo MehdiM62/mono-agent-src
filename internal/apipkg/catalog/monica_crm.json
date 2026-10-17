@@ -445,6 +445,8 @@
       "resource": "call",
       "operation": "create",
       "title": "Create a call",
+      "sends": false,
+      "sends_reason": "records a call in the user's personal CRM; sends nothing",
       "method": "POST",
       "path": "/calls",
       "fields": [
@@ -548,6 +550,8 @@
       "resource": "call",
       "operation": "update",
       "title": "Update a call",
+      "sends": false,
+      "sends_reason": "records a call in the user's personal CRM; sends nothing",
       "method": "PUT",
       "path": "/calls/{{ p.callId }}",
       "fields": [
@@ -860,6 +864,8 @@
       "resource": "conversationMessage",
       "operation": "add",
       "title": "Add a message to a conversation",
+      "sends": false,
+      "sends_reason": "records a conversation in the user's personal CRM; sends nothing",
       "method": "POST",
       "path": "/conversations/{{ p.conversationId }}/messages",
       "fields": [
@@ -911,6 +917,8 @@
       "resource": "conversationMessage",
       "operation": "update",
       "title": "Update a conversation message",
+      "sends": false,
+      "sends_reason": "records a conversation in the user's personal CRM; sends nothing",
       "method": "PUT",
       "path": "/conversations/{{ p.conversationId }}/messages/{{ p.messageId }}",
       "fields": [

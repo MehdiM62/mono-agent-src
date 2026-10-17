@@ -54,8 +54,10 @@ var buildMu sync.Mutex
 func Build(db *sql.DB) *workflow.NodeTypeRegistry {
 	buildMu.Lock()
 	defer buildMu.Unlock()
-	// Outbound sends started by an agent wait for approval (internal/hilsend).
+	// Outbound sends started by an agent wait for approval (internal/hilsend),
+	// the API packages' annotated sends included.
 	workflow.SetExecGuard(hilsend.Guard)
+	hilsend.SetClassifier(apipkgSends{})
 	// A reply a waiting node opens in front of a send is the user's
 	// (workflow.RedactReplies); hilsend tells what sends.
 	workflow.SetSendClassifier(hilsend.MaySend)
@@ -131,3 +133,14 @@ func Build(db *sql.DB) *workflow.NodeTypeRegistry {
 
 	return registry
 }
+
+// apipkgSends is the API packages' annotated sends (apipkg.SendOf) as
+// hilsend classifies them.
+type apipkgSends struct{}
+
+func (apipkgSends) Classify(nodeType string, config map[string]interface{}) (hilsend.Classified, bool) {
+	s, ok := apipkg.SendOf(nodeType, config)
+	return hilsend.Classified{Action: s.Action, Channel: s.Channel, To: s.To, Text: s.Text, Subject: s.Subject, PerItem: s.PerItem}, ok
+}
+
+func (apipkgSends) SendsSome(nodeType string) bool { return apipkg.SendsSome(nodeType) }

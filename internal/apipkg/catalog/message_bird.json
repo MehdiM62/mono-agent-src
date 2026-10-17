@@ -51,6 +51,15 @@
       "resource": "sms",
       "operation": "send",
       "title": "Send an SMS",
+      "sends": {
+        "action": "dm",
+        "to": [
+          "recipients"
+        ],
+        "text": [
+          "message"
+        ]
+      },
       "method": "POST",
       "path": "/messages",
       "fields": [

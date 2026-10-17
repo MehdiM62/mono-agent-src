@@ -465,6 +465,8 @@
       "resource": "lead",
       "operation": "addToCampaign",
       "title": "Add a lead to a campaign",
+      "sends": false,
+      "sends_reason": "adds a lead to a Salesforce campaign; Salesforce sends nothing for it",
       "method": "POST",
       "path": "/sobjects/CampaignMember",
       "fields": [
@@ -948,6 +950,8 @@
       "resource": "contact",
       "operation": "addToCampaign",
       "title": "Add a contact to a campaign",
+      "sends": false,
+      "sends_reason": "adds a contact to a Salesforce campaign; Salesforce sends nothing for it",
       "method": "POST",
       "path": "/sobjects/CampaignMember",
       "fields": [
@@ -1950,6 +1954,12 @@
       "resource": "case",
       "operation": "addComment",
       "title": "Add a comment to a case",
+      "sends": {
+        "action": "comment",
+        "to": [
+          "caseId"
+        ]
+      },
       "method": "POST",
       "path": "/sobjects/casecomment",
       "fields": [

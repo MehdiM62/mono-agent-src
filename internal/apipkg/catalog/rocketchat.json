@@ -69,6 +69,15 @@
       "resource": "chat",
       "operation": "postMessage",
       "title": "Post a message",
+      "sends": {
+        "action": "post",
+        "to": [
+          "channel"
+        ],
+        "text": [
+          "text"
+        ]
+      },
       "method": "POST",
       "path": "/api/v1/chat.postMessage",
       "fields": [

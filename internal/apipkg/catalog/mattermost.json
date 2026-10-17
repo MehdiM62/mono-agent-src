@@ -72,6 +72,15 @@
       "resource": "message",
       "operation": "post",
       "title": "Post a message",
+      "sends": {
+        "action": "post",
+        "to": [
+          "channelId"
+        ],
+        "text": [
+          "message"
+        ]
+      },
       "method": "POST",
       "path": "/posts",
       "fields": [
@@ -152,6 +161,15 @@
       "resource": "message",
       "operation": "postEphemeral",
       "title": "Post an ephemeral message",
+      "sends": {
+        "action": "dm",
+        "to": [
+          "userId"
+        ],
+        "text": [
+          "message"
+        ]
+      },
       "method": "POST",
       "path": "/posts/ephemeral",
       "fields": [
@@ -671,6 +689,12 @@
       "resource": "user",
       "operation": "invite",
       "title": "Invite users to a team",
+      "sends": {
+        "action": "invite",
+        "to": [
+          "emails"
+        ]
+      },
       "method": "POST",
       "path": "/teams/{{ p.teamId }}/invite/email",
       "fields": [

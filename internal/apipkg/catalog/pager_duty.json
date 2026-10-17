@@ -72,6 +72,15 @@
       "resource": "incident",
       "operation": "create",
       "title": "Create an incident",
+      "sends": {
+        "action": "post",
+        "to": [
+          "serviceId"
+        ],
+        "text": [
+          "title"
+        ]
+      },
       "method": "POST",
       "path": "/incidents",
       "headers": {
@@ -379,6 +388,15 @@
       "resource": "incidentNote",
       "operation": "create",
       "title": "Add a note to an incident",
+      "sends": {
+        "action": "comment",
+        "to": [
+          "incidentId"
+        ],
+        "text": [
+          "content"
+        ]
+      },
       "method": "POST",
       "path": "/incidents/{{ p.incidentId }}/notes",
       "headers": {

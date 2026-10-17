@@ -269,6 +269,11 @@ type Operation struct {
 	// sent for the first item with hook.url bound to the execution's resume
 	// URL, then the node pauses until that URL is called.
 	Wait *Wait `json:"wait,omitempty"`
+	// Sends marks an op that sends a message to people or posts in public
+	// (sends.go); "sends": false, with SendsReason, one that only looks like
+	// it does.
+	Sends       *Sends `json:"sends,omitempty"`
+	SendsReason string `json:"sends_reason,omitempty"`
 }
 
 // Wait is how a dispatch-and-wait op waits for its callback.

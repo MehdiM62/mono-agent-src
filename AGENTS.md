@@ -2606,14 +2606,14 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
   Covered are the message node types `internal/hilsend` classifies
   (email, Outlook, Gmail, Slack, Telegram, Twilio including voice calls,
   WhatsApp, Discord including embeds, Reddit, Mastodon, Bluesky, dev.to,
-  Hashnode, Product Hunt, YouTube, and the browser social
-  send/comment/publish/follow actions). `hil show <id>` (text) prints
-  `Prepared by: <role>`.
-  Not yet covered: sends from the n8n-parity `app.*` operations (email,
-  SMS and voice, chat, social and public posts, invoices that email a
-  customer, tracker comments and invites) don't go through Guard, from an
-  agent or an unapproved workflow alike; tracked in monoes/mono-agent-src#832.
-  A generic `http.request` can POST to any API, a mail API included.
+  Hashnode, Product Hunt, YouTube, the browser social
+  send/comment/publish/follow actions) and every API package op that
+  declares `"sends"` (`internal/apipkg/FORMAT.md` §3: the `app.*` nodes and
+  the ops packages add to native nodes). An app step resolves its recipient
+  per input item, so each item is its own card. `hil show <id>` (text)
+  prints `Prepared by: <role>`. Not covered (open): `http.request` to any
+  API, a mail API included, and a program step (`system.execute_command`,
+  `core.code`) in a workflow the user approved.
 - **Files an unapproved workflow can't touch.** Its file steps, and those of
   a workflow it called (whose own approval still decides its program steps),
   go through `fsconfine.Path` (reads) and `fsconfine.WritePath` (writes:

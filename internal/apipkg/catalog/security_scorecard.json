@@ -439,6 +439,15 @@
       "resource": "invite",
       "operation": "create",
       "title": "Invite someone",
+      "sends": {
+        "action": "invite",
+        "to": [
+          "email"
+        ],
+        "text": [
+          "message"
+        ]
+      },
       "method": "POST",
       "path": "/invitations",
       "fields": [

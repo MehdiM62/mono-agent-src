@@ -217,6 +217,16 @@
       "resource": "page",
       "operation": "addComment",
       "title": "Add a comment",
+      "sends": {
+        "action": "comment",
+        "to": [
+          "page"
+        ],
+        "text": [
+          "bodyPlainText",
+          "bodyStorage"
+        ]
+      },
       "method": "POST",
       "path": "/wiki/api/v2/footer-comments",
       "base_url": "https://api.atlassian.com/ex/confluence/{{ p.site | rl | default:pres.0.0.id }}",

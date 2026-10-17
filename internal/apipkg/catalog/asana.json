@@ -414,6 +414,15 @@
       "resource": "taskComment",
       "operation": "add",
       "title": "Add a comment to a task",
+      "sends": {
+        "action": "comment",
+        "to": [
+          "id"
+        ],
+        "text": [
+          "text"
+        ]
+      },
       "method": "POST",
       "path": "/tasks/{{ p.id }}/stories",
       "body": {

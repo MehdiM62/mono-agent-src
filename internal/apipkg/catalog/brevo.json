@@ -61,6 +61,20 @@
       "resource": "email",
       "operation": "send",
       "title": "Send an email",
+      "sends": {
+        "action": "email",
+        "to": [
+          "recipients",
+          "receipients"
+        ],
+        "text": [
+          "textContent",
+          "htmlContent"
+        ],
+        "subject": [
+          "subject"
+        ]
+      },
       "method": "POST",
       "path": "/v3/smtp/email",
       "fields": [
@@ -176,6 +190,16 @@
       "resource": "email",
       "operation": "sendTemplate",
       "title": "Send a template email",
+      "sends": {
+        "action": "email",
+        "to": [
+          "recipients",
+          "receipients"
+        ],
+        "text": [
+          "templateId"
+        ]
+      },
       "method": "POST",
       "path": "/v3/smtp/email",
       "fields": [

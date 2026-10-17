@@ -370,6 +370,15 @@
       "resource": "caseComment",
       "operation": "add",
       "title": "Add a comment to a case",
+      "sends": {
+        "action": "comment",
+        "to": [
+          "caseId"
+        ],
+        "text": [
+          "comment"
+        ]
+      },
       "method": "POST",
       "path": "/cases/{{ p.caseId }}/comments",
       "fields": [
@@ -495,6 +504,15 @@
       "resource": "caseComment",
       "operation": "update",
       "title": "Update a comment",
+      "sends": {
+        "action": "comment",
+        "to": [
+          "caseId"
+        ],
+        "text": [
+          "comment"
+        ]
+      },
       "method": "PATCH",
       "path": "/cases/{{ p.caseId }}/comments",
       "fields": [

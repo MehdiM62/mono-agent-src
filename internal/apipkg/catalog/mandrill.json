@@ -48,6 +48,15 @@
       "resource": "message",
       "operation": "sendTemplate",
       "title": "Send a template email",
+      "sends": {
+        "action": "email",
+        "to": [
+          "toEmail"
+        ],
+        "text": [
+          "template"
+        ]
+      },
       "method": "POST",
       "path": "/messages/send-template.json",
       "fields": [
@@ -272,6 +281,12 @@
       "resource": "message",
       "operation": "sendHtml",
       "title": "Send an HTML email",
+      "sends": {
+        "action": "email",
+        "to": [
+          "toEmail"
+        ]
+      },
       "method": "POST",
       "path": "/messages/send.json",
       "fields": [

@@ -64,6 +64,15 @@
       "resource": "message",
       "operation": "sendMessage",
       "title": "Send a text message",
+      "sends": {
+        "action": "dm",
+        "to": [
+          "chatId"
+        ],
+        "text": [
+          "text"
+        ]
+      },
       "method": "POST",
       "path": "/sendMessage",
       "fields": [
@@ -233,6 +242,15 @@
       "resource": "message",
       "operation": "editMessageText",
       "title": "Edit a message's text",
+      "sends": {
+        "action": "dm",
+        "to": [
+          "chatId"
+        ],
+        "text": [
+          "text"
+        ]
+      },
       "method": "POST",
       "path": "/editMessageText",
       "fields": [
@@ -444,6 +462,12 @@
       "resource": "message",
       "operation": "sendAnimation",
       "title": "Send an animation",
+      "sends": {
+        "action": "dm",
+        "to": [
+          "chatId"
+        ]
+      },
       "method": "POST",
       "path": "/sendAnimation",
       "fields": [
@@ -604,6 +628,12 @@
       "resource": "message",
       "operation": "sendAudio",
       "title": "Send an audio file",
+      "sends": {
+        "action": "dm",
+        "to": [
+          "chatId"
+        ]
+      },
       "method": "POST",
       "path": "/sendAudio",
       "fields": [
@@ -764,6 +794,12 @@
       "resource": "message",
       "operation": "sendDocument",
       "title": "Send a document",
+      "sends": {
+        "action": "dm",
+        "to": [
+          "chatId"
+        ]
+      },
       "method": "POST",
       "path": "/sendDocument",
       "fields": [
@@ -924,6 +960,12 @@
       "resource": "message",
       "operation": "sendPhoto",
       "title": "Send a photo",
+      "sends": {
+        "action": "dm",
+        "to": [
+          "chatId"
+        ]
+      },
       "method": "POST",
       "path": "/sendPhoto",
       "fields": [
@@ -1084,6 +1126,12 @@
       "resource": "message",
       "operation": "sendSticker",
       "title": "Send a sticker",
+      "sends": {
+        "action": "dm",
+        "to": [
+          "chatId"
+        ]
+      },
       "method": "POST",
       "path": "/sendSticker",
       "fields": [
@@ -1244,6 +1292,12 @@
       "resource": "message",
       "operation": "sendVideo",
       "title": "Send a video",
+      "sends": {
+        "action": "dm",
+        "to": [
+          "chatId"
+        ]
+      },
       "method": "POST",
       "path": "/sendVideo",
       "fields": [
@@ -1404,6 +1458,8 @@
       "resource": "message",
       "operation": "sendChatAction",
       "title": "Send a chat action",
+      "sends": false,
+      "sends_reason": "shows a chat action such as typing; sends no message",
       "method": "POST",
       "path": "/sendChatAction",
       "fields": [
@@ -1443,6 +1499,12 @@
       "resource": "message",
       "operation": "sendLocation",
       "title": "Send a location",
+      "sends": {
+        "action": "dm",
+        "to": [
+          "chatId"
+        ]
+      },
       "method": "POST",
       "path": "/sendLocation",
       "fields": [
@@ -1590,6 +1652,12 @@
       "resource": "message",
       "operation": "sendMediaGroup",
       "title": "Send an album of photos or videos",
+      "sends": {
+        "action": "dm",
+        "to": [
+          "chatId"
+        ]
+      },
       "method": "POST",
       "path": "/sendMediaGroup",
       "fields": [
@@ -1640,6 +1708,15 @@
       "resource": "message",
       "operation": "sendMessageDraft",
       "title": "Stream a draft message",
+      "sends": {
+        "action": "dm",
+        "to": [
+          "chatId"
+        ],
+        "text": [
+          "text"
+        ]
+      },
       "method": "POST",
       "path": "/sendMessageDraft",
       "fields": [
@@ -1684,6 +1761,15 @@
       "resource": "message",
       "operation": "sendRichMessage",
       "title": "Send a rich message",
+      "sends": {
+        "action": "dm",
+        "to": [
+          "chatId"
+        ],
+        "text": [
+          "richMessageText"
+        ]
+      },
       "method": "POST",
       "path": "/sendRichMessage",
       "fields": [
@@ -1832,6 +1918,15 @@
       "resource": "message",
       "operation": "sendRichMessageDraft",
       "title": "Send a rich message draft",
+      "sends": {
+        "action": "dm",
+        "to": [
+          "chatId"
+        ],
+        "text": [
+          "richMessageText"
+        ]
+      },
       "method": "POST",
       "path": "/sendRichMessageDraft",
       "fields": [

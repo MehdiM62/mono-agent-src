@@ -74,6 +74,16 @@
       "resource": "sms",
       "operation": "send",
       "title": "Send an SMS or WhatsApp message",
+      "sends": {
+        "action": "dm",
+        "to": [
+          "to",
+          "toWhatsapp"
+        ],
+        "text": [
+          "message"
+        ]
+      },
       "method": "POST",
       "path": "/Messages.json",
       "body_type": "form",
@@ -126,6 +136,16 @@
       "resource": "call",
       "operation": "make",
       "title": "Make a call",
+      "sends": {
+        "action": "dm",
+        "to": [
+          "to"
+        ],
+        "text": [
+          "twiml",
+          "message"
+        ]
+      },
       "method": "POST",
       "path": "/Calls.json",
       "body_type": "form",

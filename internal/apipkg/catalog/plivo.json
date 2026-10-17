@@ -62,6 +62,15 @@
       "resource": "sms",
       "operation": "send",
       "title": "Send an SMS",
+      "sends": {
+        "action": "dm",
+        "to": [
+          "to"
+        ],
+        "text": [
+          "message"
+        ]
+      },
       "method": "POST",
       "path": "/Message/",
       "fields": [
@@ -96,6 +105,15 @@
       "resource": "call",
       "operation": "make",
       "title": "Make a call",
+      "sends": {
+        "action": "dm",
+        "to": [
+          "to"
+        ],
+        "text": [
+          "answer_url"
+        ]
+      },
       "method": "POST",
       "path": "/Call/",
       "fields": [
@@ -140,6 +158,15 @@
       "resource": "mms",
       "operation": "send",
       "title": "Send an MMS",
+      "sends": {
+        "action": "dm",
+        "to": [
+          "to"
+        ],
+        "text": [
+          "message"
+        ]
+      },
       "method": "POST",
       "path": "/Message/",
       "fields": [

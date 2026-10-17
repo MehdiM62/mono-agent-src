@@ -189,6 +189,15 @@
       "resource": "contactJourney",
       "operation": "add",
       "title": "Add a contact to a journey",
+      "sends": {
+        "action": "email",
+        "to": [
+          "contactId"
+        ],
+        "text": [
+          "triggerId"
+        ]
+      },
       "method": "POST",
       "path": "/trigger/{{ p.triggerId }}/contact/{{ p.contactId }}",
       "fields": [

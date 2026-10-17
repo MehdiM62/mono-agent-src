@@ -280,6 +280,16 @@
       "resource": "message",
       "operation": "send",
       "title": "Send a message",
+      "sends": {
+        "action": "post",
+        "to": [
+          "channelId",
+          "userId"
+        ],
+        "text": [
+          "content"
+        ]
+      },
       "method": "POST",
       "path": "/channels/{{ p.sendTo | eq:'user' | then:pre.id | default:(p.channelId | rl) }}/messages",
       "fields": [
@@ -987,6 +997,12 @@
       "resource": "webhook",
       "operation": "sendLegacy",
       "title": "Send a message via webhook",
+      "sends": {
+        "action": "post",
+        "text": [
+          "content"
+        ]
+      },
       "method": "POST",
       "path": "{{ cred.webhook_uri | path }}",
       "fields": [

@@ -279,6 +279,15 @@
       "resource": "channelMessage",
       "operation": "create",
       "title": "Send a channel message",
+      "sends": {
+        "action": "post",
+        "to": [
+          "channelId"
+        ],
+        "text": [
+          "message"
+        ]
+      },
       "method": "POST",
       "path": "/teams/{{ p.teamId | rl }}/channels/{{ p.channelId | rl }}/messages{{ p.options.makeReply | then:'/' }}{{ p.options.makeReply }}{{ p.options.makeReply | then:'/replies' }}",
       "fields": [
@@ -499,6 +508,15 @@
       "resource": "channelMessage",
       "operation": "reply",
       "title": "Reply to a channel message",
+      "sends": {
+        "action": "post",
+        "to": [
+          "channelId"
+        ],
+        "text": [
+          "message"
+        ]
+      },
       "method": "POST",
       "path": "/teams/{{ p.teamId | rl }}/channels/{{ p.channelId | rl }}/messages/{{ p.messageId }}/replies",
       "fields": [
@@ -747,6 +765,12 @@
       "resource": "chatMember",
       "operation": "add",
       "title": "Add a chat member",
+      "sends": {
+        "action": "invite",
+        "to": [
+          "userId"
+        ]
+      },
       "method": "POST",
       "path": "/chats/{{ p.chatId | rl }}/members",
       "fields": [
@@ -819,6 +843,15 @@
       "resource": "chatMessage",
       "operation": "create",
       "title": "Send a chat message",
+      "sends": {
+        "action": "dm",
+        "to": [
+          "chatId"
+        ],
+        "text": [
+          "message"
+        ]
+      },
       "method": "POST",
       "path": "/chats/{{ p.chatId | rl }}/messages",
       "fields": [
@@ -1517,6 +1550,16 @@
       "resource": "activityNotification",
       "operation": "send",
       "title": "Send an activity notification",
+      "sends": {
+        "action": "dm",
+        "to": [
+          "recipientId"
+        ],
+        "text": [
+          "previewText",
+          "headline"
+        ]
+      },
       "method": "POST",
       "path": "/users/{{ p.recipientId | rl }}/teamwork/sendActivityNotification",
       "fields": [

@@ -60,6 +60,12 @@
       "resource": "conversation",
       "operation": "create",
       "title": "Create a conversation",
+      "sends": {
+        "action": "email",
+        "subject": [
+          "subject"
+        ]
+      },
       "method": "POST",
       "path": "/v2/conversations",
       "fields": [
@@ -532,6 +538,15 @@
       "resource": "thread",
       "operation": "create",
       "title": "Create a thread",
+      "sends": {
+        "action": "email",
+        "to": [
+          "conversationId"
+        ],
+        "text": [
+          "text"
+        ]
+      },
       "method": "POST",
       "path": "/v2/conversations/{{ p.conversationId }}/{{ p.type | replace:'chat','chats' | replace:'note','notes' | replace:'phone','phones' }}",
       "fields": [

@@ -150,7 +150,7 @@ func Guard(ctx context.Context, nodeType string, in workflow.NodeInput, config m
 	if !Enabled(db) {
 		return nil, false, nil
 	}
-	prepared := prepare(st, nodeType, t, who, config, in.Items)
+	prepared := prepare(st, nodeType, t, who, config, in)
 	allowed := true
 	for _, p := range prepared {
 		allowed = allowed && st.Allowed(ctx, p.payload.Action, p.payload.Account.Platform, p.payload.Account.Handle, keyOf(p.payload.Recipient))
@@ -179,13 +179,17 @@ type prepared struct {
 }
 
 // prepare turns one node call into the items it would send.
-func prepare(st Store, nodeType string, t target, who PreparedBy, config map[string]interface{}, items []workflow.Item) []prepared {
-	in := make([]map[string]interface{}, 0, len(items))
-	for _, it := range items {
+func prepare(st Store, nodeType string, t target, who PreparedBy, config map[string]interface{}, input workflow.NodeInput) []prepared {
+	in := make([]map[string]interface{}, 0, len(input.Items))
+	for _, it := range input.Items {
 		in = append(in, it.JSON)
 	}
+	ones := split(t, config, in)
+	if len(t.perItem) > 0 {
+		ones = splitPerItem(t, config, input)
+	}
 	var out []prepared
-	for _, o := range split(t, config, in) {
+	for _, o := range ones {
 		textField, text := firstKey(o.config, t.text)
 		subjectField, subject := firstKey(o.config, t.subject)
 		rec := o.recipient
@@ -193,7 +197,7 @@ func prepare(st Store, nodeType string, t target, who PreparedBy, config map[str
 			rec = st.person(t, nodeType, rec)
 		}
 		p := Payload{
-			PreparedBy: who, Action: t.action, Channel: channelOf(nodeType), Account: accountOf(nodeType, o.config),
+			PreparedBy: who, Action: t.action, Channel: t.channelOf(nodeType), Account: t.accountOf(nodeType, o.config),
 			Recipient: rec, Text: text, Subject: subject, Attachments: attachments(o.config), NodeType: nodeType,
 		}
 		out = append(out, prepared{payload: p, replay: replay{
@@ -208,7 +212,7 @@ func (s Store) person(t target, nodeType string, r Recipient) Recipient {
 	if r.Name == "" && r.ProfileURL == "" {
 		return r
 	}
-	platform := channelOf(nodeType)
+	platform := t.channelOf(nodeType)
 	var id, name string
 	var err error
 	if t.action == ActionEmail {

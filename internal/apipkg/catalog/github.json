@@ -145,6 +145,15 @@
       "resource": "issue",
       "operation": "createComment",
       "title": "Comment on an issue",
+      "sends": {
+        "action": "comment",
+        "to": [
+          "issueNumber"
+        ],
+        "text": [
+          "body"
+        ]
+      },
       "method": "POST",
       "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/issues/{{ p.issueNumber }}/comments",
       "fields": [
@@ -877,6 +886,15 @@
       "resource": "pullRequest",
       "operation": "createComment",
       "title": "Comment on a pull request",
+      "sends": {
+        "action": "comment",
+        "to": [
+          "pullRequestNumber"
+        ],
+        "text": [
+          "body"
+        ]
+      },
       "method": "POST",
       "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/issues/{{ p.pullRequestNumber }}/comments",
       "fields": [
@@ -915,6 +933,15 @@
       "resource": "pullRequest",
       "operation": "editComment",
       "title": "Edit a pull request comment",
+      "sends": {
+        "action": "comment",
+        "to": [
+          "commentId"
+        ],
+        "text": [
+          "body"
+        ]
+      },
       "method": "PATCH",
       "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/issues/comments/{{ p.commentId }}",
       "fields": [
@@ -1496,6 +1523,15 @@
       "resource": "review",
       "operation": "create",
       "title": "Create a review",
+      "sends": {
+        "action": "comment",
+        "to": [
+          "pullRequestNumber"
+        ],
+        "text": [
+          "body"
+        ]
+      },
       "method": "POST",
       "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/pulls/{{ p.pullRequestNumber }}/reviews",
       "fields": [
@@ -1640,6 +1676,15 @@
       "resource": "review",
       "operation": "update",
       "title": "Update a review",
+      "sends": {
+        "action": "comment",
+        "to": [
+          "pullRequestNumber"
+        ],
+        "text": [
+          "body"
+        ]
+      },
       "method": "PUT",
       "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/pulls/{{ p.pullRequestNumber }}/reviews/{{ p.reviewId }}",
       "fields": [
@@ -1764,6 +1809,12 @@
       "resource": "user",
       "operation": "invite",
       "title": "Invite a user to an organization",
+      "sends": {
+        "action": "invite",
+        "to": [
+          "email"
+        ]
+      },
       "method": "POST",
       "path": "/orgs/{{ p.organization }}/invitations",
       "fields": [

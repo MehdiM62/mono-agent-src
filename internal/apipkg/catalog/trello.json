@@ -605,6 +605,12 @@
       "resource": "boardMember",
       "operation": "invite",
       "title": "Invite a member to a board by email",
+      "sends": {
+        "action": "invite",
+        "to": [
+          "email"
+        ]
+      },
       "method": "PUT",
       "path": "/boards/{{ p.id }}/members",
       "query": {
@@ -664,6 +670,15 @@
       "resource": "cardComment",
       "operation": "create",
       "title": "Comment on a card",
+      "sends": {
+        "action": "comment",
+        "to": [
+          "cardId"
+        ],
+        "text": [
+          "text"
+        ]
+      },
       "method": "POST",
       "path": "/cards/{{ p.cardId | rl | re:'trello.com/c/([^/]+)' }}/actions/comments",
       "body": {
@@ -711,6 +726,15 @@
       "resource": "cardComment",
       "operation": "update",
       "title": "Update a comment",
+      "sends": {
+        "action": "comment",
+        "to": [
+          "cardId"
+        ],
+        "text": [
+          "text"
+        ]
+      },
       "method": "PUT",
       "path": "/cards/{{ p.cardId | rl | re:'trello.com/c/([^/]+)' }}/actions/{{ p.commentId }}/comments",
       "query": {

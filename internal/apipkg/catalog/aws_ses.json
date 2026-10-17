@@ -88,6 +88,18 @@
       "resource": "email",
       "operation": "send",
       "title": "Send an email",
+      "sends": {
+        "action": "email",
+        "to": [
+          "toAddresses"
+        ],
+        "text": [
+          "body"
+        ],
+        "subject": [
+          "subject"
+        ]
+      },
       "method": "POST",
       "path": "/",
       "body_type": "form",
@@ -184,6 +196,15 @@
       "resource": "email",
       "operation": "sendTemplate",
       "title": "Send an email from a template",
+      "sends": {
+        "action": "email",
+        "to": [
+          "toAddresses"
+        ],
+        "text": [
+          "templateName"
+        ]
+      },
       "method": "POST",
       "path": "/",
       "body_type": "form",
@@ -276,6 +297,8 @@
       "resource": "customVerificationEmail",
       "operation": "create",
       "title": "Create a custom verification email template",
+      "sends": false,
+      "sends_reason": "creates a verification email template; sends nothing",
       "method": "POST",
       "path": "/",
       "body_type": "form",
@@ -421,6 +444,15 @@
       "resource": "customVerificationEmail",
       "operation": "send",
       "title": "Send a custom verification email",
+      "sends": {
+        "action": "email",
+        "to": [
+          "email"
+        ],
+        "text": [
+          "templateName"
+        ]
+      },
       "method": "POST",
       "path": "/",
       "body_type": "form",
@@ -463,6 +495,8 @@
       "resource": "customVerificationEmail",
       "operation": "update",
       "title": "Update a custom verification email template",
+      "sends": false,
+      "sends_reason": "edits a verification email template; sends nothing",
       "method": "POST",
       "path": "/",
       "body_type": "form",

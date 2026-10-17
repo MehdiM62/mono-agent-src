@@ -150,6 +150,15 @@
       "resource": "issue",
       "operation": "createComment",
       "title": "Comment on an issue",
+      "sends": {
+        "action": "comment",
+        "to": [
+          "issueNumber"
+        ],
+        "text": [
+          "body"
+        ]
+      },
       "method": "POST",
       "path": "/projects/{{ p.owner }}%2F{{ p.repository }}/issues/{{ p.issueNumber }}/notes",
       "fields": [
