@@ -20,9 +20,11 @@ import (
 //     read verb first and no send verb in its name), and it writes or a send
 //     verb names it (a GET to /sendhttp.php); or
 //   - it writes, in any package, and has a param (or a collection option)
-//     for whom it reaches (to, recipient, email, phone, attendees,
-//     invitees, cc, bcc) or a switch that has the service message someone
-//     (activate, sendEmail, notify, welcome, invite): recipientParam.
+//     for whom it reaches (to, recipient, receiver, addressee, email,
+//     mailTo, phone, tel, telephone, msisdn, sms, mobile, attendees,
+//     guests, participants, invitees, invites, subscribers, cc, bcc) or a
+//     switch that has the service message someone (activate, sendEmail,
+//     notify, welcome, invite): recipientParam.
 //
 // An op on settings ("updateNotificationSettings") counts its send verbs
 // only, not its send nouns.
@@ -51,11 +53,14 @@ var (
 	recipientWords = map[string]bool{"recipient": true, "recipients": true, "email": true, "emails": true, "attendee": true,
 		"attendees": true, "invitee": true, "invitees": true, "phone": true, "mobile": true, "cc": true, "bcc": true,
 		"activate": true, "activation": true, "notify": true, "notification": true, "notifications": true, "welcome": true,
-		"invite": true, "invitation": true}
+		"invite": true, "invites": true, "invitation": true, "receiver": true, "receivers": true, "addressee": true,
+		"addressees": true, "tel": true, "telephone": true, "msisdn": true, "sms": true, "mailto": true, "guest": true,
+		"guests": true, "participant": true, "participants": true, "subscriber": true, "subscribers": true}
 	// toObjects follow "to" in a param that names a recipient (toEmail),
 	// unlike toPath or toDate.
 	toObjects = map[string]bool{"email": true, "emails": true, "number": true, "numbers": true, "address": true,
-		"addresses": true, "phone": true, "recipients": true, "user": true, "users": true, "whatsapp": true}
+		"addresses": true, "phone": true, "recipients": true, "user": true, "users": true, "whatsapp": true, "tel": true,
+		"telephone": true, "msisdn": true, "sms": true, "mobile": true}
 	camelHump  = regexp.MustCompile(`([a-z0-9])([A-Z])`)
 	nonWordRun = regexp.MustCompile(`[^A-Za-z0-9]+`)
 )
@@ -96,6 +101,11 @@ func recipientParam(key string) bool {
 		return len(w) == 1 || toObjects[w[1]]
 	case w[0] == "send" && len(w) > 1:
 		return true
+	}
+	for i := 1; i < len(w); i++ {
+		if w[i-1] == "mail" && w[i] == "to" { // mailTo, mail_to
+			return true
+		}
 	}
 	return anyWord(w, func(x string) bool { return recipientWords[x] })
 }
@@ -219,6 +229,7 @@ func TestTheSendLintSeesRecipients(t *testing.T) {
 		{Resource: "event", Operation: "create", Method: "POST", Path: "/events", Fields: []workflow.NodeSchemaField{
 			{Key: "additionalFields", Type: "collection", Options: []string{"location", "attendees"}}}},
 		{Resource: "file", Operation: "copy", Method: "POST", Path: "/copy", Fields: param("toPath", "fromPath")},
+		{Resource: "file", Operation: "store", Method: "POST", Path: "/store", Fields: param("mailToken")},
 		{Resource: "user", Operation: "getAll", Method: "GET", Path: "/users", Fields: param("email")},
 		{Resource: "channel", Operation: "set", Method: "POST", Path: "/channel", Fields: []workflow.NodeSchemaField{
 			{Key: "kind", Type: "select", Options: []string{"email", "sms"}}}},
@@ -226,6 +237,22 @@ func TestTheSendLintSeesRecipients(t *testing.T) {
 	got := undecidedSends([]*Package{p})
 	want := []string{"acme_hr user/create", "acme_hr user/delete", "acme_hr user/activate", "acme_hr event/create"}
 	if !reflect.DeepEqual(got, want) {
+		t.Errorf("undecided = %v, want %v", got, want)
+	}
+}
+
+// Each word the review added names whom a write reaches, as a param or a
+// collection's option.
+func TestTheSendLintKnowsMoreRecipientWords(t *testing.T) {
+	var ops []Operation
+	var want []string
+	for _, key := range []string{"receiver", "addressee", "tel", "telephone", "msisdn", "sms", "mailTo", "mail_to", "guests",
+		"participants", "invites", "subscribers", "toTel", "receiverPhone", "guestList", "smsNumber"} {
+		ops = append(ops, Operation{Resource: "r", Operation: key, Method: "POST", Path: "/x",
+			Fields: []workflow.NodeSchemaField{{Key: "options", Type: "collection", Options: []string{key}}}})
+		want = append(want, "acme r/"+key)
+	}
+	if got := undecidedSends([]*Package{{ID: "acme", Operations: ops}}); !reflect.DeepEqual(got, want) {
 		t.Errorf("undecided = %v, want %v", got, want)
 	}
 }
