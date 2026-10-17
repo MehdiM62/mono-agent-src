@@ -49,13 +49,9 @@ func (d Deps) printSend(cmd *cobra.Command, p hilsend.Payload) error {
 	}
 	w := cmd.OutOrStdout()
 	fmt.Fprintf(w, "%s  %s  %s via %s  to %s\n", p.ID, p.State, p.Action, p.Channel, p.Recipient.Name)
-	// Who prepared it, as the app's card says it: the role (an org role, or
-	// "unapproved workflow <id>"), else the agent's id.
-	by := p.PreparedBy.Role
-	if by == "" {
-		by = p.PreparedBy.AgentID
-	}
-	if by != "" {
+	// Who prepared it, as the app's card says it: MonoAgent's own label as
+	// it is, an agent's self-description as its claim.
+	if by := p.PreparedBy.Label(); by != "" {
 		fmt.Fprintf(w, "Prepared by: %s\n", by)
 	}
 	if p.Subject != "" {
