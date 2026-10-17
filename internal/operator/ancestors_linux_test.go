@@ -53,6 +53,11 @@ func TestAParentProcessMarksIt(t *testing.T) {
 	}{
 		{workflow.EnvWorkflowRun + "=exec-7", ancestorWorkflowRun},
 		{browserctl.EnvAICaller + "=chat", ancestorAICaller},
+		// An agent shell's own markers count too: `env -i` from Claude Code
+		// or an agent named by MONOAGENT_ACTOR is still that agent.
+		{"CLAUDECODE=1", ancestorPrefix + "'s CLAUDECODE"},
+		{"MONOAGENT_ACTOR=agent-x", ancestorPrefix + "'s MONOAGENT_ACTOR"},
+		{"MONOMIND_ORG_ROLE=writer", ancestorPrefix + "'s MONOMIND_ORG_ROLE"},
 	} {
 		if out := run([]string{c.env}, sh, "-c", helper); !strings.Contains(out, "marker="+c.marker+"\n") || !strings.Contains(out, "whatever its own environment says") {
 			t.Errorf("under a parent with %s:\n%s", c.env, out)

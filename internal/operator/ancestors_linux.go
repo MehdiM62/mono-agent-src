@@ -14,9 +14,7 @@ import (
 )
 
 // ancestorMarker names what marks one of this process's parents (up to
-// ancestorMaxDepth, below init): MONOAGENT_WORKFLOW_RUN or
-// MONOAGENT_AI_CALLER in the environment it was started with, or a
-// `monomind agent exec` command line; "" when none does. A parent whose
+// ancestorMaxDepth, below init): processMarker; "" when none does. A parent whose
 // /proc entries can't be read (another user's) is passed over.
 func ancestorMarker() string {
 	if testing.Testing() && !ancestorsInTests {
@@ -36,14 +34,27 @@ func ancestorMarker() string {
 	return ""
 }
 
+// processMarker names what marks process pid: any variable Marker reads
+// (MarkerEnv: a workflow run, the chat, CLAUDECODE, MONOAGENT_ACTOR and the
+// other agents' markers) in the environment it was started with, or a
+// `monomind agent exec` command line; "" when none does.
 func processMarker(pid int) string {
 	dir := "/proc/" + strconv.Itoa(pid)
 	if env, err := os.ReadFile(dir + "/environ"); err == nil {
+		set := map[string]bool{}
 		for _, kv := range bytes.Split(env, []byte{0}) {
-			for k, m := range map[string]string{workflow.EnvWorkflowRun: ancestorWorkflowRun, browserctl.EnvAICaller: ancestorAICaller} {
-				if v, ok := bytes.CutPrefix(kv, []byte(k+"=")); ok && len(bytes.TrimSpace(v)) > 0 {
-					return m
-				}
+			if k, v, ok := bytes.Cut(kv, []byte("=")); ok && len(bytes.TrimSpace(v)) > 0 {
+				set[string(k)] = true
+			}
+		}
+		for k, m := range map[string]string{workflow.EnvWorkflowRun: ancestorWorkflowRun, browserctl.EnvAICaller: ancestorAICaller} {
+			if set[k] {
+				return m
+			}
+		}
+		for _, k := range MarkerEnv() {
+			if set[k] {
+				return ancestorPrefix + "'s " + k
 			}
 		}
 	}

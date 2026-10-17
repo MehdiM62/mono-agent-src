@@ -5,8 +5,11 @@ import (
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
-// What Marker names when a parent process, not this one, is marked.
+// What Marker names when a parent process, not this one, is marked: each
+// starts with ancestorPrefix ("a parent process's CLAUDECODE" for any other
+// agent marker).
 const (
+	ancestorPrefix      = "a parent process"
 	ancestorWorkflowRun = "a parent process's " + workflow.EnvWorkflowRun
 	ancestorAICaller    = "a parent process's " + browserctl.EnvAICaller
 	ancestorAgentExec   = "a parent process (monomind agent exec)"

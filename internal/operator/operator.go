@@ -138,9 +138,11 @@ func Refusal() string {
 		why = m + " is set, so a workflow run is running this command"
 	case browserctl.EnvAICaller:
 		why = m + " is set, so the chat is running this command"
-	case ancestorWorkflowRun, ancestorAICaller, ancestorAgentExec:
-		why = m + " marks it, so a workflow run, the chat or an agent started this command, whatever its own environment says"
 	default:
+		if strings.HasPrefix(m, ancestorPrefix) {
+			why = m + " marks it, so a workflow run, the chat or an agent started this command, whatever its own environment says"
+			break
+		}
 		why = m + " is set, so an agent is running this command"
 	}
 	return why + " (" + inheritedHint + ")"
