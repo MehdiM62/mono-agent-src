@@ -2593,6 +2593,12 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
   PreparedBy.AgentID is `unapproved-workflow`. The sendApproval setting and
   the always-allow rules apply. A workflow the user approved sends as
   before, even when the chat starts it.
+  Covered are the message node types `internal/hilsend` classifies
+  (email, Outlook, Gmail, Slack, Telegram, Twilio including voice calls,
+  WhatsApp, Discord including embeds, Reddit, Mastodon, Bluesky, dev.to,
+  Hashnode, Product Hunt, YouTube, and the browser social
+  send/comment/publish/follow actions). `hil show <id>` (text) prints
+  `Prepared by: <role>`.
   Not yet covered: sends from the n8n-parity `app.*` operations (email,
   SMS and voice, chat, social and public posts, invoices that email a
   customer, tracker comments and invites) don't go through Guard, from an
