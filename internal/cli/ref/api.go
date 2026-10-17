@@ -434,9 +434,10 @@ OUTPUT REDACTION
 
   Output items go through the same redaction as workflow run --json
   (credential-shaped keys masked, values truncated at 4KB). Pass header
-  "X-Full-Outputs: 1" to opt out per request, mirroring
-  workflow run --full-outputs. The caller already holds the bearer
-  credential, so no additional gate is applied beyond authentication.
+  "X-Full-Outputs: 1" to opt out per request, like the user's own
+  workflow run --full-outputs. Unlike that flag, the header has no
+  operator check: whoever holds the bearer credential gets unredacted
+  outputs, so give the token only to what may see your secrets.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 STATUS-CODE MAPPING (mirrors CLI exit codes — see "ref commands")
