@@ -31,21 +31,23 @@ func decodeKey(t *testing.T, text string) map[string]any {
 // describe is a key's fields for a failure message.
 func describe(k map[string]any) string { return scrubbed(fmt.Sprint(k)) }
 
-// stringField reads a field that must be there, without a type assertion that panics.
-func stringField(t *testing.T, k map[string]any, field string) string {
-	t.Helper()
-	v, _ := k[field].(string)
-	if v == "" {
-		t.Fatalf("the result has no %q: its fields are %v", field, sortedFields(k))
-	}
-	return v
-}
-
-// createKey makes a key through the tool and returns its id and the key itself.
+// createKey makes a key of the server's profile in the store, as the user's `api key
+// create` does (api_key_create makes none), and returns its id and the key itself.
 func createKey(t *testing.T, s *Server, name string, withContext bool) (id, secret string) {
 	t.Helper()
-	k := decodeKey(t, mustCall(t, s, "api_key_create", map[string]any{"name": name, "context": withContext}))
-	return stringField(t, k, "id"), stringField(t, k, "key")
+	ctx, _, err := s.scopeCall(context.Background(), rawWithProfile(serverTestProfile(s), nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, profileID, err := s.apiKeys(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	k, secret, err := store.Create(ctx, profileID, name, withContext)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return k.ID, secret
 }
 
 func keyRows(t *testing.T, dbPath string) int {
@@ -147,106 +149,37 @@ func TestAPIKeyCreateDescriptionCarriesTheStoresNameRule(t *testing.T) {
 	t.Fatal("api_key_create is not listed")
 }
 
-func TestAPIKeyCreateReturnsTheKeyAndStoresOnlyItsHash(t *testing.T) {
+// api_key_create makes no key, for any caller: whoever calls an MCP tool is an AI, and a
+// key signs in as the profile. It stays listed, a call is told who makes keys and how,
+// and nothing is stored or comes back.
+func TestAPIKeyCreateMakesNoKey(t *testing.T) {
 	s, dbPath := newAPIKeyServer(t, true)
-	k := decodeKey(t, mustCall(t, s, "api_key_create", map[string]any{"name": "app", "context": true}))
-
-	secret := stringField(t, k, "key")
-	if !strings.HasPrefix(secret, apikeys.KeyPrefix) || len(secret) != 49 {
-		t.Fatalf("the key has %d characters, want 49 and the sk-ma- prefix", len(secret))
+	if !toolsListNames(t, s)["api_key_create"] {
+		t.Error("api_key_create must stay listed, so that a call is told who makes keys")
 	}
-	if got, want := sortedFields(k), []string{"context", "created_at", "id", "key", "last_used_at", "name", "prefix", "profile_id", "revoked_at"}; !reflect.DeepEqual(got, want) {
-		t.Errorf("the result is %v, want the key's metadata and the key: %v", got, want)
-	}
-	if id, _ := k["id"].(string); !strings.HasPrefix(id, "key_") || k["profile_id"] != "default" || k["name"] != "app" ||
-		k["context"] != true || k["prefix"] != secret[:12] || k["created_at"] == nil || k["last_used_at"] != nil || k["revoked_at"] != nil {
-		t.Errorf("metadata %s", describe(k))
-	}
-
-	// The key works, as the server's profile.
-	side := sideDB(t, dbPath)
-	got, err := apikeys.NewStore(side.DB).Authenticate(context.Background(), secret)
-	if err != nil || got.ID != k["id"] || got.ProfileID != "default" || !got.Context {
-		t.Errorf("the key the tool returned does not authenticate as the profile: %+v, %v", got, err)
-	}
-	// Only its hash is stored.
-	rows, err := side.DB.Query(`SELECT id, profile_id, name, prefix, key_hash FROM api_keys`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer rows.Close()
-	n := 0
-	for rows.Next() {
-		var id, profile, name, prefix, hash string
-		if err := rows.Scan(&id, &profile, &name, &prefix, &hash); err != nil {
-			t.Fatal(err)
+	for _, args := range []map[string]any{{"name": "app"}, {"name": "app", "context": true}, nil} {
+		text, err := callAPITool(t, s, "api_key_create", args)
+		if err == nil || keyRE.MatchString(text) {
+			t.Fatalf("api_key_create %v made a key: %q", args, scrubbed(text))
 		}
-		n++
-		if hash != apikeys.HashKey(secret) {
-			t.Error("the stored hash is not the SHA-256 of the key")
-		}
-		for _, col := range []string{id, profile, name, prefix, hash} {
-			if strings.Contains(col, secret) {
-				t.Error("the key itself was stored")
+		for _, want := range []string{"makes no key", "only the user", "`monoagentcli --profile default api key create --name <name>`", "the app"} {
+			if !strings.Contains(err.Error(), want) {
+				t.Errorf("api_key_create %v: %q, want it to say %q", args, err, want)
 			}
 		}
 	}
-	if n != 1 {
-		t.Errorf("%d rows, want 1", n)
-	}
-}
-
-func TestAPIKeyCreateWithoutContextIsAPlainKey(t *testing.T) {
-	s, _ := newAPIKeyServer(t, true)
-	if k := decodeKey(t, mustCall(t, s, "api_key_create", map[string]any{"name": "plain"})); k["context"] != false {
-		t.Errorf("context must default to off: %v", k["context"])
-	}
-}
-
-// The rules are the store's: the names it refuses, the duplicates it refuses, in its
-// own words, and nothing is created.
-func TestAPIKeyCreateRefusesWhatTheStoreRefuses(t *testing.T) {
-	s, dbPath := newAPIKeyServer(t, true)
-	pasted, err := apikeys.GenerateKey() // a key where a name goes
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	for _, bad := range []any{"", " lead", "-dash", strings.Repeat("a", 65), "semi;colon", "new\nline", "key_isqzhh2a5itg",
-		pasted, strings.ToUpper(pasted), "my " + pasted, "sk-ma-"} {
-		if text, err := callAPITool(t, s, "api_key_create", map[string]any{"name": bad}); err == nil || err.Error() != apikeys.ErrInvalidName.Error() {
-			t.Errorf("name %q: %q, %v; want the store's invalid-name error", scrubbed(fmt.Sprint(bad)), scrubbed(text), err)
-		}
-	}
-	if _, err := callAPITool(t, s, "api_key_create", nil); err == nil || err.Error() != apikeys.ErrInvalidName.Error() {
-		t.Errorf("no name at all: %v", err)
-	}
-	if _, err := callAPITool(t, s, "api_key_create", map[string]any{"name": "ok", "context": "yes"}); err == nil || !strings.Contains(err.Error(), "invalid arguments") {
-		t.Errorf("context must be a boolean: %v", err)
-	}
 	if n := keyRows(t, dbPath); n != 0 {
-		t.Fatalf("a refused create stored %d keys", n)
+		t.Errorf("api_key_create stored %d keys", n)
 	}
-
-	createKey(t, s, "app", false)
-	if _, err := callAPITool(t, s, "api_key_create", map[string]any{"name": "app"}); err == nil || err.Error() != apikeys.ErrNameTaken.Error() {
-		t.Errorf("a duplicate active name: %v, want the store's name-taken error", err)
-	}
-	// Another profile's key of that name is no clash.
-	other := apikeys.NewStore(sideDB(t, dbPath).DB)
-	if _, _, err := other.Create(context.Background(), "other-profile", "shared", false); err != nil {
-		t.Fatal(err)
-	}
-	createKey(t, s, "shared", false)
-	if n := keyRows(t, dbPath); n != 3 {
-		t.Errorf("%d keys, want 3 (app, shared, and the other profile's shared)", n)
+	if keys := decodeKeys(t, mustCall(t, s, "api_key_list", map[string]any{"include_revoked": true})); len(keys) != 0 {
+		t.Errorf("api_key_list after api_key_create: %v", namesOf(keys))
 	}
 }
 
 func TestAPIKeyUpdateRenamesAndSwitchesContext(t *testing.T) {
 	s, _ := newAPIKeyServer(t, true)
-	created := decodeKey(t, mustCall(t, s, "api_key_create", map[string]any{"name": "app"}))
-	id := stringField(t, created, "id")
+	id, _ := createKey(t, s, "app", false)
+	created := decodeKeys(t, mustCall(t, s, "api_key_list", nil))[0]
 
 	k := decodeKey(t, mustCall(t, s, "api_key_update", map[string]any{"id": id, "name": "app-2", "context": true}))
 	if k["id"] != id || k["name"] != "app-2" || k["context"] != true {

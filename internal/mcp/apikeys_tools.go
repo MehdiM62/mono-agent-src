@@ -42,13 +42,12 @@ func apiTools() []tool {
 		},
 		{
 			name:        "api_key_create",
-			description: "Create an API key for the call's profile, for the OpenAI-compatible API (/v1): the key is returned ONCE, in the key field, and no tool can show it again. Treat it as a password and give it only to the user, since it is now part of this transcript. " + apiToolsDetails,
+			description: "Creates no key, for any caller: an API key for the OpenAI-compatible API (/v1) signs in as the profile, so only the user creates one, with `monoagentcli --profile <id> api key create --name <name>` in their own terminal, or in the app. A call is refused and changes nothing. " + apiToolsDetails,
 			schema: objSchema(map[string]interface{}{
 				"name":    strParam("Key name, unique among the profile's active keys"),
 				"context": boolParam("Add the profile's own knowledge (documents and captures) to requests made with this key (default false)"),
 			}, "name"),
 			annotations: map[string]bool{"readOnlyHint": false},
-			textOnly:    true,
 			mutating:    true,
 			handler:     toolAPIKeyCreate,
 		},
@@ -102,35 +101,17 @@ func toolAPIKeyList(ctx context.Context, s *Server, args json.RawMessage) (inter
 	return store.List(ctx, profileID, a.IncludeRevoked)
 }
 
-// createdAPIKey is what api_key_create returns: the key's metadata and the key
-// itself, the one place the key is ever shown.
-type createdAPIKey struct {
-	apikeys.Key
-	Secret string `json:"key"`
+// toolAPIKeyCreate makes no key. A key signs in as the profile, and whoever calls
+// an MCP tool is an AI, so only the user makes one, as `api key create` refuses
+// an agent, the chat and a workflow. The tool stays listed so that a call is told so.
+func toolAPIKeyCreate(ctx context.Context, s *Server, args json.RawMessage) (interface{}, error) {
+	return nil, fmt.Errorf("api_key_create makes no key: only the user creates an API key, which signs in as this profile: "+
+		"`monoagentcli --profile %s api key create --name <name>` in their own terminal, or the app", profileOf(ctx))
 }
 
-// The three handlers below pass the store's errors on as they are (ErrInvalidName,
+// The two handlers below pass the store's errors on as they are (ErrInvalidName,
 // ErrNameTaken, ErrNotFound: static texts) and never put an argument in one, since a
 // caller may have pasted the key itself where an id goes.
-
-func toolAPIKeyCreate(ctx context.Context, s *Server, args json.RawMessage) (interface{}, error) {
-	var a struct {
-		Name    string `json:"name"`
-		Context bool   `json:"context"`
-	}
-	if err := decodeArgs(args, &a); err != nil {
-		return nil, err
-	}
-	store, profileID, err := s.apiKeys(ctx)
-	if err != nil {
-		return nil, err
-	}
-	key, secret, err := store.Create(ctx, profileID, a.Name, a.Context)
-	if err != nil {
-		return nil, err
-	}
-	return createdAPIKey{Key: key, Secret: secret}, nil
-}
 
 func toolAPIKeyUpdate(ctx context.Context, s *Server, args json.RawMessage) (interface{}, error) {
 	var a struct {

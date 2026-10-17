@@ -45,27 +45,16 @@ func TestAPIKeyToolsBelongToTheServersProfileByItsID(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// A key made through the tool belongs to the profile by its id: not the name it was
-	// opened by, and not "default".
-	created := decodeKey(t, mustCall(t, s, "api_key_create", map[string]any{"name": "mine", "context": true}))
-	if got := stringField(t, created, "profile_id"); got != workProfileID {
-		t.Errorf("a key created by the server of profile %s belongs to %q", workProfileID, got)
-	}
-	for profile, want := range map[string][]string{workProfileID: {"mine"}, "default": {"theirs"}, workProfileName: {}} {
-		keys, err := store.List(ctx, profile, true)
-		if err != nil {
-			t.Fatal(err)
-		}
-		got := []string{}
-		for _, k := range keys {
-			got = append(got, k.Name)
-		}
-		if !reflect.DeepEqual(got, want) {
-			t.Errorf("keys stored for profile %q = %v, want %v", profile, got, want)
-		}
+	// The tools act on the keys of the profile by its id: not the name it was opened by,
+	// and not "default". api_key_create, which makes none, names the profile by its id.
+	if _, _, err := store.Create(ctx, workProfileID, "mine", true); err != nil {
+		t.Fatal(err)
 	}
 	if got := namesOf(decodeKeys(t, mustCall(t, s, "api_key_list", map[string]any{"include_revoked": true}))); !reflect.DeepEqual(got, []string{"mine"}) {
 		t.Errorf("api_key_list = %v, want only this profile's [mine]", got)
+	}
+	if _, err := callAPITool(t, s, "api_key_create", map[string]any{"name": "made"}); err == nil || !strings.Contains(err.Error(), "--profile "+workProfileID+" api key create") {
+		t.Errorf("api_key_create on the server of profile %s: %v, want a refusal that names it by its id", workProfileID, err)
 	}
 
 	// The default profile's key is not found, by id and by name, worded as an id nobody

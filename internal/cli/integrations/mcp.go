@@ -52,10 +52,9 @@ name. This includes workflow_run/hil_approve/hil_reject, which were exposed
 unconditionally before this flag existed — add --allow-mutations to an
 existing MCP client config that relies on them.
 
-api_key_create returns the new API key once, in its result, which makes it part
-of the host's transcript. monoagentcli api key create writes the key to its
-stdout: run in your own terminal, and not through an agent's shell tool, it
-stays out of that transcript.
+api_key_create makes no key, for any caller: only you create an API key, with
+monoagentcli api key create in your own terminal (it refuses an agent's shell
+tool) or in the app, so the key is in no transcript.
 
 api_config_set saves settings of the OpenAI-compatible API's server and refuses a
 change that makes the server reach further than it did, and saves nothing, unless
