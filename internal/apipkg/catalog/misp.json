@@ -100,6 +100,8 @@
       "resource": "attribute",
       "operation": "create",
       "title": "Create an attribute",
+      "sends": false,
+      "sends_reason": "Create an attribute: changes MISP data, not a message",
       "method": "POST",
       "path": "/attributes/add/{{ p.eventId }}",
       "fields": [
@@ -152,6 +154,8 @@
       "resource": "attribute",
       "operation": "delete",
       "title": "Delete an attribute",
+      "sends": false,
+      "sends_reason": "Delete an attribute: changes MISP data, not a message",
       "method": "DELETE",
       "path": "/attributes/delete/{{ p.attributeId }}",
       "fields": [
@@ -210,6 +214,8 @@
       "resource": "attribute",
       "operation": "search",
       "title": "Search attributes",
+      "sends": false,
+      "sends_reason": "Search attributes: a read, not a message",
       "method": "POST",
       "path": "/attributes/restSearch",
       "fields": [
@@ -263,6 +269,8 @@
       "resource": "attribute",
       "operation": "update",
       "title": "Update an attribute",
+      "sends": false,
+      "sends_reason": "Update an attribute: changes MISP data, not a message",
       "method": "PUT",
       "path": "/attributes/edit/{{ p.attributeId }}",
       "fields": [
@@ -295,6 +303,8 @@
       "resource": "event",
       "operation": "create",
       "title": "Create an event",
+      "sends": false,
+      "sends_reason": "Create an event: changes MISP data, not a message",
       "method": "POST",
       "path": "/events",
       "fields": [
@@ -338,6 +348,8 @@
       "resource": "event",
       "operation": "delete",
       "title": "Delete an event",
+      "sends": false,
+      "sends_reason": "Delete an event: changes MISP data, not a message",
       "method": "DELETE",
       "path": "/events/delete/{{ p.eventId }}",
       "fields": [
@@ -418,6 +430,8 @@
       "resource": "event",
       "operation": "search",
       "title": "Search events",
+      "sends": false,
+      "sends_reason": "Search events: a read, not a message",
       "method": "POST",
       "path": "/events/restSearch",
       "fields": [
@@ -472,6 +486,8 @@
       "resource": "event",
       "operation": "unpublish",
       "title": "Unpublish an event",
+      "sends": false,
+      "sends_reason": "Unpublish an event: changes MISP data, not a message",
       "method": "POST",
       "path": "/events/unpublish/{{ p.eventId }}",
       "fields": [
@@ -487,6 +503,8 @@
       "resource": "event",
       "operation": "update",
       "title": "Update an event",
+      "sends": false,
+      "sends_reason": "Update an event: changes MISP data, not a message",
       "method": "PUT",
       "path": "/events/edit/{{ p.eventId }}",
       "fields": [
@@ -523,6 +541,8 @@
       "resource": "eventTag",
       "operation": "add",
       "title": "Add a tag to an event",
+      "sends": false,
+      "sends_reason": "Add a tag to an event: changes MISP data, not a message",
       "method": "POST",
       "path": "/events/addTag",
       "fields": [
@@ -548,6 +568,8 @@
       "resource": "eventTag",
       "operation": "remove",
       "title": "Remove a tag from an event",
+      "sends": false,
+      "sends_reason": "Remove a tag from an event: changes MISP data, not a message",
       "method": "POST",
       "path": "/events/removeTag/{{ p.eventId }}/{{ p.tagId }}",
       "fields": [
@@ -569,6 +591,8 @@
       "resource": "feed",
       "operation": "create",
       "title": "Create a feed",
+      "sends": false,
+      "sends_reason": "Create a feed: changes MISP data, not a message",
       "method": "POST",
       "path": "/feeds/add",
       "fields": [
@@ -616,6 +640,8 @@
       "resource": "feed",
       "operation": "disable",
       "title": "Disable a feed",
+      "sends": false,
+      "sends_reason": "Disable a feed: changes MISP data, not a message",
       "method": "POST",
       "path": "/feeds/disable/{{ p.feedId }}",
       "fields": [
@@ -631,6 +657,8 @@
       "resource": "feed",
       "operation": "enable",
       "title": "Enable a feed",
+      "sends": false,
+      "sends_reason": "Enable a feed: changes MISP data, not a message",
       "method": "POST",
       "path": "/feeds/enable/{{ p.feedId }}",
       "fields": [
@@ -690,6 +718,8 @@
       "resource": "feed",
       "operation": "update",
       "title": "Update a feed",
+      "sends": false,
+      "sends_reason": "Update a feed: changes MISP data, not a message",
       "method": "PUT",
       "path": "/feeds/edit/{{ p.feedId }}",
       "fields": [
@@ -742,6 +772,8 @@
       "resource": "galaxy",
       "operation": "delete",
       "title": "Delete a galaxy",
+      "sends": false,
+      "sends_reason": "Delete a galaxy: changes MISP data, not a message",
       "method": "DELETE",
       "path": "/galaxies/delete/{{ p.galaxyId }}",
       "fields": [
@@ -827,6 +859,8 @@
       "resource": "object",
       "operation": "search",
       "title": "Search objects",
+      "sends": false,
+      "sends_reason": "Search objects: a read, not a message",
       "method": "POST",
       "path": "/objects/restSearch",
       "fields": [
@@ -881,6 +915,8 @@
       "resource": "organisation",
       "operation": "create",
       "title": "Create an organisation",
+      "sends": false,
+      "sends_reason": "Create an organisation: changes MISP data, not a message",
       "method": "POST",
       "path": "/admin/organisations/add",
       "fields": [
@@ -917,6 +953,8 @@
       "resource": "organisation",
       "operation": "delete",
       "title": "Delete an organisation",
+      "sends": false,
+      "sends_reason": "Delete an organisation: changes MISP data, not a message",
       "method": "DELETE",
       "path": "/admin/organisations/delete/{{ p.organisationId }}",
       "fields": [
@@ -976,6 +1014,8 @@
       "resource": "organisation",
       "operation": "update",
       "title": "Update an organisation",
+      "sends": false,
+      "sends_reason": "Update an organisation: changes MISP data, not a message",
       "method": "PUT",
       "path": "/admin/organisations/edit/{{ p.organisationId }}",
       "fields": [
@@ -1010,6 +1050,8 @@
       "resource": "tag",
       "operation": "create",
       "title": "Create a tag",
+      "sends": false,
+      "sends_reason": "Create a tag: changes MISP data, not a message",
       "method": "POST",
       "path": "/tags/add",
       "fields": [
@@ -1042,6 +1084,8 @@
       "resource": "tag",
       "operation": "delete",
       "title": "Delete a tag",
+      "sends": false,
+      "sends_reason": "Delete a tag: changes MISP data, not a message",
       "method": "POST",
       "path": "/tags/delete/{{ p.tagId }}",
       "fields": [
@@ -1083,6 +1127,8 @@
       "resource": "tag",
       "operation": "update",
       "title": "Update a tag",
+      "sends": false,
+      "sends_reason": "Update a tag: changes MISP data, not a message",
       "method": "POST",
       "path": "/tags/edit/{{ p.tagId }}",
       "fields": [
@@ -1115,6 +1161,8 @@
       "resource": "user",
       "operation": "create",
       "title": "Create a user",
+      "sends": false,
+      "sends_reason": "Create a user: changes MISP data, not a message",
       "method": "POST",
       "path": "/admin/users/add",
       "fields": [
@@ -1155,6 +1203,8 @@
       "resource": "user",
       "operation": "delete",
       "title": "Delete a user",
+      "sends": false,
+      "sends_reason": "Delete a user: changes MISP data, not a message",
       "method": "DELETE",
       "path": "/admin/users/delete/{{ p.userId }}",
       "fields": [
@@ -1214,6 +1264,8 @@
       "resource": "user",
       "operation": "update",
       "title": "Update a user",
+      "sends": false,
+      "sends_reason": "Update a user: changes MISP data, not a message",
       "method": "PUT",
       "path": "/admin/users/edit/{{ p.userId }}",
       "fields": [

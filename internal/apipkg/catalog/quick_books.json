@@ -120,6 +120,8 @@
       "resource": "customer",
       "operation": "create",
       "title": "Create a customer",
+      "sends": false,
+      "sends_reason": "Create a customer: changes QuickBooks Online data, not a message",
       "method": "POST",
       "path": "/customer",
       "fields": [
@@ -212,6 +214,8 @@
       "resource": "customer",
       "operation": "update",
       "title": "Update a customer",
+      "sends": false,
+      "sends_reason": "Update a customer: changes QuickBooks Online data, not a message",
       "method": "POST",
       "path": "/customer",
       "before": {
@@ -289,6 +293,8 @@
       "resource": "bill",
       "operation": "create",
       "title": "Create a bill",
+      "sends": false,
+      "sends_reason": "Create a bill: changes QuickBooks Online data, not a message",
       "method": "POST",
       "path": "/bill",
       "fields": [
@@ -357,6 +363,8 @@
       "resource": "bill",
       "operation": "delete",
       "title": "Delete a bill",
+      "sends": false,
+      "sends_reason": "Delete a bill: changes QuickBooks Online data, not a message",
       "method": "POST",
       "path": "/bill",
       "before": {
@@ -425,6 +433,8 @@
       "resource": "bill",
       "operation": "update",
       "title": "Update a bill",
+      "sends": false,
+      "sends_reason": "Update a bill: changes QuickBooks Online data, not a message",
       "method": "POST",
       "path": "/bill",
       "before": {
@@ -491,6 +501,8 @@
       "resource": "employee",
       "operation": "create",
       "title": "Create a employee",
+      "sends": false,
+      "sends_reason": "Create a employee: changes QuickBooks Online data, not a message",
       "method": "POST",
       "path": "/employee",
       "fields": [
@@ -583,6 +595,8 @@
       "resource": "employee",
       "operation": "update",
       "title": "Update a employee",
+      "sends": false,
+      "sends_reason": "Update a employee: changes QuickBooks Online data, not a message",
       "method": "POST",
       "path": "/employee",
       "before": {
@@ -680,6 +694,8 @@
       "resource": "estimate",
       "operation": "create",
       "title": "Create a estimate",
+      "sends": false,
+      "sends_reason": "Create a estimate: changes QuickBooks Online data, not a message",
       "method": "POST",
       "path": "/estimate",
       "fields": [
@@ -772,6 +788,8 @@
       "resource": "estimate",
       "operation": "delete",
       "title": "Delete a estimate",
+      "sends": false,
+      "sends_reason": "Delete a estimate: changes QuickBooks Online data, not a message",
       "method": "POST",
       "path": "/estimate",
       "before": {
@@ -876,6 +894,8 @@
       "resource": "estimate",
       "operation": "update",
       "title": "Update a estimate",
+      "sends": false,
+      "sends_reason": "Update a estimate: changes QuickBooks Online data, not a message",
       "method": "POST",
       "path": "/estimate",
       "before": {
@@ -996,6 +1016,8 @@
       "resource": "invoice",
       "operation": "create",
       "title": "Create a invoice",
+      "sends": false,
+      "sends_reason": "Create a invoice: changes QuickBooks Online data, not a message",
       "method": "POST",
       "path": "/invoice",
       "fields": [
@@ -1089,6 +1111,8 @@
       "resource": "invoice",
       "operation": "delete",
       "title": "Delete a invoice",
+      "sends": false,
+      "sends_reason": "Delete a invoice: changes QuickBooks Online data, not a message",
       "method": "POST",
       "path": "/invoice",
       "before": {
@@ -1196,6 +1220,8 @@
       "resource": "invoice",
       "operation": "update",
       "title": "Update a invoice",
+      "sends": false,
+      "sends_reason": "Update a invoice: changes QuickBooks Online data, not a message",
       "method": "POST",
       "path": "/invoice",
       "before": {
@@ -1271,6 +1297,8 @@
       "resource": "invoice",
       "operation": "void",
       "title": "Void a invoice",
+      "sends": false,
+      "sends_reason": "Void a invoice: changes QuickBooks Online data, not a message",
       "method": "POST",
       "path": "/invoice",
       "before": {
@@ -1402,6 +1430,8 @@
       "resource": "payment",
       "operation": "create",
       "title": "Create a payment",
+      "sends": false,
+      "sends_reason": "Create a payment: changes QuickBooks Online data, not a message",
       "method": "POST",
       "path": "/payment",
       "fields": [
@@ -1443,6 +1473,8 @@
       "resource": "payment",
       "operation": "delete",
       "title": "Delete a payment",
+      "sends": false,
+      "sends_reason": "Delete a payment: changes QuickBooks Online data, not a message",
       "method": "POST",
       "path": "/payment",
       "before": {
@@ -1547,6 +1579,8 @@
       "resource": "payment",
       "operation": "update",
       "title": "Update a payment",
+      "sends": false,
+      "sends_reason": "Update a payment: changes QuickBooks Online data, not a message",
       "method": "POST",
       "path": "/payment",
       "before": {
@@ -1588,6 +1622,8 @@
       "resource": "payment",
       "operation": "void",
       "title": "Void a payment",
+      "sends": false,
+      "sends_reason": "Void a payment: changes QuickBooks Online data, not a message",
       "method": "POST",
       "path": "/payment",
       "before": {
@@ -1767,6 +1803,8 @@
       "resource": "vendor",
       "operation": "create",
       "title": "Create a vendor",
+      "sends": false,
+      "sends_reason": "Create a vendor: changes QuickBooks Online data, not a message",
       "method": "POST",
       "path": "/vendor",
       "fields": [
@@ -1856,6 +1894,8 @@
       "resource": "vendor",
       "operation": "update",
       "title": "Update a vendor",
+      "sends": false,
+      "sends_reason": "Update a vendor: changes QuickBooks Online data, not a message",
       "method": "POST",
       "path": "/vendor",
       "before": {

@@ -83,6 +83,8 @@
       "resource": "task",
       "operation": "create",
       "title": "Create a task",
+      "sends": false,
+      "sends_reason": "Create a task: changes Todoist data, not a message",
       "method": "POST",
       "path": "/tasks",
       "body": {
@@ -152,6 +154,8 @@
       "resource": "task",
       "operation": "close",
       "title": "Close a task",
+      "sends": false,
+      "sends_reason": "Close a task: changes Todoist data, not a message",
       "method": "POST",
       "path": "/tasks/{{ p.taskId }}/close",
       "fields": [
@@ -167,6 +171,8 @@
       "resource": "task",
       "operation": "delete",
       "title": "Delete a task",
+      "sends": false,
+      "sends_reason": "Delete a task: changes Todoist data, not a message",
       "method": "DELETE",
       "path": "/tasks/{{ p.taskId }}",
       "fields": [
@@ -251,6 +257,8 @@
       "resource": "task",
       "operation": "move",
       "title": "Move a task",
+      "sends": false,
+      "sends_reason": "Move a task: changes Todoist data, not a message",
       "method": "POST",
       "path": "/tasks/{{ p.taskId }}/move",
       "body": {
@@ -293,6 +301,8 @@
       "resource": "task",
       "operation": "quickAdd",
       "title": "Quick add a task",
+      "sends": false,
+      "sends_reason": "Quick add a task: changes Todoist data, not a message",
       "method": "POST",
       "path": "/tasks/quick",
       "body": {
@@ -326,6 +336,8 @@
       "resource": "task",
       "operation": "reopen",
       "title": "Reopen a task",
+      "sends": false,
+      "sends_reason": "Reopen a task: changes Todoist data, not a message",
       "method": "POST",
       "path": "/tasks/{{ p.taskId }}/reopen",
       "fields": [
@@ -341,6 +353,8 @@
       "resource": "task",
       "operation": "update",
       "title": "Update a task",
+      "sends": false,
+      "sends_reason": "Update a task: changes Todoist data, not a message",
       "method": "POST",
       "path": "/tasks/{{ p.taskId }}",
       "body": {
@@ -392,6 +406,8 @@
       "resource": "project",
       "operation": "create",
       "title": "Create a project",
+      "sends": false,
+      "sends_reason": "Create a project: changes Todoist data, not a message",
       "method": "POST",
       "path": "/projects",
       "body": {
@@ -423,6 +439,8 @@
       "resource": "project",
       "operation": "archive",
       "title": "Archive a project",
+      "sends": false,
+      "sends_reason": "Archive a project: changes Todoist data, not a message",
       "method": "POST",
       "path": "/projects/{{ p.projectId }}/archive",
       "fields": [
@@ -438,6 +456,8 @@
       "resource": "project",
       "operation": "delete",
       "title": "Delete a project",
+      "sends": false,
+      "sends_reason": "Delete a project: changes Todoist data, not a message",
       "method": "DELETE",
       "path": "/projects/{{ p.projectId }}",
       "fields": [
@@ -506,6 +526,8 @@
       "resource": "project",
       "operation": "unarchive",
       "title": "Unarchive a project",
+      "sends": false,
+      "sends_reason": "Unarchive a project: changes Todoist data, not a message",
       "method": "POST",
       "path": "/projects/{{ p.projectId }}/unarchive",
       "fields": [
@@ -521,6 +543,8 @@
       "resource": "project",
       "operation": "update",
       "title": "Update a project",
+      "sends": false,
+      "sends_reason": "Update a project: changes Todoist data, not a message",
       "method": "POST",
       "path": "/projects/{{ p.projectId }}",
       "body": {
@@ -551,6 +575,8 @@
       "resource": "section",
       "operation": "create",
       "title": "Create a section",
+      "sends": false,
+      "sends_reason": "Create a section: changes Todoist data, not a message",
       "method": "POST",
       "path": "/sections",
       "body": {
@@ -586,6 +612,8 @@
       "resource": "section",
       "operation": "delete",
       "title": "Delete a section",
+      "sends": false,
+      "sends_reason": "Delete a section: changes Todoist data, not a message",
       "method": "DELETE",
       "path": "/sections/{{ p.sectionId }}",
       "fields": [
@@ -645,6 +673,8 @@
       "resource": "section",
       "operation": "update",
       "title": "Update a section",
+      "sends": false,
+      "sends_reason": "Update a section: changes Todoist data, not a message",
       "method": "POST",
       "path": "/sections/{{ p.sectionId }}",
       "body": {
@@ -706,6 +736,8 @@
       "resource": "comment",
       "operation": "delete",
       "title": "Delete a comment",
+      "sends": false,
+      "sends_reason": "Delete a comment: changes Todoist data, not a message",
       "method": "DELETE",
       "path": "/comments/{{ p.commentId }}",
       "fields": [
@@ -799,6 +831,8 @@
       "resource": "label",
       "operation": "create",
       "title": "Create a label",
+      "sends": false,
+      "sends_reason": "Create a label: changes Todoist data, not a message",
       "method": "POST",
       "path": "/labels",
       "body": {
@@ -829,6 +863,8 @@
       "resource": "label",
       "operation": "delete",
       "title": "Delete a label",
+      "sends": false,
+      "sends_reason": "Delete a label: changes Todoist data, not a message",
       "method": "DELETE",
       "path": "/labels/{{ p.labelId }}",
       "fields": [
@@ -874,6 +910,8 @@
       "resource": "label",
       "operation": "update",
       "title": "Update a label",
+      "sends": false,
+      "sends_reason": "Update a label: changes Todoist data, not a message",
       "method": "POST",
       "path": "/labels/{{ p.labelId }}",
       "body": {
@@ -904,6 +942,8 @@
       "resource": "reminder",
       "operation": "create",
       "title": "Create a reminder",
+      "sends": false,
+      "sends_reason": "Create a reminder: changes Todoist data, not a message",
       "method": "POST",
       "path": "/sync",
       "body": {
@@ -993,6 +1033,8 @@
       "resource": "reminder",
       "operation": "delete",
       "title": "Delete a reminder",
+      "sends": false,
+      "sends_reason": "Delete a reminder: changes Todoist data, not a message",
       "method": "POST",
       "path": "/sync",
       "body": {
@@ -1024,6 +1066,8 @@
       "resource": "reminder",
       "operation": "getAll",
       "title": "Get many reminders",
+      "sends": false,
+      "sends_reason": "Get many reminders: a read, not a message",
       "method": "POST",
       "path": "/sync",
       "body": {
@@ -1041,6 +1085,8 @@
       "resource": "reminder",
       "operation": "update",
       "title": "Update a reminder",
+      "sends": false,
+      "sends_reason": "Update a reminder: changes Todoist data, not a message",
       "method": "POST",
       "path": "/sync",
       "body": {

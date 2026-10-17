@@ -97,6 +97,8 @@
       "resource": "communication",
       "operation": "checkSocialDomainExist",
       "title": "Check social domain exist",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -131,6 +133,8 @@
       "resource": "communication",
       "operation": "checkDomainCatchall",
       "title": "Check domain catchall",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -165,6 +169,8 @@
       "resource": "communication",
       "operation": "checkDomainFree",
       "title": "Check domain free",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -199,6 +205,8 @@
       "resource": "communication",
       "operation": "checkDomainDisposable",
       "title": "Check domain disposable",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -233,6 +241,8 @@
       "resource": "communication",
       "operation": "checkEmailExistsExtended",
       "title": "Check email exists extended",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -267,6 +277,8 @@
       "resource": "communication",
       "operation": "checkEmailExists",
       "title": "Check email exists",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -301,6 +313,8 @@
       "resource": "communication",
       "operation": "checkEmailSmtp",
       "title": "Check email smtp",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -335,6 +349,8 @@
       "resource": "communication",
       "operation": "checkSocialEmailExist",
       "title": "Check social email exist",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -369,6 +385,8 @@
       "resource": "communication",
       "operation": "checkEmailFormat",
       "title": "Check email format",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -403,6 +421,8 @@
       "resource": "communication",
       "operation": "checkEmailCatchall",
       "title": "Check email catchall",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -437,6 +457,8 @@
       "resource": "communication",
       "operation": "checkEmailDisposable",
       "title": "Check email disposable",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -471,6 +493,8 @@
       "resource": "communication",
       "operation": "checkEmailFree",
       "title": "Check email free",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -505,6 +529,8 @@
       "resource": "communication",
       "operation": "checkRobinsonEmailExist",
       "title": "Check robinson email exist",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -539,6 +565,8 @@
       "resource": "communication",
       "operation": "checkEmailRole",
       "title": "Check email role",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -573,6 +601,8 @@
       "resource": "communication",
       "operation": "checkEmailSpamtrap",
       "title": "Check email spamtrap",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -607,6 +637,8 @@
       "resource": "communication",
       "operation": "checkMobileImei",
       "title": "Check mobile imei",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -641,6 +673,8 @@
       "resource": "communication",
       "operation": "checkLinkedinProfileIsContact",
       "title": "Check linkedin profile is contact",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -675,6 +709,8 @@
       "resource": "communication",
       "operation": "checkMobileExist",
       "title": "Check mobile exist",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -709,6 +745,8 @@
       "resource": "communication",
       "operation": "checkSocialMobileExist",
       "title": "Check social mobile exist",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -743,6 +781,8 @@
       "resource": "communication",
       "operation": "checkMobileFormat",
       "title": "Check mobile format",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -784,6 +824,8 @@
       "resource": "communication",
       "operation": "checkMobileFormatEs",
       "title": "Check mobile format es",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -818,6 +860,8 @@
       "resource": "communication",
       "operation": "checkMobileValidPrefix",
       "title": "Check mobile valid prefix",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -852,6 +896,8 @@
       "resource": "communication",
       "operation": "checkMobileValidPrefixEs",
       "title": "Check mobile valid prefix es",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -886,6 +932,8 @@
       "resource": "communication",
       "operation": "checkMobileAlive",
       "title": "Check mobile alive",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -920,6 +968,8 @@
       "resource": "communication",
       "operation": "checkMobileSms",
       "title": "Check mobile sms",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -954,6 +1004,8 @@
       "resource": "communication",
       "operation": "checkRobinsonPhoneExist",
       "title": "Check robinson phone exist",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -988,6 +1040,8 @@
       "resource": "communication",
       "operation": "checkPhoneOrMobileValid",
       "title": "Check phone or mobile valid",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -1029,6 +1083,8 @@
       "resource": "communication",
       "operation": "checkPhoneFormatEs",
       "title": "Check phone format es",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -1063,6 +1119,8 @@
       "resource": "communication",
       "operation": "checkPhoneFormat",
       "title": "Check phone format",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -1104,6 +1162,8 @@
       "resource": "communication",
       "operation": "checkPhoneValidPrefix",
       "title": "Check phone valid prefix",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -1138,6 +1198,8 @@
       "resource": "communication",
       "operation": "getPhoneNormalized",
       "title": "Get phone normalized",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -1179,6 +1241,8 @@
       "resource": "communication",
       "operation": "getMobileCountryCode",
       "title": "Get mobile country code",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -1213,6 +1277,8 @@
       "resource": "communication",
       "operation": "getEmailDomain",
       "title": "Get email domain",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -1247,6 +1313,8 @@
       "resource": "communication",
       "operation": "getEmailRecipientByCompanyFirstnameAndLastname",
       "title": "Get email recipient by company firstname and lastname",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -1302,6 +1370,8 @@
       "resource": "communication",
       "operation": "getEmailRecipientByCompanyAndFullname",
       "title": "Get email recipient by company and fullname",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -1350,6 +1420,8 @@
       "resource": "communication",
       "operation": "getEmailRecipientByDomainAndFullname",
       "title": "Get email recipient by domain and fullname",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -1398,6 +1470,8 @@
       "resource": "communication",
       "operation": "getEmailRecipient",
       "title": "Get email recipient",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -1453,6 +1527,8 @@
       "resource": "communication",
       "operation": "getEmailRecipientByProfile",
       "title": "Get email recipient by profile",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -1487,6 +1563,8 @@
       "resource": "communication",
       "operation": "getEmailType",
       "title": "Get email type",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -1521,6 +1599,8 @@
       "resource": "communication",
       "operation": "getEmailListByDomain",
       "title": "Get email list by domain",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -1562,6 +1642,8 @@
       "resource": "communication",
       "operation": "getEmailListByEmail",
       "title": "Get email list by email",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -1603,6 +1685,8 @@
       "resource": "communication",
       "operation": "getEmailFirstReferences",
       "title": "Get email first references",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -1637,6 +1721,8 @@
       "resource": "communication",
       "operation": "getEmailFix",
       "title": "Get email fix",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -1671,6 +1757,8 @@
       "resource": "communication",
       "operation": "getPhoneFixed",
       "title": "Get phone fixed",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -1712,6 +1800,8 @@
       "resource": "communication",
       "operation": "getMobileFormatted",
       "title": "Get mobile formatted",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -1753,6 +1843,8 @@
       "resource": "communication",
       "operation": "getEmailGdprListByDomain",
       "title": "Get email gdpr list by domain",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -1787,6 +1879,8 @@
       "resource": "communication",
       "operation": "getMobileHlrLookup",
       "title": "Get mobile hlr lookup",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -1821,6 +1915,8 @@
       "resource": "communication",
       "operation": "getMobileOrPhoneMnpEs",
       "title": "Get mobile or phone mnp es",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -1855,6 +1951,8 @@
       "resource": "communication",
       "operation": "getLinkedinProfilesByCompany",
       "title": "Get linkedin profiles by company",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -1896,6 +1994,8 @@
       "resource": "communication",
       "operation": "getLinkedinGroupMembers",
       "title": "Get linkedin group members",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -1937,6 +2037,8 @@
       "resource": "communication",
       "operation": "getLinkedinConnections",
       "title": "Get linkedin connections",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -1978,6 +2080,8 @@
       "resource": "communication",
       "operation": "getLinkedinInvitations",
       "title": "Get linkedin invitations",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -2019,6 +2123,8 @@
       "resource": "communication",
       "operation": "getLinkedinPostComments",
       "title": "Get linkedin post comments",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -2060,6 +2166,8 @@
       "resource": "communication",
       "operation": "getLinkedinPostLikes",
       "title": "Get linkedin post likes",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -2101,6 +2209,8 @@
       "resource": "communication",
       "operation": "getLinkedinProfile",
       "title": "Get linkedin profile",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -2149,6 +2259,8 @@
       "resource": "communication",
       "operation": "getLinkedinProfiles",
       "title": "Get linkedin profiles",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -2204,6 +2316,8 @@
       "resource": "communication",
       "operation": "getLinkedinProfilesByContent",
       "title": "Get linkedin profiles by content",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -2245,6 +2359,8 @@
       "resource": "communication",
       "operation": "getMobileLookup",
       "title": "Get mobile lookup",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -2279,6 +2395,8 @@
       "resource": "communication",
       "operation": "getMobileMnpLookup",
       "title": "Get mobile mnp lookup",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -2313,6 +2431,8 @@
       "resource": "communication",
       "operation": "getMobileOrPhoneLookupEs",
       "title": "Get mobile or phone lookup es",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -2347,6 +2467,8 @@
       "resource": "communication",
       "operation": "getEmailNormalized",
       "title": "Get email normalized",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -2381,6 +2503,8 @@
       "resource": "communication",
       "operation": "getMobileNormalized",
       "title": "Get mobile normalized",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -2422,6 +2546,8 @@
       "resource": "communication",
       "operation": "getPhoneParsed",
       "title": "Get phone parsed",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -2456,6 +2582,8 @@
       "resource": "communication",
       "operation": "getEmailPersonalRecipientByProfile",
       "title": "Get email personal recipient by profile",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -2490,6 +2618,8 @@
       "resource": "communication",
       "operation": "getMobileCountryPrefix",
       "title": "Get mobile country prefix",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -2524,6 +2654,8 @@
       "resource": "communication",
       "operation": "getLinkedinPublicProfileBySalesProfile",
       "title": "Get linkedin public profile by sales profile",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -2558,6 +2690,8 @@
       "resource": "communication",
       "operation": "getLinkedinSearchContactsUrl",
       "title": "Get linkedin search contacts url",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -2648,6 +2782,8 @@
       "resource": "communication",
       "operation": "getSocialUriParsed",
       "title": "Get social uri parsed",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -2682,6 +2818,8 @@
       "resource": "communication",
       "operation": "getSocialDomainParsed",
       "title": "Get social domain parsed",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -2716,6 +2854,8 @@
       "resource": "communication",
       "operation": "getSocialDomainLookup",
       "title": "Get social domain lookup",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -2750,6 +2890,8 @@
       "resource": "communication",
       "operation": "getSocialEmailLookup",
       "title": "Get social email lookup",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -2784,6 +2926,8 @@
       "resource": "communication",
       "operation": "getSocialMobileLookup",
       "title": "Get social mobile lookup",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -2818,6 +2962,8 @@
       "resource": "communication",
       "operation": "getEmailReferences",
       "title": "Get email references",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -3170,6 +3316,8 @@
       "resource": "audio",
       "operation": "getAudioAdvancedSpeechByText",
       "title": "Get audio advanced speech by text",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -3218,6 +3366,8 @@
       "resource": "audio",
       "operation": "getAudioSpeechByText",
       "title": "Get audio speech by text",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -3266,6 +3416,8 @@
       "resource": "company",
       "operation": "checkCifValid",
       "title": "Check cif valid",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -3300,6 +3452,8 @@
       "resource": "company",
       "operation": "checkCompanyDebtorByTaxid",
       "title": "Check company debtor by taxid",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -3334,6 +3488,8 @@
       "resource": "company",
       "operation": "checkNumberIsin",
       "title": "Check number isin",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -3368,6 +3524,8 @@
       "resource": "company",
       "operation": "checkNumberSsEs",
       "title": "Check number ss es",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -3402,6 +3560,8 @@
       "resource": "company",
       "operation": "getRoleClassified",
       "title": "Get role classified",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -3436,6 +3596,8 @@
       "resource": "company",
       "operation": "getCompanyByCif",
       "title": "Get company by cif",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -3470,6 +3632,8 @@
       "resource": "company",
       "operation": "getCompanyByDuns",
       "title": "Get company by duns",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -3504,6 +3668,8 @@
       "resource": "company",
       "operation": "getCompanyByDomain",
       "title": "Get company by domain",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -3538,6 +3704,8 @@
       "resource": "company",
       "operation": "getCompanyByEmail",
       "title": "Get company by email",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -3572,6 +3740,8 @@
       "resource": "company",
       "operation": "getCompanyByIp",
       "title": "Get company by ip",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -3606,6 +3776,8 @@
       "resource": "company",
       "operation": "getCompanyByName",
       "title": "Get company by name",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -3647,6 +3819,8 @@
       "resource": "company",
       "operation": "getCompanyByPhone",
       "title": "Get company by phone",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -3681,6 +3855,8 @@
       "resource": "company",
       "operation": "getCompanyByProfile",
       "title": "Get company by profile",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -3715,6 +3891,8 @@
       "resource": "company",
       "operation": "getCompanyNameByDomain",
       "title": "Get company name by domain",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -3749,6 +3927,8 @@
       "resource": "company",
       "operation": "getPersonDecisionMaker",
       "title": "Get person decision maker",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -3790,6 +3970,8 @@
       "resource": "company",
       "operation": "getPersonDecisionMakerBySearch",
       "title": "Get person decision maker by search",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -3852,6 +4034,8 @@
       "resource": "company",
       "operation": "getPersonEmailsByDomainAndArea",
       "title": "Get person emails by domain and area",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -3893,6 +4077,8 @@
       "resource": "company",
       "operation": "getPersonMultipleDecisionMakerBySearch",
       "title": "Get person multiple decision maker by search",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -3955,6 +4141,8 @@
       "resource": "company",
       "operation": "getCompanyDomainByName",
       "title": "Get company domain by name",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -3989,6 +4177,8 @@
       "resource": "company",
       "operation": "getPersonListByParams",
       "title": "Get person list by params",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -4058,6 +4248,8 @@
       "resource": "company",
       "operation": "getProfileFacebookByCompany",
       "title": "Get profile facebook by company",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -4092,6 +4284,8 @@
       "resource": "company",
       "operation": "getProfileFacebookByCompanyDomain",
       "title": "Get profile facebook by company domain",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -4126,6 +4320,8 @@
       "resource": "company",
       "operation": "getCompanyGeocodedByIp",
       "title": "Get company geocoded by ip",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -4160,6 +4356,8 @@
       "resource": "company",
       "operation": "getProfileGithubByCompanyDomain",
       "title": "Get profile github by company domain",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -4194,6 +4392,8 @@
       "resource": "company",
       "operation": "getProfileInstagramByCompanyDomain",
       "title": "Get profile instagram by company domain",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -4228,6 +4428,8 @@
       "resource": "company",
       "operation": "getProfileLinkedinByCompany",
       "title": "Get profile linkedin by company",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -4262,6 +4464,8 @@
       "resource": "company",
       "operation": "getProfileLinkedinByCompanyDomain",
       "title": "Get profile linkedin by company domain",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -4296,6 +4500,8 @@
       "resource": "company",
       "operation": "getCifNormalized",
       "title": "Get cif normalized",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -4330,6 +4536,8 @@
       "resource": "company",
       "operation": "getCompanyPhoneByDomain",
       "title": "Get company phone by domain",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -4364,6 +4572,8 @@
       "resource": "company",
       "operation": "getCompanyPhoneByName",
       "title": "Get company phone by name",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -4398,6 +4608,8 @@
       "resource": "company",
       "operation": "getProfilePinterestByCompanyDomain",
       "title": "Get profile pinterest by company domain",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -4432,6 +4644,8 @@
       "resource": "company",
       "operation": "getCompanyFinancialByDuns",
       "title": "Get company financial by duns",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -4473,6 +4687,8 @@
       "resource": "company",
       "operation": "getCompanyFinancialByDomain",
       "title": "Get company financial by domain",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -4514,6 +4730,8 @@
       "resource": "company",
       "operation": "getCompanyFinancialByName",
       "title": "Get company financial by name",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -4555,6 +4773,8 @@
       "resource": "company",
       "operation": "getCompanyFinancialByTaxid",
       "title": "Get company financial by taxid",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -4596,6 +4816,8 @@
       "resource": "company",
       "operation": "getProfileTwitterByCompany",
       "title": "Get profile twitter by company",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -4630,6 +4852,8 @@
       "resource": "company",
       "operation": "getProfileTwitterByCompanyDomain",
       "title": "Get profile twitter by company domain",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -4664,6 +4888,8 @@
       "resource": "company",
       "operation": "getProfileYoutubeByCompanyDomain",
       "title": "Get profile youtube by company domain",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -4698,6 +4924,8 @@
       "resource": "finance",
       "operation": "checkBankBicValid",
       "title": "Check bank bic valid",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -4732,6 +4960,8 @@
       "resource": "finance",
       "operation": "checkBankAccountValidEs",
       "title": "Check bank account valid es",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -4766,6 +4996,8 @@
       "resource": "finance",
       "operation": "checkCreditcardChecksum",
       "title": "Check creditcard checksum",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -4800,6 +5032,8 @@
       "resource": "finance",
       "operation": "checkCryptoWalletAddressValid",
       "title": "Check crypto wallet address valid",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -4841,6 +5075,8 @@
       "resource": "finance",
       "operation": "checkBankIbanValid",
       "title": "Check bank iban valid",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -4875,6 +5111,8 @@
       "resource": "finance",
       "operation": "checkCurrencyValidIso",
       "title": "Check currency valid iso",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -4909,6 +5147,8 @@
       "resource": "finance",
       "operation": "checkVatExist",
       "title": "Check vat exist",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -4950,6 +5190,8 @@
       "resource": "finance",
       "operation": "getCurrencyConvertedBetweenIsocodeDate",
       "title": "Get currency converted between isocode date",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -5005,6 +5247,8 @@
       "resource": "finance",
       "operation": "getCreditcardType",
       "title": "Get creditcard type",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -5039,6 +5283,8 @@
       "resource": "finance",
       "operation": "getCurrencyListByCountry",
       "title": "Get currency list by country",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -5073,6 +5319,8 @@
       "resource": "finance",
       "operation": "getCurrencyListByIp",
       "title": "Get currency list by ip",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -5107,6 +5355,8 @@
       "resource": "finance",
       "operation": "getCurrencyListByIsocode",
       "title": "Get currency list by isocode",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -5141,6 +5391,8 @@
       "resource": "finance",
       "operation": "getCurrencyByIp",
       "title": "Get currency by ip",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -5175,6 +5427,8 @@
       "resource": "finance",
       "operation": "getCurrencyByIsocode",
       "title": "Get currency by isocode",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -5209,6 +5463,8 @@
       "resource": "finance",
       "operation": "getCurrencyByCountryIsocode",
       "title": "Get currency by country isocode",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -5243,6 +5499,8 @@
       "resource": "finance",
       "operation": "getCurrencyByCountry",
       "title": "Get currency by country",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -5277,6 +5535,8 @@
       "resource": "finance",
       "operation": "getVatByNumber",
       "title": "Get vat by number",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -5318,6 +5578,8 @@
       "resource": "finance",
       "operation": "getBankIbanByAccount",
       "title": "Get bank iban by account",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -5359,6 +5621,8 @@
       "resource": "finance",
       "operation": "getBankIbanLookup",
       "title": "Get bank iban lookup",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -5393,6 +5657,8 @@
       "resource": "finance",
       "operation": "getSwiftLookup",
       "title": "Get swift lookup",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -5427,6 +5693,8 @@
       "resource": "finance",
       "operation": "getVatByAddress",
       "title": "Get vat by address",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -5461,6 +5729,8 @@
       "resource": "finance",
       "operation": "getVatByCoordinates",
       "title": "Get vat by coordinates",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -5495,6 +5765,8 @@
       "resource": "finance",
       "operation": "getVatByIp",
       "title": "Get vat by ip",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -5529,6 +5801,8 @@
       "resource": "finance",
       "operation": "getVatByIsocode",
       "title": "Get vat by isocode",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -5563,6 +5837,8 @@
       "resource": "finance",
       "operation": "getVatByPhone",
       "title": "Get vat by phone",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -5597,6 +5873,8 @@
       "resource": "finance",
       "operation": "getVatByZipcode",
       "title": "Get vat by zipcode",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -5631,6 +5909,8 @@
       "resource": "geographic",
       "operation": "checkCountryValidIso",
       "title": "Check country valid iso",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -5665,6 +5945,8 @@
       "resource": "geographic",
       "operation": "checkDistanceEq",
       "title": "Check distance eq",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -5713,6 +5995,8 @@
       "resource": "geographic",
       "operation": "checkDistanceGt",
       "title": "Check distance gt",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -5761,6 +6045,8 @@
       "resource": "geographic",
       "operation": "checkDistanceGe",
       "title": "Check distance ge",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -5809,6 +6095,8 @@
       "resource": "geographic",
       "operation": "checkDistanceLt",
       "title": "Check distance lt",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -5857,6 +6145,8 @@
       "resource": "geographic",
       "operation": "checkDistanceLe",
       "title": "Check distance le",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -5905,6 +6195,8 @@
       "resource": "geographic",
       "operation": "checkAddressExist",
       "title": "Check address exist",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -5946,6 +6238,8 @@
       "resource": "geographic",
       "operation": "checkAddressNumberExist",
       "title": "Check address number exist",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -5987,6 +6281,8 @@
       "resource": "geographic",
       "operation": "checkCoordinateValid",
       "title": "Check coordinate valid",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -6021,6 +6317,8 @@
       "resource": "geographic",
       "operation": "checkZipcodeExist",
       "title": "Check zipcode exist",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -6055,6 +6353,8 @@
       "resource": "geographic",
       "operation": "checkZipcodeFormat",
       "title": "Check zipcode format",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -6089,6 +6389,8 @@
       "resource": "geographic",
       "operation": "getCoordinateCartesian",
       "title": "Get coordinate cartesian",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -6123,6 +6425,8 @@
       "resource": "geographic",
       "operation": "getCityListByPhone",
       "title": "Get city list by phone",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -6157,6 +6461,8 @@
       "resource": "geographic",
       "operation": "getCityListByName",
       "title": "Get city list by name",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -6191,6 +6497,8 @@
       "resource": "geographic",
       "operation": "getCityListByZipcode",
       "title": "Get city list by zipcode",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -6225,6 +6533,8 @@
       "resource": "geographic",
       "operation": "getCityByIp",
       "title": "Get city by ip",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -6259,6 +6569,8 @@
       "resource": "geographic",
       "operation": "getCityByName",
       "title": "Get city by name",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -6293,6 +6605,8 @@
       "resource": "geographic",
       "operation": "getCityByPhone",
       "title": "Get city by phone",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -6327,6 +6641,8 @@
       "resource": "geographic",
       "operation": "getCityByZipcode",
       "title": "Get city by zipcode",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -6361,6 +6677,8 @@
       "resource": "geographic",
       "operation": "getCommunityByZipcode",
       "title": "Get community by zipcode",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -6395,6 +6713,8 @@
       "resource": "geographic",
       "operation": "getCoordinateByIp",
       "title": "Get coordinate by ip",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -6429,6 +6749,8 @@
       "resource": "geographic",
       "operation": "getCoordinateBySearch",
       "title": "Get coordinate by search",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -6463,6 +6785,8 @@
       "resource": "geographic",
       "operation": "getCountryListByCurrencyCode",
       "title": "Get country list by currency code",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -6497,6 +6821,8 @@
       "resource": "geographic",
       "operation": "getCountryListByCode",
       "title": "Get country list by code",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -6531,6 +6857,8 @@
       "resource": "geographic",
       "operation": "getCountryListByName",
       "title": "Get country list by name",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -6565,6 +6893,8 @@
       "resource": "geographic",
       "operation": "getCountryByCurrencyCode",
       "title": "Get country by currency code",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -6599,6 +6929,8 @@
       "resource": "geographic",
       "operation": "getCountryByIp",
       "title": "Get country by ip",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -6633,6 +6965,8 @@
       "resource": "geographic",
       "operation": "getCountryByCode",
       "title": "Get country by code",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -6667,6 +7001,8 @@
       "resource": "geographic",
       "operation": "getCountryByName",
       "title": "Get country by name",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -6701,6 +7037,8 @@
       "resource": "geographic",
       "operation": "getCountryByPhone",
       "title": "Get country by phone",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -6735,6 +7073,8 @@
       "resource": "geographic",
       "operation": "getCountryCodeByName",
       "title": "Get country code by name",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -6769,6 +7109,8 @@
       "resource": "geographic",
       "operation": "getCoordinateDecimal",
       "title": "Get coordinate decimal",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -6803,6 +7145,8 @@
       "resource": "geographic",
       "operation": "getDistanceByAddresses",
       "title": "Get distance by addresses",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -6844,6 +7188,8 @@
       "resource": "geographic",
       "operation": "getDistanceByCoordinates",
       "title": "Get distance by coordinates",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -6885,6 +7231,8 @@
       "resource": "geographic",
       "operation": "getDistanceByIps",
       "title": "Get distance by ips",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -6926,6 +7274,8 @@
       "resource": "geographic",
       "operation": "getDistanceByPhones",
       "title": "Get distance by phones",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -6967,6 +7317,8 @@
       "resource": "geographic",
       "operation": "getDistanceByZipcodes",
       "title": "Get distance by zipcodes",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -7008,6 +7360,8 @@
       "resource": "geographic",
       "operation": "getAddressBySearch",
       "title": "Get address by search",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -7042,6 +7396,8 @@
       "resource": "geographic",
       "operation": "getLocationExtendedByIp",
       "title": "Get location extended by ip",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -7076,6 +7432,8 @@
       "resource": "geographic",
       "operation": "getLocationGeocodedByIp",
       "title": "Get location geocoded by ip",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -7110,6 +7468,8 @@
       "resource": "geographic",
       "operation": "getAddressSplittedBest",
       "title": "Get address splitted best",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -7144,6 +7504,8 @@
       "resource": "geographic",
       "operation": "getLocaleByIp",
       "title": "Get locale by ip",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -7178,6 +7540,8 @@
       "resource": "geographic",
       "operation": "getLocationByCoordinates",
       "title": "Get location by coordinates",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -7212,6 +7576,8 @@
       "resource": "geographic",
       "operation": "getLocationByIp",
       "title": "Get location by ip",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -7246,6 +7612,8 @@
       "resource": "geographic",
       "operation": "getLocationByPhone",
       "title": "Get location by phone",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -7280,6 +7648,8 @@
       "resource": "geographic",
       "operation": "getLocationByName",
       "title": "Get location by name",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -7314,6 +7684,8 @@
       "resource": "geographic",
       "operation": "getLocationByParams",
       "title": "Get location by params",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -7369,6 +7741,8 @@
       "resource": "geographic",
       "operation": "getLocationByZipcode",
       "title": "Get location by zipcode",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -7403,6 +7777,8 @@
       "resource": "geographic",
       "operation": "getLocationListByName",
       "title": "Get location list by name",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -7437,6 +7813,8 @@
       "resource": "geographic",
       "operation": "getLocationListByParams",
       "title": "Get location list by params",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -7492,6 +7870,8 @@
       "resource": "geographic",
       "operation": "getNameListByPrefix",
       "title": "Get name list by prefix",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -7533,6 +7913,8 @@
       "resource": "geographic",
       "operation": "getNetByIp",
       "title": "Get net by ip",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -7567,6 +7949,8 @@
       "resource": "geographic",
       "operation": "getAddressNormalized",
       "title": "Get address normalized",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -7601,6 +7985,8 @@
       "resource": "geographic",
       "operation": "getCityNormalized",
       "title": "Get city normalized",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -7635,6 +8021,8 @@
       "resource": "geographic",
       "operation": "getCountryNormalized",
       "title": "Get country normalized",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -7676,6 +8064,8 @@
       "resource": "geographic",
       "operation": "getProvinceNormalized",
       "title": "Get province normalized",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -7710,6 +8100,8 @@
       "resource": "geographic",
       "operation": "getZipcodeNormalized",
       "title": "Get zipcode normalized",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -7744,6 +8136,8 @@
       "resource": "geographic",
       "operation": "getAddressSplitted",
       "title": "Get address splitted",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -7778,6 +8172,8 @@
       "resource": "geographic",
       "operation": "getProvinceByIp",
       "title": "Get province by ip",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -7812,6 +8208,8 @@
       "resource": "geographic",
       "operation": "getProvinceByName",
       "title": "Get province by name",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -7846,6 +8244,8 @@
       "resource": "geographic",
       "operation": "getProvinceByPhone",
       "title": "Get province by phone",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -7880,6 +8280,8 @@
       "resource": "geographic",
       "operation": "getProvinceByZipcode",
       "title": "Get province by zipcode",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -7914,6 +8316,8 @@
       "resource": "geographic",
       "operation": "getProvinceListByName",
       "title": "Get province list by name",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -7948,6 +8352,8 @@
       "resource": "geographic",
       "operation": "getProvinceListByPhone",
       "title": "Get province list by phone",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -7982,6 +8388,8 @@
       "resource": "geographic",
       "operation": "getProvinceListByZipcode",
       "title": "Get province list by zipcode",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -8016,6 +8424,8 @@
       "resource": "geographic",
       "operation": "getReputationByIp",
       "title": "Get reputation by ip",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -8050,6 +8460,8 @@
       "resource": "geographic",
       "operation": "getRouteByAddresses",
       "title": "Get route by addresses",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -8105,6 +8517,8 @@
       "resource": "geographic",
       "operation": "getRouteByCoordinates",
       "title": "Get route by coordinates",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -8146,6 +8560,8 @@
       "resource": "geographic",
       "operation": "getRouteByIps",
       "title": "Get route by ips",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -8201,6 +8617,8 @@
       "resource": "geographic",
       "operation": "getRouteByPhones",
       "title": "Get route by phones",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -8242,6 +8660,8 @@
       "resource": "geographic",
       "operation": "getRouteByZipcodes",
       "title": "Get route by zipcodes",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -8283,6 +8703,8 @@
       "resource": "geographic",
       "operation": "getTimeByCoordinates",
       "title": "Get time by coordinates",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -8324,6 +8746,8 @@
       "resource": "geographic",
       "operation": "getTimeByIp",
       "title": "Get time by ip",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -8358,6 +8782,8 @@
       "resource": "geographic",
       "operation": "getTimeByAddress",
       "title": "Get time by address",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -8392,6 +8818,8 @@
       "resource": "geographic",
       "operation": "getCoordinateUsng",
       "title": "Get coordinate usng",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -8426,6 +8854,8 @@
       "resource": "geographic",
       "operation": "getCoordinateUtm",
       "title": "Get coordinate utm",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -8460,6 +8890,8 @@
       "resource": "geographic",
       "operation": "getZipcodeByIp",
       "title": "Get zipcode by ip",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -8494,6 +8926,8 @@
       "resource": "geographic",
       "operation": "getZipcodeByPrefix",
       "title": "Get zipcode by prefix",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -8528,6 +8962,8 @@
       "resource": "geographic",
       "operation": "getZipcodeListByPrefix",
       "title": "Get zipcode list by prefix",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -8562,6 +8998,8 @@
       "resource": "image",
       "operation": "getQrDecoded",
       "title": "Get qr decoded",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -8596,6 +9034,8 @@
       "resource": "image",
       "operation": "getImageExif",
       "title": "Get image exif",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -8630,6 +9070,8 @@
       "resource": "image",
       "operation": "getBarcodeEncoded",
       "title": "Get barcode encoded",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -8671,6 +9113,8 @@
       "resource": "image",
       "operation": "getQrEncoded",
       "title": "Get qr encoded",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -8705,6 +9149,8 @@
       "resource": "image",
       "operation": "getImageWithText",
       "title": "Get image with text",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -8753,6 +9199,8 @@
       "resource": "image",
       "operation": "getDomainLogo",
       "title": "Get domain logo",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -8787,6 +9235,8 @@
       "resource": "image",
       "operation": "getImageOcr",
       "title": "Get image ocr",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -8821,6 +9271,8 @@
       "resource": "image",
       "operation": "getUrlScreenshot",
       "title": "Get url screenshot",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -8897,6 +9349,8 @@
       "resource": "internet",
       "operation": "checkDomainExist",
       "title": "Check domain exist",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -8931,6 +9385,8 @@
       "resource": "internet",
       "operation": "checkDomainRecord",
       "title": "Check domain record",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -8972,6 +9428,8 @@
       "resource": "internet",
       "operation": "checkDomainReverse",
       "title": "Check domain reverse",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -9013,6 +9471,8 @@
       "resource": "internet",
       "operation": "checkDomainMx",
       "title": "Check domain mx",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -9047,6 +9507,8 @@
       "resource": "internet",
       "operation": "checkDomainCertificate",
       "title": "Check domain certificate",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -9081,6 +9543,8 @@
       "resource": "internet",
       "operation": "checkDomainFormat",
       "title": "Check domain format",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -9115,6 +9579,8 @@
       "resource": "internet",
       "operation": "checkNetHostAlive",
       "title": "Check net host alive",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -9149,6 +9615,8 @@
       "resource": "internet",
       "operation": "checkNetServiceUp",
       "title": "Check net service up",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -9190,6 +9658,8 @@
       "resource": "internet",
       "operation": "checkUrlContains",
       "title": "Check url contains",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -9231,6 +9701,8 @@
       "resource": "internet",
       "operation": "checkUrlExist",
       "title": "Check url exist",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -9265,6 +9737,8 @@
       "resource": "internet",
       "operation": "checkUrlValid",
       "title": "Check url valid",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -9299,6 +9773,8 @@
       "resource": "internet",
       "operation": "getDomainCertificate",
       "title": "Get domain certificate",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -9333,6 +9809,8 @@
       "resource": "internet",
       "operation": "getUrlContents",
       "title": "Get url contents",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -9374,6 +9852,8 @@
       "resource": "internet",
       "operation": "getUrlDecode",
       "title": "Get url decode",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -9408,6 +9888,8 @@
       "resource": "internet",
       "operation": "getUrlByDomain",
       "title": "Get url by domain",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -9442,6 +9924,8 @@
       "resource": "internet",
       "operation": "getDeviceByUa",
       "title": "Get device by ua",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -9476,6 +9960,8 @@
       "resource": "internet",
       "operation": "getDomainByIp",
       "title": "Get domain by ip",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -9510,6 +9996,8 @@
       "resource": "internet",
       "operation": "getDomainRecords",
       "title": "Get domain records",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -9544,6 +10032,8 @@
       "resource": "internet",
       "operation": "getDomainRecord",
       "title": "Get domain record",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -9585,6 +10075,8 @@
       "resource": "internet",
       "operation": "getUrlEncode",
       "title": "Get url encode",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -9619,6 +10111,8 @@
       "resource": "internet",
       "operation": "getFeedEntriesByDomain",
       "title": "Get feed entries by domain",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -9653,6 +10147,8 @@
       "resource": "internet",
       "operation": "getFileCopiedBetweenUrls",
       "title": "Get file copied between urls",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -9694,6 +10190,8 @@
       "resource": "internet",
       "operation": "getNetFixip",
       "title": "Get net fixip",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -9728,6 +10226,8 @@
       "resource": "internet",
       "operation": "getDomainReverseIp",
       "title": "Get domain reverse ip",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -9762,6 +10262,8 @@
       "resource": "internet",
       "operation": "getNetNtoa",
       "title": "Get net ntoa",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -9796,6 +10298,8 @@
       "resource": "internet",
       "operation": "getDomainIsp",
       "title": "Get domain isp",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -9830,6 +10334,8 @@
       "resource": "internet",
       "operation": "getFeedLastEntryByDomain",
       "title": "Get feed last entry by domain",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -9864,6 +10370,8 @@
       "resource": "internet",
       "operation": "getUrlUnshortened",
       "title": "Get url unshortened",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -9898,6 +10406,8 @@
       "resource": "internet",
       "operation": "getNetAton",
       "title": "Get net aton",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -9932,6 +10442,8 @@
       "resource": "internet",
       "operation": "getNetScan",
       "title": "Get net scan",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -9966,6 +10478,8 @@
       "resource": "internet",
       "operation": "getUrlListContentsParsed",
       "title": "Get url list contents parsed",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -10000,6 +10514,8 @@
       "resource": "internet",
       "operation": "getUrlContentsParsed",
       "title": "Get url contents parsed",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -10034,6 +10550,8 @@
       "resource": "internet",
       "operation": "getUrlParsed",
       "title": "Get url parsed",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -10068,6 +10586,8 @@
       "resource": "internet",
       "operation": "getUrlPdf",
       "title": "Get url pdf",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -10102,6 +10622,8 @@
       "resource": "internet",
       "operation": "getDomainByUrl",
       "title": "Get domain by url",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -10136,6 +10658,8 @@
       "resource": "internet",
       "operation": "getUrlShareableLinks",
       "title": "Get url shareable links",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -10177,6 +10701,8 @@
       "resource": "internet",
       "operation": "getUrlTables",
       "title": "Get url tables",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -10218,6 +10744,8 @@
       "resource": "internet",
       "operation": "getDomainTechnologies",
       "title": "Get domain technologies",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -10252,6 +10780,8 @@
       "resource": "internet",
       "operation": "getUrlTechnologies",
       "title": "Get url technologies",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -10286,6 +10816,8 @@
       "resource": "internet",
       "operation": "getUrlAnalysis",
       "title": "Get url analysis",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -10320,6 +10852,8 @@
       "resource": "internet",
       "operation": "getDomainVisits",
       "title": "Get domain visits",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -10354,6 +10888,8 @@
       "resource": "internet",
       "operation": "getDomainWhois",
       "title": "Get domain whois",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -10388,6 +10924,8 @@
       "resource": "internet",
       "operation": "getIpWhois",
       "title": "Get ip whois",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -10422,6 +10960,8 @@
       "resource": "personal",
       "operation": "checkAgeBetw",
       "title": "Check age betw",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -10470,6 +11010,8 @@
       "resource": "personal",
       "operation": "checkAgeIsTwenties",
       "title": "Check age is twenties",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -10504,6 +11046,8 @@
       "resource": "personal",
       "operation": "checkAgeIsForties",
       "title": "Check age is forties",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -10538,6 +11082,8 @@
       "resource": "personal",
       "operation": "checkAgeGt",
       "title": "Check age gt",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -10579,6 +11125,8 @@
       "resource": "personal",
       "operation": "checkAgeGe",
       "title": "Check age ge",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -10620,6 +11168,8 @@
       "resource": "personal",
       "operation": "checkAgeIsRetired",
       "title": "Check age is retired",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -10654,6 +11204,8 @@
       "resource": "personal",
       "operation": "checkAgeIsAdult",
       "title": "Check age is adult",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -10688,6 +11240,8 @@
       "resource": "personal",
       "operation": "checkAgeLt",
       "title": "Check age lt",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -10729,6 +11283,8 @@
       "resource": "personal",
       "operation": "checkAgeLe",
       "title": "Check age le",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -10770,6 +11326,8 @@
       "resource": "personal",
       "operation": "checkAgeEq",
       "title": "Check age eq",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -10811,6 +11369,8 @@
       "resource": "personal",
       "operation": "checkDateBetw",
       "title": "Check date betw",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -10859,6 +11419,8 @@
       "resource": "personal",
       "operation": "checkDateGt",
       "title": "Check date gt",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -10900,6 +11462,8 @@
       "resource": "personal",
       "operation": "checkDateGe",
       "title": "Check date ge",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -10941,6 +11505,8 @@
       "resource": "personal",
       "operation": "checkDateLeap",
       "title": "Check date leap",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -10975,6 +11541,8 @@
       "resource": "personal",
       "operation": "checkDateLt",
       "title": "Check date lt",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -11016,6 +11584,8 @@
       "resource": "personal",
       "operation": "checkDateLe",
       "title": "Check date le",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -11057,6 +11627,8 @@
       "resource": "personal",
       "operation": "checkDateValid",
       "title": "Check date valid",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -11091,6 +11663,8 @@
       "resource": "personal",
       "operation": "checkDateEq",
       "title": "Check date eq",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -11132,6 +11706,8 @@
       "resource": "personal",
       "operation": "checkGenderValid",
       "title": "Check gender valid",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -11166,6 +11742,8 @@
       "resource": "personal",
       "operation": "checkNieValid",
       "title": "Check nie valid",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -11200,6 +11778,8 @@
       "resource": "personal",
       "operation": "checkNifValid",
       "title": "Check nif valid",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -11234,6 +11814,8 @@
       "resource": "personal",
       "operation": "checkNameExist",
       "title": "Check name exist",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -11268,6 +11850,8 @@
       "resource": "personal",
       "operation": "checkNameValid",
       "title": "Check name valid",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -11302,6 +11886,8 @@
       "resource": "personal",
       "operation": "checkRobinsonNifExist",
       "title": "Check robinson nif exist",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -11336,6 +11922,8 @@
       "resource": "personal",
       "operation": "checkSurnameValid",
       "title": "Check surname valid",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -11370,6 +11958,8 @@
       "resource": "personal",
       "operation": "checkSurnameExist",
       "title": "Check surname exist",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -11404,6 +11994,8 @@
       "resource": "personal",
       "operation": "checkDniValid",
       "title": "Check dni valid",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -11438,6 +12030,8 @@
       "resource": "personal",
       "operation": "getAgeByDate",
       "title": "Get age by date",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -11472,6 +12066,8 @@
       "resource": "personal",
       "operation": "getAgeRange",
       "title": "Get age range",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -11506,6 +12102,8 @@
       "resource": "personal",
       "operation": "getDateDifference",
       "title": "Get date difference",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -11554,6 +12152,8 @@
       "resource": "personal",
       "operation": "getGenderByEmail",
       "title": "Get gender by email",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -11588,6 +12188,8 @@
       "resource": "personal",
       "operation": "getGenderByPersonalName",
       "title": "Get gender by personal name",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -11622,6 +12224,8 @@
       "resource": "personal",
       "operation": "getProfileLinkedinByEmail",
       "title": "Get profile linkedin by email",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -11656,6 +12260,8 @@
       "resource": "personal",
       "operation": "getProfileByEmployeeData",
       "title": "Get profile by employee data",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -11704,6 +12310,8 @@
       "resource": "personal",
       "operation": "getProfileLinkedinByPhone",
       "title": "Get profile linkedin by phone",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -11738,6 +12346,8 @@
       "resource": "personal",
       "operation": "getNifByDni",
       "title": "Get nif by dni",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -11772,6 +12382,8 @@
       "resource": "personal",
       "operation": "getNameByPrefix",
       "title": "Get name by prefix",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -11813,6 +12425,8 @@
       "resource": "personal",
       "operation": "getDniNormalized",
       "title": "Get dni normalized",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -11847,6 +12461,8 @@
       "resource": "personal",
       "operation": "getDateNormalized",
       "title": "Get date normalized",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -11881,6 +12497,8 @@
       "resource": "personal",
       "operation": "getNieNormalized",
       "title": "Get nie normalized",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -11915,6 +12533,8 @@
       "resource": "personal",
       "operation": "getNifNormalized",
       "title": "Get nif normalized",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -11949,6 +12569,8 @@
       "resource": "personal",
       "operation": "getNameNormalized",
       "title": "Get name normalized",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -11983,6 +12605,8 @@
       "resource": "personal",
       "operation": "getSurnameNormalized",
       "title": "Get surname normalized",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -12017,6 +12641,8 @@
       "resource": "personal",
       "operation": "getDateParsed",
       "title": "Get date parsed",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -12051,6 +12677,8 @@
       "resource": "personal",
       "operation": "getFullnameParsed",
       "title": "Get fullname parsed",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -12085,6 +12713,8 @@
       "resource": "personal",
       "operation": "getPersonExtendedByEmail",
       "title": "Get person extended by email",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -12119,6 +12749,8 @@
       "resource": "personal",
       "operation": "getPersonExtendedByEmailAndCompany",
       "title": "Get person extended by email and company",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -12160,6 +12792,8 @@
       "resource": "personal",
       "operation": "getPersonExtendedByProfile",
       "title": "Get person extended by profile",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -12194,6 +12828,8 @@
       "resource": "personal",
       "operation": "getPersonByEmail",
       "title": "Get person by email",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -12228,6 +12864,8 @@
       "resource": "personal",
       "operation": "getPersonByFirstnameLastnameCompanyLocation",
       "title": "Get person by firstname lastname company location",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -12283,6 +12921,8 @@
       "resource": "personal",
       "operation": "getPersonByMobile",
       "title": "Get person by mobile",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -12317,6 +12957,8 @@
       "resource": "personal",
       "operation": "getPersonByProfile",
       "title": "Get person by profile",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -12351,6 +12993,8 @@
       "resource": "personal",
       "operation": "getPersonFakedData",
       "title": "Get person faked data",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -12385,6 +13029,8 @@
       "resource": "personal",
       "operation": "getSurnameByPrefix",
       "title": "Get surname by prefix",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -12419,6 +13065,8 @@
       "resource": "personal",
       "operation": "getSurnameListByPrefix",
       "title": "Get surname list by prefix",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -12453,6 +13101,8 @@
       "resource": "personal",
       "operation": "getProfileXingByEmployeeData",
       "title": "Get profile xing by employee data",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -12587,6 +13237,8 @@
       "resource": "product",
       "operation": "checkAsinExist",
       "title": "Check asin exist",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -12621,6 +13273,8 @@
       "resource": "product",
       "operation": "checkAsinValid",
       "title": "Check asin valid",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -12655,6 +13309,8 @@
       "resource": "product",
       "operation": "checkEanExist",
       "title": "Check ean exist",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -12689,6 +13345,8 @@
       "resource": "product",
       "operation": "checkEanValid",
       "title": "Check ean valid",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -12723,6 +13381,8 @@
       "resource": "product",
       "operation": "checkEan13Valid",
       "title": "Check ean13 valid",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -12757,6 +13417,8 @@
       "resource": "product",
       "operation": "checkEan14Valid",
       "title": "Check ean14 valid",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -12791,6 +13453,8 @@
       "resource": "product",
       "operation": "checkEan18Valid",
       "title": "Check ean18 valid",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -12825,6 +13489,8 @@
       "resource": "product",
       "operation": "checkEan8Valid",
       "title": "Check ean8 valid",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -12859,6 +13525,8 @@
       "resource": "product",
       "operation": "checkGtinValid",
       "title": "Check gtin valid",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -12893,6 +13561,8 @@
       "resource": "product",
       "operation": "checkGtin13Valid",
       "title": "Check gtin13 valid",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -12927,6 +13597,8 @@
       "resource": "product",
       "operation": "checkGtin14Valid",
       "title": "Check gtin14 valid",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -12961,6 +13633,8 @@
       "resource": "product",
       "operation": "checkGtin8Valid",
       "title": "Check gtin8 valid",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -12995,6 +13669,8 @@
       "resource": "product",
       "operation": "checkBookIsbnExist",
       "title": "Check book isbn exist",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -13029,6 +13705,8 @@
       "resource": "product",
       "operation": "checkBookIsbn",
       "title": "Check book isbn",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -13063,6 +13741,8 @@
       "resource": "product",
       "operation": "checkBookIsbn10",
       "title": "Check book isbn10",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -13097,6 +13777,8 @@
       "resource": "product",
       "operation": "checkBookIsbn13",
       "title": "Check book isbn13",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -13131,6 +13813,8 @@
       "resource": "product",
       "operation": "checkUpcExist",
       "title": "Check upc exist",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -13165,6 +13849,8 @@
       "resource": "product",
       "operation": "checkUpcFormat",
       "title": "Check upc format",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -13199,6 +13885,8 @@
       "resource": "product",
       "operation": "checkVinFormat",
       "title": "Check vin format",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -13233,6 +13921,8 @@
       "resource": "product",
       "operation": "getAsinByEan",
       "title": "Get asin by ean",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -13267,6 +13957,8 @@
       "resource": "product",
       "operation": "getBookAuthorLookup",
       "title": "Get book author lookup",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -13301,6 +13993,8 @@
       "resource": "product",
       "operation": "getBookCategoryLookup",
       "title": "Get book category lookup",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -13335,6 +14029,8 @@
       "resource": "product",
       "operation": "getBookPublisherLookup",
       "title": "Get book publisher lookup",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -13369,6 +14065,8 @@
       "resource": "product",
       "operation": "getBookIsbnLookup",
       "title": "Get book isbn lookup",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -13403,6 +14101,8 @@
       "resource": "product",
       "operation": "getBookTitleLookup",
       "title": "Get book title lookup",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -13437,6 +14137,8 @@
       "resource": "product",
       "operation": "getBookListAuthorLookup",
       "title": "Get book list author lookup",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -13471,6 +14173,8 @@
       "resource": "product",
       "operation": "getBookListCategoryLookup",
       "title": "Get book list category lookup",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -13505,6 +14209,8 @@
       "resource": "product",
       "operation": "getBookListPublisherLookup",
       "title": "Get book list publisher lookup",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -13539,6 +14245,8 @@
       "resource": "product",
       "operation": "getBookListTitleLookup",
       "title": "Get book list title lookup",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -13573,6 +14281,8 @@
       "resource": "product",
       "operation": "getVinLookup",
       "title": "Get vin lookup",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -13607,6 +14317,8 @@
       "resource": "product",
       "operation": "getEanByAsin",
       "title": "Get ean by asin",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -13641,6 +14353,8 @@
       "resource": "product",
       "operation": "getBookIsbn13ToIsbn10",
       "title": "Get book isbn13 to isbn10",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -13675,6 +14389,8 @@
       "resource": "product",
       "operation": "getBookIsbn10ToIsbn13",
       "title": "Get book isbn10 to isbn13",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -13709,6 +14425,8 @@
       "resource": "product",
       "operation": "getUpcLookup",
       "title": "Get upc lookup",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -13743,6 +14461,8 @@
       "resource": "security",
       "operation": "checkNumberLuhn",
       "title": "Check number luhn",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -13777,6 +14497,8 @@
       "resource": "security",
       "operation": "checkPasswordStrong",
       "title": "Check password strong",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -13811,6 +14533,8 @@
       "resource": "security",
       "operation": "checkNumberUuid",
       "title": "Check number uuid",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -13845,6 +14569,8 @@
       "resource": "security",
       "operation": "getDomainBlacklists",
       "title": "Get domain blacklists",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -13879,6 +14605,8 @@
       "resource": "security",
       "operation": "getIpBlacklists",
       "title": "Get ip blacklists",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -13913,6 +14641,8 @@
       "resource": "text",
       "operation": "checkStringAlpha",
       "title": "Check string alpha",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -13947,6 +14677,8 @@
       "resource": "text",
       "operation": "checkStringAlphanumeric",
       "title": "Check string alphanumeric",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -13981,6 +14713,8 @@
       "resource": "text",
       "operation": "checkStringBoolean",
       "title": "Check string boolean",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -14015,6 +14749,8 @@
       "resource": "text",
       "operation": "checkNumberDecimal",
       "title": "Check number decimal",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -14049,6 +14785,8 @@
       "resource": "text",
       "operation": "checkNumberEven",
       "title": "Check number even",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -14083,6 +14821,8 @@
       "resource": "text",
       "operation": "checkListMax",
       "title": "Check list max",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -14124,6 +14864,8 @@
       "resource": "text",
       "operation": "checkStringIp",
       "title": "Check string ip",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -14158,6 +14900,8 @@
       "resource": "text",
       "operation": "checkStringIp4",
       "title": "Check string ip4",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -14192,6 +14936,8 @@
       "resource": "text",
       "operation": "checkStringIp6",
       "title": "Check string ip6",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -14226,6 +14972,8 @@
       "resource": "text",
       "operation": "checkListLengthBetw",
       "title": "Check list length betw",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -14274,6 +15022,8 @@
       "resource": "text",
       "operation": "checkListLengthEq",
       "title": "Check list length eq",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -14315,6 +15065,8 @@
       "resource": "text",
       "operation": "checkListLengthGt",
       "title": "Check list length gt",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -14356,6 +15108,8 @@
       "resource": "text",
       "operation": "checkListLengthGe",
       "title": "Check list length ge",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -14397,6 +15151,8 @@
       "resource": "text",
       "operation": "checkListLengthLt",
       "title": "Check list length lt",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -14438,6 +15194,8 @@
       "resource": "text",
       "operation": "checkListLengthLe",
       "title": "Check list length le",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -14479,6 +15237,8 @@
       "resource": "text",
       "operation": "checkListContains",
       "title": "Check list contains",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -14520,6 +15280,8 @@
       "resource": "text",
       "operation": "checkListEnds",
       "title": "Check list ends",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -14561,6 +15323,8 @@
       "resource": "text",
       "operation": "checkListSorted",
       "title": "Check list sorted",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -14595,6 +15359,8 @@
       "resource": "text",
       "operation": "checkListStarts",
       "title": "Check list starts",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -14636,6 +15402,8 @@
       "resource": "text",
       "operation": "checkListMin",
       "title": "Check list min",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -14677,6 +15445,8 @@
       "resource": "text",
       "operation": "checkNumberMod",
       "title": "Check number mod",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -14725,6 +15495,8 @@
       "resource": "text",
       "operation": "checkNumberNatural",
       "title": "Check number natural",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -14759,6 +15531,8 @@
       "resource": "text",
       "operation": "checkNumberBetw",
       "title": "Check number betw",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -14807,6 +15581,8 @@
       "resource": "text",
       "operation": "checkNumberEq",
       "title": "Check number eq",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -14848,6 +15624,8 @@
       "resource": "text",
       "operation": "checkNumberGt",
       "title": "Check number gt",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -14889,6 +15667,8 @@
       "resource": "text",
       "operation": "checkNumberGe",
       "title": "Check number ge",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -14930,6 +15710,8 @@
       "resource": "text",
       "operation": "checkNumberLt",
       "title": "Check number lt",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -14971,6 +15753,8 @@
       "resource": "text",
       "operation": "checkNumberLe",
       "title": "Check number le",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -15012,6 +15796,8 @@
       "resource": "text",
       "operation": "checkStringNumeric",
       "title": "Check string numeric",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -15046,6 +15832,8 @@
       "resource": "text",
       "operation": "checkNumberOdd",
       "title": "Check number odd",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -15080,6 +15868,8 @@
       "resource": "text",
       "operation": "checkNumberPrime",
       "title": "Check number prime",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -15114,6 +15904,8 @@
       "resource": "text",
       "operation": "checkStringContains",
       "title": "Check string contains",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -15155,6 +15947,8 @@
       "resource": "text",
       "operation": "checkStringEnds",
       "title": "Check string ends",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -15196,6 +15990,8 @@
       "resource": "text",
       "operation": "checkStringBlank",
       "title": "Check string blank",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -15230,6 +16026,8 @@
       "resource": "text",
       "operation": "checkStringRandom",
       "title": "Check string random",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -15264,6 +16062,8 @@
       "resource": "text",
       "operation": "checkStringRegex",
       "title": "Check string regex",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -15305,6 +16105,8 @@
       "resource": "text",
       "operation": "checkStringLengthBetw",
       "title": "Check string length betw",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -15353,6 +16155,8 @@
       "resource": "text",
       "operation": "checkStringLengthEq",
       "title": "Check string length eq",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -15394,6 +16198,8 @@
       "resource": "text",
       "operation": "checkStringLengthGt",
       "title": "Check string length gt",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -15435,6 +16241,8 @@
       "resource": "text",
       "operation": "checkStringLengthGe",
       "title": "Check string length ge",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -15476,6 +16284,8 @@
       "resource": "text",
       "operation": "checkStringLengthLt",
       "title": "Check string length lt",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -15517,6 +16327,8 @@
       "resource": "text",
       "operation": "checkStringLengthLe",
       "title": "Check string length le",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -15558,6 +16370,8 @@
       "resource": "text",
       "operation": "checkStringStarts",
       "title": "Check string starts",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -15599,6 +16413,8 @@
       "resource": "text",
       "operation": "checkStringLowercase",
       "title": "Check string lowercase",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -15633,6 +16449,8 @@
       "resource": "text",
       "operation": "checkStringUppercase",
       "title": "Check string uppercase",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -15667,6 +16485,8 @@
       "resource": "text",
       "operation": "checkListUnique",
       "title": "Check list unique",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -15701,6 +16521,8 @@
       "resource": "text",
       "operation": "checkListValid",
       "title": "Check list valid",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -15742,6 +16564,8 @@
       "resource": "text",
       "operation": "checkWordCountBetw",
       "title": "Check word count betw",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -15790,6 +16614,8 @@
       "resource": "text",
       "operation": "checkWordCountEq",
       "title": "Check word count eq",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -15831,6 +16657,8 @@
       "resource": "text",
       "operation": "checkWordCountGt",
       "title": "Check word count gt",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -15872,6 +16700,8 @@
       "resource": "text",
       "operation": "checkWordCountGe",
       "title": "Check word count ge",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -15913,6 +16743,8 @@
       "resource": "text",
       "operation": "checkWordCountLt",
       "title": "Check word count lt",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -15954,6 +16786,8 @@
       "resource": "text",
       "operation": "checkWordCountLe",
       "title": "Check word count le",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -15995,6 +16829,8 @@
       "resource": "text",
       "operation": "getStringBase64",
       "title": "Get string base64",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -16029,6 +16865,8 @@
       "resource": "text",
       "operation": "getWordBanned",
       "title": "Get word banned",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -16063,6 +16901,8 @@
       "resource": "text",
       "operation": "getStringFieldName",
       "title": "Get string field name",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -16097,6 +16937,8 @@
       "resource": "text",
       "operation": "getStringByFormat",
       "title": "Get string by format",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -16138,6 +16980,8 @@
       "resource": "text",
       "operation": "getStringByRegex",
       "title": "Get string by regex",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -16172,6 +17016,8 @@
       "resource": "text",
       "operation": "getListMax",
       "title": "Get list max",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -16206,6 +17052,8 @@
       "resource": "text",
       "operation": "getStringHtmlByMarkdown",
       "title": "Get string html by markdown",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -16240,6 +17088,8 @@
       "resource": "text",
       "operation": "getListMin",
       "title": "Get list min",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -16274,6 +17124,8 @@
       "resource": "text",
       "operation": "getStringLowercase",
       "title": "Get string lowercase",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -16308,6 +17160,8 @@
       "resource": "text",
       "operation": "getStringMd5",
       "title": "Get string md5",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -16342,6 +17196,8 @@
       "resource": "text",
       "operation": "getStringMarkdownByHtml",
       "title": "Get string markdown by html",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -16376,6 +17232,8 @@
       "resource": "text",
       "operation": "getStringJoin",
       "title": "Get string join",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -16424,6 +17282,8 @@
       "resource": "text",
       "operation": "getStringNormalized",
       "title": "Get string normalized",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -16465,6 +17325,8 @@
       "resource": "text",
       "operation": "getStringParsed",
       "title": "Get string parsed",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -16499,6 +17361,8 @@
       "resource": "text",
       "operation": "getStringSha",
       "title": "Get string sha",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -16533,6 +17397,8 @@
       "resource": "text",
       "operation": "getSentimentByText",
       "title": "Get sentiment by text",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -16567,6 +17433,8 @@
       "resource": "text",
       "operation": "getListSort",
       "title": "Get list sort",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -16601,6 +17469,8 @@
       "resource": "text",
       "operation": "getStringSpin",
       "title": "Get string spin",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -16635,6 +17505,8 @@
       "resource": "text",
       "operation": "getStringSplitAndJoin",
       "title": "Get string split and join",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -16683,6 +17555,8 @@
       "resource": "text",
       "operation": "getStringSplit",
       "title": "Get string split",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -16724,6 +17598,8 @@
       "resource": "text",
       "operation": "getStringLength",
       "title": "Get string length",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -16758,6 +17634,8 @@
       "resource": "text",
       "operation": "getStringVlookup",
       "title": "Get string vlookup",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -16799,6 +17677,8 @@
       "resource": "text",
       "operation": "getWordCleanAbuse",
       "title": "Get word clean abuse",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -16833,6 +17713,8 @@
       "resource": "text",
       "operation": "getStringReplaceFirst",
       "title": "Get string replace first",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -16881,6 +17763,8 @@
       "resource": "text",
       "operation": "getStringWithoutHtml",
       "title": "Get string without html",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -16915,6 +17799,8 @@
       "resource": "text",
       "operation": "getStringReplaceAll",
       "title": "Get string replace all",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -16963,6 +17849,8 @@
       "resource": "text",
       "operation": "getStringTranslated",
       "title": "Get string translated",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -17004,6 +17892,8 @@
       "resource": "text",
       "operation": "getListUnique",
       "title": "Get list unique",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -17038,6 +17928,8 @@
       "resource": "text",
       "operation": "getStringUppercase",
       "title": "Get string uppercase",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {
@@ -17072,6 +17964,8 @@
       "resource": "text",
       "operation": "getWordCount",
       "title": "Get word count",
+      "sends": false,
+      "sends_reason": "a uProc lookup (every uProc tool is a POST), not a message",
       "method": "POST",
       "path": "/process",
       "body": {

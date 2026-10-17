@@ -2610,8 +2610,20 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
   send/comment/publish/follow actions) and every API package op that
   declares `"sends"` (`internal/apipkg/FORMAT.md` §3: the `app.*` nodes and
   the ops packages add to native nodes). An app step resolves its recipient
-  per input item, so each item is its own card. `hil show <id>` (text)
-  prints `Prepared by: <role>`. Not covered (open): `http.request` to any
+  per input item, so each item is its own card. An op that sends only
+  sometimes says when with `if` (a Google Calendar event only with
+  attendees, an Invoice Ninja invoice only with emailInvoice); a field may
+  be a collection's option (`updateFields.publicReply`). The catalog lint
+  (`TestCatalogSendsAreDecided`) makes every write of a messaging package,
+  and any op whose name, path or description says it sends, carry `sends`
+  or `sends: false` with a reason. It covers the built-in catalog only: a
+  package the user installs in `~/.monoagent/apipkgs` without `sends` sends
+  as before. A send whose credential is written into its config
+  (`"credential": {…}`) is refused, not queued: an approval keeps no
+  credentials; save it with `connect save` and use `credential_id`.
+  `hil show <id>` (text) prints MonoAgent's own label as it is
+  (`Prepared by: unapproved workflow <id>`) and an agent's as its claim
+  (`Prepared by: an agent (claims: "…")`). Not covered (open): `http.request` to any
   API, a mail API included, and a program step (`system.execute_command`,
   `core.code`) in a workflow the user approved.
 - **Files an unapproved workflow can't touch.** Its file steps, and those of

@@ -190,6 +190,8 @@
       "resource": "message",
       "operation": "delete",
       "title": "Delete a message",
+      "sends": false,
+      "sends_reason": "Delete a message: changes Webex by Cisco data, not a message",
       "method": "DELETE",
       "path": "/messages/{{ p.messageId }}",
       "fields": [
@@ -321,6 +323,19 @@
       "resource": "meeting",
       "operation": "create",
       "title": "Create a meeting",
+      "sends": {
+        "action": "invite",
+        "to": [
+          "additionalFields.inviteesUi"
+        ],
+        "text": [
+          "additionalFields.agenda"
+        ],
+        "subject": [
+          "title"
+        ],
+        "if": "additionalFields.inviteesUi"
+      },
       "method": "POST",
       "path": "/meetings",
       "body": {
@@ -388,6 +403,12 @@
       "resource": "meeting",
       "operation": "delete",
       "title": "Delete a meeting",
+      "sends": {
+        "action": "email",
+        "to": [
+          "meetingId"
+        ]
+      },
       "method": "DELETE",
       "path": "/meetings/{{ p.meetingId }}",
       "query": {
@@ -501,6 +522,18 @@
       "resource": "meeting",
       "operation": "update",
       "title": "Update a meeting",
+      "sends": {
+        "action": "invite",
+        "to": [
+          "meetingId"
+        ],
+        "text": [
+          "updateFields.agenda"
+        ],
+        "subject": [
+          "updateFields.title"
+        ]
+      },
       "method": "PUT",
       "path": "/meetings/{{ p.meetingId }}",
       "before": {

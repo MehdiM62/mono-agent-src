@@ -69,6 +69,19 @@
       "resource": "payout",
       "operation": "create",
       "title": "Create a batch payout",
+      "sends": {
+        "action": "email",
+        "text": [
+          "additionalFields.emailMessage"
+        ],
+        "subject": [
+          "additionalFields.emailSubject"
+        ],
+        "if": [
+          "additionalFields.emailSubject",
+          "additionalFields.emailMessage"
+        ]
+      },
       "method": "POST",
       "path": "/payments/payouts",
       "fields": [
@@ -199,6 +212,8 @@
       "resource": "payoutItem",
       "operation": "cancel",
       "title": "Cancel an unclaimed payout item",
+      "sends": false,
+      "sends_reason": "money movement, open by the user's decision",
       "method": "POST",
       "path": "/payments/payouts-item/{{ p.payoutItemId }}/cancel",
       "fields": [

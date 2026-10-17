@@ -102,6 +102,8 @@
       "resource": "alert",
       "operation": "resolve",
       "title": "Resolve an alert",
+      "sends": false,
+      "sends_reason": "Resolve an alert: changes SIGNL4 data, not a message",
       "method": "POST",
       "path": "/webhook/{{ cred.team_secret }}",
       "body_type": "multipart",

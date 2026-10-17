@@ -135,6 +135,8 @@
       "resource": "card",
       "operation": "create",
       "title": "Create a card",
+      "sends": false,
+      "sends_reason": "Create a card: changes Trello data, not a message",
       "method": "POST",
       "path": "/cards",
       "body": {
@@ -184,6 +186,8 @@
       "resource": "card",
       "operation": "delete",
       "title": "Delete a card",
+      "sends": false,
+      "sends_reason": "Delete a card: changes Trello data, not a message",
       "method": "DELETE",
       "path": "/cards/{{ p.id | rl | re:'trello.com/c/([^/]+)' }}",
       "fields": [
@@ -236,6 +240,8 @@
       "resource": "card",
       "operation": "update",
       "title": "Update a card",
+      "sends": false,
+      "sends_reason": "Update a card: changes Trello data, not a message",
       "method": "PUT",
       "path": "/cards/{{ p.id | rl | re:'trello.com/c/([^/]+)' }}",
       "query": {
@@ -303,6 +309,8 @@
       "resource": "attachment",
       "operation": "create",
       "title": "Attach a URL to a card",
+      "sends": false,
+      "sends_reason": "Attach a URL to a card: changes Trello data, not a message",
       "method": "POST",
       "path": "/cards/{{ p.cardId | rl | re:'trello.com/c/([^/]+)' }}/attachments",
       "body": {
@@ -339,6 +347,8 @@
       "resource": "attachment",
       "operation": "delete",
       "title": "Delete an attachment",
+      "sends": false,
+      "sends_reason": "Delete an attachment: changes Trello data, not a message",
       "method": "DELETE",
       "path": "/cards/{{ p.cardId | rl | re:'trello.com/c/([^/]+)' }}/attachments/{{ p.id }}",
       "fields": [
@@ -395,6 +405,8 @@
       "resource": "board",
       "operation": "create",
       "title": "Create a board",
+      "sends": false,
+      "sends_reason": "Create a board: changes Trello data, not a message",
       "method": "POST",
       "path": "/boards",
       "body": {
@@ -443,6 +455,8 @@
       "resource": "board",
       "operation": "delete",
       "title": "Delete a board",
+      "sends": false,
+      "sends_reason": "Delete a board: changes Trello data, not a message",
       "method": "DELETE",
       "path": "/boards/{{ p.id | rl | re:'trello.com/b/([^/]+)' }}",
       "fields": [
@@ -488,6 +502,8 @@
       "resource": "board",
       "operation": "update",
       "title": "Update a board",
+      "sends": false,
+      "sends_reason": "Update a board: changes Trello data, not a message",
       "method": "PUT",
       "path": "/boards/{{ p.id | rl | re:'trello.com/b/([^/]+)' }}",
       "query": {
@@ -520,6 +536,12 @@
       "resource": "boardMember",
       "operation": "add",
       "title": "Add a member to a board",
+      "sends": {
+        "action": "invite",
+        "to": [
+          "idMember"
+        ]
+      },
       "method": "PUT",
       "path": "/boards/{{ p.id }}/members/{{ p.idMember }}",
       "query": {
@@ -649,6 +671,8 @@
       "resource": "boardMember",
       "operation": "remove",
       "title": "Remove a member from a board",
+      "sends": false,
+      "sends_reason": "Remove a member from a board: changes Trello data, not a message",
       "method": "DELETE",
       "path": "/boards/{{ p.id }}/members/{{ p.idMember }}",
       "fields": [
@@ -704,6 +728,8 @@
       "resource": "cardComment",
       "operation": "delete",
       "title": "Delete a comment",
+      "sends": false,
+      "sends_reason": "Delete a comment: changes Trello data, not a message",
       "method": "DELETE",
       "path": "/cards/{{ p.cardId | rl | re:'trello.com/c/([^/]+)' }}/actions/{{ p.commentId }}/comments",
       "fields": [
@@ -794,6 +820,8 @@
       "resource": "checklist",
       "operation": "create",
       "title": "Create a checklist on a card",
+      "sends": false,
+      "sends_reason": "Create a checklist on a card: changes Trello data, not a message",
       "method": "POST",
       "path": "/cards/{{ p.cardId | rl | re:'trello.com/c/([^/]+)' }}/checklists",
       "body": {
@@ -830,6 +858,8 @@
       "resource": "checklist",
       "operation": "createCheckItem",
       "title": "Create a checklist item",
+      "sends": false,
+      "sends_reason": "Create a checklist item: changes Trello data, not a message",
       "method": "POST",
       "path": "/checklists/{{ p.checklistId }}/checkItems",
       "body": {
@@ -865,6 +895,8 @@
       "resource": "checklist",
       "operation": "delete",
       "title": "Delete a checklist",
+      "sends": false,
+      "sends_reason": "Delete a checklist: changes Trello data, not a message",
       "method": "DELETE",
       "path": "/cards/{{ p.cardId | rl | re:'trello.com/c/([^/]+)' }}/checklists/{{ p.id }}",
       "fields": [
@@ -887,6 +919,8 @@
       "resource": "checklist",
       "operation": "deleteCheckItem",
       "title": "Delete a checklist item",
+      "sends": false,
+      "sends_reason": "Delete a checklist item: changes Trello data, not a message",
       "method": "DELETE",
       "path": "/cards/{{ p.cardId | rl | re:'trello.com/c/([^/]+)' }}/checkItem/{{ p.checkItemId }}",
       "fields": [
@@ -998,6 +1032,8 @@
       "resource": "checklist",
       "operation": "updateCheckItem",
       "title": "Update a checklist item",
+      "sends": false,
+      "sends_reason": "Update a checklist item: changes Trello data, not a message",
       "method": "PUT",
       "path": "/cards/{{ p.cardId | rl | re:'trello.com/c/([^/]+)' }}/checkItem/{{ p.checkItemId }}",
       "query": {
@@ -1063,6 +1099,8 @@
       "resource": "label",
       "operation": "addLabel",
       "title": "Add a label to a card",
+      "sends": false,
+      "sends_reason": "Add a label to a card: changes Trello data, not a message",
       "method": "POST",
       "path": "/cards/{{ p.cardId | rl | re:'trello.com/c/([^/]+)' }}/idLabels",
       "body": {
@@ -1088,6 +1126,8 @@
       "resource": "label",
       "operation": "create",
       "title": "Create a label",
+      "sends": false,
+      "sends_reason": "Create a label: changes Trello data, not a message",
       "method": "POST",
       "path": "/labels",
       "body": {
@@ -1135,6 +1175,8 @@
       "resource": "label",
       "operation": "delete",
       "title": "Delete a label",
+      "sends": false,
+      "sends_reason": "Delete a label: changes Trello data, not a message",
       "method": "DELETE",
       "path": "/labels/{{ p.id }}",
       "fields": [
@@ -1177,6 +1219,8 @@
       "resource": "label",
       "operation": "removeLabel",
       "title": "Remove a label from a card",
+      "sends": false,
+      "sends_reason": "Remove a label from a card: changes Trello data, not a message",
       "method": "DELETE",
       "path": "/cards/{{ p.cardId | rl | re:'trello.com/c/([^/]+)' }}/idLabels/{{ p.id }}",
       "fields": [
@@ -1199,6 +1243,8 @@
       "resource": "label",
       "operation": "update",
       "title": "Update a label",
+      "sends": false,
+      "sends_reason": "Update a label: changes Trello data, not a message",
       "method": "PUT",
       "path": "/labels/{{ p.id }}",
       "query": {
@@ -1227,6 +1273,8 @@
       "resource": "list",
       "operation": "create",
       "title": "Create a list",
+      "sends": false,
+      "sends_reason": "Create a list: changes Trello data, not a message",
       "method": "POST",
       "path": "/lists",
       "body": {
@@ -1263,6 +1311,8 @@
       "resource": "list",
       "operation": "archive",
       "title": "Archive or unarchive a list",
+      "sends": false,
+      "sends_reason": "Archive or unarchive a list: changes Trello data, not a message",
       "method": "PUT",
       "path": "/lists/{{ p.id }}/closed",
       "query": {
@@ -1407,6 +1457,8 @@
       "resource": "list",
       "operation": "update",
       "title": "Update a list",
+      "sends": false,
+      "sends_reason": "Update a list: changes Trello data, not a message",
       "method": "PUT",
       "path": "/lists/{{ p.id }}",
       "query": {

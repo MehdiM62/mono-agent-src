@@ -149,6 +149,8 @@
       "resource": "post",
       "operation": "delete",
       "title": "Delete a post",
+      "sends": false,
+      "sends_reason": "Delete a post: changes Reddit data, not a message",
       "method": "POST",
       "path": "/api/del",
       "fields": [
@@ -400,6 +402,8 @@
       "resource": "postComment",
       "operation": "delete",
       "title": "Delete a comment",
+      "sends": false,
+      "sends_reason": "Delete a comment: changes Reddit data, not a message",
       "method": "POST",
       "path": "/api/del",
       "fields": [
@@ -542,6 +546,8 @@
       "resource": "subreddit",
       "operation": "getAll",
       "title": "Get many subreddits",
+      "sends": false,
+      "sends_reason": "Get many subreddits: a read, not a message",
       "method": "{{ p.filters.trending | bool | eq:'true' | then:'GET' | default:(p.filters.keyword | then:'POST') | default:'GET' }}",
       "path": "{{ p.filters.trending | bool | eq:'true' | then:'/api/trending_subreddits.json' }}{{ p.filters.trending | bool | ne:'true' | then:p.filters.keyword | then:'/api/search_subreddits.json' }}{{ p.filters.trending | bool | ne:'true' | then:(p.filters.keyword | default:'' | eq:'') | then:'/subreddits/popular.json' }}",
       "fields": [

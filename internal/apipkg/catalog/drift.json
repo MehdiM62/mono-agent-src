@@ -56,6 +56,8 @@
       "resource": "contact",
       "operation": "create",
       "title": "Create a contact",
+      "sends": false,
+      "sends_reason": "Create a contact: changes Drift data, not a message",
       "method": "POST",
       "path": "/contacts",
       "fields": [
@@ -101,6 +103,8 @@
       "resource": "contact",
       "operation": "delete",
       "title": "Delete a contact",
+      "sends": false,
+      "sends_reason": "Delete a contact: changes Drift data, not a message",
       "method": "DELETE",
       "path": "/contacts/{{ p.contactId }}",
       "fields": [
@@ -134,6 +138,8 @@
       "resource": "contact",
       "operation": "update",
       "title": "Update a contact",
+      "sends": false,
+      "sends_reason": "Update a contact: changes Drift data, not a message",
       "method": "PATCH",
       "path": "/contacts/{{ p.contactId }}",
       "fields": [

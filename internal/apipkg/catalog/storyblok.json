@@ -172,6 +172,8 @@
       "resource": "story",
       "operation": "delete",
       "title": "Delete a story (Management API)",
+      "sends": false,
+      "sends_reason": "Delete a story (Management API): changes Storyblok data, not a message",
       "method": "DELETE",
       "base_url": "https://mapi.storyblok.com",
       "path": "/v1/spaces/{{ p.space }}/stories/{{ p.storyId }}",
@@ -197,6 +199,12 @@
       "resource": "story",
       "operation": "publish",
       "title": "Publish a story (Management API)",
+      "sends": {
+        "action": "publish",
+        "to": [
+          "storyId"
+        ]
+      },
       "method": "GET",
       "base_url": "https://mapi.storyblok.com",
       "path": "/v1/spaces/{{ p.space }}/stories/{{ p.storyId }}/publish",

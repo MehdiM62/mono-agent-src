@@ -49,6 +49,8 @@
       "resource": "contact",
       "operation": "enrich",
       "title": "Enrich a contact",
+      "sends": false,
+      "sends_reason": "Enrich a contact: changes Dropcontact data, not a message",
       "description": "Submits the contact; unless Simplify is on, waits for the enriched data (polling every 5 s, up to 10 min; a reply that is not ready yet keeps waiting, a reported error fails). With Simplify on it returns the request_id for Fetch Request.",
       "method": "POST",
       "path": "/batch",

@@ -59,6 +59,8 @@
       "resource": "user",
       "operation": "create",
       "title": "Create a user",
+      "sends": false,
+      "sends_reason": "Create a user: changes Intercom data, not a message",
       "method": "POST",
       "path": "/users",
       "fields": [
@@ -161,6 +163,8 @@
       "resource": "user",
       "operation": "delete",
       "title": "Delete a user",
+      "sends": false,
+      "sends_reason": "Delete a user: changes Intercom data, not a message",
       "method": "DELETE",
       "path": "/users/{{ p.id }}",
       "fields": [
@@ -252,6 +256,8 @@
       "resource": "user",
       "operation": "update",
       "title": "Update a user",
+      "sends": false,
+      "sends_reason": "Update a user: changes Intercom data, not a message",
       "method": "POST",
       "path": "/users",
       "fields": [
@@ -356,6 +362,8 @@
       "resource": "lead",
       "operation": "create",
       "title": "Create a lead",
+      "sends": false,
+      "sends_reason": "Create a lead: changes Intercom data, not a message",
       "method": "POST",
       "path": "/contacts",
       "fields": [
@@ -444,6 +452,8 @@
       "resource": "lead",
       "operation": "delete",
       "title": "Delete a lead",
+      "sends": false,
+      "sends_reason": "Delete a lead: changes Intercom data, not a message",
       "method": "DELETE",
       "path": "/contacts{{ p.deleteBy | eq:'id' | then:'/' }}{{ p.deleteBy | eq:'id' | then:p.value }}",
       "fields": [
@@ -553,6 +563,8 @@
       "resource": "lead",
       "operation": "update",
       "title": "Update a lead",
+      "sends": false,
+      "sends_reason": "Update a lead: changes Intercom data, not a message",
       "method": "POST",
       "path": "/contacts",
       "fields": [
@@ -653,6 +665,8 @@
       "resource": "company",
       "operation": "create",
       "title": "Create a company",
+      "sends": false,
+      "sends_reason": "Create a company: changes Intercom data, not a message",
       "method": "POST",
       "path": "/companies",
       "fields": [
@@ -797,6 +811,8 @@
       "resource": "company",
       "operation": "update",
       "title": "Update a company",
+      "sends": false,
+      "sends_reason": "Update a company: changes Intercom data, not a message",
       "method": "POST",
       "path": "/companies",
       "fields": [

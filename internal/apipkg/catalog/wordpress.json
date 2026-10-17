@@ -319,6 +319,8 @@
       "resource": "post",
       "operation": "delete",
       "title": "Delete a post",
+      "sends": false,
+      "sends_reason": "Delete a post: changes WordPress data, not a message",
       "method": "DELETE",
       "path": "/posts/{{ p.postId }}",
       "query": {
@@ -346,6 +348,15 @@
       "resource": "page",
       "operation": "create",
       "title": "Create a page",
+      "sends": {
+        "action": "publish",
+        "text": [
+          "additionalFields.content"
+        ],
+        "subject": [
+          "title"
+        ]
+      },
       "method": "POST",
       "path": "/pages",
       "body": {
@@ -483,6 +494,18 @@
       "resource": "page",
       "operation": "update",
       "title": "Update a page",
+      "sends": {
+        "action": "publish",
+        "to": [
+          "pageId"
+        ],
+        "text": [
+          "updateFields.content"
+        ],
+        "subject": [
+          "updateFields.title"
+        ]
+      },
       "method": "POST",
       "path": "/pages/{{ p.pageId }}",
       "body": {
@@ -533,6 +556,8 @@
       "resource": "page",
       "operation": "delete",
       "title": "Delete a page",
+      "sends": false,
+      "sends_reason": "Delete a page: changes WordPress data, not a message",
       "method": "DELETE",
       "path": "/pages/{{ p.pageId }}",
       "query": {
@@ -560,6 +585,8 @@
       "resource": "user",
       "operation": "create",
       "title": "Create a user",
+      "sends": false,
+      "sends_reason": "Create a user: changes WordPress data, not a message",
       "method": "POST",
       "path": "/users",
       "body": {
@@ -703,6 +730,8 @@
       "resource": "user",
       "operation": "update",
       "title": "Update a user",
+      "sends": false,
+      "sends_reason": "Update a user: changes WordPress data, not a message",
       "method": "POST",
       "path": "/users/{{ p.userId }}",
       "body": {
@@ -749,6 +778,8 @@
       "resource": "user",
       "operation": "delete",
       "title": "Delete the current user",
+      "sends": false,
+      "sends_reason": "Delete the current user: changes WordPress data, not a message",
       "method": "DELETE",
       "path": "/users/me",
       "query": {

@@ -149,6 +149,8 @@
       "resource": "messageConversation",
       "operation": "delete",
       "title": "Delete a conversation message",
+      "sends": false,
+      "sends_reason": "Delete a conversation message: changes Twist data, not a message",
       "method": "POST",
       "path": "/conversation_messages/remove",
       "query": {
@@ -292,6 +294,8 @@
       "resource": "channel",
       "operation": "create",
       "title": "Create a channel",
+      "sends": false,
+      "sends_reason": "Create a channel: changes Twist data, not a message",
       "method": "POST",
       "path": "/channels/add",
       "body": {
@@ -332,6 +336,8 @@
       "resource": "channel",
       "operation": "archive",
       "title": "Archive a channel",
+      "sends": false,
+      "sends_reason": "Archive a channel: changes Twist data, not a message",
       "method": "POST",
       "path": "/channels/archive",
       "query": {
@@ -350,6 +356,8 @@
       "resource": "channel",
       "operation": "delete",
       "title": "Delete a channel",
+      "sends": false,
+      "sends_reason": "Delete a channel: changes Twist data, not a message",
       "method": "POST",
       "path": "/channels/remove",
       "query": {
@@ -430,6 +438,8 @@
       "resource": "channel",
       "operation": "unarchive",
       "title": "Unarchive a channel",
+      "sends": false,
+      "sends_reason": "Unarchive a channel: changes Twist data, not a message",
       "method": "POST",
       "path": "/channels/unarchive",
       "query": {
@@ -448,6 +458,8 @@
       "resource": "channel",
       "operation": "update",
       "title": "Update a channel",
+      "sends": false,
+      "sends_reason": "Update a channel: changes Twist data, not a message",
       "method": "POST",
       "path": "/channels/update",
       "body": {
@@ -561,6 +573,8 @@
       "resource": "comment",
       "operation": "delete",
       "title": "Delete a comment",
+      "sends": false,
+      "sends_reason": "Delete a comment: changes Twist data, not a message",
       "method": "POST",
       "path": "/comments/remove",
       "query": {
@@ -725,6 +739,18 @@
       "resource": "thread",
       "operation": "create",
       "title": "Create a thread",
+      "sends": {
+        "action": "post",
+        "to": [
+          "channelId"
+        ],
+        "text": [
+          "content"
+        ],
+        "subject": [
+          "title"
+        ]
+      },
       "method": "POST",
       "path": "/threads/add",
       "body": {
@@ -804,6 +830,8 @@
       "resource": "thread",
       "operation": "delete",
       "title": "Delete a thread",
+      "sends": false,
+      "sends_reason": "Delete a thread: changes Twist data, not a message",
       "method": "POST",
       "path": "/threads/remove",
       "query": {
@@ -893,6 +921,18 @@
       "resource": "thread",
       "operation": "update",
       "title": "Update a thread",
+      "sends": {
+        "action": "post",
+        "to": [
+          "threadId"
+        ],
+        "text": [
+          "updateFields.content"
+        ],
+        "subject": [
+          "updateFields.title"
+        ]
+      },
       "method": "POST",
       "path": "/threads/update",
       "body": {

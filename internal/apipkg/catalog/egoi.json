@@ -47,6 +47,12 @@
       "resource": "contact",
       "operation": "create",
       "title": "Create a contact",
+      "sends": {
+        "action": "email",
+        "to": [
+          "email"
+        ]
+      },
       "method": "POST",
       "path": "/lists/{{ p.list }}/contacts",
       "fields": [
@@ -256,6 +262,8 @@
       "resource": "contact",
       "operation": "update",
       "title": "Update a contact",
+      "sends": false,
+      "sends_reason": "Update a contact: changes E-goi data, not a message",
       "method": "PATCH",
       "path": "/lists/{{ p.list }}/contacts/{{ p.contactId }}",
       "fields": [

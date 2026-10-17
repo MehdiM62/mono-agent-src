@@ -56,6 +56,8 @@
       "resource": "campaign",
       "operation": "get",
       "title": "Get a campaign",
+      "sends": false,
+      "sends_reason": "Get a campaign: a read, not a message",
       "method": "POST",
       "path": "/graphql",
       "fields": [
@@ -175,6 +177,8 @@
       "resource": "campaign",
       "operation": "duplicate",
       "title": "Duplicate a campaign",
+      "sends": false,
+      "sends_reason": "Duplicate a campaign: changes Emelia data, not a message",
       "method": "POST",
       "path": "/graphql",
       "fields": [
@@ -227,6 +231,8 @@
       "resource": "campaign",
       "operation": "getAll",
       "title": "Get many campaigns",
+      "sends": false,
+      "sends_reason": "Get many campaigns: a read, not a message",
       "method": "POST",
       "path": "/graphql",
       "fields": [
@@ -258,6 +264,8 @@
       "resource": "campaign",
       "operation": "pause",
       "title": "Pause a campaign",
+      "sends": false,
+      "sends_reason": "Pause a campaign: changes Emelia data, not a message",
       "method": "POST",
       "path": "/graphql",
       "fields": [
@@ -320,6 +328,8 @@
       "resource": "contactList",
       "operation": "getAll",
       "title": "Get many contact lists",
+      "sends": false,
+      "sends_reason": "Get many contact lists: a read, not a message",
       "method": "POST",
       "path": "/graphql",
       "fields": [
@@ -351,6 +361,8 @@
       "resource": "contactList",
       "operation": "add",
       "title": "Add a contact to a list",
+      "sends": false,
+      "sends_reason": "Add a contact to a list: changes Emelia data, not a message",
       "method": "POST",
       "path": "/graphql",
       "fields": [

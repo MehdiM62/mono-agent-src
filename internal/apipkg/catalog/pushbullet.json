@@ -173,6 +173,8 @@
       "resource": "push",
       "operation": "delete",
       "title": "Delete a push",
+      "sends": false,
+      "sends_reason": "Delete a push: changes Pushbullet data, not a message",
       "method": "DELETE",
       "path": "/pushes/{{ p.pushId }}",
       "fields": [

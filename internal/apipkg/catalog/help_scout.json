@@ -180,6 +180,8 @@
       "resource": "conversation",
       "operation": "delete",
       "title": "Delete a conversation",
+      "sends": false,
+      "sends_reason": "Delete a conversation: changes Help Scout data, not a message",
       "method": "DELETE",
       "path": "/v2/conversations/{{ p.conversationId }}",
       "fields": [
@@ -261,6 +263,8 @@
       "resource": "customer",
       "operation": "create",
       "title": "Create a customer",
+      "sends": false,
+      "sends_reason": "Create a customer: changes Help Scout data, not a message",
       "method": "POST",
       "path": "/v2/customers",
       "fields": [
@@ -455,6 +459,8 @@
       "resource": "customer",
       "operation": "update",
       "title": "Update a customer",
+      "sends": false,
+      "sends_reason": "Update a customer: changes Help Scout data, not a message",
       "method": "PUT",
       "path": "/v2/customers/{{ p.customerId }}",
       "fields": [

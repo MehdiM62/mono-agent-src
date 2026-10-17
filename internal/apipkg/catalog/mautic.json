@@ -122,6 +122,8 @@
       "resource": "contact",
       "operation": "create",
       "title": "Create a contact",
+      "sends": false,
+      "sends_reason": "Create a contact: changes Mautic data, not a message",
       "method": "POST",
       "path": "/contacts/new",
       "fields": [
@@ -259,6 +261,8 @@
       "resource": "contact",
       "operation": "delete",
       "title": "Delete a contact",
+      "sends": false,
+      "sends_reason": "Delete a contact: changes Mautic data, not a message",
       "method": "DELETE",
       "path": "/contacts/{{ p.contactId }}/delete",
       "fields": [
@@ -289,6 +293,8 @@
       "resource": "contact",
       "operation": "editContactPoint",
       "title": "Add or remove contact points",
+      "sends": false,
+      "sends_reason": "Add or remove contact points: changes Mautic data, not a message",
       "method": "POST",
       "path": "/contacts/{{ p.contactId }}/points/{{ p.action | eq:'add' | then:'plus' | default:'minus' }}/{{ p.points }}",
       "fields": [
@@ -320,6 +326,8 @@
       "resource": "contact",
       "operation": "editDoNotContactList",
       "title": "Add or remove a contact from the do-not-contact list",
+      "sends": false,
+      "sends_reason": "Add or remove a contact from the do-not-contact list: changes Mautic data, not a message",
       "method": "POST",
       "path": "/contacts/{{ p.contactId }}/dnc/{{ p.channel }}/{{ p.action }}",
       "fields": [
@@ -491,6 +499,8 @@
       "resource": "contact",
       "operation": "update",
       "title": "Update a contact",
+      "sends": false,
+      "sends_reason": "Update a contact: changes Mautic data, not a message",
       "method": "PATCH",
       "path": "/contacts/{{ p.contactId }}/edit",
       "fields": [
@@ -598,6 +608,8 @@
       "resource": "company",
       "operation": "create",
       "title": "Create a company",
+      "sends": false,
+      "sends_reason": "Create a company: changes Mautic data, not a message",
       "method": "POST",
       "path": "/companies/new",
       "fields": [
@@ -667,6 +679,8 @@
       "resource": "company",
       "operation": "delete",
       "title": "Delete a company",
+      "sends": false,
+      "sends_reason": "Delete a company: changes Mautic data, not a message",
       "method": "DELETE",
       "path": "/companies/{{ p.companyId }}/delete",
       "fields": [
@@ -779,6 +793,8 @@
       "resource": "company",
       "operation": "update",
       "title": "Update a company",
+      "sends": false,
+      "sends_reason": "Update a company: changes Mautic data, not a message",
       "method": "PATCH",
       "path": "/companies/{{ p.companyId }}/edit",
       "fields": [
@@ -878,6 +894,8 @@
       "resource": "campaignContact",
       "operation": "remove",
       "title": "Remove a contact from campaign",
+      "sends": false,
+      "sends_reason": "Remove a contact from campaign: changes Mautic data, not a message",
       "method": "POST",
       "path": "/campaigns/{{ p.campaignId }}/contact/{{ p.contactId }}/remove",
       "fields": [
@@ -899,6 +917,8 @@
       "resource": "companyContact",
       "operation": "add",
       "title": "Add a contact to company",
+      "sends": false,
+      "sends_reason": "Add a contact to company: changes Mautic data, not a message",
       "method": "POST",
       "path": "/companies/{{ p.companyId }}/contact/{{ p.contactId }}/add",
       "fields": [
@@ -920,6 +940,8 @@
       "resource": "companyContact",
       "operation": "remove",
       "title": "Remove a contact from company",
+      "sends": false,
+      "sends_reason": "Remove a contact from company: changes Mautic data, not a message",
       "method": "POST",
       "path": "/companies/{{ p.companyId }}/contact/{{ p.contactId }}/remove",
       "fields": [
@@ -941,6 +963,8 @@
       "resource": "contactSegment",
       "operation": "add",
       "title": "Add a contact to segment",
+      "sends": false,
+      "sends_reason": "Add a contact to segment: changes Mautic data, not a message",
       "method": "POST",
       "path": "/segments/{{ p.segmentId }}/contact/{{ p.contactId }}/add",
       "fields": [
@@ -962,6 +986,8 @@
       "resource": "contactSegment",
       "operation": "remove",
       "title": "Remove a contact from segment",
+      "sends": false,
+      "sends_reason": "Remove a contact from segment: changes Mautic data, not a message",
       "method": "POST",
       "path": "/segments/{{ p.segmentId }}/contact/{{ p.contactId }}/remove",
       "fields": [

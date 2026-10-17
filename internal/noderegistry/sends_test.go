@@ -72,14 +72,14 @@ func TestEveryAnnotatedSendQueues(t *testing.T) {
 				continue
 			}
 			s := o.Sends
-			if s.If != "" {
-				config[s.If] = true
+			if len(s.If) > 0 {
+				setParam(config, s.If[0], true)
 			}
 			if len(s.To) > 0 {
-				config[s.To[0]] = "ada@example.test"
+				setParam(config, s.To[0], "ada@example.test")
 			}
 			if len(s.Text) > 0 {
-				config[s.Text[0]] = "Hi Ada"
+				setParam(config, s.Text[0], "Hi Ada")
 			}
 			out, handled, err := hilsend.Guard(sendsCtx(db), nodeType, workflow.NodeInput{}, config)
 			if !handled || err != nil {
@@ -103,6 +103,21 @@ func TestEveryAnnotatedSendQueues(t *testing.T) {
 	if queued < 150 || passed < 30 {
 		t.Errorf("queued %d annotated sends and let %d sends:false ops through: the catalog lost its annotations?", queued, passed)
 	}
+}
+
+// setParam sets a sends param: for "a.b", option b of collection a.
+func setParam(config map[string]interface{}, name string, v interface{}) {
+	head, rest, dotted := strings.Cut(name, ".")
+	if !dotted {
+		config[name] = v
+		return
+	}
+	sub, _ := config[head].(map[string]interface{})
+	if sub == nil {
+		sub = map[string]interface{}{}
+		config[head] = sub
+	}
+	setParam(sub, rest, v)
 }
 
 // A workflow the user never approved sends through an app node no more than
@@ -137,5 +152,49 @@ func TestAppSendsOfAnUnapprovedWorkflowQueuePerItem(t *testing.T) {
 	}
 	if want := "ada@example.test: Hi Ada (unapproved workflow wf1)|bob@example.test: Hi Bob (unapproved workflow wf1)"; strings.Join(got, "|") != want {
 		t.Fatalf("cards = %v, want %s", got, want)
+	}
+}
+
+// An op that sends only with some param waits only when one is set: a
+// calendar event that invites no one goes through, one inviting Ada waits
+// with her on the card, and so does an invoice that is emailed as it is
+// created.
+func TestAConditionalSendWaitsOnlyWhenItSends(t *testing.T) {
+	asOperator(t)
+	t.Setenv(hilsend.EnvAgentContext, "coder")
+	Build(nil)
+	db := sendsDB(t)
+	held := func(nodeType string, config map[string]interface{}) (string, bool) {
+		t.Helper()
+		out, handled, err := hilsend.Guard(sendsCtx(db), nodeType, workflow.NodeInput{}, config)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !handled {
+			return "", false
+		}
+		p, err := (hilsend.Store{DB: db, Profile: "default"}).Get(context.Background(), out[0].Items[0].JSON["hil_id"].(string))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return p.Recipient.Name, true
+	}
+	event := map[string]interface{}{"resource": "event", "operation": "create", "calendar": "primary",
+		"additionalFields": map[string]interface{}{"summary": "Focus time"}}
+	if _, ok := held("app.google_calendar", event); ok {
+		t.Error("an event that invites no one was held")
+	}
+	event["additionalFields"].(map[string]interface{})["attendees"] = "ada@example.test"
+	if to, ok := held("app.google_calendar", event); !ok || to != "ada@example.test" {
+		t.Errorf("an event inviting Ada: held=%v to=%q", ok, to)
+	}
+	invoice := map[string]interface{}{"resource": "invoice", "operation": "create", "apiVersion": "v5",
+		"additionalFields": map[string]interface{}{"client": "c1", "emailInvoice": false}}
+	if _, ok := held("app.invoice_ninja", invoice); ok {
+		t.Error("an invoice created without emailing it was held")
+	}
+	invoice["additionalFields"].(map[string]interface{})["emailInvoice"] = true
+	if _, ok := held("app.invoice_ninja", invoice); !ok {
+		t.Error("an invoice emailed as it is created went out")
 	}
 }

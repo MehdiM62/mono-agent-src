@@ -303,6 +303,8 @@
       "resource": "post",
       "operation": "delete",
       "title": "Delete a post (Admin API)",
+      "sends": false,
+      "sends_reason": "Delete a post (Admin API): changes Ghost data, not a message",
       "method": "DELETE",
       "path": "/ghost/api/v2/admin/posts/{{ p.postId }}",
       "fields": [

@@ -101,6 +101,12 @@
       "resource": "contact",
       "operation": "create",
       "title": "Create a contact",
+      "sends": {
+        "action": "email",
+        "to": [
+          "email"
+        ]
+      },
       "method": "POST",
       "path": "/contacts",
       "fields": [
@@ -163,6 +169,8 @@
       "resource": "contact",
       "operation": "delete",
       "title": "Delete a contact",
+      "sends": false,
+      "sends_reason": "Delete a contact: changes GetResponse data, not a message",
       "method": "DELETE",
       "path": "/contacts/{{ p.contactId }}",
       "fields": [
@@ -261,6 +269,8 @@
       "resource": "contact",
       "operation": "update",
       "title": "Update a contact",
+      "sends": false,
+      "sends_reason": "Update a contact: changes GetResponse data, not a message",
       "method": "POST",
       "path": "/contacts/{{ p.contactId }}",
       "fields": [

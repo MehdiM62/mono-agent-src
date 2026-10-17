@@ -123,18 +123,46 @@ card in the Human in Loop queue, `internal/hilsend`) instead of going out:
   "to": ["toEmail"],             // the recipient's field(s), first set wins (the card)
   "text": ["text", "html"],      // the message's field(s)
   "subject": ["subject"],        // optional
-  "if": "sendCampaign"           // optional: the op sends only when this field is true
+  "if": "sendCampaign"           // optional: the op sends only when this field is set
 }
 ```
 
+A field name may be an option of a collection param: `"text":
+["updateFields.publicReply"]`. `if` is one field or a list of them; the op
+sends when one is set (true, or any value but false, `""` or an empty
+list; a template the run has yet to resolve counts as set), so a Google
+Calendar event waits only when it has attendees
+(`"if": "additionalFields.attendees"`).
+
 Comments and invites on shared trackers count: they reach people. An op that
-only looks like a send (a queue or webhook for programs, a lookup, a share
-of a file, a notification to the user's own devices) says `"sends": false`
-with `"sends_reason"`. `TestCatalogSendsAreDecided` fails for a catalog op
-whose name says it sends (send, message, sms, email, mail, notify, publish,
-reply, comment, post, tweet, push, invite, call, voice, campaign, broadcast,
-dm, share; not a read such as get, list, search or check) and that has
-neither. An op without `sends` runs as before.
+only looks like a send (a queue or webhook for programs, a lookup, a
+notification to the user's own devices) says `"sends": false` with
+`"sends_reason"`; so does what the user decided stays open (file sharing,
+money movement), with the reason saying so. `TestCatalogSendsAreDecided`
+fails for a catalog op that has neither when:
+
+- its package is a messaging one (it has an annotated send, or it is a mail,
+  SMS, chat or ticketing service listed in `messagingPackages`) and the op
+  writes: any method but GET, HEAD, OPTIONS or PROPFIND, a templated method
+  included, whatever the op is called; or
+- a send word (send, message, sms, email, mail, notify, publish, reply,
+  comment, post, tweet, push, invite, call, voice, campaign, broadcast, dm,
+  share, and their plurals) is in its name, path or description, it is not a
+  read (a read verb such as get, list, search or check first, and no send
+  verb in its name), and it writes or a send verb (send, notify, publish,
+  invite, broadcast, or a word starting with send or notify) names it, as a
+  GET to `/sendhttp.php` does. An op on settings ("updateNotificationSettings")
+  counts its send verbs only.
+
+An op without `sends` runs as before. The lint covers the built-in catalog
+only: a package the user installs (`~/.monoagent/apipkgs`, which also
+replaces a catalog package with the same id) is not checked, and its ops
+without `sends` run as before, unheld.
+
+An app node's credential in its config (`"credential": {…}` written into the
+node rather than resolved from a saved connection) is refused when the send
+has to wait: the approval keeps no credentials, so the approved run would
+have none. Save it with `monoagentcli connect save` and set `credential_id`.
 
 **Dispatch and wait** (n8n's `dispatchAndWait`): `"wait": {"method": "POST",
 "limit": "options.limitWaitTime.values"}` sends the request once (first item)

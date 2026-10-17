@@ -107,6 +107,8 @@
       "resource": "contact",
       "operation": "create",
       "title": "Create a contact",
+      "sends": false,
+      "sends_reason": "Create a contact: changes ActiveCampaign data, not a message",
       "method": "POST",
       "path": "/api/3/contact{{ p.updateIfExists | eq:'true' | then:'/sync' | default:'s' }}",
       "body": {
@@ -156,6 +158,8 @@
       "resource": "contact",
       "operation": "delete",
       "title": "Delete a contact",
+      "sends": false,
+      "sends_reason": "Delete a contact: changes ActiveCampaign data, not a message",
       "method": "DELETE",
       "path": "/api/3/contacts/{{ p.contactId }}",
       "fields": [
@@ -260,6 +264,8 @@
       "resource": "contact",
       "operation": "update",
       "title": "Update a contact",
+      "sends": false,
+      "sends_reason": "Update a contact: changes ActiveCampaign data, not a message",
       "method": "PUT",
       "path": "/api/3/contacts/{{ p.contactId }}",
       "body": {
@@ -302,6 +308,8 @@
       "resource": "account",
       "operation": "create",
       "title": "Create an account",
+      "sends": false,
+      "sends_reason": "Create an account: changes ActiveCampaign data, not a message",
       "method": "POST",
       "path": "/api/3/accounts",
       "body": {
@@ -339,6 +347,8 @@
       "resource": "account",
       "operation": "delete",
       "title": "Delete an account",
+      "sends": false,
+      "sends_reason": "Delete an account: changes ActiveCampaign data, not a message",
       "method": "DELETE",
       "path": "/api/3/accounts/{{ p.accountId }}",
       "fields": [
@@ -421,6 +431,8 @@
       "resource": "account",
       "operation": "update",
       "title": "Update an account",
+      "sends": false,
+      "sends_reason": "Update an account: changes ActiveCampaign data, not a message",
       "method": "PUT",
       "path": "/api/3/accounts/{{ p.accountId }}",
       "body": {
@@ -458,6 +470,8 @@
       "resource": "accountContact",
       "operation": "create",
       "title": "Associate a contact with an account",
+      "sends": false,
+      "sends_reason": "Associate a contact with an account: changes ActiveCampaign data, not a message",
       "method": "POST",
       "path": "/api/3/accountContacts",
       "body": {
@@ -498,6 +512,8 @@
       "resource": "accountContact",
       "operation": "delete",
       "title": "Remove an account association",
+      "sends": false,
+      "sends_reason": "Remove an account association: changes ActiveCampaign data, not a message",
       "method": "DELETE",
       "path": "/api/3/accountContacts/{{ p.accountContactId }}",
       "fields": [
@@ -514,6 +530,8 @@
       "resource": "accountContact",
       "operation": "update",
       "title": "Update an account association",
+      "sends": false,
+      "sends_reason": "Update an account association: changes ActiveCampaign data, not a message",
       "method": "PUT",
       "path": "/api/3/accountContacts/{{ p.accountContactId }}",
       "body": {
@@ -547,6 +565,8 @@
       "resource": "connection",
       "operation": "create",
       "title": "Create a connection",
+      "sends": false,
+      "sends_reason": "Create a connection: changes ActiveCampaign data, not a message",
       "method": "POST",
       "path": "/api/3/connections",
       "body": {
@@ -595,6 +615,8 @@
       "resource": "connection",
       "operation": "delete",
       "title": "Delete a connection",
+      "sends": false,
+      "sends_reason": "Delete a connection: changes ActiveCampaign data, not a message",
       "method": "DELETE",
       "path": "/api/3/connections/{{ p.connectionId }}",
       "fields": [
@@ -665,6 +687,8 @@
       "resource": "connection",
       "operation": "update",
       "title": "Update a connection",
+      "sends": false,
+      "sends_reason": "Update a connection: changes ActiveCampaign data, not a message",
       "method": "PUT",
       "path": "/api/3/connections/{{ p.connectionId }}",
       "body": {
@@ -701,6 +725,8 @@
       "resource": "contactList",
       "operation": "add",
       "title": "Add a contact to a list",
+      "sends": false,
+      "sends_reason": "Add a contact to a list: changes ActiveCampaign data, not a message",
       "method": "POST",
       "path": "/api/3/contactLists",
       "body": {
@@ -729,6 +755,8 @@
       "resource": "contactList",
       "operation": "remove",
       "title": "Remove a contact from a list",
+      "sends": false,
+      "sends_reason": "Remove a contact from a list: changes ActiveCampaign data, not a message",
       "method": "POST",
       "path": "/api/3/contactLists",
       "body": {
@@ -760,6 +788,8 @@
       "resource": "contactTag",
       "operation": "add",
       "title": "Add a tag to a contact",
+      "sends": false,
+      "sends_reason": "Add a tag to a contact: changes ActiveCampaign data, not a message",
       "method": "POST",
       "path": "/api/3/contactTags",
       "body": {
@@ -790,6 +820,8 @@
       "resource": "contactTag",
       "operation": "remove",
       "title": "Remove a tag from a contact",
+      "sends": false,
+      "sends_reason": "Remove a tag from a contact: changes ActiveCampaign data, not a message",
       "method": "DELETE",
       "path": "/api/3/contactTags/{{ p.contactTagId }}",
       "fields": [
@@ -806,6 +838,8 @@
       "resource": "deal",
       "operation": "create",
       "title": "Create a deal",
+      "sends": false,
+      "sends_reason": "Create a deal: changes ActiveCampaign data, not a message",
       "method": "POST",
       "path": "/api/3/deals",
       "body": {
@@ -882,6 +916,8 @@
       "resource": "deal",
       "operation": "createNote",
       "title": "Add a note to a deal",
+      "sends": false,
+      "sends_reason": "Add a note to a deal: changes ActiveCampaign data, not a message",
       "method": "POST",
       "path": "/api/3/deals/{{ p.dealId }}/notes",
       "body": {
@@ -909,6 +945,8 @@
       "resource": "deal",
       "operation": "delete",
       "title": "Delete a deal",
+      "sends": false,
+      "sends_reason": "Delete a deal: changes ActiveCampaign data, not a message",
       "method": "DELETE",
       "path": "/api/3/deals/{{ p.dealId }}",
       "fields": [
@@ -979,6 +1017,8 @@
       "resource": "deal",
       "operation": "update",
       "title": "Update a deal",
+      "sends": false,
+      "sends_reason": "Update a deal: changes ActiveCampaign data, not a message",
       "method": "PUT",
       "path": "/api/3/deals/{{ p.dealId }}",
       "body": {
@@ -1018,6 +1058,8 @@
       "resource": "deal",
       "operation": "updateNote",
       "title": "Update a deal note",
+      "sends": false,
+      "sends_reason": "Update a deal note: changes ActiveCampaign data, not a message",
       "method": "PUT",
       "path": "/api/3/deals/{{ p.dealId }}/notes/{{ p.dealNoteId }}",
       "body": {
@@ -1052,6 +1094,8 @@
       "resource": "ecommerceCustomer",
       "operation": "create",
       "title": "Create an e-commerce customer",
+      "sends": false,
+      "sends_reason": "Create an e-commerce customer: changes ActiveCampaign data, not a message",
       "method": "POST",
       "path": "/api/3/ecomCustomers",
       "body": {
@@ -1097,6 +1141,8 @@
       "resource": "ecommerceCustomer",
       "operation": "delete",
       "title": "Delete an e-commerce customer",
+      "sends": false,
+      "sends_reason": "Delete an e-commerce customer: changes ActiveCampaign data, not a message",
       "method": "DELETE",
       "path": "/api/3/ecomCustomers/{{ p.ecommerceCustomerId }}",
       "fields": [
@@ -1167,6 +1213,8 @@
       "resource": "ecommerceCustomer",
       "operation": "update",
       "title": "Update an e-commerce customer",
+      "sends": false,
+      "sends_reason": "Update an e-commerce customer: changes ActiveCampaign data, not a message",
       "method": "PUT",
       "path": "/api/3/ecomCustomers/{{ p.ecommerceCustomerId }}",
       "body": {
@@ -1201,6 +1249,8 @@
       "resource": "ecommerceOrder",
       "operation": "create",
       "title": "Create an order",
+      "sends": false,
+      "sends_reason": "Create an order: changes ActiveCampaign data, not a message",
       "method": "POST",
       "path": "/api/3/ecomOrders",
       "body": {
@@ -1313,6 +1363,8 @@
       "resource": "ecommerceOrder",
       "operation": "delete",
       "title": "Delete an order",
+      "sends": false,
+      "sends_reason": "Delete an order: changes ActiveCampaign data, not a message",
       "method": "DELETE",
       "path": "/api/3/ecomOrders/{{ p.orderId }}",
       "fields": [
@@ -1383,6 +1435,8 @@
       "resource": "ecommerceOrder",
       "operation": "update",
       "title": "Update an order",
+      "sends": false,
+      "sends_reason": "Update an order: changes ActiveCampaign data, not a message",
       "method": "PUT",
       "path": "/api/3/ecomOrders/{{ p.orderId }}",
       "body": {
@@ -1538,6 +1592,8 @@
       "resource": "tag",
       "operation": "create",
       "title": "Create a tag",
+      "sends": false,
+      "sends_reason": "Create a tag: changes ActiveCampaign data, not a message",
       "method": "POST",
       "path": "/api/3/tags",
       "body": {
@@ -1583,6 +1639,8 @@
       "resource": "tag",
       "operation": "delete",
       "title": "Delete a tag",
+      "sends": false,
+      "sends_reason": "Delete a tag: changes ActiveCampaign data, not a message",
       "method": "DELETE",
       "path": "/api/3/tags/{{ p.tagId }}",
       "fields": [
@@ -1653,6 +1711,8 @@
       "resource": "tag",
       "operation": "update",
       "title": "Update a tag",
+      "sends": false,
+      "sends_reason": "Update a tag: changes ActiveCampaign data, not a message",
       "method": "PUT",
       "path": "/api/3/tags/{{ p.tagId }}",
       "body": {

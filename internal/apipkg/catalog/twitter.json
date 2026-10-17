@@ -253,6 +253,8 @@
       "resource": "tweet",
       "operation": "delete",
       "title": "Delete a tweet",
+      "sends": false,
+      "sends_reason": "Delete a tweet: changes X (Twitter) data, not a message",
       "method": "DELETE",
       "path": "/tweets/{{ p.tweetDeleteId | rl | re:'status/([0-9]+)' }}",
       "output": {
@@ -274,6 +276,8 @@
       "resource": "tweet",
       "operation": "like",
       "title": "Like a tweet",
+      "sends": false,
+      "sends_reason": "Like a tweet: changes X (Twitter) data, not a message",
       "method": "POST",
       "path": "/users/{{ pre.data.id }}/likes",
       "before": {
@@ -299,6 +303,12 @@
       "resource": "tweet",
       "operation": "retweet",
       "title": "Retweet a tweet",
+      "sends": {
+        "action": "post",
+        "to": [
+          "tweetId"
+        ]
+      },
       "method": "POST",
       "path": "/users/{{ pre.data.id }}/retweets",
       "before": {
@@ -405,6 +415,8 @@
       "resource": "list",
       "operation": "add",
       "title": "Add a member to a list",
+      "sends": false,
+      "sends_reason": "Add a member to a list: changes X (Twitter) data, not a message",
       "method": "POST",
       "path": "/lists/{{ p.list | rl | re:'lists/([0-9]+)' }}/members",
       "before": {

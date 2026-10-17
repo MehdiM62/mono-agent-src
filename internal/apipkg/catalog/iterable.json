@@ -64,6 +64,17 @@
       "resource": "event",
       "operation": "track",
       "title": "Track an event",
+      "sends": {
+        "action": "email",
+        "to": [
+          "additionalFields.email",
+          "additionalFields.userId",
+          "additionalFields.id"
+        ],
+        "text": [
+          "name"
+        ]
+      },
       "description": "Sends one event per input item. Set email or id in Additional fields to name the user.",
       "method": "POST",
       "path": "/events/track",
@@ -106,6 +117,8 @@
       "resource": "user",
       "operation": "upsert",
       "title": "Create or update a user",
+      "sends": false,
+      "sends_reason": "Create or update a user: changes Iterable data, not a message",
       "method": "POST",
       "path": "/users/update",
       "fields": [
@@ -159,6 +172,8 @@
       "resource": "user",
       "operation": "delete",
       "title": "Delete a user",
+      "sends": false,
+      "sends_reason": "Delete a user: changes Iterable data, not a message",
       "method": "DELETE",
       "path": "/users{{ p.by | eq:'userId' | then:'/byUserId' }}/{{ p.by | eq:'userId' | then:p.userId | default:p.email }}",
       "fields": [
@@ -229,6 +244,8 @@
       "resource": "userList",
       "operation": "add",
       "title": "Add a user to a list",
+      "sends": false,
+      "sends_reason": "Add a user to a list: changes Iterable data, not a message",
       "description": "Subscribes one user per input item",
       "method": "POST",
       "path": "/lists/subscribe",
@@ -270,6 +287,8 @@
       "resource": "userList",
       "operation": "remove",
       "title": "Remove a user from a list",
+      "sends": false,
+      "sends_reason": "Remove a user from a list: changes Iterable data, not a message",
       "description": "Unsubscribes one user per input item",
       "method": "POST",
       "path": "/lists/unsubscribe",

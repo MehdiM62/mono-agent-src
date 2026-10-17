@@ -282,6 +282,8 @@
       "resource": "room",
       "operation": "create",
       "title": "Create a room",
+      "sends": false,
+      "sends_reason": "Create a room: changes Matrix data, not a message",
       "method": "POST",
       "path": "/createRoom",
       "fields": [
@@ -348,6 +350,8 @@
       "resource": "room",
       "operation": "join",
       "title": "Join a room",
+      "sends": false,
+      "sends_reason": "Join a room: changes Matrix data, not a message",
       "method": "POST",
       "path": "/rooms/{{ p.roomIdOrAlias }}/join",
       "fields": [
@@ -363,6 +367,8 @@
       "resource": "room",
       "operation": "kick",
       "title": "Kick a user from a room",
+      "sends": false,
+      "sends_reason": "Kick a user from a room: changes Matrix data, not a message",
       "method": "POST",
       "path": "/rooms/{{ p.roomId }}/kick",
       "fields": [
@@ -394,6 +400,8 @@
       "resource": "room",
       "operation": "leave",
       "title": "Leave a room",
+      "sends": false,
+      "sends_reason": "Leave a room: changes Matrix data, not a message",
       "method": "POST",
       "path": "/rooms/{{ p.roomId }}/leave",
       "fields": [
