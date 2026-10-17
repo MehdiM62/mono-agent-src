@@ -42,13 +42,19 @@ var (
 // the resume token of an execution being shown. With no database to tell,
 // every link's token and every bare 43-character base64url string is hidden.
 //
+// The hidden tokens of the executions shown (their replies' tokens and their
+// resume tokens) are hidden by value too, in the forms tokenForms lists: a
+// piece of one, reversed, hex or base64, split up by other characters.
+//
 // A nil *ReplyRedactor hides nothing: the view of the user's own terminal.
 type ReplyRedactor struct {
 	ctx context.Context
 	db  *sql.DB
-	// watch are the tokens of the executions shown, hidden wherever they
-	// appear, even inside a longer run of characters.
-	watch []string
+	ids []string // the executions shown
+	// forms are the forms of the shown executions' hidden tokens, read on
+	// first use (by then a run being waited for has opened its replies).
+	once  sync.Once
+	forms tokenForms
 	mu    sync.Mutex // guards seen: a redactor may serve several goroutines
 	seen  map[string]replyTokenState
 }
@@ -63,32 +69,44 @@ func (s replyTokenState) shown() bool { return s.recorded && !s.hidden }
 
 // NewReplyRedactor hides the tokens of the replies in db (nil: every
 // candidate, see ReplyRedactor). executionIDs are the executions being
-// shown: their resume tokens and reply tokens are looked for anywhere.
+// shown: their resume tokens and reply tokens are looked for by value.
 func NewReplyRedactor(ctx context.Context, db *sql.DB, executionIDs ...string) *ReplyRedactor {
-	r := &ReplyRedactor{ctx: ctx, db: db, seen: map[string]replyTokenState{}}
-	for _, id := range executionIDs {
-		if id == "" {
-			continue
+	return &ReplyRedactor{ctx: ctx, db: db, ids: executionIDs, seen: map[string]replyTokenState{}}
+}
+
+// known reads the shown executions' hidden tokens into r.forms, once.
+func (r *ReplyRedactor) known() *tokenForms {
+	r.once.Do(func() {
+		var tokens []string
+		for _, id := range r.ids {
+			if id == "" {
+				continue
+			}
+			if tok, err := signReply("execution", id); err == nil {
+				tokens = append(tokens, tok)
+			}
+			if r.db == nil {
+				continue
+			}
+			rows, err := r.db.QueryContext(r.ctx, `SELECT DISTINCT token FROM wait_replies WHERE execution_id = ?`, id)
+			if err != nil {
+				continue
+			}
+			for rows.Next() {
+				var tok string
+				if rows.Scan(&tok) == nil {
+					tokens = append(tokens, tok)
+				}
+			}
+			rows.Close()
 		}
-		if tok, err := signReply("execution", id); err == nil {
-			r.watch = append(r.watch, tok)
-		}
-		if db == nil {
-			continue
-		}
-		rows, err := db.QueryContext(ctx, `SELECT DISTINCT token FROM wait_replies WHERE execution_id = ?`, id)
-		if err != nil {
-			continue
-		}
-		for rows.Next() {
-			var tok string
-			if rows.Scan(&tok) == nil {
-				r.watch = append(r.watch, tok)
+		for _, tok := range tokens {
+			if !r.state(tok).shown() {
+				r.forms.add(tok)
 			}
 		}
-		rows.Close()
-	}
-	return r
+	})
+	return &r.forms
 }
 
 // state looks token up once; a failed lookup counts as a marked reply.
@@ -132,7 +150,7 @@ func (r *ReplyRedactor) load(token string) replyTokenState {
 
 // String is s with its hidden reply tokens replaced by ReplyTokenHidden.
 func (r *ReplyRedactor) String(s string) string {
-	if r == nil || len(s) < replyTokenLen {
+	if r == nil || len(s) < tokenPiece {
 		return s
 	}
 	s = replyLinkPattern.ReplaceAllStringFunc(s, func(m string) string {
@@ -142,11 +160,7 @@ func (r *ReplyRedactor) String(s string) string {
 		}
 		return m[:cut] + ReplyTokenHidden
 	})
-	for _, tok := range r.watch {
-		if strings.Contains(s, tok) && !r.state(tok).shown() {
-			s = strings.ReplaceAll(s, tok, ReplyTokenHidden)
-		}
-	}
+	s = r.known().hide(s)
 	return base64urlRun.ReplaceAllStringFunc(s, func(m string) string {
 		if len(m) != replyTokenLen {
 			return m
@@ -197,12 +211,17 @@ func (r *ReplyRedactor) Value(v interface{}) interface{} {
 	return out
 }
 
-// Map is Value for a map (nil stays nil).
+// Map is Value for a map (nil stays nil). A shown execution's token spread
+// over several of its values (a list of its characters) hides the map as a
+// whole.
 func (r *ReplyRedactor) Map(m map[string]interface{}) map[string]interface{} {
 	if r == nil || m == nil {
 		return m
 	}
 	out, _ := r.Value(m).(map[string]interface{})
+	if b, err := json.Marshal(out); err == nil && r.known().holds(string(b)) {
+		return map[string]interface{}{"note": ReplyTokenHidden + " (spread over several values)"}
+	}
 	return out
 }
 

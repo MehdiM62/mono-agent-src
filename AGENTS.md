@@ -2701,9 +2701,18 @@ unless every reply recorded under it is a node's own and sends nothing (its
 link is then in the waiting list too); a bare one is hidden when a reply that
 may send or a shared link is recorded under it, or it is the shown run's
 resume token, and in a log line (no database to ask) every link token and
-every bare 43-character base64url string is. An
-approval whose data holds `[reply token hidden]` is refused (exit 3, HTTP 400,
-an MCP error): leave that field out and it keeps its value.
+every bare 43-character base64url string is. The shown runs' hidden tokens
+(their replies' and their resume tokens) are also hidden by value, in these
+forms: a piece of 8 characters or more (16 in hex), the token reversed, in hex
+or in base64 (either alphabet, any alignment, so a whole URL encoded counts),
+and any of those with other characters in between (spaces, commas, quotes, a
+list of its characters), whatever their case. Anything else gets through:
+shorter pieces kept apart, a split joined with `-`, `_`, `+` or `/`, any other
+encoding. This keeps a token out of what an agent is shown; it can't keep a
+token from a process with a shell or file access, which can read the database
+or sign one with the machine's trace key. An approval whose data holds
+`[reply token hidden]` is refused (exit 3, HTTP 400, an MCP error): leave that
+field out and it keeps its value.
 
 An item of a run an org started (through a grant or a message to an
 automation role) is that org's decision instead, class `hil:<alias>`. Its tier
