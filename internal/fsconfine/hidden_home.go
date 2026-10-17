@@ -297,8 +297,8 @@ func runsOnNextUse(p string) string {
 				return "VS Code's tasks or launch configurations (.vscode), which can run when the folder opens"
 			}
 		case ".zed":
-			if i+2 == len(parts) && (last == "settings.json" || last == "tasks.json") {
-				return "Zed's settings or tasks (.zed)"
+			if i+2 == len(parts) && (last == "settings.json" || last == "tasks.json" || last == "keymap.json") {
+				return "Zed's settings, tasks or keymap (.zed)"
 			}
 		}
 	}
@@ -339,6 +339,14 @@ var nextUseFiles = map[string]string{
 	".travis.yml":             "a Travis CI pipeline, which runs at the next push",
 	"bitbucket-pipelines.yml": "a Bitbucket pipeline, which runs at the next push",
 	".gitpod.yml":             "Gitpod's workspace tasks",
+	".crush.json":             "Crush's configuration",
+	".kilocodemodes":          "Kilo Code's modes",
+	".continuerules":          "Continue's rules",
+	".rules":                  "an AI agent's rules",
+	".replit":                 "Replit's run configuration",
+	".drone.yml":              "a Drone pipeline, which runs at the next push",
+	"cloudbuild.yaml":         "a Cloud Build pipeline, which runs at the next push",
+	"appveyor.yml":            "an AppVeyor pipeline, which runs at the next push",
 }
 
 // nextUseDirs are folders whose every file a tool runs, loads or takes its
@@ -369,6 +377,7 @@ var nextUseDirs = map[string]string{
 	".agent":        "an AI agent's configuration",
 	".copilot":      "Copilot's configuration",
 	".buildkite":    "a Buildkite pipeline, which runs at the next push",
+	".kilocode":     "Kilo Code's configuration",
 }
 
 // onPath reports whether dir is a folder on PATH: this process's, plus the
