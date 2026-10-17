@@ -152,6 +152,8 @@
       "resource": "task",
       "operation": "create",
       "title": "Create a task",
+      "sends": false,
+      "sends_reason": "Create a task: changes Harvest data, not a message",
       "method": "POST",
       "path": "/tasks",
       "fields": [
@@ -193,6 +195,8 @@
       "resource": "task",
       "operation": "delete",
       "title": "Delete a task",
+      "sends": false,
+      "sends_reason": "Delete a task: changes Harvest data, not a message",
       "method": "DELETE",
       "path": "/tasks/{{ p.id }}",
       "fields": [
@@ -243,6 +247,8 @@
       "resource": "task",
       "operation": "update",
       "title": "Update a task",
+      "sends": false,
+      "sends_reason": "Update a task: changes Harvest data, not a message",
       "method": "PATCH",
       "path": "/tasks/{{ p.id }}",
       "fields": [
@@ -336,6 +342,8 @@
       "resource": "client",
       "operation": "create",
       "title": "Create a client",
+      "sends": false,
+      "sends_reason": "Create a client: changes Harvest data, not a message",
       "method": "POST",
       "path": "/clients",
       "fields": [
@@ -376,6 +384,8 @@
       "resource": "client",
       "operation": "delete",
       "title": "Delete a client",
+      "sends": false,
+      "sends_reason": "Delete a client: changes Harvest data, not a message",
       "method": "DELETE",
       "path": "/clients/{{ p.id }}",
       "fields": [
@@ -426,6 +436,8 @@
       "resource": "client",
       "operation": "update",
       "title": "Update a client",
+      "sends": false,
+      "sends_reason": "Update a client: changes Harvest data, not a message",
       "method": "PATCH",
       "path": "/clients/{{ p.id }}",
       "fields": [
@@ -537,6 +549,8 @@
       "resource": "contact",
       "operation": "create",
       "title": "Create a contact",
+      "sends": false,
+      "sends_reason": "Create a contact: changes Harvest data, not a message",
       "method": "POST",
       "path": "/contacts",
       "fields": [
@@ -587,6 +601,8 @@
       "resource": "contact",
       "operation": "delete",
       "title": "Delete a contact",
+      "sends": false,
+      "sends_reason": "Delete a contact: changes Harvest data, not a message",
       "method": "DELETE",
       "path": "/contacts/{{ p.id }}",
       "fields": [
@@ -637,6 +653,8 @@
       "resource": "contact",
       "operation": "update",
       "title": "Update a contact",
+      "sends": false,
+      "sends_reason": "Update a contact: changes Harvest data, not a message",
       "method": "PATCH",
       "path": "/contacts/{{ p.id }}",
       "fields": [
@@ -737,6 +755,8 @@
       "resource": "estimate",
       "operation": "create",
       "title": "Create a estimate",
+      "sends": false,
+      "sends_reason": "Create a estimate: changes Harvest data, not a message",
       "method": "POST",
       "path": "/estimates",
       "fields": [
@@ -783,6 +803,8 @@
       "resource": "estimate",
       "operation": "delete",
       "title": "Delete a estimate",
+      "sends": false,
+      "sends_reason": "Delete a estimate: changes Harvest data, not a message",
       "method": "DELETE",
       "path": "/estimates/{{ p.id }}",
       "fields": [
@@ -833,6 +855,8 @@
       "resource": "estimate",
       "operation": "update",
       "title": "Update a estimate",
+      "sends": false,
+      "sends_reason": "Update a estimate: changes Harvest data, not a message",
       "method": "PATCH",
       "path": "/estimates/{{ p.id }}",
       "fields": [
@@ -937,6 +961,8 @@
       "resource": "expense",
       "operation": "create",
       "title": "Create a expense",
+      "sends": false,
+      "sends_reason": "Create a expense: changes Harvest data, not a message",
       "method": "POST",
       "path": "/expenses",
       "fields": [
@@ -993,6 +1019,8 @@
       "resource": "expense",
       "operation": "delete",
       "title": "Delete a expense",
+      "sends": false,
+      "sends_reason": "Delete a expense: changes Harvest data, not a message",
       "method": "DELETE",
       "path": "/expenses/{{ p.id }}",
       "fields": [
@@ -1043,6 +1071,8 @@
       "resource": "expense",
       "operation": "update",
       "title": "Update a expense",
+      "sends": false,
+      "sends_reason": "Update a expense: changes Harvest data, not a message",
       "method": "PATCH",
       "path": "/expenses/{{ p.id }}",
       "fields": [
@@ -1145,6 +1175,8 @@
       "resource": "invoice",
       "operation": "create",
       "title": "Create a invoice",
+      "sends": false,
+      "sends_reason": "Create a invoice: changes Harvest data, not a message",
       "method": "POST",
       "path": "/invoices",
       "fields": [
@@ -1195,6 +1227,8 @@
       "resource": "invoice",
       "operation": "delete",
       "title": "Delete a invoice",
+      "sends": false,
+      "sends_reason": "Delete a invoice: changes Harvest data, not a message",
       "method": "DELETE",
       "path": "/invoices/{{ p.id }}",
       "fields": [
@@ -1245,6 +1279,8 @@
       "resource": "invoice",
       "operation": "update",
       "title": "Update a invoice",
+      "sends": false,
+      "sends_reason": "Update a invoice: changes Harvest data, not a message",
       "method": "PATCH",
       "path": "/invoices/{{ p.id }}",
       "fields": [
@@ -1349,6 +1385,8 @@
       "resource": "project",
       "operation": "create",
       "title": "Create a project",
+      "sends": false,
+      "sends_reason": "a project's settings; Harvest's over-budget notice goes to the account's own project managers",
       "method": "POST",
       "path": "/projects",
       "fields": [
@@ -1435,6 +1473,8 @@
       "resource": "project",
       "operation": "delete",
       "title": "Delete a project",
+      "sends": false,
+      "sends_reason": "Delete a project: changes Harvest data, not a message",
       "method": "DELETE",
       "path": "/projects/{{ p.id }}",
       "fields": [
@@ -1485,6 +1525,8 @@
       "resource": "project",
       "operation": "update",
       "title": "Update a project",
+      "sends": false,
+      "sends_reason": "a project's settings; Harvest's over-budget notice goes to the account's own project managers",
       "method": "PATCH",
       "path": "/projects/{{ p.id }}",
       "fields": [
@@ -1598,6 +1640,8 @@
       "resource": "timeEntry",
       "operation": "createByDuration",
       "title": "Create a time entry by duration",
+      "sends": false,
+      "sends_reason": "Create a time entry by duration: changes Harvest data, not a message",
       "method": "POST",
       "path": "/time_entries",
       "fields": [
@@ -1652,6 +1696,8 @@
       "resource": "timeEntry",
       "operation": "createByStartEnd",
       "title": "Create a time entry by start and end time",
+      "sends": false,
+      "sends_reason": "Create a time entry by start and end time: changes Harvest data, not a message",
       "method": "POST",
       "path": "/time_entries",
       "fields": [
@@ -1707,6 +1753,8 @@
       "resource": "timeEntry",
       "operation": "delete",
       "title": "Delete a time entry",
+      "sends": false,
+      "sends_reason": "Delete a time entry: changes Harvest data, not a message",
       "method": "DELETE",
       "path": "/time_entries/{{ p.id }}",
       "fields": [
@@ -1732,6 +1780,8 @@
       "resource": "timeEntry",
       "operation": "deleteExternal",
       "title": "Delete a time entry's external reference",
+      "sends": false,
+      "sends_reason": "Delete a time entry's external reference: changes Harvest data, not a message",
       "method": "DELETE",
       "path": "/time_entries/{{ p.id }}/external_reference",
       "fields": [
@@ -1782,6 +1832,8 @@
       "resource": "timeEntry",
       "operation": "restartTime",
       "title": "Restart a stopped time entry",
+      "sends": false,
+      "sends_reason": "Restart a stopped time entry: changes Harvest data, not a message",
       "method": "PATCH",
       "path": "/time_entries/{{ p.id }}/restart",
       "fields": [
@@ -1807,6 +1859,8 @@
       "resource": "timeEntry",
       "operation": "stopTime",
       "title": "Stop a running time entry",
+      "sends": false,
+      "sends_reason": "Stop a running time entry: changes Harvest data, not a message",
       "method": "PATCH",
       "path": "/time_entries/{{ p.id }}/stop",
       "fields": [
@@ -1832,6 +1886,8 @@
       "resource": "timeEntry",
       "operation": "update",
       "title": "Update a time entry",
+      "sends": false,
+      "sends_reason": "Update a time entry: changes Harvest data, not a message",
       "method": "PATCH",
       "path": "/time_entries/{{ p.id }}",
       "fields": [
@@ -1944,6 +2000,12 @@
       "resource": "user",
       "operation": "create",
       "title": "Create a user",
+      "sends": {
+        "action": "invite",
+        "to": [
+          "email"
+        ]
+      },
       "method": "POST",
       "path": "/users",
       "fields": [
@@ -2008,6 +2070,8 @@
       "resource": "user",
       "operation": "delete",
       "title": "Delete a user",
+      "sends": false,
+      "sends_reason": "Delete a user: changes Harvest data, not a message",
       "method": "DELETE",
       "path": "/users/{{ p.id }}",
       "fields": [
@@ -2058,6 +2122,8 @@
       "resource": "user",
       "operation": "update",
       "title": "Update a user",
+      "sends": false,
+      "sends_reason": "Update a user: changes Harvest data, not a message",
       "method": "PATCH",
       "path": "/users/{{ p.id }}",
       "fields": [

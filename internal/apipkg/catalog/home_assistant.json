@@ -104,6 +104,8 @@
       "resource": "config",
       "operation": "check",
       "title": "Check the configuration",
+      "sends": false,
+      "sends_reason": "checks the configuration: a read, not a message",
       "method": "POST",
       "path": "/config/core/check_config",
       "fields": []
@@ -163,6 +165,8 @@
       "resource": "event",
       "operation": "create",
       "title": "Fire an event",
+      "sends": false,
+      "sends_reason": "fires an event on the user's own Home Assistant; its automations do what the user built them to",
       "method": "POST",
       "path": "/events/{{ p.eventType }}",
       "fields": [
@@ -298,8 +302,19 @@
       "resource": "service",
       "operation": "call",
       "title": "Call a service",
-      "sends": false,
-      "sends_reason": "calls a service of the user's own Home Assistant (their devices)",
+      "sends": {
+        "action": "post",
+        "to": [
+          "service"
+        ],
+        "to_label": {
+          "service": "service"
+        },
+        "if": [
+          "domain=notify",
+          "domain=tts"
+        ]
+      },
       "method": "POST",
       "path": "/services/{{ p.domain }}/{{ p.service }}",
       "fields": [
@@ -376,6 +391,8 @@
       "resource": "state",
       "operation": "upsert",
       "title": "Create or update an entity state",
+      "sends": false,
+      "sends_reason": "Create or update an entity state: changes Home Assistant data, not a message",
       "method": "POST",
       "path": "/states/{{ p.entityId }}",
       "fields": [
@@ -413,6 +430,8 @@
       "resource": "template",
       "operation": "create",
       "title": "Render a template",
+      "sends": false,
+      "sends_reason": "renders a template: a read, not a message",
       "method": "POST",
       "path": "/template",
       "fields": [

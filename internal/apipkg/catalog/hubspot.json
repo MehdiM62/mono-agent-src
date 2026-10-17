@@ -813,6 +813,8 @@
       "resource": "contactList",
       "operation": "add",
       "title": "Add a contact to a list",
+      "sends": false,
+      "sends_reason": "Add a contact to a list: changes HubSpot data, not a message",
       "method": "POST",
       "path": "/contacts/v1/lists/{{ p.listId }}/add",
       "fields": [
@@ -882,6 +884,8 @@
       "resource": "company",
       "operation": "create",
       "title": "Create a company",
+      "sends": false,
+      "sends_reason": "Create a company: changes HubSpot data, not a message",
       "method": "POST",
       "path": "/companies/v2/companies",
       "fields": [
@@ -1313,6 +1317,8 @@
       "resource": "company",
       "operation": "update",
       "title": "Update a company",
+      "sends": false,
+      "sends_reason": "Update a company: changes HubSpot data, not a message",
       "method": "PUT",
       "path": "/companies/v2/companies/{{ p.companyId | rl }}",
       "fields": [
@@ -1961,6 +1967,8 @@
       "resource": "engagement",
       "operation": "create",
       "title": "Create an engagement",
+      "sends": false,
+      "sends_reason": "records an email, call, meeting or note in HubSpot; it sends nothing",
       "method": "POST",
       "path": "/engagements/v1/engagements",
       "fields": [
@@ -2229,6 +2237,8 @@
       "resource": "ticket",
       "operation": "create",
       "title": "Create a ticket",
+      "sends": false,
+      "sends_reason": "a work item, open by the user's decision",
       "method": "POST",
       "path": "/crm-objects/v1/objects/tickets",
       "fields": [
@@ -2462,6 +2472,8 @@
       "resource": "ticket",
       "operation": "update",
       "title": "Update a ticket",
+      "sends": false,
+      "sends_reason": "a work item, open by the user's decision",
       "method": "PUT",
       "path": "/crm-objects/v1/objects/tickets/{{ p.ticketId | rl }}",
       "fields": [

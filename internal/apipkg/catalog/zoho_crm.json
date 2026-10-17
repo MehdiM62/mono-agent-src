@@ -99,6 +99,8 @@
       "resource": "account",
       "operation": "create",
       "title": "Create a account",
+      "sends": false,
+      "sends_reason": "Create a account: changes Zoho CRM data, not a message",
       "method": "POST",
       "path": "/accounts",
       "body": {
@@ -156,6 +158,8 @@
       "resource": "account",
       "operation": "upsert",
       "title": "Create or update a account",
+      "sends": false,
+      "sends_reason": "Create or update a account: changes Zoho CRM data, not a message",
       "method": "POST",
       "path": "/accounts/upsert",
       "body": {
@@ -298,6 +302,8 @@
       "resource": "account",
       "operation": "update",
       "title": "Update a account",
+      "sends": false,
+      "sends_reason": "Update a account: changes Zoho CRM data, not a message",
       "method": "PUT",
       "path": "/accounts/{{ p.accountId }}",
       "body": {
@@ -355,6 +361,8 @@
       "resource": "contact",
       "operation": "create",
       "title": "Create a contact",
+      "sends": false,
+      "sends_reason": "Create a contact: changes Zoho CRM data, not a message",
       "method": "POST",
       "path": "/contacts",
       "body": {
@@ -417,6 +425,8 @@
       "resource": "contact",
       "operation": "upsert",
       "title": "Create or update a contact",
+      "sends": false,
+      "sends_reason": "Create or update a contact: changes Zoho CRM data, not a message",
       "method": "POST",
       "path": "/contacts/upsert",
       "body": {
@@ -564,6 +574,8 @@
       "resource": "contact",
       "operation": "update",
       "title": "Update a contact",
+      "sends": false,
+      "sends_reason": "Update a contact: changes Zoho CRM data, not a message",
       "method": "PUT",
       "path": "/contacts/{{ p.contactId }}",
       "body": {
@@ -1190,6 +1202,8 @@
       "resource": "lead",
       "operation": "create",
       "title": "Create a lead",
+      "sends": false,
+      "sends_reason": "Create a lead: changes Zoho CRM data, not a message",
       "method": "POST",
       "path": "/leads",
       "body": {
@@ -1259,6 +1273,8 @@
       "resource": "lead",
       "operation": "upsert",
       "title": "Create or update a lead",
+      "sends": false,
+      "sends_reason": "Create or update a lead: changes Zoho CRM data, not a message",
       "method": "POST",
       "path": "/leads/upsert",
       "body": {
@@ -1427,6 +1443,8 @@
       "resource": "lead",
       "operation": "update",
       "title": "Update a lead",
+      "sends": false,
+      "sends_reason": "Update a lead: changes Zoho CRM data, not a message",
       "method": "PUT",
       "path": "/leads/{{ p.leadId }}",
       "body": {
@@ -2659,6 +2677,8 @@
       "resource": "vendor",
       "operation": "create",
       "title": "Create a vendor",
+      "sends": false,
+      "sends_reason": "Create a vendor: changes Zoho CRM data, not a message",
       "method": "POST",
       "path": "/vendors",
       "body": {
@@ -2706,6 +2726,8 @@
       "resource": "vendor",
       "operation": "upsert",
       "title": "Create or update a vendor",
+      "sends": false,
+      "sends_reason": "Create or update a vendor: changes Zoho CRM data, not a message",
       "method": "POST",
       "path": "/vendors/upsert",
       "body": {
@@ -2838,6 +2860,8 @@
       "resource": "vendor",
       "operation": "update",
       "title": "Update a vendor",
+      "sends": false,
+      "sends_reason": "Update a vendor: changes Zoho CRM data, not a message",
       "method": "PUT",
       "path": "/vendors/{{ p.vendorId }}",
       "body": {

@@ -106,6 +106,8 @@
       "resource": "task",
       "operation": "create",
       "title": "Create a task",
+      "sends": false,
+      "sends_reason": "a work item, open by the user's decision",
       "method": "POST",
       "path": "/tasks",
       "fields": [
@@ -184,6 +186,8 @@
       "resource": "task",
       "operation": "clone",
       "title": "Clone a task",
+      "sends": false,
+      "sends_reason": "a work item, open by the user's decision",
       "method": "POST",
       "path": "/tasks/{{ p.id }}/clone",
       "fields": [
@@ -230,6 +234,8 @@
       "resource": "task",
       "operation": "complete",
       "title": "Complete a task",
+      "sends": false,
+      "sends_reason": "a work item, open by the user's decision",
       "method": "POST",
       "path": "/tasks/{{ p.id }}/complete",
       "fields": [
@@ -273,6 +279,8 @@
       "resource": "task",
       "operation": "delete",
       "title": "Delete a task",
+      "sends": false,
+      "sends_reason": "Delete a task: changes Onfleet data, not a message",
       "method": "DELETE",
       "path": "/tasks/{{ p.id }}",
       "fields": [
@@ -339,6 +347,8 @@
       "resource": "task",
       "operation": "update",
       "title": "Update a task",
+      "sends": false,
+      "sends_reason": "a work item, open by the user's decision",
       "method": "PUT",
       "path": "/tasks/{{ p.id }}",
       "fields": [
@@ -392,6 +402,8 @@
       "resource": "destination",
       "operation": "create",
       "title": "Create a destination",
+      "sends": false,
+      "sends_reason": "Create a destination: changes Onfleet data, not a message",
       "method": "POST",
       "path": "/destinations",
       "fields": [
@@ -503,6 +515,8 @@
       "resource": "recipient",
       "operation": "create",
       "title": "Create a recipient",
+      "sends": false,
+      "sends_reason": "adds a delivery recipient and texts no one: Onfleet's delivery texts come with a task, a work item, open by the user's decision",
       "method": "POST",
       "path": "/recipients",
       "fields": [
@@ -552,6 +566,8 @@
       "resource": "recipient",
       "operation": "update",
       "title": "Update a recipient",
+      "sends": false,
+      "sends_reason": "Update a recipient: changes Onfleet data, not a message",
       "method": "PUT",
       "path": "/recipients/{{ p.id }}",
       "fields": [
@@ -610,6 +626,12 @@
       "resource": "admin",
       "operation": "create",
       "title": "Create an administrator",
+      "sends": {
+        "action": "invite",
+        "to": [
+          "email"
+        ]
+      },
       "method": "POST",
       "path": "/admins",
       "fields": [
@@ -648,6 +670,8 @@
       "resource": "admin",
       "operation": "delete",
       "title": "Delete an administrator",
+      "sends": false,
+      "sends_reason": "Delete an administrator: changes Onfleet data, not a message",
       "method": "DELETE",
       "path": "/admins/{{ p.id }}",
       "fields": [
@@ -669,6 +693,8 @@
       "resource": "admin",
       "operation": "update",
       "title": "Update an administrator",
+      "sends": false,
+      "sends_reason": "Update an administrator: changes Onfleet data, not a message",
       "method": "PUT",
       "path": "/admins/{{ p.id }}",
       "fields": [
@@ -724,6 +750,8 @@
       "resource": "hub",
       "operation": "create",
       "title": "Create a hub",
+      "sends": false,
+      "sends_reason": "Create a hub: changes Onfleet data, not a message",
       "method": "POST",
       "path": "/hubs",
       "fields": [
@@ -775,6 +803,8 @@
       "resource": "hub",
       "operation": "update",
       "title": "Update a hub",
+      "sends": false,
+      "sends_reason": "Update a hub: changes Onfleet data, not a message",
       "method": "PUT",
       "path": "/hubs/{{ p.id }}",
       "fields": [
@@ -870,6 +900,8 @@
       "resource": "container",
       "operation": "addTask",
       "title": "Add tasks to a container",
+      "sends": false,
+      "sends_reason": "Add tasks to a container: changes Onfleet data, not a message",
       "method": "PUT",
       "path": "/containers/{{ p.containerType }}/{{ p.containerId }}",
       "fields": [
@@ -938,6 +970,8 @@
       "resource": "container",
       "operation": "updateTask",
       "title": "Replace a container's tasks",
+      "sends": false,
+      "sends_reason": "Replace a container's tasks: changes Onfleet data, not a message",
       "method": "PUT",
       "path": "/containers/{{ p.containerType }}/{{ p.containerId }}",
       "fields": [
@@ -1011,6 +1045,8 @@
       "resource": "team",
       "operation": "autoDispatch",
       "title": "Auto-dispatch a team's tasks",
+      "sends": false,
+      "sends_reason": "assigns a team's tasks to its own drivers: a work item, open by the user's decision",
       "method": "POST",
       "path": "/teams/{{ p.id }}/dispatch",
       "fields": [
@@ -1054,6 +1090,8 @@
       "resource": "team",
       "operation": "create",
       "title": "Create a team",
+      "sends": false,
+      "sends_reason": "Create a team: changes Onfleet data, not a message",
       "method": "POST",
       "path": "/teams",
       "fields": [
@@ -1102,6 +1140,8 @@
       "resource": "team",
       "operation": "delete",
       "title": "Delete a team",
+      "sends": false,
+      "sends_reason": "Delete a team: changes Onfleet data, not a message",
       "method": "DELETE",
       "path": "/teams/{{ p.id }}",
       "fields": [
@@ -1175,6 +1215,8 @@
       "resource": "team",
       "operation": "update",
       "title": "Update a team",
+      "sends": false,
+      "sends_reason": "Update a team: changes Onfleet data, not a message",
       "method": "PUT",
       "path": "/teams/{{ p.id }}",
       "fields": [
@@ -1237,6 +1279,12 @@
       "resource": "worker",
       "operation": "create",
       "title": "Create a worker",
+      "sends": {
+        "action": "invite",
+        "to": [
+          "phone"
+        ]
+      },
       "method": "POST",
       "path": "/workers",
       "fields": [
@@ -1287,6 +1335,8 @@
       "resource": "worker",
       "operation": "delete",
       "title": "Delete a worker",
+      "sends": false,
+      "sends_reason": "Delete a worker: changes Onfleet data, not a message",
       "method": "DELETE",
       "path": "/workers/{{ p.id }}",
       "fields": [
@@ -1399,6 +1449,8 @@
       "resource": "worker",
       "operation": "update",
       "title": "Update a worker",
+      "sends": false,
+      "sends_reason": "Update a worker: changes Onfleet data, not a message",
       "method": "PUT",
       "path": "/workers/{{ p.id }}",
       "fields": [

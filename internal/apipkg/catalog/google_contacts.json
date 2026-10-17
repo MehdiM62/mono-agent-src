@@ -42,6 +42,8 @@
       "resource": "contact",
       "operation": "create",
       "title": "Create a contact",
+      "sends": false,
+      "sends_reason": "Create a contact: changes Google Contacts data, not a message",
       "method": "POST",
       "path": "/people:createContact",
       "fields": [
@@ -319,6 +321,8 @@
       "resource": "contact",
       "operation": "update",
       "title": "Update a contact",
+      "sends": false,
+      "sends_reason": "Update a contact: changes Google Contacts data, not a message",
       "method": "PATCH",
       "path": "/people/{{ p.contactId }}:updateContact",
       "description": "Without an etag the contact is read first to get its current etag.",

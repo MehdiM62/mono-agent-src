@@ -58,6 +58,7 @@
     },
     {
       "resource": "user", "operation": "create", "title": "Create a user",
+      "sends": false, "sends_reason": "Create a user: changes Microsoft Entra ID data, not a message",
       "method": "POST", "path": "/users",
       "fields": [
         { "key": "accountEnabled", "label": "Account enabled", "type": "boolean", "default": true, "required": true },
@@ -137,6 +138,7 @@
     },
     {
       "resource": "user", "operation": "update", "title": "Update a user",
+      "sends": false, "sends_reason": "Update a user: changes Microsoft Entra ID data, not a message",
       "method": "PATCH", "path": "/users/{{ p.user | rl }}",
       "fields": [
         { "key": "user", "label": "User ID", "type": "text", "required": true, "help": "Object ID or user principal name." },

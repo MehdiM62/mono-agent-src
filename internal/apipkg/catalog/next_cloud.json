@@ -70,6 +70,8 @@
       "resource": "file",
       "operation": "upload",
       "title": "Upload a file",
+      "sends": false,
+      "sends_reason": "Upload a file: changes Nextcloud data, not a message",
       "method": "PUT",
       "path": "/{{ p.path | re:'^/?(.*)$' | path }}",
       "fields": [
@@ -121,6 +123,8 @@
       "resource": "file",
       "operation": "copy",
       "title": "Copy a file",
+      "sends": false,
+      "sends_reason": "Copy a file: changes Nextcloud data, not a message",
       "method": "COPY",
       "path": "/{{ p.path | re:'^/?(.*)$' | path }}",
       "headers": {
@@ -160,6 +164,8 @@
       "resource": "file",
       "operation": "delete",
       "title": "Delete a file",
+      "sends": false,
+      "sends_reason": "Delete a file: changes Nextcloud data, not a message",
       "method": "DELETE",
       "path": "/{{ p.path | re:'^/?(.*)$' | path }}",
       "fields": [
@@ -227,6 +233,8 @@
       "resource": "file",
       "operation": "move",
       "title": "Move a file",
+      "sends": false,
+      "sends_reason": "Move a file: changes Nextcloud data, not a message",
       "method": "MOVE",
       "path": "/{{ p.path | re:'^/?(.*)$' | path }}",
       "headers": {
@@ -353,6 +361,8 @@
       "resource": "folder",
       "operation": "create",
       "title": "Create a folder",
+      "sends": false,
+      "sends_reason": "Create a folder: changes Nextcloud data, not a message",
       "method": "MKCOL",
       "path": "/{{ p.path | re:'^/?(.*)$' | path }}",
       "fields": [
@@ -381,6 +391,8 @@
       "resource": "folder",
       "operation": "copy",
       "title": "Copy a folder",
+      "sends": false,
+      "sends_reason": "Copy a folder: changes Nextcloud data, not a message",
       "method": "COPY",
       "path": "/{{ p.path | re:'^/?(.*)$' | path }}",
       "headers": {
@@ -420,6 +432,8 @@
       "resource": "folder",
       "operation": "delete",
       "title": "Delete a folder",
+      "sends": false,
+      "sends_reason": "Delete a folder: changes Nextcloud data, not a message",
       "method": "DELETE",
       "path": "/{{ p.path | re:'^/?(.*)$' | path }}",
       "fields": [
@@ -490,6 +504,8 @@
       "resource": "folder",
       "operation": "move",
       "title": "Move a folder",
+      "sends": false,
+      "sends_reason": "Move a folder: changes Nextcloud data, not a message",
       "method": "MOVE",
       "path": "/{{ p.path | re:'^/?(.*)$' | path }}",
       "headers": {
@@ -616,6 +632,16 @@
       "resource": "user",
       "operation": "create",
       "title": "Create a user",
+      "sends": {
+        "action": "invite",
+        "to": [
+          "email",
+          "userId"
+        ],
+        "to_label": {
+          "userId": "user"
+        }
+      },
       "method": "POST",
       "base_url": "{{ cred.web_dav_url | replace:'/remote.php/webdav','' }}",
       "path": "/ocs/v1.php/cloud/users",
@@ -672,6 +698,8 @@
       "resource": "user",
       "operation": "delete",
       "title": "Delete a user",
+      "sends": false,
+      "sends_reason": "Delete a user: changes Nextcloud data, not a message",
       "method": "DELETE",
       "base_url": "{{ cred.web_dav_url | replace:'/remote.php/webdav','' }}",
       "path": "/ocs/v1.php/cloud/users/{{ p.userId }}",
@@ -798,6 +826,8 @@
       "resource": "user",
       "operation": "update",
       "title": "Update a user",
+      "sends": false,
+      "sends_reason": "Update a user: changes Nextcloud data, not a message",
       "method": "PUT",
       "base_url": "{{ cred.web_dav_url | replace:'/remote.php/webdav','' }}",
       "path": "/ocs/v1.php/cloud/users/{{ p.userId }}",

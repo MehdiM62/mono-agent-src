@@ -664,8 +664,12 @@
       "resource": "sender",
       "operation": "create",
       "title": "Create a sender",
-      "sends": false,
-      "sends_reason": "adds a sender address; Brevo emails that address only to verify it",
+      "sends": {
+        "action": "email",
+        "to": [
+          "email"
+        ]
+      },
       "method": "POST",
       "path": "/v3/senders",
       "fields": [
