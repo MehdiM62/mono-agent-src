@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/text/unicode/norm"
 
 	"github.com/monoes/mono-agent/internal/attachments"
 	"github.com/monoes/mono-agent/internal/operator"
@@ -69,12 +70,7 @@ func (d Deps) newProfileUpdateCmd() *cobra.Command {
 			if !nameSet && !iconSet {
 				return d.InvalidInput("nothing to update: pass --name and/or --icon")
 			}
-			name, icon = strings.TrimSpace(name), strings.TrimSpace(icon)
-			if nameSet {
-				if err := validateProfileName(name); err != nil {
-					return d.InvalidInput("%v", err)
-				}
-			}
+			name, icon = norm.NFC.String(strings.TrimSpace(name)), strings.TrimSpace(icon)
 			if iconSet {
 				if err := d.validateIcon(icon); err != nil {
 					return err
@@ -89,7 +85,12 @@ func (d Deps) newProfileUpdateCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if nameSet {
+			// A name that is not changing (the app sends it along with a new icon)
+			// is not judged again: it may be one an older version allowed.
+			if nameSet && name != p.Name {
+				if err := validateProfileName(name); err != nil {
+					return d.InvalidInput("%v", err)
+				}
 				if err := d.checkNameFree(db.DB, name, p.ID); err != nil {
 					return err
 				}

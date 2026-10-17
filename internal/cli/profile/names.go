@@ -25,7 +25,13 @@ func (d Deps) validateIcon(icon string) error {
 // validateProfileName rejects a name that is empty, long, written with
 // control, invisible, text-direction or unusual-space characters or path
 // separators, that changes under compatibility normalization (ligatures,
-// full-width letters), that mixes writing systems, or that is "default".
+// full-width or styled letters, ™, ², …), that mixes a look-alike script with
+// another one, or that is "default". The caller has already put the name in
+// canonical (NFC) form.
+//
+// The look-alike checks are a safeguard, not a proof: skeleton folds only the
+// letters in confusable, so other look-alikes (dotless i, "rn" for "m", 0 for
+// O, a trailing dot or digit, a space inside a word) are not caught.
 func validateProfileName(name string) error {
 	if name == "" {
 		return fmt.Errorf("profile name cannot be empty")
@@ -43,10 +49,10 @@ func validateProfileName(name string) error {
 		}
 	}
 	if norm.NFKC.String(name) != name {
-		return fmt.Errorf("profile name cannot contain ligatures or full-width/styled letters: use the plain letters")
+		return fmt.Errorf("profile name cannot contain characters that change under Unicode normalization (ligatures, full-width or styled letters, symbols such as ™ or ²): use the plain characters")
 	}
-	if mixesWritingSystems(name) {
-		return fmt.Errorf("profile name cannot mix writing systems (for example Latin with Cyrillic or Greek): look-alike letters hide as other names")
+	if mixesLookAlikeScript(name) {
+		return fmt.Errorf("profile name cannot mix Cyrillic, Greek, Armenian, Georgian, Cherokee, Coptic or Lisu letters with letters of another script (look-alike letters hide as other names)")
 	}
 	if skeleton(name) == "default" {
 		return fmt.Errorf("profile name cannot be \"default\": no profile is the default")
@@ -54,38 +60,46 @@ func validateProfileName(name string) error {
 	return nil
 }
 
-// mixesWritingSystems reports a name whose letters come from more than one
-// script. Japanese (Han with Hiragana and Katakana) counts as one.
-func mixesWritingSystems(name string) bool {
-	scripts := map[string]bool{}
+// lookAlikeScripts are the scripts with letters that pass for Latin ones.
+// CJK, Arabic, Hebrew, Thai, Devanagari and the like have none, so they may
+// stand next to Latin text ("Toyota トヨタ").
+var lookAlikeScripts = []string{"Cyrillic", "Greek", "Armenian", "Georgian", "Cherokee", "Coptic", "Lisu"}
+
+// mixesLookAlikeScript reports a name with letters of a look-alike script
+// together with letters of any other script, Latin included.
+func mixesLookAlikeScript(name string) bool {
+	groups := map[string]bool{}
 	for _, r := range name {
 		if !unicode.IsLetter(r) {
 			continue
 		}
+		g := "other"
 		switch {
 		case unicode.Is(unicode.Latin, r):
-			scripts["Latin"] = true
-		case unicode.Is(unicode.Han, r), unicode.Is(unicode.Hiragana, r), unicode.Is(unicode.Katakana, r):
-			scripts["Japanese"] = true
+			g = "Latin"
 		default:
-			for _, name := range scriptNames {
-				if unicode.Is(unicode.Scripts[name], r) {
-					scripts[name] = true
+			for _, s := range lookAlikeScripts {
+				if unicode.Is(unicode.Scripts[s], r) {
+					g = s
 					break
 				}
 			}
 		}
+		groups[g] = true
 	}
-	return len(scripts) > 1
+	for _, s := range lookAlikeScripts {
+		if groups[s] && len(groups) > 1 {
+			return true
+		}
+	}
+	return false
 }
-
-var scriptNames = []string{"Cyrillic", "Greek", "Hebrew", "Armenian", "Georgian", "Cherokee", "Coptic", "Lisu", "Arabic", "Thai", "Hangul", "Devanagari"}
 
 // confusable maps letters that look like a Latin one to it (a short list of
 // the Cyrillic and Greek ones, the usual look-alikes).
 var confusable = map[rune]rune{
 	'А': 'A', 'В': 'B', 'Е': 'E', 'К': 'K', 'М': 'M', 'Н': 'H', 'О': 'O', 'Р': 'P', 'С': 'C', 'Т': 'T', 'У': 'Y', 'Х': 'X', 'І': 'I', 'Ј': 'J', 'Ѕ': 'S',
-	'а': 'a', 'е': 'e', 'о': 'o', 'р': 'p', 'с': 'c', 'у': 'y', 'х': 'x', 'і': 'i', 'ј': 'j', 'ѕ': 's', 'һ': 'h', 'ԁ': 'd', 'ԛ': 'q', 'ԝ': 'w', 'ӏ': 'l',
+	'а': 'a', 'е': 'e', 'о': 'o', 'р': 'p', 'с': 'c', 'у': 'y', 'х': 'x', 'і': 'i', 'ј': 'j', 'ѕ': 's', 'м': 'm', 'т': 't', 'к': 'k', 'н': 'h', 'в': 'b', 'һ': 'h', 'ԁ': 'd', 'ԛ': 'q', 'ԝ': 'w', 'ӏ': 'l',
 	'Α': 'A', 'Β': 'B', 'Ε': 'E', 'Ζ': 'Z', 'Η': 'H', 'Ι': 'I', 'Κ': 'K', 'Μ': 'M', 'Ν': 'N', 'Ο': 'O', 'Ρ': 'P', 'Τ': 'T', 'Υ': 'Y', 'Χ': 'X',
 	'ο': 'o', 'μ': 'm', 'ν': 'v', 'ρ': 'p', 'ι': 'i', 'κ': 'k', 'υ': 'u', 'χ': 'x', 'α': 'a', 'ε': 'e', 'γ': 'y', 'τ': 't',
 }

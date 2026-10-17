@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
+	"golang.org/x/text/unicode/norm"
 
 	"github.com/monoes/mono-agent/internal/profiledir"
 	"github.com/monoes/mono-agent/internal/profileorder"
@@ -173,7 +174,7 @@ func (d Deps) newProfileCreateCmd() *cobra.Command {
 			"agent-avatars manifest.",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			name := strings.TrimSpace(args[0])
+			name := norm.NFC.String(strings.TrimSpace(args[0]))
 			if err := validateProfileName(name); err != nil {
 				return d.InvalidInput("%v", err)
 			}
