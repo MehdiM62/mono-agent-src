@@ -2632,7 +2632,10 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
   request merges whole, or in an option object outside the op's
   `subfields`, makes the step a send whatever its annotation
   (`apipkg.SendOf`, `collections.go`): a gated run waits, with a card
-  naming the keys as a label, and other runs are unchanged. A condition's
+  naming the keys as a label (its text lists the op and each undeclared
+  field's value; the action is the op's own annotated one, else post; the
+  text can't be edited), and other runs are unchanged. A `| pick:` merge
+  counts only the keys it names. A condition's
   path fans out over a list (`…customFieldPairs.name=invite`).
   `TestShippedWorkflowsDeclareTheirKeys` keeps the shipped examples and
   n8n fixtures free of undeclared keys.
