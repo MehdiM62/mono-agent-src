@@ -58,11 +58,7 @@ func (e *WorkflowEngine) handleTrigger(workflowID string, nodeID string, items [
 		}
 	}
 
-	// Build trigger data from the first item (if any).
-	triggerData := make(map[string]interface{})
-	if len(items) > 0 && items[0].JSON != nil {
-		triggerData = items[0].JSON
-	}
+	triggerData := eventTriggerData(items)
 
 	exec := &WorkflowExecution{
 		WorkflowID:    workflowID,
@@ -102,6 +98,24 @@ func (e *WorkflowEngine) handleTrigger(workflowID string, nodeID string, items [
 				Msg("engine: handleTrigger: failed to mark execution as FAILED after queue full")
 		}
 	}
+}
+
+// eventTriggerData is the trigger data of a run an event started (a
+// trigger source's fire, a webhook's, a form's or a chat's): a copy of the
+// event's first item without the fields only the engine writes
+// (StripEngineKeys) and without SubWorkflowItemsKey, so an event can't pass
+// its run off as another's or turn into as many items as it lists. Runs the
+// engine starts itself (StartSubWorkflow, TriggerWorkflow) don't come here.
+func eventTriggerData(items []Item) map[string]interface{} {
+	data := make(map[string]interface{})
+	if len(items) > 0 {
+		for k, v := range items[0].JSON {
+			data[k] = v
+		}
+	}
+	StripEngineKeys(data)
+	delete(data, SubWorkflowItemsKey)
+	return data
 }
 
 // handleExecution is called by a queue worker for each execution request.
