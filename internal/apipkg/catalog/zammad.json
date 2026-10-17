@@ -581,8 +581,21 @@
       "resource": "ticket",
       "operation": "create",
       "title": "Create a ticket",
-      "sends": false,
-      "sends_reason": "a work item, open by the user's decision",
+      "sends": {
+        "action": "email",
+        "to": [
+          "article.articleDetails.to",
+          "customer"
+        ],
+        "text": [
+          "article.articleDetails.body"
+        ],
+        "subject": [
+          "article.articleDetails.subject",
+          "title"
+        ],
+        "if": "article.articleDetails.type=email"
+      },
       "method": "POST",
       "path": "/tickets",
       "body": {

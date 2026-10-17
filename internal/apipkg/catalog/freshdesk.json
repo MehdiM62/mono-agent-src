@@ -63,8 +63,19 @@
       "resource": "ticket",
       "operation": "create",
       "title": "Create a ticket",
-      "sends": false,
-      "sends_reason": "a work item, open by the user's decision",
+      "sends": {
+        "action": "email",
+        "to": [
+          "options.ccEmails"
+        ],
+        "text": [
+          "options.description"
+        ],
+        "subject": [
+          "options.subject"
+        ],
+        "if": "options.ccEmails"
+      },
       "method": "POST",
       "path": "/tickets",
       "fields": [
@@ -264,8 +275,13 @@
       "resource": "ticket",
       "operation": "update",
       "title": "Update a ticket",
-      "sends": false,
-      "sends_reason": "a work item, open by the user's decision",
+      "sends": {
+        "action": "email",
+        "to": [
+          "updateFields.ccEmails"
+        ],
+        "if": "updateFields.ccEmails"
+      },
       "method": "PUT",
       "path": "/tickets/{{ p.ticketId }}",
       "fields": [

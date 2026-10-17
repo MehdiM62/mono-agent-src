@@ -145,9 +145,11 @@ no `to` field is set.
 Comments and invites on shared trackers count: they reach people. Creating
 or updating issues, tasks and tickets does not, by the user's decision: it
 says `"sends": false` with "a work item, open by the user's decision"
-(their comments are sends). An op that only looks like a send (a queue or
-webhook for programs, a lookup, a notification to the user's own devices)
-says `"sends": false` with `"sends_reason"`; so does what the user decided
+(their comments are sends). A ticket's create or update that emails someone
+beyond its requester waits, with `if`: an email article (Zammad), CCs
+(Freshdesk, Freshservice), Zendesk's JSON fields or recipient. An op that
+only looks like a send (a queue or webhook for programs, a lookup, a
+notification to the user's own devices) says `"sends": false` with `"sends_reason"`; so does what the user decided
 stays open (file sharing, money movement), with the reason saying so.
 `TestCatalogSendsAreDecided` fails for a catalog op that has neither when:
 

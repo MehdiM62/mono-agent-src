@@ -138,8 +138,20 @@
       "resource": "ticket",
       "operation": "create",
       "title": "Create a ticket",
-      "sends": false,
-      "sends_reason": "a work item, open by the user's decision",
+      "sends": {
+        "action": "email",
+        "text": [
+          "description"
+        ],
+        "subject": [
+          "additionalFields.subject"
+        ],
+        "to_unset": "the ticket's requester",
+        "if": [
+          "jsonParameters",
+          "additionalFields.recipient"
+        ]
+      },
       "method": "POST",
       "path": "/tickets.json",
       "body": {
