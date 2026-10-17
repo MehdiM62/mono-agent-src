@@ -81,7 +81,8 @@ type Payload struct {
 // An agent's process names itself (Detect reads its environment), so
 // whatever it says is a claim; Label shows it as one. System marks the one
 // kind MonoAgent derives itself, a run of a workflow the user never
-// approved (unapprovedRun); nothing in an environment sets it.
+// approved (unapprovedRun, and browser.jev's aiCaller for the browser
+// cards); nothing in an environment sets it.
 type PreparedBy struct {
 	Role           string `json:"role,omitempty"`
 	AgentID        string `json:"agentId,omitempty"`
