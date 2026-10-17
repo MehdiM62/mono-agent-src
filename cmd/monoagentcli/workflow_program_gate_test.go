@@ -174,7 +174,8 @@ func TestAWorkflowAnUnapprovedOneCallsKeepsToItsFileRules(t *testing.T) {
 
 // `workflow run --input` can't plant the engine's own marks: the run's
 // trigger data keeps the caller's fields and none of _ai_caller,
-// _unapproved_caller, _items and _subworkflow it was given.
+// _unapproved_caller and _subworkflow it was given, and its _items still
+// feed the trigger its items.
 func TestWorkflowRunInputCantPlantTheEnginesMarks(t *testing.T) {
 	_, cfg := persistTestEnv(t)
 	asOperatorProcess(t)
@@ -189,7 +190,63 @@ func TestWorkflowRunInputCantPlantTheEnginesMarks(t *testing.T) {
 	runWorkflowSubcmd(t, cfg, "activate", created.ID)
 	cmd := newWorkflowCmd(cfg)
 	cmd.SetArgs([]string{"run", created.ID, "--timeout", "30s", "--input",
-		`{"keep":"yes","_ai_caller":"unapproved-workflow","_unapproved_caller":"wf-x","_items":[1],"_subworkflow":{}}`})
+		`{"keep":"yes","_ai_caller":"unapproved-workflow","_unapproved_caller":"wf-x","_items":[{"n":1},{"n":2}],"_subworkflow":{}}`})
+	captureStdout(t, func() {
+		if err := cmd.Execute(); err != nil {
+			t.Fatal(err)
+		}
+	})
+	db, err := storage.NewDatabase(cfg.DBPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	var raw, out string
+	if err := db.DB.QueryRow(`SELECT e.trigger_data, n.output_items FROM workflow_executions e
+		JOIN workflow_execution_nodes n ON n.execution_id = e.id AND n.node_id = ?
+		WHERE e.workflow_id = ? ORDER BY e.rowid DESC LIMIT 1`, trig.ID, created.ID).Scan(&raw, &out); err != nil {
+		t.Fatal(err)
+	}
+	var td map[string]interface{}
+	if err := json.Unmarshal([]byte(raw), &td); err != nil {
+		t.Fatalf("trigger_data %q: %v", raw, err)
+	}
+	if td["keep"] != "yes" {
+		t.Errorf("the caller's own field is gone: %v", td)
+	}
+	for _, k := range []string{"_ai_caller", "_unapproved_caller", "_subworkflow"} {
+		if _, ok := td[k]; ok {
+			t.Errorf("--input planted %s: %v", k, td)
+		}
+	}
+	// _items is the caller's way to pass several items, and still feeds
+	// them to the trigger (#833 review).
+	var items []workflow.Item
+	if err := json.Unmarshal([]byte(out), &items); err != nil {
+		t.Fatalf("the trigger's output %q: %v", out, err)
+	}
+	if len(items) != 2 || items[0].JSON["n"] != float64(1) || items[1].JSON["n"] != float64(2) {
+		t.Errorf("--input _items fed %v, want two items", items)
+	}
+}
+
+// An agent's `workflow run` keeps the mark that says an agent started it:
+// stripping a run's input and an event's payload leaves the engine's own
+// marks alone (#836 review). A sub-workflow keeps its caller's marks the
+// same way (TestAnUnapprovedWorkflowsSubWorkflowIsAnAIRun).
+func TestAnAgentsWorkflowRunKeepsItsMark(t *testing.T) {
+	_, cfg := persistTestEnv(t)
+	asOperatorProcess(t)
+	var created workflow.Workflow
+	if err := json.Unmarshal([]byte(runWorkflowSubcmd(t, cfg, "create", "plain")), &created); err != nil {
+		t.Fatal(err)
+	}
+	runWorkflowSubcmd(t, cfg, "node", "add", created.ID, "--type", "trigger.manual", "--name", "Start")
+	runWorkflowSubcmd(t, cfg, "activate", created.ID)
+
+	asAgentProcess(t)
+	cmd := newWorkflowCmd(cfg)
+	cmd.SetArgs([]string{"run", created.ID, "--timeout", "30s", "--input", `{"_ai_caller":"chat"}`})
 	captureStdout(t, func() {
 		if err := cmd.Execute(); err != nil {
 			t.Fatal(err)
@@ -206,14 +263,9 @@ func TestWorkflowRunInputCantPlantTheEnginesMarks(t *testing.T) {
 	}
 	var td map[string]interface{}
 	if err := json.Unmarshal([]byte(raw), &td); err != nil {
-		t.Fatalf("trigger_data %q: %v", raw, err)
+		t.Fatal(err)
 	}
-	if td["keep"] != "yes" {
-		t.Errorf("the caller's own field is gone: %v", td)
-	}
-	for _, k := range []string{"_ai_caller", "_unapproved_caller", "_items", "_subworkflow"} {
-		if _, ok := td[k]; ok {
-			t.Errorf("--input planted %s: %v", k, td)
-		}
+	if mark, _ := td[workflow.AICallerKey].(string); mark == "" || mark == "chat" {
+		t.Fatalf("an agent's run is marked %q, want its own kind: %v", mark, td)
 	}
 }
