@@ -86,3 +86,44 @@ func TestALabelIsNoDestination(t *testing.T) {
 		t.Fatalf("a workflow approval's recipient = %+v", items[0])
 	}
 }
+
+// Each check stands on its own: Resolve's read before the edit leaves a
+// label card as it was, and claim, on what it claims, refuses always allow
+// for a label and leaves it pending, while a plain claim goes through.
+func TestAlwaysAllowOnALabelIsRefusedTwice(t *testing.T) {
+	asAgent(t)
+	db := commsDB(t)
+	SetClassifier(fakeClassifier{})
+	t.Cleanup(func() { SetClassifier(nil) })
+	st := Store{db, "p1"}
+	newCard := func() string {
+		t.Helper()
+		out, handled, err := Guard(ctxFor(db), "app.fake", workflow.NodeInput{}, map[string]interface{}{"operation": "remind", "text": "Pay up"})
+		if err != nil || !handled {
+			t.Fatalf("handled=%v err=%v", handled, err)
+		}
+		return out[0].Items[0].JSON["hil_id"].(string)
+	}
+
+	id := newCard()
+	before, _ := st.Get(ctxFor(db), id)
+	edited := "Pay now"
+	f := &fakeRunner{}
+	if _, err := Resolve(context.Background(), st, id, true, Edit{Text: &edited}, true, f.run); !errors.Is(err, ErrAlwaysLabel) {
+		t.Fatalf("always allow with an edit: %v", err)
+	}
+	if p, _ := st.Get(ctxFor(db), id); p.Text != before.Text || p.State != StatePending || len(f.calls) != 0 {
+		t.Fatalf("after the refusal: text %q, state %s, runs %d", p.Text, p.State, len(f.calls))
+	}
+
+	id = newCard()
+	if _, _, _, claimed, err := st.claim(ctxFor(db), id, true); claimed || !errors.Is(err, ErrAlwaysLabel) {
+		t.Fatalf("claim with always: claimed=%v err=%v", claimed, err)
+	}
+	if p, _ := st.Get(ctxFor(db), id); p.State != StatePending {
+		t.Fatalf("after the refused claim: %s", p.State)
+	}
+	if _, _, _, claimed, err := st.claim(ctxFor(db), id, false); !claimed || err != nil {
+		t.Fatalf("plain claim: claimed=%v err=%v", claimed, err)
+	}
+}

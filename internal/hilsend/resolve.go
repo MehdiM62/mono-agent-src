@@ -49,8 +49,8 @@ func Resolve(ctx context.Context, st Store, id string, approve bool, edit Edit, 
 		return p, err
 	}
 	if always {
-		// Before anything runs: the item stays pending for a plain approve.
-		// An item that can't be read gets no rule either.
+		// Before the edit and the claim: the item stays pending, as it was,
+		// for a plain approve. claim checks again on what it claims.
 		p, err := st.Get(ctx, id)
 		if err != nil {
 			return p, err
@@ -65,11 +65,10 @@ func Resolve(ctx context.Context, st Store, id string, approve bool, edit Edit, 
 			return Payload{}, err
 		}
 	}
-	p, rp, proof, claimed, err := st.claim(ctx, id)
+	p, rp, proof, claimed, err := st.claim(ctx, id, always)
 	if err != nil || !claimed {
 		return p, err
 	}
-	always = always && !p.Recipient.Label // as read at the claim
 	if always {
 		if err := st.Allow(ctx, Allow{Action: p.Action, Platform: p.Account.Platform, Account: p.Account.Handle, Recipient: keyOf(p.Recipient)}); err != nil {
 			return st.finishErr(ctx, p.ID, err)
