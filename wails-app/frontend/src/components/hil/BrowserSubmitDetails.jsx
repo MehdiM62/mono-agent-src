@@ -22,15 +22,26 @@ export function isBrowserSubmit(item) {
 }
 
 // requesterParts names who asked: the role (a coder chat's own agent is
-// "lead"), the org, the agent and the coder chat, whichever are known.
+// "lead"), the org, the agent and the coder chat, whichever are known. An
+// agent names itself, so its words are quoted; only MonoAgent's own label
+// (by.system: a workflow the user hasn't approved) is not.
 export function requesterParts(by) {
   if (!by || typeof by !== 'object') return []
+  const q = by.system ? String : JSON.stringify
   const parts = []
-  if (by.role) parts.push(by.role === 'lead' && by.conversationId ? 'coder chat agent' : `role ${by.role}`)
-  if (by.org) parts.push(`org ${by.org}`)
-  if (by.agentId) parts.push(`agent ${by.agentId}`)
-  if (by.conversationId) parts.push(`chat ${String(by.conversationId).slice(0, 8)}`)
+  if (by.role) parts.push(by.role === 'lead' && by.conversationId ? 'coder chat agent' : `role ${q(by.role)}`)
+  if (by.org) parts.push(`org ${q(by.org)}`)
+  if (by.agentId) parts.push(`agent ${q(by.agentId)}`)
+  if (by.conversationId) parts.push(`chat ${q(String(by.conversationId).slice(0, 8))}`)
   return parts
+}
+
+// requesterText is the "Requested by" line: MonoAgent's own label as it is,
+// anything else as what the agent claims.
+export function requesterText(by) {
+  const parts = requesterParts(by)
+  if (!parts.length) return 'an agent (it did not say which)'
+  return by.system ? parts.join(' · ') : `an agent (claims: ${parts.join(' · ')})`
 }
 
 // displayOrigin is the origin as a person reads it. An internationalized
@@ -108,7 +119,7 @@ export function BrowserSubmitDetails({ item }) {
   const ro = item.readonly_data || {}
   const form = ro.form || {}
   const fields = Array.isArray(form.fields) ? form.fields : []
-  const who = requesterParts(ro.requested_by)
+  const who = requesterText(ro.requested_by)
   return (
     <div data-testid="browser-submit-details" style={{ marginBottom: 20 }}>
       <Section label="Submits to">
@@ -124,7 +135,7 @@ export function BrowserSubmitDetails({ item }) {
         </div>
       </Section>
       <Section label="Requested by">
-        <div style={box}>{who.length ? who.join(' · ') : 'an agent (it did not say which)'}</div>
+        <div style={box}>{who}</div>
       </Section>
       <Section label={`Form fields (${fields.length})`}>
         {fields.length === 0 ? <div style={{ ...box, color: 'var(--text-muted)' }}>No named fields</div> : (

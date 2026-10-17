@@ -1,4 +1,4 @@
-import { AsciiHost, Section, box, displayOrigin, requesterParts } from './BrowserSubmitDetails.jsx'
+import { AsciiHost, Section, box, displayOrigin, requesterText } from './BrowserSubmitDetails.jsx'
 
 // A browser site approval (plan C8): an agent whose kind is at "Ask per new
 // site" tried to use a site with no rule. readonly_data is {origin, url,
@@ -16,7 +16,7 @@ const WHO = { coder: 'A coder chat', org: 'An org role', chat: 'A chat', other: 
 
 export function BrowserSiteDetails({ item }) {
   const ro = item.readonly_data || {}
-  const who = requesterParts(ro.requested_by)
+  const who = requesterText(ro.requested_by)
   return (
     <div data-testid="browser-site-details" style={{ marginBottom: 20 }}>
       <div style={{ fontSize: 14, color: '#e2e8f0', marginBottom: 12, wordBreak: 'break-all' }}>
@@ -29,7 +29,7 @@ export function BrowserSiteDetails({ item }) {
         </Section>
       )}
       <Section label="Requested by">
-        <div style={box}>{who.length ? who.join(' · ') : 'an agent (it did not say which)'}</div>
+        <div style={box}>{who}</div>
       </Section>
       <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.5 }}>
         Allow adds an allow rule for this site, so agents can use it from now on (Settings → Agent Browser

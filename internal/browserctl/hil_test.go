@@ -3,6 +3,7 @@ package browserctl
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/monoes/mono-agent/internal/hilsend"
@@ -99,6 +100,34 @@ func TestAnApprovalWithoutTheOperatorsStampCannotBeUsed(t *testing.T) {
 	}
 	if got, _ := GetSubmitItem(ctx, db, "p1", it.ID); got.Status != "approved" || got.RequestedBy.AgentID != "chat" {
 		t.Fatalf("item = %+v", got)
+	}
+}
+
+// An agent names itself in its environment, so the cards keep what it says
+// as its claim, even when it names the engine's own mark: only MonoAgent
+// sets System (hilsend.PreparedBy).
+func TestAnAgentsCardSaysWhatItClaims(t *testing.T) {
+	actAsHuman(t)
+	t.Setenv("MONOAGENT_ACTOR", hilsend.UnapprovedWorkflowAgent)
+	t.Setenv("MONOAGENT_AGENT_ROLE", "unapproved workflow wf1")
+	ctx := context.Background()
+	db := testdb.Open(t).DB
+	it, err := CreateSubmitItem(ctx, db, SubmitRequest{Profile: "p1", URL: "https://example.com/", Via: "click"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	site, err := AskSite(ctx, db, "p1", KindOther, "https://news.example/", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{it.ID, site} {
+		var ro string
+		if err := db.QueryRow(`SELECT readonly_data FROM hil_pending WHERE id = ?`, id).Scan(&ro); err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(ro, `"role":"unapproved workflow wf1"`) || strings.Contains(ro, `"system"`) {
+			t.Errorf("card %s: %s; want the agent's words, not MonoAgent's label", id, ro)
+		}
 	}
 }
 
