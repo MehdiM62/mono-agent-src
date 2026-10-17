@@ -142,8 +142,11 @@ func checkStoredFields(executor NodeExecutor, stored, resolved map[string]interf
 			continue
 		}
 		what := "the vault entry's name"
-		if f == "credential_id" {
+		switch f {
+		case "credential_id":
 			what = "the saved connection"
+		case "username": // a browser node's: the session it signs in with
+			what = "the account it acts as"
 		}
 		return fmt.Errorf("%q: %s must be written in the workflow, not taken from its data", f, what)
 	}

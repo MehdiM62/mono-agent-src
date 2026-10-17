@@ -112,6 +112,11 @@ func (b *BrowserNode) Type() string {
 	return fmt.Sprintf("%s.%s", b.platform, b.actionType)
 }
 
+// LiteralConfigFields: username picks the saved session (the account the
+// node acts as), as credential_id picks a saved connection
+// (workflow.LiteralConfigResolver).
+func (b *BrowserNode) LiteralConfigFields() []string { return []string{"username"} }
+
 // Execute runs the platform action against the bot's browser.
 // It converts workflow Items to action parameters, runs ActionExecutor, and converts results back to Items.
 //
