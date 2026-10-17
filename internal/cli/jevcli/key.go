@@ -37,6 +37,9 @@ func newJevKeySetCmd(d Deps) *cobra.Command {
 		Example: "  printf '%s' \"$KEY\" | monoagentcli jev key set",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if why := d.Refusal(); why != "" {
+				return clicore.OperatorOnly("jev key set decides which TypeSafe account gets what Jev sends, which only the user does: %s; run it yourself in your terminal or the app", why)
+			}
 			key, err := secretcli.ReadValue(cmd.InOrStdin())
 			if err != nil {
 				return clicore.InvalidInput("%v", err)
