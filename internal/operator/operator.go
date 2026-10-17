@@ -7,8 +7,13 @@
 // The check reads marks, not identity. A process is the operator's when its
 // own environment carries none of the variables agents, the chat's runs and
 // workflow nodes are started with, and, on Linux, none of its parent
-// processes (up to ancestorMaxDepth of them) carries MONOAGENT_WORKFLOW_RUN or
-// MONOAGENT_AI_CALLER or is a `monomind agent exec`. So a process that
+// processes (up to ancestorMaxDepth of them, 32) started with any variable
+// MarkerEnv names (MONOAGENT_WORKFLOW_RUN, MONOAGENT_AI_CALLER, CLAUDECODE,
+// MONOAGENT_ACTOR and every other agent's marker, generic ones such as AGENT,
+// AI_AGENT, CRUSH and OPENCODE included) or is a `monomind agent exec`. A
+// chain of parents that goes on past that depth counts as marked
+// (ancestorTooDeep): nesting clean shells is how a marked caller would put
+// its mark out of reach. So a process that
 // clears its own environment still counts as an agent's while its parents
 // show where it came from; one that also leaves that line of parents (a
 // double fork that hands it to init, a job given to systemd or cron, a

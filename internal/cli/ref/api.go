@@ -79,9 +79,10 @@ AUTH
   Every request needs "Authorization: Bearer <credential>" except GET
   /health. Each profile has its own credential, stored in that profile's
   secrets vault (monoagentcli --profile <p> secret list, name
-  "httpapi-token"; monoagentcli --profile <p> secret reveal httpapi-token
-  --reveal to print it); the server creates it for every profile when it
-  starts. A credential authorizes only the profile it belongs to: the one
+  "httpapi-token"); the user prints it with monoagentcli --profile <p>
+  secret reveal httpapi-token --reveal in their own terminal (an agent, the
+  chat or a workflow is refused); the server creates it for every profile
+  when it starts. A credential authorizes only the profile it belongs to: the one
   in the request path. A credential of another profile, a profile that does
   not exist and a missing credential all get the same 401, so a caller
   cannot find out which profiles exist. /nodes* takes the credential of any
@@ -459,7 +460,7 @@ EXAMPLE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   monoagentcli httpapi &
-  monoagentcli --json --profile <profile> secret reveal httpapi-token --reveal   # copy "token"
+  monoagentcli --json --profile <profile> secret reveal httpapi-token --reveal   # the user, in their terminal: copy "token"
   curl -s http://127.0.0.1:9322/health
   curl -s -H 'Authorization: Bearer <paste credential here>' \
     http://127.0.0.1:9322/profiles/<profile>/workflows

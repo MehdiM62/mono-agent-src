@@ -139,7 +139,7 @@ func (d Deps) newConnectGetOAuthClientCmd() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().BoolVar(&reveal, "reveal", false, "Also print the client secret")
+	cmd.Flags().BoolVar(&reveal, "reveal", false, "Also print the client secret (the user's own: an agent, the chat or a workflow is refused)")
 	return cmd
 }
 

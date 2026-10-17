@@ -102,7 +102,7 @@ func (d Deps) newInfoGetCmd() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().BoolVar(&reveal, "reveal", false, "show ID, bank and card numbers in full")
+	cmd.Flags().BoolVar(&reveal, "reveal", false, "show ID, bank and card numbers in full (the user's own: an agent, the chat or a workflow is refused)")
 	return cmd
 }
 

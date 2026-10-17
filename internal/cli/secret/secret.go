@@ -335,7 +335,7 @@ func (d Deps) newRevealCmd() *cobra.Command {
 			return d.revealAndPrint(cmd, args[0])
 		},
 	}
-	cmd.Flags().BoolVar(&yes, "reveal", false, "Confirm the print")
+	cmd.Flags().BoolVar(&yes, "reveal", false, "Confirm the print (the user's own: an agent, the chat or a workflow is refused)")
 	return cmd
 }
 
