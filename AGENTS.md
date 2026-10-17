@@ -2627,8 +2627,11 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
   message switch.
   Creating or updating issues, tasks and tickets is no message, by the
   user's decision ("a work item, open by the user's decision"); their
-  comments are; that holds for every helpdesk, Zendesk and Zammad
-  included. The catalog lint
+  comments are, and so is a ticket create or update that emails someone
+  beyond its requester (`if`: a Zammad article of type email,
+  Freshdesk/Freshservice CCs, Zendesk's jsonParameters or recipient). That
+  holds for every helpdesk, Zendesk and Zammad included; assigning a
+  ticket stays open. The catalog lint
   (`TestCatalogSendsAreDecided`) makes every write of a messaging package,
   and any op whose name, path or description says it sends, carry `sends`
   or `sends: false` with a reason. It covers the built-in catalog only: a
