@@ -2354,9 +2354,12 @@ monoagentcli --profile work org automation-role add growth --alias publish_post 
   `org approve` and `org chat approve` of such a call are the operator's
   only (exit 3 with the operator refusal otherwise; deny stays open), and
   the chat's Bash allowlist leaves out `monomind org approve|gate-approve|answer`.
-  A called workflow is found by id, else by a name exactly one workflow of
-  the profile has now (as `StartSubWorkflow` finds it); anything else
-  counts as sending. `monomind org approve` run directly by an agent shell
+  A called workflow is found with the engine's own lookup
+  (`workflow.ResolveSubWorkflow`: by id, else the one workflow of the
+  profile with that exact name, files first); anything else counts as
+  sending. For anything but the operator, `org approve` checks the stored
+  action of the pending approval that matches role and action exactly, and
+  refuses when none does. `monomind org approve` run directly by an agent shell
   is not checked (monoes/monomind#677).
   A grant the user made with `--approval none` still calls without a
   decision: that is their own choice.
