@@ -2613,7 +2613,16 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
   per input item, so each item is its own card. An op that sends only
   sometimes says when with `if` (a Google Calendar event only with
   attendees, an Invoice Ninja invoice only with emailInvoice); a field may
-  be a collection's option (`updateFields.publicReply`). The catalog lint
+  be a collection's option (`updateFields.publicReply`). `if` reads a
+  param's field default when the config leaves it out (Okta's activate),
+  and `"param=value"` sends only on that value (Home Assistant's
+  `domain=notify`). `to_label` names a recipient param that holds an id
+  ("the client of invoice inv9"), `to_unset` the recipient when none is set
+  ("the ticket's requester"). Besides messaging packages, the lint asks
+  about any app's write with a recipient-like param or a message switch.
+  Creating or updating issues, tasks and tickets is no message, by the
+  user's decision ("a work item, open by the user's decision"); their
+  comments are. The catalog lint
   (`TestCatalogSendsAreDecided`) makes every write of a messaging package,
   and any op whose name, path or description says it sends, carry `sends`
   or `sends: false` with a reason. It covers the built-in catalog only: a
