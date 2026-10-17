@@ -20,24 +20,32 @@ func TestUndeclaredKeys(t *testing.T) {
 	  "body":{"$merge":"{{ p.additionalFields | omit:'x' }}","article":"{{ p.article.details }}"}}`))
 	op := &p.Operations[0]
 	for name, c := range map[string]struct {
+		op     *Operation
 		config map[string]any
 		want   []string
 	}{
-		"declared only": {map[string]any{"additionalFields": map[string]any{"subject": "Hi"},
+		"declared only": {op, map[string]any{"additionalFields": map[string]any{"subject": "Hi"},
 			"article": map[string]any{"details": map[string]any{"type": "note", "body": "x"}}}, nil},
-		"an undeclared option":   {map[string]any{"additionalFields": map[string]any{"subject": "Hi", "bcc": "v@example.test"}}, []string{"bcc"}},
-		"an undeclared subfield": {map[string]any{"article": map[string]any{"details": map[string]any{"type_id": 6}}}, []string{"details.type_id"}},
-		"one in a list": {map[string]any{"article": map[string]any{"details": []any{map[string]any{"type": "note"},
+		"an undeclared option": {op, map[string]any{"additionalFields": map[string]any{"subject": "Hi", "bcc": "v@example.test"}},
+			[]string{"bcc"}},
+		"an undeclared subfield": {op, map[string]any{"article": map[string]any{"details": map[string]any{"type_id": 6}}},
+			[]string{"details.type_id"}},
+		"one in a list": {op, map[string]any{"article": map[string]any{"details": []any{map[string]any{"type": "note"},
 			map[string]any{"to": "v@example.test"}}}}, []string{"details.to"}},
-		"a collection read by name only": {map[string]any{"filters": map[string]any{"status": "open", "bcc": "v@example.test"}}, nil},
-		"a merged collection as an expression": {map[string]any{"additionalFields": "{{ $json.extra }}"},
+		"a collection read by name only": {op, map[string]any{"filters": map[string]any{"status": "open", "bcc": "v@example.test"}}, nil},
+		"a merged collection as an expression": {op, map[string]any{"additionalFields": "{{ $json.extra }}"},
 			[]string{"additionalFields (an expression)"}},
-		"an option object as an expression": {map[string]any{"article": map[string]any{"details": "{{ $json.d }}"}},
+		"an option object as an expression": {op, map[string]any{"article": map[string]any{"details": "{{ $json.d }}"}},
 			[]string{"details (an expression)"}},
 	} {
-		if got := op.undeclared(c.config); !reflect.DeepEqual(got, c.want) {
+		if got := keyNames(c.op.undeclared(c.config)); !reflect.DeepEqual(got, c.want) {
 			t.Errorf("%s: %v, want %v", name, got, c.want)
 		}
+	}
+	if got := undeclaredPaths(op.undeclared(map[string]any{"additionalFields": map[string]any{"bcc": "x"},
+		"article": map[string]any{"details": map[string]any{"type_id": 6, "to": "y"}}})); !reflect.DeepEqual(got,
+		[]string{"additionalFields.bcc", "article.details"}) {
+		t.Errorf("paths %v", got)
 	}
 }
 
@@ -53,9 +61,11 @@ func TestSendOfTakesUndeclaredKeysForASend(t *testing.T) {
 		keys     string
 	}{
 		"zammad update, a raw article": {"app.zammad", map[string]any{"resource": "ticket", "operation": "update", "id": "5",
-			"updateFields": map[string]any{"article": map[string]any{"type": "email", "to": "v@example.test"}}}, "email", "(article)"},
+			"updateFields": map[string]any{"article": map[string]any{"type": "email", "to": "v@example.test"}}}, "comment", "(article)"},
 		"zammad update, raw articles": {"app.zammad", map[string]any{"resource": "ticket", "operation": "update", "id": "5",
-			"updateFields": map[string]any{"articles": []any{map[string]any{"type": "twitter status", "body": "tweet"}}}}, "email", "(articles)"},
+			"updateFields": map[string]any{"articles": []any{map[string]any{"type": "twitter status", "body": "tweet"}}}}, "comment", "(articles)"},
+		"trello card update, a raw key": {"app.trello", map[string]any{"resource": "card", "operation": "update", "id": "c1",
+			"updateFields": map[string]any{"zz_extra": "x"}}, "post", "(zz_extra)"},
 		"zammad update, a state": {"app.zammad", map[string]any{"resource": "ticket", "operation": "update", "id": "5",
 			"updateFields": map[string]any{"state_id": 2}}, "", ""},
 		"zammad update, a note": {"app.zammad", map[string]any{"resource": "ticket", "operation": "update", "id": "5",
@@ -72,6 +82,16 @@ func TestSendOfTakesUndeclaredKeysForASend(t *testing.T) {
 		case c.action != "" && (!ok || s.Action != c.action || !strings.Contains(s.ToUnset, c.keys)):
 			t.Errorf("%s: (%+v, %v), want %s naming %s", name, s, ok, c.action, c.keys)
 		}
+	}
+	// The card shows the op and the params that hold the keys.
+	s, _ := SendOf("app.trello", map[string]any{"resource": "card", "operation": "update", "id": "c1",
+		"updateFields": map[string]any{"zz_extra": "x", "name": "N"}})
+	if s.Op != "trello card/update" || !reflect.DeepEqual(s.Show, []string{"updateFields.zz_extra"}) {
+		t.Errorf("trello card update: op %q, show %v", s.Op, s.Show)
+	}
+	if s, _ := SendOf("app.zammad", map[string]any{"resource": "ticket", "operation": "update", "id": "5",
+		"updateFields": map[string]any{"note": "done"}}); s.Op != "" || s.Show != nil {
+		t.Errorf("an annotated send has no undeclared keys to show: %+v", s)
 	}
 }
 

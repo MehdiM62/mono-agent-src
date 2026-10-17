@@ -221,12 +221,16 @@ func (s Store) Edit(ctx context.Context, id string, text, subject *string) (Payl
 	if err != nil {
 		return Payload{}, err
 	}
-	p, _, err := r.payload()
+	p, rp, err := r.payload()
 	if err != nil {
 		return Payload{}, err
 	}
 	if p.State != StatePending {
 		return p, fmt.Errorf("send item %s is %s, only a pending one can be edited", p.ID, p.State)
+	}
+	if text != nil && rp.TextField == "" {
+		// The approved run would send its config, not the edit.
+		return p, fmt.Errorf("send item %s has no message text to edit: its card says what the step sends", p.ID)
 	}
 	if text != nil {
 		p.Text = *text

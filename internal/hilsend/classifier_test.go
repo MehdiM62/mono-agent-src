@@ -21,6 +21,9 @@ func (fakeClassifier) Classify(nodeType string, config map[string]interface{}) (
 		return Classified{Action: ActionDM, Channel: "fake", To: []string{"to"}, Text: []string{"text"}, PerItem: []string{"to", "text"}}, true
 	case "reply":
 		return Classified{Action: ActionComment, Channel: "fake", To: []string{"ticket"}, Text: []string{"updateFields.publicReply"}}, true
+	case "raw":
+		return Classified{Action: ActionPost, Channel: "fake", ToUnset: "whoever its undeclared fields (zz) reach",
+			Op: "fake thing/update", Show: []string{"updateFields.zz"}, PerItem: []string{"updateFields"}}, true
 	case "remind":
 		return Classified{Action: ActionEmail, Channel: "fake", To: []string{"email", "invoiceId"},
 			ToLabel: map[string]string{"invoiceId": "the client of invoice"}, ToUnset: "the invoice's client"}, true
@@ -154,5 +157,33 @@ func TestTheCardNamesARecipientThatIsNoAddress(t *testing.T) {
 		if err != nil || p.Recipient.Name != c.name || p.Recipient.PersonID != c.personID {
 			t.Errorf("%v: recipient %+v, %v; want %q (person %q)", c.config, p.Recipient, err, c.name, c.personID)
 		}
+	}
+}
+
+// A card for keys an op doesn't declare shows the op and each key's value
+// as that item sends it, and has no message to edit: an edit would change
+// nothing the approved run sends, so it is refused.
+func TestAnUndeclaredKeysCardShowsThemAndCannotBeEdited(t *testing.T) {
+	asAgent(t)
+	db := testDB(t)
+	SetClassifier(fakeClassifier{})
+	t.Cleanup(func() { SetClassifier(nil) })
+	out, handled, err := Guard(ctxFor(db), "app.fake", workflow.NodeInput{Items: []workflow.Item{
+		workflow.NewItem(map[string]interface{}{"v": "first"}), workflow.NewItem(map[string]interface{}{"v": "second"}),
+	}}, map[string]interface{}{"operation": "raw", "updateFields": map[string]interface{}{"zz": "{{ $json.v }}", "name": "N"}})
+	if !handled || err != nil || len(out[0].Items) != 2 {
+		t.Fatalf("handled=%v err=%v", handled, err)
+	}
+	st := Store{db, "p1"}
+	for i, want := range []string{"first", "second"} {
+		p, err := st.Get(ctxFor(db), out[0].Items[i].JSON["hil_id"].(string))
+		if err != nil || p.Text != "fake thing/update with fields it doesn't declare:\nupdateFields.zz: \""+want+"\"" || !p.Recipient.Label {
+			t.Errorf("item %d: text %q, recipient %+v, %v", i, p.Text, p.Recipient, err)
+		}
+	}
+	text := "something else"
+	if _, err := st.Edit(ctxFor(db), out[0].Items[0].JSON["hil_id"].(string), &text, nil); err == nil ||
+		!strings.Contains(err.Error(), "no message text to edit") {
+		t.Errorf("edit: %v", err)
 	}
 }
