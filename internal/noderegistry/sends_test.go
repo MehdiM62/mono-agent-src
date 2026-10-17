@@ -301,6 +301,32 @@ func TestTheReviewedSendsStayDecided(t *testing.T) {
 		{"app.onfleet", cfg{"resource": "task", "operation": "create", "additionalFields": cfg{"recipient": cfg{"recipientProperties": cfg{
 			"recipientName": "Ada"}}}}, "Ada"},
 		{"app.onfleet", cfg{"resource": "task", "operation": "create"}, "the task's recipient"},
+		// A custom field Zammad reads as a send of its own: an article on a
+		// ticket update, an invite on a new user. Another custom field is
+		// data.
+		{"app.zammad", cfg{"resource": "ticket", "operation": "update", "id": "5", "updateFields": cfg{"customFieldsUi": cfg{
+			"customFieldPairs": []interface{}{cfg{"name": "article", "value": cfg{"type": "email", "to": "v@example.test"}}}}}}, "5"},
+		{"app.zammad", cfg{"resource": "user", "operation": "create", "firstname": "Ada", "lastname": "L", "additionalFields": cfg{
+			"email": "ada@example.test", "customFieldsUi": cfg{"customFieldPairs": []interface{}{cfg{"name": "invite", "value": true}}}}},
+			"ada@example.test"},
+		{"app.zammad", cfg{"resource": "user", "operation": "create", "firstname": "Ada", "lastname": "L", "additionalFields": cfg{
+			"email": "ada@example.test", "customFieldsUi": cfg{"customFieldPairs": []interface{}{cfg{"name": "shoe", "value": "42"}}}}}, "-"},
+		// Zammad files an article with no type as a note (its API's default),
+		// so one with only a body runs.
+		{"app.zammad", cfg{"resource": "ticket", "operation": "create", "title": "Login", "group": "Users", "customer": "ada@example.test",
+			"article": cfg{"articleDetails": cfg{"body": "Called her"}}}, "-"},
+		// A PayPal payout is money movement, open; its email waits when it
+		// carries words of the sender's: a subject, a message, a note on the
+		// payout or on an item, or raw items.
+		{"app.pay_pal", cfg{"resource": "payout", "operation": "create", "senderBatchId": "b1",
+			"itemsUi": cfg{"itemsValues": []interface{}{cfg{"receiverValue": "ada@example.test", "amount": "5"}}}}, "-"},
+		{"app.pay_pal", cfg{"resource": "payout", "operation": "create", "senderBatchId": "b1",
+			"itemsUi": cfg{"itemsValues": []interface{}{cfg{"receiverValue": "ada@example.test", "amount": "5", "note": "Thanks"}}}},
+			"the payout's receivers"},
+		{"app.pay_pal", cfg{"resource": "payout", "operation": "create", "senderBatchId": "b1", "additionalFields": cfg{"note": "Thanks"}},
+			"the payout's receivers"},
+		{"app.pay_pal", cfg{"resource": "payout", "operation": "create", "senderBatchId": "b1", "jsonParameters": true,
+			"itemsJson": `[{"receiver": "ada@example.test", "note": "Thanks"}]`}, "the payout's receivers"},
 		{"service.github", cfg{"resource": "issue", "operation": "create", "owner": "o", "repository": "r", "title": "Bug"}, "-"},
 	} {
 		out, handled, err := hilsend.Guard(sendsCtx(db), c.nodeType, workflow.NodeInput{}, c.config)
@@ -350,6 +376,12 @@ func TestUndeclaredKeysWaitOnlyInAGatedRun(t *testing.T) {
 			"whoever its undeclared fields (bcc_emails) reach"},
 		"a declared Zammad update": {"app.zammad", cfg{"resource": "ticket", "operation": "update", "id": "5",
 			"updateFields": cfg{"state_id": 2}}, "-"},
+		"a type_id on a Zammad ticket's article": {"app.zammad", cfg{"resource": "ticket", "operation": "create", "title": "T",
+			"group": "Users", "customer": "a@example.test", "article": cfg{"articleDetails": cfg{"type_id": 6, "body": "tweet"}}},
+			"whoever its undeclared fields (articleDetails.type_id) reach"},
+		"a note with a type_id": {"app.zammad", cfg{"resource": "ticket", "operation": "create", "title": "T", "group": "Users",
+			"customer": "a@example.test", "article": cfg{"articleDetails": cfg{"type": "note", "type_id": 6, "body": "tweet"}}},
+			"whoever its undeclared fields (articleDetails.type_id) reach"},
 	} {
 		asOperator(t)
 		if _, handled, err := hilsend.Guard(sendsCtx(db), c.nodeType, workflow.NodeInput{}, c.config); handled || err != nil {

@@ -136,6 +136,10 @@ list; a template the run has yet to resolve counts as set), so a Google
 Calendar event waits only when it has attendees
 (`"if": "additionalFields.attendees"`). A field the config leaves out counts
 as its default (Okta's `activate` is true, so an activation email waits).
+A list on a field's path fans out: `"itemsUi.itemsValues.note"` is set when
+any item has a note (a PayPal payout), and
+`"updateFields.customFieldsUi.customFieldPairs.name=article"` holds when a
+Zammad custom field is named article.
 `"field=value"` sends only on that value (`"if": ["domain=notify",
 "domain=tts"]` for Home Assistant), `"field!=value"` unless the field has
 that value (unset counts: Onfleet texts a task's recipient unless
