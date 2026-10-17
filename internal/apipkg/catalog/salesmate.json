@@ -142,7 +142,7 @@
       "operation": "delete",
       "title": "Delete a activity",
       "sends": false,
-      "sends_reason": "Delete a activity: changes Salesmate data, not a message",
+      "sends_reason": "Delete an activity: changes Salesmate data, not a message",
       "method": "DELETE",
       "path": "/v1/activities/{{ p.id }}",
       "fields": [
@@ -184,7 +184,7 @@
       "operation": "getAll",
       "title": "Get many activitys",
       "sends": false,
-      "sends_reason": "Get many activitys: a read, not a message",
+      "sends_reason": "Get many activities: a read, not a message",
       "method": "POST",
       "path": "/v2/activities/search",
       "fields": [
@@ -458,7 +458,7 @@
       "operation": "getAll",
       "title": "Get many companys",
       "sends": false,
-      "sends_reason": "Get many companys: a read, not a message",
+      "sends_reason": "Get many companies: a read, not a message",
       "method": "POST",
       "path": "/v2/companies/search",
       "fields": [

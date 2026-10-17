@@ -100,7 +100,7 @@
       "operation": "create",
       "title": "Create a account",
       "sends": false,
-      "sends_reason": "Create a account: changes Zoho CRM data, not a message",
+      "sends_reason": "Create an account: changes Zoho CRM data, not a message",
       "method": "POST",
       "path": "/accounts",
       "body": {
@@ -159,7 +159,7 @@
       "operation": "upsert",
       "title": "Create or update a account",
       "sends": false,
-      "sends_reason": "Create or update a account: changes Zoho CRM data, not a message",
+      "sends_reason": "Create or update an account: changes Zoho CRM data, not a message",
       "method": "POST",
       "path": "/accounts/upsert",
       "body": {
@@ -303,7 +303,7 @@
       "operation": "update",
       "title": "Update a account",
       "sends": false,
-      "sends_reason": "Update a account: changes Zoho CRM data, not a message",
+      "sends_reason": "Update an account: changes Zoho CRM data, not a message",
       "method": "PUT",
       "path": "/accounts/{{ p.accountId }}",
       "body": {

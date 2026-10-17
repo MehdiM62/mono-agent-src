@@ -502,7 +502,7 @@
       "operation": "create",
       "title": "Create a employee",
       "sends": false,
-      "sends_reason": "Create a employee: changes QuickBooks Online data, not a message",
+      "sends_reason": "Create an employee: changes QuickBooks Online data, not a message",
       "method": "POST",
       "path": "/employee",
       "fields": [
@@ -596,7 +596,7 @@
       "operation": "update",
       "title": "Update a employee",
       "sends": false,
-      "sends_reason": "Update a employee: changes QuickBooks Online data, not a message",
+      "sends_reason": "Update an employee: changes QuickBooks Online data, not a message",
       "method": "POST",
       "path": "/employee",
       "before": {
@@ -695,7 +695,7 @@
       "operation": "create",
       "title": "Create a estimate",
       "sends": false,
-      "sends_reason": "Create a estimate: changes QuickBooks Online data, not a message",
+      "sends_reason": "Create an estimate: changes QuickBooks Online data, not a message",
       "method": "POST",
       "path": "/estimate",
       "fields": [
@@ -789,7 +789,7 @@
       "operation": "delete",
       "title": "Delete a estimate",
       "sends": false,
-      "sends_reason": "Delete a estimate: changes QuickBooks Online data, not a message",
+      "sends_reason": "Delete an estimate: changes QuickBooks Online data, not a message",
       "method": "POST",
       "path": "/estimate",
       "before": {
@@ -895,7 +895,7 @@
       "operation": "update",
       "title": "Update a estimate",
       "sends": false,
-      "sends_reason": "Update a estimate: changes QuickBooks Online data, not a message",
+      "sends_reason": "Update an estimate: changes QuickBooks Online data, not a message",
       "method": "POST",
       "path": "/estimate",
       "before": {
@@ -1017,7 +1017,7 @@
       "operation": "create",
       "title": "Create a invoice",
       "sends": false,
-      "sends_reason": "Create a invoice: changes QuickBooks Online data, not a message",
+      "sends_reason": "Create an invoice: changes QuickBooks Online data, not a message",
       "method": "POST",
       "path": "/invoice",
       "fields": [
@@ -1112,7 +1112,7 @@
       "operation": "delete",
       "title": "Delete a invoice",
       "sends": false,
-      "sends_reason": "Delete a invoice: changes QuickBooks Online data, not a message",
+      "sends_reason": "Delete an invoice: changes QuickBooks Online data, not a message",
       "method": "POST",
       "path": "/invoice",
       "before": {
@@ -1221,7 +1221,7 @@
       "operation": "update",
       "title": "Update a invoice",
       "sends": false,
-      "sends_reason": "Update a invoice: changes QuickBooks Online data, not a message",
+      "sends_reason": "Update an invoice: changes QuickBooks Online data, not a message",
       "method": "POST",
       "path": "/invoice",
       "before": {
@@ -1298,7 +1298,7 @@
       "operation": "void",
       "title": "Void a invoice",
       "sends": false,
-      "sends_reason": "Void a invoice: changes QuickBooks Online data, not a message",
+      "sends_reason": "Void an invoice: changes QuickBooks Online data, not a message",
       "method": "POST",
       "path": "/invoice",
       "before": {
