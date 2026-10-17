@@ -23,6 +23,8 @@ import ProfilesCard from './dashboard/ProfilesCard.jsx'
 import GetStartedCard from './dashboard/GetStartedCard.jsx'
 import { bridgeState, getStartedSteps, getStartedComplete, loadDismissed, okRunCount, saveDismissed } from './dashboard/getStarted.js'
 import { AccountContext } from '../lib/accountContext.js'
+import NewProfileModal from '../components/NewProfileModal.jsx'
+import { switchToProfile } from './dashboard/profileSwitch.js'
 
 const noGate = { subscribe: () => () => {}, getSnapshot: () => null }
 
@@ -30,7 +32,7 @@ export default function Dashboard({ isActive = true, onRefresh, onNavigate, onOp
   const { t } = useTranslation()
   const [scope, setScopeState] = useState(loadScope)
   const setScope = (s) => { saveScope(s); setScopeState(s) }
-  const { summary, summaryFailed, extension, orgs, workflows, executions, loading, refresh, setExecutions, reloadLists } = useDashboardData({ active: isActive, scope })
+  const { summary, summaryFailed, noProfile, extension, orgs, workflows, executions, loading, refresh, setExecutions, reloadLists } = useDashboardData({ active: isActive, scope })
   const gate = useContext(AccountContext) || noGate
   const accountSnap = useSyncExternalStore(gate.subscribe, gate.getSnapshot)
   const bridge = bridgeState(summary?.services?.bridge, extension)
@@ -44,6 +46,7 @@ export default function Dashboard({ isActive = true, onRefresh, onNavigate, onOp
   const showGetStarted = scope === 'profile' && !loading && !getStartedHidden && !getStartedComplete(steps)
   const currentId = currentProfileId(summary)
   const [ver, setVer] = useState(null)
+  const [newProfileOpen, setNewProfileOpen] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [health, setHealth] = useState(getHealth())
   useEffect(() => { GetVersion().then(setVer).catch(() => {}) }, [])
@@ -110,6 +113,17 @@ export default function Dashboard({ isActive = true, onRefresh, onNavigate, onOp
       </div>
 
       <div className="page-body dash-page">
+        {noProfile && scope === 'profile' ? (
+          <div className="card dash-empty-state" data-testid="dash-no-profile">
+            <div className="section-title">{t('dashboard.noProfile.title')}</div>
+            <p>{t('dashboard.noProfile.body')}</p>
+            <button className="btn btn-primary btn-sm" onClick={() => setNewProfileOpen(true)}>
+              {t('dashboard.noProfile.action')}
+            </button>
+            <NewProfileModal open={newProfileOpen} onClose={() => setNewProfileOpen(false)}
+              onCreated={(p) => p?.id && switchToProfile(p.id)} />
+          </div>
+        ) : (<>
         {showGetStarted && (
           <GetStartedCard steps={steps} bridge={bridge} onNavigate={onNavigate}
             onSignedIn={() => gate.check?.('manual')}
@@ -134,6 +148,7 @@ export default function Dashboard({ isActive = true, onRefresh, onNavigate, onOp
             <AccountsCard summary={summary} onNavigate={onNavigate} />
           </div>
         </div>
+        </>)}
       </div>
     </>
   )

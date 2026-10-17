@@ -54,6 +54,20 @@ describe('api error handling', () => {
     vi.clearAllMocks()
   })
 
+  it('answers no profile with a marker, without a warning or a toast', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const seen = vi.fn()
+    const off = onApiError(seen)
+    GoApp.GetSummary.mockRejectedValueOnce(new Error('no profile selected: create a profile first'))
+    GoApp.ListWorkflows.mockRejectedValueOnce(new Error('no profile selected: create a profile first'))
+    expect(await api.getSummary()).toEqual({ no_profile: true })
+    expect(await api.listWorkflows()).toEqual([])
+    expect(warn).not.toHaveBeenCalled()
+    expect(seen).not.toHaveBeenCalled()
+    off()
+    warn.mockRestore()
+  })
+
   it('degrades a failed read to its safe default', async () => {
     GoApp.GetPeople.mockRejectedValueOnce(new Error('db locked'))
     const result = await api.getPeople()

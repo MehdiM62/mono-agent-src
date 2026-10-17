@@ -441,7 +441,7 @@ Publish to and read **your own accounts** on these platforms via the Chrome exte
 
 ## CLI Reference
 
-The binary is `monoagentcli`. Most commands accept `--json` for machine-readable output. Every command that acts on a workspace takes an explicit `--profile <id|name>`; the examples below pass `--profile work`. Run `monoagentcli profile list` to find the names; a command that acts on a workspace and gets no `--profile` exits 3 and lists them. Machine-wide commands (`version`, `update`, `config`, `message-template`, `agent`, `account`, `db`, `node list|schema`, `api config`, `profile list|create|get`, `ref`, …) need none.
+The binary is `monoagentcli`. Most commands accept `--json` for machine-readable output. Every command that acts on a workspace takes an explicit `--profile <id|name>`; the examples below pass `--profile work`. Run `monoagentcli profile list` to find the names; a command that acts on a workspace and gets no `--profile` exits 3 and lists them. Machine-wide commands (`version`, `update`, `config`, `message-template`, `agent`, `account`, `db`, `node list|schema`, `api config show|set|unset`, `profile list|create|get`, `ref`, …) need none.
 
 <details>
 <summary><strong>Workflow</strong></summary>
@@ -467,10 +467,10 @@ monoagentcli --profile work workflow activate <id>                 # enable trig
 monoagentcli --profile work workflow deactivate <id>               # disable triggers
 monoagentcli --profile work workflow executions <id>               # run history
 monoagentcli --profile work workflow search [query]                # search workflows & templates
-monoagentcli workflow templates list                # bundled ready-to-use templates
+monoagentcli workflow templates list                # bundled ready-to-use templates (list and show need no --profile; run and use do)
 monoagentcli --profile work workflow node add <id> --type core.filter --name Filter
-monoagentcli --profile work workflow node set <id> <node-id> --config '{"max":5}'
-monoagentcli --profile work workflow node remove <id> <node-id>
+monoagentcli --profile work workflow node set <workflow-id> <node-id> --config '{"max":5}'   # <node-id> is the node's id (see `workflow get`), not its name
+monoagentcli --profile work workflow node remove <workflow-id> <node-id>
 monoagentcli --profile work workflow connect <id> --from n1:main --to n2:main
 ```
 

@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/monoes/mono-agent/internal/profileorder"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -268,6 +270,32 @@ func (s *Server) workflowTools() []tool {
 	return scoped(out)
 }
 
+// profileIDsOldestFirst is every profile id, oldest first by profileorder
+// (created_at has two stored formats, so SQL cannot order it).
+func profileIDsOldestFirst(ctx context.Context, db *sql.DB) ([]string, error) {
+	rows, err := db.QueryContext(ctx, `SELECT id, created_at FROM profiles`)
+	if err != nil {
+		return nil, err
+	}
+	type row struct{ id, created string }
+	var found []row
+	for rows.Next() {
+		var r row
+		var created sql.NullString
+		if rows.Scan(&r.id, &created) == nil {
+			r.created = created.String
+			found = append(found, r)
+		}
+	}
+	rows.Close()
+	profileorder.Sort(found, func(r row) string { return r.created }, func(r row) string { return r.id })
+	ids := make([]string, 0, len(found))
+	for _, r := range found {
+		ids = append(ids, r.id)
+	}
+	return ids, nil
+}
+
 // listAllProfilesWorkflows is the workflows of every profile, one profile at a
 // time: --workflow-tools serves a workflow tool for each, and the tool is bound
 // to the workflow's own profile (a call whose profile argument names another is
@@ -276,18 +304,10 @@ func (s *Server) workflowTools() []tool {
 // not served (legacy rows and files are stamped by migration 099 and the file
 // stamp).
 func listAllProfilesWorkflows(ctx context.Context, rt *runtime) ([]workflow.Workflow, error) {
-	rows, err := rt.db.DB.QueryContext(ctx, `SELECT id FROM profiles ORDER BY created_at, id`)
+	ids, err := profileIDsOldestFirst(ctx, rt.db.DB)
 	if err != nil {
 		return nil, err
 	}
-	var ids []string
-	for rows.Next() {
-		var id string
-		if rows.Scan(&id) == nil {
-			ids = append(ids, id)
-		}
-	}
-	rows.Close()
 	var all []workflow.Workflow
 	seen := map[string]bool{}
 	for _, id := range ids {

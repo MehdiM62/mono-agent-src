@@ -40,6 +40,7 @@ export function useDashboardData({ active = true, scope = 'profile' } = {}) {
   const [summary, setSummary] = useState(null)
   const [extension, setExtension] = useState(null) // `extension status --json`, null until known
   const [summaryFailed, setSummaryFailed] = useState(false)
+  const [noProfile, setNoProfile] = useState(false) // no profile exists yet: nothing to summarise
   const [orgs, setOrgs] = useState(null)
   const [workflows, setWorkflows] = useState([])
   const [executions, setExecutions] = useState([])
@@ -65,6 +66,8 @@ export function useDashboardData({ active = true, scope = 'profile' } = {}) {
     // so ask `extension status` alongside it.
     const [s, ext] = await Promise.all([g ? api.getGlobalSummary() : api.getSummary(), api.getExtensionStatus()])
     if (n !== seq.current.summary || g !== globalRef.current) return
+    setNoProfile(!!s?.no_profile)
+    if (s?.no_profile) { setSummary(null); setSummaryFailed(false); setExtension(ext); return }
     if (s) setSummary(s)
     setSummaryFailed(!s)
     setExtension(ext)
@@ -131,5 +134,5 @@ export function useDashboardData({ active = true, scope = 'profile' } = {}) {
   const live = executions.some(e => LIVE_STATUSES.has((e.status || '').toUpperCase()))
   useInterval(() => { if (visible.current) loadLists() }, live ? FAST_POLL_MS : BASE_POLL_MS)
 
-  return { summary, summaryFailed, extension, orgs, workflows, executions, loading, refresh, setExecutions, reloadLists: loadLists }
+  return { summary, summaryFailed, noProfile, extension, orgs, workflows, executions, loading, refresh, setExecutions, reloadLists: loadLists }
 }

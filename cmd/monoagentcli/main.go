@@ -147,6 +147,12 @@ func run(args []string, stdout, stderr io.Writer) int {
 // validate` on an invalid org, or withJSONErrors' own {"error"}), so nothing
 // is added: stdout stays exactly one document.
 func reportCommandError(args []string, err error, stdout, stderr io.Writer) {
+	// A --profile that does not resolve reads as itself, without the
+	// database-open prefix a command wrapped around it.
+	var unresolved profileResolveError
+	if errors.As(err, &unresolved) {
+		err = unresolved.error
+	}
 	// A failure the command's own output showed (a human-mode run's
 	// summary) is not repeated — unless a wrapper added to it (a hint).
 	var shown clicore.Shown
