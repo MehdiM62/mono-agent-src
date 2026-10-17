@@ -1,6 +1,10 @@
 package profileinfo
 
-import "testing"
+import (
+	"regexp"
+	"strings"
+	"testing"
+)
 
 func TestTypeDefaultsToPersonAndSwitchesToBusiness(t *testing.T) {
 	db, _ := newDB(t)
@@ -63,15 +67,69 @@ func TestPersonProfileIsNotAskedBusinessFields(t *testing.T) {
 
 func TestBusinessValuesSurviveSwitchingBackToPerson(t *testing.T) {
 	db, _ := newDB(t)
-	if err := Set(bg, db, "p1", "vat_id", "DE123456789", SourceUser, ""); err != nil {
+	if err := Set(bg, db, "p1", "company_name", "Acme GmbH", SourceUser, ""); err != nil {
 		t.Fatal(err)
 	}
 	got, _ := Get(bg, db, "p1", false)
 	found := false
 	for _, e := range got {
-		found = found || (e.Key == "vat_id" && e.Value == "DE123456789")
+		found = found || (e.Key == "company_name" && e.Value == "Acme GmbH")
 	}
 	if !found {
-		t.Error("vat_id was not kept")
+		t.Error("company_name was not kept")
+	}
+}
+
+// Fields whose names say they hold an ID, tax, licence, registration or birth
+// number must be encrypted (Sensitive). The ones below are not numbers.
+var idLike = regexp.MustCompile(`(^|_)(id|number|tax|licence|license|registration|register|dob|birth|lei|duns|eori|giin|permit)(_|$)|date_of_birth`)
+
+var notSecret = map[string]bool{
+	"vat_registered": true, "vat_filing_frequency": true, "tax_country": true, "company_tax_country": true,
+	"tax_office": true, "business_licence_expiry": true, "visa_expiry_date": true, "id_card_expiry_date": true,
+	"drivers_license_expiry_date": true, "passport_expiry_date": true, "passport_issue_date": true,
+	"passport_country": true, "date_of_birth": true, "place_of_birth": true, "country_of_birth": true,
+	"phone_country_code": true, "us_entity": true, "us_person": true, "owner_us_person": true,
+	"registration_country": true,
+	"id_front_photo":       true, "id_back_photo": true, "passport_photo": true, "drivers_license_photo": true,
+	"owner_id_photo": true, "vat_certificate_photo": true,
+}
+
+func TestIDLikeFieldsAreSensitive(t *testing.T) {
+	for _, fd := range Catalog {
+		if fd.Kind == Photo || notSecret[fd.Key] || fd.Sensitive || fd.Card {
+			continue
+		}
+		if idLike.MatchString(fd.Key) {
+			t.Errorf("%s looks like an ID or tax number but is not marked sensitive", fd.Key)
+		}
+	}
+}
+
+func TestSensitiveFieldsAreEncryptedAtRest(t *testing.T) {
+	db, _ := newDB(t)
+	n := 0
+	for _, fd := range Catalog {
+		if !fd.Sensitive {
+			continue
+		}
+		v := "Z9-12345-secret"
+		if fd.Kind == Date {
+			v = "1980-02-03"
+		}
+		if err := Set(bg, db, "p1", fd.Key, v, SourceUser, ""); err != nil {
+			t.Fatalf("%s: %v", fd.Key, err)
+		}
+		var raw string
+		if err := db.QueryRowContext(bg, `SELECT value FROM profile_info WHERE profile_id = 'p1' AND key = ?`, fd.Key).Scan(&raw); err != nil {
+			t.Fatal(err)
+		}
+		if !strings.HasPrefix(raw, "vaultenc:v1:") || strings.Contains(raw, "secret") || strings.Contains(raw, "1980") {
+			t.Errorf("%s is stored as %q", fd.Key, raw)
+		}
+		n++
+	}
+	if n < 20 {
+		t.Errorf("only %d sensitive fields", n)
 	}
 }
