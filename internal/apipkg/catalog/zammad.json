@@ -594,7 +594,11 @@
           "article.articleDetails.subject",
           "title"
         ],
-        "if": "article.articleDetails.type=email"
+        "if": [
+          "article.articleDetails.type not in note|web|phone",
+          "article.articleDetails.to",
+          "article.articleDetails.cc"
+        ]
       },
       "method": "POST",
       "path": "/tickets",
