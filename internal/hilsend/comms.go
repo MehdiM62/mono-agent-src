@@ -147,7 +147,7 @@ func fromTemplate(v string, item map[string]interface{}, keys []string) string {
 // editField is the key an operator's edit of the item's text lands in: the
 // item field the node's text template reads, else a text field the item has.
 func editField(cfg map[string]interface{}, textField string, item map[string]interface{}, keys []string) string {
-	if k := templateKey(str(cfg[textField])); k != "" {
+	if k := templateKey(str(valueAt(cfg, textField))); k != "" {
 		return k
 	}
 	for _, k := range keys {

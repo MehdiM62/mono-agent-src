@@ -164,7 +164,7 @@ func str(v interface{}) string {
 // or the first key when none has.
 func firstKey(m map[string]interface{}, keys []string) (key, val string) {
 	for _, k := range keys {
-		if v := str(m[k]); v != "" {
+		if v := str(valueAt(m, k)); v != "" {
 			return k, v
 		}
 	}

@@ -1,19 +1,27 @@
 package hilsend
 
 import (
+	"context"
 	"testing"
 
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
-// fakeClassifier sends for app.fake's "send" op only.
+// fakeClassifier sends for app.fake's "send" op, and its "reply" op whose
+// text is an option of a collection param.
 type fakeClassifier struct{}
 
 func (fakeClassifier) Classify(nodeType string, config map[string]interface{}) (Classified, bool) {
-	if nodeType != "app.fake" || config["operation"] != "send" {
+	if nodeType != "app.fake" {
 		return Classified{}, false
 	}
-	return Classified{Action: ActionDM, Channel: "fake", To: []string{"to"}, Text: []string{"text"}, PerItem: []string{"to", "text"}}, true
+	switch config["operation"] {
+	case "send":
+		return Classified{Action: ActionDM, Channel: "fake", To: []string{"to"}, Text: []string{"text"}, PerItem: []string{"to", "text"}}, true
+	case "reply":
+		return Classified{Action: ActionComment, Channel: "fake", To: []string{"ticket"}, Text: []string{"updateFields.publicReply"}}, true
+	}
+	return Classified{}, false
 }
 
 func (fakeClassifier) SendsSome(nodeType string) bool { return nodeType == "app.fake" }
@@ -52,3 +60,35 @@ func TestClassifierExtendsTheTable(t *testing.T) {
 		t.Error("a node type that never sends may send")
 	}
 }
+
+// A send's text can be an option of a collection param (an API package's
+// "updateFields.publicReply"): the card shows it, and the approved run gets
+// the text the user approved there, with the collection's other options.
+func TestASendsTextInACollection(t *testing.T) {
+	asAgent(t)
+	db := testDB(t)
+	SetClassifier(fakeClassifier{})
+	t.Cleanup(func() { SetClassifier(nil) })
+	out, handled, err := Guard(ctxFor(db), "app.fake", workflow.NodeInput{}, map[string]interface{}{
+		"operation": "reply", "ticket": "T-1", "updateFields": map[string]interface{}{"publicReply": "Fixed it", "status": "solved"}})
+	if !handled || err != nil {
+		t.Fatalf("handled=%v err=%v", handled, err)
+	}
+	st := Store{db, "p1"}
+	id := out[0].Items[0].JSON["hil_id"].(string)
+	if p, err := st.Get(ctxFor(db), id); err != nil || p.Text != "Fixed it" || p.Recipient.Name != "T-1" {
+		t.Fatalf("card = %+v, %v", p, err)
+	}
+	f := &fakeRunner{}
+	edited := "Fixed it, sorry for the wait"
+	if _, err := Resolve(context.Background(), st, id, true, Edit{Text: &edited}, false, f.run); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.calls) != 1 {
+		t.Fatalf("runs = %d", len(f.calls))
+	}
+	if uf, _ := f.calls[0].Config["updateFields"].(map[string]interface{}); uf["publicReply"] != edited || uf["status"] != "solved" {
+		t.Errorf("the approved run's updateFields = %v", f.calls[0].Config["updateFields"])
+	}
+}
+

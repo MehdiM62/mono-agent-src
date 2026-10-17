@@ -372,7 +372,7 @@
             "to": { "type": "array", "items": { "type": "string" } },
             "text": { "type": "array", "items": { "type": "string" } },
             "subject": { "type": "array", "items": { "type": "string" } },
-            "if": { "type": "string" }
+            "if": { "type": ["string", "array"], "items": { "type": "string" } }
           }
         },
         "sends_reason": { "type": "string", "minLength": 1 },

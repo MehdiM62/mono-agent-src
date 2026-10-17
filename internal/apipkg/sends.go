@@ -21,13 +21,42 @@ type Sends struct {
 	Action string `json:"action"`
 	// To, Text and Subject name the op's params that hold the recipient,
 	// the message and its subject for the approval card (the first that is
-	// set wins).
+	// set wins). A dotted name ("updateFields.publicReply") is an option of
+	// a collection param.
 	To      []string `json:"to,omitempty"`
 	Text    []string `json:"text,omitempty"`
 	Subject []string `json:"subject,omitempty"`
-	// If names a param the op only sends with, when it is true (Sendy
-	// creates a campaign and sends it only with sendCampaign).
-	If string `json:"if,omitempty"`
+	// If names the params the op only sends with: it sends when one of them
+	// is set (true, or any value but false, "" or an empty list). Sendy
+	// creates a campaign and sends it only with sendCampaign; a Google
+	// Calendar event invites only with additionalFields.attendees.
+	If Cond `json:"if,omitempty"`
+}
+
+// Cond is "if": a param, or a list of them.
+type Cond []string
+
+// UnmarshalJSON reads a string or a list of strings.
+func (c *Cond) UnmarshalJSON(b []byte) error {
+	var one string
+	if json.Unmarshal(b, &one) == nil {
+		*c = Cond{one}
+		return nil
+	}
+	var many []string
+	if err := json.Unmarshal(b, &many); err != nil {
+		return fmt.Errorf("sends.if is a param or a list of them: %w", err)
+	}
+	*c = many
+	return nil
+}
+
+// MarshalJSON writes one param as a string.
+func (c Cond) MarshalJSON() ([]byte, error) {
+	if len(c) == 1 {
+		return json.Marshal(c[0])
+	}
+	return json.Marshal([]string(c))
 }
 
 // sendActions are the actions an approval card knows (internal/hilsend).
@@ -79,9 +108,9 @@ func (o *Operation) checkSends(where string, fields map[string]bool) []string {
 	if !sendActions[s.Action] {
 		add("sends.action %q must be email, dm, post, comment, publish, connect or invite", s.Action)
 	}
-	for _, keys := range [][]string{s.To, s.Text, s.Subject, {s.If}} {
+	for _, keys := range [][]string{s.To, s.Text, s.Subject, s.If} {
 		for _, k := range keys {
-			if k != "" && !fields[k] {
+			if head, _, _ := strings.Cut(k, "."); k == "" || !fields[head] {
 				add("sends names %q, which is not one of the op's fields", k)
 			}
 		}
@@ -152,20 +181,37 @@ func SendsSome(nodeType string) bool {
 }
 
 // sends reports whether the op, run with config, sends: it is annotated,
-// and its If param (when it names one) is true.
+// and one of its If params (when it names some) is set. A template the run
+// has yet to resolve counts as set.
 func (o *Operation) sends(config map[string]any) bool {
 	s := o.Sends
 	if s == nil || s.None {
 		return false
 	}
-	if s.If == "" {
+	if len(s.If) == 0 {
 		return true
 	}
-	switch v := config[s.If].(type) {
-	case bool:
-		return v
-	case string:
-		return strings.EqualFold(strings.TrimSpace(v), "true")
+	for _, k := range s.If {
+		if isSet(paramAt(config, k)) {
+			return true
+		}
 	}
 	return false
+}
+
+func isSet(v any) bool {
+	switch x := v.(type) {
+	case nil:
+		return false
+	case bool:
+		return x
+	case string:
+		x = strings.TrimSpace(x)
+		return x != "" && !strings.EqualFold(x, "false")
+	case []any:
+		return len(x) > 0
+	case map[string]any:
+		return len(x) > 0
+	}
+	return true
 }

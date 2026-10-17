@@ -72,14 +72,14 @@ func TestEveryAnnotatedSendQueues(t *testing.T) {
 				continue
 			}
 			s := o.Sends
-			if s.If != "" {
-				config[s.If] = true
+			if len(s.If) > 0 {
+				setParam(config, s.If[0], true)
 			}
 			if len(s.To) > 0 {
-				config[s.To[0]] = "ada@example.test"
+				setParam(config, s.To[0], "ada@example.test")
 			}
 			if len(s.Text) > 0 {
-				config[s.Text[0]] = "Hi Ada"
+				setParam(config, s.Text[0], "Hi Ada")
 			}
 			out, handled, err := hilsend.Guard(sendsCtx(db), nodeType, workflow.NodeInput{}, config)
 			if !handled || err != nil {
@@ -103,6 +103,21 @@ func TestEveryAnnotatedSendQueues(t *testing.T) {
 	if queued < 150 || passed < 30 {
 		t.Errorf("queued %d annotated sends and let %d sends:false ops through: the catalog lost its annotations?", queued, passed)
 	}
+}
+
+// setParam sets a sends param: for "a.b", option b of collection a.
+func setParam(config map[string]interface{}, name string, v interface{}) {
+	head, rest, dotted := strings.Cut(name, ".")
+	if !dotted {
+		config[name] = v
+		return
+	}
+	sub, _ := config[head].(map[string]interface{})
+	if sub == nil {
+		sub = map[string]interface{}{}
+		config[head] = sub
+	}
+	setParam(sub, rest, v)
 }
 
 // A workflow the user never approved sends through an app node no more than
@@ -139,3 +154,4 @@ func TestAppSendsOfAnUnapprovedWorkflowQueuePerItem(t *testing.T) {
 		t.Fatalf("cards = %v, want %s", got, want)
 	}
 }
+
