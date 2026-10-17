@@ -109,8 +109,8 @@
       "sends": {
         "action": "dm",
         "to": [
-          "additionalFields.recipient.recipientProperties.recipientName",
-          "additionalFields.recipient.recipientProperties.recipientPhone"
+          "additionalFields.recipient.recipientProperties.recipientPhone",
+          "additionalFields.recipient.recipientProperties.recipientName"
         ],
         "to_unset": "the task's recipient",
         "if": "additionalFields.recipient.recipientProperties.recipientSkipSMSNotifications!=true"
