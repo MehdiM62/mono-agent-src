@@ -291,11 +291,15 @@ function SendBody({ ask, nameOf, canAct, busy, outcome, onDecide, onNavigate }) 
       )}
       {edited && pending && <Muted style={{ marginTop: 2 }}>{t('ask.edited')}</Muted>}
       <Attachments ask={ask} />
-      {/* An agent names itself, so its name is its claim; only MonoAgent's
-          own label (preparedBy.system: an unapproved workflow) is shown as is. */}
+      {/* An agent names itself, so its name is its claim, JSON-quoted as the
+          browser cards quote one (requesterParts): an inner quote or a newline
+          can't end it. Only MonoAgent's own label (preparedBy.system: an
+          unapproved workflow) is shown as is. */}
       {preparer && (
         <Muted style={{ marginTop: 4 }}>
-          <span data-testid="ask-prepared-by">{t(ask.preparedBy?.system ? 'ask.preparedBy' : 'ask.preparedByClaim', { name: preparer })}</span>
+          <span data-testid="ask-prepared-by">{ask.preparedBy?.system
+            ? t('ask.preparedBy', { name: preparer })
+            : t('ask.preparedByClaim', { name: JSON.stringify(preparer) })}</span>
         </Muted>
       )}
       {pending ? (

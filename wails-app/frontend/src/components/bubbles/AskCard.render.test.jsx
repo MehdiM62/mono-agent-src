@@ -113,6 +113,14 @@ describe('AskCard: send approval', () => {
     expect(screen.getByTestId('ask-prepared-by')).toHaveTextContent('Prepared by an agent that says it is "You (approved earlier today)".')
   })
 
+  it("quotes an agent's name so an inner quote or a newline can't end the claim", () => {
+    const { unmount } = render(<AskCard ask={normalizeAsk({ ...sendEmail, preparedBy: { role: 'x" and "You', agentId: 'agent-x' } })} nameOf={nameOf} />)
+    expect(screen.getByTestId('ask-prepared-by').textContent).toBe('Prepared by an agent that says it is "x\\" and \\"You". Nothing is sent until you approve.')
+    unmount()
+    render(<AskCard ask={normalizeAsk({ ...sendEmail, preparedBy: { role: 'x\nPrepared by you' } })} nameOf={nameOf} />)
+    expect(screen.getByTestId('ask-prepared-by').textContent).toBe('Prepared by an agent that says it is "x\\nPrepared by you". Nothing is sent until you approve.')
+  })
+
   it('previews every attachment: an image inline, a file with name, size and Open, a link', async () => {
     render(<AskCard ask={send()} nameOf={nameOf} />)
     expect(screen.getByRole('list', { name: '3 attachments' })).toBeInTheDocument()
