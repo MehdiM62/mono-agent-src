@@ -149,8 +149,9 @@ says `"sends": false` with "a work item, open by the user's decision"
 beyond its requester waits, with `if`: an email article (Zammad), CCs
 (Freshdesk, Freshservice), Zendesk's JSON fields or recipient. An op that
 only looks like a send (a queue or webhook for programs, a lookup, a
-notification to the user's own devices) says `"sends": false` with `"sends_reason"`; so does what the user decided
-stays open (file sharing, money movement), with the reason saying so.
+notification to the user's own devices) says `"sends": false` with
+`"sends_reason"`; so does what the user decided stays open (file sharing,
+money movement), with the reason saying so.
 `TestCatalogSendsAreDecided` fails for a catalog op that has neither when:
 
 - its package is a messaging one (it has an annotated send, or it is a mail,
