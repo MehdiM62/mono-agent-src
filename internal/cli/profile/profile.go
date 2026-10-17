@@ -34,6 +34,8 @@ func (d Deps) newProfileCmd() *cobra.Command {
 		d.newProfileListCmd(),
 		d.newProfileGetCmd(),
 		d.newProfileCreateCmd(),
+		d.newProfileUpdateCmd(),
+		d.newProfileDeleteCmd(),
 		d.newProfileFolderCmd(),
 		d.newProfileMoveCmd(),
 		d.newProfileProjectsCmd(),
