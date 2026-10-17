@@ -67,8 +67,8 @@ func (s *SSETriggerSource) Activate(w *Workflow, node *WorkflowNode, fire func(i
 		// A stream of a workflow the user hasn't approved sends no secret to
 		// its URL, which the chat or an agent may have chosen.
 		rctx := ctx
-		if ok, _ := operatorApproved(ctx, NewSQLiteWorkflowStore(s.DB), w); !ok {
-			rctx = secrets.RefuseResolving(ctx, unapprovedSecrets(ApproveHint(w.ProfileID, w.ID)))
+		if ok, err := operatorApproved(ctx, NewSQLiteWorkflowStore(s.DB), w); !ok {
+			rctx = secrets.RefuseResolving(ctx, unapprovedSecrets(withApprovalCheckError(ctx, err), ApproveHint(w.ProfileID, w.ID)))
 		}
 		for k, v := range headers {
 			if strings.HasPrefix(v, "@secret:") {

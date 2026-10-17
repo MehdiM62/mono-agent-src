@@ -31,6 +31,10 @@ func TestNodeRunRefusesToDecryptAVaultEntry(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "vault.secret_get decrypts a vault entry") || strings.Contains(text, "vsecret-777") {
 		t.Fatalf("node_run vault.secret_get: %v\n%s", err, text)
 	}
+	// There is no workflow to approve: the refusal says to make one.
+	if !strings.Contains(err.Error(), "put the step in a workflow and have the user save or activate it") || strings.Contains(err.Error(), "since you last saved") {
+		t.Errorf("node_run's refusal: %v", err)
+	}
 	if list, err := callNamed(t, s, "secret_list", map[string]interface{}{}); err != nil || !strings.Contains(list, "kept") || strings.Contains(list, "vsecret-777") {
 		t.Fatalf("secret_list: %v\n%s", err, list)
 	}
@@ -62,7 +66,8 @@ func TestNodeRunResolvesNoSecretReference(t *testing.T) {
 	if err != nil {
 		text += err.Error()
 	}
-	if !strings.Contains(text, "@secret:vs is not read from the vault") || strings.Contains(text, "vsecret-777") {
+	if !strings.Contains(text, "@secret:vs is not read from the vault") || strings.Contains(text, "vsecret-777") ||
+		!strings.Contains(text, "node_run runs a step an AI wrote") || strings.Contains(text, "since you last saved") {
 		t.Errorf("node_run http.request with a secret reference:\n%s", text)
 	}
 	mu.Lock()

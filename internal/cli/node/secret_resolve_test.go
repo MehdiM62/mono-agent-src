@@ -66,7 +66,8 @@ func TestNodeRunResolvesSecretsForTheOperatorOnly(t *testing.T) {
 	if err != nil {
 		out += err.Error()
 	}
-	if !strings.Contains(out, "@secret:vs is not read from the vault") || strings.Contains(out, "vsecret-777") {
+	if !strings.Contains(out, "@secret:vs is not read from the vault") || strings.Contains(out, "vsecret-777") ||
+		!strings.Contains(out, "node run runs a step an AI wrote") || strings.Contains(out, "since you last saved") {
 		t.Errorf("an agent's node run:\n%s", out)
 	}
 	if b := got(); len(b) != 0 {

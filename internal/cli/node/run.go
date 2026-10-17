@@ -324,8 +324,7 @@ platform name to override. Token refresh is handled automatically for OAuth conn
 			// the user hasn't approved (no secret resolves, no program runs, no
 			// hidden file in the home is written), as MCP node_run's does.
 			if operator.Refusal() != "" {
-				ctx = workflow.WithUnapproved(ctx, profiledir.Root(rawDB, d.ProfileID()),
-					"node run never does that for an agent: put the step in a workflow and have the user save or activate it")
+				ctx = workflow.WithUnapprovedStep(ctx, profiledir.Root(rawDB, d.ProfileID()), "node run")
 			}
 			outputs, err := executor.Execute(ctx, input, config)
 			if rawDB != nil {
