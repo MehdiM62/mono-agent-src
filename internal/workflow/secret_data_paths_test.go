@@ -99,65 +99,84 @@ func (f pathsFixture) run(t *testing.T, reg *NodeTypeRegistry, input map[string]
 	return RunExecution(f.ctx, exec, wf, dag, reg, f.store, nil, NewExpressionEngine(), zerolog.Nop())
 }
 
+// dataChoices are what data must not choose through a step's config: a
+// secret, a vault image and a saved connection, each with the check that
+// refuses it.
+var dataChoices = []struct {
+	name, field, value string
+	refused            func(error) bool
+}{
+	{"a secret", "v", "@secret:vs", func(err error) bool { return errors.Is(err, secrets.ErrDataReference) }},
+	{"an image", "v", "@img-1", func(err error) bool { return errors.Is(err, vault.ErrDataReference) }},
+	{"a connection", "credential_id", "conn-1", func(err error) bool {
+		return err != nil && strings.Contains(err.Error(), `"credential_id": the saved connection must be written in the workflow`)
+	}},
+}
+
 // Each path that resolves a step's config against data checks it against
-// the config as the workflow holds it: run once per item (the second item
-// carries the reference, so the batch's first-item pass doesn't see it), a
-// sub-node's config, and an ai_tool sub-node's config when its root calls it
-// (#845 code review, 3).
-func TestEveryConfigPathRefusesAReferenceFromData(t *testing.T) {
+// the config as the workflow holds it, for a secret, an image and a saved
+// connection alike: run once per item (the second item carries the value,
+// so the batch's first-item pass doesn't see it), a sub-node's config, and
+// an ai_tool sub-node's config when its root calls it. The workflow's own
+// reference on each path still resolves (#845 code review, 3).
+func TestEveryConfigPathRefusesWhatDataChooses(t *testing.T) {
 	f := newPathsFixture(t)
-
-	t.Run("once per item", func(t *testing.T) {
-		var got []map[string]interface{}
-		reg := NewNodeTypeRegistry()
-		reg.Register("test.emit", func() NodeExecutor {
-			return emitNode{[]map[string]interface{}{{"msg": "hello"}, {"msg": "@secret:vs"}}}
-		})
-		reg.Register("test.configprobe", func() NodeExecutor { return configProbe{&got} })
-		err := f.run(t, reg, map[string]interface{}{}, []WorkflowNode{
-			{ID: "e", Type: "test.emit", Name: "Emit"},
-			{ID: "p", Type: "test.configprobe", Name: "Probe", Config: map[string]interface{}{"msg": "{{ $json.msg }}", "own": "@secret:vs", "execute_once_per_item": true}},
-		}, WorkflowConnection{SourceNodeID: "e", SourceHandle: "main", TargetNodeID: "p", TargetHandle: "main"})
-		if !errors.Is(err, secrets.ErrDataReference) {
-			t.Errorf("run %v, want the second item refused", err)
-		}
-		for _, c := range got {
-			if c["msg"] != "hello" || c["own"] != "vsecret-777" {
-				t.Errorf("the step ran with %v, want only the first item, with its own reference resolved", c)
+	if _, err := f.store.RawDB().Exec(`INSERT INTO vault_images (id, seq, path, filename, profile_id) VALUES ('img-1', 1, '/vault/passport.png', 'passport.png', 'default')`); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range dataChoices {
+		t.Run("once per item, "+c.name, func(t *testing.T) {
+			var got []map[string]interface{}
+			reg := NewNodeTypeRegistry()
+			reg.Register("test.emit", func() NodeExecutor {
+				return emitNode{[]map[string]interface{}{{"v": ""}, {"v": c.value}}}
+			})
+			reg.Register("test.configprobe", func() NodeExecutor { return configProbe{&got} })
+			err := f.run(t, reg, map[string]interface{}{}, []WorkflowNode{
+				{ID: "e", Type: "test.emit", Name: "Emit"},
+				{ID: "p", Type: "test.configprobe", Name: "Probe", Config: map[string]interface{}{c.field: "{{ $json.v }}", "own": "@secret:vs", "execute_once_per_item": true}},
+			}, WorkflowConnection{SourceNodeID: "e", SourceHandle: "main", TargetNodeID: "p", TargetHandle: "main"})
+			if !c.refused(err) {
+				t.Errorf("run %v, want the second item refused", err)
 			}
-		}
-	})
+			for _, cfg := range got {
+				if cfg[c.field] != "" || cfg["own"] != "vsecret-777" {
+					t.Errorf("the step ran with %v, want only the first item, with its own reference resolved", cfg)
+				}
+			}
+		})
 
-	t.Run("a sub-node", func(t *testing.T) {
-		var got []map[string]interface{}
-		reg := NewNodeTypeRegistry()
-		reg.Register("test.subroot", func() NodeExecutor { return subRoot{got: &got} })
-		reg.Register("test.configprobe", func() NodeExecutor { return configProbe{&got} })
-		err := f.run(t, reg, map[string]interface{}{"msg": "@secret:vs"}, []WorkflowNode{
-			{ID: "r", Type: "test.subroot", Name: "Root"},
-			{ID: "m", Type: "test.configprobe", Name: "Model", Config: map[string]interface{}{"model": "{{ $json.msg }}"}},
-		}, WorkflowConnection{SourceNodeID: "m", SourceHandle: "ai_languageModel", TargetNodeID: "r", TargetHandle: "ai_languageModel"})
-		if !errors.Is(err, secrets.ErrDataReference) || !strings.Contains(err.Error(), "-m (Model)") || len(got) != 0 {
-			t.Errorf("run %v, the root got %v", err, got)
-		}
-	})
-
-	t.Run("an ai_tool its root calls", func(t *testing.T) {
-		var got []map[string]interface{}
-		reg := NewNodeTypeRegistry()
-		reg.Register("test.subroot", func() NodeExecutor { return subRoot{call: true, got: &got} })
-		reg.Register("test.configprobe", func() NodeExecutor { return configProbe{&[]map[string]interface{}{}} })
-		run := func(msg string) error {
-			return f.run(t, reg, map[string]interface{}{"msg": msg}, []WorkflowNode{
+		t.Run("a sub-node, "+c.name, func(t *testing.T) {
+			var got []map[string]interface{}
+			reg := NewNodeTypeRegistry()
+			reg.Register("test.subroot", func() NodeExecutor { return subRoot{got: &got} })
+			reg.Register("test.configprobe", func() NodeExecutor { return configProbe{&got} })
+			err := f.run(t, reg, map[string]interface{}{"v": c.value}, []WorkflowNode{
 				{ID: "r", Type: "test.subroot", Name: "Root"},
-				{ID: "w", Type: "test.configprobe", Name: "Tool", Config: map[string]interface{}{"q": "{{ $json.q }}", "own": "@secret:vs"}},
-			}, WorkflowConnection{SourceNodeID: "w", SourceHandle: "ai_tool", TargetNodeID: "r", TargetHandle: "ai_tool"})
-		}
-		if err := run("@secret:vs"); !errors.Is(err, secrets.ErrDataReference) || !strings.Contains(err.Error(), `tool "Tool"`) || len(got) != 0 {
-			t.Errorf("run %v, the tool gave %v", err, got)
-		}
-		if err := run("hello"); err != nil || len(got) != 1 || got[0]["q"] != "hello" || got[0]["own"] != "vsecret-777" {
-			t.Errorf("run %v, the tool gave %v, want its own reference resolved", err, got)
-		}
-	})
+				{ID: "m", Type: "test.configprobe", Name: "Model", Config: map[string]interface{}{c.field: "{{ $json.v }}"}},
+			}, WorkflowConnection{SourceNodeID: "m", SourceHandle: "ai_languageModel", TargetNodeID: "r", TargetHandle: "ai_languageModel"})
+			if !c.refused(err) || !strings.Contains(err.Error(), "-m (Model)") || len(got) != 0 {
+				t.Errorf("run %v, the root got %v", err, got)
+			}
+		})
+
+		t.Run("an ai_tool its root calls, "+c.name, func(t *testing.T) {
+			var got []map[string]interface{}
+			reg := NewNodeTypeRegistry()
+			reg.Register("test.subroot", func() NodeExecutor { return subRoot{call: true, got: &got} })
+			reg.Register("test.configprobe", func() NodeExecutor { return configProbe{&[]map[string]interface{}{}} })
+			run := func(msg string) error {
+				return f.run(t, reg, map[string]interface{}{"msg": msg}, []WorkflowNode{
+					{ID: "r", Type: "test.subroot", Name: "Root"},
+					{ID: "w", Type: "test.configprobe", Name: "Tool", Config: map[string]interface{}{c.field: "{{ $json.q }}", "own": "@secret:vs"}},
+				}, WorkflowConnection{SourceNodeID: "w", SourceHandle: "ai_tool", TargetNodeID: "r", TargetHandle: "ai_tool"})
+			}
+			if err := run(c.value); !c.refused(err) || !strings.Contains(err.Error(), `tool "Tool"`) || len(got) != 0 {
+				t.Errorf("run %v, the tool gave %v", err, got)
+			}
+			if err := run(""); err != nil || len(got) != 1 || got[0]["own"] != "vsecret-777" {
+				t.Errorf("run %v, the tool gave %v, want its own reference resolved", err, got)
+			}
+		})
+	}
 }

@@ -43,12 +43,13 @@ func TestAWebhookCantChooseAVaultImageOrAConnection(t *testing.T) {
 	}
 
 	var got []map[string]interface{}
+	// Text that mentions "@img-" in the middle is no reference: it runs as text.
 	err := runHookedWorkflow(t, ctx, sqlStore, &got, map[string]interface{}{"file": "@img-1", "credential_id": "conn-1", "msg": "{{ $json.body.m }}"},
-		map[string]interface{}{"m": "hello"})
+		map[string]interface{}{"m": "see @img-1 and x@img-2"})
 	if err != nil {
 		t.Fatalf("the workflow's own image and connection: %v", err)
 	}
-	if len(got) != 1 || got[0]["file"] != "/vault/passport.png" || got[0]["credential_id"] != "conn-1" {
+	if len(got) != 1 || got[0]["file"] != "/vault/passport.png" || got[0]["credential_id"] != "conn-1" || got[0]["msg"] != "see @img-1 and x@img-2" {
 		t.Errorf("the workflow's own image and connection: the step ran with %v", got)
 	}
 }
