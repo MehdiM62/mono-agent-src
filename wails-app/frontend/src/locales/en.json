@@ -226,6 +226,11 @@
       "evaluated_other": "{{count}} evaluated",
       "unread": "{{count}} unread"
     },
+    "noProfile": {
+      "title": "No profile selected",
+      "body": "Create a profile first: the dashboard shows what happens inside one.",
+      "action": "New profile"
+    },
     "scope": {
       "label": "Show",
       "profile": "This profile",

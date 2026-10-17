@@ -206,3 +206,28 @@ func TestIPv6LiteralsAreCanonical(t *testing.T) {
 		t.Errorf("allow entry: %q %v", got, err)
 	}
 }
+
+// BrowserOrigin is Chrome's own serialization, which the extension compares
+// expectOrigin with; Origin stays the matching key.
+func TestBrowserOriginIsChromes(t *testing.T) {
+	for in, want := range map[string]string{
+		"http://[::ffff:127.0.0.1]:8080/x":   "http://[::ffff:7f00:1]:8080",
+		"http://[::FFFF:7F00:1]/":            "http://[::ffff:7f00:1]",
+		"http://[0:0:0:0:0:0:0:1]:80/":       "http://[::1]",
+		"http://[2001:db8:0:0:1:0:0:1]/":     "http://[2001:db8::1:0:0:1]",
+		"http://[2001:DB8:0:1:0:0:0:1]/":     "http://[2001:db8:0:1::1]",
+		"http://[1:2:3:4:5:6:7:8]/":          "http://[1:2:3:4:5:6:7:8]",
+		"http://[::]/":                       "http://[::]",
+		"http://[1::]/":                      "http://[1::]",
+		"HTTPS://Bücher.Example.:443/a":      "https://xn--bcher-kva.example.",
+		"http://2130706433:3000/":            "http://127.0.0.1:3000",
+		"http://localhost:3000/app?x=1#frag": "http://localhost:3000",
+	} {
+		if got := BrowserOrigin(in); got != want {
+			t.Errorf("BrowserOrigin(%q) = %q, want %q", in, got, want)
+		}
+	}
+	if got := Origin("http://[::ffff:7f00:1]:8080/"); got != "http://127.0.0.1:8080" {
+		t.Errorf("Origin, the matching key: %q", got)
+	}
+}

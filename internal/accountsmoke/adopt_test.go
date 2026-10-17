@@ -16,6 +16,7 @@ import (
 	"github.com/monoes/mono-agent/internal/library"
 	"github.com/monoes/mono-agent/internal/secrets"
 	"github.com/monoes/mono-agent/internal/storage"
+	"github.com/monoes/mono-agent/internal/testhome"
 )
 
 const seedEnv = "ACCOUNTSMOKE_SEED_OLDER_LOGIN"
@@ -59,7 +60,11 @@ func (r *rig) seedOlderLogin() {
 	r.t.Helper()
 	access, refresh := r.fake.NewGrant("ada")
 	cmd := exec.Command(os.Args[0], "-test.run=^TestSeedOlderLogin$")
-	cmd.Env = r.env(seedEnv+"="+r.home, "SEED_ACCESS="+access, "SEED_REFRESH="+refresh)
+	// The helper is this test binary: its testhome.Main must keep the rig's HOME, where the
+	// account key it makes has to land. Its TMPDIR is the rig's dir, so it sees that HOME under
+	// the temp dir even when t.TempDir follows a GOTMPDIR the rig's env does not pass on.
+	cmd.Env = r.env(seedEnv+"="+r.home, "SEED_ACCESS="+access, "SEED_REFRESH="+refresh,
+		testhome.KeepHomeEnv+"=1", "TMPDIR="+r.dir)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		r.t.Fatalf("seeding the older login: %v\n%s", err, out)
 	}

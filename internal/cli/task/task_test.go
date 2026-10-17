@@ -27,7 +27,8 @@ type taskJSON struct {
 		Title string `json:"title"`
 		App   string `json:"app"`
 	} `json:"source"`
-	Claim *struct {
+	Author string `json:"author"`
+	Claim  *struct {
 		By string `json:"by"`
 	} `json:"claim"`
 }

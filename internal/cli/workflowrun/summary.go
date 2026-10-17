@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/monoes/mono-agent/internal/cli/clicore"
+	"github.com/monoes/mono-agent/internal/operator"
 	"github.com/monoes/mono-agent/internal/storage"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
@@ -101,11 +102,17 @@ func executionSummaryFromStore(ctx context.Context, db *storage.Database, execut
 		}
 	}
 
+	// Reply tokens in the run's data are hidden from a marked process, as
+	// in `workflow execution` (workflow.ReplyRedactor).
+	var rr *workflow.ReplyRedactor
+	if operator.Marker() != "" {
+		rr = workflow.NewReplyRedactor(ctx, db.DB, executionID)
+	}
 	summary := executionSummaryJSON{
 		ExecutionID: exec.ID,
 		WorkflowID:  exec.WorkflowID,
 		Status:      exec.Status,
-		Error:       exec.ErrorMessage,
+		Error:       rr.String(exec.ErrorMessage),
 		StartedAt:   exec.StartedAt,
 		FinishedAt:  exec.FinishedAt,
 		Nodes:       make([]executionNodeJSON, 0, len(nodeOutputs)),
@@ -118,8 +125,8 @@ func executionSummaryFromStore(ctx context.Context, db *storage.Database, execut
 			NodeID:      en.NodeID,
 			Type:        types[en.NodeID],
 			Status:      en.Status,
-			Error:       en.ErrorMessage,
-			OutputItems: sanitizeOutputItems(en.OutputItems),
+			Error:       rr.String(en.ErrorMessage),
+			OutputItems: rr.Items(sanitizeOutputItems(en.OutputItems)),
 		})
 	}
 	return summary, nil
@@ -152,6 +159,19 @@ func redactOutputItems(items []workflow.Item) []workflow.Item {
 // workflow.TruncateItems (kept so existing callers/tests stay stable).
 func truncateOutputItems(items []workflow.Item) []workflow.Item {
 	return workflow.TruncateItems(items)
+}
+
+// replyRedactor hides the reply tokens of executionID's data from a marked
+// process (nil for the user's own terminal); done closes what it opened.
+func (d Deps) replyRedactor(ctx context.Context, executionID string) (rr *workflow.ReplyRedactor, done func()) {
+	if operator.Marker() == "" {
+		return nil, func() {}
+	}
+	db, err := d.OpenDB()
+	if err != nil {
+		return workflow.NewReplyRedactor(ctx, nil, executionID), func() {}
+	}
+	return workflow.NewReplyRedactor(ctx, db.DB, executionID), func() { db.Close() }
 }
 
 // printExecutionNoWait emits the short --no-wait record: just enough for a

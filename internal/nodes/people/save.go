@@ -13,6 +13,8 @@ import (
 	_ "github.com/monoes/mono-agent/internal/bot/tiktok"
 	_ "github.com/monoes/mono-agent/internal/bot/x"
 	"github.com/monoes/mono-agent/internal/nodes/nodeprofile"
+	"github.com/monoes/mono-agent/internal/operator"
+	"github.com/monoes/mono-agent/internal/peoplereview"
 	"github.com/monoes/mono-agent/internal/personitem"
 	"github.com/monoes/mono-agent/internal/personphoto"
 	"github.com/monoes/mono-agent/internal/util"
@@ -114,6 +116,10 @@ func (n *PeopleSaveNode) Execute(
 	var savedItems []workflow.Item
 	var saved []personphoto.Ref
 	exprEngine := workflow.NewExpressionEngine()
+	// A run the user did not start themselves (an AI started it, or wrote
+	// or changed the workflow) never approves anyone for outreach: approving
+	// lets the drafted DM go out (peoplereview.NotOperatorCategory).
+	aiRun := operator.AIRun(ctx)
 
 	for _, item := range input.Items {
 		data := item.JSON
@@ -190,6 +196,29 @@ func (n *PeopleSaveNode) Execute(
 				} else {
 					category = catTmpl
 				}
+			}
+		}
+
+		if aiRun {
+			stored, err := peoplereview.StoredPerson(ctx, tx, profileID, platformUpper, username)
+			if err != nil {
+				return nil, fmt.Errorf("people.save: %w", err)
+			}
+			// The row keeps the stored category and introduction where the
+			// item names none (the upsert's COALESCE).
+			kept, keptIntro := category, introduction
+			if kept == "" {
+				kept = stored.Category
+			}
+			if keptIntro == "" {
+				keptIntro = stored.Introduction
+			}
+			final, err := peoplereview.NotOperatorCategory(stored, kept, category != "", keptIntro, "a workflow run an AI started or changed")
+			if err != nil {
+				return nil, fmt.Errorf("people.save: %s/%s: %w", platformUpper, username, err)
+			}
+			if final != kept {
+				category = final
 			}
 		}
 

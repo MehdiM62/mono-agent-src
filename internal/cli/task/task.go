@@ -11,6 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/monoes/mono-agent/internal/operator"
 	"github.com/monoes/mono-agent/internal/orgsign"
 	"github.com/monoes/mono-agent/internal/tasks"
 )
@@ -195,6 +196,23 @@ func (d Deps) agentContextMarker() string {
 
 func (c Caller) isAgent() bool { return c.actor.Kind == tasks.Agent }
 
+// author is who adds a task: the caller, and when no agent named itself and
+// this is not the operator's own terminal, that caller by AddedBy's name
+// (chat, workflow:<execution id>, agent:<kind>), never "you".
+func (d Deps) author(c Caller) tasks.Actor {
+	if c.actor.Name != "" || d.AddedBy == nil {
+		return c.actor
+	}
+	by := d.AddedBy()
+	if by == "" {
+		return c.actor
+	}
+	if tasks.CheckAgentName(by) != nil {
+		by, _, _ = strings.Cut(by, ":") // a run marker no name can hold
+	}
+	return tasks.Actor{Kind: tasks.Agent, Name: by}
+}
+
 // notOperator is NotOperator's answer, "" without one.
 func (d Deps) notOperator() string {
 	if d.NotOperator == nil {
@@ -219,7 +237,7 @@ func (c Caller) operator(what string) (tasks.Actor, error) {
 	case c.marker != "" && c.envBlank:
 		why = c.marker + " is set and MONOAGENT_ACTOR is set to a blank value, so an agent is running this command"
 	case c.marker != "":
-		why = c.marker + " is set, so an agent is running this command"
+		why = c.marker + " is set, so an agent is running this command. " + operator.InheritedHint()
 	case c.asBlank:
 		why = "--as is given with no name, which counts as an agent"
 	case c.envBlank:
@@ -308,9 +326,9 @@ adding idempotent (the same key adds nothing a second time).`,
 					return err
 				}
 			}
-			actor := caller.actor
+			actor := d.author(caller)
 			if source == tasks.SourceOS {
-				if caller.isAgent() {
+				if actor.Kind == tasks.Agent {
 					// The first words are the store's own: the macOS menu reads them through the CLI.
 					return d.InvalidInput(`source "os" is for captures: an agent's tasks are agent tasks, and --source os is what the macOS menu passes`)
 				}

@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/monoes/mono-agent/internal/hilsend"
+	"github.com/monoes/mono-agent/internal/operator"
 	"github.com/monoes/mono-agent/internal/publication"
 	"github.com/monoes/mono-agent/internal/vault"
 	"github.com/monoes/mono-agent/internal/workflow"
@@ -14,7 +16,7 @@ type RegisterNode struct{}
 
 func (*RegisterNode) Type() string { return "publication.register" }
 func (*RegisterNode) PerItemConfigFields() []string {
-	fields := []string{}
+	fields := []string{"approval"} // evaluated per item, like the entry's fields
 	for key := range publication.EntrySchema() {
 		fields = append(fields, key)
 	}
@@ -33,6 +35,10 @@ func (*RegisterNode) Execute(ctx context.Context, in workflow.NodeInput, config 
 		return nil, fmt.Errorf("publication.register: ran without a profile: %w", perr)
 	}
 	store := publication.NewStore(db, profile)
+	// A run an AI started is not the operator's: what it registers belongs to
+	// a send the user approved and that was sent, named by approval, as
+	// `publication register` asks of an agent.
+	aiRun := operator.AIRun(ctx)
 	items := in.Items
 	if len(items) == 0 {
 		items = []workflow.Item{workflow.NewItem(nil)}
@@ -48,6 +54,14 @@ func (*RegisterNode) Execute(ctx context.Context, in workflow.NodeInput, config 
 		fields := map[string]interface{}{}
 		expressions := workflow.NewExpressionEngine()
 		exprCtx := workflow.ExpressionContext{JSON: item.JSON, Node: in.NodeOutputs, WorkflowID: in.WorkflowID, ExecutionID: in.ExecutionID}
+		approval := ""
+		if aiRun {
+			text, _ := config["approval"].(string)
+			var err error
+			if approval, err = expressions.EvaluateString(text, exprCtx); err != nil {
+				return nil, fmt.Errorf("publication.register item %d field approval: %w", i, err)
+			}
+		}
 		for key := range publication.EntrySchema() {
 			value, exists := item.JSON[key]
 			fromConfig := false
@@ -100,8 +114,42 @@ func (*RegisterNode) Execute(ctx context.Context, in workflow.NodeInput, config 
 		if entry.IdempotencyKey == "" && in.ExecutionID != "" {
 			entry.IdempotencyKey = fmt.Sprintf("registration:%s:%s:%d", in.ExecutionID, in.NodeID, i)
 		}
+		var claim *hilsend.PublicationClaim
+		if aiRun {
+			if claim, err = hilsend.ClaimPublicationApproval(ctx, db, profile, approval, entry); err != nil {
+				if why := operator.Refusal(); why != "" {
+					// The engine itself is marked: say so, and how to fix it.
+					return nil, fmt.Errorf("publication.register item %d: %w (set approval to the send's id). This run is not the user's: %s", i, err, why)
+				}
+				if cerr := workflow.ApprovalCheckError(ctx); cerr != nil {
+					return nil, fmt.Errorf("publication.register item %d: %w (set approval to the send's id). This run counts as an AI's because "+
+						"whether you approved this workflow could not be checked (%v): run it again", i, err, cerr)
+				}
+				if workflow.AIAuthoredFrom(ctx) {
+					// The definition is one the user never approved: say how to.
+					return nil, fmt.Errorf("publication.register item %d: %w (set approval to the send's id). This run counts as an AI's because "+
+						"this workflow changed since you last saved or activated it: if the change is yours, run `monoagentcli --profile %s workflow activate %s` "+
+						"(or save it in the app)", i, err, profile, in.WorkflowID)
+				}
+				data := workflow.TriggerDataFrom(ctx)
+				if caller, ok := workflow.CalledByUnapproved(data); ok && data[workflow.AICallerKey] == workflow.UnapprovedWorkflowCaller {
+					// A workflow the user never approved called this one, and
+					// nothing else makes this run an AI's: say which, and how
+					// to approve it.
+					if caller == "" {
+						return nil, fmt.Errorf("publication.register item %d: %w (set approval to the send's id). This run counts as an AI's because "+
+							"the workflow that called this one changed since you last saved or activated it: if the change is yours, save or activate that workflow", i, err)
+					}
+					return nil, fmt.Errorf("publication.register item %d: %w (set approval to the send's id). This run counts as an AI's because "+
+						"the workflow that called this one, %s, changed since you last saved or activated it: if the change is yours, run `monoagentcli --profile %s workflow activate %s` "+
+						"(or save it in the app)", i, err, caller, profile, caller)
+				}
+				return nil, fmt.Errorf("publication.register item %d: %w (set approval to the send's id)", i, err)
+			}
+		}
 		registered, err := store.Register(ctx, entry)
 		if err != nil {
+			claim.Release(ctx, db)
 			return nil, fmt.Errorf("publication.register item %d: %w", i, err)
 		}
 		encoded, _ := json.Marshal(registered)

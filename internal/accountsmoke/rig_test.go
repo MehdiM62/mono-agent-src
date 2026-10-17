@@ -28,6 +28,7 @@ import (
 
 	"github.com/monoes/mono-agent/internal/account/accounttest"
 	"github.com/monoes/mono-agent/internal/library/libraryfake"
+	"github.com/monoes/mono-agent/internal/testhome"
 )
 
 var (
@@ -36,19 +37,15 @@ var (
 	buildErr  error
 )
 
-func TestMain(m *testing.M) {
-	code := m.Run()
-	if binDir != "" {
-		os.RemoveAll(binDir)
-	}
-	os.Exit(code)
-}
+// Tests run in a throwaway HOME; the CLI they build lives in it too, so it
+// goes when testhome removes the home.
+func TestMain(m *testing.M) { testhome.Main(m) }
 
 // cli builds the CLI with the dev tag, once per test run.
 func cli(t testing.TB) string {
 	t.Helper()
 	buildOnce.Do(func() {
-		if binDir, buildErr = os.MkdirTemp("", "accountsmoke-"); buildErr != nil {
+		if binDir, buildErr = os.MkdirTemp(os.Getenv("HOME"), "accountsmoke-"); buildErr != nil {
 			return
 		}
 		root, _ := filepath.Abs("../..")

@@ -93,10 +93,11 @@ func testDeps(cfg *testConfig) Deps {
 }
 
 // newProfileDocsCLITestDB is a migrated database, with $HOME a temp dir so profile folders and
-// the vault stay out of the real home.
+// the vault stay out of the real home, run as the user's own terminal.
 func newProfileDocsCLITestDB(t *testing.T) string {
 	t.Helper()
 	t.Setenv("HOME", t.TempDir())
+	asOperator(t)
 	// The vault syncs each file into the knowledge graph in the background;
 	// let it finish before HOME is removed.
 	t.Cleanup(vault.Wait)

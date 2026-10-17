@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/monoes/mono-agent/internal/operator"
 	"github.com/monoes/mono-agent/internal/workflow"
 	"github.com/spf13/cobra"
 )
@@ -87,6 +88,9 @@ func (d Deps) newNodeAddCmd() *cobra.Command {
 			existing = append(existing, newNode)
 			if err := store.SaveWorkflowNodes(ctx, workflowID, existing); err != nil {
 				return fmt.Errorf("save nodes: %w", err)
+			}
+			if err := operator.ApproveWorkflow(ctx, store, workflowID); err != nil {
+				fmt.Fprintf(os.Stderr, "warning: recording this workflow as yours failed, so its runs count as an AI's until you save or activate it again: %v\n", err)
 			}
 
 			if d.JSONOutput() {
@@ -213,6 +217,9 @@ func (d Deps) newNodeSetCmd() *cobra.Command {
 			if err := store.SaveWorkflowNodes(ctx, workflowID, wf.Nodes); err != nil {
 				return fmt.Errorf("save nodes: %w", err)
 			}
+			if err := operator.ApproveWorkflow(ctx, store, workflowID); err != nil {
+				fmt.Fprintf(os.Stderr, "warning: recording this workflow as yours failed, so its runs count as an AI's until you save or activate it again: %v\n", err)
+			}
 			if d.JSONOutput() {
 				for i := range wf.Nodes {
 					if wf.Nodes[i].ID == nodeID {
@@ -291,6 +298,9 @@ func (d Deps) newNodeRemoveCmd() *cobra.Command {
 			if err := store.SaveWorkflowConnections(ctx, workflowID, newConns); err != nil {
 				return fmt.Errorf("save connections: %w", err)
 			}
+			if err := operator.ApproveWorkflow(ctx, store, workflowID); err != nil {
+				fmt.Fprintf(os.Stderr, "warning: recording this workflow as yours failed, so its runs count as an AI's until you save or activate it again: %v\n", err)
+			}
 
 			if d.JSONOutput() {
 				return json.NewEncoder(os.Stdout).Encode(removed)
@@ -357,6 +367,9 @@ func (d Deps) newConnectCmd() *cobra.Command {
 			if err := store.SaveWorkflowConnections(ctx, workflowID, wf.Connections); err != nil {
 				return fmt.Errorf("save connections: %w", err)
 			}
+			if err := operator.ApproveWorkflow(ctx, store, workflowID); err != nil {
+				fmt.Fprintf(os.Stderr, "warning: recording this workflow as yours failed, so its runs count as an AI's until you save or activate it again: %v\n", err)
+			}
 
 			if d.JSONOutput() {
 				return json.NewEncoder(os.Stdout).Encode(conn)
@@ -412,6 +425,9 @@ func (d Deps) newDisconnectCmd() *cobra.Command {
 
 			if err := store.SaveWorkflowConnections(ctx, workflowID, newConns); err != nil {
 				return fmt.Errorf("save connections: %w", err)
+			}
+			if err := operator.ApproveWorkflow(ctx, store, workflowID); err != nil {
+				fmt.Fprintf(os.Stderr, "warning: recording this workflow as yours failed, so its runs count as an AI's until you save or activate it again: %v\n", err)
 			}
 			fmt.Fprintf(os.Stdout, "Connection %s removed.\n", connID)
 			return nil

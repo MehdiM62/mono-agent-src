@@ -110,6 +110,13 @@
       "type": "text",
       "required": false,
       "help": "Optional when supplied by the upstream item."
+    },
+    {
+      "key": "approval",
+      "label": "Approved send",
+      "type": "text",
+      "required": false,
+      "help": "In a run an AI started (or of a workflow the chat, an agent or a workflow changed since you last saved or activated it), while your approval of sends is on: the id of the send you approved that made this publication, e.g. {{ $json.hil_id }}. One approval registers one publication."
     }
   ],
   "outputs": [

@@ -9,6 +9,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/monoes/mono-agent/internal/operator"
 	"github.com/monoes/mono-agent/internal/storage"
 	"github.com/monoes/mono-agent/internal/workflow"
 	"github.com/spf13/cobra"
@@ -128,6 +129,9 @@ func (d Deps) newVersionsRestoreCmd() *cobra.Command {
 				restored := v.Snapshot.Apply(wf)
 				if err := store.SaveWorkflowWithNote(ctx, restored, fmt.Sprintf("restored from version %d", n)); err != nil {
 					return fmt.Errorf("restore version %d: %w", n, err)
+				}
+				if err := operator.ApproveWorkflow(ctx, store, wf.ID); err != nil {
+					fmt.Fprintf(os.Stderr, "warning: recording this workflow as yours failed, so its runs count as an AI's until you save or activate it again: %v\n", err)
 				}
 				// An old version may not pass today's checks: say so, but
 				// restore it anyway.

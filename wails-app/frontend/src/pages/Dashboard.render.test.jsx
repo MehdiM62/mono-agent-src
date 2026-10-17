@@ -11,6 +11,7 @@ vi.mock('../lib/health.js', () => ({
   summarize: () => ({ level: 'ok', issues: 0 }),
   runHealth: vi.fn(),
 }))
+vi.mock('../components/NewProfileModal.jsx', () => ({ default: () => null }))
 vi.mock('./dashboard/useDashboardData.js', () => ({
   useDashboardData: () => ({
     loading: false,

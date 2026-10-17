@@ -134,7 +134,7 @@ func (env *orgEnv) needsYou(ctx context.Context, db *storage.Database, profileID
 	idleSeconds, idleHold := idleDeadline(ctx, root, org)
 	out := []map[string]interface{}{}
 	for _, it := range pending {
-		human := !daemonLive || orgdecide.Route(level, it.Tier) == orgdecide.RouteHuman
+		human := !daemonLive || orgdecide.RouteItem(level, it) == orgdecide.RouteHuman
 		if !human {
 			latest, err := svc.Store.LatestFor(ctx, profileID, org, it.Kind, it.Ref)
 			if err != nil {

@@ -3,7 +3,9 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
+	"github.com/monoes/mono-agent/internal/operator"
 	"github.com/monoes/mono-agent/internal/storage"
 )
 
@@ -32,7 +34,18 @@ func (s *DBConfigStore) GetConfig(name string) (*Config, error) {
 	return &cfg, nil
 }
 
-// SaveConfig persists a config to the database.
+// SaveConfig persists a config to the database. It is the store for the
+// selector configs the engine generates, never the operator's settings
+// path, so a reserved setting (operator.ReservedConfig) is refused,
+// whoever names it.
 func (s *DBConfigStore) SaveConfig(name string, configData string) error {
+	if operator.ReservedConfig(name) {
+		return reservedConfigError(name)
+	}
 	return s.DB.SaveConfig(name, configData)
+}
+
+// reservedConfigError refuses a write of reserved setting name here.
+func reservedConfigError(name string) error {
+	return fmt.Errorf("config %q is a reserved setting (it gates approvals, permissions or sandboxing): only the operator writes it, with `monoagentcli config set` or the command made for it in their own terminal", strings.TrimSpace(name))
 }

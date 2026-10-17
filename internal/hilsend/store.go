@@ -49,6 +49,9 @@ type replay struct {
 	Error      string                   `json:"error,omitempty"`
 	Result     json.RawMessage          `json:"result,omitempty"`
 	ResolvedAt string                   `json:"resolvedAt,omitempty"`
+	// Publication is set once a registration claimed this send's approval
+	// (ClaimPublicationApproval): one approval registers one publication.
+	Publication string `json:"publication,omitempty"`
 }
 
 type editable struct {

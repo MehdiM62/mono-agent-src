@@ -30,6 +30,11 @@ type caller struct {
 	// declared is a kind the agent claimed but could not prove
 	// (browserctl.Caller): its level binds too when it is stricter.
 	declared string
+	// authored: no AI started the run, but its workflow is one the user
+	// never approved (workflow.AIAuthoredFrom). Who wrote it isn't
+	// recorded, so policyFor takes the stricter of the chat's and other
+	// agents' levels, and kind becomes that one.
+	authored bool
 }
 
 // aiCaller reports who started this run when it was not the user, and its
@@ -39,7 +44,9 @@ type caller struct {
 // (workflow.AICallerKey, the kind it was marked with), or the org side (a
 // granted call, a message to an automation role, a trigger.org event: org).
 // A run the user started from the app, a terminal, a schedule or a webhook
-// is none of these.
+// is none of these, unless the workflow is one the user never approved
+// (workflow.AIAuthoredFrom: the chat, an agent or another workflow wrote or
+// changed it since): then an AI wrote what runs, and it is held like one.
 func aiCaller(ctx context.Context) (caller, bool) {
 	if c, ok := envCaller(); ok {
 		return c, true
@@ -52,6 +59,11 @@ func aiCaller(ctx context.Context) (caller, bool) {
 			declared = ""
 		}
 		switch kind {
+		case workflow.UnapprovedWorkflowCaller:
+			// A workflow called by one the user never approved: held as that
+			// workflow is (the stricter of chat's and other's levels).
+			return caller{name: "a workflow the user hasn't approved", by: hilsend.PreparedBy{AgentID: workflow.UnapprovedWorkflowCaller},
+				kind: browserctl.KindOther, authored: true}, true
 		case browserctl.KindChat:
 			return caller{name: "chat", by: hilsend.PreparedBy{AgentID: kind}, kind: kind, declared: declared}, true
 		case browserctl.KindCoder, browserctl.KindOrg:
@@ -64,6 +76,10 @@ func aiCaller(ctx context.Context) (caller, bool) {
 		src := workflow.PublicationSource(ctx, workflow.NodeInput{})
 		return caller{name: strings.TrimSpace("org " + src.OrgID),
 			by: hilsend.PreparedBy{Org: src.OrgID, Role: src.RoleID, AgentID: src.AgentID}, kind: browserctl.KindOrg}, true
+	}
+	if workflow.AIAuthoredFrom(ctx) {
+		return caller{name: "a workflow the user hasn't approved", by: hilsend.PreparedBy{AgentID: "unapproved-workflow"},
+			kind: browserctl.KindOther, authored: true}, true
 	}
 	return caller{}, false
 }
@@ -106,8 +122,9 @@ func MarkAICaller(data map[string]interface{}) {
 }
 
 // policyFor is the policy the user set for who's kind of agent (Settings →
-// Agent browser permissions), with the site rules. Without a database the
-// defaults apply.
+// Agent browser permissions), with the site rules; for an authored run, the
+// stricter of the chat's and other agents' (Policy.Kind says which). Without
+// a database the defaults apply.
 func policyFor(ctx context.Context, who caller) (browserctl.Policy, error) {
 	p := browserctl.DefaultPermissions()
 	if db := vault.DBFromContext(ctx); db != nil {
@@ -115,6 +132,9 @@ func policyFor(ctx context.Context, who caller) (browserctl.Policy, error) {
 		if p, err = browserctl.LoadPermissions(db); err != nil {
 			return browserctl.Policy{}, fmt.Errorf("read the browser permissions: %w", err)
 		}
+	}
+	if who.authored {
+		who.kind = p.StricterKind(browserctl.KindOther, browserctl.KindChat)
 	}
 	return p.PolicyForCaller(browserctl.Caller{Kind: who.kind, Declared: who.declared}), nil
 }

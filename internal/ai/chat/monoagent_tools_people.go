@@ -1,11 +1,14 @@
 package chat
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
 
 	"github.com/google/uuid"
+
+	"github.com/monoes/mono-agent/internal/peoplereview"
 )
 
 // ---------------------------------------------------------------------------
@@ -128,13 +131,23 @@ type upsertPersonArgs struct {
 	Introduction     string `json:"introduction"`
 }
 
+// upsertPerson is the chat's and the MCP server's way to save a person. A
+// model drives it, so it never approves anyone for outreach: only the user
+// does (peoplereview.NotOperatorCategory).
 func (mt *MonoagentTools) upsertPerson(args string) (string, error) {
 	var a upsertPersonArgs
 	if err := json.Unmarshal([]byte(args), &a); err != nil {
 		return "", fmt.Errorf("invalid args: %w", err)
 	}
+	stored, err := peoplereview.StoredPerson(context.Background(), mt.db, mt.ProfileID(), a.Platform, a.PlatformUsername)
+	if err != nil {
+		return "", err
+	}
+	if a.Category, err = peoplereview.NotOperatorCategory(stored, a.Category, a.Category != "", a.Introduction, "the chat or an agent's tool call"); err != nil {
+		return "", err
+	}
 	var id string
-	err := mt.db.QueryRow(
+	err = mt.db.QueryRow(
 		`SELECT id FROM people WHERE platform_username = ? AND platform = ? AND profile_id = ?`,
 		a.PlatformUsername, a.Platform, mt.ProfileID(),
 	).Scan(&id)

@@ -169,6 +169,80 @@ func matchOne(workflows []Workflow, name, what string) (Workflow, error) {
 	}
 }
 
+// ErrNotOperator is a write by someone other than the user (an agent, the
+// chat, a workflow's AI run) that would approve a person for outreach.
+// Approving lets the person's drafted DM go out, so only the user approves.
+var ErrNotOperator = errors.New("only the user approves a person for outreach")
+
+// ApprovalRefusal is ErrNotOperator for a write by who, saying what to do
+// instead.
+func ApprovalRefusal(who string) error {
+	return fmt.Errorf("%w (category %q), not %s: save them as %q for the user's review; the user approves them "+
+		"with `monoagentcli people review approve <id>` in their own terminal or on the Human in Loop page",
+		ErrNotOperator, Approved, who, Pending)
+}
+
+// IsApproved reports whether a category value means approved, in any case
+// and with any surrounding space (a dispatch workflow may match it loosely).
+func IsApproved(category string) bool {
+	return strings.EqualFold(strings.TrimSpace(category), Approved)
+}
+
+// Stored is a person's review state before a write: whether the row
+// exists, its category and its introduction (the drafted DM).
+type Stored struct {
+	Found        bool
+	Category     string
+	Introduction string
+}
+
+// rowQueryer is a *sql.DB or a *sql.Tx.
+type rowQueryer interface {
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
+
+// StoredPerson reads the review state of the person platform/username of
+// profileID; Found is false when there is none.
+func StoredPerson(ctx context.Context, q rowQueryer, profileID, platform, username string) (Stored, error) {
+	var s Stored
+	err := q.QueryRowContext(ctx,
+		`SELECT COALESCE(category,''), COALESCE(introduction,'') FROM people
+		 WHERE platform_username = ? AND platform = ? AND profile_id = ?`,
+		username, platform, profileID).Scan(&s.Category, &s.Introduction)
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		return Stored{}, nil
+	case err != nil:
+		return Stored{}, fmt.Errorf("reading %s/%s: %w", platform, username, err)
+	}
+	s.Found = true
+	return s, nil
+}
+
+// NotOperatorCategory is the category a write by someone other than the
+// user may store for one person. stored is the row before the write;
+// category and intro are what the row holds after it, and set says whether
+// the write named the category itself rather than leaving the stored one.
+//
+// An approval is the user's, and it covers the text they approved. A write
+// that names category approved is refused (ApprovalRefusal) unless the
+// person already was approved with the same introduction. A write that
+// leaves an approved person's category alone but changes the introduction
+// puts them back in the queue (Pending), so the new text is reviewed before
+// anything sends it. Anything else, queueing and rejecting included, is
+// stored as written.
+func NotOperatorCategory(stored Stored, category string, set bool, intro string, who string) (string, error) {
+	approvedBefore := stored.Found && IsApproved(stored.Category)
+	changed := stored.Found && intro != stored.Introduction
+	if set && IsApproved(category) && (!approvedBefore || changed) {
+		return "", ApprovalRefusal(who)
+	}
+	if approvedBefore && changed && !set {
+		return Pending, nil
+	}
+	return category, nil
+}
+
 // SendInput is the trigger input a dispatch workflow receives for a person.
 func SendInput(p Person) map[string]interface{} {
 	return map[string]interface{}{

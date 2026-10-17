@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/monoes/mono-agent/internal/hilsend"
 	"github.com/monoes/mono-agent/internal/orgsign"
 	"github.com/monoes/mono-agent/internal/publication"
 	"github.com/monoes/mono-agent/internal/workflow"
@@ -27,7 +28,7 @@ func publicationToolDefs() []ToolDef {
 		makeDef("publication_stats", "Count this profile's publications by platform and kind.", nil),
 		makeDef("delete_publication", "Remove a publication from this profile's history; the remote post is untouched. Operator sessions only.", map[string]interface{}{"id": strParam("Publication ID")}, "id"),
 		makeDef("redact_publication", "Replace a publication's body (and title if title is true) with [redacted], keeping the entry. Operator sessions only.", map[string]interface{}{"id": strParam("Publication ID"), "title": map[string]interface{}{"type": "boolean", "description": "Also redact the title"}}, "id"),
-		makeDef("register_publication", "Record content already successfully published with an external tool. This does not publish. Built-in publishing nodes record automatically. Supply exact content, destination, remote URL/ID and your agent identity; use an idempotency key to avoid duplicate registration.", publication.EntrySchema(), "platform", "kind"),
+		makeDef("register_publication", "Record content already successfully published with an external tool. This does not publish. Built-in publishing nodes record automatically. Supply exact content, destination, remote URL/ID and your agent identity; use an idempotency key to avoid duplicate registration. While the user's approval of sends is on, name the approved, sent send it belongs to (approval).", publication.RegisterSchema(), "platform", "kind"),
 	}
 }
 
@@ -87,14 +88,29 @@ func (mt *MonoagentTools) executePublication(ctx context.Context, name, args str
 			err = fmt.Errorf("publication JSON exceeds 4 MiB")
 			break
 		}
-		var e publication.Entry
-		if err = json.Unmarshal([]byte(args), &e); err == nil {
-			// When the call runs on behalf of an org, the context decides who
-			// published; caller-supplied identity is discarded.
-			if src := workflow.PublicationSource(ctx, workflow.NodeInput{}); src.OrgID != "" || src.RoleID != "" || src.AgentID != "" {
-				e.OrgID, e.RoleID, e.AgentID = src.OrgID, src.RoleID, src.AgentID
-			}
-			result, err = store.Register(ctx, e)
+		var a struct {
+			publication.Entry
+			Approval string `json:"approval"`
+		}
+		if err = json.Unmarshal([]byte(args), &a); err != nil {
+			break
+		}
+		e := a.Entry
+		// The chat is not the operator: what it registers is the publication
+		// a send the user approved made, which that approval registers alone,
+		// as `publication register` asks of an agent.
+		claim, cerr := hilsend.ClaimPublicationApproval(ctx, mt.db, mt.ProfileID(), a.Approval, e)
+		if cerr != nil {
+			err = fmt.Errorf("register_publication: %w (pass the send's id as approval)", cerr)
+			break
+		}
+		// When the call runs on behalf of an org, the context decides who
+		// published; caller-supplied identity is discarded.
+		if src := workflow.PublicationSource(ctx, workflow.NodeInput{}); src.OrgID != "" || src.RoleID != "" || src.AgentID != "" {
+			e.OrgID, e.RoleID, e.AgentID = src.OrgID, src.RoleID, src.AgentID
+		}
+		if result, err = store.Register(ctx, e); err != nil {
+			claim.Release(ctx, mt.db)
 		}
 	}
 	if err != nil {

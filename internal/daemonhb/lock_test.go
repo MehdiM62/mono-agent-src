@@ -6,6 +6,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
+
+	"github.com/monoes/mono-agent/internal/testhome"
 )
 
 // One daemon at a time: a second Lock fails while the first is held, and
@@ -48,12 +50,24 @@ func TestLockAcrossProcesses(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer release()
+	// The helper exits from inside the test, so a test home of its own would
+	// never be removed: it keeps the one it is given (testhome.KeepHomeEnv),
+	// in a temp dir of its own where a leftover would show.
+	tmp := t.TempDir()
+	home := filepath.Join(tmp, "home")
+	if err := os.Mkdir(home, 0o755); err != nil {
+		t.Fatal(err)
+	}
 	cmd := exec.Command(os.Args[0], "-test.run", "^TestLockAcrossProcesses$")
-	cmd.Env = append(os.Environ(), "DAEMONHB_LOCK_HELPER=1")
+	cmd.Env = append(os.Environ(), "DAEMONHB_LOCK_HELPER=1",
+		testhome.KeepHomeEnv+"=1", "HOME="+home, "USERPROFILE="+home, "TMPDIR="+tmp)
 	err = cmd.Run()
 	var exit *exec.ExitError
 	if !errors.As(err, &exit) || exit.ExitCode() != 3 {
 		t.Fatalf("another process got the lock (err %v)", err)
+	}
+	if left, _ := filepath.Glob(filepath.Join(tmp, "monoagent-testhome-*")); len(left) > 0 {
+		t.Fatalf("the helper left a test home behind: %v", left)
 	}
 }
 

@@ -56,6 +56,9 @@ func Build(db *sql.DB) *workflow.NodeTypeRegistry {
 	defer buildMu.Unlock()
 	// Outbound sends started by an agent wait for approval (internal/hilsend).
 	workflow.SetExecGuard(hilsend.Guard)
+	// A reply a waiting node opens in front of a send is the user's
+	// (workflow.RedactReplies); hilsend tells what sends.
+	workflow.SetSendClassifier(hilsend.MaySend)
 	registry := workflow.NewNodeTypeRegistry()
 	control.RegisterAll(registry)
 	data.RegisterAll(registry)

@@ -201,8 +201,8 @@ func TestHilItemsStayInTheirProfile(t *testing.T) {
 	if _, err := s.rt.db.DB.Exec(`INSERT INTO workflow_executions (id, workflow_id, status, profile_id) VALUES ('ex-1', 'wf-other', 'WAITING', 'other')`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.rt.db.DB.Exec(`INSERT INTO hil_pending (id, execution_id, workflow_id, node_id, node_name, status, readonly_data, editable_data, profile_id)
-		VALUES ('h-1', 'ex-1', 'wf-other', 'n', 'N', 'pending', '{}', '{}', 'other')`); err != nil {
+	if _, err := s.rt.db.DB.Exec(`INSERT INTO hil_pending (id, execution_id, workflow_id, node_id, node_name, status, readonly_data, editable_data, node_config, profile_id)
+		VALUES ('h-1', 'ex-1', 'wf-other', 'n', 'N', 'pending', '{}', '{}', '{"outbound":false}', 'other')`); err != nil {
 		t.Fatal(err)
 	}
 

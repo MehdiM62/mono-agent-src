@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/monoes/mono-agent/internal/cli/clicore"
+	"github.com/monoes/mono-agent/internal/operator"
 	"github.com/monoes/mono-agent/internal/storage"
 	"github.com/olekukonko/tablewriter/tw"
 	"github.com/spf13/cobra"
@@ -144,6 +145,9 @@ func (d Deps) newConfigSetCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
 			value := args[1]
+			if err := d.guardReserved("set", name); err != nil {
+				return err
+			}
 
 			db, err := d.OpenDB()
 			if err != nil {
@@ -185,6 +189,9 @@ func (d Deps) newConfigDeleteCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
+			if err := d.guardReserved("delete", name); err != nil {
+				return err
+			}
 
 			db, err := d.OpenDB()
 			if err != nil {
@@ -206,4 +213,18 @@ func (d Deps) newConfigDeleteCmd() *cobra.Command {
 			return nil
 		},
 	}
+}
+
+// guardReserved refuses verb on a reserved row (operator.ReservedConfig: it
+// gates approvals, permissions or sandboxing) to whatever is not the
+// operator's own terminal; any other row is anyone's.
+func (d Deps) guardReserved(verb, name string) error {
+	if !operator.ReservedConfig(name) {
+		return nil
+	}
+	what := fmt.Sprintf("%s config %s, which gates approvals, permissions or sandboxing", verb, name)
+	if d.RequireOperator == nil {
+		return clicore.InvalidInput("only the operator can %s", what)
+	}
+	return d.RequireOperator(what)
 }

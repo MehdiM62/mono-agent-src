@@ -11,6 +11,7 @@ import (
 
 func TestPublicationAssistantToolsAndInjectionGate(t *testing.T) {
 	db := newMonoagentTestDB(t)
+	sendApprovalsOff(t, db.DB)
 	mt := NewMonoagentTools(db.DB, "", "default")
 	ctx := context.Background()
 	raw, err := mt.ExecuteContext(ctx, "register_publication", `{"platform":"blog","kind":"article","title":"Our article"}`)
@@ -35,6 +36,7 @@ func TestPublicationAssistantToolsAndInjectionGate(t *testing.T) {
 
 func TestRegisterPublicationCapAndContextProvenance(t *testing.T) {
 	db := newMonoagentTestDB(t)
+	sendApprovalsOff(t, db.DB)
 	mt := NewMonoagentTools(db.DB, "", "default")
 	big := `{"platform":"blog","kind":"article","body":"` + strings.Repeat("x", maxPublicationInput) + `"}`
 	if _, err := mt.ExecuteContext(context.Background(), "register_publication", big); err == nil {

@@ -71,7 +71,9 @@ func (d Deps) newRetryCmd() *cobra.Command {
 			if !d.JSONOutput() {
 				fmt.Fprintf(os.Stdout, "Retrying execution %s as %s\n", origID, executionID)
 			}
-			waitErr := withNodeTypeHint(waitForExecution(ctx, engine, executionID, timeout, d.JSONOutput()))
+			rr, closeRR := d.replyRedactor(ctx, executionID)
+			defer closeRR()
+			waitErr := withNodeTypeHint(waitForExecution(ctx, engine, executionID, timeout, d.JSONOutput(), rr))
 			sctx, scancel, waitErr := stoppedWait(ctx, executionID, waitErr)
 			defer scancel()
 

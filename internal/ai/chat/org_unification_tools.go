@@ -32,19 +32,19 @@ func orgUnificationToolDefs(def func(name, desc string, props map[string]interfa
 			"mode":              strParam("run (default) | trigger | status"),
 			"wait":              boolParam("Wait for the run and return its output (default true)"),
 			"timeout_seconds":   intParam("Seconds to wait when wait is true (default 600)"),
-			"approval":          strParam("none | required — required makes every call a decision routed by the org's autonomy level; omit for the safe default"),
+			"approval":          strParam("required (the default) makes every call a decision routed by the org's autonomy level; none is the user's to give and is refused here"),
 			"max_calls_per_run": intParam("Calls allowed per org run (default 20)"),
 			"revoke":            boolParam("Revoke the grant instead of setting it"),
 			"confirm":           boolParam("Must be true to apply; omit to preview"),
 		}, []string{"org_name", "role_id", "automation"}),
-		def("set_org_autonomy", "Change who decides an org's pending approvals, questions, and gates: level manual (a human decides everything), mid (rules approve routine items, the decider handles consequential ones, a human handles irreversible ones), or full (the decider handles everything, no human). Without confirm:true this only previews the change.", map[string]interface{}{
+		def("set_org_autonomy", "Change who decides an org's pending approvals, questions, and gates: level manual (a human decides everything), mid (rules approve routine items, the decider handles consequential ones, a human handles irreversible ones), or full (the decider handles everything, no human: only the user sets it, in their own terminal or the app). Without confirm:true this only previews the change.", map[string]interface{}{
 			"org_name":           strParam("The org's name"),
-			"level":              strParam("manual | mid | full"),
+			"level":              strParam("manual | mid (full is the user's to set and is refused here)"),
 			"decider":            strParam(strings.Join(orgdesign.DeciderKinds, " | ") + " (jev: TypeSafe Jev picks the verdict; the model decider handles questions and anything Jev is unsure of)"),
 			"decider_threshold":  map[string]interface{}{"type": "number", "description": "jev decider only: lowest top-verdict probability Jev decides at, in (0,1] (default 0.8)"},
 			"decider_model":      strParam("Model id for the model decider"),
 			"decider_runtime":    strParam("Runtime for the model decider (e.g. claude)"),
-			"policy":             strParam("Instructions the decider follows (operator text)"),
+			"policy":             strParam("Instructions the decider follows: the user writes them, and a change from here is refused"),
 			"on_decider_failure": strParam("deny | human — what full does when the decider fails"),
 			"confirm":            boolParam("Must be true to apply; omit to preview"),
 		}, []string{"org_name"}),
@@ -136,6 +136,12 @@ func (mt *MonoagentTools) setOrgGrant(ctx context.Context, args string) (string,
 	if err := mt.checkInjectionGate("set_org_grant"); err != nil {
 		return "", err
 	}
+	if strings.TrimSpace(a.Approval) == "none" && !a.Revoke {
+		// The chat is not the operator: a grant it makes always asks first
+		// (`org grant add` refuses none from it, and defaults to required).
+		return "", fmt.Errorf("set_org_grant: approval none lets the role run the automation without asking, which only the user can grant " +
+			"(`monoagentcli org grant add ... --approval none` in their own terminal, or the app); omit approval for a grant whose calls ask first")
+	}
 	var cli []string
 	if a.Revoke {
 		cli = []string{"grant", "remove", a.OrgName, "--role", a.RoleID, "--automation", a.Automation}
@@ -186,6 +192,18 @@ func (mt *MonoagentTools) setOrgAutonomy(ctx context.Context, args string) (stri
 	}
 	if err := mt.checkInjectionGate("set_org_autonomy"); err != nil {
 		return "", err
+	}
+	if strings.TrimSpace(a.Level) == orgdesign.LevelFull {
+		// The chat is not the operator: full puts no person in any decision
+		// (`org autonomy set` refuses it from the chat too).
+		return "", fmt.Errorf("set_org_autonomy: level full lets the org's decider handle everything with no person involved, which only the user can choose " +
+			"(`monoagentcli org autonomy set <org> --level full` in their own terminal, or the app); use manual or mid")
+	}
+	if a.Policy != nil {
+		// The policy is the decider's instructions, and which of two lets
+		// more through can't be told: the user writes it.
+		return "", fmt.Errorf("set_org_autonomy: the policy is the instructions the org's decider follows, which only the user writes " +
+			"(`monoagentcli org autonomy set <org> --policy ...` in their own terminal, or the app); leave policy out")
 	}
 	if a.Decider != "" && !orgdesign.ValidDeciderKind(a.Decider) {
 		return "", fmt.Errorf("decider %q must be one of %s", a.Decider, strings.Join(orgdesign.DeciderKinds, ", "))

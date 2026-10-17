@@ -282,3 +282,39 @@ User decisions: both "full" variants are levels; default is Dev pages + allowlis
 7. **Look-alike hosts:**
    - `browser.site` and `browser.submit` items carry `asciiHost` (the xn-- form) when the host is not ASCII.
    - The GUI card shows it next to the Unicode form, with a "check the address" hint.
+
+## C10 — hardening follow-ups (one PR, user request 2026-10-16)
+
+Branch `fix/hardening-followups` from master 4d256c96. Every fix gets a test that fails without it.
+
+1. **IPv4-mapped tabs.** `Origin()` stays the canonical match key (an IPv4-mapped literal reads as IPv4, so policy and
+   block rules hold). The `expectOrigin` sent to the extension must be Chrome's own serialization of the tab's
+   origin: lowercase, an IPv6 literal compressed and bracketed, and an IPv4-mapped one written in hex
+   (`http://[::ffff:7f00:1]`). Add `browserctl.BrowserOrigin(url)` and use it wherever expectOrigin is built.
+   A tab on `http://[::ffff:7f00:1]:8080/` must accept agent commands when 127.0.0.1 is allowed.
+2. **Task Inbox attribution.** `task add` (and the side-panel/menu capture paths that reach it) called from a process
+   with `MONOAGENT_AI_CALLER` or `MONOAGENT_WORKFLOW_RUN`, or by an unproven or other agent kind, records the task's
+   author as that caller (`chat`, `workflow:<execution id>`, `agent:<kind>`), never as "you". Reading the board stays
+   allowed. The GUI card and `task show` display the author.
+3. **MCP approvals.** The MCP `hil_approve`/`hil_reject` tools (and the HTTP API's equivalents) refuse items whose
+   kind is operator-only: `browser.submit`, `browser.site`, and `send:` items. They return a clear error that names
+   `monoagentcli hil approve <id>` in the user's own terminal or the HIL page. Workflow HIL items keep today's
+   behaviour (MCP mutations on, user decision 2026-10-13).
+4. **`publication register` approval** uses `operator.Refusal` instead of `hilsend.Detect` alone.
+5. **SSH nodes.** Every ssh/sftp command a workflow node runs carries the run marker. Request
+   `MONOAGENT_WORKFLOW_RUN` with `session.Setenv`, and also prefix the command with
+   `export MONOAGENT_WORKFLOW_RUN='<id>'; ` (the value is single-quote escaped). Then `ssh localhost monoagentcli hil
+   approve …` is refused even when sshd drops client env.
+6. **PID reuse.** Kind-token records also store the bound process's start time: Linux `/proc/<pid>/stat` field 22,
+   macOS `kinfo_proc` via `x/sys/unix`, Windows `GetProcessTimes`. A record counts only if the live process at that pid
+   has the same start time. Records older than 7 days never count.
+7. **Stored `org=full` from pre-release builds.** The permissions JSON gains `"schema":2` when written by the
+   current code. On load, a row without `schema` whose org level is `full` resets org to the default (`dev`) once,
+   and is saved back with `schema:2`. Explicit choices made after that are kept.
+8. **Test isolation.**
+   - Every Go package with tests runs them under `testhome.Main`. A package with no TestMain gets
+     `testmain_test.go`; an existing TestMain is wrapped, keeping what it does. Add `keyring.MockInit()` where the
+     package reaches the vault or keychain.
+   - A guard test in `internal/testhome` walks the module and fails for any package whose tests lack
+     `testhome.Main`. It carries a short, justified allowlist for packages that must not change HOME.
+   - Proof: a full `go test ./...` with HOME set to a sandbox writes nothing under the sandbox's `.monoagent`.

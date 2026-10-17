@@ -115,7 +115,7 @@ func Find() (string, error) {
 	var tried []string
 	for _, cand := range CandidatePaths() {
 		tried = append(tried, cand)
-		if path, err := exec.LookPath(cand); err == nil {
+		if path, err := exec.LookPath(cand); err == nil && discoverable(cand, path) {
 			abs, err := filepath.Abs(path)
 			if err != nil {
 				abs = path
@@ -141,7 +141,7 @@ func FindAll() []string {
 	seen := map[string]bool{}
 	for _, cand := range CandidatePaths() {
 		path, err := exec.LookPath(cand)
-		if err != nil {
+		if err != nil || !discoverable(cand, path) {
 			continue
 		}
 		abs, err := filepath.Abs(path)
@@ -161,6 +161,55 @@ func FindAll() []string {
 		}
 	}
 	return out
+}
+
+// UnderTestEnv is set to 1 by internal/testhome for every test binary, and
+// so for every process its tests start (the CLI included).
+const UnderTestEnv = "MONOAGENT_UNDER_TEST"
+
+// discoverable is a test-only safety net: under UnderTestEnv, a monomind
+// found on the discovery ladder (path, from candidate cand) counts only when
+// the folder it was found in lies in the temp dir, GOTMPDIR or the test's
+// HOME, where a test put a fake (a fake may be a symlink to a script in
+// testdata, so the folder is resolved, not the file). Anything else is the
+// user's real install, which a test must never start (it updates itself over
+// the network and outlives the test), so it counts as not installed.
+// MONOMIND_BIN itself is always honoured (opt-in live tests set it). Outside
+// a test this is always true: the marker can only stop discovery, never
+// widen it.
+func discoverable(cand, path string) bool {
+	if os.Getenv(UnderTestEnv) != "1" {
+		return true
+	}
+	if env := strings.TrimSpace(os.Getenv(EnvOverride)); env != "" && cand == env {
+		return true
+	}
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return false
+	}
+	real, err := filepath.EvalSymlinks(filepath.Dir(abs))
+	if err != nil {
+		return false
+	}
+	roots := []string{os.TempDir(), os.Getenv("GOTMPDIR")}
+	if home, err := os.UserHomeDir(); err == nil {
+		roots = append(roots, home)
+	}
+	for _, root := range roots {
+		if root == "" {
+			continue
+		}
+		r, err := filepath.EvalSymlinks(root)
+		if err != nil {
+			continue
+		}
+		rel, err := filepath.Rel(r, real)
+		if err == nil && !filepath.IsAbs(rel) && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			return true
+		}
+	}
+	return false
 }
 
 // Handshake runs `monomind --version --json` and validates the payload

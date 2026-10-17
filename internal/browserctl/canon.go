@@ -3,6 +3,7 @@ package browserctl
 import (
 	"fmt"
 	"net"
+	"net/netip"
 	"net/url"
 	"strconv"
 	"strings"
@@ -76,6 +77,66 @@ func joinOrigin(scheme, host, port string) string {
 		host += ":" + port
 	}
 	return scheme + "://" + host
+}
+
+// BrowserOrigin is rawURL's origin exactly as Chrome serializes it (the
+// extension's `new URL(u).origin`), for what the extension compares with
+// a tab's origin (expectOrigin, a read's origin filter): the host
+// lowercase and in its xn-- form, a numeric IPv4 host dotted, a trailing
+// dot kept, an IPv6 literal compressed and bracketed, an IPv4-mapped one
+// in hex ("http://[::ffff:7f00:1]"), the default port dropped. Origin, not
+// this, is the key policy and rules match on.
+func BrowserOrigin(rawURL string) string {
+	u, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil || u.Host == "" {
+		return shortURL(rawURL)
+	}
+	host := u.Hostname()
+	if ip, err := netip.ParseAddr(host); err == nil && ip.Is6() && ip.Zone() == "" {
+		host = whatwgIPv6(ip)
+	} else {
+		host, _ = asciiHost(host)
+	}
+	return joinOrigin(strings.ToLower(u.Scheme), host, u.Port())
+}
+
+// whatwgIPv6 writes ip as the URL standard does: eight lowercase hex
+// pieces with the first longest run of two or more zero pieces as "::",
+// an embedded IPv4 address in hex too.
+func whatwgIPv6(ip netip.Addr) string {
+	b := ip.As16()
+	var pieces [8]uint16
+	for i := range pieces {
+		pieces[i] = uint16(b[2*i])<<8 | uint16(b[2*i+1])
+	}
+	start, length := -1, 1
+	for i := 0; i < 8; {
+		if pieces[i] != 0 {
+			i++
+			continue
+		}
+		j := i
+		for j < 8 && pieces[j] == 0 {
+			j++
+		}
+		if j-i > length {
+			start, length = i, j-i
+		}
+		i = j
+	}
+	var sb strings.Builder
+	for i := 0; i < 8; i++ {
+		if i == start {
+			sb.WriteString("::")
+			i += length - 1
+			continue
+		}
+		if i > 0 && i != start+length { // "::" already ends with the separator
+			sb.WriteByte(':')
+		}
+		sb.WriteString(strconv.FormatUint(uint64(pieces[i]), 16))
+	}
+	return sb.String()
 }
 
 // UnicodeHost is host for a person to read: its xn-- labels decoded. It is

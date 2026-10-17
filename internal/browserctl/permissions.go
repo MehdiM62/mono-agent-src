@@ -132,7 +132,29 @@ func LoadPermissions(db *sql.DB) (Permissions, error) {
 	if err != nil {
 		return DefaultPermissions(), err
 	}
-	return parsePermissions(db, raw, found)
+	p, legacy, err := parsePermissions(db, raw, found)
+	if err == nil && legacy {
+		// Saved back with the schema, so it happens once and a choice made
+		// after it is kept; a writer that got there first wins.
+		if _, b, err := encodePermissions(p); err == nil {
+			_, _ = db.Exec(`UPDATE configs SET config_data = ?, updated_at = CURRENT_TIMESTAMP
+				WHERE name = ? AND config_data = ?`, b, PermissionsSetting, raw)
+		}
+	}
+	return p, err
+}
+
+// permissionsSchema is the stored setting's version, written with it. A
+// row without one may hold org=full, the default of builds before the
+// release (which made dev the default for org roles): read once, org goes
+// back to its default.
+const permissionsSchema = 2
+
+// storedPermissions is the setting as the configs row holds it.
+type storedPermissions struct {
+	Schema int               `json:"schema,omitempty"`
+	Levels map[string]string `json:"levels"`
+	Sites  []SiteRule        `json:"sites"`
 }
 
 // permissionsRow is the stored setting's text; found is false when there
@@ -148,23 +170,29 @@ func permissionsRow(db *sql.DB) (raw string, found bool, err error) {
 	return raw, true, nil
 }
 
-func parsePermissions(db *sql.DB, raw string, found bool) (Permissions, error) {
-	p := DefaultPermissions()
+// parsePermissions reads the stored text (found: there is a row). legacy
+// reports a row from before permissionsSchema whose org=full was reset.
+func parsePermissions(db *sql.DB, raw string, found bool) (p Permissions, legacy bool, err error) {
+	p = DefaultPermissions()
 	if !found {
 		old, err := loadOldAllowlist(db)
 		if err != nil {
-			return p, err
+			return p, false, err
 		}
 		for _, o := range old {
 			p.Sites = append(p.Sites, SiteRule{Origin: o, Rule: RuleAllow})
 		}
-		return p, nil
+		return p, false, nil
 	}
-	var stored Permissions
+	var stored storedPermissions
 	if err := json.Unmarshal([]byte(raw), &stored); err != nil {
-		return p, fmt.Errorf("reading the browser permissions: %w", err)
+		return p, false, fmt.Errorf("reading the browser permissions: %w", err)
 	}
 	for k, v := range stored.Levels {
+		if k == KindOrg && v == LevelFull && stored.Schema < permissionsSchema {
+			legacy = true
+			continue
+		}
 		if validKind(k) && validLevel(v) {
 			p.Levels[k] = v
 		}
@@ -174,7 +202,7 @@ func parsePermissions(db *sql.DB, raw string, found bool) (Permissions, error) {
 			p.Sites = mergeSite(p.Sites, c)
 		}
 	}
-	return p, nil
+	return p, legacy, nil
 }
 
 // canonSite checks one rule and puts its origin in canonical form.
@@ -239,7 +267,7 @@ func UpdatePermissions(db *sql.DB, change func(*Permissions) error) (Permissions
 		if err != nil {
 			return Permissions{}, err
 		}
-		p, err := parsePermissions(db, raw, found)
+		p, _, err := parsePermissions(db, raw, found)
 		if err != nil {
 			return p, err
 		}
@@ -271,7 +299,8 @@ func UpdatePermissions(db *sql.DB, change func(*Permissions) error) (Permissions
 	return Permissions{}, errPermissionsBusy
 }
 
-// encodePermissions checks p and returns its stored form and text.
+// encodePermissions checks p and returns its stored form and text (with
+// permissionsSchema).
 func encodePermissions(p Permissions) (Permissions, string, error) {
 	out := DefaultPermissions()
 	for k, v := range p.Levels {
@@ -288,7 +317,7 @@ func encodePermissions(p Permissions) (Permissions, string, error) {
 		out.Sites = mergeSite(out.Sites, c)
 	}
 	sort.Slice(out.Sites, func(i, j int) bool { return out.Sites[i].Origin < out.Sites[j].Origin })
-	b, err := json.Marshal(out)
+	b, err := json.Marshal(storedPermissions{Schema: permissionsSchema, Levels: out.Levels, Sites: out.Sites})
 	return out, string(b), err
 }
 
@@ -375,6 +404,15 @@ func (p Permissions) Sited(rule string) []string {
 func (p Permissions) Blocked(rawURL string) bool {
 	var be *SiteBlockedError
 	return errors.As(Policy{Agent: true, Level: LevelFullNoApprovals, Blocklist: p.Sited(RuleBlock)}.Check(rawURL), &be)
+}
+
+// StricterKind is whichever of kinds a and b has the stricter level in p
+// (a when they have the same one), for a caller that could be either.
+func (p Permissions) StricterKind(a, b string) string {
+	if strictness[p.Level(b)] > strictness[p.Level(a)] {
+		return b
+	}
+	return a
 }
 
 // PolicyFor is the policy for an agent of kind ("" is a human terminal:

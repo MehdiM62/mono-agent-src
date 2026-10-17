@@ -14,6 +14,8 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+
+	"github.com/monoes/mono-agent/internal/profileorder"
 )
 
 // errNoProfile is what every binding that needs a profile returns while none
@@ -71,7 +73,7 @@ func saveSelectedProfile(path, id string) error {
 }
 
 // chooseProfile picks the selection from the profiles that exist: the saved
-// one while it still exists, otherwise the oldest profile (ties broken by id,
+// one while it still exists, otherwise the oldest profile (by created_at in either stored format, ties broken by id,
 // so the choice is the same on every start). No profiles is errNoProfile.
 func chooseProfile(saved string, profiles []cliProfile) (string, error) {
 	if len(profiles) == 0 {
@@ -84,10 +86,7 @@ func chooseProfile(saved string, profiles []cliProfile) (string, error) {
 	}
 	sorted := append([]cliProfile(nil), profiles...)
 	sort.SliceStable(sorted, func(i, j int) bool {
-		if sorted[i].CreatedAt != sorted[j].CreatedAt {
-			return sorted[i].CreatedAt < sorted[j].CreatedAt
-		}
-		return sorted[i].ID < sorted[j].ID
+		return profileorder.Older(sorted[i].CreatedAt, sorted[i].ID, sorted[j].CreatedAt, sorted[j].ID)
 	})
 	return sorted[0].ID, nil
 }

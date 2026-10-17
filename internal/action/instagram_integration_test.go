@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 	"github.com/monoes/mono-agent/internal/bot"
 	_ "github.com/monoes/mono-agent/internal/bot/instagram"
 	"github.com/monoes/mono-agent/internal/browser"
+	"github.com/monoes/mono-agent/internal/testhome"
 
 	// Import SQLite driver for session cookie loading.
 	_ "modernc.org/sqlite"
@@ -60,7 +62,8 @@ func (s *testStorageAdapter) IncrementDailyActionCount(actionType string) (int, 
 }
 
 // launchTestBrowser creates a visible Chrome browser with Instagram session
-// cookies restored. Requires a valid session in ~/.monoagent/monoagent.db.
+// cookies restored. Requires a valid session in the user's own
+// ~/.monoagent/monoagent.db (testhome.RealHome: the tests run in a test home).
 func launchTestBrowser(t *testing.T) (*rod.Browser, *rod.Page, func()) {
 	t.Helper()
 
@@ -84,7 +87,7 @@ func launchTestBrowser(t *testing.T) (*rod.Browser, *rod.Page, func()) {
 	}
 
 	// Restore session cookies from the database.
-	dbPath := os.ExpandEnv("$HOME/.monoagent/monoagent.db")
+	dbPath := filepath.Join(testhome.RealHome(), ".monoagent", "monoagent.db")
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		browser.Close()

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/monoes/mono-agent/internal/browserctl"
+	"github.com/monoes/mono-agent/internal/hilsend"
 	"github.com/monoes/mono-agent/internal/storage"
 	"github.com/monoes/mono-agent/internal/testdb"
 	"github.com/monoes/mono-agent/internal/workflow"
@@ -61,7 +62,8 @@ type taskJSON struct {
 		Title string `json:"title"`
 		App   string `json:"app"`
 	} `json:"source"`
-	Claim *struct {
+	Author string `json:"author"`
+	Claim  *struct {
 		By string `json:"by"`
 	} `json:"claim"`
 }
@@ -178,6 +180,30 @@ func TestTaskOperatorDecisionsRefuseTheChatAndWorkflowRuns(t *testing.T) {
 		if mustTaskJSON(t, db, "Work", &shown, "", "show", n); shown.Task.Status != want {
 			t.Errorf("task %s is %s, want %s", n, shown.Task.Status, want)
 		}
+	}
+}
+
+// A task the chat's runs, a workflow or an agent that gives no name adds is
+// theirs, named as internal/operator.Caller names them, never "you" (C10).
+func TestTaskAddNamesWhatIsNotTheOperator(t *testing.T) {
+	db := newTaskTestDB(t)
+	addTaskProfileRow(t, db, "work-id", "Work")
+	for _, c := range []struct{ env, value, author string }{
+		{browserctl.EnvAICaller, "chat", "chat"},
+		{workflow.EnvWorkflowRun, "exec-7", "workflow:exec-7"},
+		{hilsend.EnvAgentContext, "1", "agent:other"},
+	} {
+		t.Setenv(c.env, c.value)
+		var added addedJSON
+		mustTaskJSON(t, db, "Work", &added, "", "add", "from", c.author)
+		t.Setenv(c.env, "")
+		if added.Task.Author != c.author || added.Task.Source.Kind != "agent" {
+			t.Errorf("added with %s=%s: %+v", c.env, c.value, added.Task)
+		}
+	}
+	var mine addedJSON
+	if mustTaskJSON(t, db, "Work", &mine, "", "add", "mine"); mine.Task.Author != "you" || mine.Task.Source.Kind != "cli" {
+		t.Errorf("the operator's task: %+v", mine.Task)
 	}
 }
 

@@ -43,6 +43,11 @@ export function reportRunFailure(error, { activateAndRun } = {}) {
   errorBus.dispatchEvent(new CustomEvent('api:error', { detail: { op: 'run workflow', message: String(error), code: '', action } }))
 }
 
+// Before the first profile exists every profile-scoped read answers "no profile
+// selected". That is a state the dashboard shows, not a failure to warn about.
+export const isNoProfileError = (e) => /no profile selected/i.test(e?.message || String(e))
+export const NO_PROFILE = Object.freeze({ no_profile: true })
+
 // Wrap a binding call so failures are reported and fall back to `fallback`.
 const guard = (op, fallback) => (e) => { reportError(op, e); return fallback }
 
@@ -83,19 +88,19 @@ export const api = {
   getPublication: (id) => GoApp.GetPublication(id).then(parseCLIJSON('publication')),
   getPublicationStats: () => GoApp.GetPublicationStats().then(parseCLIJSON('publication stats')),
   getDashboardStats:    () => GoApp.GetDashboardStats().catch(guard('dashboard stats', null)),
-  getSummary:           () => GoApp.GetSummary().then(parseCLIJSON('summary')).catch(guard('summary', null)),
+  getSummary:           () => GoApp.GetSummary().then(parseCLIJSON('summary')).catch(e => (isNoProfileError(e) ? NO_PROFILE : guard('summary', null)(e))),
   getSummarySections:   (csv) => GoApp.GetSummarySections(csv).then(parseCLIJSON('summary')).catch(guard('summary', null)),
   // `extension status --json`: is a bridge running, and does it accept this
   // client's pairing token. Polled by the dashboard, so failures stay quiet.
   getExtensionStatus:   () => Promise.resolve(GoApp.GetExtensionStatus?.()).then(raw => (raw ? parseCLIJSON('extension status')(raw) : null)).catch(() => null),
-  getOrgSummary:        (fast = true) => GoApp.GetOrgSummary(fast).then(parseCLIJSON('org summary')).catch(guard('org summary', null)),
+  getOrgSummary:        (fast = true) => GoApp.GetOrgSummary(fast).then(parseCLIJSON('org summary')).catch(e => (isNoProfileError(e) ? null : guard('org summary', null)(e))),
   // The dashboard's All profiles view: the same reads across every profile,
   // each row tagged with profile_id/profile_name.
   getGlobalSummary:       () => GoApp.GetGlobalSummary().then(parseCLIJSON('summary')).catch(guard('summary', null)),
   getGlobalOrgSummary:    (fast = true) => GoApp.GetGlobalOrgSummary(fast).then(parseCLIJSON('org summary')).catch(guard('org summary', null)),
   listAllWorkflows:       () => GoApp.ListAllProfilesWorkflows().catch(guard('list workflows', [])),
   getAllRecentExecutions: (limit = 20) => GoApp.GetAllProfilesRecentExecutions(limit).catch(guard('recent executions', [])),
-  listWorkflows:        () => GoApp.ListWorkflows().catch(guard('list workflows', [])),
+  listWorkflows:        () => GoApp.ListWorkflows().catch(e => (isNoProfileError(e) ? [] : guard('list workflows', [])(e))),
   // Starting a run resolves { ok: true } or { ok: false, error } at once — the
   // caller decides how to report it (an inactive workflow gets an "Activate &
   // run" toast, see reportRunFailure), and never waits on a run that was
@@ -116,7 +121,7 @@ export const api = {
     }
   },
   setWorkflowActive:    (id, active) => GoApp.SetWorkflowActive(id, active),
-  getRecentExecutions:  (limit = 20) => GoApp.GetRecentExecutions(limit).catch(guard('recent executions', [])),
+  getRecentExecutions:  (limit = 20) => GoApp.GetRecentExecutions(limit).catch(e => (isNoProfileError(e) ? [] : guard('recent executions', [])(e))),
   getWorkflowExecutions:(id, limit = 20) => GoApp.GetWorkflowExecutions(id, limit).catch(guard('workflow executions', [])),
   getExecutionDetail:   (id) => GoApp.GetExecutionDetail(id).catch(guard('execution detail', null)),
   cancelWorkflow:       (id) => GoApp.CancelWorkflow(id).catch(e => { reportError('cancel workflow', e); return `error: ${e}` }),

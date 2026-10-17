@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/monoes/mono-agent/internal/connections"
 	"github.com/monoes/mono-agent/internal/hilsend"
+	"github.com/monoes/mono-agent/internal/profiledir"
 	"github.com/monoes/mono-agent/internal/publication"
 	"github.com/monoes/mono-agent/internal/vault"
 	"github.com/monoes/mono-agent/internal/workflow"
@@ -80,11 +82,17 @@ func toolNodeRun(ctx context.Context, s *Server, args json.RawMessage) (interfac
 	}
 
 	ctx = vault.ContextWithProfileID(vault.ContextWithDB(ctx, rt.db.DB), profileOf(ctx))
+	// An AI wrote this config, as it writes a workflow the user never
+	// approved: the node runs as in such a workflow (no programs on this
+	// computer, no hidden files in the user's home outside the project
+	// folder, approvals for what needs the user's).
+	ctx = workflow.WithUnapproved(ctx, profiledir.Root(rt.db.DB, profileOf(ctx)),
+		"node_run never does that for an AI: put the step in a workflow and have the user save or activate it")
 	if queued, handled, gerr := workflow.RunExecGuard(ctx, a.Type, workflow.NodeInput{Items: items}, config); handled {
 		if gerr != nil {
 			return nil, fmt.Errorf("node %s failed: %w", a.Type, gerr)
 		}
-		return renderOutputs(queued), nil
+		return renderOutputs(queued, workflow.NewReplyRedactor(ctx, rt.db.DB)), nil
 	}
 	input := workflow.NodeInput{
 		Items:       items,
@@ -96,10 +104,20 @@ func toolNodeRun(ctx context.Context, s *Server, args json.RawMessage) (interfac
 	}
 	outputs, err := factory().Execute(ctx, input, config)
 	recordPublications(ctx, rt, a.Type, config, input, outputs)
+	if errors.Is(err, workflow.ErrUnapprovedProgram) {
+		return nil, fmt.Errorf("node %s runs a program on this computer, which node_run never does for an AI: "+
+			"put the step in a workflow and have the user save or activate it in the app or their own terminal", a.Type)
+	}
+	// An agent reaches this server: reply tokens in the node's outputs or
+	// error are hidden from it (workflow.ReplyRedactor).
+	rr := workflow.NewReplyRedactor(ctx, rt.db.DB, input.ExecutionID)
 	if err != nil {
+		if msg := rr.String(err.Error()); msg != err.Error() {
+			return nil, fmt.Errorf("node %s failed: %s", a.Type, msg)
+		}
 		return nil, fmt.Errorf("node %s failed: %w", a.Type, err)
 	}
-	return renderOutputs(outputs), nil
+	return renderOutputs(outputs, rr), nil
 }
 
 func unknownNodeType(rt *runtime, nodeType string) error {
@@ -137,11 +155,11 @@ func parseInputItems(raw json.RawMessage) ([]workflow.Item, error) {
 }
 
 // renderOutputs maps each handle to its items, redacted and size-capped as
-// every node output this server returns is.
-func renderOutputs(outputs []workflow.NodeOutput) map[string]interface{} {
+// every node output this server returns is, with rr's reply tokens hidden.
+func renderOutputs(outputs []workflow.NodeOutput, rr *workflow.ReplyRedactor) map[string]interface{} {
 	out := map[string]interface{}{}
 	for _, o := range outputs {
-		items := workflow.RedactAndTruncateItems(o.Items)
+		items := rr.Items(workflow.RedactAndTruncateItems(o.Items))
 		if items == nil {
 			items = []workflow.Item{}
 		}

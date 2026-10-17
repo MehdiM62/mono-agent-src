@@ -267,6 +267,13 @@ func (d *Database) reconcileLegacyOwners(ctx context.Context) error {
 	if !profiles {
 		return nil
 	}
+	owner, err := d.LegacyOwnerProfile(ctx)
+	if err != nil {
+		return err
+	}
+	if owner == "" {
+		return nil
+	}
 	for _, table := range legacyOwnerTables {
 		has, err := d.columnExists(ctx, table, "profile_id")
 		if err != nil {
@@ -276,8 +283,8 @@ func (d *Database) reconcileLegacyOwners(ctx context.Context) error {
 			continue
 		}
 		if _, err := d.DB.ExecContext(ctx, `UPDATE OR IGNORE `+table+`
-			SET profile_id = (SELECT id FROM profiles ORDER BY (id = 'default') DESC, created_at ASC, id ASC LIMIT 1)
-			WHERE (profile_id IS NULL OR profile_id = '') AND EXISTS (SELECT 1 FROM profiles)`); err != nil {
+			SET profile_id = ?
+			WHERE (profile_id IS NULL OR profile_id = '')`, owner); err != nil {
 			return fmt.Errorf("storage: reconcile: stamping %s owner: %w", table, err)
 		}
 	}

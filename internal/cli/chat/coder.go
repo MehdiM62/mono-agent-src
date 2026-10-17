@@ -235,7 +235,9 @@ func newCoderCmd(cfg *Deps) *cobra.Command {
 			"read or change any file your user can, with no approval prompts, and it loads your normal " +
 			"setup for that agent (its instructions files, skills, hooks, MCP servers). It is off until " +
 			"enabled here. Web pages and files in the folder can carry instructions that steer it, so " +
-			"only point it at folders you trust.",
+			"only point it at folders you trust. A workflow's processes and the chat's runs can't start a " +
+			"coder chat: start it from the app or your own terminal, or have the workflow queue one with " +
+			"`coder queue add` for the app's Start.",
 	}
 	cmd.AddCommand(newCoderStatusCmd(cfg), newCoderEnableCmd(cfg), newCoderDisableCmd(cfg), newCoderSetCmd(cfg), newCoderWorkspaceCmd(cfg), newCoderStopBackgroundCmd(cfg),
 		newCoderQueueCmd(cfg), newCoderProjectsCmd(cfg), newCoderListCmd(cfg))
@@ -294,7 +296,10 @@ func newCoderStatusCmd(cfg *Deps) *cobra.Command {
 
 func newCoderEnableCmd(cfg *Deps) *cobra.Command {
 	var yes bool
-	c := coderSettingsCmd(cfg, "enable", "Enable coder mode (full-access chats)", func(_ *cobra.Command, s *coderSettings) error {
+	c := coderSettingsCmd(cfg, "enable", "Enable coder mode (full-access chats; operator only)", func(_ *cobra.Command, s *coderSettings) error {
+		if err := cfg.RequireOperator("enable coder mode, which runs chats with full access to this computer"); err != nil {
+			return err
+		}
 		if !yes {
 			return clicore.InvalidInput("coder mode gives the agent full access to this computer; pass --yes-i-understand to enable it")
 		}
@@ -312,6 +317,10 @@ func newCoderDisableCmd(cfg *Deps) *cobra.Command {
 	})
 }
 
+// operatorCoderFlags are the `coder set` flags only the operator changes:
+// where a full-access chat works and the caps on how far it goes.
+var operatorCoderFlags = []string{"workspace-root", "max-turns", "timeout", "budget-usd", "org-max-agents", "org-max-concurrent", "org-budget-usd"}
+
 func newCoderSetCmd(cfg *Deps) *cobra.Command {
 	var (
 		root     string
@@ -328,6 +337,16 @@ func newCoderSetCmd(cfg *Deps) *cobra.Command {
 	)
 	c := coderSettingsCmd(cfg, "set", "Change coder mode's defaults", func(cmd *cobra.Command, s *coderSettings) error {
 		f := cmd.Flags()
+		// Where a full-access chat works and how far it may go are the
+		// operator's, as the send-approval setting is.
+		for _, name := range operatorCoderFlags {
+			if f.Changed(name) {
+				if err := cfg.RequireOperator("change coder mode's --" + name + ", which bounds a full-access chat"); err != nil {
+					return err
+				}
+				break
+			}
+		}
 		if f.Changed("workspace-root") {
 			abs, err := filepath.Abs(expandHome(root))
 			if err != nil {
@@ -399,13 +418,13 @@ func newCoderSetCmd(cfg *Deps) *cobra.Command {
 		return nil
 	})
 	c.Flags().BoolVar(&sendAppr, "send-approval", true, "An agent's sends (email, DM, comment, post, connect, publish) wait for your approval (operator only)")
-	c.Flags().StringVar(&root, "workspace-root", "", "Folder new test workspaces are created in")
-	c.Flags().IntVar(&maxTurns, "max-turns", 0, "Agent turn cap per message")
-	c.Flags().StringVar(&timeout, "timeout", "", "Wall-clock cap per message (e.g. 60m)")
-	c.Flags().Float64Var(&budget, "budget-usd", 0, "Spend cap per message in USD (0 = none)")
-	c.Flags().IntVar(&orgMax, "org-max-agents", 0, "Dynamic org: workers the lead may spawn per message (default 6)")
-	c.Flags().IntVar(&orgConc, "org-max-concurrent", 0, "Dynamic org: workers running at once (default 3)")
-	c.Flags().Float64Var(&orgBudg, "org-budget-usd", 0, "Dynamic org: worker cost cap per message in USD, estimated for runtimes that report none (0 = none)")
+	c.Flags().StringVar(&root, "workspace-root", "", "Folder new test workspaces are created in (operator only)")
+	c.Flags().IntVar(&maxTurns, "max-turns", 0, "Agent turn cap per message (operator only)")
+	c.Flags().StringVar(&timeout, "timeout", "", "Wall-clock cap per message (e.g. 60m; operator only)")
+	c.Flags().Float64Var(&budget, "budget-usd", 0, "Spend cap per message in USD (0 = none; operator only)")
+	c.Flags().IntVar(&orgMax, "org-max-agents", 0, "Dynamic org: workers the lead may spawn per message (default 6; operator only)")
+	c.Flags().IntVar(&orgConc, "org-max-concurrent", 0, "Dynamic org: workers running at once (default 3; operator only)")
+	c.Flags().Float64Var(&orgBudg, "org-budget-usd", 0, "Dynamic org: worker cost cap per message in USD, estimated for runtimes that report none (0 = none; operator only)")
 	c.Flags().StringVar(&picker, "org-model-picker", "", "Dynamic org: who picks a worker's model when the lead doesn't: lead-then-jev (default) or lead")
 	c.Flags().StringVar(&router, "org-router", "", "Dynamic org (coder.router): who picks a worker's role and skills when the lead doesn't: auto (default; monomind pick when confident, else Jev, else the lead), jev or model (the lead names roles from org_roster)")
 	c.Flags().StringVar(&writers, "org-writers", "", "Dynamic org: shared (default; one writer at a time under the write lease) or isolated (each writer gets its own git worktree and branch, merged by the lead; its checkpoint commits skip git hooks, so merged work never passed pre-commit, and the worktrees under .monoagent-worktrees/ are visible to tools that ignore git excludes)")

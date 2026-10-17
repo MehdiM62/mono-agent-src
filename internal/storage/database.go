@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -22,6 +23,13 @@ type Database struct {
 	DB     *sql.DB
 	dbPath string
 }
+
+// pingDeadline bounds how long the first open retries a locked database;
+// pingContext is the probe (replaced in tests).
+var (
+	pingDeadline = 10 * time.Second
+	pingContext  = func(ctx context.Context, db *sql.DB) error { return db.PingContext(ctx) }
+)
 
 // NewDatabase opens (or creates) a SQLite database at dbPath and configures it
 // for production use: WAL journal mode, a busy timeout of 5 seconds, and
@@ -52,7 +60,28 @@ func NewDatabase(dbPath string) (*Database, error) {
 	}
 
 	// Verify the connection is usable.
-	if err := db.Ping(); err != nil {
+	// The first open of a fresh file switches it to WAL, which needs an
+	// exclusive lock the busy timeout does not cover; a concurrent first
+	// start can hit SQLITE_BUSY here, so retry briefly.
+	pingCtx, cancelPing := context.WithTimeout(context.Background(), pingDeadline)
+	defer cancelPing()
+	var pingErr error
+	for {
+		pingErr = pingContext(pingCtx, db)
+		if pingErr == nil {
+			break
+		}
+		busy := strings.Contains(pingErr.Error(), "SQLITE_BUSY")
+		if !busy && pingCtx.Err() == nil {
+			break
+		}
+		if pingCtx.Err() != nil {
+			db.Close()
+			return nil, fmt.Errorf("database %s stayed locked for %s: %w", absPath, pingDeadline, pingErr)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if err := pingErr; err != nil {
 		db.Close()
 		return nil, fmt.Errorf("pinging database: %w", err)
 	}
@@ -66,6 +95,38 @@ func NewDatabase(dbPath string) (*Database, error) {
 // Migrations are applied in filename order (e.g. 001_initial.sql before
 // 002_add_feature.sql).
 func (d *Database) ApplyMigrations() error {
+	// Concurrent first starts (the desktop app launches several CLI calls at
+	// once) would each see the same pending set and race to apply it. A
+	// cross-process lock serialises them; the applied set is read after the
+	// lock is held, so the losers find everything already recorded.
+	if d.dbPath != "" && !strings.Contains(d.dbPath, ":memory:") {
+		lf, err := os.OpenFile(d.dbPath+".migrate.lock", os.O_CREATE|os.O_RDWR, 0o600)
+		if err != nil {
+			return fmt.Errorf("opening migration lock: %w", err)
+		}
+		defer lf.Close()
+		if err := lockFile(lf); err != nil {
+			return fmt.Errorf("taking migration lock: %w", err)
+		}
+		defer unlockFile(lf)
+	}
+	return d.applyMigrations()
+}
+
+// recordMigrationSQL tolerates an already-recorded version: an applier that
+// ran without the cross-process lock may have recorded it first.
+const recordMigrationSQL = "INSERT OR IGNORE INTO schema_migrations (version, filename) VALUES (?, ?)"
+
+type migrationExecer interface {
+	Exec(query string, args ...any) (sql.Result, error)
+}
+
+func recordMigration(e migrationExecer, version int, filename string) error {
+	_, err := e.Exec(recordMigrationSQL, version, filename)
+	return err
+}
+
+func (d *Database) applyMigrations() error {
 	ctx := context.Background()
 
 	// Migrations run on a single dedicated connection with foreign key
@@ -224,7 +285,7 @@ func (d *Database) ApplyMigrations() error {
 		}
 
 		// Record the migration as applied.
-		if _, err := tx.Exec("INSERT INTO schema_migrations (version, filename) VALUES (?, ?)", m.version, m.filename); err != nil {
+		if err := recordMigration(tx, m.version, m.filename); err != nil {
 			tx.Rollback()
 			return fmt.Errorf("recording migration %d: %w", m.version, err)
 		}
@@ -251,7 +312,26 @@ func (d *Database) ApplyMigrations() error {
 	// reliably, so it runs as a Go step after the schema migrations above
 	// have created workflow_node_targets (030_workflow_action_bridge.sql).
 	// Self-idempotent: no-ops once the actions table is gone.
-	return MigrateActionsToWorkflows(ctx, d.DB)
+	if err := MigrateActionsToWorkflows(ctx, d.DB); err != nil {
+		return err
+	}
+	for _, step := range afterMigrations {
+		if err := step(ctx, d.DB); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// afterMigrations are data steps packages this one cannot import need once
+// the schema is current (RegisterAfterMigrations).
+var afterMigrations []func(ctx context.Context, db *sql.DB) error
+
+// RegisterAfterMigrations adds step to what ApplyMigrations runs last, on
+// every open: it must be idempotent, and cheap once its work is done. Call
+// it from an init.
+func RegisterAfterMigrations(step func(ctx context.Context, db *sql.DB) error) {
+	afterMigrations = append(afterMigrations, step)
 }
 
 // migration is one embedded schema migration file.

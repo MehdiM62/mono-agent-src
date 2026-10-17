@@ -16,6 +16,15 @@ func EntrySchema() map[string]interface{} {
 	return props
 }
 
+// RegisterSchema is EntrySchema with approval: what an agent or the chat
+// registers belongs to a send the user approved and that was sent, named by
+// its id while the user's approval of sends is on.
+func RegisterSchema() map[string]interface{} {
+	props := EntrySchema()
+	props["approval"] = map[string]interface{}{"type": "string", "description": "The id of the send the user approved, and that was sent, which made this publication (same platform; same remote id where both have one; one approval registers one publication): needed while the user's approval of sends is on"}
+	return props
+}
+
 func FilterSchema() map[string]interface{} {
 	props := map[string]interface{}{}
 	for _, key := range []string{"search", "platform", "kind", "workflow_id", "agent_id", "since", "until"} {

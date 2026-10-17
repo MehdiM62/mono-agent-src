@@ -226,6 +226,11 @@
       "evaluated_other": "{{count}} evaluadas",
       "unread": "{{count}} sin leer"
     },
+    "noProfile": {
+      "title": "Ningún perfil seleccionado",
+      "body": "Crea primero un perfil: el panel muestra lo que ocurre dentro de uno.",
+      "action": "Nuevo perfil"
+    },
     "scope": {
       "label": "Mostrar",
       "profile": "Este perfil",

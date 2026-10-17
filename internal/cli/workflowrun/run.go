@@ -11,6 +11,7 @@ import (
 	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/cli/workflowtemplates"
 	"github.com/monoes/mono-agent/internal/nodes/browserjev"
+	"github.com/monoes/mono-agent/internal/operator"
 	"github.com/monoes/mono-agent/internal/workflow"
 	"github.com/spf13/cobra"
 )
@@ -19,7 +20,8 @@ import (
 // WAITING that is only for its sub-workflows), printing
 // its final status, or returns an error once timeout elapses. When quiet is
 // true the status lines are suppressed (JSON callers emit their own record).
-func waitForExecution(ctx context.Context, engine *workflow.WorkflowEngine, executionID string, timeout time.Duration, quiet bool) error {
+// rr hides reply tokens in the run's error (nil: none).
+func waitForExecution(ctx context.Context, engine *workflow.WorkflowEngine, executionID string, timeout time.Duration, quiet bool, rr *workflow.ReplyRedactor) error {
 	deadline := time.Now().Add(timeout)
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
@@ -52,6 +54,7 @@ func waitForExecution(ctx context.Context, engine *workflow.WorkflowEngine, exec
 				if err != nil {
 					return fmt.Errorf("poll execution: %w", err)
 				}
+				exec.ErrorMessage = rr.String(exec.ErrorMessage)
 				if !quiet {
 					if exec.ErrorMessage != "" {
 						fmt.Fprintf(os.Stdout, "Status: %s\nError:  %s\n", exec.Status, exec.ErrorMessage)
@@ -181,6 +184,9 @@ func (d Deps) newTemplatesRunCmd() *cobra.Command {
 			if err := engine.ActivateWorkflow(ctx, wf.ID); err != nil {
 				return fmt.Errorf("activate workflow: %w", err)
 			}
+			if err := operator.ApproveWorkflow(ctx, engine, wf.ID); err != nil {
+				fmt.Fprintf(os.Stderr, "warning: recording this workflow as yours failed, so its runs count as an AI's until you save or activate it again: %v\n", err)
+			}
 
 			executionID, err := engine.TriggerWorkflow(ctx, wf.ID, triggerData)
 			if err != nil {
@@ -190,7 +196,9 @@ func (d Deps) newTemplatesRunCmd() *cobra.Command {
 				fmt.Fprintf(os.Stdout, "Running template %q (workflow %s, execution %s)\n", args[0], wf.ID, executionID)
 			}
 
-			runErr := withNodeTypeHint(waitForExecution(ctx, engine, executionID, 15*time.Minute, d.JSONOutput()))
+			rr, closeRR := d.replyRedactor(ctx, executionID)
+			defer closeRR()
+			runErr := withNodeTypeHint(waitForExecution(ctx, engine, executionID, 15*time.Minute, d.JSONOutput(), rr))
 			sctx, scancel, runErr := stoppedWait(ctx, executionID, runErr)
 			defer scancel()
 
@@ -307,7 +315,9 @@ func (d Deps) newRunCmd() *cobra.Command {
 			if !d.JSONOutput() {
 				fmt.Fprintf(os.Stdout, "Execution started: %s\n", executionID)
 			}
-			waitErr := withNodeTypeHint(waitForExecution(ctx, engine, executionID, timeout, d.JSONOutput()))
+			rr, closeRR := d.replyRedactor(ctx, executionID)
+			defer closeRR()
+			waitErr := withNodeTypeHint(waitForExecution(ctx, engine, executionID, timeout, d.JSONOutput(), rr))
 			sctx, scancel, waitErr := stoppedWait(ctx, executionID, waitErr)
 			defer scancel()
 

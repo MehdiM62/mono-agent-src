@@ -2,6 +2,7 @@ package data
 
 import (
 	"context"
+	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -111,9 +112,14 @@ func globOne(ctx context.Context, pattern string, literalBrackets bool) ([]strin
 }
 
 // confinedRegular passes p through fsconfine and returns it when it is a
-// regular file (symlinks followed).
+// regular file (symlinks followed). A match a workflow the user never
+// approved may not read (a hidden file of the home) is skipped, so a wide
+// pattern still reads the rest.
 func confinedRegular(ctx context.Context, p string) ([]string, error) {
 	resolved, err := fsconfine.Path(ctx, p)
+	if errors.Is(err, fsconfine.ErrUnapprovedPath) {
+		return nil, nil
+	}
 	if err != nil {
 		return nil, err
 	}
