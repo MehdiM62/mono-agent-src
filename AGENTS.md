@@ -2628,7 +2628,14 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
   about any app's write with a recipient-like param (to, recipient,
   receiver, addressee, email, mailTo, phone, tel, msisdn, sms, attendees,
   guests, participants, invitees, invites, subscribers, cc, bcc) or a
-  message switch.
+  message switch. A key an op doesn't declare in a collection its
+  request merges whole, or in an option object outside the op's
+  `subfields`, makes the step a send whatever its annotation
+  (`apipkg.SendOf`, `collections.go`): a gated run waits, with a card
+  naming the keys as a label, and other runs are unchanged. A condition's
+  path fans out over a list (`…customFieldPairs.name=invite`).
+  `TestShippedWorkflowsDeclareTheirKeys` keeps the shipped examples and
+  n8n fixtures free of undeclared keys.
   Creating or updating issues, tasks and tickets is no message, by the
   user's decision ("a work item, open by the user's decision"); their
   comments are, and so is a ticket create or update that emails someone
