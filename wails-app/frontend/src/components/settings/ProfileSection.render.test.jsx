@@ -5,7 +5,7 @@ import '@testing-library/jest-dom/vitest'
 import { render, screen, cleanup, fireEvent, waitFor, act } from '@testing-library/react'
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (k, o) => (o ? `${k}${JSON.stringify(o)}` : k) }),
+  useTranslation: () => ({ t: (k, o) => (o?.defaultValue ?? (o ? `${k}${JSON.stringify(o)}` : k)) }),
 }))
 vi.mock('../orgdesigner/IconPickerModal.jsx', () => ({ default: () => null }))
 vi.mock('../../wailsjs/go/main/App', () => ({

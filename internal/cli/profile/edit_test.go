@@ -447,3 +447,236 @@ func TestWorkflowFilesGoByTheirProfileFieldNotTheirName(t *testing.T) {
 		}
 	}
 }
+
+// `create` holds names to the same rules as `update`, so a rename protection is
+// not skipped by creating the name.
+func TestProfileCreateValidatesNames(t *testing.T) {
+	dbPath := newProfileDocsCLITestDB(t)
+	createTestProfile(t, dbPath, "Cape")
+	createTestProfile(t, dbPath, "Home")
+	for _, bad := range []string{
+		"a​b", "Dеfault", "default", "Default", "ＨＯＭＥ", "../../etc", "a\x1b[31mb", strings.Repeat("a", 5000),
+		"Саре",      // all Cyrillic, spelled like Cape
+		"Ηομε",      // all Greek, spelled like Home
+		"Home Ηομε", // a Latin word and a Greek word
+		"Homeա",     // Latin with Hebrew, Armenian
+		"ﬁnance",    // ligature
+		"home",      // same as Home
+	} {
+		if _, err := runProfileCmd(t, dbPath, "create", bad); err == nil {
+			t.Errorf("create accepted %q", bad)
+		}
+	}
+	if _, err := runProfileCmd(t, dbPath, "create", "Büro 2"); err != nil {
+		t.Errorf("create refused a plain name: %v", err)
+	}
+	if _, err := runProfileCmd(t, dbPath, "create", "Москва"); err != nil {
+		t.Errorf("create refused an all-Cyrillic name that imitates nothing: %v", err)
+	}
+	if _, err := runProfileCmd(t, dbPath, "create", "Work", "--icon", "../../x"); err == nil {
+		t.Error("create accepted a path as an icon")
+	}
+}
+
+func TestProfileUpdateRefusesLookAlikes(t *testing.T) {
+	dbPath := newProfileDocsCLITestDB(t)
+	createTestProfile(t, dbPath, "Cape")
+	id := createTestProfile(t, dbPath, "work")
+	for _, bad := range []string{"Саре", "сас", "Ηομε", "Cape ", "Cаpe"} {
+		if _, err := runProfileCmd(t, dbPath, "update", id, "--name", bad); err == nil && skeleton(bad) == skeleton("Cape") {
+			t.Errorf("update accepted %q, a look-alike of Cape", bad)
+		}
+	}
+}
+
+// A refused delete takes no backup: the check before the backup stands on its own.
+func TestRefusedDeleteTakesNoBackup(t *testing.T) {
+	dbPath := newProfileDocsCLITestDB(t)
+	id := createTestProfile(t, dbPath, "busy")
+	createTestProfile(t, dbPath, "other")
+	db, err := storage.NewDatabase(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, q := range []string{
+		`INSERT INTO workflows (id, name, profile_id) VALUES ('w1', 'w', '` + id + `')`,
+		`INSERT INTO workflow_executions (id, workflow_id, status, profile_id) VALUES ('e1', 'w1', 'RUNNING', '` + id + `')`,
+	} {
+		if _, err := db.DB.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	defer db.Close()
+	if _, err := runProfileCmd(t, dbPath, "delete", id, "--yes-delete-profile", "busy"); err == nil {
+		t.Fatal("the delete went ahead")
+	}
+	if backups, _ := db.ProfileDeleteBackups(); len(backups) != 0 {
+		t.Fatalf("a refused delete left backups: %v", backups)
+	}
+}
+
+// A file that names no profile goes with a workflow the profile owns in the
+// database, and stays when no row of the profile has its id.
+func TestWorkflowFileWithoutAProfileFollowsItsRow(t *testing.T) {
+	dbPath := newProfileDocsCLITestDB(t)
+	id := createTestProfile(t, dbPath, "doomed")
+	createTestProfile(t, dbPath, "other")
+	db, err := storage.NewDatabase(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.DB.Exec(`INSERT INTO workflows (id, name, profile_id) VALUES ('owned', 'w', ?)`, id); err != nil {
+		t.Fatal(err)
+	}
+	db.Close()
+	dir := filepath.Join(os.Getenv("HOME"), ".monoagent", "workflows")
+	os.MkdirAll(dir, 0o700)
+	write := func(name, wfID string) string {
+		path := filepath.Join(dir, name)
+		os.WriteFile(path, []byte(`{"id":"`+wfID+`","name":"w","nodes":[],"connections":[]}`), 0o600)
+		return path
+	}
+	owned, stranger := write("owned.json", "owned"), write("stranger.json", "stranger")
+	if _, err := runProfileCmd(t, dbPath, "delete", id, "--yes-delete-profile", "doomed"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(owned); !os.IsNotExist(err) {
+		t.Errorf("the profile-less file of the profile's own workflow was left: %v", err)
+	}
+	if _, err := os.Stat(stranger); err != nil {
+		t.Errorf("a profile-less file with no row of the profile was deleted: %v", err)
+	}
+}
+
+// Ids with LIKE wildcards must not widen the settings delete to another profile.
+func TestSettingsDeleteEscapesWildcardsInTheProfileID(t *testing.T) {
+	dbPath := newProfileDocsCLITestDB(t)
+	createTestProfile(t, dbPath, "other")
+	db, err := storage.NewDatabase(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, q := range []string{
+		`INSERT INTO profiles (id, name, created_at) VALUES ('a_b', 'under', '2026-10-17T00:00:00Z'), ('axb', 'plain', '2026-10-17T00:00:00Z'), ('p%', 'pct', '2026-10-17T00:00:00Z'), ('pq', 'pq', '2026-10-17T00:00:00Z')`,
+		`INSERT INTO settings (key, value) VALUES ('jev.a_b.chat.m', '1'), ('jev.axb.chat.m', '2'), ('jev.p%.chat.m', '3'), ('jev.pq.chat.m', '4')`,
+	} {
+		if _, err := db.DB.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	db.Close()
+	for _, c := range [][2]string{{"a_b", "under"}, {"p%", "pct"}} {
+		if _, err := runProfileCmd(t, dbPath, "delete", c[0], "--yes-delete-profile", c[1]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	db, _ = storage.NewDatabase(dbPath)
+	defer db.Close()
+	keys, _ := queryStrings(context.Background(), db.DB, `SELECT key FROM settings WHERE key LIKE 'jev.%' ORDER BY key`)
+	if strings.Join(keys, ",") != "jev.axb.chat.m,jev.pq.chat.m" {
+		t.Fatalf("settings left: %v, want only the other profiles' keys", keys)
+	}
+}
+
+func TestDeleteUnbindsTheProfilesBrowsers(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		unbind   func(context.Context, string) (int, error)
+		wantN    int
+		wantWarn bool
+	}{
+		{"unbound", nil, 2, false},
+		{"fails", nil, 0, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dbPath := newProfileDocsCLITestDB(t)
+			id := createTestProfile(t, dbPath, "doomed")
+			createTestProfile(t, dbPath, "other")
+			var got string
+			cfg := &testConfig{DBPath: dbPath, JSONOutput: true}
+			d := testDeps(cfg)
+			d.UnbindBrowsers = func(_ context.Context, profileID string) (int, error) {
+				got = profileID
+				if tc.wantWarn {
+					return 0, fmt.Errorf("bridge unreachable")
+				}
+				return 2, nil
+			}
+			cmd := NewCommand(d)
+			cmd.SetArgs([]string{"delete", id, "--yes-delete-profile", "doomed"})
+			var runErr error
+			out := captureStdout(t, func() { runErr = cmd.Execute() })
+			if runErr != nil {
+				t.Fatal(runErr)
+			}
+			var res profileImpact
+			if err := json.Unmarshal([]byte(out), &res); err != nil {
+				t.Fatalf("%v: %s", err, out)
+			}
+			if got != id || res.BrowsersUnbound != tc.wantN || (len(res.Warnings) > 0) != tc.wantWarn {
+				t.Errorf("unbind called with %q, unbound %d, warnings %v; want %q, %d, warning %v", got, res.BrowsersUnbound, res.Warnings, id, tc.wantN, tc.wantWarn)
+			}
+		})
+	}
+}
+
+func TestValidateProfileNameUnits(t *testing.T) {
+	for _, ok := range []string{"José", "Zoë", "O'Brien", "O’Brien", "2024", "Q3-2024 plan", "Toyota トヨタ", "Li 李", "iPhone用户", "Ahmed أحمد", "漢 한", "Москва", "Ελλάδα", "ホーム", "Büro 2", "Work 🚀"} {
+		if err := validateProfileName(ok); err != nil {
+			t.Errorf("%q was refused: %v", ok, err)
+		}
+	}
+	for _, c := range []struct{ name, why string }{
+		{"default", "default"}, {"Default", "default"}, {"DEFAULT", "default"},
+		{"a\u00a0b", "unusual space"}, {"a\u3000b", "unusual space"}, {"a\u1680b", "unusual space"},
+		{"Acme™", "normalization"}, {"Team²", "normalization"}, {"µTorrent", "normalization"}, {"ﬁnance", "normalization"},
+		{"Ω-Tech", "mix"}, {"D\u0435fault", "mix"}, {"Home Москва", "mix"}, {"Homeա", "mix"}, {"Home\u13a0", "mix"}, {"Hello\u2c80", "mix"}, {"Hello\ua4d0", "mix"},
+	} {
+		err := validateProfileName(c.name)
+		if err == nil {
+			t.Errorf("%q was accepted", c.name)
+		} else if !strings.Contains(err.Error(), c.why) {
+			t.Errorf("%q refused for another reason than %q: %v", c.name, c.why, err)
+		}
+	}
+}
+
+// The app sends the name together with a new icon: a profile whose own name is
+// "default" (or any name an older version allowed) must still take the icon.
+func TestUpdateKeepsAnUnchangedNameAndTakesTheIcon(t *testing.T) {
+	dbPath := newProfileDocsCLITestDB(t)
+	var def profileJSON
+	out, err := runCaptured(t, dbPath, "get", "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal([]byte(out), &def); err != nil {
+		t.Fatal(err)
+	}
+	if skeleton(def.Name) != "default" {
+		t.Skipf("the seeded profile is named %q, not default", def.Name)
+	}
+	if _, err := runProfileCmd(t, dbPath, "update", def.ID, "--name", def.Name, "--icon", "coder"); err != nil {
+		t.Fatalf("an unchanged name with a new icon: %v", err)
+	}
+	if _, err := runProfileCmd(t, dbPath, "update", def.ID, "--name", "Default2"); err != nil {
+		t.Fatalf("renaming it: %v", err)
+	}
+	other := createTestProfile(t, dbPath, "work")
+	if _, err := runProfileCmd(t, dbPath, "update", other, "--name", "default"); err == nil {
+		t.Fatal("renaming another profile to default was accepted")
+	}
+}
+
+func TestCreateNormalizesToNFC(t *testing.T) {
+	dbPath := newProfileDocsCLITestDB(t)
+	out, err := runCaptured(t, dbPath, "create", "Jose\u0301")
+	if err != nil {
+		t.Fatalf("an NFD name was refused: %v", err)
+	}
+	var p profileJSON
+	json.Unmarshal([]byte(out), &p)
+	if p.Name != "José" {
+		t.Fatalf("stored %q, want the NFC form José", p.Name)
+	}
+}

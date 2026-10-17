@@ -197,7 +197,16 @@ func (d *Database) SnapshotBeforeProfileDelete(ctx context.Context) (string, err
 		return "", err
 	}
 	defer conn.Close()
-	return d.writeSnapshotAs(ctx, conn, fmt.Sprintf("pre-delete-profile-%s.db", migrateNow().UTC().Format("20060102T150405")))
+	stamp := migrateNow().UTC().Format("20060102T150405")
+	name := fmt.Sprintf("pre-delete-profile-%s.db", stamp)
+	// Two deletes in the same second must not share a snapshot.
+	for n := 2; n < 1000; n++ {
+		if _, err := os.Stat(filepath.Join(d.backupsDir(), name)); os.IsNotExist(err) {
+			break
+		}
+		name = fmt.Sprintf("pre-delete-profile-%s-%d.db", stamp, n)
+	}
+	return d.writeSnapshotAs(ctx, conn, name)
 }
 
 // ProfileDeleteBackups lists the pre-delete-profile-*.db snapshots, oldest first.

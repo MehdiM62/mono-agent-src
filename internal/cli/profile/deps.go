@@ -4,6 +4,7 @@
 package profile
 
 import (
+	"context"
 	"database/sql"
 	"io"
 
@@ -30,6 +31,9 @@ type Deps struct {
 	NewTable func(w io.Writer, headers []string) *tablewriter.Table
 	// WithJSONErrors makes a command print its error as the CLI's --json error document.
 	WithJSONErrors func(cmd *cobra.Command)
+	// UnbindBrowsers makes the connected browsers bound to a profile unbound
+	// again, for deleting it, and returns how many it changed. Optional.
+	UnbindBrowsers func(ctx context.Context, profileID string) (int, error)
 	// Reported marks err as already reported on stdout: the CLI exits 1 without printing it.
 	Reported func(err error) error
 }
