@@ -73,6 +73,11 @@ type target struct {
 	subject []string
 	to      []string
 	social  bool
+	// channel names the app a Classifier's send goes through ("" for the
+	// node types above); perItem lists the params its node resolves per
+	// input item.
+	channel string
+	perItem []string
 }
 
 // classify reports whether nodeType with config is an outbound send.
@@ -84,23 +89,31 @@ func classify(nodeType string, config map[string]interface{}) (target, bool) {
 		}
 		return target{}, false
 	}
-	r, ok := outbound[nodeType]
-	if !ok {
-		return target{}, false
+	if r, ok := outbound[nodeType]; ok && r.covers(config) {
+		return target{action: r.action, text: r.text, subject: r.subject, to: r.to}, true
 	}
-	if r.ops != nil {
-		op := str(config["operation"])
-		found := false
-		for _, o := range r.ops {
-			if o == op {
-				found = true
-			}
-		}
-		if !found {
-			return target{}, false
+	// An API package's annotated op: an app node's, or one a package adds
+	// to a native node above (classifier.go).
+	if c := classifierOf(); c != nil {
+		if s, ok := c.Classify(nodeType, config); ok {
+			return target{action: s.Action, text: s.Text, subject: s.Subject, to: s.To, channel: s.Channel, perItem: s.PerItem}, true
 		}
 	}
-	return target{action: r.action, text: r.text, subject: r.subject, to: r.to}, true
+	return target{}, false
+}
+
+// covers reports whether config's operation is one of r's sends.
+func (r rule) covers(config map[string]interface{}) bool {
+	if r.ops == nil {
+		return true
+	}
+	op := str(config["operation"])
+	for _, o := range r.ops {
+		if o == op {
+			return true
+		}
+	}
+	return false
 }
 
 // IsOutbound reports whether running nodeType with config would send.
@@ -118,8 +131,11 @@ func MaySend(nodeType string, config map[string]interface{}) bool {
 	if IsOutbound(nodeType, config) {
 		return true
 	}
-	r, ok := outbound[nodeType]
-	return ok && r.ops != nil && isExpression(config["operation"])
+	if r, ok := outbound[nodeType]; ok && r.ops != nil && isExpression(config["operation"]) {
+		return true
+	}
+	c := classifierOf()
+	return c != nil && (isExpression(config["operation"]) || isExpression(config["resource"])) && c.SendsSome(nodeType)
 }
 
 // isExpression reports whether v is a template the run resolves.

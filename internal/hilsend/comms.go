@@ -88,7 +88,7 @@ func WorkflowItems(profile, workflowName string, downstream []commsync.Node, ite
 		subjectField, subject := firstKey(cfg, t.subject)
 		subject = fromTemplate(subject, item, t.subject)
 		p := Payload{
-			Action: t.action, Channel: channelOf(first.Type), Account: accountOf(first.Type, cfg),
+			Action: t.action, Channel: t.channelOf(first.Type), Account: t.accountOf(first.Type, cfg),
 			Text: text, Subject: subject, NodeType: first.Type, Attachments: attachments(cfg),
 		}
 		rp := replay{TextField: textField, SubjectKey: subjectField}
