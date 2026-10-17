@@ -123,7 +123,9 @@ card in the Human in Loop queue, `internal/hilsend`) instead of going out:
   "to": ["toEmail"],             // the recipient's field(s), first set wins (the card)
   "text": ["text", "html"],      // the message's field(s)
   "subject": ["subject"],        // optional
-  "if": "sendCampaign"           // optional: the op sends only when this field is set
+  "if": "sendCampaign",          // optional: the op sends only when this field is set
+  "to_label": {"invoiceId": "the client of invoice"}, // optional: a "to" field that holds no address
+  "to_unset": "the ticket's requester"                // optional: the card's recipient when no "to" is set
 }
 ```
 
@@ -132,14 +134,22 @@ A field name may be an option of a collection param: `"text":
 sends when one is set (true, or any value but false, `""` or an empty
 list; a template the run has yet to resolve counts as set), so a Google
 Calendar event waits only when it has attendees
-(`"if": "additionalFields.attendees"`).
+(`"if": "additionalFields.attendees"`). A field the config leaves out counts
+as its default (Okta's `activate` is true, so an activation email waits).
+`"field=value"` sends only on that value (`"if": ["domain=notify",
+"domain=tts"]` for Home Assistant). When a `to` field holds an id rather
+than an address, `to_label` says what it is, and the card shows "the
+client of invoice inv9", not "inv9"; `to_unset` is what the card shows when
+no `to` field is set.
 
-Comments and invites on shared trackers count: they reach people. An op that
-only looks like a send (a queue or webhook for programs, a lookup, a
-notification to the user's own devices) says `"sends": false` with
-`"sends_reason"`; so does what the user decided stays open (file sharing,
-money movement), with the reason saying so. `TestCatalogSendsAreDecided`
-fails for a catalog op that has neither when:
+Comments and invites on shared trackers count: they reach people. Creating
+or updating issues, tasks and tickets does not, by the user's decision: it
+says `"sends": false` with "a work item, open by the user's decision"
+(their comments are sends). An op that only looks like a send (a queue or
+webhook for programs, a lookup, a notification to the user's own devices)
+says `"sends": false` with `"sends_reason"`; so does what the user decided
+stays open (file sharing, money movement), with the reason saying so.
+`TestCatalogSendsAreDecided` fails for a catalog op that has neither when:
 
 - its package is a messaging one (it has an annotated send, or it is a mail,
   SMS, chat or ticketing service listed in `messagingPackages`) and the op
@@ -152,7 +162,12 @@ fails for a catalog op that has neither when:
   verb in its name), and it writes or a send verb (send, notify, publish,
   invite, broadcast, or a word starting with send or notify) names it, as a
   GET to `/sendhttp.php` does. An op on settings ("updateNotificationSettings")
-  counts its send verbs only.
+  counts its send verbs only; or
+- it writes, in any package, and has a param or a collection option for whom
+  it reaches (to, toEmail, recipient, email, phone, mobile, attendees,
+  invitees, cc, bcc) or a switch that has the service message someone
+  (activate, sendEmail, notify, welcome, invite): a new user's activation
+  email, an event's invitations.
 
 An op without `sends` runs as before. The lint covers the built-in catalog
 only: a package the user installs (`~/.monoagent/apipkgs`, which also
