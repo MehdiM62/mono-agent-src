@@ -5,8 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/zalando/go-keyring"
 
 	"github.com/monoes/mono-agent/internal/storage"
 	"github.com/monoes/mono-agent/internal/workflow"
@@ -150,16 +153,24 @@ func TestProfileUpdateAndDeleteAreForTheOperatorOnly(t *testing.T) {
 
 // seedOverrides gives the columns whose CHECK constraint rejects the dummy value.
 var seedOverrides = map[string]map[string]any{
-	"applications":         {"kind": "job", "status": "pending"},
-	"chat_memory_messages": {"role": "human"},
-	"person_links":         {"relation": "same", "status": "confirmed", "person_a": 1, "person_b": 2},
+	"applications":           {"kind": "job", "status": "pending"},
+	"chat_memory_messages":   {"role": "human"},
+	"application_status_log": {"actor": "user"},
+	"workflow_executions":    {"status": "COMPLETED"},
+	"person_links":           {"relation": "same", "status": "confirmed", "person_a": 1, "person_b": 2},
 }
 
-// TestDeleteCoversEveryProfileScopedTable seeds one row for the profile in
-// every table that has a profile_id column, deletes the profile, and fails if
-// any row is left — so a table added later without a delete rule (or one this
-// seeding cannot fill) is caught here.
-func TestDeleteCoversEveryProfileScopedTable(t *testing.T) {
+// notProfileOwned are tables with a column that looks like a link to a
+// profile's workflow or execution but is not one; each needs a reason.
+var notProfileOwned = map[string]string{}
+
+// TestDeleteCoversEveryTableOfTheProfile seeds a row in every table the
+// delete's scope names (profile_id tables, their cascading children, and the
+// tables keyed by workflow or execution), plus settings entries, a workflow
+// file and the vault key, deletes the profile, and fails if any of it is left.
+// It also fails for a table that refers to a workflow, an execution or a
+// profile and is in no delete rule, so a table added later cannot be missed.
+func TestDeleteCoversEveryTableOfTheProfile(t *testing.T) {
 	dbPath := newProfileDocsCLITestDB(t)
 	id := createTestProfile(t, dbPath, "doomed")
 	createTestProfile(t, dbPath, "other")
@@ -169,6 +180,26 @@ func TestDeleteCoversEveryProfileScopedTable(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
+	scope, err := profileScope(ctx, db.DB)
+	if err != nil {
+		t.Fatal(err)
+	}
+	covered := map[string]bool{"profiles": true}
+	for _, e := range scope {
+		covered[e.Table] = true
+	}
+	all, _ := queryStrings(ctx, db.DB, `SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'`)
+	for _, tbl := range all {
+		if covered[tbl] {
+			continue
+		}
+		for _, col := range []string{"profile_id", "workflow_id", "execution_id", "parent_execution_id", "child_execution_id", "profile_key"} {
+			if hasColumn(ctx, db.DB, tbl, col) && notProfileOwned[tbl] == "" {
+				t.Errorf("table %s has a %s column but no delete rule covers it: add it to derivedScope (or to notProfileOwned with a reason)", tbl, col)
+			}
+		}
+	}
+
 	conn, err := db.DB.Conn(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -176,26 +207,19 @@ func TestDeleteCoversEveryProfileScopedTable(t *testing.T) {
 	if _, err := conn.ExecContext(ctx, `PRAGMA foreign_keys = OFF`); err != nil {
 		t.Fatal(err)
 	}
-	rows, err := conn.QueryContext(ctx, `SELECT m.name FROM sqlite_master m WHERE m.type = 'table' AND m.name NOT LIKE 'sqlite_%'
-		AND EXISTS (SELECT 1 FROM pragma_table_info(m.name) WHERE name = 'profile_id') ORDER BY m.name`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var tables []string
-	for rows.Next() {
-		var n string
-		rows.Scan(&n)
-		tables = append(tables, n)
-	}
-	rows.Close()
-	if len(tables) == 0 {
-		t.Fatal("no profile-scoped tables found")
-	}
-	for _, tbl := range tables {
-		cols, vals := []string{"profile_id"}, []any{id}
+	before := map[string]int{}
+	for _, e := range scope {
+		conn.QueryRowContext(ctx, `SELECT COUNT(*) FROM "`+e.Table+`"`).Scan(new(int))
+		var n int
+		conn.QueryRowContext(ctx, `SELECT COUNT(*) FROM "`+e.Table+`"`).Scan(&n)
+		before[e.Table] = n
+		if e.Table == "settings" {
+			continue
+		}
+		cols, vals := []string{}, []any{}
 		var pkCols int // a lone INTEGER primary key is the rowid; part of a composite one needs a value
-		conn.QueryRowContext(ctx, fmt.Sprintf(`SELECT COUNT(*) FROM pragma_table_info('%s') WHERE pk > 0`, tbl)).Scan(&pkCols)
-		ci, err := conn.QueryContext(ctx, fmt.Sprintf(`SELECT name, type, "notnull", dflt_value, pk FROM pragma_table_info('%s')`, tbl))
+		conn.QueryRowContext(ctx, fmt.Sprintf(`SELECT COUNT(*) FROM pragma_table_info('%s') WHERE pk > 0`, e.Table)).Scan(&pkCols)
+		ci, err := conn.QueryContext(ctx, fmt.Sprintf(`SELECT name, type, "notnull", dflt_value, pk FROM pragma_table_info('%s')`, e.Table))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -204,7 +228,10 @@ func TestDeleteCoversEveryProfileScopedTable(t *testing.T) {
 			var notnull, pk int
 			var dflt *string
 			ci.Scan(&name, &typ, &notnull, &dflt, &pk)
-			if name == "profile_id" || notnull == 0 || dflt != nil || (pk > 0 && pkCols == 1 && strings.EqualFold(typ, "INTEGER")) {
+			isProfile := name == "profile_id" || (e.Table == "workflow_daily_counters" && name == "profile_key")
+			_, forced := seedOverrides[e.Table][name]
+			forced = forced || name == "workflow_id" || name == "execution_id"
+			if !isProfile && !forced && ((notnull == 0 && pk == 0) || dflt != nil || (pk > 0 && pkCols == 1 && strings.EqualFold(typ, "INTEGER"))) {
 				continue
 			}
 			var v any = "x"
@@ -214,19 +241,40 @@ func TestDeleteCoversEveryProfileScopedTable(t *testing.T) {
 			case "BLOB":
 				v = []byte{0}
 			}
-			if o, ok := seedOverrides[tbl][name]; ok {
+			if isProfile {
+				v = id
+			}
+			if o, ok := seedOverrides[e.Table][name]; ok {
 				v = o
 			}
 			cols, vals = append(cols, name), append(vals, v)
 		}
 		ci.Close()
-		q := fmt.Sprintf(`INSERT INTO "%s" (%s) VALUES (%s)`, tbl, strings.Join(cols, ","), strings.TrimSuffix(strings.Repeat("?,", len(cols)), ","))
+		q := fmt.Sprintf(`INSERT INTO "%s" (%s) VALUES (%s)`, e.Table, `"`+strings.Join(cols, `","`)+`"`, strings.TrimSuffix(strings.Repeat("?,", len(cols)), ","))
 		if _, err := conn.ExecContext(ctx, q, vals...); err != nil {
-			t.Errorf("seeding %s: %v (teach this test to fill it, so the delete is checked for it)", tbl, err)
+			t.Errorf("seeding %s: %v (teach this test to fill it, so the delete is checked for it)", e.Table, err)
+		}
+	}
+	for _, kv := range [][2]string{{"task_agent_access:" + id, "1"}, {"jev." + id + ".chat.model", "m"}, {"jev.someone-else.chat.model", "keep"}} {
+		if _, err := conn.ExecContext(ctx, `INSERT INTO settings (key, value) VALUES (?, ?)`, kv[0], kv[1]); err != nil {
+			t.Fatal(err)
 		}
 	}
 	conn.Close()
 	db.Close()
+
+	home := os.Getenv("HOME")
+	wfDir := filepath.Join(home, ".monoagent", "workflows")
+	if err := os.MkdirAll(wfDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	wfFile := filepath.Join(wfDir, "x.json")
+	if err := os.WriteFile(wfFile, []byte(`{"id":"x","name":"w","profile_id":"`+id+`","nodes":[],"connections":[]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := keyring.Set("monoagent-vault", "kek-"+id, "00"); err != nil {
+		t.Fatal(err)
+	}
 
 	if _, err := runProfileCmd(t, dbPath, "delete", id, "--yes-delete-profile", "doomed"); err != nil {
 		t.Fatalf("delete: %v", err)
@@ -237,13 +285,97 @@ func TestDeleteCoversEveryProfileScopedTable(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	for _, tbl := range tables {
+	for _, e := range scope {
+		if e.Table == "settings" {
+			continue
+		}
 		var n int
-		if err := db.DB.QueryRow(fmt.Sprintf(`SELECT COUNT(*) FROM "%s" WHERE profile_id = ?`, tbl), id).Scan(&n); err != nil {
+		if err := db.DB.QueryRow(`SELECT COUNT(*) FROM "` + e.Table + `"`).Scan(&n); err != nil {
 			t.Fatal(err)
 		}
-		if n != 0 {
-			t.Errorf("%s: %d row(s) of the deleted profile left behind", tbl, n)
+		if n != before[e.Table] {
+			t.Errorf("%s: %d row(s) after the delete, %d before the seeding: the profile's row was left behind", e.Table, n, before[e.Table])
 		}
+	}
+	var keys []string
+	keys, _ = queryStrings(ctx, db.DB, `SELECT key FROM settings WHERE key LIKE 'task_agent_access:%' OR key LIKE 'jev.%'`)
+	if len(keys) != 1 || keys[0] != "jev.someone-else.chat.model" {
+		t.Errorf("settings left after the delete: %v, want only another profile's jev key", keys)
+	}
+	if _, err := os.Stat(wfFile); !os.IsNotExist(err) {
+		t.Errorf("the profile's workflow file was left behind: %v", err)
+	}
+	if _, err := keyring.Get("monoagent-vault", "kek-"+id); err != keyring.ErrNotFound {
+		t.Errorf("the profile's vault key was left in the keychain: %v", err)
+	}
+}
+
+func TestProfileNamesAndIconsAreValidated(t *testing.T) {
+	dbPath := newProfileDocsCLITestDB(t)
+	id := createTestProfile(t, dbPath, "work")
+	other := createTestProfile(t, dbPath, "home")
+	for _, bad := range []string{"", "a\x1b[31mb", "a\nb", "../../etc", "a/b", `a\b`, strings.Repeat("a", 65), "abc\u202edef", other} {
+		if _, err := runProfileCmd(t, dbPath, "update", id, "--name", bad); err == nil {
+			t.Errorf("name %q was accepted", bad)
+		}
+	}
+	for _, bad := range []string{"../../../x<script>", "A B", "x/y", strings.Repeat("a", 65)} {
+		if _, err := runProfileCmd(t, dbPath, "update", id, "--icon", bad); err == nil {
+			t.Errorf("icon %q was accepted", bad)
+		}
+	}
+	if _, err := runProfileCmd(t, dbPath, "update", id, "--name", "Büro 2", "--icon", ""); err != nil {
+		t.Errorf("a plain name was refused: %v", err)
+	}
+}
+
+func TestProfileDeleteRefusesWhileWorkflowsRun(t *testing.T) {
+	dbPath := newProfileDocsCLITestDB(t)
+	id := createTestProfile(t, dbPath, "busy")
+	createTestProfile(t, dbPath, "other")
+	db, err := storage.NewDatabase(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, q := range []string{
+		`INSERT INTO workflows (id, name, profile_id) VALUES ('w1', 'w', '` + id + `')`,
+		`INSERT INTO workflow_executions (id, workflow_id, status, profile_id) VALUES ('e1', 'w1', 'RUNNING', '` + id + `')`,
+	} {
+		if _, err := db.DB.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	db.Close()
+	if _, err := runProfileCmd(t, dbPath, "delete", id, "--yes-delete-profile", "busy"); err == nil || !strings.Contains(err.Error(), "running") {
+		t.Fatalf("err %v, want a refusal naming the running executions", err)
+	}
+	if _, err := runCaptured(t, dbPath, "get", id); err != nil {
+		t.Fatalf("the profile must still exist: %v", err)
+	}
+}
+
+func TestProfileBackupsPurge(t *testing.T) {
+	dbPath := newProfileDocsCLITestDB(t)
+	id := createTestProfile(t, dbPath, "doomed")
+	createTestProfile(t, dbPath, "other")
+	out, err := runCaptured(t, dbPath, "delete", id, "--yes-delete-profile", "doomed")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var res profileImpact
+	json.Unmarshal([]byte(out), &res)
+	if _, err := runProfileCmd(t, dbPath, "backups", "purge"); err == nil {
+		t.Fatal("purge without --yes should fail")
+	}
+	t.Setenv(workflow.EnvWorkflowRun, "exec-1")
+	if _, err := runProfileCmd(t, dbPath, "backups", "purge", "--yes"); err == nil {
+		t.Fatal("purge from a workflow run should be refused")
+	}
+	os.Unsetenv(workflow.EnvWorkflowRun)
+	if _, err := runProfileCmd(t, dbPath, "backups", "purge", "--yes"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(res.Backup); !os.IsNotExist(err) {
+		t.Fatalf("the backup is still there: %v", err)
 	}
 }

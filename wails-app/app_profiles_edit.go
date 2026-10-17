@@ -56,7 +56,7 @@ func (a *App) GetProfileDeleteSummary(id string) (*ProfileDeleteSummary, error) 
 // database snapshot whose path is returned). Its orgs are stopped first. When
 // it is the profile this window shows, the window moves to another one; the
 // only profile cannot be deleted. The profile's folder on disk is not touched.
-func (a *App) DeleteProfile(id string) (backup string, err error) {
+func (a *App) DeleteProfile(id string) (string, error) {
 	if err := a.signedOut(); err != nil {
 		return "", err
 	}
@@ -79,14 +79,21 @@ func (a *App) DeleteProfile(id string) (backup string, err error) {
 	if next == "" {
 		return "", fmt.Errorf("cannot delete the only profile: create another one first")
 	}
-	if _, err := a.stopProfileOrgs(id); err != nil {
+	wasServing, err := a.stopProfileOrgs(id)
+	if err != nil {
 		return "", fmt.Errorf("stopping this profile's orgs before deleting it: %w", err)
 	}
 	var res struct {
-		Backup string `json:"backup"`
+		Backup   string   `json:"backup"`
+		Warnings []string `json:"warnings"`
 	}
 	if err := a.runGlobalCLI("", &res, "profile", "delete", "--yes-delete-profile", target.Name, "--", id); err != nil {
+		// Nothing was deleted: the orgs it stopped run again.
+		a.resumeProfileOrgs(id, wasServing)
 		return "", err
+	}
+	for _, w := range res.Warnings {
+		a.emitLog("SYSTEM", "WARN", "profile delete: "+w)
 	}
 	a.emitLog("SYSTEM", "INFO", "Deleted profile: "+target.Name)
 	if id == a.selectedProfileOrEmpty() {

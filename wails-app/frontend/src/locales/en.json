@@ -687,6 +687,33 @@
       "featuresTitle": "TypeSafe Jev features",
       "consent": "Turning a feature on is a choice for this profile only: it lets this profile send data to TypeSafe. Other profiles stay off until they turn it on themselves.",
       "adoptHint": "This key is still only in this profile's vault. To share it with every profile, run:"
+    },
+    "profile": {
+      "sectionTitle": "Profile",
+      "nameLabel": "Profile name",
+      "rename": "Rename",
+      "changeIcon": "Change icon",
+      "deleteHint": "Deleting a profile removes its data. You will be asked three times.",
+      "deleteButton": "Delete profile",
+      "onlyProfile": "This is your only profile. Create another one before deleting it.",
+      "dialogTitle": "Delete profile “{{name}}” — step {{step}} of 3",
+      "step1Intro": "These will be permanently lost:",
+      "counting": "Counting…",
+      "noData": "No stored data.",
+      "step1Detail": "That includes its people and messages, workflows and their files, tasks, publications, vault items and documents, credentials and API keys, chats and orgs, and its vault key in the OS keychain. Its folder {{folder}} is kept on disk; only the app's records of the profile are deleted.",
+      "step1Continue": "I understand, continue",
+      "step2Total": "This cannot be undone. {{count}} stored items will be deleted for good.",
+      "step2Active": "This is the profile you are using: the app will switch to another one.",
+      "step2Backup": "First, a copy of the whole database is saved in the backups folder next to it. It holds every profile, not only this one, is not encrypted, and is never deleted automatically (`monoagentcli profile backups purge` removes these copies). Running orgs of this profile are stopped first, and a running daemon may keep its triggers until it restarts.",
+      "step2Ack": "I understand this cannot be undone",
+      "step2Continue": "Yes, continue",
+      "step3Intro": "Final check. Type {{name}} to delete it.",
+      "cancel": "Cancel",
+      "delete": "Delete forever",
+      "deleting": "Deleting…",
+      "doneTitle": "Profile deleted",
+      "doneBackup": "A copy of the database was saved to {{path}}. It holds every profile and is never deleted automatically.",
+      "done": "OK"
     }
   },
   "orgs": {

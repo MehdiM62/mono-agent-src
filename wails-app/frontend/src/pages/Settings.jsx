@@ -499,7 +499,7 @@ export default function Settings({ onNavigate, navData, isActive = true }) {
 
           {/* Profile: name, icon, delete */}
           <div style={headingStyle}>
-            <span style={headingText}>Profile</span>
+            <span style={headingText}>{t('settings.profile.sectionTitle')}</span>
             <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
           </div>
 

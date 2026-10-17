@@ -119,3 +119,20 @@ func TestGlobalWhenFlagIsGivenSkipsTheGate(t *testing.T) {
 		t.Fatal("with an id, enforce: want an error")
 	}
 }
+
+// The app runs `--json profile update|delete|backups ...` with no --profile
+// (wails-app/profile_args.go unscopedCLIArgs): the profile is an argument, so
+// the gate must let it through.
+func TestProfileEditCommandsNeedNoProfileFlag(t *testing.T) {
+	root := leaf("monoagentcli")
+	p := leaf("profile")
+	backups := leaf("backups")
+	backups.AddCommand(leaf("purge"), leaf("list"))
+	p.AddCommand(leaf("update"), leaf("delete"), backups)
+	root.AddCommand(p)
+	for _, path := range [][]string{{"profile", "update"}, {"profile", "delete"}, {"profile", "backups", "purge"}, {"profile", "backups", "list"}} {
+		if w, err := Check(find(root, path...), false, ModeEnforce, nil); err != nil || w != "" {
+			t.Errorf("%v without --profile: got %q / %v, want it to pass", path, w, err)
+		}
+	}
+}

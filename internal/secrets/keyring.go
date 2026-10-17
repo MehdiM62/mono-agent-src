@@ -226,3 +226,23 @@ func fetchLegacyKEK() (kek []byte, found bool, err error) {
 	}
 	return key, true, nil
 }
+
+// DeleteProfileKEK removes profileID's KEK from the OS keychain and forgets
+// it in this process, for deleting the profile: its vault secrets, in any
+// copy of the database, can no longer be decrypted afterwards. A KEK that is
+// not there is not an error.
+func DeleteProfileKEK(profileID string) error {
+	if profileID == "" {
+		return fmt.Errorf("secrets: no profile to delete the key of")
+	}
+	keyringIOMu.Lock()
+	err := keyring.Delete(keyringService, kekAccount(profileID))
+	keyringIOMu.Unlock()
+	kekAttemptsMu.Lock()
+	delete(kekAttempts, profileID)
+	kekAttemptsMu.Unlock()
+	if err != nil && !errors.Is(err, keyring.ErrNotFound) {
+		return err
+	}
+	return nil
+}

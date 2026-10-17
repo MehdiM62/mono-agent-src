@@ -199,3 +199,13 @@ func (d *Database) SnapshotBeforeProfileDelete(ctx context.Context) (string, err
 	defer conn.Close()
 	return d.writeSnapshotAs(ctx, conn, fmt.Sprintf("pre-delete-profile-%s.db", migrateNow().UTC().Format("20060102T150405")))
 }
+
+// ProfileDeleteBackups lists the pre-delete-profile-*.db snapshots, oldest first.
+func (d *Database) ProfileDeleteBackups() ([]string, error) {
+	paths, err := filepath.Glob(filepath.Join(d.backupsDir(), "pre-delete-profile-*.db"))
+	if err != nil {
+		return nil, err
+	}
+	sort.Strings(paths)
+	return paths, nil
+}
