@@ -197,9 +197,10 @@ const (
 	maxFolderBytes = 2 << 30
 	// maxFolderVisited bounds the entries walked, documents or not.
 	maxFolderVisited = 200000
-	// uploadFileTimeout bounds one `profile upload-document` call (copy + index).
-	uploadFileTimeout = 5 * time.Minute
 )
+
+// uploadFileTimeout bounds one `profile upload-document` call (copy + index).
+var uploadFileTimeout = 5 * time.Minute
 
 // folderWalk is walkFolderFiles' result.
 type folderWalk struct {
@@ -296,7 +297,7 @@ func (a *App) OpenFolderFilesPicker(title string) []string {
 		exts = append(exts, fmt.Sprintf("%s ×%d", e, n))
 	}
 	sort.Strings(exts)
-	msg := fmt.Sprintf("Upload %d documents (%.1f MB) from %s?\n%s\n\nUploaded documents are copied into your profile and become searchable by chat, form-fill and AI agents.", len(w.files), float64(w.total)/(1<<20), dir, strings.Join(exts, ", "))
+	msg := fmt.Sprintf("Upload %d documents (%.1f MB) from %s into profile %q?\n%s\n\nUploaded documents are copied into the profile and become searchable by chat, form-fill and AI agents.", len(w.files), float64(w.total)/(1<<20), dir, a.selectedProfileName(), strings.Join(exts, ", "))
 	if w.unsupported > 0 {
 		msg += fmt.Sprintf("\n\n%d files of other types will be ignored.", w.unsupported)
 	}
@@ -312,6 +313,20 @@ func (a *App) OpenFolderFilesPicker(title string) []string {
 	}
 	a.issueDocPaths(w.files)
 	return w.files
+}
+
+// selectedProfileName is the selected profile's name for display, falling
+// back to its id.
+func (a *App) selectedProfileName() string {
+	id := a.selectedProfileOrEmpty()
+	if profiles, err := a.GetProfiles(); err == nil {
+		for _, p := range profiles {
+			if p.ID == id {
+				return p.Name
+			}
+		}
+	}
+	return id
 }
 
 // BatchUploadResult is UploadProfileDocuments' return value.
@@ -388,6 +403,9 @@ func (a *App) uploadBatch(paths []string, upload func(ctx context.Context, path 
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), uploadFileTimeout)
 		one, err := upload(ctx, path)
+		if ctx.Err() != nil {
+			err = fmt.Errorf("timed out after %s", uploadFileTimeout)
+		}
 		cancel()
 		switch {
 		case err != nil:

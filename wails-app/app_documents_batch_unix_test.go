@@ -4,10 +4,13 @@ package main
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"testing"
+	"time"
 )
 
 func TestUploadBatchOnlyUploadsIssuedRegularFiles(t *testing.T) {
@@ -51,5 +54,36 @@ func TestUploadBatchOnlyUploadsIssuedRegularFiles(t *testing.T) {
 	})
 	if len(res.Failed) != 1 {
 		t.Fatalf("res=%+v", res)
+	}
+}
+
+func TestUploadBatchReportsATimeoutAndKeepsGoing(t *testing.T) {
+	old := uploadFileTimeout
+	uploadFileTimeout = 50 * time.Millisecond
+	defer func() { uploadFileTimeout = old }()
+	dir := t.TempDir()
+	slow, fast := filepath.Join(dir, "slow.txt"), filepath.Join(dir, "fast.txt")
+	for _, p := range []string{slow, fast} {
+		if err := os.WriteFile(p, []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	a := &App{}
+	a.issueDocPaths([]string{slow, fast})
+	res, err := a.uploadBatch([]string{slow, fast}, func(ctx context.Context, p string) (UploadResult, error) {
+		if p == slow {
+			<-ctx.Done()
+			return UploadResult{}, errors.New("signal: killed")
+		}
+		return UploadResult{Indexed: true}, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Uploaded != 1 || len(res.Failed) != 1 || !strings.Contains(res.Failed[0], "slow.txt: timed out after") {
+		t.Fatalf("res=%+v", res)
+	}
+	if a.docBatchBusy.Load() {
+		t.Fatal("busy flag not released")
 	}
 }

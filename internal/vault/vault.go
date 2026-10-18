@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 
 	"github.com/monoes/mono-agent/internal/monomind"
 	"github.com/monoes/mono-agent/internal/profiledir"
@@ -424,11 +425,18 @@ func ResolveConfig(ctx context.Context, db *sql.DB, stored, config map[string]in
 }
 
 func copyFile(src, dst string) (retErr error) {
-	in, err := os.Open(src)
+	// O_NONBLOCK so opening a FIFO that appeared at src cannot hang; the
+	// fstat then refuses anything but a regular file.
+	in, err := os.OpenFile(src, os.O_RDONLY|syscall.O_NONBLOCK, 0)
 	if err != nil {
 		return err
 	}
 	defer in.Close()
+	if fi, err := in.Stat(); err != nil {
+		return err
+	} else if !fi.Mode().IsRegular() {
+		return fmt.Errorf("%s is not a regular file", src)
+	}
 	out, err := os.Create(dst)
 	if err != nil {
 		return err
