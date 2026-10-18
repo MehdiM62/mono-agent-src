@@ -76,7 +76,11 @@ function fakeChrome() {
   return { chrome, store };
 }
 
-function bridge({ connected = true, seed = {}, maxMessageBytes, artifact } = {}) {
+// The profiles the bridge lists (profile.list): a capture that names none is
+// filed into the default one when it is sent (D2).
+const WORK = [{ id: "p-work", name: "Work", default: true }];
+
+function bridge({ connected = true, seed = {}, maxMessageBytes, artifact, profiles = WORK } = {}) {
   const { chrome, store } = fakeChrome();
   Object.assign(store, seed);
   const sent = [];
@@ -85,6 +89,16 @@ function bridge({ connected = true, seed = {}, maxMessageBytes, artifact } = {})
     ["capture_meta.js", "capture.js", "capture_profile.js", "capture_bridge.js"],
     { chrome }
   );
+  const lists = { profiles };
+  env.MonoAsk = {
+    asked: 0,
+    supports: async () => true,
+    request: async (method) => {
+      if (method !== "profile.list") throw new Error(`unexpected ${method}`);
+      env.MonoAsk.asked++;
+      return { profiles: lists.profiles };
+    },
+  };
   env.MonoCaptureBridge.install({
     send: (message) => {
       sent.push(message);
@@ -102,7 +116,7 @@ function bridge({ connected = true, seed = {}, maxMessageBytes, artifact } = {})
         : { data: bytes },
     detach: async () => {},
   });
-  return { env, chrome, store, sent };
+  return { env, chrome, store, sent, lists };
 }
 
 /**
@@ -335,20 +349,57 @@ test("the keyboard shortcut files into the sticky profile, with no interaction",
   assert.ok(env.MonoCaptureProfile, "the profile module is loaded in the worker");
 });
 
-test("with nothing chosen, a shortcut capture is unprofiled — as it always was", async () => {
+test("with nothing chosen, a shortcut capture is filed into the default profile (D2)", async () => {
   const { chrome, sent } = bridge();
   await chrome.listeners.command("capture-page");
   await new Promise((r) => setTimeout(r, 30));
 
   assert.equal(sent.length, 1);
-  assert.equal("profile" in sent[0].data.meta, false);
+  assert.equal(sent[0].data.meta.profile, "p-work");
 });
 
-test("a remembered profile that is not a usable id is ignored, not sent", async () => {
+test("a remembered profile that is not a usable id is ignored, not sent: the default is used", async () => {
   const { chrome, sent } = bridge({ seed: { captureProfile: "../evil" } });
   await chrome.listeners.command("capture-page");
   await new Promise((r) => setTimeout(r, 30));
 
   assert.equal(sent.length, 1, "the capture still lands");
-  assert.equal("profile" in sent[0].data.meta, false);
+  assert.equal(sent[0].data.meta.profile, "p-work");
+});
+
+// D2 (#822): no capture lands in an Unassigned pile. One that names no
+// profile is filed when it is sent; with no profile at all it waits in the
+// queue, unsent and kept, until one exists.
+test("a capture queued with no profile is filed into the default one when the queue is flushed", async () => {
+  const { chrome, store, env } = bridge({ connected: false });
+  await new Promise((resolve) => chrome.listeners.message({ type: "capture_active_tab" }, {}, resolve));
+  assert.equal(store.captureQueue[0].envelope.meta.profile, undefined, "the bridge was down: nobody could say which");
+
+  const wire = [];
+  env.MonoCaptureBridge.install({
+    send: (m) => (wire.push(m), true),
+    isConnected: () => true,
+    attach: async () => {},
+    cdp: async () => ({ data: "" }),
+    detach: async () => {},
+  });
+  assert.deepEqual(await env.MonoCaptureBridge.flush(), { flushed: 1 });
+  assert.equal(wire[0].data.meta.profile, "p-work");
+  assert.deepEqual(store.captureQueue, []);
+});
+
+test("with no profile at all a capture is held, not sent unfiled, and goes once a profile exists", async () => {
+  const { chrome, store, env, sent, lists } = bridge({ profiles: [] });
+  const response = await new Promise((resolve) => chrome.listeners.message({ type: "capture_active_tab" }, {}, resolve));
+  assert.deepEqual([response.ok, response.queued, response.held], [true, true, true]);
+  assert.equal(sent.length, 0, "nothing unfiled reaches the bridge");
+  assert.equal(store.captureQueue.length, 1);
+
+  assert.deepEqual(await env.MonoCaptureBridge.flush(), { flushed: 0, held: 1 });
+  assert.equal(store.captureQueue.length, 1, "still kept");
+
+  lists.profiles = WORK; // a profile is made in MonoAgent
+  assert.deepEqual(await env.MonoCaptureBridge.flush(), { flushed: 1 });
+  assert.equal(sent.at(-1).data.meta.profile, "p-work");
+  assert.deepEqual(store.captureQueue, []);
 });

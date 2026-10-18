@@ -63,7 +63,13 @@
     }
   }
 
-  const bridge = () => ({ send, isConnected: () => deps.isConnected() });
+  // prepare files a capture that names no profile as it is sent, or holds it
+  // when no profile exists (capture_profile.js preparer; D2).
+  const bridge = () => {
+    const P = root.MonoCaptureProfile;
+    const prepare = P ? P.preparer(root.MonoAsk, storage()) : null;
+    return Object.assign({ send, isConnected: () => deps.isConnected() }, prepare ? { prepare } : {});
+  };
 
   /**
    * capture takes one page, through the injected capture function in tests.
@@ -190,11 +196,13 @@
     return {
       ok: delivery.sent || delivery.queued,
       queued: !!delivery.queued,
+      held: !!delivery.held,
       title: result.meta.title,
       note: result.meta.note || null,
       tags: result.meta.tags || [],
       collection: result.meta.collection || null,
-      profile: result.meta.profile || null,
+      // Filed as it was sent, if it named no profile (D2).
+      profile: delivery.profile || result.meta.profile || null,
       warnings: (result.warnings || []).concat(delivery.failed ? [delivery.reason] : []),
       error: delivery.failed ? delivery.reason : undefined,
     };

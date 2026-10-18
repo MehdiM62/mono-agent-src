@@ -14,9 +14,11 @@
  *
  *   NEVER BLOCK A CAPTURE. The profile list comes from the Go bridge
  *   (profile.list), and the bridge is frequently not there. Every failure
- *   below resolves to "save it without a profile", which is exactly what
- *   captures did before profiles existed — a page is never lost, and never
- *   waits on a question about filing.
+ *   below resolves to "take it without a profile for now" — a page is never
+ *   lost, and the capture never waits on a question about filing. It is
+ *   filed when it is sent (profileForSending): there is no Unassigned pile
+ *   (decision D2), so with no profile at all it stays queued until one
+ *   exists.
  *
  * The id is used as a directory name on the other side. The Go side owns
  * that guarantee (internal/profiledir rejects separators and '..'), but a
@@ -264,6 +266,45 @@
   }
 
   /**
+   * profileForSending is the profile a capture that names none is filed
+   * into when it is sent: the remembered one, else the default, asking the
+   * bridge (only a sender calls this, so the bridge is there). "" when no
+   * profile exists at all. There is no Unassigned pile (decision D2), so the
+   * caller then keeps the capture queued, unsent, until one does.
+   */
+  async function profileForSending(ask, storage) {
+    const id = await stickyOrAsk(ask, storage, true);
+    if (id) return id;
+    // An empty list may be an old answer: a profile made since is asked for.
+    return (await refresh(ask, storage)).id;
+  }
+
+  /**
+   * stampEnvelope files an envelope that names no profile into the one
+   * resolveId() answers, asked only then. A filed envelope is returned as it
+   * is; null means there is no profile to file it into. The envelope passed
+   * in is not changed: the queue keeps it as it was.
+   */
+  async function stampEnvelope(envelope, resolveId) {
+    const meta = (envelope && envelope.meta) || {};
+    if (isValidProfileId(meta.profile)) return envelope;
+    const id = await resolveId();
+    if (!isValidProfileId(id)) return null;
+    return Object.assign({}, envelope, { meta: applyToMeta(Object.assign({}, meta), id) });
+  }
+
+  /**
+   * preparer is the prepare(envelope) for one run of sends (a flush, one
+   * capture, a retry): stampEnvelope with the profile asked for once, and
+   * only if an envelope names none. null from it means: keep it queued.
+   */
+  function preparer(ask, storage) {
+    let asked = null;
+    const resolveId = () => (asked = asked || profileForSending(ask, storage));
+    return (envelope) => stampEnvelope(envelope, resolveId);
+  }
+
+  /**
    * applyToMeta stamps the profile onto a finished capture's meta, exactly
    * as MonoCaptureForm.applyToMeta stamps the note. An absent or unusable
    * id leaves `profile` off the envelope entirely, which is what every
@@ -279,6 +320,7 @@
   root.MonoCaptureProfile = {
     isValidProfileId, normalizeProfiles, defaultProfile, choose,
     load, remember, cacheProfiles, fetchProfiles, refresh, sticky, stickyOrAsk, applyToMeta,
+    profileForSending, stampEnvelope, preparer,
     PROFILE_KEY, PROFILES_KEY, METHOD, LIST_TIMEOUT_MS, RECHECK_MS,
   };
 })(globalThis);

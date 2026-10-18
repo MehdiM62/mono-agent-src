@@ -455,7 +455,13 @@
     return { queued: true, depth: next.length };
   }
 
-  async function flushQueue(storage, send) {
+  /**
+   * flushQueue sends what was queued, oldest first. `prepare(envelope)`, when
+   * given, files an envelope that names no profile (D2: there is no
+   * Unassigned pile) and answers null for one that has no profile to go to:
+   * that one stays queued, as it was, until a later flush can file it.
+   */
+  async function flushQueue(storage, send, prepare) {
     const queued = (await storage.get(QUEUE_KEY))[QUEUE_KEY] || [];
     if (!queued.length) return { flushed: 0 };
 
@@ -471,19 +477,38 @@
     // capture is a duplicate row on the Go side; a lost one is a page the
     // person never gets back. CLIP-08 picks the duplicate every time.
     let flushed = 0;
+    let held = 0;
     let reason = null;
+    const sent = new Set();
     for (const entry of queued) {
+      const envelope = prepare ? await prepare(entry.envelope) : entry.envelope;
+      if (!envelope) {
+        held++;
+        continue;
+      }
       try {
-        send(entry.envelope);
+        send(envelope);
         flushed++;
+        sent.add(entry);
       } catch (err) {
         reason = err.message;
         break;
       }
     }
-    await storage.set({ [QUEUE_KEY]: queued.slice(flushed) });
-    return reason ? { flushed, reason } : { flushed };
+    // Written back from what is there now, less what went: prepare may have
+    // waited on the bridge, and a capture queued meanwhile must stay.
+    const now = sent.size ? (await storage.get(QUEUE_KEY))[QUEUE_KEY] || [] : null;
+    if (now) {
+      const gone = new Set([...sent].map(entryKey));
+      await storage.set({ [QUEUE_KEY]: now.filter((e) => !gone.has(entryKey(e))) });
+    }
+    const out = { flushed };
+    if (held) out.held = held;
+    if (reason) out.reason = reason;
+    return out;
   }
+
+  const entryKey = (e) => (e && e.envelope && e.envelope.id) || (e && e.queuedAt) || "";
 
   root.MonoCapture = {
     pageCapture, planMessages, applySizeCaps, queueCapture, flushQueue,

@@ -81,6 +81,16 @@ function world(options = {}) {
   const captures = [];
   let connected = options.connected !== false;
   const frames = [];
+  // The profiles the bridge lists: a capture that names none is filed into
+  // the default one when it is sent, and held while there is none (D2).
+  const lists = { profiles: options.profiles || [{ id: "p-work", name: "Work", default: true }] };
+  sandbox.MonoAsk = {
+    supports: async () => true,
+    request: async (method) => {
+      if (method !== "profile.list") throw new Error(`unexpected ${method}`);
+      return { profiles: lists.profiles };
+    },
+  };
 
   sandbox.MonoCaptureActions.install({
     storage: chrome.storage.local,
@@ -125,6 +135,7 @@ function world(options = {}) {
     captures,
     broadcasts,
     tabs,
+    lists,
     disconnect: () => (connected = false),
     sendSilentlyFails: () => (options.sendSilentlyFails = true),
     connect: () => (connected = true),
@@ -315,32 +326,41 @@ test("the picked profile rides the envelope and becomes the sticky choice", asyn
   assert.equal(w.frames[1].data.meta.profile, "p-work");
 });
 
-test("picking 'no profile' is a choice, and is remembered as one", async () => {
-  const w = world();
-  await w.ask({ type: "capture_commit", form: { profile: "p-work" } });
-  await w.ask({ type: "capture_commit", form: { profile: "" } });
-
-  assert.equal(w.frames[1].data.meta.profile, undefined);
-  assert.equal(w.store[w.MonoCaptureProfile.PROFILE_KEY], "");
+test("a capture saved with no profile is filed into the default one as it is sent (D2)", async () => {
+  const w = world({ profiles: [{ id: "p-home", name: "Home" }, { id: "p-work", name: "Work", default: true }] });
+  await w.ask({ type: "capture_commit", form: { profile: "" } }); // an older panel's "no profile"
+  assert.equal(w.frames[0].data.meta.profile, "p-work");
 });
 
-test("a capture with no profile anywhere is exactly what it always was", async () => {
-  const w = world();
+test("with no profile anywhere a capture waits in the queue, kept and unsent (D2)", async () => {
+  const w = world({ profiles: [] });
   const result = await w.ask({ type: "capture_commit", form: {} });
-  const meta = w.frames[0].data.meta;
-  assert.equal("profile" in meta, false, "an unprofiled capture carries no profile key");
-  assert.equal(result.profile, null);
+  assert.deepEqual([result.ok, result.queued, result.held], [true, true, true]);
+  assert.equal(w.frames.length, 0, "nothing unfiled reaches the bridge");
+  const state = await w.ask({ type: "queue_state" });
+  assert.deepEqual([state.counts.queued, state.unfiled], [1, 1]);
+  // The note the side panel shows comes with the form state.
+  assert.equal((await w.ask({ type: "capture_form_state" })).unfiled, 1);
+  // A retry with still no profile keeps it and says why.
+  const retried = await w.ask({ type: "queue_retry", key: state.queued[0].key });
+  assert.equal(retried.ok, false);
+  assert.match(retried.reason, /create one in MonoAgent/);
+  // Once a profile exists, the same retry files and sends it.
+  w.lists.profiles = [{ id: "p-work", name: "Work", default: true }];
+  assert.equal((await w.ask({ type: "queue_retry", key: state.queued[0].key })).ok, true);
+  assert.equal(w.frames[0].data.meta.profile, "p-work");
 });
 
 test("a hostile profile id never reaches the envelope", async () => {
   const w = world();
   await w.ask({ type: "capture_commit", form: { profile: "../../etc/passwd" } });
-  assert.equal("profile" in w.frames[0].data.meta, false);
-  assert.equal(w.store[w.MonoCaptureProfile.PROFILE_KEY], "");
+  assert.equal(w.frames[0].data.meta.profile, "p-work", "the default, not the id it was handed");
+  assert.equal(w.store[w.MonoCaptureProfile.PROFILE_KEY], "p-work", "and the default is remembered, never the hostile id");
 });
 
 test("the form state carries the picker, and works with no bridge to ask", async () => {
   const w = world();
+  w.sandbox.MonoAsk = undefined;
   const state = await w.ask({ type: "capture_form_state" });
   assert.equal(state.ok, true);
   assert.deepEqual(state.profiles, []);

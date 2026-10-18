@@ -420,7 +420,7 @@ function drawProfiles(state) {
   // Mid-save or just saved, the button's own words win; flashDone puts
   // the save label back when it is done.
   if (!captureBtn.dataset.busy && !captureBtn.dataset.done) captureLabel.textContent = profiles.saveLabel;
-  batchDest.textContent = current.id ? current.name : "the shared inbox";
+  batchDest.textContent = current.id ? current.name : "the first profile you make";
 
   // The binding select offers the same list; redraw it when the list changes.
   if (typeof panelBinding !== "undefined") panelBinding.redraw();
@@ -462,7 +462,7 @@ profileOptions.addEventListener("change", async (event) => {
   captureLabel.textContent = View.describeProfiles(
     Object.assign({}, lastFormState, { profile: id, profileChanged: false })
   ).saveLabel;
-  batchDest.textContent = option.id ? option.name : "the shared inbox";
+  batchDest.textContent = option.id ? option.name : "the first profile you make";
   // A choice made here supersedes a "your profile was deleted" note.
   if (profileNote.dataset.tone === "warn") profileNote.hidden = true;
   if (lastFormState) lastFormState = Object.assign({}, lastFormState, { profile: id, profileChanged: false });
@@ -760,12 +760,16 @@ captureBtn.addEventListener("click", async () => {
 
   const by = mode.summarizes && globalThis.MonoPanelAI ? MonoPanelAI.summaryBy() : "";
   const title = (result.title ? `Saved: ${result.title}` : "Saved") + (by ? ` — ${by} is writing the summary` : "");
-  if (result.queued) {
+  if (result.held) {
+    // No profile exists yet: kept here, sent once there is one (D2).
+    showCapture("warn", `${title} — it waits for a profile: create one in MonoAgent`);
+  } else if (result.queued) {
     showCapture("warn", `${title} — waiting for the bridge`);
   } else if (result.warnings?.length) {
     showCapture("warn", `${title} — ${result.warnings.join("; ")}`);
   } else {
-    showCapture("ok", `${title} — in ${profiles.current && profiles.current.id ? profiles.current.name : "the shared inbox"}`);
+    const filed = profiles.options.find((o) => o.id && o.id === result.profile);
+    showCapture("ok", `${title} — in ${filed ? filed.name : "your profile"}`);
   }
   if (!result.queued) flashDone(label);
   noteInput.value = "";

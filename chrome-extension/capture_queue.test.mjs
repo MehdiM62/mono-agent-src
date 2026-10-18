@@ -206,3 +206,39 @@ test("the badge counts waiting and refused tasks with the captures", () => {
   assert.equal(refused.color, "#c0392b");
   assert.match(refused.title, /^1 task was not added/);
 });
+
+// D2 (#822): there is no Unassigned pile. A capture that names no profile is
+// filed when it is sent (deps.prepare stamps it); with no profile at all it
+// stays queued, unsent and kept, and the panel counts it.
+test("a capture with no profile to file into is held in the queue, never sent unfiled", async () => {
+  const storage = fakeStorage();
+  const bridge = Object.assign(fakeBridge(true), { prepare: async () => null });
+  const result = await Queue.deliver(bridge, storage, envelope("a", "Lighthouse"));
+  assert.deepEqual([result.sent, result.queued, result.held], [false, true, true]);
+  assert.equal(bridge.sent.length, 0);
+  const state = await Queue.pending(storage);
+  assert.deepEqual([state.counts.queued, state.unfiled], [1, 1]);
+
+  const retried = await Queue.retry(bridge, storage, "a");
+  assert.equal(retried.ok, false);
+  assert.match(retried.reason, /create one in MonoAgent/);
+  assert.equal((await Queue.pending(storage)).counts.queued, 1, "kept");
+
+  const filed = Object.assign(fakeBridge(true), {
+    prepare: async (e) => Object.assign({}, e, { meta: Object.assign({}, e.meta, { profile: "p-work" }) }),
+  });
+  assert.equal((await Queue.retry(filed, storage, "a")).ok, true);
+  assert.equal(filed.sent[0].meta.profile, "p-work", "sent filed");
+  assert.equal((await Queue.pending(storage)).counts.queued, 0);
+});
+
+test("a capture filed at send time goes out filed, and one already filed as it was", async () => {
+  const storage = fakeStorage();
+  const prepared = [];
+  const bridge = Object.assign(fakeBridge(true), {
+    prepare: async (e) => (prepared.push(e.id), Object.assign({}, e, { meta: Object.assign({}, e.meta, { profile: "p-work" }) })),
+  });
+  await Queue.deliver(bridge, storage, envelope("a", "Lighthouse"));
+  assert.equal(bridge.sent[0].meta.profile, "p-work");
+  assert.deepEqual(prepared, ["a"]);
+});

@@ -278,3 +278,28 @@ test("the background check never asks a disconnected bridge, and a dead one chan
   await settle();
   assert.deepEqual(other.data[P.PROFILES_KEY], PROFILES, "an unanswered check keeps the cache");
 });
+
+// D2 (#822): a capture is filed when it is sent, into the remembered profile
+// or else the default, and a sender asks the bridge to find out.
+test("profileForSending is the remembered profile, else the default, asking when it must", async () => {
+  assert.equal(await P.profileForSending(fakeAsk({ profiles: PROFILES }), fakeStorage({ [P.PROFILE_KEY]: "p-home" })), "p-home");
+  assert.equal(await P.profileForSending(fakeAsk({ profiles: PROFILES }), fakeStorage()), "p-work");
+  assert.equal(await P.profileForSending(fakeAsk({ profiles: [] }), fakeStorage()), "", "no profile at all");
+  // An empty list was the answer once; a profile made since is found.
+  const storage = fakeStorage({ [P.PROFILES_KEY]: [] });
+  assert.equal(await P.profileForSending(fakeAsk({ profiles: PROFILES }), storage), "p-work");
+});
+
+test("stampEnvelope files an unfiled envelope, leaves a filed one alone, and has nothing to say without a profile", async () => {
+  const unfiled = { id: "a", meta: { title: "T" } };
+  const stamped = await P.stampEnvelope(unfiled, async () => "p-work");
+  assert.equal(stamped.meta.profile, "p-work");
+  assert.equal(stamped.meta.title, "T");
+  assert.equal(unfiled.meta.profile, undefined, "the queued envelope is not changed in place");
+  let asked = 0;
+  const filed = { id: "b", meta: { profile: "p-home" } };
+  assert.equal(await P.stampEnvelope(filed, async () => (asked++, "p-work")), filed);
+  assert.equal(asked, 0, "nobody is asked for a capture that already names its profile");
+  assert.equal(await P.stampEnvelope(unfiled, async () => ""), null);
+  assert.equal(await P.stampEnvelope(unfiled, async () => "../evil"), null);
+});

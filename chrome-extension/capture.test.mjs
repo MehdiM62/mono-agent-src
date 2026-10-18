@@ -324,3 +324,30 @@ test("full-page screenshot sets device metrics override and clears it", async ()
   assert.equal(overrideCall.params.height, 3000);
   assert.equal(overrideCall.params.width, 1200);
 });
+
+// D2 (#822): the flush files what names no profile (prepare), keeps what has
+// nowhere to go (prepare answers null) queued and unsent, and never loses a
+// capture queued while it ran.
+test("a flush files captures as it sends them, and holds those with no profile to go to", async () => {
+  const store = {};
+  const storage = {
+    get: async (key) => ({ [key]: store[key] }),
+    set: async (update) => Object.assign(store, update),
+  };
+  await MonoCapture.queueCapture(storage, { id: "a", meta: {} });
+  await MonoCapture.queueCapture(storage, { id: "b", meta: { profile: "p-home" } });
+  await MonoCapture.queueCapture(storage, { id: "c", meta: {} });
+
+  const sent = [];
+  const prepare = async (e) => {
+    if (e.id === "a") await MonoCapture.queueCapture(storage, { id: "d", meta: {} }); // captured mid-flush
+    if (e.id === "c") return null; // nowhere to file it yet
+    return e.meta.profile ? e : Object.assign({}, e, { meta: { profile: "p-work" } });
+  };
+  const result = await MonoCapture.flushQueue(storage, (e) => sent.push([e.id, e.meta.profile]), prepare);
+  assert.deepEqual(sent, [["a", "p-work"], ["b", "p-home"]]);
+  assert.equal(result.flushed, 2);
+  assert.equal(result.held, 1);
+  assert.deepEqual(store.captureQueue.map((e) => e.envelope.id), ["c", "d"], "held and new captures stay");
+  assert.equal(store.captureQueue[0].envelope.meta.profile, undefined, "a held capture is kept as it was");
+});

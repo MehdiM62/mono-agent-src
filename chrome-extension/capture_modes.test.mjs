@@ -253,3 +253,9 @@ test("the task items: one on a page, one on a selection, left to the task menu",
   assert.equal(M.menuRoute({ menuItemId: M.TASK_IDS.page }, { id: 3 }), null);
   assert.equal(M.menuRoute({ menuItemId: M.TASK_IDS.selection }, { id: 3 }), null);
 });
+
+test("a capture held for want of a profile says it waits for one, not for the bridge (D2)", () => {
+  const { MonoCaptureModes: M } = loadExtensionScripts(["capture_modes.js"]);
+  const fb = M.feedback("full", { ok: true, queued: true, held: true, title: "T" });
+  assert.deepEqual(fb, { level: "warn", text: "Page saved: T — it waits for a profile: create one in MonoAgent" });
+});
