@@ -15,7 +15,7 @@ const fixture = (name) => readFileSync(join(HERE, "fixtures", "youtube", name), 
 const b64 = (s) => Buffer.from(s, "utf8").toString("base64");
 
 const SCRIPTS = [
-  "capture_meta.js", "capture.js", "capture_profile.js", "capture_modes.js",
+  "capture_meta.js", "capture.js", "capture_outbox.js", "capture_profile.js", "capture_modes.js",
   "youtube_video.js", "youtube_transcript.js", "capture_bridge.js",
 ];
 

@@ -247,7 +247,7 @@ function worker() {
     runtime: { onMessage: { addListener: () => {} }, sendMessage: () => Promise.resolve() },
   };
   const env = loadExtensionScripts(
-    ["capture_meta.js", "capture.js", "capture_modes.js", "capture_form.js", "capture_profile.js", "summary_ai.js",
+    ["capture_meta.js", "capture.js", "capture_outbox.js", "capture_modes.js", "capture_form.js", "capture_profile.js", "summary_ai.js",
       "capture_batch.js", "capture_queue.js", "capture_actions.js"],
     { chrome }
   );
@@ -332,7 +332,7 @@ function menuWorld(seed) {
     },
   };
   const env = loadExtensionScripts(
-    ["capture_meta.js", "capture.js", "capture_profile.js", "summary_ai.js", "capture_modes.js", "youtube_video.js", "capture_bridge.js"],
+    ["capture_meta.js", "capture.js", "capture_outbox.js", "capture_profile.js", "summary_ai.js", "capture_modes.js", "youtube_video.js", "capture_bridge.js"],
     { chrome }
   );
   env.MonoCaptureBridge.install({

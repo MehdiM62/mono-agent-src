@@ -86,7 +86,7 @@ function bridge({ connected = true, seed = {}, maxMessageBytes, artifact, profil
   const sent = [];
   const bytes = artifact || Buffer.from("artifact").toString("base64");
   const env = loadExtensionScripts(
-    ["capture_meta.js", "capture.js", "capture_profile.js", "capture_bridge.js"],
+    ["capture_meta.js", "capture.js", "capture_outbox.js", "capture_profile.js", "capture_bridge.js"],
     { chrome }
   );
   const lists = { profiles };

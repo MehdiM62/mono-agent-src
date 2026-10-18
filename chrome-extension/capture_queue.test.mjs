@@ -9,6 +9,7 @@ import { loadExtensionScripts } from "./test_helpers.mjs";
 const { MonoCaptureQueue: Queue, MonoCapture } = loadExtensionScripts([
   "capture_meta.js",
   "capture.js",
+  "capture_outbox.js",
   "capture_queue.js",
 ]);
 

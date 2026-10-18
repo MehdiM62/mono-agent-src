@@ -69,6 +69,7 @@ function world(options = {}) {
     [
       "capture_meta.js",
       "capture.js",
+      "capture_outbox.js",
       "capture_form.js",
       "capture_profile.js",
       "capture_batch.js",
