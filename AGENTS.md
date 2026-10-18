@@ -577,7 +577,7 @@ dangerous calls.
   and workflows read secrets' metadata and write other entries as before.
   The `--help` of each of these says so ("The user's own: an agent, the
   chat or a workflow is refused"), and a nil operator check refuses
-  (`clicore.OperatorRefusal`). `extension pair` stays open (an agent can
+  (`clicore.OperatorRefusal`; for CLI authors, every `Deps.RequireOperator`, `NotOperator` and `Refusal` goes through `clicore.RequireOperator` / `clicore.OperatorRefusal`, which refuse when the check is nil). `extension pair` stays open (an agent can
   read the token file),
   and so does `image.vault_get` taking its id from data, by design. Names, masked
   values and metadata stay open. No secret reference resolves in a run of
