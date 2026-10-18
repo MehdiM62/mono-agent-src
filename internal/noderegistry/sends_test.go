@@ -429,3 +429,37 @@ func TestUndeclaredKeysWaitOnlyInAGatedRun(t *testing.T) {
 		}
 	}
 }
+
+// A collection or option given as an expression is shown as one, not as
+// what it resolves to: on an empty item it resolves to "", which would read
+// as nothing undeclared (#848).
+func TestAnExpressionCollectionShowsAsOneOnTheCard(t *testing.T) {
+	Build(nil)
+	db := sendsDB(t)
+	st := hilsend.Store{DB: db, Profile: "default"}
+	type cfg = map[string]interface{}
+	asOperator(t)
+	t.Setenv(hilsend.EnvAgentContext, "coder")
+	for _, c := range []struct {
+		nodeType string
+		config   cfg
+		text     string
+	}{
+		{"app.freshservice", cfg{"resource": "ticket", "operation": "create", "email": "a@example.test", "subject": "S",
+			"description": "D", "additionalFields": "{{ $json.extra }}"},
+			"freshservice ticket/create with fields it doesn't declare:\nadditionalFields: (an expression)"},
+		{"app.zammad", cfg{"resource": "ticket", "operation": "create", "title": "T", "group": "Users",
+			"customer": "a@example.test", "article": cfg{"articleDetails": "{{ $json.article }}"}},
+			"zammad ticket/create with fields it doesn't declare:\narticle.articleDetails: (an expression)"},
+	} {
+		for _, in := range []workflow.NodeInput{{}, {Items: []workflow.Item{{JSON: cfg{}}}}} {
+			out, handled, err := hilsend.Guard(sendsCtx(db), c.nodeType, in, c.config)
+			if err != nil || !handled {
+				t.Fatalf("%s with %d item(s): handled=%v err=%v", c.nodeType, len(in.Items), handled, err)
+			}
+			if p, err := st.Get(context.Background(), out[0].Items[0].JSON["hil_id"].(string)); err != nil || p.Text != c.text {
+				t.Errorf("%s with %d item(s): text %q, %v; want %q", c.nodeType, len(in.Items), p.Text, err, c.text)
+			}
+		}
+	}
+}

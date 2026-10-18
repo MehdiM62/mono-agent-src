@@ -2,6 +2,7 @@ package hilsend
 
 import (
 	"encoding/json"
+	"slices"
 	"strings"
 	"sync/atomic"
 
@@ -21,9 +22,11 @@ type Classified struct {
 	ToUnset string
 	// Op and Show describe a send of keys the op doesn't declare: the op
 	// ("trello card/update") and the param paths that hold the keys, which
-	// the card shows as its text (undeclaredText).
+	// the card shows as its text (undeclaredText); Exprs, those of the paths
+	// given as an expression.
 	Op      string
 	Show    []string
+	Exprs   []string
 	PerItem []string
 }
 
@@ -149,11 +152,17 @@ func (t target) recipientOf(config map[string]interface{}) (r Recipient, labelle
 
 // undeclaredText is the card's text for a send of keys its op doesn't
 // declare: the op, and each param that holds them with its value as this
-// item would send it, so the user sees what they approve.
-func undeclaredText(op string, show []string, config map[string]interface{}) string {
+// item would send it, so the user sees what they approve. A param given as
+// an expression (exprs) says so: its keys are the run's, and on an empty
+// item it resolves to "", which would read as nothing undeclared.
+func undeclaredText(op string, show, exprs []string, config map[string]interface{}) string {
 	var b strings.Builder
 	b.WriteString(op + " with fields it doesn't declare:")
 	for _, path := range show {
+		if slices.Contains(exprs, path) {
+			b.WriteString("\n" + path + ": (an expression)")
+			continue
+		}
 		v, _ := json.Marshal(valueAt(config, path))
 		if len(v) > 500 {
 			v = append(v[:500], "…"...)

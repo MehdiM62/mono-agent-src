@@ -202,7 +202,7 @@ func prepare(st Store, nodeType string, t target, who PreparedBy, config map[str
 		if len(t.show) > 0 {
 			// No message to show or edit: what the step would send that
 			// its op doesn't declare.
-			textField, text = "", undeclaredText(t.op, t.show, o.config)
+			textField, text = "", undeclaredText(t.op, t.show, t.exprs, o.config)
 		}
 		subjectField, subject := firstKey(o.config, t.subject)
 		rec := o.recipient

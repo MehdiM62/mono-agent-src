@@ -65,8 +65,12 @@ func (o *Operation) merges() map[string]*merged {
 }
 
 // undeclaredKey is a key config sends that its op doesn't declare: its
-// name on the card's label and the param path that holds it.
-type undeclaredKey struct{ name, path string }
+// name on the card's label and the param path that holds it; expr when that
+// path is a collection or option given as an expression.
+type undeclaredKey struct {
+	name, path string
+	expr       bool
+}
 
 // undeclared lists what config sends that o doesn't declare: a key of a
 // collection its requests use whole (or pick) that isn't one of the
@@ -84,7 +88,7 @@ func (o *Operation) undeclared(config map[string]any) []undeclaredKey {
 		v := config[f.Key]
 		if s, ok := v.(string); ok && hasTemplate(s) {
 			if use != nil && (use.whole || o.picksUndeclared(use, f.Options)) || o.hasSubfields(f.Key) {
-				out = append(out, undeclaredKey{f.Key + " (an expression)", f.Key})
+				out = append(out, undeclaredKey{f.Key + " (an expression)", f.Key, true})
 			}
 			continue
 		}
@@ -94,7 +98,7 @@ func (o *Operation) undeclared(config map[string]any) []undeclaredKey {
 		}
 		for k, ov := range c {
 			if use.sends(k) && len(f.Options) > 0 && !slices.Contains(f.Options, k) {
-				out = append(out, undeclaredKey{k, f.Key + "." + k})
+				out = append(out, undeclaredKey{k, f.Key + "." + k, false})
 				continue
 			}
 			sub, ok := o.Subfields[f.Key+"."+k]
@@ -103,13 +107,13 @@ func (o *Operation) undeclared(config map[string]any) []undeclaredKey {
 				continue
 			}
 			if s, ok := ov.(string); ok && hasTemplate(s) {
-				out = append(out, undeclaredKey{k + " (an expression)", f.Key + "." + k})
+				out = append(out, undeclaredKey{k + " (an expression)", f.Key + "." + k, true})
 				continue
 			}
 			for _, obj := range objectsOf(ov) {
 				for sk := range obj {
 					if !slices.Contains(sub, sk) && (use.sends(k) || optUse.sends(sk)) {
-						out = append(out, undeclaredKey{k + "." + sk, f.Key + "." + k})
+						out = append(out, undeclaredKey{k + "." + sk, f.Key + "." + k, false})
 					}
 				}
 			}
@@ -155,15 +159,18 @@ func (o *Operation) undeclaredSend(keys []undeclaredKey) *Sends {
 	return &Sends{Action: action, ToUnset: "whoever its undeclared fields (" + strings.Join(names, ", ") + ") reach"}
 }
 
-// undeclaredPaths is the param paths that hold keys, for the card to show.
-func undeclaredPaths(keys []undeclaredKey) []string {
-	var out []string
+// undeclaredPaths is the param paths that hold keys, for the card to show,
+// and those of them given as an expression.
+func undeclaredPaths(keys []undeclaredKey) (paths, exprs []string) {
 	for _, k := range keys {
-		if !slices.Contains(out, k.path) {
-			out = append(out, k.path)
+		if !slices.Contains(paths, k.path) {
+			paths = append(paths, k.path)
+		}
+		if k.expr {
+			exprs = append(exprs, k.path)
 		}
 	}
-	return out
+	return paths, exprs
 }
 
 // opLabel names o of pkg the way the card says it: "trello card/update".

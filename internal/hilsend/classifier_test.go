@@ -2,6 +2,7 @@ package hilsend
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -181,9 +182,34 @@ func TestAnUndeclaredKeysCardShowsThemAndCannotBeEdited(t *testing.T) {
 			t.Errorf("item %d: text %q, recipient %+v, %v", i, p.Text, p.Recipient, err)
 		}
 	}
+	id := out[0].Items[0].JSON["hil_id"].(string)
+	if p, _ := st.Get(ctxFor(db), id); !p.TextReadOnly {
+		t.Errorf("the card's text is not marked read-only: %+v", p)
+	}
 	text := "something else"
-	if _, err := st.Edit(ctxFor(db), out[0].Items[0].JSON["hil_id"].(string), &text, nil); err == nil ||
-		!strings.Contains(err.Error(), "no message text to edit") {
+	if _, err := st.Edit(ctxFor(db), id, &text, nil); !errors.Is(err, ErrNoText) {
 		t.Errorf("edit: %v", err)
+	}
+
+	// Approving with an edit fails, sends nothing and leaves the card
+	// pending: the edit would have been dropped. Without one it sends.
+	f := &fakeRunner{}
+	if _, err := Resolve(context.Background(), st, id, true, Edit{Text: &text}, false, f.run); !errors.Is(err, ErrNoText) || len(f.calls) != 0 {
+		t.Fatalf("approve with an edit: %v, %d run(s)", err, len(f.calls))
+	}
+	if p, _ := st.Get(ctxFor(db), id); p.State != StatePending {
+		t.Fatalf("after a refused edit the card is %s", p.State)
+	}
+	if _, err := Resolve(context.Background(), st, id, true, Edit{}, false, f.run); err != nil || len(f.calls) != 1 {
+		t.Fatalf("approve: %v, %d run(s)", err, len(f.calls))
+	}
+	// Once decided, an edit with the approve reports the state, as before.
+	if p, err := Resolve(context.Background(), st, id, true, Edit{Text: &text}, false, f.run); err != nil || p.State == StatePending || len(f.calls) != 1 {
+		t.Errorf("approve again with an edit: %s, %v, %d run(s)", p.State, err, len(f.calls))
+	}
+	// A card with a message is editable.
+	o, _, _ := Guard(ctxFor(db), "app.fake", workflow.NodeInput{}, map[string]interface{}{"operation": "send", "to": "+15550100", "text": "Hi"})
+	if p, _ := st.Get(ctxFor(db), o[0].Items[0].JSON["hil_id"].(string)); p.TextReadOnly {
+		t.Errorf("a message card is marked read-only")
 	}
 }
