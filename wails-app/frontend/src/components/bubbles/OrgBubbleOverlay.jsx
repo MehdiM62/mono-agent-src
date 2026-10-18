@@ -116,11 +116,23 @@ export function OrgBubbleOverlay({ bubble, store, originRect, onCollapse, onClos
     el.style.setProperty('--origin-y', `${originRect.top + originRect.height / 2 - box.top}px`)
   }, [originRect])
 
+  // Focus goes into the dialog at once and into the composer once it can be
+  // typed in: it stays disabled until the thread has loaded (#477). Focus the
+  // person moved in the meantime is left where it is. Given back on close.
   useEffect(() => {
     const prev = document.activeElement
-    panelRef.current?.querySelector('textarea:not([disabled])')?.focus?.()
+    const panel = panelRef.current
+    const ta = panel?.querySelector('textarea:not([disabled])')
+    if (ta) ta.focus()
+    else panel?.focus?.()
     return () => prev?.focus?.()
   }, [])
+  const loaded = !!conv.history
+  useEffect(() => {
+    const panel = panelRef.current
+    if (!loaded || !panel || document.activeElement !== panel) return
+    panel.querySelector('textarea:not([disabled])')?.focus?.()
+  }, [loaded])
 
   const startDrag = (e) => {
     e.preventDefault()
@@ -186,48 +198,50 @@ export function OrgBubbleOverlay({ bubble, store, originRect, onCollapse, onClos
           pressOnBackdrop.current = false
           if (collapseIt) collapse()
         }} />
-      <div ref={panelRef} role="dialog" aria-label={t('orgBubble.chatLabel', { name: orgName })} data-testid="org-bubble-overlay"
+      <div ref={panelRef} role="dialog" tabIndex={-1} aria-label={t('orgBubble.chatLabel', { name: orgName })} data-testid="org-bubble-overlay"
         className={`bubble-overlay${closing ? ' closing' : ''}${narrow ? ' narrow' : ''}`}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0, flexWrap: 'wrap' }}>
-          <Network size={13} style={{ color: 'var(--cyan)' }} aria-hidden="true" />
-          <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{orgName}</span>
+        {/* One row at any width (#477): the names shrink and cut off, the
+            buttons keep their size, and narrow they are icons alone. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0, flexWrap: 'nowrap', minWidth: 0 }}>
+          <Network size={13} style={{ color: 'var(--cyan)', flexShrink: 0 }} aria-hidden="true" />
+          <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{orgName}</span>
           <span data-testid="org-bubble-status" data-status={statusKey} title={statusKey === 'crashed' ? history?.status_error || undefined : undefined}
-            style={{ fontFamily: mono, fontSize: 9.5, color: running && !paused ? 'var(--teal, #00f5d4)' : statusKey === 'crashed' ? 'var(--red, #ef4444)' : 'var(--text-muted)', border: '1px solid var(--border-bright)', borderRadius: 999, padding: '1px 7px' }}>
+            style={{ fontFamily: mono, fontSize: 9.5, color: running && !paused ? 'var(--teal, #00f5d4)' : statusKey === 'crashed' ? 'var(--red, #ef4444)' : 'var(--text-muted)', border: '1px solid var(--border-bright)', borderRadius: 999, padding: '1px 7px', flexShrink: 0, whiteSpace: 'nowrap' }}>
             {t(`orgBubble.status.${statusKey}`)}
           </span>
           {(boss?.runtime || boss?.model) && (
-            <span style={{ fontFamily: mono, fontSize: 9.5, color: 'var(--cyan)' }}>
+            <span style={{ fontFamily: mono, fontSize: 9.5, color: 'var(--cyan)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {t('orgBubble.bossIs', { name: boss.title || boss.id })} · {[boss.runtime && runtimeLabel(boss.runtime), boss.model].filter(Boolean).join(' · ')}
             </span>
           )}
           <span style={{ flex: 1 }} />
           {running && (paused ? (
-            <button type="button" className="btn btn-ghost btn-sm" data-testid="org-bubble-resume" disabled={!!conv.controlling} onClick={() => control('resume')} style={{ gap: 4, fontSize: 10 }}>
-              <Play size={11} /> {t('orgBubble.resume')}
+            <button type="button" className="btn btn-ghost btn-sm" data-testid="org-bubble-resume" disabled={!!conv.controlling} onClick={() => control('resume')} aria-label={t('orgBubble.resume')} style={{ gap: 4, fontSize: 10, flexShrink: 0 }}>
+              <Play size={11} />{!narrow && <> {t('orgBubble.resume')}</>}
             </button>
           ) : (
-            <button type="button" className="btn btn-ghost btn-sm" data-testid="org-bubble-pause" disabled={!!conv.controlling} onClick={() => control('pause')} style={{ gap: 4, fontSize: 10 }}>
-              <Pause size={11} /> {t('orgBubble.pause')}
+            <button type="button" className="btn btn-ghost btn-sm" data-testid="org-bubble-pause" disabled={!!conv.controlling} onClick={() => control('pause')} aria-label={t('orgBubble.pause')} style={{ gap: 4, fontSize: 10, flexShrink: 0 }}>
+              <Pause size={11} />{!narrow && <> {t('orgBubble.pause')}</>}
             </button>
           ))}
           {running && (
-            <button type="button" className="btn btn-ghost btn-sm" data-testid="org-bubble-stop" disabled={!!conv.controlling} onClick={() => control('stop')} style={{ gap: 4, fontSize: 10 }}>
-              <Square size={10} /> {t('orgBubble.stop')}
+            <button type="button" className="btn btn-ghost btn-sm" data-testid="org-bubble-stop" disabled={!!conv.controlling} onClick={() => control('stop')} aria-label={t('orgBubble.stop')} style={{ gap: 4, fontSize: 10, flexShrink: 0 }}>
+              <Square size={10} />{!narrow && <> {t('orgBubble.stop')}</>}
             </button>
           )}
           {onNavigate && (
-            <button type="button" className="btn btn-ghost btn-sm" onClick={() => onNavigate('orgs', { org: orgName })} title={t('orgBubble.openInOrgs')} aria-label={t('orgBubble.openInOrgs')} style={{ padding: '3px 6px' }}>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => onNavigate('orgs', { org: orgName })} title={t('orgBubble.openInOrgs')} aria-label={t('orgBubble.openInOrgs')} style={{ padding: '3px 6px', flexShrink: 0 }}>
               <ExternalLink size={12} />
             </button>
           )}
           <button type="button" className="btn btn-ghost btn-sm" onClick={() => setStageCollapsed(c => !c)}
-            aria-expanded={!stageCollapsed} title={stageCollapsed ? t('bubbles.showOrg') : t('bubbles.hideOrg')} style={{ gap: 4, fontSize: 10 }}>
-            {stageCollapsed ? <ChevronDown size={12} /> : <ChevronUp size={12} />} {t('bubbles.org')}
+            aria-expanded={!stageCollapsed} title={stageCollapsed ? t('bubbles.showOrg') : t('bubbles.hideOrg')} aria-label={t('bubbles.org')} style={{ gap: 4, fontSize: 10, flexShrink: 0 }}>
+            {stageCollapsed ? <ChevronDown size={12} /> : <ChevronUp size={12} />}{!narrow && <> {t('bubbles.org')}</>}
           </button>
-          <button type="button" className="btn btn-ghost btn-sm" onClick={collapse} title={t('bubbles.collapse')} aria-label={t('bubbles.collapse')} style={{ padding: '3px 6px' }}>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={collapse} title={t('bubbles.collapse')} aria-label={t('bubbles.collapse')} style={{ padding: '3px 6px', flexShrink: 0 }}>
             <Minimize2 size={13} />
           </button>
-          <button type="button" className="btn btn-ghost btn-sm" onClick={onClose} title={t('orgBubble.close')} aria-label={t('orgBubble.close')} style={{ padding: '3px 6px' }}>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={onClose} title={t('orgBubble.close')} aria-label={t('orgBubble.close')} style={{ padding: '3px 6px', flexShrink: 0 }}>
             <X size={13} />
           </button>
         </div>
