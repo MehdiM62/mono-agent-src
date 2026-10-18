@@ -69,10 +69,11 @@ decision, made here: the arguments of a tool are set by the model, so none of th
 can lift the refusal. It adds nothing without --allow-mutations, and it guards that
 one tool and api_auto_set only: --allow-mutations also serves workflow_node_add
 (which accepts the node type system.execute_command), workflow_set_active and
-workflow_run, with which a model can have a workflow of the profile run
-"monoagentcli api config set ... --yes" as you. If a model must not be able to
-widen the server, do not give it --allow-mutations, or start the server with
---api-only.
+workflow_run. A workflow a model writes runs no program until you approve it, and
+"monoagentcli api config set" refuses a workflow's process anyway (exit 3,
+operator_only), but an approved workflow's own steps run as you. If a model must
+not be able to start your workflows, do not give it --allow-mutations, or start
+the server with --api-only.
 
 --api-only (or MONOAGENT_MCP_API_ONLY=1) serves the API's tools (api_*) and no
 other: no workflow, vault, secret, person, org or documentation tool. It is for a

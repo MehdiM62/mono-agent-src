@@ -419,3 +419,28 @@ func TestAPIKeyCreateUpdateAndRevokeAreTheOperatorsOnly(t *testing.T) {
 		t.Fatalf("the operator's revoke: %v", err)
 	}
 }
+
+// A Deps without its operator check refuses what only the user does: the
+// check fails closed, it doesn't panic or open the command (#845 code review).
+func TestAPIKeyCommandsWithoutAnOperatorCheckRefuse(t *testing.T) {
+	t.Parallel()
+	db := testdb.Path(t)
+	for _, args := range [][]string{{"create", "--name", "app"}, {"update", "app", "--context"}, {"revoke", "app", "--yes"}} {
+		cmd := NewCommand(Deps{
+			JSONOutput:   func() bool { return true },
+			ProfileID:    func() string { return "default" },
+			OpenDB:       func() (*storage.Database, error) { return storage.NewDatabase(db) },
+			NotFound:     errorOf(2),
+			InvalidInput: errorOf(3),
+		})
+		cmd.SetOut(&bytes.Buffer{})
+		cmd.SetErr(&bytes.Buffer{})
+		cmd.SetArgs(args)
+		cmd.SilenceErrors, cmd.SilenceUsage = true, true
+		err := cmd.Execute()
+		var fields interface{ JSONErrorFields() map[string]any }
+		if !errors.As(err, &fields) || fields.JSONErrorFields()["code"] != "operator_only" || !strings.Contains(err.Error(), "operator check is not wired") {
+			t.Errorf("%v without an operator check: %v", args, err)
+		}
+	}
+}

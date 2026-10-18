@@ -175,14 +175,14 @@ func newJevEnableCmd(d Deps) *cobra.Command {
 		Short: "Let Jev decide or suggest on one surface for this profile",
 		Long: "Switch one surface on for the profile named by --profile. The data that surface sends\n" +
 			"to TypeSafe is printed first; confirm at the prompt, or pass --yes (required\n" +
-			"when stdin is not a terminal).\n\nSurfaces: " + jevSurfaceNames(),
+			"when stdin is not a terminal). " + clicore.OperatorOnlyHelp + "\n\nSurfaces: " + jevSurfaceNames(),
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			s, err := parseJevSurface(args[0])
 			if err != nil {
 				return err
 			}
-			if why := d.Refusal(); why != "" {
+			if why := clicore.OperatorRefusal(d.Refusal); why != "" {
 				return clicore.OperatorOnly("jev enable %s sends this profile's data to TypeSafe, which only the user switches on: %s; run it yourself in your terminal or the app", s, why)
 			}
 			setThreshold := cmd.Flags().Changed("threshold")

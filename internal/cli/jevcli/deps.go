@@ -23,6 +23,7 @@ type Deps struct {
 	// StdinIsTerminal decides whether `jev enable` may ask instead of requiring --yes.
 	StdinIsTerminal func() bool
 	// Refusal says why this process may not switch a surface on or set the key
-	// (operator.Refusal): an agent, the chat or a workflow runs it. "" for the user.
+	// (operator.Refusal): an agent, the chat or a workflow runs it. "" for the user;
+	// nil refuses (clicore.OperatorRefusal).
 	Refusal func() string
 }

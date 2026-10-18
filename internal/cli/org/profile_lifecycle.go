@@ -125,7 +125,8 @@ func newOrgTeardownProfileCmd(env *orgEnv) *cobra.Command {
 			"URL, whose id is refused from now on). Org files, run data, and the decision ledger are " +
 			"otherwise left in place. It also revokes the profile's API keys (the OpenAI-compatible API). " +
 			"Run it before removing the profile, " +
-			"while its folder setting still exists. --dry-run reports what it would do.",
+			"while its folder setting still exists. --dry-run reports what it would do. " +
+			clicore.OperatorOnlyHelp + " --dry-run is anyone's.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()

@@ -1,6 +1,7 @@
 package clicore
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/monoes/mono-agent/internal/monomind"
@@ -37,5 +38,19 @@ func TestExitCodeFor_CliErrorStillWinsOverGenericDefault(t *testing.T) {
 func TestExitCodeFor_NilIsZero(t *testing.T) {
 	if got := ExitCodeFor(nil); got != 0 {
 		t.Errorf("ExitCodeFor(nil) = %d, want 0", got)
+	}
+}
+
+// A command whose Deps never got its operator check refuses: an unwired
+// check must not open what only the user does (#845 code review).
+func TestOperatorRefusalFailsClosed(t *testing.T) {
+	if why := OperatorRefusal(nil); !strings.Contains(why, "operator check is not wired") {
+		t.Errorf("a nil check = %q, want a refusal that says it isn't wired", why)
+	}
+	if why := OperatorRefusal(func() string { return "" }); why != "" {
+		t.Errorf("the user's process = %q, want none", why)
+	}
+	if why := OperatorRefusal(func() string { return "CLAUDECODE is set" }); why != "CLAUDECODE is set" {
+		t.Errorf("an agent's process = %q", why)
 	}
 }

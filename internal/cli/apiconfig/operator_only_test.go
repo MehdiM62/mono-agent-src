@@ -2,6 +2,7 @@ package apiconfig
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/monoes/mono-agent/internal/cli/clicore"
@@ -38,5 +39,27 @@ func TestAPIConfigChangesAreTheOperatorsOnly(t *testing.T) {
 	f.refusal = ""
 	if _, _, err := f.run(t, true, "set", "--confinement", "any", "--yes"); err != nil || savedAt(t, f.db).Confinement != "any" {
 		t.Errorf("the user's set: %v", err)
+	}
+}
+
+// Without its operator check the command refuses rather than panics (#845
+// code review).
+func TestAPIConfigChangesWithoutAnOperatorCheckRefuse(t *testing.T) {
+	t.Parallel()
+	f := configTest(t)
+	d := f.deps(true)
+	d.Refusal = nil
+	cmd := NewCommand(d)
+	cmd.SetOut(&strings.Builder{})
+	cmd.SetErr(&strings.Builder{})
+	cmd.SetArgs([]string{"set", "--confinement", "any", "--yes"})
+	cmd.SilenceErrors, cmd.SilenceUsage = true, true
+	err := cmd.Execute()
+	var fields interface{ JSONErrorFields() map[string]any }
+	if !errors.As(err, &fields) || fields.JSONErrorFields()["code"] != "operator_only" || !strings.Contains(err.Error(), "operator check is not wired") {
+		t.Errorf("set without an operator check: %v", err)
+	}
+	if s := savedAt(t, f.db); s.Confinement != "" {
+		t.Errorf("it saved %+v", s)
 	}
 }
