@@ -314,8 +314,21 @@ the CLI, checked against its signed manifest. `serve`, `status` and
 `browsers` stay open too: they change no binding, rotate no token, and
 agents use `serve` for private test bridges. Like the other operator
 checks, this keeps agents from doing these things by accident or on a
-page's instructions; an agent with a shell can still edit the files these
-commands manage, so it is not a sandbox.
+page's instructions, and it is a courtesy layer for the CLI, not a barrier
+against an agent running as you:
+
+- `~/.monoagent/extension.token` is readable by anything running as you
+  (mode 0600, same user). With it, a process can drive the bridge protocol
+  directly: post a `set_binding` to `/monoagent/relay`, or connect to the
+  websocket as a browser and claim a profile in a `binding` frame, so an
+  endpoint it runs would receive that profile's browser actions. The gates
+  above don't cover that path.
+- The `pair --open` gate is cosmetic against an agent with a shell, which
+  can start a bridge of its own and open the pairing page itself.
+- An agent with a shell can also edit the files these commands manage.
+
+So it is not a sandbox: it stops mistakes and planted instructions that
+go through the CLI.
 
 ## Network use, telemetry and crash reporting
 
