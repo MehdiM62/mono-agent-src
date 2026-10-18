@@ -47,7 +47,8 @@ func newExtensionInstallCmd(cfg *Deps) *cobra.Command {
 			"after an update, run this again and click Reload on the extension.\n" +
 			"\n" +
 			"--zip installs a zip you already have instead. A local zip is not checked\n" +
-			"against a release.",
+			"against a release, so --zip is the user's own: an agent, the chat or a\n" +
+			"workflow is refused (exit 3, operator_only).",
 		Example: "  monoagentcli extension install\n" +
 			"  monoagentcli extension install --zip ~/Downloads/monoagent-chrome-extension.zip",
 		Args: cobra.NoArgs,
@@ -55,6 +56,9 @@ func newExtensionInstallCmd(cfg *Deps) *cobra.Command {
 			out := cmd.OutOrStdout()
 			var data []byte
 			if zipPath != "" {
+				if err := cfg.operatorOnly("extension install --zip puts code no release vouches for where the browser loads the extension from"); err != nil {
+					return err
+				}
 				b, err := os.ReadFile(zipPath)
 				if err != nil {
 					return fmt.Errorf("read %s: %w", zipPath, err)
