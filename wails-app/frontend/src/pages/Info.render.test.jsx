@@ -134,14 +134,22 @@ describe('Info masked fields', () => {
     expect(screen.getByLabelText('Passport number')).toHaveValue('•••• 4567')
   })
 
-  it('Reveal shows the value, then re-masks after 10 seconds', async () => {
+  it('the eye shows the value, the same button hides it again, and it hides itself after a minute', async () => {
     WailsApp.RevealProfileInfo.mockResolvedValue('P1234567')
     await loaded()
     vi.useFakeTimers({ shouldAdvanceTime: true })
     fireEvent.click(screen.getByRole('button', { name: 'Reveal: Passport number' }))
     await waitFor(() => expect(screen.getByLabelText('Passport number')).toHaveValue('P1234567'))
     expect(WailsApp.RevealProfileInfo).toHaveBeenCalledWith('ids.passport')
-    await act(async () => { vi.advanceTimersByTime(10100) })
+    expect(screen.getByLabelText('Passport number')).not.toHaveClass('is-blurred')
+    fireEvent.click(screen.getByRole('button', { name: 'Hide: Passport number' }))
+    expect(screen.getByLabelText('Passport number')).toHaveValue('•••• 4567')
+    expect(screen.getByLabelText('Passport number')).toHaveClass('is-blurred')
+    fireEvent.click(screen.getByRole('button', { name: 'Reveal: Passport number' }))
+    await waitFor(() => expect(screen.getByLabelText('Passport number')).toHaveValue('P1234567'))
+    await act(async () => { vi.advanceTimersByTime(59000) })
+    expect(screen.getByLabelText('Passport number')).toHaveValue('P1234567')
+    await act(async () => { vi.advanceTimersByTime(1100) })
     expect(screen.getByLabelText('Passport number')).toHaveValue('•••• 4567')
   })
 
@@ -201,5 +209,50 @@ describe('Info photo slot', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Remove: Portrait' }))
     await waitFor(() => expect(WailsApp.ClearProfileInfo).toHaveBeenCalledWith('photos.portrait'))
     await waitFor(() => expect(screen.getByText('No file')).toBeInTheDocument())
+  })
+})
+
+describe('Info page: person or business', () => {
+  const scoped = {
+    groups: [
+      { id: 'type', label: 'Profile type' },
+      { id: 'identity', label: 'Identity', scope: 'person' },
+      { id: 'biz_tax', label: 'Tax & registration', scope: 'business' },
+      { id: 'financial', label: 'Bank account' },
+    ],
+    fields: [
+      { key: 'profile_type', label: 'Profile type', group: 'type', kind: 'select', options: ['Person', 'Business'] },
+      { key: 'first_name', label: 'First name', group: 'identity', kind: 'text' },
+      { key: 'vat_id', label: 'VAT ID', group: 'biz_tax', kind: 'text' },
+      { key: 'iban', label: 'IBAN', group: 'financial', kind: 'text' },
+    ],
+  }
+  beforeEach(() => {
+    entries = []
+    WailsApp.GetProfileInfoFields.mockResolvedValue(scoped)
+    WailsApp.SetProfileInfo.mockImplementation((key, value) => {
+      entries = [{ key, value, masked: false, source: 'user', updated_at: 't' }]
+      return Promise.resolve()
+    })
+  })
+
+  it('starts as a person, hides the type field and the business sections', async () => {
+    render(<Info />)
+    await screen.findByLabelText('First name')
+    expect(screen.getByLabelText('IBAN')).toBeInTheDocument()
+    expect(screen.queryByLabelText('VAT ID')).not.toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: 'Profile type' })).not.toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'Person' })).toHaveAttribute('aria-checked', 'true')
+  })
+
+  it('switches to business: VAT shows, personal sections go, shared ones stay', async () => {
+    render(<Info />)
+    await screen.findByLabelText('First name')
+    fireEvent.click(screen.getByRole('radio', { name: 'Business' }))
+    await waitFor(() => expect(WailsApp.SetProfileInfo).toHaveBeenCalledWith('profile_type', 'Business'))
+    expect(await screen.findByLabelText('VAT ID')).toBeInTheDocument()
+    expect(screen.queryByLabelText('First name')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('IBAN')).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'Business' })).toHaveAttribute('aria-checked', 'true')
   })
 })

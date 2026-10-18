@@ -59,10 +59,14 @@ func (f formFiller) Info(ctx context.Context, profile string) ([]extension.InfoV
 	if err != nil {
 		return nil, err
 	}
+	typ, err := profileinfo.TypeOf(ctx, db.DB, profile)
+	if err != nil {
+		return nil, err
+	}
 	var out []extension.InfoValue
 	for _, e := range entries {
 		fd := profileinfo.Lookup(e.Key)
-		if fd == nil || fd.Card || fd.Kind == profileinfo.Photo || e.Value == "" {
+		if fd == nil || fd.Card || fd.Kind == profileinfo.Photo || e.Value == "" || fd.Key == profileinfo.TypeKey || !fd.InScope(typ) {
 			continue
 		}
 		out = append(out, extension.InfoValue{

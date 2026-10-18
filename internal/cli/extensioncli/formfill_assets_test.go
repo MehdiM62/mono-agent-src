@@ -82,3 +82,35 @@ func TestFormFillerReadsInfoCardAndPhotosFromTheInfoPage(t *testing.T) {
 		t.Error("another profile's card")
 	}
 }
+
+func TestFormFillerOffersOnlyTheFieldsOfTheProfilesType(t *testing.T) {
+	path, db := infoDB(t)
+	ctx := context.Background()
+	set := func(k, v string) {
+		t.Helper()
+		if err := profileinfo.Set(ctx, db.DB, "p1", k, v, profileinfo.SourceUser, ""); err != nil {
+			t.Fatal(err)
+		}
+	}
+	set("first_name", "Ada")
+	set("company_name", "Acme GmbH")
+	set("iban", "DE89370400440532013000")
+	keys := func() map[string]bool {
+		info, err := formFiller{path: path}.Info(ctx, "p1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		m := map[string]bool{}
+		for _, v := range info {
+			m[v.Key] = true
+		}
+		return m
+	}
+	if got := keys(); !got["first_name"] || !got["iban"] || got["company_name"] || got["profile_type"] {
+		t.Errorf("person: %v", got)
+	}
+	set("profile_type", "Business")
+	if got := keys(); got["first_name"] || !got["company_name"] || !got["iban"] || got["profile_type"] {
+		t.Errorf("business: %v", got)
+	}
+}

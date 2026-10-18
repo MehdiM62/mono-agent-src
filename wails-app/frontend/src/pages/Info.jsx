@@ -4,7 +4,7 @@ import { Sparkles, ChevronDown, ChevronRight, Lock, AlertTriangle, CheckCircle2 
 import * as WailsApp from '../wailsjs/go/main/App'
 import { useReloadOnActivate } from '../lib/useReloadOnActivate'
 import InfoField from '../components/info/InfoField.jsx'
-import { groupCatalog, entryMap, hasValue, leftEmpty, errorText } from '../components/info/infoModel.js'
+import { groupCatalog, entryMap, hasValue, leftEmpty, errorText, profileType, TYPE_KEY } from '../components/info/infoModel.js'
 import '../components/info/info.css'
 
 export default function Info({ isActive = true }) {
@@ -36,7 +36,8 @@ export default function Info({ isActive = true }) {
   useEffect(() => { load() }, [load])
   useReloadOnActivate(isActive, () => { if (!busyRef.current) load() })
 
-  const groups = useMemo(() => groupCatalog(catalog), [catalog])
+  const type = useMemo(() => profileType(entries), [entries])
+  const groups = useMemo(() => groupCatalog(catalog, type), [catalog, type])
   const byKey = useMemo(() => entryMap(entries), [entries])
   const secretKeys = useMemo(() => new Set((catalog?.fields || []).filter(f => f.sensitive || f.card).map(f => f.key)), [catalog])
 
@@ -51,13 +52,24 @@ export default function Info({ isActive = true }) {
     })
   }, [secretKeys, loadEntries])
 
+  const switchType = async (next) => {
+    if (next === type) return
+    setLoadError('')
+    try {
+      await WailsApp.SetProfileInfo(TYPE_KEY, next === 'business' ? 'Business' : 'Person')
+      await loadEntries()
+    } catch (e) {
+      setLoadError(t('info.typeFailed', { message: errorText(e) }))
+    }
+  }
+
   const runAIFill = async () => {
     busyRef.current = true
     setAiBusy(true); setAiResult(null)
     try {
       const res = await WailsApp.AIFillProfileInfo('', '')
       const fresh = await loadEntries()
-      const empty = leftEmpty(catalog, fresh)
+      const empty = leftEmpty(catalog, fresh, profileType(fresh))
       const n = res?.filled?.length || 0
       setAiResult({ ok: true, text: n > 0 ? t('info.aiDone', { count: n, empty }) : t('info.aiNothing', { empty }) })
     } catch (e) {
@@ -87,7 +99,22 @@ export default function Info({ isActive = true }) {
         </div>
       </div>
       <div className="page-body">
-        <p className="info-lead">{t('info.subtitle')}</p>
+        <div className="info-type" role="radiogroup" aria-label={t('info.typeLabel')}>
+          {['person', 'business'].map(v => (
+            <button
+              key={v}
+              type="button"
+              role="radio"
+              aria-checked={type === v}
+              className={`info-type-btn ${type === v ? 'is-on' : ''}`}
+              disabled={!catalog}
+              onClick={() => switchType(v)}
+            >
+              {t(v === 'business' ? 'info.typeBusiness' : 'info.typePerson')}
+            </button>
+          ))}
+        </div>
+        <p className="info-lead">{t(type === 'business' ? 'info.subtitleBusiness' : 'info.subtitle')}</p>
         <div role="status" aria-live="polite">
           {aiResult && (
             <div className={`info-banner ${aiResult.ok ? 'is-ok' : 'is-error'}`}>

@@ -102,7 +102,7 @@ export function DeleteProfileDialog({ profile, onClose, onDeleted }) {
                 {tables.length === 0 && <div style={{ ...mono, padding: '7px 10px', color: 'var(--text-muted)' }}>{t('settings.profile.noData')}</div>}
                 {tables.map(row => (
                   <div key={row.table} style={{ ...mono, display: 'flex', justifyContent: 'space-between', padding: '5px 10px', borderBottom: '1px solid var(--border-dim)' }}>
-                    <span>{words(row.table)}</span><span>{row.rows}</span>
+                    <span>{t(`settings.profile.tables.${row.table}`, { defaultValue: words(row.table) })}</span><span>{row.rows}</span>
                   </div>
                 ))}
               </div>

@@ -1629,6 +1629,7 @@ export namespace main {
 	export class ProfileInfoGroup {
 	    id: string;
 	    label: string;
+	    scope: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new ProfileInfoGroup(source);
@@ -1638,6 +1639,7 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.label = source["label"];
+	        this.scope = source["scope"];
 	    }
 	}
 	export class ProfileInfoCatalog {
@@ -2102,6 +2104,22 @@ export namespace main {
 	        this.success = source["success"];
 	        this.new_version = source["new_version"];
 	        this.error = source["error"];
+	    }
+	}
+	export class BatchUploadResult {
+	    uploaded: number;
+	    unindexed: number;
+	    failed: string[];
+
+	    static createFrom(source: any = {}) {
+	        return new BatchUploadResult(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.uploaded = source["uploaded"];
+	        this.unindexed = source["unindexed"];
+	        this.failed = source["failed"];
 	    }
 	}
 	export class UploadResult {

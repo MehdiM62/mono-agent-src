@@ -277,3 +277,42 @@ func TestFormFillKeepsInfoValuesWhenTheModelFails(t *testing.T) {
 		t.Errorf("%+v", r)
 	}
 }
+
+func TestFormFillBusinessProfileAnswersGenericFields(t *testing.T) {
+	info := []InfoValue{
+		{Key: "company_name", Label: "Legal company name", Kind: "text", Value: "Acme GmbH"},
+		{Key: "company_email", Label: "Company email", Kind: "email", Autocomplete: "email", Value: "hello@acme.example"},
+		{Key: "company_phone", Label: "Company phone", Kind: "phone", Autocomplete: "tel", Value: "+49 30 1234"},
+		{Key: "company_country", Label: "Country of headquarters", Kind: "country", Value: "Germany"},
+		{Key: "contact_name", Label: "Contact person", Kind: "text", Value: "Ada Lovelace"},
+		{Key: "vat_id", Label: "VAT ID", Kind: "text", Sensitive: true, Value: "DE123456789"},
+	}
+	f := &fakeFiller{info: info, answer: "must not be used"}
+	got, err := callChat(t, fillSrv(f), MethodFormFill, map[string]any{
+		"profile": "p1",
+		"fields": []any{
+			fld("a", "Email", "email", nil),
+			fld("b", "Phone", "tel", nil),
+			fld("c", "Company", "text", nil),
+			fld("d", "Country", "text", nil),
+			fld("e", "Your name", "text", nil),
+			fld("f", "VAT number", "text", nil),
+		},
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{
+		"a": "hello@acme.example@Profile info", "b": "+49 30 1234@Profile info", "c": "Acme GmbH@Profile info",
+		"d": "Germany@Profile info", "e": "Ada Lovelace@Profile info", "f": "DE123456789@Profile info",
+	}
+	g := vals(got.(*FormFillReply))
+	for id, w := range want {
+		if g[id] != w {
+			t.Errorf("field %s = %q, want %q", id, g[id], w)
+		}
+	}
+	if f.calls != 0 {
+		t.Errorf("the model was asked %d times", f.calls)
+	}
+}
