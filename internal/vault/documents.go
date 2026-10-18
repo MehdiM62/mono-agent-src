@@ -123,7 +123,7 @@ func RegisterDocument(ctx context.Context, db *sql.DB, src, source string, appli
 	filename := filepath.Base(absSrc)
 	destPath := filepath.Join(docsDir, fmt.Sprintf("%s%s", id, filepath.Ext(filename)))
 
-	if err := copyFile(absSrc, destPath); err != nil {
+	if err := copyFileOpt(absSrc, destPath, ctx.Value(noFollowKey{}) != nil); err != nil {
 		_ = os.Remove(destPath)
 		return "", fmt.Errorf("vault.RegisterDocument: copy file: %w", err)
 	}
