@@ -255,6 +255,43 @@ func TestResolveRefusesAnEditOfACardWithNoText(t *testing.T) {
 	}
 }
 
+// A subject edit of a card whose op names no subject field (a Zammad note)
+// exits 3 and sends nothing, rather than recording a subject the request
+// never carried (#848). An email's subject stays editable.
+func TestResolveRefusesASubjectEditOfACardWithNoSubject(t *testing.T) {
+	cfg := sendEnv(t)
+	calls := swapRunner(t)
+	asAgentProcess(t)
+	out, err := runSendCLI(t, cfg, newNodeRunCmd(cfg), "app.zammad", "--output", "json", "--config",
+		`{"resource":"ticket","operation":"update","id":"5","updateFields":{"note":"Thanks"}}`)
+	var res map[string][]map[string]interface{}
+	if err != nil || json.Unmarshal([]byte(out), &res) != nil {
+		t.Fatalf("node run: %v\n%s", err, out)
+	}
+	item, _ := res["main"][0]["json"].(map[string]interface{})
+	id, _ := item["hil_id"].(string)
+	if id == "" {
+		t.Fatalf("not queued: %s", out)
+	}
+	asOperatorProcess(t)
+	for _, args := range [][]string{{"edit", id, "--subject", "Spoofed subject"}, {"resolve", id, "--approve", "--edit-subject", "Spoofed subject"}} {
+		if _, err := runSendCLI(t, cfg, newHILCmd(cfg), args...); exitCodeFor(err) != 3 || !strings.Contains(err.Error(), "no subject to edit") {
+			t.Errorf("hil %s: exit %d, %v", strings.Join(args, " "), exitCodeFor(err), err)
+		}
+	}
+	items, _ := runHIL(t, cfg, "list")
+	if len(*calls) != 0 || len(items) != 1 || items[0].Send.State != hilsend.StatePending || items[0].Send.Subject != "" ||
+		!items[0].Send.SubjectReadOnly || items[0].Send.TextReadOnly {
+		t.Fatalf("after the refused edits: %d send(s), %+v", len(*calls), items)
+	}
+	mail := queueViaNodeRun(t, cfg, sendConfig)
+	asOperatorProcess(t)
+	if _, err := runSendCLI(t, cfg, newHILCmd(cfg), "resolve", mail, "--approve", "--edit-subject", "New subject"); err != nil ||
+		len(*calls) != 1 || (*calls)[0].Config["subject"] != "New subject" {
+		t.Fatalf("email approve with a subject: %v, %+v", err, *calls)
+	}
+}
+
 func TestAttachmentCommandConfinesPaths(t *testing.T) {
 	cfg := sendEnv(t)
 	db, err := storage.NewDatabase(cfg.DBPath)

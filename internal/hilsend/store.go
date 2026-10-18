@@ -42,6 +42,9 @@ var (
 	// text says what the step sends): the approved run would send its
 	// config, not the edit.
 	ErrNoText = errors.New("this card's text says what the step sends, not a message: there is no text to edit; approve it as it is or reject it")
+	// ErrNoSubject: a subject edit of a card whose op names no subject
+	// field: the approved run would send none, while the record kept it.
+	ErrNoSubject = errors.New("this send has no subject field: there is no subject to edit; approve it as it is or reject it")
 )
 
 // replay is what approving needs to run the node again.
@@ -166,6 +169,7 @@ func (r row) payload() (Payload, replay, error) {
 		p.Attachments = []Attachment{}
 	}
 	p.TextReadOnly = rp.TextField == ""
+	p.SubjectReadOnly = rp.SubjectKey == ""
 	return p, rp, nil
 }
 
@@ -235,6 +239,9 @@ func (s Store) Edit(ctx context.Context, id string, text, subject *string) (Payl
 	}
 	if text != nil && p.TextReadOnly {
 		return p, fmt.Errorf("send item %s: %w", p.ID, ErrNoText)
+	}
+	if subject != nil && p.SubjectReadOnly {
+		return p, fmt.Errorf("send item %s: %w", p.ID, ErrNoSubject)
 	}
 	if text != nil {
 		p.Text = *text

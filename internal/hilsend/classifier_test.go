@@ -213,3 +213,47 @@ func TestAnUndeclaredKeysCardShowsThemAndCannotBeEdited(t *testing.T) {
 		t.Errorf("a message card is marked read-only")
 	}
 }
+
+// A subject edit of a card whose op names no subject field is refused, as a
+// text edit of one with no text is: the run would send no subject while the
+// record claims one (#848). A card with a subject field takes the edit.
+func TestASubjectEditOfACardWithNoSubjectIsRefused(t *testing.T) {
+	asAgent(t)
+	db := testDB(t)
+	SetClassifier(fakeClassifier{})
+	t.Cleanup(func() { SetClassifier(nil) })
+	st := Store{db, "p1"}
+	queue := func(nodeType string, config map[string]interface{}) string {
+		t.Helper()
+		out, handled, err := Guard(ctxFor(db), nodeType, workflow.NodeInput{}, config)
+		if !handled || err != nil {
+			t.Fatalf("%s: handled=%v err=%v", nodeType, handled, err)
+		}
+		return out[0].Items[0].JSON["hil_id"].(string)
+	}
+	id := queue("app.fake", map[string]interface{}{"operation": "send", "to": "+15550100", "text": "Hi"})
+	if p, _ := st.Get(ctxFor(db), id); !p.SubjectReadOnly || p.TextReadOnly {
+		t.Errorf("a message with no subject field: %+v", p)
+	}
+	subject, text := "Spoofed subject", "Hello"
+	if _, err := st.Edit(ctxFor(db), id, &text, &subject); !errors.Is(err, ErrNoSubject) {
+		t.Errorf("edit: %v", err)
+	}
+	f := &fakeRunner{}
+	if _, err := Resolve(context.Background(), st, id, true, Edit{Subject: &subject}, false, f.run); !errors.Is(err, ErrNoSubject) || len(f.calls) != 0 {
+		t.Fatalf("approve with a subject: %v, %d run(s)", err, len(f.calls))
+	}
+	if p, _ := st.Get(ctxFor(db), id); p.State != StatePending || p.Subject != "" || p.Text != "Hi" {
+		t.Fatalf("after the refused edits: %s, subject %q, text %q", p.State, p.Subject, p.Text)
+	}
+	// An email has a subject to edit.
+	mail := queue("comm.email_send", map[string]interface{}{"smtp_host": "smtp.example.test", "from": "me@example.test",
+		"to": "ada@example.test", "subject": "Hi", "body": "x"})
+	if p, err := st.Edit(ctxFor(db), mail, nil, &subject); err != nil || p.Subject != subject || p.SubjectReadOnly {
+		t.Errorf("email subject edit: %+v, %v", p, err)
+	}
+	if _, err := Resolve(context.Background(), st, mail, true, Edit{Subject: &subject}, false, f.run); err != nil ||
+		len(f.calls) != 1 || f.calls[0].Config["subject"] != subject {
+		t.Errorf("email approve: %v, %+v", err, f.calls)
+	}
+}

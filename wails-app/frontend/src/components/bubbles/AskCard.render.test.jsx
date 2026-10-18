@@ -201,6 +201,19 @@ describe('AskCard: send approval', () => {
     expect(screen.getByTestId('ask-approve')).toBeEnabled()
   })
 
+  // The card never edits a subject (the CLI refuses one where the op has no
+  // subject field, #848): it is shown, and Edit opens the text only.
+  it('shows the subject without an edit control, and approves an edit with the text only', () => {
+    const onDecide = vi.fn()
+    render(<AskCard ask={send()} nameOf={nameOf} onDecide={onDecide} />)
+    expect(screen.getByText('Release notes for v1.2').tagName).toBe('DD')
+    fireEvent.click(screen.getByTestId('ask-edit'))
+    expect(screen.getAllByRole('textbox')).toEqual([screen.getByTestId('ask-text-edit')])
+    fireEvent.change(screen.getByTestId('ask-text-edit'), { target: { value: 'Short.' } })
+    fireEvent.click(screen.getByTestId('ask-approve'))
+    expect(onDecide).toHaveBeenCalledWith(expect.objectContaining({ id: 'hil-send-1' }), true, { editText: 'Short.' })
+  })
+
   it('does not approve an empty text', () => {
     render(<AskCard ask={send()} nameOf={nameOf} />)
     fireEvent.click(screen.getByTestId('ask-edit'))
