@@ -126,6 +126,19 @@ func TestSendsIfSeesDefaultsAndValues(t *testing.T) {
 			t.Errorf("item note: sends(%s) = %v, want %v", config, got, want)
 		}
 	}
+	// There at all: "" and false included, null not; a list on the way fans
+	// out.
+	op.Sends.If = Cond{"updateFields.description?", "itemsUi.itemsValues.note?"}
+	for config, want := range map[string]bool{`{}`: false, `{"updateFields":{}}`: false, `{"updateFields":{"description":null}}`: false,
+		`{"updateFields":{"description":""}}`: true, `{"updateFields":{"description":false}}`: true,
+		`{"updateFields":{"description":"x"}}`: true, `{"itemsUi":{"itemsValues":[{"amount":"5"}]}}`: false,
+		`{"itemsUi":{"itemsValues":[{"amount":"5"},{"note":""}]}}`: true} {
+		var c map[string]any
+		_ = json.Unmarshal([]byte(config), &c)
+		if got := op.sends(c); got != want {
+			t.Errorf("present: sends(%s) = %v, want %v", config, got, want)
+		}
+	}
 	op.Sends.If = Cond{"domain=notify", "domain=tts"}
 	for config, want := range map[string]bool{`{}`: false, `{"domain":"light"}`: false, `{"domain":" Notify "}`: true,
 		`{"domain":"tts"}`: true, `{"domain":"{{ $json.domain }}"}`: true} {

@@ -93,7 +93,7 @@ func TestRawJSONParamsAreDecided(t *testing.T) {
 // The lint sees a planted op: raw JSON behind a switch in a package that
 // sends, unheld, is caught; held on its switch, sent unconditionally, given
 // a reason, unused by the request or in a package that never sends, it
-// isn't; "!=" holds on nothing.
+// isn't; "!=" holds on nothing, "?" on its param.
 func TestTheRawJSONLintCatchesAPlantedOp(t *testing.T) {
 	fields := []workflow.NodeSchemaField{{Key: "jsonParameters", Type: "boolean"}, {Key: "bodyJson", Type: "json"}}
 	switched := map[string]any{"$merge": "{{ p.jsonParameters | eq:'true' | then:(p.bodyJson | fromjson) }}"}
@@ -107,6 +107,8 @@ func TestTheRawJSONLintCatchesAPlantedOp(t *testing.T) {
 			Sends: &Sends{Action: "post", If: Cond{"announce"}}},
 		{Resource: "stream", Operation: "rename", Method: "PATCH", Path: "/s/1", Fields: fields, Body: switched,
 			Sends: &Sends{Action: "post", If: Cond{"jsonParameters!=true"}}},
+		{Resource: "stream", Operation: "describe", Method: "PATCH", Path: "/s/1", Fields: fields, Body: switched,
+			Sends: &Sends{Action: "post", If: Cond{"bodyJson?"}}},
 		{Resource: "flow", Operation: "run", Method: "POST", Path: "/f", Fields: []workflow.NodeSchemaField{{Key: "inputs", Type: "text"}},
 			Body: map[string]any{"inputs": "{{ p.inputs | fromjson }}"}, Sends: none, SendsReason: "x"},
 		{Resource: "flow", Operation: "start", Method: "POST", Path: "/f", Fields: []workflow.NodeSchemaField{{Key: "inputs", Type: "text"}},
@@ -193,8 +195,8 @@ func rawJSONParams(o *Operation, req string) []string {
 }
 
 // holdsOnRaw reports whether o waits whenever raw param r goes out: it
-// always sends, or an "if" (set, or =value) names r or a param a template
-// using r reads too (its jsonParameters switch).
+// always sends, or an "if" (set, =value, or present) names r or a param a
+// template using r reads too (its jsonParameters switch).
 func holdsOnRaw(o *Operation, r, req string) bool {
 	s := o.Sends
 	if s == nil || s.None {
@@ -212,8 +214,10 @@ func holdsOnRaw(o *Operation, r, req string) bool {
 		}
 	}
 	for _, c := range s.If {
-		// "p!=v" and "p not in a|b" name no param here: neither holds on p.
+		// "p!=v" and "p not in a|b" name no param here: neither holds on p;
+		// "p?" does.
 		name, _, _ := strings.Cut(c, "=")
+		name = strings.TrimSuffix(name, "?")
 		for _, k := range near {
 			if k == name || strings.HasPrefix(k, name+".") {
 				return true

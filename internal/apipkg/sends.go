@@ -38,13 +38,15 @@ type Sends struct {
 	// field default included; a list on a param's path is set when one of
 	// its elements is, and has a value when one of them does.
 	// "param=value" sends when the param has that value, "param!=value"
-	// when it is unset or has another, and "param not in a|b|c" when it is
-	// set to none of those. Sendy creates a campaign and sends it only with
+	// when it is unset or has another, "param not in a|b|c" when it is
+	// set to none of those, and "param?" when it is there at all, "" and
+	// false included. Sendy creates a campaign and sends it only with
 	// sendCampaign; a Google Calendar event invites only with
 	// additionalFields.attendees; Home Assistant notifies only with
 	// "domain=notify"; Onfleet texts a task's recipient unless
 	// recipientSkipSMSNotifications is true; a Zammad article goes out
-	// unless it is a note, web or phone one.
+	// unless it is a note, web or phone one; Zulip's bot posts a stream's
+	// description even when it is cleared to "".
 	If Cond `json:"if,omitempty"`
 }
 
@@ -127,7 +129,7 @@ func (o *Operation) checkSends(where string, fields map[string]bool) []string {
 		for _, k := range keys {
 			name, _, _ := strings.Cut(k, notIn)
 			name, _, _ = strings.Cut(name, "=")
-			name = strings.TrimSuffix(name, "!")
+			name = strings.TrimSuffix(strings.TrimSuffix(name, "!"), "?")
 			if head, _, _ := strings.Cut(name, "."); name == "" || !fields[head] {
 				add("sends names %q, which is not one of the op's fields", k)
 			}
@@ -238,10 +240,10 @@ const notIn = " not in "
 
 // sends reports whether the op, run with config, sends: it is annotated,
 // and one of its If params (when it names some) is set, has the value
-// "param=value" names, is unset or has another ("param!=value"), or is
-// set to none of "param not in a|b|c", as the run sees it: unset params
-// take their field default. A template the run has yet to resolve counts
-// as set, and as any value.
+// "param=value" names, is unset or has another ("param!=value"), is set
+// to none of "param not in a|b|c", or is there at all ("param?"), as the
+// run sees it: unset params take their field default. A template the run
+// has yet to resolve counts as set, and as any value.
 func (o *Operation) sends(config map[string]any) bool {
 	s := o.Sends
 	if s == nil || s.None {
@@ -256,6 +258,12 @@ func (o *Operation) sends(config map[string]any) bool {
 	}
 	applyDefaults(o, params)
 	for _, k := range s.If {
+		if name, ok := strings.CutSuffix(k, "?"); ok {
+			if slices.ContainsFunc(condValues(params, name), func(v any) bool { return v != nil }) {
+				return true
+			}
+			continue
+		}
 		if name, set, ok := strings.Cut(k, notIn); ok {
 			v := paramAt(params, name)
 			got := strings.TrimSpace(fmt.Sprint(v))

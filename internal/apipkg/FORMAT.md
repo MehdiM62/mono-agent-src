@@ -146,7 +146,10 @@ that value (unset counts: Onfleet texts a task's recipient unless
 `recipientSkipSMSNotifications` is true), and `"field not in a|b|c"` when
 the field is set to none of those values (unset doesn't count: a Zammad
 ticket goes out with an article that isn't a note, web or phone one, an
-unknown or templated type included, and not without one). When a `to`
+unknown or templated type included, and not without one). `"field?"` sends
+when the field is there at all, `""` and `false` included, for a request
+that sends an empty value too: a Zulip stream's description cleared to
+`""` is still posted in the stream. When a `to`
 field holds an id rather than an address, `to_label` says what it is, and
 the card shows "the client of invoice inv9", not "inv9"; `to_unset` is what
 the card shows when no `to` field is set.

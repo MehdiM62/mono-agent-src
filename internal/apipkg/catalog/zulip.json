@@ -401,8 +401,8 @@
           "additionalFields.newName"
         ],
         "if": [
-          "additionalFields.description",
-          "additionalFields.newName",
+          "additionalFields.description?",
+          "additionalFields.newName?",
           "jsonParameters"
         ]
       },
