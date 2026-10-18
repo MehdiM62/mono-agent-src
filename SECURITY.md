@@ -94,6 +94,8 @@ messages, not a barrier:
 - By your decision, a step that picks its own address (`http.request`) can
   use a saved connection in any run, so a workflow can send that
   connection's token to any address.
+- The extension commands that redirect the browser are yours: see
+  "Extension commands that only the user runs" below.
 - Writing secrets, connections and profiles stays open to an agent on
   purpose (`secret add|update|rm`, `connect save|set-oauth-client`,
   `profile create`): none of them shows a decrypted value. The exception is
@@ -286,6 +288,34 @@ read tools show (workflow definitions, which may name accounts or targets)
 and the wording of the model's reply, including a link you may choose to
 click (its host is shown). The page text and the reply stay in the local
 conversation database like any chat.
+
+### Extension commands that only the user runs
+
+`extension bind`, `extension unbind`, `extension reset`, `extension pair
+--open` and `extension install --zip` refuse an agent, the chat and a
+workflow run: any process carrying one of the operator markers, or whose
+parent process carries one. They exit 3 with code `operator_only`.
+
+- `bind` and `unbind` decide which profile a browser acts as, so an agent
+  could point your browser, with its logged-in accounts, at another
+  profile, or take its profile away.
+- `reset` revokes the pairing token and cuts every browser off until you
+  pair it again.
+- `pair --open` opens a pairing page that pairs the browser with whichever
+  bridge served it, so an agent running a bridge of its own could take
+  your browser over.
+- `install --zip` unpacks a zip that no release signed into the folder the
+  browser loads the extension from.
+
+Printing the token (`extension pair` without `--open`) stays open, because
+anything running as you can read `~/.monoagent/extension.token`. So does
+the plain `extension install`, which installs only the release matching
+the CLI, checked against its signed manifest. `serve`, `status` and
+`browsers` stay open too: they change no binding, rotate no token, and
+agents use `serve` for private test bridges. Like the other operator
+checks, this keeps agents from doing these things by accident or on a
+page's instructions; an agent with a shell can still edit the files these
+commands manage, so it is not a sandbox.
 
 ## Network use, telemetry and crash reporting
 
