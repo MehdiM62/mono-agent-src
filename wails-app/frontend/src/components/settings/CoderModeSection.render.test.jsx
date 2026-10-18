@@ -121,7 +121,8 @@ describe('CoderModeSection', () => {
     fireEvent.change(screen.getByLabelText('Timeout'), { target: { value: '30m' } })
     fireEvent.change(screen.getByLabelText('Budget per turn'), { target: { value: '1.5' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-    await waitFor(() => expect(App.CoderSet).toHaveBeenCalledWith('/data/coder', 50, '30m', 1.5))
+    // The org router (the coder-org settings' own) is left alone: ''.
+    await waitFor(() => expect(App.CoderSet).toHaveBeenCalledWith('/data/coder', 50, '30m', 1.5, ''))
     expect(await screen.findByText(/Saved\./)).toBeInTheDocument()
   })
 

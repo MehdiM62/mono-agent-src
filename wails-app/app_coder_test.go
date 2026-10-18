@@ -28,7 +28,7 @@ func TestApp_CoderSettings_ShellOutAndReturnTheCLIJSON(t *testing.T) {
 		"CoderStatus":  a.CoderStatus(),
 		"CoderEnable":  a.CoderEnable(),
 		"CoderDisable": a.CoderDisable(),
-		"CoderSet":     a.CoderSet("/w", 50, "30m", 2.5),
+		"CoderSet":     a.CoderSet("/w", 50, "30m", 2.5, "jev"),
 	} {
 		if got != coderStatusJSON {
 			t.Errorf("%s = %s, want the status JSON verbatim", name, got)
@@ -52,7 +52,7 @@ func TestApp_CoderSettings_ShellOutAndReturnTheCLIJSON(t *testing.T) {
 		"coder status",
 		"coder enable --yes-i-understand",
 		"coder disable",
-		"coder set --workspace-root /w --max-turns 50 --timeout 30m --budget-usd 2.5",
+		"coder set --workspace-root /w --max-turns 50 --timeout 30m --budget-usd 2.5 --org-router jev",
 		"coder workspace root --runtime codex",
 		"coder workspace default --runtime codex",
 		"coder workspace list",
@@ -76,15 +76,19 @@ func TestCoderSetArgs_LeavesUnsetValuesAlone(t *testing.T) {
 		turns    int
 		timeout  string
 		budget   float64
+		router   string
 		wantArgs string
 	}{
-		{"", 0, "", -1, "coder set"},
-		{"", 0, "", 0, "coder set --budget-usd 0"},
-		{"/r", 10, "5m", 0.75, "coder set --workspace-root /r --max-turns 10 --timeout 5m --budget-usd 0.75"},
+		{"", 0, "", -1, "", "coder set"},
+		{"", 0, "", 0, "", "coder set --budget-usd 0"},
+		{"/r", 10, "5m", 0.75, "", "coder set --workspace-root /r --max-turns 10 --timeout 5m --budget-usd 0.75"},
+		// The org router alone, as the coder-org settings change it.
+		{"", 0, "", -1, "model", "coder set --org-router model"},
+		{"/r", 0, "", -1, "auto", "coder set --workspace-root /r --org-router auto"},
 	}
 	for _, c := range cases {
-		if got := strings.Join(coderSetArgs(c.root, c.turns, c.timeout, c.budget), " "); got != c.wantArgs {
-			t.Errorf("coderSetArgs(%q,%d,%q,%v) = %q, want %q", c.root, c.turns, c.timeout, c.budget, got, c.wantArgs)
+		if got := strings.Join(coderSetArgs(c.root, c.turns, c.timeout, c.budget, c.router), " "); got != c.wantArgs {
+			t.Errorf("coderSetArgs(%q,%d,%q,%v,%q) = %q, want %q", c.root, c.turns, c.timeout, c.budget, c.router, got, c.wantArgs)
 		}
 	}
 }

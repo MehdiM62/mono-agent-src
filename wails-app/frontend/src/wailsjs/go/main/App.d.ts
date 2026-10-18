@@ -125,7 +125,7 @@ export function CoderDisable():Promise<string>;
 
 export function CoderEnable():Promise<string>;
 
-export function CoderSet(arg1:string,arg2:number,arg3:string,arg4:number):Promise<string>;
+export function CoderSet(arg1:string,arg2:number,arg3:string,arg4:number,arg5:string):Promise<string>;
 
 export function CoderStatus():Promise<string>;
 

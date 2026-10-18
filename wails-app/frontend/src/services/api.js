@@ -247,9 +247,10 @@ export const api = {
   coderStatus:        () => GoApp.CoderStatus().then(parseStreamResult),
   coderEnable:        () => GoApp.CoderEnable().then(parseStreamResult),
   coderDisable:       () => GoApp.CoderDisable().then(parseStreamResult),
-  // budgetUsd 0 clears the per-turn budget; see coderSetArgs (app_coder.go).
-  coderSet:           ({ workspaceRoot = '', maxTurns = 0, timeout = '', budgetUsd = -1 }) =>
-    GoApp.CoderSet(workspaceRoot, maxTurns, timeout, budgetUsd).then(parseStreamResult),
+  // budgetUsd 0 clears the per-turn budget; orgRouter is auto|jev|model, ''
+  // leaves it alone. See coderSetArgs (app_coder.go).
+  coderSet:           ({ workspaceRoot = '', maxTurns = 0, timeout = '', budgetUsd = -1, orgRouter = '' }) =>
+    GoApp.CoderSet(workspaceRoot, maxTurns, timeout, budgetUsd, orgRouter).then(parseStreamResult),
   // {stopped, gone, refused} pids of a turn's leftover background processes.
   // Dynamic org (#226): 'solo' or 'dynamic', from the next turn on.
   // Answer a dynamic-org worker's question (#256).
