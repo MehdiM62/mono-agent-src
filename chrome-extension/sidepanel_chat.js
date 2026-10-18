@@ -146,6 +146,8 @@
         nodes.set(m.id, n);
       } else if (n.sig !== sig) {
         const fresh = buildMessage(m);
+        // The node it replaces may be where the next one goes: follow it.
+        if (cursor === n.root) cursor = fresh;
         n.root.replaceWith(fresh);
         n = { root: fresh, sig };
         nodes.set(m.id, n);

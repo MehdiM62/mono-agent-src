@@ -22,7 +22,8 @@ class Node_ {
   }
   get nextSibling() { const i = this.parentNode ? this.parentNode.children.indexOf(this) : -1; return i >= 0 ? this.parentNode.children[i + 1] || null : null; }
   appendChild(c) { if (c.tag === "#fragment") { for (const k of [...c.children]) this.appendChild(k); return c; } c.remove?.(); c.parentNode = this; this.children.push(c); return c; }
-  insertBefore(c, ref) { c.remove?.(); c.parentNode = this; const i = ref ? this.children.indexOf(ref) : -1; if (i < 0) this.children.push(c); else this.children.splice(i, 0, c); return c; }
+  // As the real DOM: a reference node that is not a child is an error (NotFoundError), not "append".
+  insertBefore(c, ref) { if (ref && ref.parentNode !== this) throw new Error("NotFoundError: the reference node is not a child"); c.remove?.(); c.parentNode = this; const i = ref ? this.children.indexOf(ref) : -1; if (i < 0) this.children.push(c); else this.children.splice(i, 0, c); return c; }
   remove() { if (this.parentNode) { this.parentNode.children.splice(this.parentNode.children.indexOf(this), 1); this.parentNode = null; } }
   replaceWith(n) { const p = this.parentNode; const i = p.children.indexOf(this); n.remove?.(); n.parentNode = p; p.children[i] = n; this.parentNode = null; }
   setAttribute(k, v) { this.attrs[k] = String(v); }
