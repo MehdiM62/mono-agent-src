@@ -114,8 +114,13 @@
       "resource": "user",
       "operation": "create",
       "title": "Create a user",
-      "sends": false,
-      "sends_reason": "Create a user: changes Zammad data, not a message",
+      "sends": {
+        "action": "invite",
+        "to": [
+          "additionalFields.email"
+        ],
+        "if": "additionalFields.customFieldsUi.customFieldPairs.name=invite"
+      },
       "method": "POST",
       "path": "/users",
       "body": {
@@ -441,7 +446,7 @@
       "operation": "create",
       "title": "Create a organization",
       "sends": false,
-      "sends_reason": "Create a organization: changes Zammad data, not a message",
+      "sends_reason": "Create an organization: changes Zammad data, not a message",
       "method": "POST",
       "path": "/organizations",
       "body": {
@@ -481,7 +486,7 @@
       "operation": "delete",
       "title": "Delete a organization",
       "sends": false,
-      "sends_reason": "Delete a organization: changes Zammad data, not a message",
+      "sends_reason": "Delete an organization: changes Zammad data, not a message",
       "method": "DELETE",
       "path": "/organizations/{{ p.id }}",
       "fields": [
@@ -543,7 +548,7 @@
       "operation": "update",
       "title": "Update a organization",
       "sends": false,
-      "sends_reason": "Update a organization: changes Zammad data, not a message",
+      "sends_reason": "Update an organization: changes Zammad data, not a message",
       "method": "PUT",
       "path": "/organizations/{{ p.id }}",
       "body": {
@@ -582,7 +587,7 @@
       "operation": "create",
       "title": "Create a ticket",
       "sends": {
-        "action": "comment",
+        "action": "email",
         "to": [
           "article.articleDetails.to",
           "customer"
@@ -593,6 +598,24 @@
         "subject": [
           "article.articleDetails.subject",
           "title"
+        ],
+        "if": [
+          "article.articleDetails.type not in note|web|phone",
+          "article.articleDetails.to",
+          "article.articleDetails.cc",
+          "additionalFields.customFieldsUi.customFieldPairs.name=articles"
+        ]
+      },
+      "subfields": {
+        "article.articleDetails": [
+          "subject",
+          "body",
+          "visibility",
+          "sender",
+          "type",
+          "to",
+          "cc",
+          "reply_to"
         ]
       },
       "method": "POST",
@@ -740,7 +763,11 @@
         "text": [
           "updateFields.note"
         ],
-        "if": "updateFields.note"
+        "if": [
+          "updateFields.note",
+          "updateFields.customFieldsUi.customFieldPairs.name=article",
+          "updateFields.customFieldsUi.customFieldPairs.name=articles"
+        ]
       },
       "method": "PUT",
       "path": "/tickets/{{ p.id }}",

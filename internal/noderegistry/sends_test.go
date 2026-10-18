@@ -73,10 +73,23 @@ func TestEveryAnnotatedSendQueues(t *testing.T) {
 			}
 			s := o.Sends
 			if len(s.If) > 0 {
-				setParam(config, s.If[0], true)
+				// "param=value" is set to its value, a bare param to true;
+				// "param!=value" sends while the param is unset, and "param
+				// not in a|b" once it is set to something else.
+				if name, _, ok := strings.Cut(s.If[0], " not in "); ok {
+					setParam(config, name, "other")
+				} else if name, value, eq := strings.Cut(s.If[0], "="); eq {
+					if !strings.HasSuffix(name, "!") {
+						setParam(config, name, value)
+					}
+				} else {
+					setParam(config, name, true)
+				}
 			}
+			to := s.ToUnset // the card's recipient
 			if len(s.To) > 0 {
 				setParam(config, s.To[0], "ada@example.test")
+				to = strings.TrimSpace(s.ToLabel[s.To[0]] + " ada@example.test")
 			}
 			if len(s.Text) > 0 {
 				setParam(config, s.Text[0], "Hi Ada")
@@ -93,7 +106,7 @@ func TestEveryAnnotatedSendQueues(t *testing.T) {
 			if item.Action != s.Action {
 				t.Errorf("%s: queued as %q, annotated %q", key, item.Action, s.Action)
 			}
-			if p.Extends == "" && (item.Channel != p.ID || (len(s.To) > 0 && item.Recipient.Name != "ada@example.test") ||
+			if p.Extends == "" && (item.Channel != p.ID || item.Recipient.Name != to ||
 				(len(s.Text) > 0 && item.Text != "Hi Ada")) {
 				t.Errorf("%s: card %+v", key, item)
 			}
@@ -196,5 +209,209 @@ func TestAConditionalSendWaitsOnlyWhenItSends(t *testing.T) {
 	invoice["additionalFields"].(map[string]interface{})["emailInvoice"] = true
 	if _, ok := held("app.invoice_ninja", invoice); !ok {
 		t.Error("an invoice emailed as it is created went out")
+	}
+}
+
+// The sends the reviews decided stay decided: each waits, with the
+// recipient its card shows, or goes through, as decided. Stripping an
+// annotation the catalog lint can't see (Calendly's cancellation) fails
+// here.
+func TestTheReviewedSendsStayDecided(t *testing.T) {
+	asOperator(t)
+	t.Setenv(hilsend.EnvAgentContext, "coder")
+	Build(nil)
+	db := sendsDB(t)
+	st := hilsend.Store{DB: db, Profile: "default"}
+	type cfg = map[string]interface{}
+	for _, c := range []struct {
+		nodeType string
+		config   cfg
+		to       string // the card's recipient; "-" when it goes through
+	}{
+		{"app.calendly", cfg{"resource": "scheduledEvent", "operation": "cancel", "eventUuid": "ev1", "reason": "Ill"}, "ev1"},
+		{"app.msg91", cfg{"resource": "sms", "operation": "send", "to": "+15550100", "message": "Hi"}, "+15550100"},
+		{"app.invoice_ninja", cfg{"resource": "invoice", "operation": "email", "invoiceId": "inv9"}, "the client of invoice inv9"},
+		// Creating or updating a ticket is a work item, by the user's
+		// decision; a public reply or a note on one is a comment, and waits,
+		// and so does a create or update that emails someone beyond the
+		// ticket's requester (an email article, CCs, Zendesk's JSON or
+		// recipient).
+		{"app.zendesk", cfg{"resource": "ticket", "operation": "create", "description": "We fixed it"}, "-"},
+		{"app.zendesk", cfg{"resource": "ticket", "operation": "create", "description": "Hi", "jsonParameters": true,
+			"additionalFieldsJson": `{"email_ccs": [{"user_email": "bob@example.test"}]}`}, "the ticket's requester"},
+		{"app.zendesk", cfg{"resource": "ticket", "operation": "create", "description": "Hi",
+			"additionalFields": cfg{"recipient": "support@example.test"}}, "the ticket's requester"},
+		{"app.zendesk", cfg{"resource": "ticket", "operation": "update", "id": "T1", "updateFields": cfg{"status": "solved"}}, "-"},
+		{"app.zendesk", cfg{"resource": "ticket", "operation": "update", "id": "T1", "updateFields": cfg{"publicReply": "Fixed"}}, "T1"},
+		// Assigning a ticket notifies a colleague, as assigning an issue
+		// does: a work item, open.
+		{"app.zendesk", cfg{"resource": "ticket", "operation": "update", "id": "T1", "updateFields": cfg{"assigneeEmail": "bob@example.test"}}, "-"},
+		{"app.zammad", cfg{"resource": "ticket", "operation": "create", "title": "Login", "group": "Users", "customer": "ada@example.test"}, "-"},
+		// A Zammad article goes out unless it is a note, web or phone one,
+		// and one with a "to" goes out whatever its type.
+		{"app.zammad", cfg{"resource": "ticket", "operation": "create", "title": "Login", "group": "Users", "customer": "ada@example.test",
+			"article": cfg{"articleDetails": cfg{"type": "note", "body": "Called her"}}}, "-"},
+		{"app.zammad", cfg{"resource": "ticket", "operation": "create", "title": "Login", "group": "Users", "customer": "ada@example.test",
+			"article": cfg{"articleDetails": cfg{"type": "web", "body": "Called her"}}}, "-"},
+		{"app.zammad", cfg{"resource": "ticket", "operation": "create", "title": "Login", "group": "Users", "customer": "ada@example.test",
+			"article": cfg{"articleDetails": cfg{"type": "phone", "body": "Called her"}}}, "-"},
+		{"app.zammad", cfg{"resource": "ticket", "operation": "create", "title": "Login", "group": "Users", "customer": "ada@example.test",
+			"article": cfg{"articleDetails": cfg{"type": "email", "to": "bob@example.test", "body": "Fixed"}}}, "bob@example.test"},
+		{"app.zammad", cfg{"resource": "ticket", "operation": "create", "title": "Login", "group": "Users", "customer": "ada@example.test",
+			"article": cfg{"articleDetails": cfg{"type": "sms", "to": "+15550001", "body": "Fixed"}}}, "+15550001"},
+		{"app.zammad", cfg{"resource": "ticket", "operation": "create", "title": "Login", "group": "Users", "customer": "ada@example.test",
+			"article": cfg{"articleDetails": cfg{"type": "twitter status", "body": "Fixed"}}}, "ada@example.test"},
+		{"app.zammad", cfg{"resource": "ticket", "operation": "create", "title": "Login", "group": "Users", "customer": "ada@example.test",
+			"article": cfg{"articleDetails": cfg{"type": "twitter direct-message", "body": "Fixed"}}}, "ada@example.test"},
+		{"app.zammad", cfg{"resource": "ticket", "operation": "create", "title": "Login", "group": "Users", "customer": "ada@example.test",
+			"article": cfg{"articleDetails": cfg{"type": "facebook feed post", "body": "Fixed"}}}, "ada@example.test"},
+		{"app.zammad", cfg{"resource": "ticket", "operation": "create", "title": "Login", "group": "Users", "customer": "ada@example.test",
+			"article": cfg{"articleDetails": cfg{"type": "telegram personal-message", "body": "Fixed"}}}, "ada@example.test"},
+		{"app.zammad", cfg{"resource": "ticket", "operation": "create", "title": "Login", "group": "Users", "customer": "ada@example.test",
+			"article": cfg{"articleDetails": cfg{"type": "whatsapp message", "body": "Fixed"}}}, "ada@example.test"},
+		{"app.zammad", cfg{"resource": "ticket", "operation": "create", "title": "Login", "group": "Users", "customer": "ada@example.test",
+			"article": cfg{"articleDetails": cfg{"type": "note", "to": "bob@example.test", "body": "Fixed"}}}, "bob@example.test"},
+		{"app.zammad", cfg{"resource": "ticket", "operation": "update", "id": "T2", "updateFields": cfg{"note": "Fixed"}}, "T2"},
+		{"app.freshdesk", cfg{"resource": "ticket", "operation": "create", "requesterIdentificationValue": "ada@example.test"}, "-"},
+		{"app.freshdesk", cfg{"resource": "ticket", "operation": "create", "requesterIdentificationValue": "ada@example.test",
+			"options": cfg{"ccEmails": "bob@example.test"}}, "bob@example.test"},
+		{"app.freshdesk", cfg{"resource": "ticket", "operation": "update", "ticketId": "T3"}, "-"},
+		{"app.freshdesk", cfg{"resource": "ticket", "operation": "update", "ticketId": "T3", "updateFields": cfg{"ccEmails": "bob@example.test"}}, "bob@example.test"},
+		{"app.freshservice", cfg{"resource": "ticket", "operation": "create", "email": "ada@example.test", "subject": "Login"}, "-"},
+		{"app.freshservice", cfg{"resource": "ticket", "operation": "create", "email": "ada@example.test", "subject": "Login",
+			"additionalFields": cfg{"cc_emails": "bob@example.test"}}, "bob@example.test"},
+		{"app.okta", cfg{"resource": "user", "operation": "create", "email": "ada@example.test", "login": "ada"}, "ada@example.test"},
+		{"app.okta", cfg{"resource": "user", "operation": "create", "email": "ada@example.test", "activate": false}, "-"},
+		{"app.okta", cfg{"resource": "user", "operation": "delete", "userId": "u1"}, "-"},
+		{"app.okta", cfg{"resource": "user", "operation": "delete", "userId": "u1", "sendEmail": true}, "the admins, about user u1"},
+		{"app.home_assistant", cfg{"resource": "service", "operation": "call", "domain": "notify", "service": "mobile_app_ada"}, "service mobile_app_ada"},
+		{"app.home_assistant", cfg{"resource": "service", "operation": "call", "domain": "light", "service": "turn_on"}, "-"},
+		{"app.gotify", cfg{"resource": "message", "operation": "create", "message": "Done"}, "the Gotify app's subscribers"},
+		{"app.brevo", cfg{"resource": "sender", "operation": "create", "name": "Ada", "email": "ada@example.test"}, "ada@example.test"},
+		{"comm.telegram", cfg{"resource": "message", "operation": "pinChatMessage", "chatId": "42", "messageId": "7"}, "42"},
+		// Onfleet texts a task's recipient unless told to skip it; the card
+		// names the phone the text goes to, so an always-allow rule is one
+		// phone's, not every phone's under one name.
+		{"app.onfleet", cfg{"resource": "task", "operation": "create", "additionalFields": cfg{"recipient": cfg{"recipientProperties": cfg{
+			"recipientName": "Ada", "recipientPhone": "+15550100", "recipientSkipSMSNotifications": true}}}}, "-"},
+		{"app.onfleet", cfg{"resource": "task", "operation": "create", "additionalFields": cfg{"recipient": cfg{"recipientProperties": cfg{
+			"recipientName": "Ada", "recipientPhone": "+15550100", "recipientSkipSMSNotifications": false}}}}, "+15550100"},
+		{"app.onfleet", cfg{"resource": "task", "operation": "create", "additionalFields": cfg{"recipient": cfg{"recipientProperties": cfg{
+			"recipientPhone": "+15550100"}}}}, "+15550100"},
+		{"app.onfleet", cfg{"resource": "task", "operation": "create", "additionalFields": cfg{"recipient": cfg{"recipientProperties": cfg{
+			"recipientName": "Ada"}}}}, "Ada"},
+		{"app.onfleet", cfg{"resource": "task", "operation": "create"}, "the task's recipient"},
+		// A custom field Zammad reads as a send of its own: an article on a
+		// ticket update, an invite on a new user. Another custom field is
+		// data.
+		{"app.zammad", cfg{"resource": "ticket", "operation": "update", "id": "5", "updateFields": cfg{"customFieldsUi": cfg{
+			"customFieldPairs": []interface{}{cfg{"name": "article", "value": cfg{"type": "email", "to": "v@example.test"}}}}}}, "5"},
+		{"app.zammad", cfg{"resource": "user", "operation": "create", "firstname": "Ada", "lastname": "L", "additionalFields": cfg{
+			"email": "ada@example.test", "customFieldsUi": cfg{"customFieldPairs": []interface{}{cfg{"name": "invite", "value": true}}}}},
+			"ada@example.test"},
+		{"app.zammad", cfg{"resource": "user", "operation": "create", "firstname": "Ada", "lastname": "L", "additionalFields": cfg{
+			"email": "ada@example.test", "customFieldsUi": cfg{"customFieldPairs": []interface{}{cfg{"name": "shoe", "value": "42"}}}}}, "-"},
+		// Zammad files an article with no type as a note (its API's default),
+		// so one with only a body runs.
+		{"app.zammad", cfg{"resource": "ticket", "operation": "create", "title": "Login", "group": "Users", "customer": "ada@example.test",
+			"article": cfg{"articleDetails": cfg{"body": "Called her"}}}, "-"},
+		// A PayPal payout is money movement, open; its email waits when it
+		// carries words of the sender's: a subject, a message, a note on the
+		// payout or on an item, or raw items.
+		{"app.pay_pal", cfg{"resource": "payout", "operation": "create", "senderBatchId": "b1",
+			"itemsUi": cfg{"itemsValues": []interface{}{cfg{"receiverValue": "ada@example.test", "amount": "5"}}}}, "-"},
+		{"app.pay_pal", cfg{"resource": "payout", "operation": "create", "senderBatchId": "b1",
+			"itemsUi": cfg{"itemsValues": []interface{}{cfg{"receiverValue": "ada@example.test", "amount": "5", "note": "Thanks"}}}},
+			"the payout's receivers"},
+		{"app.pay_pal", cfg{"resource": "payout", "operation": "create", "senderBatchId": "b1", "additionalFields": cfg{"note": "Thanks"}},
+			"the payout's receivers"},
+		{"app.pay_pal", cfg{"resource": "payout", "operation": "create", "senderBatchId": "b1", "jsonParameters": true,
+			"itemsJson": `[{"receiver": "ada@example.test", "note": "Thanks"}]`}, "the payout's receivers"},
+		{"service.github", cfg{"resource": "issue", "operation": "create", "owner": "o", "repository": "r", "title": "Bug"}, "-"},
+	} {
+		out, handled, err := hilsend.Guard(sendsCtx(db), c.nodeType, workflow.NodeInput{}, c.config)
+		if err != nil {
+			t.Fatalf("%s %v: %v", c.nodeType, c.config, err)
+		}
+		if c.to == "-" {
+			if handled {
+				t.Errorf("%s %v: held, want it to go through", c.nodeType, c.config)
+			}
+			continue
+		}
+		if !handled {
+			t.Errorf("%s %v: went through, want it to wait", c.nodeType, c.config)
+			continue
+		}
+		p, err := st.Get(context.Background(), out[0].Items[0].JSON["hil_id"].(string))
+		if err != nil || p.Recipient.Name != c.to {
+			t.Errorf("%s %v: recipient %q, %v; want %q", c.nodeType, c.config, p.Recipient.Name, err, c.to)
+		}
+	}
+}
+
+// A key an op doesn't declare, in a collection its request merges whole,
+// may send whatever the op's annotation says: an agent's run and an
+// unapproved workflow's wait for approval, with a card that names the keys
+// as a label (nothing to always allow, no person). The operator's own run
+// goes through as before, and a declared config is as it was.
+func TestUndeclaredKeysWaitOnlyInAGatedRun(t *testing.T) {
+	Build(nil)
+	db := sendsDB(t)
+	st := hilsend.Store{DB: db, Profile: "default"}
+	type cfg = map[string]interface{}
+	for name, c := range map[string]struct {
+		nodeType string
+		config   cfg
+		to       string // the card's recipient; "-" when no run waits
+	}{
+		"a raw article on a Zammad ticket update": {"app.zammad", cfg{"resource": "ticket", "operation": "update", "id": "5",
+			"updateFields": cfg{"article": cfg{"type": "email", "to": "v@example.test", "body": "x"}}},
+			"whoever its undeclared fields (article) reach"},
+		"raw articles on a Zammad ticket update": {"app.zammad", cfg{"resource": "ticket", "operation": "update", "id": "5",
+			"updateFields": cfg{"articles": []interface{}{cfg{"type": "twitter status", "body": "tweet"}}}},
+			"whoever its undeclared fields (articles) reach"},
+		"a raw bcc_emails on a Freshservice ticket": {"app.freshservice", cfg{"resource": "ticket", "operation": "create",
+			"email": "a@example.test", "subject": "S", "description": "D", "additionalFields": cfg{"bcc_emails": []interface{}{"v@example.test"}}},
+			"whoever its undeclared fields (bcc_emails) reach"},
+		"a declared Zammad update": {"app.zammad", cfg{"resource": "ticket", "operation": "update", "id": "5",
+			"updateFields": cfg{"state_id": 2}}, "-"},
+		"a type_id on a Zammad ticket's article": {"app.zammad", cfg{"resource": "ticket", "operation": "create", "title": "T",
+			"group": "Users", "customer": "a@example.test", "article": cfg{"articleDetails": cfg{"type_id": 6, "body": "tweet"}}},
+			"whoever its undeclared fields (articleDetails.type_id) reach"},
+		"a note with a type_id": {"app.zammad", cfg{"resource": "ticket", "operation": "create", "title": "T", "group": "Users",
+			"customer": "a@example.test", "article": cfg{"articleDetails": cfg{"type": "note", "type_id": 6, "body": "tweet"}}},
+			"whoever its undeclared fields (articleDetails.type_id) reach"},
+	} {
+		asOperator(t)
+		if _, handled, err := hilsend.Guard(sendsCtx(db), c.nodeType, workflow.NodeInput{}, c.config); handled || err != nil {
+			t.Errorf("%s, the operator's run: handled=%v err=%v; want it to go through", name, handled, err)
+		}
+		unapproved := vault.ContextWithExecIDs(workflow.WithAIAuthored(sendsCtx(db)), "wf1", "ex1")
+		for run, ctx := range map[string]context.Context{"an agent's run": sendsCtx(db), "an unapproved workflow's run": unapproved} {
+			if run == "an agent's run" {
+				t.Setenv(hilsend.EnvAgentContext, "coder")
+			} else {
+				asOperator(t)
+			}
+			out, handled, err := hilsend.Guard(ctx, c.nodeType, workflow.NodeInput{}, c.config)
+			if err != nil {
+				t.Fatalf("%s, %s: %v", name, run, err)
+			}
+			if c.to == "-" {
+				if handled {
+					t.Errorf("%s, %s: held", name, run)
+				}
+				continue
+			}
+			if !handled {
+				t.Errorf("%s, %s: went through, want it to wait", name, run)
+				continue
+			}
+			p, err := st.Get(context.Background(), out[0].Items[0].JSON["hil_id"].(string))
+			if err != nil || p.Recipient.Name != c.to || !p.Recipient.Label || p.Action != hilsend.ActionEmail {
+				t.Errorf("%s, %s: card %+v, %v; want an email to the label %q", name, run, p.Recipient, err, c.to)
+			}
+		}
 	}
 }

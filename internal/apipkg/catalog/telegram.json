@@ -402,8 +402,12 @@
       "resource": "message",
       "operation": "pinChatMessage",
       "title": "Pin a message",
-      "sends": false,
-      "sends_reason": "Pin a message: changes Telegram data, not a message",
+      "sends": {
+        "action": "post",
+        "to": [
+          "chatId"
+        ]
+      },
       "method": "POST",
       "path": "/pinChatMessage",
       "fields": [

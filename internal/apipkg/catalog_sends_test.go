@@ -2,6 +2,7 @@ package apipkg
 
 import (
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -98,5 +99,18 @@ func TestSendOf(t *testing.T) {
 	}
 	if !SendsSome("app.mailgun") || !SendsSome("comm.slack") || SendsSome("app.aws_sqs") || SendsSome("comm.email_send") {
 		t.Error("SendsSome")
+	}
+}
+
+// The reasons read as English: "an account", not "a account" (a user, a
+// URL and a uProc lookup say "you"), and "companies", not "companys".
+func TestSendsReasonsReadWell(t *testing.T) {
+	bad := regexp.MustCompile(`\ba [aeioAEIO]\w*|\ba u[^sPR]\w*|\b\w+[^aeiou ]ys\b`)
+	for _, p := range catalogPackages(t) {
+		for _, o := range p.Operations {
+			if m := bad.FindString(o.SendsReason); m != "" {
+				t.Errorf("%s %s/%s: %q in %q", p.ID, o.Resource, o.Operation, m, o.SendsReason)
+			}
+		}
 	}
 }

@@ -2665,7 +2665,37 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
   per input item, so each item is its own card. An op that sends only
   sometimes says when with `if` (a Google Calendar event only with
   attendees, an Invoice Ninja invoice only with emailInvoice); a field may
-  be a collection's option (`updateFields.publicReply`). The catalog lint
+  be a collection's option (`updateFields.publicReply`). `if` reads a
+  param's field default when the config leaves it out (Okta's activate),
+  and `"param=value"` sends only on that value (Home Assistant's
+  `domain=notify`), `"param!=value"` unless it has that value (an Onfleet
+  task texts its recipient unless `recipientSkipSMSNotifications` is
+  true; unset counts), and `"param not in a|b|c"` when the param is set to
+  none of those (unset doesn't count: Zammad's
+  `article.articleDetails.type not in note|web|phone`). `to_label` names a recipient param that holds an id
+  ("the client of invoice inv9"), `to_unset` the recipient when none is set
+  ("the appointment's attendees"). Such a card names no address: `--always-allow` is
+  refused on it (`hilsend.ErrAlwaysLabel`), no allow rule matches it, and its
+  Communications row is the account's own, not a People row. Besides messaging packages, the lint asks
+  about any app's write with a recipient-like param (to, recipient,
+  receiver, addressee, email, mailTo, phone, tel, msisdn, sms, attendees,
+  guests, participants, invitees, invites, subscribers, cc, bcc) or a
+  message switch. A key an op doesn't declare in a collection its
+  request merges whole, or in an option object outside the op's
+  `subfields`, makes the step a send whatever its annotation
+  (`apipkg.SendOf`, `collections.go`): a gated run waits, with a card
+  naming the keys as a label, and other runs are unchanged. A condition's
+  path fans out over a list (`…customFieldPairs.name=invite`).
+  `TestShippedWorkflowsDeclareTheirKeys` keeps the shipped examples and
+  n8n fixtures free of undeclared keys.
+  Creating or updating issues, tasks and tickets is no message, by the
+  user's decision ("a work item, open by the user's decision"); their
+  comments are, and so is a ticket create or update that emails someone
+  beyond its requester (`if`: a Zammad article whose type is not note,
+  web or phone, or that has a `to` or `cc`; Freshdesk/Freshservice CCs;
+  Zendesk's jsonParameters or recipient). That
+  holds for every helpdesk, Zendesk and Zammad included; assigning a
+  ticket stays open. The catalog lint
   (`TestCatalogSendsAreDecided`) makes every write of a messaging package,
   and any op whose name, path or description says it sends, carry `sends`
   or `sends: false` with a reason. It covers the built-in catalog only: a
@@ -2713,17 +2743,32 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
   configs, and the files a tool runs the next time the user works in that
   folder or instructs the next AI session there, and a `.git` pointer file:
   AI tools' folders (`.claude/`, `.codex/`, `.gemini/`, `.continue/`,
-  `.cursor/`, `.windsurf/`, `.roo/`, `.kiro/`, `.amazonq/`, `.opencode/`),
-  agent instructions (`CLAUDE.md`, `CLAUDE.local.md`, `AGENTS.md`,
-  `GEMINI.md`, `.cursorrules`, `.windsurfrules`, `.clinerules`,
-  `.roorules`, `.github/copilot-instructions.md`, `.github/agents`,
-  `.github/instructions`, `.github/prompts`), tool configs (`.mcp.json`,
-  `opencode.json`, `.aider.conf.yml`), CI pipelines
-  (`.github/workflows/*`, `.gitlab-ci.yml`, `.circleci/`), hook managers
+  `.cursor/`, `.windsurf/`, `.roo/`, `.kiro/`, `.amazonq/`, `.opencode/`,
+  `.trae/`, `.junie/`, `.goose/`, `.augment/`, `.qwen/`, `.agents/`,
+  `.agent/`, `.copilot/`, `.kilocode/`), agent instructions (`CLAUDE.md`,
+  `CLAUDE.local.md`, `AGENTS.md`, `agents.md`, `AGENT.md`, `GEMINI.md`,
+  `QWEN.md`, `CODEX.md`, `.goosehints`, `.cursorrules`, `.windsurfrules`,
+  `.clinerules`, `.roorules`, `.continuerules`, `.kilocodemodes`, `.rules`,
+  `.github/copilot-instructions.md`,
+  `.github/agents`, `.github/instructions`, `.github/prompts`), tool
+  configs (`.mcp.json`, `.claude.json`, `opencode.json`, `crush.json`,
+  `.crush.json`, `.aider.conf.yml`),
+  CI pipelines (`.github/workflows/*`, `.github/actions/*`,
+  `.gitlab-ci.yml`, `.gitlab/ci/`, `.circleci/`, `Jenkinsfile`,
+  `azure-pipelines.yml`, `.travis.yml`, `bitbucket-pipelines.yml`,
+  `.buildkite/`, `.drone.yml`/`.yaml`, `cloudbuild.yaml`/`.yml`/`.json`,
+  `appveyor.yml`/`.yaml`/`.appveyor.yml`, `.woodpecker.yml`/`.yaml`,
+  `.woodpecker/`, `.semaphore/`, `bitrise.yml`, `codemagic.yaml`,
+  `buildspec.yml`, `.cirrus.yml`, `wercker.yml`, `codefresh.yml`,
+  `.gocd.yml`, `concourse.yml`, `netlify.toml`, `vercel.json`, and the
+  `.yaml` spellings of Azure, GitLab and Travis files), hook managers
   (`.husky/*`, `.githooks/*`, `.pre-commit-config.yaml`, `lefthook.yml`)
   and the dev environment (`.envrc`, `.mise.toml`, `.devcontainer/`,
-  `.vscode/tasks.json` and `launch.json`, `.zed/settings.json` and
-  `tasks.json`). `.vscode/settings.json` stays open. Still open in it: build files such as `package.json` scripts
+  `.devcontainer.json`, `.gitpod.yml`, `.replit`, `.idea/`,
+  `.vscode/tasks.json` and `launch.json`, `.zed/settings.json`,
+  `tasks.json` and `keymap.json`). These names match without case on
+  every system (`CLOUDBUILD.YML` too): the file can reach a CI service or
+  a checkout that folds case. `.vscode/settings.json` stays open. Still open in it: build files such as `package.json` scripts
   or a `Makefile`. A project folder that is the home or holds it, or lies in
   another hidden folder of the home, opens nothing; only the operator sets a
   profile's folder. Also open: the user's files outside hidden folders,

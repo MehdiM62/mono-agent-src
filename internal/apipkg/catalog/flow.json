@@ -56,6 +56,8 @@
       "resource": "task",
       "operation": "create",
       "title": "Create a task",
+      "sends": false,
+      "sends_reason": "a work item, open by the user's decision",
       "method": "POST",
       "path": "/tasks",
       "fields": [
@@ -124,6 +126,8 @@
       "resource": "task",
       "operation": "update",
       "title": "Update a task",
+      "sends": false,
+      "sends_reason": "a work item, open by the user's decision",
       "method": "PUT",
       "path": "/tasks/{{ p.taskId }}",
       "fields": [

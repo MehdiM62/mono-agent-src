@@ -19,4 +19,30 @@ describe('quoteClaim', () => {
   it('keeps ordinary text, accents and emoji as they are', () => {
     expect(quoteClaim('Équipe ventes 🚀')).toBe('"Équipe ventes 🚀"')
   })
+  it('shows C1 controls and non-ASCII spaces as escapes, keeps the ASCII space', () => {
+    expect(quoteClaim('a\u0085b')).toBe('"a\\u0085b"')
+    expect(quoteClaim('a\u3000b\u00A0c')).toBe('"a\\u3000b\\u00A0c"')
+    expect(quoteClaim('a b')).toBe('"a b"')
+  })
+  it('shows a format character above U+FFFF whole, not as \\uXXXX and a stray digit', () => {
+    expect(quoteClaim('a\u{E0041}b')).toBe('"a\\u{E0041}b"')
+    expect(quoteClaim('\u{E0001}x\u{E007F}')).toBe('"\\u{E0001}x\\u{E007F}"')
+  })
+  it('shows variation selectors, private-use characters and noncharacters as escapes', () => {
+    expect(quoteClaim('a\uFE0Fb\u{E0100}c')).toBe('"a\\uFE0Fb\\u{E0100}c"')
+    expect(quoteClaim('a\uE000b\u{F0000}c')).toBe('"a\\uE000b\\u{F0000}c"')
+    expect(quoteClaim('a\u{10FFFF}b\uFDD0c')).toBe('"a\\u{10FFFF}b\\uFDD0c"')
+  })
+  it("keeps an emoji's presentation selector, escapes a stray or repeated one", () => {
+    expect(quoteClaim('❤️ team')).toBe('"❤️ team"')
+    expect(quoteClaim('1️⃣ first')).toBe('"1️⃣ first"')
+    expect(quoteClaim('🚀\uFE0F')).toBe('"🚀\uFE0F"')
+    expect(quoteClaim('a\uFE0F')).toBe('"a\\uFE0F"')
+    expect(quoteClaim('❤\uFE0F\uFE0F')).toBe('"❤\uFE0F\\uFE0F"')
+    expect(quoteClaim('❤\uFE0E')).toBe('"❤\\uFE0E"')
+  })
+  it('keeps the combining marks a script needs', () => {
+    expect(quoteClaim('नमस्ते')).toBe('"नमस्ते"')
+    expect(quoteClaim('e\u0301')).toBe('"e\u0301"')
+  })
 })

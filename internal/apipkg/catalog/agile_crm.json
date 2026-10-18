@@ -88,6 +88,8 @@
       "resource": "contact",
       "operation": "create",
       "title": "Create a contact",
+      "sends": false,
+      "sends_reason": "Create a contact: changes Agile CRM data, not a message",
       "method": "POST",
       "path": "/api/contacts",
       "body": {
@@ -324,6 +326,8 @@
       "resource": "contact",
       "operation": "update",
       "title": "Update a contact",
+      "sends": false,
+      "sends_reason": "Update a contact: changes Agile CRM data, not a message",
       "method": "PUT",
       "path": "/api/contacts/edit-properties",
       "body": {
@@ -489,6 +493,8 @@
       "resource": "company",
       "operation": "create",
       "title": "Create a company",
+      "sends": false,
+      "sends_reason": "Create a company: changes Agile CRM data, not a message",
       "method": "POST",
       "path": "/api/contacts",
       "body": {
@@ -699,6 +705,8 @@
       "resource": "company",
       "operation": "update",
       "title": "Update a company",
+      "sends": false,
+      "sends_reason": "Update a company: changes Agile CRM data, not a message",
       "method": "PUT",
       "path": "/api/contacts/edit-properties",
       "body": {

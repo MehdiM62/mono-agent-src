@@ -48,6 +48,8 @@
       "resource": "user",
       "operation": "create",
       "title": "Create a user",
+      "sends": false,
+      "sends_reason": "Create a user: changes Google Workspace Admin data, not a message",
       "method": "POST",
       "path": "/users",
       "fields": [
@@ -368,6 +370,8 @@
       "resource": "user",
       "operation": "update",
       "title": "Update a user",
+      "sends": false,
+      "sends_reason": "Update a user: changes Google Workspace Admin data, not a message",
       "method": "PUT",
       "path": "/users/{{ p.userId | rl }}",
       "fields": [
@@ -422,6 +426,8 @@
       "resource": "group",
       "operation": "create",
       "title": "Create a group",
+      "sends": false,
+      "sends_reason": "Create a group: changes Google Workspace Admin data, not a message",
       "method": "POST",
       "path": "/groups",
       "fields": [
@@ -549,6 +555,8 @@
       "resource": "group",
       "operation": "update",
       "title": "Update a group",
+      "sends": false,
+      "sends_reason": "Update a group: changes Google Workspace Admin data, not a message",
       "method": "PUT",
       "path": "/groups/{{ p.groupId | rl }}",
       "fields": [

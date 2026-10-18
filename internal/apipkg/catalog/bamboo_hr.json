@@ -71,6 +71,8 @@
       "resource": "employee",
       "operation": "create",
       "title": "Create an employee",
+      "sends": false,
+      "sends_reason": "Create an employee: changes BambooHR data, not a message",
       "method": "POST",
       "path": "/employees",
       "body": {
@@ -308,6 +310,8 @@
       "resource": "employee",
       "operation": "update",
       "title": "Update an employee",
+      "sends": false,
+      "sends_reason": "Update an employee: changes BambooHR data, not a message",
       "method": "POST",
       "path": "/employees/{{ p.employeeId }}",
       "body": {

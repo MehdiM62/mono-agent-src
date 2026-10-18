@@ -70,6 +70,8 @@
       "resource": "customer",
       "operation": "create",
       "title": "Create a customer",
+      "sends": false,
+      "sends_reason": "Create a customer: changes Chargebee data, not a message",
       "method": "POST",
       "path": "/customers",
       "body": {

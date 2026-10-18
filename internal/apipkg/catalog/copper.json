@@ -91,6 +91,8 @@
       "resource": "company",
       "operation": "create",
       "title": "Create a company",
+      "sends": false,
+      "sends_reason": "Create a company: changes Copper data, not a message",
       "method": "POST",
       "path": "/companies",
       "body": {
@@ -204,6 +206,8 @@
       "resource": "company",
       "operation": "update",
       "title": "Update a company",
+      "sends": false,
+      "sends_reason": "Update a company: changes Copper data, not a message",
       "method": "PUT",
       "path": "/companies/{{ p.companyId }}",
       "body": {
@@ -270,6 +274,8 @@
       "resource": "lead",
       "operation": "create",
       "title": "Create a lead",
+      "sends": false,
+      "sends_reason": "Create a lead: changes Copper data, not a message",
       "method": "POST",
       "path": "/leads",
       "body": {
@@ -382,6 +388,8 @@
       "resource": "lead",
       "operation": "update",
       "title": "Update a lead",
+      "sends": false,
+      "sends_reason": "Update a lead: changes Copper data, not a message",
       "method": "PUT",
       "path": "/leads/{{ p.leadId }}",
       "body": {
@@ -562,6 +570,8 @@
       "resource": "person",
       "operation": "create",
       "title": "Create a person",
+      "sends": false,
+      "sends_reason": "Create a person: changes Copper data, not a message",
       "method": "POST",
       "path": "/people",
       "body": {
@@ -675,6 +685,8 @@
       "resource": "person",
       "operation": "update",
       "title": "Update a person",
+      "sends": false,
+      "sends_reason": "Update a person: changes Copper data, not a message",
       "method": "PUT",
       "path": "/people/{{ p.personId }}",
       "body": {

@@ -103,6 +103,13 @@
       "resource": "charge",
       "operation": "create",
       "title": "Create a charge",
+      "sends": {
+        "action": "email",
+        "to": [
+          "additionalFields.receipt_email"
+        ],
+        "if": "additionalFields.receipt_email"
+      },
       "method": "POST",
       "path": "/charges",
       "body_type": "form",
@@ -195,6 +202,13 @@
       "resource": "charge",
       "operation": "update",
       "title": "Update a charge",
+      "sends": {
+        "action": "email",
+        "to": [
+          "updateFields.receipt_email"
+        ],
+        "if": "updateFields.receipt_email"
+      },
       "method": "POST",
       "path": "/charges/{{ p.chargeId }}",
       "body_type": "form",
@@ -233,6 +247,8 @@
       "resource": "coupon",
       "operation": "create",
       "title": "Create a coupon",
+      "sends": false,
+      "sends_reason": "Create a coupon: changes Stripe data, not a message",
       "method": "POST",
       "path": "/coupons",
       "body_type": "form",
@@ -333,6 +349,8 @@
       "resource": "customer",
       "operation": "create",
       "title": "Create a customer",
+      "sends": false,
+      "sends_reason": "Create a customer: changes Stripe data, not a message",
       "method": "POST",
       "path": "/customers",
       "body_type": "form",
@@ -375,6 +393,8 @@
       "resource": "customer",
       "operation": "delete",
       "title": "Delete a customer",
+      "sends": false,
+      "sends_reason": "Delete a customer: changes Stripe data, not a message",
       "method": "DELETE",
       "path": "/customers/{{ p.customerId }}",
       "fields": [
@@ -434,6 +454,8 @@
       "resource": "customer",
       "operation": "update",
       "title": "Update a customer",
+      "sends": false,
+      "sends_reason": "Update a customer: changes Stripe data, not a message",
       "method": "POST",
       "path": "/customers/{{ p.customerId }}",
       "body_type": "form",
@@ -496,6 +518,8 @@
       "resource": "customerCard",
       "operation": "add",
       "title": "Add a card to a customer",
+      "sends": false,
+      "sends_reason": "Add a card to a customer: changes Stripe data, not a message",
       "method": "POST",
       "path": "/customers/{{ p.customerId }}/sources",
       "body_type": "form",
@@ -521,6 +545,8 @@
       "resource": "customerCard",
       "operation": "remove",
       "title": "Remove a card from a customer",
+      "sends": false,
+      "sends_reason": "Remove a card from a customer: changes Stripe data, not a message",
       "method": "DELETE",
       "path": "/customers/{{ p.customerId }}/sources/{{ p.cardId }}",
       "fields": [
@@ -542,6 +568,8 @@
       "resource": "meterEvent",
       "operation": "create",
       "title": "Report a billing meter event",
+      "sends": false,
+      "sends_reason": "Report a billing meter event: changes Stripe data, not a message",
       "method": "POST",
       "path": "/billing/meter_events",
       "body_type": "form",
@@ -607,6 +635,8 @@
       "resource": "source",
       "operation": "create",
       "title": "Create a source and attach it to a customer",
+      "sends": false,
+      "sends_reason": "Create a source and attach it to a customer: changes Stripe data, not a message",
       "method": "POST",
       "path": "/sources",
       "body_type": "form",
@@ -671,6 +701,8 @@
       "resource": "source",
       "operation": "delete",
       "title": "Detach a source from a customer",
+      "sends": false,
+      "sends_reason": "Detach a source from a customer: changes Stripe data, not a message",
       "method": "DELETE",
       "path": "/customers/{{ p.customerId }}/sources/{{ p.sourceId }}",
       "fields": [
@@ -692,6 +724,8 @@
       "resource": "token",
       "operation": "create",
       "title": "Create a card token",
+      "sends": false,
+      "sends_reason": "Create a card token: changes Stripe data, not a message",
       "method": "POST",
       "path": "/tokens",
       "body_type": "form",

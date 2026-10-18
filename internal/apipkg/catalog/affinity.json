@@ -382,6 +382,8 @@
       "resource": "person",
       "operation": "create",
       "title": "Create a person",
+      "sends": false,
+      "sends_reason": "Create a person: changes Affinity data, not a message",
       "method": "POST",
       "path": "/persons",
       "body": {
@@ -514,6 +516,8 @@
       "resource": "person",
       "operation": "update",
       "title": "Update a person",
+      "sends": false,
+      "sends_reason": "Update a person: changes Affinity data, not a message",
       "method": "PUT",
       "path": "/persons/{{ p.personId }}",
       "body": {

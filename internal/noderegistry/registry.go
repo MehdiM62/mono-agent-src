@@ -140,7 +140,8 @@ type apipkgSends struct{}
 
 func (apipkgSends) Classify(nodeType string, config map[string]interface{}) (hilsend.Classified, bool) {
 	s, ok := apipkg.SendOf(nodeType, config)
-	return hilsend.Classified{Action: s.Action, Channel: s.Channel, To: s.To, Text: s.Text, Subject: s.Subject, PerItem: s.PerItem}, ok
+	return hilsend.Classified{Action: s.Action, Channel: s.Channel, To: s.To, Text: s.Text, Subject: s.Subject,
+		ToLabel: s.ToLabel, ToUnset: s.ToUnset, PerItem: s.PerItem}, ok
 }
 
 func (apipkgSends) SendsSome(nodeType string) bool { return apipkg.SendsSome(nodeType) }

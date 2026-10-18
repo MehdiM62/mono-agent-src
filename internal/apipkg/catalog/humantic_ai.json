@@ -129,6 +129,8 @@
       "resource": "profile",
       "operation": "update",
       "title": "Update a profile",
+      "sends": false,
+      "sends_reason": "sends a resume to Humantic AI for analysis; it reaches no person",
       "description": "Adds text or a resume file to the analysis of a profile",
       "method": "POST",
       "path": "/user-profile/create",

@@ -21,7 +21,7 @@ import (
 // commands; nothing else reads the table.
 //
 //	profile info fields                 the catalog: every field, grouped
-//	profile info get [--reveal]         the stored values (ID and card numbers masked)
+//	profile info get [--reveal]         the stored values (ID and card numbers masked; --reveal is the operator's only)
 //	profile info set <key> [value]      set one (--stdin reads a long text)
 //	profile info rm <key>               clear one
 //	profile info photo <key> <file>     set a photo or scan
