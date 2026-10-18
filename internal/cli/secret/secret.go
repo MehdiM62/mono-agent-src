@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/monoes/mono-agent/internal/cli/revealgate"
 	"github.com/monoes/mono-agent/internal/secrets"
 
 	"github.com/spf13/cobra"
@@ -209,10 +210,11 @@ func (d Deps) newSecretAddCmd() *cobra.Command {
 				return ErrProfileRequired
 			}
 
-			id, err := secrets.Add(cmd.Context(), db.DB, profileID, kind, name, fields, username, url, notes)
+			id, err := secrets.Add(writeCtx(cmd.Context()), db.DB, profileID, kind, name, fields, username, url, notes)
 			if err != nil {
-				return fmt.Errorf("adding secret: %w", err)
+				return writeErr("adding secret", err)
 			}
+			warnTokenless(cmd.ErrOrStderr(), name, fields)
 			if d.JSONOutput() {
 				enc := json.NewEncoder(cmd.OutOrStdout())
 				enc.SetIndent("", "  ")
@@ -328,10 +330,13 @@ func (d Deps) newRevealCmd() *cobra.Command {
 			if !yes {
 				return fmt.Errorf("pass --reveal explicitly to print field value(s)")
 			}
+			if err := revealgate.Refuse("secret reveal"); err != nil {
+				return err
+			}
 			return d.revealAndPrint(cmd, args[0])
 		},
 	}
-	cmd.Flags().BoolVar(&yes, "reveal", false, "Confirm the print")
+	cmd.Flags().BoolVar(&yes, "reveal", false, "Confirm the print (the user's own: an agent, the chat or a workflow is refused)")
 	return cmd
 }
 

@@ -38,6 +38,13 @@ var (
 	// ErrAlwaysLabel: always allow asked for a send whose recipient is a
 	// label, which would let any later send with that label through.
 	ErrAlwaysLabel = errors.New("always allow needs an address or handle, and this send's recipient is a description that fits any send of its kind; approve it without always allow")
+	// ErrNoText: a text edit of a card whose op names no text field (its
+	// text says what the step sends): the approved run would send its
+	// config, not the edit.
+	ErrNoText = errors.New("this card's text says what the step sends, not a message: there is no text to edit; approve it as it is or reject it")
+	// ErrNoSubject: a subject edit of a card whose op names no subject
+	// field: the approved run would send none, while the record kept it.
+	ErrNoSubject = errors.New("this send has no subject field: there is no subject to edit; approve it as it is or reject it")
 )
 
 // replay is what approving needs to run the node again.
@@ -161,6 +168,8 @@ func (r row) payload() (Payload, replay, error) {
 	if p.Attachments == nil {
 		p.Attachments = []Attachment{}
 	}
+	p.TextReadOnly = rp.TextField == ""
+	p.SubjectReadOnly = rp.SubjectKey == ""
 	return p, rp, nil
 }
 
@@ -227,6 +236,12 @@ func (s Store) Edit(ctx context.Context, id string, text, subject *string) (Payl
 	}
 	if p.State != StatePending {
 		return p, fmt.Errorf("send item %s is %s, only a pending one can be edited", p.ID, p.State)
+	}
+	if text != nil && p.TextReadOnly {
+		return p, fmt.Errorf("send item %s: %w", p.ID, ErrNoText)
+	}
+	if subject != nil && p.SubjectReadOnly {
+		return p, fmt.Errorf("send item %s: %w", p.ID, ErrNoSubject)
 	}
 	if text != nil {
 		p.Text = *text

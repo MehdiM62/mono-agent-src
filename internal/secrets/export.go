@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/base32"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -214,7 +215,8 @@ type RematerializeFunc func(ctx context.Context, db *sql.DB, profileID, vaultID,
 
 // Import decrypts fileData (an exportEnvelope produced by Export) with
 // passphrase and adds every entry to profileID, skipping any whose name
-// already exists there. A per-entry failure other than a name collision is
+// already exists there, and ReservedEntry unless ctx allows writing it
+// (AllowReservedWrite); both count as skipped. A per-entry failure other than a name collision is
 // logged to stderr and skipped, not fatal to the batch. For a
 // system-managed entry that imports successfully, the matching
 // rematerializeConnection/rematerializeSession callback is invoked to reconstruct its linked row too; a rematerialize
@@ -277,6 +279,12 @@ func Import(ctx context.Context, db *sql.DB, profileID, passphrase string, fileD
 			fmt.Fprintf(os.Stderr, "note: %q was an AI provider key; AI providers were removed (AI now runs through local agents via monomind), so it was imported as a plain secret\n", entry.Name)
 		}
 		id, err := addEntry(ctx, db, profileID, kind, entry.Name, entry.Fields, entry.Username, entry.URL, entry.Notes)
+		if errors.Is(err, ErrReservedEntry) {
+			// Held back, and counted with the entries left as they were.
+			fmt.Fprintf(os.Stderr, "note: %q was not imported: %v\n", entry.Name, err)
+			skipped++
+			continue
+		}
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "warning: skipping import of %q: %v\n", entry.Name, err)
 			continue
