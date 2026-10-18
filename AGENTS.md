@@ -2752,6 +2752,8 @@ consequence to the user before rejecting.
 A send item with `textReadOnly: true` shows what the step sends, not a
 message: `hil resolve --approve --edit-text` and `hil edit --text` on it exit
 3 (`hilsend.ErrNoText`) and send nothing; approve it as it is or reject it.
+Likewise `subjectReadOnly: true`: the step has no subject field, so
+`--edit-subject` / `hil edit --subject` exit 3 (`hilsend.ErrNoSubject`).
 
 An item whose approval sends a message to a person is the user's to decide:
 anything that can run after the Human-in-Loop node, through other nodes and
