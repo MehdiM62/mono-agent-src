@@ -190,8 +190,16 @@ func newOrgAutonomySetCmd(env *orgEnv) *cobra.Command {
 			if err := a.Validate(); err != nil {
 				return env.d.InvalidInput("%v", err)
 			}
-			if err := env.checkDeciderAvailable(ctx, db.DB, profileID, root, doc.Name, a); err != nil {
-				return err
+			// Manual uses no decider: turning an org down to it must not
+			// fail on a decider nobody asked to change (#477).
+			deciderChanged := false
+			for _, name := range []string{"decider", "decider-runtime", "decider-model", "fallback", "decider-threshold"} {
+				deciderChanged = deciderChanged || f.Changed(name)
+			}
+			if deciderChanged || a.Level != orgdesign.LevelManual {
+				if err := env.checkDeciderAvailable(ctx, db.DB, profileID, root, doc.Name, a); err != nil {
+					return err
+				}
 			}
 			if err := store.Put(ctx, a, by); err != nil {
 				return err
@@ -306,7 +314,9 @@ func (env *orgEnv) checkDeciderModel(ctx context.Context, a *orgdecide.Autonomy)
 	}
 	names := make([]string, 0, len(models))
 	for _, m := range models {
-		if m.ID == model {
+		// Claude lists aliases with the model each resolves to ("fable" →
+		// "claude-fable-5-1"); either name reaches the same model.
+		if m.ID == model || m.ResolvedID == model {
 			return nil
 		}
 		names = append(names, m.ID)
