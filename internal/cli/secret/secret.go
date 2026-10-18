@@ -214,6 +214,7 @@ func (d Deps) newSecretAddCmd() *cobra.Command {
 			if err != nil {
 				return writeErr("adding secret", err)
 			}
+			warnTokenless(cmd.ErrOrStderr(), name, fields)
 			if d.JSONOutput() {
 				enc := json.NewEncoder(cmd.OutOrStdout())
 				enc.SetIndent("", "  ")

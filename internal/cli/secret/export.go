@@ -117,7 +117,7 @@ func (d Deps) newSecretImportCmd() *cobra.Command {
 				enc.SetIndent("", "  ")
 				return enc.Encode(map[string]int{"imported": imported, "skipped": skipped})
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Imported %d, skipped %d duplicate(s).\n", imported, skipped)
+			fmt.Fprintf(cmd.OutOrStdout(), "Imported %d, skipped %d (already in the vault, or held back).\n", imported, skipped)
 			return nil
 		},
 	}

@@ -85,6 +85,11 @@ func (d Deps) runSecretUpdate(newName, username, url, notes *string, fieldFlags 
 		if err := secrets.Update(writeCtx(cmd.Context()), db.DB, profileID, id, namePtr, usernamePtr, urlPtr, notesPtr, fields); err != nil {
 			return writeErr("updating entry", err)
 		}
+		if namePtr != nil {
+			warnTokenless(cmd.ErrOrStderr(), *namePtr, fields)
+		} else {
+			warnTokenless(cmd.ErrOrStderr(), args[0], fields)
+		}
 
 		finalName := args[0]
 		if namePtr != nil {

@@ -20,7 +20,7 @@ import (
 const tokenSecretName = secrets.ReservedEntry
 
 // tokenField is the vault_secrets field key holding the token value.
-const tokenField = "token"
+const tokenField = secrets.ReservedTokenField
 
 // ensureToken returns the profile's HTTP API bearer token, generating and
 // persisting a new 32-byte random token on first use. Safe to call

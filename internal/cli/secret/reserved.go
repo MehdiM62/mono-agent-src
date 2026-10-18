@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 
 	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/operator"
@@ -24,7 +25,17 @@ func writeCtx(ctx context.Context) context.Context {
 // given the operator-only exit (3, operator_only).
 func writeErr(what string, err error) error {
 	if errors.Is(err, secrets.ErrReservedEntry) {
-		return clicore.OperatorOnly("%s: %v: %s; run it yourself in your terminal or the app", what, err, operator.Refusal())
+		return clicore.OperatorOnly("%s: %v: %s; run it yourself in your terminal or the app (its bearer is the field token: --field token=<value>)",
+			what, err, operator.Refusal())
 	}
 	return fmt.Errorf("%s: %w", what, err)
+}
+
+// warnTokenless warns the user whose own write of the reserved entry leaves
+// it without the field the server reads: the API would not take it.
+func warnTokenless(w io.Writer, name string, fields map[string]string) {
+	if secrets.IsReservedEntry(name) && fields != nil && fields[secrets.ReservedTokenField] == "" {
+		fmt.Fprintf(w, "Warning: the server reads %s's bearer from its field %q, which this write leaves out: use --field %s=<value>\n",
+			secrets.ReservedEntry, secrets.ReservedTokenField, secrets.ReservedTokenField)
+	}
 }

@@ -8,11 +8,15 @@ import (
 )
 
 // ReservedEntry is the vault entry no write reaches unless its context
-// allows it (AllowReservedWrite): httpapi-token, the HTTP API's bearer.
+// allows it (AllowReservedWrite): httpapi-token, the HTTP API's bearer, held
+// in its field ReservedTokenField.
 // Whoever writes it chooses which bearer the API accepts, so only the
 // server, which makes it, and the user's own commands do. Reading it is
 // as for any entry.
 const ReservedEntry = "httpapi-token"
+
+// ReservedTokenField is the field of ReservedEntry the server reads.
+const ReservedTokenField = "token"
 
 // ErrReservedEntry is the refusal of a write that reaches ReservedEntry.
 var ErrReservedEntry = errors.New(`the vault entry "httpapi-token" is the HTTP API's bearer, which only the user writes`)
@@ -23,6 +27,10 @@ type reservedWriteKey struct{}
 func AllowReservedWrite(ctx context.Context) context.Context {
 	return context.WithValue(ctx, reservedWriteKey{}, true)
 }
+
+// IsReservedEntry reports whether name is ReservedEntry's, in any case and
+// with spaces around it.
+func IsReservedEntry(name string) bool { return reservedName(name) }
 
 func reservedName(name string) bool {
 	return strings.EqualFold(strings.TrimSpace(name), ReservedEntry)

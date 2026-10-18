@@ -30,7 +30,8 @@ func NewCommand(d Deps) *cobra.Command {
 			"Loopback-only by default (127.0.0.1:9322) — override with --addr or MONOAGENT_HTTPAPI_ADDR. " +
 			"Every request requires `Authorization: Bearer <token>` except GET /health; the token is " +
 			"generated for each profile when the server starts and stored in that profile's secrets vault " +
-			"(`monoagentcli --profile <p> secret list`, name \"httpapi-token\"); a token authorizes only its " +
+			"(`monoagentcli --profile <p> secret list`, name \"httpapi-token\", field token; only the user " +
+			"sets it, with `secret update httpapi-token --field token=<value>`); a token authorizes only its " +
 			"own profile. Workflows and HIL items are served under /profiles/{profile}/ ({profile} is a " +
 			"profile id or name); --profile is ignored.\n\n" +
 			"Mutating endpoints (workflow run/activate/deactivate, hil approve/reject) are only served " +

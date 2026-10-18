@@ -82,7 +82,9 @@ AUTH
   "httpapi-token"); the user prints it with monoagentcli --profile <p>
   secret reveal httpapi-token --reveal in their own terminal (an agent, the
   chat or a workflow is refused); the server creates it for every profile
-  when it starts. A credential authorizes only the profile it belongs to: the one
+  when it starts, and reads its token field: the user sets one themselves
+  with secret update httpapi-token --field token=<value> (an agent, the
+  chat or a workflow is refused). A credential authorizes only the profile it belongs to: the one
   in the request path. A credential of another profile, a profile that does
   not exist and a missing credential all get the same 401, so a caller
   cannot find out which profiles exist. /nodes* takes the credential of any

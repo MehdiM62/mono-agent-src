@@ -49,9 +49,9 @@ func TestOnlyAnAllowedWriteReachesTheHTTPAPIToken(t *testing.T) {
 			t.Errorf("%s: %v, want ErrReservedEntry", what, err)
 		}
 	}
-	// An import into a profile without one leaves it out.
-	if imported, _, err := Import(ctx, db.DB, "work", "passphrase-1", export, nil, nil); err != nil || imported != 1 {
-		t.Errorf("an import: %d imported, %v; want only openai", imported, err)
+	// An import into a profile without one leaves it out, and counts it.
+	if imported, skipped, err := Import(ctx, db.DB, "work", "passphrase-1", export, nil, nil); err != nil || imported != 1 || skipped != 1 {
+		t.Errorf("an import: %d imported, %d skipped, %v; want openai imported and the token skipped", imported, skipped, err)
 	}
 	if entries, _ := List(ctx, db.DB, "work"); len(entries) != 1 || entries[0].Name != "openai" {
 		t.Errorf("the imported entries: %+v", entries)
