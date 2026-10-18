@@ -371,7 +371,7 @@ func (a *App) UploadProfileDocuments(paths []string) (*BatchUploadResult, error)
 	}
 	return a.uploadBatch(paths, func(ctx context.Context, path string) (UploadResult, error) {
 		var one UploadResult
-		args, err := scopedCLIArgs(id, "profile", "upload-document", path)
+		args, err := scopedCLIArgs(id, "profile", "upload-document", "--no-follow", path)
 		if err == nil {
 			err = a.runCLIArgsCtx(ctx, "", &one, args)
 		}
@@ -403,7 +403,7 @@ func (a *App) uploadBatch(paths []string, upload func(ctx context.Context, path 
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), uploadFileTimeout)
 		one, err := upload(ctx, path)
-		if ctx.Err() != nil {
+		if err != nil && ctx.Err() != nil {
 			err = fmt.Errorf("timed out after %s", uploadFileTimeout)
 		}
 		cancel()

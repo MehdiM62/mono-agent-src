@@ -424,10 +424,32 @@ func ResolveConfig(ctx context.Context, db *sql.DB, stored, config map[string]in
 	return nil
 }
 
-func copyFile(src, dst string) (retErr error) {
+func copyFile(src, dst string) error { return copyFileOpt(src, dst, false) }
+
+type noFollowKey struct{}
+
+// ContextWithNoFollow makes RegisterDocument refuse a src that is a symlink,
+// for callers (the GUI's batch upload) that checked src and must not follow a
+// link swapped in since.
+func ContextWithNoFollow(ctx context.Context) context.Context {
+	return context.WithValue(ctx, noFollowKey{}, true)
+}
+
+// copyFileOpt copies src to dst. With noFollow, a symlink at src is refused
+// (O_NONBLOCK-opened with O_NOFOLLOW where the OS has it, plus an Lstat).
+func copyFileOpt(src, dst string, noFollow bool) (retErr error) {
+	flags := os.O_RDONLY | syscall.O_NONBLOCK
+	if noFollow {
+		if fi, err := os.Lstat(src); err != nil {
+			return err
+		} else if fi.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("%s is a symlink", src)
+		}
+		flags |= oNoFollow
+	}
 	// O_NONBLOCK so opening a FIFO that appeared at src cannot hang; the
 	// fstat then refuses anything but a regular file.
-	in, err := os.OpenFile(src, os.O_RDONLY|syscall.O_NONBLOCK, 0)
+	in, err := os.OpenFile(src, flags, 0)
 	if err != nil {
 		return err
 	}

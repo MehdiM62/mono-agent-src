@@ -87,3 +87,22 @@ func TestUploadBatchReportsATimeoutAndKeepsGoing(t *testing.T) {
 		t.Fatal("busy flag not released")
 	}
 }
+
+func TestUploadBatchSuccessAfterDeadlineIsNotAFailure(t *testing.T) {
+	old := uploadFileTimeout
+	uploadFileTimeout = 20 * time.Millisecond
+	defer func() { uploadFileTimeout = old }()
+	p := filepath.Join(t.TempDir(), "late.txt")
+	if err := os.WriteFile(p, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	a := &App{}
+	a.issueDocPaths([]string{p})
+	res, _ := a.uploadBatch([]string{p}, func(ctx context.Context, _ string) (UploadResult, error) {
+		<-ctx.Done() // the deadline passes, but the upload still finished
+		return UploadResult{Indexed: true}, nil
+	})
+	if res.Uploaded != 1 || len(res.Failed) != 0 {
+		t.Fatalf("res=%+v", res)
+	}
+}
