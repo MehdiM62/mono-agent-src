@@ -102,9 +102,13 @@ describe('CoderOrgSection, this computer', () => {
   it('shows the CLI refusal', async () => {
     machine()
     const router = await screen.findByRole('combobox', { name: "Who picks a worker's role" })
+    // --org-router is operator-only (router=jev sends briefs to TypeSafe):
+    // a refusal shows the CLI's text and the router stays as it was.
     App.CoderSet.mockResolvedValue(JSON.stringify({ error: 'only the operator may change coder mode', code: 'operator_only' }))
     fireEvent.change(router, { target: { value: 'jev' } })
     expect(await screen.findByRole('alert')).toHaveTextContent('only the operator may change coder mode')
+    await waitFor(() => expect(router).not.toBeDisabled())
+    expect(router).toHaveValue('auto')
   })
 })
 
