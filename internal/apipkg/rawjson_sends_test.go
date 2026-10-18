@@ -52,7 +52,6 @@ var rawJSONReasons = map[string]string{
 	"quick_books bill/create":             rawLines,
 	"quick_books estimate/create":         rawLines,
 	"quick_books invoice/create":          rawLines,
-	"salesforce flow/invoke":              "the JSON is the flow's input variables only, which the account's own flow reads as it was built",
 	"salesmate activity/getAll":           rawRead,
 	"salesmate company/getAll":            rawRead,
 	"salesmate deal/getAll":               rawRead,

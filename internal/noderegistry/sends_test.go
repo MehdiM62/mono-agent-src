@@ -333,6 +333,10 @@ func TestTheReviewedSendsStayDecided(t *testing.T) {
 		{"app.zulip", cfg{"resource": "stream", "operation": "update", "streamId": "7", "additionalFields": cfg{"description": ""}}, "7"},
 		{"app.zulip", cfg{"resource": "stream", "operation": "update", "streamId": "7", "additionalFields": cfg{"isPrivate": true}}, "7"},
 		{"app.zulip", cfg{"resource": "stream", "operation": "update", "streamId": "7"}, "-"},
+		// A Salesforce flow given inputs may email what they say.
+		{"service.salesforce", cfg{"resource": "flow", "operation": "invoke", "apiName": "Notify"}, "-"},
+		{"service.salesforce", cfg{"resource": "flow", "operation": "invoke", "apiName": "Notify", "jsonParameters": true,
+			"variablesJson": `{"body": "x"}`}, "flow Notify"},
 	} {
 		out, handled, err := hilsend.Guard(sendsCtx(db), c.nodeType, workflow.NodeInput{}, c.config)
 		if err != nil {

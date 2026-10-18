@@ -94,6 +94,15 @@ func TestSendOf(t *testing.T) {
 			"additionalFields": map[string]any{"streamPostPolicy": 2}}, &Send{Action: "post", Channel: "zulip"}},
 		{"zulip updating nothing", "app.zulip", map[string]any{"resource": "stream", "operation": "update", "streamId": "7",
 			"additionalFields": map[string]any{"isPrivate": false}}, nil},
+		// A Salesforce flow may email what its inputs say: it waits when
+		// given any; a flow invoked with none runs as built.
+		{"salesforce invoking a flow", "service.salesforce", map[string]any{"resource": "flow", "operation": "invoke", "apiName": "Notify"}, nil},
+		{"salesforce invoking a flow with raw variables", "service.salesforce", map[string]any{"resource": "flow", "operation": "invoke",
+			"apiName": "Notify", "jsonParameters": true, "variablesJson": `{"body":"x"}`},
+			&Send{Action: "email", To: []string{"apiName"}}},
+		{"salesforce invoking a flow with variables", "service.salesforce", map[string]any{"resource": "flow", "operation": "invoke",
+			"apiName": "Notify", "variablesUi": map[string]any{"variablesValues": []any{map[string]any{"name": "body", "value": "x"}}}},
+			&Send{Action: "email"}},
 	} {
 		got, ok := SendOf(c.nodeType, c.config)
 		if c.want == nil {

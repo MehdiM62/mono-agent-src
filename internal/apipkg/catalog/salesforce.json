@@ -2786,8 +2786,19 @@
       "resource": "flow",
       "operation": "invoke",
       "title": "Invoke a flow",
-      "sends": false,
-      "sends_reason": "runs a Salesforce flow, the account's own automation as it was built, not a message MonoAgent writes",
+      "sends": {
+        "action": "email",
+        "to": [
+          "apiName"
+        ],
+        "to_label": {
+          "apiName": "flow"
+        },
+        "if": [
+          "jsonParameters",
+          "variablesUi.variablesValues"
+        ]
+      },
       "method": "POST",
       "path": "/actions/custom/flow/{{ p.apiName }}",
       "fields": [
