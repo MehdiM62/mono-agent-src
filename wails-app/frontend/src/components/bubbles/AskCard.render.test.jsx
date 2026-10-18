@@ -19,6 +19,7 @@ const { hilApi } = vi.hoisted(() => ({
 vi.mock('../../services/hilApi.js', () => hilApi)
 
 import { AskCard } from './AskCard.jsx'
+import ConfirmHost from '../ConfirmDialog.jsx'
 
 const nameOf = id => ({ dev: 'Developer', qa: 'QA', ceo: 'Chief' }[id] || id)
 const send = () => normalizeAsk(sendEmail)
@@ -80,6 +81,49 @@ describe('AskCard: workflow Human-in-Loop', () => {
     render(<AskCard ask={normalizeAsk(workflow)} nameOf={nameOf} onDecide={onDecide} />)
     fireEvent.click(screen.getByTestId('ask-reject'))
     expect(onDecide).toHaveBeenCalledWith(expect.objectContaining({ id: 'hil-wf-1' }), false, {})
+  })
+})
+
+describe('AskCard: always allow a send', () => {
+  // A label recipient: a description that fits any send of its kind, which
+  // the CLI refuses to always allow (ErrAlwaysLabel).
+  const labelled = () => normalizeAsk({ ...sendEmail, recipient: { name: 'the reply-to address of each message', label: true } })
+
+  it('offers Always allow for an address recipient and asks first, naming the destination', async () => {
+    const onDecide = vi.fn()
+    render(<><AskCard ask={send()} nameOf={nameOf} onDecide={onDecide} /><ConfirmHost /></>)
+    fireEvent.click(screen.getByTestId('ask-always-allow'))
+    const dialog = await screen.findByRole('dialog', { name: 'Always allow this destination?' })
+    expect(dialog).toHaveTextContent('This sends this email now, and from now on an agent\'s email to https://www.linkedin.com/in/sam-rivera from outlook · me@acme.test goes out without asking you.')
+    fireEvent.click(screen.getByRole('button', { name: 'Send and always allow' }))
+    await waitFor(() => expect(onDecide).toHaveBeenCalledWith(expect.objectContaining({ id: 'hil-send-1' }), true, { alwaysAllow: true }))
+  })
+
+  it('sends nothing when the confirmation is cancelled', async () => {
+    const onDecide = vi.fn()
+    render(<><AskCard ask={send()} nameOf={nameOf} onDecide={onDecide} /><ConfirmHost /></>)
+    fireEvent.click(screen.getByTestId('ask-always-allow'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Cancel' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(onDecide).not.toHaveBeenCalled()
+  })
+
+  it('keeps an edit: always allow sends the edited text', async () => {
+    const onDecide = vi.fn()
+    render(<><AskCard ask={send()} nameOf={nameOf} onDecide={onDecide} /><ConfirmHost /></>)
+    fireEvent.click(screen.getByTestId('ask-edit'))
+    fireEvent.change(screen.getByTestId('ask-text-edit'), { target: { value: 'Hi Sam, short version.' } })
+    fireEvent.click(screen.getByTestId('ask-always-allow'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Send and always allow' }))
+    await waitFor(() => expect(onDecide).toHaveBeenCalledWith(expect.anything(), true, { editText: 'Hi Sam, short version.', alwaysAllow: true }))
+  })
+
+  it('does not offer it for a label recipient, nor on a resolved card', () => {
+    const { rerender } = render(<AskCard ask={labelled()} nameOf={nameOf} onDecide={vi.fn()} />)
+    expect(screen.getByTestId('ask-approve')).toBeInTheDocument()
+    expect(screen.queryByTestId('ask-always-allow')).toBeNull()
+    rerender(<AskCard ask={send()} nameOf={nameOf} outcome={{ state: 'sent' }} onDecide={vi.fn()} />)
+    expect(screen.queryByTestId('ask-always-allow')).toBeNull()
   })
 })
 

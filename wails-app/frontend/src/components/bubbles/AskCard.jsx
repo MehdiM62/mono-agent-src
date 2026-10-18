@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Check, X, HelpCircle, ShieldQuestion, Flag, Loader, Send, Pencil, FileText, Link2, ExternalLink, User, Workflow } from 'lucide-react'
+import { Check, CheckCheck, X, HelpCircle, ShieldQuestion, Flag, Loader, Send, Pencil, FileText, Link2, ExternalLink, User, Workflow } from 'lucide-react'
 import { ChatMarkdown } from '../chat/ChatMarkdown.jsx'
 import { formatBytes, safeImageSrc, safeUrl } from '../../lib/askModel.js'
 import * as hil from '../../services/hilApi.js'
 import { askHilRef } from '../../lib/commsStatus.js'
 import './asks.css'
 import { quoteClaim } from '../../lib/quoteClaim.js'
+import { confirm } from '../ConfirmDialog.jsx'
 
 const mono = 'var(--font-mono)'
 
@@ -262,6 +263,18 @@ function SendBody({ ask, nameOf, canAct, busy, outcome, onDecide, onNavigate }) 
   const acct = [ask.account?.platform, ask.account?.handle].filter(Boolean).join(' · ')
   const preparer = ask.preparedBy?.role ? nameOf(ask.preparedBy.role) : ''
   const channel = t(`ask.channel.${ask.channel}`, { defaultValue: ask.channel || ask.action })
+  // Always allow (approve, and send to this destination without asking from
+  // now on) needs an address or handle: a label recipient (a description
+  // that fits any send of its kind) is refused by the CLI (ErrAlwaysLabel),
+  // so it is not offered. The rule matches the recipient by profile URL,
+  // else by name.
+  const canAlwaysAllow = !rcpt.label
+  const alwaysAllow = async () => {
+    const ok = await confirm(t('coderOrg.alwaysAllowBody', {
+      channel, recipient: rcpt.profileUrl || rcpt.name || t('ask.unknownRecipient'), account: acct || t('coderOrg.alwaysAllowNoAccount'),
+    }), { title: t('coderOrg.alwaysAllowTitle'), confirmLabel: t('coderOrg.alwaysAllowConfirm') })
+    if (ok) onDecide?.(ask, true, { ...(edited ? { editText: text } : {}), alwaysAllow: true })
+  }
   return (
     <Frame ask={ask} pending={pending} icon={Send}
       title={t('ask.sendTitle', { channel })}
@@ -311,6 +324,12 @@ function SendBody({ ask, nameOf, canAct, busy, outcome, onDecide, onNavigate }) 
             onClick={() => onDecide?.(ask, true, edited ? { editText: text } : {})} style={{ gap: 4 }}>
             {busy ? <Loader size={11} className="spin" /> : <Check size={11} />} {t('orgBubble.approve')}
           </button>
+          {canAlwaysAllow && (
+            <button type="button" className="btn btn-ghost btn-sm" data-testid="ask-always-allow" disabled={!canAct || busy || (!ask.textReadOnly && !text.trim())}
+              onClick={alwaysAllow} style={{ gap: 4 }}>
+              <CheckCheck size={11} /> {t('coderOrg.alwaysAllow')}
+            </button>
+          )}
           {!ask.textReadOnly && (
             <button type="button" className="btn btn-ghost btn-sm" data-testid="ask-edit" aria-pressed={editing} disabled={busy}
               onClick={() => setEditing(e => !e)} style={{ gap: 4 }}>
