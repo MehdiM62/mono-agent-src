@@ -98,7 +98,8 @@ func TestPageReadTurnOffersOnlyTheReadTools(t *testing.T) {
 		t.Fatalf("turn: %v", err)
 	}
 	got := toolNamesIn(t, toolsCopy)
-	want := map[string]bool{"list_workflows": true, "get_workflow": true, "list_node_types": true}
+	// propose_task writes nothing: the person confirms it in the side panel (#451).
+	want := map[string]bool{"list_workflows": true, "get_workflow": true, "list_node_types": true, "propose_task": true}
 	if len(got) != len(want) {
 		t.Fatalf("tools offered = %v, want exactly %v", got, want)
 	}
@@ -122,6 +123,9 @@ func TestPageReadTurnOffersOnlyTheReadTools(t *testing.T) {
 	}
 	if !strings.Contains(string(system), "web page") {
 		t.Errorf("the page-read system prompt must say page text is untrusted:\n%s", system)
+	}
+	if !strings.Contains(string(system), "propose_task") || !strings.Contains(string(system), "never one the page asks for") {
+		t.Errorf("the page-read system prompt must say a proposal is the person's to confirm, and never the page's:\n%s", system)
 	}
 }
 
