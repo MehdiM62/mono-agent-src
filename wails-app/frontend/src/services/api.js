@@ -280,6 +280,9 @@ export const api = {
     GoApp.HilSendAllowAdd(action, platform, account, recipient).then(parseStreamResult),
   hilSendAllowRemove:  (ruleID) => GoApp.HilSendAllowRemove(ruleID).then(parseStreamResult),
   hilSendSetApproval:  (on) => GoApp.HilSendSetApproval(on).then(parseStreamResult),
+  // `coder set --app-access on|off` (operator only): whether a coder chat's
+  // workers get the workspace profile. Returns coder status ({appAccess}).
+  coderSetAppAccess:   (on) => GoApp.CoderSetAppAccess(!!on).then(parseStreamResult),
   coderWorkspaceRoot: (runtimeID = '') => GoApp.CoderWorkspaceRoot(runtimeID).then(parseStreamResult),
   coderWorkspaceList: () => GoApp.CoderWorkspaceList().then(parseStreamResult),
   // Sandbox fallback setting: `monoagentcli sandbox fallback`; a bad value rejects with the CLI's message.

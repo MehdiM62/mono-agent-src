@@ -4,6 +4,14 @@ import '@testing-library/jest-dom/vitest'
 import { render, screen, fireEvent, waitFor, within, cleanup } from '@testing-library/react'
 import '../../i18n.js'
 import ConfirmHost from '../ConfirmDialog.jsx'
+
+// CoderSetAppAccess is monomind-attach's binding (fix/coder-app-access); its
+// wailsjs stub lands with that branch. Until then it is added here, calling
+// window.go like the generated stubs do.
+vi.mock('../../wailsjs/go/main/App', async (importOriginal) => ({
+  ...(await importOriginal()),
+  CoderSetAppAccess: (...a) => window.go.main.App.CoderSetAppAccess(...a),
+}))
 import CoderOrgSection from './CoderOrgSection.jsx'
 
 // Each control calls its binding (and so `monoagentcli coder set` / `hil
@@ -11,12 +19,12 @@ import CoderOrgSection from './CoderOrgSection.jsx'
 
 const App = {}
 beforeEach(() => {
-  for (const k of ['CoderStatus', 'CoderSet', 'HilSendSetApproval', 'HilSendAllowList', 'HilSendAllowAdd', 'HilSendAllowRemove']) App[k] = vi.fn()
+  for (const k of ['CoderStatus', 'CoderSet', 'HilSendSetApproval', 'CoderSetAppAccess', 'HilSendAllowList', 'HilSendAllowAdd', 'HilSendAllowRemove']) App[k] = vi.fn()
   window.go = { main: { App } }
 })
 afterEach(() => { cleanup(); delete window.go })
 
-const status = (over = {}) => JSON.stringify({ enabled: true, orgRouter: 'auto', sendApproval: true, ...over })
+const status = (over = {}) => JSON.stringify({ enabled: true, orgRouter: 'auto', sendApproval: true, appAccess: true, ...over })
 const rules = [
   { id: 'r1', action: 'email', platform: 'outlook', account: 'me@acme.test', recipient: 'sam@acme.test' },
   { id: 'r2', action: 'dm', platform: 'linkedin', account: '', recipient: 'https://www.linkedin.com/in/sam-rivera' },
@@ -67,6 +75,28 @@ describe('CoderOrgSection, this computer', () => {
     await waitFor(() => expect(App.HilSendSetApproval).toHaveBeenLastCalledWith(true))
     expect(screen.queryByRole('dialog')).toBeNull()
     await waitFor(() => expect(box).toBeChecked())
+  })
+
+  it("turns workers' app access off and on with `coder set --app-access`, saying send approval stays on", async () => {
+    machine()
+    const box = await screen.findByRole('checkbox', { name: 'Coder chat workers can use MonoAgent' })
+    expect(box).toBeChecked()
+    expect(screen.getByText(/Off: no worker gets the workspace access profile, and send approval stays on\./)).toBeInTheDocument()
+    App.CoderSetAppAccess.mockResolvedValue(status({ appAccess: false }))
+    fireEvent.click(box)
+    await waitFor(() => expect(App.CoderSetAppAccess).toHaveBeenCalledWith(false))
+    await waitFor(() => expect(box).not.toBeChecked())
+    App.CoderSetAppAccess.mockResolvedValue(status({ appAccess: true }))
+    fireEvent.click(box)
+    await waitFor(() => expect(App.CoderSetAppAccess).toHaveBeenLastCalledWith(true))
+    await waitFor(() => expect(box).toBeChecked())
+    expect(App.HilSendSetApproval).not.toHaveBeenCalled()
+  })
+
+  it('has no app access control when the CLI reports none (an older monoagentcli)', async () => {
+    machine(JSON.stringify({ enabled: true, orgRouter: 'auto', sendApproval: true }))
+    await screen.findByRole('checkbox', { name: "Agents' sends wait for my approval" })
+    expect(screen.queryByRole('checkbox', { name: 'Coder chat workers can use MonoAgent' })).toBeNull()
   })
 
   it('shows the CLI refusal', async () => {

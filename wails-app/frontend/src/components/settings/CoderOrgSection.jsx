@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Users, Send, X } from 'lucide-react'
+import { Users, Send, AppWindow, X } from 'lucide-react'
 import { api } from '../../services/api.js'
 import { confirm } from '../ConfirmDialog.jsx'
 
 // Coder chats' dynamic org and agents' sends (epic #475): settings the CLI
 // has had without a GUI. part="machine" is this computer's (`coder set
-// --org-router`, `coder set --send-approval`); part="profile" is the
+// --org-router`, `--send-approval`, `--app-access`); part="profile" is the
 // profile's always-allow list (`hil allow list|add|remove`). The app runs
 // the CLI as the user, so the operator-only setters work from here.
 
@@ -46,6 +46,7 @@ function MachinePart() {
   }
 
   const setRouter = (orgRouter) => run('router', () => api.coderSet({ orgRouter }))
+  const setAppAccess = (on) => run('apps', () => api.coderSetAppAccess(on))
   const setSendApproval = async (on) => {
     if (!on) {
       const ok = await confirm(t('coderOrg.sendApprovalOffBody'), {
@@ -93,18 +94,21 @@ function MachinePart() {
           onChange={e => setSendApproval(e.target.checked)} style={{ marginTop: 2, accentColor: '#00b4d8', flexShrink: 0 }} />
       </label>
 
-      <AppAccessStub />
+      {/* A monoagentcli without the kill switch reports no appAccess. */}
+      {typeof status.appAccess === 'boolean' && (
+        <label style={{ ...row, alignItems: 'flex-start', cursor: busy ? 'default' : 'pointer' }}>
+          <AppWindow size={13} color="#00b4d8" style={{ flexShrink: 0, marginTop: 2 }} />
+          <span style={{ flex: 1, minWidth: 0 }}>
+            <span style={name}>{t('coderOrg.appAccess')}</span>
+            {busy === 'apps' && <span style={{ ...hint, marginLeft: 6 }}>{t('coderOrg.saving')}</span>}
+            <span style={{ ...hint, display: 'block' }}>{t('coderOrg.appAccessHint')}</span>
+          </span>
+          <input type="checkbox" checked={status.appAccess} disabled={!!busy} aria-label={t('coderOrg.appAccess')}
+            onChange={e => setAppAccess(e.target.checked)} style={{ marginTop: 2, accentColor: '#00b4d8', flexShrink: 0 }} />
+        </label>
+      )}
     </div>
   )
-}
-
-// STUB (epic #475, Point 2): app access, `coder set --app-access on|off`, the
-// kill switch monomind-attach is adding on fix/coder-app-access. A toggle
-// goes here (reading coder status, setting it through api.coderSet and
-// coderSetArgs in app_coder.go) once the flag name is final. Until then it
-// renders nothing.
-function AppAccessStub() {
-  return null
 }
 
 function ProfilePart() {

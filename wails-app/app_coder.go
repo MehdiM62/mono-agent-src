@@ -109,10 +109,7 @@ func (a *App) CoderDisable() string {
 // an empty timeout or an empty orgRouter leave that setting unchanged;
 // budgetUsd 0 clears the budget and a negative one leaves it unchanged.
 // orgRouter is the dynamic org's router: auto, jev or model (the CLI checks).
-//
-// STUB (epic #475, Point 2): app access, `coder set --app-access on|off`
-// (monomind-attach's kill switch on fix/coder-app-access), joins here once
-// the flag name is final.
+// App access has its own binding, CoderSetAppAccess.
 func coderSetArgs(workspaceRoot string, maxTurns int, timeout string, budgetUsd float64, orgRouter string) []string {
 	args := []string{"coder", "set"}
 	if workspaceRoot != "" {

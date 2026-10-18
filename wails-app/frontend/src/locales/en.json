@@ -1815,6 +1815,8 @@
     "alwaysAllowTitle": "Always allow this destination?",
     "alwaysAllowBody": "This sends this {{channel}} now, and from now on an agent's {{channel}} to {{recipient}} from {{account}} goes out without asking you.",
     "alwaysAllowNoAccount": "any account",
-    "alwaysAllowConfirm": "Send and always allow"
+    "alwaysAllowConfirm": "Send and always allow",
+    "appAccess": "Coder chat workers can use MonoAgent",
+    "appAccessHint": "On: the workers a coder chat's lead starts get the workspace access profile (MonoAgent's tasks, documents, people, vault, workflows and apps), and their prompts say how to use it. Off: no worker gets the workspace access profile, and send approval stays on."
   }
 }

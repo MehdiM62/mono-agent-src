@@ -1773,6 +1773,8 @@
     "alwaysAllowTitle": "¿Permitir siempre este destino?",
     "alwaysAllowBody": "Esto envía este {{channel}} ahora y, desde ahora, un {{channel}} de un agente a {{recipient}} desde {{account}} sale sin preguntarte.",
     "alwaysAllowNoAccount": "cualquier cuenta",
-    "alwaysAllowConfirm": "Enviar y permitir siempre"
+    "alwaysAllowConfirm": "Enviar y permitir siempre",
+    "appAccess": "Los trabajadores de los chats de código pueden usar MonoAgent",
+    "appAccessHint": "Activado: los trabajadores que inicia el agente principal de un chat de código reciben el perfil de acceso del espacio de trabajo (tareas, documentos, personas, bóveda, flujos de trabajo y aplicaciones de MonoAgent), y sus instrucciones explican cómo usarlo. Desactivado: ningún trabajador recibe el perfil de acceso del espacio de trabajo y la aprobación de envíos sigue activa."
   }
 }
