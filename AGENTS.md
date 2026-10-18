@@ -2749,6 +2749,10 @@ monoagentcli --profile work hil reject <id>
 to `{}` if omitted). Rejection fails the workflow branch — surface the
 consequence to the user before rejecting.
 
+A send item with `textReadOnly: true` shows what the step sends, not a
+message: `hil resolve --approve --edit-text` and `hil edit --text` on it exit
+3 (`hilsend.ErrNoText`) and send nothing; approve it as it is or reject it.
+
 An item whose approval sends a message to a person is the user's to decide:
 anything that can run after the Human-in-Loop node, through other nodes and
 the workflows it calls (`core.execute_workflow`), sends an email, a DM, a
