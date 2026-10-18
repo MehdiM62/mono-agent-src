@@ -9,7 +9,12 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 import { loadExtensionScripts } from "./test_helpers.mjs";
+
+const HERE = dirname(fileURLToPath(import.meta.url));
 
 const { MonoPanelView: V, MonoPanelStatus: S } = loadExtensionScripts([
   "sidepanel_status.js",
@@ -114,6 +119,15 @@ test("with profiles to choose from, the header is a switcher showing the choice"
   // Every profile, then the shared inbox as the explicit "no profile".
   assert.deepEqual(view.options.map((o) => o.id), ["default", "p-work", ""]);
   assert.equal(view.options[0].isDefault, true);
+});
+
+test("the profile.list default is labelled as this browser's default, not monoagent's current profile (#822)", () => {
+  const view = V.describeProfiles({ profiles: PROFILES, profile: "p-work", profilesOffline: false });
+  assert.equal(view.options[0].hint, V.DEFAULT_HINT);
+  assert.equal(V.DEFAULT_HINT, "This browser's default");
+  assert.equal(view.options[1].hint, "", "only the default row says so");
+  const panel = readFileSync(join(HERE, "sidepanel.js"), "utf8");
+  assert.ok(!/current profile/i.test(panel), "the old label is still in sidepanel.js");
 });
 
 test("choosing no profile is shown as the shared inbox, not as nothing", () => {

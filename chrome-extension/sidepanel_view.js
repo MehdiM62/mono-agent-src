@@ -148,6 +148,10 @@
 
   const SHARED_INBOX = "Shared inbox";
   const LAST_PROFILE = "your last profile";
+  // profile.list marks the profile this browser is bound to, else the oldest
+  // one (internal/extension/profile_list.go). There is no "current profile"
+  // any more, and a profile may itself be called Default.
+  const DEFAULT_HINT = "This browser's default";
 
   /**
    * describeProfiles turns capture_form_state's profile fields into the
@@ -179,6 +183,7 @@
       isDefault: !!p.default,
       initial: initialOf(p.name || p.id),
       hue: avatarHue(p.id),
+      hint: p.default ? DEFAULT_HINT : "",
     });
     const shared = {
       id: "",
@@ -354,5 +359,6 @@
     displayName,
     SHARED_INBOX,
     LAST_PROFILE,
+    DEFAULT_HINT,
   };
 })(globalThis);

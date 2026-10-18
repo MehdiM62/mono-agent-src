@@ -394,13 +394,10 @@ function drawProfiles(state) {
     name.className = "dest-option-name";
     name.textContent = option.name;
     text.appendChild(name);
-    if (option.hint || option.isDefault) {
+    if (option.hint) {
       const sub = document.createElement("span");
       sub.className = "dest-option-hint";
-      // The bridge's "default" is monoagent's current profile (the one
-      // `profile list` stars), not a profile called Default — which may
-      // also exist, and would make "Default profile" a riddle.
-      sub.textContent = option.isDefault ? "monoagent's current profile" : option.hint;
+      sub.textContent = option.hint;
       text.appendChild(sub);
     }
     row.appendChild(text);
