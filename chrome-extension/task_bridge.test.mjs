@@ -333,3 +333,30 @@ test("the badge counts a waiting task, then the same task refused", async () => 
   assert.equal(record.badges.at(-1), "1");
   assert.match(record.titles.at(-1), /^1 task was not added/);
 });
+
+// #451: a task the side panel's chat proposed, sent by the person's click on
+// its card. It goes as task.add kind "chat" (the bridge files it as the agent
+// agent:extension-chat, in the Inbox), under an id made from the proposal, so
+// a second click adds nothing twice. Only the panel may send one.
+test("a confirmed chat proposal goes as a chat task, from the panel only", async () => {
+  const ask = fakeAsk({ reply: () => ({ id: 21, created: true }) });
+  const { listeners } = setupTasks({ ask });
+  const proposal = { id: "toolu_01", kind: "task", title: "Book flights", notes: "Before May" };
+  assert.equal(await send(listeners, { type: "task_add_proposal", profile: "p-home", proposal }, PAGE), undefined, "a page cannot send one");
+  assert.equal(ask.calls.length, 0);
+
+  const out = await send(listeners, { type: "task_add_proposal", profile: "p-home", proposal }, PANEL);
+  assert.equal(out.status, "added");
+  assert.match(out.feedback.text, /Added to Inbox in Home \(#21\)/);
+  const p = ask.calls[0].params;
+  assert.deepEqual(
+    [p.kind, p.client_id, p.task_title, p.notes, p.profile, p.text, p.url, p.title],
+    ["chat", "chat-toolu_01", "Book flights", "Before May", "p-home", "", "", ""]
+  );
+
+  for (const bad of [{ ...proposal, kind: "vault_save" }, { ...proposal, title: "  " }, { ...proposal, id: "" }, null]) {
+    const refused = await send(listeners, { type: "task_add_proposal", profile: "p-home", proposal: bad }, PANEL);
+    assert.notEqual(refused.status, "added", JSON.stringify(bad));
+  }
+  assert.equal(ask.calls.length, 1);
+});
