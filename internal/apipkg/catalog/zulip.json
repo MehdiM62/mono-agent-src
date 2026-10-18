@@ -403,6 +403,10 @@
         "if": [
           "additionalFields.description?",
           "additionalFields.newName?",
+          "additionalFields.isPrivate",
+          "additionalFields.historyPublicToSubscribers",
+          "additionalFields.isAnnouncementOnly",
+          "additionalFields.streamPostPolicy",
           "jsonParameters"
         ]
       },

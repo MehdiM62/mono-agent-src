@@ -329,8 +329,9 @@ func TestTheReviewedSendsStayDecided(t *testing.T) {
 			"itemsJson": `[{"receiver": "ada@example.test", "note": "Thanks"}]`}, "the payout's receivers"},
 		{"service.github", cfg{"resource": "issue", "operation": "create", "owner": "o", "repository": "r", "title": "Bug"}, "-"},
 		// Zulip's bot posts a stream's new description in the stream, one
-		// cleared to "" too.
+		// cleared to "" too, and a change of its privacy.
 		{"app.zulip", cfg{"resource": "stream", "operation": "update", "streamId": "7", "additionalFields": cfg{"description": ""}}, "7"},
+		{"app.zulip", cfg{"resource": "stream", "operation": "update", "streamId": "7", "additionalFields": cfg{"isPrivate": true}}, "7"},
 		{"app.zulip", cfg{"resource": "stream", "operation": "update", "streamId": "7"}, "-"},
 	} {
 		out, handled, err := hilsend.Guard(sendsCtx(db), c.nodeType, workflow.NodeInput{}, c.config)
