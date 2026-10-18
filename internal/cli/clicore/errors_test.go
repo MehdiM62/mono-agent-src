@@ -1,6 +1,7 @@
 package clicore
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -52,5 +53,23 @@ func TestOperatorRefusalFailsClosed(t *testing.T) {
 	}
 	if why := OperatorRefusal(func() string { return "CLAUDECODE is set" }); why != "CLAUDECODE is set" {
 		t.Errorf("an agent's process = %q", why)
+	}
+}
+
+// A command whose Deps never got its RequireOperator refuses: an unwired
+// check fails closed, as OperatorRefusal does.
+func TestRequireOperatorFailsClosed(t *testing.T) {
+	err := RequireOperator(nil, "approve a send")
+	var fields interface{ JSONErrorFields() map[string]any }
+	if ExitCodeFor(err) != 3 || !errors.As(err, &fields) || fields.JSONErrorFields()["code"] != "operator_only" ||
+		!strings.Contains(err.Error(), "only the user can approve a send: the operator check is not wired") {
+		t.Errorf("a nil check = %v", err)
+	}
+	if err := RequireOperator(func(string) error { return nil }, "approve a send"); err != nil {
+		t.Errorf("the user's process = %v", err)
+	}
+	refused := errors.New("an agent")
+	if err := RequireOperator(func(string) error { return refused }, "approve a send"); err != refused {
+		t.Errorf("an agent's process = %v", err)
 	}
 }
