@@ -2040,7 +2040,7 @@
       "operation": "get",
       "title": "Get a observable",
       "sends": false,
-      "sends_reason": "Get a observable: a read, not a message",
+      "sends_reason": "Get an observable: a read, not a message",
       "method": "{{ cred.api_version | eq:'v1' | then:'POST' | default:'GET' }}",
       "path": "{{ cred.api_version | eq:'v1' | then:'/v1/query' | default:'/case/artifact/' }}{{ cred.api_version | ne:'v1' | then:p.id }}",
       "query": {

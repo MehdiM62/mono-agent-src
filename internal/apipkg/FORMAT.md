@@ -123,7 +123,9 @@ card in the Human in Loop queue, `internal/hilsend`) instead of going out:
   "to": ["toEmail"],             // the recipient's field(s), first set wins (the card)
   "text": ["text", "html"],      // the message's field(s)
   "subject": ["subject"],        // optional
-  "if": "sendCampaign"           // optional: the op sends only when this field is set
+  "if": "sendCampaign",          // optional: the op sends only when this field is set
+  "to_label": {"invoiceId": "the client of invoice"}, // optional: a "to" field that holds no address
+  "to_unset": "the appointment's attendees"           // optional: the card's recipient when no "to" is set
 }
 ```
 
@@ -132,14 +134,35 @@ A field name may be an option of a collection param: `"text":
 sends when one is set (true, or any value but false, `""` or an empty
 list; a template the run has yet to resolve counts as set), so a Google
 Calendar event waits only when it has attendees
-(`"if": "additionalFields.attendees"`).
+(`"if": "additionalFields.attendees"`). A field the config leaves out counts
+as its default (Okta's `activate` is true, so an activation email waits).
+A list on a field's path fans out: `"itemsUi.itemsValues.note"` is set when
+any item has a note (a PayPal payout), and
+`"updateFields.customFieldsUi.customFieldPairs.name=article"` holds when a
+Zammad custom field is named article.
+`"field=value"` sends only on that value (`"if": ["domain=notify",
+"domain=tts"]` for Home Assistant), `"field!=value"` unless the field has
+that value (unset counts: Onfleet texts a task's recipient unless
+`recipientSkipSMSNotifications` is true), and `"field not in a|b|c"` when
+the field is set to none of those values (unset doesn't count: a Zammad
+ticket goes out with an article that isn't a note, web or phone one, an
+unknown or templated type included, and not without one). When a `to`
+field holds an id rather than an address, `to_label` says what it is, and
+the card shows "the client of invoice inv9", not "inv9"; `to_unset` is what
+the card shows when no `to` field is set.
 
-Comments and invites on shared trackers count: they reach people. An op that
-only looks like a send (a queue or webhook for programs, a lookup, a
-notification to the user's own devices) says `"sends": false` with
-`"sends_reason"`; so does what the user decided stays open (file sharing,
-money movement), with the reason saying so. `TestCatalogSendsAreDecided`
-fails for a catalog op that has neither when:
+Comments and invites on shared trackers count: they reach people. Creating
+or updating issues, tasks and tickets does not, by the user's decision: it
+says `"sends": false` with "a work item, open by the user's decision"
+(their comments are sends). A ticket's create or update that emails someone
+beyond its requester waits, with `if`: a Zammad article other than a note,
+web or phone one, or one with a `to` or `cc`; CCs (Freshdesk,
+Freshservice); Zendesk's JSON fields or recipient. An op that only looks
+like a send (a queue or webhook for programs, a lookup, a notification to
+the user's own devices) says `"sends": false` with `"sends_reason"`; so
+does what the user decided stays open (file sharing, money movement), with
+the reason saying so.
+`TestCatalogSendsAreDecided` fails for a catalog op that has neither when:
 
 - its package is a messaging one (it has an annotated send, or it is a mail,
   SMS, chat or ticketing service listed in `messagingPackages`) and the op
@@ -152,7 +175,13 @@ fails for a catalog op that has neither when:
   verb in its name), and it writes or a send verb (send, notify, publish,
   invite, broadcast, or a word starting with send or notify) names it, as a
   GET to `/sendhttp.php` does. An op on settings ("updateNotificationSettings")
-  counts its send verbs only.
+  counts its send verbs only; or
+- it writes, in any package, and has a param or a collection option for whom
+  it reaches (to, toEmail, recipient, receiver, addressee, email, mailTo,
+  phone, tel, telephone, msisdn, sms, mobile, attendees, guests,
+  participants, invitees, invites, subscribers, cc, bcc) or a switch that
+  has the service message someone (activate, sendEmail, notify, welcome,
+  invite): a new user's activation email, an event's invitations.
 
 An op without `sends` runs as before. The lint covers the built-in catalog
 only: a package the user installs (`~/.monoagent/apipkgs`, which also
@@ -202,6 +231,17 @@ Same shape as the workflow editor's `NodeSchemaField`:
 - `default` is applied when the config lacks the key.
 - n8n `collection`/`fixedCollection` → `collection` (same key, e.g.
   `additionalFields`), with `options` = the inner n8n names.
+- A request that merges a collection whole (`"$merge": "{{ p.additionalFields }}"`)
+  sends whatever keys it holds, so a key the collection's `options` don't
+  list may send, whatever the op's `sends` says: an agent's run, or an
+  unapproved workflow's, waits for approval, with a card that names the
+  keys ("whoever its undeclared fields (article) reach"); everyone else's
+  runs as before. So does a key of an option object the op doesn't list in
+  `"subfields": {"article.articleDetails": ["subject", "body", "type", "to",
+  …]}` (an option with no entry there isn't judged), and such a collection
+  or option given as an expression. Raw JSON goes through the params an op
+  declares for it (`jsonParameters` with `additionalFieldsJson` and the
+  like), and its `sends` says what they do.
 - n8n `resourceLocator` → `text`; read it with `| rl` (§5), which accepts
   both a plain value and n8n's `{"__rl":true,"mode":"id","value":"x"}`.
 - n8n `options` with values loaded from the API (`loadOptionsMethod`) →

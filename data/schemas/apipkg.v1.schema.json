@@ -372,10 +372,17 @@
             "to": { "type": "array", "items": { "type": "string" } },
             "text": { "type": "array", "items": { "type": "string" } },
             "subject": { "type": "array", "items": { "type": "string" } },
-            "if": { "type": ["string", "array"], "items": { "type": "string" } }
+            "if": { "type": ["string", "array"], "items": { "type": "string" } },
+            "to_label": { "$ref": "#/$defs/stringMap" },
+            "to_unset": { "type": "string" }
           }
         },
         "sends_reason": { "type": "string", "minLength": 1 },
+        "subfields": {
+          "description": "the fields of a collection option whose value is an object, keyed collection.option (collections.go)",
+          "type": "object",
+          "additionalProperties": { "type": "array", "items": { "type": "string" } }
+        },
         "stream": { "$ref": "#/$defs/stream" },
         "wait": {
           "type": "object",

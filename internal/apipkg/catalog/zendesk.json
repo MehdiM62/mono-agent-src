@@ -139,12 +139,17 @@
       "operation": "create",
       "title": "Create a ticket",
       "sends": {
-        "action": "comment",
+        "action": "email",
         "text": [
           "description"
         ],
         "subject": [
           "additionalFields.subject"
+        ],
+        "to_unset": "the ticket's requester",
+        "if": [
+          "jsonParameters",
+          "additionalFields.recipient"
         ]
       },
       "method": "POST",

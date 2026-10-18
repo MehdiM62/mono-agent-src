@@ -35,6 +35,9 @@ var (
 	ErrNotFound = errors.New("send item not found")
 	// ErrNotSend: the HIL item exists but is not a send item.
 	ErrNotSend = errors.New("not a send item")
+	// ErrAlwaysLabel: always allow asked for a send whose recipient is a
+	// label, which would let any later send with that label through.
+	ErrAlwaysLabel = errors.New("always allow needs an address or handle, and this send's recipient is a description that fits any send of its kind; approve it without always allow")
 )
 
 // replay is what approving needs to run the node again.
@@ -248,8 +251,9 @@ func (s Store) Edit(ctx context.Context, id string, text, subject *string) (Payl
 // claim moves a pending item to sending, once. It returns the payload and
 // replay as claimed and the proof that lets the performing process through
 // Guard. claimed is false when the item was not pending (already resolved,
-// or someone else claimed it first).
-func (s Store) claim(ctx context.Context, id string) (p Payload, rp replay, proof string, claimed bool, err error) {
+// or someone else claimed it first). always (an always-allow approve) is
+// refused for a label recipient (ErrAlwaysLabel), leaving it pending.
+func (s Store) claim(ctx context.Context, id string, always bool) (p Payload, rp replay, proof string, claimed bool, err error) {
 	r, err := s.find(ctx, id)
 	if err != nil {
 		return p, rp, "", false, err
@@ -260,6 +264,10 @@ func (s Store) claim(ctx context.Context, id string) (p Payload, rp replay, proo
 	}
 	if p.State != StatePending {
 		return p, rp, "", false, nil
+	}
+	if always && p.Recipient.Label {
+		// What is claimed decides, not an earlier read: it stays pending.
+		return p, rp, "", false, ErrAlwaysLabel
 	}
 	buf := make([]byte, 24)
 	if _, err := rand.Read(buf); err != nil {

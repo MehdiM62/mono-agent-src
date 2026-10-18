@@ -307,6 +307,8 @@
       "resource": "certificate",
       "operation": "install",
       "title": "Install a certificate key pair",
+      "sends": false,
+      "sends_reason": "installs a certificate; its expiry notice goes to the appliance's own administrators",
       "method": "POST",
       "path": "/config/sslcertkey",
       "fields": [

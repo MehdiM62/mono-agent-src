@@ -75,9 +75,11 @@ type target struct {
 	social  bool
 	// channel names the app a Classifier's send goes through ("" for the
 	// node types above); perItem lists the params its node resolves per
-	// input item.
+	// input item; toLabel and toUnset name its recipient (recipientOf).
 	channel string
 	perItem []string
+	toLabel map[string]string
+	toUnset string
 }
 
 // classify reports whether nodeType with config is an outbound send.
@@ -96,7 +98,8 @@ func classify(nodeType string, config map[string]interface{}) (target, bool) {
 	// to a native node above (classifier.go).
 	if c := classifierOf(); c != nil {
 		if s, ok := c.Classify(nodeType, config); ok {
-			return target{action: s.Action, text: s.Text, subject: s.Subject, to: s.To, channel: s.Channel, perItem: s.PerItem}, true
+			return target{action: s.Action, text: s.Text, subject: s.Subject, to: s.To, channel: s.Channel, perItem: s.PerItem,
+				toLabel: s.ToLabel, toUnset: s.ToUnset}, true
 		}
 	}
 	return target{}, false
@@ -235,9 +238,10 @@ func attachments(config map[string]interface{}) []Attachment {
 }
 
 // one is a single send to prepare: a recipient and the config/input that
-// performs exactly it.
+// performs exactly it. labelled: the recipient is a label, no person.
 type one struct {
 	recipient Recipient
+	labelled  bool
 	config    map[string]interface{}
 	input     []map[string]interface{}
 }
@@ -248,8 +252,8 @@ type one struct {
 // their recipients in config and make one item.
 func split(t target, config map[string]interface{}, items []map[string]interface{}) []one {
 	if !t.social {
-		_, to := firstKey(config, append(append([]string{}, t.to...), toKeys...))
-		return []one{{recipient: Recipient{Name: to, ProfileURL: profileLike(to)}, config: config, input: items}}
+		rec, labelled := t.recipientOf(config)
+		return []one{{recipient: rec, labelled: labelled, config: config, input: items}}
 	}
 	var refs []interface{}
 	if l, ok := config["selectedListItems"].([]interface{}); ok && len(l) > 0 {

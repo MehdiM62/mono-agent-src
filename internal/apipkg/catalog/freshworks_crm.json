@@ -86,6 +86,8 @@
       "resource": "account",
       "operation": "create",
       "title": "Create a account",
+      "sends": false,
+      "sends_reason": "Create an account: changes Freshworks CRM data, not a message",
       "method": "POST",
       "path": "/sales_accounts",
       "fields": [
@@ -133,6 +135,8 @@
       "resource": "account",
       "operation": "delete",
       "title": "Delete a account",
+      "sends": false,
+      "sends_reason": "Delete an account: changes Freshworks CRM data, not a message",
       "method": "DELETE",
       "path": "/sales_accounts/{{ p.accountId }}",
       "fields": [
@@ -207,6 +211,8 @@
       "resource": "account",
       "operation": "update",
       "title": "Update a account",
+      "sends": false,
+      "sends_reason": "Update an account: changes Freshworks CRM data, not a message",
       "method": "PUT",
       "path": "/sales_accounts/{{ p.accountId }}",
       "fields": [
@@ -254,6 +260,14 @@
       "resource": "appointment",
       "operation": "create",
       "title": "Create a appointment",
+      "sends": {
+        "action": "invite",
+        "subject": [
+          "title"
+        ],
+        "to_unset": "the appointment's attendees",
+        "if": "attendees"
+      },
       "method": "POST",
       "path": "/appointments",
       "fields": [
@@ -324,6 +338,8 @@
       "resource": "appointment",
       "operation": "delete",
       "title": "Delete a appointment",
+      "sends": false,
+      "sends_reason": "Delete an appointment: changes Freshworks CRM data, not a message",
       "method": "DELETE",
       "path": "/appointments/{{ p.appointmentId }}",
       "fields": [
@@ -406,6 +422,19 @@
       "resource": "appointment",
       "operation": "update",
       "title": "Update a appointment",
+      "sends": {
+        "action": "invite",
+        "to": [
+          "appointmentId"
+        ],
+        "subject": [
+          "updateFields.title"
+        ],
+        "to_label": {
+          "appointmentId": "the attendees of appointment"
+        },
+        "if": "updateFields.attendees"
+      },
       "method": "PUT",
       "path": "/appointments/{{ p.appointmentId }}",
       "fields": [
@@ -457,6 +486,8 @@
       "resource": "contact",
       "operation": "create",
       "title": "Create a contact",
+      "sends": false,
+      "sends_reason": "Create a contact: changes Freshworks CRM data, not a message",
       "method": "POST",
       "path": "/contacts",
       "fields": [
@@ -533,6 +564,8 @@
       "resource": "contact",
       "operation": "delete",
       "title": "Delete a contact",
+      "sends": false,
+      "sends_reason": "Delete a contact: changes Freshworks CRM data, not a message",
       "method": "DELETE",
       "path": "/contacts/{{ p.contactId }}",
       "fields": [
@@ -607,6 +640,8 @@
       "resource": "contact",
       "operation": "update",
       "title": "Update a contact",
+      "sends": false,
+      "sends_reason": "Update a contact: changes Freshworks CRM data, not a message",
       "method": "PUT",
       "path": "/contacts/{{ p.contactId }}",
       "fields": [
@@ -669,6 +704,8 @@
       "resource": "deal",
       "operation": "create",
       "title": "Create a deal",
+      "sends": false,
+      "sends_reason": "Create a deal: changes Freshworks CRM data, not a message",
       "method": "POST",
       "path": "/deals",
       "fields": [
@@ -721,6 +758,8 @@
       "resource": "deal",
       "operation": "delete",
       "title": "Delete a deal",
+      "sends": false,
+      "sends_reason": "Delete a deal: changes Freshworks CRM data, not a message",
       "method": "DELETE",
       "path": "/deals/{{ p.dealId }}",
       "fields": [
@@ -795,6 +834,8 @@
       "resource": "deal",
       "operation": "update",
       "title": "Update a deal",
+      "sends": false,
+      "sends_reason": "Update a deal: changes Freshworks CRM data, not a message",
       "method": "PUT",
       "path": "/deals/{{ p.dealId }}",
       "fields": [
@@ -840,6 +881,8 @@
       "resource": "note",
       "operation": "create",
       "title": "Create a note",
+      "sends": false,
+      "sends_reason": "Create a note: changes Freshworks CRM data, not a message",
       "method": "POST",
       "path": "/notes",
       "fields": [
@@ -880,6 +923,8 @@
       "resource": "note",
       "operation": "delete",
       "title": "Delete a note",
+      "sends": false,
+      "sends_reason": "Delete a note: changes Freshworks CRM data, not a message",
       "method": "DELETE",
       "path": "/notes/{{ p.noteId }}",
       "fields": [
@@ -900,6 +945,8 @@
       "resource": "note",
       "operation": "update",
       "title": "Update a note",
+      "sends": false,
+      "sends_reason": "Update a note: changes Freshworks CRM data, not a message",
       "method": "PUT",
       "path": "/notes/{{ p.noteId }}",
       "fields": [
@@ -979,6 +1026,8 @@
       "resource": "salesActivity",
       "operation": "create",
       "title": "Create a salesActivity",
+      "sends": false,
+      "sends_reason": "Create a sales activity: changes Freshworks CRM data, not a message",
       "method": "POST",
       "path": "/sales_activities",
       "fields": [
@@ -1064,6 +1113,8 @@
       "resource": "salesActivity",
       "operation": "delete",
       "title": "Delete a salesActivity",
+      "sends": false,
+      "sends_reason": "Delete a sales activity: changes Freshworks CRM data, not a message",
       "method": "DELETE",
       "path": "/sales_activities/{{ p.salesActivityId }}",
       "fields": [
@@ -1084,6 +1135,8 @@
       "resource": "salesActivity",
       "operation": "update",
       "title": "Update a salesActivity",
+      "sends": false,
+      "sends_reason": "Update a sales activity: changes Freshworks CRM data, not a message",
       "method": "PUT",
       "path": "/sales_activities/{{ p.salesActivityId }}",
       "fields": [
@@ -1231,6 +1284,8 @@
       "resource": "task",
       "operation": "create",
       "title": "Create a task",
+      "sends": false,
+      "sends_reason": "Create a task: changes Freshworks CRM data, not a message",
       "method": "POST",
       "path": "/tasks",
       "fields": [
@@ -1297,6 +1352,8 @@
       "resource": "task",
       "operation": "delete",
       "title": "Delete a task",
+      "sends": false,
+      "sends_reason": "Delete a task: changes Freshworks CRM data, not a message",
       "method": "DELETE",
       "path": "/tasks/{{ p.taskId }}",
       "fields": [
@@ -1379,6 +1436,8 @@
       "resource": "task",
       "operation": "update",
       "title": "Update a task",
+      "sends": false,
+      "sends_reason": "Update a task: changes Freshworks CRM data, not a message",
       "method": "PUT",
       "path": "/tasks/{{ p.taskId }}",
       "fields": [

@@ -181,6 +181,19 @@ func TestNoFileThatRunsOnNextUse(t *testing.T) {
 		".opencode/agent/a.md", "opencode.json", ".github/agents/a.md", ".github/instructions/i.md",
 		".github/prompts/p.md", ".gitlab-ci.yml", ".circleci/config.yml", ".pre-commit-config.yaml",
 		"lefthook.yml", ".mise.toml", ".devcontainer/devcontainer.json", ".vscode/launch.json",
+		".github/actions/setup/action.yml", ".idea/workspace.xml", ".trae/rules/r.md", ".junie/guidelines.md",
+		".goosehints", ".goose/config.yaml", ".augment/rules/r.md", ".qwen/settings.json", "QWEN.md", "crush.json",
+		".agents/skills/s/SKILL.md", ".agent/rules.md", ".copilot/mcp.json", "CODEX.md", "AGENT.md", "agents.md",
+		"Jenkinsfile", "azure-pipelines.yml", ".travis.yml", "bitbucket-pipelines.yml", ".buildkite/pipeline.yml",
+		".gitpod.yml", ".devcontainer.json",
+		".crush.json", ".kilocode/rules/r.md", ".kilocodemodes", ".continuerules", ".rules", ".replit",
+		".drone.yml", "cloudbuild.yaml", "appveyor.yml", ".zed/keymap.json", ".appveyor.yml", "appveyor.yaml",
+		"cloudbuild.yml", "cloudbuild.json", ".drone.yaml", ".woodpecker.yml", ".woodpecker.yaml",
+		".woodpecker/build.yml", ".semaphore/semaphore.yml", "bitrise.yml", "codemagic.yaml",
+		".gitlab/ci/build.yml", ".claude.json", "azure-pipelines.yaml", ".gitlab-ci.yaml", ".travis.yaml",
+		"buildspec.yml", "buildspec.yaml", "buildkite.yml", ".buildkite.yml", ".cirrus.yml", "wercker.yml",
+		"codefresh.yml", ".gocd.yml", "concourse.yml", "netlify.toml", "vercel.json",
+		"CLOUDBUILD.YML", "Claude.md", ".CLAUDE/settings.json", ".GitHub/Workflows/ci.yml", "sub/.Envrc",
 	} {
 		p := filepath.Join(project, filepath.FromSlash(rel))
 		if _, err := WritePath(ctx, p); !errors.Is(err, ErrUnapprovedPath) {
@@ -190,7 +203,8 @@ func TestNoFileThatRunsOnNextUse(t *testing.T) {
 			t.Errorf("read %s: %v", rel, err)
 		}
 	}
-	for _, rel := range []string{".env", "husky.md", "notes/.claude-notes", "envrc.txt", "CLAUDE.md.bak", "README.md", ".github/ISSUE_TEMPLATE/bug.md", ".vscode/settings.json", ".zed/notes.md", "opencode.json.bak", "docs/lefthook.md"} {
+	for _, rel := range []string{".env", "husky.md", "notes/.claude-notes", "envrc.txt", "CLAUDE.md.bak", "README.md", ".github/ISSUE_TEMPLATE/bug.md", ".vscode/settings.json", ".zed/notes.md", "opencode.json.bak", "docs/lefthook.md",
+		".gitlab/issue_templates/bug.md", ".gitlab/CODEOWNERS"} {
 		if _, err := WritePath(ctx, filepath.Join(project, filepath.FromSlash(rel))); err != nil {
 			t.Errorf("write %s: %v", rel, err)
 		}

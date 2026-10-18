@@ -116,6 +116,14 @@
       "resource": "user",
       "operation": "create",
       "title": "Create a user",
+      "sends": {
+        "action": "invite",
+        "to": [
+          "email",
+          "login"
+        ],
+        "if": "activate"
+      },
       "method": "POST",
       "path": "/api/v1/users",
       "fields": [
@@ -218,6 +226,16 @@
       "resource": "user",
       "operation": "delete",
       "title": "Delete a user",
+      "sends": {
+        "action": "email",
+        "to": [
+          "userId"
+        ],
+        "to_label": {
+          "userId": "the admins, about user"
+        },
+        "if": "sendEmail"
+      },
       "method": "DELETE",
       "path": "/api/v1/users/{{ p.userId | rl }}",
       "description": "The first call deactivates an active user; a second call deletes it.",
@@ -291,6 +309,8 @@
       "resource": "user",
       "operation": "update",
       "title": "Update a user",
+      "sends": false,
+      "sends_reason": "Update a user: changes Okta data, not a message",
       "method": "POST",
       "path": "/api/v1/users/{{ p.userId | rl }}",
       "fields": [

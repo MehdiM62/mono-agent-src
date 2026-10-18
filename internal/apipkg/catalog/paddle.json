@@ -297,6 +297,8 @@
       "resource": "payment",
       "operation": "getAll",
       "title": "Get many subscription payments",
+      "sends": false,
+      "sends_reason": "Get many subscription payments: a read, not a message",
       "method": "POST",
       "path": "/2.0/subscription/payments",
       "fields": [

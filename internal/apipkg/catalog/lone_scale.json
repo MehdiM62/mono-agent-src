@@ -94,6 +94,8 @@
       "resource": "item",
       "operation": "add",
       "title": "Add an item to a list",
+      "sends": false,
+      "sends_reason": "Add an item to a list: changes LoneScale data, not a message",
       "method": "POST",
       "path": "/lists/{{ p.list }}/item",
       "fields": [
@@ -177,6 +179,8 @@
       "resource": "contact",
       "operation": "enrich",
       "title": "Enrich a contact",
+      "sends": false,
+      "sends_reason": "Enrich a contact: changes LoneScale data, not a message",
       "method": "POST",
       "path": "/trigger/enrich/sync",
       "fields": [
