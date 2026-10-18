@@ -183,6 +183,15 @@ the reason saying so.
   has the service message someone (activate, sendEmail, notify, welcome,
   invite): a new user's activation email, an event's invitations.
 
+Raw JSON goes out as written, whatever an op's fields declare. In a package
+that has a send, `TestRawJSONParamsAreDecided` fails for an op whose
+request takes a json-typed field, or a param a template parses with
+`fromjson`, unless the op holds on it: it sends unconditionally, or its
+`if` names the param or a param of the same template (its `jsonParameters`
+switch). An op that can't send through its JSON (a read's filter, a
+workflow's inputs, fields mapped key by key) says why in `rawJSONReasons`
+(`rawjson_sends_test.go`).
+
 An op without `sends` runs as before. The lint covers the built-in catalog
 only: a package the user installs (`~/.monoagent/apipkgs`, which also
 replaces a catalog package with the same id) is not checked, and its ops

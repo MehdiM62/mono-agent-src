@@ -391,8 +391,21 @@
       "resource": "stream",
       "operation": "update",
       "title": "Update a stream",
-      "sends": false,
-      "sends_reason": "Update a stream: changes Zulip data, not a message",
+      "sends": {
+        "action": "post",
+        "to": [
+          "streamId"
+        ],
+        "text": [
+          "additionalFields.description",
+          "additionalFields.newName"
+        ],
+        "if": [
+          "additionalFields.description",
+          "additionalFields.newName",
+          "jsonParameters"
+        ]
+      },
       "method": "PATCH",
       "path": "/streams/{{ p.streamId }}",
       "body": {

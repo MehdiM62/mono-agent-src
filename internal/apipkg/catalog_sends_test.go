@@ -79,6 +79,14 @@ func TestSendOf(t *testing.T) {
 		{"sendy sending", "app.sendy", map[string]any{"resource": "campaign", "operation": "create", "sendCampaign": true},
 			&Send{Action: "email", Channel: "sendy"}},
 		{"not a package", "comm.email_send", map[string]any{}, nil},
+		// Zulip's notification bot posts a stream's new name or description
+		// in the stream; raw JSON may set either.
+		{"zulip renaming a stream", "app.zulip", map[string]any{"resource": "stream", "operation": "update", "streamId": "7",
+			"additionalFields": map[string]any{"newName": "launch"}}, &Send{Action: "post", Channel: "zulip", To: []string{"streamId"}}},
+		{"zulip updating a stream with raw JSON", "app.zulip", map[string]any{"resource": "stream", "operation": "update", "streamId": "7",
+			"jsonParameters": true, "additionalFieldsJson": `{"description":"x"}`}, &Send{Action: "post", Channel: "zulip"}},
+		{"zulip making a stream private", "app.zulip", map[string]any{"resource": "stream", "operation": "update", "streamId": "7",
+			"additionalFields": map[string]any{"isPrivate": true}}, nil},
 	} {
 		got, ok := SendOf(c.nodeType, c.config)
 		if c.want == nil {
