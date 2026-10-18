@@ -151,9 +151,11 @@ type Send struct {
 	ToUnset           string
 	// Op and Show are set for a send of keys the op doesn't declare: the op
 	// ("trello card/update") and the param paths that hold the keys, which
-	// the card shows as its text in place of a message.
-	Op   string
-	Show []string
+	// the card shows as its text in place of a message. Exprs are the Show
+	// paths given as an expression, which the card says in place of a value.
+	Op    string
+	Show  []string
+	Exprs []string
 	// PerItem lists the params the node resolves per input item (an app
 	// node's fields); a native node's extension resolves none.
 	PerItem []string
@@ -171,20 +173,22 @@ func SendOf(nodeType string, config map[string]any) (Send, bool) {
 		if err != nil {
 			return Send{}, false
 		}
-		s, opLabel, show := op.Sends, "", []string(nil)
+		s, opLabel := op.Sends, ""
+		var show, exprs []string
 		if !op.sends(config) {
 			keys := op.undeclared(config)
 			if len(keys) == 0 {
 				return Send{}, false
 			}
-			s, opLabel, show = op.undeclaredSend(keys), op.opLabel(pkg), undeclaredPaths(keys)
+			s, opLabel = op.undeclaredSend(keys), op.opLabel(pkg)
+			show, exprs = undeclaredPaths(keys)
 		}
 		perItem := pkg.fieldKeys()
 		if op.Batch {
 			perItem = nil // one request for every item: one card
 		}
 		return Send{Action: s.Action, Channel: pkg.ID, To: s.To, Text: s.Text, Subject: s.Subject,
-			ToLabel: s.ToLabel, ToUnset: s.ToUnset, Op: opLabel, Show: show, PerItem: perItem}, true
+			ToLabel: s.ToLabel, ToUnset: s.ToUnset, Op: opLabel, Show: show, Exprs: exprs, PerItem: perItem}, true
 	}
 	if pkg := extensionFor(nodeType); pkg != nil {
 		opName := strings.TrimSpace(str(config["operation"]))
@@ -195,16 +199,18 @@ func SendOf(nodeType string, config map[string]any) (Send, bool) {
 		if !ok {
 			return Send{}, false
 		}
-		s, opLabel, show := op.Sends, "", []string(nil)
+		s, opLabel := op.Sends, ""
+		var show, exprs []string
 		if !op.sends(config) {
 			keys := op.undeclared(config)
 			if len(keys) == 0 {
 				return Send{}, false
 			}
-			s, opLabel, show = op.undeclaredSend(keys), op.opLabel(pkg), undeclaredPaths(keys)
+			s, opLabel = op.undeclaredSend(keys), op.opLabel(pkg)
+			show, exprs = undeclaredPaths(keys)
 		}
 		return Send{Action: s.Action, To: s.To, Text: s.Text, Subject: s.Subject, ToLabel: s.ToLabel, ToUnset: s.ToUnset,
-			Op: opLabel, Show: show}, true
+			Op: opLabel, Show: show, Exprs: exprs}, true
 	}
 	return Send{}, false
 }

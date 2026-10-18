@@ -55,10 +55,16 @@ func TestUndeclaredKeys(t *testing.T) {
 			t.Errorf("%s: %v, want %v", name, got, c.want)
 		}
 	}
-	if got := undeclaredPaths(op.undeclared(map[string]any{"additionalFields": map[string]any{"bcc": "x"},
+	if got, exprs := undeclaredPaths(op.undeclared(map[string]any{"additionalFields": map[string]any{"bcc": "x"},
 		"article": map[string]any{"details": map[string]any{"type_id": 6, "to": "y"}}})); !reflect.DeepEqual(got,
-		[]string{"additionalFields.bcc", "article.details"}) {
-		t.Errorf("paths %v", got)
+		[]string{"additionalFields.bcc", "article.details"}) || exprs != nil {
+		t.Errorf("paths %v, expressions %v", got, exprs)
+	}
+	// A collection or option given as an expression is marked as one.
+	if got, exprs := undeclaredPaths(op.undeclared(map[string]any{"additionalFields": "{{ $json.f }}",
+		"article": map[string]any{"details": "{{ $json.d }}"}})); !reflect.DeepEqual(got, []string{"additionalFields", "article.details"}) ||
+		!reflect.DeepEqual(exprs, got) {
+		t.Errorf("expression paths %v, expressions %v", got, exprs)
 	}
 }
 
