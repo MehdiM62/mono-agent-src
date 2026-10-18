@@ -572,9 +572,13 @@ dangerous calls.
   key set|remove|adopt`, which widen what the API server reaches or where
   the profile's data goes. `httpapi-token` is a reserved vault entry: only
   the server and the user's own `secret add|update|rm|import` write it
-  (`secrets.ErrReservedEntry` otherwise, checked in the secrets package);
-  tools and workflows read secrets' metadata and write other entries as
-  before. `extension pair` stays open (an agent can read the token file),
+  (`secrets.ErrReservedEntry` otherwise, checked in the secrets package;
+  an agent's import skips it), and its bearer is the field `token`; tools
+  and workflows read secrets' metadata and write other entries as before.
+  The `--help` of each of these says so ("The user's own: an agent, the
+  chat or a workflow is refused"), and a nil operator check refuses
+  (`clicore.OperatorRefusal`). `extension pair` stays open (an agent can
+  read the token file),
   and so does `image.vault_get` taking its id from data, by design. Names, masked
   values and metadata stay open. No secret reference resolves in a run of
   a definition the user hasn't approved: `secrets.Resolve` refuses under
