@@ -72,6 +72,10 @@ func packages() []*Package {
 	return pkgs
 }
 
+// Catalog is the built-in packages alone, each validated: it reads no
+// installed package, so what it serves is the catalog as shipped.
+func Catalog() ([]*Package, error) { return loadAll("") }
+
 func loadAll(dir string) ([]*Package, error) {
 	var errs []error
 	byID := map[string]*Package{}
@@ -106,9 +110,12 @@ func loadAll(dir string) ([]*Package, error) {
 		put(p)
 	}
 
-	entries, err := os.ReadDir(dir)
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		errs = append(errs, fmt.Errorf("apipkg: read %s: %w", dir, err))
+	var entries []os.DirEntry
+	if dir != "" { // "" is the catalog alone (Catalog)
+		entries, err = os.ReadDir(dir)
+		if err != nil && !errors.Is(err, fs.ErrNotExist) {
+			errs = append(errs, fmt.Errorf("apipkg: read %s: %w", dir, err))
+		}
 	}
 	for _, e := range entries {
 		if !e.IsDir() {
@@ -184,8 +191,10 @@ func ByID(id string) (*Package, bool) {
 }
 
 // ForNodeType returns the package registering nodeType (not extensions).
-func ForNodeType(nodeType string) (*Package, bool) {
-	for _, p := range packages() {
+func ForNodeType(nodeType string) (*Package, bool) { return forNodeTypeIn(packages(), nodeType) }
+
+func forNodeTypeIn(pkgs []*Package, nodeType string) (*Package, bool) {
+	for _, p := range pkgs {
 		if p.Extends == "" && len(p.Operations) > 0 && p.NodeTypeOf() == nodeType {
 			return p, true
 		}
@@ -196,9 +205,11 @@ func ForNodeType(nodeType string) (*Package, bool) {
 // extensionFor returns the package extending nativeType, or nil.
 // The last match wins: installed packages load after the built-in
 // catalog, so a user-installed extension replaces the catalog one.
-func extensionFor(nativeType string) *Package {
+func extensionFor(nativeType string) *Package { return extensionIn(packages(), nativeType) }
+
+func extensionIn(pkgs []*Package, nativeType string) *Package {
 	var found *Package
-	for _, p := range packages() {
+	for _, p := range pkgs {
 		if p.Extends == nativeType {
 			found = p
 		}

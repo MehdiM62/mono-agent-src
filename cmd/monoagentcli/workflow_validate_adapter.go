@@ -32,6 +32,12 @@ func newWorkflowValidateCmd(cfg *globalConfig) *cobra.Command {
 	return workflowvalidate.NewCommand(workflowValidateDeps(cfg))
 }
 
+// newWorkflowCheckKeysCmd is `workflow check-keys`: files in, the built-in
+// catalog, nothing else (no database, no ~/.monoagent).
+func newWorkflowCheckKeysCmd(cfg *globalConfig) *cobra.Command {
+	return workflowvalidate.NewCheckKeysCommand(func() bool { return cfg.JSONOutput })
+}
+
 // runWorkflowDryRun backs `workflow run --dry-run`.
 func runWorkflowDryRun(cfg *globalConfig, cmd *cobra.Command, workflowID string) error {
 	return workflowValidateDeps(cfg).DryRun(cmd, workflowID)
