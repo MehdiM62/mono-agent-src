@@ -408,3 +408,40 @@ func TestEveryBridgeAnswersTaskAdd(t *testing.T) {
 	}
 	t.Fatalf("%s is not advertised by the bridge newExtensionServer builds", extension.MethodTaskAdd)
 }
+
+// A chat proposal the person confirmed in the side panel (#451) is the
+// extension chat's task, not the person's capture: Inbox (never Ready),
+// source agent, and its first event names agent:extension-chat. A second
+// click (or a resend) adds nothing twice.
+func TestTaskSinkFilesAConfirmedChatProposalAsTheExtensionChat(t *testing.T) {
+	path := testdb.Path(t)
+	sink := extensionTaskSink(path)
+	in := extension.CapturedTask{ProfileID: "default", ClientID: "chat-toolu_01", Kind: extension.TaskKindChat,
+		TaskTitle: "Book flights", Notes: "Before May\nWindow seat", Origin: "Edge — Work"}
+	got, err := sink.AddCaptured(context.Background(), in)
+	if err != nil || !got.Created {
+		t.Fatalf("add: %+v, %v", got, err)
+	}
+	db, err := storage.NewDatabase(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	task, events, err := tasks.NewStore(db.DB).Get(context.Background(), "default", got.ID)
+	db.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if task.Status != tasks.StatusInbox || task.Title != "Book flights" || task.Notes != "Before May\nWindow seat" {
+		t.Errorf("task %+v", task)
+	}
+	if task.Source.Kind != tasks.SourceAgent || task.Source.App != "Edge — Work" {
+		t.Errorf("source %+v, want an agent task from Edge — Work", task.Source)
+	}
+	if len(events) == 0 || events[0].Actor != "agent:extension-chat" {
+		t.Errorf("events %+v, want the first by agent:extension-chat", events)
+	}
+	again, err := sink.AddCaptured(context.Background(), in)
+	if err != nil || again.Created || again.ID != got.ID {
+		t.Fatalf("resend: %+v, %v", again, err)
+	}
+}

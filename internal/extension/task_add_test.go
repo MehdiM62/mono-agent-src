@@ -126,8 +126,8 @@ func TestTaskAdd_RefusesWhatNoBoardCouldFile(t *testing.T) {
 		{"a blank profile", map[string]any{"profile": "   "}, chooseProfileMessage},
 		{"a profile that is not a string", map[string]any{"profile": 7}, chooseProfileMessage},
 		{"no client id", map[string]any{"client_id": ""}, "needs a client_id"},
-		{"no kind", map[string]any{"kind": ""}, "is not selection, page or note"},
-		{"an unknown kind", map[string]any{"kind": "screenshot"}, "is not selection, page or note"},
+		{"no kind", map[string]any{"kind": ""}, "is not selection, page, note or chat"},
+		{"an unknown kind", map[string]any{"kind": "screenshot"}, "is not selection, page, note or chat"},
 	}
 	for _, c := range cases {
 		sink := &fakeTaskSink{}
@@ -189,5 +189,29 @@ func TestTaskAdd_OverTheSocket(t *testing.T) {
 	ext.ask("req-t2", MethodTaskAdd, taskParams(nil))
 	if reply := ext.settled(); reply.OK || reply.Code != CodeInternal {
 		t.Errorf("a plain sink error: ok %v code %q, want internal", reply.OK, reply.Code)
+	}
+}
+
+// A task the side panel's chat proposed and the person confirmed (#451):
+// it carries its own title and notes, it is about no page whatever the
+// request says, and the sink files it as the extension chat.
+func TestTaskAdd_AConfirmedChatProposalCarriesItsTitleAndNotes(t *testing.T) {
+	sink := &fakeTaskSink{reply: TaskAdded{ID: 3, Created: true}}
+	srv := taskServer(t, sink)
+	_, err := callTaskAdd(t, srv, "Edge — Work", taskParams(map[string]any{
+		"kind": "chat", "client_id": "chat-toolu_01", "text": "ignored", "task_title": "Book flights", "notes": "Before May",
+		"url": "https://mail.example/x", "title": "Inbox",
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := sink.got[0]
+	want := CapturedTask{ProfileID: "p-work", ClientID: "chat-toolu_01", Kind: TaskKindChat, TaskTitle: "Book flights", Notes: "Before May", Origin: "Edge — Work"}
+	if got != want {
+		t.Fatalf("sink got %+v, want %+v", got, want)
+	}
+	_, err = callTaskAdd(t, srv, "", taskParams(map[string]any{"kind": "chat", "task_title": "  "}))
+	if err == nil || codeOf(t, err) != CodeInvalidInput || !strings.Contains(err.Error(), "title") {
+		t.Fatalf("a proposal with no title: %v", err)
 	}
 }
