@@ -16,6 +16,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/monoes/mono-agent/internal/apikeys"
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/storage"
 )
 
@@ -35,6 +36,11 @@ type Deps struct {
 	InvalidInput func(format string, a ...interface{}) error
 	// WriteJSON writes the --json document.
 	WriteJSON func(w io.Writer, v any) error
+	// Refusal says why this process is not the operator's own terminal (""
+	// when it is): a key signs in as the profile, so only the operator
+	// creates, changes or revokes one (operator.Refusal). Nil refuses
+	// (clicore.OperatorRefusal).
+	Refusal func() string
 }
 
 // NewCommand groups the lifecycle of the active profile's API keys. A key
@@ -91,10 +97,13 @@ func (d Deps) newCreateCmd() *cobra.Command {
 		Long: "Creates a key and prints it once; only its hash is kept. With --context, requests made with " +
 			"this key get excerpts of the profile's own knowledge (documents and captures) added to the " +
 			"prompt; without it the key reaches a plain model. Without --json, stdout is the key alone and " +
-			"the notes go to stderr, so `KEY=$(monoagentcli api key create --name app)` works.",
+			"the notes go to stderr, so `KEY=$(monoagentcli api key create --name app)` works. " + clicore.OperatorOnlyHelp,
 		Example: "  monoagentcli api key create --name my-app\n  monoagentcli api key create --name notes-bot --context --json",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if why := clicore.OperatorRefusal(d.Refusal); why != "" {
+				return clicore.OperatorOnly("api key create makes a key that signs in as this profile, which only the user does: %s; run it yourself in your terminal or the app", why)
+			}
 			return d.withKeys(cmd, func(ctx context.Context, store *apikeys.Store, profileID string) error {
 				key, secret, err := store.Create(ctx, profileID, name, withContext)
 				if err != nil {
@@ -181,8 +190,12 @@ func (d Deps) newUpdateCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "update <id|name> [--name N] [--context | --no-context]",
 		Short: "Rename an active key or switch its knowledge context on or off",
+		Long:  "Renames an active key or switches its knowledge context on or off; the key itself does not change. " + clicore.OperatorOnlyHelp,
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if why := clicore.OperatorRefusal(d.Refusal); why != "" {
+				return clicore.OperatorOnly("api key update changes what a key that signs in as this profile reaches, which only the user does: %s; run it yourself in your terminal or the app", why)
+			}
 			var u apikeys.Update
 			if cmd.Flags().Changed("name") {
 				u.Name = &name
@@ -223,9 +236,12 @@ func (d Deps) newRevokeCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "revoke <id|name>",
 		Short: "Revoke a key now (idempotent)",
-		Long:  "Requests made with a revoked key are refused from the next request on. Without --yes the command asks first; with stdin not a terminal it needs --yes.",
+		Long:  "Requests made with a revoked key are refused from the next request on. Without --yes the command asks first; with stdin not a terminal it needs --yes. " + clicore.OperatorOnlyHelp,
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if why := clicore.OperatorRefusal(d.Refusal); why != "" {
+				return clicore.OperatorOnly("api key revoke cuts off whatever signs in with that key, which only the user decides: %s; run it yourself in your terminal or the app", why)
+			}
 			if !yes {
 				if d.JSONOutput() || !d.StdinIsTerminal() {
 					return d.InvalidInput("revoking a key needs --yes when stdin is not a terminal")

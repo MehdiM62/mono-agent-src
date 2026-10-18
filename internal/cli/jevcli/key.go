@@ -33,10 +33,13 @@ func newJevKeySetCmd(d Deps) *cobra.Command {
 		Long: "Reads the key from stdin — never pass it as an argument — and stores it in\n" +
 			"the machine-wide vault, shared by every profile. If the machine vault already\n" +
 			"holds the key, that entry is updated; otherwise a new entry named \"typesafe\"\n" +
-			"is created. A key in a profile's vault is left alone (see `jev key adopt`).",
+			"is created. A key in a profile's vault is left alone (see `jev key adopt`).\n" + clicore.OperatorOnlyHelp,
 		Example: "  printf '%s' \"$KEY\" | monoagentcli jev key set",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if why := clicore.OperatorRefusal(d.Refusal); why != "" {
+				return clicore.OperatorOnly("jev key set decides which TypeSafe account gets what Jev sends, which only the user does: %s; run it yourself in your terminal or the app", why)
+			}
 			key, err := secretcli.ReadValue(cmd.InOrStdin())
 			if err != nil {
 				return clicore.InvalidInput("%v", err)
@@ -88,10 +91,13 @@ func newJevKeyAdoptCmd(d Deps) *cobra.Command {
 		Short: "Copy a profile vault's TypeSafe key to the machine-wide vault",
 		Long: "Copies (never deletes) the TypeSafe key a profile's vault holds to the machine-wide\n" +
 			"vault. Without --from-profile the most recently updated readable key of any profile\n" +
-			"is used. Fails if the machine vault already has a key: `jev key set` replaces it.",
+			"is used. Fails if the machine vault already has a key: `jev key set` replaces it.\n" + clicore.OperatorOnlyHelp,
 		Example: "  monoagentcli jev key adopt --from-profile work",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if why := clicore.OperatorRefusal(d.Refusal); why != "" {
+				return clicore.OperatorOnly("jev key adopt decides which TypeSafe account every profile's Jev uses, which only the user does: %s; run it yourself in your terminal or the app", why)
+			}
 			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
@@ -174,8 +180,12 @@ func newJevKeyRemoveCmd(d Deps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "remove",
 		Short: "Delete the machine-wide vault entry holding the TypeSafe key",
+		Long:  "Deletes the machine-wide vault entry holding the TypeSafe key. " + clicore.OperatorOnlyHelp,
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if why := clicore.OperatorRefusal(d.Refusal); why != "" {
+				return clicore.OperatorOnly("jev key remove deletes the user's TypeSafe key, which only the user does: %s; run it yourself in your terminal or the app", why)
+			}
 			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)

@@ -47,6 +47,42 @@ func InvalidInput(format string, a ...interface{}) error {
 	return &Error{Code: 3, Msg: fmt.Sprintf(format, a...)}
 }
 
+// operatorOnlyError is OperatorOnly's error: exit 3 (its *Error), and the
+// code operator_only in the --json error document.
+type operatorOnlyError struct{ err *Error }
+
+func (e operatorOnlyError) Error() string { return e.err.Msg }
+func (e operatorOnlyError) Unwrap() error { return e.err }
+
+func (operatorOnlyError) JSONErrorFields() map[string]any {
+	return map[string]any{"code": "operator_only"}
+}
+
+// OperatorOnlyHelp ends the help of a command OperatorOnly refuses to anyone
+// but the user.
+const OperatorOnlyHelp = "The user's own: an agent, the chat or a workflow is refused (exit 3, operator_only)."
+
+// unwiredRefusal is why a command whose operator check was never wired in
+// refuses: it fails closed.
+const unwiredRefusal = "the operator check is not wired into this command"
+
+// OperatorRefusal is refusal's answer (operator.Refusal, through a command's
+// Deps): why this process may not do what only the user does, "" for the
+// user. A nil refusal refuses, so an unwired check never opens a command.
+func OperatorRefusal(refusal func() string) string {
+	if refusal == nil {
+		return unwiredRefusal
+	}
+	return refusal()
+}
+
+// OperatorOnly is the refusal of what only the operator may do: exit 3, and
+// the code operator_only in the --json error document, so a caller tells it
+// from invalid input.
+func OperatorOnly(format string, a ...interface{}) error {
+	return operatorOnlyError{err: &Error{Code: 3, Msg: fmt.Sprintf(format, a...)}}
+}
+
 // AuthConnection is an exit-4 error.
 func AuthConnection(format string, a ...interface{}) error {
 	return &Error{Code: 4, Msg: fmt.Sprintf(format, a...)}

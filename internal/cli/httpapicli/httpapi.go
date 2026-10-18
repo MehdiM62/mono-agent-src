@@ -30,7 +30,8 @@ func NewCommand(d Deps) *cobra.Command {
 			"Loopback-only by default (127.0.0.1:9322) — override with --addr or MONOAGENT_HTTPAPI_ADDR. " +
 			"Every request requires `Authorization: Bearer <token>` except GET /health; the token is " +
 			"generated for each profile when the server starts and stored in that profile's secrets vault " +
-			"(`monoagentcli --profile <p> secret list`, name \"httpapi-token\"); a token authorizes only its " +
+			"(`monoagentcli --profile <p> secret list`, name \"httpapi-token\", field token; only the user " +
+			"sets it, with `secret update httpapi-token --field token=<value>`); a token authorizes only its " +
 			"own profile. Workflows and HIL items are served under /profiles/{profile}/ ({profile} is a " +
 			"profile id or name); --profile is ignored.\n\n" +
 			"Mutating endpoints (workflow run/activate/deactivate, hil approve/reject) are only served " +
@@ -38,7 +39,8 @@ func NewCommand(d Deps) *cobra.Command {
 			"read endpoints are registered (an unregistered mutating path 404s, not 403s). " +
 			"Output items are redacted the same way as `workflow run --json` and the MCP tools " +
 			"(credential-shaped keys masked); pass `X-Full-Outputs: 1` to opt out per request, " +
-			"mirroring `workflow run --full-outputs`.\n\n" +
+			"like the user's own `workflow run --full-outputs`. The header has no operator check: " +
+			"whoever holds the token gets unredacted outputs.\n\n" +
 			"See internal/httpapi/openapi.yaml for the full endpoint list and examples/httpapi-quickstart.md " +
 			"for a curl walkthrough.\n\n" +
 			"The same process serves the OpenAI-compatible API (/v1, authenticated by the API keys of `monoagentcli api key`) " +

@@ -10,8 +10,10 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/monoes/mono-agent/internal/apikeys"
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/cli/orgenv"
 	"github.com/monoes/mono-agent/internal/monomind"
+	"github.com/monoes/mono-agent/internal/operator"
 	"github.com/monoes/mono-agent/internal/orgdecide"
 	"github.com/monoes/mono-agent/internal/orggrant"
 )
@@ -123,12 +125,17 @@ func newOrgTeardownProfileCmd(env *orgEnv) *cobra.Command {
 			"URL, whose id is refused from now on). Org files, run data, and the decision ledger are " +
 			"otherwise left in place. It also revokes the profile's API keys (the OpenAI-compatible API). " +
 			"Run it before removing the profile, " +
-			"while its folder setting still exists. --dry-run reports what it would do.",
+			"while its folder setting still exists. --dry-run reports what it would do. " +
+			clicore.OperatorOnlyHelp + " --dry-run is anyone's.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 			if env.Project() != "" {
 				return env.d.InvalidInput("teardown-profile acts on a whole profile; select it with --profile, not --project")
+			}
+			if why := operator.Refusal(); why != "" && !dryRun {
+				return clicore.OperatorOnly("teardown-profile revokes the profile's API keys, org grants and endpoints, which cuts off whatever uses them and only the user decides: %s; "+
+					"run it yourself in your terminal or the app (--dry-run shows what it would do)", why)
 			}
 			db, profileID, root, err := env.Profile()
 			if err != nil {

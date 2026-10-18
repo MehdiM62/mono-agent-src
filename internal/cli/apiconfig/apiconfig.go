@@ -17,6 +17,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/monoes/mono-agent/internal/apiconfig"
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/storage"
 )
 
@@ -40,6 +41,10 @@ type Deps struct {
 	ProfileID func() string
 	// SavedEnv is the environment with the settings `api config` saved under it.
 	SavedEnv func(ctx context.Context, db *sql.DB) (func(string) string, error)
+	// Refusal says why this process may not change the saved settings (operator.Refusal):
+	// an agent, the chat or a workflow runs it. "" for the user; nil refuses
+	// (clicore.OperatorRefusal).
+	Refusal func() string
 }
 
 // NewCommand is the group that shows, changes and removes the settings of the
@@ -115,7 +120,7 @@ func (d Deps) newSetCmd() *cobra.Command {
 			"for what a running daemon runs, and `monoagentcli daemon restart`). A value is in the syntax of the setting's environment " +
 			"variable, and is held to the same rule as the flag and the variable. A change that makes the server reach further than it " +
 			"did needs --yes; --dry-run says what a change would do and whether it needs --yes, and saves nothing. To remove a saved " +
-			"value use `api config unset`.",
+			"value use `api config unset`. " + clicore.OperatorOnlyHelp + " --dry-run is anyone's.",
 		Example: "  monoagentcli api config set --max-concurrent 8 --turn-timeout 15m\n" +
 			"  monoagentcli api config set --v1-addr 0.0.0.0:9443 --tls-cert-file /etc/ssl/api.pem --tls-key-file /etc/ssl/api.key --yes\n" +
 			"  monoagentcli api config set --image-runtimes none --dry-run",
@@ -154,7 +159,8 @@ func (d Deps) newUnsetCmd() *cobra.Command {
 			"gives the server more reach, and needs --yes like any change that does. A saved row that cannot be read (not JSON, a " +
 			"version that is not a whole number, a field of the wrong type) stops every other command with exit 3, and --all --yes " +
 			"removes it and says so; it needs --yes because what the row limited cannot be told, so the removal may reach further. " +
-			"A row written by a newer version is exit 1 and is never removed by it: use that version, or remove the row by hand.",
+			"A row written by a newer version is exit 1 and is never removed by it: use that version, or remove the row by hand. " +
+			clicore.OperatorOnlyHelp + " --dry-run is anyone's.",
 		Example: "  monoagentcli api config unset max_concurrent turn_timeout\n  monoagentcli api config unset --all --dry-run",
 		Args:    cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -180,6 +186,10 @@ func FlagOf(key string) string { return strings.ReplaceAll(key, "_", "-") }
 // that says what changed, what a restart is needed for and what is overridden. verb is how the
 // text names a change that was applied.
 func (d Deps) runConfigChange(cmd *cobra.Command, ch apiconfig.Change, verb string) error {
+	if why := clicore.OperatorRefusal(d.Refusal); why != "" && !ch.DryRun {
+		return clicore.OperatorOnly("api config %s changes where the OpenAI-compatible API's server listens and what it serves, which only the user does: %s; "+
+			"run it yourself in your terminal or the app (--dry-run says what it would do)", cmd.Name(), why)
+	}
 	db, err := d.OpenDB()
 	if err != nil {
 		return fmt.Errorf("initializing database: %w", err)
