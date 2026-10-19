@@ -28,6 +28,15 @@ func TestSendsAnnotationIsChecked(t *testing.T) {
 		`,"sends":{"action":"post","if":"nobody.type not in note|web"}`:                                               `"nobody.type not in note|web"`,
 		`,"sends":{"action":"post","to_label":{"body":"channel"}}`:                                                    "to_label",
 		`,"sends":true`: "sends",
+		// "?" goes alone at the end of a param in "if": with =, != or not
+		// in it would be read as part of a value and never hold.
+		`,"sends":{"action":"post","if":"body?"}`:                    "",
+		`,"sends":{"action":"post","if":"body=x?"}`:                  `"?" goes alone`,
+		`,"sends":{"action":"post","if":"body!=x?"}`:                 `"?" goes alone`,
+		`,"sends":{"action":"post","if":"body not in a|b?"}`:         `"?" goes alone`,
+		`,"sends":{"action":"post","if":"body?!"}`:                   `"?" goes alone`,
+		`,"sends":{"action":"post","if":"body??"}`:                   `"?" goes alone`,
+		`,"sends":{"action":"post","to":["to?"]}`:                    `"?" goes in sends.if only`,
 		`,"sends":{"action":"post","show":["body"]}`:                 "",
 		`,"sends":{"action":"post","show":["nobody"]}`:               `"nobody"`,
 		`,"sends":{"action":"post","show":["body"],"text":["body"]}`: "don't go together",

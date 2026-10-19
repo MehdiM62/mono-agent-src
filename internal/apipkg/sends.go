@@ -133,8 +133,20 @@ func (o *Operation) checkSends(where string, fields map[string]bool) []string {
 	if len(s.Show) > 0 && len(s.Text) > 0 {
 		add("sends.show and sends.text don't go together: the card lists the params or shows a message")
 	}
-	for _, keys := range [][]string{s.To, s.Text, s.Subject, s.Show, s.If} {
+	for _, k := range s.If {
+		// "param?" alone: on "p=x?", "p not in a|b?" or "p?!" the "?" would
+		// be read as part of a value, and the condition would never hold.
+		if strings.Contains(k, "?") && (strings.Count(k, "?") > 1 || !strings.HasSuffix(k, "?") ||
+			strings.ContainsAny(k, "=!") || strings.Contains(k, notIn)) {
+			add("sends.if %q: \"?\" goes alone at the end of a param (\"param?\"), not with =, != or not in", k)
+		}
+	}
+	for i, keys := range [][]string{s.To, s.Text, s.Subject, s.Show, s.If} {
 		for _, k := range keys {
+			if i < 4 && strings.Contains(k, "?") {
+				add("sends names %q: \"?\" goes in sends.if only", k)
+				continue
+			}
 			name, _, _ := strings.Cut(k, notIn)
 			name, _, _ = strings.Cut(name, "=")
 			name = strings.TrimSuffix(strings.TrimSuffix(name, "!"), "?")
