@@ -14,11 +14,10 @@ func RegisterAll(r *workflow.NodeTypeRegistry) {
 	// These platforms used to exist twice, once here and once as service.*.
 	// The service.* node is now the single canonical one (the union of both
 	// operation sets) and runs the old comm.* configs unchanged; the old
-	// type ids stay resolvable for saved workflows but are not listed.
-	r.Alias("comm.bluesky", "service.bluesky")
-	r.Alias("comm.mastodon", "service.mastodon")
-	r.Alias("comm.reddit", "service.reddit")
-	r.Alias("comm.discord", "service.discord")
-	r.Alias("comm.outlook_read", "service.outlook_mail")
-	r.Alias("comm.outlook_send", "service.outlook_mail")
+	// type ids stay resolvable for saved workflows but are not listed. The
+	// mapping is workflow's (CanonicalNodeType), which the send gate
+	// classifies by too.
+	for _, legacy := range []string{"comm.bluesky", "comm.mastodon", "comm.reddit", "comm.discord", "comm.outlook_read", "comm.outlook_send"} {
+		r.Alias(legacy, workflow.CanonicalNodeType(legacy))
+	}
 }

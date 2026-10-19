@@ -26,6 +26,10 @@ import (
 //	"parse_mode" (string): "HTML" (default) | "Markdown"
 type TelegramNode struct{}
 
+// telegramAPIEndpoint is the Bot API's URL pattern (token, method); a var so
+// tests can point it at an httptest server.
+var telegramAPIEndpoint = tgbotapi.APIEndpoint
+
 func (n *TelegramNode) Type() string { return "comm.telegram" }
 
 func (n *TelegramNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
@@ -40,7 +44,7 @@ func (n *TelegramNode) Execute(ctx context.Context, input workflow.NodeInput, co
 		return nil, fmt.Errorf("comm.telegram: bot_token is required")
 	}
 
-	operation, _ := config["operation"].(string)
+	operation := workflow.ConfigOperation(config)
 	if operation == "" {
 		operation = "send_message"
 	}
@@ -55,7 +59,7 @@ func (n *TelegramNode) Execute(ctx context.Context, input workflow.NodeInput, co
 		}
 	}
 
-	bot, err := tgbotapi.NewBotAPI(token)
+	bot, err := tgbotapi.NewBotAPIWithAPIEndpoint(token, telegramAPIEndpoint)
 	if err != nil {
 		return nil, fmt.Errorf("comm.telegram: create bot: %w", err)
 	}

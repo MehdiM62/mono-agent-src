@@ -51,7 +51,7 @@ func (n *TwilioNode) Execute(ctx context.Context, input workflow.NodeInput, conf
 	if to == "" {
 		return nil, fmt.Errorf("comm.twilio: to is required")
 	}
-	operation, _ := config["operation"].(string)
+	operation := workflow.ConfigOperation(config)
 	if operation == "" {
 		return nil, fmt.Errorf("comm.twilio: operation is required")
 	}

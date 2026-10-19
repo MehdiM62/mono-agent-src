@@ -123,6 +123,9 @@ func unapprovedRun(ctx context.Context) (PreparedBy, bool) {
 // workflows the user never approved (unapprovedRun). It is installed by
 // noderegistry.Build, so the engine and `node run` both pass through it.
 func Guard(ctx context.Context, nodeType string, in workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, bool, error) {
+	// The card and its approved run name the type that runs the node, as
+	// the engine asks with, whatever name `node run` was given.
+	nodeType = workflow.CanonicalNodeType(nodeType)
 	t, ok := classify(nodeType, config)
 	if !ok {
 		return nil, false, nil
