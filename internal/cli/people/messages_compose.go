@@ -10,6 +10,7 @@ import (
 
 	"github.com/monoes/mono-agent/internal/connections"
 	"github.com/monoes/mono-agent/internal/storage"
+	"github.com/monoes/mono-agent/internal/vault"
 	"github.com/monoes/mono-agent/internal/workflow"
 	"github.com/spf13/cobra"
 )
@@ -372,9 +373,10 @@ func outlookResultMessageID(outputs []workflow.NodeOutput) string {
 // runOutlookNode resolves credentials for the given connection ID/platform
 // name (scoped to d.ProfileID()) and executes service.outlook_mail with the
 // given config, in-process — shared by compose/send-draft/reject-draft so
-// none of them duplicate credential resolution or node dispatch. The node
-// comes from d.NodeRegistry, so tests can stub the Graph call without a
-// real connection.
+// none of them duplicate credential resolution or node dispatch. A send of
+// an agent's waits for approval (workflow.RunExecGuard) and comes back as an
+// error saying so. The node comes from d.NodeRegistry, so tests can stub the
+// Graph call without a real connection.
 func (d Deps) runOutlookNode(cmd *cobra.Command, db *sql.DB, connectionID string, config map[string]interface{}) ([]workflow.NodeOutput, error) {
 	if connectionID == "" {
 		connectionID = "outlook"
@@ -393,8 +395,26 @@ func (d Deps) runOutlookNode(cmd *cobra.Command, db *sql.DB, connectionID string
 	for k, v := range credData {
 		config[k] = v
 	}
+	// The approved send resolves the connection again: a card keeps no
+	// credentials.
+	config["credential_id"] = connectionID
 
-	outputs, err := factory().Execute(cmd.Context(), workflow.NodeInput{}, config)
+	// An agent's send waits for approval here as in a workflow or `node run`
+	// (internal/hilsend): the guard queues it as a card, and nothing runs.
+	executor := factory()
+	ctx := vault.ContextWithProfileID(vault.ContextWithDB(cmd.Context(), db), d.ProfileID())
+	if queued, handled, gerr := workflow.RunExecGuard(ctx, executor.Type(), workflow.NodeInput{}, config); handled {
+		if gerr != nil {
+			return nil, gerr
+		}
+		var hilID string
+		if len(queued) > 0 && len(queued[0].Items) > 0 {
+			hilID, _ = queued[0].Items[0].JSON["hil_id"].(string)
+		}
+		return nil, fmt.Errorf("prepared but NOT sent: it waits for the operator's approval in Human in Loop (item %s); do not retry or send it another way", hilID)
+	}
+
+	outputs, err := executor.Execute(cmd.Context(), workflow.NodeInput{}, config)
 	if err != nil {
 		op, _ := config["operation"].(string)
 		return nil, fmt.Errorf("%s: %w", op, err)

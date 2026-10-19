@@ -1227,7 +1227,8 @@
       "mcp": "usando {{name}}",
       "todo": "actualizando su plan",
       "org": "dirigiendo el equipo: {{name}}",
-      "other": "usando {{name}}"
+      "other": "usando {{name}}",
+      "vault": "ejecutando un comando de la bóveda (oculto)"
     },
     "pickConfidence": "elección de rol {{value}}",
     "jevConfidence": "elección de modelo {{value}}",
@@ -1542,12 +1543,16 @@
         "question": "preguntó",
         "result": "informó",
         "released": "liberó"
-      }
+      },
+      "readFirst": "Esta tarjeta tiene notas. Léelas antes de aprobarla: en Listo, los agentes actúan sobre todo su texto.",
+      "readFirstMove": "Esta tarjeta tiene notas. Léelas antes de que salga de la Bandeja: los agentes actúan sobre todo su texto.",
+      "moveTo": "Mover a {{column}}",
+      "saveFirst": "Guarda primero tus cambios"
     },
     "refused": "Rechazado: {{error}}",
     "emptyBy": {
       "inbox": "Resalta texto en Chrome y elige MonoAgent, Add selection as task, o selecciona texto en cualquier app: Servicios, Add to MonoAgent Tasks",
-      "ready": "Aprueba tareas desde Inbox para que los agentes puedan tomarlas"
+      "ready": "Aprueba tareas de la Bandeja para que los agentes puedan tomarlas"
     },
     "capture": {
       "title": "Cómo capturar",
@@ -1555,7 +1560,17 @@
       "mac": "En Mac: selecciona texto en cualquier app y elige Servicios, Add to MonoAgent Tasks.",
       "cli": "En una terminal:",
       "agents": "Los agentes añaden tareas con las herramientas de tareas; su trabajo aparece aquí en segundos."
-    }
+    },
+    "readAndApprove": "Leer y aprobar",
+    "hasNotes": "Esta tarjeta tiene notas: ábrela para leerlas",
+    "notesMarker": "Notas",
+    "announce": {
+      "moved": "Se movió «{{title}}» a {{column}}",
+      "failed": "No se pudo mover «{{title}}» a {{column}}: {{error}}"
+    },
+    "markDone": "Hecho",
+    "backToReady": "Volver a Listo",
+    "inProfile": "en {{name}}"
   },
   "publication": {
     "title": "Publicación",
@@ -1778,5 +1793,19 @@
     "alwaysAllowConfirm": "Enviar y permitir siempre",
     "appAccess": "Los agentes de código reciben información sobre MonoAgent",
     "appAccessHint": "Activado: las instrucciones de código llevan el resumen del perfil, y a los trabajadores de la organización se les ofrecen las pestañas de MonoAgent (tareas, documentos, personas, bóveda, flujos de trabajo y aplicaciones) y se les explica cómo usarlas. Desactivado: a los trabajadores de la organización no se les habla de las pestañas de MonoAgent ni se les ofrecen, y los agentes no reciben el resumen del perfil; el agente principal de código conserva el acceso completo, y los comandos solo del operador y la aprobación de envíos siguen aplicándose."
+  },
+  "toolLinks": {
+    "open": "Abrir en {{tab}}",
+    "command": "Comando",
+    "vaultHidden": "Un comando de la bóveda: sus valores no se muestran aquí.",
+    "vaultRelated": "Comando relacionado con la bóveda (oculto)",
+    "page": {
+      "tasks": "Tablero de tareas",
+      "people": "Personas",
+      "noderunner": "Flujos de trabajo",
+      "documents": "Documentos",
+      "secretsVault": "Bóveda",
+      "orgs": "Organizaciones"
+    }
   }
 }

@@ -1,8 +1,12 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ChevronDown, ChevronRight, Loader, Check, X, Ban, Square } from 'lucide-react'
 import { useTicker, formatDuration } from './toolCardUtils.js'
 import { Tag, Section, preStyle, mono, CYAN } from './nativeToolParts.jsx'
-import { describe, kindOf } from './nativeToolDescribe.jsx'
+import { describe, kindOf, vaultHidden } from './nativeToolDescribe.jsx'
+import { vaultRelated } from './toolLinks.js'
+import { maskArgs, maskCredentials } from './credentials.js'
+import { ToolLink } from './ToolLink.jsx'
 import { ToolResultImages } from './ChatAttachments.jsx'
 
 export { DiffView } from './nativeToolParts.jsx'
@@ -46,10 +50,17 @@ function callStatus(call, isLive) {
 
 // NativeToolCard renders one native call. childCalls are the calls made
 // inside it (a Task/Agent subagent), rendered through renderChild so they
-// nest recursively; see ChatTimeline.
-export function NativeToolCard({ call, turnId = '', isLive = true, childCalls = [], renderChild = () => null }) {
-  const { args, raw } = parseArgs(call.arguments)
-  const d = describe(call, args, childCalls, renderChild)
+// nest recursively; see ChatTimeline. onNavigate (the app's navigate) gives
+// a call on one of the app's tabs its "Open in <tab>" link (#473).
+export function NativeToolCard({ call, turnId = '', isLive = true, childCalls = [], renderChild = () => null, onNavigate }) {
+  const { t } = useTranslation()
+  const parsed = parseArgs(call.arguments)
+  // Credentials in the input read •••, and arguments cut short that hold a
+  // vault command show nothing of it (#872).
+  const args = maskArgs(parsed.args)
+  const raw = maskCredentials(parsed.raw)
+  const withheld = raw != null && vaultRelated(raw)
+  const d = withheld ? vaultHidden(call, t) : describe(call, args, childCalls, renderChild, t)
   const status = callStatus(call, isLive)
   const failed = status.key === 'failed'
   const [open, setOpen] = useState(!!d.defaultOpen || failed)
@@ -106,9 +117,10 @@ export function NativeToolCard({ call, turnId = '', isLive = true, childCalls = 
           {durationText && <span style={{ fontFamily: mono, fontSize: 9, color: 'var(--text-muted)' }}>{`· ${durationText}`}</span>}
         </span>
       </button>
+      {d.link && onNavigate && <div style={{ padding: '0 10px 6px' }}><ToolLink link={d.link} onNavigate={onNavigate} /></div>}
       <ToolResultImages call={call} />
       <div id={panelId} hidden={!open} style={{ padding: '0 10px 8px', display: open ? 'flex' : 'none', flexDirection: 'column', gap: 6 }}>
-        {raw != null && <Section label="Input (truncated)" copyText={raw}><pre style={preStyle}>{raw}</pre></Section>}
+        {raw != null && !withheld && <Section label="Input (truncated)" copyText={raw}><pre style={preStyle}>{raw}</pre></Section>}
         {d.body}
       </div>
     </div>

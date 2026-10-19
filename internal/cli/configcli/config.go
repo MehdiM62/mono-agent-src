@@ -223,8 +223,5 @@ func (d Deps) guardReserved(verb, name string) error {
 		return nil
 	}
 	what := fmt.Sprintf("%s config %s, which gates approvals, permissions or sandboxing", verb, name)
-	if d.RequireOperator == nil {
-		return clicore.InvalidInput("only the operator can %s", what)
-	}
-	return d.RequireOperator(what)
+	return clicore.RequireOperator(d.RequireOperator, what)
 }

@@ -1269,7 +1269,8 @@
       "mcp": "using {{name}}",
       "todo": "updating its plan",
       "org": "running the team: {{name}}",
-      "other": "using {{name}}"
+      "other": "using {{name}}",
+      "vault": "running a vault command (hidden)"
     },
     "pickConfidence": "role pick {{value}}",
     "jevConfidence": "model pick {{value}}",
@@ -1584,7 +1585,11 @@
         "question": "asked",
         "result": "reported",
         "released": "released"
-      }
+      },
+      "readFirst": "This card has notes. Read them before you approve it: in Ready, agents act on its whole text.",
+      "readFirstMove": "This card has notes. Read them before it leaves Inbox: agents act on its whole text.",
+      "moveTo": "Move to {{column}}",
+      "saveFirst": "Save your edits first"
     },
     "refused": "Refused: {{error}}",
     "emptyBy": {
@@ -1597,7 +1602,17 @@
       "mac": "On a Mac: select text in any app, then Services, Add to MonoAgent Tasks.",
       "cli": "In a terminal:",
       "agents": "Agents add tasks through the task tools; their work shows here within seconds."
-    }
+    },
+    "readAndApprove": "Read and approve",
+    "hasNotes": "This card has notes: open it to read them",
+    "notesMarker": "Notes",
+    "announce": {
+      "moved": "Moved “{{title}}” to {{column}}",
+      "failed": "Couldn't move “{{title}}” to {{column}}: {{error}}"
+    },
+    "markDone": "Done",
+    "backToReady": "Back to Ready",
+    "inProfile": "in {{name}}"
   },
   "publication": {
     "title": "Publication",
@@ -1820,5 +1835,19 @@
     "alwaysAllowConfirm": "Send and always allow",
     "appAccess": "Coder agents are told about MonoAgent",
     "appAccessHint": "On: coder prompts carry the profile's summary, and org workers are offered MonoAgent's tabs (tasks, documents, people, vault, workflows and apps) and told how to use them. Off: org workers aren't told about or offered MonoAgent's tabs, and agents get no profile summary; the coder lead keeps full access, operator-only commands and send approval still apply."
+  },
+  "toolLinks": {
+    "open": "Open in {{tab}}",
+    "command": "Command",
+    "vaultHidden": "A vault command: its values are not shown here.",
+    "vaultRelated": "Vault-related command (hidden)",
+    "page": {
+      "tasks": "Task board",
+      "people": "People",
+      "noderunner": "Workflows",
+      "documents": "Documents",
+      "secretsVault": "Vault",
+      "orgs": "Orgs"
+    }
   }
 }

@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/hilsend"
 	"github.com/monoes/mono-agent/internal/profiledir"
 	"github.com/spf13/cobra"
@@ -78,7 +79,7 @@ func (d Deps) withSendDB(fn func(*sql.DB, hilsend.Store) error) error {
 // resolveSend decides a send item; shared by `hil resolve` and the older
 // `hil approve|reject`.
 func (d Deps) resolveSend(cmd *cobra.Command, st hilsend.Store, id string, approve bool, edit hilsend.Edit, always bool) error {
-	if err := d.RequireOperator("approve or reject a send"); err != nil {
+	if err := clicore.RequireOperator(d.RequireOperator, "approve or reject a send"); err != nil {
 		return err
 	}
 	p, err := hilsend.Resolve(cmd.Context(), st, id, approve, edit, always, d.SendRunner())
@@ -184,7 +185,7 @@ func (d Deps) newHILEditCmd() *cobra.Command {
 		Short: "Change a pending send's text or subject (operator only); it stays pending and re-previews",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := d.RequireOperator("edit a send"); err != nil {
+			if err := clicore.RequireOperator(d.RequireOperator, "edit a send"); err != nil {
 				return err
 			}
 			var t, s *string
@@ -330,7 +331,7 @@ func (d Deps) newHILAllowCmd() *cobra.Command {
 	add := &cobra.Command{
 		Use: "add", Short: "Always allow one destination", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if err := d.RequireOperator("allow a destination"); err != nil {
+			if err := clicore.RequireOperator(d.RequireOperator, "allow a destination"); err != nil {
 				return err
 			}
 			// Every caller (the app's form included) gets the same checks.
@@ -352,7 +353,7 @@ func (d Deps) newHILAllowCmd() *cobra.Command {
 	remove := &cobra.Command{
 		Use: "remove <rule-id>", Short: "Stop always allowing a destination", Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := d.RequireOperator("remove an always-allow rule"); err != nil {
+			if err := clicore.RequireOperator(d.RequireOperator, "remove an always-allow rule"); err != nil {
 				return err
 			}
 			return d.withSendDB(func(_ *sql.DB, st hilsend.Store) error {

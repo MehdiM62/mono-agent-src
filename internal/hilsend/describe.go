@@ -25,25 +25,23 @@ var (
 	toKeys   = []string{"to", "recipient", "channel", "chat_id", "channel_id", "user", "phone"}
 )
 
-// outbound lists the non-browser node types that send. Browser nodes are
-// matched by their action name in socialRule.
+// outbound lists the non-browser node types that send, by the canonical
+// type that runs them (canonical): a legacy name's operations are its
+// canonical type's, as service.reddit's reply_to_comment and
+// service.mastodon's create_status are comm.reddit's and comm.mastodon's.
+// Browser nodes are matched by their action name in socialRule.
 var outbound = map[string]rule{
-	"comm.email_send":   {action: ActionEmail, text: []string{"body"}, subject: []string{"subject"}, to: []string{"to"}},
-	"comm.outlook_send": {action: ActionEmail, text: []string{"body"}, subject: []string{"subject"}, to: []string{"to"}},
+	"comm.email_send": {action: ActionEmail, text: []string{"body"}, subject: []string{"subject"}, to: []string{"to"}},
 	"service.outlook_mail": {action: ActionEmail, ops: []string{"send_message", "send_draft", "reply"},
 		text: []string{"body"}, subject: []string{"subject"}, to: []string{"to"}},
 	"service.gmail": {action: ActionEmail, ops: []string{"send_message", "send_draft", "reply"},
 		text: []string{"body"}, subject: []string{"subject"}, to: []string{"to"}},
 	"comm.slack":       {action: ActionPost, ops: []string{"post_message", "upload_file"}, text: []string{"text"}, to: []string{"channel"}},
 	"comm.telegram":    {action: ActionDM, ops: []string{"", "send_message", "send_photo"}, text: []string{"message", "text"}, to: []string{"chat_id"}},
-	"comm.discord":     {action: ActionPost, ops: []string{"", "send_message", "send_embed"}, text: []string{"content", "embed_description"}, to: []string{"channel_id", "channel"}},
 	"comm.twilio":      {action: ActionDM, ops: []string{"send_sms", "send_whatsapp", "make_call"}, text: []string{"body", "message", "twiml"}, to: []string{"to"}},
 	"comm.whatsapp":    {action: ActionDM, ops: []string{"send_message", "send_template", "send_media"}, text: []string{"message", "text", "body"}, to: []string{"to"}},
-	"comm.reddit":      {action: ActionPost, ops: []string{"submit_post", "reply_to_comment"}, text: []string{"text", "body"}, subject: []string{"title"}, to: []string{"subreddit", "thing_id"}},
-	"comm.mastodon":    {action: ActionPost, ops: []string{"create_status"}, text: []string{"status", "text"}},
-	"comm.bluesky":     {action: ActionPost, ops: []string{"create_post"}, text: []string{"text"}},
-	"service.reddit":   {action: ActionPost, ops: []string{"submit_post", "comment"}, text: []string{"text", "body"}, subject: []string{"title"}, to: []string{"subreddit", "thing_id"}},
-	"service.mastodon": {action: ActionPost, ops: []string{"publish_status"}, text: []string{"status", "text"}},
+	"service.reddit":   {action: ActionPost, ops: []string{"submit_post", "comment", "reply_to_comment"}, text: []string{"text", "body"}, subject: []string{"title"}, to: []string{"subreddit", "thing_id"}},
+	"service.mastodon": {action: ActionPost, ops: []string{"publish_status", "create_status"}, text: []string{"status", "text"}},
 	"service.bluesky":  {action: ActionPost, ops: []string{"create_post"}, text: []string{"text"}},
 	"service.discord":  {action: ActionPost, ops: []string{"send_message", "send_embed"}, text: []string{"content", "embed_description"}, to: []string{"channel_id", "channel"}},
 	"service.devto": {action: ActionPublish, ops: []string{"publish_article", "create_comment"}, text: []string{"body_markdown", "body"},
@@ -114,8 +112,10 @@ type target struct {
 	ruleless bool
 }
 
-// classify reports whether nodeType with config is an outbound send.
+// classify reports whether nodeType with config is an outbound send, under
+// the type that runs it (canonical).
 func classify(nodeType string, config map[string]interface{}) (target, bool) {
+	nodeType, config = canonical(nodeType, config)
 	platform, act, _ := strings.Cut(nodeType, ".")
 	if socialPlatforms[platform] {
 		if a, ok := socialActions[act]; ok {
@@ -143,7 +143,7 @@ func (r rule) covers(config map[string]interface{}) bool {
 	if r.ops == nil {
 		return true
 	}
-	op := str(config["operation"])
+	op := opOf(config)
 	for _, o := range r.ops {
 		if o == op {
 			return true
@@ -167,6 +167,7 @@ func MaySend(nodeType string, config map[string]interface{}) bool {
 	if IsOutbound(nodeType, config) {
 		return true
 	}
+	nodeType, config = canonical(nodeType, config)
 	if r, ok := outbound[nodeType]; ok && r.ops != nil && isExpression(config["operation"]) {
 		return true
 	}

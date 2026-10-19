@@ -47,7 +47,7 @@ func newCoderSetCmd(cfg *Deps) *cobra.Command {
 		// operator's, as the send-approval setting is.
 		for _, name := range operatorCoderFlags {
 			if f.Changed(name) {
-				if err := cfg.RequireOperator("change coder mode's --" + name + ", which bounds a full-access chat"); err != nil {
+				if err := clicore.RequireOperator(cfg.RequireOperator, "change coder mode's --"+name+", which bounds a full-access chat"); err != nil {
 					return err
 				}
 				break
@@ -55,7 +55,7 @@ func newCoderSetCmd(cfg *Deps) *cobra.Command {
 		}
 		for _, o := range operatorOrgFlags {
 			if f.Changed(o.name) {
-				if err := cfg.RequireOperator("change coder mode's --" + o.name + ", " + o.why); err != nil {
+				if err := clicore.RequireOperator(cfg.RequireOperator, "change coder mode's --"+o.name+", "+o.why); err != nil {
 					return err
 				}
 				break
@@ -124,13 +124,13 @@ func newCoderSetCmd(cfg *Deps) *cobra.Command {
 			s.OrgWriters = writers
 		}
 		if f.Changed("send-approval") {
-			if err := cfg.RequireOperator("change the send-approval setting"); err != nil {
+			if err := clicore.RequireOperator(cfg.RequireOperator, "change the send-approval setting"); err != nil {
 				return err
 			}
 			s.SendApproval = &sendAppr
 		}
 		if f.Changed("app-access") {
-			if err := cfg.RequireOperator("change the app-access setting"); err != nil {
+			if err := clicore.RequireOperator(cfg.RequireOperator, "change the app-access setting"); err != nil {
 				return err
 			}
 			if appAcc != "on" && appAcc != "off" {

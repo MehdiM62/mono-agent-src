@@ -5,25 +5,21 @@ import (
 	"strings"
 )
 
-// destKeys are, per node type, the config keys besides its recipient
+// destKeys are, per node type (the canonical type that runs it: Guard
+// resolves legacy names first), the config keys besides its recipient
 // params that decide where a send goes: a value there is one more
 // destination, so the send gets its card (second security review of #871).
 var destKeys = map[string][]string{
 	"service.discord":      {"webhook_url"},
-	"comm.discord":         {"webhook_url"},
 	"service.mastodon":     {"instance", "instance_url", "in_reply_to_id", "status_id"},
-	"comm.mastodon":        {"instance", "instance_url", "in_reply_to_id", "status_id"},
 	"service.bluesky":      {"uri", "post_uri", "cid"},
-	"comm.bluesky":         {"uri", "post_uri", "cid"},
 	"service.reddit":       {"url"},
-	"comm.reddit":          {"url"},
 	"service.devto":        {"article_id"},
 	"service.hashnode":     {"publication_id", "publication_host"},
 	"service.producthunt":  {"post_id"},
 	"service.youtube":      {"comment_id"},
 	"service.gmail":        {"message_id"},
 	"service.outlook_mail": {"message_id"},
-	"comm.outlook_send":    {"message_id"},
 	"comm.twilio":          {"url"},
 }
 
@@ -55,7 +51,7 @@ func ownServer(nodeType string, config map[string]interface{}) bool {
 func fixedRecipient(nodeType string, config map[string]interface{}) string {
 	op := str(config["operation"])
 	switch nodeType {
-	case "service.gmail", "service.outlook_mail", "comm.outlook_send":
+	case "service.gmail", "service.outlook_mail":
 		switch {
 		case truthy(config["reply_all"]):
 			return "everyone on the thread (a reply ignores To)"

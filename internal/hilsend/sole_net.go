@@ -84,9 +84,9 @@ var proseKeys = []string{"subject", "body", "text", "html", "message", "content"
 // login, its address) or a credential, never a recipient.
 var senderWords = []string{"from", "sender", "account", "username", "login", "identifier", "author", "owner", "mailbox", "credential", "credentials", "password", "token", "secret"}
 
-// senderKeys are, per node type, more top-level keys that name the sending
-// side: Outlook's app-password login.
-var senderKeys = map[string][]string{"service.outlook_mail": {"email"}, "comm.outlook_send": {"email"}}
+// senderKeys are, per (canonical) node type, more top-level keys that name
+// the sending side: Outlook's app-password login.
+var senderKeys = map[string][]string{"service.outlook_mail": {"email"}}
 
 // threadKeys name a message or thread id (a Message-ID looks like an
 // address).

@@ -9,6 +9,10 @@
  *
  * The wording lives in sidepanel_record_view.js (node-tested). `ask` and
  * MonoPanelPage come from sidepanel.js, loaded first.
+ *
+ * MonoPanelRecord is the chat cards' way in (sidepanel_chat_cards.js): start()
+ * and analyze() are the Record and Analyze buttons' own, on a click on a card,
+ * and onChange tells the card what happened. Only the Save button saves.
  */
 
 (function () {
@@ -57,7 +61,21 @@
   let confirmSave = false;
   // The proposed id the person agreed to add to (after "already exists").
   let addToExisting = "";
+  // The recording the draft on screen was analyzed from.
+  let draftRecording = "";
+  const listeners = new Set();
   const PING_MS = 20000;
+  const PANEL_ID = crypto.randomUUID(); // this panel document: a start is refused unless its port is open
+
+  function emit(event) {
+    for (const fn of listeners) {
+      try {
+        fn(event);
+      } catch {
+        // a listener's failure is its own
+      }
+    }
+  }
 
   function say(target, kind, text) {
     target.textContent = text || "";
@@ -169,6 +187,7 @@
       draftBox.hidden = true;
       draft = null;
     }
+    emit({ type: "state", state });
   }
 
   async function mark(m) {
@@ -181,6 +200,19 @@
 
   // ── controls ─────────────────────────────────────────────────────
 
+  // start records the panel's page, or a chat card's (tabId); goalText, when given, goes in the box first.
+  async function start(goalText, tabId) {
+    if (state.recording) throw new Error("a recording is already running: stop it in the Record section first");
+    if (typeof goalText === "string") goal.value = goalText;
+    draftBox.hidden = true;
+    draft = null;
+    draftRecording = "";
+    const page = globalThis.MonoPanelPage && globalThis.MonoPanelPage.current();
+    owner = true;
+    if (port) port.postMessage({ type: "record_owner" });
+    return (await send({ type: "record_start", goal: goal.value.trim(), tabId: tabId || (page && page.tabId), panel: PANEL_ID })).state;
+  }
+
   toggle.addEventListener("click", async () => {
     say(msg, "", "");
     toggle.disabled = true;
@@ -188,12 +220,7 @@
       if (state.recording) {
         await send({ type: "record_stop" });
       } else {
-        draftBox.hidden = true;
-        draft = null;
-        const page = globalThis.MonoPanelPage && globalThis.MonoPanelPage.current();
-        owner = true;
-        if (port) port.postMessage({ type: "record_owner" });
-        await send({ type: "record_start", goal: goal.value.trim(), tabId: page && page.tabId });
+        await start();
       }
     } catch (err) {
       say(msg, "err", err.message);
@@ -308,19 +335,23 @@
     return out;
   }
 
-  analyzeBtn.addEventListener("click", async () => {
+  async function analyze(recordingId) {
     analyzeBtn.disabled = true;
     say(msg, "ok", "Analyzing the recording — this runs a model and can take a minute…");
     try {
-      const res = await send({ type: "record_analyze", recordingId: state.id });
+      const res = await send({ type: "record_analyze", recordingId });
       drawDraft(View.describeDraft(res.result));
+      draftRecording = recordingId;
       say(msg, "", "");
     } catch (err) {
       say(msg, "err", `Analysis failed: ${err.message}`);
+      throw err;
     } finally {
       analyzeBtn.disabled = !state.delivered;
     }
-  });
+  }
+
+  analyzeBtn.addEventListener("click", () => analyze(state.id).catch(() => {}));
 
   verifyBtn.addEventListener("click", async () => {
     if (!draft) return;
@@ -369,6 +400,7 @@
       keepBtn.hidden = true;
       const done = View.saveResult(res.result);
       say(draftMsg, done.warn ? "warn" : "ok", done.text);
+      emit({ type: "saved", recordingId: draftRecording, text: done.text });
     } catch (err) {
       const conflict = View.selectorConflict(err, saveAutomation.value.trim());
       if (asNew && View.alreadyExists(err)) {
@@ -422,7 +454,7 @@
 
   function connectPort() {
     try {
-      port = chrome.runtime.connect({ name: "monoagent-record" });
+      port = chrome.runtime.connect({ name: `monoagent-record:${PANEL_ID}` });
     } catch {
       port = null;
       return;
@@ -451,4 +483,17 @@
   }, PING_MS);
 
   connectPort();
+
+  // The chat's recording cards: each call is a click on a card, and shows this section.
+  const show = () => {
+    panel.open = true;
+    if (panel.scrollIntoView) panel.scrollIntoView({ block: "nearest" });
+  };
+  globalThis.MonoPanelRecord = {
+    start: (goalText, tabId) => (show(), start(goalText, tabId)),
+    analyze: (recordingId) => (show(), analyze(recordingId)),
+    state: () => state,
+    onChange: (fn) => listeners.add(fn),
+    panelId: PANEL_ID,
+  };
 })();

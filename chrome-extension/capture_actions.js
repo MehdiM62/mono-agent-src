@@ -63,7 +63,14 @@
     }
   }
 
-  const bridge = () => ({ send, isConnected: () => deps.isConnected() });
+  // prepare files a capture that names no profile as it is sent, or holds it
+  // when no profile exists (capture_profile.js preparer; D2). opts.verify
+  // also re-checks a profile it names: a retry may name a deleted one.
+  const bridge = (opts) => {
+    const P = root.MonoCaptureProfile;
+    const prepare = P ? P.preparer(root.MonoAsk, storage(), opts) : null;
+    return Object.assign({ send, isConnected: () => deps.isConnected() }, prepare ? { prepare } : {});
+  };
 
   /**
    * capture takes one page, through the injected capture function in tests.
@@ -190,11 +197,13 @@
     return {
       ok: delivery.sent || delivery.queued,
       queued: !!delivery.queued,
+      held: !!delivery.held,
       title: result.meta.title,
       note: result.meta.note || null,
       tags: result.meta.tags || [],
       collection: result.meta.collection || null,
-      profile: result.meta.profile || null,
+      // Filed as it was sent, if it named no profile (D2).
+      profile: delivery.profile || result.meta.profile || null,
       warnings: (result.warnings || []).concat(delivery.failed ? [delivery.reason] : []),
       error: delivery.failed ? delivery.reason : undefined,
     };
@@ -325,7 +334,7 @@
     },
     queue_state: async () => Object.assign({ ok: true }, await root.MonoCaptureQueue.pending(storage())),
     queue_retry: async (msg) => {
-      const result = await root.MonoCaptureQueue.retry(bridge(), storage(), msg.key);
+      const result = await root.MonoCaptureQueue.retry(bridge({ verify: true }), storage(), msg.key);
       await root.MonoCaptureQueue.paintBadge(storage());
       return Object.assign({ ok: result.ok }, result);
     },

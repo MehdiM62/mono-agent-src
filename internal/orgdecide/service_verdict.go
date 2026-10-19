@@ -13,7 +13,8 @@ type recordFunc func(resolver, verdict, answer, rationale string, cost *float64,
 
 // fail applies the decider-failure rule: mid hands the item to a person;
 // full denies it (telling the requester why) unless on_decider_failure is
-// human (C-52).
+// human (C-52). An item left to a person waits on them (it isn't retried
+// at this level), so a HIL one shows in the org's bubble (toPerson).
 func (s *Service) fail(ctx context.Context, root, org, level string, a *Autonomy, it Item, record recordFunc, resolver, reason string, cost *float64, lat *int64) (*Decision, error) {
 	if level == orgdesign.LevelFull && a.OnDeciderFailure == "deny" {
 		text := ""
@@ -32,8 +33,9 @@ func (s *Service) fail(ctx context.Context, root, org, level string, a *Autonomy
 				s.Logf("orgdecide: telling %s why %s was denied: %v", it.Requester, it.Action, err)
 			}
 		}
+		return record(resolver, VerdictFailed, "", reason, cost, lat)
 	}
-	return record(resolver, VerdictFailed, "", reason, cost, lat)
+	return s.toPerson(ctx, a.ProfileID, org, it)(record(resolver, VerdictFailed, "", reason, cost, lat))
 }
 
 // apply resolves an item in monomind. Resolution text starts with

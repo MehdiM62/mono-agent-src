@@ -263,6 +263,7 @@ export const api = {
   // The active profile's own folder, set up for the runtime: {path, profile:{id,name}, source, init}.
   coderWorkspaceDefault: (runtimeID = '') => GoApp.CoderWorkspaceDefault(runtimeID).then(parseStreamResult),
   getActiveProfile: () => GoApp.GetActiveProfile(),
+  getProfiles: () => GoApp.GetProfiles(),
   // Send approval (coder-bubble-v2 point 3): an agent's outbound send waits as a
   // HIL item of kind "send" (also in getHILItems as item.send). Payload shape:
   // internal/hilsend/types.go. hilSendResolve performs the previewed payload

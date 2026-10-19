@@ -55,7 +55,7 @@ func (n *DiscordNode) Execute(ctx context.Context, input workflow.NodeInput, con
 		return apipkg.ExecuteExtension(ctx, "service.discord", input, config)
 	}
 	config = withFallback(config, "text", "content")
-	operation := strVal(config, "operation")
+	operation := workflow.ConfigOperation(config)
 	if operation == "" {
 		operation = "send_message"
 	}

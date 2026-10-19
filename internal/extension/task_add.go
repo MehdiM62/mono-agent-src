@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 )
 
 // task.add: "put this on my task board" (task board spec section 11.2).
@@ -26,6 +27,13 @@ import (
 //	                  "params":{"client_id":"t-...","profile":"p-work","kind":"selection",
 //	                            "text":"...","url":"https://...","title":"..."}}
 //	Go -> extension  {"kind":"reply","id":"req-...","ok":true,"data":{"id":12,"created":true}}
+//
+// Kind "chat" is a task the side panel's chat proposed (propose_task,
+// internal/ai/chat) and the person confirmed with a click: it carries its own
+// task_title and notes, it is about no page, and the sink files it as the
+// agent it came from (agent:extension-chat), so it lands in the Inbox and
+// never in Ready. Nothing sends it but that click (chrome-extension/
+// chat_proposals.js).
 
 // MethodTaskAdd adds a captured task to the Inbox of a profile's board.
 const MethodTaskAdd = "task.add"
@@ -44,6 +52,7 @@ const (
 	TaskKindSelection = "selection" // text selected on a page
 	TaskKindPage      = "page"      // a whole page: its title and address
 	TaskKindNote      = "note"      // typed in the side panel, about no page
+	TaskKindChat      = "chat"      // proposed by the side panel's chat, confirmed by the person
 )
 
 // CapturedTask is a checked task.add request, as the sink receives it.
@@ -54,6 +63,9 @@ type CapturedTask struct {
 	Text      string
 	URL       string
 	Title     string
+	// TaskTitle and Notes are a chat proposal's own words (kind chat only).
+	TaskTitle string
+	Notes     string
 	// Origin names the browser that sent it: its label, else "Chrome". It
 	// comes from the connection, never from the request.
 	Origin string
@@ -125,8 +137,15 @@ func capturedTaskOf(req *Request) (CapturedTask, error) {
 	case TaskKindNote:
 		// Typed in the side panel: it is about no page, whatever the request says.
 		t.URL, t.Title = "", ""
+	case TaskKindChat:
+		// The chat's proposal is its title and notes, about no page.
+		t.URL, t.Title, t.Text = "", "", ""
+		t.TaskTitle, t.Notes = req.String("task_title"), req.String("notes")
+		if strings.TrimSpace(t.TaskTitle) == "" {
+			return CapturedTask{}, refusal("a task the chat proposed needs a title")
+		}
 	default:
-		return CapturedTask{}, refusal(fmt.Sprintf("task.add kind %q is not selection, page or note", firstLine(t.Kind)))
+		return CapturedTask{}, refusal(fmt.Sprintf("task.add kind %q is not selection, page, note or chat", firstLine(t.Kind)))
 	}
 	return t, nil
 }

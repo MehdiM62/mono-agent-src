@@ -46,6 +46,9 @@ type Server struct {
 	captureOptions capture.Options
 	onCapture      func(*capture.Result, error)
 	afterWrite     func(*capture.Result)
+	// profileSource is profile.list's source, kept so a capture naming a
+	// deleted profile is caught before it is written (fileUnderLiveProfile).
+	profileSource ProfileSource
 
 	// token authenticates /monoagent/relay requests (see handleRelay). Set
 	// once Start has won the port bind; empty (and thus relay-rejecting)
