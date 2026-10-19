@@ -36,6 +36,12 @@ type MastodonNode struct{}
 
 func (n *MastodonNode) Type() string { return "service.mastodon" }
 
+// CredentialDestinationKeys: the instance the access token goes to
+// (workflow.CheckCredentialDestinations).
+func (n *MastodonNode) CredentialDestinationKeys() [][]string {
+	return [][]string{{"instance", "instance_url"}}
+}
+
 // mastodonDefaultInstance is a var (not const) so tests can point it at an httptest server.
 var mastodonDefaultInstance = "https://mastodon.social"
 

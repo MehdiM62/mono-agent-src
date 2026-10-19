@@ -54,6 +54,9 @@ type expectReq struct {
 	Body    any               `json:"body"`
 	Headers map[string]string `json:"headers"`
 	Items   *int              `json:"items"`
+	// NoAuth: the request goes to a host the package doesn't name (a CDN
+	// URL a response gave), so it carries no credential (opRun.authHost).
+	NoAuth bool `json:"no_auth"`
 }
 
 // captured is one request the mock server saw.
@@ -241,6 +244,10 @@ func checkCase(t *testing.T, p *Package, op *Operation, c opCase) {
 		if idx >= len(op.Before) {
 			pp = pres
 		}
+		if e.NoAuth {
+			checkNoAuth(t, w, got, credDef)
+			return
+		}
 		checkAuth(t, w, got, credDef, cred, params, c.Input, pp)
 	}
 	if len(c.ExpectRequests) > 0 {
@@ -387,6 +394,28 @@ func checkAuth(t *testing.T, where string, got captured, c *Credential, cred, pa
 	}
 	if c.Inject.AWSSigV4 != nil && !strings.HasPrefix(got.header.Get("Authorization"), "AWS4-HMAC-SHA256 ") {
 		t.Errorf("%s: inject.aws_sigv4 is set but the request is not SigV4-signed", where)
+	}
+}
+
+// checkNoAuth wants none of the credential's headers and query params on a
+// request to a host the package doesn't name.
+func checkNoAuth(t *testing.T, where string, got captured, c *Credential) {
+	t.Helper()
+	if c == nil {
+		return
+	}
+	for k := range c.Inject.Headers {
+		if g := got.header.Get(k); g != "" {
+			t.Errorf("%s: auth header %s sent to a host the package doesn't name: %q", where, k, g)
+		}
+	}
+	for k := range c.Inject.Query {
+		if g := got.query.Get(k); g != "" {
+			t.Errorf("%s: auth query %s sent to a host the package doesn't name: %q", where, k, g)
+		}
+	}
+	if g := got.header.Get("Authorization"); g != "" {
+		t.Errorf("%s: Authorization sent to a host the package doesn't name: %q", where, g)
 	}
 }
 

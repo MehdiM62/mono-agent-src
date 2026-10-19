@@ -10,6 +10,11 @@ describe('normalizeAsk', () => {
     expect(a.attachments).toHaveLength(3)
     expect(a.recipient.name).toBe('Sam Rivera')
   })
+  it("carries a send's server and fetched URL from a `hil list` row", () => {
+    const a = normalizeAsk({ id: 'h2', kind: 'send', send: { id: 'h2', state: 'pending', channel: 'mastodon', host: 'fosstodon.example', fetchUrl: 'https://twiml.example/call.xml' } })
+    expect(a).toMatchObject({ host: 'fosstodon.example', fetchUrl: 'https://twiml.example/call.xml' })
+    expect(normalizeAsk(sendEmail)).toMatchObject({ host: '', fetchUrl: '' })
+  })
   it('reads a workflow item, with the org it belongs to', () => {
     const a = normalizeAsk(workflow)
     expect(a).toMatchObject({ kind: 'hil', id: 'hil-wf-1', pending: true, workflowName: 'Weekly outreach', org: 'acme' })

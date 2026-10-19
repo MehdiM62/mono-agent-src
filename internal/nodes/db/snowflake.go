@@ -32,6 +32,12 @@ type SnowflakeNode struct{}
 func (n *SnowflakeNode) Type() string                  { return "db.snowflake" }
 func (n *SnowflakeNode) PerItemConfigFields() []string { return sqlPerItemFields }
 
+// CredentialDestinationKeys: the account the token or key-pair JWT goes to, and a base_url in its place
+// (workflow.CheckCredentialDestinations).
+func (n *SnowflakeNode) CredentialDestinationKeys() [][]string {
+	return [][]string{{"account"}, {"base_url"}}
+}
+
 // Snowflake response caps, matching the service nodes.
 const (
 	snowflakeMaxBody      = 64 << 20

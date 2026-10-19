@@ -20,6 +20,12 @@ type ShopifyNode struct{}
 
 func (n *ShopifyNode) Type() string { return "service.shopify" }
 
+// CredentialDestinationKeys: the shop the access token goes to
+// (workflow.CheckCredentialDestinations).
+func (n *ShopifyNode) CredentialDestinationKeys() [][]string {
+	return [][]string{{"shop_domain"}}
+}
+
 // shopifyDefaultAPIVersion is the Admin API version used when the node's
 // api_version field is empty: the newest stable quarterly release at the
 // time it was set. Shopify supports each stable version for at least 12

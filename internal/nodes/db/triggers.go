@@ -27,6 +27,20 @@ var TriggerSubscribers = map[string]SubscribeFunc{
 	"trigger.postgres": SubscribePostgres,
 }
 
+// triggerDestinations are the TriggerSubscribers' destination keys, as the
+// queue nodes' (workflow.CheckDestinationKeys); redis and postgres take a
+// connection_string, which carries its own secret.
+var triggerDestinations = map[string][][]string{
+	"trigger.kafka":    kafkaDestinations,
+	"trigger.rabbitmq": rabbitDestinations,
+	"trigger.amqp":     amqpDestinations,
+	"trigger.mqtt":     mqttDestinations,
+}
+
+// TriggerDestinationKeys returns the keys of trigger nodeType's config that
+// decide where its connection's secret goes.
+func TriggerDestinationKeys(nodeType string) [][]string { return triggerDestinations[nodeType] }
+
 // CredentialResolver returns cfg with the connection's fields merged in
 // (what RunExecution does for credential_id before Execute). nil = use cfg
 // as it is.

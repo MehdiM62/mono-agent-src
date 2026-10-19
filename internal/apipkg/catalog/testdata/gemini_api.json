@@ -227,7 +227,7 @@
       }
     },
     "response_headers": {
-      "X-Goog-Upload-Url": "https://upload.example.test/resumable?upload_id=u1"
+      "X-Goog-Upload-Url": "https://generativelanguage.googleapis.com/resumable?upload_id=u1"
     },
     "responses": [
       {},
@@ -358,7 +358,7 @@
       }
     },
     "response_headers": {
-      "X-Goog-Upload-Url": "https://upload.example.test/resumable?upload_id=u2"
+      "X-Goog-Upload-Url": "https://generativelanguage.googleapis.com/resumable?upload_id=u2"
     },
     "responses": [
       {},

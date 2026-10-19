@@ -344,8 +344,15 @@ func (r *opRun) pagingOn() bool {
 // client is the HTTP client for this run: a connection whose
 // allow_unauthorized_certs field is true (self-hosted Venafi, TheHive with
 // self-signed certificates) skips TLS verification, as n8n's credential
-// option does.
+// option does, and a redirect to another host carries none of the
+// credential's headers (dropCredentialsOnRedirect).
 func (r *opRun) client() *http.Client {
+	c := *r.baseClient()
+	c.CheckRedirect = dropCredentialsOnRedirect
+	return &c
+}
+
+func (r *opRun) baseClient() *http.Client {
 	if !truthy(r.scope.Cred["allow_unauthorized_certs"]) {
 		return httpClient
 	}
