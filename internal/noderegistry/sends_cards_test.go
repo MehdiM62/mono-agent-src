@@ -41,10 +41,10 @@ func TestASettingsOrFlowCardListsWhatItSends(t *testing.T) {
 		// other is marked.
 		{"service.salesforce", cfg{"resource": "flow", "operation": "invoke", "apiName": "Notify", "jsonParameters": true,
 			"variablesJson": `{"body":"Hi Ada"}`, "variablesUi": cfg{"variablesValues": []interface{}{cfg{"name": "body", "value": "Hello"}}}},
-			"salesforce flow/invoke with:\nvariablesUi.variablesValues (not sent): [{\"name\":\"body\",\"value\":\"Hello\"}]\nvariablesJson:\n  \"body\": \"Hi Ada\""},
+			"salesforce flow/invoke with:\nvariablesUi.variablesValues (not sent):\n  [0]:\n    \"name\": \"body\"\n    \"value\": \"Hello\"\nvariablesJson:\n  \"body\": \"Hi Ada\""},
 		{"service.salesforce", cfg{"resource": "flow", "operation": "invoke", "apiName": "Notify",
 			"variablesUi": cfg{"variablesValues": []interface{}{cfg{"name": "body", "value": "Hi Ada"}}}},
-			"salesforce flow/invoke with:\nvariablesUi.variablesValues: [{\"name\":\"body\",\"value\":\"Hi Ada\"}]"},
+			"salesforce flow/invoke with:\nvariablesUi.variablesValues:\n  [0]:\n    \"name\": \"body\"\n    \"value\": \"Hi Ada\""},
 	} {
 		out, handled, err := hilsend.Guard(sendsCtx(db), c.nodeType, workflow.NodeInput{}, c.config)
 		if err != nil || !handled {

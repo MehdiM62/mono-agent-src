@@ -159,7 +159,8 @@ card's text is the op and each shown field the config sets, with its value
 as the run sends it, and can't be edited (Zulip's stream update shows its
 privacy and description changes, a Salesforce flow its variables). An
 object, or raw JSON text that holds one, lists each top-level key with its
-own value, so padding can't hide a change behind it. `"field if cond"`
+own value, and a list each element (an object element its keys), so
+padding can't hide a change behind it. `"field if cond"`
 (`cond` as in `if`) marks the field "(not sent)" on the card when `cond`
 doesn't hold: `"variablesJson if jsonParameters"`. When a `to`
 field holds an id rather than an address, `to_label` says what it is, and

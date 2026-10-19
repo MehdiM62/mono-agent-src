@@ -16,6 +16,7 @@ const (
 	showValueMax = 500 // bytes of a param's value
 	showKeyMax   = 200 // bytes of one key's value in an object
 	showKeysMax  = 20  // keys of an object listed with their values
+	showElemsMax = 10  // elements of a list listed one by one
 	showNameMax  = 80  // bytes of one key's name
 )
 
@@ -24,7 +25,8 @@ const (
 // this item would send it, so the user sees what they approve: the keys it
 // doesn't declare (undeclared), or the params its annotation shows, those
 // the config sets. An object, or raw JSON text that holds one, lists each
-// top-level key with its own value, every key's name in sight. A param
+// top-level key with its own value, every key's name in sight; a list
+// lists each element, an object element its keys. A param
 // given as an expression (exprs) says so: its keys are the run's, and on an
 // empty item it resolves to "", which would read as nothing undeclared. One
 // the run doesn't send (unsent: raw JSON its switch leaves off) is marked
@@ -49,33 +51,56 @@ func showText(op string, show, exprs, unsent []string, undeclared bool, config m
 		if val == nil && !undeclared {
 			continue
 		}
-		if obj, ok := objectOf(val); ok {
+		switch x := structured(val).(type) {
+		case map[string]interface{}:
 			b.WriteString("\n" + label + ":")
-			writeKeys(&b, obj)
-			continue
+			writeKeys(&b, x, "  ")
+		case []interface{}:
+			b.WriteString("\n" + label + ":")
+			writeElements(&b, x, "  ")
+		default:
+			b.WriteString("\n" + label + ": " + cardValue(val, showValueMax))
 		}
-		b.WriteString("\n" + label + ": " + cardValue(val, showValueMax))
 	}
 	return b.String()
 }
 
-// objectOf is v as an object: a collection's, or raw JSON text holding one.
-func objectOf(v interface{}) (map[string]interface{}, bool) {
-	switch x := v.(type) {
-	case map[string]interface{}:
-		return x, true
-	case string:
-		var m map[string]interface{}
-		if strings.HasPrefix(strings.TrimSpace(x), "{") && json.Unmarshal([]byte(x), &m) == nil {
-			return m, true
+// structured is v as an object or a list, a collection's or raw JSON text
+// holding one, or v itself.
+func structured(v interface{}) interface{} {
+	if x, ok := v.(string); ok {
+		var parsed interface{}
+		if t := strings.TrimSpace(x); (strings.HasPrefix(t, "{") || strings.HasPrefix(t, "[")) && json.Unmarshal([]byte(t), &parsed) == nil {
+			return parsed
 		}
 	}
-	return nil, false
+	return v
+}
+
+// writeElements lists arr's elements one by one, an object's keys under
+// it; past showElemsMax, how many more.
+func writeElements(b *strings.Builder, arr []interface{}, indent string) {
+	if len(arr) == 0 {
+		b.WriteString(" []")
+		return
+	}
+	for i, el := range arr {
+		if i == showElemsMax {
+			fmt.Fprintf(b, "\n%s+%d more elements", indent, len(arr)-i)
+			return
+		}
+		if obj, ok := el.(map[string]interface{}); ok {
+			fmt.Fprintf(b, "\n%s[%d]:", indent, i)
+			writeKeys(b, obj, indent+"  ")
+			continue
+		}
+		fmt.Fprintf(b, "\n%s[%d]: %s", indent, i, cardValue(el, showKeyMax))
+	}
 }
 
 // writeKeys lists obj's keys, sorted, each on its own line with its value;
 // past showKeysMax, the names of the rest.
-func writeKeys(b *strings.Builder, obj map[string]interface{}) {
+func writeKeys(b *strings.Builder, obj map[string]interface{}, indent string) {
 	if len(obj) == 0 {
 		b.WriteString(" {}")
 		return
@@ -91,10 +116,10 @@ func writeKeys(b *strings.Builder, obj map[string]interface{}) {
 			for _, n := range keys[i:] {
 				names = append(names, cardValue(n, showNameMax))
 			}
-			fmt.Fprintf(b, "\n  +%d more keys: %s", len(keys)-i, escapeHidden(cutBytes(strings.Join(names, ", "), showValueMax)))
+			fmt.Fprintf(b, "\n%s+%d more keys: %s", indent, len(keys)-i, escapeHidden(cutBytes(strings.Join(names, ", "), showValueMax)))
 			return
 		}
-		b.WriteString("\n  " + cardValue(k, showNameMax) + ": " + cardValue(obj[k], showKeyMax))
+		b.WriteString("\n" + indent + cardValue(k, showNameMax) + ": " + cardValue(obj[k], showKeyMax))
 	}
 }
 

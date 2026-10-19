@@ -41,6 +41,33 @@ func TestShowTextListsEveryKeyOfAPaddedObject(t *testing.T) {
 	}
 }
 
+// A list shows each element, an object element its keys: a padded first
+// article can't hide the second one's recipient, raw JSON or a collection
+// list alike; past showElemsMax, how many more.
+func TestShowTextListsEveryElementOfAPaddedList(t *testing.T) {
+	pad := strings.Repeat("A", 600)
+	second := "\n  [1]:\n    \"body\": \"x\"\n    \"to\": \"evil@x.test\""
+	for name, val := range map[string]interface{}{
+		"raw JSON": `[{"body":"` + pad + `","type":"email"},{"body":"x","to":"evil@x.test"}]`,
+		"a collection list": []interface{}{map[string]interface{}{"body": pad, "type": "email"},
+			map[string]interface{}{"body": "x", "to": "evil@x.test"}},
+	} {
+		got := showText("zammad ticket/update", []string{"updateFields.articles"}, nil, nil, true,
+			map[string]interface{}{"updateFields": map[string]interface{}{"articles": val}})
+		if !strings.Contains(got, "\nupdateFields.articles:\n  [0]:\n    \"body\": \"AAA") || !strings.Contains(got, second) {
+			t.Errorf("%s: card text\n%s\nlacks the second article's recipient", name, got)
+		}
+	}
+	var many []interface{}
+	for i := 0; i < showElemsMax+2; i++ {
+		many = append(many, pad)
+	}
+	got := showText("op x/y", []string{"v"}, nil, nil, false, map[string]interface{}{"v": many})
+	if !strings.Contains(got, "\n  [9]: \"AAA") || !strings.HasSuffix(got, "…\n  +2 more elements") || strings.Contains(got, "[10]") {
+		t.Errorf("many elements: %q", got)
+	}
+}
+
 func manyKeys(n int) map[string]interface{} {
 	m := map[string]interface{}{}
 	for i := 0; i < n; i++ {
