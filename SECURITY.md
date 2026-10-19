@@ -312,7 +312,15 @@ list of the situations in which Mono Agent makes network requests:
    resource. On the first gated command, a monoes.me
    library login left by an older release is exchanged once for this sign-in (its
    refresh token, the client id and the resource); if monoes.me does not allow
-   that, nothing changes and you sign in once more. monoes.me learns which
+   that, nothing changes and you sign in once more. The exchange runs only on
+   your own install: `HOME` is the home directory of your OS account and the
+   database is its `~/.monoagent/monoagent.db`. A copy of the database in
+   another `HOME` or under `--db-path` sends nothing, keeps the login, and says
+   why on stderr. On Linux, for an account the system's user list
+   (`/etc/passwd`) has no entry for, such as an LDAP account or a container's
+   arbitrary user id, `HOME` is all there is to go by, and the exchange runs as
+   it did before this check. Each exchange prints one line saying what became of
+   the login, never a token. monoes.me learns which
    account, when, and the IP address the request comes from. Nothing else is
    sent: no device identifier, no usage data, no workflow content, no file path.
 2. **monoes.me, for the library** (`library list`, `show`, `install`, `publish`,
@@ -397,6 +405,14 @@ already used as stolen: it ends that sign-in. A copy shares the sign-in of the
 machine it came from, so a stale copy, once presented, signs out the original and
 every copy, and each of them then has to sign in again. Machines that signed in
 on their own keep working.
+
+The same holds for `~/.monoagent/monoagent.db`: its vault can hold a library
+login left by an older release, and the OS keychain opens it in any copy made by
+the same OS user. Only your own install exchanges that login (see above).
+`MONOES_BASE_URL` does not keep a copy away from monoes.me: it moves the
+library's requests, but the sign-in host only in a `-tags devaccount` build
+(spec D24), so a default build always signs in, refreshes and adopts at
+https://monoes.me.
 
 ### When a sign-in is locked
 

@@ -18,7 +18,9 @@ import (
 var isProductionHost = func(host string) bool { return host == account.HostURL }
 
 // userHome is the home directory the system gives this OS user (os/user), not $HOME. A test
-// replaces it (SetUserHomeForTest).
+// replaces it (SetUserHomeForTest). On Linux a release build (CGO_ENABLED=0) reads /etc/passwd,
+// and for a user it has no entry for (an LDAP account, a container's arbitrary uid) os/user falls
+// back to $HOME: there the check passes for any HOME, as adoption did before #878.
 var userHome = func() (string, error) {
 	u, err := user.Current()
 	if err != nil {
