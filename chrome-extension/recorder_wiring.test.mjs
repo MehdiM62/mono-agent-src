@@ -30,7 +30,7 @@ function area(data = {}) {
 }
 
 // Who is asking: the side panel (an extension page) or a page recorder (a tab).
-const PANEL = { id: "ext", url: "chrome-extension://ext/sidepanel.html" };
+const PANEL = { id: "ext", url: "chrome-extension://ext/sidepanel.html", documentId: "doc-panel" };
 const PAGE = (tabId) => ({ id: "ext", tab: { id: tabId }, url: "https://app.test/" });
 
 function fakeChrome() {
@@ -360,4 +360,16 @@ test("a start from a panel that has closed starts nothing", async () => {
   assert.equal((await call({ type: "record_status" })).state.recording, false);
   port();
   assert.equal((await call({ type: "record_start", tabId: 7 })).ok, true, "an open panel starts one");
+});
+
+// #876 review: every side panel has the same address, so only the document
+// tells one panel from another. A start that names no document, or another
+// panel's, starts nothing while this panel's port is open.
+test("a start is the asking panel's own: no document id, or another panel's, starts nothing", async () => {
+  const { chrome, wire, call } = load();
+  const noDoc = await call({ type: "record_start", tabId: 7 }, { id: "ext", url: PANEL.url });
+  const other = await call({ type: "record_start", tabId: 7 }, { ...PANEL, documentId: "doc-other-panel" });
+  assert.deepEqual([noDoc.ok, other.ok], [false, false]);
+  assert.deepEqual([wire.filter((f) => f.op === "start").length, chrome.scripts.length], [0, 0]);
+  assert.equal((await call({ type: "record_start", tabId: 7 })).ok, true, "the panel whose port is open starts one");
 });

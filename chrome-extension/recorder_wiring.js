@@ -290,12 +290,15 @@
     return !!base && String(sender.url || "").startsWith(base);
   }
 
-  /** panelOpen is true while the page that sent a message has its panel port open. */
+  /**
+   * panelOpen is true while the document that sent a message has its panel
+   * port open. Every side panel has the same address, so only the document id
+   * tells them apart: without one there is no match.
+   */
   function panelOpen(sender) {
-    for (const port of ports) {
-      const s = port.sender || {};
-      if (sender && sender.documentId && s.documentId ? s.documentId === sender.documentId : s.url === (sender && sender.url)) return true;
-    }
+    const doc = sender && sender.documentId;
+    if (!doc) return false;
+    for (const port of ports) if (port.sender && port.sender.documentId === doc) return true;
     return false;
   }
 
