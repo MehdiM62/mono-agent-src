@@ -623,3 +623,14 @@ test("a vault card's Save sends its item and the panel's page to the worker", as
   assert.deepEqual(sent.map((m) => [m.profile, m.tab, m.proposal.url, m.proposal.nonce]), [["p-work", { tabId: 5, url: "https://a.example/p" }, "https://a.example/q3.pdf", "4444444444444444"]]);
   assert.ok(all().some((n) => n.textContent === "Saved to the vault in Work: q3.pdf"));
 });
+
+// #876 review: a turn remembers the page the panel showed when it was sent;
+// the cards its reply proposes are bound to it.
+test("a send remembers the page it was sent from", async () => {
+  const t = setup({ replies: { ...READY, chat_page_context: { ok: true, context: { url: "https://a.example/p", title: "A page", text: "b", selection: "" } }, chat_send: { ok: true, data: { conversation: "c-1", text: "ok" } } } });
+  await settle();
+  t.type("record this");
+  t.enter();
+  await settle(30);
+  assert.deepEqual(t.store["chatLog:p-work"].turnPage, { tabId: 5, url: "https://a.example/p" });
+});

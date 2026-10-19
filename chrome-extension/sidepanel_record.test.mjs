@@ -50,18 +50,21 @@ function setup(replies = {}) {
     return typeof r === "function" ? r(m) : r || { ok: true };
   };
   const port = { posted: [], postMessage: (m) => port.posted.push(m), onMessage: { addListener: (fn) => (port.push = fn) }, onDisconnect: { addListener() {} } };
-  const chrome = { runtime: { connect: () => port } };
+  const chrome = { runtime: { connect: (o) => ((port.name = o.name), port) } };
   const env = { document: doc, ask, chrome, setInterval: () => 0, MonoPanelPage: { current: () => ({ tabId: 5 }) } };
   const sandbox = loadExtensionScripts(["sidepanel_record_view.js", "sidepanel_record.js"], env);
   const state = (s) => port.push({ type: "record_state", state: Object.assign({ recording: false, steps: [] }, s) });
-  return { el: doc.getElementById, sent, port, state, R: sandbox.MonoPanelRecord, of: (type) => sent.filter((m) => m.type === type) };
+  const R = sandbox.MonoPanelRecord;
+  return { el: doc.getElementById, sent, port, state, R, panel: R.panelId, of: (type) => sent.filter((m) => m.type === type) };
 }
 
 test("a chat card starts a recording the way the Record button does, and never over a running one", async () => {
   const t = setup();
   assert.equal(t.of("record_start").length, 0, "loading the panel starts nothing");
   const st = await t.R.start("Export the report");
-  assert.deepEqual(t.of("record_start"), [{ type: "record_start", goal: "Export the report", tabId: 5 }]);
+  assert.deepEqual(t.of("record_start"), [{ type: "record_start", goal: "Export the report", tabId: 5, panel: t.panel }]);
+  assert.match(t.panel, /^[0-9a-f-]{36}$/);
+  assert.equal(t.port.name, `monoagent-record:${t.panel}`, "the same id names this panel's port");
   assert.equal(st.id, "rec-1");
   assert.ok(t.port.posted.some((m) => m.type === "record_owner"), "this panel owns it: closing the panel stops it");
   assert.equal(t.el("rec-goal").value, "Export the report", "the goal is in the box, as if typed");
@@ -76,7 +79,7 @@ test("the Record button still starts with the typed goal and stops a running rec
   const t = setup();
   t.el("rec-goal").value = "  Typed goal ";
   await t.el("rec-toggle").fire("click");
-  assert.deepEqual(t.of("record_start"), [{ type: "record_start", goal: "Typed goal", tabId: 5 }]);
+  assert.deepEqual(t.of("record_start"), [{ type: "record_start", goal: "Typed goal", tabId: 5, panel: t.panel }]);
   t.state({ recording: true, id: "rec-1" });
   await t.el("rec-toggle").fire("click");
   assert.equal(t.of("record_stop").length, 1);
@@ -112,5 +115,12 @@ test("a failed analysis is said in the Record section and rejects for the card",
 // save: only the Save button here sends record_save.
 test("the chat's way in has no save", () => {
   const t = setup();
-  assert.deepEqual(Object.keys(t.R).sort(), ["analyze", "onChange", "start", "state"]);
+  assert.deepEqual(Object.keys(t.R).sort(), ["analyze", "onChange", "panelId", "start", "state"]);
+});
+
+// #876 review: a chat card names the tab its recording is for.
+test("a card's start records the tab the card was proposed on", async () => {
+  const t = setup();
+  await t.R.start("Export the report", 9);
+  assert.deepEqual(t.of("record_start"), [{ type: "record_start", goal: "Export the report", tabId: 9, panel: t.panel }]);
 });

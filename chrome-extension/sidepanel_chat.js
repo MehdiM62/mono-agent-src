@@ -110,7 +110,7 @@
       // What the chat proposed: a card each, sent on only by the person's click.
       for (const p of (Proposals && m.proposals) || []) {
         const key = Proposals.keyOf(p);
-        box.appendChild(Proposals.card(document, p, { add: () => cards.confirm(key), dismiss: () => cards.dismiss(key), review: () => cards.review(key) }));
+        box.appendChild(Proposals.card(document, p, { add: (value) => cards.confirm(key, value), dismiss: () => cards.dismiss(key), review: () => cards.review(key) }));
       }
     } else if (m.role === "user") {
       const text = document.createElement("div");
@@ -377,7 +377,8 @@
     }
     if (!active || active.tag !== tag) return;
 
-    Core.startTurn(chat, message, Core.pageLabel(context), context != null);
+    const shown = pageNow(); // the reply's cards are bound to this page
+    Core.startTurn(chat, message, Core.pageLabel(context), context != null, shown && { tabId: shown.tabId, url: shown.url });
     await save();
     draw();
 

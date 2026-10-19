@@ -24,7 +24,8 @@
  * deps: chat() the conversation on screen, ask(message) the worker, profile(),
  * current() a token that changes when the panel switches profile, save(),
  * draw(), record (MonoPanelRecord, or null), page() the panel's page
- * ({tabId, url}), whose item a vault card saves.
+ * ({tabId, url}): a vault card saves an item on it, and a recording card
+ * records the page it was proposed on, only while the panel shows it.
  */
 
 (function (root) {
@@ -46,10 +47,11 @@
       deps.draw();
     }
 
-    async function confirm(key) {
+    // value: what the card's field says (a recording's goal, as the person left it).
+    async function confirm(key, value) {
       const p = find(key);
       if (!p) return;
-      if (p.kind === "recording") return startRecording(p);
+      if (p.kind === "recording") return startRecording(p, value);
       if (p.state !== "pending") return;
       const mine = deps.current();
       Proposals.settle(deps.chat(), key, { state: "sending", feedback: "" });
@@ -64,18 +66,40 @@
     }
 
     // Start recording, or Record again: the click is the only thing that starts one.
-    async function startRecording(p) {
+    // The goal is the field's, cleaned; the page is the card's own.
+    async function startRecording(p, value) {
       if (!["pending", "empty", "refused"].includes(p.state) || !deps.record) return;
-      const mine = deps.current();
       const key = keyOf(p);
-      Proposals.settle(deps.chat(), key, { state: "sending", feedback: "" });
+      const goal = Proposals.cleanGoal(value !== undefined ? value : p.goal);
+      if (!goal) return settle(key, { feedback: "Write what you will do first, then press Start recording" });
+      const moved = movedFrom(p.page);
+      if (moved) return settle(key, { feedback: moved });
+      const mine = deps.current();
+      Proposals.settle(deps.chat(), key, { state: "sending", feedback: "", goal });
       deps.draw();
       try {
-        const st = await deps.record.start(p.goal);
+        const st = await deps.record.start(goal, p.page ? p.page.tabId : undefined);
         await settle(key, { state: "recording", recordingId: st && st.id, feedback: "" }, mine);
       } catch (err) {
         await settle(key, { state: "refused", feedback: `Not started: ${errorOf(err)}` }, mine);
       }
+    }
+
+    /** movedFrom says why a card proposed on `bound` cannot record the page the panel shows now; "" when it can. */
+    function movedFrom(bound) {
+      if (!bound) return "";
+      const now = deps.page && deps.page();
+      const bare = (u) => String(u || "").split("#")[0];
+      if (now && now.tabId === bound.tabId && bare(now.url) === bare(bound.url)) return "";
+      const short = (u) => {
+        try {
+          const x = new URL(u);
+          return x.host + x.pathname;
+        } catch {
+          return String(u || "").slice(0, 80);
+        }
+      };
+      return `This was suggested for ${short(bound.url)}, but the panel shows ${now ? short(now.url) : "no page"} now. Go back to that page, then press Start recording again.`;
     }
 
     async function dismiss(key) {

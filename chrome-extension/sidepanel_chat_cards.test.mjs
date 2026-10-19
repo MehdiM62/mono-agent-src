@@ -27,24 +27,25 @@ function world({ start, analyze, taskReply } = {}) {
   const calls = [];
   let saves = 0;
   let seq = 1;
+  let page = { tabId: 5, url: "https://a.example/p" };
   const record = {
-    start: async (goal) => (calls.push(["start", goal]), start ? start(goal) : { recording: true, id: "rec-1" }),
+    start: async (goal, tabId) => (calls.push(tabId !== undefined ? ["start", goal, tabId] : ["start", goal]), start ? start(goal) : { recording: true, id: "rec-1" }),
     analyze: async (id) => (calls.push(["analyze", id]), analyze ? analyze(id) : { draftDir: "/d" }),
   };
   let reply = () => taskReply || { ok: true, status: "added", feedback: { text: "Added to Inbox in Work (#4)" } };
   const cards = C.create({
     chat: () => chat,
     ask: async (m) => (calls.push(["ask", m]), reply()),
-    page: () => ({ tabId: 5, url: "https://a.example/p" }),
     profile: () => "p-work",
     current: () => seq,
     save: async () => saves++,
     draw: () => {},
     record,
+    page: () => page,
   });
   const card = (id) => chat.messages[0].proposals.find((p) => p.id === id);
   const state = (s) => cards.follow({ type: "state", state: Object.assign({ id: "rec-1", recording: false, steps: [{}, {}, {}] }, s) });
-  return { chat, calls, cards, card, state, record, saves: () => saves, switchProfile: () => seq++, setReply: (fn) => (reply = fn) };
+  return { chat, calls, cards, card, state, record, saves: () => saves, switchProfile: () => seq++, setReply: (fn) => (reply = fn), setPage: (p) => (page = p) };
 }
 
 test("a recording card starts nothing until Start recording, then starts the recorder with its goal, once", async () => {
@@ -215,4 +216,29 @@ test("a vault card's Save sends its item with the panel's page, once, and says w
   await w.cards.confirm("3333333333333333");
   assert.deepEqual([proposals[2].state, proposals[2].feedback], ["saved", "Saved to the vault in Work: q3.pdf"]);
   assert.equal(w.calls.filter((c) => c[0] === "start").length, 0);
+});
+
+// #876 review: Start records the page the card was proposed on, with the goal
+// the person has seen and could change; another page in the panel starts nothing.
+test("Start records the card's own page with the goal from its field, and refuses another page", async () => {
+  const w = world();
+  const card = w.card("r1");
+  card.page = { tabId: 5, url: "https://a.example/p" };
+  w.setPage({ tabId: 6, url: "https://other.example/x" });
+  await w.cards.confirm("r1", "Export the weekly report");
+  assert.equal(w.calls.filter((c) => c[0] === "start").length, 0);
+  assert.equal(card.state, "pending", "it can be pressed again from that page");
+  assert.match(card.feedback, /a\.example\/p/);
+  assert.match(card.feedback, /other\.example\/x/);
+  w.setPage({ tabId: 5, url: "https://a.example/p#section" });
+  await w.cards.confirm("r1", " Export the <b>weekly</b> report\u0007 ");
+  assert.deepEqual(w.calls.filter((c) => c[0] === "start"), [["start", "Export the weekly report", 5]]);
+  assert.equal(card.goal, "Export the weekly report", "the card shows what was recorded");
+});
+
+test("a goal emptied in its field starts nothing and says why", async () => {
+  const w = world();
+  await w.cards.confirm("r1", " <b></b> ");
+  assert.equal(w.calls.filter((c) => c[0] === "start").length, 0);
+  assert.match(w.card("r1").feedback, /what you will do/i);
 });
