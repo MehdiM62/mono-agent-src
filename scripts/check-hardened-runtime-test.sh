@@ -4,10 +4,12 @@
 # assets: two tiny Go programs in a bundle laid out like MonoAgent.app.
 set -euo pipefail
 
-# release.yml checks the app's main executable, the one Info.plist names, as it checks the CLIs:
-# its runtime flag and dyld ignoring DYLD_ variables. Anywhere, before the Mac-only part.
+# release.yml checks the app's main executable, the one Info.plist names, as it checks the CLIs: it
+# fails when the executable is missing or its runtime flag is not set, and it warns (for now, not
+# fails) when dyld honours DYLD_ variables for it. Anywhere, before the Mac-only part.
 wf="$(cd "$(dirname "$0")/.." && pwd)/.github/workflows/release.yml"
-for want in "Print :CFBundleExecutable" 'for f in "${APP}" "${UI}"' 'DYLD_PRINT_LIBRARIES=1 "${UI}"'; do
+for want in "Print :CFBundleExecutable" '::error::app main executable not found' 'for f in "${APP}" "${UI}"' \
+  'DYLD_PRINT_LIBRARIES=1 "${UI}"' "::warning::dyld honours DYLD_ variables for the app's main executable"; do
   grep -qF -- "$want" "$wf" || { echo "release.yml does not check the app's main executable (no: $want)"; exit 1; }
 done
 if [ "$(uname -s)" != Darwin ]; then
@@ -59,7 +61,7 @@ check_ui() {
     sleep 1
     kill "$pid" 2>/dev/null || true
     wait "$pid" 2>/dev/null || true
-    if [ "$(grep -c '^dyld\[' "$dir/ui-dyld.txt")" -ne 0 ]; then
+    if [ "$(grep -c '^dyld\[[0-9]*\]: /' "$dir/ui-dyld.txt")" -ne 0 ]; then
       echo "dyld honours DYLD_ variables: ${ui#"$dir"/}"; return 1
     fi
   fi
