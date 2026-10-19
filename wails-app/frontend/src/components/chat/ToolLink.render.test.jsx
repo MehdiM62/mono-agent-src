@@ -52,7 +52,8 @@ describe('tool cards link to their tabs', () => {
     render(<ChatTimeline state={state} turnId="t1" isLive={false} onNavigate={onNavigate} />)
     const [reveal, add] = screen.getAllByTestId('native-tool-card')
     expect(reveal).toHaveTextContent('Vault · reveal “github”')
-    expect(add).toHaveTextContent('Vault · add “bank”')
+    expect(add).toHaveTextContent('Vault · add')
+    expect(add).not.toHaveTextContent('bank')
     // Open the cards: still no value, no command line.
     for (const card of [reveal, add]) fireEvent.click(within(card).getByRole('button', { expanded: false }))
     expect(document.body).not.toHaveTextContent('hunter2')
@@ -115,7 +116,7 @@ describe('tool cards link to their tabs', () => {
     }
     render(<OrgChatView conv={conv} nameOf={id => id} draft="" onDraftChange={vi.fn()} orgName="growth" view={{ mode: 'role', role: 'dev' }} onView={vi.fn()} onNavigate={onNavigate} />)
     const rows = screen.getAllByTestId('org-chat-tool')
-    expect(rows[1]).toHaveTextContent('Vault · add “bank”')
+    expect(rows[1]).toHaveTextContent('Vault · add')
     expect(document.body).not.toHaveTextContent('4321')
     fireEvent.click(within(rows[0]).getByRole('button', { name: 'Open in Orgs' }))
     expect(onNavigate).toHaveBeenCalledWith('orgs')

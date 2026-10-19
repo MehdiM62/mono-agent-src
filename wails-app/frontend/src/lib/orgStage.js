@@ -12,7 +12,7 @@
 // payload}); a running org (#229) can feed it the same shapes.
 
 import { vaultRelated } from '../components/chat/toolLinks.js'
-import { maskCredentials } from '../components/chat/credentials.js'
+import { maskCredentials, maskSecretShapes } from '../components/chat/credentials.js'
 
 export const LEAD_ID = 'lead'
 
@@ -328,10 +328,11 @@ function onToolCompleted(d, ev, p) {
     const sub = d.node(nativeId)
     setStatus(d, ev, nativeId, p.cancelled ? 'cancelled' : failed ? 'failed' : 'done')
     sub.outcome = sub.status
-    sub.summary = clip(p.result, 600)
+    const result = maskSecretShapes(p.result)
+    sub.summary = clip(result, 600)
     sub.limited = limitedOf(sub)
     if (sub.spawnAt && ev.at) sub.durationMs = Math.max(0, Date.parse(ev.at) - Date.parse(sub.spawnAt)) || 0
-    if (p.result) addFlight(d, ev, 'result', nativeId, sub.parentId || LEAD_ID, p.result)
+    if (result) addFlight(d, ev, 'result', nativeId, sub.parentId || LEAD_ID, result)
     addFeed(d, ev, nativeId, 'finished', sub.summary, sub.status)
   }
 }

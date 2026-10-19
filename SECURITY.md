@@ -287,6 +287,33 @@ and the wording of the model's reply, including a link you may choose to
 click (its host is shown). The page text and the reply stay in the local
 conversation database like any chat.
 
+### What the app shows of an agent's commands
+
+Coder chats and orgs show each tool call an agent makes: its command line,
+its input and its output, on a card, in an org bubble's tool rows, on the
+stage and in the background-process banner. Two rules keep secrets off
+those surfaces, and they are not equally strong.
+
+- **Hiding is the guarantee, for MonoAgent's own secret commands.** A
+  call that names `monoagentcli` together with `secret`, `vault`,
+  `--value` or `--field`, or that runs `profile info set`,
+  `profile info get --reveal`, `account login`, `jev key set`,
+  `connect set-oauth-client`, `connect get-oauth-client --reveal` or
+  `api key create`, shows no command line, input or output at all,
+  however it is wrapped (`bash -c`, `eval`, a variable, a chain). A vault
+  card names the entry only for `get`, `reveal`, `update` and `rm`.
+- **Masking is best effort, for everything else.** Values after a
+  credential-shaped name (`--token`, `API_KEY=`, `"apiKey":`,
+  `Authorization:`, `?access_token=`, `curl -u user:`, `mysql -p` and
+  more) and well-known token shapes (`sk-`, `ghp_`, `xoxb-`, `AKIA`,
+  JWTs, Stripe, npm, GitLab, SendGrid, private key blocks, webhook URLs,
+  a URL's password) read `•••` in command lines and inputs; output gets
+  the token shapes. It catches known names and shapes; it cannot promise
+  to catch every secret. A value with no telling name or shape (a
+  positional argument, a here-string, a base64 blob, a long hex string)
+  shows as written. Long hex and base64 are left alone on purpose: they
+  would also hide commit hashes and ordinary data.
+
 ## Network use, telemetry and crash reporting
 
 **No analytics, no usage counters, no device identifier.** Mono Agent does not

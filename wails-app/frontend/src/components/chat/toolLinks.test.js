@@ -26,10 +26,26 @@ describe('monoagentCommand: each command family opens its tab', () => {
     expect(monoagentCommand("monoagentcli task add --title='Write tests' x").subject).toBe('x')
   })
 
+  // Only the word right after get, reveal, update or rm is a vault entry's
+  // name; any other word may be a value, whatever the flag table says
+  // (#872 review: -v is a boolean flag elsewhere, a value flag here).
   it('names a vault entry, never a value given on the command line', () => {
-    expect(monoagentCommand('monoagentcli secret add github --field password=hunter2')).toMatchObject({ family: 'vault', sub: 'add', subject: 'github' })
-    expect(monoagentCommand('monoagentcli secret add --value hunter2 github')).toMatchObject({ sub: 'add', subject: 'github' })
-    expect(monoagentCommand('echo hunter2 | monoagentcli secret add github --stdin')).toMatchObject({ sub: 'add', subject: 'github' })
+    expect(monoagentCommand('monoagentcli secret get github --json')).toMatchObject({ family: 'vault', sub: 'get', subject: 'github' })
+    expect(monoagentCommand('monoagentcli secret reveal github --reveal')).toMatchObject({ sub: 'reveal', subject: 'github' })
+    expect(monoagentCommand('monoagentcli secret update github --field password=hunter2')).toMatchObject({ sub: 'update', subject: 'github' })
+    for (const command of [
+      'monoagentcli secret add -n tok -v hunter2',
+      'monoagentcli secret add github --field password=hunter2',
+      'monoagentcli secret add --value hunter2 github',
+      'echo hunter2 | monoagentcli secret add github --stdin',
+      'monoagentcli secret update -v hunter2 github',
+      'monoagentcli secret -v hunter2 add',
+    ]) {
+      const cli = monoagentCommand(command)
+      expect(cli.family, command).toBe('vault')
+      expect(cli.subject, command).toBe('')
+      expect(JSON.stringify(cli), command).not.toContain('hunter2')
+    }
   })
 
   it('finds the call in a chained command line', () => {
@@ -136,5 +152,41 @@ describe('vault commands, wherever they sit', () => {
     expect(isSingleCommand('monoagentcli secret list && cat ~/.ssh/id_rsa')).toBe(false)
     expect(isSingleCommand('monoagentcli secret list | grep x')).toBe(false)
     expect(isSingleCommand('echo $(monoagentcli secret list)')).toBe(false)
+  })
+})
+
+// #872 review, round 2: MonoAgent's commands that take or print a secret
+// outside the vault are hidden like vault commands, wrapped or not.
+describe("MonoAgent's own secret commands", () => {
+  const S = 'Zq8Xfake4417'
+  it.each([
+    `monoagentcli profile info set bank_iban ${S}`,
+    `monoagentcli --profile work profile info set card_number ${S}`,
+    'monoagentcli profile info get national_id --reveal',
+    'monoagentcli account login --email me@x.test --code 123456',
+    `monoagentcli jev key set ${S}`,
+    `monoagentcli connect set-oauth-client outlook --client-id abc --client-secret ${S}`,
+    'monoagentcli connect get-oauth-client outlook --reveal',
+    'monoagentcli api key create --name ci',
+    `bash -c "monoagentcli profile info set iban ${S}"`,
+    'monoagentcli task list && monoagentcli api key create --name ci',
+  ])('%s is hidden', (command) => {
+    expect(vaultRelated(command)).toBe(true)
+  })
+
+  it.each([
+    'monoagentcli profile info get national_id',
+    'monoagentcli api key list',
+    'monoagentcli account status',
+    'monoagentcli jev status',
+    'monoagentcli task add "set the profile info"',
+  ])('%s is not', (command) => {
+    expect(vaultRelated(command)).toBe(false)
+  })
+
+  it('reads through invisible characters and width variants', () => {
+    expect(vaultRelated(`mono\u200bagentcli secret add --value ${S}`)).toBe(true)
+    expect(vaultRelated(`monoagentcli \uff53ecret add --name t`)).toBe(true)
+    expect(vaultRelated(`mono\u2060agentcli account login --code 1`)).toBe(true)
   })
 })

@@ -106,17 +106,27 @@ export function isSingleCommand(command) {
   return typeof command === 'string' && segments(command).filter(s => s.trim()).length === 1
 }
 
-// A vault command can carry a value (--value, --field k=v, a heredoc), so a
-// card that might show one shows nothing of it. vaultRelated is the safe
-// rule for text a card cannot read as one monoagentcli call: it names
-// monoagentcli anywhere (behind bash -c, sh -c, env, sudo, xargs, eval or a
-// variable set to it) and mentions secret, vault, --value or --field
-// anywhere. Quotes and backslashes are ignored, so monoagent'cli' counts.
-// Better a false hide than a leak (#872 review).
+// MonoAgent's own commands that take or print a secret outside the vault:
+// profile info (ID, bank and card numbers), an account sign-in code, a Jev
+// key, an OAuth client secret, and a new API key in api key create's output.
+const SECRET_COMMANDS = [
+  /\bprofile\s+info\s+set\b/i, /\bprofile\s+info\s+get\b.*--reveal/i, /\baccount\s+login\b/i, /\bjev\s+key\s+set\b/i,
+  /\bset-oauth-client\b/i, /\bget-oauth-client\b.*--reveal/i, /\bapi\s+key\s+create\b/i,
+]
+
+// A vault command can carry a value (--value, --field k=v, a heredoc), and
+// so can the commands above, so a card that might show one shows nothing of
+// it: no command line, no output. vaultRelated is the safe rule for text a
+// card cannot read as one monoagentcli call: it names monoagentcli anywhere
+// (behind bash -c, sh -c, env, sudo, xargs, eval or a variable set to it)
+// and mentions secret, vault, --value or --field, or runs one of the
+// commands above, anywhere. Quotes, backslashes and invisible characters are
+// ignored and width variants folded, so monoagent'cli' and
+// mono<U+200B>agentcli count. Better a false hide than a leak (#872 review).
 export function vaultRelated(text) {
   if (typeof text !== 'string') return false
-  const plain = text.replace(/["'\\]/g, '')
-  return plain.includes('monoagentcli') && /secret|vault|--value|--field/i.test(plain)
+  const plain = text.normalize('NFKC').replace(/[\p{Cf}"'\\]/gu, '')
+  return plain.includes('monoagentcli') && (/secret|vault|--value|--field/i.test(plain) || SECRET_COMMANDS.some(re => re.test(plain)))
 }
 
 // vaultRelatedCall is vaultRelated for a tool call's arguments read whole
@@ -147,16 +157,18 @@ function positionals(ws, start) {
 // null when none does. A vault run anywhere in the line wins over the
 // others, so the card is a vault card. sub is the subcommand ("add",
 // "list"…), subject the first word after it (a task's title, a person, a
-// workflow, an org, a vault entry's name; "" when there is none, and never a
-// vault command's file path).
+// workflow, an org; "" when there is none). A vault command names only the
+// entry its get, reveal, update or rm works on.
 export function monoagentCommand(command) {
   if (typeof command !== 'string' || !command.includes('monoagentcli')) return null
   const runs = segments(command).map(oneRun).filter(Boolean)
   return runs.find(r => r.family === 'vault') || runs[0] || null
 }
 
-// The vault subcommands whose argument is a file, not an entry.
-const VAULT_FILE_SUBS = new Set(['import', 'export'])
+// The vault subcommands whose first argument is an entry's name. Any other
+// word of a vault command may be a value (`secret add -n tok -v VALUE`), so
+// only the word right after one of these is shown, whatever the flags.
+const VAULT_NAME_SUBS = new Set(['get', 'reveal', 'update', 'rm'])
 
 // oneRun reads one segment's monoagentcli run, or null.
 function oneRun(seg) {
@@ -177,9 +189,14 @@ function oneRun(seg) {
     rest = ws.indexOf('documents', i + 1) + 1
   }
   if (!family) return null
-  const [sub = '', word = ''] = positionals(ws, rest)
-  const path = family === 'vault' && (VAULT_FILE_SUBS.has(sub) || /[\\/~]|^\./.test(word))
-  return { family, page: TOOL_LINK_PAGES[family], sub, subject: path ? '' : word }
+  if (family === 'vault') {
+    const sub = ws[rest] && !ws[rest].startsWith('-') ? ws[rest] : ''
+    const word = ws[rest + 1] || ''
+    const named = VAULT_NAME_SUBS.has(sub) && word && !/^[-~.]|[\\/]/.test(word)
+    return { family, page: TOOL_LINK_PAGES[family], sub, subject: named ? word : '' }
+  }
+  const [sub = '', subject = ''] = positionals(ws, rest)
+  return { family, page: TOOL_LINK_PAGES[family], sub, subject }
 }
 
 // cliTitle is how a monoagentcli call reads: its tab, then the subcommand

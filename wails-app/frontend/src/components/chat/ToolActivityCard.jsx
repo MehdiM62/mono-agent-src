@@ -1,8 +1,10 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ChevronDown, ChevronRight, Loader, Check, X, Copy } from 'lucide-react'
 import { useTicker, formatDuration, copyToClipboard } from './toolCardUtils.js'
 import { NativeToolCard } from './NativeToolCard.jsx'
-import { maskArgs } from './credentials.js'
+import { maskArgs, maskSecretShapes } from './credentials.js'
+import { vaultRelatedCall } from './toolLinks.js'
 
 function formatArgs(args) {
   if (args === null || args === undefined) return null
@@ -19,7 +21,7 @@ function formatArgs(args) {
 function formatResult(call) {
   if (call.status !== 'completed') return null
   if (call.result === '') return '(empty result)'
-  return call.result
+  return maskSecretShapes(call.result)
 }
 
 // One accessible, expandable timeline step per tool call — identity is
@@ -48,15 +50,19 @@ export function ToolActivityCard(props) {
 }
 
 function GenericToolCard({ call, turnId = '', isLive = true }) {
+  const { t } = useTranslation()
   const failed = call.status === 'completed' && call.ok === false
+  // A call that may run a vault or another secret command shows neither its
+  // arguments nor its result (#872); any other's credentials read •••.
+  const withheld = vaultRelatedCall(call)
   const orphaned = !isLive && call.status === 'started'
   // Never collapse a card the user would need to see: an error stays open
   // by default, everything else starts collapsed (plan: "errors remain
   // prominent... never collapse a card the user is actively inspecting").
   const [open, setOpen] = useState(failed)
 
-  const argsText = formatArgs(maskArgs(call.arguments)) // credentials read ••• (#872)
-  const resultText = formatResult(call)
+  const argsText = withheld ? null : formatArgs(maskArgs(call.arguments))
+  const resultText = withheld ? null : formatResult(call)
   const panelId = `tool-card-${turnId}-${call.callId}`
 
   const running = isLive && call.status === 'started'
@@ -127,8 +133,9 @@ function GenericToolCard({ call, turnId = '', isLive = true }) {
           rendering) — aria-controls must resolve to a real element even
           while collapsed, which is the default state for every non-error
           card. */}
-      {(argsText != null || resultText != null) && (
+      {(argsText != null || resultText != null || withheld) && (
         <div id={panelId} hidden={!open} style={{ padding: '0 10px 8px', display: open ? 'flex' : 'none', flexDirection: 'column', gap: 6 }}>
+          {withheld && <span data-testid="vault-hidden" style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>{t('toolLinks.vaultHidden')}</span>}
           {argsText != null && (
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
@@ -150,7 +157,7 @@ function GenericToolCard({ call, turnId = '', isLive = true }) {
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: 8, color: 'var(--text-muted)', letterSpacing: 1.5, textTransform: 'uppercase' }}>Result</span>
-                <button type="button" onClick={() => copyToClipboard(call.result)} title="Copy result" aria-label="Copy result" style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0, display: 'flex' }}>
+                <button type="button" onClick={() => copyToClipboard(maskSecretShapes(call.result))} title="Copy result" aria-label="Copy result" style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0, display: 'flex' }}>
                   <Copy size={9} />
                 </button>
               </div>
