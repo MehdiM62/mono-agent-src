@@ -1,0 +1,151 @@
+// What a click on a side panel chat card does (sidepanel_chat_cards.js,
+// issue #451): a task card's Add goes to the worker; a recording card's
+// Start recording starts the Record section's recorder, the card follows
+// that recording, and its Review and save runs the analysis. Nothing here can
+// save an automation: that is the Record section's own Save.
+// `CHROME_PATH=/nonexistent node --test chrome-extension/sidepanel_chat_cards.test.mjs`
+
+import test from "node:test";
+import assert from "node:assert/strict";
+import { loadExtensionScripts } from "./test_helpers.mjs";
+
+const { MonoChatCards: C } = loadExtensionScripts(["chat_proposals.js", "sidepanel_chat_cards.js"]);
+
+function world({ start, analyze, taskReply } = {}) {
+  const chat = {
+    messages: [{
+      id: "m1", role: "assistant", text: "", tools: [],
+      proposals: [
+        { id: "r1", kind: "recording", goal: "Export the report", steps: "Open Reports.", untrustedPage: true, state: "pending", feedback: "" },
+        { id: "t1", kind: "task", title: "Book flights", notes: "", untrustedPage: false, state: "pending", feedback: "" },
+      ],
+    }],
+  };
+  const calls = [];
+  let saves = 0;
+  let seq = 1;
+  const record = {
+    start: async (goal) => (calls.push(["start", goal]), start ? start(goal) : { recording: true, id: "rec-1" }),
+    analyze: async (id) => (calls.push(["analyze", id]), analyze ? analyze(id) : { draftDir: "/d" }),
+  };
+  const cards = C.create({
+    chat: () => chat,
+    ask: async (m) => (calls.push(["ask", m]), taskReply || { ok: true, status: "added", feedback: { text: "Added to Inbox in Work (#4)" } }),
+    profile: () => "p-work",
+    current: () => seq,
+    save: async () => saves++,
+    draw: () => {},
+    record,
+  });
+  const card = (id) => chat.messages[0].proposals.find((p) => p.id === id);
+  const state = (s) => cards.follow({ type: "state", state: Object.assign({ id: "rec-1", recording: false, steps: [{}, {}, {}] }, s) });
+  return { calls, cards, card, state, saves: () => saves, switchProfile: () => seq++ };
+}
+
+test("a recording card starts nothing until Start recording, then starts the recorder with its goal, once", async () => {
+  const w = world();
+  assert.deepEqual(w.calls, [], "nothing happens before a click");
+  await w.cards.confirm("r1");
+  assert.deepEqual(w.calls, [["start", "Export the report"]]);
+  assert.deepEqual([w.card("r1").state, w.card("r1").recordingId], ["recording", "rec-1"]);
+  assert.ok(w.saves() > 0, "kept, so a reopened panel still follows it");
+  await w.cards.confirm("r1");
+  assert.equal(w.calls.length, 1, "a second click starts nothing more");
+});
+
+test("a recording that cannot start says why, and can be tried again", async () => {
+  let fail = true;
+  const w = world({ start: () => { if (fail) throw new Error("a recording is already running"); return { recording: true, id: "rec-2" }; } });
+  await w.cards.confirm("r1");
+  assert.equal(w.card("r1").state, "refused");
+  assert.match(w.card("r1").feedback, /already running/);
+  fail = false;
+  await w.cards.confirm("r1");
+  assert.deepEqual([w.card("r1").state, w.card("r1").recordingId], ["recording", "rec-2"]);
+});
+
+test("the card follows its own recording: delivered steps offer Review and save", async () => {
+  const w = world();
+  await w.cards.confirm("r1");
+  w.state({ recording: true });
+  assert.equal(w.card("r1").state, "recording");
+  w.state({ delivered: false });
+  assert.equal(w.card("r1").state, "recording");
+  assert.match(w.card("r1").feedback, /Waiting for MonoAgent/);
+  w.state({ delivered: true });
+  assert.deepEqual([w.card("r1").state, w.card("r1").feedback], ["recorded", "Recorded 3 steps."]);
+  w.state({ id: "rec-9", recording: true, steps: [] });
+  assert.equal(w.card("r1").state, "recorded", "another recording does not move a recorded card");
+  w.cards.follow({ type: "state", state: { id: "", recording: false, steps: [] } });
+  assert.equal(w.card("r1").state, "recorded", "an empty Record section says nothing about it");
+});
+
+test("a recording with no steps, or one the Record section has moved on from, offers to record again", async () => {
+  const w = world();
+  await w.cards.confirm("r1");
+  w.state({ discarded: true, steps: [] });
+  assert.deepEqual([w.card("r1").state, w.card("r1").feedback], ["empty", "Nothing was recorded."]);
+
+  const v = world();
+  await v.cards.confirm("r1");
+  v.state({ id: "rec-other" });
+  assert.equal(v.card("r1").state, "empty");
+  assert.match(v.card("r1").feedback, /no longer in the Record section/);
+});
+
+test("Review and save analyzes that recording; the Record section's Save settles the card", async () => {
+  const w = world();
+  await w.cards.confirm("r1");
+  w.state({ delivered: true });
+  await w.cards.review("r1");
+  assert.deepEqual(w.calls.at(-1), ["analyze", "rec-1"]);
+  assert.equal(w.card("r1").state, "reviewing");
+  assert.match(w.card("r1").feedback, /press Save there/);
+  w.cards.follow({ type: "saved", recordingId: "rec-9", text: "Saved something else" });
+  assert.equal(w.card("r1").state, "reviewing", "another recording's save is not this card's");
+  w.cards.follow({ type: "saved", recordingId: "rec-1", text: "Saved the action export in automation reports" });
+  assert.deepEqual([w.card("r1").state, w.card("r1").feedback], ["saved", "Saved the action export in automation reports"]);
+  assert.equal(w.calls.filter((c) => c[0] === "ask").length, 0, "the card itself saves nothing");
+});
+
+test("a save made in the Record section without the card's Review still settles it", async () => {
+  const w = world();
+  await w.cards.confirm("r1");
+  w.state({ delivered: true });
+  w.cards.follow({ type: "saved", recordingId: "rec-1", text: "Saved." });
+  assert.equal(w.card("r1").state, "saved");
+});
+
+test("a failed analysis says so and offers Review and save again", async () => {
+  const w = world({ analyze: () => { throw new Error("the bridge is not running"); } });
+  await w.cards.confirm("r1");
+  w.state({ delivered: true });
+  await w.cards.review("r1");
+  assert.equal(w.card("r1").state, "recorded");
+  assert.match(w.card("r1").feedback, /Analysis failed: the bridge is not running/);
+  await w.cards.review("t1");
+  assert.equal(w.calls.filter((c) => c[0] === "analyze").length, 1, "Review is a recording card's only");
+});
+
+test("a task card's Add still goes to the worker once, and Dismiss sends nothing", async () => {
+  const w = world();
+  await w.cards.confirm("t1");
+  await w.cards.confirm("t1");
+  const asked = w.calls.filter((c) => c[0] === "ask").map((c) => c[1]);
+  assert.deepEqual(asked, [{ type: "task_add_proposal", profile: "p-work", proposal: { id: "t1", kind: "task", title: "Book flights", notes: "" } }]);
+  assert.deepEqual([w.card("t1").state, w.card("t1").feedback], ["added", "Added to Inbox in Work (#4)"]);
+  await w.cards.dismiss("r1");
+  assert.equal(w.card("r1").state, "dismissed");
+  assert.equal(w.calls.filter((c) => c[0] === "start").length, 0);
+});
+
+test("a start answered after the panel moved to another profile leaves the card alone", async () => {
+  let release;
+  const w = world({ start: () => new Promise((r) => (release = r)) });
+  const pressed = w.cards.confirm("r1");
+  await new Promise((r) => setTimeout(r, 1));
+  w.switchProfile();
+  release({ recording: true, id: "rec-1" });
+  await pressed;
+  assert.equal(w.card("r1").recordingId, undefined);
+});

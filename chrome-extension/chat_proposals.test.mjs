@@ -90,3 +90,69 @@ test("the card is built from text nodes, and its buttons call back only when pre
   buttons[0].listeners.click[0]({});
   assert.deepEqual(calls, ["add"]);
 });
+
+// #451 phase 2: the chat may ask the person to record steps. The card starts
+// nothing itself; it follows the recording the person starts from it, and the
+// automation is saved only by the Record section's own Save.
+test("a propose_recording answer is a recording card, and an answer cannot name a recording", () => {
+  const p = P.fromTool("propose_recording", answer({ kind: "recording", goal: "Export\nthe   report", steps: " Open Reports. " }), "toolu_r", true);
+  assert.deepEqual(p, { id: "toolu_r", kind: "recording", goal: "Export the report", steps: "Open Reports.", untrustedPage: true, state: "pending", feedback: "" });
+  assert.equal(P.fromTool("propose_recording", answer({ kind: "task", title: "x" }), "t", false), null, "the kind must be the tool's");
+  assert.equal(P.fromTool("propose_task", answer({ kind: "recording", goal: "x" }), "t", false), null);
+  assert.equal(P.fromTool("propose_recording", answer({ kind: "recording", goal: "  " }), "t", false), null, "no goal, no card");
+  const named = P.fromTool("propose_recording", answer({ kind: "recording", goal: "g", recordingId: "rec-1", state: "recorded" }), "t", false);
+  assert.deepEqual([named.state, named.recordingId], ["pending", undefined]);
+});
+
+test("a recording card says what to do next at each step, and offers only that", () => {
+  const v = (state, feedback) => P.view({ id: "r", kind: "recording", goal: "G", steps: "S", untrustedPage: true, state, feedback });
+  const pending = v("pending");
+  assert.deepEqual([pending.heading, pending.title, pending.notes], ["Record these steps?", "G", "S"]);
+  assert.match(pending.warning, /web page/);
+  assert.deepEqual(pending.actions, ["add", "dismiss"]);
+  assert.equal(pending.labels.add, "Start recording");
+  assert.deepEqual(v("recording").actions, []);
+  assert.match(v("recording").status, /press Stop there/);
+  assert.deepEqual([v("recorded", "Recorded 3 steps.").actions, v("recorded", "Recorded 3 steps.").status], [["review"], "Recorded 3 steps."]);
+  assert.equal(v("recorded").labels.review, "Review and save");
+  assert.deepEqual(v("reviewing").actions, []);
+  assert.deepEqual(v("saved", "Saved.").actions, []);
+  assert.deepEqual([v("empty").actions, v("empty").labels.add], [["add", "dismiss"], "Record again"]);
+  assert.deepEqual(v("refused", "Not started: no tab").actions, ["add", "dismiss"]);
+});
+
+test("a stored recording card keeps its recording; one cut off mid-step can be pressed again", () => {
+  const card = (state, recordingId) => ({ id: state, kind: "recording", goal: "G", state, recordingId });
+  const out = P.clone([
+    card("recording", "rec-20261019-010203-ab12"), card("reviewing", "rec-1"), card("sending"),
+    card("recorded", "../x"), card("saved", "rec-2"), { id: "t", kind: "task", title: "T", state: "recording" },
+  ]);
+  assert.deepEqual(out.map((p) => [p.id, p.state, p.recordingId]), [
+    ["recording", "recording", "rec-20261019-010203-ab12"],
+    ["reviewing", "recorded", "rec-1"],
+    ["sending", "pending", undefined],
+    ["recorded", "pending", undefined],
+    ["saved", "saved", "rec-2"],
+    ["t", "pending", undefined],
+  ]);
+  const chat = { messages: [{ proposals: [{ id: "r", kind: "recording", goal: "G", state: "pending" }] }] };
+  assert.ok(P.settle(chat, "r", { state: "recording", recordingId: "rec-3" }));
+  assert.deepEqual([chat.messages[0].proposals[0].state, chat.messages[0].proposals[0].recordingId], ["recording", "rec-3"]);
+  P.settle(chat, "r", { state: "added", recordingId: "../bad" });
+  assert.deepEqual([chat.messages[0].proposals[0].state, chat.messages[0].proposals[0].recordingId], ["recording", "rec-3"], "not a recording card's state, nor a usable id");
+});
+
+test("a recorded card's button is Review and save, and calls back only when pressed", () => {
+  const calls = [];
+  const card = P.card(doc, { id: "r", kind: "recording", goal: "G", state: "recorded", feedback: "Recorded 2 steps." }, {
+    add: () => calls.push("add"),
+    review: () => calls.push("review"),
+  });
+  const buttons = card.all().filter((n) => n.tag === "button");
+  assert.deepEqual(buttons.map((b) => b.textContent), ["Review and save"]);
+  const order = card.children.map((n) => n.className);
+  assert.ok(order.indexOf("chat-proposal-status") < order.indexOf("chat-proposal-actions"), "what happened, then what to do next");
+  assert.deepEqual(calls, []);
+  buttons[0].listeners.click[0]({});
+  assert.deepEqual(calls, ["review"]);
+});

@@ -41,7 +41,7 @@ class Node_ {
 
 const IDS = ["chat-log", "chat-empty", "chat-input", "chat-send", "chat-stop", "chat-new", "chat-fill", "chat-card", "chat-files", "chat-summarize", "chat-page", "chat-notice", "chat-state"];
 
-function setup({ replies = {}, stored = {}, pageNow = { tabId: 5, url: "https://a.example/p", title: "A page" }, profile = "p-work" } = {}) {
+function setup({ replies = {}, stored = {}, pageNow = { tabId: 5, url: "https://a.example/p", title: "A page" }, profile = "p-work", record = null } = {}) {
   const els = {};
   for (const id of IDS) els[id] = new Node_(id);
   els["chat-log"].appendChild(els["chat-empty"]);
@@ -67,8 +67,9 @@ function setup({ replies = {}, stored = {}, pageNow = { tabId: 5, url: "https://
     storage: { local: { get: async (k) => Object.fromEntries([].concat(k).filter((x) => x in store).map((x) => [x, store[x]])), set: async (o) => Object.assign(store, o) } },
   };
   const env = { document: doc, chrome, ask, profiles: { current: { id: profile } }, page: pageNow, here: { windowId: 1 }, CustomEvent: class { constructor(t) { this.type = t; } } };
+  if (record) env.MonoPanelRecord = record;
   doc.dispatchEvent = (e) => sent.push({ event: e.type });
-  const sandbox = loadExtensionScripts(["chat_core.js", "chat_render.js", "chat_proposals.js", "sidepanel_chat.js"], env);
+  const sandbox = loadExtensionScripts(["chat_core.js", "chat_render.js", "chat_proposals.js", "sidepanel_chat_cards.js", "sidepanel_chat.js"], env);
   return {
     els, sent, store, doc, sandbox,
     progress: (tag, seq, stage, payload) => onMessage({ type: "chat_progress", tag, progress: { stage, detail: JSON.stringify({ seq, payload }) } }),
@@ -370,6 +371,9 @@ test("the section is in the panel, first and open by default", () => {
   assert.ok(html.indexOf('id="chat"') < html.indexOf('class="capture"'), "above the capture card");
   for (const f of ["chat_core.js", "chat_render.js", "sidepanel_chat.js", "sidepanel_chat.css"]) assert.ok(html.includes(f), f);
   assert.ok(html.indexOf("sidepanel.js") < html.indexOf("sidepanel_chat.js"), "after sidepanel.js, which it leans on");
+  for (const f of ["sidepanel_record.js", "chat_proposals.js", "sidepanel_chat_cards.js"]) {
+    assert.ok(html.indexOf(`"${f}"`) > 0 && html.indexOf(`"${f}"`) < html.indexOf('"sidepanel_chat.js"'), `${f} before sidepanel_chat.js`);
+  }
   assert.match(html, /<label for="chat-input" class="sr-only">/);
 });
 
@@ -468,4 +472,41 @@ test("a proposal card sends nothing until Add, then says what became of it", asy
   assert.equal(t.sent.filter((m) => m.type === "task_add_proposal").length, 1, "Dismiss sends nothing");
   const kept = t.store["chatLog:p-work"].messages[1].proposals.map((p) => [p.id, p.state]);
   assert.deepEqual(kept, [["toolu_1", "added"], ["toolu_2", "dismissed"]]);
+});
+
+// #451 phase 2: a recording card starts the Record section's recorder only
+// on Start recording, then follows that recording to Review and save.
+test("a recording card starts the recorder on its click and follows the recording", async () => {
+  const listeners = [];
+  const record = {
+    calls: [],
+    state: () => ({ recording: false, steps: [] }),
+    onChange: (fn) => listeners.push(fn),
+    start: async (goal) => (record.calls.push(["start", goal]), { recording: true, id: "rec-1" }),
+    analyze: async (id) => (record.calls.push(["analyze", id]), { draftDir: "/d" }),
+  };
+  const stored = {
+    "chatConv:p-work": "c-1",
+    "chatLog:p-work": {
+      conversation: "c-1", turn: "t1", lastSeq: 9, nextId: 3, readPage: true,
+      messages: [{ id: "m2", role: "assistant", text: "Let's record it.", tools: [], open: false,
+        proposals: [{ id: "toolu_r", kind: "recording", goal: "Export the report", steps: "Open Reports.", untrustedPage: true, state: "pending" }] }],
+    },
+  };
+  const t = setup({ stored, record, replies: { ...READY, chat_events: { ok: true, turn: "t1", events: [], turn_active: false } } });
+  t.doc.fire("panel:profiles");
+  await settle(30);
+  const all = () => t.log().flatMap(function walk(n) { return [n, ...n.children.flatMap(walk)]; });
+  const button = (label) => all().find((n) => n.tag === "button" && n.textContent === label);
+  assert.deepEqual(record.calls, [], "nothing starts before a click");
+  button("Start recording").fire("click");
+  await settle(30);
+  assert.deepEqual(record.calls, [["start", "Export the report"]]);
+  for (const fn of listeners) fn({ type: "state", state: { id: "rec-1", recording: false, delivered: true, steps: [{}, {}] } });
+  await settle(30);
+  assert.ok(all().some((n) => n.textContent === "Recorded 2 steps."));
+  button("Review and save").fire("click");
+  await settle(30);
+  assert.deepEqual(record.calls.at(-1), ["analyze", "rec-1"]);
+  assert.equal(t.store["chatLog:p-work"].messages[0].proposals[0].recordingId, "rec-1");
 });

@@ -8,9 +8,13 @@
  * on the card sends it on. Each card is checked again here: the answer is a
  * model's, steered by whatever page it read.
  *
- * Kinds, and what a click does:
- *   task   title and notes -> task.add kind "chat" (task_bridge.js), which
- *          MonoAgent files in the Inbox as the agent agent:extension-chat.
+ * Kinds, and what a click does (sidepanel_chat_cards.js):
+ *   task       title and notes -> task.add kind "chat" (task_bridge.js), which
+ *              MonoAgent files in the Inbox as the agent agent:extension-chat.
+ *   recording  goal and steps -> Start recording starts the Record section's
+ *              recorder on this tab; the card then follows that recording
+ *              (recordingId) to Review and save, and the automation is saved
+ *              only by the Record section's own Save.
  * This table is the seam the vault save plugs into once the bridge has
  * vault.save: its tool in TOOLS, its kind in KINDS, and the worker message
  * the panel sends on its click.
@@ -30,7 +34,7 @@
   const NOTES_BYTES = 4000;
 
   // The proposal tools, by the kind each answers with.
-  const TOOLS = { propose_task: "task" };
+  const TOOLS = { propose_task: "task", propose_recording: "recording" };
 
   const str = (v) => (typeof v === "string" ? v : "");
   const oneLine = (s) => str(s).split(/\s+/).filter(Boolean).join(" ");
@@ -47,17 +51,56 @@
     return out;
   }
 
-  // What each kind keeps of an answer, and when it is a card at all.
+  const RECORDING_STATUS = {
+    sending: "Starting…",
+    recording: "Recording in the Record section below: do the steps on the page, then press Stop there.",
+    recorded: "Recorded.",
+    reviewing: "Analyzing the recording…",
+    empty: "Nothing was recorded.",
+    dismissed: "Not recorded",
+  };
+
+  // What each kind keeps of an answer, and when it is a card at all; its
+  // states, and what a card in each one says and offers (screen).
   const KINDS = {
     task: {
       heading: "Add a task?",
-      confirm: "Add to Inbox",
       fields: (p) => ({ title: runes(oneLine(p.title), TITLE_RUNES), notes: bytes(str(p.notes).trim(), NOTES_BYTES) }),
       valid: (f) => !!f.title,
+      text: (p) => ({ title: p.title, notes: p.notes || "" }),
+      check: "Check it before you add it.",
+      states: new Set(["pending", "sending", "added", "queued", "refused", "dismissed"]),
+      screen: (p) => {
+        const status = { pending: "", sending: "Adding…", dismissed: "Not added" }[p.state];
+        return {
+          actions: p.state === "pending" ? ["add", "dismiss"] : [],
+          labels: { add: "Add to Inbox", dismiss: "Dismiss" },
+          status: status !== undefined ? status : p.feedback || "",
+        };
+      },
+    },
+    recording: {
+      heading: "Record these steps?",
+      fields: (p) => ({ goal: runes(oneLine(p.goal), TITLE_RUNES), steps: bytes(str(p.steps).trim(), NOTES_BYTES) }),
+      valid: (f) => !!f.goal,
+      text: (p) => ({ title: p.goal, notes: p.steps || "" }),
+      check: "Check the goal before you record.",
+      states: new Set(["pending", "sending", "recording", "recorded", "reviewing", "saved", "empty", "refused", "dismissed"]),
+      screen: (p) => {
+        const again = p.state === "empty" || p.state === "refused";
+        return {
+          actions: p.state === "pending" || again ? ["add", "dismiss"] : p.state === "recorded" ? ["review"] : [],
+          labels: { add: again ? "Record again" : "Start recording", dismiss: "Dismiss", review: "Review and save" },
+          status: p.feedback || RECORDING_STATUS[p.state] || "",
+        };
+      },
     },
   };
 
-  const STATES = new Set(["pending", "sending", "added", "queued", "refused", "dismissed"]);
+  // A recording's id as the recorder makes it (rec-<stamp>-<rand>).
+  const usableRecording = (id) => typeof id === "string" && /^[A-Za-z0-9_-]{1,80}$/.test(id);
+  // The recording card's states that need the recording they follow.
+  const FOLLOWING = new Set(["recording", "recorded", "reviewing"]);
 
   /** cardOf checks one proposal (an answer's, or a stored card) and returns the card, or null. */
   function cardOf(raw, id, untrustedPage, state, feedback) {
@@ -91,25 +134,38 @@
   /**
    * clone checks stored cards again. A card left "sending" by a panel that
    * closed mid-send is pending again: the task's id makes a second send add
-   * nothing twice.
+   * nothing twice. A recording card keeps the recording it follows; one cut
+   * off mid-review (its draft went with the panel) offers Review again, and
+   * one that lost its recording starts over.
    */
   function clone(list) {
     const out = [];
     for (const p of Array.isArray(list) ? list : []) {
-      const state = STATES.has(p && p.state) && p.state !== "sending" ? p.state : "pending";
+      const kind = p && KINDS[p.kind];
+      let state = kind && kind.states.has(p.state) && p.state !== "sending" ? p.state : "pending";
+      if (state === "reviewing") state = "recorded";
       const c = cardOf(p, p && p.id, p && p.untrustedPage, state, p && p.feedback);
-      if (c) out.push(c);
+      if (!c) continue;
+      if (c.kind === "recording" && usableRecording(p.recordingId)) c.recordingId = p.recordingId;
+      else if (FOLLOWING.has(c.state)) Object.assign(c, { state: "pending", feedback: "" });
+      out.push(c);
     }
     return out;
   }
 
-  /** settle records what became of a card ({state, feedback}); true when there was one. */
+  /**
+   * settle records what became of a card ({state, feedback}, and a recording
+   * card's recordingId); true when there was one. A state the card's kind
+   * does not have is not taken.
+   */
   function settle(chatState, id, patch) {
     for (const m of (chatState && chatState.messages) || []) {
       const p = (m.proposals || []).find((x) => x.id === id);
       if (!p) continue;
-      if (patch && STATES.has(patch.state)) p.state = patch.state;
+      const kind = KINDS[p.kind];
+      if (patch && kind && kind.states.has(patch.state)) p.state = patch.state;
       if (patch && typeof patch.feedback === "string") p.feedback = patch.feedback.slice(0, 300);
+      if (patch && p.kind === "recording" && usableRecording(patch.recordingId)) p.recordingId = patch.recordingId;
       return true;
     }
     return false;
@@ -120,23 +176,17 @@
     return `chat-${str(p && p.id).replace(/[^A-Za-z0-9_-]/g, "")}`.slice(0, 64);
   }
 
-  /** view is what a card says, from its state. */
+  /** view is what a card says, from its state: its buttons are actions, named by labels. */
   function view(p) {
     const k = KINDS[p.kind] || KINDS.task;
-    const status = {
-      pending: "",
-      sending: "Adding…",
-      dismissed: "Not added",
-    }[p.state];
-    return {
-      heading: k.heading,
-      title: p.title,
-      notes: p.notes || "",
-      warning: p.untrustedPage ? "Suggested after reading a web page, which can steer the chat. Check it before you add it." : "",
-      actions: p.state === "pending" ? ["add", "dismiss"] : [],
-      confirm: k.confirm,
-      status: status !== undefined ? status : p.feedback || "",
-    };
+    return Object.assign(
+      {
+        heading: k.heading,
+        warning: p.untrustedPage ? `Suggested after reading a web page, which can steer the chat. ${k.check}` : "",
+      },
+      k.text(p),
+      k.screen(p)
+    );
   }
 
   /** card builds a card's DOM: text only, and a button calls back only when pressed. */
@@ -158,6 +208,8 @@
     line("chat-proposal-title", v.title);
     if (v.notes) line("chat-proposal-notes", v.notes);
     if (v.warning) line("chat-proposal-warning", v.warning);
+    // What happened so far, then what can be done next (a recording card has both).
+    if (v.status) line("chat-proposal-status", v.status).setAttribute("role", "status");
     if (v.actions.length) {
       const row = doc.createElement("div");
       row.className = "chat-proposal-actions";
@@ -169,11 +221,11 @@
         b.addEventListener("click", () => fn && fn());
         row.appendChild(b);
       };
-      button(v.confirm, on && on.add, "btn-secondary btn-tiny chat-proposal-add");
-      button("Dismiss", on && on.dismiss, "btn-secondary btn-tiny");
+      for (const a of v.actions) {
+        button(v.labels[a], on && on[a], a === "dismiss" ? "btn-secondary btn-tiny" : "btn-secondary btn-tiny chat-proposal-add");
+      }
       box.appendChild(row);
     }
-    if (v.status) line("chat-proposal-status", v.status).setAttribute("role", "status");
     return box;
   }
 
