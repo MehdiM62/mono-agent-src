@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -376,5 +377,39 @@ func TestVaultSinkRetryRepliesWithTheStoredItem(t *testing.T) {
 	want := extension.VaultSaved{ID: saved.ID, Created: false, Name: "invoice.pdf", MIME: "application/pdf", SizeBytes: len(first.Data)}
 	if got != want {
 		t.Errorf("retry reply = %+v, want the stored item %+v", got, want)
+	}
+}
+
+// A retry after the item's label was cleared names the item by its file.
+func TestVaultSinkRetryNamesAnUnlabelledItemByItsFile(t *testing.T) {
+	path, _ := vaultEnv(t)
+	saved, err := extensionVaultSink(path).SaveToVault(context.Background(), vaultFile("p-work", "v-1"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	db, err := storage.NewDatabase(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = db.DB.Exec(`UPDATE vault_images SET label = NULL WHERE id = ?`, saved.ID)
+	db.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := extensionVaultSink(path).SaveToVault(context.Background(), vaultFile("p-work", "v-1"))
+	if err != nil || got.Created || got.Name != saved.ID+".pdf" {
+		t.Errorf("retry of an unlabelled item: %+v, %v; want the name %s.pdf", got, err, saved.ID)
+	}
+}
+
+// The sink lists the profiles in the database for vault.save's live check.
+func TestVaultSinkListsLiveProfiles(t *testing.T) {
+	path, _ := vaultEnv(t)
+	ids, err := extensionVaultSink(path).LiveProfiles(context.Background())
+	if err != nil || !slices.Contains(ids, "p-work") || !slices.Contains(ids, "p-home") || slices.Contains(ids, "p-gone") {
+		t.Errorf("LiveProfiles = %v, %v", ids, err)
+	}
+	if _, err := extensionVaultSink(filepath.Join(t.TempDir(), "none.db")).LiveProfiles(context.Background()); err == nil || sinkCode(t, err) != extension.CodeUnavailable {
+		t.Errorf("no database: %v, want unavailable", err)
 	}
 }

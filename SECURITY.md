@@ -319,15 +319,21 @@ read. It is one bridge request method, `vault.save`
   extension, 0600, never under the sent name); the profile id is a valid
   folder name and must be a profile that exists now, so a profile deleted
   since the panel listed it gets no folder back; the source address is kept
-  only as http(s) scheme, host and path (no user-info, query or fragment, so
-  a presigned URL's signature never shows in `image list` or the app).
+  only as http(s) scheme, host and path (no user-info, query, fragment or a
+  segment's `;parameters` such as `;jsessionid=`, so a presigned URL's
+  signature never shows in `image list` or the app). A token that is itself
+  a path segment is kept: nothing tells it from a file name.
 - **Limits per profile.** Files saved this way (vault items with a client id)
   may total at most **2 GiB** and **5,000 items** per profile; the count and
   the sum are read inside the save's own `BEGIN IMMEDIATE` transaction, so
   saves at once cannot pass them together. Past either, the save is refused
   with `quota_exceeded`, naming the limit (final: delete saved files in the
-  Image Vault). At most **20 saves a minute per profile**, counted in memory in
-  the bridge process; past that, `rate_limited` with `retry_after` in seconds.
+  Image Vault). At most **20 saves a minute per profile** and **60 a minute in
+  all**, counted in memory in the bridge process; past either, `rate_limited`
+  with `retry_after` in seconds. A save is counted only once its profile is
+  known to exist, from a list of live profiles read at most once a second, so
+  made-up profile ids get neither a rate window nor any database work; the
+  file is decoded only after the rate check.
 - **Exactly one write per save.** Each request carries a client id; the
   vault keeps one item per client id per profile (a unique index), so a retry
   returns the item it already made and writes nothing. A file or symlink

@@ -37,6 +37,25 @@ type vaultSink struct{ path string }
 // extensionVaultSink is the sink newExtensionServer installs.
 func extensionVaultSink(path string) extension.VaultSink { return vaultSink{path: path} }
 
+// LiveProfiles implements extension.VaultSink: the ids of the profiles in the
+// database now. The bridge asks at most once a second.
+func (v vaultSink) LiveProfiles(ctx context.Context) ([]string, error) {
+	db, err := capturecli.OpenProfileDB(v.path)
+	if err != nil {
+		return nil, extension.Unavailable("MonoAgent has no database yet: start MonoAgent or run any monoagentcli command")
+	}
+	defer db.Close()
+	profiles, err := profiledir.List(ctx, db.DB)
+	if err != nil {
+		return nil, extension.Unavailable("MonoAgent could not read its profiles; try again")
+	}
+	ids := make([]string, len(profiles))
+	for i, p := range profiles {
+		ids[i] = p.ID
+	}
+	return ids, nil
+}
+
 // SaveToVault implements extension.VaultSink.
 func (v vaultSink) SaveToVault(ctx context.Context, f extension.VaultFile) (extension.VaultSaved, error) {
 	db, err := capturecli.OpenProfileDB(v.path)
@@ -74,8 +93,13 @@ func (v vaultSink) SaveToVault(ctx context.Context, f extension.VaultFile) (exte
 		return extension.VaultSaved{}, vaultSaveErr(err)
 	}
 	// The reply is the item as stored: a retry of a client id gets the item
-	// the first save made, whatever name or bytes this request carried.
-	return extension.VaultSaved{ID: item.ID, Created: item.Created, Name: item.Label, MIME: extension.VaultSaveMIME(item.Filename),
+	// the first save made, whatever name or bytes this request carried, and
+	// its file name when its label has since been cleared.
+	name := item.Label
+	if name == "" {
+		name = item.Filename
+	}
+	return extension.VaultSaved{ID: item.ID, Created: item.Created, Name: name, MIME: extension.VaultSaveMIME(item.Filename),
 		SizeBytes: int(item.SizeBytes)}, nil
 }
 

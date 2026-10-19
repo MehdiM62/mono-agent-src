@@ -35,6 +35,9 @@ type Server struct {
 	connected chan struct{} // closed when first connection arrives
 	connOnce  sync.Once
 
+	// vaultRate is vault.save's rate windows, set by SetVaultSink.
+	vaultRate *saveRateLimiter
+
 	// Capture plumbing (see capture.go). streams carries the multi-message
 	// page_capture responses, which pending cannot: it is single-shot, and
 	// one capture may span many messages under one id. Both are guarded by

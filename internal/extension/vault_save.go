@@ -133,6 +133,11 @@ type VaultSaved struct {
 // CodeUnavailable); any other error arrives as CodeInternal.
 type VaultSink interface {
 	SaveToVault(ctx context.Context, f VaultFile) (VaultSaved, error)
+	// LiveProfiles lists the ids of the profiles that exist now. vault.save
+	// asks at most once a second (liveProfileCache) and refuses an id not in
+	// it before it counts the save or reads the file, so a made-up id costs
+	// no rate bucket and no database work.
+	LiveProfiles(ctx context.Context) ([]string, error)
 }
 
 // SetVaultSink installs the sink behind vault.save and registers the method
@@ -144,24 +149,42 @@ func (s *Server) SetVaultSink(sink VaultSink) {
 		s.handlerMu.Unlock()
 		return
 	}
-	limiter := newSaveRateLimiter(vaultSaveRate, vaultSaveNow)
+	limiter := newSaveRateLimiter(vaultSaveRate, vaultSaveTotalRate, vaultSaveNow)
+	s.vaultRate = limiter
+	live := newLiveProfileCache(sink.LiveProfiles, vaultSaveNow)
 	s.HandleRequest(MethodVaultSave, func(ctx context.Context, req *Request, _ ProgressFunc) (any, error) {
-		f, err := vaultFileOf(req)
+		// The cheap checks, then the profile must be live and the save must
+		// fit the rate, and only then is the file decoded and checked.
+		f, err := vaultFileHead(req)
 		if err != nil {
 			return nil, err
 		}
-		if wait, ok := limiter.allow(f.ProfileID); !ok {
+		if ok, err := live.has(ctx, f.ProfileID); err != nil {
+			return nil, err
+		} else if !ok {
+			return nil, refusal(fmt.Sprintf("profile %.64q does not exist (any more): choose another in the side panel", f.ProfileID))
+		}
+		if wait, overall, ok := limiter.allow(f.ProfileID); !ok {
 			secs := max(1, int((wait+time.Second-1)/time.Second))
+			limit := fmt.Sprintf("at most %d saves a minute for one profile", vaultSaveRate)
+			if overall {
+				limit = fmt.Sprintf("at most %d saves a minute in all", vaultSaveTotalRate)
+			}
 			return nil, &RequestError{Code: CodeRateLimited, Data: map[string]any{"retry_after": secs},
-				Err: fmt.Errorf("vault.save: at most %d saves a minute for one profile; try again in %d s", vaultSaveRate, secs)}
+				Err: fmt.Errorf("vault.save: %s; try again in %d s", limit, secs)}
+		}
+		if err := vaultFileBody(req, &f); err != nil {
+			return nil, err
 		}
 		return sink.SaveToVault(ctx, f)
 	})
 }
 
-// vaultFileOf reads and checks a vault.save request. Every refusal is
-// invalid_input: sending the same request again would be refused again.
-func vaultFileOf(req *Request) (VaultFile, error) {
+// vaultFileHead reads and checks the cheap part of a vault.save request: who
+// sent it, the profile and client ids, the name and the type. Every refusal
+// here and in vaultFileBody is invalid_input: sending the same request again
+// would be refused again.
+func vaultFileHead(req *Request) (VaultFile, error) {
 	if req.Origin.ConnectedAt.IsZero() {
 		// serveRequest stamps every request with its paired socket; one
 		// without came from no browser.
@@ -195,27 +218,33 @@ func vaultFileOf(req *Request) (VaultFile, error) {
 		return VaultFile{}, refusal(fmt.Sprintf("vault.save does not take %.64q; it takes PNG, JPEG, GIF and WebP images, PDF, and plain text, Markdown and CSV", f.MIME))
 	}
 	f.Ext = ext
+	return f, nil
+}
+
+// vaultFileBody decodes and checks the file itself, and its source address,
+// into f (vaultFileHead's).
+func vaultFileBody(req *Request, f *VaultFile) error {
 	encoded, _ := req.Params["data"].(string)
 	if encoded == "" {
-		return VaultFile{}, refusal("vault.save needs the file's bytes, base64 in data")
+		return refusal("vault.save needs the file's bytes, base64 in data")
 	}
 	if base64.StdEncoding.DecodedLen(len(encoded)) > VaultSaveMaxBytes+2 {
-		return VaultFile{}, refusal(fmt.Sprintf("vault.save: the file is over the %d MiB limit", VaultSaveMaxBytes>>20))
+		return refusal(fmt.Sprintf("vault.save: the file is over the %d MiB limit", VaultSaveMaxBytes>>20))
 	}
 	data, err := base64.StdEncoding.DecodeString(encoded)
 	switch {
 	case err != nil:
-		return VaultFile{}, refusal("vault.save: data is not base64")
+		return refusal("vault.save: data is not base64")
 	case len(data) == 0:
-		return VaultFile{}, refusal("vault.save: the file is empty")
+		return refusal("vault.save: the file is empty")
 	case len(data) > VaultSaveMaxBytes:
-		return VaultFile{}, refusal(fmt.Sprintf("vault.save: the file is over the %d MiB limit", VaultSaveMaxBytes>>20))
+		return refusal(fmt.Sprintf("vault.save: the file is over the %d MiB limit", VaultSaveMaxBytes>>20))
 	case !vaultTypeMatches(f.MIME, data):
-		return VaultFile{}, refusal(fmt.Sprintf("vault.save: the bytes are not %s", f.MIME))
+		return refusal(fmt.Sprintf("vault.save: the bytes are not %s", f.MIME))
 	}
 	f.Data = data
 	f.SourceURL = cleanSourceURL(req.String("source_url"))
-	return f, nil
+	return nil
 }
 
 // validClientID reports whether id is 1-vaultSaveMaxClientID of [A-Za-z0-9._:-].
@@ -266,10 +295,12 @@ func vaultTypeMatches(mime string, data []byte) bool {
 }
 
 // cleanSourceURL is raw as scheme, host and path of an absolute http(s)
-// address, without user-info, query or fragment (a presigned URL's signature
-// is in its query, and the address shows in `image list` and the app), or ""
-// for anything else (data:, blob:, javascript:, a relative path): the address
-// is a note on the item, so a bad one is dropped, not refused.
+// address, without user-info, query, fragment or a segment's ;parameters (a
+// presigned URL's signature is in its query, a session id in ";jsessionid=",
+// and the address shows in `image list` and the app), or "" for anything else
+// (data:, blob:, javascript:, a relative path): the address is a note on the
+// item, so a bad one is dropped, not refused. A token that is a path segment
+// itself is kept: nothing tells it from a file name.
 func cleanSourceURL(raw string) string {
 	if raw == "" || len(raw) > vaultSaveMaxURL {
 		return ""
@@ -278,5 +309,16 @@ func cleanSourceURL(raw string) string {
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 		return ""
 	}
-	return (&url.URL{Scheme: u.Scheme, Host: u.Host, Path: u.Path, RawPath: u.RawPath}).String()
+	segs := strings.Split(u.EscapedPath(), "/")
+	for i, s := range segs {
+		if j := strings.IndexByte(s, ';'); j >= 0 {
+			segs[i] = s[:j]
+		}
+	}
+	rawPath := strings.Join(segs, "/")
+	path, err := url.PathUnescape(rawPath)
+	if err != nil {
+		return ""
+	}
+	return (&url.URL{Scheme: u.Scheme, Host: u.Host, Path: path, RawPath: rawPath}).String()
 }

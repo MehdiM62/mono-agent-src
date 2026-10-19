@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"slices"
 	"strings"
 	"sync"
@@ -15,10 +16,24 @@ import (
 	"github.com/rs/zerolog"
 )
 
-// fakeVaultSink records what vault.save hands it and answers as told.
+// fakeVaultSink records what vault.save hands it and answers as told. live
+// lists the profiles that exist (nil: p-work and p-home); lists counts how
+// often vault.save asked.
 type fakeVaultSink struct {
-	mu  sync.Mutex
-	got []VaultFile
+	mu    sync.Mutex
+	got   []VaultFile
+	live  []string
+	lists int
+}
+
+func (f *fakeVaultSink) LiveProfiles(context.Context) ([]string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.lists++
+	if f.live == nil {
+		return []string{"p-work", "p-home"}, nil
+	}
+	return f.live, nil
 }
 
 func (f *fakeVaultSink) SaveToVault(_ context.Context, v VaultFile) (VaultSaved, error) {
@@ -181,7 +196,7 @@ func TestVaultSave_NameTraversal(t *testing.T) {
 
 // A request names a profile id that could be a folder, and a client id.
 func TestVaultSave_ProfileAndClientID(t *testing.T) {
-	for _, p := range []any{nil, "", "../p-work", `p\work`, "_machine"} {
+	for _, p := range []any{nil, "", "../p-work", `p\work`, "_machine", "p-gone"} {
 		refusedInvalid(t, "profile "+strings.TrimSpace(func() string { s, _ := p.(string); return s }()), &fakeVaultSink{}, vaultParams(map[string]any{"profile": p}))
 	}
 	for _, c := range []any{nil, "", "v 1", "v/1", "v\u00e91", strings.Repeat("v", vaultSaveMaxClientID+1)} {
@@ -207,13 +222,15 @@ func TestVaultSave_SourceURLIsCleanedOrDropped(t *testing.T) {
 		"https://u:p@example.test/x.pdf#page=2": "https://example.test/x.pdf",
 		"http://example.test/a?b=c":             "http://example.test/a",
 		"https://bucket.s3.amazonaws.com/inv/a.pdf?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIA%2F20261019&X-Amz-Signature=ab12": "https://bucket.s3.amazonaws.com/inv/a.pdf",
-		"https://example.test:8443/x%20y.pdf?sig=1":       "https://example.test:8443/x%20y.pdf",
-		"data:image/png;base64,AAAA":                      "",
-		"blob:https://example.test/1":                     "",
-		"javascript:alert(1)":                             "",
-		"file:///etc/passwd":                              "",
-		"/relative/x.png":                                 "",
-		"https://" + strings.Repeat("a", vaultSaveMaxURL): "",
+		"https://example.test:8443/x%20y.pdf?sig=1":                    "https://example.test:8443/x%20y.pdf",
+		"https://shop.example/cart;jsessionid=ABC123/item.pdf;v=2?x=1": "https://shop.example/cart/item.pdf",
+		"https://a.example/x%3By.pdf":                                  "https://a.example/x%3By.pdf",
+		"data:image/png;base64,AAAA":                                   "",
+		"blob:https://example.test/1":                                  "",
+		"javascript:alert(1)":                                          "",
+		"file:///etc/passwd":                                           "",
+		"/relative/x.png":                                              "",
+		"https://" + strings.Repeat("a", vaultSaveMaxURL):              "",
 	} {
 		if got := cleanSourceURL(raw); got != want {
 			t.Errorf("cleanSourceURL(%.40q) = %q, want %q", raw, got, want)
@@ -323,5 +340,113 @@ func TestVaultSave_RateLimit(t *testing.T) {
 	}
 	if sink.calls() != 5 {
 		t.Errorf("sink calls = %d, want 5 (a limited save never reaches it)", sink.calls())
+	}
+}
+
+// Made-up profile ids are refused from a list read at most once a second:
+// they get no rate window, never reach the sink's save, and 50k of them stay
+// cheap (the limiter used to sweep every window on every call).
+func TestVaultSave_MadeUpProfilesCostNothing(t *testing.T) {
+	now := time.Date(2026, 10, 19, 12, 0, 0, 0, time.UTC)
+	prevNow := vaultSaveNow
+	vaultSaveNow = func() time.Time { return now }
+	defer func() { vaultSaveNow = prevNow }()
+	sink := &fakeVaultSink{live: []string{"p-work"}}
+	srv := NewServer("127.0.0.1:0", zerolog.Nop())
+	srv.SetVaultSink(sink)
+	h, _ := srv.handlerFor(MethodVaultSave)
+	params := vaultParams(nil)
+	start := time.Now()
+	for i := 0; i < 50000; i++ {
+		params["profile"] = fmt.Sprintf("ghost-%d", i)
+		_, err := h(context.Background(), &Request{Method: MethodVaultSave, Params: params, Origin: ConnInfo{Instance: "b1", ConnectedAt: now}}, func(string, string) {})
+		if err == nil || codeOf(t, err) != CodeInvalidInput {
+			t.Fatalf("made-up profile %d: %v", i, err)
+		}
+	}
+	if took := time.Since(start); took > time.Second {
+		t.Errorf("50k made-up profiles took %v", took)
+	}
+	if sink.calls() != 0 || sink.lists != 1 {
+		t.Errorf("sink saves %d, profile lists %d; want 0 and 1", sink.calls(), sink.lists)
+	}
+	srv.vaultRate.mu.Lock()
+	windows := len(srv.vaultRate.seen)
+	srv.vaultRate.mu.Unlock()
+	if windows != 0 {
+		t.Errorf("%d rate windows for made-up profiles, want 0", windows)
+	}
+}
+
+// Past vaultSaveTotalRate saves a minute across profiles, rate_limited too.
+func TestVaultSave_OverallRateLimit(t *testing.T) {
+	now := time.Date(2026, 10, 19, 12, 0, 0, 0, time.UTC)
+	prevRate, prevTotal, prevNow := vaultSaveRate, vaultSaveTotalRate, vaultSaveNow
+	vaultSaveRate, vaultSaveTotalRate, vaultSaveNow = 10, 3, func() time.Time { return now }
+	defer func() { vaultSaveRate, vaultSaveTotalRate, vaultSaveNow = prevRate, prevTotal, prevNow }()
+	sink := &fakeVaultSink{}
+	srv := NewServer("127.0.0.1:0", zerolog.Nop())
+	srv.SetVaultSink(sink)
+	h, _ := srv.handlerFor(MethodVaultSave)
+	call := func(profile string) error {
+		_, err := h(context.Background(), &Request{Method: MethodVaultSave, Params: vaultParams(map[string]any{"profile": profile}),
+			Origin: ConnInfo{Instance: "b1", ConnectedAt: now}}, func(string, string) {})
+		return err
+	}
+	for _, p := range []string{"p-work", "p-home", "p-work"} {
+		if err := call(p); err != nil {
+			t.Fatal(err)
+		}
+	}
+	err := call("p-home")
+	if err == nil || codeOf(t, err) != CodeRateLimited || !strings.Contains(err.Error(), "in all") {
+		t.Errorf("the 4th save in a minute across profiles: %v", err)
+	}
+}
+
+// A rate-limited save is refused before its file is decoded: data that is
+// not base64 at all gets rate_limited, not the decode refusal.
+func TestVaultSave_RateLimitedSaveIsNeverDecoded(t *testing.T) {
+	now := time.Date(2026, 10, 19, 12, 0, 0, 0, time.UTC)
+	prevRate, prevNow := vaultSaveRate, vaultSaveNow
+	vaultSaveRate, vaultSaveNow = 1, func() time.Time { return now }
+	defer func() { vaultSaveRate, vaultSaveNow = prevRate, prevNow }()
+	sink := &fakeVaultSink{}
+	srv := NewServer("127.0.0.1:0", zerolog.Nop())
+	srv.SetVaultSink(sink)
+	h, _ := srv.handlerFor(MethodVaultSave)
+	call := func(params map[string]any) error {
+		_, err := h(context.Background(), &Request{Method: MethodVaultSave, Params: params, Origin: ConnInfo{Instance: "b1", ConnectedAt: now}}, func(string, string) {})
+		return err
+	}
+	if err := call(vaultParams(nil)); err != nil {
+		t.Fatal(err)
+	}
+	if err := call(vaultParams(map[string]any{"data": "%%%not base64%%%"})); err == nil || codeOf(t, err) != CodeRateLimited {
+		t.Errorf("a limited save with bad data: %v, want rate_limited", err)
+	}
+}
+
+// The limiter's own cost: 50k profiles (as if live) are counted in linear
+// time, and a minute later every window is gone.
+func TestSaveRateLimiterIsLinearAndForgets(t *testing.T) {
+	now := time.Date(2026, 10, 19, 12, 0, 0, 0, time.UTC)
+	l := newSaveRateLimiter(20, 1<<30, func() time.Time { return now })
+	start := time.Now()
+	for i := 0; i < 50000; i++ {
+		if _, _, ok := l.allow(fmt.Sprintf("p-%d", i)); !ok {
+			t.Fatalf("profile %d refused", i)
+		}
+		if i%1000 == 0 {
+			now = now.Add(time.Millisecond)
+		}
+	}
+	if took := time.Since(start); took > time.Second {
+		t.Errorf("50k profiles took %v", took)
+	}
+	now = now.Add(time.Minute + rateSweepEvery)
+	l.allow("p-0")
+	if n := len(l.seen); n != 1 {
+		t.Errorf("%d windows a minute later, want 1 (the one just counted)", n)
 	}
 }
