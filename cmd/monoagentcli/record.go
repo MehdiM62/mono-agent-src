@@ -11,6 +11,7 @@ import (
 	browserpkg "github.com/monoes/mono-agent/internal/browser"
 	recordcli "github.com/monoes/mono-agent/internal/cli/record"
 	"github.com/monoes/mono-agent/internal/logging"
+	"github.com/monoes/mono-agent/internal/operator"
 	"github.com/monoes/mono-agent/internal/recordanalyze"
 	"github.com/monoes/mono-agent/internal/storage"
 	"github.com/monoes/mono-agent/internal/vault"
@@ -40,11 +41,22 @@ func recordVerifyExec(ctx context.Context, automationID string, verbose, keepOpe
 		}
 	}
 	provider := &browserpkg.HybridSessionProvider{ExtBridge: bridge, Logger: logger}
-	page, err := provider.GetPage(ctx, automationID, "")
+	page, err := provider.GetPage(ctx, verifyStartPlatform(ctx, automationID), "")
 	if err != nil {
 		return nil, fmt.Errorf("browser bridge not connected: %w", err)
 	}
 	return recordanalyze.PageExecWith(page, logger, recordanalyze.PageExecOptions{Secrets: secrets, KeepOpen: keepOpen}), nil
+}
+
+// verifyStartPlatform is whose start page a verify's tab opens on: the
+// draft's automation, or none (a blank tab) for a verify that stops at the
+// first page step (the extension's), since the package's start URL is a
+// file anyone can write and opening it is a request with the user's cookies.
+func verifyStartPlatform(ctx context.Context, automationID string) string {
+	if recordanalyze.StopsAtActions(ctx) {
+		return ""
+	}
+	return automationID
 }
 
 // recordReplayPage opens the tab a replay drives — the same connect path
@@ -98,6 +110,7 @@ func recordDeps(cfg *globalConfig) recordcli.Deps {
 		WriteJSON:       writeJSONTo,
 		WithJSONErrors:  func(cmd *cobra.Command) { withJSONErrors(cfg, cmd) },
 		StdinIsTerminal: stdinIsTerminal,
+		Refusal:         operator.Refusal,
 		AnalyzeRunner:   recordcli.ExecRunner,
 		VerifyExec:      recordVerifyExec,
 		ReplayPage:      recordReplayPage,

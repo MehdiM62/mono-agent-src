@@ -106,6 +106,9 @@ func (ae *ActionExecutor) safeStopRequired(step StepDef) bool {
 	if step.SideEffect {
 		return true
 	}
+	if ae.stopAtActions && !pageFree(step) {
+		return true
+	}
 	switch step.Type {
 	case "page_script", "upload", "download":
 		return true
@@ -165,4 +168,27 @@ func (ae *ActionExecutor) precheckSafeStop(ctx context.Context, step StepDef) er
 		err = fmt.Errorf("%w: %w", ErrRefused, err)
 	}
 	return fmt.Errorf("upload step %s: %w", step.ID, err)
+}
+
+// SetStopAtActions makes safe mode stop before the first step that touches
+// a page at all (opens a URL, types, clicks, hovers, scrolls, reads, waits
+// for an element, makes a request, calls a bot or another action), not only
+// before one the definition marks as a side effect: the mark is the
+// recording's or the draft's, which whoever wrote the file chose, and even a
+// GET or a read runs with the user's cookies. Only pageFree steps run. It
+// matters only with safe mode on.
+func (ae *ActionExecutor) SetStopAtActions(on bool) { ae.stopAtActions = on }
+
+// pageFree reports whether step touches no page: a variable, a log, a
+// transform, a wait for time alone (not for an element) and the control flow
+// around other steps (whose own steps are checked as they run). Every other
+// step, of a new type too, stops a stop-at-actions run.
+func pageFree(step StepDef) bool {
+	switch step.Type {
+	case "set_variable", "log", "transform", "update_progress", "mark_failed", "condition", "for_each", "call_fragment":
+		return true
+	case "wait":
+		return step.Selector == "" && step.XPath == "" && step.ConfigKey == "" && step.ElementRef == ""
+	}
+	return false
 }

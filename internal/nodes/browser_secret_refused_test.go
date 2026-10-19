@@ -20,8 +20,16 @@ import (
 )
 
 // tokenSource serves acme/use_token: one bot call with the automation's
-// {{secret:token}}.
-type tokenSource struct{}
+// {{secret:token}}, of a package of trust tier trust.
+type tokenSource struct{ trust string }
+
+// trustedPkg is a confirmed package of a given trust tier.
+type trustedPkg struct {
+	confirmedPkg
+	trust string
+}
+
+func (p trustedPkg) Trust() string { return p.trust }
 
 func (tokenSource) Load(a, t string) ([]byte, error) {
 	if a != "acme" || t != "use_token" {
@@ -31,8 +39,10 @@ func (tokenSource) Load(a, t string) ([]byte, error) {
 	  "steps":[{"id":"use","type":"call_bot_method","methodName":"use","args":["{{secret:token}}"],
 	    "onError":{"action":"abort"}}]}`), nil
 }
-func (tokenSource) List() ([]string, error)              { return []string{"acme/use_token"}, nil }
-func (tokenSource) Package(string) action.PackageContext { return confirmedPkg{outPkg{native: "acme"}} }
+func (tokenSource) List() ([]string, error) { return []string{"acme/use_token"}, nil }
+func (s tokenSource) Package(string) action.PackageContext {
+	return trustedPkg{confirmedPkg{outPkg{native: "acme"}}, s.trust}
+}
 
 // tokenBot records the token it was given; with needsToken it fails without one.
 type tokenBot struct {
@@ -74,7 +84,9 @@ func TestARefusedSecretLookupSaysWhy(t *testing.T) {
 	}
 	bot := &tokenBot{needsToken: true}
 	setupSend(t, nil)
-	action.SetDefSource(tokenSource{})
+	// A built-in package's action: one the run gate lets an unapproved run
+	// reach, so its secret refusal is what shows.
+	action.SetDefSource(tokenSource{trust: "builtin"})
 	SetGlobalBotRegistry(botRegistry{bot: bot})
 	in := sendInput(workflow.NewItem(map[string]interface{}{}))
 	const why = "{{secret:token}}: @secret:automation:acme/token is not read from the vault: the chat, an agent or another workflow wrote or changed this workflow"
@@ -99,6 +111,14 @@ func TestARefusedSecretLookupSaysWhy(t *testing.T) {
 	}
 	if bot.got[0] != "" || bot.got[1] != "" || bot.got[2] != "vsecret-777" {
 		t.Errorf("tokens given = %q, want none in the unapproved runs and the value in the user's", bot.got)
+	}
+
+	// A local package's action doesn't run in an unapproved run at all: the
+	// run gate refuses it before the secret or the bot (agent_run_gate.go).
+	action.SetDefSource(tokenSource{trust: "local"})
+	calls := len(bot.got)
+	if _, err := NewBrowserNode("acme", "use_token").Execute(workflow.WithAIAuthored(ctx), in, map[string]interface{}{}); !errors.Is(err, ErrUserOnlyBrowserRun) || len(bot.got) != calls {
+		t.Errorf("an unapproved run of a local package's action: %v (bot calls %d), want ErrUserOnlyBrowserRun before the bot", err, len(bot.got)-calls)
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 	browserpkg "github.com/monoes/mono-agent/internal/browser"
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/cli/revealgate"
 	cfgpkg "github.com/monoes/mono-agent/internal/config"
 	"github.com/monoes/mono-agent/internal/connections"
@@ -271,6 +273,15 @@ platform name to override. Token refresh is handled automatically for OAuth conn
 				return renderNodeOutputs(outputFmt, queued)
 			}
 
+			// A browser action of a package that isn't built-in is the user's
+			// (nodes.BrowserNode.RunRefusal): refused before a browser is
+			// connected, or launched.
+			if bn, ok := factory().(*nodes.BrowserNode); ok {
+				if err := bn.RunRefusal(context.Background()); err != nil {
+					return clicore.OperatorOnly("node %s: %v", nodeType, err)
+				}
+			}
+
 			// Set up browser session provider, bot registry, and config manager for social/browser nodes.
 			if needsBrowserSession(nodeType, factory) {
 				// Chrome extension only — no Rod/Chromium fallback, sharing
@@ -361,6 +372,9 @@ platform name to override. Token refresh is handled automatically for OAuth conn
 				hilsend.ConsumeForSend(ctx, rawDB, d.ProfileID(), recorded)
 			}
 
+			if errors.Is(err, nodes.ErrUserOnlyBrowserRun) {
+				return clicore.OperatorOnly("node %s: %v", nodeType, err)
+			}
 			if err != nil {
 				return fmt.Errorf("node %s failed: %w", nodeType, err)
 			}

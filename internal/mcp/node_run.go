@@ -14,6 +14,7 @@ import (
 
 	"github.com/monoes/mono-agent/internal/connections"
 	"github.com/monoes/mono-agent/internal/hilsend"
+	"github.com/monoes/mono-agent/internal/nodes"
 	"github.com/monoes/mono-agent/internal/profiledir"
 	"github.com/monoes/mono-agent/internal/publication"
 	"github.com/monoes/mono-agent/internal/vault"
@@ -109,6 +110,9 @@ func toolNodeRun(ctx context.Context, s *Server, args json.RawMessage) (interfac
 	}
 	outputs, err := factory().Execute(ctx, input, config)
 	recordPublications(ctx, rt, a.Type, config, input, outputs)
+	if errors.Is(err, nodes.ErrUserOnlyBrowserRun) {
+		return nil, fmt.Errorf("operator_only: %w", err)
+	}
 	if errors.Is(err, workflow.ErrUnapprovedProgram) {
 		return nil, fmt.Errorf("node %s runs a program on this computer, which node_run never does for an AI: "+
 			"put the step in a workflow and have the user save or activate it in the app or their own terminal", a.Type)

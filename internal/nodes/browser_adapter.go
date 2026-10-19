@@ -123,6 +123,9 @@ func (b *BrowserNode) LiteralConfigFields() []string { return []string{"username
 // The SessionProvider and BotRegistry must be set via SetGlobalSessionProvider and SetGlobalBotRegistry
 // before Execute is called.
 func (b *BrowserNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
+	if err := b.RunRefusal(ctx); err != nil {
+		return nil, fmt.Errorf("nodes: %w", err)
+	}
 	if globalSessionProvider == nil {
 		return nil, fmt.Errorf("nodes: SessionProvider not set; call SetGlobalSessionProvider at startup")
 	}
