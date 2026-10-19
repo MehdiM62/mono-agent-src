@@ -6,6 +6,7 @@ import (
 
 	"github.com/monoes/mono-agent/internal/connections"
 	"github.com/monoes/mono-agent/internal/vault"
+	"github.com/monoes/mono-agent/internal/workflow"
 )
 
 // resolveNestedCredential merges a saved connection into cfg when cfg holds
@@ -35,6 +36,16 @@ func resolveNestedCredential(ctx context.Context, cfg map[string]interface{}) er
 	}
 	if conn == nil {
 		return fmt.Errorf("embedding.credential_id %q: no such connection in this profile", credID)
+	}
+	// The block's own hosts, as the engine holds a node's top-level ones
+	// (workflow.CheckDestinationKeys); written as they are is the engine's.
+	name := conn.Label
+	if name == "" {
+		name = credID
+	}
+	use := &workflow.CredentialUse{Name: name, Platform: conn.Platform, Data: conn.Data}
+	if err := workflow.CheckDestinationKeys(embedDestinations, use, !workflow.AIAuthoredFrom(ctx), cfg, cfg); err != nil {
+		return fmt.Errorf("embedding.credential_id %q: %w", credID, err)
 	}
 	for k, v := range conn.Data {
 		if _, set := cfg[k]; !set || cfg[k] == "" {

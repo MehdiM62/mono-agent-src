@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/monoes/mono-agent/internal/workflow"
@@ -109,6 +110,14 @@ func parseEmbedConfig(cfg map[string]interface{}, field string) (embedConfig, er
 	}
 	if c.Dimensions, err = intField(cfg, "dimensions", 0); err != nil {
 		return c, fmt.Errorf("%s%w", field, err)
+	}
+	// A region or location becomes part of the provider's host
+	// (bedrock-runtime.<region>.amazonaws.com, <location>-aiplatform…):
+	// only a name, so it can't name a host of its own.
+	for k, v := range map[string]string{"region": c.Region, "location": c.Location} {
+		if v != "" && !regionName.MatchString(v) {
+			return c, fmt.Errorf("%s%s %q is not a region name (letters, digits and dashes)", field, k, v)
+		}
 	}
 	switch c.Provider {
 	case ProviderOpenAICompatible:
@@ -238,6 +247,18 @@ func bearer(key string) string {
 type EmbedNode struct{}
 
 func (n *EmbedNode) Type() string { return "vector.embed" }
+
+// regionName is a cloud region or location ("eu-west-1", "global").
+var regionName = regexp.MustCompile(`^[A-Za-z0-9-]+$`)
+
+// embedDestinations are where an embedding provider's key goes: its base
+// URL, and the Azure resource its host is built from (a region or location
+// is a name within the provider's own domain, parseEmbedConfig).
+var embedDestinations = [][]string{{"base_url", "url", "endpoint", "host"}, {"resource_name"}}
+
+// CredentialDestinationKeys: embedDestinations
+// (workflow.CheckCredentialDestinations).
+func (n *EmbedNode) CredentialDestinationKeys() [][]string { return embedDestinations }
 
 func (n *EmbedNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
 	ec, err := parseEmbedConfig(config, "")

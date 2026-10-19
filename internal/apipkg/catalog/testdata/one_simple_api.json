@@ -62,6 +62,7 @@
       },
       {
         "method": "GET",
+        "no_auth": true,
         "path": "/s.png",
         "query": {}
       }

@@ -14,12 +14,21 @@ import (
 )
 
 // injectCredential merges credential data into config if credential_id is
-// present. GetOrResolve looks up the connections table by id or platform
-// name and auto-refreshes expired OAuth tokens. It is scoped to the
-// execution's profile so a workflow under profile B never resolves profile
-// A's credentials.
-func (r *runner) injectCredential(node WorkflowNode, config map[string]interface{}) {
-	mergeCredential(r.ctx, r.connStore, r.logger, node.Type, config)
+// present, and returns the connection it merged (nil for none): where its
+// secret may go is checked once the config resolves (checkCredentialUse).
+// GetOrResolve looks up the connections table by id or platform name and
+// auto-refreshes expired OAuth tokens. It is scoped to the execution's
+// profile so a workflow under profile B never resolves profile A's
+// credentials.
+func (r *runner) injectCredential(node WorkflowNode, config map[string]interface{}) *CredentialUse {
+	return mergeCredential(r.ctx, r.connStore, r.logger, node.Type, config)
+}
+
+// checkCredentialUse refuses resolved when it points use's secret elsewhere
+// than the connection names (CheckCredentialDestinations); a run of a
+// workflow the user never approved (AIAuthoredFrom) sets no host of its own.
+func checkCredentialUse(ctx context.Context, executor NodeExecutor, use *CredentialUse, stored, resolved map[string]interface{}) error {
+	return CheckCredentialDestinations(executor, use, !AIAuthoredFrom(ctx), stored, resolved)
 }
 
 // ResolveCredentials returns a copy of cfg with its credential_id merged in
@@ -28,24 +37,45 @@ func (r *runner) injectCredential(node WorkflowNode, config map[string]interface
 // sources (queue/DB consumers) use it when they activate. A credential that
 // does not resolve is logged and cfg is returned as it is.
 func (e *WorkflowEngine) ResolveCredentials(ctx context.Context, nodeType string, cfg map[string]interface{}) map[string]interface{} {
+	out, _ := e.resolveCredentials(ctx, nodeType, cfg)
+	return out
+}
+
+// ResolveTriggerCredentials is ResolveCredentials for the trigger node of
+// workflow w, whose destination keys are keys: a config that points the
+// connection's secret at a host the connection doesn't name is refused
+// (CheckDestinationKeys) unless the user approved w's definition.
+func (e *WorkflowEngine) ResolveTriggerCredentials(ctx context.Context, w *Workflow, nodeType string, keys [][]string, cfg map[string]interface{}) (map[string]interface{}, error) {
+	out, use := e.resolveCredentials(ctx, nodeType, cfg)
+	if use == nil || len(keys) == 0 {
+		return out, nil
+	}
+	approved, _ := operatorApproved(ctx, e.store, w)
+	if err := CheckDestinationKeys(keys, use, approved, out, out); err != nil {
+		return nil, fmt.Errorf("%s: %w", nodeType, err)
+	}
+	return out, nil
+}
+
+func (e *WorkflowEngine) resolveCredentials(ctx context.Context, nodeType string, cfg map[string]interface{}) (map[string]interface{}, *CredentialUse) {
 	out := make(map[string]interface{}, len(cfg))
 	for k, v := range cfg {
 		out[k] = v
 	}
-	mergeCredential(ctx, e.connStore, e.logger, nodeType, out)
-	return out
+	return out, mergeCredential(ctx, e.connStore, e.logger, nodeType, out)
 }
 
-func mergeCredential(ctx context.Context, connStore *connections.Store, logger zerolog.Logger, nodeType string, config map[string]interface{}) {
+func mergeCredential(ctx context.Context, connStore *connections.Store, logger zerolog.Logger, nodeType string, config map[string]interface{}) *CredentialUse {
 	credIDRaw, ok := config["credential_id"]
 	if !ok {
-		return
+		return nil
 	}
 	credID, ok := credIDRaw.(string)
 	if !ok || credID == "" {
-		return
+		return nil
 	}
 	injected := false
+	var use *CredentialUse
 
 	if connStore != nil {
 		profile, perr := vault.ProfileIDFromContext(ctx)
@@ -76,6 +106,11 @@ func mergeCredential(ctx context.Context, connStore *connections.Store, logger z
 				config["credential_platform"] = conn.Platform
 			}
 			injected = true
+			name := conn.Label
+			if name == "" {
+				name = credID
+			}
+			use = &CredentialUse{Name: name, Platform: conn.Platform, Data: conn.Data}
 		}
 	}
 
@@ -104,6 +139,7 @@ func mergeCredential(ctx context.Context, connStore *connections.Store, logger z
 			Str("profile", profileLog).
 			Msg("credential not resolved for profile")
 	}
+	return use
 }
 
 func isUnsetConfigValue(v interface{}) bool {
