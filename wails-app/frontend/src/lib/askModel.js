@@ -21,6 +21,7 @@ export function normalizeAsk(raw) {
       subject: raw.subject || '', text: String(raw.text ?? ''), textReadOnly: !!raw.textReadOnly,
       details: Array.isArray(raw.details) ? raw.details.filter(d => d && d.key && d.value) : [],
       unreviewable: raw.unreviewable || '',
+      host: raw.host || '', fetchUrl: raw.fetchUrl || '',
       attachments: Array.isArray(raw.attachments) ? raw.attachments : [],
       org: raw.org || raw.preparedBy?.org || '', conversationId: raw.conversationId || raw.preparedBy?.conversationId || '',
       hilRef: raw.hil_ref || '', personId: raw.person_id || raw.recipient?.personId || '',

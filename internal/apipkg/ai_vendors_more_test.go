@@ -91,7 +91,7 @@ func TestGeminiFileUploadFromURL(t *testing.T) {
 			w.Header().Set("Content-Type", "application/pdf")
 			return "%PDF"
 		case r.Path == "/upload/v1beta/files":
-			w.Header().Set("X-Goog-Upload-Url", "https://up.example.test/session?upload_id=9")
+			w.Header().Set("X-Goog-Upload-Url", "https://generativelanguage.googleapis.com/session?upload_id=9")
 			return `{}`
 		case r.Path == "/session":
 			return `{"file":{"name":"files/f1","state":"PROCESSING"}}`

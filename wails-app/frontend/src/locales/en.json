@@ -1676,6 +1676,8 @@
     },
     "to": "To",
     "from": "From",
+    "via": "Via",
+    "fetches": "Fetches",
     "subject": "Subject",
     "detail": {
       "alsoTo": "Also to",

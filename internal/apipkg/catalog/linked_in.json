@@ -10,6 +10,7 @@
     "n8n-nodes-base.linkedIn"
   ],
   "base_url": "https://api.linkedin.com/rest",
+  "auth_hosts": ["*.linkedin.com"],
   "headers": {
     "Accept": "application/json",
     "X-Restli-Protocol-Version": "2.0.0",

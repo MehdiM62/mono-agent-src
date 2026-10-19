@@ -21,6 +21,12 @@ type JiraNode struct{}
 
 func (n *JiraNode) Type() string { return "service.jira" }
 
+// CredentialDestinationKeys: the site the token goes to
+// (workflow.CheckCredentialDestinations).
+func (n *JiraNode) CredentialDestinationKeys() [][]string {
+	return [][]string{{"base_url", "domain"}}
+}
+
 func (n *JiraNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
 	if extensionOwns("service.jira", config) {
 		return apipkg.ExecuteExtension(ctx, "service.jira", input, config)

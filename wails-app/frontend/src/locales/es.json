@@ -1634,6 +1634,8 @@
     },
     "to": "Para",
     "from": "De",
+    "via": "Vía",
+    "fetches": "Obtiene",
     "subject": "Asunto",
     "detail": {
       "alsoTo": "También a",

@@ -21,6 +21,12 @@ type FTPNode struct{}
 
 func (n *FTPNode) Type() string { return "http.ftp" }
 
+// CredentialDestinationKeys: the server the connection's password goes to
+// (workflow.CheckCredentialDestinations).
+func (n *FTPNode) CredentialDestinationKeys() [][]string {
+	return [][]string{{"host"}, {"port"}}
+}
+
 func (n *FTPNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
 	operation, _ := config["operation"].(string)
 	if operation == "" {

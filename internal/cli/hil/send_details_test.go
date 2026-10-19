@@ -31,9 +31,9 @@ func TestTheTerminalShowsASendCardsDetails(t *testing.T) {
 }
 
 // A detail prints on its own line whatever it holds, a card queued before
-// details were escaped included: a line break can't add a forged
-// "Prepared by:" line, nor an escape sequence clear the terminal. An Outlook
-// reply's extra To prints as "Also to".
+// details were escaped included (quoted, as the Via line is): a line break
+// can't add a forged "Prepared by:" line, nor an escape sequence clear the
+// terminal. An Outlook reply's extra To prints as "Also to".
 func TestTheTerminalPrintsEachDetailOnOneLine(t *testing.T) {
 	cmd := &cobra.Command{}
 	var out bytes.Buffer
@@ -48,7 +48,7 @@ func TestTheTerminalPrintsEachDetailOnOneLine(t *testing.T) {
 	if strings.Contains(got, "\nPrepared by:") || strings.ContainsAny(got, "\x1b\u2028") {
 		t.Errorf("a detail broke its line:\n%q", got)
 	}
-	for _, want := range []string{"Also to: evil@example.test\n", `Cc: a@x.test\u000APrepared by: MonoAgent (approved)\u001B[2J` + "\n", `Bcc: b@x.test\u2028c@x.test` + "\n"} {
+	for _, want := range []string{"Also to: evil@example.test\n", `Cc: "a@x.test\nPrepared by: MonoAgent (approved)\x1b[2J"` + "\n", `Bcc: "b@x.test\u2028c@x.test"` + "\n"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("no %q in:\n%s", want, got)
 		}
