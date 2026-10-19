@@ -592,7 +592,8 @@ dangerous calls.
   `trigger.sse` headers; the step fails naming the reference, never the
   value. CLI `node run` from a marked process runs as an unapproved step
   (`WithUnapprovedStep`), like MCP `node_run`, so the program and hidden-home
-  gates apply to it too; `record verify|replay` from one reads no secret.
+  gates apply to it too; `record verify|replay` from one is refused (exit 3,
+  `operator_only`), except `record replay --dry-run`, which runs nothing.
   Put the step in a workflow and have the user save or activate it. Even in
   an approved workflow a reference resolves only where the stored config
   holds it as written (`secrets.ResolveConfig` gets the stored config): one

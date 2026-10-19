@@ -106,6 +106,12 @@ func (ae *ActionExecutor) safeStopRequired(step StepDef) bool {
 	if step.SideEffect {
 		return true
 	}
+	if ae.stopAtActions {
+		switch step.Type {
+		case "click", "press_key", "select_option", "call_bot_method":
+			return true
+		}
+	}
 	switch step.Type {
 	case "page_script", "upload", "download":
 		return true
@@ -166,3 +172,10 @@ func (ae *ActionExecutor) precheckSafeStop(ctx context.Context, step StepDef) er
 	}
 	return fmt.Errorf("upload step %s: %w", step.ID, err)
 }
+
+// SetStopAtActions makes safe mode stop before the first step that acts on
+// the page too (a click, a key press, an option pick, a bot method), not
+// only before one the definition marks as a side effect: the mark is the
+// recording's or the draft's, which whoever wrote the file chose. It
+// matters only with safe mode on.
+func (ae *ActionExecutor) SetStopAtActions(on bool) { ae.stopAtActions = on }

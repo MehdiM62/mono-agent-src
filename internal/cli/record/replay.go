@@ -47,17 +47,18 @@ the replay asks you in the terminal; without a terminal it stops there unless
 --yes is given. --self-heal (off by default) asks Jev to find an element only
 when every recorded selector for it missed; each such step is reported.
 
-Running those steps is the user's own: --yes refuses an agent, the chat or a
-workflow (exit 3, operator_only), and their replay never asks: it stops before
-the first step that changes the site.`,
+A replay is the user's own: it runs in their logged-in browser, and which
+steps change a site is read from the recording, a file anyone can write. An
+agent, the chat or a workflow is refused (exit 3, operator_only); only
+--dry-run, which runs nothing, is open to them.`,
 		Example: `  monoagentcli record replay rec-20261013-101010-abcd --dry-run
   monoagentcli record replay rec-20261013-101010-abcd --input account_password=… --yes`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			why := clicore.OperatorRefusal(d.Refusal)
-			if yes && !dryRun && why != "" {
-				return clicore.OperatorOnly("record replay --yes runs a recording's steps that change a site (post, send, buy) in the user's browser without asking, which only the user does: %s; "+
-					"they replay it in their own terminal, where it asks before each such step", why)
+			if !dryRun && why != "" {
+				return clicore.OperatorOnly("record replay runs a recording's steps in the user's logged-in browser, where they can post, send or buy, and which of them do is read from the recording itself, so only the user replays one: %s; "+
+					"`record replay --dry-run` shows the steps, and the user replays it in their own terminal", why)
 			}
 			if err := applyRecordScope(d); err != nil {
 				return err
@@ -141,7 +142,7 @@ the first step that changes the site.`,
 	}
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the steps the replay would run, without a browser")
 	cmd.Flags().BoolVar(&selfHeal, "self-heal", false, "When every recorded selector for an element misses, ask Jev to find it (logged per step)")
-	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "Run steps that change the site (send, post, submit) without asking (the user's own)")
+	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "Run steps that change the site (send, post, submit) without asking")
 	cmd.Flags().BoolVar(&withLogin, "with-login", false, "Also replay a login flow detected at the start of the recording")
 	cmd.Flags().BoolVar(&keepOpen, "keep-open", false, "Leave the replay tab open (it stays open anyway when the replay stops early)")
 	cmd.Flags().StringVar(&inputsFile, "inputs-file", "", "JSON object {name: value} of inputs (mode 0600, owned by you; values are never echoed)")

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"slices"
 	"strings"
 	"testing"
 
@@ -28,25 +29,32 @@ func operatorOnlyCode(t *testing.T, out string) bool {
 	return json.Unmarshal([]byte(out), &body) == nil && body["code"] == "operator_only"
 }
 
-// `record replay --yes` runs a recording's steps that change a site without
-// asking, so it is the user's: an agent is refused before the browser opens
-// (exit 3, operator_only). An agent could replay any recording, its own or
-// the user's, in the user's logged-in browser, posting or sending with no
-// approval. Its --dry-run, which runs nothing, stays open.
-func TestRecordReplayYesIsTheUsers(t *testing.T) {
+// A replay runs in the user's logged-in browser, and which of its steps
+// change a site is read from the recording, a file an agent can write: any
+// replay of an agent's is refused before the browser opens (exit 3,
+// operator_only), with --yes or without. Its --dry-run, which runs nothing,
+// stays open; the user's replay reaches the browser.
+func TestRecordReplayIsTheUsers(t *testing.T) {
 	ingestFormRecording(t, "rec-yes")
 	stubReplayBrowser(t, nil)
 	asAgent(t)
-	out, err := runRecordCLI(t, true, "replay", "rec-yes", "--yes", "--input", "account_password=pw")
-	if err == nil || strings.Contains(err.Error(), "stub") || !operatorOnlyCode(t, out) {
-		t.Fatalf("an agent's replay --yes: err=%v out=%s, want operator_only before the browser", err, out)
+	for _, args := range [][]string{
+		{"replay", "rec-yes", "--yes", "--input", "account_password=pw"},
+		{"replay", "rec-yes", "--input", "account_password=pw"},
+	} {
+		out, err := runRecordCLI(t, true, args...)
+		if err == nil || strings.Contains(err.Error(), "stub") || !operatorOnlyCode(t, out) {
+			t.Fatalf("an agent's %v: err=%v out=%s, want operator_only before the browser", args, err, out)
+		}
 	}
-	if out, err := runRecordCLI(t, true, "replay", "rec-yes", "--yes", "--dry-run"); err != nil {
-		t.Fatalf("an agent's --dry-run --yes: %v\n%s", err, out)
+	for _, args := range [][]string{{"replay", "rec-yes", "--dry-run"}, {"replay", "rec-yes", "--yes", "--dry-run"}} {
+		if out, err := runRecordCLI(t, true, args...); err != nil {
+			t.Fatalf("an agent's %v: %v\n%s", args, err, out)
+		}
 	}
 	seams.Refusal = func() string { return "" }
-	if _, err := runRecordCLI(t, false, "replay", "rec-yes", "--yes", "--input", "account_password=pw"); err == nil || !strings.Contains(err.Error(), "stub") {
-		t.Fatalf("the user's replay --yes: %v, want it to reach the browser", err)
+	if _, err := runRecordCLI(t, false, "replay", "rec-yes", "--input", "account_password=pw"); err == nil || !strings.Contains(err.Error(), "stub") {
+		t.Fatalf("the user's replay: %v, want it to reach the browser", err)
 	}
 }
 
@@ -75,33 +83,40 @@ func TestRecordReplayNeverAsksAnAgent(t *testing.T) {
 	}
 }
 
-// `record verify` replays a draft in safe mode, stopping before the first
-// step that changes the site, and stays open to anyone; --full runs those
-// steps too, so it is the user's: an agent is refused before the browser.
-func TestRecordVerifyFullIsTheUsers(t *testing.T) {
+// `record verify` runs a draft's steps in the user's logged-in browser, and
+// which of them change a site is read from the draft: an agent is refused
+// any verify, with --full or without, before the browser. The user's verify
+// runs safe, --full runs full, and --stop-at-first-action (the extension's)
+// reaches the replay with its context marked.
+func TestRecordVerifyIsTheUsers(t *testing.T) {
 	dir := analyzeRec1(t)
-	var calls []bool // safe, per replay
+	type replay struct{ safe, stopAtActions bool }
+	var calls []replay
 	prev := seams.VerifyExec
 	seams.VerifyExec = func(context.Context, string, bool, bool, func(string) (string, bool)) (recordanalyze.ExecFunc, error) {
-		return func(_ context.Context, _ *action.ActionDef, _ action.PackageContext, _ map[string]any, safe bool, _ action.SelectorObserver) recordanalyze.RunOutcome {
-			calls = append(calls, safe)
+		return func(ctx context.Context, _ *action.ActionDef, _ action.PackageContext, _ map[string]any, safe bool, _ action.SelectorObserver) recordanalyze.RunOutcome {
+			calls = append(calls, replay{safe, recordanalyze.StopsAtActions(ctx)})
 			return recordanalyze.RunOutcome{Result: &action.ExecutionResult{}}
 		}, nil
 	}
 	t.Cleanup(func() { seams.VerifyExec = prev })
 
 	asAgent(t)
-	out, err := runRecordCLI(t, true, "verify", dir, "--full")
-	if err == nil || !operatorOnlyCode(t, out) || len(calls) != 0 {
-		t.Fatalf("an agent's verify --full: err=%v out=%s replays=%v, want operator_only before the browser", err, out, calls)
-	}
-	_, _ = runRecordCLI(t, true, "verify", dir)
-	if len(calls) != 1 || !calls[0] {
-		t.Fatalf("an agent's verify: replays=%v, want one safe replay", calls)
+	for _, args := range [][]string{{"verify", dir}, {"verify", dir, "--full"}, {"verify", dir, "--stop-at-first-action"}} {
+		out, err := runRecordCLI(t, true, args...)
+		if err == nil || !operatorOnlyCode(t, out) || len(calls) != 0 {
+			t.Fatalf("an agent's %v: err=%v out=%s replays=%v, want operator_only before the browser", args, err, out, calls)
+		}
 	}
 	seams.Refusal = func() string { return "" }
+	_, _ = runRecordCLI(t, true, "verify", dir)
 	_, _ = runRecordCLI(t, true, "verify", dir, "--full")
-	if len(calls) != 2 || calls[1] {
-		t.Fatalf("the user's verify --full: replays=%v, want a full one", calls)
+	_, _ = runRecordCLI(t, true, "verify", dir, "--stop-at-first-action")
+	want := []replay{{true, false}, {false, false}, {true, true}}
+	if !slices.Equal(calls, want) {
+		t.Fatalf("the user's replays = %v, want %v", calls, want)
+	}
+	if _, err := runRecordCLI(t, true, "verify", dir, "--full", "--stop-at-first-action"); err == nil {
+		t.Fatal("--full with --stop-at-first-action was accepted")
 	}
 }

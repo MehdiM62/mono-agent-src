@@ -254,15 +254,26 @@ operation can't slip past.
 ### Recording replays up to v0.152.0
 
 In releases up to and including v0.152.0, an agent could replay a recording,
-its own or yours, in your logged-in browser with `record replay --yes`, or run
-a draft's steps with `record verify --full`, including the steps that post,
-send or buy, with no approval; without `--yes`, it could answer the replay's
-own question in a terminal. Now `--yes` and `--full` are yours (exit 3,
-`operator_only` for an agent, the chat or a workflow), and an agent's replay
-is never asked: it stops before the first step that changes a site. Plain
-`record verify`, which stops there too, stays open. The app and the browser
-extension run verify as you, unless the app was started from an agent's
-shell. We know of no use of this: it was found by code review.
+its own or yours, with `record replay`, or run a draft's steps with `record
+verify`, in your logged-in browser, with no approval. Which steps count as
+changing a site is read from the recording or draft itself, a file an agent
+can write, so steps that post, send or buy could run even without `--yes` or
+`--full`. Now:
+
+- Every `record replay` and `record verify` is yours: an agent, the chat or a
+  workflow gets exit 3 (`operator_only`). Only `record replay --dry-run`,
+  which runs nothing, stays open.
+- The browser extension's verify reaches the app through the bridge, which
+  any program that can read its pairing file can use, so the bridge's verify
+  takes no `full` and stops before the first click, key press, option pick
+  or bot call, whatever the draft marks.
+- Your own replays and verifies, in your terminal and the app, work as
+  before.
+- An agent that hides its markers and owns a terminal can still answer a
+  replay's question and pass as you: the general limit of how agents are
+  recognised (see "Who can read a decrypted secret").
+
+We know of no use of this: it was found by code review.
 
 ## Assistant tools (chat `--tools`)
 

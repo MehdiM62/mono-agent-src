@@ -3,6 +3,9 @@ package recordanalyze
 import (
 	"context"
 	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -131,6 +134,51 @@ func TestPageExecSafeModeRealExecutor(t *testing.T) {
 	}
 	if page.url != "https://app.acme-crm.test/contacts/new" {
 		t.Errorf("url = %s", page.url)
+	}
+}
+
+// A draft is a file anyone can write, and the mark that a step changes the
+// site is in it: with Save's mark taken off (and the action declared
+// read-only), safe mode clicks Save. A verify
+// that stops at actions (WithStopAtActions, the extension's) stops before
+// Save whatever the draft marks.
+func TestPageExecStopAtActionsIgnoresTheDraftsMarks(t *testing.T) {
+	run := func(ctx context.Context) (*VerifyReport, *fakePage) {
+		t.Helper()
+		dir := formDraft(t)
+		err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+			if err != nil || d.IsDir() || !strings.HasSuffix(path, ".json") {
+				return err
+			}
+			b, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			unmarked := strings.NewReplacer(`"sideEffect": true`, `"sideEffect": false`, `"sideEffects": "write"`, `"sideEffects": "read"`).Replace(string(b))
+			return os.WriteFile(path, []byte(unmarked), 0o600)
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		page := &fakePage{elems: map[string]*fakeElem{}}
+		for sel, name := range map[string]string{
+			`[data-testid="contact-email"]`: "email", `input[name="full_name"]`: "name",
+			`input[name="password"]`: "password", `[data-testid="contact-save"]`: "save",
+		} {
+			page.elems[sel] = &fakeElem{page: page, name: name}
+		}
+		rep, err := Verify(ctx, dir, VerifyOptions{Exec: PageExec(page, zerolog.Nop()), Inputs: map[string]any{"account_password": "s3cret"}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return rep, page
+	}
+	if _, page := run(context.Background()); !page.elems[`[data-testid="contact-save"]`].clicked {
+		t.Fatal("the unmarked Save was not clicked: the fixture no longer shows the hole")
+	}
+	rep, page := run(WithStopAtActions(context.Background()))
+	if page.elems[`[data-testid="contact-save"]`].clicked || rep.StoppedAt == nil || rep.StoppedAt.StepID != "save" {
+		t.Fatalf("stopping at actions: Save clicked=%v, stoppedAt=%+v", page.elems[`[data-testid="contact-save"]`].clicked, rep.StoppedAt)
 	}
 }
 
