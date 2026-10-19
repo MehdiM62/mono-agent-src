@@ -3,31 +3,57 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { CREDENTIAL_KEYS, MASK, isCredentialKey, maskArgs, maskCredentials } from './credentials.js'
+import { MASK, isCredentialKey, maskArgs, maskCredentials } from './credentials.js'
 
 describe('the credential keys', () => {
-  // One list on each side: the JS list is the Go redaction's.
-  it("are internal/workflow/redact.go's redactKeyPattern", () => {
+  // The JS rule masks at least what the Go redaction masks.
+  it("cover every key of internal/workflow/redact.go's redactKeyPattern", () => {
     const go = readFileSync(join(__dirname, '..', '..', '..', '..', '..', 'internal', 'workflow', 'redact.go'), 'utf8')
     const m = go.match(/redactKeyPattern = regexp\.MustCompile\(\s*`\(\?i\)\^\(([^)]+)\)\$`\)/)
     expect(m, 'redactKeyPattern found').not.toBeNull()
-    expect([...CREDENTIAL_KEYS].sort()).toEqual(m[1].split('|').sort())
+    expect(m[1].split('|').filter(k => !isCredentialKey(k))).toEqual([])
   })
 
-  it('match as written, with - for _, and as a suffix', () => {
-    for (const k of ['api_key', 'API_KEY', 'api-key', 'GITHUB_TOKEN', 'x-api-key', 'client_secret', 'Authorization', 'db_password']) {
+  it('are names that hold a credential word', () => {
+    for (const k of ['api_key', 'apiKey', 'API_KEY', 'x-api-key', 'GITHUB_TOKEN', 'accessToken', 'client_secret', 'Authorization',
+      'db_password', 'passwd', 'basic_auth', 'X-Auth-Token', 'sessionId', 'Set-Cookie', 'credentials', 'max_tokens']) {
       expect(isCredentialKey(k), k).toBe(true)
     }
-    for (const k of ['tokens', 'max_tokens', 'name', 'title', 'token_file', 'oauth', 'value', 'field']) {
+    for (const k of ['name', 'title', 'author', 'keyboard', 'monkey', 'oauth_url', 'value', 'field']) {
       expect(isCredentialKey(k), k).toBe(false)
     }
   })
 })
 
+// Fakes in each token's shape, built here so no file holds one whole.
+const SHAPES = {
+  openai: 'sk-' + 'a1B2'.repeat(6),
+  anthropic: 'sk-ant-api03-' + 'c3D4'.repeat(6),
+  github: 'ghp_' + 'E5f6'.repeat(9),
+  githubOAuth: 'gho_' + 'E5f6'.repeat(9),
+  githubPat: 'github_pat_' + 'G7h8'.repeat(8),
+  slack: 'xoxb-' + '1234-5678-'.repeat(2) + 'abcd',
+  aws: 'AKIA' + 'QRST'.repeat(4),
+  google: 'AIza' + 'u9V0'.repeat(9),
+  jwt: 'eyJ' + 'hbGc'.repeat(4) + '.eyJ' + 'zdWI'.repeat(4) + '.' + 'c2ln'.repeat(4),
+}
+
+describe('token shapes', () => {
+  it.each(Object.entries(SHAPES))('masks a %s token wherever it stands', (_, token) => {
+    expect(maskCredentials(`curl -d ${token} https://x.test`)).toBe(`curl -d ${MASK} https://x.test`)
+    expect(maskCredentials(`"note": "use ${token} now"`)).toBe(`"note": "use ${MASK} now"`)
+  })
+
+  it('masks what follows Bearer, however short', () => {
+    expect(maskCredentials('auth Bearer x1 ok')).toBe(`auth Bearer ${MASK} ok`)
+  })
+})
+
 describe('maskCredentials', () => {
   it.each([
-    // The probe's case.
+    // The probe's case, and the camelCase key.
     [`monoagentcli workflow run abc --input '{"api_key":"K"}'`, `monoagentcli workflow run abc --input '{"api_key":"${MASK}"}'`],
+    [`monoagentcli workflow run abc --input '{"apiKey":"K","n":2}'`, `monoagentcli workflow run abc --input '{"apiKey":"${MASK}","n":2}'`],
     ['{"api_key": "K", "name": "x"}', `{"api_key": "${MASK}", "name": "x"}`],
     ['{"password": "p\\"q", "n": 1}', `{"password": "${MASK}", "n": 1}`],
     ['{"token": 12345}', `{"token": ${MASK}}`],
@@ -56,7 +82,9 @@ describe('maskCredentials', () => {
   it.each([
     'go test ./...',
     'monoagentcli task add "Fix the token refresh"',
-    '{"title":"Rotate the password","max_tokens":5}',
+    '{"title":"Rotate the password","count":5}',
+    'git commit --author "Sam <sam@x.test>" -m "Fix the keyboard"',
+    'npm run task-runner -- --verbose',
     'monoagentcli secret add --name tok --stdin',
     'git commit -m "auth: tidy"',
   ])('leaves %s as it is', (input) => {

@@ -1,25 +1,25 @@
 // Credential-shaped values in a command line or a tool's input are masked
-// wherever a card, the stage or a banner shows them: the value after a key
-// such as api_key, token or password, in JSON, in flag or env form and in
-// an Authorization header, reads "•••" (#872 review).
+// wherever a card, the stage or a banner shows them (#872 review): the value
+// of a flag, a query parameter, a JSON key or a key=value whose name looks
+// like a credential, and a well-known token shape anywhere, read "•••".
 
-// CREDENTIAL_KEYS is internal/workflow/redact.go's redactKeyPattern, the
-// list the Go redaction of tool arguments, run output and the HTTP API
-// uses; credentials.test.js holds the two equal. A key matches when,
-// lowercased with - read as _, it is one of these or ends in _ and one of
-// them (GITHUB_TOKEN, --api-key, x-api-key).
-export const CREDENTIAL_KEYS = [
-  'password', 'passwd', 'secret', 'secrets', 'token', 'access_token', 'refresh_token', 'id_token', 'api_key', 'apikey',
-  'authorization', 'auth', 'cookie', 'cookies', 'client_secret', 'private_key', 'bearer',
-]
+// CREDENTIAL_WORDS are what makes a key's name a credential's. The long
+// ones count anywhere in the name (max_tokens, GITHUB_TOKEN, clientSecret,
+// sessionId); "key" and "auth" only as a word of it (apiKey, x-api-key,
+// basic_auth), so author, keyboard and monkey stay as they are. Every key
+// internal/workflow/redact.go masks is one; credentials.test.js holds that.
+export const CREDENTIAL_WORDS = ['key', 'token', 'secret', 'password', 'passwd', 'auth', 'authorization', 'bearer', 'cookie', 'session', 'credential']
+const WORD_ONLY = new Set(['key', 'auth'])
+const ANYWHERE = CREDENTIAL_WORDS.filter(w => !WORD_ONLY.has(w)).concat(['apikey', 'accesskey', 'privatekey'])
 
 export const MASK = '•••'
 
-const KEYS = new Set(CREDENTIAL_KEYS)
-
 export function isCredentialKey(key) {
-  const k = String(key).toLowerCase().replace(/-/g, '_')
-  return KEYS.has(k) || CREDENTIAL_KEYS.some(c => k.endsWith(`_${c}`))
+  const name = String(key)
+  const flat = name.toLowerCase().replace(/[^a-z0-9]/g, '')
+  if (ANYWHERE.some(w => flat.includes(w))) return true
+  const words = name.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase().split(/[^a-z0-9]+/)
+  return words.some(w => WORD_ONLY.has(w))
 }
 
 const NAME = '[A-Za-z_][A-Za-z0-9_-]*'
@@ -39,14 +39,27 @@ const RULES = [
   new RegExp(`(\\\\?"(${NAME})\\\\?"\\s*:\\s*)([^\\s"',}\\]\\\\][^\\s,}\\]\\\\]*)`, 'g'),
   // A flag: --api-key K, --token=K.
   new RegExp(`((?:^|[\\s"'(])--?(${NAME})(?:=|\\s+))(?!-)(${SHELL_VALUE})`, 'g'),
-  // An assignment: API_KEY=K, a URL's ?token=K, --field password=K.
+  // A key=value or a query parameter: API_KEY=K, ?access_token=K, --field password=K.
   new RegExp(`((?:^|[\\s"'(;&|?{,])(${NAME})=)(${SHELL_VALUE})`, 'g'),
   // A header or a YAML line: Authorization: Bearer K, X-Api-Key: K. A bare
   // "auth:" is left alone: it is a commit message's scope far more often.
   [new RegExp(`((?:^|[\\s"'])(${NAME})\\s*:\\s*(?:${SCHEMES}\\s+)?)([^\\s"',;]+)`, 'gi'), k => k.toLowerCase() !== 'auth'],
 ]
-// An auth scheme's credential standing alone, without its header.
-const SCHEME_VALUE = new RegExp(`\\b(${SCHEMES}\\s+)([A-Za-z0-9._~+/=-]{8,})`, 'g')
+
+// Token shapes masked wherever they stand, whatever names them.
+const TOKEN_SHAPES = [
+  '\\bsk-[A-Za-z0-9_-]{16,}', // OpenAI, Anthropic and similar API keys
+  '\\bgh[pousr]_[A-Za-z0-9]{16,}', // GitHub tokens
+  '\\bgithub_pat_[A-Za-z0-9_]{16,}',
+  '\\bxox[bpas]-[A-Za-z0-9-]{8,}', // Slack tokens
+  '\\bAKIA[0-9A-Z]{16}\\b', // AWS access key ids
+  '\\bAIza[0-9A-Za-z_-]{30,}', // Google API keys
+  '\\beyJ[A-Za-z0-9_-]+\\.eyJ[A-Za-z0-9_-]+(?:\\.[A-Za-z0-9_-]*)?', // JWTs
+].map(s => new RegExp(s, 'g'))
+// Bearer and whatever follows it, of any length; Basic and Token
+// credentials after their scheme.
+const BEARER_VALUE = /\b(Bearer\s+)(?!•••)[^\s"',;]+/g
+const SCHEME_VALUE = /\b((?:Basic|Token)\s+)[A-Za-z0-9._~+/=-]{8,}/g
 
 // maskCredentials returns text with each credential-shaped value masked.
 export function maskCredentials(text) {
@@ -56,7 +69,8 @@ export function maskCredentials(text) {
     const [re, also] = Array.isArray(rule) ? rule : [rule, () => true]
     out = out.replace(re, (all, head, key, value) => (isCredentialKey(key) && also(key) && value !== MASK ? head + MASK : all))
   }
-  return out.replace(SCHEME_VALUE, (all, head, value) => (value === MASK ? all : head + MASK))
+  for (const re of TOKEN_SHAPES) out = out.replace(re, MASK)
+  return out.replace(BEARER_VALUE, (all, head) => head + MASK).replace(SCHEME_VALUE, (all, head) => head + MASK)
 }
 
 // maskArgs is a tool call's arguments with every string masked and every
