@@ -19,15 +19,16 @@ func TestParseChatRoute(t *testing.T) {
 }
 
 func TestChatMessagesAfterWaits(t *testing.T) {
+	session := watchSession("wait-session")
 	go func() {
 		time.Sleep(50 * time.Millisecond)
-		PostChatMessage("wait-session", ChatMessage{Role: "bot", Text: "late"})
+		PostChatMessage(session, ChatMessage{Role: "bot", Text: "late"})
 	}()
-	got := ChatMessagesAfter(context.Background(), "wait-session", 0, 5*time.Second)
+	got := ChatMessagesAfter(context.Background(), session, 0, 5*time.Second)
 	if len(got) != 1 || got[0].Text != "late" || got[0].ID != 1 {
 		t.Fatalf("messages = %+v", got)
 	}
-	if got := ChatMessagesAfter(context.Background(), "wait-session", 1, 10*time.Millisecond); got != nil {
+	if got := ChatMessagesAfter(context.Background(), session, 1, 10*time.Millisecond); got != nil {
 		t.Fatalf("nothing new, got %+v", got)
 	}
 }

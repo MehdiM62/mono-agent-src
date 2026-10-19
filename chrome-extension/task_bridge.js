@@ -79,21 +79,25 @@
 
   /**
    * add queues one task, then tries to send it. `what` is {kind, text, url,
-   * title, profile}; kind is selection, page or note; a title that is only
-   * the url's address is not kept (pageTitle). Resolves {ok, status, id,
-   * feedback}: status is added, queued, refused, full, no_profile or empty,
-   * and feedback is the one line the person sees, {level, text}.
+   * title, profile}; kind is selection, page, note or chat; a title that is
+   * only the url's address is not kept (pageTitle). A chat task (a proposal
+   * the person confirmed, chat_proposals.js) is {kind, taskTitle, notes,
+   * clientId, profile}, about no page. Resolves {ok, status, id, feedback}:
+   * status is added, queued, refused, full, no_profile or empty, and feedback
+   * is the one line the person sees, {level, text}.
    */
   async function add(what) {
     const T = Outbox();
     const kind = what.kind;
-    const text = kind === "page" ? "" : T.capBytes(String(what.text || "").trim(), T.MAX_TEXT_BYTES);
-    const url = kind === "note" ? "" : pageUrl(what.url);
-    const title = kind === "note" ? "" : pageTitle(what).trim().slice(0, MAX_TITLE_CHARS);
+    const chat = kind === "chat";
+    const text = kind === "page" || chat ? "" : T.capBytes(String(what.text || "").trim(), T.MAX_TEXT_BYTES);
+    const url = kind === "note" || chat ? "" : pageUrl(what.url);
+    const title = kind === "note" || chat ? "" : pageTitle(what).trim().slice(0, MAX_TITLE_CHARS);
     if (!what.profile) return outcome("no_profile", { kind });
-    if (kind === "page" ? !url && !title : !text) return outcome("empty", { kind });
+    if (chat ? !what.taskTitle : kind === "page" ? !url && !title : !text) return outcome("empty", { kind });
 
-    const entry = { client_id: newClientId(), text, url, title, kind, profile: what.profile, at: new Date().toISOString() };
+    const entry = { client_id: (chat && what.clientId) || newClientId(), text, url, title, kind, profile: what.profile, at: new Date().toISOString() };
+    if (chat) Object.assign(entry, { task_title: what.taskTitle, notes: what.notes || "" });
     // Awaited before it is queued: a flush another add() started may send it
     // before this one gets to ask, and what it did must not be lost.
     awaited.add(entry.client_id);
@@ -103,7 +107,7 @@
       await afterChange();
       const { stopped } = await flush();
       const sent = outcomes.get(entry.client_id) || { state: "kept", code: stopped || "offline" };
-      if (sent.state === "added") return outcome("added", { id: sent.id, name: await profileName(what.profile) });
+      if (sent.state === "added") return outcome("added", { id: sent.id, created: sent.created, name: await profileName(what.profile) });
       if (sent.state === "refused") return outcome("refused", { reason: sent.reason });
       return outcome("queued", { code: sent.code, reason: sent.reason });
     } finally {
@@ -126,7 +130,8 @@
     const i = info || {};
     switch (status) {
       case "added":
-        return { level: "ok", text: `Added to Inbox in ${i.name} (#${i.id})` };
+        // created false: MonoAgent already had a task under this id (a resend).
+        return { level: "ok", text: `${i.created === false ? "Already added" : "Added"} to Inbox in ${i.name} (#${i.id})` };
       case "queued":
         if (i.code === "offline") return { level: "warn", text: "Saved: will sync when MonoAgent is running" };
         if (i.code === "outdated") {
@@ -144,6 +149,7 @@
         return { level: "error", text: 'Choose a profile first: pick one under "Saving into" in MonoAgent\'s side panel' };
       case "empty":
         if (i.kind === "note") return { level: "error", text: "Type a task first" };
+        if (i.kind === "chat") return { level: "error", text: "Nothing to add: the chat's task has no title" };
         if (i.kind === "page") return { level: "error", text: "This page has no title or address to add" };
         return { level: "error", text: "Nothing to add: select some text first" };
     }
@@ -271,6 +277,17 @@
       announce(tab.id, out.feedback);
       return out;
     },
+    // A task the side panel's chat proposed, sent by the person's click on its
+    // card (chat_proposals.js), and only from the panel (registerMessages).
+    // Checked again here; MonoAgent files it in the Inbox as the agent.
+    task_add_proposal: async (msg) => {
+      const P = root.MonoChatProposals;
+      const raw = msg && msg.proposal;
+      const card = P && raw && raw.kind === "task" ? P.clone([Object.assign({}, raw, { state: "pending" })])[0] : null;
+      if (!card) return outcome("refused", { reason: "that is not a task the chat proposed" });
+      const profile = panelProfile(msg);
+      return add({ kind: "chat", taskTitle: card.title, notes: card.notes, clientId: P.clientId(card, profile), profile });
+    },
     task_state: async () => ({ ok: true, waiting: (await box.list()).length, failures: await box.failures() }),
     task_dismiss: async () => {
       await box.dismiss();
@@ -331,14 +348,16 @@
   async function sendOne(entry) {
     let data;
     try {
-      data = await Ask().request(METHOD, {
+      const params = {
         client_id: entry.client_id,
         text: entry.text,
         url: entry.url,
         title: entry.title,
         kind: entry.kind,
         profile: entry.profile,
-      });
+      };
+      if (entry.kind === "chat") Object.assign(params, { task_title: entry.task_title, notes: entry.notes || "" });
+      data = await Ask().request(METHOD, params);
     } catch (err) {
       const code = (err && err.code) || "internal";
       const reason = (err && err.message) || code;

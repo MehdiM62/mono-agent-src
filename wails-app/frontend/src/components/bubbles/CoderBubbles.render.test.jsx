@@ -20,6 +20,7 @@ const { api, listeners, mockConfirm } = vi.hoisted(() => ({
     getAgentRuntimeModels: vi.fn(),
     pickCoderFolder: vi.fn(),
     openPathWithOS: vi.fn(),
+    getProfiles: vi.fn(),
   },
 }))
 vi.mock('../../services/api.js', () => ({
@@ -62,6 +63,7 @@ beforeEach(() => {
   api.getAgentRuntimeModels.mockResolvedValue([{ id: 'opus', label: 'Opus 5.5', effort_levels: ['low', 'high'] }])
   api.startChatTurn.mockResolvedValue({ ok: true })
   api.stopChatTurn.mockResolvedValue({ ok: true })
+  api.getProfiles.mockResolvedValue([])
 })
 afterEach(cleanup)
 
@@ -79,6 +81,18 @@ describe('coder bubbles', () => {
     await waitFor(() => expect(overlay()).toBeNull())
     expect(bubble('c1')).toBeInTheDocument()
     expect(api.stopChatTurn).not.toHaveBeenCalled()
+  })
+
+  it("names a chat in a profile's own folder by the profile, not by its id (#477)", async () => {
+    const root = '/home/u/.monoagent/profiles/ab12cd34-77b2-4c55-9d1a-6e2f4b8c1d20'
+    api.getProfiles.mockResolvedValue([{ id: 'ab12cd34-77b2-4c55-9d1a-6e2f4b8c1d20', name: 'Work', root_dir: root }])
+    render(<Harness open={{ ...conv, cwd: root }} />)
+    await waitFor(() => expect(overlay()).toBeInTheDocument())
+    await waitFor(() => expect(bubble('c1')).toHaveTextContent('WO'))
+    expect(bubble('c1')).toHaveAttribute('aria-label', expect.stringContaining('Work'))
+    // The title says Work; the full folder is still shown where the chat works.
+    expect(within(overlay()).getByText('Work')).toBeInTheDocument()
+    expect(within(overlay()).queryByText('ab12cd34-77b2-4c55-9d1a-6e2f4b8c1d20')).toBeNull()
   })
 
   it('does not collapse for a drag that started inside, a text selection, or an open dialog', async () => {

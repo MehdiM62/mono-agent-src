@@ -299,7 +299,7 @@ func TestTurnCapLimitsQualityEvents(t *testing.T) {
 }
 
 func TestLeadPromptMentionsRate(t *testing.T) {
-	if p := LeadPrompt(Limits{MaxAgents: 3, MaxConcurrent: 2}); !strings.Contains(p, "org_rate (rate a worker's result)") || !strings.Contains(p, "org_rate it once") {
+	if p := LeadPrompt(Limits{MaxAgents: 3, MaxConcurrent: 2}, true); !strings.Contains(p, "org_rate (rate a worker's result)") || !strings.Contains(p, "org_rate it once") {
 		t.Errorf("lead prompt = %s", p)
 	}
 }

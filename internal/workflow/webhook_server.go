@@ -108,6 +108,9 @@ type WebhookServer struct {
 	forms formRoutes
 	// chats are the trigger.chat pages at /chat/<path> (chat_serve.go).
 	chats chatRoutes
+	// watches is the chat watches' context (watchChatRun); Stop cancels it.
+	watches    context.Context
+	endWatches context.CancelFunc
 }
 
 // SetRunner makes the server start runs through run, which reports the
@@ -134,6 +137,7 @@ func NewWebhookServer(addr string, logger zerolog.Logger) *WebhookServer {
 		routes:         make(map[string]*WebhookRegistration),
 		logger:         logger,
 	}
+	s.watches, s.endWatches = context.WithCancel(context.Background())
 	s.server = &http.Server{
 		Addr:         addr,
 		Handler:      s,
@@ -179,10 +183,12 @@ func (s *WebhookServer) Start() error {
 	return nil
 }
 
-// Stop gracefully shuts down the server with a 5-second timeout.
+// Stop ends the chat watches and gracefully shuts down the server with a
+// 5-second timeout.
 func (s *WebhookServer) Stop(ctx context.Context) error {
 	shutdownCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
+	s.endWatches()
 	s.logger.Info().Msg("webhook server shutting down")
 	return s.server.Shutdown(shutdownCtx)
 }

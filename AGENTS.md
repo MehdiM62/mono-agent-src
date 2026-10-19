@@ -168,6 +168,12 @@ monoagentcli node schema <type>
 # unknown_upstream_field, needs_setup (warnings: e.g. no account chosen yet).
 monoagentcli --profile work workflow validate <id>
 monoagentcli --profile work workflow validate --file <workflow.json>
+# Keys an app node sends that its operation doesn't declare (an agent's run of
+# it waits for approval). No --profile, no database; exit 0 clean, 1 found, 3 a file
+# it can't check (unreadable, not a regular file, over 16 MB, not JSON) or no catalog.
+monoagentcli --json workflow check-keys <file.json…|->
+# Signed out, from a source checkout: the same check, writing nothing under HOME.
+go run ./scripts/checkkeys [--json] <file.json…|->
 
 # Draft a workflow from a description: an agent turn writes it, validate's
 # errors go back to it until it passes, and it is saved inactive.
@@ -275,7 +281,7 @@ The desktop app does everything through these commands; they are equally usable 
 - **Chat:**
   - `chat history list|show|create|turns|turn|events|delete|finish|reconcile`, scoped to the profile named by `--profile` (`reconcile` sweeps every profile).
   - `chat history create --runtime R [--model M] [--workflow W] [--mode coder --cwd DIR|--coder-root|--new-workspace]` makes a conversation (coder mode: see "Coder mode" below), `chat history turns <conv> [--cursor] [--limit]` pages its turns, and `chat history events <conv> <turn> [--after-seq N] [--limit N]` returns the events with the turn's status.
-  - `chat --conversation <conv> --turn <id> [--instance <app-id>] [--tools monoagent[,runs]] -- <message>` runs one turn and journals it itself. It takes the runtime, model and session from the conversation. Stdout is an admission line, then each committed event as NDJSON. A repeated turn id never runs twice. `--prompt-stdin` (instead of `-- <message>`) reads the prompt from stdin. `--tools monoagent:read` is a mode of its own, never combined with `runs`, `--canvas` or other members: only `list_workflows`, `get_workflow`, `list_node_types`, no Bash, and the turn counts as carrying untrusted web-page text. It is the only mode the browser extension's side-panel chat (`chat.send`, `chat.stop`, `chat.events` over the extension bridge) starts, with the message on stdin; see SECURITY.md, "The extension's side-panel chat".
+  - `chat --conversation <conv> --turn <id> [--instance <app-id>] [--tools monoagent[,runs]] -- <message>` runs one turn and journals it itself. It takes the runtime, model and session from the conversation. Stdout is an admission line, then each committed event as NDJSON. A repeated turn id never runs twice. `--prompt-stdin` (instead of `-- <message>`) reads the prompt from stdin. `--tools monoagent:read` is a mode of its own, never combined with `runs`, `--canvas` or other members: only `list_workflows`, `get_workflow`, `list_node_types`, `propose_task` (writes nothing: the side panel shows the proposed task as a card, and only the person's click sends it, as `task.add` kind `chat`) and `propose_recording` (starts nothing: the card starts the side panel's recorder only on the person's click, and the automation is saved only by the Record section's Save), no Bash, and the turn counts as carrying untrusted web-page text. It is the only mode the browser extension's side-panel chat (`chat.send`, `chat.stop`, `chat.events` over the extension bridge) starts, with the message on stdin; see SECURITY.md, "The extension's side-panel chat".
   - `chat history delete` refuses a conversation with an active turn (exit 3). `chat history finish <conv> <turn> --status S` records the end of a turn whose process was killed; it does nothing if the turn already finished. `chat history reconcile --except-owner <app-id>` marks turns left active as interrupted, at app startup.
   - `chat history transcript <history-id>` reads the legacy transcript that plain `chat --history-id` still writes.
 - **monoes.me library:** `library status [--offline]|login|logout|list|show|install|publish|update|installed` (see [monoes.me library](#monoesme-library)). All reads need the monoes.me sign-in: without one they exit 4 with `"login_required": true`. `library login|logout|status` are aliases of `account login|logout|status`. `library login` streams `{"kind":"url","url"}` on stderr with `--json` and waits for the browser; the app kills it to cancel.
@@ -583,6 +589,8 @@ dangerous calls.
   code it loads; `extension pair` printing the token stays open (an agent can
   read the token file), as do `extension install` of the signed release and
   `extension serve` for a private bridge,
+  (`clicore.OperatorRefusal`; for CLI authors, every `Deps.RequireOperator`, `NotOperator` and `Refusal` goes through `clicore.RequireOperator` / `clicore.OperatorRefusal`, which refuse when the check is nil). `extension pair` stays open (an agent can
+  read the token file),
   and so does `image.vault_get` taking its id from data, by design. Names, masked
   values and metadata stay open. No secret reference resolves in a run of
   a definition the user hasn't approved: `secrets.Resolve` refuses under
@@ -1667,7 +1675,7 @@ a row here):
 |---|---|
 | CLI | `monoagentcli --profile <id> task ...` (this section) |
 | Session-start hook | `monoagentcli --profile <id> task digest`; nothing installs the hook for you |
-| Chrome extension | *Add selection as task*, *Add page as task*, the side panel's box and the `add-task` key send `task.add` over the extension bridge: a capture, Inbox only, in the profile the extension is "Saving into" (README, Chrome Extension) |
+| Chrome extension | *Add selection as task*, *Add page as task*, the side panel's box and the `add-task` key send `task.add` over the extension bridge: a capture, Inbox only, in the profile the extension is "Saving into" (README, Chrome Extension). A task the side-panel chat proposed (`propose_task`) and the person added with the card's button is `task.add` kind `chat`, filed as the agent `agent:extension-chat`, Inbox only |
 | MCP, any server | `monoagentcli mcp`: `task_list`, `task_get`, `task_next`; with `--allow-mutations` also `task_claim`, `task_comment`, `task_finish`, `task_release`, `task_add`, acting on the call's profile as `agent:<client>#<4 hex>`; text in fields ending in `_untrusted`; no tool edits, moves or archives a task, and none approves unless the user delegated it (next row) |
 | MCP, the board alone | `claude mcp add monoagent-tasks -- monoagentcli mcp --tasks-only --allow-mutations`: the same eight tools and no other, one server for every profile (each call passes `profile`); nothing registers it for you. While the user has run `task agents allow --approve` for the profile (default: off), it also serves `task_approve`; no tool changes that setting |
 | Claude Code skill | `~/.claude/skills/monoagent-tasks/SKILL.md`, written create-only by the next CLI run on a machine with `~/.claude` |
@@ -1773,6 +1781,14 @@ monoagentcli --profile work chat --conversation <conv> --turn <id> -- "make the 
 monoagentcli --profile work chat --mode coder --cwd ~/code/app -- "…"   # one unjournaled turn
 ```
 
+- Every `coder set` flag is the operator's own (exit 3, `operator_only` for
+  an agent, the chat or a workflow): the caps, `--send-approval`,
+  `--app-access`, and the dynamic org's `--org-router` and
+  `--org-model-picker` (they decide whether workers' briefs go to Jev) and
+  `--org-writers` (isolated writers' commits skip git hooks). Without flags
+  it only prints the settings. `TestEveryCoderSetFlagIsTheOperators` fails
+  for a new flag until it is classified. `coder disable` is anyone's: it
+  only turns coder mode off.
 - The mode and folder are fixed when the conversation is created. The
   CLIs key their sessions by folder, so a conversation always resumes in the
   same one.
@@ -1832,7 +1848,11 @@ monoagentcli --profile work chat --mode coder --cwd ~/code/app -- "…"   # one 
   `QWEN_CODE`, `DSH_SHELL`, `DSH_SESSION_ID`, and `MONOMIND_CLINE_TURN` /
   `MONOMIND_AIDER` (set by monomind's runners, since cline and aider set
   none of their own). A shell that sets the generic `AI_AGENT` or `AGENT`
-  itself is refused too. Every operator check reads these markers. On
+  itself is refused too. Every operator check reads these markers
+  (`operator.MarkerEnv()`). `MONOAGENT_AGENT_KIND` and
+  `MONOAGENT_AGENT_KIND_TOKEN` are in that list but count only alongside
+  another marker, by design: a declared kind and its token say what kind
+  of agent a marked process is, and alone they make no shell an agent. On
   Linux any of them in a parent process counts too, as does a parent
   that is a `monomind agent exec` turn, up to 32 levels up; a deeper
   chain counts as marked. A process whose marked parents have exited (a
@@ -1953,12 +1973,19 @@ budget.
 |---|---|
 | `coding` | Full access; checks its work in the user's browser with `monoagentcli browser` (no browser lease: it passes `--tab`). |
 | `qa`, `automation` | Full access, plus `monoagentcli` for the browser (`browser`, the browser lease), workflows and automations. |
+| `workspace` | Coding plus every monoagent surface through `monoagentcli` (apps, tasks, documents, people, vault, workflows); outbound sends wait for approval. `coder set --app-access off` (`appAccess`, operator only, default on) changes what agents are told and offered, not what they can do: workers are not offered this profile (a lead's explicit ask is refused, a picked one runs as `coding`), the lead's and workers' prompts, `org_roster` and `org_spawn`'s description leave it and its surface rules out, and no coder prompt carries the profile summary. The coder lead keeps full access, a worker with a shell can still run `monoagentcli` itself, and operator-only commands, the send rule in every prompt and the send gate (`--send-approval`) apply either way. Routing still asks Jev when a Jev key is set, whatever app access says; `--org-router model` keeps briefs local. |
 | `research` | Read-only, confined as described below. |
 
 How workers run:
 
 - **Processes:** each worker is its own `agent exec` in the chat folder,
   with the user's setup loaded.
+- **Profile context:** with app access on, each worker's prompt carries the
+  profile block (`profile context`), read once per turn and again at the
+  next spawn after the lead calls `org_roster`; a read that failed (a locked
+  database) is not kept, so the next spawn tries again. The lead has it
+  once, in its own coder prompt. With app access off neither has it; every
+  prompt keeps the profile id to pass as `--profile`.
 - **Leases:** one worker edits at a time (the write lease), and one uses the
   browser at a time (the browser lease). Readers run in parallel. The lead's
   own file edits (`Edit`, `Write`, patch tool calls in its event stream)
@@ -2953,7 +2980,11 @@ newline is stripped.
 monoagentcli --profile work secret list                 # metadata only, never values
 monoagentcli --profile work secret add --kind secret --name aws \
   --field access_key_id=... --field secret_access_key=...   # still argv — avoid for high-value secrets
+monoagentcli --profile work secret update aws --field region=eu-west-1 --merge   # change one field, keep the rest
 ```
+
+Without `--merge`, `--field`/`--stdin-json` replace the entry's whole field
+set, and a replace that drops fields prints a warning naming them.
 
 Note: `--value` exists as a shorthand but leaks through process listings
 and shell history — prefer stdin or the interactive prompt for real secrets.

@@ -74,7 +74,7 @@ func (c *Conductor) workerTools(w *worker, m Model, opts *monomind.ExecOptions) 
 		opts.SystemPrompt += askRule
 	}
 	if spawns {
-		opts.Tools = append(opts.Tools, childToolSpecs()...)
+		opts.Tools = append(opts.Tools, childToolSpecs(c.cfg.Staffer.profiles())...)
 		opts.ToolTimeout = max(opts.ToolTimeout, ToolTimeout)
 	}
 	opts.OnToolCall = func(ctx context.Context, name string, args json.RawMessage) (string, error) {

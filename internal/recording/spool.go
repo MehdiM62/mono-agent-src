@@ -21,7 +21,7 @@ func (s *session) applyStart(f *Frame) error {
 		TabID:       f.TabID,
 		URL:         SanitizeURL(f.URL),
 		Title:       clipRunes(f.Title, MaxTitleRunes),
-		Goal:        clipRunes(f.Goal, MaxGoalRunes),
+		Goal:        CleanGoal(f.Goal),
 		StartedAt:   f.StartedAt,
 		Profile:     strings.TrimSpace(f.Profile),
 	}

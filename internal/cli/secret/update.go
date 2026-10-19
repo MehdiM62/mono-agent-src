@@ -1,11 +1,17 @@
 package secret
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
+	"sort"
+	"strconv"
+	"strings"
 
 	"github.com/monoes/mono-agent/internal/connections"
+	"github.com/monoes/mono-agent/internal/operator"
 	"github.com/monoes/mono-agent/internal/secrets"
 
 	"github.com/spf13/cobra"
@@ -14,28 +20,36 @@ import (
 func (d Deps) newSecretUpdateCmd() *cobra.Command {
 	var newName, username, url, notes string
 	var fieldFlags []string
-	var stdinJSON bool
+	var stdinJSON, merge bool
 	cmd := &cobra.Command{
 		Use:   "update <name>",
 		Short: "Update an existing vault entry's metadata and/or fields",
 		Args:  cobra.ExactArgs(1),
+		Long: "Updates the metadata given and, with --field or --stdin-json, the fields. The fields given replace the " +
+			"entry's whole field set unless --merge is passed, which sets those and keeps the others; a replace that drops " +
+			"fields the entry had names them in a warning.",
 		Example: `  monoagentcli secret update github --username bob
+  monoagentcli secret update aws --field secret_access_key=... --merge
   printf '%s' '{"fields":{"pat":"ghp_..."}}' | monoagentcli secret update github --stdin-json`,
-		RunE: d.runSecretUpdate(&newName, &username, &url, &notes, &fieldFlags, &stdinJSON),
+		RunE: d.runSecretUpdate(&newName, &username, &url, &notes, &fieldFlags, &stdinJSON, &merge),
 	}
 	cmd.Flags().StringVar(&newName, "name", "", "Rename this entry")
 	cmd.Flags().StringVar(&username, "username", "", "New username (login kind only)")
 	cmd.Flags().StringVar(&url, "url", "", "New URL (login kind only)")
 	cmd.Flags().StringVar(&notes, "notes", "", "New notes")
-	cmd.Flags().StringArrayVar(&fieldFlags, "field", nil, "Replace the entire field set with these key=value pairs (repeatable)")
+	cmd.Flags().StringArrayVar(&fieldFlags, "field", nil, "Replace the entire field set with these key=value pairs (repeatable; with --merge, set only these)")
 	cmd.Flags().BoolVar(&stdinJSON, "stdin-json", false, `Read the replacement field set as a JSON object from stdin: {"value": "...", "fields": {"k":"v"}}`)
+	cmd.Flags().BoolVar(&merge, "merge", false, "Keep the fields not given (--field or --stdin-json set only theirs)")
 	return cmd
 }
 
-func (d Deps) runSecretUpdate(newName, username, url, notes *string, fieldFlags *[]string, stdinJSON *bool) func(*cobra.Command, []string) error {
+func (d Deps) runSecretUpdate(newName, username, url, notes *string, fieldFlags *[]string, stdinJSON, merge *bool) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		if *stdinJSON && len(*fieldFlags) > 0 {
 			return fmt.Errorf("--stdin-json cannot be combined with --field")
+		}
+		if *merge && !*stdinJSON && len(*fieldFlags) == 0 {
+			return fmt.Errorf("--merge goes with --field or --stdin-json")
 		}
 		db, err := d.OpenDB()
 		if err != nil {
@@ -82,9 +96,17 @@ func (d Deps) runSecretUpdate(newName, username, url, notes *string, fieldFlags 
 			}
 		}
 
+		var dropped []string
+		if fields != nil {
+			if fields, dropped, err = d.mergeFields(cmd, db.DB, profileID, id, args[0], fields, *merge); err != nil {
+				return err
+			}
+		}
+
 		if err := secrets.Update(writeCtx(cmd.Context()), db.DB, profileID, id, namePtr, usernamePtr, urlPtr, notesPtr, fields); err != nil {
 			return writeErr("updating entry", err)
 		}
+		warnDropped(cmd.ErrOrStderr(), args[0], dropped)
 		if namePtr != nil {
 			warnTokenless(cmd.ErrOrStderr(), *namePtr, fields)
 		} else {
@@ -168,3 +190,55 @@ func (d Deps) newSecretEncryptConnectionsCmd() *cobra.Command {
 // rather than exported from the secrets package, since nothing else in the
 // CLI needs it.
 const workflowRefPrefix = "@secret:"
+
+// mergeFields is the field set an update writes: given over the entry's own
+// with merge, else given as it is, and then the fields of the entry that
+// write drops.
+func (d Deps) mergeFields(cmd *cobra.Command, db *sql.DB, profileID, id, name string, given map[string]string, merge bool) (map[string]string, []string, error) {
+	current, _, err := secrets.DecryptFields(cmd.Context(), db, profileID, id)
+	if err != nil {
+		if merge {
+			return nil, nil, fmt.Errorf("--merge needs %q's fields, which could not be read: %w", name, err)
+		}
+		return given, nil, nil // nothing to name; the write replaces whatever was there
+	}
+	if merge {
+		out := make(map[string]string, len(current)+len(given))
+		for k, v := range current {
+			out[k] = v
+		}
+		for k, v := range given {
+			out[k] = v
+		}
+		return out, nil, nil
+	}
+	var dropped []string
+	for k := range current {
+		if _, kept := given[k]; !kept {
+			dropped = append(dropped, k)
+		}
+	}
+	sort.Strings(dropped)
+	return given, dropped, nil
+}
+
+// warnDropped says, once a replace has been written, which fields of the
+// entry it dropped: by name to the user, and only how many to an agent, the
+// chat or a workflow, which see an entry's field count and no field names.
+func warnDropped(w io.Writer, name string, dropped []string) {
+	if len(dropped) == 0 {
+		return
+	}
+	what := fmt.Sprintf("%d fields", len(dropped))
+	if len(dropped) == 1 {
+		what = "1 field"
+	}
+	if operator.Refusal() == "" {
+		quoted := make([]string, len(dropped))
+		for i, f := range dropped {
+			quoted[i] = strconv.Quote(f)
+		}
+		what = strings.Join(quoted, ", ")
+	}
+	fmt.Fprintf(w, "Warning: the fields given replaced %q's whole field set, so this dropped %s; pass --merge to keep them\n", name, what)
+}
