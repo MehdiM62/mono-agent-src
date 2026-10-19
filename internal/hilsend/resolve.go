@@ -48,16 +48,16 @@ func Resolve(ctx context.Context, st Store, id string, approve bool, edit Edit, 
 		p, _, err := st.reject(ctx, id)
 		return p, err
 	}
-	if always {
-		// Before the edit and the claim: the item stays pending, as it was,
-		// for a plain approve. claim checks again on what it claims.
-		p, err := st.Get(ctx, id)
-		if err != nil {
-			return p, err
-		}
-		if p.Recipient.Label {
-			return p, ErrAlwaysLabel
-		}
+	// Before the edit and the claim: the item stays pending, as it was. A
+	// card that can't show what the step sends isn't approved, nor edited
+	// on the way; always-allow needs a recipient a rule can stand for.
+	// claim checks again on what it claims.
+	if p, err := st.Get(ctx, id); err != nil {
+		return p, err
+	} else if p.State == StatePending && p.Unreviewable != "" {
+		return p, fmt.Errorf("send item %s: %w (%s)", p.ID, ErrUnreviewable, p.Unreviewable)
+	} else if always && p.Recipient.Label {
+		return p, ErrAlwaysLabel
 	}
 	if edit.Text != nil || edit.Subject != nil {
 		// A non-pending item can't be edited; claim below reports its state.

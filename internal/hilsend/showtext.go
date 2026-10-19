@@ -6,7 +6,6 @@ import (
 	"slices"
 	"sort"
 	"strings"
-	"unicode"
 )
 
 // What the card shows of one value: a value is cut, never what follows it,
@@ -26,9 +25,10 @@ const (
 	showRecipientMin  = 512       // bytes of each, past showRecipientsFew of them
 	showRecipientsFew = 8         // recipient-like values in one object that get showRecipientMax each
 	showListHead      = 5         // elements of a recipient-like list always shown, with its last one
-	showDomainsMax    = 10        // domains named for what a recipient-like value leaves out
 	showDepthMax      = 4         // levels of names listed under a value (recipient-like ones at any depth)
 	showParamKeysMax  = 1_000_000 // keys and elements of one param a card checks
+	showRawMax        = 8 << 20   // bytes of raw JSON text a card parses
+	showKeyNameMax    = 256       // bytes of a key name a card checks
 	showCardMax       = 256 << 10 // bytes of a card
 )
 
@@ -48,11 +48,14 @@ func showText(op string, show, exprs, unsent []string, undeclared bool, config m
 // param given as an expression (exprs) says so: its keys are the run's, and
 // on an empty item it resolves to "", which would read as nothing
 // undeclared. One the run doesn't send (unsent: raw JSON its switch leaves
-// off) is marked "(not sent)". unreviewable says why the card can't be
+// off) is marked "(not sent)". After the fields, the card lists every
+// address, link, handle, phone number and id in what the step sends that
+// it doesn't already show (net). unreviewable says why the card can't be
 // approved from, "" when it can: a param too large to check, or a card cut
-// where it shows a recipient.
+// where it shows a recipient or one of those.
 func showCard(op string, show, exprs, unsent []string, undeclared bool, config map[string]interface{}) (text, unreviewable string) {
 	c := &card{recipients: map[string]bool{}}
+	var shown []shownParam
 	if undeclared {
 		c.b.WriteString(op + " with fields it doesn't declare:")
 	} else {
@@ -71,14 +74,18 @@ func showCard(op string, show, exprs, unsent []string, undeclared bool, config m
 		if val == nil && !undeclared {
 			continue
 		}
-		v := structured(val)
-		if n := countNodes(v, showParamKeysMax); n > showParamKeysMax {
-			c.put(fmt.Sprintf("\n%s: too large to review: more than %d keys and elements", label, showParamKeysMax), true)
-			if c.unreviewable == "" {
-				c.unreviewable = fmt.Sprintf("%s holds more than %d keys and elements: too large to review", path, showParamKeysMax)
-			}
+		v, raw := structured(val)
+		if raw > showRawMax {
+			c.put(fmt.Sprintf("\n%s: too large to review: %d bytes of JSON text", label, raw), true)
+			c.refuse(fmt.Sprintf("%s holds %d bytes of JSON text, over %d MB: too large to review", path, raw, showRawMax>>20))
 			continue
 		}
+		if n := countNodes(v, showParamKeysMax); n > showParamKeysMax {
+			c.put(fmt.Sprintf("\n%s: too large to review: more than %d keys and elements", label, showParamKeysMax), true)
+			c.refuse(fmt.Sprintf("%s holds more than %d keys and elements: too large to review", path, showParamKeysMax))
+			continue
+		}
+		shown = append(shown, shownParam{path, v})
 		if c.recipient(path[strings.LastIndex(path, ".")+1:]) {
 			c.fullValue(label, v, "", showRecipientMax)
 			continue
@@ -94,6 +101,7 @@ func showCard(op string, show, exprs, unsent []string, undeclared bool, config m
 			c.put("\n"+label+": "+cardValue(val, showValueMax), false)
 		}
 	}
+	c.net(shown)
 	if c.cut {
 		c.b.WriteString("\n(card cut)")
 	}
@@ -101,15 +109,21 @@ func showCard(op string, show, exprs, unsent []string, undeclared bool, config m
 }
 
 // structured is v as an object or a list, a collection's or raw JSON text
-// holding one, or v itself.
-func structured(v interface{}) interface{} {
+// holding one, or v itself, and the bytes of the raw JSON text: past
+// showRawMax it isn't parsed.
+func structured(v interface{}) (interface{}, int) {
 	if x, ok := v.(string); ok {
-		var parsed interface{}
-		if t := strings.TrimSpace(x); (strings.HasPrefix(t, "{") || strings.HasPrefix(t, "[")) && json.Unmarshal([]byte(t), &parsed) == nil {
-			return parsed
+		if t := strings.TrimSpace(x); strings.HasPrefix(t, "{") || strings.HasPrefix(t, "[") {
+			if len(t) > showRawMax {
+				return v, len(t)
+			}
+			var parsed interface{}
+			if json.Unmarshal([]byte(t), &parsed) == nil {
+				return parsed, len(t)
+			}
 		}
 	}
-	return v
+	return v, 0
 }
 
 // countNodes counts v's keys and elements, at every depth, up to past max.
@@ -160,8 +174,21 @@ func (c *card) put(s string, recipient bool) {
 	c.b.WriteString(s)
 }
 
-// recipient reports whether key k may name whom a send reaches.
+// refuse records why the card can't be approved from (the first reason).
+func (c *card) refuse(why string) {
+	if c.unreviewable == "" {
+		c.unreviewable = why
+	}
+}
+
+// recipient reports whether key k may name whom a send reaches. A key over
+// showKeyNameMax bytes is taken for one, unchecked, and the card can't be
+// approved from.
 func (c *card) recipient(k string) bool {
+	if len(k) > showKeyNameMax {
+		c.refuse(fmt.Sprintf("a key of %d bytes, over %d: too large to review", len(k), showKeyNameMax))
+		return true
+	}
 	v, ok := c.recipients[k]
 	if !ok {
 		v = recipientLike(k)
@@ -170,29 +197,31 @@ func (c *card) recipient(k string) bool {
 	return v
 }
 
-// pairName is the field obj names when it is a name and value pair
-// ({"name": "recipientEmail", "value": …}, and with key or field for
-// name) whose name is recipient-like: its value is that field's.
-func (c *card) pairName(obj map[string]interface{}) string {
-	if _, ok := obj["value"]; !ok {
-		return ""
+// pair is obj as a name and value pair: a small object one of whose keys
+// holds a recipient-like name ({"name": "recipientEmail", "value": …},
+// {"fieldName": "to", "fieldValue": …}, {"label": "To", "value": …},
+// {"type": "recipient", "value": …}); by is that key and name the name,
+// and its other keys hold that field's value. by is "" when obj is none.
+func (c *card) pair(obj map[string]interface{}) (by, name string) {
+	if len(obj) < 2 || len(obj) > 8 {
+		return "", ""
 	}
-	for _, n := range []string{"name", "key", "field"} {
-		if s, ok := obj[n].(string); ok && c.recipient(s) {
-			return s
+	for _, k := range sortedKeys(obj) {
+		if s, ok := obj[k].(string); ok && len(s) <= 64 && c.recipient(s) {
+			return k, s
 		}
 	}
-	return ""
+	return "", ""
 }
 
 // order is obj's keys, sorted, the recipient-like ones first (a pair's
-// value among them), and how many of those there are.
+// values among them), and how many of those there are.
 func (c *card) order(obj map[string]interface{}) ([]string, int) {
 	keys := sortedKeys(obj)
-	pair := c.pairName(obj) != ""
+	by, _ := c.pair(obj)
 	var first, rest []string
 	for _, k := range keys {
-		if c.recipient(k) || (pair && k == "value") {
+		if c.recipient(k) || (by != "" && k != by) {
 			first = append(first, k)
 		} else {
 			rest = append(rest, k)
@@ -215,7 +244,7 @@ func sortedKeys(obj map[string]interface{}) []string {
 func (c *card) holdsRecipient(v interface{}) bool {
 	switch x := v.(type) {
 	case map[string]interface{}:
-		if c.pairName(x) != "" {
+		if by, _ := c.pair(x); by != "" {
 			return true
 		}
 		for k, e := range x {
@@ -283,11 +312,11 @@ func (c *card) keys(obj map[string]interface{}, indent string) {
 	if recipients > showRecipientsFew {
 		share = showRecipientMin
 	}
-	pair := c.pairName(obj)
+	by, pair := c.pair(obj)
 	for i, k := range keys {
 		if i < recipients {
 			name := cardValue(k, showValueMax)
-			if pair != "" && k == "value" {
+			if by != "" && k != by && !c.recipient(k) {
 				name += " (" + cardValue(pair, showNameMax) + ")"
 			}
 			c.fullValue(name, obj[k], indent, share)
@@ -341,7 +370,15 @@ func (c *card) fullValue(name string, v interface{}, indent string, share int) {
 		return
 	}
 	i, j := runeIndex(s, share*3/4), runeIndex(s, len(s)-share/4)
-	c.put(fmt.Sprintf("\n%s%s: %s … %d more bytes%s … %s", indent, name, escapeHidden(s[:i]), j-i, domainsIn(s[i:j]), escapeHidden(s[j:])), true)
+	// The domains of the words the cut runs through count whole.
+	lo, hi := i, j
+	for lo > 0 && !domainSep(rune(s[lo-1])) {
+		lo--
+	}
+	for hi < len(s) && !domainSep(rune(s[hi])) {
+		hi++
+	}
+	c.put(fmt.Sprintf("\n%s%s: %s … %d more bytes%s … %s", indent, name, escapeHidden(s[:i]), j-i, domainsIn(s[lo:hi]), escapeHidden(s[j:])), true)
 }
 
 // nested names the keys inside v, an object or a list, under its line
@@ -360,14 +397,13 @@ func (c *card) nested(v interface{}, prefix, indent string, names bool) {
 	walk = func(v interface{}, prefix string, depth int) {
 		switch x := v.(type) {
 		case map[string]interface{}:
-			if p := c.pairName(x); p != "" {
-				path := joinPath(prefix, "value")
-				recipientPaths = append(recipientPaths, path)
-				recipients = append(recipients, found{cardValue(path, showValueMax) + " (" + cardValue(p, showNameMax) + ")", x["value"]})
-			}
+			by, pair := c.pair(x)
 			for _, k := range sortedKeys(x) {
 				path := joinPath(prefix, k)
 				switch {
+				case by != "" && k != by && !c.recipient(k):
+					recipientPaths = append(recipientPaths, path)
+					recipients = append(recipients, found{cardValue(path, showValueMax) + " (" + cardValue(pair, showNameMax) + ")", x[k]})
 				case c.recipient(k):
 					recipientPaths = append(recipientPaths, path)
 					recipients = append(recipients, found{cardValue(path, showValueMax), x[k]})
@@ -400,50 +436,6 @@ func joinPath(prefix, k string) string {
 		return k
 	}
 	return prefix + "." + k
-}
-
-// leftOut says what a recipient-like list leaves out: how many elements,
-// and the distinct domains of the addresses and links among them.
-func leftOut(hidden []interface{}) string {
-	var words []string
-	for _, el := range hidden {
-		raw, _ := json.Marshal(el)
-		words = append(words, string(raw))
-	}
-	return fmt.Sprintf("%d more elements%s …", len(hidden), domainsIn(strings.Join(words, " ")))
-}
-
-// domainsIn names the distinct domains of the addresses (a@domain) and
-// links (scheme://host) in s, up to showDomainsMax.
-func domainsIn(s string) string {
-	seen := map[string]bool{}
-	var domains []string
-	for _, tok := range strings.FieldsFunc(s, func(r rune) bool {
-		return unicode.IsSpace(r) || strings.ContainsRune(`,;"'<>()[]{}\`, r)
-	}) {
-		host := ""
-		if at := strings.LastIndexByte(tok, '@'); at >= 0 {
-			host = tok[at+1:]
-		} else if _, rest, ok := strings.Cut(tok, "://"); ok {
-			host, _, _ = strings.Cut(rest, "/")
-		}
-		host = strings.ToLower(strings.TrimRight(host, ".:"))
-		if host == "" || seen[host] {
-			continue
-		}
-		seen[host] = true
-		domains = append(domains, host)
-	}
-	if len(domains) == 0 {
-		return ""
-	}
-	sort.Strings(domains)
-	shown := domains
-	more := ""
-	if len(shown) > showDomainsMax {
-		shown, more = shown[:showDomainsMax], fmt.Sprintf(", +%d more", len(domains)-showDomainsMax)
-	}
-	return fmt.Sprintf(", %d distinct domains: %s%s", len(domains), escapeHidden(strings.Join(shown, ", ")), more)
 }
 
 // nameList joins names (JSON-quoted when quote) up to showNamesMax bytes,

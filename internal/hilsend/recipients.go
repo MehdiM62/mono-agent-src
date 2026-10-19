@@ -19,7 +19,17 @@ var recipientWords = map[string]bool{"to": true, "cc": true, "bcc": true, "email
 	"notify": true, "notification": true, "notifications": true, "welcome": true, "activate": true, "activation": true,
 	"dest": true, "destination": true, "destinations": true, "target": true, "targets": true, "contact": true,
 	"contacts": true, "assignee": true, "assignees": true, "owner": true, "owners": true, "member": true,
-	"members": true, "group": true, "groups": true, "audience": true, "audiences": true}
+	"members": true, "group": true, "groups": true, "audience": true, "audiences": true, "shared": true,
+	"mention": true, "mentions": true, "viewer": true, "viewers": true, "reviewer": true, "reviewers": true,
+	"team": true, "teams": true, "sender": true, "senders": true, "login": true, "principal": true,
+	"principals": true, "rcpt": true, "rcpts": true, "recip": true, "recips": true, "tos": true, "kontakt": true,
+	"kontakte": true}
+
+// recipientWholeOnly are recipient words matched as whole words only: inside
+// a longer one they match too much (tos in "photos", team in "steam", recip
+// in "recipe").
+var recipientWholeOnly = map[string]bool{"tos": true, "team": true, "teams": true, "recip": true, "recips": true,
+	"shared": true, "login": true, "rcpt": true, "rcpts": true}
 
 // recipientWordsElsewhere are recipient words of other languages: Chinese,
 // Japanese, Korean, German, French, Spanish, Portuguese, Italian, Dutch,
@@ -44,7 +54,7 @@ var recipientInner []string
 
 func init() {
 	for w := range recipientWords {
-		if len(w) > 2 {
+		if len(w) > 2 && !recipientWholeOnly[w] {
 			recipientInner = append(recipientInner, w)
 		}
 	}

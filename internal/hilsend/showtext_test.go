@@ -54,7 +54,9 @@ func TestShowTextListsEveryElementOfAPaddedList(t *testing.T) {
 	} {
 		got := showText("zammad ticket/update", []string{"updateFields.articles"}, nil, nil, true,
 			map[string]interface{}{"updateFields": map[string]interface{}{"articles": val}})
-		if !strings.Contains(got, "\nupdateFields.articles:\n  [0]:\n    \"body\": \"AAA") || !strings.Contains(got, second) {
+		// The first article, {"type": "email", …}, reads as a pair naming
+		// a recipient-like field: its body shows in full.
+		if !strings.Contains(got, "\nupdateFields.articles:\n  [0]:\n    \"body\" (\"email\"): \"AAA") || !strings.Contains(got, second) {
 			t.Errorf("%s: card text\n%s\nlacks the second article's recipient", name, got)
 		}
 	}

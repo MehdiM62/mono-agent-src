@@ -380,7 +380,7 @@ func TestUndeclaredKeysWaitOnlyInAGatedRun(t *testing.T) {
 		"a raw article on a Zammad ticket update": {"app.zammad", cfg{"resource": "ticket", "operation": "update", "id": "5",
 			"updateFields": cfg{"article": cfg{"type": "email", "to": "v@example.test", "body": "x"}}},
 			"whoever its undeclared fields (article) reach", hilsend.ActionComment,
-			"zammad ticket/update with fields it doesn't declare:\nupdateFields.article:\n  \"to\": \"v@example.test\"\n  \"body\": \"x\"\n  \"type\": \"email\""},
+			"zammad ticket/update with fields it doesn't declare:\nupdateFields.article:\n  \"body\" (\"email\"): \"x\"\n  \"to\": \"v@example.test\"\n  \"type\": \"email\""},
 		"raw articles on a Zammad ticket update": {"app.zammad", cfg{"resource": "ticket", "operation": "update", "id": "5",
 			"updateFields": cfg{"articles": []interface{}{cfg{"type": "twitter status", "body": "tweet"}}}},
 			"whoever its undeclared fields (articles) reach", hilsend.ActionComment, "updateFields.articles:\n  [0]:\n    \"body\": \"tweet\""},
