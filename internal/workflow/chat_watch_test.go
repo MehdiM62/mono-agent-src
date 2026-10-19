@@ -2,7 +2,10 @@ package workflow
 
 import (
 	"context"
+	"fmt"
+	"slices"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -16,20 +19,26 @@ type watchState struct {
 }
 
 // scriptedExecs is a WebhookExecutions whose run goes through states, one
-// per read; the last one stays. It records when each read came.
+// per read; the last one stays. It records when each read came. With
+// holdEnd, a read that finds the run ended comes back only once the
+// watch's limit has passed, as a read that is slow at the limit does.
 type scriptedExecs struct {
-	mu     sync.Mutex
-	states []watchState
-	reads  []time.Time
-	exec   *WorkflowExecution
-	wf     *Workflow
+	mu      sync.Mutex
+	states  []watchState
+	reads   []time.Time
+	exec    *WorkflowExecution
+	wf      *Workflow
+	holdEnd bool
 }
 
-func (f *scriptedExecs) ExecutionInFlight(context.Context, string) (string, bool, error) {
+func (f *scriptedExecs) ExecutionInFlight(ctx context.Context, _ string) (string, bool, error) {
 	f.mu.Lock()
-	defer f.mu.Unlock()
 	st := f.states[min(len(f.reads), len(f.states)-1)]
 	f.reads = append(f.reads, time.Now())
+	f.mu.Unlock()
+	if f.holdEnd && !st.inFlight {
+		<-ctx.Done()
+	}
 	return st.status, st.inFlight, nil
 }
 
@@ -38,7 +47,10 @@ func (f *scriptedExecs) GetExecutionStatus(ctx context.Context, id string) (stri
 	return st, err
 }
 
-func (f *scriptedExecs) GetExecution(context.Context, string) (*WorkflowExecution, error) {
+func (f *scriptedExecs) GetExecution(ctx context.Context, _ string) (*WorkflowExecution, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	return f.exec, nil
 }
 
@@ -47,6 +59,20 @@ func (f *scriptedExecs) GetWorkflow(context.Context, string) (*Workflow, error) 
 		return nil, ErrWorkflowNotFound
 	}
 	return f.wf, nil
+}
+
+// doneExec is a run whose last node answered "done".
+var doneExec = &WorkflowExecution{Nodes: []WorkflowExecutionNode{
+	{NodeID: "n1", Status: "SUCCESS", OutputItems: []Item{{JSON: map[string]interface{}{"output": "done"}}}},
+}}
+
+var watchSessions atomic.Int64
+
+// watchSession is a session id no earlier run of the test used: the chat
+// messages live in a store of the process, so a fixed id would find the
+// messages of the previous iteration under -count.
+func watchSession(base string) string {
+	return fmt.Sprintf("%s-%d", base, watchSessions.Add(1))
 }
 
 // chatWatch serves a lastNode chat at "watch", polled every 5ms, with a
@@ -76,6 +102,16 @@ func watchInBackground(s *WebhookServer, route *chatRoute, execs WebhookExecutio
 	return done
 }
 
+// awaitWatch fails the test unless the watch ends within 5s.
+func awaitWatch(t *testing.T, done <-chan struct{}) {
+	t.Helper()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the watch went on")
+	}
+}
+
 func botMessages(session string) []string {
 	var out []string
 	for _, m := range ChatMessagesAfter(context.Background(), session, 0, 0) {
@@ -97,12 +133,8 @@ func TestChatWatchGivesUpAtItsLimit(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			s, route := chatWatch(t, 60*time.Millisecond)
-			session := "watch-limit-" + st.status
-			select {
-			case <-watchInBackground(s, route, &scriptedExecs{states: []watchState{st}}, session):
-			case <-time.After(5 * time.Second):
-				t.Fatal("the watch went on past its limit")
-			}
+			session := watchSession("watch-limit")
+			awaitWatch(t, watchInBackground(s, route, &scriptedExecs{states: []watchState{st}}, session))
 			if got := botMessages(session); len(got) != 1 || got[0] != chatStillRunning {
 				t.Fatalf("bot said %q, want only %q", got, chatStillRunning)
 			}
@@ -110,67 +142,148 @@ func TestChatWatchGivesUpAtItsLimit(t *testing.T) {
 	}
 }
 
-// The watch ends with the server and with the chat (its workflow
-// deactivated), whatever the run does, and says nothing: no page reads it.
+// A run that ends as the limit passes still gets its answer: the result is
+// read on the server's context, not the expired watch's.
+func TestChatWatchAnswersARunThatEndsAtTheLimit(t *testing.T) {
+	s, route := chatWatch(t, 50*time.Millisecond)
+	session := watchSession("watch-at-limit")
+	execs := &scriptedExecs{states: []watchState{{"SUCCESS", false}}, exec: doneExec, holdEnd: true}
+	awaitWatch(t, watchInBackground(s, route, execs, session))
+	if got := botMessages(session); len(got) != 1 || got[0] != "done" {
+		t.Fatalf("bot said %q, want only %q", got, "done")
+	}
+}
+
+// The watch ends with the server, silently, and with the chat (its
+// workflow deactivated, or re-registered by an edit), saying the answer
+// won't come.
 func TestChatWatchEndsWithTheServerAndTheChat(t *testing.T) {
 	for _, c := range []struct {
-		session string
-		end     func(*WebhookServer)
+		name string
+		end  func(*WebhookServer)
+		want []string
 	}{
-		{"watch-end-server", func(s *WebhookServer) { _ = s.Stop(context.Background()) }},
-		{"watch-end-chat", func(s *WebhookServer) { s.DeregisterChat("watch") }},
+		{"server stops", func(s *WebhookServer) { _ = s.Stop(context.Background()) }, nil},
+		{"chat deregisters", func(s *WebhookServer) { s.DeregisterChat("watch") }, []string{chatReconfigured}},
 	} {
-		t.Run(c.session, func(t *testing.T) {
+		t.Run(c.name, func(t *testing.T) {
 			s, route := chatWatch(t, time.Hour)
+			session := watchSession("watch-end")
 			execs := &scriptedExecs{states: []watchState{{"WAITING", true}}}
-			done := watchInBackground(s, route, execs, c.session)
+			done := watchInBackground(s, route, execs, session)
 			time.Sleep(30 * time.Millisecond)
 			c.end(s)
-			select {
-			case <-done:
-			case <-time.After(5 * time.Second):
-				t.Fatal("the watch went on")
-			}
-			if got := botMessages(c.session); len(got) != 0 {
-				t.Fatalf("bot said %q", got)
+			awaitWatch(t, done)
+			if got := botMessages(session); !slices.Equal(got, c.want) {
+				t.Fatalf("bot said %q, want %q", got, c.want)
 			}
 		})
 	}
 }
 
-// A run that waits only for its sub-workflows is watched on, read less
-// often the longer it waits, and its answer reaches the chat when it ends.
-// (The fake of webhook_run_test.go never reports such a wait.)
-func TestChatWatchWaitsThroughSubWorkflowsWithBackoff(t *testing.T) {
-	s, route := chatWatch(t, time.Minute)
-	waiting := watchState{"WAITING", true}
-	execs := &scriptedExecs{
-		states: []watchState{{"RUNNING", true}, waiting, waiting, waiting, waiting, {"SUCCESS", false}},
-		exec: &WorkflowExecution{Nodes: []WorkflowExecutionNode{
-			{NodeID: "n1", Status: "SUCCESS", OutputItems: []Item{{JSON: map[string]interface{}{"output": "done"}}}},
-		}},
-	}
-	session := "watch-backoff"
+// As the engine stops it ends the watches, then deregisters the chats. A
+// watch already past its pause then finds its chat gone with the watches
+// ended, and says nothing: the chat wasn't reconfigured.
+func TestChatWatchSaysNothingWhenTheEngineStops(t *testing.T) {
+	s, route := chatWatch(t, time.Hour)
+	entered, tick := make(chan struct{}, 1), make(chan time.Time)
+	old := chatWatchPause
+	chatWatchPause = func(time.Duration) <-chan time.Time { entered <- struct{}{}; return tick }
+	t.Cleanup(func() { chatWatchPause = old })
+	session := watchSession("watch-engine-stop")
+	done := watchInBackground(s, route, &scriptedExecs{states: []watchState{{"WAITING", true}}}, session)
 	select {
-	case <-watchInBackground(s, route, execs, session):
+	case <-entered:
 	case <-time.After(5 * time.Second):
-		t.Fatal("the watch did not end")
+		t.Fatal("the watch did not pause")
 	}
+	s.chats.mu.Lock() // holds the watch before it looks for its chat
+	tick <- time.Now()
+	// The watch is past its pause now.
+	s.endWatches()
+	delete(s.chats.m, route.Path) // DeregisterChat, under the lock held
+	s.chats.mu.Unlock()
+	awaitWatch(t, done)
+	if got := botMessages(session); len(got) != 0 {
+		t.Fatalf("bot said %q", got)
+	}
+}
+
+// Engine.Stop ends the chat watches before it deregisters the chats (the
+// order TestChatWatchSaysNothingWhenTheEngineStops relies on). The test
+// holds the chats' lock, so a Stop that deregisters first waits for it with
+// the watches still on.
+func TestEngineStopEndsChatWatchesBeforeDeregisteringChats(t *testing.T) {
+	eng := newTestEngine(t, newFullEngineStore(t), NewNodeTypeRegistry())
+	node := &WorkflowNode{ID: "t", Type: TriggerNodeTypeChat, Config: map[string]interface{}{"path": "stopping"}}
+	if err := eng.triggerMgr.activateChat("wf-chat", node); err != nil {
+		t.Fatal(err)
+	}
+	s := eng.webhookServer
+	s.chats.mu.RLock()
+	stopped := make(chan struct{})
+	go func() {
+		defer close(stopped)
+		_ = eng.Stop()
+	}()
+	for deadline := time.Now().Add(2 * time.Second); s.watches.Err() == nil && time.Now().Before(deadline); {
+		time.Sleep(time.Millisecond)
+	}
+	ended := s.watches.Err() != nil
+	s.chats.mu.RUnlock()
+	<-stopped
+	if !ended {
+		t.Fatal("the chat watches were still on while the engine deregistered the chats")
+	}
+	if s.servesChat("stopping") {
+		t.Fatal("the stopped engine still serves the chat")
+	}
+}
+
+// A run that waits only for its sub-workflows is watched on, read less
+// often the longer it waits, read at the base pace again once it runs, and
+// its answer reaches the chat when it ends. (The fake of
+// webhook_run_test.go never reports such a wait.)
+func TestChatWatchWaitsThroughSubWorkflowsWithBackoff(t *testing.T) {
+	var mu sync.Mutex
+	var pauses []time.Duration
+	old := chatWatchPause
+	chatWatchPause = func(d time.Duration) <-chan time.Time {
+		mu.Lock()
+		pauses = append(pauses, d)
+		mu.Unlock()
+		return time.After(d)
+	}
+	t.Cleanup(func() { chatWatchPause = old })
+	s, route := chatWatch(t, time.Minute)
+	running, waiting := watchState{"RUNNING", true}, watchState{"WAITING", true}
+	execs := &scriptedExecs{
+		states: []watchState{running, waiting, waiting, waiting, running, waiting, {"SUCCESS", false}},
+		exec:   doneExec,
+	}
+	session := watchSession("watch-backoff")
+	awaitWatch(t, watchInBackground(s, route, execs, session))
 	if got := botMessages(session); len(got) != 1 || got[0] != "done" {
 		t.Fatalf("bot said %q, want only %q", got, "done")
+	}
+	// pauses[i] comes before read i: the base pace, doubling over the
+	// WAITING reads, back to the base after the second RUNNING read.
+	base := webhookPollInterval
+	want := []time.Duration{base, base, 2 * base, 4 * base, 8 * base, base, 2 * base}
+	mu.Lock()
+	defer mu.Unlock()
+	if !slices.Equal(pauses, want) {
+		t.Fatalf("pauses = %v, want %v", pauses, want)
 	}
 	execs.mu.Lock()
 	reads := execs.reads
 	execs.mu.Unlock()
-	if len(reads) != 6 {
-		t.Fatalf("%d reads, want 6", len(reads))
+	if len(reads) != len(want) {
+		t.Fatalf("%d reads, want %d", len(reads), len(want))
 	}
-	// After the k-th WAITING read (reads[k], k = 1..4) the pause is
-	// 5ms << k: 10, 20, 40, 80ms.
-	for k := 1; k <= 4; k++ {
-		want := webhookPollInterval << k
-		if gap := reads[k+1].Sub(reads[k]); gap < want {
-			t.Errorf("pause after WAITING read %d = %v, want at least %v", k, gap, want)
+	for i := 1; i < len(reads); i++ {
+		if gap := reads[i].Sub(reads[i-1]); gap < want[i] {
+			t.Errorf("read %d came %v after the one before, want at least %v", i, gap, want[i])
 		}
 	}
 }

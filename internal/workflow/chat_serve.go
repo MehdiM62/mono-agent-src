@@ -42,8 +42,15 @@ var chatWatchLimit = 30 * time.Minute
 // webhookPollInterval up to it.
 const chatWatchSlowest = time.Second
 
-// chatStillRunning is the chat's answer when the watch gives up on a run.
-const chatStillRunning = "Sorry, the workflow is still running, and this chat has stopped waiting for its answer."
+// chatWatchPause is the watch's pause between reads; tests record it.
+var chatWatchPause = time.After
+
+// The chat's answer when the watch gives up on a run, and when its chat
+// stopped being served (deactivated, or re-registered by an edit) mid-run.
+const (
+	chatStillRunning = "Sorry, the workflow is still running, and this chat has stopped waiting for its answer."
+	chatReconfigured = "This chat was reconfigured while the workflow ran; its answer won't appear here."
+)
 
 // chatRoute is one active trigger.chat node.
 type chatRoute struct {
@@ -263,8 +270,8 @@ func (s *WebhookServer) chatMessage(w http.ResponseWriter, r *http.Request, rout
 // sub-workflows is resumed by the engine, so it is watched on, read less
 // often the longer it waits. In lastNode mode its result is the bot's
 // answer; in either mode a failed run says so in the chat. The watch ends
-// with the server or the chat, and gives up on a run still going at its
-// limit (chatWatchFor), saying so in the chat.
+// with the server, and with the chat (saying so), and gives up on a run
+// still going at its limit (chatWatchFor), saying so in the chat.
 func (s *WebhookServer) watchChatRun(route *chatRoute, execs WebhookExecutions, session, execID string, resumed bool) {
 	ctx, cancel := context.WithTimeout(s.watches, chatWatchFor(s.watches, execs, route.WorkflowID))
 	defer cancel()
@@ -281,10 +288,15 @@ func (s *WebhookServer) watchChatRun(route *chatRoute, execs WebhookExecutions, 
 		case <-ctx.Done():
 			giveUp()
 			return
-		case <-time.After(pause):
+		case <-chatWatchPause(pause):
 		}
 		if !s.servesChat(route.Path) {
-			return // no page can read an answer any more
+			// Not when the server is stopping: the engine ends the
+			// watches before it deregisters the chats.
+			if s.watches.Err() == nil {
+				PostChatMessage(session, ChatMessage{Role: "bot", Text: chatReconfigured})
+			}
+			return
 		}
 		st, inFlight, err := execs.ExecutionInFlight(ctx, execID)
 		if err != nil {
