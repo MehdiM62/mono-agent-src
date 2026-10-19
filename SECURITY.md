@@ -196,6 +196,63 @@ stdin, the terminal. Keeping the passphrase next to the keyring means
 anyone who can read your home directory as you can open the vault — the
 same trade-off as the environment-variable file.
 
+## An agent's sends wait for you
+
+When a coding agent on your computer, the in-app chat or a workflow you
+haven't approved tries to send a message or post (email, Outlook, Gmail,
+Slack, Telegram, Twilio, WhatsApp, Discord, Reddit, Mastodon, Bluesky,
+dev.to, Hashnode, Product Hunt and YouTube, the social browser actions that
+message, comment, post or follow, and the API packages' sends), nothing goes
+out. The message becomes a card in Human in Loop and is sent only when you
+approve it. Coder mode's `sendApproval` setting turns this off. An agent is
+recognised as described in
+[Who can read a decrypted secret](#who-can-read-a-decrypted-secret), with the
+same limits.
+
+What isn't held: likes, reposts, boosts and reactions (they carry none of your
+text); other changes on outside services (an issue, a record, a payment, a
+file made public), which a grant's outbound check covers for an org role
+([Org automations and autonomy](#org-automations-and-autonomy)); and general
+steps that can reach any address (`http.request`, `core.code`'s JavaScript).
+
+### Sends that skipped approval up to v0.152.0
+
+In releases up to and including v0.152.0, an agent, the in-app chat or a
+workflow you hadn't approved could send some messages without a card:
+
+- with `node run` under the short names `telegram`, `gmail`, `discord`,
+  `slack`, `twilio`, `whatsapp` or `email_send`, when the profile it named had
+  a saved connection for that service;
+- in a workflow, with the old node names: a Mastodon post (`comm.mastodon`), a
+  Reddit reply (`comm.reddit`), or a Discord or Outlook send with no operation
+  set (`comm.discord`, `comm.outlook_send`);
+- with an operation written as a number or true/false on Telegram, Discord or
+  Outlook, which send a message when no operation is named;
+- through a messaging step attached to an AI agent step as a tool, whenever
+  the model called it, in any workflow: tool calls weren't checked at all;
+- with `people messages compose`, `reply` and `send-draft`, which sent email
+  through the profile's saved Outlook connection.
+
+Default installs were affected. MCP's `node_run` was affected only if you
+registered monoagent's MCP server with `--allow-mutations` (setup asks, and
+the default is no). If you're worried, compare what was sent from your
+connected accounts with the approvals you remember: each service's own sent
+history, and in the app the Communications tab, the messages on people's pages
+and the run history. A send that skipped approval left no card, so the
+service's own history is the full record. We know of no use of this: it was
+found by code review and confirmed by tests with fake senders. A workflow you
+approved and run yourself sends as before, its AI agent's tools included.
+
+Technical detail: the gate looked a node up by the name it was given rather
+than the node type that runs it, and read an operation that is no string
+differently from the node. It now resolves every name to that type and reads
+the operation through the same helper as the nodes, and a tool call and the
+`people messages` sends pass it as a step does. A test walks every `comm.*`
+and `service.*` node type and every alias, through both `node run` and a
+workflow run, so a new name or operation can't slip past. Operations that are
+no string are tested against Telegram's, Discord's and Outlook's own code, and
+in the walk for every send type.
+
 ## Assistant tools (chat `--tools`)
 
 The `chat` command can expose a monoagent tool surface to the assistant

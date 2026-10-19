@@ -41,7 +41,7 @@ func (n *SlackNode) Execute(ctx context.Context, input workflow.NodeInput, confi
 		return nil, fmt.Errorf("comm.slack: access_token is required")
 	}
 
-	operation, _ := config["operation"].(string)
+	operation := workflow.ConfigOperation(config)
 	if operation == "" {
 		return nil, fmt.Errorf("comm.slack: operation is required")
 	}
