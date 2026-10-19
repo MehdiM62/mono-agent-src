@@ -178,3 +178,14 @@ test("a recorded card's button is Review and save, and calls back only when pres
   buttons[0].listeners.click[0]({});
   assert.deepEqual(calls, ["review"]);
 });
+
+test("settle finds a card by its key, so cards that share a call id are told apart", () => {
+  const chat = { messages: [
+    { proposals: [{ id: "functions.propose_task:0", kind: "task", title: "A", state: "pending", nonce: "1111111111111111" }] },
+    { proposals: [{ id: "functions.propose_task:0", kind: "task", title: "B", state: "pending", nonce: "2222222222222222" }] },
+  ] };
+  assert.equal(P.keyOf(chat.messages[1].proposals[0]), "2222222222222222");
+  assert.equal(P.keyOf({ id: "legacy" }), "legacy", "a card without a nonce is known by its call id");
+  assert.ok(P.settle(chat, "2222222222222222", { state: "added" }));
+  assert.deepEqual(chat.messages.map((m) => m.proposals[0].state), ["pending", "added"]);
+});

@@ -109,7 +109,8 @@
       else if (m.open && !m.tools.length) box.appendChild(document.createTextNode("Thinking…"));
       // What the chat proposed: a card each, sent on only by the person's click.
       for (const p of (Proposals && m.proposals) || []) {
-        box.appendChild(Proposals.card(document, p, { add: () => cards.confirm(p.id), dismiss: () => cards.dismiss(p.id), review: () => cards.review(p.id) }));
+        const key = Proposals.keyOf(p);
+        box.appendChild(Proposals.card(document, p, { add: () => cards.confirm(key), dismiss: () => cards.dismiss(key), review: () => cards.review(key) }));
       }
     } else if (m.role === "user") {
       const text = document.createElement("div");

@@ -13,7 +13,10 @@
  *              draft opens in the Record section, whose Save is the only way
  *              it is saved. Nothing here saves an automation.
  *
- *   create(deps) -> { confirm(id), dismiss(id), review(id), follow(event) }
+ *   create(deps) -> { confirm(key), dismiss(key), review(key), follow(event) }
+ *
+ * A card is named by its key (MonoChatProposals.keyOf), not its call id:
+ * two turns' cards can share a call id.
  *
  * deps: chat() the conversation on screen, ask(message) the worker, profile(),
  * current() a token that changes when the panel switches profile, save(),
@@ -27,62 +30,64 @@
 
   function create(deps) {
     const cardsOf = () => (deps.chat().messages || []).flatMap((m) => m.proposals || []);
-    const find = (id) => cardsOf().find((p) => p.id === id) || null;
+    const keyOf = Proposals.keyOf;
+    const find = (key) => cardsOf().find((p) => keyOf(p) === key) || null;
     const errorOf = (err) => (err && err.message) || String(err);
 
-    async function settle(id, patch, mine) {
+    async function settle(key, patch, mine) {
       if (mine !== undefined && mine !== deps.current()) return; // another profile's chat is on screen now
-      Proposals.settle(deps.chat(), id, patch);
+      Proposals.settle(deps.chat(), key, patch);
       await deps.save();
       deps.draw();
     }
 
-    async function confirm(id) {
-      const p = find(id);
+    async function confirm(key) {
+      const p = find(key);
       if (!p) return;
       if (p.kind === "recording") return startRecording(p);
       if (p.state !== "pending") return;
       const mine = deps.current();
-      Proposals.settle(deps.chat(), id, { state: "sending", feedback: "" });
+      Proposals.settle(deps.chat(), key, { state: "sending", feedback: "" });
       deps.draw();
       const answer = await deps.ask({ type: "task_add_proposal", profile: deps.profile(), proposal: { id: p.id, kind: p.kind, title: p.title, notes: p.notes, nonce: p.nonce } });
       const state = answer.status === "added" ? "added" : answer.status === "queued" ? "queued" : "refused";
-      await settle(id, { state, feedback: (answer.feedback && answer.feedback.text) || answer.error || "Not added" }, mine);
+      await settle(key, { state, feedback: (answer.feedback && answer.feedback.text) || answer.error || "Not added" }, mine);
     }
 
     // Start recording, or Record again: the click is the only thing that starts one.
     async function startRecording(p) {
       if (!["pending", "empty", "refused"].includes(p.state) || !deps.record) return;
       const mine = deps.current();
-      Proposals.settle(deps.chat(), p.id, { state: "sending", feedback: "" });
+      const key = keyOf(p);
+      Proposals.settle(deps.chat(), key, { state: "sending", feedback: "" });
       deps.draw();
       try {
         const st = await deps.record.start(p.goal);
-        await settle(p.id, { state: "recording", recordingId: st && st.id, feedback: "" }, mine);
+        await settle(key, { state: "recording", recordingId: st && st.id, feedback: "" }, mine);
       } catch (err) {
-        await settle(p.id, { state: "refused", feedback: `Not started: ${errorOf(err)}` }, mine);
+        await settle(key, { state: "refused", feedback: `Not started: ${errorOf(err)}` }, mine);
       }
     }
 
-    async function dismiss(id) {
-      const p = find(id);
+    async function dismiss(key) {
+      const p = find(key);
       const open = p && p.kind === "recording" ? ["pending", "empty", "refused"] : ["pending"];
       if (!p || !open.includes(p.state)) return;
-      await settle(id, { state: "dismissed" });
+      await settle(key, { state: "dismissed" });
     }
 
     // Review and save: the analysis of the card's recording, drawn as a draft
     // in the Record section for the person to check and save there.
-    async function review(id) {
-      const p = find(id);
+    async function review(key) {
+      const p = find(key);
       if (!p || p.kind !== "recording" || p.state !== "recorded" || !deps.record) return;
       const mine = deps.current();
-      await settle(id, { state: "reviewing", feedback: "" });
+      await settle(key, { state: "reviewing", feedback: "" });
       try {
         await deps.record.analyze(p.recordingId);
-        await settle(id, { state: "reviewing", feedback: "The draft is in the Record section: check it, then press Save there." }, mine);
+        await settle(key, { state: "reviewing", feedback: "The draft is in the Record section: check it, then press Save there." }, mine);
       } catch (err) {
-        await settle(id, { state: "recorded", feedback: `Analysis failed: ${errorOf(err)}` }, mine);
+        await settle(key, { state: "recorded", feedback: `Analysis failed: ${errorOf(err)}` }, mine);
       }
     }
 
@@ -95,7 +100,7 @@
       let changed = false;
       const patch = (p, next) => {
         if (p.state === next.state && p.feedback === next.feedback) return;
-        Proposals.settle(deps.chat(), p.id, next);
+        Proposals.settle(deps.chat(), keyOf(p), next);
         changed = true;
       };
       for (const p of cardsOf()) {

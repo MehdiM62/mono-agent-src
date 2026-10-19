@@ -432,7 +432,7 @@ test("a card that is not saved says where to add it", async () => {
 // until the person presses Add; then the worker gets the proposal, and the
 // card says what became of it, also after the panel is reopened.
 test("a proposal card sends nothing until Add, then says what became of it", async () => {
-  const card = (id, title) => ({ id, kind: "task", title, notes: "Before May", untrustedPage: true, state: "pending", nonce: "0123456789abcdef" });
+  const card = (id, title) => ({ id, kind: "task", title, notes: "Before May", untrustedPage: true, state: "pending", nonce: id === "toolu_1" ? "0123456789abcdef" : "fedcba9876543210" });
   const stored = {
     "chatConv:p-work": "c-1",
     "chatLog:p-work": {
@@ -544,4 +544,30 @@ test("reopening the panel starts no recording, also for a card closed mid-start"
   assert.deepEqual(record.calls, []);
   const labels = t.log().flatMap(function walk(n) { return [n, ...n.children.flatMap(walk)]; }).filter((n) => n.tag === "button").map((b) => b.textContent);
   assert.deepEqual(labels.filter((l) => l === "Start recording").length, 2, "both wait for a click");
+});
+
+// #868: some runtimes number their calls per turn ("functions.propose_task:0"),
+// so two turns' cards can share a call id. A click acts on its own card.
+test("a click acts on its own card when two turns' cards share a call id", async () => {
+  const card = (title, nonce, state) => ({ id: "functions.propose_task:0", kind: "task", title, notes: "", untrustedPage: false, state, nonce });
+  const stored = {
+    "chatConv:p-work": "c-1",
+    "chatLog:p-work": {
+      conversation: "c-1", turn: "t2", lastSeq: 9, nextId: 5, readPage: false,
+      messages: [
+        { id: "m2", role: "assistant", text: "One.", tools: [], open: false, proposals: [card("Old task", "1111111111111111", "pending")] },
+        { id: "m4", role: "assistant", text: "Two.", tools: [], open: false, proposals: [card("New task", "2222222222222222", "pending")] },
+      ],
+    },
+  };
+  const t = setup({ stored, replies: { ...READY, chat_events: { ok: true, turn: "t2", events: [], turn_active: false }, task_add_proposal: { ok: true, status: "added", id: 7, feedback: { text: "Added to Inbox in Work (#7)" } } } });
+  t.doc.fire("panel:profiles");
+  await settle(30);
+  const cards = () => t.log().flatMap(function walk(n) { return [n, ...n.children.flatMap(walk)]; }).filter((n) => n.className === "chat-proposal");
+  const add = cards()[1].children.flatMap(function walk(n) { return [n, ...n.children.flatMap(walk)]; }).find((n) => n.tag === "button" && n.textContent === "Add to Inbox");
+  add.fire("click");
+  await settle(30);
+  assert.equal(t.sent.filter((m) => m.type === "task_add_proposal")[0].proposal.title, "New task");
+  const kept = t.store["chatLog:p-work"].messages.map((m) => m.proposals[0].state);
+  assert.deepEqual(kept, ["pending", "added"], "the older card is left as it was");
 });

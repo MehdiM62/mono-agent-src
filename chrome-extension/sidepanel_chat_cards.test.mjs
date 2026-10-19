@@ -11,6 +11,9 @@ import { loadExtensionScripts } from "./test_helpers.mjs";
 
 const { MonoChatCards: C } = loadExtensionScripts(["chat_proposals.js", "sidepanel_chat_cards.js"]);
 
+// A card is named by its key: its nonce, or its call id when it has none (r1).
+const T1 = "0123456789abcdef";
+
 function world({ start, analyze, taskReply } = {}) {
   const chat = {
     messages: [{
@@ -39,7 +42,7 @@ function world({ start, analyze, taskReply } = {}) {
   });
   const card = (id) => chat.messages[0].proposals.find((p) => p.id === id);
   const state = (s) => cards.follow({ type: "state", state: Object.assign({ id: "rec-1", recording: false, steps: [{}, {}, {}] }, s) });
-  return { calls, cards, card, state, record, saves: () => saves, switchProfile: () => seq++ };
+  return { chat, calls, cards, card, state, record, saves: () => saves, switchProfile: () => seq++ };
 }
 
 test("a recording card starts nothing until Start recording, then starts the recorder with its goal, once", async () => {
@@ -123,14 +126,14 @@ test("a failed analysis says so and offers Review and save again", async () => {
   await w.cards.review("r1");
   assert.equal(w.card("r1").state, "recorded");
   assert.match(w.card("r1").feedback, /Analysis failed: the bridge is not running/);
-  await w.cards.review("t1");
+  await w.cards.review(T1);
   assert.equal(w.calls.filter((c) => c[0] === "analyze").length, 1, "Review is a recording card's only");
 });
 
 test("a task card's Add still goes to the worker once, and Dismiss sends nothing", async () => {
   const w = world();
-  await w.cards.confirm("t1");
-  await w.cards.confirm("t1");
+  await w.cards.confirm(T1);
+  await w.cards.confirm(T1);
   const asked = w.calls.filter((c) => c[0] === "ask").map((c) => c[1]);
   assert.deepEqual(asked, [{ type: "task_add_proposal", profile: "p-work", proposal: { id: "t1", kind: "task", title: "Book flights", notes: "", nonce: "0123456789abcdef" } }]);
   assert.deepEqual([w.card("t1").state, w.card("t1").feedback], ["added", "Added to Inbox in Work (#4)"]);
@@ -178,4 +181,16 @@ test("Review and save cannot save: it analyzes, and the card is saved only when 
   assert.deepEqual(saves, []);
   assert.deepEqual(w.calls.filter((c) => c[0] === "ask"), [], "nothing reaches the worker");
   assert.deepEqual(w.calls.map((c) => c[0]), ["start", "analyze"], "one analysis for two clicks while it is open");
+});
+
+// Two turns' recording cards can share a call id (a runtime that numbers its
+// calls per turn): Start recording starts its own card's goal, not the other's.
+test("a click starts its own card when two recording cards share a call id", async () => {
+  const w = world();
+  const proposals = w.chat.messages[0].proposals;
+  proposals[0] = { id: "toolu_rec1", kind: "recording", goal: "Old goal", steps: "", untrustedPage: false, state: "saved", feedback: "Saved.", nonce: "1111111111111111", recordingId: "rec-0" };
+  proposals[1] = { id: "toolu_rec1", kind: "recording", goal: "New goal", steps: "", untrustedPage: false, state: "pending", feedback: "", nonce: "2222222222222222" };
+  await w.cards.confirm("2222222222222222");
+  assert.deepEqual(w.calls, [["start", "New goal"]]);
+  assert.deepEqual(proposals.map((p) => p.state), ["saved", "recording"]);
 });
