@@ -324,9 +324,11 @@ Technical detail: the gate looked a node up by the name it was given rather
 than the node type that runs it, and read an operation that is no string
 differently from the node. It now resolves every name to that type and reads
 the operation through the same helper as the nodes, and a tool call and the
-`people messages` sends pass it as a step does. A test walks every node type
-and alias, through both `node run` and a workflow run, so a new name or
-operation can't slip past.
+`people messages` sends pass it as a step does. A test walks every `comm.*`
+and `service.*` node type and every alias, through both `node run` and a
+workflow run, so a new name or operation can't slip past. Operations that are
+no string are tested against Telegram's, Discord's and Outlook's own code, and
+in the walk for every send type.
 
 ## Assistant tools (chat `--tools`)
 
