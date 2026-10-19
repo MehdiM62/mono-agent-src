@@ -1,11 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -15,6 +17,7 @@ import (
 
 	"github.com/monoes/mono-agent/internal/account"
 	"github.com/monoes/mono-agent/internal/account/accounttest"
+	"github.com/monoes/mono-agent/internal/cli/accountcli"
 	"github.com/monoes/mono-agent/internal/library"
 	"github.com/monoes/mono-agent/internal/secrets"
 	"github.com/monoes/mono-agent/internal/storage"
@@ -34,11 +37,31 @@ func newAdoptRig(t *testing.T, mode accounttest.Mode, afterTheDate bool) *adoptR
 	if mode == accounttest.LockedNoLogin && !afterTheDate {
 		account.SetEnforceFromForTest(t, time.Now().Add(48*time.Hour))
 	}
-	r := &adoptRig{dbPath: testdb.Path(t)}
+	r := &adoptRig{dbPath: ownInstallDB(t)}
 	was := adoptOlderLogin
-	adoptOlderLogin = func(context.Context, *sql.DB, *account.Guard) (bool, error) { r.calls.Add(1); return false, nil }
+	adoptOlderLogin = func(context.Context, *sql.DB, *account.Guard, func(string, library.Outcome)) (bool, error) {
+		r.calls.Add(1)
+		return false, nil
+	}
 	t.Cleanup(func() { adoptOlderLogin = was })
 	return r
+}
+
+// ownInstallDB is a migrated database where this OS user's own install keeps it, the one place a
+// monoes.me login is adopted from (#878): HOME and the home directory the system gives the user are
+// one temporary directory, and the database is its .monoagent/monoagent.db.
+func ownInstallDB(t *testing.T) string {
+	t.Helper()
+	home := freshHome(t)
+	accountcli.SetUserHomeForTest(t, home)
+	path := filepath.Join(home, ".monoagent", "monoagent.db")
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(testdb.Path(t), path); err != nil {
+		t.Fatal(err)
+	}
+	return path
 }
 
 func adoptionCommand(t *testing.T, args ...string) *cobra.Command {
@@ -114,40 +137,45 @@ func TestAdoptFirstRunTriesOnce(t *testing.T) {
 	}
 }
 
-// An adoption that fails is not repeated, does not stop the command and prints nothing.
+// An adoption that fails is not repeated and does not stop the command; one line says it failed.
 func TestAdoptFirstRunFailureIsClaimedAndSwallowed(t *testing.T) {
 	r := newAdoptRig(t, accounttest.LockedNoLogin, false)
 	var calls atomic.Int32
-	adoptOlderLogin = func(context.Context, *sql.DB, *account.Guard) (bool, error) {
+	adoptOlderLogin = func(context.Context, *sql.DB, *account.Guard, func(string, library.Outcome)) (bool, error) {
 		calls.Add(1)
 		return false, errors.New("boom")
 	}
 	cfg, cmd := &globalConfig{DBPath: r.dbPath}, adoptionCommand(t, "workflow", "list")
+	var errb bytes.Buffer
+	cmd.SetErr(&errb)
 	adoptFirstRun(cmd, cfg)
 	adoptFirstRun(cmd, cfg)
 	if got := calls.Load(); got != 1 {
 		t.Fatalf("a failed try was made %d times, want 1", got)
 	}
+	if got := errb.String(); got != "Adopting an earlier library login failed: boom\n" {
+		t.Fatalf("output %q", got)
+	}
 }
 
 // The wiring itself, through run() as main does: the gate judges before cobra runs any hook, so the
 // older login must be adopted ahead of it. With the enforce date past and no session, a gated command
-// is refused unless the adoption made one first; an open command makes no try. Fails when the call
-// in main.go is removed.
+// is refused unless the adoption made one first, and its line reaches stderr; an open command makes
+// no try. Fails when the call in main.go is removed.
 func TestRunAdoptsBeforeTheGateJudges(t *testing.T) {
 	f := accounttest.New(t) // trusts its key, enforces from a date in the past
-	freshHome(t)
+	dbPath := ownInstallDB(t)
 	store := account.OpenStore(t.TempDir(), account.NewMemorySealer())
 	prevGuard := newDefaultGuard
 	newDefaultGuard = func() (*account.Guard, error) {
 		return account.NewGuard(account.GuardOptions{Store: store, Now: f.Clock.Now}), nil
 	}
 	t.Cleanup(func() { newDefaultGuard = prevGuard })
-	dbPath := testdb.Path(t)
 	var calls atomic.Int32
 	was := adoptOlderLogin
-	adoptOlderLogin = func(context.Context, *sql.DB, *account.Guard) (bool, error) {
+	adoptOlderLogin = func(_ context.Context, _ *sql.DB, _ *account.Guard, report func(string, library.Outcome)) (bool, error) {
 		calls.Add(1)
+		report("default", library.OutcomeAdopted)
 		now := f.Clock.Now()
 		sess, err := account.NewSession(account.HostURL, f.Token(accounttest.TokenOptions{IssuedAt: now}),
 			&account.User{ID: "u", Email: "u@example.test", Username: "u"}, now)
@@ -168,6 +196,9 @@ func TestRunAdoptsBeforeTheGateJudges(t *testing.T) {
 	}
 	if code != 0 {
 		t.Fatalf("the gated command was refused after the adoption (code %d): %s", code, errb)
+	}
+	if !strings.Contains(errb, "Signed in to "+account.HostURL+" with the earlier library login of profile \"default\".") {
+		t.Fatalf("the adoption's line is not on stderr: %q", errb)
 	}
 	runMain(t, "--db-path", dbPath, "--profile", "default", "workflow", "list")
 	if calls.Load() != 1 {
