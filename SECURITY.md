@@ -196,6 +196,33 @@ stdin, the terminal. Keeping the passphrase next to the keyring means
 anyone who can read your home directory as you can open the vault — the
 same trade-off as the environment-variable file.
 
+## An agent's sends wait for you
+
+A step that sends a message or posts (the email, Outlook, Gmail, Slack,
+Telegram, Twilio, WhatsApp, Discord, Reddit, Mastodon, Bluesky, dev.to,
+Hashnode, Product Hunt and YouTube nodes, the social browser actions that
+message, comment, post or follow, and every API package operation marked as
+a send) doesn't run when an agent, the in-app chat or a workflow you haven't
+approved runs it, whether through a workflow run, `node run` or MCP
+`node_run`. It becomes a card in Human in Loop and goes out only when you
+approve it. An agent is recognised as in
+[Who can read a decrypted secret](#who-can-read-a-decrypted-secret), with the
+same limits. Coder mode's `sendApproval` setting turns this off.
+
+- A step is judged by the node type that runs it, whatever name it was saved
+  or called by: a legacy unprefixed name (`telegram`, `gmail`), a legacy
+  `comm.*` type that a `service.*` node runs (`comm.mastodon`), or its own,
+  with the operation a legacy config that names none runs. Releases before
+  this fix judged a step by the name it was asked about, so some sends went
+  out with no card: `node run` and MCP `node_run` under an unprefixed name,
+  and a few legacy operations and configs in workflows (see the CHANGELOG).
+- Likes, reposts, boosts and reactions aren't held: they carry none of your
+  text. Other writes to outside services (an issue, a record, a payment, a
+  file made public) aren't sends either. For an org role, a grant's outbound
+  check covers them ([Org automations and autonomy](#org-automations-and-autonomy)).
+- A general step that can reach any address (`http.request`, `core.code`'s
+  JavaScript) isn't judged as a send.
+
 ## Assistant tools (chat `--tools`)
 
 The `chat` command can expose a monoagent tool surface to the assistant
