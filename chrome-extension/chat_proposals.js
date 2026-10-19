@@ -68,6 +68,43 @@
     }
   }
 
+  /**
+   * isPrivateHost: a host (as URL parsing writes it) on the person's own
+   * machine or network, or a name only such a network resolves: loopback,
+   * 10/8, 172.16/12, 192.168/16, link-local, 0/8, ::1, fc00::/7, fe80::/10,
+   * IPv4-mapped IPv6, localhost, .local, .internal and single-label names.
+   * Literal addresses only: a public name that resolves privately is not seen.
+   */
+  function isPrivateHost(host) {
+    const h = str(host).toLowerCase().replace(/^\[|\]$/g, "").replace(/\.$/, "");
+    if (!h) return true;
+    if (h === "localhost" || /\.(localhost|local|internal)$/.test(h) || (!h.includes(".") && !h.includes(":"))) return true;
+    const v4 = /^(\d{1,3})\.(\d{1,3})\.\d{1,3}\.\d{1,3}$/.exec(h);
+    if (v4) {
+      const a = Number(v4[1]);
+      const b = Number(v4[2]);
+      return a === 127 || a === 10 || a === 0 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254);
+    }
+    if (!h.includes(":")) return false;
+    if (h === "::1" || h === "::") return true;
+    const mapped = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(h);
+    if (mapped) {
+      const hi = parseInt(mapped[1], 16);
+      const lo = parseInt(mapped[2], 16);
+      return isPrivateHost(`${hi >> 8}.${hi & 255}.${lo >> 8}.${lo & 255}`);
+    }
+    const first = parseInt(h.split(":")[0] || "0", 16);
+    return (first & 0xfe00) === 0xfc00 || (first & 0xffc0) === 0xfe80;
+  }
+
+  const hostOf = (url) => {
+    try {
+      return new URL(url).hostname;
+    } catch {
+      return "";
+    }
+  };
+
   /** fileOf is the last part of an address's path, readable: what a file there is called. */
   function fileOf(url) {
     try {
@@ -149,10 +186,15 @@
       return { url, selection: !url && p.selection === true, name: bytes(oneLine(p.name), NAME_BYTES) };
     },
     valid: (f) => !!f.url || f.selection,
-    text: (p) => ({
-      title: p.name || fileOf(p.url) || (p.selection ? "Your selection" : "A file from this page"),
-      notes: p.url || "The text you have selected on this page, as a text file",
-    }),
+    text: (p) => {
+      const host = hostOf(p.url);
+      return {
+        title: p.name || fileOf(p.url) || (p.selection ? "Your selection" : "A file from this page"),
+        // Where it would come from, plainly: a page can embed an address on the person's own network.
+        source: !p.url ? "from the page you are on" : isPrivateHost(host) ? `from ${host}, a private network address` : `from ${host}`,
+        notes: p.url || "The text you have selected on this page, as a text file",
+      };
+    },
     check: "Check the file before you save it.",
     states: new Set(["pending", "sending", "saved", "refused", "dismissed"]),
     screen: (p) => {
@@ -337,6 +379,7 @@
     } else {
       line("chat-proposal-title", v.title);
     }
+    if (v.source) line("chat-proposal-source", v.source);
     if (v.notes) line("chat-proposal-notes", v.notes);
     if (v.warning) line("chat-proposal-warning", v.warning);
     // What happened so far, then what can be done next (a recording card has both).
@@ -361,5 +404,5 @@
     return box;
   }
 
-  root.MonoChatProposals = { fromTool, clone, settle, keyOf, clientId, afterAdd, view, card, cleanGoal, pageOf, TOOLS, KINDS, TITLE_RUNES, NOTES_BYTES };
+  root.MonoChatProposals = { fromTool, clone, settle, keyOf, clientId, afterAdd, view, card, cleanGoal, pageOf, isPrivateHost, TOOLS, KINDS, TITLE_RUNES, NOTES_BYTES };
 })(globalThis);

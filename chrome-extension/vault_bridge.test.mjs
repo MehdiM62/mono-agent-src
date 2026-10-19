@@ -29,12 +29,13 @@ function world(o = {}) {
         return [{ frameId: 0, result: o.selection || "" }, { frameId: 3, result: "" }];
       },
     },
-    tabs: { get: async (id) => ({ id, url: "https://a.example/page", title: "A page" }) },
+    tabs: { get: async (id) => ({ id, url: o.pageUrl || "https://a.example/page", title: "A page" }) },
   };
   const headers = { "content-type": o.contentType || "image/png", "content-length": o.contentLength !== undefined ? o.contentLength : String(body.length) };
   const fetch = async (url, init) => {
     calls.fetches.push({ url, init });
     let given = false;
+    if (o.redirects) return { ok: false, status: 0, type: "opaqueredirect", headers: { get: () => null } };
     return {
       ok: (o.status || 200) < 400,
       status: o.status || 200,
@@ -76,8 +77,11 @@ test("an item on the page is fetched after the click and saved under the card's 
   assert.equal(w.calls.scripts[0].target.allFrames, true, "every frame is asked whether the item is there");
   assert.deepEqual(w.calls.scripts[0].args, ["https://a.example/img/chart.png"]);
   assert.deepEqual(w.calls.fetches.map((f) => [f.url, f.init.credentials]), [["https://a.example/img/chart.png", "include"]]);
+  assert.equal(w.calls.fetches[0].init.redirect, "manual", "a public page's file is not followed elsewhere");
+  assert.match(w.calls.requests[0].params.client_id, new RegExp(`^chat-${NONCE}-[0-9a-f]{8}-toolu_v$`), "scoped to the profile, as tasks are");
+  delete w.calls.requests[0].params.client_id;
   assert.deepEqual(w.calls.requests, [{ method: "vault.save", params: {
-    client_id: `chat-${NONCE}-toolu_v`, profile: "p-work", name: "chart.png", mime: "image/png",
+    profile: "p-work", name: "chart.png", mime: "image/png",
     data: Buffer.from(PNG).toString("base64"), source_url: "https://a.example/img/chart.png",
   } }]);
 });
@@ -198,4 +202,28 @@ test("an item is on the page when the page shows it, links to it, or is it", () 
     "https://cdn.example/c.webp", "https://a.example/files/q3.pdf", "https://a.example/doc.pdf", "https://a.example/blog/post#top",
   ]) assert.equal(V.itemOnPage(url), true, url);
   for (const url of ["https://a.example/img/secret.png", "https://evil.example/img/a.png", "not a url"]) assert.equal(V.itemOnPage(url), false, url);
+});
+
+// #451 review: a public page must not make the extension fetch from the
+// person's own network with their cookies, directly or by a redirect.
+test("a private network address is refused on a public page, and fetched from a page on that network", async () => {
+  for (const url of ["http://127.0.0.1/a.png", "http://10.0.0.5/scan.pdf", "http://192.168.1.2/x.png", "http://169.254.169.254/latest", "http://[::1]/a.png", "http://intranet/r.pdf"]) {
+    const w = world();
+    const out = await w.send(ask({ url }));
+    assert.equal(out.status, "refused", url);
+    assert.match(out.feedback.text, /private network/);
+    assert.deepEqual([w.calls.scripts.length, w.calls.fetches.length, w.calls.requests.length], [0, 0, 0], url);
+  }
+  const inside = world({ pageUrl: "http://192.168.1.10/dashboard" });
+  const out = await inside.send(ask({ url: "http://192.168.1.10/chart.png" }));
+  assert.equal(out.status, "saved", "a page on that network may save its own files");
+  assert.equal(inside.calls.fetches[0].init.redirect, "follow");
+});
+
+test("a public page's file that redirects is not followed, and nothing is saved", async () => {
+  const w = world({ redirects: true });
+  const out = await w.send(ask());
+  assert.equal(out.status, "refused");
+  assert.match(out.feedback.text, /redirects/);
+  assert.equal(w.calls.requests.length, 0);
 });

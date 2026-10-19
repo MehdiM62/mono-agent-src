@@ -198,8 +198,12 @@
     return btoa(bin);
   }
 
-  /** fetchItem fetches an address that is on the page, capped and typed. */
-  async function fetchItem(tabId, url) {
+  /**
+   * fetchItem fetches an address that is on the page, capped and typed.
+   * From a public page it follows no redirect: one could lead to the
+   * person's own network, which only a page on that network may reach.
+   */
+  async function fetchItem(tabId, url, follow) {
     const found = await inFrames(tabId, itemOnPage, [url]);
     if (!found.some((r) => r && r.result === true)) {
       throw fail("that file is not on the page you are on. Open the page it is on, then press Save again");
@@ -209,9 +213,12 @@
     try {
       let res;
       try {
-        res = await fetch(url, { credentials: "include", signal: abort.signal });
+        res = await fetch(url, { credentials: "include", redirect: follow ? "follow" : "manual", signal: abort.signal });
       } catch (err) {
         throw fail(`the file could not be fetched (${(err && err.message) || err})`);
+      }
+      if (res.type === "opaqueredirect" || (res.status >= 300 && res.status < 400)) {
+        throw fail("that address redirects to another one: open the file itself, then save it from there", true);
       }
       if (!res.ok) throw fail(`the site answered ${res.status} for that file`);
       const declared = Number(res.headers.get("content-length"));
@@ -226,15 +233,14 @@
   }
 
   /** selectionItem is the text selected in the page now, as a text file. */
-  async function selectionItem(tabId) {
+  async function selectionItem(tabId, pageUrl) {
     const frames = await inFrames(tabId, readSelection);
     const main = frames.find((r) => r && r.frameId === 0 && r.result) || frames.find((r) => r && r.result);
     const text = main ? String(main.result) : "";
     if (!text.trim()) throw fail("there is no text selected. Select it on the page, then press Save again");
     const bytes = new TextEncoder().encode(text);
     if (bytes.length > MAX_BYTES) throw tooBig();
-    const tab = await chrome.tabs.get(tabId).catch(() => null);
-    const page = tab && /^https?:/i.test(tab.url || "") ? tab.url : "";
+    const page = /^https?:/i.test(pageUrl || "") ? pageUrl : "";
     let host = "";
     try {
       host = new URL(page).hostname;
@@ -267,14 +273,29 @@
     const tabId = msg.tab && Number.isInteger(msg.tab.tabId) ? msg.tab.tabId : 0;
     if (!tabId) return retry("Open the page the file is on, then press Save again");
 
+    const tab = await chrome.tabs.get(tabId).catch(() => null);
+    const pageUrl = (tab && tab.url) || "";
+    // A public page may not have the extension fetch from the person's own network.
+    const local = (u) => {
+      try {
+        return P.isPrivateHost(new URL(u).hostname);
+      } catch {
+        return false;
+      }
+    };
+    const pagePrivate = local(pageUrl);
+    if (card.url && local(card.url) && !pagePrivate) {
+      return refuse(`Not saved: ${new URL(card.url).hostname} is on a private network and this page is not, so MonoAgent will not fetch it from here`);
+    }
+
     let item;
     try {
-      item = card.url ? await fetchItem(tabId, card.url) : await selectionItem(tabId);
+      item = card.url ? await fetchItem(tabId, card.url, pagePrivate) : await selectionItem(tabId, pageUrl);
     } catch (err) {
       return err.final ? refuse(`Not saved: ${err.message}`) : retry(`Not saved: ${err.message}`);
     }
     const name = fileName(card.name || item.name, item.mime);
-    const params = { client_id: P.clientId(card), profile, name, mime: item.mime, data: toBase64(item.bytes) };
+    const params = { client_id: P.clientId(card, profile), profile, name, mime: item.mime, data: toBase64(item.bytes) };
     if (item.source) params.source_url = item.source;
     let data;
     try {

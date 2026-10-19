@@ -274,3 +274,27 @@ test("a card keeps the page it was proposed on, checked again", () => {
   assert.equal(card({ tabId: "5", url: 7 }), undefined);
   assert.equal(card({ tabId: 5, url: "x".repeat(5000) }), undefined);
 });
+
+// #451 review: where a file would come from is on the card, plainly, and a
+// private network address says so before anyone presses Save.
+test("a vault card says which host the file is from, and flags a private network address", () => {
+  const v = (url) => P.view({ id: "v", kind: "vault", url, selection: false, name: "", state: "pending" });
+  assert.equal(v("https://cdn.example.com/img/a.png").source, "from cdn.example.com");
+  assert.equal(v("http://10.0.0.5/scan.pdf").source, "from 10.0.0.5, a private network address");
+  assert.equal(v("http://intranet/report.pdf").source, "from intranet, a private network address");
+  assert.equal(P.view({ id: "v", kind: "vault", url: "", selection: true, name: "", state: "pending" }).source, "from the page you are on");
+  const card = P.card(doc, { id: "v", kind: "vault", url: "http://192.168.1.2/x.png", selection: false, name: "", state: "pending" }, {});
+  const line = card.all().find((n) => n.className === "chat-proposal-source");
+  assert.equal(line.textContent, "from 192.168.1.2, a private network address");
+});
+
+test("private network addresses are told from public ones, in every form an address takes", () => {
+  const host = (u) => new URL(u).hostname;
+  for (const u of ["http://127.0.0.1/", "http://127.9.9.9/", "http://10.1.2.3/", "http://172.16.0.1/", "http://172.31.255.255/", "http://192.168.1.1/",
+    "http://169.254.169.254/", "http://0.0.0.0/", "http://[::1]/", "http://[fc00::1]/", "http://[fd12:3456::1]/", "http://[fe80::1]/",
+    "http://[::ffff:127.0.0.1]/", "http://2130706433/", "http://0x7f.1/", "http://localhost/", "http://app.localhost/", "http://printer.local/",
+    "http://intranet/", "http://db.internal/"]) assert.equal(P.isPrivateHost(host(u)), true, u);
+  for (const u of ["https://a.example/", "http://172.32.0.1/", "http://8.8.8.8/", "http://[2001:db8::1]/", "http://192.169.1.1/"]) {
+    assert.equal(P.isPrivateHost(host(u)), false, u);
+  }
+});

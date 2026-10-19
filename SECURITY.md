@@ -247,7 +247,11 @@ widen what an earlier page reached the model with):
   bytes; only the person's click on Save to vault makes the side panel
   check that the item is on the page they are on now (or read their
   selection at that moment), fetch it within a 5 MiB cap, and send it to
-  MonoAgent's file vault as `vault.save`. A page cannot press those buttons:
+  MonoAgent's file vault as `vault.save`. The card names the host the file
+  would come from. A public page never has the extension fetch a private
+  network address (loopback, private and link-local ranges, `localhost`
+  and intranet names), and a file from a public page is fetched without
+  following a redirect. A page cannot press those buttons:
   they are in the side panel, and the worker takes the requests only from
   the extension's own pages. There is no secret, credential, secret-vault, profile
   document, synced message, contact, publication, org, template or social
