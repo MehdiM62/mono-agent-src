@@ -163,3 +163,22 @@ func TestATextTitleSkipsLinesThatShowNothing(t *testing.T) {
 		t.Errorf("got (%q, %q, %v)", title, notes, err)
 	}
 }
+
+// Notes that show nothing are stored empty, by an edit as by an add.
+func TestNotesThatShowNothingAreStoredEmpty(t *testing.T) {
+	s, _, _ := newTestStore(t)
+	for _, notes := range []string{"‍", " ‍⁠ ", "ㅤ⠀"} {
+		added, _, err := s.Add(bg, "default", AddInput{Title: "t", Notes: notes}, human)
+		if err != nil || added.Notes != "" {
+			t.Errorf("Add notes %q: stored %q, err %v", notes, added.Notes, err)
+		}
+		task, _, err := s.Add(bg, "default", AddInput{Title: "t", Notes: "something"}, human)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := s.Edit(bg, "default", task.ID, Edit{Notes: &notes}, human)
+		if err != nil || got.Notes != "" {
+			t.Errorf("Edit notes %q: stored %q, err %v", notes, got.Notes, err)
+		}
+	}
+}

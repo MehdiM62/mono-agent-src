@@ -43,6 +43,9 @@ func (s *Store) Edit(ctx context.Context, profileID string, id int64, e Edit, ac
 		}
 		if e.Notes != nil {
 			n := cutBytes(cleanText(*e.Notes), MaxNotesBytes)
+			if blank(n) {
+				n = "" // as Add stores notes that show nothing
+			}
 			if n != notes {
 				notes = n
 				changed = append(changed, "notes")
