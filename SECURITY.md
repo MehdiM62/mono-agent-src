@@ -230,9 +230,9 @@ extension starts runs in a mode of its own, `--tools monoagent:read`
 (with or without a page attached; one mode, so a later message cannot
 widen what an earlier page reached the model with):
 
-- **Five tools only**: `list_workflows`, `get_workflow`,
-  `list_node_types`, `propose_task` and `propose_recording`. The two
-  proposals write nothing. `propose_task` answers with the task it
+- **Six tools only**: `list_workflows`, `get_workflow`,
+  `list_node_types`, `propose_task`, `propose_recording` and
+  `propose_vault_save`. The three proposals write nothing. `propose_task` answers with the task it
   proposes, the side panel shows it as a card (marked "Suggested after
   reading a web page" once the conversation has read a page), and only the
   person's click on the card's Add button sends it to MonoAgent, which
@@ -242,9 +242,14 @@ widen what an earlier page reached the model with):
   panel's recorder only when the person presses Start recording, and the
   automation is saved only by the Record section's own Save, after the
   person has reviewed the draft. No tool starts a recording, and what is
-  recorded never goes back to the chat. A page cannot press those buttons:
+  recorded never goes back to the chat. `propose_vault_save` names one
+  item, an address on the page or the person's selection, and carries no
+  bytes; only the person's click on Save to vault makes the side panel
+  check that the item is on the page they are on now (or read their
+  selection at that moment), fetch it within a 5 MiB cap, and send it to
+  MonoAgent's file vault as `vault.save`. A page cannot press those buttons:
   they are in the side panel, and the worker takes the requests only from
-  the extension's own pages. There is no secret, credential, vault, profile
+  the extension's own pages. There is no secret, credential, secret-vault, profile
   document, synced message, contact, publication, org, template or social
   list tool; no tool that writes or deletes anything; no `run_workflow`;
   no workflow or canvas builder; no Bash; no knowledge-graph search. A tool

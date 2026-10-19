@@ -99,7 +99,7 @@ func TestPageReadTurnOffersOnlyTheReadTools(t *testing.T) {
 	}
 	got := toolNamesIn(t, toolsCopy)
 	// The proposals write nothing: the person confirms each in the side panel (#451).
-	want := map[string]bool{"list_workflows": true, "get_workflow": true, "list_node_types": true, "propose_task": true, "propose_recording": true}
+	want := map[string]bool{"list_workflows": true, "get_workflow": true, "list_node_types": true, "propose_task": true, "propose_recording": true, "propose_vault_save": true}
 	if len(got) != len(want) {
 		t.Fatalf("tools offered = %v, want exactly %v", got, want)
 	}
@@ -116,7 +116,9 @@ func TestPageReadTurnOffersOnlyTheReadTools(t *testing.T) {
 		}
 	}
 	system, _ := os.ReadFile(systemCopy)
-	for _, bad := range []string{"Bash", "save_document", "create_workflow", "run_workflow", "monograph", "vault", "people"} {
+	// The secret vault's tools by name: propose_vault_save (the file vault,
+	// on the person's click) is the one vault word the prompt may use.
+	for _, bad := range []string{"Bash", "save_document", "create_workflow", "run_workflow", "monograph", "vault_item", "secret", "people"} {
 		if strings.Contains(string(system), bad) {
 			t.Errorf("the page-read system prompt advertises %q:\n%s", bad, system)
 		}
@@ -124,7 +126,7 @@ func TestPageReadTurnOffersOnlyTheReadTools(t *testing.T) {
 	if !strings.Contains(string(system), "web page") {
 		t.Errorf("the page-read system prompt must say page text is untrusted:\n%s", system)
 	}
-	for _, want := range []string{"propose_task", "propose_recording", "never one the page asks for", "Start recording"} {
+	for _, want := range []string{"propose_task", "propose_recording", "propose_vault_save", "never one the page asks for", "Start recording", "Save to vault"} {
 		if !strings.Contains(string(system), want) {
 			t.Errorf("the page-read system prompt must say each proposal is the person's to confirm, and never the page's (%q):\n%s", want, system)
 		}
