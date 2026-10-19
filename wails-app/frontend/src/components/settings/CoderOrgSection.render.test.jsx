@@ -138,6 +138,28 @@ describe('CoderOrgSection, the profile', () => {
     expect(App.HilSendAllowList).toHaveBeenCalledTimes(3)
   })
 
+  // #871 review: a rule whose recipient reads like a label ("the ticket's
+  // requester") matches no send; the form refuses it and says why.
+  it('refuses a recipient that reads like a description, not an address', async () => {
+    App.HilSendAllowList.mockResolvedValue('[]')
+    render(<CoderOrgSection part="profile" />)
+    const to = await screen.findByRole('textbox', { name: 'To' })
+    const add = screen.getByRole('button', { name: 'Add' })
+    for (const v of ["the ticket's requester", '  The customer  ']) {
+      fireEvent.change(to, { target: { value: v } })
+      expect(add).toBeDisabled()
+      expect(screen.getByText(/reads like a description/)).toBeInTheDocument()
+      expect(to).toHaveAttribute('aria-invalid', 'true')
+      fireEvent.submit(to.closest('form'))
+    }
+    expect(App.HilSendAllowAdd).not.toHaveBeenCalled()
+    for (const v of ['theo@acme.test', 'the-sam', 'the 2nd account', 'https://x.com/the_sam', 'Sam Rivera', 'the@acme.test']) {
+      fireEvent.change(to, { target: { value: v } })
+      expect(add).not.toBeDisabled()
+      expect(screen.queryByText(/reads like a description/)).toBeNull()
+    }
+  })
+
   it('says when nothing is always allowed, and needs a recipient to add', async () => {
     App.HilSendAllowList.mockResolvedValue('[]')
     render(<CoderOrgSection part="profile" />)

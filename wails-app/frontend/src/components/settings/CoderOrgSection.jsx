@@ -28,6 +28,15 @@ export const SEND_ACTIONS = ['email', 'dm', 'comment', 'post', 'connect', 'publi
 
 const errMsg = (e) => String(e?.message || e || 'unknown error')
 
+// labelLike says whether a recipient reads like a label ("the ticket's
+// requester") rather than an address, handle or name: it starts with "the "
+// and holds no @ or digit. A rule for it would match no send, so the form
+// refuses it (#871 review).
+export function labelLike(recipient) {
+  const v = String(recipient ?? '').trim()
+  return /^the\s/i.test(v) && !/[@\d]/.test(v)
+}
+
 function MachinePart() {
   const { t } = useTranslation()
   const [status, setStatus] = useState(null)
@@ -137,12 +146,13 @@ function ProfilePart() {
   const add = async (e) => {
     e.preventDefault()
     const f = { action: form.action, platform: form.platform.trim(), account: form.account.trim(), recipient: form.recipient.trim() }
-    if (!f.recipient) return
+    if (!f.recipient || labelLike(f.recipient)) return
     if (await run('add', () => api.hilSendAllowAdd(f.action, f.platform, f.account, f.recipient))) {
       setForm(v => ({ ...v, recipient: '' }))
     }
   }
   const set = (k) => (e) => setForm(v => ({ ...v, [k]: e.target.value }))
+  const notAddress = labelLike(form.recipient)
 
   return (
     <div style={card} data-testid="coder-allow-section">
@@ -177,8 +187,10 @@ function ProfilePart() {
           <input className="form-input" aria-label={t('coderOrg.allowAccount')} placeholder={t('coderOrg.allowAccount')}
             value={form.account} onChange={set('account')} disabled={!!busy} spellCheck={false} style={{ width: 160, fontSize: 12 }} />
           <input className="form-input" aria-label={t('coderOrg.allowRecipient')} placeholder={t('coderOrg.allowRecipientPlaceholder')}
-            value={form.recipient} onChange={set('recipient')} disabled={!!busy} spellCheck={false} style={{ flex: 1, minWidth: 200, fontSize: 12 }} />
-          <button type="submit" className="btn btn-primary btn-sm" disabled={!!busy || !form.recipient.trim()}>{t('coderOrg.allowAdd')}</button>
+            value={form.recipient} onChange={set('recipient')} disabled={!!busy} spellCheck={false} style={{ flex: 1, minWidth: 200, fontSize: 12 }}
+            aria-invalid={notAddress || undefined} aria-describedby={notAddress ? 'coder-allow-recipient-label' : undefined} />
+          <button type="submit" className="btn btn-primary btn-sm" disabled={!!busy || !form.recipient.trim() || notAddress}>{t('coderOrg.allowAdd')}</button>
+          {notAddress && <div id="coder-allow-recipient-label" style={{ ...errText, flexBasis: '100%' }}>{t('coderOrg.allowRecipientLabel')}</div>}
         </form>
       )}
     </div>

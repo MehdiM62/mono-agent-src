@@ -1802,6 +1802,7 @@
     "allowAccount": "From account",
     "allowRecipient": "To",
     "allowRecipientPlaceholder": "Profile URL, address or name, as the card shows it",
+    "allowRecipientLabel": "That reads like a description, not an address: write the profile URL, address, handle or name the send card shows.",
     "allowAdd": "Add",
     "allowRemove": "Stop always allowing {{recipient}}",
     "action": {
