@@ -1774,6 +1774,7 @@
     "open": "Open in {{tab}}",
     "command": "Command",
     "vaultHidden": "A vault command: its values are not shown here.",
+    "vaultRelated": "Vault-related command (hidden)",
     "page": {
       "tasks": "Task board",
       "people": "People",

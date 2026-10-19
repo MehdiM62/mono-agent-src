@@ -3,7 +3,7 @@ import {
 } from 'lucide-react'
 import { Tag, Section, ResultSection, DiffView, PatchDiffView, patchLines, preStyle, sectionLabel, mono, CYAN } from './nativeToolParts.jsx'
 import { diffLines, diffStats } from './unifiedDiff.js'
-import { monoagentCommand, cliTitle } from './toolLinks.js'
+import { monoagentCommand, cliTitle, vaultRelated, isSingleCommand } from './toolLinks.js'
 
 // How one native tool call reads: by the normalized kind every coder
 // runtime reports on tool.started (shell, edit, write, read, search, web,
@@ -53,6 +53,8 @@ const errorOnFail = (call) => call.ok === false && <ResultSection call={call} la
 function shell(call, args, childCalls, renderChild, t) {
   const command = Array.isArray(args.command) ? args.command.join(' ') : (args.command ?? '')
   const cli = monoagentCommand(command)
+  if (cli?.family === 'vault') return monoagentShell(call, args, command, cli, t)
+  if (vaultRelated(command)) return vaultHidden(call, t)
   if (cli) return monoagentShell(call, args, command, cli, t)
   return {
     icon: Terminal, title: `$ ${command}`, titleMono: true, subtitle: args.description || (args.cwd ? `in ${args.cwd}` : undefined),
@@ -63,9 +65,9 @@ function shell(call, args, childCalls, renderChild, t) {
 
 // monoagentShell is a shell call that runs monoagentcli on one of the app's
 // tabs (toolLinks.js): it reads as that tab with the command's subject, and
-// links to it (link.page). A vault command shows the entry's name only:
-// never its command line, which can carry a value, nor its output, except a
-// list's (names and metadata).
+// links to it (link.page). A vault command, anywhere in the command line,
+// shows the entry's name only: never the command line, which can carry a
+// value, nor the output, except a lone list's (names and metadata).
 function monoagentShell(call, args, command, cli, t) {
   const vault = cli.family === 'vault'
   return {
@@ -73,7 +75,7 @@ function monoagentShell(call, args, command, cli, t) {
     tags: [...(args.run_in_background ? [<Tag key="bg" color="#fbbf24">background</Tag>] : []), ...exitTag(call)],
     link: { page: cli.page },
     body: vault ? (
-      cli.sub === 'list' ? <ResultSection call={call} /> : <span data-testid="vault-hidden" style={{ fontFamily: mono, fontSize: 10, color: 'var(--text-muted)' }}>{t('toolLinks.vaultHidden')}</span>
+      cli.sub === 'list' && isSingleCommand(command) ? <ResultSection call={call} /> : <VaultHidden t={t} />
     ) : (
       <>
         <Section label={t('toolLinks.command')} copyText={command}><pre style={preStyle}>{command}</pre></Section>
@@ -81,6 +83,17 @@ function monoagentShell(call, args, command, cli, t) {
       </>
     ),
   }
+}
+
+function VaultHidden({ t }) {
+  return <span data-testid="vault-hidden" style={{ fontFamily: mono, fontSize: 10, color: 'var(--text-muted)' }}>{t('toolLinks.vaultHidden')}</span>
+}
+
+// vaultHidden is a call that may run a vault command the card cannot read as
+// one (behind bash -c, a variable or eval, or in arguments cut short): it
+// says so, and shows nothing of its command line, description or output.
+export function vaultHidden(call, t) {
+  return { icon: Terminal, title: t('toolLinks.vaultRelated'), tags: exitTag(call), body: <VaultHidden t={t} /> }
 }
 
 function edit(call, args) {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { monoagentCommand, toolLinkOf, TOOL_LINK_PAGES } from './toolLinks.js'
+import { monoagentCommand, toolLinkOf, cliTitle, vaultRelated, vaultRelatedCall, isSingleCommand, TOOL_LINK_PAGES } from './toolLinks.js'
 
 describe('monoagentCommand: each command family opens its tab', () => {
   it.each([
@@ -58,5 +58,83 @@ describe('toolLinkOf', () => {
     expect(toolLinkOf({ arguments: { command: ['monoagentcli', 'people', 'list'] } })).toEqual({ page: 'people' })
     expect(toolLinkOf({ arguments: { file_path: '/w/a.go' } })).toBeNull()
     expect(toolLinkOf({ arguments: 'not json' })).toBeNull()
+  })
+})
+
+// #872 review: a vault command anywhere in a command line, or wrapped so it
+// can't be parsed, never shows its command line or output.
+describe('vault commands, wherever they sit', () => {
+  const t = (k) => ({ 'toolLinks.page.secretsVault': 'Vault', 'toolLinks.page.tasks': 'Task board' }[k] || k)
+
+  it('reads a chained command by its vault segment, whichever segment it is', () => {
+    expect(monoagentCommand('monoagentcli task list && monoagentcli secret reveal GITHUB_TOKEN --reveal'))
+      .toMatchObject({ family: 'vault', sub: 'reveal', subject: 'GITHUB_TOKEN' })
+    expect(monoagentCommand('monoagentcli task list; monoagentcli secret add --name t --value SUPERSECRET'))
+      .toMatchObject({ family: 'vault', sub: 'add', subject: '' })
+    expect(monoagentCommand('monoagentcli task list || monoagentcli secret get t')).toMatchObject({ family: 'vault' })
+    expect(monoagentCommand('monoagentcli task list\nmonoagentcli secret get t')).toMatchObject({ family: 'vault' })
+  })
+
+  it('looks inside $( ) and backticks, in or out of double quotes', () => {
+    expect(monoagentCommand('echo "$(monoagentcli secret get tok)"')).toMatchObject({ family: 'vault', sub: 'get', subject: 'tok' })
+    expect(monoagentCommand('X=$(monoagentcli secret get tok) monoagentcli task list')).toMatchObject({ family: 'vault' })
+    expect(monoagentCommand('echo `monoagentcli secret get tok`')).toMatchObject({ family: 'vault', subject: 'tok' })
+    // Parentheses in a quoted title are text, not a subshell.
+    expect(monoagentCommand('monoagentcli task add "Fix (urgent) bug"').subject).toBe('Fix (urgent) bug')
+  })
+
+  it('never names a file path: an import or export reads as the command alone', () => {
+    const imp = monoagentCommand('monoagentcli secret import /home/user/private/vault-export.json.enc')
+    expect(imp).toMatchObject({ family: 'vault', sub: 'import', subject: '' })
+    expect(cliTitle(imp, t)).toBe('Vault · import')
+    expect(monoagentCommand('monoagentcli secret import vault-export.json.enc').subject).toBe('')
+    expect(monoagentCommand('monoagentcli secret export --output /home/user/private/out.enc').subject).toBe('')
+    expect(monoagentCommand('monoagentcli secret get ./tok').subject).toBe('')
+  })
+
+  it('opens no tab for a command named like an object property', () => {
+    for (const name of ['toString', 'constructor', '__proto__', 'hasOwnProperty', 'valueOf']) {
+      expect(monoagentCommand(`monoagentcli ${name} foo`)).toBeNull()
+    }
+  })
+
+  it.each([
+    'monoagentcli secret add --name tok --value SUPERSECRET',
+    'monoagentcli task list && monoagentcli secret reveal GITHUB_TOKEN --reveal',
+    'bash -c "monoagentcli secret add --name t --value SUPERSECRET"',
+    "sh -c 'monoagentcli secret reveal t --reveal'",
+    'CLI=monoagentcli; $CLI secret add --name t --value SUPERSECRET',
+    'env X=1 monoagentcli secret get tok',
+    'sudo -u me monoagentcli secret get tok',
+    'echo tok | xargs monoagentcli secret get',
+    'eval "monoagentcli secret get tok"',
+    "monoagent'cli' secret get tok",
+    'monoagent\\cli vault list',
+    'monoagentcli people update 4 --field email=a@b.c',
+  ])('takes %s for vault-related', (command) => {
+    expect(vaultRelated(command)).toBe(true)
+  })
+
+  it.each([
+    'monoagentcli task add "Fix the login bug"',
+    'monoagentcli people list --json',
+    'echo my secret value',
+    'ls -la',
+  ])('takes %s for not vault-related', (command) => {
+    expect(vaultRelated(command)).toBe(false)
+  })
+
+  it('reads a call whole, arguments cut short included', () => {
+    expect(vaultRelatedCall({ arguments: '{"command":"monoagentcli secret add --name t --value SUPERSE' })).toBe(true)
+    expect(vaultRelatedCall({ arguments: { command: ['bash', '-c', 'monoagentcli secret get t'] } })).toBe(true)
+    expect(vaultRelatedCall({ arguments: { command: 'monoagentcli task list' } })).toBe(false)
+    expect(vaultRelatedCall({})).toBe(false)
+  })
+
+  it('tells one command from a command line', () => {
+    expect(isSingleCommand('monoagentcli secret list --json')).toBe(true)
+    expect(isSingleCommand('monoagentcli secret list && cat ~/.ssh/id_rsa')).toBe(false)
+    expect(isSingleCommand('monoagentcli secret list | grep x')).toBe(false)
+    expect(isSingleCommand('echo $(monoagentcli secret list)')).toBe(false)
   })
 })

@@ -1732,6 +1732,7 @@
     "open": "Abrir en {{tab}}",
     "command": "Comando",
     "vaultHidden": "Un comando de la bóveda: sus valores no se muestran aquí.",
+    "vaultRelated": "Comando relacionado con la bóveda (oculto)",
     "page": {
       "tasks": "Tablero de tareas",
       "people": "Personas",

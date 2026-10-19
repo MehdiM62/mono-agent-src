@@ -7,7 +7,7 @@ import { threadView, toolSummary } from '../../lib/orgBubble.js'
 import { normalizeAsk } from '../../lib/askModel.js'
 import { AskCard } from './AskCard.jsx'
 import { ToolLink } from '../chat/ToolLink.jsx'
-import { cliOf, cliTitle } from '../chat/toolLinks.js'
+import { cliOf, cliTitle, vaultRelatedCall } from '../chat/toolLinks.js'
 import { useHilAsks } from './useHilAsks.js'
 import '../chat/chat.css'
 
@@ -45,15 +45,17 @@ function ToolRow({ item, onNavigate }) {
   const { t } = useTranslation()
   const call = item.call
   // A monoagentcli call on a tab links to it; a vault call shows the entry's
-  // name only, never its command line (#473).
+  // name only, and one it cannot read a neutral label: never its command
+  // line (#473, #872).
   const cli = cliOf(call)
+  const label = cli?.family === 'vault' ? cliTitle(cli, t) : vaultRelatedCall(call) ? t('toolLinks.vaultRelated') : toolSummary(call)
   const state = call.status === 'started' ? 'running' : call.ok === false ? (call.denied ? 'denied' : 'failed') : 'ok'
   return (
     <div data-testid="org-chat-tool" data-state={state} className="org-tool-row">
       <Wrench size={10} aria-hidden="true" />
-      <span className="org-tool-name">{cli?.family === 'vault' ? cliTitle(cli, t) : toolSummary(call)}</span>
+      <span className="org-tool-name">{label}</span>
       <span className="org-tool-state" data-state={state}>{t(`orgBubble.tool.${state}`)}</span>
-      <ToolLink link={cli && { page: cli.page }} onNavigate={onNavigate} />
+      <ToolLink link={cli && (cli.family === 'vault' || !vaultRelatedCall(call)) && { page: cli.page }} onNavigate={onNavigate} />
     </div>
   )
 }
