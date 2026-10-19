@@ -33,23 +33,60 @@ func ZerologContext(ctx context.Context) zerolog.Logger {
 	return l
 }
 
-// demoted maps a Zerolog event message to the level Demote set for it.
-var demoted sync.Map // string → slog.Level
+// demotions are, by Zerolog event message, the Demote calls in effect for
+// it, oldest first: the newest one's level applies.
+var (
+	demoteMu  sync.RWMutex
+	demotions = map[string][]*demotion{}
+)
+
+type demotion struct{ level slog.Level }
 
 // Demote logs the Zerolog events whose message is one of msgs at level
 // instead of their own, filtered by the root level like any slog record. A
 // one-shot command that reports those events itself (a run's summary names
 // the failed node) uses it to keep them off the terminal at the default
-// level. The returned func undoes it.
+// level. The returned func undoes this call only: a demotion made before or
+// after it, and not undone, applies again, whatever the order of the undos.
 func Demote(level slog.Level, msgs ...string) (undo func()) {
+	d := &demotion{level}
+	demoteMu.Lock()
 	for _, m := range msgs {
-		demoted.Store(m, level)
+		demotions[m] = append(demotions[m], d)
 	}
+	demoteMu.Unlock()
+	var once sync.Once
 	return func() {
-		for _, m := range msgs {
-			demoted.Delete(m)
-		}
+		once.Do(func() {
+			demoteMu.Lock()
+			defer demoteMu.Unlock()
+			for _, m := range msgs {
+				list := demotions[m]
+				for i, e := range list {
+					if e == d {
+						list = append(list[:i:i], list[i+1:]...)
+						break
+					}
+				}
+				if len(list) == 0 {
+					delete(demotions, m)
+				} else {
+					demotions[m] = list
+				}
+			}
+		})
 	}
+}
+
+// demotedLevel is the level Demote has msg logged at now, if any.
+func demotedLevel(msg string) (slog.Level, bool) {
+	demoteMu.RLock()
+	defer demoteMu.RUnlock()
+	list := demotions[msg]
+	if len(list) == 0 {
+		return 0, false
+	}
+	return list[len(list)-1].level, true
 }
 
 // zerologLevel maps a slog level onto zerolog's.
@@ -105,8 +142,8 @@ func (zerologWriter) WriteLevel(zl zerolog.Level, p []byte) (int, error) {
 		return len(p), l.Handler().Handle(ctx, r)
 	}
 	msg, _ := fields[zerolog.MessageFieldName].(string)
-	if v, ok := demoted.Load(msg); ok {
-		level = v.(slog.Level)
+	if v, ok := demotedLevel(msg); ok {
+		level = v
 		if !l.Enabled(ctx, level) {
 			return len(p), nil
 		}
