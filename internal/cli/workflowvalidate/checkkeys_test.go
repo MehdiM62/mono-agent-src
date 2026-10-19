@@ -3,6 +3,8 @@ package workflowvalidate
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
+	"io"
 	"strings"
 	"testing"
 
@@ -16,7 +18,7 @@ const (
 	clean   = "../../checkkeys/testdata/clean.json"
 )
 
-func checkKeys(t *testing.T, asJSON bool, args ...string) (string, error) {
+func runCheckKeys(t *testing.T, asJSON bool, args ...string) (string, error) {
 	t.Helper()
 	cmd := NewCheckKeysCommand(func() bool { return asJSON })
 	cmd.SilenceUsage, cmd.SilenceErrors = true, true // as the root has them
@@ -33,21 +35,34 @@ func checkKeys(t *testing.T, asJSON bool, args ...string) (string, error) {
 // document alone with --json, and a clean one with exit 0; a file it can't
 // read exits 3.
 func TestCheckKeysCommandExitCodes(t *testing.T) {
-	out, err := checkKeys(t, true, planted, clean)
+	out, err := runCheckKeys(t, true, planted, clean)
 	var rep checkkeys.Report
 	if jerr := json.Unmarshal([]byte(out), &rep); jerr != nil || clicore.ExitCodeFor(err) != 1 || len(rep.Findings) != 2 ||
 		rep.Findings[0].Key != "zz_extra" || !errorsAs[clicore.Reported](err) {
 		t.Errorf("--json planted: %v, %v\n%s", err, jerr, out)
 	}
-	out, err = checkKeys(t, false, planted)
+	out, err = runCheckKeys(t, false, planted)
 	if clicore.ExitCodeFor(err) != 1 || !errorsAs[clicore.Shown](err) || !strings.Contains(out, "undeclared zz_extra") {
 		t.Errorf("planted: %v\n%s", err, out)
 	}
-	if out, err := checkKeys(t, false, clean); err != nil || out != "1 file(s), 1 app node(s): 0 undeclared key(s)\n" {
+	if out, err := runCheckKeys(t, false, clean); err != nil || out != "1 file(s), 1 app node(s): 0 undeclared key(s)\n" {
 		t.Errorf("clean: %v\n%s", err, out)
 	}
-	if _, err := checkKeys(t, false, "no/such.json"); clicore.ExitCodeFor(err) != 3 || !strings.Contains(err.Error(), "no/such.json") {
+	if _, err := runCheckKeys(t, false, "no/such.json"); clicore.ExitCodeFor(err) != 3 || !strings.Contains(err.Error(), "no/such.json") {
 		t.Errorf("missing: %v", err)
+	}
+}
+
+// A catalog that doesn't load checks nothing: exit 3, never the 1 of a
+// finding.
+func TestCheckKeysCommandWithoutACatalogExits3(t *testing.T) {
+	prev := checkKeys
+	checkKeys = func(io.Reader, []string) (checkkeys.Report, error) {
+		return checkkeys.Report{}, errors.New("load the API catalog: broken")
+	}
+	t.Cleanup(func() { checkKeys = prev })
+	if out, err := runCheckKeys(t, false, clean); clicore.ExitCodeFor(err) != 3 || out != "" || err.Error() != "load the API catalog: broken" {
+		t.Errorf("%v (exit %d), stdout %q", err, clicore.ExitCodeFor(err), out)
 	}
 }
 

@@ -69,3 +69,48 @@ func TestCheckReadsStdinAndReportsBadFiles(t *testing.T) {
 		t.Errorf("%+v (exit %d)", rep, rep.ExitCode())
 	}
 }
+
+// A file that isn't JSON is reported without any of its content (the
+// decoder's message quotes the character it stopped at), at most the byte
+// it stopped at.
+func TestCheckDoesNotEchoAFilesContent(t *testing.T) {
+	dir := t.TempDir()
+	secret := filepath.Join(dir, "secret.txt")
+	if err := os.WriteFile(secret, []byte("sk-live-1234"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	rep, _ := Check(nil, []string{secret})
+	if len(rep.Errors) != 1 || rep.Errors[0] != secret+": not valid JSON (at byte 1)" {
+		t.Errorf("errors %q", rep.Errors)
+	}
+}
+
+// zeros is an endless input.
+type zeros struct{}
+
+func (zeros) Read(p []byte) (int, error) {
+	clear(p)
+	return len(p), nil
+}
+
+// A file or stdin over MaxInput is reported, not read into memory, and the
+// other files are still checked.
+func TestCheckCapsTheInput(t *testing.T) {
+	big := filepath.Join(t.TempDir(), "big.json")
+	f, err := os.Create(big)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Truncate(MaxInput + 1); err != nil { // sparse
+		t.Fatal(err)
+	}
+	f.Close()
+	rep, _ := Check(nil, []string{big, planted})
+	if len(rep.Errors) != 1 || rep.Errors[0] != big+": larger than 16 MB" || len(rep.Findings) != 2 || rep.ExitCode() != ExitBadInput {
+		t.Errorf("file: %+v", rep)
+	}
+	rep, _ = Check(zeros{}, []string{"-"})
+	if len(rep.Errors) != 1 || rep.Errors[0] != "-: larger than 16 MB" {
+		t.Errorf("stdin: %+v", rep.Errors)
+	}
+}

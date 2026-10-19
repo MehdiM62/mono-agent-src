@@ -7,11 +7,13 @@ package checkkeys
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"sort"
 	"strings"
+	"syscall"
 
 	"github.com/monoes/mono-agent/internal/apipkg"
 )
@@ -37,17 +39,22 @@ type Report struct {
 	Errors   []string  `json:"errors,omitempty"`
 }
 
-// Exit codes: clean, an undeclared key, a file that couldn't be checked.
+// Exit codes: clean, an undeclared key, and a file (or the catalog) that
+// couldn't be checked.
 const (
 	ExitClean      = 0
 	ExitUndeclared = 1
 	ExitBadInput   = 3
 )
 
+// MaxInput caps one input: a workflow or template is far smaller, and a
+// path to /dev/zero must not fill the memory.
+const MaxInput = 16 << 20
+
 // Check reads each of names ("-" is stdin; none means stdin) and reports
-// its app nodes' undeclared keys. A file that can't be read or isn't JSON
-// is an entry of Errors, and the others are still checked; the error is
-// for a catalog that doesn't load.
+// its app nodes' undeclared keys. A file that can't be read (not a regular
+// file, or over MaxInput) or isn't JSON is an entry of Errors, and the
+// others are still checked; the error is for a catalog that doesn't load.
 func Check(stdin io.Reader, names []string) (Report, error) {
 	pkgs, err := apipkg.Catalog()
 	if err != nil {
@@ -61,7 +68,7 @@ func Check(stdin io.Reader, names []string) (Report, error) {
 		raw, err := read(stdin, name)
 		var v any
 		if err == nil {
-			err = json.Unmarshal(raw, &v)
+			err = notJSON(json.Unmarshal(raw, &v))
 		}
 		if err != nil {
 			rep.Errors = append(rep.Errors, fmt.Sprintf("%s: %v", name, err))
@@ -83,11 +90,47 @@ func Check(stdin io.Reader, names []string) (Report, error) {
 	return rep, nil
 }
 
+// read is name's bytes ("-" is stdin), up to MaxInput: a regular file only,
+// opened without blocking, since a FIFO would wait for a writer forever.
 func read(stdin io.Reader, name string) ([]byte, error) {
-	if name == "-" {
-		return io.ReadAll(stdin)
+	r := stdin
+	if name != "-" {
+		f, err := os.OpenFile(name, os.O_RDONLY|syscall.O_NONBLOCK, 0)
+		if err != nil {
+			return nil, err
+		}
+		defer f.Close()
+		fi, err := f.Stat()
+		switch {
+		case err != nil:
+			return nil, err
+		case !fi.Mode().IsRegular():
+			return nil, errors.New("not a regular file")
+		case fi.Size() > MaxInput:
+			return nil, tooLarge
+		}
+		r = f
 	}
-	return os.ReadFile(name)
+	b, err := io.ReadAll(io.LimitReader(r, MaxInput+1))
+	if err == nil && len(b) > MaxInput {
+		err = tooLarge
+	}
+	return b, err
+}
+
+var tooLarge = fmt.Errorf("larger than %d MB", MaxInput>>20)
+
+// notJSON says where a decode failed without echoing the input: the
+// decoder's own message quotes the character it stopped at.
+func notJSON(err error) error {
+	var syn *json.SyntaxError
+	switch {
+	case err == nil:
+		return nil
+	case errors.As(err, &syn):
+		return fmt.Errorf("not valid JSON (at byte %d)", syn.Offset)
+	}
+	return errors.New("not valid JSON")
 }
 
 // Write prints r to w: the JSON document, or a line per finding and a

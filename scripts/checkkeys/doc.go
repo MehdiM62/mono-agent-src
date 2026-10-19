@@ -4,5 +4,5 @@
 // and writing nothing under HOME.
 //
 //	go run ./scripts/checkkeys [--json] <file.json…|->
-//	exit 0 clean, 1 an app node sends a key its op doesn't declare, 3 a file that can't be read or isn't JSON
+//	exit 0 clean, 1 an undeclared key, 3 a file it can't check (unreadable, not regular, over 16 MB, not JSON) or no catalog
 package main

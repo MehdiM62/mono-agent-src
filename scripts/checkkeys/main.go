@@ -12,6 +12,9 @@ import (
 
 func main() { os.Exit(run(os.Args[1:], os.Stdin, os.Stdout, os.Stderr)) }
 
+// checkKeys is the check; a test swaps it.
+var checkKeys = checkkeys.Check
+
 // run is the command line without the process. Its streams are the
 // command's: the report on stdout, and on stderr why it doesn't exit clean,
 // except for the keys a text report has already shown.
@@ -25,10 +28,10 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		}
 		return checkkeys.ExitBadInput
 	}
-	rep, err := checkkeys.Check(stdin, flags.Args())
-	if err != nil {
+	rep, err := checkKeys(stdin, flags.Args())
+	if err != nil { // no catalog: nothing could be checked, which is no finding
 		fmt.Fprintln(stderr, err)
-		return 1
+		return checkkeys.ExitBadInput
 	}
 	rep.Write(stdout, *asJSON)
 	code := rep.ExitCode()

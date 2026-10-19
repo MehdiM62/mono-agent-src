@@ -7,6 +7,9 @@ import (
 	"github.com/monoes/mono-agent/internal/cli/clicore"
 )
 
+// checkKeys is the check; a test swaps it.
+var checkKeys = checkkeys.Check
+
 // NewCheckKeysCommand is `workflow check-keys`: the keys the app nodes of
 // workflow or template files send that their ops don't declare, judged on
 // the built-in catalog (internal/checkkeys). An agent's run, or an
@@ -22,15 +25,15 @@ func NewCheckKeysCommand(jsonOutput func() bool) *cobra.Command {
 			"unapproved workflow's, of such a node waits for approval. It opens no database and reads no installed " +
 			"package. Signed out, run `go run ./scripts/checkkeys` from a source checkout instead: the same check. " +
 			"--json prints {clean, files, app_nodes, findings[{file, node_id, node, type, op, key}], errors}. " +
-			"Exit 0 when clean, 1 when a node has an undeclared key, 3 when a file can't be read or isn't JSON " +
-			"(the other files are still checked).",
+			"Exit 0 when clean, 1 when a node has an undeclared key, 3 when a file can't be checked (unreadable, not a " +
+			"regular file, over 16 MB, or not JSON; the other files are still checked) or the API catalog doesn't load.",
 		Example: `  monoagentcli workflow check-keys library/*.json
   monoagentcli --json workflow check-keys template.json
   cat template.json | monoagentcli workflow check-keys -`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			rep, err := checkkeys.Check(cmd.InOrStdin(), args)
-			if err != nil {
-				return err
+			rep, err := checkKeys(cmd.InOrStdin(), args)
+			if err != nil { // no catalog: nothing could be checked, which is no finding
+				return &clicore.Error{Code: checkkeys.ExitBadInput, Msg: err.Error()}
 			}
 			asJSON := jsonOutput()
 			rep.Write(cmd.OutOrStdout(), asJSON)

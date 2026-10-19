@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -85,5 +86,19 @@ func TestCheckKeysToolRunsBare(t *testing.T) {
 	}
 	if _, stderr, code := runBare(t, "", "no/such.json"); code != 3 || !strings.Contains(stderr, "no/such.json") {
 		t.Errorf("missing file: exit %d, stderr %q", code, stderr)
+	}
+}
+
+// A catalog that doesn't load checks nothing: exit 3, never the 1 of a
+// finding.
+func TestCheckKeysToolWithoutACatalogExits3(t *testing.T) {
+	prev := checkKeys
+	checkKeys = func(io.Reader, []string) (checkkeys.Report, error) {
+		return checkkeys.Report{}, errors.New("load the API catalog: broken")
+	}
+	t.Cleanup(func() { checkKeys = prev })
+	var out, errb bytes.Buffer
+	if code := run([]string{clean}, strings.NewReader(""), &out, &errb); code != 3 || out.Len() != 0 || errb.String() != "load the API catalog: broken\n" {
+		t.Errorf("exit %d, stdout %q, stderr %q", code, out.String(), errb.String())
 	}
 }

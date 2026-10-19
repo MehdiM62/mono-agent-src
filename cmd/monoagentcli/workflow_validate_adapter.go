@@ -32,8 +32,10 @@ func newWorkflowValidateCmd(cfg *globalConfig) *cobra.Command {
 	return workflowvalidate.NewCommand(workflowValidateDeps(cfg))
 }
 
-// newWorkflowCheckKeysCmd is `workflow check-keys`: files in, the built-in
-// catalog, nothing else (no database, no ~/.monoagent).
+// newWorkflowCheckKeysCmd is `workflow check-keys`: it reads the files and
+// the built-in catalog and opens no database. Being gated, it still runs
+// the root's sign-in and automation boot, which may write under HOME;
+// scripts/checkkeys is the check that writes nothing there.
 func newWorkflowCheckKeysCmd(cfg *globalConfig) *cobra.Command {
 	return workflowvalidate.NewCheckKeysCommand(func() bool { return cfg.JSONOutput })
 }
