@@ -101,6 +101,16 @@ describe('AskCard: send approval', () => {
     expect(onNavigate).toHaveBeenCalledWith('people', { person: 'p-42' })
   })
 
+  it('shows the server a send goes through and the URL a call fetches, when the item names them', () => {
+    render(<AskCard ask={normalizeAsk({ ...sendEmail, host: 'smtp.relay.test:587', fetchUrl: 'https://twiml.example.test/call.xml' })} nameOf={nameOf} />)
+    expect(screen.getByTestId('ask-host')).toHaveTextContent('smtp.relay.test:587')
+    expect(screen.getByTestId('ask-fetch-url')).toHaveTextContent('https://twiml.example.test/call.xml')
+    cleanup()
+    render(<AskCard ask={send()} nameOf={nameOf} />)
+    expect(screen.queryByTestId('ask-host')).toBeNull()
+    expect(screen.queryByTestId('ask-fetch-url')).toBeNull()
+  })
+
   it("names MonoAgent's own preparer as is: an unapproved workflow", () => {
     const ask = normalizeAsk({ ...sendEmail, preparedBy: { role: 'unapproved workflow wf1', agentId: 'unapproved-workflow', workflow: 'wf1', system: true } })
     render(<AskCard ask={ask} nameOf={nameOf} />)

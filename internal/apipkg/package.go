@@ -16,16 +16,21 @@ const NodeTypePrefix = "app."
 
 // Package is one API package file.
 type Package struct {
-	Schema      string            `json:"$schema"`
-	ID          string            `json:"id"`
-	NodeType    string            `json:"node_type,omitempty"`
-	Extends     string            `json:"extends,omitempty"`
-	Title       string            `json:"title"`
-	Description string            `json:"description,omitempty"`
-	Category    string            `json:"category,omitempty"`
-	DocsURL     string            `json:"docs_url,omitempty"`
-	N8nTypes    []string          `json:"n8n_types,omitempty"`
-	BaseURL     string            `json:"base_url"`
+	Schema      string   `json:"$schema"`
+	ID          string   `json:"id"`
+	NodeType    string   `json:"node_type,omitempty"`
+	Extends     string   `json:"extends,omitempty"`
+	Title       string   `json:"title"`
+	Description string   `json:"description,omitempty"`
+	Category    string   `json:"category,omitempty"`
+	DocsURL     string   `json:"docs_url,omitempty"`
+	N8nTypes    []string `json:"n8n_types,omitempty"`
+	BaseURL     string   `json:"base_url"`
+	// AuthHosts are hosts beyond the base URL's, and those written in a
+	// URL template, that a request may send the connection's secret to
+	// ("*.firebasedatabase.app" for its subdomains): a host only a param
+	// names, such as a regional database's (opRun.authHost).
+	AuthHosts   []string          `json:"auth_hosts,omitempty"`
 	Headers     map[string]string `json:"headers,omitempty"`
 	Credentials []Credential      `json:"credentials,omitempty"`
 	Resources   []Resource        `json:"resources,omitempty"`

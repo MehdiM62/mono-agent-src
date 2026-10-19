@@ -62,6 +62,13 @@ type Payload struct {
 	Attachments []Attachment `json:"attachments"`
 	CreatedAt   string       `json:"createdAt"`
 
+	// Host is the server the send goes through when its config names one
+	// that isn't the platform's own: the mail relay, the Mastodon instance.
+	Host string `json:"host,omitempty"`
+	// FetchURL is where the platform fetches what the send says: a Twilio
+	// call's TwiML URL.
+	FetchURL string `json:"fetchUrl,omitempty"`
+
 	// TextReadOnly: the op names no text field, so the text (if any) says
 	// what the step sends and can't be edited (ErrNoText).
 	TextReadOnly bool `json:"textReadOnly,omitempty"`

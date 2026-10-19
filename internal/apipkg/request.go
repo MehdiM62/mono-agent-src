@@ -62,16 +62,16 @@ func (r *opRun) buildRequest(ctx context.Context, pp pageParams) (*built, error)
 		r.scope.Page = pp.values
 	}
 	sc := r.scope
+	base := r.op.BaseURL
+	if base == "" {
+		base = r.pkg.BaseURL
+	}
+	b, err := renderText(base, sc)
+	if err != nil {
+		return nil, r.errf("base_url: %w", err)
+	}
 	rawURL := pp.url
 	if rawURL == "" {
-		base := r.op.BaseURL
-		if base == "" {
-			base = r.pkg.BaseURL
-		}
-		b, err := renderText(base, sc)
-		if err != nil {
-			return nil, r.errf("base_url: %w", err)
-		}
 		path, err := renderPath(r.op.Path, sc)
 		if err != nil {
 			return nil, r.errf("path: %w", err)
@@ -85,6 +85,22 @@ func (r *opRun) buildRequest(ctx context.Context, pp pageParams) (*built, error)
 	u, err := url.Parse(rawURL)
 	if err != nil {
 		return nil, r.errf("url %q: %w", rawURL, err)
+	}
+	// The connection's secret goes only to a host the package names: an
+	// absolute URL a param or a response names elsewhere goes without it,
+	// and without anything rendered from the connection (authHost).
+	// The base URL's host is the package's or the connection's own when
+	// the package and the connection alone render it: a region a param
+	// passes or a location a response names can't move the credential.
+	named := b
+	if own, err := renderText(base, Scope{Cred: sc.Cred}); err != nil || urlHost(own) != urlHost(b) {
+		named = ""
+	}
+	authed := r.authHost(u.Hostname(), named)
+	if !authed {
+		saved := r.scope.Cred
+		r.scope.Cred, sc.Cred = nil, nil
+		defer func() { r.scope.Cred = saved }()
 	}
 	if pp.url == "" && r.op.Query != nil {
 		qv, err := renderObject(r.op.Query, sc)
@@ -139,8 +155,14 @@ func (r *opRun) buildRequest(ctx context.Context, pp pageParams) (*built, error)
 	for k, v := range pp.headers {
 		req.Header.Set(k, v)
 	}
-	if err := injectAuth(req, r.credDef, sc, body); err != nil {
-		return nil, r.errf("%w", err)
+	if authed {
+		before := req.Header.Clone()
+		if err := injectAuth(req, r.credDef, sc, body); err != nil {
+			return nil, r.errf("%w", err)
+		}
+		if r.credDef != nil || len(sc.Cred) > 0 {
+			req = withCredentialHeaders(req, credentialHeaders(before, req.Header, r.pkg.Headers, r.op.Headers))
+		}
 	}
 	return &built{req: req, body: body}, nil
 }

@@ -16,6 +16,12 @@ type SalesforceNode struct{}
 
 func (n *SalesforceNode) Type() string { return "service.salesforce" }
 
+// CredentialDestinationKeys: the org the access token goes to
+// (workflow.CheckCredentialDestinations).
+func (n *SalesforceNode) CredentialDestinationKeys() [][]string {
+	return [][]string{{"instance_url"}}
+}
+
 // salesforceDefaultAPIVersion is the REST API version used when the node's
 // api_version field is empty (66.0 = Spring '26). Salesforce keeps old
 // versions available for years, so saved workflows keep working when this
@@ -191,7 +197,17 @@ func salesforceQuery(ctx context.Context, baseURL, accessToken, soql string) ([]
 		// baseURL is like https://myorg.salesforce.com/services/data/v66.0
 		// We need the instance root
 		instanceRoot := salesforceInstanceRoot(baseURL)
-		queryURL = instanceRoot + nextURL
+		// Only its path counts: the response can't move the token to
+		// another host ("@evil.example/…" pasted after the root would).
+		root, err := url.Parse(instanceRoot + "/")
+		if err != nil {
+			return nil, fmt.Errorf("salesforce query: instance URL: %w", err)
+		}
+		next, err := url.Parse(nextURL)
+		if err != nil || next.Scheme != "" || next.Host != "" || next.User != nil {
+			return nil, fmt.Errorf("salesforce query: nextRecordsUrl %q is not a path on the instance", nextURL)
+		}
+		queryURL = root.ResolveReference(next).String()
 	}
 
 	return allItems, nil
