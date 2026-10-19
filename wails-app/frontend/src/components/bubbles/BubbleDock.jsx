@@ -7,11 +7,11 @@ import './bubbles.css'
 
 const statusKey = { idle: 'statusIdle', working: 'statusWorking', done: 'statusDone', error: 'statusError', needs: 'statusNeeds' }
 
-function ChatBubble({ bubble, summary, expanded, onOpen, onClose, onDragStart, onDropOn, dragging, registerEl }) {
+function ChatBubble({ bubble, summary, expanded, onOpen, onClose, onDragStart, onDropOn, dragging, registerEl, titleOf = folderName }) {
   const { t } = useTranslation()
   const [hover, setHover] = useState(false)
   const isOrg = bubble.kind === 'org'
-  const name = isOrg ? bubble.orgName : bubble.cwd ? folderName(bubble.cwd) : t('bubbles.newChat')
+  const name = isOrg ? bubble.orgName : bubble.cwd ? titleOf(bubble.cwd) : t('bubbles.newChat')
   const cost = totalCost(summary)
   const estimated = costEstimated(summary)
   const label = (isOrg ? t('orgBubble.bubbleLabel', { name, status: t(`bubbles.${statusKey[summary.status] || 'statusIdle'}`) })
@@ -58,7 +58,7 @@ function ChatBubble({ bubble, summary, expanded, onOpen, onClose, onDragStart, o
 // the window: one bubble per open coder chat, a "+" for a new one, and a
 // grip that moves the dock to the other side. Bubbles past the sixth go
 // into a "+N" bubble that fans out.
-export function BubbleDock({ store, onOpen, onClose, registerEl, canCreate = true }) {
+export function BubbleDock({ store, onOpen, onClose, registerEl, canCreate = true, titleOf }) {
   const { t } = useTranslation()
   const [dragKey, setDragKey] = useState('')
   const [fanOpen, setFanOpen] = useState(false)
@@ -73,7 +73,7 @@ export function BubbleDock({ store, onOpen, onClose, registerEl, canCreate = tru
   const bubbleProps = b => ({
     key: b.key, bubble: b, summary: store.summaryOf(b.key), expanded: b.key === expandedKey,
     onOpen: k => { setFanOpen(false); onOpen(k) }, onClose, onDragStart: setDragKey, onDropOn,
-    dragging: dragKey === b.key, registerEl,
+    dragging: dragKey === b.key, registerEl, titleOf,
   })
   if (bubbles.length === 0 && !canCreate) return null
   const overflowUnread = overflow.reduce((n, b) => n + (store.summaryOf(b.key).unread || 0), 0)

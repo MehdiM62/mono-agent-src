@@ -78,7 +78,7 @@ const READY = {
   coder_list: { ok: true, conversations: [] },
 };
 
-function setup({ replies = {}, session = {}, pageNow = PAGE(), windowId = 1, tabWindow = 1 } = {}) {
+function setup({ replies = {}, session = {}, pageNow = PAGE(), windowId = 1, tabWindow = 1, current = { id: "p-work" } } = {}) {
   html.length = 0;
   const els = {};
   for (const id of IDS) els[id] = new Node_(id);
@@ -115,7 +115,7 @@ function setup({ replies = {}, session = {}, pageNow = PAGE(), windowId = 1, tab
   };
   const timers = fakeTimers();
   const env = {
-    document: doc, chrome, ask, profiles: { current: { id: "p-work" } }, page: pageNow, here: { windowId },
+    document: doc, chrome, ask, profiles: { current }, page: pageNow, here: { windowId },
     setTimeout: timers.setTimeout, clearTimeout: timers.clearTimeout, setInterval: timers.setInterval, clearInterval: timers.clearInterval,
   };
   const sandbox = loadExtensionScripts(["chat_core.js", "chat_render.js", "coder_mirror.js", "sidepanel_coder.js"], env);
@@ -481,4 +481,24 @@ test("a queued job shows its whole address under the page's title, as text", asy
   assert.equal(item.children[0].textContent, "Bug report: GitHub");
   assert.deepEqual(html, [], "markup was parsed");
   assert.ok(!item.all().some((n) => n.tag === "img"), "the path became an element");
+});
+
+test("nothing about a profile is asked before the header has one; then everything is, with it (#822)", async () => {
+  const t = setup({ current: null, replies: { coder_list: { ok: true, conversations: [{ id: "c-1", startedInDesktop: true }] }, coder_events: { ok: true, turn: "t1", events: [], turn_active: false, images: [] } } });
+  t.openSection();
+  await settle();
+  const profiled = ["coder_projects", "coder_queue_list", "coder_list", "coder_events", "coder_queue"];
+  assert.deepEqual(t.sent.filter((m) => profiled.includes(m.type)), [], "asked with no profile");
+  assert.equal(t.els["coder-queue"].disabled, true);
+  t.env.profiles.current = { id: "p-work" };
+  t.doc.fire("panel:profiles");
+  await settle();
+  for (const type of ["coder_projects", "coder_queue_list", "coder_list"]) {
+    assert.deepEqual(t.of(type).map((m) => m.profile), ["p-work"], `${type} once, with the profile`);
+  }
+  t.env.profiles.current = { id: "p-home" };
+  t.doc.fire("panel:profiles");
+  await settle();
+  assert.deepEqual(t.of("coder_projects").map((m) => m.profile), ["p-work", "p-home"], "another profile's folders");
+  assert.ok(t.sent.every((m) => !profiled.includes(m.type) || m.profile), "a request went out with no profile");
 });

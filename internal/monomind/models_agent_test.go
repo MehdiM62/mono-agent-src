@@ -47,8 +47,8 @@ func TestListModelsUsesAgentModels(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []RuntimeModel{
-		{ID: "default", Label: "Default (Opus 5.5)", Description: "Opus 5.5 · Best for everyday, complex tasks", EffortLevels: []string{"low", "medium", "high", "xhigh", "max"}},
-		{ID: "opus", Label: "Opus 5.5", Description: "Opus 5.5 · Most capable", EffortLevels: []string{"low", "medium", "high", "xhigh", "max"}},
+		{ID: "default", ResolvedID: "claude-opus-5-5", Label: "Default (Opus 5.5)", Description: "Opus 5.5 · Best for everyday, complex tasks", EffortLevels: []string{"low", "medium", "high", "xhigh", "max"}},
+		{ID: "opus", ResolvedID: "claude-opus-5-5", Label: "Opus 5.5", Description: "Opus 5.5 · Most capable", EffortLevels: []string{"low", "medium", "high", "xhigh", "max"}},
 		{ID: "claude-sonnet-4-6", Label: "Sonnet 4.6", Description: "Efficient for routine tasks"},
 	}
 	if !reflect.DeepEqual(got, want) {
