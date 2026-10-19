@@ -36,6 +36,11 @@ func (f *fakeExecs) GetExecution(context.Context, string) (*WorkflowExecution, e
 	return f.exec, nil
 }
 
+func (f *fakeExecs) ExecutionInFlight(ctx context.Context, id string) (string, bool, error) {
+	st, err := f.GetExecutionStatus(ctx, id)
+	return st, st == "QUEUED" || st == "RUNNING", err
+}
+
 // runHook serves one webhook through a runner. run may be nil for one that
 // starts "exec-1" and records the items.
 func runHook(t *testing.T, reg *WebhookRegistration, run WebhookRunner, execs WebhookExecutions) *WebhookServer {

@@ -238,8 +238,10 @@ func (s *WebhookServer) chatMessage(w http.ResponseWriter, r *http.Request, rout
 }
 
 // watchChatRun follows a run a message started (or, resumed, answered)
-// until it ends or pauses. In lastNode mode its result is the bot's answer;
-// in either mode a failed run says so in the chat.
+// until it ends or pauses for a person: a run waiting only for its
+// sub-workflows is resumed by the engine, so it is watched on. In lastNode
+// mode its result is the bot's answer; in either mode a failed run says so
+// in the chat.
 func (s *WebhookServer) watchChatRun(route *chatRoute, execs WebhookExecutions, session, execID string, resumed bool) {
 	ctx := context.Background()
 	tick := time.NewTicker(webhookPollInterval)
@@ -247,20 +249,22 @@ func (s *WebhookServer) watchChatRun(route *chatRoute, execs WebhookExecutions, 
 	// An answered run is still WAITING until its wake resumes it.
 	wakeBy := time.Now().Add(replyWakeWindow)
 	for range tick.C {
-		st, err := execs.GetExecutionStatus(ctx, execID)
+		st, inFlight, err := execs.ExecutionInFlight(ctx, execID)
 		if err != nil {
 			return
 		}
-		switch st {
-		case "QUEUED", "RUNNING", "":
+		switch {
+		case inFlight && st == "WAITING": // only for its sub-workflows
+			continue
+		case inFlight || st == "":
 			resumed = false
 			continue
-		case "WAITING":
+		case st == "WAITING":
 			if resumed && time.Now().Before(wakeBy) {
 				continue
 			}
 			return // a later answer watches the run again
-		case "SUCCESS", "SUCCESS_WITH_ERRORS":
+		case st == "SUCCESS" || st == "SUCCESS_WITH_ERRORS":
 			if route.ResponseMode != ChatRespondLastNode {
 				return
 			}
