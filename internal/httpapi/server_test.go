@@ -385,7 +385,7 @@ func TestWorkflowMutationProfileIsolation(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					if exec := waitForExecution(ctx, s.rt, execID, time.Second*5); exec.Status != "SUCCESS" {
+					if exec := waitForExecution(ctx, s.rt, execID, time.Second*5, false); exec.Status != "SUCCESS" {
 						t.Errorf("daemon's direct foreign run: %+v", exec)
 					}
 				}

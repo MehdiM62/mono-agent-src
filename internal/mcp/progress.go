@@ -89,14 +89,14 @@ const progressInterval = time.Second
 // waitWithProgress is waitForExecution for a call that asked for progress:
 // while it waits it reports how many of the workflow's nodes have finished,
 // once a second at most and only when that number grows, then the end.
-func waitWithProgress(ctx context.Context, rt *runtime, executionID, workflowID string, timeout time.Duration, p *progressReporter) *workflow.WorkflowExecution {
+func waitWithProgress(ctx context.Context, rt *runtime, executionID, workflowID string, timeout time.Duration, throughSubs bool, p *progressReporter) *workflow.WorkflowExecution {
 	total := 0
 	if wf, err := rt.store.GetWorkflow(ctx, workflowID); err == nil && wf != nil {
 		total = len(wf.Nodes)
 	}
 	p.report(0, float64(total), "queued")
 	done := make(chan *workflow.WorkflowExecution, 1)
-	go func() { done <- waitForExecution(ctx, rt, executionID, timeout) }()
+	go func() { done <- waitForExecution(ctx, rt, executionID, timeout, throughSubs) }()
 	ticker := time.NewTicker(progressInterval)
 	defer ticker.Stop()
 	for {

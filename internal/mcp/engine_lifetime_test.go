@@ -36,7 +36,7 @@ func TestEngineOutlivesTheCallThatStartedIt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	exec := waitForExecution(context.Background(), rt, execID, 5*time.Second)
+	exec := waitForExecution(context.Background(), rt, execID, 5*time.Second, false)
 	if exec.Status != "SUCCESS" {
 		t.Fatalf("run after the starting call ended: status %q", exec.Status)
 	}

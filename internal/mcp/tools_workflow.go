@@ -204,6 +204,10 @@ func toolWorkflowRun(ctx context.Context, s *Server, args json.RawMessage) (inte
 		ID             string                 `json:"id"`
 		Input          map[string]interface{} `json:"input"`
 		TimeoutSeconds float64                `json:"timeout_seconds"`
+		// WaitThroughSubworkflows keeps waiting while the run is paused only
+		// for its own sub-workflows (this server's engine runs them and
+		// resumes it); by default any WAITING ends the wait.
+		WaitThroughSubworkflows bool `json:"wait_through_subworkflows"`
 	}
 	if err := decodeArgs(args, &a); err != nil {
 		return nil, err
@@ -234,9 +238,9 @@ func toolWorkflowRun(ctx context.Context, s *Server, args json.RawMessage) (inte
 	timeout := clampTimeoutSeconds(a.TimeoutSeconds)
 	var exec *workflow.WorkflowExecution
 	if p := progressFrom(ctx); p != nil {
-		exec = waitWithProgress(ctx, rt, execID, a.ID, timeout, p)
+		exec = waitWithProgress(ctx, rt, execID, a.ID, timeout, a.WaitThroughSubworkflows, p)
 	} else {
-		exec = waitForExecution(ctx, rt, execID, timeout)
+		exec = waitForExecution(ctx, rt, execID, timeout, a.WaitThroughSubworkflows)
 	}
 	// An agent reaches this server: a reply's token in the run's data is
 	// hidden from it (workflow.ReplyRedactor), as in workflow_status.
@@ -274,7 +278,13 @@ func toolWorkflowRun(ctx context.Context, s *Server, args json.RawMessage) (inte
 	if exec.ErrorMessage != "" {
 		result["error"] = exec.ErrorMessage
 	}
-	if inFlight, _ := workflow.RecordInFlight(ctx, rt.store, exec); inFlight {
+	timedOut := exec.Status == "RUNNING" || exec.Status == "QUEUED"
+	if a.WaitThroughSubworkflows {
+		// Still paused for its sub-workflows when the wait ran out: not
+		// finished either.
+		timedOut, _ = workflow.RecordInFlight(ctx, rt.store, exec)
+	}
+	if timedOut {
 		result["timed_out"] = true
 	}
 	return result, nil
@@ -283,8 +293,10 @@ func toolWorkflowRun(ctx context.Context, s *Server, args json.RawMessage) (inte
 // waitForExecution polls the execution's STATUS only (a single-column
 // query) until it reaches a terminal or paused status, the timeout
 // elapses, or ctx is cancelled; the full record (with node outputs) is
-// then loaded exactly once. Returns the latest snapshot either way.
-func waitForExecution(ctx context.Context, rt *runtime, executionID string, timeout time.Duration) *workflow.WorkflowExecution {
+// then loaded exactly once. Returns the latest snapshot either way. With
+// throughSubs a pause only for the run's own sub-workflows is waited
+// through (runInFlight).
+func waitForExecution(ctx context.Context, rt *runtime, executionID string, timeout time.Duration, throughSubs bool) *workflow.WorkflowExecution {
 	deadline := time.Now().Add(timeout)
 	ticker := time.NewTicker(250 * time.Millisecond)
 	defer ticker.Stop()
@@ -298,15 +310,12 @@ func waitForExecution(ctx context.Context, rt *runtime, executionID string, time
 	for {
 		select {
 		case <-ticker.C:
-			// Queued, running, or waiting only for its sub-workflows (the
-			// engine runs them and resumes it): the wait goes on. A final
-			// status, or a pause for a person, ends it.
-			status, inFlight, err := workflow.ExecutionInFlight(ctx, rt.store, executionID)
+			status, inFlight, err := runInFlight(ctx, rt, executionID, throughSubs)
 			if err != nil || status == "" {
 				continue
 			}
 			if !inFlight || time.Now().After(deadline) {
-				return load()
+				return load() // final, or paused (WAITING)
 			}
 		case <-ctx.Done():
 			return load()
@@ -358,6 +367,17 @@ func toolWorkflowStatus(ctx context.Context, s *Server, args json.RawMessage) (i
 		*workflow.WorkflowExecution
 		Waiting []workflow.PendingReply `json:"waiting_for,omitempty"`
 	}{exec, waiting}, nil
+}
+
+// runInFlight is whether a run's wait goes on: it is QUEUED or RUNNING, or,
+// with throughSubs, WAITING only for its own sub-workflows, which this
+// server's engine runs and then resumes it (workflow.ExecutionInFlight).
+func runInFlight(ctx context.Context, rt *runtime, executionID string, throughSubs bool) (string, bool, error) {
+	if throughSubs {
+		return workflow.ExecutionInFlight(ctx, rt.store, executionID)
+	}
+	status, err := rt.store.GetExecutionStatus(ctx, executionID)
+	return status, status == "QUEUED" || status == "RUNNING", err
 }
 
 // clampTimeoutSeconds maps the workflow_run timeout_seconds argument to a

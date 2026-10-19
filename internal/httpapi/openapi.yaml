@@ -150,7 +150,16 @@ paths:
     post:
       operationId: runWorkflow
       summary: Trigger a workflow and wait for completion (mutating; requires --allow-mutations)
-      parameters: [{ $ref: "#/components/parameters/WorkflowID" }]
+      parameters:
+        - $ref: "#/components/parameters/WorkflowID"
+        - name: wait_through_subworkflows
+          in: query
+          required: false
+          description: >-
+            Keep waiting while the run is paused only for its own sub-workflows
+            (core.execute_workflow), which the engine runs and then resumes the run.
+            By default any WAITING ends the wait; a pause for a person always does.
+          schema: { type: boolean, default: false }
       requestBody:
         required: false
         content:
@@ -162,7 +171,10 @@ paths:
                 timeout_seconds: { type: number, description: "Wait limit in seconds (default 120, clamped to [1, 600])" }
       responses:
         "200":
-          description: Execution record (status may be RUNNING/QUEUED with timed_out:true if the wait limit elapsed)
+          description: >-
+            Execution record (status may be RUNNING/QUEUED with timed_out:true if the wait
+            limit elapsed, or WAITING with timed_out:true when wait_through_subworkflows
+            was set and the run was still paused for its sub-workflows)
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ExecutionResult" }
