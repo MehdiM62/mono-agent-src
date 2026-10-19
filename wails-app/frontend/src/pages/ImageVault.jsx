@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Trash2, Plus, Search, Image as ImageIcon } from 'lucide-react'
+import { Trash2, Plus, Search, Image as ImageIcon, FileText } from 'lucide-react'
 import * as WailsApp from '../wailsjs/go/main/App'
+import { isVaultImage, vaultFileKind } from '../lib/vaultItems.js'
 import ImageDetailModal from '../components/ImageDetailModal'
 import RefreshButton from '../components/RefreshButton.jsx'
 import { limiter } from '../lib/limiter.js'
@@ -34,6 +35,25 @@ function VaultThumb({ id }) {
   }, [id, visible])
   if (!src) return <div ref={ref} style={{ width: '100%', height: '100%' }} />
   return <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+}
+
+// FileThumb stands in for a thumbnail on a vault item that is not an image
+// (a PDF or text file the extension saved): an icon and its kind, no <img>.
+function FileThumb({ item }) {
+  return (
+    <div
+      role="img"
+      aria-label={`file ${item.label || item.filename}`}
+      title={item.label || item.filename}
+      style={{
+        width: '100%', height: '100%', display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center', color: '#64748b', gap: 1,
+      }}
+    >
+      <FileText size={14} />
+      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 7 }}>{vaultFileKind(item)}</span>
+    </div>
+  )
 }
 
 const fmtBytes = (b) => {
@@ -272,7 +292,7 @@ export default function ImageVault({ isActive = true }) {
                 width: 36, height: 36, borderRadius: 4, overflow: 'hidden',
                 background: '#111827', border: '1px solid #1e3a4f', flexShrink: 0,
               }}>
-                <VaultThumb id={img.id} />
+                {isVaultImage(img) ? <VaultThumb id={img.id} /> : <FileThumb item={img} />}
               </div>
             </div>
             <div style={{ width: 72, fontFamily: 'var(--font-mono)', fontSize: 11, color: '#00b4d8', fontWeight: 600 }}>{img.id}</div>

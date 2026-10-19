@@ -167,7 +167,7 @@ func TestVaultSave_MimeList(t *testing.T) {
 func TestVaultSave_NameTraversal(t *testing.T) {
 	for _, name := range []string{
 		"../../etc/passwd", "a/b.png", `..\..\x.png`, `C:\x.png`, "..", ".", "", "   ",
-		"a\x00b.png", "line\nbreak.png", "\u202Egnp.exe", strings.Repeat("a", vaultSaveMaxName+1),
+		"a\x00b.png", "line\nbreak.png", "line\u2028sep.png", "para\u2029sep.png", "\u202Egnp.exe", strings.Repeat("a", vaultSaveMaxName+1),
 	} {
 		refusedInvalid(t, "name "+strings.ToValidUTF8(name, "?"), &fakeVaultSink{}, vaultParams(map[string]any{"name": name}))
 	}
@@ -262,5 +262,14 @@ func TestVaultSave_OverTheSocketWritesOnly(t *testing.T) {
 	}
 	if sink.calls() != 1 {
 		t.Errorf("sink calls = %d, want 1 (the paired one)", sink.calls())
+	}
+}
+
+func TestVaultSaveMIMEReadsTheStoredExtension(t *testing.T) {
+	for name, want := range map[string]string{"img-001.png": "image/png", "img-002.JPG": "image/jpeg", "img-003.pdf": "application/pdf",
+		"img-004.md": "text/markdown", "img-005.exe": "", "noext": ""} {
+		if got := VaultSaveMIME(name); got != want {
+			t.Errorf("VaultSaveMIME(%q) = %q, want %q", name, got, want)
+		}
 	}
 }

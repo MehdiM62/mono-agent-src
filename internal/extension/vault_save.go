@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -71,6 +72,18 @@ var vaultSaveTypes = map[string]string{
 	"text/csv":        ".csv",
 }
 
+// VaultSaveMIME is the media type of a file vault.save stored, from its name
+// (img-NNN<ext>); "" for an extension vault.save never writes.
+func VaultSaveMIME(filename string) string {
+	ext := strings.ToLower(filepath.Ext(filename))
+	for mime, e := range vaultSaveTypes {
+		if e == ext {
+			return mime
+		}
+	}
+	return ""
+}
+
 // VaultFile is a checked vault.save request, as the sink receives it.
 type VaultFile struct {
 	ProfileID string
@@ -86,8 +99,9 @@ type VaultFile struct {
 	SourceURL string
 }
 
-// VaultSaved is vault.save's reply: the item, and whether this request made it
-// (false: the client id was seen before and this is that item). It never
+// VaultSaved is vault.save's reply: the item as stored, and whether this
+// request made it (false: the client id was seen before and this is that item,
+// with its own name, type and size, whatever this request sent). It never
 // carries the file, its path or anything else read from the vault.
 type VaultSaved struct {
 	ID        string `json:"id"`
@@ -196,7 +210,8 @@ func validClientID(id string) bool {
 
 // safeFileName reports whether name is usable as a file's name on its own: not
 // blank, at most vaultSaveMaxName bytes of valid UTF-8, without a path
-// separator, control or format character, and not "." or "..". It is only a label (the
+// separator, control, format, line or paragraph separator character, and not
+// "." or "..". It is only a label (the
 // file is stored under the item's id), but a name that could name a folder or
 // climb out of one is refused rather than repaired.
 func safeFileName(name string) bool {
@@ -207,7 +222,7 @@ func safeFileName(name string) bool {
 		return false
 	}
 	for _, r := range name {
-		if unicode.In(r, unicode.Cc, unicode.Cf) { // control, and bidi/format (a name shown reversed)
+		if unicode.In(r, unicode.Cc, unicode.Cf, unicode.Zl, unicode.Zp) { // control, bidi/format (a name shown reversed), line and paragraph separators
 			return false
 		}
 	}

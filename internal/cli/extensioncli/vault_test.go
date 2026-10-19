@@ -3,6 +3,7 @@ package extensioncli
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -229,5 +230,58 @@ func TestEveryBridgeAnswersVaultSaveAndNothingReadsTheVault(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("%s is not advertised by the bridge newExtensionServer builds", extension.MethodVaultSave)
+	}
+}
+
+// A file already at the next img-NNN<ext> (a crash between the write and the
+// commit left it, with no row) is left alone, and the save takes the next
+// free seq instead of failing every later save of that type.
+func TestVaultSinkSkipsAFileNoRowOwns(t *testing.T) {
+	path, home := vaultEnv(t)
+	vaultDir := filepath.Join(home, ".monoagent", "profiles", "p-work", ".monoagent", "vault")
+	if err := os.MkdirAll(vaultDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	orphan := filepath.Join(vaultDir, "img-001.pdf")
+	if err := os.WriteFile(orphan, []byte("someone's data"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got, err := extensionVaultSink(path).SaveToVault(context.Background(), vaultFile("p-work", "v-1"))
+	if err != nil || !got.Created || got.ID != "img-002" {
+		t.Fatalf("save next to an orphan: %+v, %v", got, err)
+	}
+	if b, _ := os.ReadFile(orphan); string(b) != "someone's data" {
+		t.Errorf("the orphan was overwritten: %q", b)
+	}
+	if rows := vaultRows(t, path); len(rows) != 1 || rows[0].path != filepath.Join(vaultDir, "img-002.pdf") {
+		t.Errorf("rows = %+v", rows)
+	}
+	// The skip is bounded: a folder full of strays ends in an error, not a loop.
+	for seq := 3; seq <= 3+33; seq++ {
+		_ = os.WriteFile(filepath.Join(vaultDir, fmt.Sprintf("img-%03d.pdf", seq)), []byte("x"), 0o600)
+	}
+	if _, err := extensionVaultSink(path).SaveToVault(context.Background(), vaultFile("p-work", "v-2")); err == nil || sinkCode(t, err) != extension.CodeInternal {
+		t.Errorf("past the skip limit: %v, want internal", err)
+	}
+}
+
+// A retry of a client id with other bytes gets the item the first save made:
+// its name, type and size, not the retry's.
+func TestVaultSinkRetryRepliesWithTheStoredItem(t *testing.T) {
+	path, _ := vaultEnv(t)
+	first := vaultFile("p-work", "v-1")
+	saved, err := extensionVaultSink(path).SaveToVault(context.Background(), first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	retry := vaultFile("p-work", "v-1")
+	retry.Name, retry.Data = "other.pdf", []byte("%PDF-1.4\nshort file of 35 bytes..")
+	got, err := extensionVaultSink(path).SaveToVault(context.Background(), retry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := extension.VaultSaved{ID: saved.ID, Created: false, Name: "invoice.pdf", MIME: "application/pdf", SizeBytes: len(first.Data)}
+	if got != want {
+		t.Errorf("retry reply = %+v, want the stored item %+v", got, want)
 	}
 }

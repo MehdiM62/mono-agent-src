@@ -306,10 +306,10 @@ read. It is one bridge request method, `vault.save`
   and call `vault.save` with no click. The bridge is a courtesy layer against
   mistakes and page-borne instructions, not a sandbox against your own
   processes.
-- **It writes and never reads.** The reply names the item it made (`id`,
-  `created`, `name`, `mime`, `size_bytes`); it never carries the file, its
-  path or anything else from the vault, and the bridge has no other `vault.*`
-  method.
+- **It writes and never reads.** The reply names the item it made, or for a
+  client id already saved the item as stored (`id`, `created`, `name`,
+  `mime`, `size_bytes`); it never carries the file, its path or anything else
+  from the vault, and the bridge has no other `vault.*` method.
 - **Checked before anything is written:** at most 20 MiB once decoded (a
   request is one WebSocket frame, read up to 32 MiB); only PNG, JPEG, GIF,
   WebP, PDF, plain text, Markdown and CSV, and the bytes must sniff as the
@@ -322,7 +322,9 @@ read. It is one bridge request method, `vault.save`
   only as http(s) without user-info or fragment.
 - **Exactly one write per save.** Each request carries a client id; the
   vault keeps one item per client id per profile (a unique index), so a retry
-  returns the item it already made and writes nothing.
+  returns the item it already made and writes nothing. A file already in the
+  vault folder under the next item's name (left by a crash, or put there by
+  anyone) is never overwritten: the save takes the next free number.
 - **Documents stay out of the knowledge base.** A PDF, text, Markdown or CSV
   file goes into the image/file vault too, not the documents vault
   (`profile documents`): documents there are indexed into the knowledge base

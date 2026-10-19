@@ -58,7 +58,7 @@ func (v vaultSink) SaveToVault(ctx context.Context, f extension.VaultFile) (exte
 		return extension.VaultSaved{}, &extension.RequestError{Code: extension.CodeInvalidInput,
 			Err: fmt.Errorf("profile %.64q does not exist (any more): choose another in the side panel", f.ProfileID)}
 	}
-	id, created, err := vault.SaveBytes(ctx, db.DB, f.ProfileID, vault.SaveInput{
+	item, err := vault.SaveBytes(ctx, db.DB, f.ProfileID, vault.SaveInput{
 		Data: f.Data, Ext: f.Ext, Label: f.Name, Source: vaultSaveSource, ClientID: f.ClientID, SourceURL: f.SourceURL,
 	})
 	if err != nil {
@@ -67,5 +67,8 @@ func (v vaultSink) SaveToVault(ctx context.Context, f extension.VaultFile) (exte
 		}
 		return extension.VaultSaved{}, &extension.RequestError{Code: extension.CodeInternal, Err: errors.New("MonoAgent could not save the file; try again")}
 	}
-	return extension.VaultSaved{ID: id, Created: created, Name: f.Name, MIME: f.MIME, SizeBytes: len(f.Data)}, nil
+	// The reply is the item as stored: a retry of a client id gets the item
+	// the first save made, whatever name or bytes this request carried.
+	return extension.VaultSaved{ID: item.ID, Created: item.Created, Name: item.Label, MIME: extension.VaultSaveMIME(item.Filename),
+		SizeBytes: int(item.SizeBytes)}, nil
 }
