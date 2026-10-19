@@ -154,8 +154,10 @@ func Guard(ctx context.Context, nodeType string, in workflow.NodeInput, config m
 	allowed := true
 	for _, p := range prepared {
 		// A label ("the ticket's requester") names no destination a rule
-		// could stand for: every such send gets its card.
-		allowed = allowed && !p.payload.Recipient.Label &&
+		// could stand for, and a rule stands for one recipient only, never
+		// for a cc, a bcc, a second address or a different reply-to: every
+		// such send gets its card.
+		allowed = allowed && !p.payload.Recipient.Label && p.sole &&
 			st.Allowed(ctx, p.payload.Action, p.payload.Account.Platform, p.payload.Account.Handle, keyOf(p.payload.Recipient))
 	}
 	if allowed && len(prepared) > 0 {
@@ -184,6 +186,7 @@ func Guard(ctx context.Context, nodeType string, in workflow.NodeInput, config m
 type prepared struct {
 	payload Payload
 	replay  replay
+	sole    bool // it goes to its one recipient alone (soleRecipient)
 }
 
 // prepare turns one node call into the items it would send.
@@ -213,7 +216,7 @@ func prepare(st Store, nodeType string, t target, who PreparedBy, config map[str
 			PreparedBy: who, Action: t.action, Channel: t.channelOf(nodeType), Account: t.accountOf(nodeType, o.config),
 			Recipient: rec, Text: text, Subject: subject, Attachments: attachments(o.config), NodeType: nodeType,
 		}
-		out = append(out, prepared{payload: p, replay: replay{
+		out = append(out, prepared{payload: p, sole: soleRecipient(t, o.config), replay: replay{
 			NodeType: nodeType, Config: stripSecrets(o.config), Input: o.input, TextField: textField, SubjectKey: subjectField,
 		}})
 	}

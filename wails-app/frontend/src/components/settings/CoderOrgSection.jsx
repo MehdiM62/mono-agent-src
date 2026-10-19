@@ -29,11 +29,12 @@ export const SEND_ACTIONS = ['email', 'dm', 'comment', 'post', 'connect', 'publi
 const errMsg = (e) => String(e?.message || e || 'unknown error')
 
 // labelLike says whether a recipient reads like a label ("the ticket's
-// requester") rather than an address, handle or name: it starts with "the "
-// and holds no @ or digit. A rule for it would match no send, so the form
-// refuses it (#871 review).
+// requester") rather than an address, handle or name: once invisible format
+// characters are dropped, it starts with "the " and holds no @ or digit. A
+// rule for it would match no send, so the form refuses it (#871 review). A
+// courtesy: `hil allow add` makes the same check (hilsend.LabelLike).
 export function labelLike(recipient) {
-  const v = String(recipient ?? '').trim()
+  const v = String(recipient ?? '').replace(/\p{Cf}/gu, '').trim()
   return /^the\s/i.test(v) && !/[@\d]/.test(v)
 }
 

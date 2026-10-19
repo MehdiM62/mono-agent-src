@@ -16,13 +16,13 @@ import (
 var operatorCoderFlags = []string{"workspace-root", "max-turns", "timeout", "budget-usd", "org-max-agents", "org-max-concurrent", "org-budget-usd"}
 
 // operatorOrgFlags are the dynamic-org `coder set` flags only the operator
-// changes, and why: whether the workers' briefs go to Jev (TypeSafe), the
-// egress `jev enable` is the user's for, and whether their commits skip git
-// hooks. With these, --send-approval and --app-access, every flag of `coder
+// changes, and why: what Jev (TypeSafe) is asked about the workers' briefs,
+// the egress `jev enable` is the user's for, and whether their commits skip
+// git hooks. With these, --send-approval and --app-access, every flag of `coder
 // set` is the operator's.
 var operatorOrgFlags = []struct{ name, why string }{
-	{"org-router", "which decides whether the workers' briefs go to Jev (TypeSafe)"},
-	{"org-model-picker", "which decides whether the workers' briefs go to Jev (TypeSafe)"},
+	{"org-router", "which decides what Jev (TypeSafe) is asked about the workers' briefs"},
+	{"org-model-picker", "which decides what Jev (TypeSafe) is asked about the workers' briefs"},
 	{"org-writers", "which decides whether the workers' commits skip git hooks"},
 }
 
@@ -145,10 +145,11 @@ func newCoderSetCmd(cfg *Deps) *cobra.Command {
 		" Without flags it only prints the settings, which anyone may, and `coder disable` is anyone's too: it only turns coder mode off.\n\n" +
 		"--app-access changes what agents are told and offered, not what they can do: off, coder prompts carry no profile summary " +
 		"and a dynamic org's workers are not offered MonoAgent's surfaces; the coder lead keeps full access, a worker with a shell " +
-		"can still run monoagentcli, and operator-only commands and the send gate apply either way. Routing still asks Jev when a " +
-		"Jev key is set, whatever app access says; --org-router model keeps briefs local."
+		"can still run monoagentcli, and operator-only commands and the send gate apply either way. With a Jev key set, a worker's " +
+		"brief goes to Jev (TypeSafe) whatever app access and the router say: auto and jev route with it, and Jev picks the model " +
+		"and effort the lead leaves open, with --org-router model too. Only removing the Jev key keeps briefs on this machine."
 	c.Flags().BoolVar(&sendAppr, "send-approval", true, "An agent's sends (email, DM, comment, post, connect, publish) wait for your approval (operator only)")
-	c.Flags().StringVar(&appAcc, "app-access", "", "on (default) or off: what agents are told and offered, not what they can do. Off, coder prompts carry no profile summary and a dynamic org's workers are not offered the workspace profile (MonoAgent's tasks, documents, people, vault, workflows and apps) or told about those surfaces; the coder lead keeps full access, a worker with a shell can still run monoagentcli, operator-only commands and the send gate still apply, and routing still asks Jev when a Jev key is set (use --org-router model to keep briefs local) (operator only)")
+	c.Flags().StringVar(&appAcc, "app-access", "", "on (default) or off: what agents are told and offered, not what they can do. Off, coder prompts carry no profile summary and a dynamic org's workers are not offered the workspace profile (MonoAgent's tasks, documents, people, vault, workflows and apps) or told about those surfaces; the coder lead keeps full access, a worker with a shell can still run monoagentcli, operator-only commands and the send gate still apply, and with a Jev key set a worker's brief still goes to Jev, whatever the router (operator only)")
 	c.Flags().StringVar(&root, "workspace-root", "", "Folder new test workspaces are created in (operator only)")
 	c.Flags().IntVar(&maxTurns, "max-turns", 0, "Agent turn cap per message (operator only)")
 	c.Flags().StringVar(&timeout, "timeout", "", "Wall-clock cap per message (e.g. 60m; operator only)")

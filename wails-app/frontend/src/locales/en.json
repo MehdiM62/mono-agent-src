@@ -1775,7 +1775,7 @@
     "machineHint": "How a coder chat's lead staffs its workers, and whether what agents send waits for you. For this whole computer.",
     "routerLabel": "Who picks a worker's role",
     "routerHint": "When a coder chat's lead starts a worker without naming its role and skills.",
-    "routerJevNote": "Automatic and TypeSafe Jev send the brief to Jev (TypeSafe) when a Jev key is set. The lead keeps it on this machine.",
+    "routerJevNote": "With a Jev key set, a worker's brief goes to Jev (TypeSafe) whatever you pick here: Automatic and TypeSafe Jev route with it, and Jev picks the model and effort the lead leaves open. Only removing the Jev key keeps briefs on this machine.",
     "router": {
       "auto": "Automatic",
       "jev": "TypeSafe Jev",

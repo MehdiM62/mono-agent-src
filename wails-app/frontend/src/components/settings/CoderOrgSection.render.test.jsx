@@ -98,7 +98,12 @@ describe('CoderOrgSection, this computer', () => {
   it('says on the router picker which choices send the brief to Jev', async () => {
     machine()
     const router = await screen.findByRole('combobox', { name: "Who picks a worker's role" })
-    const note = screen.getByText('Automatic and TypeSafe Jev send the brief to Jev (TypeSafe) when a Jev key is set. The lead keeps it on this machine.')
+    // Security review of #871: with a Jev key set, Jev gets the brief under
+    // every router (the model and effort questions), so nothing may say a
+    // choice here keeps it local.
+    const note = screen.getByText(/^With a Jev key set, a worker's brief goes to Jev \(TypeSafe\) whatever you pick here/)
+    expect(note).toHaveTextContent('Only removing the Jev key keeps briefs on this machine.')
+    expect(note).not.toHaveTextContent(/The lead keeps|keeps it on this machine/)
     expect(router.parentElement).toContainElement(note)
   })
 
@@ -145,7 +150,7 @@ describe('CoderOrgSection, the profile', () => {
     render(<CoderOrgSection part="profile" />)
     const to = await screen.findByRole('textbox', { name: 'To' })
     const add = screen.getByRole('button', { name: 'Add' })
-    for (const v of ["the ticket's requester", '  The customer  ']) {
+    for (const v of ["the ticket's requester", '  The customer  ', '\u200bthe customer']) {
       fireEvent.change(to, { target: { value: v } })
       expect(add).toBeDisabled()
       expect(screen.getByText(/reads like a description/)).toBeInTheDocument()
