@@ -2,6 +2,7 @@ package noderegistry
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -48,5 +49,43 @@ func TestASettingsOrFlowCardListsWhatItSends(t *testing.T) {
 		if _, err := st.Edit(context.Background(), id, &typed, nil); !errors.Is(err, hilsend.ErrNoText) {
 			t.Errorf("%s %v: an edit of the text: %v", c.nodeType, c.config, err)
 		}
+	}
+}
+
+// A Zulip stream update's recipient is a label ("stream 7"): no
+// always-allow rule stands for it, so a rule a post to the stream left
+// (recipient "7") doesn't free a privacy change, and approving its card
+// with always-allow is refused, the card still pending.
+func TestNoRuleFreesAZulipStreamChange(t *testing.T) {
+	asOperator(t)
+	t.Setenv(hilsend.EnvAgentContext, "coder")
+	Build(nil)
+	db := sendsDB(t)
+	st := hilsend.Store{DB: db, Profile: "default"}
+	private := map[string]interface{}{"resource": "stream", "operation": "update", "streamId": "7", "additionalFields": map[string]interface{}{"isPrivate": true}}
+	out, handled, err := hilsend.Guard(sendsCtx(db), "app.zulip", workflow.NodeInput{}, private)
+	if err != nil || !handled {
+		t.Fatalf("handled=%v err=%v", handled, err)
+	}
+	id := out[0].Items[0].JSON["hil_id"].(string)
+	p, err := st.Get(context.Background(), id)
+	if err != nil || p.Recipient.Name != "stream 7" || !p.Recipient.Label {
+		t.Errorf("recipient %+v, %v", p.Recipient, err)
+	}
+	if err := st.Allow(context.Background(), hilsend.Allow{Action: p.Action, Platform: p.Account.Platform, Account: p.Account.Handle, Recipient: "7"}); err != nil {
+		t.Fatal(err)
+	}
+	for name, config := range map[string]map[string]interface{}{"a privacy change": private,
+		"raw JSON": {"resource": "stream", "operation": "update", "streamId": "7", "jsonParameters": true, "additionalFieldsJson": `{"is_private":true}`}} {
+		if _, handled, err := hilsend.Guard(sendsCtx(db), "app.zulip", workflow.NodeInput{}, config); err != nil || !handled {
+			t.Errorf("%s on stream 7 with a rule for 7: handled=%v err=%v, want it held", name, handled, err)
+		}
+	}
+	run := func(context.Context, hilsend.Run) (json.RawMessage, error) { return json.RawMessage(`{}`), nil }
+	if _, err := hilsend.Resolve(context.Background(), st, id, true, hilsend.Edit{}, true, run); !errors.Is(err, hilsend.ErrAlwaysLabel) {
+		t.Errorf("approve with always-allow: %v", err)
+	}
+	if p, _ := st.Get(context.Background(), id); p.State != hilsend.StatePending {
+		t.Errorf("after the refused always-allow the card is %s", p.State)
 	}
 }

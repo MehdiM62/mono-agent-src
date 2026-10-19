@@ -396,6 +396,9 @@
         "to": [
           "streamId"
         ],
+        "to_label": {
+          "streamId": "stream"
+        },
         "show": [
           "additionalFields.description",
           "additionalFields.newName",
