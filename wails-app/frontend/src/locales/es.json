@@ -1560,7 +1560,10 @@
     },
     "readAndApprove": "Leer y aprobar",
     "hasNotes": "Esta tarjeta tiene notas: ábrela para leerlas",
-    "notesMarker": "Notas"
+    "notesMarker": "Notas",
+    "announce": {
+      "moved": "Se movió «{{title}}» a {{column}}"
+    }
   },
   "publication": {
     "title": "Publicación",

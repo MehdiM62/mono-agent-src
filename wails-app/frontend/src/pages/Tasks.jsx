@@ -118,6 +118,9 @@ export default function Tasks({ isActive = true }) {
   const [shell, setShell] = useState(null) // null until agentShell() answers
   const dragging = useRef(null)
   const root = useRef(null)
+  const searchRef = useRef(null)
+  // What the live region last said: each move is announced (spec §10).
+  const [announcement, setAnnouncement] = useState('')
   const refocus = useRef(null) // a card moved by key: a move to another column remounts it
 
   useFlip(root)
@@ -165,6 +168,26 @@ export default function Tasks({ isActive = true }) {
   }, [openId])
 
   const focusCard = (id) => root.current?.querySelector(`[data-task-id="${id}"] [data-card-open]`)?.focus()
+  const announce = (id, to) => {
+    const title = findTask(b.board, id)?.task.title || `#${id}`
+    setAnnouncement(t('tasks.announce.moved', { title, column: t(`tasks.column.${to}`) }))
+  }
+  const moveCard = (id, to, place) => { announce(id, to); return b.move(id, to, place) }
+  const approveNow = (id) => { announce(id, 'ready'); return b.approve(id) }
+  const openQuickAdd = () => root.current?.querySelector('.tb-quick input')?.focus()
+
+  // `/` focuses search and `N` the Inbox quick add, from anywhere on the page
+  // but a field (spec §10, Keyboard); only while this page is the one shown.
+  useEffect(() => {
+    if (!isActive) return undefined
+    const onKeyDown = (e) => {
+      if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey || isTypingTarget(e.target)) return
+      if (e.key === '/') { e.preventDefault(); searchRef.current?.focus() }
+      else if ((e.key === 'n' || e.key === 'N') && !readOnly) { e.preventDefault(); openQuickAdd() }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [isActive, readOnly])
 
   // A card with notes never goes from Inbox to Ready in one gesture (plan
   // ruling F6): Approve, Shift+Right and a drop on Ready open its drawer, where
@@ -174,7 +197,7 @@ export default function Tasks({ isActive = true }) {
   const guarded = (task, from, to) => from === 'inbox' && to === 'ready' && readFirst(task)
   const approveCard = (task) => {
     if (guarded(task, 'inbox', 'ready')) openToRead(task.id)
-    else b.approve(task.id)
+    else approveNow(task.id)
   }
 
   // Archive closes the drawer only once the CLI has said yes. While it works the
@@ -193,13 +216,19 @@ export default function Tasks({ isActive = true }) {
     if (e.target !== e.currentTarget) return
     const key = ARROWS[e.key]
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openCard(task.id); return }
+    // `A` approves an Inbox card (a card with notes opens to be read first).
+    if ((e.key === 'a' || e.key === 'A') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      const at = findTask(shown, task.id)
+      if (!readOnly && at?.status === 'inbox') { e.preventDefault(); refocus.current = task.id; approveCard(at.task) }
+      return
+    }
     if (!key) return
     e.preventDefault()
     if (e.shiftKey || e.altKey) {
       if (readOnly) return
       const m = keyMove(shown, task.id, key)
       if (m && !m.blocked && guarded(task, findTask(shown, task.id)?.status, m.to)) { openToRead(task.id); return }
-      if (m && !m.blocked) { refocus.current = task.id; b.move(task.id, m.to, m.place) }
+      if (m && !m.blocked) { refocus.current = task.id; moveCard(task.id, m.to, m.place) }
       return
     }
     const next = focusTarget(shown, task.id, key)
@@ -218,7 +247,7 @@ export default function Tasks({ isActive = true }) {
     const index = dropIndex(cards.map(el => el.getBoundingClientRect()), e.clientY)
     const fromIds = shown.columns[found.status].map(x => x.id)
     if (isNoopDrop(fromIds, found.status, status, ids, index, id)) return
-    b.move(id, status, placeFor(ids, index))
+    moveCard(id, status, placeFor(ids, index))
   }
 
   if (!b.board) {
@@ -232,10 +261,11 @@ export default function Tasks({ isActive = true }) {
           <h1 className="page-title">{t('tasks.title')}</h1>
         </div>
         <div className="page-header-right">
-          <input className="search-input" type="search" aria-label={t('tasks.search')} placeholder={t('tasks.search')} value={query} onChange={e => setQuery(e.target.value)} />
-          {!readOnly && <button type="button" className="btn btn-primary btn-sm" onClick={() => root.current?.querySelector('.tb-quick input')?.focus()}><Plus size={12} /> {t('tasks.newTask')}</button>}
+          <input ref={searchRef} className="search-input" type="search" aria-label={t('tasks.search')} placeholder={t('tasks.search')} value={query} onChange={e => setQuery(e.target.value)} />
+          {!readOnly && <button type="button" className="btn btn-primary btn-sm" aria-keyshortcuts="N" onClick={openQuickAdd}><Plus size={12} /> {t('tasks.newTask')} <kbd className="tb-kbd">N</kbd></button>}
         </div>
       </div>
+      <div role="status" aria-live="polite" data-testid="tb-live" className="tb-live">{announcement}</div>
       <div className="tb-body">
       <CaptureHelp t={t} />
       {readOnly && <div role="note">{t('tasks.readOnly')}</div>}
@@ -267,7 +297,7 @@ export default function Tasks({ isActive = true }) {
             </section>
           ))}
         </div>
-        {open && <TaskDrawer task={open} status={findTask(b.board, open.id)?.status} readFirst={readFor === open.id} readOnly={readOnly} onClose={() => setOpenId(null)} onEdit={b.edit} onComment={b.comment} onApprove={() => b.approve(open.id)} onArchive={() => archiveRes(open.id)} archiving={archiving === open.id} archiveError={archiveError} />}
+        {open && <TaskDrawer task={open} status={findTask(b.board, open.id)?.status} readFirst={readFor === open.id} readOnly={readOnly} onClose={() => setOpenId(null)} onEdit={b.edit} onComment={b.comment} onApprove={() => approveNow(open.id)} onArchive={() => archiveRes(open.id)} archiving={archiving === open.id} archiveError={archiveError} />}
       </div>
       </div>
     </div>

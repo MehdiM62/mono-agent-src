@@ -311,6 +311,61 @@ describe('Tasks page', () => {
     })
   })
 
+  // Spec §10, Keyboard: A approves an Inbox card, N opens quick add, /
+  // focuses search, and a live region announces each move.
+  describe('keys and announcements', () => {
+    it('approves an Inbox card with A and announces it', async () => {
+      render(<Tasks />)
+      fireEvent.keyDown(await screen.findByRole('button', { name: 'Task 1' }), { key: 'a' })
+      await waitFor(() => expect(api.approve).toHaveBeenCalledWith([1], false))
+      expect(screen.getByTestId('tb-live')).toHaveTextContent('Moved “Task 1” to Ready')
+    })
+
+    it('opens a card with notes to be read on A, approving nothing', async () => {
+      render(<Tasks />)
+      fireEvent.keyDown(await screen.findByRole('button', { name: 'Task 2' }), { key: 'A' })
+      expect(await screen.findByTestId('read-first')).toBeInTheDocument()
+      expect(api.approve).not.toHaveBeenCalled()
+    })
+
+    it('does nothing on A for a card outside Inbox', async () => {
+      render(<Tasks />)
+      fireEvent.keyDown(await screen.findByRole('button', { name: 'Task 3' }), { key: 'a' })
+      expect(api.approve).not.toHaveBeenCalled()
+      expect(api.move).not.toHaveBeenCalled()
+    })
+
+    it('announces a key move', async () => {
+      render(<Tasks />)
+      fireEvent.keyDown(await screen.findByRole('button', { name: 'Task 3' }), { key: 'ArrowRight', shiftKey: true })
+      await waitFor(() => expect(api.move).toHaveBeenCalled())
+      expect(screen.getByTestId('tb-live')).toHaveTextContent('Moved “Task 3” to In progress')
+    })
+
+    it('focuses search on / and the Inbox quick add on N, but not while typing in a field', async () => {
+      render(<Tasks />)
+      await screen.findByText('Task 1')
+      const slash = fireEvent.keyDown(document.body, { key: '/' })
+      expect(slash).toBe(false) // the / is not typed anywhere
+      expect(screen.getByLabelText('Search tasks')).toHaveFocus()
+      fireEvent.keyDown(screen.getByLabelText('Search tasks'), { key: 'n' })
+      expect(screen.getByLabelText('Search tasks')).toHaveFocus()
+      screen.getByLabelText('Search tasks').blur()
+      fireEvent.keyDown(document.body, { key: 'N' })
+      expect(within(screen.getByRole('region', { name: 'Inbox' })).getByLabelText('New task title')).toHaveFocus()
+      expect(screen.getByRole('button', { name: /New task/ })).toHaveAttribute('aria-keyshortcuts', 'N')
+    })
+
+    it('takes no page keys while the page is not the one shown', async () => {
+      const { rerender } = render(<Tasks />)
+      await screen.findByText('Task 1')
+      rerender(<Tasks isActive={false} />)
+      expect(screen.getByLabelText('Search tasks')).toBeInTheDocument()
+      fireEvent.keyDown(document.body, { key: '/' })
+      expect(screen.getByLabelText('Search tasks')).not.toHaveFocus()
+    })
+  })
+
   describe('archive from the drawer', () => {
     it('keeps the drawer open until the CLI says yes, then closes it', async () => {
       let answer

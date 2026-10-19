@@ -1602,7 +1602,10 @@
     },
     "readAndApprove": "Read and approve",
     "hasNotes": "This card has notes: open it to read them",
-    "notesMarker": "Notes"
+    "notesMarker": "Notes",
+    "announce": {
+      "moved": "Moved “{{title}}” to {{column}}"
+    }
   },
   "publication": {
     "title": "Publication",
