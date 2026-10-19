@@ -38,6 +38,7 @@ Every command, tool and request that acts on a profile now names that profile. T
 - **Jev:** run `monoagentcli jev key adopt` once if the key lives in a profile's vault.
 
 ### Added
+- **Settings › Coder chat team and sends.** Choose who picks a worker's role in a coder chat's dynamic org (automatic, Jev or the lead), whether agents' sends wait for your approval, and whether coder chat workers can use MonoAgent (off: no worker gets the workspace access profile, and send approval stays on). The profile's always-allowed destinations can be listed, added and removed. Send approval cards offer *Always allow*, after a confirmation naming the destination; a card whose recipient is a description rather than an address doesn't offer it.
 
 - **Turn off agents' app access.** `coder set --app-access off` (operator only, default on) stops a coder chat's dynamic org from giving workers the `workspace` access profile, every monoagent surface through `monoagentcli`: a lead that asks for it is refused, a role that would default to it runs as `coding`, and the lead's and workers' prompts, `org_roster` and the `org_spawn` tool no longer offer or describe those surfaces. Sends made by agents still wait for your approval while send approval is on.
 - **Eye button on hidden Info values.** ID, bank and card numbers on the Info page show blurred and masked; the eye button shows the real value, the same button hides it again, and it hides itself after a minute.
