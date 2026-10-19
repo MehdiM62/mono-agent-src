@@ -629,7 +629,11 @@ dangerous calls.
   Such a field comes from the connection when the connection names it.
   Otherwise it must be written in an approved workflow
   (`internal/noderegistry/credential_hosts_test.go` fails for a host-like
-  field that is neither declared nor listed with a reason). Still open:
+  field that is neither declared nor listed with a reason). A request that
+  carries a credential goes out through `credhttp.Client` (or
+  `credhttp.CheckRedirect` with `credhttp.Mark`):
+  `internal/credhttp/lint_test.go` fails on a new direct `http.Client`,
+  `http.DefaultClient` or `http.Get`/`Post` outside its allowlist. Still open:
   - an approved workflow resolves its secrets whoever runs it, and a value
     a step outputs under a field name the redaction doesn't know shows in
     its `--json` output;

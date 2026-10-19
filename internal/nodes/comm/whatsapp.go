@@ -141,7 +141,7 @@ func whatsappPost(ctx context.Context, endpoint, accessToken string, payload map
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := commHTTP.Do(req)
 	if err != nil {
 		return nil, err
 	}

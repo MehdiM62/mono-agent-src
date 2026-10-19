@@ -13,7 +13,14 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/monoes/mono-agent/internal/credhttp"
 )
+
+// appHookHTTP sends an app webhook's registration requests when the hook
+// names no client: they carry the connection's token, so a redirect
+// elsewhere gets none of it (credhttp).
+var appHookHTTP = credhttp.Client(&http.Client{Timeout: 20 * time.Second})
 
 // HTTPRegistrar is a WebhookRegistrar declared as data: the API calls that
 // create, check and delete a vendor's webhook, written as templates.
@@ -266,7 +273,7 @@ func (h *HTTPRegistrar) do(ctx context.Context, call HTTPCall, hook AppWebhook, 
 	}
 	client := h.Client
 	if client == nil {
-		client = &http.Client{Timeout: 20 * time.Second}
+		client = appHookHTTP
 	}
 	resp, err := client.Do(req)
 	if err != nil {

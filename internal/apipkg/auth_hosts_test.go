@@ -2,6 +2,7 @@ package apipkg
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -9,6 +10,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/monoes/mono-agent/internal/credhttp"
 )
 
 // A package's credential, and every header rendered from the connection,
@@ -295,18 +298,20 @@ func TestRedirectNeverReplaysTheCredentialsBody(t *testing.T) {
 			t.Fatal(err)
 		}
 		resp, err := r.client().Do(b.req)
-		if err != nil {
-			t.Fatalf("%s %s: %v", c.path, c.bodyType, err)
+		if err == nil {
+			resp.Body.Close()
 		}
-		resp.Body.Close()
 		mu.Lock()
 		got := append([]string(nil), bodies...)
 		mu.Unlock()
 		if c.credential {
-			if len(got) != 0 || resp.StatusCode < 300 {
-				t.Errorf("%s %s with the credential: the other host got %q, status %d", c.path, c.bodyType, got, resp.StatusCode)
+			if len(got) != 0 || !errors.Is(err, credhttp.ErrResend) {
+				t.Errorf("%s %s with the credential: the other host got %q, err %v", c.path, c.bodyType, got, err)
 			}
 			continue
+		}
+		if err != nil {
+			t.Fatalf("%s %s: %v", c.path, c.bodyType, err)
 		}
 		if len(got) != 1 || strings.Contains(got[0], "SECRET") {
 			t.Errorf("%s %s without the credential: the other host got %q, want the body once", c.path, c.bodyType, got)
@@ -318,7 +323,7 @@ func TestRedirectNeverReplaysTheCredentialsBody(t *testing.T) {
 // credential's headers go no further. https to https on the same host
 // keeps them.
 func TestRedirectToPlainHTTPDropsTheCredential(t *testing.T) {
-	first := withCredentialHeaders(httptest.NewRequest("GET", "https://api.example.test/x", nil), []string{"Authorization", "X-Api-Key"})
+	first := credhttp.Mark(httptest.NewRequest("GET", "https://api.example.test/x", nil), "Authorization", "X-Api-Key")
 	for target, kept := range map[string]bool{
 		"https://api.example.test/y":      true,
 		"http://api.example.test/y":       false,
@@ -328,7 +333,7 @@ func TestRedirectToPlainHTTPDropsTheCredential(t *testing.T) {
 		req := httptest.NewRequest("GET", target, nil)
 		req.Header.Set("Authorization", "Bearer t")
 		req.Header.Set("X-Api-Key", "k")
-		if err := dropCredentialsOnRedirect(req, []*http.Request{first}); err != nil {
+		if err := credhttp.CheckRedirect(req, []*http.Request{first}); err != nil {
 			t.Fatalf("%s: %v", target, err)
 		}
 		if got := req.Header.Get("Authorization") != "" && req.Header.Get("X-Api-Key") != ""; got != kept {

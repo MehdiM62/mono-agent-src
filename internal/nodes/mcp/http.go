@@ -12,6 +12,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/monoes/mono-agent/internal/credhttp"
 )
 
 // httpTransport speaks MCP Streamable HTTP (2025-06-18): every message is a
@@ -27,21 +29,9 @@ type httpTransport struct {
 
 func newHTTPTransport(url string, headers map[string]string) *httpTransport {
 	t := &httpTransport{url: url, headers: headers}
-	t.client = &http.Client{
-		// A configured header (an API key, say) never follows a redirect
-		// to another host; net/http already drops Authorization and Cookie.
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			if len(via) >= 10 {
-				return errors.New("stopped after 10 redirects")
-			}
-			if req.URL.Host != via[0].URL.Host {
-				for k := range t.headers {
-					req.Header.Del(k)
-				}
-			}
-			return nil
-		},
-	}
+	// A configured header (an API key, say) never follows a redirect to
+	// another host, nor a request body that a 307 would resend (credhttp).
+	t.client = credhttp.Client(nil)
 	return t
 }
 
