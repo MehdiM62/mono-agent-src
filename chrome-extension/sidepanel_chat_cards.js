@@ -50,8 +50,7 @@
       Proposals.settle(deps.chat(), key, { state: "sending", feedback: "" });
       deps.draw();
       const answer = await deps.ask({ type: "task_add_proposal", profile: deps.profile(), proposal: { id: p.id, kind: p.kind, title: p.title, notes: p.notes, nonce: p.nonce } });
-      const state = answer.status === "added" ? "added" : answer.status === "queued" ? "queued" : "refused";
-      await settle(key, { state, feedback: (answer.feedback && answer.feedback.text) || answer.error || "Not added" }, mine);
+      await settle(key, Proposals.afterAdd(answer), mine);
     }
 
     // Start recording, or Record again: the click is the only thing that starts one.

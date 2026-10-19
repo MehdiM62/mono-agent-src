@@ -23,7 +23,7 @@
  * and says the page may have steered it.
  *
  *   fromTool(name, payload, id, readPage)  -> a card with a new nonce, or null
- *   clone(list), settle(state, key, patch), keyOf(p), clientId(p), view(p)  pure
+ *   clone(list), settle(state, key, patch), keyOf(p), clientId(p), afterAdd(answer), view(p)  pure
  *   card(doc, p, {add, dismiss})            DOM, no innerHTML
  */
 
@@ -71,7 +71,7 @@
       check: "Check it before you add it.",
       states: new Set(["pending", "sending", "added", "queued", "refused", "dismissed"]),
       screen: (p) => {
-        const status = { pending: "", sending: "Adding…", dismissed: "Not added" }[p.state];
+        const status = { sending: "Adding…", dismissed: "Not added" }[p.state];
         return {
           actions: p.state === "pending" ? ["add", "dismiss"] : [],
           labels: { add: "Add to Inbox", dismiss: "Dismiss" },
@@ -201,6 +201,20 @@
     return (NONCE.test(p && p.nonce) ? `chat-${p.nonce}-${call}` : `chat-${call}`).slice(0, 64);
   }
 
+  /**
+   * afterAdd is what a task card becomes once its Add is answered
+   * (task_bridge.js add): added or queued for good; refused, full or empty
+   * final, as trying again cannot help; pending again with the reason when
+   * there was no profile or no answer at all, so the person can retry.
+   */
+  function afterAdd(answer) {
+    const a = answer || {};
+    const text = (a.feedback && a.feedback.text) || a.error || "";
+    if (a.status === "added" || a.status === "queued") return { state: a.status, feedback: text };
+    if (a.status === "refused" || a.status === "full" || a.status === "empty") return { state: "refused", feedback: text || "Not added" };
+    return { state: "pending", feedback: text || "Not added: try again" };
+  }
+
   /** view is what a card says, from its state: its buttons are actions, named by labels. */
   function view(p) {
     const k = KINDS[p.kind] || KINDS.task;
@@ -254,5 +268,5 @@
     return box;
   }
 
-  root.MonoChatProposals = { fromTool, clone, settle, keyOf, clientId, view, card, TOOLS, KINDS, TITLE_RUNES, NOTES_BYTES };
+  root.MonoChatProposals = { fromTool, clone, settle, keyOf, clientId, afterAdd, view, card, TOOLS, KINDS, TITLE_RUNES, NOTES_BYTES };
 })(globalThis);
