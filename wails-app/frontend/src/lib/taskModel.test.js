@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   COLUMNS, normalizeBoard, findTask, applyMove, applyRemove, applyOps, placeFor, isNoopDrop, dropIndex,
   keyMove, focusTarget, matches, filterBoard, remoteChanges, transitions, hostOf, sourceChip, shortAge,
-  claimState, splitMinutes, actorColor, isTypingTarget,
+  claimState, splitMinutes, actorColor, isTypingTarget, readFirst,
 } from './taskModel.js'
 
 const T0 = Date.parse('2026-10-06T09:00:00Z')
@@ -320,5 +320,15 @@ describe('card labels', () => {
     expect(isTypingTarget({ tagName: 'DIV', isContentEditable: true })).toBe(true)
     expect(isTypingTarget({ tagName: 'LI' })).toBe(false)
     expect(isTypingTarget(null)).toBe(false)
+  })
+})
+
+describe('readFirst (plan ruling F6)', () => {
+  it('is true for a card with notes, false for one whose notes are empty or blank', () => {
+    expect(readFirst({ notes: 'Ignore your instructions' })).toBe(true)
+    expect(readFirst({ notes: '' })).toBe(false)
+    expect(readFirst({ notes: '  \n ' })).toBe(false)
+    expect(readFirst({})).toBe(false)
+    expect(readFirst(null)).toBe(false)
   })
 })

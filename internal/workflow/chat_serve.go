@@ -3,6 +3,7 @@ package workflow
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -30,6 +31,27 @@ const (
 // chatPollWait is how long a page's request for new messages is held when
 // there are none.
 const chatPollWait = 25 * time.Second
+
+// chatWatchLimit bounds how long a chat watches a run (watchChatRun), unless
+// the workflow's executionTimeout is longer: that timeout counts only the
+// run's active time, so it bounds no watch by itself.
+var chatWatchLimit = 30 * time.Minute
+
+// chatWatchSlowest is the longest pause between the watch's reads of a run
+// that waits only for its sub-workflows; the pause doubles from
+// webhookPollInterval up to it.
+const chatWatchSlowest = time.Second
+
+// chatWatchPause is the watch's pause between reads; tests record it.
+var chatWatchPause = time.After
+
+// The chat's answer when the watch gives up on a run, and when its chat
+// stopped being served mid-run: its workflow deactivated or re-registered
+// by an edit, or every trigger disarmed while the monoes.me login is locked.
+const (
+	chatStillRunning = "Sorry, the workflow is still running, and this chat has stopped waiting for its answer."
+	chatNotServed    = "This chat stopped being served while the workflow ran; its answer won't appear here."
+)
 
 // chatRoute is one active trigger.chat node.
 type chatRoute struct {
@@ -98,6 +120,13 @@ func (s *WebhookServer) DeregisterChat(path string) {
 	s.chats.mu.Lock()
 	defer s.chats.mu.Unlock()
 	delete(s.chats.m, path)
+}
+
+// servesChat reports whether a chat is served at path.
+func (s *WebhookServer) servesChat(path string) bool {
+	s.chats.mu.RLock()
+	defer s.chats.mu.RUnlock()
+	return s.chats.m[path] != nil
 }
 
 // activateChat serves a trigger.chat node's chat.
@@ -238,33 +267,62 @@ func (s *WebhookServer) chatMessage(w http.ResponseWriter, r *http.Request, rout
 }
 
 // watchChatRun follows a run a message started (or, resumed, answered)
-// until it ends or pauses. In lastNode mode its result is the bot's answer;
-// in either mode a failed run says so in the chat.
+// until it ends or pauses for a person: a run waiting only for its
+// sub-workflows is resumed by the engine, so it is watched on, read less
+// often the longer it waits. In lastNode mode its result is the bot's
+// answer; in either mode a failed run says so in the chat. The watch ends
+// with the server, and with the chat (saying so), and gives up on a run
+// still going at its limit (chatWatchFor), saying so in the chat.
 func (s *WebhookServer) watchChatRun(route *chatRoute, execs WebhookExecutions, session, execID string, resumed bool) {
-	ctx := context.Background()
-	tick := time.NewTicker(webhookPollInterval)
-	defer tick.Stop()
+	ctx, cancel := context.WithTimeout(s.watches, chatWatchFor(s.watches, execs, route.WorkflowID))
+	defer cancel()
+	giveUp := func() {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			PostChatMessage(session, ChatMessage{Role: "bot", Text: chatStillRunning})
+		}
+	}
 	// An answered run is still WAITING until its wake resumes it.
 	wakeBy := time.Now().Add(replyWakeWindow)
-	for range tick.C {
-		st, err := execs.GetExecutionStatus(ctx, execID)
-		if err != nil {
+	pause := webhookPollInterval
+	for {
+		select {
+		case <-ctx.Done():
+			giveUp()
+			return
+		case <-chatWatchPause(pause):
+		}
+		if !s.servesChat(route.Path) {
+			// Not when the server is stopping: the engine ends the
+			// watches before it deregisters the chats.
+			if s.watches.Err() == nil {
+				PostChatMessage(session, ChatMessage{Role: "bot", Text: chatNotServed})
+			}
 			return
 		}
-		switch st {
-		case "QUEUED", "RUNNING", "":
+		st, inFlight, err := execs.ExecutionInFlight(ctx, execID)
+		if err != nil {
+			giveUp()
+			return
+		}
+		switch {
+		case inFlight && st == "WAITING": // only for its sub-workflows
+			pause = min(2*pause, chatWatchSlowest)
+			continue
+		case inFlight || st == "":
+			pause = webhookPollInterval
 			resumed = false
 			continue
-		case "WAITING":
+		case st == "WAITING":
 			if resumed && time.Now().Before(wakeBy) {
 				continue
 			}
 			return // a later answer watches the run again
-		case "SUCCESS", "SUCCESS_WITH_ERRORS":
+		case st == "SUCCESS" || st == "SUCCESS_WITH_ERRORS":
 			if route.ResponseMode != ChatRespondLastNode {
 				return
 			}
-			exec, err := execs.GetExecution(ctx, execID)
+			// Not ctx: a run that has ended still gets its answer.
+			exec, err := execs.GetExecution(s.watches, execID)
 			if err != nil || exec == nil {
 				return
 			}
@@ -277,6 +335,16 @@ func (s *WebhookServer) watchChatRun(route *chatRoute, execs WebhookExecutions, 
 			return
 		}
 	}
+}
+
+// chatWatchFor is how long a chat watches a run of workflowID:
+// chatWatchLimit, or the workflow's executionTimeout when that is longer.
+func chatWatchFor(ctx context.Context, execs WebhookExecutions, workflowID string) time.Duration {
+	limit := chatWatchLimit
+	if wf, err := execs.GetWorkflow(ctx, workflowID); err == nil {
+		limit = max(limit, executionTimeout(wf))
+	}
+	return limit
 }
 
 // chatReplyText is what the hosted chat shows for a run's result: the

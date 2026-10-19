@@ -148,6 +148,14 @@ export function keyMove(shown, id, key) {
   return null
 }
 
+// readFirst says a card is read in the drawer before it leaves Inbox for
+// Ready (plan ruling F6): its notes are not on the card, and Ready is where
+// agents act on a task's whole text (spec D6). The card shows its whole
+// title (no clamp), so the notes are what it can hide.
+export function readFirst(task) {
+  return !!String(task?.notes ?? '').trim()
+}
+
 // focusTarget is the card a plain arrow moves the focus to: above or below
 // in the column, or the card at the same height (else the last) in the
 // nearest column that has cards.
