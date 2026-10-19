@@ -1765,7 +1765,8 @@ monoagentcli --profile work chat --mode coder --cwd ~/code/app -- "…"   # one 
   `--org-model-picker` (they decide whether workers' briefs go to Jev) and
   `--org-writers` (isolated writers' commits skip git hooks). Without flags
   it only prints the settings. `TestEveryCoderSetFlagIsTheOperators` fails
-  for a new flag until it is classified.
+  for a new flag until it is classified. `coder disable` is anyone's: it
+  only turns coder mode off.
 - The mode and folder are fixed when the conversation is created. The
   CLIs key their sessions by folder, so a conversation always resumes in the
   same one.
@@ -1825,7 +1826,11 @@ monoagentcli --profile work chat --mode coder --cwd ~/code/app -- "…"   # one 
   `QWEN_CODE`, `DSH_SHELL`, `DSH_SESSION_ID`, and `MONOMIND_CLINE_TURN` /
   `MONOMIND_AIDER` (set by monomind's runners, since cline and aider set
   none of their own). A shell that sets the generic `AI_AGENT` or `AGENT`
-  itself is refused too. Every operator check reads these markers. On
+  itself is refused too. Every operator check reads these markers
+  (`operator.MarkerEnv()`). `MONOAGENT_AGENT_KIND` and
+  `MONOAGENT_AGENT_KIND_TOKEN` are in that list but count only alongside
+  another marker, by design: a declared kind and its token say what kind
+  of agent a marked process is, and alone they make no shell an agent. On
   Linux any of them in a parent process counts too, as does a parent
   that is a `monomind agent exec` turn, up to 32 levels up; a deeper
   chain counts as marked. A process whose marked parents have exited (a
@@ -1946,17 +1951,19 @@ budget.
 |---|---|
 | `coding` | Full access; checks its work in the user's browser with `monoagentcli browser` (no browser lease: it passes `--tab`). |
 | `qa`, `automation` | Full access, plus `monoagentcli` for the browser (`browser`, the browser lease), workflows and automations. |
-| `workspace` | Coding plus every monoagent surface through `monoagentcli` (apps, tasks, documents, people, vault, workflows); outbound sends wait for approval. `coder set --app-access off` (`appAccess`, operator only, default on) takes it away: a lead's explicit ask is refused, a picked one runs as `coding`, and the lead's and workers' prompts, `org_roster` and `org_spawn`'s description leave the workspace profile and the workspace and send rules out. The send approval (`--send-approval`) stays as it is. |
+| `workspace` | Coding plus every monoagent surface through `monoagentcli` (apps, tasks, documents, people, vault, workflows); outbound sends wait for approval. `coder set --app-access off` (`appAccess`, operator only, default on) changes what agents are told and offered, not what they can do: workers are not offered this profile (a lead's explicit ask is refused, a picked one runs as `coding`), the lead's and workers' prompts, `org_roster` and `org_spawn`'s description leave it and its surface rules out, and no coder prompt carries the profile summary. The coder lead keeps full access, a worker with a shell can still run `monoagentcli` itself, and operator-only commands, the send rule in every prompt and the send gate (`--send-approval`) apply either way. Routing still asks Jev when a Jev key is set, whatever app access says; `--org-router model` keeps briefs local. |
 | `research` | Read-only, confined as described below. |
 
 How workers run:
 
 - **Processes:** each worker is its own `agent exec` in the chat folder,
   with the user's setup loaded.
-- **Profile context:** each worker's prompt carries the profile block
-  (`profile context`), built once per turn and rebuilt at the next spawn
-  after the lead calls `org_roster`. The lead has it once, in its own coder
-  prompt.
+- **Profile context:** with app access on, each worker's prompt carries the
+  profile block (`profile context`), read once per turn and again at the
+  next spawn after the lead calls `org_roster`; a read that failed (a locked
+  database) is not kept, so the next spawn tries again. The lead has it
+  once, in its own coder prompt. With app access off neither has it; every
+  prompt keeps the profile id to pass as `--profile`.
 - **Leases:** one worker edits at a time (the write lease), and one uses the
   browser at a time (the browser lease). Readers run in parallel. The lead's
   own file edits (`Edit`, `Write`, patch tool calls in its event stream)

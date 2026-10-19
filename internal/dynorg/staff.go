@@ -55,6 +55,9 @@ type Staffer struct {
 	NoAppAccess bool
 }
 
+// appAccess reports coder.appAccess for this turn (a nil Staffer: on).
+func (s *Staffer) appAccess() bool { return s == nil || !s.NoAppAccess }
+
 // profiles are the access profiles this turn's workers may get.
 func (s *Staffer) profiles() []string {
 	if s == nil || !s.NoAppAccess {

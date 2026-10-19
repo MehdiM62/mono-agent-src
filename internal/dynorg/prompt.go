@@ -85,7 +85,7 @@ func workerSystemPrompt(st Staff, cwd string, files []string, canSpawn bool) str
 	if st.Access == ProfileWorkspace {
 		b.WriteString("- " + sendRule + "\n")
 	} else {
-		b.WriteString("- Never read, send or change the user's messages or people records.\n")
+		b.WriteString("- Never read, send or change the user's messages or people records. " + sendGateRule + "\n")
 	}
 	b.WriteString("- Finish with a report for the lead of at most 200 words: what you did, what you found, and, if you changed files, the list of files.\n")
 	return b.String()
@@ -93,14 +93,16 @@ func workerSystemPrompt(st Staff, cwd string, files []string, canSpawn bool) str
 
 // LeadPrompt is added to the lead's system prompt when its chat runs as a
 // dynamic org. appAccess is coder.appAccess: off, the workspace profile and
-// its rules (workspaceRules, sendRule) are left out.
+// its surface rules (workspaceRules) are left out; the send rule stays.
 func LeadPrompt(l Limits, appAccess bool) string {
 	budget := ""
 	if l.BudgetUSD > 0 {
 		budget = fmt.Sprintf(", and $%.2f of worker cost", l.BudgetUSD)
 	}
 	profiles := (&Staffer{NoAppAccess: !appAccess}).profiles()
-	ownRules := ""
+	// The send rule stays either way: the lead has a shell and can still
+	// reach monoagentcli's send paths.
+	ownRules := "Your own rules: " + sendRule + " "
 	if appAccess {
 		ownRules = "Your own rules: " + workspaceRules + " " + sendRule + " "
 	}
