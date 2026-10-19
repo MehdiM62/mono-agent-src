@@ -30,6 +30,7 @@
       },
       {
         "method": "POST",
+        "no_auth": true,
         "path": "/u",
         "body": {
           "file": "file:data:hello"

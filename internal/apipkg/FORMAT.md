@@ -60,6 +60,7 @@ Where packages live:
   "n8n_types": ["n8n-nodes-base.todoist"],           // n8n node types this package imports
   "n8n_trigger_types": ["n8n-nodes-base.todoistTrigger"], // trigger types (the importer maps them to webhook/schedule triggers, §12)
   "base_url": "https://api.todoist.com/api/v1",       // may use {{ cred.x }}
+  "auth_hosts": ["upload.todoist.com"],    // optional: more hosts the credential may go to (§6)
   "headers": { "Accept": "application/json" },        // sent on every request; templates allowed
   "credentials": [ … ],                    // §7
   "resources": [ { "value": "task", "label": "Task" } ],  // n8n "resource" options; omit when n8n has none
@@ -450,7 +451,12 @@ argument are not, so an optional path suffix works:
 ## 6. Request building
 
 1. URL = `op.base_url` or `base_url` (rendered) + rendered `path`. A path that
-   renders to an absolute `http(s)://` URL is used as is.
+   renders to an absolute `http(s)://` URL is used as is. The credential
+   (§7, and anything rendered from `cred`) goes only to a host the package
+   names: the rendered base URL's host or a subdomain of it, a host written
+   literally in `base_url` or the op's `base_url`/`path`, or one listed in
+   `auth_hosts` (`"*.firebasedatabase.app"` for its subdomains). A URL a
+   param or a response names on any other host is sent without it.
 2. `query` is rendered and added; pagination params next (§8).
 3. Body by `body_type` (default: `json` when `body` is set; `raw` for a binary
    upload with no body; else `none`):
@@ -898,7 +904,7 @@ and later ones with `{}`, so paginated ops stop after page one. Failure
 messages name the package, op and what differed, e.g.
 `todoist · task.getAll: query: got {"limit":"50","query":"x"}, want {"query":"x"}`.
 
-**Multi-request ops** (`before`, `also`, `output.expand`, pagination): `"responses": [ {…}, {…} ]` answers the requests in order (later ones get `{}`; overrides `response`). `expect` checks the MAIN request — the first one with the expected method and path (so `before` steps skipped by their `when` don't shift it; otherwise the one after the `before` steps). A path segment `<any>` in an expected `path` matches any non-empty segment (`/send/m.room.message/<any>` for `{{ uuid }}` ids). A value of `"<any>"` in expect `query`/`body` matches any present non-empty value (`{{ uuid }}`, timestamps). To check every request in order use `"expect_requests": [ {method, path, query, body, headers}, … ]`. `"response_headers": {"X-Goog-Upload-Url": "https://up.example.test/s?id=1"}` is sent with every answer. A response `{"$sse": [{…}, {…}]}` is sent as a `text/event-stream` with one `data:` event per element (for `stream` ops and steps).
+**Multi-request ops** (`before`, `also`, `output.expand`, pagination): `"responses": [ {…}, {…} ]` answers the requests in order (later ones get `{}`; overrides `response`). `expect` checks the MAIN request — the first one with the expected method and path (so `before` steps skipped by their `when` don't shift it; otherwise the one after the `before` steps). A path segment `<any>` in an expected `path` matches any non-empty segment (`/send/m.room.message/<any>` for `{{ uuid }}` ids). A value of `"<any>"` in expect `query`/`body` matches any present non-empty value (`{{ uuid }}`, timestamps). To check every request in order use `"expect_requests": [ {method, path, query, body, headers}, … ]`; `"no_auth": true` on one wants no credential on it (a URL a response gave on a host the package doesn't name, §6). `"response_headers": {"X-Goog-Upload-Url": "https://up.example.test/s?id=1"}` is sent with every answer. A response `{"$sse": [{…}, {…}]}` is sent as a `text/event-stream` with one `data:` event per element (for `stream` ops and steps).
 ```json
 "values.append": {
   "params": { "documentId": "abc", "sheetName": "Main" },

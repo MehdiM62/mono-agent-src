@@ -56,6 +56,12 @@ func (d Deps) printSend(cmd *cobra.Command, p hilsend.Payload) error {
 	if by := p.PreparedBy.Label(); by != "" {
 		fmt.Fprintf(w, "Prepared by: %s\n", by)
 	}
+	if p.Host != "" {
+		fmt.Fprintf(w, "Via: %s\n", p.Host)
+	}
+	if p.FetchURL != "" {
+		fmt.Fprintf(w, "Fetches: %s\n", p.FetchURL)
+	}
 	if p.Subject != "" {
 		fmt.Fprintf(w, "Subject: %s\n", p.Subject)
 	}

@@ -64,6 +64,11 @@ type askConfig struct {
 
 func (n *AskNode) Type() string { return "agent.ask" }
 
+// CredentialDestinationKeys: the vendor whose host gets the connection's
+// key is credential_platform's (vendorFor), so it is the connection's own
+// (workflow.CheckCredentialDestinations).
+func (n *AskNode) CredentialDestinationKeys() [][]string { return [][]string{{"credential_platform"}} }
+
 // PerItemConfigFields holds the prompts back from the engine's one-pass
 // config resolution, which uses only the first item: each item's prompt is
 // resolved against that item in ask.

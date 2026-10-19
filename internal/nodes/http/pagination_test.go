@@ -197,3 +197,34 @@ func TestPaginationTemplatesAreHeldBack(t *testing.T) {
 		}
 	}
 }
+
+// A next page on another host, which the response names, goes without the
+// request's auth, as a redirect there does; send_credentials_on_redirect
+// sends it on.
+func TestPaginationNextURLOnAnotherHostGoesWithoutAuth(t *testing.T) {
+	other := newRecorder(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"data":[{"id":2}],"next":null}`)
+	})
+	rec := newRecorder(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(w, `{"data":[{"id":1}],"next":%q}`, other.URL+"/p2")
+	})
+	for _, keep := range []bool{false, true} {
+		mustOK(t, &RequestNode{}, map[string]interface{}{
+			"url": rec.URL + "/a", "pagination_type": "responseContainsNextURL", "pagination_next_url": "{{ $response.body.next }}",
+			"auth_type": "bearer", "auth_token": "tok-1", "send_credentials_on_redirect": keep,
+		})
+		first, next := rec.all(), other.all()
+		if got := first[len(first)-1].Header.Get("Authorization"); got != "Bearer tok-1" {
+			t.Errorf("keep %v: the first page's Authorization = %q", keep, got)
+		}
+		want := ""
+		if keep {
+			want = "Bearer tok-1"
+		}
+		if got := next[len(next)-1].Header.Get("Authorization"); got != want {
+			t.Errorf("keep %v: the other host's page got Authorization %q, want %q", keep, got, want)
+		}
+	}
+}

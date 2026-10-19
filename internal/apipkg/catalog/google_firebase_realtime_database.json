@@ -10,6 +10,7 @@
     "n8n-nodes-base.googleFirebaseRealtimeDatabase"
   ],
   "base_url": "https://firebaseio.com",
+  "auth_hosts": ["*.firebasedatabase.app"],
   "credentials": [
     {
       "platform": "google",

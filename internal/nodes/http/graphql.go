@@ -16,6 +16,12 @@ type GraphQLNode struct{}
 
 func (n *GraphQLNode) Type() string { return "http.graphql" }
 
+// CredentialDestinationKeys: where the connection's auth goes
+// (workflow.CheckCredentialDestinations).
+func (n *GraphQLNode) CredentialDestinationKeys() [][]string {
+	return [][]string{{"endpoint", "base_url", "instance_url"}, {"proxy"}}
+}
+
 // graphqlPerItemFields are resolved against each item's JSON, like
 // http.request's requestPerItemFields.
 var graphqlPerItemFields = []string{"endpoint", "query", "variables", "operation_name", "headers"}

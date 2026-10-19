@@ -9,6 +9,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/url"
+	"regexp"
 	"sort"
 	"strings"
 )
@@ -62,16 +63,16 @@ func (r *opRun) buildRequest(ctx context.Context, pp pageParams) (*built, error)
 		r.scope.Page = pp.values
 	}
 	sc := r.scope
+	base := r.op.BaseURL
+	if base == "" {
+		base = r.pkg.BaseURL
+	}
+	b, err := renderText(base, sc)
+	if err != nil {
+		return nil, r.errf("base_url: %w", err)
+	}
 	rawURL := pp.url
 	if rawURL == "" {
-		base := r.op.BaseURL
-		if base == "" {
-			base = r.pkg.BaseURL
-		}
-		b, err := renderText(base, sc)
-		if err != nil {
-			return nil, r.errf("base_url: %w", err)
-		}
 		path, err := renderPath(r.op.Path, sc)
 		if err != nil {
 			return nil, r.errf("path: %w", err)
@@ -85,6 +86,15 @@ func (r *opRun) buildRequest(ctx context.Context, pp pageParams) (*built, error)
 	u, err := url.Parse(rawURL)
 	if err != nil {
 		return nil, r.errf("url %q: %w", rawURL, err)
+	}
+	// The connection's secret goes only to a host the package names: an
+	// absolute URL a param or a response names elsewhere goes without it,
+	// and without anything rendered from the connection (authHost).
+	authed := r.authHost(u.Hostname(), b)
+	if !authed {
+		saved := r.scope.Cred
+		r.scope.Cred, sc.Cred = nil, nil
+		defer func() { r.scope.Cred = saved }()
 	}
 	if pp.url == "" && r.op.Query != nil {
 		qv, err := renderObject(r.op.Query, sc)
@@ -139,10 +149,51 @@ func (r *opRun) buildRequest(ctx context.Context, pp pageParams) (*built, error)
 	for k, v := range pp.headers {
 		req.Header.Set(k, v)
 	}
-	if err := injectAuth(req, r.credDef, sc, body); err != nil {
-		return nil, r.errf("%w", err)
+	if authed {
+		if err := injectAuth(req, r.credDef, sc, body); err != nil {
+			return nil, r.errf("%w", err)
+		}
 	}
 	return &built{req: req, body: body}, nil
+}
+
+// literalHost finds the hosts written in a URL template, not rendered into
+// it ("https://upload.box.com/…", "…then:'https://sync.api.bannerbear.com/…'").
+var literalHost = regexp.MustCompile(`https?://([A-Za-z0-9.-]+)(?:[:/'"?#]|$)`)
+
+// authHost reports whether host is one the package names, so the
+// connection's secret may go to it: the host of the base URL as rendered
+// (base), or one of its subdomains; a host written literally in the
+// package's or the op's base URL or the op's path; or one of the
+// package's auth_hosts ("*.example.com" for its subdomains).
+func (r *opRun) authHost(host, base string) bool {
+	host = strings.ToLower(strings.TrimSuffix(host, "."))
+	if host == "" {
+		return false
+	}
+	if bu, err := url.Parse(strings.TrimSpace(base)); err == nil {
+		if bh := strings.ToLower(strings.TrimSuffix(bu.Hostname(), ".")); bh != "" && (host == bh || strings.HasSuffix(host, "."+bh)) {
+			return true
+		}
+	}
+	for _, t := range []string{r.pkg.BaseURL, r.op.BaseURL, r.op.Path} {
+		for _, m := range literalHost.FindAllStringSubmatch(t, -1) {
+			if strings.EqualFold(strings.TrimSuffix(m[1], "."), host) {
+				return true
+			}
+		}
+	}
+	for _, h := range r.pkg.AuthHosts {
+		h = strings.ToLower(strings.TrimSpace(h))
+		if sub, ok := strings.CutPrefix(h, "*."); ok {
+			if strings.HasSuffix(host, "."+sub) {
+				return true
+			}
+		} else if host == h {
+			return true
+		}
+	}
+	return false
 }
 
 // buildBody renders the body for the op's body type.

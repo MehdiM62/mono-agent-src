@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -81,6 +82,11 @@ func (n *TwilioNode) Execute(ctx context.Context, input workflow.NodeInput, conf
 		if twimlURL == "" && twiml == "" {
 			return nil, fmt.Errorf("comm.twilio: make_call requires either url or twiml")
 		}
+		if twimlURL != "" {
+			if err := checkTwiMLURL(twimlURL); err != nil {
+				return nil, fmt.Errorf("comm.twilio: make_call: %w", err)
+			}
+		}
 		result, err := twilioMakeCall(ctx, accountSID, authToken, from, to, twimlURL, twiml)
 		if err != nil {
 			return nil, fmt.Errorf("comm.twilio: make_call: %w", err)
@@ -109,6 +115,33 @@ func twilioSendMessage(ctx context.Context, accountSID, authToken, from, to, bod
 		"sid":    respMap["sid"],
 		"status": respMap["status"],
 	}), nil
+}
+
+// checkTwiMLURL refuses a call's TwiML URL that isn't a public http(s)
+// one: Twilio fetches what the call says from it, and the send card shows
+// it (hilsend), so it names a host on the internet, not this machine or a
+// private network's.
+func checkTwiMLURL(raw string) error {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" {
+		return fmt.Errorf("url %q is not an http(s) URL", raw)
+	}
+	host := strings.ToLower(strings.TrimSuffix(u.Hostname(), "."))
+	if host == "localhost" || strings.HasSuffix(host, ".localhost") {
+		return fmt.Errorf("url %q names this machine: Twilio fetches the call's TwiML from a public URL", raw)
+	}
+	if ip := net.ParseIP(host); ip != nil && !publicIP(ip) {
+		return fmt.Errorf("url %q is a loopback or private address: Twilio fetches the call's TwiML from a public URL", raw)
+	}
+	return nil
+}
+
+// cgnat is RFC 6598's shared address space, private in all but name.
+var cgnat = &net.IPNet{IP: net.IPv4(100, 64, 0, 0), Mask: net.CIDRMask(10, 32)}
+
+func publicIP(ip net.IP) bool {
+	return !(ip.IsLoopback() || ip.IsPrivate() || ip.IsUnspecified() || ip.IsLinkLocalUnicast() ||
+		ip.IsLinkLocalMulticast() || ip.IsInterfaceLocalMulticast() || ip.IsMulticast() || cgnat.Contains(ip))
 }
 
 // twilioMakeCall POSTs to the Twilio Calls resource.

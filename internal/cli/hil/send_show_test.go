@@ -14,7 +14,8 @@ import (
 )
 
 // `hil show` says who prepared a send, as the app's card does: here a run
-// of a workflow the user never approved (#831 follow-up, item 8).
+// of a workflow the user never approved (#831 follow-up, item 8); and the
+// relay it goes through.
 func TestHILShowSaysWhoPreparedASend(t *testing.T) {
 	for _, k := range append(operator.MarkerEnv(), hilsend.EnvAgentRole, hilsend.EnvAgentID) {
 		t.Setenv(k, "")
@@ -41,7 +42,7 @@ func TestHILShowSaysWhoPreparedASend(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	if got := buf.String(); !strings.Contains(got, "\nPrepared by: unapproved workflow wf1\nSubject: Hello\nHi Ada\n") {
+	if got := buf.String(); !strings.Contains(got, "\nPrepared by: unapproved workflow wf1\nVia: smtp.example.test\nSubject: Hello\nHi Ada\n") {
 		t.Fatalf("hil show =\n%s", got)
 	}
 }

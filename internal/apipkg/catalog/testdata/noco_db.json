@@ -45,10 +45,12 @@
       },
       {
         "method": "GET",
+        "no_auth": true,
         "path": "/a.pdf"
       },
       {
         "method": "GET",
+        "no_auth": true,
         "path": "/s/b.png"
       }
     ]

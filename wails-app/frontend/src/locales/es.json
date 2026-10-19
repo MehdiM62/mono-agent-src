@@ -1619,6 +1619,8 @@
     },
     "to": "Para",
     "from": "De",
+    "via": "Vía",
+    "fetches": "Obtiene",
     "subject": "Asunto",
     "profile": "perfil",
     "person": "abrir persona",

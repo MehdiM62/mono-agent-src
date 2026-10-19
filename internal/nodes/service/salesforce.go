@@ -16,6 +16,12 @@ type SalesforceNode struct{}
 
 func (n *SalesforceNode) Type() string { return "service.salesforce" }
 
+// CredentialDestinationKeys: the org the access token goes to
+// (workflow.CheckCredentialDestinations).
+func (n *SalesforceNode) CredentialDestinationKeys() [][]string {
+	return [][]string{{"instance_url"}}
+}
+
 // salesforceDefaultAPIVersion is the REST API version used when the node's
 // api_version field is empty (66.0 = Spring '26). Salesforce keeps old
 // versions available for years, so saved workflows keep working when this

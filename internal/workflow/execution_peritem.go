@@ -111,6 +111,9 @@ func (r *runner) resolveFor(t *nodeTask, item Item) (map[string]interface{}, err
 	if err := checkStoredFields(t.executor, t.perItem.config, resolved); err != nil {
 		return nil, fmt.Errorf("resolve config: %w", err)
 	}
+	if err := checkCredentialUse(t.ctx, t.executor, t.cred, t.perItem.config, resolved); err != nil {
+		return nil, fmt.Errorf("resolve config: %w", err)
+	}
 	if vaultDB := vault.DBFromContext(t.ctx); vaultDB != nil {
 		profile, perr := vault.ProfileIDFromContext(t.ctx)
 		if perr != nil {
