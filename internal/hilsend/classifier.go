@@ -1,8 +1,6 @@
 package hilsend
 
 import (
-	"encoding/json"
-	"slices"
 	"strings"
 	"sync/atomic"
 
@@ -150,36 +148,4 @@ func (t target) recipientOf(config map[string]interface{}) (r Recipient, labelle
 		return Recipient{Name: t.toLabel[key] + " " + to, Label: true}, true
 	}
 	return Recipient{Name: to, ProfileURL: profileLike(to)}, false
-}
-
-// showText is the card's text for a send whose words aren't a message the
-// approver could edit: the op, and each param it shows with its value as
-// this item would send it, so the user sees what they approve: the keys it
-// doesn't declare (undeclared), or the params its annotation shows, those
-// the config sets. A param given as an expression (exprs) says so: its
-// keys are the run's, and on an empty item it resolves to "", which would
-// read as nothing undeclared.
-func showText(op string, show, exprs []string, undeclared bool, config map[string]interface{}) string {
-	var b strings.Builder
-	if undeclared {
-		b.WriteString(op + " with fields it doesn't declare:")
-	} else {
-		b.WriteString(op + " with:")
-	}
-	for _, path := range show {
-		if slices.Contains(exprs, path) {
-			b.WriteString("\n" + path + ": (an expression)")
-			continue
-		}
-		val := valueAt(config, path)
-		if val == nil && !undeclared {
-			continue
-		}
-		v, _ := json.Marshal(val)
-		if len(v) > 500 {
-			v = append(v[:500], "…"...)
-		}
-		b.WriteString("\n" + path + ": " + string(v))
-	}
-	return b.String()
 }

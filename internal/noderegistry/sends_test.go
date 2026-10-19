@@ -380,7 +380,7 @@ func TestUndeclaredKeysWaitOnlyInAGatedRun(t *testing.T) {
 		"a raw article on a Zammad ticket update": {"app.zammad", cfg{"resource": "ticket", "operation": "update", "id": "5",
 			"updateFields": cfg{"article": cfg{"type": "email", "to": "v@example.test", "body": "x"}}},
 			"whoever its undeclared fields (article) reach", hilsend.ActionComment,
-			"zammad ticket/update with fields it doesn't declare:\nupdateFields.article: {\"body\":\"x\",\"to\":\"v@example.test\",\"type\":\"email\"}"},
+			"zammad ticket/update with fields it doesn't declare:\nupdateFields.article:\n  \"body\": \"x\"\n  \"to\": \"v@example.test\"\n  \"type\": \"email\""},
 		"raw articles on a Zammad ticket update": {"app.zammad", cfg{"resource": "ticket", "operation": "update", "id": "5",
 			"updateFields": cfg{"articles": []interface{}{cfg{"type": "twitter status", "body": "tweet"}}}},
 			"whoever its undeclared fields (articles) reach", hilsend.ActionComment, "updateFields.articles: [{\"body\":\"tweet\""},
@@ -393,10 +393,10 @@ func TestUndeclaredKeysWaitOnlyInAGatedRun(t *testing.T) {
 		"a type_id on a Zammad ticket's article": {"app.zammad", cfg{"resource": "ticket", "operation": "create", "title": "T",
 			"group": "Users", "customer": "a@example.test", "article": cfg{"articleDetails": cfg{"type_id": 6, "body": "tweet"}}},
 			"whoever its undeclared fields (articleDetails.type_id) reach", hilsend.ActionEmail,
-			"article.articleDetails: {\"body\":\"tweet\",\"type_id\":6}"},
+			"article.articleDetails:\n  \"body\": \"tweet\"\n  \"type_id\": 6"},
 		"a note with a type_id": {"app.zammad", cfg{"resource": "ticket", "operation": "create", "title": "T", "group": "Users",
 			"customer": "a@example.test", "article": cfg{"articleDetails": cfg{"type": "note", "type_id": 6, "body": "tweet"}}},
-			"whoever its undeclared fields (articleDetails.type_id) reach", hilsend.ActionEmail, "\"type_id\":6"},
+			"whoever its undeclared fields (articleDetails.type_id) reach", hilsend.ActionEmail, "\"type_id\": 6"},
 		// An op with no sends of its own (a work item) has nothing to say
 		// what the keys do: a post, addressed to no person.
 		"a raw key on a Trello card update": {"app.trello", cfg{"resource": "card", "operation": "update", "id": "c1",

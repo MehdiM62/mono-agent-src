@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/monoes/mono-agent/internal/hilsend"
@@ -32,6 +33,10 @@ func TestASettingsOrFlowCardListsWhatItSends(t *testing.T) {
 			"zulip stream/update with:\nadditionalFields.description: \"\""},
 		{"app.zulip", cfg{"resource": "stream", "operation": "update", "streamId": "7", "additionalFields": cfg{"description": "Launch", "streamPostPolicy": 2}},
 			"zulip stream/update with:\nadditionalFields.description: \"Launch\"\nadditionalFields.streamPostPolicy: 2"},
+		// Raw JSON lists each key: padding hides no change behind it.
+		{"app.zulip", cfg{"resource": "stream", "operation": "update", "streamId": "7", "jsonParameters": true,
+			"additionalFieldsJson": `{"description":"` + strings.Repeat("A", 600) + `","is_private":true}`},
+			"zulip stream/update with:\nadditionalFieldsJson:\n  \"description\": \"" + strings.Repeat("A", 199) + "…\n  \"is_private\": true"},
 		{"service.salesforce", cfg{"resource": "flow", "operation": "invoke", "apiName": "Notify",
 			"variablesUi": cfg{"variablesValues": []interface{}{cfg{"name": "body", "value": "Hi Ada"}}}},
 			"salesforce flow/invoke with:\nvariablesUi.variablesValues: [{\"name\":\"body\",\"value\":\"Hi Ada\"}]"},
