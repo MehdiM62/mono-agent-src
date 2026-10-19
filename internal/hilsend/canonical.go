@@ -1,6 +1,10 @@
 package hilsend
 
-import "github.com/monoes/mono-agent/internal/workflow"
+import (
+	"strings"
+
+	"github.com/monoes/mono-agent/internal/workflow"
+)
 
 // A node is classified under the type that runs it, whatever name it is
 // asked about by: the engine asks with its executor's type, `node run` and
@@ -29,10 +33,18 @@ var blankOps = map[string]func(config map[string]interface{}) string{
 // that type runs when config names none.
 func canonical(nodeType string, config map[string]interface{}) (string, map[string]interface{}) {
 	nodeType = workflow.CanonicalNodeType(nodeType)
-	if blank, ok := blankOps[nodeType]; ok && str(config["operation"]) == "" {
+	if blank, ok := blankOps[nodeType]; ok && opOf(config) == "" {
 		c := cloneMap(config)
 		c["operation"] = blank(config)
 		config = c
 	}
 	return nodeType, config
+}
+
+// opOf is the operation config names as the node reads it
+// (workflow.ConfigOperation): a value that is no string names none, so on a
+// node whose blank operation sends it is that send. It is trimmed, which
+// only ever judges more as a send.
+func opOf(config map[string]interface{}) string {
+	return strings.TrimSpace(workflow.ConfigOperation(config))
 }

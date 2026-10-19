@@ -49,7 +49,7 @@ func outlookAuthMode(config map[string]interface{}) (string, error) {
 // has "to"/"subject"/"body" keys and a comm.outlook_read one never does, so
 // their presence selects send_message, their absence list_messages.
 func outlookAppPasswordExecute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
-	operation := strVal(config, "operation")
+	operation := workflow.ConfigOperation(config)
 	if operation == "" {
 		operation = "list_messages"
 		for _, k := range []string{"to", "subject", "body"} {

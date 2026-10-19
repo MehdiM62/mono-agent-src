@@ -113,7 +113,7 @@ func (r rule) covers(config map[string]interface{}) bool {
 	if r.ops == nil {
 		return true
 	}
-	op := str(config["operation"])
+	op := opOf(config)
 	for _, o := range r.ops {
 		if o == op {
 			return true

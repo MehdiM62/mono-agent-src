@@ -55,7 +55,7 @@ func (n *RedditNode) Execute(ctx context.Context, input workflow.NodeInput, conf
 	if userAgent == "" {
 		userAgent = "mono-agent/1.0"
 	}
-	operation := strVal(config, "operation")
+	operation := workflow.ConfigOperation(config)
 
 	switch operation {
 	case "submit_post":

@@ -61,6 +61,16 @@ var (
 	}
 )
 
+// oddOperations are "operation" values of every JSON type, and strings near
+// a send's name; readsNoOperation are the types whose node reads none.
+var (
+	oddOperations = []interface{}{
+		nil, true, false, float64(0), float64(5), "", " ", "5", "send_message ", "SEND_MESSAGE",
+		[]interface{}{}, []interface{}{"send_message"}, map[string]interface{}{"operation": "send_message"},
+	}
+	readsNoOperation = map[string]bool{"comm.email_send": true}
+)
+
 // sendConfig is a config of op with a message's usual keys set.
 func sendConfig(op string) map[string]interface{} {
 	c := map[string]interface{}{"text": "Hi Ada", "body": "Hi Ada", "content": "Hi Ada", "message": "Hi Ada",
@@ -174,6 +184,21 @@ func TestEveryNativeSendWaitsUnderEveryName(t *testing.T) {
 				for _, op := range nativeReads[typ] {
 					if held(asked, map[string]interface{}{"operation": op}) {
 						t.Errorf("%s %q, asked by %s as %s: a read was held as a send", name, op, caller, asked)
+					}
+				}
+				// An operation of any type: the node reads it with
+				// workflow.ConfigOperation, so 5 or true is blank to it, and
+				// what it then runs must be held when it sends.
+				for _, v := range oddOperations {
+					config := sendConfig("")
+					config["operation"] = v
+					runs := workflow.ConfigOperation(config)
+					sends := readsNoOperation[typ]
+					for _, op := range nativeSends[typ] {
+						sends = sends || op == runs
+					}
+					if sends && !held(asked, config) {
+						t.Errorf("%s with operation %#v, asked by %s as %s: the node runs %q, a send, and the gate let it through", name, v, caller, asked, runs)
 					}
 				}
 			}
