@@ -639,8 +639,13 @@ dangerous calls.
   name) must be written in the workflow too; one an expression produced refuses the step. Node authors:
   a node that resolves references inside a field's text implements
   `workflow.SecretTextResolver`; one with a field that names a vault entry
-  or a saved session implements `workflow.LiteralConfigResolver`. Still
-  open:
+  or a saved session implements `workflow.LiteralConfigResolver`; one whose
+  config fields decide where a saved connection's secret goes (a relay, an
+  instance, a base URL, brokers) implements `workflow.CredentialDestinations`.
+  Such a field comes from the connection when the connection names it.
+  Otherwise it must be written in an approved workflow
+  (`internal/noderegistry/credential_hosts_test.go` fails for a host-like
+  field that is neither declared nor listed with a reason). Still open:
   - an approved workflow resolves its secrets whoever runs it, and a value
     a step outputs under a field name the redaction doesn't know shows in
     its `--json` output;
@@ -648,7 +653,12 @@ dangerous calls.
     unredacted outputs;
   - by the user's decision, a step that picks its own URL (`http.request`)
     may use a saved connection's credential in any run, so a run can send
-    that token to any address.
+    that token to any address. With this release, `http.request` and
+    `http.graphql` are the only steps that can send a saved connection's
+    token to an address the connection doesn't name (`openByDecision` in
+    `internal/noderegistry/credential_hosts_test.go` pins it);
+  - a workflow the user approved may name a host for a connection that
+    names none, and the secret goes there whoever runs it.
 
   The app reveals by running these commands as the user, and the CLI can't
   tell it from an agent that runs the same command from an unmarked

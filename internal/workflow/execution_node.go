@@ -20,6 +20,7 @@ type nodeTask struct {
 	onError     string
 	execNode    *WorkflowExecutionNode
 	ctx         context.Context // the run's context plus this node's state slot
+	cred        *CredentialUse  // the saved connection config carries, if any
 
 	perItem      *perItemPlan // non-nil: run once per input item
 	itemFailures int          // per-item failures on_error tolerated
@@ -150,7 +151,7 @@ func (r *runner) prepare(node WorkflowNode) (*nodeTask, error) {
 		config = make(map[string]interface{})
 	}
 
-	r.injectCredential(node, config)
+	cred := r.injectCredential(node, config)
 
 	// Trigger nodes are pass-through — they emit their trigger items
 	// without needing a registered executor, and don't use config at
@@ -235,6 +236,9 @@ func (r *runner) prepare(node WorkflowNode) (*nodeTask, error) {
 	if err := checkStoredFields(executor, stored, resolvedConfig); err != nil {
 		return nil, fmt.Errorf("node %s (%s): %w", node.ID, node.Name, err)
 	}
+	if err := checkCredentialUse(ctx, executor, cred, stored, resolvedConfig); err != nil {
+		return nil, fmt.Errorf("node %s (%s): %w", node.ID, node.Name, err)
+	}
 
 	// Resolve @img-NNN references to absolute vault file paths.
 	if vaultDB := vault.DBFromContext(ctx); vaultDB != nil {
@@ -307,6 +311,7 @@ func (r *runner) prepare(node WorkflowNode) (*nodeTask, error) {
 		onError:     extractOnError(resolvedConfig),
 		execNode:    execNode,
 		ctx:         WithNodeState(ctx, r.nodeState[node.ID]),
+		cred:        cred,
 		perItem:     plan,
 	}, nil
 }

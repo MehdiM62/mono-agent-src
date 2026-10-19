@@ -34,6 +34,12 @@ type EmailReadNode struct{}
 
 func (n *EmailReadNode) Type() string { return "comm.email_read" }
 
+// CredentialDestinationKeys: the server the connection's password goes to
+// (workflow.CheckCredentialDestinations).
+func (n *EmailReadNode) CredentialDestinationKeys() [][]string {
+	return [][]string{{"imap_host"}, {"imap_port"}}
+}
+
 func (n *EmailReadNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
 	if extensionOwns("comm.email_read", config) {
 		return apipkg.ExecuteExtension(ctx, "comm.email_read", input, config)

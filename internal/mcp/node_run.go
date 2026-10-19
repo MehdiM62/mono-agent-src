@@ -73,8 +73,14 @@ func toolNodeRun(ctx context.Context, s *Server, args json.RawMessage) (interfac
 	if config == nil {
 		config = map[string]interface{}{}
 	}
-	if err := resolveNodeCredential(ctx, rt, a.Type, a.Credential, config); err != nil {
+	cred, err := resolveNodeCredential(ctx, rt, a.Type, a.Credential, config)
+	if err != nil {
 		return nil, err
+	}
+	// An AI wrote the config: the connection's secret goes only to the
+	// hosts the connection names (workflow.CheckCredentialDestinations).
+	if err := workflow.CheckCredentialDestinations(factory(), cred, false, config, config); err != nil {
+		return nil, fmt.Errorf("node %s: %w", a.Type, err)
 	}
 	items, err := parseInputItems(a.Input)
 	if err != nil {
@@ -204,7 +210,7 @@ func nodeTypePlatform(nodeType string) string {
 // resolveNodeCredential merges a connection's data into config, as `node
 // run` does: an explicit credential that cannot be resolved is an error, a
 // derived one that cannot is not (the config may carry its own).
-func resolveNodeCredential(ctx context.Context, rt *runtime, nodeType, explicit string, config map[string]interface{}) error {
+func resolveNodeCredential(ctx context.Context, rt *runtime, nodeType, explicit string, config map[string]interface{}) (*workflow.CredentialUse, error) {
 	key := explicit
 	if key == "" {
 		if cid, ok := config["credential_id"].(string); ok && cid != "" {
@@ -214,26 +220,30 @@ func resolveNodeCredential(ctx context.Context, rt *runtime, nodeType, explicit 
 	if key == "" {
 		key = nodeTypePlatform(nodeType)
 	}
-	data, err := credentialData(ctx, connections.NewStore(rt.db.DB), key, profileOf(ctx))
-	if err != nil || data == nil {
+	conn, err := credentialData(ctx, connections.NewStore(rt.db.DB), key, profileOf(ctx))
+	if err != nil || conn == nil {
 		if explicit != "" {
-			return fmt.Errorf("credential resolution failed: %w", err)
+			return nil, fmt.Errorf("credential resolution failed: %w", err)
 		}
-		return nil
+		return nil, nil
 	}
-	for k, v := range data {
+	for k, v := range conn.Data {
 		if _, exists := config[k]; !exists {
 			config[k] = v
 		}
 	}
-	config["credential"] = data
-	return nil
+	config["credential"] = conn.Data
+	name := conn.Label
+	if name == "" {
+		name = key
+	}
+	return &workflow.CredentialUse{Name: name, Platform: conn.Platform, Data: conn.Data}, nil
 }
 
-// credentialData is the data of a connection of profileID found by id, else
-// by platform (an active one first), its OAuth token refreshed when it is
+// credentialData is the connection of profileID found by id, else by
+// platform (an active one first), its OAuth token refreshed when it is
 // about to expire.
-func credentialData(ctx context.Context, store *connections.Store, key, profileID string) (map[string]interface{}, error) {
+func credentialData(ctx context.Context, store *connections.Store, key, profileID string) (*connections.Connection, error) {
 	conn, err := store.Get(ctx, key)
 	if err == nil && conn != nil && conn.ProfileID != "" && conn.ProfileID != profileID {
 		conn = nil
@@ -259,5 +269,5 @@ func credentialData(ctx context.Context, store *connections.Store, key, profileI
 			}
 		}
 	}
-	return conn.Data, nil
+	return conn, nil
 }

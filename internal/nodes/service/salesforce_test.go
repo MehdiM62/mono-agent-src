@@ -1,6 +1,8 @@
 package service
 
 import (
+	"context"
+	"fmt"
 	"net/http"
 	"reflect"
 	"strings"
@@ -129,5 +131,30 @@ func TestSalesforceInvalidAPIVersion(t *testing.T) {
 		if n := len(c.all()); n != 0 {
 			t.Errorf("api_version %q: sent %d requests, want 0", bad, n)
 		}
+	}
+}
+
+// nextRecordsUrl is a path on the instance: one that would move the token
+// to another host ("@host/…" pasted after the root, "//host/…") stays on
+// the instance or is refused.
+func TestSalesforceNextRecordsURLStaysOnTheInstance(t *testing.T) {
+	next := ""
+	c := newAPICapture(t, func(r *http.Request) (int, string) {
+		if r.URL.Path != "/services/data/v66.0/query" {
+			return http.StatusOK, `{"records":[{"Id":"2"}],"done":true}`
+		}
+		return http.StatusOK, fmt.Sprintf(`{"records":[{"Id":"1"}],"done":false,"nextRecordsUrl":%q}`, next)
+	})
+	cfg := map[string]interface{}{"instance_url": c.srv.URL, "access_token": "tok", "operation": "query", "soql": "SELECT Id FROM Lead"}
+	next = "@evil.test/next"
+	if items := capRun(t, &SalesforceNode{}, workflow.NodeInput{}, cfg); len(items) != 2 {
+		t.Fatalf("got %d items, want 2", len(items))
+	}
+	if reqs := c.all(); len(reqs) != 2 || reqs[1].Path != "/@evil.test/next" {
+		t.Errorf("requests = %+v, want the next page on the instance", reqs)
+	}
+	next = "//evil.test/next"
+	if _, err := (&SalesforceNode{}).Execute(context.Background(), workflow.NodeInput{}, cfg); err == nil || !strings.Contains(err.Error(), "is not a path on the instance") {
+		t.Errorf("a next page on another host: %v", err)
 	}
 }

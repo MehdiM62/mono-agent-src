@@ -1085,7 +1085,7 @@ func TestInsecureClientOptIn(t *testing.T) {
 	if !ok || tr.TLSClientConfig == nil || !tr.TLSClientConfig.InsecureSkipVerify {
 		t.Error("allow_unauthorized_certs must skip TLS verification")
 	}
-	if (&opRun{scope: Scope{Cred: map[string]any{}}}).client() != httpClient {
+	if (&opRun{scope: Scope{Cred: map[string]any{}}}).baseClient() != httpClient {
 		t.Error("default client must verify TLS")
 	}
 }
