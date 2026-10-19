@@ -134,15 +134,25 @@
     return false;
   }
 
+  /** profileTag is 8 hex digits of a profile id (FNV-1a), to scope a task id to it. */
+  function profileTag(profile) {
+    let h = 0x811c9dc5;
+    for (const b of new TextEncoder().encode(str(profile))) h = Math.imul(h ^ b, 0x01000193) >>> 0;
+    return h.toString(16).padStart(8, "0");
+  }
+
   /**
    * clientId is the id a card's task is sent under, for good (task_outbox.js):
-   * its nonce, then its call id for whoever reads the board. The board takes
-   * a repeated id as the same task, so a resend adds nothing twice. A card
-   * stored before cards had a nonce keeps the id it was sent under.
+   * its nonce, the profile it goes to, then its call id for whoever reads the
+   * board. The board takes a repeated id as the same task, so a resend adds
+   * nothing twice; scoped to the profile, a retry under another profile is
+   * another id, never one id in two profiles' entries. A card stored before
+   * cards had a nonce keeps the id it was sent under.
    */
-  function clientId(p) {
+  function clientId(p, profile) {
     const call = str(p && p.id).replace(/[^A-Za-z0-9_-]/g, "");
-    return (NONCE.test(p && p.nonce) ? `chat-${p.nonce}-${call}` : `chat-${call}`).slice(0, 64);
+    if (!NONCE.test(p && p.nonce)) return `chat-${call}`.slice(0, 64);
+    return (profile ? `chat-${p.nonce}-${profileTag(profile)}-${call}` : `chat-${p.nonce}-${call}`).slice(0, 64);
   }
 
   /**

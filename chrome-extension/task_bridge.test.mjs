@@ -369,12 +369,26 @@ test("a chat proposal is sent under its card's key, and an existing task is alre
   const { listeners } = setupTasks({ ask });
   const proposal = { id: "functions.x:0", kind: "task", title: "Book flights", notes: "", nonce: "0123456789abcdef" };
   const out = await send(listeners, { type: "task_add_proposal", profile: "p-home", proposal }, PANEL);
-  assert.equal(ask.calls[0].params.client_id, "chat-0123456789abcdef-functionsx0");
+  assert.match(ask.calls[0].params.client_id, /^chat-0123456789abcdef-[0-9a-f]{8}-functionsx0$/);
   assert.equal(out.feedback.text, "Added to Inbox in Home (#30)");
 
   created = false;
   const again = await send(listeners, { type: "task_add_proposal", profile: "p-home", proposal: { ...proposal, id: "functionsx0", nonce: "fedcba9876543210" } }, PANEL);
-  assert.equal(ask.calls[1].params.client_id, "chat-fedcba9876543210-functionsx0", "another card, another key");
+  assert.match(ask.calls[1].params.client_id, /^chat-fedcba9876543210-[0-9a-f]{8}-functionsx0$/, "another card, another key");
   assert.equal(again.status, "added");
   assert.equal(again.feedback.text, "Already added to Inbox in Home (#30)");
+});
+
+// #868 review: the same card sent under two profiles goes under two ids, so
+// the outbox never holds one id for two profiles.
+test("one card sent under two profiles is two ids", async () => {
+  const ask = fakeAsk({ reply: () => ({ id: 40, created: true }) });
+  const { listeners } = setupTasks({ ask });
+  const proposal = { id: "toolu_9", kind: "task", title: "Call Sam", notes: "", nonce: "0123456789abcdef" };
+  await send(listeners, { type: "task_add_proposal", profile: "p-home", proposal }, PANEL);
+  await send(listeners, { type: "task_add_proposal", profile: "p-work", proposal }, PANEL);
+  await send(listeners, { type: "task_add_proposal", profile: "p-work", proposal }, PANEL);
+  const ids = ask.calls.map((c) => [c.params.profile, c.params.client_id]);
+  assert.notEqual(ids[0][1], ids[1][1]);
+  assert.equal(ids[1][1], ids[2][1], "within one profile the id is the card's, for good");
 });

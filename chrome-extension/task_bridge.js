@@ -285,7 +285,8 @@
       const raw = msg && msg.proposal;
       const card = P && raw && raw.kind === "task" ? P.clone([Object.assign({}, raw, { state: "pending" })])[0] : null;
       if (!card) return outcome("refused", { reason: "that is not a task the chat proposed" });
-      return add({ kind: "chat", taskTitle: card.title, notes: card.notes, clientId: P.clientId(card), profile: panelProfile(msg) });
+      const profile = panelProfile(msg);
+      return add({ kind: "chat", taskTitle: card.title, notes: card.notes, clientId: P.clientId(card, profile), profile });
     },
     task_state: async () => ({ ok: true, waiting: (await box.list()).length, failures: await box.failures() }),
     task_dismiss: async () => {
