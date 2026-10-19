@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -100,20 +101,69 @@ func TestCloseWaitsForASyncToStart(t *testing.T) {
 	}
 }
 
-// End to end, with a monomind that takes its time: saving a person and
-// closing returns in about a second (a command that saves one used to take
-// 5s), and the sync's monomind still ran.
-func TestCloseIsBoundedForASlowMonomind(t *testing.T) {
+// A sync that ends without starting a monomind process (none found, say)
+// counts as started: while another is held open, Close returns after the
+// second it gives syncs to finish, not after the 5s it gives one to start.
+func TestCloseDoesNotWaitForASyncThatEndedWithoutStarting(t *testing.T) {
+	db, err := NewDatabase(filepath.Join(t.TempDir(), "kg.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	block := make(chan struct{})
+	defer close(block)
+	db.kg.start(func(started func()) {
+		started()
+		<-block
+	})
+	ended := make(chan struct{})
+	db.kg.start(func(func()) { close(ended) })
+	<-ended
+	begin := time.Now()
+	db.Close()
+	if waited := time.Since(begin); waited > 3*time.Second {
+		t.Fatalf("Close waited %s: it waited for a sync that ended without starting", waited)
+	}
+}
+
+// Each profile of a batch gets a sync of its own: one held in monomind does
+// not keep the next profile's from starting before Close returns.
+func TestBatchUpsertPeopleStartsEveryProfilesSync(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("fake monomind is a shell script")
 	}
 	monomind.ResetCapabilityCache()
 	t.Cleanup(monomind.ResetCapabilityCache)
+	ran := slowFakeMonomind(t)
+	db := newUpsertPersonTestDB(t)
+	if err := db.BatchUpsertPeople([]*Person{
+		{PlatformUsername: "ada@example.com", Platform: "email", ProfileID: "pa", FullName: "Ada"},
+		{PlatformUsername: "bob@example.com", Platform: "email", ProfileID: "pb", FullName: "Bob"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	db.Close()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		b, _ := os.ReadFile(ran)
+		if lines := strings.Count(string(b), "\n"); lines >= 2 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("Close returned with only these syncs started: %q", b)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+// slowFakeMonomind installs a monomind that logs each start (its
+// MONOMIND_CWD) to ran and then waits until the test ends.
+func slowFakeMonomind(t *testing.T) (ran string) {
+	t.Helper()
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
 	t.Setenv("USERPROFILE", dir)
 	ran, release := filepath.Join(dir, "ran"), filepath.Join(dir, "release")
-	script := "#!/bin/sh\necho \"$*\" >> '" + ran + "'\n" +
+	script := "#!/bin/sh\necho \"$MONOMIND_CWD\" >> '" + ran + "'\n" +
 		"i=0\nwhile [ ! -e '" + release + "' ] && [ $i -lt 300 ]; do sleep 0.1; i=$((i+1)); done\n"
 	bin := filepath.Join(dir, "bin", "monomind")
 	if err := os.MkdirAll(filepath.Dir(bin), 0o755); err != nil {
@@ -124,6 +174,19 @@ func TestCloseIsBoundedForASlowMonomind(t *testing.T) {
 	}
 	t.Setenv(monomind.EnvOverride, bin)
 	t.Cleanup(func() { _ = os.WriteFile(release, nil, 0o600) })
+	return ran
+}
+
+// End to end, with a monomind that takes its time: saving a person and
+// closing returns in about a second (a command that saves one used to take
+// 5s), and the sync's monomind still ran.
+func TestCloseIsBoundedForASlowMonomind(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake monomind is a shell script")
+	}
+	monomind.ResetCapabilityCache()
+	t.Cleanup(monomind.ResetCapabilityCache)
+	ran := slowFakeMonomind(t)
 
 	db := newUpsertPersonTestDB(t)
 	if err := db.UpsertPerson(&Person{PlatformUsername: "ada@example.com", Platform: "email", ProfileID: "default", FullName: "Ada"}); err != nil {
