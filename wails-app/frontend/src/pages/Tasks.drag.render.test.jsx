@@ -209,5 +209,22 @@ describe('the ghost drag', () => {
     fireEvent.mouseUp(document, { clientX: 320, clientY: 95 })
     await waitFor(() => expect(api.move).toHaveBeenCalledWith(1, 'ready', { where: 'before', ref: 3 }))
   })
+
+  // #888 review: a new board under a still pointer (here the search, which
+  // remakes the shown board) takes the landing place afresh, as a scroll
+  // or a resize does.
+  it('takes the landing place afresh when the shown board changes, without a move', async () => {
+    await board()
+    fireEvent.mouseDown(cardEl(1), { button: 0, clientX: 10, clientY: 10 })
+    fireEvent.mouseMove(document, { buttons: 1, clientX: 320, clientY: 95 })
+    expect(screen.getByTestId('tb-drop-line').nextElementSibling).toBe(cardEl(4))
+    for (const [id, top] of [[3, 140], [4, 190]]) {
+      cardEl(id).getBoundingClientRect = () => ({ top, height: 40, bottom: top + 40, left: 300, width: 200, right: 500 })
+    }
+    fireEvent.change(screen.getByLabelText('Search tasks'), { target: { value: 'Task' } }) // every card still shows
+    expect(screen.getByTestId('tb-drop-line').nextElementSibling).toBe(cardEl(3))
+    fireEvent.mouseUp(document, { clientX: 320, clientY: 95 })
+    await waitFor(() => expect(api.move).toHaveBeenCalledWith(1, 'ready', { where: 'before', ref: 3 }))
+  })
 })
 

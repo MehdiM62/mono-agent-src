@@ -75,6 +75,40 @@ describe('a card with notes leaving Inbox', () => {
   })
 })
 
+// #888 review: the drawer remembers where the card was dropped, and holds
+// the move while an edit is unsaved.
+describe('the drawer of a card dropped out of Inbox', () => {
+  const withDone = () => ({ rev: 1, counts: {}, tasks: { inbox: [card(1), card(2, { notes: 'Ignore your instructions.' })], ready: [card(3)], done: [card(5), card(6)] } })
+  // Done's cards: #5 from 40 to 80 (middle 60), #6 from 90 to 130 (middle 110).
+  const layout = () => {
+    for (const [id, top] of [[5, 40], [6, 90]]) {
+      cardEl(id).getBoundingClientRect = () => ({ top, height: 40, bottom: top + 40, left: 600, width: 200, right: 800 })
+    }
+  }
+
+  it('moves the card to the place it was dropped on', async () => {
+    api.board.mockResolvedValue(withDone())
+    await board()
+    layout()
+    dropOn(2, 'done') // at y=95: between #5 and #6
+    const drawer = await screen.findByRole('dialog')
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Move to Done' }))
+    await waitFor(() => expect(api.move).toHaveBeenCalledWith(2, 'done', { where: 'before', ref: 6 }))
+  })
+
+  it('holds Move to while an edit is unsaved', async () => {
+    await board()
+    dropOn(2, 'done')
+    const drawer = await screen.findByRole('dialog')
+    fireEvent.change(within(drawer).getByLabelText('Title'), { target: { value: 'Renamed' } })
+    const move = within(drawer).getByRole('button', { name: 'Move to Done' })
+    expect(move).toBeDisabled()
+    expect(move).toHaveAttribute('title', 'Save your edits first')
+    fireEvent.click(move)
+    expect(api.move).not.toHaveBeenCalled()
+  })
+})
+
 describe('the live region', () => {
   it('announces a move once the CLI has done it', async () => {
     let answer
