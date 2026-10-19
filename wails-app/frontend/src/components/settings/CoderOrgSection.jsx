@@ -76,6 +76,7 @@ function MachinePart() {
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={name}>{t('coderOrg.routerLabel')}</div>
           <div style={hint}>{t('coderOrg.routerHint')} {t(`coderOrg.routerDesc.${router}`)}</div>
+          <div style={hint}>{t('coderOrg.routerJevNote')}</div>
         </div>
         <select aria-label={t('coderOrg.routerLabel')} value={router} disabled={!!busy}
           onChange={e => setRouter(e.target.value)} style={{ minWidth: 170 }}>

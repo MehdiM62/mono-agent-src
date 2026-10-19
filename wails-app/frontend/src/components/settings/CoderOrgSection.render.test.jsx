@@ -69,11 +69,15 @@ describe('CoderOrgSection, this computer', () => {
     await waitFor(() => expect(box).toBeChecked())
   })
 
-  it("turns workers' app access off and on with `coder set --app-access`, saying send approval stays on", async () => {
+  // The CLI's wording since #870: the switch changes what agents are told
+  // and offered, not what they can do.
+  it("turns what coder agents are told about MonoAgent off and on with `coder set --app-access`", async () => {
     machine()
-    const box = await screen.findByRole('checkbox', { name: 'Coder chat workers can use MonoAgent' })
+    const box = await screen.findByRole('checkbox', { name: 'Coder agents are told about MonoAgent' })
     expect(box).toBeChecked()
-    expect(screen.getByText(/Off: no worker gets the workspace access profile, and send approval stays on\./)).toBeInTheDocument()
+    const help = screen.getByText(/Off: org workers aren't told about or offered MonoAgent's tabs, and agents get no profile summary;/)
+    expect(help).toHaveTextContent("the coder lead keeps full access, operator-only commands and send approval still apply.")
+    expect(help).not.toHaveTextContent(/Jev/)
     App.CoderSetAppAccess.mockResolvedValue(status({ appAccess: false }))
     fireEvent.click(box)
     await waitFor(() => expect(App.CoderSetAppAccess).toHaveBeenCalledWith(false))
@@ -88,7 +92,14 @@ describe('CoderOrgSection, this computer', () => {
   it('has no app access control when the CLI reports none (an older monoagentcli)', async () => {
     machine(JSON.stringify({ enabled: true, orgRouter: 'auto', sendApproval: true }))
     await screen.findByRole('checkbox', { name: "Agents' sends wait for my approval" })
-    expect(screen.queryByRole('checkbox', { name: 'Coder chat workers can use MonoAgent' })).toBeNull()
+    expect(screen.queryByRole('checkbox', { name: 'Coder agents are told about MonoAgent' })).toBeNull()
+  })
+
+  it('says on the router picker which choices send the brief to Jev', async () => {
+    machine()
+    const router = await screen.findByRole('combobox', { name: "Who picks a worker's role" })
+    const note = screen.getByText('Automatic and TypeSafe Jev send the brief to Jev (TypeSafe) when a Jev key is set. The lead keeps it on this machine.')
+    expect(router.parentElement).toContainElement(note)
   })
 
   it('shows the CLI refusal', async () => {

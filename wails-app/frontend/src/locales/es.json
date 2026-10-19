@@ -1733,6 +1733,7 @@
     "machineHint": "Cómo el agente principal de un chat de código asigna a sus trabajadores y si lo que envían los agentes espera tu aprobación. Para todo este equipo.",
     "routerLabel": "Quién elige el rol de un trabajador",
     "routerHint": "Cuando el agente principal de un chat de código inicia un trabajador sin indicar su rol ni sus habilidades.",
+    "routerJevNote": "Automático y TypeSafe Jev envían el encargo a Jev (TypeSafe) cuando hay una clave de Jev. El agente principal lo mantiene en este equipo.",
     "router": {
       "auto": "Automático",
       "jev": "TypeSafe Jev",
@@ -1774,7 +1775,7 @@
     "alwaysAllowBody": "Esto envía este {{channel}} ahora y, desde ahora, un {{channel}} de un agente a {{recipient}} desde {{account}} sale sin preguntarte.",
     "alwaysAllowNoAccount": "cualquier cuenta",
     "alwaysAllowConfirm": "Enviar y permitir siempre",
-    "appAccess": "Los trabajadores de los chats de código pueden usar MonoAgent",
-    "appAccessHint": "Activado: los trabajadores que inicia el agente principal de un chat de código reciben el perfil de acceso del espacio de trabajo (tareas, documentos, personas, bóveda, flujos de trabajo y aplicaciones de MonoAgent), y sus instrucciones explican cómo usarlo. Desactivado: ningún trabajador recibe el perfil de acceso del espacio de trabajo y la aprobación de envíos sigue activa."
+    "appAccess": "Los agentes de código reciben información sobre MonoAgent",
+    "appAccessHint": "Activado: las instrucciones de código llevan el resumen del perfil, y a los trabajadores de la organización se les ofrecen las pestañas de MonoAgent (tareas, documentos, personas, bóveda, flujos de trabajo y aplicaciones) y se les explica cómo usarlas. Desactivado: a los trabajadores de la organización no se les habla de las pestañas de MonoAgent ni se les ofrecen, y los agentes no reciben el resumen del perfil; el agente principal de código conserva el acceso completo, y los comandos solo del operador y la aprobación de envíos siguen aplicándose."
   }
 }
