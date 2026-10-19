@@ -52,13 +52,15 @@
     return out;
   }
 
-  // Control, bidi and zero-width characters: no place in a goal that the
-  // recorder and its analysis read.
-  const CONTROLS = /[\u0000-\u001f\u007f-\u009f\u061c\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g;
+  // What shows nothing on screen but the recorder and its analysis read:
+  // controls, format characters (bidi, zero-width, the byte order mark),
+  // private-use, unassigned and lone surrogate code points, variation
+  // selectors, and the Unicode tag block (invisible "ASCII smuggling").
+  const HIDDEN = /[\p{Cc}\p{Cf}\p{Co}\p{Cn}\p{Cs}\u{FE00}-\u{FE0F}\u{E0100}-\u{E01EF}\u{E0000}-\u{E007F}]/gu;
 
-  /** cleanGoal is a recording goal without markup or control characters, one line, 200 runes. */
+  /** cleanGoal is a recording goal without markup or hidden characters (HIDDEN), one line, 200 runes. */
   function cleanGoal(v) {
-    return runes(oneLine(str(v).replace(/<[^>]*>/g, " ").replace(/[<>]/g, " ").replace(CONTROLS, " ")), TITLE_RUNES);
+    return runes(oneLine(str(v).replace(/<[^>]*>/g, " ").replace(/[<>]/g, " ").replace(HIDDEN, " ")), TITLE_RUNES);
   }
 
   /** pageOf is the page a card was proposed on ({tabId, url}), checked; null when there is none. */
