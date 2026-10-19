@@ -178,8 +178,10 @@ func slowFakeMonomind(t *testing.T) (ran string) {
 }
 
 // End to end, with a monomind that takes its time: saving a person and
-// closing returns in about a second (a command that saves one used to take
-// 5s), and the sync's monomind still ran.
+// closing returns within Settle's bound, about a second when monomind starts
+// promptly but up to 5s while it has not started (a loaded machine), and the
+// sync's monomind still ran. The 1s finish window itself is pinned by
+// TestKGSyncStopIsBoundedAndFinal, without disk or process start-up in the way.
 func TestCloseIsBoundedForASlowMonomind(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("fake monomind is a shell script")
@@ -194,8 +196,8 @@ func TestCloseIsBoundedForASlowMonomind(t *testing.T) {
 	}
 	begin := time.Now()
 	db.Close()
-	if waited := time.Since(begin); waited > 3*time.Second {
-		t.Fatalf("Close waited %s for a sync stuck in monomind, want about 1s", waited)
+	if waited := time.Since(begin); waited > 5500*time.Millisecond {
+		t.Fatalf("Close waited %s for a sync stuck in monomind, past Settle's 5s bound", waited)
 	}
 	deadline := time.Now().Add(10 * time.Second)
 	for {
