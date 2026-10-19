@@ -4,8 +4,11 @@ import { X } from 'lucide-react'
 import { tasksApi } from '../services/tasks.js'
 
 // The detail drawer of one card: edit title and notes, read its history,
-// comment. Every change goes through the board hook, which shells out to the CLI.
-export default function TaskDrawer({ task, readOnly, onClose, onEdit, onComment, onArchive, archiving = false, archiveError = '' }) {
+// comment, and approve an Inbox card. readFirst: it opened so the person reads
+// the card's notes before it leaves Inbox (plan ruling F6); moveTo: the column
+// other than Ready it was moved to, offered once read. Every change goes
+// through the board hook, which shells out to the CLI.
+export default function TaskDrawer({ task, status, readFirst = false, moveTo = null, readOnly, onClose, onEdit, onComment, onApprove, onMoveTo, onArchive, archiving = false, archiveError = '' }) {
   const { t } = useTranslation()
   const [events, setEvents] = useState([])
   const [loadError, setLoadError] = useState('')
@@ -51,6 +54,7 @@ export default function TaskDrawer({ task, readOnly, onClose, onEdit, onComment,
   return (
     <aside role="dialog" aria-label={task.title} className="tb-drawer">
       <button type="button" aria-label={t('tasks.close')} onClick={onClose} className="btn btn-ghost btn-icon btn-sm tb-drawer-close"><X size={16} /></button>
+      {readFirst && status === 'inbox' && <div role="note" data-testid="read-first" className="tb-read-first">{moveTo ? t('tasks.drawer.readFirstMove') : t('tasks.drawer.readFirst')}</div>}
       <label className="tb-field">
         <div>{t('tasks.drawer.title')}</div>
         <input className="form-input" value={title} disabled={readOnly} onChange={e => setTitle(e.target.value)} />
@@ -60,6 +64,8 @@ export default function TaskDrawer({ task, readOnly, onClose, onEdit, onComment,
         <textarea className="form-textarea" value={notes} disabled={readOnly} rows={5} onChange={e => setNotes(e.target.value)} />
       </label>
       <div className="tb-drawer-actions">{!readOnly && <button className="btn btn-primary btn-sm" type="button" disabled={!dirty || !title.trim()} onClick={save}>{t('tasks.drawer.save')}</button>}
+      {!readOnly && status === 'inbox' && onApprove && <button className="btn btn-secondary btn-sm" type="button" disabled={dirty} title={dirty ? t('tasks.drawer.saveFirst') : undefined} onClick={onApprove}>{t('tasks.approve')}</button>}
+      {!readOnly && status === 'inbox' && moveTo && onMoveTo && <button className="btn btn-secondary btn-sm" type="button" disabled={dirty} title={dirty ? t('tasks.drawer.saveFirst') : undefined} onClick={onMoveTo}>{t('tasks.drawer.moveTo', { column: t(`tasks.column.${moveTo}`) })}</button>}
       {!readOnly && onArchive && <button className="btn btn-secondary btn-sm" type="button" disabled={archiving} onClick={onArchive}>{archiving ? t('tasks.archiving') : t('tasks.archive')}</button>}</div>
       {archiveError && <div role="alert">{t('tasks.archiveFailed')}: {archiveError}</div>}
 
