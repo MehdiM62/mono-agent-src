@@ -198,30 +198,48 @@ same trade-off as the environment-variable file.
 
 ## An agent's sends wait for you
 
-A step that sends a message or posts (the email, Outlook, Gmail, Slack,
-Telegram, Twilio, WhatsApp, Discord, Reddit, Mastodon, Bluesky, dev.to,
-Hashnode, Product Hunt and YouTube nodes, the social browser actions that
-message, comment, post or follow, and every API package operation marked as
-a send) doesn't run when an agent, the in-app chat or a workflow you haven't
-approved runs it, whether through a workflow run, `node run` or MCP
-`node_run`. It becomes a card in Human in Loop and goes out only when you
-approve it. An agent is recognised as in
+When a coding agent on your computer, the in-app chat or a workflow you
+haven't approved tries to send a message or post (email, Outlook, Gmail,
+Slack, Telegram, Twilio, WhatsApp, Discord, Reddit, Mastodon, Bluesky,
+dev.to, Hashnode, Product Hunt and YouTube, the social browser actions that
+message, comment, post or follow, and the API packages' sends), nothing goes
+out. The message becomes a card in Human in Loop and is sent only when you
+approve it. Coder mode's `sendApproval` setting turns this off. An agent is
+recognised as described in
 [Who can read a decrypted secret](#who-can-read-a-decrypted-secret), with the
-same limits. Coder mode's `sendApproval` setting turns this off.
+same limits.
 
-- A step is judged by the node type that runs it, whatever name it was saved
-  or called by: a legacy unprefixed name (`telegram`, `gmail`), a legacy
-  `comm.*` type that a `service.*` node runs (`comm.mastodon`), or its own,
-  with the operation a legacy config that names none runs. Releases before
-  this fix judged a step by the name it was asked about, so some sends went
-  out with no card: `node run` and MCP `node_run` under an unprefixed name,
-  and a few legacy operations and configs in workflows (see the CHANGELOG).
-- Likes, reposts, boosts and reactions aren't held: they carry none of your
-  text. Other writes to outside services (an issue, a record, a payment, a
-  file made public) aren't sends either. For an org role, a grant's outbound
-  check covers them ([Org automations and autonomy](#org-automations-and-autonomy)).
-- A general step that can reach any address (`http.request`, `core.code`'s
-  JavaScript) isn't judged as a send.
+What isn't held: likes, reposts, boosts and reactions (they carry none of your
+text); other changes on outside services (an issue, a record, a payment, a
+file made public), which a grant's outbound check covers for an org role
+([Org automations and autonomy](#org-automations-and-autonomy)); and general
+steps that can reach any address (`http.request`, `core.code`'s JavaScript).
+
+### Sends that skipped approval up to v0.152.0
+
+In releases up to and including v0.152.0, an agent, the in-app chat or a
+workflow you hadn't approved could send some messages without a card:
+
+- with `node run` under the short names `telegram`, `gmail`, `discord`,
+  `slack`, `twilio`, `whatsapp` or `email_send`, when the profile it named had
+  a saved connection for that service;
+- in a workflow, with the old node names: a Mastodon post (`comm.mastodon`), a
+  Reddit reply (`comm.reddit`), or a Discord or Outlook send with no operation
+  set (`comm.discord`, `comm.outlook_send`).
+
+Default installs were affected. MCP's `node_run` was affected only if you
+registered monoagent's MCP server with `--allow-mutations` (setup asks, and
+the default is no). If you're worried, compare what was sent from your
+connected accounts with the approvals you remember: each service's own sent
+history, and in the app the Communications tab, the messages on people's pages
+and the run history. A send that skipped approval left no card, so the
+service's own history is the full record. We know of no use of this: it was
+found by code review and confirmed by tests with fake senders.
+
+Technical detail: the gate looked a node up by the name it was given rather
+than the node type that runs it. It now resolves every name to that type
+first, and a test walks every node type and alias, through both `node run`
+and a workflow run, so a new name or operation can't slip past.
 
 ## Assistant tools (chat `--tools`)
 

@@ -94,6 +94,13 @@ Every command, tool and request that acts on a profile now names that profile. T
 
 ### Security
 
+- **An agent could send some messages without your approval.** In releases up to and including v0.152.0, a coding agent on your computer, the in-app chat or a workflow you hadn't approved could send a message or post without the Human in Loop card you approve sends with, in two ways:
+  - With `node run` under the short names `telegram`, `gmail`, `discord`, `slack`, `twilio`, `whatsapp` or `email_send`, when the profile it named had a saved connection for that service.
+  - In a workflow, with the old node names: a Mastodon post (`comm.mastodon`), a Reddit reply (`comm.reddit`), or a Discord or Outlook send with no operation set (`comm.discord`, `comm.outlook_send`).
+
+  Default installs were affected. MCP's `node_run` was affected only if you registered monoagent's MCP server with `--allow-mutations` (setup asks, and the default is no). If you're worried, compare what was sent from your connected accounts with the approvals you remember: each service's own sent history (your Sent folder, the chat, your profile), and in the app the Communications tab, the messages on people's pages and the run history. A send that skipped approval left no card, so the service's own history is the full record. We know of no use of this: it was found by code review and confirmed by tests with fake senders. Every one of these sends now waits for your approval.
+
+  Technical detail: the send gate looked a node up by the name it was given (a short alias or a legacy `comm.*` name) rather than the node type that runs it. It now resolves every name to that type first, which also covers `service.mastodon` `create_status`, `service.reddit` `reply_to_comment`, `service.discord` and `service.outlook_mail` with no operation, and the checks that decide whether a workflow sends (a Human-in-Loop step before a send, an org's decider). A test walks every node type and alias, through both `node run` and a workflow run, so a new name or operation can't slip past.
 - **Go standard library and `golang.org/x/net` updated.** The pinned toolchain moves from go1.26.6 to go1.26.9 and `golang.org/x/net` from v0.59.0 to v0.60.0, which fixes 12 standard-library advisories (net/http, crypto/tls, mime/multipart, html/template, os; GO-2026-6599 through GO-2026-6617) that `govulncheck` reported against released binaries. The vulnerability scan is clean again.
 
 ### Changed
@@ -127,11 +134,6 @@ Every command, tool and request that acts on a profile now names that profile. T
 - **Tasks tab:** a desktop board of the active profile's tasks (Inbox, Ready, In progress, Review, Done) with drag and keyboard moves, search, quick add, a detail drawer with history and comments, and a sidebar badge for what waits on a person. It only renders; every change runs through `monoagentcli task`. Cards slide to their new place (off under reduced motion), and a "How to capture" note and empty-column hints say how tasks arrive.
 
 ### Fixed
-- **An agent's send waits for your approval under every name its node goes by.** The send gate looked a node up by the name it was asked about, so in earlier releases these sends went out with no Human in Loop card when an agent, the in-app chat or a workflow you haven't approved ran them. Each name now resolves to the node type that runs it, and each of these waits for you like any other send:
-  - `node run` and MCP `node_run` under a legacy unprefixed name: `telegram`, `gmail`, `discord`, `slack`, `twilio`, `whatsapp` and `email_send`.
-  - In a workflow, the legacy `comm.mastodon` `create_status` and `comm.reddit` `reply_to_comment`, and `comm.discord` and `comm.outlook_send` with no operation.
-  - Under any name, `service.mastodon` `create_status`, `service.reddit` `reply_to_comment`, `service.discord` with no operation, and `service.outlook_mail` with no operation and a message to send.
-  - The checks that tell whether a workflow sends missed the same names, so a Human-in-Loop step before such a send wasn't kept for you to decide, and an org's decider could approve one.
 - **Extension commands that redirect the browser are the user's own.** `extension bind`, `unbind`, `reset`, `pair --open` and `install --zip` now refuse an agent, the chat and a workflow run (exit 3, `operator_only`): they decide which profile a browser acts as, which bridge it pairs with, or what code it loads. `extension pair` still prints the token, and the desktop app and the extension's side panel work as before.
 - **Installed automations keep their actions after a second boot.** A boot of the automation registry that found it already booted didn't restore the action loader, and a later boot under another `$HOME` got the first home's registry.
 - **`workflow run`'s quieter terminal output ends with the run.** Its quieting of the engine's failure lines lasted for the rest of the process, so a later run in the same process lost them.
