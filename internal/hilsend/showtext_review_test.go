@@ -141,4 +141,24 @@ func TestAnUnreviewableCardCantBeApproved(t *testing.T) {
 	if p, err := Resolve(context.Background(), st, id, false, Edit{}, false, f.run); err != nil || p.State != StateRejected {
 		t.Errorf("reject: %s, %v", p.State, err)
 	}
+	// A recipient a rule could stand for (a ticket, not a label): Resolve
+	// refuses always-allow too, stores no rule and runs nothing.
+	out, handled, err = Guard(ctxFor(db), "app.fake", workflow.NodeInput{}, map[string]interface{}{"operation": "rawreply", "ticket": "T-1",
+		"updateFields": map[string]interface{}{"publicReply": "Done", "zz": make([]interface{}, showParamKeysMax+1)}})
+	if !handled || err != nil {
+		t.Fatalf("handled=%v err=%v", handled, err)
+	}
+	id = out[0].Items[0].JSON["hil_id"].(string)
+	if p, _ := st.Get(ctxFor(db), id); p.Unreviewable == "" || p.Recipient.Label || p.Recipient.Name != "T-1" {
+		t.Fatalf("the ticket's card: unreviewable %q, recipient %+v", p.Unreviewable, p.Recipient)
+	}
+	if _, err := Resolve(context.Background(), st, id, true, Edit{}, true, f.run); !errors.Is(err, ErrUnreviewable) || len(f.calls) != 0 {
+		t.Errorf("always-allow: %v, %d run(s)", err, len(f.calls))
+	}
+	if rules, err := st.Allows(context.Background()); err != nil || len(rules) != 0 {
+		t.Errorf("always-allow stored %d rule(s): %v", len(rules), err)
+	}
+	if p, _ := st.Get(ctxFor(db), id); p.State != StatePending {
+		t.Errorf("after the refused always-allow: %s", p.State)
+	}
 }

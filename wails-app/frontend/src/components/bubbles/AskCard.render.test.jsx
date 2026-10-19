@@ -125,6 +125,19 @@ describe('AskCard: always allow a send', () => {
     rerender(<AskCard ask={send()} nameOf={nameOf} outcome={{ state: 'sent' }} onDecide={vi.fn()} />)
     expect(screen.queryByTestId('ask-always-allow')).toBeNull()
   })
+
+  // A card too large to review is refused by the CLI however it is
+  // approved (ErrUnreviewable), always-allow included.
+  it('is disabled with Approve on a card too large to review, and asks nothing', () => {
+    const onDecide = vi.fn()
+    const ask = normalizeAsk({ ...sendEmail, textReadOnly: true, unreviewable: 'v holds more than 1000000 keys and elements: too large to review' })
+    render(<><AskCard ask={ask} nameOf={nameOf} onDecide={onDecide} /><ConfirmHost /></>)
+    expect(screen.getByTestId('ask-approve')).toBeDisabled()
+    expect(screen.getByTestId('ask-always-allow')).toBeDisabled()
+    fireEvent.click(screen.getByTestId('ask-always-allow'))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(onDecide).not.toHaveBeenCalled()
+  })
 })
 
 describe('AskCard: send approval', () => {
