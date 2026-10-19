@@ -19,7 +19,7 @@
  * and says the page may have steered it.
  *
  *   fromTool(name, payload, id, readPage)  -> a card with a new nonce, or null
- *   clone(list), settle(state, id, patch), clientId(p), view(p)  pure
+ *   clone(list), settle(state, key, patch), keyOf(p), clientId(p), view(p)  pure
  *   card(doc, p, {add, dismiss})            DOM, no innerHTML
  */
 
@@ -115,10 +115,17 @@
     return out;
   }
 
-  /** settle records what became of a card ({state, feedback}); true when there was one. */
-  function settle(chatState, id, patch) {
+  /**
+   * keyOf names one card among all of a conversation's: its nonce. Call ids
+   * are not enough, as some runtimes number their calls per turn
+   * ("functions.propose_task:0"). A card without a nonce is known by its id.
+   */
+  const keyOf = (p) => (p && NONCE.test(p.nonce) ? p.nonce : str(p && p.id));
+
+  /** settle records what became of a card ({state, feedback}), found by its key; true when there was one. */
+  function settle(chatState, key, patch) {
     for (const m of (chatState && chatState.messages) || []) {
-      const p = (m.proposals || []).find((x) => x.id === id);
+      const p = (m.proposals || []).find((x) => keyOf(x) === key);
       if (!p) continue;
       if (patch && STATES.has(patch.state)) p.state = patch.state;
       if (patch && typeof patch.feedback === "string") p.feedback = patch.feedback.slice(0, 300);
@@ -195,5 +202,5 @@
     return box;
   }
 
-  root.MonoChatProposals = { fromTool, clone, settle, clientId, view, card, TOOLS, KINDS, TITLE_RUNES, NOTES_BYTES };
+  root.MonoChatProposals = { fromTool, clone, settle, keyOf, clientId, view, card, TOOLS, KINDS, TITLE_RUNES, NOTES_BYTES };
 })(globalThis);

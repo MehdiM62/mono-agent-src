@@ -108,7 +108,7 @@
       else if (m.open && !m.tools.length) box.appendChild(document.createTextNode("Thinking…"));
       // What the chat proposed: a card each, sent on only by the person's click.
       for (const p of (Proposals && m.proposals) || []) {
-        box.appendChild(Proposals.card(document, p, { add: () => confirmProposal(p.id), dismiss: () => dismissProposal(p.id) }));
+        box.appendChild(Proposals.card(document, p, { add: () => confirmProposal(Proposals.keyOf(p)), dismiss: () => dismissProposal(Proposals.keyOf(p)) }));
       }
     } else if (m.role === "user") {
       const text = document.createElement("div");
@@ -404,9 +404,9 @@
 
   // ── proposals (chat_proposals.js): only the person's click sends one ──
 
-  function proposalOf(id) {
+  function proposalOf(key) {
     for (const m of chat.messages) {
-      const p = (m.proposals || []).find((x) => x.id === id);
+      const p = (m.proposals || []).find((x) => Proposals.keyOf(x) === key);
       if (p) return p;
     }
     return null;
