@@ -284,6 +284,9 @@ function SendBody({ ask, nameOf, canAct, busy, outcome, onDecide, onNavigate }) 
         </div>
         {acct && <div><dt>{t('ask.from')}</dt><dd data-testid="ask-account">{acct}</dd></div>}
         {ask.subject && <div><dt>{t('ask.subject')}</dt><dd>{ask.subject}</dd></div>}
+        {(ask.details || []).map((d, i) => (
+          <div key={d.key + i}><dt>{t(`ask.detail.${d.key}`, { defaultValue: d.key })}</dt><dd data-testid={`ask-detail-${d.key}`}>{d.value}</dd></div>
+        ))}
       </dl>
       {editing && pending && !ask.textReadOnly ? (
         <textarea className="ask-text-edit" data-testid="ask-text-edit" rows={Math.min(12, Math.max(4, text.split('\n').length + 1))}

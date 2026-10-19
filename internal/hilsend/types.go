@@ -61,6 +61,10 @@ type Payload struct {
 	Subject     string       `json:"subject,omitempty"`
 	Attachments []Attachment `json:"attachments"`
 	CreatedAt   string       `json:"createdAt"`
+	// Details are what else an email send carries, as it will be sent: its
+	// copies, whom a reply answers, the body type, the connection
+	// (detailsOf).
+	Details []Detail `json:"details,omitempty"`
 
 	// TextReadOnly: the op names no text field, so the text (if any) says
 	// what the step sends and can't be edited (ErrNoText).

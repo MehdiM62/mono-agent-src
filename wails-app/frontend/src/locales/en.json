@@ -1662,6 +1662,16 @@
     "to": "To",
     "from": "From",
     "subject": "Subject",
+    "detail": {
+      "cc": "Cc",
+      "bcc": "Bcc",
+      "replyAll": "Reply all",
+      "inReplyTo": "In reply to",
+      "draft": "Draft",
+      "references": "References",
+      "bodyType": "Body type",
+      "connection": "Connection"
+    },
     "profile": "profile",
     "person": "open person",
     "unknownRecipient": "Unknown recipient",

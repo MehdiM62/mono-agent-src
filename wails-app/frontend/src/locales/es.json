@@ -1620,6 +1620,16 @@
     "to": "Para",
     "from": "De",
     "subject": "Asunto",
+    "detail": {
+      "cc": "Cc",
+      "bcc": "Cco",
+      "replyAll": "Responder a todos",
+      "inReplyTo": "En respuesta a",
+      "draft": "Borrador",
+      "references": "Referencias",
+      "bodyType": "Tipo de cuerpo",
+      "connection": "Conexión"
+    },
     "profile": "perfil",
     "person": "abrir persona",
     "unknownRecipient": "Destinatario desconocido",

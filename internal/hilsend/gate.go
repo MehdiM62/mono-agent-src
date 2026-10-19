@@ -215,6 +215,7 @@ func prepare(st Store, nodeType string, t target, who PreparedBy, config map[str
 		p := Payload{
 			PreparedBy: who, Action: t.action, Channel: t.channelOf(nodeType), Account: t.accountOf(nodeType, o.config),
 			Recipient: rec, Text: text, Subject: subject, Attachments: attachments(o.config), NodeType: nodeType,
+			Details: detailsOf(t, o.config),
 		}
 		out = append(out, prepared{payload: p, replay: replay{
 			NodeType: nodeType, Config: stripSecrets(o.config), Input: o.input, TextField: textField, SubjectKey: subjectField,

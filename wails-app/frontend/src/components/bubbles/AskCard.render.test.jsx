@@ -84,6 +84,20 @@ describe('AskCard: workflow Human-in-Loop', () => {
 })
 
 describe('AskCard: send approval', () => {
+  it('shows every copy and the rest of what an email carries, as it will be sent', () => {
+    const ask = normalizeAsk({ ...sendEmail, details: [
+      { key: 'cc', value: 'eve@example.test' }, { key: 'bcc', value: 'mallory@example.test' },
+      { key: 'replyAll', value: 'yes' }, { key: 'connection', value: 'conn-new' }, { key: 'bcc', value: '' },
+    ] })
+    render(<AskCard ask={ask} nameOf={nameOf} />)
+    expect(screen.getByTestId('ask-detail-cc')).toHaveTextContent('eve@example.test')
+    expect(screen.getByTestId('ask-detail-bcc')).toHaveTextContent('mallory@example.test')
+    expect(screen.getAllByTestId('ask-detail-bcc')).toHaveLength(1)
+    expect(screen.getByTestId('org-chat-send')).toHaveTextContent('Bcc')
+    expect(screen.getByTestId('org-chat-send')).toHaveTextContent('Reply all')
+    expect(screen.getByTestId('ask-detail-connection')).toHaveTextContent('conn-new')
+  })
+
   it('shows the recipient with a profile link, the account, the exact text and who prepared it', () => {
     const onNavigate = vi.fn()
     render(<AskCard ask={send()} nameOf={nameOf} onNavigate={onNavigate} />)
