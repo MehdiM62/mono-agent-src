@@ -250,6 +250,10 @@ func (e *WorkflowEngine) Stop() error {
 		e.cancel()
 	}
 
+	// End the chat watches first, so that the chats deregistering next
+	// doesn't read to them as an edit.
+	e.webhookServer.endWatches()
+
 	// Deactivate all triggers (stops cron jobs and deregisters webhooks).
 	e.triggerMgr.DeactivateAll()
 
