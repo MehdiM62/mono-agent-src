@@ -93,6 +93,7 @@ Every command, tool and request that acts on a profile now names that profile. T
 - **`install.sh` installs to `~/.local/bin` when `/usr/local/bin` needs sudo**, and warns if an older copy elsewhere on your PATH would run instead.
 
 ### Security
+- **The macOS release checks the app's main executable too**, not only the CLI, for the hardened runtime and for dyld ignoring `DYLD_` variables (the latter where SIP is enforced on the runner).
 
 - **Go standard library and `golang.org/x/net` updated.** The pinned toolchain moves from go1.26.6 to go1.26.9 and `golang.org/x/net` from v0.59.0 to v0.60.0, which fixes 12 standard-library advisories (net/http, crypto/tls, mime/multipart, html/template, os; GO-2026-6599 through GO-2026-6617) that `govulncheck` reported against released binaries. The vulnerability scan is clean again.
 
