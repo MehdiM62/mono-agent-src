@@ -1227,7 +1227,8 @@
       "mcp": "usando {{name}}",
       "todo": "actualizando su plan",
       "org": "dirigiendo el equipo: {{name}}",
-      "other": "usando {{name}}"
+      "other": "usando {{name}}",
+      "vault": "ejecutando un comando de la bóveda (oculto)"
     },
     "pickConfidence": "elección de rol {{value}}",
     "jevConfidence": "elección de modelo {{value}}",

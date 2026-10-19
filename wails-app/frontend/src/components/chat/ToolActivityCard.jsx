@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { ChevronDown, ChevronRight, Loader, Check, X, Copy } from 'lucide-react'
 import { useTicker, formatDuration, copyToClipboard } from './toolCardUtils.js'
 import { NativeToolCard } from './NativeToolCard.jsx'
+import { maskArgs } from './credentials.js'
 
 function formatArgs(args) {
   if (args === null || args === undefined) return null
@@ -54,7 +55,7 @@ function GenericToolCard({ call, turnId = '', isLive = true }) {
   // prominent... never collapse a card the user is actively inspecting").
   const [open, setOpen] = useState(failed)
 
-  const argsText = formatArgs(call.arguments)
+  const argsText = formatArgs(maskArgs(call.arguments)) // credentials read ••• (#872)
   const resultText = formatResult(call)
   const panelId = `tool-card-${turnId}-${call.callId}`
 

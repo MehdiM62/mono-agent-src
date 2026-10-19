@@ -5,6 +5,7 @@ import { useTicker, formatDuration } from './toolCardUtils.js'
 import { Tag, Section, preStyle, mono, CYAN } from './nativeToolParts.jsx'
 import { describe, kindOf, vaultHidden } from './nativeToolDescribe.jsx'
 import { vaultRelated } from './toolLinks.js'
+import { maskArgs, maskCredentials } from './credentials.js'
 import { ToolLink } from './ToolLink.jsx'
 import { ToolResultImages } from './ChatAttachments.jsx'
 
@@ -53,8 +54,11 @@ function callStatus(call, isLive) {
 // a call on one of the app's tabs its "Open in <tab>" link (#473).
 export function NativeToolCard({ call, turnId = '', isLive = true, childCalls = [], renderChild = () => null, onNavigate }) {
   const { t } = useTranslation()
-  const { args, raw } = parseArgs(call.arguments)
-  // Arguments cut short that hold a vault command show nothing of it (#872).
+  const parsed = parseArgs(call.arguments)
+  // Credentials in the input read •••, and arguments cut short that hold a
+  // vault command show nothing of it (#872).
+  const args = maskArgs(parsed.args)
+  const raw = maskCredentials(parsed.raw)
   const withheld = raw != null && vaultRelated(raw)
   const d = withheld ? vaultHidden(call, t) : describe(call, args, childCalls, renderChild, t)
   const status = callStatus(call, isLive)

@@ -1,6 +1,9 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { AlertTriangle, Square } from 'lucide-react'
 import { api } from '../../services/api.js'
+import { vaultRelated } from './toolLinks.js'
+import { maskCredentials } from './credentials.js'
 
 // The warning a coder turn leaves when it ends with background processes
 // still running (notice coder.background, #203), with "Stop all": `coder
@@ -26,7 +29,14 @@ export function stopSummary(res) {
   return parts.length ? parts.join(' · ') : 'Nothing left to stop'
 }
 
+// shownCommand is a process's command line as the banner shows it: one that
+// may touch the vault says only that, and a credential in it reads ••• (#872).
+function shownCommand(command, t) {
+  return vaultRelated(command) ? t('toolLinks.vaultRelated') : maskCredentials(command)
+}
+
 export function CoderBackgroundBanner({ notice }) {
+  const { t } = useTranslation()
   const [state, setState] = useState(null) // { busy } | { result } | { error }
   const canStop = !!notice.conversationId && !!notice.turnId
   const stopAll = async () => {
@@ -65,7 +75,7 @@ export function CoderBackgroundBanner({ notice }) {
           {processes.map(p => (
             <li key={p.pid} style={{ display: 'flex', gap: 8, fontFamily: mono, fontSize: 9.5, minWidth: 0 }}>
               <span style={{ color: 'var(--text-muted)', flexShrink: 0 }}>{p.pid}</span>
-              <span title={p.command} style={{ color: '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.command || '(unknown command)'}</span>
+              <span title={shownCommand(p.command, t)} style={{ color: '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{shownCommand(p.command, t) || '(unknown command)'}</span>
             </li>
           ))}
         </ul>
