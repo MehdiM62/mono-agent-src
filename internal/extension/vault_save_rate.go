@@ -87,29 +87,38 @@ const liveProfileTTL = time.Second
 // others waiting on the same read.
 const liveProfileReadTimeout = 2 * time.Second
 
+// liveProfileWaitMargin is how much longer than the read timeout a caller
+// waits for a read. A read that ignores its ctx (opening the database takes
+// none) runs on behind the single-flight guard, but holds no caller longer.
+const liveProfileWaitMargin = 250 * time.Millisecond
+
 // liveProfileCache answers "is this profile live?" from a list read at most
 // once a liveProfileTTL, so a stream of made-up ids costs one list a second.
 // A profile made since the last read is not in the list yet: its save is
 // refused (invalid_input) until the next read, at most liveProfileTTL later.
 type liveProfileCache struct {
-	mu   sync.Mutex
-	read func(context.Context) ([]string, error)
-	now  func() time.Time
-	at   time.Time     // when the last read started, successful or not
-	done chan struct{} // closed when the read in flight ends; nil with none in flight
-	ids  map[string]bool
-	err  error // the last read's failure, while no list was ever read
+	mu      sync.Mutex
+	read    func(context.Context) ([]string, error)
+	now     func() time.Time
+	timeout time.Duration // one read's; liveProfileReadTimeout but in tests
+	at      time.Time     // when the last read started, successful or not
+	done    chan struct{} // closed when the read in flight ends; nil with none in flight
+	ids     map[string]bool
+	err     error // the last read's failure, while no list was ever read
 }
 
 func newLiveProfileCache(read func(context.Context) ([]string, error), now func() time.Time) *liveProfileCache {
-	return &liveProfileCache{read: read, now: now}
+	return &liveProfileCache{read: read, now: now, timeout: liveProfileReadTimeout}
 }
 
 // has reports whether id is a live profile. The list is read again only after
 // liveProfileTTL, whether the last read worked or not; a failed read keeps the
 // list read before it, and with none yet its error is the answer. One read
 // runs at a time, outside the lock: a caller that finds one in flight waits
-// for its result, or returns at once when its own ctx ends.
+// for its result, or returns at once when its own ctx ends. A read that
+// overruns its timeout by liveProfileWaitMargin is not waited for any longer:
+// the caller is answered from the list read before it, or told the profiles
+// cannot be read now when there is none.
 func (c *liveProfileCache) has(ctx context.Context, id string) (bool, error) {
 	c.mu.Lock()
 	if now := c.now(); c.done == nil && (c.at.IsZero() || now.Sub(c.at) >= liveProfileTTL) {
@@ -120,21 +129,28 @@ func (c *liveProfileCache) has(ctx context.Context, id string) (bool, error) {
 	done := c.done
 	c.mu.Unlock()
 	if done != nil {
+		overrun := time.NewTimer(c.timeout + liveProfileWaitMargin)
+		defer overrun.Stop()
 		select {
 		case <-done:
+		case <-overrun.C:
 		case <-ctx.Done():
 			return false, ctx.Err()
 		}
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.ids == nil {
+	switch {
+	case c.ids != nil:
+		return c.ids[id], nil
+	case c.err != nil:
 		return false, c.err
 	}
-	return c.ids[id], nil
+	// Only a wait cut short gets here: every read that ends sets one of them.
+	return false, Unavailable("MonoAgent could not read its profiles in time; try again")
 }
 
-// refresh reads the list once, within liveProfileReadTimeout, and closes done.
+// refresh reads the list once, within c.timeout, and closes done.
 // It runs on its own goroutine, so a panic in read is turned into a failed
 // read here rather than taking the bridge down.
 func (c *liveProfileCache) refresh(ctx context.Context, done chan struct{}) {
@@ -148,7 +164,7 @@ func (c *liveProfileCache) refresh(ctx context.Context, done chan struct{}) {
 				err = fmt.Errorf("vault.save: listing the profiles panicked: %v", r)
 			}
 		}()
-		ctx, cancel := context.WithTimeout(ctx, liveProfileReadTimeout)
+		ctx, cancel := context.WithTimeout(ctx, c.timeout)
 		defer cancel()
 		list, err = c.read(ctx)
 	}()

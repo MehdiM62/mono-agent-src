@@ -113,3 +113,72 @@ func TestLiveProfileCache_PanickingReadIsAnError(t *testing.T) {
 		t.Errorf("has = %v, %v; want the panic as an error", ok, err)
 	}
 }
+
+// A read that ignores its ctx (the production read opens the database, which
+// takes none) holds no caller past its timeout plus liveProfileWaitMargin:
+// eight callers get the list read before it, a cache with no list yet says
+// unavailable, and the stuck read is still the only one in flight.
+func TestLiveProfileCache_ReadIgnoringItsContextHoldsNoCallerPastTheTimeout(t *testing.T) {
+	stuck := make(chan struct{})
+	t.Cleanup(func() { close(stuck) })
+	var reads atomic.Int32
+	read := func(context.Context) ([]string, error) {
+		if reads.Add(1) > 1 {
+			<-stuck // a locked database: the read's ctx is never looked at
+		}
+		return []string{"p-work"}, nil
+	}
+	now := time.Date(2026, 10, 19, 12, 0, 0, 0, time.UTC)
+	c := newLiveProfileCache(read, func() time.Time { return now })
+	c.timeout = 100 * time.Millisecond
+	if ok, err := c.has(context.Background(), "p-work"); err != nil || !ok {
+		t.Fatalf("the first read: %v, %v", ok, err)
+	}
+	now = now.Add(liveProfileTTL)
+
+	bound := c.timeout + liveProfileWaitMargin
+	type answer struct {
+		ok   bool
+		err  error
+		took time.Duration
+	}
+	answers := make(chan answer, 8)
+	for i := 0; i < 8; i++ {
+		go func() {
+			t0 := time.Now()
+			ok, err := c.has(context.Background(), "p-work")
+			answers <- answer{ok, err, time.Since(t0)}
+		}()
+	}
+	for i := 0; i < 8; i++ {
+		select {
+		case a := <-answers:
+			if a.err != nil || !a.ok {
+				t.Errorf("caller %d: %v, %v; want the list read before (p-work live)", i, a.ok, a.err)
+			}
+			if a.took > bound+time.Second {
+				t.Errorf("caller %d waited %v, bound %v", i, a.took, bound)
+			}
+		case <-time.After(bound + 2*time.Second):
+			t.Fatalf("caller %d is still waiting on a read that ignores its ctx", i)
+		}
+	}
+	if n := reads.Load(); n != 2 {
+		t.Errorf("%d reads, want 2 (the stuck one is still the read in flight)", n)
+	}
+
+	// With no list read yet, the answer is unavailable, not a wait.
+	empty := newLiveProfileCache(func(context.Context) ([]string, error) { <-stuck; return nil, nil }, time.Now)
+	empty.timeout = 100 * time.Millisecond
+	got := make(chan error, 1)
+	go func() { _, err := empty.has(context.Background(), "p-work"); got <- err }()
+	select {
+	case err := <-got:
+		var re *RequestError
+		if !errors.As(err, &re) || re.Code != CodeUnavailable {
+			t.Errorf("no list yet and the read stuck: %v, want unavailable", err)
+		}
+	case <-time.After(bound + 2*time.Second):
+		t.Fatal("the caller of a cache with no list is still waiting on a read that ignores its ctx")
+	}
+}
