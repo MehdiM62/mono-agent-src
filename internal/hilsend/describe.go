@@ -85,6 +85,7 @@ type target struct {
 	exprs   []string
 	// undeclared: show holds keys the op doesn't declare (showText).
 	undeclared bool
+	unsent     []string
 }
 
 // classify reports whether nodeType with config is an outbound send.
@@ -104,7 +105,7 @@ func classify(nodeType string, config map[string]interface{}) (target, bool) {
 	if c := classifierOf(); c != nil {
 		if s, ok := c.Classify(nodeType, config); ok {
 			return target{action: s.Action, text: s.Text, subject: s.Subject, to: s.To, channel: s.Channel, perItem: s.PerItem,
-				toLabel: s.ToLabel, toUnset: s.ToUnset, op: s.Op, show: s.Show, exprs: s.Exprs, undeclared: s.Undeclared}, true
+				toLabel: s.ToLabel, toUnset: s.ToUnset, op: s.Op, show: s.Show, exprs: s.Exprs, undeclared: s.Undeclared, unsent: s.Unsent}, true
 		}
 	}
 	return target{}, false

@@ -38,6 +38,9 @@ func TestSendsAnnotationIsChecked(t *testing.T) {
 		`,"sends":{"action":"post","if":"body??"}`:                   `"?" goes alone`,
 		`,"sends":{"action":"post","to":["to?"]}`:                    `"?" goes in sends.if only`,
 		`,"sends":{"action":"post","show":["body"]}`:                 "",
+		`,"sends":{"action":"post","show":["body if to"]}`:           "",
+		`,"sends":{"action":"post","show":["body if nobody"]}`:       `"nobody"`,
+		`,"sends":{"action":"post","show":["body if to=x?"]}`:        `"?" goes alone`,
 		`,"sends":{"action":"post","show":["nobody"]}`:               `"nobody"`,
 		`,"sends":{"action":"post","show":["body"],"text":["body"]}`: "don't go together",
 	} {

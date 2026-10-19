@@ -26,8 +26,10 @@ const (
 // the config sets. An object, or raw JSON text that holds one, lists each
 // top-level key with its own value, every key's name in sight. A param
 // given as an expression (exprs) says so: its keys are the run's, and on an
-// empty item it resolves to "", which would read as nothing undeclared.
-func showText(op string, show, exprs []string, undeclared bool, config map[string]interface{}) string {
+// empty item it resolves to "", which would read as nothing undeclared. One
+// the run doesn't send (unsent: raw JSON its switch leaves off) is marked
+// "(not sent)".
+func showText(op string, show, exprs, unsent []string, undeclared bool, config map[string]interface{}) string {
 	var b strings.Builder
 	if undeclared {
 		b.WriteString(op + " with fields it doesn't declare:")
@@ -35,8 +37,12 @@ func showText(op string, show, exprs []string, undeclared bool, config map[strin
 		b.WriteString(op + " with:")
 	}
 	for _, path := range show {
+		label := path
+		if slices.Contains(unsent, path) {
+			label += " (not sent)"
+		}
 		if slices.Contains(exprs, path) {
-			b.WriteString("\n" + path + ": (an expression)")
+			b.WriteString("\n" + label + ": (an expression)")
 			continue
 		}
 		val := valueAt(config, path)
@@ -44,11 +50,11 @@ func showText(op string, show, exprs []string, undeclared bool, config map[strin
 			continue
 		}
 		if obj, ok := objectOf(val); ok {
-			b.WriteString("\n" + path + ":")
+			b.WriteString("\n" + label + ":")
 			writeKeys(&b, obj)
 			continue
 		}
-		b.WriteString("\n" + path + ": " + cardValue(val, showValueMax))
+		b.WriteString("\n" + label + ": " + cardValue(val, showValueMax))
 	}
 	return b.String()
 }

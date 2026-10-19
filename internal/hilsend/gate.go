@@ -203,7 +203,7 @@ func prepare(st Store, nodeType string, t target, who PreparedBy, config map[str
 			// No message to show or edit: what the step would send, read-only
 			// (keys its op doesn't declare, or the params its annotation
 			// shows).
-			textField, text = "", showText(t.op, t.show, t.exprs, t.undeclared, o.config)
+			textField, text = "", showText(t.op, t.show, t.exprs, t.unsent, t.undeclared, o.config)
 		}
 		subjectField, subject := firstKey(o.config, t.subject)
 		rec := o.recipient

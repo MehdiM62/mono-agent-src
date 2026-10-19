@@ -2795,8 +2795,8 @@
           "apiName": "flow"
         },
         "show": [
-          "variablesUi.variablesValues",
-          "variablesJson"
+          "variablesUi.variablesValues if jsonParameters!=true",
+          "variablesJson if jsonParameters"
         ],
         "if": [
           "jsonParameters",

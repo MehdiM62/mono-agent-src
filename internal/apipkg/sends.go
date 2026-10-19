@@ -30,7 +30,9 @@ type Sends struct {
 	// Show names the params the card lists, read-only, in place of a
 	// message, for an op whose words are settings or a flow's inputs rather
 	// than a message the approver could edit (Zulip's stream update, a
-	// Salesforce flow's variables). It goes without Text.
+	// Salesforce flow's variables). It goes without Text. "param if cond"
+	// (cond as in If) marks the param "not sent" on the card when cond
+	// doesn't hold: "variablesJson if jsonParameters".
 	Show []string `json:"show,omitempty"`
 	// ToLabel names what a To param holds when it is not an address the
 	// card can show as it is ("invoiceId": "invoice" shows "invoice inv9");
@@ -133,7 +135,16 @@ func (o *Operation) checkSends(where string, fields map[string]bool) []string {
 	if len(s.Show) > 0 && len(s.Text) > 0 {
 		add("sends.show and sends.text don't go together: the card lists the params or shows a message")
 	}
-	for _, k := range s.If {
+	conds := append([]string{}, s.If...)
+	names := append(append(append([]string{}, s.To...), s.Text...), s.Subject...)
+	for _, k := range s.Show {
+		name, cond, ok := strings.Cut(k, " if ")
+		names = append(names, name)
+		if ok {
+			conds = append(conds, cond)
+		}
+	}
+	for _, k := range conds {
 		// "param?" alone: on "p=x?", "p not in a|b?" or "p?!" the "?" would
 		// be read as part of a value, and the condition would never hold.
 		if strings.Contains(k, "?") && (strings.Count(k, "?") > 1 || !strings.HasSuffix(k, "?") ||
@@ -141,9 +152,9 @@ func (o *Operation) checkSends(where string, fields map[string]bool) []string {
 			add("sends.if %q: \"?\" goes alone at the end of a param (\"param?\"), not with =, != or not in", k)
 		}
 	}
-	for i, keys := range [][]string{s.To, s.Text, s.Subject, s.Show, s.If} {
+	for i, keys := range [][]string{names, conds} {
 		for _, k := range keys {
-			if i < 4 && strings.Contains(k, "?") {
+			if i == 0 && strings.Contains(k, "?") {
 				add("sends names %q: \"?\" goes in sends.if only", k)
 				continue
 			}
@@ -180,6 +191,9 @@ type Send struct {
 	Show       []string
 	Exprs      []string
 	Undeclared bool
+	// Unsent are the Show params the run doesn't send ("param if cond"
+	// whose cond doesn't hold), which the card marks as such.
+	Unsent []string
 	// PerItem lists the params the node resolves per input item (an app
 	// node's fields); a native node's extension resolves none.
 	PerItem []string
@@ -237,8 +251,14 @@ func (o *Operation) sendFor(pkg *Package, config map[string]any) (Send, bool) {
 		out.Op, out.Undeclared = o.opLabel(pkg), true
 		out.Show, out.Exprs = undeclaredPaths(keys)
 	case len(s.Show) > 0:
-		out.Op, out.Show = o.opLabel(pkg), s.Show
-		for _, p := range s.Show {
+		out.Op = o.opLabel(pkg)
+		params := o.runParams(config)
+		for _, e := range s.Show {
+			p, cond, _ := strings.Cut(e, " if ")
+			out.Show = append(out.Show, p)
+			if cond != "" && !condHolds(params, cond) {
+				out.Unsent = append(out.Unsent, p)
+			}
 			if v, ok := paramAt(config, p).(string); ok && hasTemplate(v) {
 				out.Exprs = append(out.Exprs, p)
 			}
@@ -283,51 +303,49 @@ func (o *Operation) sends(config map[string]any) bool {
 	if len(s.If) == 0 {
 		return true
 	}
+	params := o.runParams(config)
+	return slices.ContainsFunc(s.If, func(k string) bool { return condHolds(params, k) })
+}
+
+// runParams is config as the run sees it: unset params take their field
+// default.
+func (o *Operation) runParams(config map[string]any) map[string]any {
 	params := make(map[string]any, len(config))
 	for k, v := range config {
 		params[k] = v
 	}
 	applyDefaults(o, params)
-	for _, k := range s.If {
-		if name, ok := strings.CutSuffix(k, "?"); ok {
-			if slices.ContainsFunc(condValues(params, name), func(v any) bool { return v != nil }) {
-				return true
-			}
-			continue
-		}
-		if name, set, ok := strings.Cut(k, notIn); ok {
-			v := paramAt(params, name)
-			got := strings.TrimSpace(fmt.Sprint(v))
-			if isSet(v) && (hasTemplate(got) || !slices.ContainsFunc(strings.Split(set, "|"), func(w string) bool {
-				return strings.EqualFold(strings.TrimSpace(w), got)
-			})) {
-				return true
-			}
-			continue
-		}
-		name, want, eq := strings.Cut(k, "=")
-		not := strings.HasSuffix(name, "!")
-		v := paramAt(params, strings.TrimSuffix(name, "!"))
-		got := strings.TrimSpace(fmt.Sprint(v))
-		switch {
-		case !eq:
-			if slices.ContainsFunc(condValues(params, name), isSet) {
-				return true
-			}
-		case v != nil && hasTemplate(got):
-			return true
-		case not:
-			if v == nil || !strings.EqualFold(got, want) {
-				return true
-			}
-		case slices.ContainsFunc(condValues(params, name), func(x any) bool {
-			got := strings.TrimSpace(fmt.Sprint(x))
-			return x != nil && (hasTemplate(got) || strings.EqualFold(got, want))
-		}):
-			return true
-		}
+	return params
+}
+
+// condHolds reports whether one sends.if condition holds for params.
+func condHolds(params map[string]any, k string) bool {
+	if name, ok := strings.CutSuffix(k, "?"); ok {
+		return slices.ContainsFunc(condValues(params, name), func(v any) bool { return v != nil })
 	}
-	return false
+	if name, set, ok := strings.Cut(k, notIn); ok {
+		v := paramAt(params, name)
+		got := strings.TrimSpace(fmt.Sprint(v))
+		return isSet(v) && (hasTemplate(got) || !slices.ContainsFunc(strings.Split(set, "|"), func(w string) bool {
+			return strings.EqualFold(strings.TrimSpace(w), got)
+		}))
+	}
+	name, want, eq := strings.Cut(k, "=")
+	not := strings.HasSuffix(name, "!")
+	v := paramAt(params, strings.TrimSuffix(name, "!"))
+	got := strings.TrimSpace(fmt.Sprint(v))
+	switch {
+	case !eq:
+		return slices.ContainsFunc(condValues(params, name), isSet)
+	case v != nil && hasTemplate(got):
+		return true
+	case not:
+		return v == nil || !strings.EqualFold(got, want)
+	}
+	return slices.ContainsFunc(condValues(params, name), func(x any) bool {
+		got := strings.TrimSpace(fmt.Sprint(x))
+		return x != nil && (hasTemplate(got) || strings.EqualFold(got, want))
+	})
 }
 
 // condValues is the values at a bare condition's param name. A list on the

@@ -27,7 +27,9 @@ type Classified struct {
 	Show       []string
 	Exprs      []string
 	Undeclared bool
-	PerItem    []string
+	// Unsent are the Show params the run doesn't send, marked so.
+	Unsent  []string
+	PerItem []string
 }
 
 // Classifier classifies node types this package's table doesn't know: the

@@ -37,6 +37,11 @@ func TestASettingsOrFlowCardListsWhatItSends(t *testing.T) {
 		{"app.zulip", cfg{"resource": "stream", "operation": "update", "streamId": "7", "jsonParameters": true,
 			"additionalFieldsJson": `{"description":"` + strings.Repeat("A", 600) + `","is_private":true}`},
 			"zulip stream/update with:\nadditionalFieldsJson:\n  \"description\": \"" + strings.Repeat("A", 199) + "…\n  \"is_private\": true"},
+		// A flow sends its JSON or its variables fields, by its switch: the
+		// other is marked.
+		{"service.salesforce", cfg{"resource": "flow", "operation": "invoke", "apiName": "Notify", "jsonParameters": true,
+			"variablesJson": `{"body":"Hi Ada"}`, "variablesUi": cfg{"variablesValues": []interface{}{cfg{"name": "body", "value": "Hello"}}}},
+			"salesforce flow/invoke with:\nvariablesUi.variablesValues (not sent): [{\"name\":\"body\",\"value\":\"Hello\"}]\nvariablesJson:\n  \"body\": \"Hi Ada\""},
 		{"service.salesforce", cfg{"resource": "flow", "operation": "invoke", "apiName": "Notify",
 			"variablesUi": cfg{"variablesValues": []interface{}{cfg{"name": "body", "value": "Hi Ada"}}}},
 			"salesforce flow/invoke with:\nvariablesUi.variablesValues: [{\"name\":\"body\",\"value\":\"Hi Ada\"}]"},

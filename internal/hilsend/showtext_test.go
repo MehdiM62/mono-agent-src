@@ -29,14 +29,14 @@ func TestShowTextListsEveryKeyOfAPaddedObject(t *testing.T) {
 			map[string]interface{}{"raw": manyKeys(showKeysMax + 3)},
 			[]string{"\n  \"k00\": 0", "\n  \"k19\": 19\n  +3 more keys: \"k20\", \"k21\", \"k22\""}},
 	} {
-		got := showText("op x/y", []string{"raw"}, nil, false, c.config)
+		got := showText("op x/y", []string{"raw"}, nil, nil, false, c.config)
 		for _, w := range c.want {
 			if !strings.Contains(got, w) {
 				t.Errorf("%s: card text\n%s\nlacks %q", name, got, w)
 			}
 		}
 	}
-	if got := showText("op x/y", []string{"raw"}, nil, false, map[string]interface{}{"raw": "not {json"}); got != "op x/y with:\nraw: \"not {json\"" {
+	if got := showText("op x/y", []string{"raw"}, nil, nil, false, map[string]interface{}{"raw": "not {json"}); got != "op x/y with:\nraw: \"not {json\"" {
 		t.Errorf("a string that isn't an object: %q", got)
 	}
 }
@@ -62,12 +62,12 @@ func TestShowTextEscapesHiddenCharactersAndCutsOnARune(t *testing.T) {
 		"private\uE000use":              "\"private\\uE000use\"",
 		"plain text, \u00E9 and \u65E5": "\"plain text, \u00E9 and \u65E5\"",
 	} {
-		if got := showText("op x/y", []string{"v"}, nil, false, map[string]interface{}{"v": in}); got != "op x/y with:\nv: "+want {
+		if got := showText("op x/y", []string{"v"}, nil, nil, false, map[string]interface{}{"v": in}); got != "op x/y with:\nv: "+want {
 			t.Errorf("%q: %q, want %q", in, got, want)
 		}
 	}
 	for _, v := range []interface{}{strings.Repeat("é", 400), map[string]interface{}{"k": strings.Repeat("日", 100)}} {
-		got := showText("op x/y", []string{"v"}, nil, false, map[string]interface{}{"v": v})
+		got := showText("op x/y", []string{"v"}, nil, nil, false, map[string]interface{}{"v": v})
 		if !utf8.ValidString(got) || strings.ContainsRune(got, utf8.RuneError) || !strings.Contains(got, "…") {
 			t.Errorf("cut %T: %q", v, got)
 		}

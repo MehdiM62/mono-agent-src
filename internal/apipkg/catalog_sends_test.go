@@ -140,6 +140,27 @@ func TestSendOf(t *testing.T) {
 			t.Errorf("%s: %+v, want op %q showing %v", c.nodeType, got, c.op, c.show)
 		}
 	}
+	// A shown param the run doesn't send is marked: raw JSON its switch
+	// leaves off, a Salesforce flow's variables fields when it sends JSON.
+	vars := map[string]any{"variablesValues": []any{map[string]any{"name": "body", "value": "x"}}}
+	for _, c := range []struct {
+		nodeType string
+		config   map[string]any
+		unsent   []string
+	}{
+		{"service.salesforce", map[string]any{"resource": "flow", "operation": "invoke", "apiName": "N", "jsonParameters": true,
+			"variablesJson": `{"body":"x"}`, "variablesUi": vars}, []string{"variablesUi.variablesValues"}},
+		{"service.salesforce", map[string]any{"resource": "flow", "operation": "invoke", "apiName": "N",
+			"variablesJson": `{"body":"x"}`, "variablesUi": vars}, []string{"variablesJson"}},
+		{"app.zulip", map[string]any{"resource": "stream", "operation": "update", "streamId": "7",
+			"additionalFields": map[string]any{"isPrivate": true}, "additionalFieldsJson": `{"is_private":false}`}, []string{"additionalFieldsJson"}},
+		{"app.zulip", map[string]any{"resource": "stream", "operation": "update", "streamId": "7", "jsonParameters": true,
+			"additionalFieldsJson": `{"is_private":true}`}, nil},
+	} {
+		if got, ok := SendOf(c.nodeType, c.config); !ok || !reflect.DeepEqual(got.Unsent, c.unsent) {
+			t.Errorf("%s %v: unsent %v, want %v", c.nodeType, c.config, got.Unsent, c.unsent)
+		}
+	}
 	if !SendsSome("app.mailgun") || !SendsSome("comm.slack") || SendsSome("app.aws_sqs") || SendsSome("comm.email_send") {
 		t.Error("SendsSome")
 	}
