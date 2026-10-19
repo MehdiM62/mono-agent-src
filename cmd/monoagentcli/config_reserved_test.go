@@ -141,8 +141,9 @@ func TestCoderEnableAndSandboxFallbackAreTheOperators(t *testing.T) {
 
 // Where a full-access chat works and how far it may go are the operator's:
 // coder set's limits and the site-to-folder map refuse the chat, a workflow
-// and an agent, and change nothing; the other coder set flags stay open
-// (#831).
+// and an agent, and change nothing (#831). So do the dynamic org's router,
+// model picker and writers: every coder set flag is the operator's now
+// (TestEveryCoderSetFlagIsTheOperators).
 func TestCoderLimitsAndProjectsAreTheOperators(t *testing.T) {
 	dbPath := newSandboxTestDB(t)
 	t.Setenv(monomind.EnvOverride, filepath.Join(t.TempDir(), "no-monomind"))
@@ -163,7 +164,8 @@ func TestCoderLimitsAndProjectsAreTheOperators(t *testing.T) {
 	limits := [][]string{
 		{"set", "--budget-usd", "500"}, {"set", "--max-turns", "900"}, {"set", "--timeout", "100h"},
 		{"set", "--workspace-root", project}, {"set", "--org-max-agents", "20"}, {"set", "--org-max-concurrent", "10"},
-		{"set", "--org-budget-usd", "500"},
+		{"set", "--org-budget-usd", "500"}, {"set", "--org-router", "jev"}, {"set", "--org-model-picker", "lead"},
+		{"set", "--org-writers", "isolated"},
 	}
 	for _, c := range notTheOperator {
 		t.Setenv(c.env, c.value)
@@ -172,14 +174,10 @@ func TestCoderLimitsAndProjectsAreTheOperators(t *testing.T) {
 				t.Errorf("%s: coder %s: %v", c.name, strings.Join(args, " "), err)
 			}
 		}
-		if c.env != "CLAUDECODE" {
-			if err := coder("set", "--org-router", "jev"); err != nil {
-				t.Errorf("%s: an open coder set flag: %v", c.name, err)
-			}
-		}
 		t.Setenv(c.env, "")
 	}
-	if v, ok := configValue(t, dbPath, "coder_mode"); ok && (strings.Contains(v, "500") || strings.Contains(v, project)) {
+	if v, ok := configValue(t, dbPath, "coder_mode"); ok && (strings.Contains(v, "500") || strings.Contains(v, project) ||
+		strings.Contains(v, `"orgRouter":"jev"`) || strings.Contains(v, `"orgWriters":"isolated"`) || strings.Contains(v, `"orgModelPicker":"lead"`)) {
 		t.Errorf("a limit changed: %s", v)
 	}
 	if v, ok := configValue(t, dbPath, "coder_projects"); ok && strings.Contains(v, "bank.example.org") {
