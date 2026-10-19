@@ -162,6 +162,8 @@ func (s *Server) SetVaultSink(sink VaultSink) {
 		if ok, err := live.has(ctx, f.ProfileID); err != nil {
 			return nil, err
 		} else if !ok {
+			// Also for a profile made within the last second, until the
+			// list is read again (liveProfileCache).
 			return nil, refusal(fmt.Sprintf("profile %.64q does not exist (any more): choose another in the side panel", f.ProfileID))
 		}
 		if wait, overall, ok := limiter.allow(f.ProfileID); !ok {
@@ -298,15 +300,16 @@ func vaultTypeMatches(mime string, data []byte) bool {
 // address, without user-info, query, fragment or a segment's ;parameters (a
 // presigned URL's signature is in its query, a session id in ";jsessionid=",
 // and the address shows in `image list` and the app), or "" for anything else
-// (data:, blob:, javascript:, a relative path): the address is a note on the
-// item, so a bad one is dropped, not refused. A token that is a path segment
-// itself is kept: nothing tells it from a file name.
+// (data:, blob:, javascript:, a relative path, a host with a ";", which no
+// real host has): the address is a note on the item, so a bad one is
+// dropped, not refused. A token that is a path segment itself is kept:
+// nothing tells it from a file name.
 func cleanSourceURL(raw string) string {
 	if raw == "" || len(raw) > vaultSaveMaxURL {
 		return ""
 	}
 	u, err := url.Parse(raw)
-	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || strings.ContainsRune(u.Host, ';') {
 		return ""
 	}
 	segs := strings.Split(u.EscapedPath(), "/")

@@ -2,6 +2,7 @@ package extension
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 )
@@ -80,13 +81,22 @@ func dropBefore(ts []time.Time, cutoff time.Time) []time.Time {
 // liveProfileTTL is how long liveProfileCache trusts its list.
 const liveProfileTTL = time.Second
 
+// liveProfileReadTimeout bounds one read of the list. The read is the
+// cache's, not the request's that started it: it runs without that
+// request's cancellation, so a request that gives up does not fail the
+// others waiting on the same read.
+const liveProfileReadTimeout = 2 * time.Second
+
 // liveProfileCache answers "is this profile live?" from a list read at most
 // once a liveProfileTTL, so a stream of made-up ids costs one list a second.
+// A profile made since the last read is not in the list yet: its save is
+// refused (invalid_input) until the next read, at most liveProfileTTL later.
 type liveProfileCache struct {
 	mu   sync.Mutex
 	read func(context.Context) ([]string, error)
 	now  func() time.Time
-	at   time.Time // the last read, successful or not
+	at   time.Time     // when the last read started, successful or not
+	done chan struct{} // closed when the read in flight ends; nil with none in flight
 	ids  map[string]bool
 	err  error // the last read's failure, while no list was ever read
 }
@@ -97,24 +107,61 @@ func newLiveProfileCache(read func(context.Context) ([]string, error), now func(
 
 // has reports whether id is a live profile. The list is read again only after
 // liveProfileTTL, whether the last read worked or not; a failed read keeps the
-// list read before it, and with none yet its error is the answer.
+// list read before it, and with none yet its error is the answer. One read
+// runs at a time, outside the lock: a caller that finds one in flight waits
+// for its result, or returns at once when its own ctx ends.
 func (c *liveProfileCache) has(ctx context.Context, id string) (bool, error) {
 	c.mu.Lock()
-	defer c.mu.Unlock()
-	if now := c.now(); c.at.IsZero() || now.Sub(c.at) >= liveProfileTTL {
+	if now := c.now(); c.done == nil && (c.at.IsZero() || now.Sub(c.at) >= liveProfileTTL) {
 		c.at = now
-		list, err := c.read(ctx)
-		if err == nil {
-			c.ids, c.err = make(map[string]bool, len(list)), nil
-			for _, p := range list {
-				c.ids[p] = true
-			}
-		} else if c.ids == nil {
-			c.err = err
+		c.done = make(chan struct{})
+		go c.refresh(context.WithoutCancel(ctx), c.done)
+	}
+	done := c.done
+	c.mu.Unlock()
+	if done != nil {
+		select {
+		case <-done:
+		case <-ctx.Done():
+			return false, ctx.Err()
 		}
 	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if c.ids == nil {
 		return false, c.err
 	}
 	return c.ids[id], nil
+}
+
+// refresh reads the list once, within liveProfileReadTimeout, and closes done.
+// It runs on its own goroutine, so a panic in read is turned into a failed
+// read here rather than taking the bridge down.
+func (c *liveProfileCache) refresh(ctx context.Context, done chan struct{}) {
+	var (
+		list []string
+		err  error
+	)
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				err = fmt.Errorf("vault.save: listing the profiles panicked: %v", r)
+			}
+		}()
+		ctx, cancel := context.WithTimeout(ctx, liveProfileReadTimeout)
+		defer cancel()
+		list, err = c.read(ctx)
+	}()
+	c.mu.Lock()
+	if err == nil {
+		c.ids, c.err = make(map[string]bool, len(list)), nil
+		for _, p := range list {
+			c.ids[p] = true
+		}
+	} else if c.ids == nil {
+		c.err = err
+	}
+	c.done = nil
+	c.mu.Unlock()
+	close(done)
 }

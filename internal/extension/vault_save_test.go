@@ -225,6 +225,8 @@ func TestVaultSave_SourceURLIsCleanedOrDropped(t *testing.T) {
 		"https://example.test:8443/x%20y.pdf?sig=1":                    "https://example.test:8443/x%20y.pdf",
 		"https://shop.example/cart;jsessionid=ABC123/item.pdf;v=2?x=1": "https://shop.example/cart/item.pdf",
 		"https://a.example/x%3By.pdf":                                  "https://a.example/x%3By.pdf",
+		"https://example.test;jsessionid=AB12/a.pdf":                   "",
+		"https://u@example.test;x=1:8443/a.pdf":                        "",
 		"data:image/png;base64,AAAA":                                   "",
 		"blob:https://example.test/1":                                  "",
 		"javascript:alert(1)":                                          "",

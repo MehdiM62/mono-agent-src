@@ -334,6 +334,10 @@ read. It is one bridge request method, `vault.save`
   known to exist, from a list of live profiles read at most once a second, so
   made-up profile ids get neither a rate window nor any database work; the
   file is decoded only after the rate check.
+  Accepted trade-off: the 60 a minute are shared, so a paired extension that
+  keeps sending junk saves on three or more live profiles can hold real saves
+  back for up to a minute. That takes the same pairing that can already write
+  60 files a minute, and the app and the CLI do not go through this limiter.
 - **Exactly one write per save.** Each request carries a client id; the
   vault keeps one item per client id per profile (a unique index), so a retry
   returns the item it already made and writes nothing. A file or symlink
