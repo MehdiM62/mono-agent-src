@@ -19,7 +19,7 @@ func TestKeyWordsSplitAKeyLikeAReader(t *testing.T) {
 		}
 	}
 	for _, k := range []string{"ccEmail", "bccEmail", "bccAddress", "bcc_address", "Bcc", "CC", "ccRecipients", "additional_emails", "attendees", "recipients",
-		"ccs", "Bccs", "watchers", "watcherIds", "add_watcher"} {
+		"ccs", "Bccs", "watchers", "watcherIds", "add_watcher", "notificationRecipientsUi", "recipientsUi", "recipients_values"} {
 		if !copyKey(k) {
 			t.Errorf("copyKey(%q) = false", k)
 		}

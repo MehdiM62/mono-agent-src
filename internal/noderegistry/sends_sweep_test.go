@@ -79,8 +79,9 @@ func sweepOp(t *testing.T, db *sql.DB, key, nodeType string, base map[string]int
 		checked++
 	}
 	// A copy by id has no address for the net to read: its key alone gets
-	// the card (ccs, bccs, watchers, at any depth).
-	for _, k := range []string{"ccs", "bccs", "watchers", "options.watcherIds"} {
+	// the card (ccs, bccs, watchers, a recipients object, at any depth).
+	for _, k := range []string{"ccs", "bccs", "watchers", "options.watcherIds",
+		"notificationRecipientsUi.notificationRecipientsValues.users", "recipientsUi.groups"} {
 		cfg := cloneDeep(base)
 		setParam(cfg, k, []interface{}{"5b10ac8d82e05b22cc7d4ef5"})
 		if h, _ := guard(cfg); !h {
@@ -192,6 +193,48 @@ func TestEverySendOpStandsForItsOneRecipientOnly(t *testing.T) {
 	t.Logf("%d send ops, %d stand for a rule, %d fields checked", ops, ruled, fields)
 	if ruled < 200 || fields < 900 {
 		t.Errorf("only %d ops stood for a rule and %d fields were checked: the sweep lost its subjects?", ruled, fields)
+	}
+}
+
+// Jira's issue/notify mails whoever its notificationRecipientsUi names
+// (users and groups by account id, the reporter, the watchers) besides the
+// issue: a rule for the issue never stands for them.
+func TestAJiraNotifyToMoreThanTheIssueGetsACard(t *testing.T) {
+	asOperator(t)
+	t.Setenv(hilsend.EnvAgentContext, "coder")
+	Build(nil)
+	db := sendsDB(t)
+	st := hilsend.Store{DB: db, Profile: "default"}
+	guard := func(cfg map[string]interface{}) (bool, hilsend.Payload) {
+		out, handled, err := hilsend.Guard(sendsCtx(db), "service.jira", workflow.NodeInput{}, cfg)
+		if err != nil || !handled {
+			return false, hilsend.Payload{}
+		}
+		p, _ := st.Get(context.Background(), out[0].Items[0].JSON["hil_id"].(string))
+		return true, p
+	}
+	base := map[string]interface{}{"resource": "issue", "operation": "notify", "issueKey": "PROJ-1", "notificationRecipientsUi": map[string]interface{}{}}
+	h, card := guard(base)
+	if !h || card.Recipient.Name != "PROJ-1" {
+		t.Fatalf("the notify wasn't queued for PROJ-1: %v %+v", h, card.Recipient)
+	}
+	if err := st.Allow(context.Background(), hilsend.Allow{Action: card.Action, Platform: card.Account.Platform, Account: card.Account.Handle, Recipient: "PROJ-1"}); err != nil {
+		t.Fatal(err)
+	}
+	if h, _ := guard(base); h {
+		t.Fatal("the notify to the issue alone was held under its rule")
+	}
+	for name, values := range map[string]map[string]interface{}{
+		"users by account id":  {"users": []interface{}{"5b10ac8d82e05b22cc7d4ef5"}},
+		"groups by name":       {"groups": []interface{}{"jira-administrators"}},
+		"the issue's watchers": {"watchers": true},
+		"the reporter":         {"reporter": true},
+	} {
+		cfg := cloneDeep(base)
+		cfg["notificationRecipientsUi"] = map[string]interface{}{"notificationRecipientsValues": values}
+		if h, _ := guard(cfg); !h {
+			t.Errorf("%s: went out on the rule for the issue", name)
+		}
 	}
 }
 

@@ -64,14 +64,16 @@ var listKeys = map[string]bool{
 }
 
 // copyWords mark a key that adds recipients beside the card's one: a cc or
-// a bcc (ccs, bccs) and an issue's watchers, whatever their value (an
-// address, or an id the net can't read as one).
-var copyWords = []string{"cc", "ccs", "bcc", "bccs", "watcher", "watchers"}
+// a bcc (ccs, bccs), an issue's watchers, and recipients of any kind
+// (Jira's notificationRecipientsUi, whose users and groups are account
+// ids), whatever their value (an address, or an id the net can't read as
+// one).
+var copyWords = []string{"cc", "ccs", "bcc", "bccs", "watcher", "watchers", "recipients"}
 
 // copyKey reports a key that adds recipients beside the card's one: any key
 // with a copy word (cc, Bcc, ccEmail, bcc_address, ccRecipients, ccs,
-// watcherIds, options.bcc_address at any depth), or a list of recipients
-// (additional_emails, attendees).
+// watcherIds, notificationRecipientsUi, options.bcc_address at any depth),
+// or a list of recipients (additional_emails, attendees).
 func copyKey(k string) bool {
 	ws := keyWords(k)
 	return slices.ContainsFunc(ws, func(w string) bool { return slices.Contains(copyWords, w) }) || listKeys[strings.Join(ws, "")]
