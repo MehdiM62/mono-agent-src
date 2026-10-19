@@ -2010,12 +2010,18 @@ button.dash-row:hover { background: var(--elevated); }
 .tb-page { display: flex; flex-direction: column; height: 100%; min-width: 0; }
 .tb-body { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; padding: 16px 24px; }
 .tb-main { display: flex; flex: 1; min-height: 0; gap: 12px; }
-.tb-cols { display: flex; flex: 1; gap: 12px; min-width: 0; }
-.tb-col { flex: 1; min-width: 0; overflow-y: auto; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+/* The five columns keep a readable width (1,100 px in all) and the board
+   scrolls sideways when the window, or the open drawer, leaves less. */
+.tb-cols { display: flex; flex: 1; gap: 12px; min-width: 0; overflow-x: auto; }
+.tb-col { flex: 1 0 210px; min-width: 210px; overflow-y: auto; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
 .tb-col-head { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font-family: var(--font-display); font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-secondary); }
 .tb-count { font-family: var(--font-mono); font-size: 10.5px; padding: 1px 7px; border-radius: 10px; background: var(--cyan-glow); color: var(--cyan); }
-.tb-quick { display: flex; gap: 6px; margin-bottom: 10px; }
-.tb-quick .form-input { flex: 1; min-width: 0; padding: 6px 10px; font-size: 12.5px; }
+.tb-quick { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.tb-quick .form-input { flex: 1 1 120px; min-width: 120px; padding: 6px 10px; font-size: 12.5px; }
+.tb-quick .btn { flex-shrink: 0; }
+/* A source chip (a long page host) stays inside the card, cut with an ellipsis. */
+.tb-chip { display: inline-flex; gap: 3px; align-items: center; min-width: 0; max-width: 100%; }
+.tb-chip-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tb-empty { font-size: 12px; color: var(--text-dim); padding: 6px 2px; }
 .tb-card { padding: 10px 12px; margin-bottom: 8px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--elevated); cursor: pointer; transition: border-color var(--transition), box-shadow var(--transition); }
 .tb-card:hover { border-color: var(--border-bright); }

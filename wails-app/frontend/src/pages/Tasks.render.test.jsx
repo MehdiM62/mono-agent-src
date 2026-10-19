@@ -209,6 +209,15 @@ describe('Tasks page', () => {
       expect(within(screen.getByText('Task 8').closest('[data-task-id]')).getByTestId('tag')).toHaveTextContent('Result')
     })
 
+    it('puts a long page host in a chip that can be cut, with the whole host as its tooltip', async () => {
+      api.board.mockResolvedValue({ rev: 1, counts: {}, tasks: { ready: [card(6, { source: { kind: 'chrome', url: 'https://blog.example.com/posts/a-very-long-path' } })] } })
+      render(<Tasks />)
+      await screen.findByText('Task 6')
+      const text = within(screen.getByText('Task 6').closest('[data-task-id]')).getByText('blog.example.com')
+      expect(text).toHaveClass('tb-chip-text')
+      expect(text.closest('.tb-chip')).toHaveAttribute('title', 'Chrome: blog.example.com')
+    })
+
     it('names who added an agent task on its card', async () => {
       api.board.mockResolvedValue({ rev: 1, counts: {}, tasks: {
         inbox: [card(9, { source: { kind: 'agent' }, author: 'workflow:exec-7' }), card(10, { source: { kind: 'agent' }, author: 'chat' })],

@@ -81,8 +81,8 @@ function Card({ task, status, readOnly, selected, pulse, now, onOpen, onKey, onD
         className="tb-card-title"
       >{task.title}</button>
       <div style={{ ...meta, marginTop: 4 }}>
-        <span title={t(`tasks.source.${chip.kind}`)} style={{ display: 'inline-flex', gap: 3, alignItems: 'center' }}>
-          <Icon size={11} aria-hidden="true" /><span>{chip.text || t(`tasks.source.${chip.kind}`)}</span>
+        <span className="tb-chip" title={chip.text ? `${t(`tasks.source.${chip.kind}`)}: ${chip.text}` : t(`tasks.source.${chip.kind}`)}>
+          <Icon size={11} aria-hidden="true" /><span className="tb-chip-text">{chip.text || t(`tasks.source.${chip.kind}`)}</span>
         </span>
         {task.created_at && <span data-testid="age">{t(`tasks.age.${age.unit}`, { n: age.n })}</span>}
         <span>#{task.id}</span>
