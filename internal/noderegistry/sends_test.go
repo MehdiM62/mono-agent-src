@@ -73,9 +73,10 @@ func TestEveryAnnotatedSendQueues(t *testing.T) {
 			}
 			s := o.Sends
 			if len(s.If) > 0 {
-				// "param=value" is set to its value, a bare param to true;
-				// "param!=value" sends while the param is unset, and "param
-				// not in a|b" once it is set to something else.
+				// "param=value" is set to its value, a bare param (or a
+				// present one, "param?") to true; "param!=value" sends while
+				// the param is unset, and "param not in a|b" once it is set
+				// to something else.
 				if name, _, ok := strings.Cut(s.If[0], " not in "); ok {
 					setParam(config, name, "other")
 				} else if name, value, eq := strings.Cut(s.If[0], "="); eq {
@@ -83,7 +84,7 @@ func TestEveryAnnotatedSendQueues(t *testing.T) {
 						setParam(config, name, value)
 					}
 				} else {
-					setParam(config, name, true)
+					setParam(config, strings.TrimSuffix(name, "?"), true)
 				}
 			}
 			to := s.ToUnset // the card's recipient
@@ -328,6 +329,15 @@ func TestTheReviewedSendsStayDecided(t *testing.T) {
 		{"app.pay_pal", cfg{"resource": "payout", "operation": "create", "senderBatchId": "b1", "jsonParameters": true,
 			"itemsJson": `[{"receiver": "ada@example.test", "note": "Thanks"}]`}, "the payout's receivers"},
 		{"service.github", cfg{"resource": "issue", "operation": "create", "owner": "o", "repository": "r", "title": "Bug"}, "-"},
+		// Zulip's bot posts a stream's new description in the stream, one
+		// cleared to "" too, and a change of its privacy.
+		{"app.zulip", cfg{"resource": "stream", "operation": "update", "streamId": "7", "additionalFields": cfg{"description": ""}}, "stream 7"},
+		{"app.zulip", cfg{"resource": "stream", "operation": "update", "streamId": "7", "additionalFields": cfg{"isPrivate": true}}, "stream 7"},
+		{"app.zulip", cfg{"resource": "stream", "operation": "update", "streamId": "7"}, "-"},
+		// A Salesforce flow given inputs may email what they say.
+		{"service.salesforce", cfg{"resource": "flow", "operation": "invoke", "apiName": "Notify"}, "-"},
+		{"service.salesforce", cfg{"resource": "flow", "operation": "invoke", "apiName": "Notify", "jsonParameters": true,
+			"variablesJson": `{"body": "x"}`}, "flow Notify"},
 	} {
 		out, handled, err := hilsend.Guard(sendsCtx(db), c.nodeType, workflow.NodeInput{}, c.config)
 		if err != nil {
@@ -370,23 +380,23 @@ func TestUndeclaredKeysWaitOnlyInAGatedRun(t *testing.T) {
 		"a raw article on a Zammad ticket update": {"app.zammad", cfg{"resource": "ticket", "operation": "update", "id": "5",
 			"updateFields": cfg{"article": cfg{"type": "email", "to": "v@example.test", "body": "x"}}},
 			"whoever its undeclared fields (article) reach", hilsend.ActionComment,
-			"zammad ticket/update with fields it doesn't declare:\nupdateFields.article: {\"body\":\"x\",\"to\":\"v@example.test\",\"type\":\"email\"}"},
+			"zammad ticket/update with fields it doesn't declare:\nupdateFields.article:\n  \"body\" (\"email\"): \"x\"\n  \"to\": \"v@example.test\"\n  \"type\": \"email\""},
 		"raw articles on a Zammad ticket update": {"app.zammad", cfg{"resource": "ticket", "operation": "update", "id": "5",
 			"updateFields": cfg{"articles": []interface{}{cfg{"type": "twitter status", "body": "tweet"}}}},
-			"whoever its undeclared fields (articles) reach", hilsend.ActionComment, "updateFields.articles: [{\"body\":\"tweet\""},
+			"whoever its undeclared fields (articles) reach", hilsend.ActionComment, "updateFields.articles:\n  [0]:\n    \"body\": \"tweet\""},
 		"a raw bcc_emails on a Freshservice ticket": {"app.freshservice", cfg{"resource": "ticket", "operation": "create",
 			"email": "a@example.test", "subject": "S", "description": "D", "additionalFields": cfg{"bcc_emails": []interface{}{"v@example.test"}}},
 			"whoever its undeclared fields (bcc_emails) reach", hilsend.ActionEmail,
-			"freshservice ticket/create with fields it doesn't declare:\nadditionalFields.bcc_emails: [\"v@example.test\"]"},
+			"freshservice ticket/create with fields it doesn't declare:\nadditionalFields.bcc_emails:\n  [0]: \"v@example.test\""},
 		"a declared Zammad update": {"app.zammad", cfg{"resource": "ticket", "operation": "update", "id": "5",
 			"updateFields": cfg{"state_id": 2}}, "-", "", ""},
 		"a type_id on a Zammad ticket's article": {"app.zammad", cfg{"resource": "ticket", "operation": "create", "title": "T",
 			"group": "Users", "customer": "a@example.test", "article": cfg{"articleDetails": cfg{"type_id": 6, "body": "tweet"}}},
 			"whoever its undeclared fields (articleDetails.type_id) reach", hilsend.ActionEmail,
-			"article.articleDetails: {\"body\":\"tweet\",\"type_id\":6}"},
+			"article.articleDetails:\n  \"body\": \"tweet\"\n  \"type_id\": 6"},
 		"a note with a type_id": {"app.zammad", cfg{"resource": "ticket", "operation": "create", "title": "T", "group": "Users",
 			"customer": "a@example.test", "article": cfg{"articleDetails": cfg{"type": "note", "type_id": 6, "body": "tweet"}}},
-			"whoever its undeclared fields (articleDetails.type_id) reach", hilsend.ActionEmail, "\"type_id\":6"},
+			"whoever its undeclared fields (articleDetails.type_id) reach", hilsend.ActionEmail, "\"type_id\": 6"},
 		// An op with no sends of its own (a work item) has nothing to say
 		// what the keys do: a post, addressed to no person.
 		"a raw key on a Trello card update": {"app.trello", cfg{"resource": "card", "operation": "update", "id": "c1",

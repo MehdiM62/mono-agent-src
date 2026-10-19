@@ -265,6 +265,7 @@ func TestComposeRecordsOwnSenderNotRecipient(t *testing.T) {
 // inside the stubbed Graph call: it must already be "sending" there, closing
 // the check-then-act window where a concurrent send/reject double-fires.
 func TestSendDraftMarksSendingBeforeGraphCall(t *testing.T) {
+	asOperator(t) // send-draft is the user's
 	dbPath := newMessagesCLITestDB(t)
 	seedPersonMessage(t, dbPath, "m-send", "EXT-9", "outbound", "", "draft", `{"connection_id":"outlook"}`)
 
@@ -295,6 +296,7 @@ func TestSendDraftMarksSendingBeforeGraphCall(t *testing.T) {
 // TestSendDraftRestoresDraftStatusOnFailure: a failed Graph send must leave
 // the row as a draft so it can be retried, not stranded in "sending".
 func TestSendDraftRestoresDraftStatusOnFailure(t *testing.T) {
+	asOperator(t) // send-draft is the user's
 	dbPath := newMessagesCLITestDB(t)
 	seedPersonMessage(t, dbPath, "m-fail", "EXT-10", "outbound", "", "draft", `{"connection_id":"outlook"}`)
 

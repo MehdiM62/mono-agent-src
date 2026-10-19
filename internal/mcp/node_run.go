@@ -237,6 +237,9 @@ func resolveNodeCredential(ctx context.Context, rt *runtime, nodeType, explicit 
 		}
 	}
 	config["credential"] = conn.Data
+	// A send's card keeps no credentials: pinned by id, its approval sends
+	// through this connection, not whichever the name picks then.
+	config["credential_id"] = conn.ID
 	name := conn.Label
 	if name == "" {
 		name = key

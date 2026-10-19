@@ -157,9 +157,11 @@ func Guard(ctx context.Context, nodeType string, in workflow.NodeInput, config m
 	allowed := true
 	for _, p := range prepared {
 		// A label ("the ticket's requester") names no destination a rule
-		// could stand for: every such send gets its card.
-		allowed = allowed && !p.payload.Recipient.Label &&
-			st.Allowed(ctx, p.payload.Action, p.payload.Account.Platform, p.payload.Account.Handle, keyOf(p.payload.Recipient))
+		// could stand for, and a rule stands for one recipient only, never
+		// for a cc, a bcc, a second address or a different reply-to: every
+		// such send gets its card.
+		allowed = allowed && !p.payload.Recipient.Label && p.sole &&
+			st.Allowed(ctx, p.payload.Action, p.payload.Account.Platform, p.payload.Account.Handle, p.replay.Address)
 	}
 	if allowed && len(prepared) > 0 {
 		return nil, false, nil
@@ -187,6 +189,7 @@ func Guard(ctx context.Context, nodeType string, in workflow.NodeInput, config m
 type prepared struct {
 	payload Payload
 	replay  replay
+	sole    bool // it goes to its one recipient alone (soleRecipient)
 }
 
 // prepare turns one node call into the items it would send.
@@ -202,52 +205,88 @@ func prepare(st Store, nodeType string, t target, who PreparedBy, config map[str
 	var out []prepared
 	for _, o := range ones {
 		textField, text := firstKey(o.config, t.text)
+		unreviewable := ""
 		if len(t.show) > 0 {
-			// No message to show or edit: what the step would send that
-			// its op doesn't declare.
-			textField, text = "", undeclaredText(t.op, t.show, t.exprs, o.config)
+			// No message to show or edit: what the step would send, read-only
+			// (keys its op doesn't declare, or the params its annotation
+			// shows).
+			textField = ""
+			text, unreviewable = showCard(t.op, t.show, t.exprs, t.unsent, t.undeclared, o.config)
+		}
+		if unreviewable == "" && sendsDraft(t, o.config) {
+			unreviewable = draftUnreviewable
 		}
 		subjectField, subject := firstKey(o.config, t.subject)
 		rec := o.recipient
+		// A rule matches the recipient as the send addresses it, never the
+		// person a lookup found for it (keyOf would prefer the person's id
+		// once People knows them, and an email lookup matches by substring).
+		addr := keyOf(rec)
 		if rec.PersonID == "" && !o.labelled {
 			rec = st.person(t, nodeType, rec)
 		}
 		p := Payload{
 			PreparedBy: who, Action: t.action, Channel: t.channelOf(nodeType), Account: t.accountOf(nodeType, o.config),
 			Recipient: rec, Text: text, Subject: subject, Attachments: attachments(o.config), NodeType: nodeType,
+			Details: detailsOf(t, o.config), Unreviewable: unreviewable,
 			Host: hostOf(nodeType, o.config), FetchURL: fetchURLOf(nodeType, o.config),
 		}
-		out = append(out, prepared{payload: p, replay: replay{
-			NodeType: nodeType, Config: stripSecrets(o.config), Input: o.input, TextField: textField, SubjectKey: subjectField,
+		out = append(out, prepared{payload: p, sole: soleRecipient(t, nodeType, o.config), replay: replay{
+			NodeType: nodeType, Config: stripSecrets(o.config), Input: o.input, TextField: textField, SubjectKey: subjectField, Address: addr,
 		}})
 	}
 	return out
 }
 
-// person fills the recipient from the people table when it knows them.
+// person tags the recipient with the People row it is, when there is one:
+// the card keeps the addressed value as its name and shows the person
+// beside it (PersonName), so a card never names someone the send doesn't
+// address. An email matches a contact's address whole (case aside), never
+// a part of one: da@example.test is not ada@example.test, and ceo@acme.co
+// is not ceo@acme.co.uk.
 func (s Store) person(t target, nodeType string, r Recipient) Recipient {
 	if r.Name == "" && r.ProfileURL == "" {
 		return r
 	}
-	platform := t.channelOf(nodeType)
 	var id, name string
-	var err error
 	if t.action == ActionEmail {
-		err = s.DB.QueryRow(`SELECT id, COALESCE(full_name,'') FROM people WHERE contact_details LIKE ? ESCAPE '\' LIMIT 1`,
-			"%"+escapeLike(r.Name)+"%").Scan(&id, &name)
+		id, name = s.personByEmail(r.Name)
 	} else {
 		user := lastSegment(firstNonEmpty(r.ProfileURL, r.Name))
-		err = s.DB.QueryRow(`SELECT id, COALESCE(full_name,'') FROM people WHERE LOWER(platform) = LOWER(?) AND LOWER(platform_username) = LOWER(?) LIMIT 1`,
-			platform, user).Scan(&id, &name)
+		_ = s.DB.QueryRow(`SELECT id, COALESCE(full_name,'') FROM people WHERE LOWER(platform) = LOWER(?) AND LOWER(platform_username) = LOWER(?) LIMIT 1`,
+			t.channelOf(nodeType), user).Scan(&id, &name)
 	}
-	if err != nil {
-		return r
-	}
-	r.PersonID = id
-	if name != "" {
-		r.Name = name
+	if id != "" {
+		r.PersonID, r.PersonName = id, name
 	}
 	return r
+}
+
+// personByEmail is the People row whose contact details hold the address
+// in to whole, or "".
+func (s Store) personByEmail(to string) (id, name string) {
+	addr := addressRE.FindString(to)
+	if addr == "" || !strings.Contains(addr, "@") {
+		return "", ""
+	}
+	rows, err := s.DB.Query(`SELECT id, COALESCE(full_name,''), COALESCE(contact_details,'') FROM people WHERE contact_details LIKE ? ESCAPE '\' LIMIT 50`,
+		"%"+escapeLike(addr)+"%")
+	if err != nil {
+		return "", ""
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var pid, pname, details string
+		if rows.Scan(&pid, &pname, &details) != nil {
+			continue
+		}
+		for _, a := range addressRE.FindAllString(details, -1) {
+			if strings.EqualFold(a, addr) {
+				return pid, pname
+			}
+		}
+	}
+	return "", ""
 }
 
 func firstNonEmpty(vs ...string) string {

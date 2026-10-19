@@ -19,6 +19,7 @@ const { hilApi } = vi.hoisted(() => ({
 vi.mock('../../services/hilApi.js', () => hilApi)
 
 import { AskCard } from './AskCard.jsx'
+import ConfirmHost from '../ConfirmDialog.jsx'
 
 const nameOf = id => ({ dev: 'Developer', qa: 'QA', ceo: 'Chief' }[id] || id)
 const send = () => normalizeAsk(sendEmail)
@@ -83,7 +84,82 @@ describe('AskCard: workflow Human-in-Loop', () => {
   })
 })
 
+describe('AskCard: always allow a send', () => {
+  // A label recipient: a description that fits any send of its kind, which
+  // the CLI refuses to always allow (ErrAlwaysLabel).
+  const labelled = () => normalizeAsk({ ...sendEmail, recipient: { name: 'the reply-to address of each message', label: true } })
+
+  it('offers Always allow for an address recipient and asks first, naming the destination', async () => {
+    const onDecide = vi.fn()
+    render(<><AskCard ask={send()} nameOf={nameOf} onDecide={onDecide} /><ConfirmHost /></>)
+    fireEvent.click(screen.getByTestId('ask-always-allow'))
+    const dialog = await screen.findByRole('dialog', { name: 'Always allow this destination?' })
+    expect(dialog).toHaveTextContent('This sends this email now, and from now on an agent\'s email to https://www.linkedin.com/in/sam-rivera from outlook · me@acme.test goes out without asking you.')
+    fireEvent.click(screen.getByRole('button', { name: 'Send and always allow' }))
+    await waitFor(() => expect(onDecide).toHaveBeenCalledWith(expect.objectContaining({ id: 'hil-send-1' }), true, { alwaysAllow: true }))
+  })
+
+  it('sends nothing when the confirmation is cancelled', async () => {
+    const onDecide = vi.fn()
+    render(<><AskCard ask={send()} nameOf={nameOf} onDecide={onDecide} /><ConfirmHost /></>)
+    fireEvent.click(screen.getByTestId('ask-always-allow'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Cancel' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(onDecide).not.toHaveBeenCalled()
+  })
+
+  it('keeps an edit: always allow sends the edited text', async () => {
+    const onDecide = vi.fn()
+    render(<><AskCard ask={send()} nameOf={nameOf} onDecide={onDecide} /><ConfirmHost /></>)
+    fireEvent.click(screen.getByTestId('ask-edit'))
+    fireEvent.change(screen.getByTestId('ask-text-edit'), { target: { value: 'Hi Sam, short version.' } })
+    fireEvent.click(screen.getByTestId('ask-always-allow'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Send and always allow' }))
+    await waitFor(() => expect(onDecide).toHaveBeenCalledWith(expect.anything(), true, { editText: 'Hi Sam, short version.', alwaysAllow: true }))
+  })
+
+  it('does not offer it for a label recipient, nor on a resolved card', () => {
+    const { rerender } = render(<AskCard ask={labelled()} nameOf={nameOf} onDecide={vi.fn()} />)
+    expect(screen.getByTestId('ask-approve')).toBeInTheDocument()
+    expect(screen.queryByTestId('ask-always-allow')).toBeNull()
+    rerender(<AskCard ask={send()} nameOf={nameOf} outcome={{ state: 'sent' }} onDecide={vi.fn()} />)
+    expect(screen.queryByTestId('ask-always-allow')).toBeNull()
+  })
+})
+
 describe('AskCard: send approval', () => {
+  it('shows every copy and the rest of what an email carries, as it will be sent', () => {
+    const ask = normalizeAsk({ ...sendEmail, details: [
+      { key: 'cc', value: 'eve@example.test' }, { key: 'bcc', value: 'mallory@example.test' },
+      { key: 'replyAll', value: 'yes' }, { key: 'connection', value: 'conn-new' }, { key: 'bcc', value: '' },
+    ] })
+    render(<AskCard ask={ask} nameOf={nameOf} />)
+    expect(screen.getByTestId('ask-detail-cc')).toHaveTextContent('eve@example.test')
+    expect(screen.getByTestId('ask-detail-bcc')).toHaveTextContent('mallory@example.test')
+    expect(screen.getAllByTestId('ask-detail-bcc')).toHaveLength(1)
+    expect(screen.getByTestId('org-chat-send')).toHaveTextContent('Bcc')
+    expect(screen.getByTestId('org-chat-send')).toHaveTextContent('Reply all')
+    expect(screen.getByTestId('ask-detail-connection')).toHaveTextContent('conn-new')
+  })
+
+  // An Outlook reply goes to its To as well as to the thread.
+  it("shows an Outlook reply's extra To as Also to", () => {
+    const ask = normalizeAsk({ ...sendEmail, recipient: { name: "the thread's sender and Also to", label: true },
+      details: [{ key: 'alsoTo', value: 'evil@example.test' }] })
+    render(<AskCard ask={ask} nameOf={nameOf} />)
+    expect(screen.getByTestId('ask-detail-alsoTo')).toHaveTextContent('evil@example.test')
+    expect(screen.getByTestId('org-chat-send')).toHaveTextContent('Also to')
+  })
+
+  // A draft's card can't show what sending it sends: reject only.
+  it("refuses approval of a draft's card, and says why", () => {
+    const ask = normalizeAsk({ ...sendEmail, unreviewable: "sending a draft sends the recipients, subject and text the draft holds in the mailbox, which this card can't show" })
+    render(<AskCard ask={ask} nameOf={nameOf} onDecide={vi.fn()} />)
+    expect(screen.getByTestId('ask-approve')).toBeDisabled()
+    expect(screen.getByTestId('ask-unreviewable')).toHaveTextContent("Can't be reviewed here")
+    expect(screen.getByTestId('ask-unreviewable')).toHaveTextContent('the draft holds in the mailbox')
+  })
+
   it('shows the recipient with a profile link, the account, the exact text and who prepared it', () => {
     const onNavigate = vi.fn()
     render(<AskCard ask={send()} nameOf={nameOf} onNavigate={onNavigate} />)
@@ -99,6 +175,19 @@ describe('AskCard: send approval', () => {
     expect(hilApi.openUrl).toHaveBeenCalledWith('https://www.linkedin.com/in/sam-rivera')
     fireEvent.click(within(screen.getByTestId('ask-recipient')).getByText('open person'))
     expect(onNavigate).toHaveBeenCalledWith('people', { person: 'p-42' })
+  })
+
+  // #871 review: the card names the address the send goes to; the person
+  // People matched to it is a tag beside it, never in its place.
+  it('names the addressed recipient, with the matched person as a tag', () => {
+    const onNavigate = vi.fn()
+    const ask = normalizeAsk({ ...sendEmail, recipient: { name: 'da@example.test', personId: 'p-7', personName: 'Ada Lovelace' } })
+    render(<AskCard ask={ask} nameOf={nameOf} onNavigate={onNavigate} />)
+    const to = screen.getByTestId('ask-recipient')
+    expect(to.querySelector('strong')).toHaveTextContent('da@example.test')
+    fireEvent.click(within(to).getByTestId('ask-person'))
+    expect(within(to).getByTestId('ask-person')).toHaveTextContent('Ada Lovelace')
+    expect(onNavigate).toHaveBeenCalledWith('people', { person: 'p-7' })
   })
 
   it('shows the server a send goes through and the URL a call fetches, when the item names them', () => {
@@ -222,6 +311,18 @@ describe('AskCard: send approval', () => {
     fireEvent.change(screen.getByTestId('ask-text-edit'), { target: { value: 'Short.' } })
     fireEvent.click(screen.getByTestId('ask-approve'))
     expect(onDecide).toHaveBeenCalledWith(expect.objectContaining({ id: 'hil-send-1' }), true, { editText: 'Short.' })
+  })
+
+  // A card too large to review (the CLI refuses its approve, #887) can be
+  // rejected, not approved, and says why.
+  it('refuses approval of a card too large to review, and says why', () => {
+    const onDecide = vi.fn()
+    const ask = normalizeAsk({ ...sendEmail, textReadOnly: true, unreviewable: 'v holds more than 1000000 keys and elements: too large to review' })
+    render(<AskCard ask={ask} nameOf={nameOf} onDecide={onDecide} />)
+    expect(screen.getByTestId('ask-approve')).toBeDisabled()
+    expect(screen.getByTestId('ask-unreviewable')).toHaveTextContent('more than 1000000 keys')
+    fireEvent.click(screen.getByTestId('ask-reject'))
+    expect(onDecide).toHaveBeenCalledWith(expect.objectContaining({ id: 'hil-send-1' }), false, {})
   })
 
   it('does not approve an empty text', () => {

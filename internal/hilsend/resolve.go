@@ -48,16 +48,16 @@ func Resolve(ctx context.Context, st Store, id string, approve bool, edit Edit, 
 		p, _, err := st.reject(ctx, id)
 		return p, err
 	}
-	if always {
-		// Before the edit and the claim: the item stays pending, as it was,
-		// for a plain approve. claim checks again on what it claims.
-		p, err := st.Get(ctx, id)
-		if err != nil {
-			return p, err
-		}
-		if p.Recipient.Label {
-			return p, ErrAlwaysLabel
-		}
+	// Before the edit and the claim: the item stays pending, as it was. A
+	// card that can't show what the step sends isn't approved, nor edited
+	// on the way; always-allow needs a recipient a rule can stand for.
+	// claim checks again on what it claims.
+	if p, err := st.Get(ctx, id); err != nil {
+		return p, err
+	} else if p.State == StatePending && p.Unreviewable != "" {
+		return p, fmt.Errorf("send item %s: %w (%s)", p.ID, ErrUnreviewable, p.Unreviewable)
+	} else if always && p.Recipient.Label {
+		return p, ErrAlwaysLabel
 	}
 	if edit.Text != nil || edit.Subject != nil {
 		// A non-pending item can't be edited; claim below reports its state.
@@ -74,7 +74,13 @@ func Resolve(ctx context.Context, st Store, id string, approve bool, edit Edit, 
 		return p, err
 	}
 	if always {
-		if err := st.Allow(ctx, Allow{Action: p.Action, Platform: p.Account.Platform, Account: p.Account.Handle, Recipient: keyOf(p.Recipient)}); err != nil {
+		// Keyed on the recipient as the send addressed it; an item queued
+		// before Address existed falls back to the card's identity.
+		addr := rp.Address
+		if addr == "" {
+			addr = keyOf(p.Recipient)
+		}
+		if err := st.Allow(ctx, Allow{Action: p.Action, Platform: p.Account.Platform, Account: p.Account.Handle, Recipient: addr}); err != nil {
 			return st.finishErr(ctx, p.ID, err)
 		}
 	}

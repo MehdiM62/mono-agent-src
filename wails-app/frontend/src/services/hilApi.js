@@ -17,15 +17,17 @@ export async function listAsks() {
 }
 
 // resolve approves or rejects ask `id`. approve: true with editText sends
-// the edited text instead of the prepared one (send items); data holds the
-// edited fields of a workflow HIL item. Resolves {ok:true,state} or {error}.
-export async function resolve(id, { approve, editText, data, kind } = {}) {
+// the edited text instead of the prepared one (send items), and with
+// alwaysAllow also sends to that destination without asking from now on;
+// data holds the edited fields of a workflow HIL item. Resolves
+// {ok:true,state} or {error}.
+export async function resolve(id, { approve, editText, data, kind, alwaysAllow } = {}) {
   if (!id) return { error: 'no id' }
   try {
     // A send item is resolved by the operator through `hil resolve`, which
     // performs exactly the previewed payload (with the edit applied) once.
     const res = kind === 'send'
-      ? await api.hilSendResolve(id, !!approve, { editText: editText || '' })
+      ? await api.hilSendResolve(id, !!approve, { editText: editText || '', ...(approve && alwaysAllow ? { alwaysAllow: true } : {}) })
       : await api.hilResolve(id, { approve: !!approve, editText, data })
     if (res?.error) return { error: res.error }
     emitCommsChanged() // the Communications row for this item changed state

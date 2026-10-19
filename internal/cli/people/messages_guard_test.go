@@ -3,9 +3,13 @@ package people
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"strings"
 	"testing"
 
+	"github.com/monoes/mono-agent/internal/cli/clicore"
+	"github.com/monoes/mono-agent/internal/connections"
+	"github.com/monoes/mono-agent/internal/hilsend"
 	"github.com/monoes/mono-agent/internal/storage"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
@@ -47,6 +51,7 @@ func TestPeopleMessageSendsPassTheExecGuard(t *testing.T) {
 		{"send-draft", []string{"messages", "send-draft", "m-draft"}, "send_draft"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
+			asOperator(t) // send-draft is the user's; the guard is what's tested here
 			dbPath := newMessagesCLITestDB(t)
 			seedPersonMessage(t, dbPath, "m-in", "EXT-IN", "inbound", "alice@x.com", "read", `{"connection_id":"outlook"}`)
 			seedPersonMessage(t, dbPath, "m-draft", "EXT-DRAFT", "outbound", "", "draft", `{"connection_id":"outlook"}`)
@@ -87,6 +92,7 @@ func TestPeopleMessageSendsPassTheExecGuard(t *testing.T) {
 // A send the guard leaves alone (the user's own) runs the node once, as
 // before.
 func TestPeopleMessageSendTheGuardLeavesRuns(t *testing.T) {
+	asOperator(t)
 	dbPath := newMessagesCLITestDB(t)
 	runs := 0
 	stubOutlookNode(t, func(*sql.DB, map[string]interface{}) ([]workflow.NodeOutput, error) {
@@ -101,5 +107,84 @@ func TestPeopleMessageSendTheGuardLeavesRuns(t *testing.T) {
 	}
 	if runs != 1 || len(calls) != 1 {
 		t.Fatalf("node runs = %d, guard calls = %d, want 1 and 1", runs, len(calls))
+	}
+}
+
+// An agent's send-draft is refused (exit 3, operator_only): the draft's
+// recipients, subject and text live in the mailbox, so its card would be
+// approved blind. The node never runs and the draft stays a draft.
+func TestSendDraftIsTheUsers(t *testing.T) {
+	asOperator(t)
+	t.Setenv("CLAUDECODE", "1")
+	dbPath := newMessagesCLITestDB(t)
+	seedPersonMessage(t, dbPath, "m-draft", "EXT-DRAFT", "outbound", "", "draft", `{"connection_id":"outlook"}`)
+	runs := 0
+	stubOutlookNode(t, func(*sql.DB, map[string]interface{}) ([]workflow.NodeOutput, error) {
+		runs++
+		return nodeOutput(map[string]interface{}{"status": "sent", "message_id": "EXT-NEW"}), nil
+	})
+	_, err := runPeople(t, &testConfig{DBPath: dbPath, ProfileID: "default"}, "messages", "send-draft", "m-draft")
+	var ce *clicore.Error
+	var fields interface{ JSONErrorFields() map[string]any }
+	if !errors.As(err, &ce) || ce.Code != 3 || !errors.As(err, &fields) || fields.JSONErrorFields()["code"] != "operator_only" {
+		t.Fatalf("an agent's send-draft: %v, want exit 3 operator_only", err)
+	}
+	if runs != 0 {
+		t.Fatalf("the node ran %d time(s)", runs)
+	}
+	if m := fetchPersonMessage(t, dbPath, "m-draft"); m == nil || m.Status != "draft" {
+		t.Fatalf("the draft is %+v, want it still a draft", m)
+	}
+}
+
+// The card of an agent's compose shows every copy the send carries and the
+// connection it goes out through, pinned by id: with two Outlook
+// connections, the one this run chose (the active one), not whichever an
+// approval would pick. A compose with a bcc read as a send to its To alone.
+func TestPeopleMessageCardShowsCopiesAndPinsTheConnection(t *testing.T) {
+	asOperator(t)
+	t.Setenv(hilsend.EnvAgentContext, "coder")
+	workflow.SetExecGuard(hilsend.Guard)
+	t.Cleanup(func() { workflow.SetExecGuard(nil) })
+	dbPath := newMessagesCLITestDB(t)
+	db, err := storage.NewDatabase(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := connections.NewStore(db.DB)
+	for _, c := range []*connections.Connection{
+		{ID: "conn-old", Platform: "outlook", Method: "oauth", Status: "expired", ProfileID: "default", Data: map[string]interface{}{"email": "me@x.com"}},
+		{ID: "conn-new", Platform: "outlook", Method: "oauth", Status: "active", ProfileID: "default", Data: map[string]interface{}{"email": "me@x.com"}},
+	} {
+		if err := store.Save(context.Background(), c); err != nil {
+			t.Fatal(err)
+		}
+	}
+	db.Close()
+	runs := 0
+	stubOutlookNode(t, func(*sql.DB, map[string]interface{}) ([]workflow.NodeOutput, error) {
+		runs++
+		return nil, nil
+	})
+	_, err = runPeople(t, &testConfig{DBPath: dbPath, ProfileID: "default"}, "messages", "compose", "p1", "--connection", "outlook",
+		"--subject", "Hi", "--body", "Hello Alice", "--cc", "eve@example.test", "--bcc", "mallory@example.test")
+	if err == nil || !strings.Contains(err.Error(), "NOT sent") || runs != 0 {
+		t.Fatalf("compose: %v (node runs %d), want it held", err, runs)
+	}
+	db, err = storage.NewDatabase(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	cards, err := hilsend.Store{DB: db.DB, Profile: "default"}.List(context.Background())
+	if err != nil || len(cards) != 1 {
+		t.Fatalf("cards: %v %+v", err, cards)
+	}
+	got := map[string]string{}
+	for _, d := range cards[0].Details {
+		got[d.Key] = d.Value
+	}
+	if got["cc"] != "eve@example.test" || got["bcc"] != "mallory@example.test" || got["bodyType"] != "html" || got["connection"] != "conn-new" {
+		t.Fatalf("card details %v, want the cc, the bcc, the body type and conn-new", got)
 	}
 }

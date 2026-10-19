@@ -1044,6 +1044,32 @@ layers, from strongest:
   message each other. Restricting messages between profile folders needs
   monomind with capability `org-federation`.
 
+## Send approval cards
+
+A send that an agent, or a workflow you never approved, prepares waits as a
+`send:` item in the Human in Loop queue (`internal/hilsend`). When its words
+aren't a message you could edit, its card shows each field it sends, the
+recipient-like ones first and in full up to their share, and then every
+address in the payload the fields don't show, with its path: email
+addresses, links and tel:, sip: and sms: URIs, @handles and Matrix ids,
+channels and Slack ids, phone numbers, long numbers, UUIDs, IP literals and
+bare domains (`internal/apipkg/FORMAT.md` §3). A card that can't show all
+of that, or whose payload is too large to check, can be rejected, never
+approved.
+
+**Known gaps (accepted for now):** the card reads shapes, not meaning, so
+it doesn't find an address that a reader wouldn't take for one either:
+spelled out or otherwise obfuscated (`evil at x dot com`), percent-encoded
+(`evil%40x.test`), in base64 or HTML entities (`evil&#64;x.test`), written
+with a fullwidth `＠`, or split over two leaves the service joins
+(`{"user": "evil", "domain": "x.test"}`). Such a payload still shows its
+fields, cut with a mark and never left out silently. Also: a domain whose
+last label is a file name's ending (`evil.py`) and a number inside a word
+on both sides (`ab5551234567cd`) aren't read; 10 or 13 digits alone under a
+time-like key that read as a time from 2001 to 2100 count as a Unix time;
+and an address that one recipient-like field shows isn't listed again from
+another.
+
 ## Webhook trigger surface
 
 The webhook trigger server (`internal/workflow/webhook_server.go`) binds
