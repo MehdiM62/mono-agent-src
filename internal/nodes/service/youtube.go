@@ -54,7 +54,7 @@ func (n *YouTubeNode) Execute(ctx context.Context, input workflow.NodeInput, con
 	if err := credentialScopeCheck(config, "youtube"); err != nil {
 		return nil, fmt.Errorf("youtube: %w", err)
 	}
-	operation := strVal(config, "operation")
+	operation := workflow.ConfigOperation(config)
 
 	switch operation {
 	case "upload_video":
