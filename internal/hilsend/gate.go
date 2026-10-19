@@ -225,7 +225,7 @@ func prepare(ctx context.Context, st Store, nodeType string, t target, who Prepa
 		p := Payload{
 			PreparedBy: who, Action: t.action, Channel: t.channelOf(nodeType), Account: t.accountOf(nodeType, o.config),
 			Recipient: rec, Text: text, Subject: subject, Attachments: attachments(o.config), NodeType: nodeType,
-			Unreviewable: unreviewable,
+			Unreviewable: unreviewable, Host: hostOf(nodeType, o.config), FetchURL: fetchURLOf(nodeType, o.config),
 		}
 		out = append(out, prepared{payload: p, sole: soleRecipient(ctx, st, t, nodeType, o.config), replay: replay{
 			NodeType: nodeType, Config: stripSecrets(o.config), Input: o.input, TextField: textField, SubjectKey: subjectField, Address: addr,

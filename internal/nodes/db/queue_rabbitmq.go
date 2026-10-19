@@ -91,8 +91,16 @@ func amqpTable(v interface{}) (amqp.Table, error) {
 // Type: "queue.rabbitmq"
 type RabbitMQNode struct{}
 
-func (n *RabbitMQNode) Type() string                  { return "queue.rabbitmq" }
-func (n *RabbitMQNode) PerItemConfigFields() []string { return queuePerItemFields }
+func (n *RabbitMQNode) Type() string { return "queue.rabbitmq" }
+
+// rabbitDestinations are the broker the connection's password and client
+// certificate go to: hostname and port, or a url in their place.
+var rabbitDestinations = [][]string{{"hostname", "url"}, {"port"}}
+
+// CredentialDestinationKeys: the broker the password goes to
+// (workflow.CheckCredentialDestinations).
+func (n *RabbitMQNode) CredentialDestinationKeys() [][]string { return rabbitDestinations }
+func (n *RabbitMQNode) PerItemConfigFields() []string         { return queuePerItemFields }
 
 func (n *RabbitMQNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
 	if op := cfgString(config, "operation"); op != "" && op != "sendMessage" {

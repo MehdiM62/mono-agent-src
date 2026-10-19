@@ -299,6 +299,8 @@ function SendBody({ ask, nameOf, canAct, busy, outcome, onDecide, onNavigate }) 
           </dd>
         </div>
         {acct && <div><dt>{t('ask.from')}</dt><dd data-testid="ask-account">{acct}</dd></div>}
+        {ask.host && <div><dt>{t('ask.via')}</dt><dd data-testid="ask-host">{ask.host}</dd></div>}
+        {ask.fetchUrl && <div><dt>{t('ask.fetches')}</dt><dd data-testid="ask-fetch-url">{ask.fetchUrl}</dd></div>}
         {ask.subject && <div><dt>{t('ask.subject')}</dt><dd>{ask.subject}</dd></div>}
       </dl>
       {editing && pending && !ask.textReadOnly ? (

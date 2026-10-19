@@ -90,8 +90,15 @@ var amqp1OpenReceiver = func(ctx context.Context, cfg map[string]interface{}, si
 // Type: "queue.amqp"
 type AMQPNode struct{}
 
-func (n *AMQPNode) Type() string                  { return "queue.amqp" }
-func (n *AMQPNode) PerItemConfigFields() []string { return queuePerItemFields }
+func (n *AMQPNode) Type() string { return "queue.amqp" }
+
+// amqpDestinations are the broker the connection's password goes to.
+var amqpDestinations = [][]string{{"hostname"}, {"port"}}
+
+// CredentialDestinationKeys: the broker the password goes to
+// (workflow.CheckCredentialDestinations).
+func (n *AMQPNode) CredentialDestinationKeys() [][]string { return amqpDestinations }
+func (n *AMQPNode) PerItemConfigFields() []string         { return queuePerItemFields }
 
 func (n *AMQPNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
 	sink := cfgString(config, "sink")

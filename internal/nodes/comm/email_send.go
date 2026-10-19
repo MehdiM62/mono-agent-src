@@ -45,6 +45,12 @@ type EmailSendNode struct{}
 
 func (n *EmailSendNode) Type() string { return "comm.email_send" }
 
+// CredentialDestinationKeys: the relay the connection's password goes to
+// (workflow.CheckCredentialDestinations).
+func (n *EmailSendNode) CredentialDestinationKeys() [][]string {
+	return [][]string{{"smtp_host"}, {"smtp_port"}}
+}
+
 func (n *EmailSendNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
 	if extensionOwns("comm.email_send", config) {
 		return apipkg.ExecuteExtension(ctx, "comm.email_send", input, config)

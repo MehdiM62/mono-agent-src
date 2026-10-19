@@ -20,6 +20,7 @@ export function normalizeAsk(raw) {
       account: raw.account || {}, recipient: raw.recipient || {},
       subject: raw.subject || '', text: String(raw.text ?? ''), textReadOnly: !!raw.textReadOnly,
       unreviewable: raw.unreviewable || '',
+      host: raw.host || '', fetchUrl: raw.fetchUrl || '',
       attachments: Array.isArray(raw.attachments) ? raw.attachments : [],
       org: raw.org || raw.preparedBy?.org || '', conversationId: raw.conversationId || raw.preparedBy?.conversationId || '',
       hilRef: raw.hil_ref || '', personId: raw.person_id || raw.recipient?.personId || '',

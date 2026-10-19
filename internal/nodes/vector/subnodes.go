@@ -34,6 +34,15 @@ func (n *subNode) Execute(context.Context, workflow.NodeInput, map[string]interf
 	return nil, fmt.Errorf("%w: %s is a sub-node: connect its %s output to %s", workflow.ErrInvalidConfig, n.typ, n.kind, n.root)
 }
 
+// CredentialDestinationKeys: an embeddings sub-node's are vector.embed's
+// (workflow.CheckCredentialDestinations).
+func (n *subNode) CredentialDestinationKeys() [][]string {
+	if n.typ == TypeEmbeddings {
+		return embedDestinations
+	}
+	return nil
+}
+
 // PerItemConfigFields leaves a document loader's text unresolved, so the
 // store resolves it against each item, as vector.load_document does.
 func (n *subNode) PerItemConfigFields() []string {

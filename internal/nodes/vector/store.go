@@ -107,6 +107,23 @@ type StoreNode struct{}
 
 func (n *StoreNode) Type() string { return "vector.store" }
 
+// CredentialDestinationKeys: where the store's connection key goes (each
+// backend's URL key, Pinecone's hosts), and the inline embedding block's
+// destinations, which resolveNestedCredential compares with that block's
+// own connection (workflow.CheckCredentialDestinations).
+func (n *StoreNode) CredentialDestinationKeys() [][]string {
+	keys := [][]string{{"url", "qdrant_url", "weaviate_cloud_endpoint", "baseUrl", "base_url", "host", "endpoint"},
+		{"index_host"}, {"control_url"}}
+	for _, g := range embedDestinations {
+		nested := make([]string, len(g))
+		for i, k := range g {
+			nested[i] = "embedding." + k
+		}
+		keys = append(keys, nested)
+	}
+	return keys
+}
+
 // PerItemConfigFields keeps "query" unresolved by the engine so a template
 // such as {{ $json.chatInput }} is evaluated once per input item.
 func (n *StoreNode) PerItemConfigFields() []string { return []string{"query"} }
