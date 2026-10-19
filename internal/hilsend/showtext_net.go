@@ -17,9 +17,11 @@ type shownParam struct {
 
 // net is the card's guarantee past its word lists: it lists every
 // address, link, @handle, phone number, channel and id in what the step
-// sends (each param's string leaves, its key names, and the numbers under
-// a key with "id" in it) that the card's text doesn't already show, each
-// with its path, under the fields. One in a recipient-like field (to, a
+// sends (each param's string leaves and key names, and the numbers of 6
+// digits or more in a recipient-like field, next to a recipient-like key,
+// under a key with "id" in it or after one in JSON text) that the card's
+// text doesn't already show, each with its path, under the fields. One in
+// a recipient-like field (to, a
 // pair's value) is listed unless a recipient-like field shows it: one that
 // shows only in a field such as notes still reads as no recipient.
 // Whatever the caps left out, and however its keys are named, none of
@@ -32,9 +34,13 @@ func (c *card) net(params []shownParam) {
 	inFields, elsewhere := map[string]bool{}, map[string]bool{}
 	text, at := c.b.String(), 0
 	see := func(s string, seen map[string]bool) {
-		for _, t := range addressTokens(cardText.Replace(s)) {
+		add := func(t string) bool {
 			seen[t] = true
+			return true
 		}
+		s = cardText.Replace(s)
+		scanAddresses(s, add)
+		idNumbers(s, add)
 	}
 	for _, f := range c.fields {
 		see(text[at:f[0]], elsewhere)
@@ -64,43 +70,55 @@ func (c *card) net(params []shownParam) {
 			room -= min(len(token), showValueMax/2) + 9
 		}
 	}
-	var walk func(v interface{}, path, key string, field bool)
-	walk = func(v interface{}, path, key string, field bool) {
+	// near: v's key sits next to a recipient-like one.
+	var walk func(v interface{}, path, key string, field, near bool)
+	walk = func(v interface{}, path, key string, field, near bool) {
 		if room < 0 {
 			return
 		}
+		// hit finds t, but not a Unix time under a time-like key.
+		hit := func(whole string) func(string) bool {
+			return func(t string) bool {
+				if t != whole || !timeKey(key) || !epoch(t) {
+					found(path, t, field)
+				}
+				return room >= 0
+			}
+		}
+		id := field || near || idKey(key)
 		switch x := v.(type) {
 		case map[string]interface{}:
 			by, _ := c.pair(x)
+			next := by != ""
+			for k := range x {
+				if next = next || c.recipient(k); next {
+					break
+				}
+			}
 			for _, k := range sortedKeys(x) {
 				in := field || c.recipient(k) || by != "" && k != by
-				for _, t := range addressTokens(k) {
-					found(path, t, in)
+				if !scanAddresses(k, func(t string) bool { found(path, t, in); return room >= 0 }) {
+					return
 				}
-				walk(x[k], joinPath(path, k), k, in)
+				walk(x[k], joinPath(path, k), k, in, next)
 			}
 		case []interface{}:
 			for i, el := range x {
-				walk(el, path+"["+strconv.Itoa(i)+"]", key, field)
+				walk(el, path+"["+strconv.Itoa(i)+"]", key, field, near)
 			}
 		case string:
-			for _, t := range addressTokens(x) {
-				if t != x || !timeKey(key) || len(x) != 10 && len(x) != 13 {
-					found(path, t, field)
-				}
-			}
-			if idKey(key) && longNumber(x) {
-				found(path, x, field)
+			if scanAddresses(x, hit(x)) && (!id || idNumbers(x, hit(x))) {
+				keyedIDs(x, hit(x))
 			}
 		case float64:
-			if n := strconv.FormatFloat(x, 'f', -1, 64); idKey(key) && longNumber(n) {
-				found(path, n, field)
+			if n := strconv.FormatFloat(x, 'f', -1, 64); id {
+				idNumbers(n, hit(n))
 			}
 		}
 	}
 	for _, p := range params {
 		key := p.path[strings.LastIndex(p.path, ".")+1:]
-		walk(p.value, p.path, key, c.recipient(key))
+		walk(p.value, p.path, key, c.recipient(key), false)
 	}
 	listed := map[string]bool{}
 	for _, h := range append(first, rest...) {
@@ -155,20 +173,6 @@ func idKey(k string) bool {
 		}
 	}
 	return false
-}
-
-// longNumber reports a number of 6 digits or more (a minus sign allowed).
-func longNumber(s string) bool {
-	s = strings.TrimPrefix(s, "-")
-	if len(s) < 6 {
-		return false
-	}
-	for _, r := range s {
-		if r < '0' || r > '9' {
-			return false
-		}
-	}
-	return true
 }
 
 // leftOut says what a recipient-like list leaves out: how many elements,

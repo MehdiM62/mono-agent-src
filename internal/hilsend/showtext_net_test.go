@@ -124,7 +124,7 @@ func TestAnUnknownPairShowsItsValue(t *testing.T) {
 // an @handle, a #channel, a Slack-style channel id, a phone number.
 func TestAddressTokens(t *testing.T) {
 	got := addressTokens("mail ada@x.test, see https://hooks.example.test/T1/B2 or ftp://files.test; ping @ada and #ops-team in C0123ABCD9, call +1 (555) 010-0199. Not: a@, #12, x://, C0123")
-	want := []string{"+15550100199", "ada@x.test", "https://hooks.example.test/T1/B2", "ftp://files.test", "@ada", "#ops-team", "C0123ABCD9"}
+	want := []string{"+1555010", "0100199", "5550100199", "+15550100199", "ada@x.test", "https://hooks.example.test/T1/B2", "ftp://files.test", "@ada", "#ops-team", "C0123ABCD9"}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("tokens %q\nwant %q", got, want)
 	}

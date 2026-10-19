@@ -173,13 +173,18 @@ head, its last element and every distinct domain of what it leaves out.
 The word lists only sort: under the fields, the card lists every email
 address (a@b, no dot needed), link, tel:, sip: or sms: URI, @handle or
 Matrix id (@user:server), #channel or channel id, phone number (7 to 15
-digits, with or without +), long number, UUID, IP literal, bare domain
-with a common TLD (evil.com) and long id (under a key with "id") in what
-the step sends that it doesn't already show, with its path, however its
-key is named or wherever the caps left it. One in a recipient-like field
-is listed unless a recipient-like field shows it, even when a field such
-as notes does. A date isn't a phone number, nor are 10 or 13 digits alone
-under a time-like key (createdAt, ts). The net reads shapes: an address
+digits, with or without +, each of several side by side, also glued to a
+word on one side: tel5551234567), long number, UUID (with or without
+dashes), IP literal, bare domain (evil.com, evil.zip, printer.local,
+localhost:8080; not a file name such as main.py) and id of 6 digits or
+more (under a key with "id", after one in JSON text, in or next to a
+recipient-like field) in what the step sends that it doesn't already
+show, with its path, however its key is named or wherever the caps left
+it. Fullwidth and Arabic-Indic digits count as ASCII ones. One in a
+recipient-like field is listed unless a recipient-like field shows it,
+even when a field such as notes does. A valid date isn't a phone number,
+nor are 10 or 13 digits alone under a time-like key (createdAt, ts) that
+read as a Unix time from 2001 to 2100. The net reads shapes: an address
 spelled out (evil at x dot com), percent-encoded (%40), in base64 or HTML
 entities (&#64;), with a fullwidth ＠, or split over two leaves
 isn't found. A value of more than a million keys and elements, raw JSON

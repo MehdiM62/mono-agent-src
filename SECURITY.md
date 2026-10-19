@@ -684,10 +684,12 @@ spelled out or otherwise obfuscated (`evil at x dot com`), percent-encoded
 (`evil%40x.test`), in base64 or HTML entities (`evil&#64;x.test`), written
 with a fullwidth `＠`, or split over two leaves the service joins
 (`{"user": "evil", "domain": "x.test"}`). Such a payload still shows its
-fields, cut with a mark and never left out silently. A bare domain counts
-only with a common TLD, 10 or 13 digits alone under a time-like key count
-as a Unix time, and an address that one recipient-like field shows isn't
-listed again from another.
+fields, cut with a mark and never left out silently. Also: a domain whose
+last label is a file name's ending (`evil.py`) and a number inside a word
+on both sides (`ab5551234567cd`) aren't read; 10 or 13 digits alone under a
+time-like key that read as a time from 2001 to 2100 count as a Unix time;
+and an address that one recipient-like field shows isn't listed again from
+another.
 
 ## Webhook trigger surface
 
