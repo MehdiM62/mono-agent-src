@@ -31,6 +31,7 @@ describe('the Tasks board layout', () => {
     expect(text).toMatch(/text-overflow:\s*ellipsis/)
     expect(text).toMatch(/white-space:\s*nowrap/)
     expect(text).toMatch(/overflow:\s*hidden/)
+    expect(rule('.tb-chip svg')).toMatch(/flex-shrink:\s*0/)
   })
 
   it('sets the read-first note beside the drawer close button, not under it', () => {

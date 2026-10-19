@@ -2021,6 +2021,7 @@ button.dash-row:hover { background: var(--elevated); }
 .tb-quick .btn { flex-shrink: 0; }
 /* A source chip (a long page host) stays inside the card, cut with an ellipsis. */
 .tb-chip { display: inline-flex; gap: 3px; align-items: center; min-width: 0; max-width: 100%; }
+.tb-chip svg { flex-shrink: 0; }
 .tb-chip-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tb-empty { font-size: 12px; color: var(--text-dim); padding: 6px 2px; }
 .tb-card { padding: 10px 12px; margin-bottom: 8px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--elevated); cursor: pointer; transition: border-color var(--transition), box-shadow var(--transition); }
