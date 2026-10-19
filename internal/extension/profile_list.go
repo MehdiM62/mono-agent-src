@@ -4,7 +4,10 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strings"
+	"time"
 
+	"github.com/monoes/mono-agent/internal/capture"
 	"github.com/monoes/mono-agent/internal/profiledir"
 )
 
@@ -51,6 +54,9 @@ type ProfileList struct {
 // source" and "the method is advertised" are the same fact rather than two
 // that can drift.
 func (s *Server) SetProfileSource(src ProfileSource) {
+	s.pendMu.Lock()
+	s.profileSource = src
+	s.pendMu.Unlock()
 	if src == nil {
 		s.handlerMu.Lock()
 		delete(s.handlers, MethodProfileList)
@@ -91,4 +97,41 @@ func listProfiles(ctx context.Context, src ProfileSource, bound string) (*Profil
 		}
 	}
 	return out, nil
+}
+
+// profileCheckTimeout bounds the profile listing a capture waits on before
+// it is written.
+const profileCheckTimeout = 5 * time.Second
+
+// fileUnderLiveProfile keeps a capture out of a deleted profile: one queued
+// in the extension before its profile was deleted still names it, and
+// writing it there would recreate the folder of a profile that is gone. It
+// lands in the default inbox instead, with a warning, as one with no profile
+// does. With no source, or one that cannot answer right now, the profile is
+// kept: a locked database is no reason to move a capture out of what may
+// well be a live profile.
+func (s *Server) fileUnderLiveProfile(env *capture.Envelope) {
+	id := strings.TrimSpace(env.Meta.Profile)
+	if id == "" || !profiledir.ValidProfileID(id) {
+		return // the writer settles these (resolveInbox)
+	}
+	s.pendMu.Lock()
+	src := s.profileSource
+	s.pendMu.Unlock()
+	if src == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), profileCheckTimeout)
+	defer cancel()
+	profiles, err := src(ctx)
+	if err != nil {
+		s.logger.Warn().Err(err).Str("profile", id).Msg("cannot check the capture's profile: filing it under it anyway")
+		return
+	}
+	if slices.ContainsFunc(profiles, func(p profiledir.Profile) bool { return p.ID == id }) {
+		return
+	}
+	s.logger.Warn().Str("profile", id).Msg("capture names a profile that no longer exists")
+	env.Meta.Profile = ""
+	env.Warnings = append(env.Warnings, fmt.Sprintf("profile %.64q no longer exists: saved to the default inbox instead", id))
 }
