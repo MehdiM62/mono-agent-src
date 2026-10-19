@@ -116,7 +116,7 @@ func (n *ProductHuntNode) Execute(ctx context.Context, input workflow.NodeInput,
 		return nil, fmt.Errorf("service.producthunt: 'access_token' is required")
 	}
 
-	operation := strVal(config, "operation")
+	operation := workflow.ConfigOperation(config)
 
 	var items []workflow.Item
 	var err error

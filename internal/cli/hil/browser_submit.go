@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/monoes/mono-agent/internal/browserctl"
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 )
 
 // A form submit an agent tried on a page that is not local (internal/browserctl:
@@ -33,7 +34,7 @@ func (d Deps) decideIfBrowserSubmit(cmd *cobra.Command, id string, approve bool)
 	var itemID, status string
 	switch {
 	case browserctl.IsSubmitItem(nc):
-		if err := d.RequireOperator("approve or reject a browser form submit"); err != nil {
+		if err := clicore.RequireOperator(d.RequireOperator, "approve or reject a browser form submit"); err != nil {
 			return true, err
 		}
 		it, err := browserctl.DecideSubmitItem(cmd.Context(), db.DB, d.ProfileID(), id, approve)
@@ -43,7 +44,7 @@ func (d Deps) decideIfBrowserSubmit(cmd *cobra.Command, id string, approve bool)
 		itemID, status = it.ID, it.Status
 	case browserctl.IsSiteItem(nc):
 		// An agent asked to use a site (level ask): approving adds an allow rule.
-		if err := d.RequireOperator("let an agent use a site"); err != nil {
+		if err := clicore.RequireOperator(d.RequireOperator, "let an agent use a site"); err != nil {
 			return true, err
 		}
 		it, err := browserctl.DecideSiteItem(cmd.Context(), db.DB, d.ProfileID(), id, approve)

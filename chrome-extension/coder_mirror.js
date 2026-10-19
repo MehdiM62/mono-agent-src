@@ -12,10 +12,13 @@
  * attributes: never innerHTML. An image is shown only from a base64 data URL
  * of a raster type, never from a path or a remote address.
  *
+ * Also the section's other pure part, the project folder list.
+ *
  *   watchState(id)              a fresh mirror for one conversation
  *   fold(state, reply)          -> changed?   a coder.events reply; pure, node-tested
  *   render(doc, state)          -> DocumentFragment of the transcript
  *   followable(state, conv)     may the follow-up box show? (coder.send)
+ *   folderChoices(projects, url) the "Project folder" options (coder.projects)
  *
  * After chat_core.js and chat_render.js.
  */
@@ -127,5 +130,32 @@
     return !!(state && conv && !state.running && conv.startedInDesktop === true && !conv.running);
   }
 
-  root.MonoCoderMirror = { watchState, fold, render, followable, baseName, IMAGE_CAP };
+  const originOf = (url) => {
+    try {
+      return new URL(url).origin;
+    } catch {
+      return "";
+    }
+  };
+
+  /** folderChoices: the page's mapped folder first, then the other mapped and recent ones, then the default. */
+  function folderChoices(projects, pageUrl) {
+    const origin = originOf(pageUrl);
+    const out = [];
+    const seen = new Set();
+    const add = (dir, label) => {
+      if (typeof dir !== "string" || !dir || seen.has(dir)) return;
+      seen.add(dir);
+      out.push({ value: dir, label });
+    };
+    // A folder that is gone is not offered: the coder could not start there.
+    const mapped = ((projects && projects.projects) || []).filter((p) => p && typeof p.dir === "string" && p.exists !== false);
+    for (const p of mapped) if (p.origin === origin) add(p.dir, `${baseName(p.dir)} (this site's project)`);
+    for (const p of mapped) add(p.dir, `${baseName(p.dir)} (${p.origin || "mapped"})`);
+    for (const r of (projects && projects.recent) || []) if (r && r.exists !== false) add(r.path, baseName(r.path));
+    out.push({ value: "", label: "The coder's default folder" });
+    return out;
+  }
+
+  root.MonoCoderMirror = { watchState, fold, render, followable, folderChoices, baseName, IMAGE_CAP };
 })(globalThis);

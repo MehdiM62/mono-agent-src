@@ -1,6 +1,7 @@
 import { Copy } from 'lucide-react'
 import { copyToClipboard } from './toolCardUtils.js'
 import { diffLines } from './unifiedDiff.js'
+import { maskSecretShapes } from './credentials.js'
 
 // Shared building blocks of the native tool cards (NativeToolCard.jsx,
 // nativeToolDescribe.jsx): tags, labelled sections, the result block and
@@ -42,11 +43,14 @@ export function Section({ label, copyText, children }) {
   )
 }
 
+// ResultSection is a call's output, with token-shaped secrets in it masked
+// (credentials.js), in the copy too.
 export function ResultSection({ call, label = 'Output' }) {
   if (call.status !== 'completed') return null
-  const text = call.result === '' || call.result == null ? '(no output)' : call.result
+  const result = maskSecretShapes(call.result ?? '')
+  const text = result === '' ? '(no output)' : result
   return (
-    <Section label={label} copyText={call.result ?? ''}>
+    <Section label={label} copyText={result}>
       <pre style={{ ...preStyle, color: call.ok === false ? '#fca5a5' : preStyle.color }}>{text}</pre>
     </Section>
   )

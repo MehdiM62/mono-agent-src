@@ -16,7 +16,7 @@ var (
 
 // hidden reports characters that show nothing but can carry text to a reader:
 // the Unicode tag block (invisible "ASCII smuggling"), bidi controls and the
-// byte order mark.
+// byte order mark U+FEFF (the zero-width no-break space).
 func hidden(r rune) bool {
 	switch {
 	case r >= 0xE0000 && r <= 0xE007F:
@@ -27,14 +27,43 @@ func hidden(r rune) bool {
 	return r == 0xFEFF
 }
 
+// zeroWidthSpace is U+200B. It is the word separator of Thai, Khmer and Lao,
+// so text keeps it; a title drops it (one line to read, where it only hides
+// a break inside a word) and a URL with one is refused.
+const zeroWidthSpace = '\u200b'
+
+// drawsNothing reports characters that show nothing on their own: format
+// characters (the zero-width space, joiners and direction marks, the soft
+// hyphen U+00AD, the invisible operators such as U+2062), combining marks
+// (an accent with nothing to sit on, the grapheme joiner U+034F, a variation
+// selector such as U+FE0F), and the characters that are letters or symbols to
+// Unicode but draw nothing: the Hangul fillers U+115F, U+1160, U+3164 and
+// U+FFA0 (the classic empty-title trick), the Braille blank U+2800 and the
+// object replacement character U+FFFC.
+func drawsNothing(r rune) bool {
+	switch r {
+	case 0x115F, 0x1160, 0x3164, 0xFFA0, 0x2800, 0xFFFC:
+		return true
+	}
+	return unicode.In(r, unicode.Cf, unicode.Mn, unicode.Me)
+}
+
+// blank reports whether s shows nothing: white space and characters that draw
+// nothing only. It only decides: text that shows something keeps them all, so
+// an emoji sequence keeps its joiners and a word its accents, but a title of
+// them alone is empty.
+func blank(s string) bool {
+	return !strings.ContainsFunc(s, func(r rune) bool { return !unicode.IsSpace(r) && !drawsNothing(r) })
+}
+
 // cleanText makes text safe to store and to print: invalid UTF-8 becomes
 // U+FFFD, line ends (CRLF, CR and the Unicode line and paragraph separators
 // U+2028 and U+2029, which the printers would not split on) become \n, control
 // characters other than \n and \t and the hidden characters are dropped (an
 // escape byte would otherwise reach a terminal), and the ends are trimmed. The
-// characters that languages and emoji need are kept: the zero-width joiners
-// U+200C and U+200D, the marks U+200E and U+200F and the Arabic letter mark
-// U+061C.
+// characters that languages and emoji need are kept: the zero-width space
+// U+200B, the zero-width joiners U+200C and U+200D, the marks U+200E and
+// U+200F and the Arabic letter mark U+061C.
 func cleanText(s string) string {
 	s = strings.ToValidUTF8(s, "\ufffd")
 	s = strings.ReplaceAll(s, "\r\n", "\n")
@@ -81,14 +110,31 @@ func cutBytes(s string, maxBytes int) string {
 	return cut + notice
 }
 
-// cleanTitle is a title as stored: one line, at most MaxTitleRunes.
-func cleanTitle(s string) string { return cutRunes(oneLine(s), MaxTitleRunes) }
+// cleanTitle is a title as stored: one line without zero-width spaces, at most
+// MaxTitleRunes; "" when nothing visible is left.
+func cleanTitle(s string) string {
+	t := cutRunes(oneLine(dropZeroWidthSpaces(s)), MaxTitleRunes)
+	if blank(t) {
+		return ""
+	}
+	return t
+}
+
+func dropZeroWidthSpaces(s string) string {
+	return strings.ReplaceAll(s, string(zeroWidthSpace), "")
+}
 
 // deriveTitleNotes turns the three ways a task's words arrive into the stored
-// title and notes (spec 4.6). It refuses words that clean to nothing, and notes
-// given together with text.
+// title and notes (spec 4.6). It refuses words that clean to nothing visible,
+// and notes given together with text.
 func deriveTitleNotes(title, notes, text string) (string, string, error) {
 	title, notes, text = cleanTitle(title), cutBytes(cleanText(notes), MaxNotesBytes), cleanText(text)
+	if blank(notes) {
+		notes = ""
+	}
+	if blank(text) {
+		text = ""
+	}
 	switch {
 	case notes != "" && text != "":
 		return "", "", invalid("give notes or text, not both")
@@ -102,11 +148,15 @@ func deriveTitleNotes(title, notes, text string) (string, string, error) {
 	case text == "":
 		return "", "", invalid("a task needs a title or some text")
 	}
-	first := text
-	if i := strings.IndexByte(text, '\n'); i >= 0 {
-		first = text[:i]
+	// The title is the first line that shows something.
+	first := ""
+	for _, line := range strings.Split(text, "\n") {
+		if !blank(line) {
+			first = line
+			break
+		}
 	}
-	derived := cutRunes(strings.Join(strings.Fields(first), " "), DerivedTitleRunes)
+	derived := cutRunes(strings.Join(strings.Fields(dropZeroWidthSpaces(first)), " "), DerivedTitleRunes)
 	if derived == text {
 		return derived, "", nil
 	}
@@ -115,14 +165,14 @@ func deriveTitleNotes(title, notes, text string) (string, string, error) {
 
 // cleanURL returns the URL when it is a plain http or https address, without
 // user-info and within the limit; otherwise "". A URL with invalid UTF-8, a
-// control character or a hidden character anywhere is refused, not rewritten:
-// net/url keeps a query exactly as typed.
+// control character, a hidden character or a zero-width space anywhere is
+// refused, not rewritten: net/url keeps a query exactly as typed.
 func cleanURL(raw string) string {
 	raw = strings.TrimSpace(raw)
 	if raw == "" || len(raw) > MaxURLBytes {
 		return ""
 	}
-	if !utf8.ValidString(raw) || strings.ContainsFunc(raw, func(r rune) bool { return unicode.IsControl(r) || hidden(r) }) {
+	if !utf8.ValidString(raw) || strings.ContainsFunc(raw, func(r rune) bool { return unicode.IsControl(r) || hidden(r) || r == zeroWidthSpace }) {
 		return ""
 	}
 	u, err := url.Parse(raw)

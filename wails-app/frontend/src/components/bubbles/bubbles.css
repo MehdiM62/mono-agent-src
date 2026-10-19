@@ -194,6 +194,8 @@
   transform-origin: var(--origin-x, 100%) var(--origin-y, 100%);
   animation: bubbleGrow 240ms cubic-bezier(.2, .8, .2, 1);
 }
+/* The org overlay holds focus itself until its composer can take it. */
+.bubble-overlay:focus { outline: none; }
 .bubble-overlay.closing { animation: bubbleShrink 170ms ease-in forwards; }
 .bubble-backdrop.closing { animation: fade-in 170ms ease-in reverse forwards; }
 .bubble-overlay.narrow { top: 0; bottom: 0; left: 0; width: 100vw; transform: none; border-radius: 0; }

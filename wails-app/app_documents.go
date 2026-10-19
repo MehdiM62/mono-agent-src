@@ -197,9 +197,10 @@ const (
 	maxFolderBytes = 2 << 30
 	// maxFolderVisited bounds the entries walked, documents or not.
 	maxFolderVisited = 200000
-	// uploadFileTimeout bounds one `profile upload-document` call (copy + index).
-	uploadFileTimeout = 5 * time.Minute
 )
+
+// uploadFileTimeout bounds one `profile upload-document` call (copy + index).
+var uploadFileTimeout = 5 * time.Minute
 
 // folderWalk is walkFolderFiles' result.
 type folderWalk struct {
@@ -296,7 +297,7 @@ func (a *App) OpenFolderFilesPicker(title string) []string {
 		exts = append(exts, fmt.Sprintf("%s ×%d", e, n))
 	}
 	sort.Strings(exts)
-	msg := fmt.Sprintf("Upload %d documents (%.1f MB) from %s?\n%s\n\nUploaded documents are copied into your profile and become searchable by chat, form-fill and AI agents.", len(w.files), float64(w.total)/(1<<20), dir, strings.Join(exts, ", "))
+	msg := fmt.Sprintf("Upload %d documents (%.1f MB) from %s into %s?\n%s\n\nUploaded documents are copied into the profile and become searchable by chat, form-fill and AI agents.", len(w.files), float64(w.total)/(1<<20), dir, a.selectedProfileLabel(), strings.Join(exts, ", "))
 	if w.unsupported > 0 {
 		msg += fmt.Sprintf("\n\n%d files of other types will be ignored.", w.unsupported)
 	}
@@ -312,6 +313,29 @@ func (a *App) OpenFolderFilesPicker(title string) []string {
 	}
 	a.issueDocPaths(w.files)
 	return w.files
+}
+
+// uploadDocumentArgs is the batch's `profile upload-document` argv: --no-follow
+// so a symlink swapped in after the picker's checks is refused.
+func uploadDocumentArgs(profileID, path string) ([]string, error) {
+	return scopedCLIArgs(profileID, "profile", "upload-document", "--no-follow", path)
+}
+
+// selectedProfileLabel names the selected profile for a dialog: its name,
+// else its id, else a neutral phrase.
+func (a *App) selectedProfileLabel() string {
+	id := a.selectedProfileOrEmpty()
+	if profiles, err := a.GetProfiles(); err == nil {
+		for _, p := range profiles {
+			if p.ID == id && p.Name != "" {
+				return fmt.Sprintf("profile %q", p.Name)
+			}
+		}
+	}
+	if id != "" {
+		return fmt.Sprintf("profile %q", id)
+	}
+	return "the selected profile"
 }
 
 // BatchUploadResult is UploadProfileDocuments' return value.
@@ -356,7 +380,7 @@ func (a *App) UploadProfileDocuments(paths []string) (*BatchUploadResult, error)
 	}
 	return a.uploadBatch(paths, func(ctx context.Context, path string) (UploadResult, error) {
 		var one UploadResult
-		args, err := scopedCLIArgs(id, "profile", "upload-document", path)
+		args, err := uploadDocumentArgs(id, path)
 		if err == nil {
 			err = a.runCLIArgsCtx(ctx, "", &one, args)
 		}
@@ -388,6 +412,9 @@ func (a *App) uploadBatch(paths []string, upload func(ctx context.Context, path 
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), uploadFileTimeout)
 		one, err := upload(ctx, path)
+		if err != nil && ctx.Err() != nil {
+			err = fmt.Errorf("timed out after %s", uploadFileTimeout)
+		}
 		cancel()
 		switch {
 		case err != nil:

@@ -78,7 +78,7 @@ func (n *HashnodeNode) Execute(ctx context.Context, input workflow.NodeInput, co
 		return nil, fmt.Errorf("service.hashnode: 'token' is required")
 	}
 
-	operation := strVal(config, "operation")
+	operation := workflow.ConfigOperation(config)
 
 	var items []workflow.Item
 	var err error

@@ -2,12 +2,14 @@ package extensioncli
 
 import (
 	"database/sql"
+	"os"
 	"testing"
 
 	"github.com/spf13/cobra"
 	"github.com/zalando/go-keyring"
 
 	"github.com/monoes/mono-agent/internal/cli/clicore"
+	"github.com/monoes/mono-agent/internal/operator"
 	"github.com/monoes/mono-agent/internal/storage"
 	"github.com/monoes/mono-agent/internal/testhome"
 )
@@ -16,9 +18,14 @@ import (
 // gets its own HOME and its own free port (MONOAGENT_EXTENSION_PORT, isolateBridgeEnv), so no
 // test ever binds 9222 or 9232.
 
-// Tests never touch the real ~/.monoagent or the OS keychain.
+// Tests never touch the real ~/.monoagent or the OS keychain, and run as the
+// operator's own terminal unless they say otherwise: a `go test` started from
+// an agent's shell inherits its markers, which the user's commands refuse.
 func TestMain(m *testing.M) {
 	keyring.MockInit()
+	for _, k := range operator.MarkerEnv() {
+		os.Unsetenv(k)
+	}
 	testhome.Main(m)
 }
 
@@ -50,5 +57,6 @@ func testDepsDB(jsonOut bool, dbPath string) *Deps {
 		},
 		Version:        func() string { return "dev" }, // a development build, as `go test` builds are
 		ServingCommand: func(c *cobra.Command) *cobra.Command { return c },
+		Refusal:        operator.Refusal,
 	}
 }
