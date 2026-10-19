@@ -143,8 +143,10 @@ func (mt *MonoagentTools) untrustedContentSeen() (string, bool) {
 // extension's chat): read-only, and none of it reaches credentials, the
 // vault, profile documents, synced messages, people, publications, orgs or
 // anything that writes. Hidden text on a page can steer what these show; it
-// cannot make them change or leak anything private.
-var PageReadToolNames = []string{"list_workflows", "get_workflow", "list_node_types"}
+// cannot make them change or leak anything private. The proposal tools write
+// nothing either: the person confirms each proposal in the side panel
+// (monoagent_tools_proposals.go).
+var PageReadToolNames = []string{"list_workflows", "get_workflow", "list_node_types", proposeTaskTool, proposeRecordingTool}
 
 // SetPageReadOnly confines this session to PageReadToolNames and counts the
 // turn's page text as untrusted content. Only the CLI's --tools
@@ -408,6 +410,9 @@ func (mt *MonoagentTools) ExecuteContext(ctx context.Context, name string, args 
 			return out, err
 		}
 		if out, ok, err := mt.executeOrgUnification(ctx, name, args); ok {
+			return out, err
+		}
+		if out, ok, err := mt.executeProposal(name, args); ok {
 			return out, err
 		}
 		return "", fmt.Errorf("unknown tool: %s", name)

@@ -1,0 +1,7 @@
+{
+  "nodes": [
+    {"id": "t1", "type": "trigger.manual", "config": {}},
+    {"id": "c1", "type": "app.trello", "config": {"resource": "card", "operation": "update", "id": "x", "updateFields": {"name": "N"}}},
+    {"id": "s1", "type": "core.set", "config": {"zz_extra": 1}}
+  ]
+}

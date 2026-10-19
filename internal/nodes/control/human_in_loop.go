@@ -214,10 +214,14 @@ func (n *HumanInLoopNode) createRows(ctx context.Context, db *sql.DB, input work
 	// whatever its auto_decide says: it waits for the user. The user's own
 	// workflows keep their auto_decide: that is the user delegating.
 	holdForUser := outbound && workflow.AIAuthoredFrom(ctx)
+	tags := askTags(ctx, db, profileID, input.ExecutionID)
 	for i := range input.Items {
 		cfg := map[string]interface{}{
 			"readonly_fields": readonlyFields,
 			"editable_fields": editableFields,
+		}
+		for k, v := range tags {
+			cfg[k] = v
 		}
 		status := "pending"
 		if plan != nil {

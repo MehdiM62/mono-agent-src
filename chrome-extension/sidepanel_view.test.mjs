@@ -9,7 +9,12 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 import { loadExtensionScripts } from "./test_helpers.mjs";
+
+const HERE = dirname(fileURLToPath(import.meta.url));
 
 const { MonoPanelView: V, MonoPanelStatus: S } = loadExtensionScripts([
   "sidepanel_status.js",
@@ -111,16 +116,25 @@ test("with profiles to choose from, the header is a switcher showing the choice"
   assert.equal(view.current.initial, "W");
   assert.equal(view.saveLabel, "Save to work");
   assert.equal(view.note, null);
-  // Every profile, then the shared inbox as the explicit "no profile".
-  assert.deepEqual(view.options.map((o) => o.id), ["default", "p-work", ""]);
+  // Every profile, and nothing else: there is no Shared inbox to choose (D2, #822).
+  assert.deepEqual(view.options.map((o) => o.id), ["default", "p-work"]);
+  assert.ok(!view.options.some((o) => /shared inbox/i.test(o.name)), "a Shared inbox option");
   assert.equal(view.options[0].isDefault, true);
 });
 
-test("choosing no profile is shown as the shared inbox, not as nothing", () => {
+test("the profile.list default is labelled as this browser's default, not monoagent's current profile (#822)", () => {
+  const view = V.describeProfiles({ profiles: PROFILES, profile: "p-work", profilesOffline: false });
+  assert.equal(view.options[0].hint, V.DEFAULT_HINT);
+  assert.equal(V.DEFAULT_HINT, "This browser's default");
+  assert.equal(view.options[1].hint, "", "only the default row says so");
+  const panel = readFileSync(join(HERE, "sidepanel.js"), "utf8");
+  assert.ok(!/current profile/i.test(panel), "the old label is still in sidepanel.js");
+});
+
+test("with profiles there is always one chosen: nothing stored shows the default", () => {
   const view = V.describeProfiles({ profiles: PROFILES, profile: "", profilesOffline: false });
-  assert.equal(view.current.id, "");
-  assert.equal(view.current.name, V.SHARED_INBOX);
-  assert.equal(view.saveLabel, "Save this page");
+  assert.equal(view.current.id, "default");
+  assert.equal(view.saveLabel, "Save to Default");
 });
 
 test("a remembered profile that was deleted is replaced out loud", () => {
@@ -143,12 +157,31 @@ test("with the bridge down, the cached list still works and says it is old", () 
   assert.match(view.note.text, /last list it gave/);
 });
 
-test("no profiles configured is the shared inbox and the command to make one", () => {
+test("no profiles configured: captures wait for one, and the command to make one", () => {
   const view = V.describeProfiles({ profiles: [], profile: "", profilesOffline: false });
   assert.equal(view.interactive, false);
-  assert.equal(view.current.name, V.SHARED_INBOX);
+  assert.equal(view.current.id, "");
+  assert.equal(view.current.name, V.NO_PROFILE);
   assert.equal(view.note.command, S.PROFILE_COMMAND);
   assert.match(view.note.text, /No profiles yet/);
+  assert.ok(!/shared inbox/i.test(JSON.stringify(view)), "the shared inbox is still mentioned");
+});
+
+test("captures held for want of a profile are counted in the note (D2, #822)", () => {
+  const one = V.describeProfiles({ profiles: [], profile: "", profilesOffline: false, unfiled: 1 });
+  assert.equal(one.note.tone, "warn");
+  assert.equal(one.note.text, "1 capture waits for a profile: create one in MonoAgent. To add one, run:");
+  const three = V.describeProfiles({ profiles: [], profile: "", profilesOffline: false, unfiled: 3 });
+  assert.equal(three.note.text, "3 captures wait for a profile: create one in MonoAgent. To add one, run:");
+  assert.equal(three.note.command, S.PROFILE_COMMAND);
+  // With profiles they are filed at the next send: nothing waits for one.
+  assert.equal(V.describeProfiles({ profiles: PROFILES, profile: "p-work", profilesOffline: false, unfiled: 3 }).note, null);
+});
+
+// #862: with no profiles at all, one that names a deleted profile waits too.
+test("with no profiles every queued capture is counted as waiting for one", () => {
+  const view = V.describeProfiles({ profiles: [], profile: "", profilesOffline: false, unfiled: 1, counts: { queued: 3, failed: 0 } });
+  assert.equal(view.note.text, "3 captures wait for a profile: create one in MonoAgent. To add one, run:");
 });
 
 test("offline with nothing cached keeps the remembered choice, by name when known", () => {
@@ -164,13 +197,14 @@ test("offline with nothing cached and nothing chosen says profiles come with the
   const view = V.describeProfiles({ profiles: [], profile: "", profilesOffline: true });
   assert.equal(view.current.id, "");
   assert.match(view.note.text, /once the bridge is running/);
+  assert.match(view.note.text, /captures wait here/);
 });
 
 test("a profile's colour is its own and does not move", () => {
   const a = V.avatarHue("711ef586-9f4b-4b1f-b2fd-cad23eec0a03");
   assert.equal(a, V.avatarHue("711ef586-9f4b-4b1f-b2fd-cad23eec0a03"));
   assert.ok(a >= 0 && a < 360 && a % 30 === 0);
-  assert.equal(V.avatarHue(""), -1, "the shared inbox has no colour of its own");
+  assert.equal(V.avatarHue(""), -1, "no profile has no colour of its own");
 });
 
 test("an avatar letter is a letter, whatever the name starts with", () => {
@@ -241,9 +275,9 @@ test("no brain status (shared inbox, older bridge) keeps the old line", () => {
 
 // --- the task box ---
 
-test("the task button names the profile, and refuses the shared inbox", () => {
+test("the task button names the profile, and refuses no profile", () => {
   assert.deepEqual(V.taskButton({ id: "p-work", name: "Work" }), { text: "Add to Work", enabled: true });
-  assert.deepEqual(V.taskButton({ id: "", name: V.SHARED_INBOX }), { text: "Choose a profile first", enabled: false });
+  assert.deepEqual(V.taskButton({ id: "", name: V.NO_PROFILE }), { text: "Choose a profile first", enabled: false });
   assert.deepEqual(V.taskButton(null), { text: "Choose a profile first", enabled: false });
 });
 

@@ -48,6 +48,8 @@ FROM CHROME
   The MonoAgent Bridge extension adds tasks from the browser (a selection, a page, or
   a note typed in its side panel) to the Inbox of the profile it is "Saving into".
   They are captures: the operator reads them before moving them to Ready.
+  Its side-panel chat may also propose a task; one the person adds with the card's
+  button is filed in the Inbox as the agent agent:extension-chat, never in Ready.
 
 WHO MAY DO WHAT
   The operator is the person who owns the profile, at a terminal of their own. The

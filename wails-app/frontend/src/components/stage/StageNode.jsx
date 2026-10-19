@@ -107,6 +107,7 @@ export function useDoingText() {
   return (node) => {
     const d = node.doing
     if (!d) return ''
+    if (d.vault) return t('stage.doing.vault')
     if (d.kind === 'org' && ORG_TOOLS.includes(d.name)) return t(`stage.orgTool.${d.name}`)
     const key = ['edit', 'write', 'patch', 'read', 'shell', 'web', 'search', 'task', 'mcp', 'todo', 'org'].includes(d.kind) ? d.kind : 'other'
     return t(`stage.doing.${key}`, { target: d.target || d.name, name: d.name })

@@ -101,7 +101,8 @@ func TestOnlyTheUserWritesTheHTTPAPIToken(t *testing.T) {
 	}
 	clear()
 	counts, stderr := importAs("CLAUDECODE")
-	if counts.Imported != 3 || counts.Skipped != 1 || !strings.Contains(stderr, `"httpapi-token" was not imported`) {
+	// The note starts a line of its own: the passphrase prompt's line ended though stdin echoed nothing.
+	if counts.Imported != 3 || counts.Skipped != 1 || !strings.Contains(stderr, "Passphrase: \nnote: \"httpapi-token\" was not imported") {
 		t.Errorf("an agent's import: %+v\n%s", counts, stderr)
 	}
 	if list, err := run("secret", "list"); err != nil || strings.Contains(list, "httpapi-token") {

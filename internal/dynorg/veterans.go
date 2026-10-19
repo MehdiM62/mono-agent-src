@@ -159,6 +159,8 @@ func (c *Conductor) veteranBlockedLocked(w *worker) error {
 		return fmt.Errorf("%s's model %s is no longer ready; spawn a new worker", w.id, w.model.Key())
 	case w.mustConfine && !c.confined(w.model):
 		return fmt.Errorf("%s can't run confined any more (%s); spawn a new sub-worker", w.id, w.model.Key())
+	case c.cfg.Staffer.fitAccess(w.staff.Access) != w.staff.Access:
+		return fmt.Errorf("%s works with %s access, which the user turned off (app access); spawn a new worker", w.id, w.staff.Access)
 	}
 	return nil
 }

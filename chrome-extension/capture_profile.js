@@ -14,9 +14,11 @@
  *
  *   NEVER BLOCK A CAPTURE. The profile list comes from the Go bridge
  *   (profile.list), and the bridge is frequently not there. Every failure
- *   below resolves to "save it without a profile", which is exactly what
- *   captures did before profiles existed — a page is never lost, and never
- *   waits on a question about filing.
+ *   below resolves to "take it without a profile for now" — a page is never
+ *   lost, and the capture never waits on a question about filing. It is
+ *   filed when it is sent (profileForSending): there is no Unassigned pile
+ *   (decision D2), so with no profile at all it stays queued until one
+ *   exists.
  *
  * The id is used as a directory name on the other side. The Go side owns
  * that guarantee (internal/profiledir rejects separators and '..'), but a
@@ -40,6 +42,13 @@
   const LIST_TIMEOUT_MS = 4000;
 
   const METHOD = "profile.list";
+
+  // How long a lookup trusts the cached list before checking it again in the
+  // background (#822): a profile deleted in MonoAgent must not stay the one
+  // every lookup asks about until someone opens the side panel. Per storage,
+  // and in memory, so a fresh worker checks on its first lookup.
+  const RECHECK_MS = 60000;
+  const checkedAt = new WeakMap();
 
   /**
    * isValidProfileId mirrors profiledir.ValidProfileID (Go): non-empty, no
@@ -196,7 +205,10 @@
   async function refresh(ask, storage) {
     const [{ profile, profiles: cached }, live] = await Promise.all([load(storage), fetchProfiles(ask)]);
     const profiles = live.offline ? cached : live.profiles;
-    if (!live.offline) await cacheProfiles(storage, live.profiles);
+    if (!live.offline) {
+      checkedAt.set(storage, Date.now());
+      await cacheProfiles(storage, live.profiles);
+    }
     const chosen = choose(profile, profiles, { offline: live.offline });
     // A fallback is remembered, so the next shortcut capture agrees with
     // what the popup just showed.
@@ -217,11 +229,12 @@
 
   /**
    * stickyOrAsk is sticky for a caller that CAN ask, and is the shortcut
-   * path's actual entry point. It is storage-only in every ordinary case;
-   * the one exception is a browser that has never asked what profiles
-   * exist — where a shortcut capture would otherwise be filed nowhere
-   * until the popup happened to be opened once. That first capture asks,
-   * so "the default profile" is the default from the beginning.
+   * path's actual entry point. Its answer comes from storage in every
+   * ordinary case (connected, the list is checked again in the background:
+   * recheck); the one exception is a browser that has never asked what
+   * profiles exist — where a shortcut capture would otherwise be filed
+   * nowhere until the popup happened to be opened once. That first capture
+   * asks, so "the default profile" is the default from the beginning.
    *
    * Still zero interaction, and still incapable of blocking a capture: the
    * question only goes out when the bridge is already connected, it is
@@ -230,8 +243,97 @@
   async function stickyOrAsk(ask, storage, connected) {
     const state = await load(storage);
     const chosen = choose(state.profile, state.profiles, { offline: true });
-    if (chosen.id || state.asked || !connected) return chosen.id;
+    if (chosen.id || state.asked || !connected) {
+      if (connected) recheck(ask, storage);
+      return chosen.id;
+    }
     return (await refresh(ask, storage)).id;
+  }
+
+  /**
+   * recheck asks for the list again, in the background and at most every
+   * RECHECK_MS, and caches a live answer: the next sticky lookup then falls
+   * back from a profile that is gone (choose). The remembered choice is left
+   * as it is, so the side panel can still say the profile was deleted. Never
+   * awaited by a capture; a bridge that does not answer changes nothing.
+   */
+  function recheck(ask, storage) {
+    if (Date.now() - (checkedAt.get(storage) || 0) < RECHECK_MS) return;
+    checkedAt.set(storage, Date.now());
+    fetchProfiles(ask)
+      .then((live) => (live.offline ? null : cacheProfiles(storage, live.profiles)))
+      .catch(() => {});
+  }
+
+  /**
+   * profileForSending is the profile a capture that names none is filed
+   * into when it is sent: the remembered one, else the default, asking the
+   * bridge (only a sender calls this, so the bridge is there). "" when no
+   * profile exists at all. There is no Unassigned pile (decision D2), so the
+   * caller then keeps the capture queued, unsent, until one does.
+   */
+  async function profileForSending(ask, storage) {
+    const id = await stickyOrAsk(ask, storage, true);
+    if (id) return id;
+    // An empty list may be an old answer: a profile made since is asked for.
+    return (await refresh(ask, storage)).id;
+  }
+
+  /**
+   * stampEnvelope files an envelope that names no profile into the one
+   * resolveId() answers, asked only then. A filed envelope is returned as it
+   * is; null means there is no profile to file it into. The envelope passed
+   * in is not changed: the queue keeps it as it was.
+   */
+  async function stampEnvelope(envelope, resolveId) {
+    const meta = (envelope && envelope.meta) || {};
+    if (isValidProfileId(meta.profile)) return envelope;
+    const id = await resolveId();
+    if (!isValidProfileId(id)) return null;
+    return Object.assign({}, envelope, { meta: applyToMeta(Object.assign({}, meta), id) });
+  }
+
+  /**
+   * preparer is the prepare(envelope) for one run of sends (a flush, one
+   * capture, a retry): stampEnvelope with the profile asked for once, and
+   * only if an envelope names none. null from it means: keep it queued.
+   *
+   * opts.verify (a flush, a retry) also checks a profile an envelope names
+   * against the live list, asked for once (refileGone): a capture queued
+   * before its profile was deleted still names it.
+   */
+  function preparer(ask, storage, opts) {
+    let asked = null;
+    let listed = null;
+    const resolveId = () => (asked = asked || profileForSending(ask, storage));
+    const listLive = () => (listed = listed || fetchProfiles(ask));
+    const verify = !!(opts && opts.verify);
+    return async (envelope) => {
+      const checked = verify ? await refileGone(envelope, listLive) : envelope;
+      return checked && stampEnvelope(checked, resolveId);
+    };
+  }
+
+  /**
+   * refileGone files an envelope whose profile is gone from the live list
+   * into the default one, with a warning, and answers null when no profile
+   * exists: it is held like one that names none. An envelope whose profile
+   * is there, or that nobody can check (no live list), is returned as it
+   * is; the bridge checks it again before it writes.
+   */
+  async function refileGone(envelope, listLive) {
+    const meta = (envelope && envelope.meta) || {};
+    if (!isValidProfileId(meta.profile)) return envelope;
+    const named = meta.profile.trim();
+    const live = await listLive();
+    if (live.offline || live.profiles.some((p) => p.id === named)) return envelope;
+    const fallback = defaultProfile(live.profiles);
+    if (!fallback) return null;
+    const warning = `the profile "${named}" no longer exists: filed into ${fallback.name} instead`;
+    return Object.assign({}, envelope, {
+      meta: applyToMeta(Object.assign({}, meta), fallback.id),
+      warnings: ((envelope && envelope.warnings) || []).concat([warning]),
+    });
   }
 
   /**
@@ -250,6 +352,7 @@
   root.MonoCaptureProfile = {
     isValidProfileId, normalizeProfiles, defaultProfile, choose,
     load, remember, cacheProfiles, fetchProfiles, refresh, sticky, stickyOrAsk, applyToMeta,
-    PROFILE_KEY, PROFILES_KEY, METHOD, LIST_TIMEOUT_MS,
+    profileForSending, stampEnvelope, preparer,
+    PROFILE_KEY, PROFILES_KEY, METHOD, LIST_TIMEOUT_MS, RECHECK_MS,
   };
 })(globalThis);

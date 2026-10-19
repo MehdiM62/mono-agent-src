@@ -68,6 +68,25 @@ func TestCheckDeciderModelAcceptsAnOfferedModel(t *testing.T) {
 	}
 }
 
+// Claude lists its models by alias, each with the model it resolves to today
+// ({"id":"fable","resolved_id":"claude-fable-5-1"}), and the default decider
+// model is the concrete id. Matching ids alone refused it, so even turning an
+// org to manual failed (#477).
+func TestCheckDeciderModelAcceptsTheModelAnAliasResolvesTo(t *testing.T) {
+	bin := "/usr/bin/claude"
+	stubRuntimes(t, []monomind.ScanEntry{{ID: "claude", Installed: true, Binary: &bin}}, []monomind.RuntimeModel{
+		{ID: "default", ResolvedID: "claude-sonnet-5-5"}, {ID: "fable", ResolvedID: "claude-fable-5-1"}, {ID: "claude-opus-5"},
+	}, nil)
+	for _, model := range []string{orgdecide.DefaultDeciderModel, "fable", "claude-opus-5"} {
+		if err := depsEnv().checkDeciderModel(context.Background(), modelDecider("claude", model)); err != nil {
+			t.Errorf("%s: %v", model, err)
+		}
+	}
+	if err := depsEnv().checkDeciderModel(context.Background(), modelDecider("claude", "claude-opus-9")); err == nil {
+		t.Error("a model no entry names or resolves to must still be refused")
+	}
+}
+
 func TestCheckDeciderModelRejectsAnUninstalledRuntime(t *testing.T) {
 	stubRuntimes(t, []monomind.ScanEntry{{ID: "codex", Installed: false, InstallHint: "npm i -g codex"}}, nil, nil)
 	err := depsEnv().checkDeciderModel(context.Background(), modelDecider("codex", "gpt-5.6-luna"))
@@ -158,5 +177,25 @@ func TestIdleDeadlineReadsWhatMonomindReports(t *testing.T) {
 				t.Errorf("hold = %v, want %v", hold, tc.wantHold)
 			}
 		})
+	}
+}
+
+// Turning an org down to manual uses no decider, so a stored decider the
+// runtime no longer offers must not block it (#477); raising the level, or
+// changing the decider, still checks it.
+func TestOrgAutonomyManualDoesNotNeedTheDecider(t *testing.T) {
+	f := newOrgCLIFixture(t)
+	bin := "/usr/bin/claude"
+	stubRuntimes(t, []monomind.ScanEntry{{ID: "claude", Installed: true, Binary: &bin}}, []monomind.RuntimeModel{{ID: "opus"}}, nil)
+
+	got := f.mustRun(t, "autonomy", "set", "growth", "--level", "manual")
+	if got["level"] != orgdesign.LevelManual {
+		t.Fatalf("level = %v", got["level"])
+	}
+	if _, err := f.run(t, "autonomy", "set", "growth", "--level", "mid"); err == nil || !strings.Contains(err.Error(), "is not one claude offers") {
+		t.Fatalf("raising the level with a model claude does not offer: %v", err)
+	}
+	if _, err := f.run(t, "autonomy", "set", "growth", "--level", "manual", "--decider-model", "claude-opus-9"); err == nil {
+		t.Fatal("a decider changed on the way to manual is still checked")
 	}
 }

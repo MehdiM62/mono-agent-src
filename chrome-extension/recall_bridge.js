@@ -118,11 +118,13 @@
 
   /** A new "Saving into" choice changes every "already saved" answer: the
    *  cache belongs to the old profile, so it goes, and the tab in front is
-   *  asked again. */
+   *  asked again. So does a new profile list: the profile those answers were
+   *  about may be gone (capture_profile.js recheck). */
+  const PROFILES_KEY = "captureProfilesCache";
   function registerProfileChanges() {
     if (!chrome.storage || !chrome.storage.onChanged) return;
     chrome.storage.onChanged.addListener((changes, area) => {
-      if (area !== "local" || !changes[PROFILE_KEY]) return;
+      if (area !== "local" || !(changes[PROFILE_KEY] || changes[PROFILES_KEY])) return;
       noProfileUntil = 0;
       root.MonoSaved.reset();
       checkActiveTab();

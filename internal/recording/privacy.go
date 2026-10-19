@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"regexp"
 	"strings"
+	"unicode"
 
 	"golang.org/x/net/html"
 )
@@ -76,6 +77,33 @@ func Sanitize(ev *Event) {
 		ev.Value = ""
 		ev.Masked = true
 	}
+}
+
+// CleanGoal is a recording's goal as it is kept and handed to the analysis:
+// one line of at most MaxGoalRunes runes, without what shows nothing on
+// screen but a model still reads (see invisible).
+func CleanGoal(s string) string {
+	s = strings.Map(func(r rune) rune {
+		if invisible(r) {
+			return ' '
+		}
+		return r
+	}, strings.ToValidUTF8(s, ""))
+	return clipRunes(strings.Join(strings.Fields(s), " "), MaxGoalRunes)
+}
+
+// invisible reports a character that shows nothing: a control, the Unicode
+// tag block (invisible "ASCII smuggling"), a variation selector, a format
+// character (bidi controls, zero-width ones, the byte order mark), a
+// private-use character, or a code point with no character assigned.
+func invisible(r rune) bool {
+	switch {
+	case r >= 0xE0000 && r <= 0xE007F:
+		return true
+	case unicode.IsControl(r), unicode.Is(unicode.Cf, r), unicode.Is(unicode.Co, r), unicode.Is(unicode.Variation_Selector, r):
+		return true
+	}
+	return !unicode.In(r, unicode.L, unicode.M, unicode.N, unicode.P, unicode.S, unicode.Z)
 }
 
 // clipRunes caps s at n runes.
