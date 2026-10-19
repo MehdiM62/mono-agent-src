@@ -264,7 +264,7 @@ export function OrgBubbleOverlay({ bubble, store, originRect, onCollapse, onClos
             view={threadMode} onView={setThreadMode} onNavigate={onNavigate && ((page, params) => onNavigate(page, params))} />
           {selectedNode && (
             <StageDrawer node={selectedNode} calls={conv.bubble?.calls} leadInfo={leadInfo} turnId={conv.bubble?.run || ''} isLive={running}
-              canStop={false} onClose={() => setSelected(null)} />
+              canStop={false} onClose={() => setSelected(null)} onNavigate={onNavigate} />
           )}
         </div>
       </div>
