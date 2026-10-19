@@ -10,6 +10,7 @@
     "n8n-nodes-base.contentful"
   ],
   "base_url": "https://cdn.contentful.com",
+  "auth_hosts": ["*.contentful.com"],
   "headers": {
     "Accept": "application/json"
   },

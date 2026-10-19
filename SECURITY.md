@@ -152,10 +152,13 @@ Now the settings that decide where the secret goes follow these rules:
   connection. A next page on another host, which the response names, now
   goes without the request's auth, as a redirect does.
 - **API packages (`app.*` nodes).** They send the credential, and
-  anything rendered from the connection, only to the hosts the package
-  names: the base URL's host and its subdomains, hosts written in the
-  package, and its `auth_hosts`. A URL that a parameter or a response
-  names on any other host is sent without them.
+  anything rendered from the connection, only to the hosts the package or
+  the connection names. That covers the base URL's host as the package and
+  connection render it, and its subdomains. It also covers the
+  connection's own server, hosts written in the package, and its
+  `auth_hosts` (such as S3's regions). A URL or a host part, such as an S3
+  region, that a parameter or a response points at any other host goes
+  without them.
 - **Model vendors.** `agent.ask` and `ai.model` reach the vendor the
   connection is for. An embedding provider's region or location must be a
   region name.

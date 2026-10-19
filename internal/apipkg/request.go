@@ -90,7 +90,14 @@ func (r *opRun) buildRequest(ctx context.Context, pp pageParams) (*built, error)
 	// The connection's secret goes only to a host the package names: an
 	// absolute URL a param or a response names elsewhere goes without it,
 	// and without anything rendered from the connection (authHost).
-	authed := r.authHost(u.Hostname(), b)
+	// The base URL's host is the package's or the connection's own when
+	// the package and the connection alone render it: a region a param
+	// passes or a location a response names can't move the credential.
+	named := b
+	if own, err := renderText(base, Scope{Cred: sc.Cred}); err != nil || urlHost(own) != urlHost(b) {
+		named = ""
+	}
+	authed := r.authHost(u.Hostname(), named)
 	if !authed {
 		saved := r.scope.Cred
 		r.scope.Cred, sc.Cred = nil, nil
@@ -157,22 +164,50 @@ func (r *opRun) buildRequest(ctx context.Context, pp pageParams) (*built, error)
 	return &built{req: req, body: body}, nil
 }
 
+// credHostKey matches a connection field that names its server.
+var credHostKey = regexp.MustCompile(`(?i)(^|_)(url|host|hostname|domain|endpoint|server)$`)
+
+// urlHost is the host of a URL, or of a bare host[:port] ("" for none).
+func urlHost(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	if !strings.Contains(raw, "://") {
+		raw = "https://" + raw
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		return ""
+	}
+	return strings.ToLower(u.Hostname())
+}
+
 // literalHost finds the hosts written in a URL template, not rendered into
 // it ("https://upload.box.com/…", "…then:'https://sync.api.bannerbear.com/…'").
 var literalHost = regexp.MustCompile(`https?://([A-Za-z0-9.-]+)(?:[:/'"?#]|$)`)
 
-// authHost reports whether host is one the package names, so the
-// connection's secret may go to it: the host of the base URL as rendered
-// (base), or one of its subdomains; a host written literally in the
-// package's or the op's base URL or the op's path; or one of the
-// package's auth_hosts ("*.example.com" for its subdomains).
+// authHost reports whether host is one the package or the connection
+// names, so the connection's secret may go to it: the host of the base URL
+// as the package and connection render it (base, "" when a param or a
+// response moved it), or one of its subdomains; a host the connection's
+// own URL or host fields name, or one of its subdomains; a host written
+// literally in the package's or the op's base URL or the op's path; or one
+// of the package's auth_hosts ("*.example.com" for its subdomains).
 func (r *opRun) authHost(host, base string) bool {
 	host = strings.ToLower(strings.TrimSuffix(host, "."))
 	if host == "" {
 		return false
 	}
-	if bu, err := url.Parse(strings.TrimSpace(base)); err == nil {
-		if bh := strings.ToLower(strings.TrimSuffix(bu.Hostname(), ".")); bh != "" && (host == bh || strings.HasSuffix(host, "."+bh)) {
+	within := func(named string) bool {
+		named = strings.ToLower(strings.TrimSuffix(named, "."))
+		return named != "" && (host == named || strings.HasSuffix(host, "."+named))
+	}
+	if within(urlHost(base)) {
+		return true
+	}
+	for k, v := range r.scope.Cred {
+		if s, ok := v.(string); ok && credHostKey.MatchString(k) && within(urlHost(s)) {
 			return true
 		}
 	}

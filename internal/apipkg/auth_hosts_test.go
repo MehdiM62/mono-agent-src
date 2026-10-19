@@ -50,4 +50,38 @@ func TestCredentialGoesOnlyToHostsThePackageNames(t *testing.T) {
 			t.Fatalf("the run's credential scope was left blank: %v", r.scope.Cred)
 		}
 	}
+
+	// A base URL whose host a param renders (an S3 region) names a host
+	// only as the package and the connection render it, or in auth_hosts;
+	// the connection's own URL fields name theirs.
+	regional := &Package{ID: "r", BaseURL: "https://s3.{{ p.region | default:cred.region }}.storage.example", AuthHosts: []string{"*.storage.example"}}
+	for region, authed := range map[string]bool{"eu-west-1": true, "": true, "attacker.test/x": false, "attacker.test#": false} {
+		r := &opRun{pkg: regional, op: &Operation{Method: "GET", Path: "/bucket"}, credDef: cred,
+			scope: Scope{P: map[string]any{"region": region}, Cred: map[string]any{"token": "sekret-1", "region": "us-east-1"}}}
+		b, err := r.buildRequest(context.Background(), pageParams{})
+		if err != nil {
+			t.Fatalf("region %q: %v", region, err)
+		}
+		if got := b.req.Header.Get("Authorization") != ""; got != authed {
+			t.Errorf("region %q to %s: credential sent %v, want %v", region, b.req.URL.Host, got, authed)
+		}
+	}
+	// A self-hosted variant a param picks (Jira Server's PAT): its host is
+	// the connection's own.
+	self := &Package{ID: "s", BaseURL: "{{ p.server | eq:'self' | then:cred.domain | default:'https://api.vendor.example' }}"}
+	for path, authed := range map[string]bool{"": true, "https://files.my-site.example/a": true, "https://attacker.test/a": false} {
+		op := &Operation{Method: "GET", Path: "{{ p.url }}"}
+		if path == "" {
+			op.Path = "/items"
+		}
+		r := &opRun{pkg: self, op: op, credDef: cred,
+			scope: Scope{P: map[string]any{"url": path, "server": "self"}, Cred: map[string]any{"token": "sekret-1", "domain": "https://my-site.example"}}}
+		b, err := r.buildRequest(context.Background(), pageParams{})
+		if err != nil {
+			t.Fatalf("%s: %v", path, err)
+		}
+		if got := b.req.Header.Get("Authorization") != ""; got != authed {
+			t.Errorf("%s: credential sent %v, want %v", path, got, authed)
+		}
+	}
 }

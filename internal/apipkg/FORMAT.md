@@ -453,10 +453,14 @@ argument are not, so an optional path suffix works:
 1. URL = `op.base_url` or `base_url` (rendered) + rendered `path`. A path that
    renders to an absolute `http(s)://` URL is used as is. The credential
    (§7, and anything rendered from `cred`) goes only to a host the package
-   names: the rendered base URL's host or a subdomain of it, a host written
-   literally in `base_url` or the op's `base_url`/`path`, or one listed in
-   `auth_hosts` (`"*.firebasedatabase.app"` for its subdomains). A URL a
-   param or a response names on any other host is sent without it.
+   or the connection names: the base URL's host as the package and the
+   connection alone render it (a param or a response can't move it), or a
+   subdomain of it; a host or subdomain of the connection's own URL, host,
+   domain, endpoint or server field; a host written literally in
+   `base_url` or the op's `base_url`/`path`; or one listed in `auth_hosts`
+   (`"*.firebasedatabase.app"` for its subdomains, `"*.amazonaws.com"` for
+   a region a param picks). A URL a param or a response names on any other
+   host is sent without it.
 2. `query` is rendered and added; pagination params next (§8).
 3. Body by `body_type` (default: `json` when `body` is set; `raw` for a binary
    upload with no body; else `none`):
