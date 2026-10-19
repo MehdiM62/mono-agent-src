@@ -250,8 +250,11 @@ widen what an earlier page reached the model with):
   MonoAgent's file vault as `vault.save`. The card names the host the file
   would come from. A public page never has the extension fetch a private
   network address (loopback, private and link-local ranges, `localhost`
-  and intranet names), and a file from a public page is fetched without
-  following a redirect. A page cannot press those buttons:
+  and intranet names). Two limits are known. The check reads the address
+  as it is written, so a public name that resolves to a private address
+  through DNS is not caught. And a redirect cannot be checked before it is
+  followed, so from a public page an address that redirects is refused,
+  not followed, even when the redirect is harmless. A page cannot press those buttons:
   they are in the side panel, and the worker takes the requests only from
   the extension's own pages. There is no secret, credential, secret-vault, profile
   document, synced message, contact, publication, org, template or social
