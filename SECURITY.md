@@ -232,8 +232,15 @@ extension starts runs in a mode of its own, `--tools monoagent:read`
 (with or without a page attached; one mode, so a later message cannot
 widen what an earlier page reached the model with):
 
-- **Three tools only**: `list_workflows`, `get_workflow`,
-  `list_node_types`. There is no secret, credential, vault, profile
+- **Four tools only**: `list_workflows`, `get_workflow`,
+  `list_node_types`, and `propose_task`, which writes nothing: it answers
+  with the task it proposes, the side panel shows it as a card (marked
+  "Suggested after reading a web page" once the conversation has read a
+  page), and only the person's click on the card's Add button sends it to
+  MonoAgent, which files it in the Inbox as the agent
+  `agent:extension-chat`, never in Ready. A page cannot press that button:
+  it is in the side panel, and the worker takes the request only from the
+  extension's own pages. There is no secret, credential, vault, profile
   document, synced message, contact, publication, org, template or social
   list tool; no tool that writes or deletes anything; no `run_workflow`;
   no workflow or canvas builder; no Bash; no knowledge-graph search. A tool
@@ -286,7 +293,8 @@ widen what an earlier page reached the model with):
 **Residual risk:** hidden text on a page can still steer what the three
 read tools show (workflow definitions, which may name accounts or targets)
 and the wording of the model's reply, including a link you may choose to
-click (its host is shown). The page text and the reply stay in the local
+click (its host is shown), and the task it proposes: read a card before you
+add it, as you read an Inbox task before approving it. The page text and the reply stay in the local
 conversation database like any chat.
 
 ### Extension commands that only the user runs
@@ -815,7 +823,7 @@ that works a task acts on them. The defences:
   The labels `you`, `agent`, `capture`, `chrome` and `os` are reserved,
   in any case, so an agent's events never read as the operator's or a
   capture's.
-- **Tasks from the Chrome extension.** The extension adds tasks through the bridge it already uses (loopback, paired token): one request method, `task.add`, which only adds to the Inbox of a profile that exists, as the browser capture `chrome`, whatever the environment of the process that hosts the bridge. The page address sent with a task loses its user-info, fragment and session-token parameters in the extension, and MonoAgent checks it again; a tab title that is only that address is not sent either. A selection carries what `getSelection()` reads: text hidden with `display:none` is left out, text hidden by colour, size or position is not. Both are why the operator reads a captured task before approving it. The floating selection panel that carries the task button lives in a closed shadow root and ignores events with `isTrusted` false, so a page cannot find or press it; a page can still move or cover its host and bait a real click, which files an Inbox task with text the page chose.
+- **Tasks from the Chrome extension.** The extension adds tasks through the bridge it already uses (loopback, paired token): one request method, `task.add`, which only adds to the Inbox of a profile that exists, as the browser capture `chrome`, whatever the environment of the process that hosts the bridge; a task the side-panel chat proposed and the person added with its card's button (kind `chat`) is filed as the agent `agent:extension-chat` instead, still Inbox only. The page address sent with a task loses its user-info, fragment and session-token parameters in the extension, and MonoAgent checks it again; a tab title that is only that address is not sent either. A selection carries what `getSelection()` reads: text hidden with `display:none` is left out, text hidden by colour, size or position is not. Both are why the operator reads a captured task before approving it. The floating selection panel that carries the task button lives in a closed shadow root and ignores events with `isTrusted` false, so a page cannot find or press it; a page can still move or cover its host and bait a real click, which files an Inbox task with text the page chose.
 - **No HTTP route and no new port.** The task board does not listen on the network.
 
 ## OpenAI-compatible API surface

@@ -15,6 +15,8 @@
  *     by its number (chat_core applyEvent), so neither can double a reply.
  *   - An older MonoAgent that has no chat says so, once, in the section,
  *     instead of the panel breaking.
+ *   - What the chat proposes (a task) is a card; only the person's click on
+ *     it sends anything (chat_proposals.js, task_add_proposal).
  *
  * After sidepanel.js: it uses that file's `ask`, `profiles` and `page`, and
  * redraws on the `panel:profiles`, `panel:page` and `panel:bridge-up`
@@ -27,6 +29,7 @@
 
   const Core = globalThis.MonoChatCore;
   const Render = globalThis.MonoChatRender;
+  const Proposals = globalThis.MonoChatProposals;
   const el = (id) => document.getElementById(id);
 
   const log = el("chat-log");
@@ -79,7 +82,8 @@
   // ── drawing ──────────────────────────────────────────────────────
 
   function signature(m) {
-    return `${m.role}|${m.text.length}|${m.open ? 1 : 0}|${(m.tools || []).map((t) => t.status).join(",")}`;
+    const cards = (m.proposals || []).map((p) => `${p.state}:${(p.feedback || "").length}`).join(",");
+    return `${m.role}|${m.text.length}|${m.open ? 1 : 0}|${(m.tools || []).map((t) => t.status).join(",")}|${cards}`;
   }
 
   function buildMessage(m) {
@@ -102,6 +106,10 @@
       }
       if (m.text) box.appendChild(Render.toDom(document, Render.parse(m.text)));
       else if (m.open && !m.tools.length) box.appendChild(document.createTextNode("Thinking…"));
+      // What the chat proposed: a card each, sent on only by the person's click.
+      for (const p of (Proposals && m.proposals) || []) {
+        box.appendChild(Proposals.card(document, p, { add: () => confirmProposal(Proposals.keyOf(p)), dismiss: () => dismissProposal(Proposals.keyOf(p)) }));
+      }
     } else if (m.role === "user") {
       const text = document.createElement("div");
       text.className = "chat-text";
@@ -138,6 +146,8 @@
         nodes.set(m.id, n);
       } else if (n.sig !== sig) {
         const fresh = buildMessage(m);
+        // The node it replaces may be where the next one goes: follow it.
+        if (cursor === n.root) cursor = fresh;
         n.root.replaceWith(fresh);
         n = { root: fresh, sig };
         nodes.set(m.id, n);
@@ -359,7 +369,7 @@
     }
     if (!active || active.tag !== tag) return;
 
-    Core.startTurn(chat, message, Core.pageLabel(context));
+    Core.startTurn(chat, message, Core.pageLabel(context), context != null);
     await save();
     draw();
 
@@ -390,6 +400,37 @@
     if (answer.code === "offline") return "MonoAgent went offline before the reply finished.";
     if (answer.code === "timeout") return "The reply stopped coming. You can send another message to carry on.";
     return answer.error || "The reply failed.";
+  }
+
+  // ── proposals (chat_proposals.js): only the person's click sends one ──
+
+  function proposalOf(key) {
+    for (const m of chat.messages) {
+      const p = (m.proposals || []).find((x) => Proposals.keyOf(x) === key);
+      if (p) return p;
+    }
+    return null;
+  }
+
+  async function confirmProposal(id) {
+    const p = proposalOf(id);
+    if (!p || p.state !== "pending") return;
+    const mine = loadSeq;
+    Proposals.settle(chat, id, { state: "sending", feedback: "" });
+    draw();
+    const answer = await ask({ type: "task_add_proposal", profile, proposal: { id: p.id, kind: p.kind, title: p.title, notes: p.notes, nonce: p.nonce } });
+    if (mine !== loadSeq) return; // the panel moved to another profile meanwhile
+    Proposals.settle(chat, id, Proposals.afterAdd(answer));
+    await save();
+    draw();
+  }
+
+  async function dismissProposal(id) {
+    const p = proposalOf(id);
+    if (!p || p.state !== "pending") return;
+    Proposals.settle(chat, id, { state: "dismissed" });
+    await save();
+    draw();
   }
 
   async function stop() {

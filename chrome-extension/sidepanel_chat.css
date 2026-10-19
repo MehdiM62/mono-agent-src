@@ -241,3 +241,57 @@
 #chat-input:hover {
   border-color: color-mix(in oklch, var(--accent) 40%, var(--line-strong));
 }
+
+/* What the chat proposes (chat_proposals.js): a card under the reply, sent on
+   only by the person's click. A card made after reading a page says so. */
+.chat-proposal {
+  margin-top: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid color-mix(in oklch, var(--accent) 30%, var(--line));
+  border-radius: var(--r);
+  background: var(--surface);
+  font-size: var(--t-sm);
+}
+
+.chat-proposal-heading {
+  font-size: var(--t-xs);
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.chat-proposal-title {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.chat-proposal-notes {
+  margin-top: var(--sp-1);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--ink-2);
+}
+
+.chat-proposal-warning {
+  margin-top: var(--sp-2);
+  padding: var(--sp-1) var(--sp-2);
+  border-radius: var(--r-sm);
+  background: var(--warn-wash);
+  color: var(--warn);
+  font-size: var(--t-xs);
+}
+
+.chat-proposal-actions {
+  display: flex;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+}
+
+.chat-proposal-status {
+  margin-top: var(--sp-2);
+  font-size: var(--t-xs);
+  color: var(--ink-2);
+}
+
+.chat-proposal[data-state="refused"] .chat-proposal-status {
+  color: var(--err);
+}

@@ -24,8 +24,13 @@ import (
 // must not turn the person's browser captures into agent tasks,
 // and a capture never reaches Ready.
 
-// chromeCapture is who every task.add acts as.
+// chromeCapture is who every task.add acts as, but one the chat proposed.
 var chromeCapture = tasks.Actor{Kind: tasks.Capture, Name: tasks.SourceChrome}
+
+// extensionChat is who a confirmed chat proposal (kind chat) acts as: the
+// agent that proposed it, so it lands in the Inbox, never in Ready, and its
+// events say an agent suggested it, not that the person captured it.
+var extensionChat = tasks.Actor{Kind: tasks.Agent, Name: "agent:extension-chat"}
 
 // boardSink files task.add requests on the board in the database at path. It
 // opens the database per request, as the profile source does: captures are
@@ -94,6 +99,11 @@ func capturedInput(t extension.CapturedTask) tasks.AddInput {
 // second refusal is the one reported. With no address to fall back on, the
 // first refusal is the one reported.
 func addCaptured(ctx context.Context, store *tasks.Store, t extension.CapturedTask) (tasks.Task, bool, error) {
+	if t.Kind == extension.TaskKindChat {
+		return store.Add(ctx, t.ProfileID, tasks.AddInput{
+			Title: t.TaskTitle, Notes: t.Notes, SourceApp: t.Origin, ClientID: t.ClientID,
+		}, extensionChat)
+	}
 	in := capturedInput(t)
 	task, created, err := store.Add(ctx, t.ProfileID, in, chromeCapture)
 	if t.Kind != extension.TaskKindPage || !errors.Is(err, tasks.ErrInvalid) {
