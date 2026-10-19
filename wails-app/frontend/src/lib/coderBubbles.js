@@ -181,6 +181,18 @@ export function shouldCollapseOnBackdrop({ pressStartedOnBackdrop, selectionText
 
 // monogram is the bubble's two-letter label from a folder name
 // ("20260927-brisk-otter" → "BO", "mono-agent" → "MA", "api" → "AP").
+// profileFolderName is the name of the profile whose own folder cwd is, or
+// '' (#477): a coder chat started in a profile works in that profile's
+// folder, usually ~/.monoagent/profiles/<id>, whose last segment is an id
+// nobody reads. A folder inside a profile's is named as itself.
+export function profileFolderName(cwd, profiles) {
+  const norm = p => String(p || '').replace(/[\\/]+$/, '')
+  const dir = norm(cwd)
+  if (!dir) return ''
+  const hit = (profiles || []).find(p => p && p.root_dir && norm(p.root_dir) === dir)
+  return hit ? hit.name || '' : ''
+}
+
 export function monogram(name) {
   const words = String(name || '').split(/[^A-Za-z]+/).filter(Boolean)
   if (words.length === 0) return '·'

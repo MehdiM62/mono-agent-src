@@ -146,8 +146,15 @@
     return m ? m[0].toUpperCase() : "?";
   }
 
-  const SHARED_INBOX = "Shared inbox";
+  // The header with no profile to show. There is no Shared inbox to choose
+  // (decision D2: no Unassigned pile): a capture made then waits in the
+  // queue until a profile exists (capture_profile.js profileForSending).
+  const NO_PROFILE = "No profile yet";
   const LAST_PROFILE = "your last profile";
+  // profile.list marks the profile this browser is bound to, else the oldest
+  // one (internal/extension/profile_list.go). There is no "current profile"
+  // any more, and a profile may itself be called Default.
+  const DEFAULT_HINT = "This browser's default";
 
   /**
    * describeProfiles turns capture_form_state's profile fields into the
@@ -161,10 +168,10 @@
    *     worker picked, and said so — saving into a different brain than the
    *     one last chosen is the one outcome worth interrupting for;
    *   - the bridge answered and there are no profiles: not a picker at all,
-   *     the shared inbox, and the command that makes one;
+   *     how many captures wait for one, and the command that makes one;
    *   - the bridge has never answered: the remembered choice if there is
-   *     one, otherwise the shared inbox, and a note saying the list comes
-   *     with the bridge.
+   *     one, otherwise no profile, and a note saying the list comes with the
+   *     bridge.
    */
   function describeProfiles(state) {
     const s = state || {};
@@ -179,19 +186,15 @@
       isDefault: !!p.default,
       initial: initialOf(p.name || p.id),
       hue: avatarHue(p.id),
+      hint: p.default ? DEFAULT_HINT : "",
     });
-    const shared = {
-      id: "",
-      name: SHARED_INBOX,
-      isDefault: false,
-      initial: "",
-      hue: -1,
-      hint: "No profile — as captures were before profiles",
-    };
+    const none = { id: "", name: NO_PROFILE, isDefault: false, initial: "", hue: -1, hint: "" };
 
     if (profiles.length) {
-      const options = distinctHues(profiles.map(person)).concat([shared]);
-      const current = options.find((o) => o.id === chosen) || shared;
+      const options = distinctHues(profiles.map(person));
+      // The worker always settles on one (capture_profile.js choose); a panel
+      // that has none shows the default rather than an option that is not there.
+      const current = options.find((o) => o.id === chosen) || options.find((o) => o.isDefault) || options[0];
       let note = null;
       if (s.profileChanged && s.profileReason) {
         note = { tone: "warn", text: sentence(s.profileReason) };
@@ -202,12 +205,18 @@
     }
 
     if (!offline) {
+      // With no profile at all every queued capture waits for one, including
+      // one that names a profile deleted since (a flush re-checks it).
+      const waiting = Math.max(0, Number(s.unfiled) || 0, Number(s.counts && s.counts.queued) || 0);
+      const text = waiting
+        ? `${waiting} ${waiting === 1 ? "capture waits" : "captures wait"} for a profile: create one in MonoAgent. To add one, run:`
+        : "No profiles yet, so a capture waits here until there is one. To add one, run:";
       return {
         interactive: false,
-        current: shared,
-        options: [shared],
-        note: { tone: "idle", text: "No profiles yet, so captures go to the shared inbox. To add one, run:", command },
-        saveLabel: saveLabel(shared),
+        current: none,
+        options: [none],
+        note: { tone: waiting ? "warn" : "idle", text, command },
+        saveLabel: saveLabel(none),
       };
     }
 
@@ -231,10 +240,10 @@
 
     return {
       interactive: false,
-      current: shared,
-      options: [shared],
-      note: { tone: "idle", text: "Profiles load once the bridge is running. Until then, captures go to the shared inbox." },
-      saveLabel: saveLabel(shared),
+      current: none,
+      options: [none],
+      note: { tone: "idle", text: "Profiles load once the bridge is running. Until then, captures wait here." },
+      saveLabel: saveLabel(none),
     };
   }
 
@@ -282,7 +291,7 @@
    * indexing had failed, and only the first of those is "no match".
    *
    * Returns {text, tone} with tone "" | "warn". `profileName` is what the
-   * header calls the profile ("" for the shared inbox).
+   * header calls the profile ("" for none).
    */
   function askStatus(answer, profileName) {
     const answers = (answer && answer.answers) || [];
@@ -323,8 +332,8 @@
   /**
    * taskButton is the side panel's "Add a task" button for the profile the
    * header shows. A task always sits in a profile (task board spec 4.5), so
-   * with the shared inbox chosen, or nothing known yet, it adds nothing and
-   * says what to do.
+   * with no profile, or nothing known yet, it adds nothing and says what to
+   * do.
    */
   function taskButton(current) {
     if (!current || !current.id) return { text: "Choose a profile first", enabled: false };
@@ -352,7 +361,8 @@
     identityUrl,
     hostOf,
     displayName,
-    SHARED_INBOX,
+    NO_PROFILE,
     LAST_PROFILE,
+    DEFAULT_HINT,
   };
 })(globalThis);

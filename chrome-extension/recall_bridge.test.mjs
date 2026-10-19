@@ -393,6 +393,14 @@ test("the saved lookup asks about the stored profile, and a new choice re-asks",
   // Switching "Saving into" empties the cache: its answers were work's.
   for (const fn of listeners) fn({ captureProfile: { newValue: "personal" } }, "local");
   assert.equal(sandbox.MonoSaved.cacheSize(), 0);
+
+  // So does a new profile list (#822): the profile asked about may be gone.
+  await new Promise((resolve) => {
+    for (const fn of chrome.listeners.message) if (fn({ type: "saved_get", tabId: 7 }, {}, resolve) === true) return;
+  });
+  assert.equal(sandbox.MonoSaved.cacheSize(), 1);
+  for (const fn of listeners) fn({ captureProfilesCache: { newValue: [{ id: "personal", name: "Personal" }] } }, "local");
+  assert.equal(sandbox.MonoSaved.cacheSize(), 0);
 });
 
 // Restoring a page's stored highlights fails closed: nothing is painted when

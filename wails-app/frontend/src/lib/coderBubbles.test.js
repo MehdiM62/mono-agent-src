@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   STATUS, emptySummary, applyChatEvent, summaryFromTurns, totalCost, costEstimated, layoutBubbles, moveBubble,
   loadState, saveState, STORAGE_KEY, shouldCollapseOnBackdrop, monogram, newDraftKey, orgBubble, isOrgBubble,
+  profileFolderName,
 } from './coderBubbles.js'
 
 const ev = (type, turnId, payload = {}, at = '2026-09-29T10:00:00Z') => ({ type, turnId, payload, at, conversationId: 'c1' })
@@ -121,6 +122,25 @@ describe('monogram and draft keys', () => {
   })
   it('makes unique draft keys', () => {
     expect(newDraftKey()).not.toBe(newDraftKey())
+  })
+})
+
+describe('profileFolderName (#477)', () => {
+  const profiles = [
+    { id: '0f3c9a1e-77b2-4c55-9d1a-6e2f4b8c1d20', name: 'Work', root_dir: '/home/u/.monoagent/profiles/0f3c9a1e-77b2-4c55-9d1a-6e2f4b8c1d20' },
+    { id: 'p-home', name: 'Home', root_dir: '/home/u/notes/' },
+  ]
+  it("names a profile's own folder by the profile", () => {
+    expect(profileFolderName('/home/u/.monoagent/profiles/0f3c9a1e-77b2-4c55-9d1a-6e2f4b8c1d20', profiles)).toBe('Work')
+    expect(profileFolderName('/home/u/notes', profiles)).toBe('Home')
+    expect(profileFolderName('/home/u/.monoagent/profiles/0f3c9a1e-77b2-4c55-9d1a-6e2f4b8c1d20/', profiles)).toBe('Work')
+  })
+  it('names nothing else, not even a folder inside a profile', () => {
+    expect(profileFolderName('/home/u/notes/app', profiles)).toBe('')
+    expect(profileFolderName('/home/u/monoagent-coder/brisk-otter', profiles)).toBe('')
+    expect(profileFolderName('', profiles)).toBe('')
+    expect(profileFolderName('/x', null)).toBe('')
+    expect(profileFolderName('/x', [{ id: 'a', name: 'A' }])).toBe('')
   })
 })
 
