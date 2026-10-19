@@ -1607,7 +1607,8 @@
       "moved": "Moved “{{title}}” to {{column}}"
     },
     "markDone": "Done",
-    "backToReady": "Back to Ready"
+    "backToReady": "Back to Ready",
+    "inProfile": "in {{name}}"
   },
   "publication": {
     "title": "Publication",

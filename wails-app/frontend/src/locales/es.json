@@ -1565,7 +1565,8 @@
       "moved": "Se movió «{{title}}» a {{column}}"
     },
     "markDone": "Hecho",
-    "backToReady": "Volver a Listo"
+    "backToReady": "Volver a Listo",
+    "inProfile": "en {{name}}"
   },
   "publication": {
     "title": "Publicación",

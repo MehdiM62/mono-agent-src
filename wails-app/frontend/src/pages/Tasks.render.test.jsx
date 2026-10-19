@@ -395,6 +395,23 @@ describe('Tasks page', () => {
     })
   })
 
+  describe('header', () => {
+    it("names the board's profile and shows the search key", async () => {
+      api.board.mockResolvedValue({ ...doc(), profile: { id: 'p1', name: 'Work' } })
+      render(<Tasks />)
+      expect(await screen.findByTestId('tb-profile')).toHaveTextContent('in Work')
+      const search = screen.getByLabelText('Search tasks')
+      expect(search).toHaveAttribute('aria-keyshortcuts', '/')
+      expect(search.parentElement.querySelector('kbd')).toHaveTextContent('/')
+    })
+
+    it('shows no pill before the profile is known', async () => {
+      render(<Tasks />)
+      await screen.findByText('Task 1')
+      expect(screen.queryByTestId('tb-profile')).toBeNull()
+    })
+  })
+
   describe('archive from the drawer', () => {
     it('keeps the drawer open until the CLI says yes, then closes it', async () => {
       let answer

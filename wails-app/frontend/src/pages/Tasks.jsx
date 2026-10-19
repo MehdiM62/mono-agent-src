@@ -266,9 +266,13 @@ export default function Tasks({ isActive = true }) {
       <div className="page-header">
         <div className="page-header-left">
           <h1 className="page-title">{t('tasks.title')}</h1>
+          {b.board.profile?.name && <span className="tb-profile-pill" data-testid="tb-profile">{t('tasks.inProfile', { name: b.board.profile.name })}</span>}
         </div>
         <div className="page-header-right">
-          <input ref={searchRef} className="search-input" type="search" aria-label={t('tasks.search')} placeholder={t('tasks.search')} value={query} onChange={e => setQuery(e.target.value)} />
+          <span className="tb-search">
+            <input ref={searchRef} className="search-input" type="search" aria-label={t('tasks.search')} aria-keyshortcuts="/" placeholder={t('tasks.search')} value={query} onChange={e => setQuery(e.target.value)} />
+            <kbd className="tb-kbd" aria-hidden="true">/</kbd>
+          </span>
           {!readOnly && <button type="button" className="btn btn-primary btn-sm" aria-keyshortcuts="N" onClick={openQuickAdd}><Plus size={12} /> {t('tasks.newTask')} <kbd className="tb-kbd">N</kbd></button>}
         </div>
       </div>
