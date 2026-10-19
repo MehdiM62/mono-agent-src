@@ -258,12 +258,12 @@ export function CoderStopBackground(arg1, arg2) {
   return window['go']['main']['App']['CoderStopBackground'](arg1, arg2);
 }
 
-export function CoderWorkspaceList() {
-  return window['go']['main']['App']['CoderWorkspaceList']();
-}
-
 export function CoderWorkspaceDefault(arg1) {
   return window['go']['main']['App']['CoderWorkspaceDefault'](arg1);
+}
+
+export function CoderWorkspaceList() {
+  return window['go']['main']['App']['CoderWorkspaceList']();
 }
 
 export function CoderWorkspaceRoot(arg1) {
@@ -542,12 +542,12 @@ export function GetOrgDecisions(arg1, arg2) {
   return window['go']['main']['App']['GetOrgDecisions'](arg1, arg2);
 }
 
-export function GetOrgDocuments(arg1, arg2) {
-  return window['go']['main']['App']['GetOrgDocuments'](arg1, arg2);
-}
-
 export function GetOrgDesign(arg1) {
   return window['go']['main']['App']['GetOrgDesign'](arg1);
+}
+
+export function GetOrgDocuments(arg1, arg2) {
+  return window['go']['main']['App']['GetOrgDocuments'](arg1, arg2);
 }
 
 export function GetOrgEstimate(arg1) {
@@ -638,6 +638,10 @@ export function GetPostDetail(arg1) {
   return window['go']['main']['App']['GetPostDetail'](arg1);
 }
 
+export function GetProfileDeleteSummary(arg1) {
+  return window['go']['main']['App']['GetProfileDeleteSummary'](arg1);
+}
+
 export function GetProfileDocument(arg1) {
   return window['go']['main']['App']['GetProfileDocument'](arg1);
 }
@@ -662,12 +666,16 @@ export function GetProfileInfoPhoto(arg1) {
   return window['go']['main']['App']['GetProfileInfoPhoto'](arg1);
 }
 
-export function GetProfileDeleteSummary(arg1) {
-  return window['go']['main']['App']['GetProfileDeleteSummary'](arg1);
-}
-
 export function GetProfiles() {
   return window['go']['main']['App']['GetProfiles']();
+}
+
+export function GetPublication(arg1) {
+  return window['go']['main']['App']['GetPublication'](arg1);
+}
+
+export function GetPublicationStats() {
+  return window['go']['main']['App']['GetPublicationStats']();
 }
 
 export function GetRecentExecutions(arg1) {
@@ -982,6 +990,10 @@ export function ListProfileDocuments() {
   return window['go']['main']['App']['ListProfileDocuments']();
 }
 
+export function ListPublications(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9) {
+  return window['go']['main']['App']['ListPublications'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9);
+}
+
 export function ListRecordings() {
   return window['go']['main']['App']['ListRecordings']();
 }
@@ -1026,16 +1038,16 @@ export function NodeConfigFromCurl(arg1) {
   return window['go']['main']['App']['NodeConfigFromCurl'](arg1);
 }
 
+export function OpenAnyFilePicker(arg1) {
+  return window['go']['main']['App']['OpenAnyFilePicker'](arg1);
+}
+
 export function OpenAnyFilesPicker(arg1) {
   return window['go']['main']['App']['OpenAnyFilesPicker'](arg1);
 }
 
 export function OpenFolderFilesPicker(arg1) {
   return window['go']['main']['App']['OpenFolderFilesPicker'](arg1);
-}
-
-export function OpenAnyFilePicker(arg1) {
-  return window['go']['main']['App']['OpenAnyFilePicker'](arg1);
 }
 
 export function OpenJSONFilePicker(arg1) {
@@ -1062,12 +1074,12 @@ export function OrgGroupStatus(arg1) {
   return window['go']['main']['App']['OrgGroupStatus'](arg1);
 }
 
-export function OrgSectionsRuntimes() {
-  return window['go']['main']['App']['OrgSectionsRuntimes']();
-}
-
 export function OrgRoleSetAccess(arg1, arg2, arg3) {
   return window['go']['main']['App']['OrgRoleSetAccess'](arg1, arg2, arg3);
+}
+
+export function OrgSectionsRuntimes() {
+  return window['go']['main']['App']['OrgSectionsRuntimes']();
 }
 
 export function OrgSign(arg1, arg2) {
@@ -1466,16 +1478,16 @@ export function UninstallAutomation(arg1) {
   return window['go']['main']['App']['UninstallAutomation'](arg1);
 }
 
-export function UpdateProfile(arg1, arg2, arg3) {
-  return window['go']['main']['App']['UpdateProfile'](arg1, arg2, arg3);
-}
-
 export function UpdateOrgRole(arg1, arg2, arg3) {
   return window['go']['main']['App']['UpdateOrgRole'](arg1, arg2, arg3);
 }
 
 export function UpdateOrgSection(arg1, arg2, arg3) {
   return window['go']['main']['App']['UpdateOrgSection'](arg1, arg2, arg3);
+}
+
+export function UpdateProfile(arg1, arg2, arg3) {
+  return window['go']['main']['App']['UpdateProfile'](arg1, arg2, arg3);
 }
 
 export function UpdateSecret(arg1, arg2, arg3, arg4, arg5, arg6) {
@@ -1490,12 +1502,12 @@ export function UpdateVaultImageLabel(arg1, arg2) {
   return window['go']['main']['App']['UpdateVaultImageLabel'](arg1, arg2);
 }
 
-export function UploadProfileDocuments(arg1) {
-  return window['go']['main']['App']['UploadProfileDocuments'](arg1);
-}
-
 export function UploadProfileDocument(arg1, arg2) {
   return window['go']['main']['App']['UploadProfileDocument'](arg1, arg2);
+}
+
+export function UploadProfileDocuments(arg1) {
+  return window['go']['main']['App']['UploadProfileDocuments'](arg1);
 }
 
 export function ValidateAutomation(arg1) {
@@ -1512,16 +1524,4 @@ export function ValidateOrgReport(arg1) {
 
 export function VerifyDraft(arg1, arg2, arg3) {
   return window['go']['main']['App']['VerifyDraft'](arg1, arg2, arg3);
-}
-
-export function ListPublications(search, platform, kind, workflow, agent, since, until, limit, offset) {
-  return window['go']['main']['App']['ListPublications'](search, platform, kind, workflow, agent, since, until, limit, offset);
-}
-
-export function GetPublication(id) {
-  return window['go']['main']['App']['GetPublication'](id);
-}
-
-export function GetPublicationStats() {
-  return window['go']['main']['App']['GetPublicationStats']();
 }
