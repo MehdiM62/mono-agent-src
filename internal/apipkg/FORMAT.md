@@ -161,9 +161,14 @@ privacy and description changes, a Salesforce flow its variables). An
 object, or raw JSON text that holds one, lists each top-level key with its
 own value, and a list each element (an object element its keys), so
 padding can't hide a change behind it. Keys that may name whom a send
-reaches (to, cc, email, recipient, phone, channel, url, webhook, host, …)
-come first and are never capped away, a nested object names all its keys,
-and a list element past the tenth that has such a key is still shown. `"field if cond"`
+reaches (to, cc, email, recipient, phone, channel, url, webhook, host,
+destination, contact, owner, group, …, also run together as in sendto, and
+spelled with look-alike or fullwidth letters) come first and are never
+capped away, with their values in full up to 4 KB (a list one element a
+line); a name and value pair ({"name": "recipientEmail", "value": …})
+counts as that field; a nested value names the keys inside it, four levels
+down, as paths (a.b.to, [1].to); and a list element past the tenth that
+has such a key is still shown. `"field if cond"`
 (`cond` as in `if`) marks the field "(not sent)" on the card when `cond`
 doesn't hold: `"variablesJson if jsonParameters"`. When a `to`
 field holds an id rather than an address, `to_label` says what it is, and
