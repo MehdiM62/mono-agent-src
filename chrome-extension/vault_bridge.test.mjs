@@ -326,3 +326,21 @@ test("a full vault and a blocked vault folder are final; a rate limit says when 
   const soon = await say({ code: "rate_limited", message: "too many saves" });
   assert.deepEqual([soon.status, soon.feedback.text], ["retry", "Not saved yet: too many saves. Press Save to try again"]);
 });
+
+// Vault card review: a wait or a limit that is not a plain positive whole
+// number (or one past a sane wait) shows MonoAgent's generic words, never
+// "1e+308 s".
+test("an absurd retry_after or quota max falls back to the generic text; a long wait is capped at an hour", async () => {
+  const say = async (fail) => (await world({ fail }).send(ask())).feedback.text;
+  const limited = (retry_after) => say({ code: "rate_limited", message: "too many saves", data: { retry_after } });
+  assert.match(await limited(7), /Try again in 7 s$/);
+  assert.match(await limited(99999), /Try again in 3600 s$/, "capped at an hour");
+  for (const odd of [1e308, 2.5, -3, 0, "7", null, Infinity]) {
+    assert.equal(await limited(odd), "Not saved yet: too many saves. Press Save to try again", String(odd));
+  }
+  const full = (max) => say({ code: "quota_exceeded", message: "the vault is full", data: { limit: "items", max } });
+  assert.match(await full(5000), /holds 5,000 files/);
+  for (const odd of [1e308, 2.5, -1, 0, "5000", Infinity]) {
+    assert.equal(await full(odd), "Not saved: the vault is full", String(odd));
+  }
+});

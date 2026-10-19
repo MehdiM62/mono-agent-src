@@ -279,21 +279,26 @@
         return refuse(`Not saved: ${why}`);
       case "quota_exceeded":
         return refuse(`Not saved: ${quotaText(data) || why}`);
-      case "rate_limited": {
-        const secs = Number(data.retry_after);
-        if (Number.isFinite(secs) && secs > 0) {
-          return retry(`Not saved yet: MonoAgent takes only so many saves a minute from the browser. Try again in ${Math.ceil(secs)} s`);
+      case "rate_limited":
+        if (count(data.retry_after)) {
+          const secs = Math.min(data.retry_after, MAX_WAIT_S);
+          return retry(`Not saved yet: MonoAgent takes only so many saves a minute from the browser. Try again in ${secs} s`);
         }
         break;
-      }
     }
     return retry(`Not saved yet: ${why}. Press Save to try again`);
   }
 
+  // A wait or a limit is shown only as a plain positive whole number (a
+  // number, not a string; a safe integer, not 1e308), and a wait at most an
+  // hour; anything else shows MonoAgent's generic words.
+  const MAX_WAIT_S = 3600;
+  const count = (v) => Number.isSafeInteger(v) && v > 0;
+
   /** quotaText names the limit a full vault reached; "" without one. */
   function quotaText(data) {
-    const max = Number(data.max);
-    if (!Number.isFinite(max) || max <= 0) return "";
+    const max = data.max;
+    if (!count(max)) return "";
     if (data.limit === "items") {
       return `this profile already holds ${max.toLocaleString("en-US")} files saved from the browser, the most it takes. Delete some in the Image Vault to save more`;
     }
