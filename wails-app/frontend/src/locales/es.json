@@ -1542,7 +1542,9 @@
         "question": "preguntó",
         "result": "informó",
         "released": "liberó"
-      }
+      },
+      "readFirst": "Esta tarjeta tiene notas. Léelas antes de aprobarla: en Listo, los agentes actúan sobre todo su texto.",
+      "saveFirst": "Guarda primero tus cambios"
     },
     "refused": "Rechazado: {{error}}",
     "emptyBy": {
@@ -1555,7 +1557,10 @@
       "mac": "En Mac: selecciona texto en cualquier app y elige Servicios, Add to MonoAgent Tasks.",
       "cli": "En una terminal:",
       "agents": "Los agentes añaden tareas con las herramientas de tareas; su trabajo aparece aquí en segundos."
-    }
+    },
+    "readAndApprove": "Leer y aprobar",
+    "hasNotes": "Esta tarjeta tiene notas: ábrela para leerlas",
+    "notesMarker": "Notas"
   },
   "publication": {
     "title": "Publicación",

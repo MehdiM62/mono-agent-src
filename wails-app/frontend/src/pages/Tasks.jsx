@@ -1,9 +1,9 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { AppWindow, Archive, Plus, Check, CircleHelp, Globe, LayoutGrid, Sparkles, Terminal } from 'lucide-react'
+import { AppWindow, Archive, Plus, Check, CircleHelp, Globe, LayoutGrid, NotebookText, Sparkles, Terminal } from 'lucide-react'
 import { tasksApi } from '../services/tasks.js'
 import { useTaskBoard } from '../lib/useTaskBoard.js'
-import { COLUMNS, findTask, filterBoard, placeFor, isNoopDrop, dropIndex, keyMove, focusTarget, isTypingTarget, claimState, sourceChip, shortAge, splitMinutes, actorColor } from '../lib/taskModel.js'
+import { COLUMNS, findTask, filterBoard, placeFor, isNoopDrop, dropIndex, keyMove, focusTarget, isTypingTarget, claimState, sourceChip, shortAge, splitMinutes, actorColor, readFirst } from '../lib/taskModel.js'
 import TaskDrawer from '../components/TaskDrawer.jsx'
 import { useFlip } from '../lib/useFlip.js'
 import { useMarks } from '../lib/useMarks.js'
@@ -53,13 +53,15 @@ function span(minutes, t) {
 
 // The card is a plain container: the title is its one control that opens it
 // (and takes the move keys), and the approve and archive buttons are siblings
-// of it, so no control sits inside another.
+// of it, so no control sits inside another. A card with notes shows a notes
+// marker, and its Inbox button reads "Read and approve" (plan ruling F6).
 function Card({ task, status, readOnly, selected, pulse, now, onOpen, onKey, onDragStart, onApprove, onArchive, t }) {
   const chip = sourceChip(task)
   const Icon = SOURCE_ICONS[chip.kind] || Terminal
   const age = shortAge(task.created_at, now)
   const cs = claimState(task.claim, now)
   const tag = status === 'review' && (task.last_event?.kind === 'question' || task.last_event?.kind === 'result') ? task.last_event.kind : null
+  const notes = readFirst(task)
   const meta = { fontSize: 11, opacity: 0.8, display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', fontFamily: 'var(--mono, monospace)' }
   return (
     <div
@@ -83,6 +85,7 @@ function Card({ task, status, readOnly, selected, pulse, now, onOpen, onKey, onD
         </span>
         {task.created_at && <span data-testid="age">{t(`tasks.age.${age.unit}`, { n: age.n })}</span>}
         <span>#{task.id}</span>
+        {notes && <span data-testid="notes-marker" title={t('tasks.hasNotes')} style={{ display: 'inline-flex', gap: 3, alignItems: 'center' }}><NotebookText size={11} aria-hidden="true" />{t('tasks.notesMarker')}</span>}
         {tag && <span data-testid="tag" style={{ color: tag === 'question' ? 'var(--orange, #f59e0b)' : 'var(--green, #10b981)' }}>{t(`tasks.tag.${tag}`)}</span>}
       </div>
       {cs && (
@@ -95,7 +98,8 @@ function Card({ task, status, readOnly, selected, pulse, now, onOpen, onKey, onD
       {!readOnly && (
         <div className="tb-card-actions">
           {status === 'inbox' && (
-            <button className="btn btn-ghost btn-icon btn-sm" type="button" title={t('tasks.approve')} aria-label={`${t('tasks.approve')}: ${task.title}`} onClick={() => onApprove(task.id)}><Check size={12} /></button>
+            <button className="btn btn-ghost btn-icon btn-sm" type="button" title={notes ? t('tasks.readAndApprove') : t('tasks.approve')}
+              aria-label={`${notes ? t('tasks.readAndApprove') : t('tasks.approve')}: ${task.title}`} onClick={() => onApprove(task)}><Check size={12} /></button>
           )}
           <button className="btn btn-ghost btn-icon btn-sm" type="button" title={t('tasks.archive')} aria-label={`${t('tasks.archive')}: ${task.title}`} onClick={() => onArchive(task.id)}><Archive size={12} /></button>
         </div>
@@ -109,6 +113,8 @@ export default function Tasks({ isActive = true }) {
   const b = useTaskBoard(isActive)
   const [query, setQuery] = useState('')
   const [openId, setOpenId] = useState(null)
+  // readFor: the card the drawer opened for to be read before it is approved (F6).
+  const [readFor, setReadFor] = useState(null)
   const [shell, setShell] = useState(null) // null until agentShell() answers
   const dragging = useRef(null)
   const root = useRef(null)
@@ -160,6 +166,17 @@ export default function Tasks({ isActive = true }) {
 
   const focusCard = (id) => root.current?.querySelector(`[data-task-id="${id}"] [data-card-open]`)?.focus()
 
+  // A card with notes never goes from Inbox to Ready in one gesture (plan
+  // ruling F6): Approve, Shift+Right and a drop on Ready open its drawer, where
+  // the person approves it with the notes in front of them.
+  const openCard = (id) => { setReadFor(null); setOpenId(id) }
+  const openToRead = (id) => { setOpenId(id); setReadFor(id) }
+  const guarded = (task, from, to) => from === 'inbox' && to === 'ready' && readFirst(task)
+  const approveCard = (task) => {
+    if (guarded(task, 'inbox', 'ready')) openToRead(task.id)
+    else b.approve(task.id)
+  }
+
   // Archive closes the drawer only once the CLI has said yes. While it works the
   // drawer stays on the card as last shown (the optimistic removal takes the
   // card off the board); a refusal brings the card back and the drawer says why.
@@ -175,12 +192,13 @@ export default function Tasks({ isActive = true }) {
   const onKey = (e, task) => {
     if (e.target !== e.currentTarget) return
     const key = ARROWS[e.key]
-    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpenId(task.id); return }
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openCard(task.id); return }
     if (!key) return
     e.preventDefault()
     if (e.shiftKey || e.altKey) {
       if (readOnly) return
       const m = keyMove(shown, task.id, key)
+      if (m && !m.blocked && guarded(task, findTask(shown, task.id)?.status, m.to)) { openToRead(task.id); return }
       if (m && !m.blocked) { refocus.current = task.id; b.move(task.id, m.to, m.place) }
       return
     }
@@ -194,6 +212,7 @@ export default function Tasks({ isActive = true }) {
     dragging.current = null
     const found = id && findTask(shown, id)
     if (!found || readOnly) return
+    if (guarded(found.task, found.status, status)) { openToRead(id); return }
     const cards = [...e.currentTarget.querySelectorAll('[data-task-id]')].filter(el => Number(el.dataset.taskId) !== id)
     const ids = cards.map(el => Number(el.dataset.taskId))
     const index = dropIndex(cards.map(el => el.getBoundingClientRect()), e.clientY)
@@ -241,14 +260,14 @@ export default function Tasks({ isActive = true }) {
                 <Card
                   key={task.id} task={task} status={status} readOnly={readOnly} selected={openId === task.id} now={now}
                   pulse={status === 'done' && marks.done.has(task.id) ? 'done-pulse' : status === 'in_progress' && task.claim && marks.claimed.has(task.id) ? 'claim-pulse' : ''}
-                  onOpen={setOpenId} onKey={onKey} onDragStart={id => { dragging.current = id }}
-                  onApprove={id => b.approve(id)} onArchive={archiveRes} t={t}
+                  onOpen={openCard} onKey={onKey} onDragStart={id => { dragging.current = id }}
+                  onApprove={approveCard} onArchive={archiveRes} t={t}
                 />
               ))}
             </section>
           ))}
         </div>
-        {open && <TaskDrawer task={open} readOnly={readOnly} onClose={() => setOpenId(null)} onEdit={b.edit} onComment={b.comment} onArchive={() => archiveRes(open.id)} archiving={archiving === open.id} archiveError={archiveError} />}
+        {open && <TaskDrawer task={open} status={findTask(b.board, open.id)?.status} readFirst={readFor === open.id} readOnly={readOnly} onClose={() => setOpenId(null)} onEdit={b.edit} onComment={b.comment} onApprove={() => b.approve(open.id)} onArchive={() => archiveRes(open.id)} archiving={archiving === open.id} archiveError={archiveError} />}
       </div>
       </div>
     </div>
