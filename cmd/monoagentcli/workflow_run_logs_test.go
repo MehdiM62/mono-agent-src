@@ -58,13 +58,13 @@ func runLogsFor(t *testing.T, cfg *globalConfig, workflowID string, args ...stri
 	cmd := newWorkflowCmd(cfg)
 	cmd.SetArgs([]string{"run", workflowID, "--timeout", "30s"})
 	stdout = captureStdout(t, func() { err = cmd.Execute() })
-	// Undo the run's demotion (a CLI process runs one command).
-	logging.Demote(slog.LevelInfo, oneShotRunLogs...)()
 	return buf.String(), stdout, err
 }
 
 // A human-mode run's summary reports a failed node; the engine's own log
-// lines about it stay off the terminal unless a level was chosen.
+// lines about it stay off the terminal unless a level was chosen. The
+// demotion ends with the run: the next run of the process (here, with a
+// level chosen) logs them again.
 func TestWorkflowRunHumanModeQuietsFailureLogs(t *testing.T) {
 	_, cfg := persistTestEnv(t)
 	id := failingRunWorkflow(t, cfg)
