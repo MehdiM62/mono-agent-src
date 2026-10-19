@@ -312,15 +312,16 @@ list of the situations in which Mono Agent makes network requests:
    resource. On the first gated command, a monoes.me
    library login left by an older release is exchanged once for this sign-in (its
    refresh token, the client id and the resource); if monoes.me does not allow
-   that, nothing changes and you sign in once more. The exchange runs only on
-   your own install: `HOME` is the home directory of your OS account and the
-   database is its `~/.monoagent/monoagent.db`. A copy of the database in
-   another `HOME` or under `--db-path` sends nothing, keeps the login, and says
-   why on stderr. On Linux, for an account the system's user list
-   (`/etc/passwd`) has no entry for, such as an LDAP account or a container's
-   arbitrary user id, `HOME` is all there is to go by, and the exchange runs as
-   it did before this check. Each exchange prints one line saying what became of
-   the login, never a token. monoes.me learns which
+   that, nothing changes and you sign in once more. This exchange happens only
+   on your own install: `HOME` is your OS account's home directory and the
+   database is `~/.monoagent/monoagent.db` in it. A copy of the database, used
+   from another `HOME` or with `--db-path`, sends nothing and keeps the login,
+   and the CLI prints why. Each exchange prints one line saying what became of
+   the login, never the token itself. **Known limit:** on Linux, when your
+   account is not listed in `/etc/passwd` (an LDAP or other directory account,
+   or a container running under an arbitrary user id), the CLI cannot find your
+   real home directory and trusts `HOME`, so it does not recognise a copy there.
+   monoes.me learns which
    account, when, and the IP address the request comes from. Nothing else is
    sent: no device identifier, no usage data, no workflow content, no file path.
 2. **monoes.me, for the library** (`library list`, `show`, `install`, `publish`,
@@ -406,13 +407,12 @@ machine it came from, so a stale copy, once presented, signs out the original an
 every copy, and each of them then has to sign in again. Machines that signed in
 on their own keep working.
 
-The same holds for `~/.monoagent/monoagent.db`: its vault can hold a library
-login left by an older release, and the OS keychain opens it in any copy made by
-the same OS user. Only your own install exchanges that login (see above).
-`MONOES_BASE_URL` does not keep a copy away from monoes.me: it moves the
-library's requests, but the sign-in host only in a `-tags devaccount` build
-(spec D24), so a default build always signs in, refreshes and adopts at
-https://monoes.me.
+Do not copy `~/.monoagent/monoagent.db` either. Its vault can still hold a
+library login from an older release, and any copy made by the same OS user can
+open it. The CLI exchanges that login only on your own install (see "Network
+use" above). Setting `MONOES_BASE_URL` does not keep a copy away from monoes.me:
+in a default build it changes where the library's requests go, not where you sign
+in. Only a `-tags devaccount` build changes the sign-in host (spec D24).
 
 ### When a sign-in is locked
 
