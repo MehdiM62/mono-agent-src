@@ -4,10 +4,13 @@ package main
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"testing"
+	"time"
 )
 
 func TestUploadBatchOnlyUploadsIssuedRegularFiles(t *testing.T) {
@@ -51,5 +54,74 @@ func TestUploadBatchOnlyUploadsIssuedRegularFiles(t *testing.T) {
 	})
 	if len(res.Failed) != 1 {
 		t.Fatalf("res=%+v", res)
+	}
+}
+
+func TestUploadBatchReportsATimeoutAndKeepsGoing(t *testing.T) {
+	old := uploadFileTimeout
+	uploadFileTimeout = 50 * time.Millisecond
+	defer func() { uploadFileTimeout = old }()
+	dir := t.TempDir()
+	slow, fast := filepath.Join(dir, "slow.txt"), filepath.Join(dir, "fast.txt")
+	for _, p := range []string{slow, fast} {
+		if err := os.WriteFile(p, []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	a := &App{}
+	a.issueDocPaths([]string{slow, fast})
+	res, err := a.uploadBatch([]string{slow, fast}, func(ctx context.Context, p string) (UploadResult, error) {
+		if p == slow {
+			<-ctx.Done()
+			return UploadResult{}, errors.New("signal: killed")
+		}
+		return UploadResult{Indexed: true}, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Uploaded != 1 || len(res.Failed) != 1 || !strings.Contains(res.Failed[0], "slow.txt: timed out after") {
+		t.Fatalf("res=%+v", res)
+	}
+	if a.docBatchBusy.Load() {
+		t.Fatal("busy flag not released")
+	}
+}
+
+func TestUploadBatchSuccessAfterDeadlineIsNotAFailure(t *testing.T) {
+	old := uploadFileTimeout
+	uploadFileTimeout = 20 * time.Millisecond
+	defer func() { uploadFileTimeout = old }()
+	p := filepath.Join(t.TempDir(), "late.txt")
+	if err := os.WriteFile(p, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	a := &App{}
+	a.issueDocPaths([]string{p})
+	res, _ := a.uploadBatch([]string{p}, func(ctx context.Context, _ string) (UploadResult, error) {
+		<-ctx.Done() // the deadline passes, but the upload still finished
+		return UploadResult{Indexed: true}, nil
+	})
+	if res.Uploaded != 1 || len(res.Failed) != 0 {
+		t.Fatalf("res=%+v", res)
+	}
+}
+
+func TestUploadDocumentArgsPassNoFollow(t *testing.T) {
+	args, err := uploadDocumentArgs("p1", "/tmp/a.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	flag, path := -1, -1
+	for i, x := range args {
+		switch x {
+		case "--no-follow":
+			flag = i
+		case "/tmp/a.txt":
+			path = i
+		}
+	}
+	if flag < 0 || path < 0 || flag > path {
+		t.Fatalf("argv = %v", args)
 	}
 }

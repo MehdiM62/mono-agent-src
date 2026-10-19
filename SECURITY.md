@@ -94,6 +94,8 @@ messages, not a barrier:
 - By your decision, a step that picks its own address (`http.request`) can
   use a saved connection in any run, so a workflow can send that
   connection's token to any address.
+- The extension commands that redirect the browser are yours: see
+  "Extension commands that only the user runs" below.
 - Writing secrets, connections and profiles stays open to an agent on
   purpose (`secret add|update|rm`, `connect save|set-oauth-client`,
   `profile create`): none of them shows a decrypted value. The exception is
@@ -286,6 +288,47 @@ read tools show (workflow definitions, which may name accounts or targets)
 and the wording of the model's reply, including a link you may choose to
 click (its host is shown). The page text and the reply stay in the local
 conversation database like any chat.
+
+### Extension commands that only the user runs
+
+`extension bind`, `extension unbind`, `extension reset`, `extension pair
+--open` and `extension install --zip` refuse an agent, the chat and a
+workflow run: any process carrying one of the operator markers, or whose
+parent process carries one. They exit 3 with code `operator_only`.
+
+- `bind` and `unbind` decide which profile a browser acts as, so an agent
+  could point your browser, with its logged-in accounts, at another
+  profile, or take its profile away.
+- `reset` revokes the pairing token and cuts every browser off until you
+  pair it again.
+- `pair --open` opens a pairing page that pairs the browser with whichever
+  bridge served it, so an agent running a bridge of its own could take
+  your browser over.
+- `install --zip` unpacks a zip that no release signed into the folder the
+  browser loads the extension from.
+
+Printing the token (`extension pair` without `--open`) stays open, because
+anything running as you can read `~/.monoagent/extension.token`. So does
+the plain `extension install`, which installs only the release matching
+the CLI, checked against its signed manifest. `serve`, `status` and
+`browsers` stay open too: they change no binding, rotate no token, and
+agents use `serve` for private test bridges. Like the other operator
+checks, this keeps agents from doing these things by accident or on a
+page's instructions, and it is a courtesy layer for the CLI, not a barrier
+against an agent running as you:
+
+- `~/.monoagent/extension.token` is readable by anything running as you
+  (mode 0600, same user). With it, a process can drive the bridge protocol
+  directly: post a `set_binding` to `/monoagent/relay`, or connect to the
+  websocket as a browser and claim a profile in a `binding` frame, so an
+  endpoint it runs would receive that profile's browser actions. The gates
+  above don't cover that path.
+- The `pair --open` gate is cosmetic against an agent with a shell, which
+  can start a bridge of its own and open the pairing page itself.
+- An agent with a shell can also edit the files these commands manage.
+
+So it is not a sandbox: it stops mistakes and planted instructions that
+go through the CLI.
 
 ## Network use, telemetry and crash reporting
 

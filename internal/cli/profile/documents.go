@@ -48,6 +48,7 @@ func indexDocument(ctx context.Context, db *sql.DB, profileID, id, path string) 
 
 func (d Deps) newProfileUploadDocumentCmd() *cobra.Command {
 	var source string
+	var noFollow bool
 	cmd := &cobra.Command{
 		Use:     "upload-document <path>",
 		Short:   "Upload a profile document and index it for chat search",
@@ -61,6 +62,9 @@ func (d Deps) newProfileUploadDocumentCmd() *cobra.Command {
 			defer db.DB.Close()
 
 			ctx := vault.ContextWithProfileID(cmd.Context(), d.ProfileID())
+			if noFollow {
+				ctx = vault.ContextWithNoFollow(ctx)
+			}
 			id, err := vault.RegisterDocument(ctx, db.DB, args[0], source)
 			if err != nil {
 				return fmt.Errorf("uploading document: %w", err)
@@ -104,6 +108,7 @@ func (d Deps) newProfileUploadDocumentCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&source, "source", "upload", "Where this document came from")
+	cmd.Flags().BoolVar(&noFollow, "no-follow", false, "Refuse a path that is a symlink")
 	return cmd
 }
 

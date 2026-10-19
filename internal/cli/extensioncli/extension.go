@@ -39,7 +39,7 @@ func newExtensionCmd(cfg *Deps) *cobra.Command {
 		newExtensionServeCmd(cfg),
 		newExtensionStatusCmd(cfg),
 		newExtensionPairCmd(cfg),
-		newExtensionResetCmd(),
+		newExtensionResetCmd(cfg),
 		newExtensionBrowsersCmd(cfg),
 		newExtensionBindCmd(cfg),
 		newExtensionUnbindCmd(cfg),
@@ -69,9 +69,18 @@ func newExtensionPairCmd(cfg *Deps) *cobra.Command {
 			"With --json, --open reports what happened instead (and exits 0 either way):\n" +
 			"{opened, url?, fallback?, hint?, error?}. fallback is \"token\" when the\n" +
 			"token has to be pasted instead (the token itself is never printed), or\n" +
-			"\"restart_bridge\" when the running bridge holds a different token.",
+			"\"restart_bridge\" when the running bridge holds a different token.\n" +
+			"\n" +
+			"--open is the user's own: the page pairs the browser with the bridge that served\n" +
+			"it, so an agent, the chat or a workflow is refused (exit 3, operator_only).\n" +
+			"Printing the token stays open: whoever runs as the user can read its file.",
 		Example: "  monoagentcli extension pair --open\n  monoagentcli extension pair\n  monoagentcli extension pair --open --json",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if open {
+				if err := cfg.operatorOnly("extension pair --open pairs the user's browser with the bridge that serves the page"); err != nil {
+					return err
+				}
+			}
 			if open && cfg.JSONOutput() {
 				return writePairJSON(cmd.OutOrStdout(), pairingPageReport())
 			}
@@ -182,7 +191,7 @@ var openInBrowser = func(url string) error {
 	return clicore.OpenURLInBrowser(url)
 }
 
-func newExtensionResetCmd() *cobra.Command {
+func newExtensionResetCmd(cfg *Deps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "reset",
 		Short: "Revoke the current pairing token, forcing the extension to re-pair",
@@ -192,9 +201,12 @@ func newExtensionResetCmd() *cobra.Command {
 			"paste the new token into the extension side panel.\n" +
 			"\n" +
 			"Use this if you suspect the token has leaked, or as a general \"security\n" +
-			"reset\" before handing this machine to someone else.",
+			"reset\" before handing this machine to someone else.\n" + clicore.OperatorOnlyHelp,
 		Example: "  monoagentcli extension reset",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := cfg.operatorOnly("extension reset revokes the pairing token, which cuts the browser off until it pairs again"); err != nil {
+				return err
+			}
 			if err := extension.ResetToken(); err != nil {
 				return fmt.Errorf("reset extension token: %w", err)
 			}
