@@ -12,7 +12,8 @@ const { MonoChatProposals: P } = loadExtensionScripts(["chat_proposals.js"]);
 const answer = (proposal) => ({ result: JSON.stringify({ proposal, added: false, note: "…" }) });
 
 test("a propose_task answer is a pending task card; anything else is not a card", () => {
-  const p = P.fromTool("propose_task", answer({ kind: "task", title: "Book flights", notes: "Before May" }), "toolu_01", false);
+  const { nonce, ...p } = P.fromTool("propose_task", answer({ kind: "task", title: "Book flights", notes: "Before May" }), "toolu_01", false);
+  assert.match(nonce, /^[0-9a-f]{16}$/, "each card gets its own key");
   assert.deepEqual(p, { id: "toolu_01", kind: "task", title: "Book flights", notes: "Before May", untrustedPage: false, state: "pending", feedback: "" });
   assert.equal(P.fromTool("list_workflows", answer({ kind: "task", title: "x" }), "t", false), null, "not a proposal tool");
   assert.equal(P.fromTool("propose_task", { result: "not json" }, "t", false), null);
@@ -40,6 +41,26 @@ test("a stored card is checked again on load, and keeps what became of it", () =
   const out = P.clone(stored);
   assert.deepEqual(out.map((p) => [p.id, p.state]), [["a", "added"], ["d", "pending"]], "a send cut off by a closed panel can be pressed again");
   assert.equal(out[0].feedback, "Added to Inbox in Work (#12)");
+});
+
+// #868: the board dedupes on (profile, client_id) across every task, so a
+// key made from the call id alone could collide (a reused id, or two that
+// sanitize alike) and hand back an older task. Each card has its own nonce.
+test("cards whose call ids sanitize alike still get their own task id, stable for each card", () => {
+  const card = (id) => P.fromTool("propose_task", answer({ kind: "task", title: "T" }), id, false);
+  const a = card("functions.x:0");
+  const b = card("functionsx0");
+  const c = card("!!!");
+  const d = card("???");
+  const ids = [a, b, c, d].map((p) => P.clientId(p));
+  assert.equal(new Set(ids).size, 4, ids.join(" "));
+  for (const id of ids) assert.match(id, /^[A-Za-z0-9_-]{1,64}$/);
+  assert.equal(P.clientId(P.clone([a])[0]), P.clientId(a), "a stored card keeps its key, so a resend adds nothing twice");
+  assert.equal(P.clientId({ id: "x", nonce: "../not-a-nonce" }), "chat-x", "an unusable nonce is not used");
+  assert.equal(P.clone([{ id: "x", kind: "task", title: "T", nonce: "<b>" }])[0].nonce, undefined);
+  assert.ok(P.clientId({ id: "y".repeat(200), nonce: a.nonce }).length <= 64);
+  const forged = P.fromTool("propose_task", answer({ kind: "task", title: "T", nonce: "0123456789abcdef" }), "t", false);
+  assert.notEqual(forged.nonce, "0123456789abcdef", "an answer cannot choose the key");
 });
 
 test("a proposal's task id is stable, so a second click or a resend adds nothing twice", () => {
@@ -95,7 +116,8 @@ test("the card is built from text nodes, and its buttons call back only when pre
 // nothing itself; it follows the recording the person starts from it, and the
 // automation is saved only by the Record section's own Save.
 test("a propose_recording answer is a recording card, and an answer cannot name a recording", () => {
-  const p = P.fromTool("propose_recording", answer({ kind: "recording", goal: "Export\nthe   report", steps: " Open Reports. " }), "toolu_r", true);
+  const { nonce, ...p } = P.fromTool("propose_recording", answer({ kind: "recording", goal: "Export\nthe   report", steps: " Open Reports. " }), "toolu_r", true);
+  assert.match(nonce, /^[0-9a-f]{16}$/);
   assert.deepEqual(p, { id: "toolu_r", kind: "recording", goal: "Export the report", steps: "Open Reports.", untrustedPage: true, state: "pending", feedback: "" });
   assert.equal(P.fromTool("propose_recording", answer({ kind: "task", title: "x" }), "t", false), null, "the kind must be the tool's");
   assert.equal(P.fromTool("propose_task", answer({ kind: "recording", goal: "x" }), "t", false), null);

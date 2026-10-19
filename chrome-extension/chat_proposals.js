@@ -22,7 +22,7 @@
  * A card made in a conversation that has read a page carries untrustedPage,
  * and says the page may have steered it.
  *
- *   fromTool(name, payload, id, readPage)  -> a card, or null   pure
+ *   fromTool(name, payload, id, readPage)  -> a card with a new nonce, or null
  *   clone(list), settle(state, id, patch), clientId(p), view(p)  pure
  *   card(doc, p, {add, dismiss})            DOM, no innerHTML
  */
@@ -102,6 +102,15 @@
   // The recording card's states that need the recording they follow.
   const FOLLOWING = new Set(["recording", "recorded", "reviewing"]);
 
+  // Each card's own random key, made with it and kept with it: its task's id
+  // (clientId) is never another card's, however the call ids compare.
+  const NONCE = /^[0-9a-f]{16}$/;
+  function newNonce() {
+    const bytes = new Uint8Array(8);
+    crypto.getRandomValues(bytes);
+    return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  }
+
   /** cardOf checks one proposal (an answer's, or a stored card) and returns the card, or null. */
   function cardOf(raw, id, untrustedPage, state, feedback) {
     const kind = raw && KINDS[raw.kind] ? raw.kind : "";
@@ -128,7 +137,9 @@
     }
     const p = res && res.proposal;
     if (!p || p.kind !== kind) return null;
-    return cardOf(p, id, readPage, "pending", "");
+    const card = cardOf(p, id, readPage, "pending", "");
+    if (card) card.nonce = newNonce();
+    return card;
   }
 
   /**
@@ -146,6 +157,7 @@
       if (state === "reviewing") state = "recorded";
       const c = cardOf(p, p && p.id, p && p.untrustedPage, state, p && p.feedback);
       if (!c) continue;
+      if (NONCE.test(p.nonce)) c.nonce = p.nonce;
       if (c.kind === "recording" && usableRecording(p.recordingId)) c.recordingId = p.recordingId;
       else if (FOLLOWING.has(c.state)) Object.assign(c, { state: "pending", feedback: "" });
       out.push(c);
@@ -171,9 +183,15 @@
     return false;
   }
 
-  /** clientId is the id a card's task is sent under, for good (task_outbox.js). */
+  /**
+   * clientId is the id a card's task is sent under, for good (task_outbox.js):
+   * its nonce, then its call id for whoever reads the board. The board takes
+   * a repeated id as the same task, so a resend adds nothing twice. A card
+   * stored before cards had a nonce keeps the id it was sent under.
+   */
   function clientId(p) {
-    return `chat-${str(p && p.id).replace(/[^A-Za-z0-9_-]/g, "")}`.slice(0, 64);
+    const call = str(p && p.id).replace(/[^A-Za-z0-9_-]/g, "");
+    return (NONCE.test(p && p.nonce) ? `chat-${p.nonce}-${call}` : `chat-${call}`).slice(0, 64);
   }
 
   /** view is what a card says, from its state: its buttons are actions, named by labels. */

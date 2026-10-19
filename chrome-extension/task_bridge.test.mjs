@@ -29,11 +29,11 @@ test("a selection from the page is queued, sent and reported, with the address f
   assert.deepEqual(record.toasts.at(-1), { tabId: 42, text: "Added to Inbox in Work (#12)", level: "ok" });
 });
 
-test("a task MonoAgent already had (a resend) leaves the outbox too", async () => {
+test("a task MonoAgent already had (a resend) leaves the outbox too, and says it was already there", async () => {
   const ask = fakeAsk({ reply: () => ({ id: 9, created: false }) });
   const { listeners, local } = setupTasks({ ask });
   const out = await send(listeners, { type: "task_add", text: "once" }, PAGE);
-  assert.equal(out.feedback.text, "Added to Inbox in Work (#9)");
+  assert.equal(out.feedback.text, "Already added to Inbox in Work (#9)");
   assert.equal(waiting(local), 0);
 });
 
@@ -359,4 +359,22 @@ test("a confirmed chat proposal goes as a chat task, from the panel only", async
     assert.notEqual(refused.status, "added", JSON.stringify(bad));
   }
   assert.equal(ask.calls.length, 1);
+});
+
+// #868: the card's own nonce goes into the task's id, and a task the board
+// already had is said to be already added, never a new add.
+test("a chat proposal is sent under its card's key, and an existing task is already added", async () => {
+  let created = true;
+  const ask = fakeAsk({ reply: () => ({ id: 30, created }) });
+  const { listeners } = setupTasks({ ask });
+  const proposal = { id: "functions.x:0", kind: "task", title: "Book flights", notes: "", nonce: "0123456789abcdef" };
+  const out = await send(listeners, { type: "task_add_proposal", profile: "p-home", proposal }, PANEL);
+  assert.equal(ask.calls[0].params.client_id, "chat-0123456789abcdef-functionsx0");
+  assert.equal(out.feedback.text, "Added to Inbox in Home (#30)");
+
+  created = false;
+  const again = await send(listeners, { type: "task_add_proposal", profile: "p-home", proposal: { ...proposal, id: "functionsx0", nonce: "fedcba9876543210" } }, PANEL);
+  assert.equal(ask.calls[1].params.client_id, "chat-fedcba9876543210-functionsx0", "another card, another key");
+  assert.equal(again.status, "added");
+  assert.equal(again.feedback.text, "Already added to Inbox in Home (#30)");
 });

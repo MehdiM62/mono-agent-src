@@ -416,18 +416,20 @@
     return push(state, { role: "assistant", text: "", tools: [], open: true });
   }
 
-  /** startTurn records what the person sent; the reply opens with its first event. */
-  function startTurn(state, text, pageTitle) {
+  /**
+   * startTurn records what the person sent; the reply opens with its first
+   * event. withPage: the message carried a page context, titled or not.
+   */
+  function startTurn(state, text, pageTitle, withPage) {
     closeOpen(state);
     // A new turn numbers its events from 1 again; its id is learned from the
     // first event that names it, or from the final reply.
     state.turn = "";
     state.lastSeq = 0;
     const msg = { role: "user", text: str(text) };
-    if (pageTitle) {
-      msg.page = pageTitle;
-      state.readPage = true;
-    }
+    if (pageTitle) msg.page = pageTitle;
+    // Any page counts, with or without a title or address: its text is the page's.
+    if (pageTitle || withPage) state.readPage = true;
     push(state, msg);
   }
 

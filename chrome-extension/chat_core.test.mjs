@@ -426,3 +426,19 @@ test("a conversation that never read a page makes unmarked cards; a replayed wra
   assert.equal(r.readPage, true);
   assert.equal(r.messages.at(-1).proposals[0].untrustedPage, true);
 });
+
+// #868: any page context marks the conversation as having read a page, also
+// one with text but no title or address, so its cards carry the warning.
+test("a turn that carried an untitled page counts as reading one", () => {
+  const { MonoChatCore: C2 } = loadExtensionScripts(["chat_proposals.js", "chat_core.js"]);
+  const s = C2.newState(null);
+  C2.startTurn(s, "add a task", "", true);
+  assert.equal(s.readPage, true);
+  assert.equal(s.messages[0].page, undefined, "no label to show");
+  C2.applyEvent(s, ev(1, "tool.started", { callId: "c1", name: "propose_task" }));
+  C2.applyEvent(s, ev(2, "tool.completed", { callId: "c1", ok: true, result: JSON.stringify({ proposal: { kind: "task", title: "T" } }) }));
+  assert.equal(s.messages.at(-1).proposals[0].untrustedPage, true);
+  const none = C2.newState(null);
+  C2.startTurn(none, "hello", "", false);
+  assert.equal(none.readPage, false);
+});

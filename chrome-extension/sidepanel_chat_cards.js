@@ -45,7 +45,7 @@
       const mine = deps.current();
       Proposals.settle(deps.chat(), id, { state: "sending", feedback: "" });
       deps.draw();
-      const answer = await deps.ask({ type: "task_add_proposal", profile: deps.profile(), proposal: { id: p.id, kind: p.kind, title: p.title, notes: p.notes } });
+      const answer = await deps.ask({ type: "task_add_proposal", profile: deps.profile(), proposal: { id: p.id, kind: p.kind, title: p.title, notes: p.notes, nonce: p.nonce } });
       const state = answer.status === "added" ? "added" : answer.status === "queued" ? "queued" : "refused";
       await settle(id, { state, feedback: (answer.feedback && answer.feedback.text) || answer.error || "Not added" }, mine);
     }

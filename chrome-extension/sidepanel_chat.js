@@ -376,7 +376,7 @@
     }
     if (!active || active.tag !== tag) return;
 
-    Core.startTurn(chat, message, Core.pageLabel(context));
+    Core.startTurn(chat, message, Core.pageLabel(context), context != null);
     await save();
     draw();
 

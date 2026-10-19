@@ -17,7 +17,7 @@ function world({ start, analyze, taskReply } = {}) {
       id: "m1", role: "assistant", text: "", tools: [],
       proposals: [
         { id: "r1", kind: "recording", goal: "Export the report", steps: "Open Reports.", untrustedPage: true, state: "pending", feedback: "" },
-        { id: "t1", kind: "task", title: "Book flights", notes: "", untrustedPage: false, state: "pending", feedback: "" },
+        { id: "t1", kind: "task", title: "Book flights", notes: "", untrustedPage: false, state: "pending", feedback: "", nonce: "0123456789abcdef" },
       ],
     }],
   };
@@ -132,7 +132,7 @@ test("a task card's Add still goes to the worker once, and Dismiss sends nothing
   await w.cards.confirm("t1");
   await w.cards.confirm("t1");
   const asked = w.calls.filter((c) => c[0] === "ask").map((c) => c[1]);
-  assert.deepEqual(asked, [{ type: "task_add_proposal", profile: "p-work", proposal: { id: "t1", kind: "task", title: "Book flights", notes: "" } }]);
+  assert.deepEqual(asked, [{ type: "task_add_proposal", profile: "p-work", proposal: { id: "t1", kind: "task", title: "Book flights", notes: "", nonce: "0123456789abcdef" } }]);
   assert.deepEqual([w.card("t1").state, w.card("t1").feedback], ["added", "Added to Inbox in Work (#4)"]);
   await w.cards.dismiss("r1");
   assert.equal(w.card("r1").state, "dismissed");
