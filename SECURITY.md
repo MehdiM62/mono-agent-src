@@ -274,11 +274,17 @@ it wrote by hand under `~/.monoagent/actions`. Now:
 - `login <package>` and `login confirm <package>` of a package that isn't
   built-in are yours too: such a package names its own login page and the
   sites whose cookies its login keeps.
-- What counts as built-in is read from files your account can write. A
-  package is built-in because it was installed from the official monoes.me
-  library; its hash is checked once, when it is installed. After that its
-  files and its trust tier are kept under `~/.monoagent/automations`, and
-  the app doesn't check them against anything it ships. An agent that can
+- `automation rerecord` is yours: it opens a package's site, or any `--url`,
+  in your browser and rewrites the selector your click picks, which changes
+  what the package's actions click, a built-in one's too. So are `automation
+  doctor accept-repair`, which rewrites one without a click, and changing a
+  package's flags with `automation trust` (page scripts, real runs);
+  showing them stays open. `login names` refuses an agent when it would
+  open the site of a package that isn't built-in.
+- What counts as built-in is read from files your account can write.
+  Built-in packages are the ones the app seeds or installs from the official
+  library; nothing re-checks their files after that. Their files and their
+  trust tier are kept under `~/.monoagent/automations`. An agent that can
   write there, as one working as you can, can change a built-in package's
   actions or mark its own package built-in, and these checks don't stop it.
   Only keeping agents out of `~/.monoagent` (a sandbox) does. Checking

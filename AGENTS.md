@@ -597,7 +597,10 @@ dangerous calls.
   and so is a browser action of a package that isn't built-in (recorded,
   local, imported) run by one, by the chat or by an unapproved workflow
   (`nodes.BrowserNode.RunRefusal`, `nodes.ErrUserOnlyBrowserRun`), and its
-  `login <package>` / `login confirm <package>` from one (exit 3).
+  `login <package>` / `login confirm <package>` from one (exit 3), as are
+  `automation rerecord`, `automation doctor accept-repair`, `automation
+  trust` with a flag, and a `login names` that would open such a package's
+  site.
   Put the step in a workflow and have the user save or activate it. Even in
   an approved workflow a reference resolves only where the stored config
   holds it as written (`secrets.ResolveConfig` gets the stored config): one

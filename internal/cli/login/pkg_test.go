@@ -208,6 +208,92 @@ func TestLoginCheckURL(t *testing.T) {
 // the user's login of any package, go on as before.
 func TestAnAgentLogsInToNoPackageThatIsntBuiltIn(t *testing.T) {
 	d := useTestLoginRegistry(t, filepath.Join(t.TempDir(), "login.db"))
+	installHandLogin(t, d)
+	bridges := 0
+	d.ConnectBridge = func(string) (browserpkg.ExtensionBridge, error) {
+		bridges++
+		return nil, errors.New("no browser in tests")
+	}
+	run := func(args ...string) error {
+		cmd := d.newLoginCmd()
+		cmd.SetArgs(args)
+		cmd.SetOut(&bytes.Buffer{})
+		cmd.SetErr(&bytes.Buffer{})
+		return cmd.Execute()
+	}
+
+	d.Refusal = func() string { return "CLAUDECODE is set, so an agent is running this command" }
+	for _, args := range [][]string{{"handlogin"}, {"confirm", "handlogin"}} {
+		if err := run(args...); !isOperatorOnly(err) || bridges != 0 {
+			t.Fatalf("an agent's login %v: %v, bridges %d; want operator_only before a browser", args, err, bridges)
+		}
+	}
+	if _, err := d.loginAutomation("gemini"); err != nil {
+		t.Errorf("an agent's login to the built-in gemini: %v", err)
+	}
+	d.Refusal = func() string { return "" }
+	if err := run("handlogin"); err == nil || !strings.Contains(err.Error(), "no browser in tests") || bridges != 1 {
+		t.Errorf("the user's login: %v, bridges %d; want it to reach the browser", err, bridges)
+	}
+}
+
+// `login names` opens each nameless session's site in the user's browser,
+// a package's site.startUrl for a package's session: an agent's run that
+// would open a page named by a package that isn't built-in is refused
+// (operator_only) before a browser connects. A built-in one's still opens,
+// and the user's run opens both.
+func TestAnAgentOpensNoPageOfAPackageThatIsntBuiltInForLoginNames(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "login.db")
+	d := useTestLoginRegistry(t, dbPath)
+	installHandLogin(t, d)
+	db, err := d.OpenDB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []string{"handlogin", "gemini"} {
+		if _, err := db.DB.Exec(`INSERT INTO crawler_sessions (username, platform, cookies_json, expiry, profile_id) VALUES ('unknown', ?, '', '2099-01-01', 'default')`, p); err != nil {
+			t.Fatal(err)
+		}
+	}
+	db.Close()
+	bridges := 0
+	d.ConnectBridge = func(string) (browserpkg.ExtensionBridge, error) {
+		bridges++
+		return nil, errors.New("no browser in tests")
+	}
+	run := func(args ...string) error {
+		cmd := d.newLoginCmd()
+		cmd.SetArgs(append([]string{"names"}, args...))
+		cmd.SetOut(&bytes.Buffer{})
+		cmd.SetErr(&bytes.Buffer{})
+		return cmd.Execute()
+	}
+
+	d.Refusal = func() string { return "CLAUDECODE is set, so an agent is running this command" }
+	for _, args := range [][]string{nil, {"--platform", "handlogin"}} {
+		if err := run(args...); !isOperatorOnly(err) || bridges != 0 {
+			t.Fatalf("an agent's login names %v: %v, bridges %d; want operator_only before a browser", args, err, bridges)
+		}
+	}
+	if err := run("--platform", "gemini"); err == nil || !strings.Contains(err.Error(), "no browser in tests") || bridges != 1 {
+		t.Errorf("an agent's login names --platform gemini: %v, bridges %d; want it to reach the browser", err, bridges)
+	}
+	d.Refusal = func() string { return "" }
+	if err := run(); err == nil || !strings.Contains(err.Error(), "no browser in tests") || bridges != 2 {
+		t.Errorf("the user's login names: %v, bridges %d; want it to reach the browser", err, bridges)
+	}
+}
+
+// isOperatorOnly reports whether err is the CLI's operator_only refusal.
+func isOperatorOnly(err error) bool {
+	var coded interface{ JSONErrorFields() map[string]any }
+	return errors.As(err, &coded) && coded.JSONErrorFields()["code"] == "operator_only"
+}
+
+// installHandLogin installs "handlogin", a local package with a login block,
+// into d's registry.
+func installHandLogin(t *testing.T, d Deps) {
+	t.Helper()
 	reg, _ := d.OpenRegistry()
 	dir := filepath.Join(t.TempDir(), "handlogin")
 	for name, body := range map[string]string{
@@ -227,33 +313,5 @@ func TestAnAgentLogsInToNoPackageThatIsntBuiltIn(t *testing.T) {
 	}
 	if _, err := reg.Install(dir, automation.InstallOptions{Source: automation.SourceLocal}); err != nil {
 		t.Fatalf("install: %v", err)
-	}
-	bridges := 0
-	d.ConnectBridge = func(string) (browserpkg.ExtensionBridge, error) {
-		bridges++
-		return nil, errors.New("no browser in tests")
-	}
-	run := func(args ...string) error {
-		cmd := d.newLoginCmd()
-		cmd.SetArgs(args)
-		cmd.SetOut(&bytes.Buffer{})
-		cmd.SetErr(&bytes.Buffer{})
-		return cmd.Execute()
-	}
-
-	d.Refusal = func() string { return "CLAUDECODE is set, so an agent is running this command" }
-	for _, args := range [][]string{{"handlogin"}, {"confirm", "handlogin"}} {
-		err := run(args...)
-		var coded interface{ JSONErrorFields() map[string]any }
-		if !errors.As(err, &coded) || coded.JSONErrorFields()["code"] != "operator_only" || bridges != 0 {
-			t.Fatalf("an agent's login %v: %v, bridges %d; want operator_only before a browser", args, err, bridges)
-		}
-	}
-	if _, err := d.loginAutomation("gemini"); err != nil {
-		t.Errorf("an agent's login to the built-in gemini: %v", err)
-	}
-	d.Refusal = func() string { return "" }
-	if err := run("handlogin"); err == nil || !strings.Contains(err.Error(), "no browser in tests") || bridges != 1 {
-		t.Errorf("the user's login: %v, bridges %d; want it to reach the browser", err, bridges)
 	}
 }
