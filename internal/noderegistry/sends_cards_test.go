@@ -9,9 +9,10 @@ import (
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
-// A held Zulip stream update lists what it changes on the card, read-only:
-// a privacy change reads as one, a cleared description as "", and a typed
-// text can't become the stream's description.
+// A held Zulip stream update or Salesforce flow lists what it changes or
+// passes on the card, read-only: a privacy change reads as one, a cleared
+// description as "", a flow's variables as they go out, and a typed text
+// can't become the stream's description.
 func TestASettingsOrFlowCardListsWhatItSends(t *testing.T) {
 	asOperator(t)
 	t.Setenv(hilsend.EnvAgentContext, "coder")
@@ -30,6 +31,9 @@ func TestASettingsOrFlowCardListsWhatItSends(t *testing.T) {
 			"zulip stream/update with:\nadditionalFields.description: \"\""},
 		{"app.zulip", cfg{"resource": "stream", "operation": "update", "streamId": "7", "additionalFields": cfg{"description": "Launch", "streamPostPolicy": 2}},
 			"zulip stream/update with:\nadditionalFields.description: \"Launch\"\nadditionalFields.streamPostPolicy: 2"},
+		{"service.salesforce", cfg{"resource": "flow", "operation": "invoke", "apiName": "Notify",
+			"variablesUi": cfg{"variablesValues": []interface{}{cfg{"name": "body", "value": "Hi Ada"}}}},
+			"salesforce flow/invoke with:\nvariablesUi.variablesValues: [{\"name\":\"body\",\"value\":\"Hi Ada\"}]"},
 	} {
 		out, handled, err := hilsend.Guard(sendsCtx(db), c.nodeType, workflow.NodeInput{}, c.config)
 		if err != nil || !handled {

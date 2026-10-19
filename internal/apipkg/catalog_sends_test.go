@@ -121,8 +121,8 @@ func TestSendOf(t *testing.T) {
 			t.Errorf("%s: an app node resolves its params per item, PerItem is empty", c.name)
 		}
 	}
-	// A send whose words are settings lists its params on the card,
-	// read-only, in place of a message.
+	// A send whose words are settings or a flow's inputs lists its params
+	// on the card, read-only, in place of a message.
 	for _, c := range []struct {
 		nodeType string
 		config   map[string]any
@@ -132,6 +132,8 @@ func TestSendOf(t *testing.T) {
 		{"app.zulip", map[string]any{"resource": "stream", "operation": "update", "streamId": "7", "additionalFields": map[string]any{"isPrivate": true}},
 			"zulip stream/update", []string{"additionalFields.description", "additionalFields.newName", "additionalFields.isPrivate",
 				"additionalFields.historyPublicToSubscribers", "additionalFields.isAnnouncementOnly", "additionalFields.streamPostPolicy", "additionalFieldsJson"}},
+		{"service.salesforce", map[string]any{"resource": "flow", "operation": "invoke", "apiName": "Notify", "jsonParameters": true, "variablesJson": "{}"},
+			"salesforce flow/invoke", []string{"variablesUi.variablesValues", "variablesJson"}},
 	} {
 		got, ok := SendOf(c.nodeType, c.config)
 		if !ok || got.Op != c.op || !reflect.DeepEqual(got.Show, c.show) || got.Undeclared || got.Text != nil {

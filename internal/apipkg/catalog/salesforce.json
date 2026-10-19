@@ -2794,6 +2794,10 @@
         "to_label": {
           "apiName": "flow"
         },
+        "show": [
+          "variablesUi.variablesValues",
+          "variablesJson"
+        ],
         "if": [
           "jsonParameters",
           "variablesUi.variablesValues"
