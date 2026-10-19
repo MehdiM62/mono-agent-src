@@ -323,8 +323,12 @@ read. It is one bridge request method, `vault.save`
 - **Exactly one write per save.** Each request carries a client id; the
   vault keeps one item per client id per profile (a unique index), so a retry
   returns the item it already made and writes nothing.
-- Saves are recorded with source `extension` and are not indexed in the
-  knowledge graph.
+- **Documents stay out of the knowledge base.** A PDF, text, Markdown or CSV
+  file goes into the image/file vault too, not the documents vault
+  (`profile documents`): documents there are indexed into the knowledge base
+  that agents read, and content from a web page must not land in it without
+  the person adding it there themselves. For the same reason a save is not
+  indexed in the knowledge graph; it is recorded with source `extension`.
 
 ## Network use, telemetry and crash reporting
 
