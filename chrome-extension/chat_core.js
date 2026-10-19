@@ -397,6 +397,7 @@
         id: str(t.id),
         name: str(t.name),
         status: t.status === "failed" ? "failed" : t.status === "running" ? "running" : "done",
+        ...(t.carded ? { carded: true } : {}),
       }));
       const P = root.MonoChatProposals;
       if (P && Array.isArray(m.proposals) && m.proposals.length) out.proposals = P.clone(m.proposals);
@@ -493,7 +494,8 @@
         const a = openAssistant(state);
         const id = str(p.callId) || str(p.id) || str(p.call_id) || str(p.tool_id);
         const name = str(p.name) || str(p.tool) || str(p.title);
-        let t = id ? a.tools.find((x) => x.id === id) : null;
+        // A runtime may reuse a call id within one reply: the call still running answers first.
+        let t = id ? a.tools.find((x) => x.id === id && x.status === "running") || a.tools.find((x) => x.id === id) : null;
         if (!t) t = [...a.tools].reverse().find((x) => x.status === "running" && (!name || x.name === name));
         if (!t) {
           t = { id: id || `t${ev.seq}`, name: clip(name || "tool", 80), status: "running" };
@@ -503,10 +505,15 @@
         const failed =
           p.ok === false || !!p.denied || !!p.cancelled || !!p.error || !!p.is_error || p.status === "error" || p.status === "failed";
         t.status = failed ? "failed" : "done";
-        // A proposal tool's answer is a card for the person (chat_proposals.js); once per call.
+        // A proposal tool's answer is a card for the person (chat_proposals.js),
+        // once per call: a call that made its card (a replayed answer) makes no
+        // other. Cards are told apart by their nonce, never their call id.
         const P = root.MonoChatProposals;
-        const card = P && !failed ? P.fromTool(t.name, p, t.id, state.readPage) : null;
-        if (card && !(a.proposals || []).some((x) => x.id === card.id)) (a.proposals = a.proposals || []).push(card);
+        const card = P && !failed && !t.carded ? P.fromTool(t.name, p, t.id, state.readPage) : null;
+        if (card) {
+          t.carded = true;
+          (a.proposals = a.proposals || []).push(card);
+        }
         return true;
       }
       case "notice": {

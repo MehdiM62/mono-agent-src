@@ -442,3 +442,21 @@ test("a turn that carried an untitled page counts as reading one", () => {
   C2.startTurn(none, "hello", "", false);
   assert.equal(none.readPage, false);
 });
+
+// #876 review: a runtime that reuses call ids may answer two proposals in one
+// reply under the same id. Each call is a card; a replayed answer is not.
+test("two proposals under one repeated call id in one reply are two cards, and a replay adds none", () => {
+  const { MonoChatCore: C2 } = loadExtensionScripts(["chat_proposals.js", "chat_core.js"]);
+  const s = C2.newState(null);
+  C2.startTurn(s, "add two tasks", "");
+  const done = (seq, title) => ev(seq, "tool.completed", { callId: "functions.propose_task:0", ok: true, result: JSON.stringify({ proposal: { kind: "task", title } }) });
+  C2.applyEvent(s, ev(1, "tool.started", { callId: "functions.propose_task:0", name: "propose_task" }));
+  C2.applyEvent(s, done(2, "Book flights"));
+  C2.applyEvent(s, ev(3, "tool.started", { callId: "functions.propose_task:0", name: "propose_task" }));
+  C2.applyEvent(s, done(4, "Pack"));
+  C2.applyEvent(s, done(5, "Book flights")); // the first answer again, replayed under a new number
+  const a = s.messages.at(-1);
+  assert.deepEqual(a.proposals.map((p) => p.title), ["Book flights", "Pack"]);
+  assert.deepEqual(a.tools.map((t) => t.status), ["done", "done"], "each call's chip is done");
+  assert.notEqual(a.proposals[0].nonce, a.proposals[1].nonce);
+});
