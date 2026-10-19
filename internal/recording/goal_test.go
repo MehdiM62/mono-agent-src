@@ -186,3 +186,22 @@ func TestCleanGoalLeavesNoRoomForHiddenBits(t *testing.T) {
 		}
 	}
 }
+
+// A direction mark is kept only where the text turns between right-to-left
+// and left-to-right letters, one per turn: none in text without RTL letters,
+// none inside an RTL run. The text's end counts as left-to-right.
+func TestCleanGoalKeepsDirectionMarksOnlyAtATurn(t *testing.T) {
+	for in, want := range map[string]string{
+		"Export\u200e the\u200f report":                  "Export the report",
+		"\u200fExport":                                   "Export",
+		"\u05e9\u200f\u05dc\u200f\u05d5\u05dd":           "\u05e9\u05dc\u05d5\u05dd",
+		"abc \u200f\u200f\u200e\u05e9\u05dc\u05d5\u05dd": "abc \u200f\u05e9\u05dc\u05d5\u05dd",
+		"\u05e9\u05dc\u05d5\u05dd\u200f !\u200f abc":     "\u05e9\u05dc\u05d5\u05dd\u200f ! abc",
+		"\u05e9\u05dc\u05d5\u05dd\u200f!":                "\u05e9\u05dc\u05d5\u05dd\u200f!",
+		"\u0645\u06cc\u061c 2 \u0634\u062f":              "\u0645\u06cc 2 \u0634\u062f",
+	} {
+		if got := CleanGoal(in); got != want {
+			t.Errorf("CleanGoal(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

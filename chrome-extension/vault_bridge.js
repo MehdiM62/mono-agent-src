@@ -192,10 +192,19 @@
     return base + suffix;
   }
 
+  // Base64 in 3 MiB slices, a multiple of 3 bytes so no slice is padded: a
+  // binary string the size of the whole file (20 MiB) is never built.
+  const B64_SLICE = 3 * 1024 * 1024;
+
   function toBase64(bytes) {
-    let bin = "";
-    for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
-    return btoa(bin);
+    const parts = [];
+    for (let i = 0; i < bytes.length; i += B64_SLICE) {
+      const slice = bytes.subarray(i, i + B64_SLICE);
+      let bin = "";
+      for (let j = 0; j < slice.length; j += 0x8000) bin += String.fromCharCode.apply(null, slice.subarray(j, j + 0x8000));
+      parts.push(btoa(bin));
+    }
+    return parts.join("");
   }
 
   /**
@@ -280,8 +289,9 @@
     const pageUrl = (tab && tab.url) || "";
     // A public page may not have the extension fetch from the person's own
     // network. A page is on that network only as an http(s) page on a private
-    // host: a file, a blob, about:, data: or the browser's own pages count as
-    // public, since a public page can open a blob of its own.
+    // IP literal or localhost (private_net.js isPrivatePage): a file, a blob,
+    // about:, data:, the browser's own pages, and a page on a wildcard-DNS,
+    // tailnet or office name count as public.
     const parse = (u) => {
       try {
         return new URL(u);
@@ -292,7 +302,7 @@
     const page = parse(pageUrl);
     const item = card.url ? parse(card.url) : null;
     const pageWeb = !!page && (page.protocol === "http:" || page.protocol === "https:") && !!page.hostname;
-    const pagePrivate = pageWeb && Net.isPrivateHost(page.hostname);
+    const pagePrivate = pageWeb && Net.isPrivatePage(page.hostname);
     const sameOrigin = pageWeb && !!item && item.origin === page.origin;
     if (item && Net.isPrivateHost(item.hostname) && !pagePrivate) {
       return refuse(`Not saved: ${item.hostname} is on a private network and this page is not, so MonoAgent will not fetch it from here`);
@@ -337,5 +347,5 @@
     });
   }
 
-  root.MonoVault = { install, save, itemOnPage, sniff, fileName, MAX_BYTES, METHOD };
+  root.MonoVault = { install, save, itemOnPage, sniff, fileName, toBase64, MAX_BYTES, METHOD };
 })(globalThis);

@@ -347,3 +347,17 @@ test("a recording goal keeps a joiner, ZWNJ, selector or direction mark only whe
     ["\u05e9\u200f\u200f\u200e\u200f!", "\u05e9\u200f!"], ["x\u200d\u200d\u{1F4BB}", "x\u{1F4BB}"],
   ]) assert.equal(P.cleanGoal(input), want, JSON.stringify(input));
 });
+
+// Vault card review: a direction mark only where the text turns between
+// right-to-left and left-to-right letters, one per turn. The same cases as
+// Go's TestCleanGoalKeepsDirectionMarksOnlyAtATurn.
+test("a recording goal keeps a direction mark only where the text turns direction, one per turn", () => {
+  for (const [input, want] of [
+    ["Export\u200e the\u200f report", "Export the report"], ["\u200fExport", "Export"],
+    ["\u05e9\u200f\u05dc\u200f\u05d5\u05dd", "\u05e9\u05dc\u05d5\u05dd"],
+    ["abc \u200f\u200f\u200e\u05e9\u05dc\u05d5\u05dd", "abc \u200f\u05e9\u05dc\u05d5\u05dd"],
+    ["\u05e9\u05dc\u05d5\u05dd\u200f !\u200f abc", "\u05e9\u05dc\u05d5\u05dd\u200f ! abc"],
+    ["\u05e9\u05dc\u05d5\u05dd\u200f!", "\u05e9\u05dc\u05d5\u05dd\u200f!"],
+    ["\u0645\u06cc\u061c 2 \u0634\u062f", "\u0645\u06cc 2 \u0634\u062f"],
+  ]) assert.equal(P.cleanGoal(input), want, JSON.stringify(input));
+});

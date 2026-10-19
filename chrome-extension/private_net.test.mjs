@@ -38,3 +38,31 @@ test("special-use ranges, embedded IPv4, network names and wildcard-DNS names ar
     assert.equal(P.isPrivateHost(host(u)), false, u);
   }
 });
+
+// Vault card review: a page is on the person's network only by a private IP
+// literal, localhost or *.localhost. A wildcard-DNS name, a tailnet name or an
+// office suffix can be served from anywhere (203-0-113-5.sslip.io resolves to
+// a public server, *.ts.net can be Tailscale Funnel), so such a page is public.
+test("a page is private only by a private IP literal, localhost or *.localhost", () => {
+  const host = (u) => new URL(u).hostname;
+  for (const u of ["http://127.0.0.1:8080/", "http://localhost/", "http://app.localhost/", "http://10.0.0.5/", "http://192.168.1.10/", "http://[::1]/", "http://[fd12::1]/"]) {
+    assert.equal(P.isPrivatePage(host(u)), true, u);
+  }
+  for (const u of ["https://203-0-113-5.sslip.io/", "https://x.ts.net/", "https://nip.io/", "http://127.0.0.1.nip.io/", "https://router.lan/",
+    "http://printer.local/", "http://intranet/", "http://db.internal/", "http://lvh.me/", "https://a.example/"]) {
+    assert.equal(P.isPrivatePage(host(u)), false, u);
+    assert.equal(P.isPrivatePage(""), false, "no host is no private page");
+  }
+});
+
+// Vault card review: more wildcard-DNS services, and the IPv6 forms that carry
+// an IPv4 address in other ways.
+test("more wildcard-DNS names, IPv4-translated IPv6 and Teredo are private items", () => {
+  const host = (u) => new URL(u).hostname;
+  for (const u of ["http://x.1u.ms/", "http://127.0.0.1.xip.name/", "http://a.vcap.me/", "http://lacolhost.com/", "http://x.fbi.com/",
+    "http://localho.st/", "http://a.local.gd/", "http://[::ffff:0:127.0.0.1]/", "http://[::ffff:0:a00:1]/", "http://[2001:0:4136:e378:8000:63bf:3fff:fdd2]/"]) {
+    assert.equal(P.isPrivateHost(host(u)), true, u);
+  }
+  assert.equal(P.isPrivateHost(host("http://[::ffff:0:808:808]/")), false, "a public IPv4 inside stays public");
+  assert.equal(P.isPrivateHost(host("http://[2001:db8::1]/")), false);
+});

@@ -101,6 +101,8 @@
   const JOIN_SCRIPT = /[\u0600-\u06ff\u0750-\u077f\u08a0-\u08ff\ufb50-\ufdff\ufe70-\ufeff\u0900-\u0dff]/u;
   const LETTER = /\p{L}/u;
   const DIRECTION = /[\u200e\u200f\u061c]/u;
+  const RTL = /[\u0590-\u08ff\ufb1d-\ufdff\ufe70-\ufeff\u{10800}-\u{10fff}\u{1e800}-\u{1efff}]/u;
+  const rtl = (c) => LETTER.test(c) && RTL.test(c);
   const keycap = (base, next) => next === "\u20e3" && /[0-9#*]/.test(base);
 
   /**
@@ -109,7 +111,8 @@
    * text needs stays, and no more, so what is kept carries no hidden bits: a
    * ZWJ that joins emoji, or a conjunct after a virama or coeng; a ZWNJ
    * inside an Arabic-script or Indic word; VS16 that makes an emoji, and VS15
-   * or VS16 on a keycap; one direction mark of a run. A soft hyphen, and a
+   * or VS16 on a keycap; a direction mark where the text turns between
+   * right-to-left and left-to-right letters, one per turn. A soft hyphen, and a
    * joiner or selector that is not needed, are deleted. The same rules as
    * Go's recording.CleanGoal.
    */
@@ -119,13 +122,25 @@
     const last = () => (out.length ? out[out.length - 1] : " ");
     // The last kept character but a variation selector: what a ZWJ after a heart and VS16 joins.
     const lastBase = () => [...out].reverse().find((c) => c !== "\ufe0f" && c !== "\ufe0e") || " ";
+    // The direction of the last letter kept (the start counts as left-to-right),
+    // and whether a direction mark was kept since it; the text's end counts as
+    // left-to-right too.
+    let lastRTL = false;
+    let markSinceLetter = false;
+    const nextLetterRTL = (i) => {
+      const letter = cps.slice(i + 1).find((c) => LETTER.test(c));
+      return !!letter && rtl(letter);
+    };
     cps.forEach((c, i) => {
       const next = cps[i + 1] || " ";
       let keep = true;
       if (c === "\u00ad") keep = false; // a soft hyphen only says where a word may break
       else if (c === "\u200d") keep = (EMOJI.test(lastBase()) && EMOJI.test(next)) || (VIRAMA.test(last()) && LETTER.test(next));
       else if (c === "\u200c") keep = JOIN_SCRIPT.test(last()) && JOIN_SCRIPT.test(next) && LETTER.test(next);
-      else if (DIRECTION.test(c)) keep = !DIRECTION.test(last());
+      else if (DIRECTION.test(c)) {
+        keep = !markSinceLetter && lastRTL !== nextLetterRTL(i);
+        markSinceLetter = markSinceLetter || keep;
+      }
       else if (c === "\ufe0f") keep = EMOJI.test(last()) || keycap(last(), next);
       else if (c === "\ufe0e") keep = keycap(last(), next);
       else if (SELECTORS.test(c)) keep = false;
@@ -134,6 +149,10 @@
         return;
       }
       if (keep) out.push(c);
+      if (keep && LETTER.test(c)) {
+        lastRTL = rtl(c);
+        markSinceLetter = false;
+      }
     });
     return runes(oneLine(out.join("")), TITLE_RUNES);
   }

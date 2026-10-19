@@ -273,3 +273,32 @@ test("a file up to 20 MiB is saved", async () => {
   assert.equal(out.status, "saved");
   assert.equal(w.calls.requests[0].params.mime, "application/pdf");
 });
+
+// Vault card review: the page rule is narrow. A page on a wildcard-DNS name,
+// a tailnet or an office suffix is public, however the item rule sees it.
+test("a page on a wildcard-DNS, tailnet or office name cannot save a private address", async () => {
+  for (const pageUrl of ["https://203-0-113-5.sslip.io/", "https://x.ts.net/", "https://nip.io/", "http://127.0.0.1.nip.io/", "https://router.lan/"]) {
+    const w = world({ pageUrl });
+    const out = await w.send(ask({ url: "http://127.0.0.1:9222/json/list.txt" }));
+    assert.equal(out.status, "refused", pageUrl);
+    assert.match(out.feedback.text, /private network/, pageUrl);
+    assert.deepEqual([w.calls.scripts.length, w.calls.fetches.length], [0, 0], pageUrl);
+  }
+  for (const pageUrl of ["http://127.0.0.1:8080/", "http://localhost/"]) {
+    const w = world({ pageUrl });
+    const out = await w.send(ask({ url: `${pageUrl}chart.png` }));
+    assert.equal(out.status, "saved", pageUrl);
+    assert.deepEqual([w.calls.fetches[0].init.redirect, w.calls.fetches[0].init.credentials], ["follow", "include"], pageUrl);
+  }
+});
+
+// Vault card review: base64 is built in slices, never as one binary string
+// the size of the file; the result is the same.
+test("base64 in slices is the plain encoding, across slice boundaries and for an odd size", () => {
+  const { MonoVault: V } = loadExtensionScripts(["vault_bridge.js"]);
+  const bytes = new Uint8Array(6 * 1024 * 1024 + 7);
+  for (let i = 0; i < bytes.length; i++) bytes[i] = (i * 31 + 7) & 255;
+  assert.equal(V.toBase64(bytes), Buffer.from(bytes).toString("base64"));
+  assert.equal(V.toBase64(Uint8Array.of(1, 2)), Buffer.from([1, 2]).toString("base64"));
+  assert.equal(V.toBase64(new Uint8Array(0)), "");
+});

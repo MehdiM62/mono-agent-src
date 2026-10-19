@@ -258,13 +258,17 @@ widen what an earlier page reached the model with):
   NAT64, 6to4); `localhost` and the home, office and tailnet names (`.lan`,
   `.home`, `.home.arpa`, `.corp`, `.local`, `.localdomain`, `.internal`,
   `.intranet`, `.private`, `.ts.net`, single-label names). A page counts
-  as private only when it is an http or https page on such a host; a file,
-  a blob, `about:`, `data:` or the browser's own pages count as public.
+  as private, and may save such an address, only when it is an http or
+  https page on a private IP address, `localhost` or `*.localhost`; a page
+  on any name, including the network names above and the wildcard-DNS
+  services below (which can be served from anywhere), a file, a blob,
+  `about:`, `data:` and the browser's own pages count as public.
   Two limits are known. A public name that resolves to a private address
   through DNS is not caught: the extension cannot see the address a name
   resolves to, only the name; the known wildcard-DNS services (`nip.io`,
-  `sslip.io`, `xip.io`, `localtest.me`, `lvh.me`, `traefik.me`) are
-  refused as private. And from a public page an address that redirects is
+  `sslip.io`, `xip.io`, `xip.name`, `1u.ms`, `localtest.me`, `lvh.me`,
+  `traefik.me`, `vcap.me`, `lacolhost.com`, `fbi.com`, `localho.st`,
+  `local.gd`) are refused as private. And from a public page an address that redirects is
   refused rather than followed, even when the redirect is harmless, so
   some CDN links need "open the file itself, then save it from there". A
   page cannot press those buttons:

@@ -91,7 +91,8 @@ func cleanTitle(s string) string { return cleanLine(s, MaxTitleRunes) }
 // still reads (invisible). What text needs stays, and no more, so what is
 // kept carries no hidden bits: a ZWJ that joins emoji, or a conjunct after a
 // virama or coeng; a ZWNJ inside an Arabic-script or Indic word; VS16 that
-// makes an emoji, and VS15 or VS16 on a keycap; one direction mark of a run.
+// makes an emoji, and VS15 or VS16 on a keycap; a direction mark where the
+// text turns between right-to-left and left-to-right letters, one per turn.
 // A soft hyphen, and a joiner or selector that is not needed, are deleted.
 func cleanLine(s string, max int) string {
 	rs := []rune(strings.ToValidUTF8(s, ""))
@@ -112,6 +113,9 @@ func cleanLine(s string, max int) string {
 		}
 		return ' '
 	}
+	// The direction of the last letter kept (the start counts as left-to-right),
+	// and whether a direction mark was kept since it.
+	lastRTL, markSinceLetter := false, false
 	for i, r := range rs {
 		next := ' '
 		if i+1 < len(rs) {
@@ -126,7 +130,8 @@ func cleanLine(s string, max int) string {
 		case r == 0x200C:
 			keep = joinScript(last()) && joinScript(next) && unicode.IsLetter(next)
 		case directionMark(r):
-			keep = !directionMark(last())
+			keep = !markSinceLetter && lastRTL != nextLetterRTL(rs, i)
+			markSinceLetter = markSinceLetter || keep
 		case r == 0xFE0F:
 			keep = emoji(last()) || keycap(last(), next)
 		case r == 0xFE0E:
@@ -139,9 +144,30 @@ func cleanLine(s string, max int) string {
 		}
 		if keep {
 			out = append(out, r)
+			if unicode.IsLetter(r) {
+				lastRTL, markSinceLetter = rtl(r), false
+			}
 		}
 	}
 	return clipRunes(strings.Join(strings.Fields(string(out)), " "), max)
+}
+
+// rtl is a right-to-left letter: Hebrew, Arabic, Syriac, Thaana, N'Ko and the
+// rest of the right-to-left blocks.
+func rtl(r rune) bool {
+	return unicode.IsLetter(r) && ((r >= 0x0590 && r <= 0x08FF) || (r >= 0xFB1D && r <= 0xFDFF) ||
+		(r >= 0xFE70 && r <= 0xFEFF) || (r >= 0x10800 && r <= 0x10FFF) || (r >= 0x1E800 && r <= 0x1EFFF))
+}
+
+// nextLetterRTL is whether the first letter after rs[i] is right-to-left; the
+// text's end counts as left-to-right.
+func nextLetterRTL(rs []rune, i int) bool {
+	for _, r := range rs[i+1:] {
+		if unicode.IsLetter(r) {
+			return rtl(r)
+		}
+	}
+	return false
 }
 
 // emoji is a character that can be an emoji: the symbol and pictograph
@@ -177,7 +203,8 @@ func joinScript(r rune) bool {
 		(r >= 0xFB50 && r <= 0xFDFF) || (r >= 0xFE70 && r <= 0xFEFF) || (r >= 0x0900 && r <= 0x0DFF)
 }
 
-// directionMark is LRM, RLM or ALM: what mixed scripts need to read right.
+// directionMark is LRM, RLM or ALM: what mixed scripts need to read right
+// where the direction turns.
 func directionMark(r rune) bool { return r == 0x200E || r == 0x200F || r == 0x061C }
 
 // invisible reports a character that shows nothing: a control, the Unicode
