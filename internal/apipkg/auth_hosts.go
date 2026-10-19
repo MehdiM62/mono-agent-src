@@ -116,6 +116,15 @@ func credentialHeaders(before, after http.Header, templates ...map[string]string
 	return names
 }
 
+// checkedClient is httpClient with dropCredentialsOnRedirect, for a
+// request the credential goes on outside an op's: a token request, a
+// metadata fetch. withCredentialHeaders marks it.
+func checkedClient() *http.Client {
+	c := *httpClient
+	c.CheckRedirect = dropCredentialsOnRedirect
+	return &c
+}
+
 // dropCredentialsOnRedirect is every package request's CheckRedirect. A
 // redirect that leaves the request's host, or goes from https to plain
 // http, carries none of the headers the credential set (Go itself drops

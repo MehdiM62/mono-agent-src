@@ -118,10 +118,12 @@ func assumeRole(ctx context.Context, endpoint string, base sigV4Params, role, ex
 		return stsCreds{}, err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded; charset=utf-8")
+	before := req.Header.Clone()
 	if err := signSigV4(req, body, base, sigV4Now()); err != nil {
 		return stsCreds{}, err
 	}
-	resp, err := httpClient.Do(req)
+	req = withCredentialHeaders(req, credentialHeaders(before, req.Header))
+	resp, err := checkedClient().Do(req)
 	if err != nil {
 		return stsCreds{}, err
 	}

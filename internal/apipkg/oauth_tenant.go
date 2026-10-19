@@ -85,10 +85,12 @@ func fetchMetadata(ctx context.Context, m *MetadataSpec, cred map[string]any) (m
 		return nil, fmt.Errorf("oauth metadata: %w", err)
 	}
 	req.Header.Set("Accept", "application/json")
+	before := req.Header.Clone()
 	if err := applyHeaders(req.Header, m.Headers, sc); err != nil {
 		return nil, fmt.Errorf("oauth metadata: %w", err)
 	}
-	resp, err := httpClient.Do(req)
+	req = withCredentialHeaders(req, credentialHeaders(before, req.Header, m.Headers))
+	resp, err := checkedClient().Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("oauth metadata: %w", err)
 	}
