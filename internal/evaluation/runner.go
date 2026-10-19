@@ -38,8 +38,7 @@ type Engine interface {
 	GetWorkflow(ctx context.Context, id string) (*workflow.Workflow, error)
 	StartEvaluationCase(ctx context.Context, workflowID, triggerNodeID string, row map[string]interface{}, c workflow.EvaluationCase) (string, error)
 	GetExecution(ctx context.Context, id string) (*workflow.WorkflowExecution, error)
-	GetExecutionStatus(ctx context.Context, id string) (string, error)
-	WaitingOnSubWorkflows(ctx context.Context, executionID string) (bool, error)
+	ExecutionInFlight(ctx context.Context, id string) (status string, inFlight bool, err error)
 	CancelExecution(executionID string)
 	ResolveCredentials(ctx context.Context, nodeType string, cfg map[string]interface{}) map[string]interface{}
 }
@@ -296,15 +295,9 @@ func waitFor(ctx context.Context, eng Engine, execID string, timeout time.Durati
 			return nil, ctx.Err()
 		case <-t.C:
 		}
-		status, err := eng.GetExecutionStatus(ctx, execID)
+		_, inFlight, err := eng.ExecutionInFlight(ctx, execID)
 		if err != nil {
 			return nil, err
-		}
-		inFlight := status == "QUEUED" || status == "RUNNING"
-		if status == "WAITING" {
-			if inFlight, err = eng.WaitingOnSubWorkflows(ctx, execID); err != nil {
-				return nil, err
-			}
 		}
 		if !inFlight {
 			return eng.GetExecution(ctx, execID)

@@ -170,11 +170,10 @@ func (f *fakeEngine) GetExecution(_ context.Context, id string) (*workflow.Workf
 	end := start.Add(20 * time.Millisecond)
 	return &workflow.WorkflowExecution{ID: id, Status: f.execs[id], StartedAt: &start, FinishedAt: &end}, nil
 }
-func (f *fakeEngine) GetExecutionStatus(_ context.Context, id string) (string, error) {
-	return f.execs[id], nil
+func (f *fakeEngine) ExecutionInFlight(_ context.Context, id string) (string, bool, error) {
+	return f.execs[id], f.execs[id] == "QUEUED" || f.execs[id] == "RUNNING", nil
 }
-func (f *fakeEngine) WaitingOnSubWorkflows(context.Context, string) (bool, error) { return false, nil }
-func (f *fakeEngine) CancelExecution(string)                                      {}
+func (f *fakeEngine) CancelExecution(string) {}
 func (f *fakeEngine) ResolveCredentials(_ context.Context, _ string, cfg map[string]interface{}) map[string]interface{} {
 	return cfg
 }

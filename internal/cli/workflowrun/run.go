@@ -30,18 +30,12 @@ func waitForExecution(ctx context.Context, engine *workflow.WorkflowEngine, exec
 	for {
 		select {
 		case <-ticker.C:
-			status, err := engine.GetExecutionStatus(ctx, executionID)
+			// Paused only for its sub-workflows, the run is in flight too:
+			// this engine runs the children and resumes the run, so the wait
+			// goes on. A human review still ends the wait as WAITING.
+			status, inFlight, err := engine.ExecutionInFlight(ctx, executionID)
 			if err != nil {
 				return fmt.Errorf("poll execution: %w", err)
-			}
-			inFlight := status == "RUNNING" || status == "QUEUED"
-			if status == "WAITING" {
-				// Paused only for its sub-workflows: this engine runs the
-				// children and resumes the run, so the wait goes on. A
-				// human review still ends the wait as WAITING.
-				if inFlight, err = engine.WaitingOnSubWorkflows(ctx, executionID); err != nil {
-					return fmt.Errorf("poll execution: %w", err)
-				}
 			}
 			switch {
 			case inFlight:
