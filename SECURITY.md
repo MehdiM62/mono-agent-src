@@ -94,6 +94,8 @@ messages, not a barrier:
 - By your decision, a step that picks its own address (`http.request`) can
   use a saved connection in any run, so a workflow can send that
   connection's token to any address.
+- The extension commands that redirect the browser are yours: see
+  "Extension commands that only the user runs" below.
 - Writing secrets, connections and profiles stays open to an agent on
   purpose (`secret add|update|rm`, `connect save|set-oauth-client`,
   `profile create`): none of them shows a decrypted value. The exception is
@@ -329,6 +331,83 @@ and the wording of the model's reply, including a link you may choose to
 click (its host is shown), and the task it proposes: read a card before you
 add it, as you read an Inbox task before approving it. The page text and the reply stay in the local
 conversation database like any chat.
+
+### Extension commands that only the user runs
+
+`extension bind`, `extension unbind`, `extension reset`, `extension pair
+--open` and `extension install --zip` refuse an agent, the chat and a
+workflow run: any process carrying one of the operator markers, or whose
+parent process carries one. They exit 3 with code `operator_only`.
+
+- `bind` and `unbind` decide which profile a browser acts as, so an agent
+  could point your browser, with its logged-in accounts, at another
+  profile, or take its profile away.
+- `reset` revokes the pairing token and cuts every browser off until you
+  pair it again.
+- `pair --open` opens a pairing page that pairs the browser with whichever
+  bridge served it, so an agent running a bridge of its own could take
+  your browser over.
+- `install --zip` unpacks a zip that no release signed into the folder the
+  browser loads the extension from.
+
+Printing the token (`extension pair` without `--open`) stays open, because
+anything running as you can read `~/.monoagent/extension.token`. So does
+the plain `extension install`, which installs only the release matching
+the CLI, checked against its signed manifest. `serve`, `status` and
+`browsers` stay open too: they change no binding, rotate no token, and
+agents use `serve` for private test bridges. Like the other operator
+checks, this keeps agents from doing these things by accident or on a
+page's instructions, and it is a courtesy layer for the CLI, not a barrier
+against an agent running as you:
+
+- `~/.monoagent/extension.token` is readable by anything running as you
+  (mode 0600, same user). With it, a process can drive the bridge protocol
+  directly: post a `set_binding` to `/monoagent/relay`, or connect to the
+  websocket as a browser and claim a profile in a `binding` frame, so an
+  endpoint it runs would receive that profile's browser actions. The gates
+  above don't cover that path.
+- The `pair --open` gate is cosmetic against an agent with a shell, which
+  can start a bridge of its own and open the pairing page itself.
+- An agent with a shell can also edit the files these commands manage.
+
+So it is not a sandbox: it stops mistakes and planted instructions that
+go through the CLI.
+### What the app shows of an agent's commands
+
+Coder chats and orgs show each tool call an agent makes: its command line,
+its input and its output, on a card, in an org bubble's tool rows, on the
+stage and in the background-process banner. Two rules keep secrets off
+those surfaces, and they are not equally strong.
+
+- **Hiding is the guarantee, for MonoAgent's own secret commands.** A
+  call that names `monoagent` (in any case) together with `secret`,
+  `vault`, `--value` or `--field`, or that runs `profile info set`,
+  `profile info get --reveal`, `account login`, `library login`,
+  `jev key set`, `connect set-oauth-client`,
+  `connect get-oauth-client --reveal`, `connect save`,
+  `connect oauth --stdin-json`, `api key create` or `extension pair`,
+  shows no command line, input or output at all, however it is wrapped
+  (`bash -c`, `eval`, a variable, a chain, a heredoc or pipe into it). A
+  vault card names the entry only for `get`, `reveal`, `update` and `rm`.
+- **Masking is best effort, for everything else.** Values after a
+  credential-shaped name (`--token`, `API_KEY=`, `"apiKey":`,
+  `Authorization:`, `?access_token=`, `curl -u user:`, `mysql -p` and
+  more) and well-known token shapes (`sk-`, `ghp_`, `xoxb-`, `AKIA`,
+  JWTs, Stripe, npm, GitLab, SendGrid, private key blocks, webhook URLs,
+  a URL's password) read `•••` in command lines and inputs; output gets
+  the token shapes. So does the value of a name/value pair whose label is
+  a credential's (`{"name": "password", "value": …}`, a Kubernetes env
+  entry, helm's `name=password,value=…`), every `--input` of
+  `record verify` and `record replay`, and the text `browser type` types
+  into a field whose selector names a credential (`type=password`,
+  `#pw`, `[name=otp]`, `.card-number`). It catches known names and
+  shapes; it cannot promise to catch every secret. What it cannot catch:
+  a secret piped in on stdin (`echo … | docker login --password-stdin`,
+  `sudo -S`, `chpasswd`, `htpasswd -b`), a here-string, a positional
+  argument with no telling name, a base64 blob or a long hex string, and
+  a secret written into prose (a task's title or notes, a comment, an
+  edited message). Long hex and base64 are left alone on purpose: they
+  would also hide commit hashes and ordinary data.
 
 ## Network use, telemetry and crash reporting
 

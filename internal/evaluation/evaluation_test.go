@@ -170,11 +170,10 @@ func (f *fakeEngine) GetExecution(_ context.Context, id string) (*workflow.Workf
 	end := start.Add(20 * time.Millisecond)
 	return &workflow.WorkflowExecution{ID: id, Status: f.execs[id], StartedAt: &start, FinishedAt: &end}, nil
 }
-func (f *fakeEngine) GetExecutionStatus(_ context.Context, id string) (string, error) {
-	return f.execs[id], nil
+func (f *fakeEngine) ExecutionInFlight(_ context.Context, id string) (string, bool, error) {
+	return f.execs[id], f.execs[id] == "QUEUED" || f.execs[id] == "RUNNING", nil
 }
-func (f *fakeEngine) WaitingOnSubWorkflows(context.Context, string) (bool, error) { return false, nil }
-func (f *fakeEngine) CancelExecution(string)                                      {}
+func (f *fakeEngine) CancelExecution(string) {}
 func (f *fakeEngine) ResolveCredentials(_ context.Context, _ string, cfg map[string]interface{}) map[string]interface{} {
 	return cfg
 }
@@ -238,5 +237,26 @@ func TestExecuteCaseOutcomes(t *testing.T) {
 	}
 	if eng.rows[1]["row_id"] != int64(2) || eng.rows[1]["kind"] != "ok2" {
 		t.Errorf("row item %v", eng.rows[1])
+	}
+}
+
+// movedOn is a run that paused for a person and was approved between the
+// in-flight check and the read of its record.
+type movedOn struct{ *fakeEngine }
+
+func (movedOn) ExecutionInFlight(context.Context, string) (string, bool, error) {
+	return "WAITING", false, nil
+}
+
+func (movedOn) GetExecution(_ context.Context, id string) (*workflow.WorkflowExecution, error) {
+	return &workflow.WorkflowExecution{ID: id, Status: "RUNNING"}, nil
+}
+
+// A case is judged on the status the wait decided on: a pause for a person,
+// not the RUNNING its record says by the time it is read.
+func TestWaitForJudgesTheStatusItDecidedOn(t *testing.T) {
+	exec, err := waitFor(context.Background(), movedOn{}, "e1", 5*time.Second)
+	if err != nil || exec == nil || exec.Status != "WAITING" {
+		t.Fatalf("waitFor = %+v, %v; want the WAITING it decided on", exec, err)
 	}
 }

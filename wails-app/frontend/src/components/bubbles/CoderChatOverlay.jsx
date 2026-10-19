@@ -248,7 +248,7 @@ export function CoderChatOverlay({ bubble, store, originRect, onCollapse, onClos
           {selectedNode && (
             <StageDrawer node={selectedNode} calls={shown?.state?.agentCalls} leadInfo={{ runtime, model, effort: bubble.effort || setup.effort }}
               turnId={shown?.turnId || ''} isLive={!!shown?.isLive} onClose={() => setSelectedAgent(null)}
-              onStop={liveConvId && liveTurnId ? stopAgent : undefined} />
+              onStop={liveConvId && liveTurnId ? stopAgent : undefined} onNavigate={onNavigate} />
           )}
         </div>
       </div>

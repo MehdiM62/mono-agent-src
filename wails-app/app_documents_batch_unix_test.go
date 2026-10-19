@@ -106,3 +106,22 @@ func TestUploadBatchSuccessAfterDeadlineIsNotAFailure(t *testing.T) {
 		t.Fatalf("res=%+v", res)
 	}
 }
+
+func TestUploadDocumentArgsPassNoFollow(t *testing.T) {
+	args, err := uploadDocumentArgs("p1", "/tmp/a.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	flag, path := -1, -1
+	for i, x := range args {
+		switch x {
+		case "--no-follow":
+			flag = i
+		case "/tmp/a.txt":
+			path = i
+		}
+	}
+	if flag < 0 || path < 0 || flag > path {
+		t.Fatalf("argv = %v", args)
+	}
+}

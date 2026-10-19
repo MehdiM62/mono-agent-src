@@ -297,7 +297,7 @@ func (a *App) OpenFolderFilesPicker(title string) []string {
 		exts = append(exts, fmt.Sprintf("%s ×%d", e, n))
 	}
 	sort.Strings(exts)
-	msg := fmt.Sprintf("Upload %d documents (%.1f MB) from %s into profile %q?\n%s\n\nUploaded documents are copied into the profile and become searchable by chat, form-fill and AI agents.", len(w.files), float64(w.total)/(1<<20), dir, a.selectedProfileName(), strings.Join(exts, ", "))
+	msg := fmt.Sprintf("Upload %d documents (%.1f MB) from %s into %s?\n%s\n\nUploaded documents are copied into the profile and become searchable by chat, form-fill and AI agents.", len(w.files), float64(w.total)/(1<<20), dir, a.selectedProfileLabel(), strings.Join(exts, ", "))
 	if w.unsupported > 0 {
 		msg += fmt.Sprintf("\n\n%d files of other types will be ignored.", w.unsupported)
 	}
@@ -315,18 +315,27 @@ func (a *App) OpenFolderFilesPicker(title string) []string {
 	return w.files
 }
 
-// selectedProfileName is the selected profile's name for display, falling
-// back to its id.
-func (a *App) selectedProfileName() string {
+// uploadDocumentArgs is the batch's `profile upload-document` argv: --no-follow
+// so a symlink swapped in after the picker's checks is refused.
+func uploadDocumentArgs(profileID, path string) ([]string, error) {
+	return scopedCLIArgs(profileID, "profile", "upload-document", "--no-follow", path)
+}
+
+// selectedProfileLabel names the selected profile for a dialog: its name,
+// else its id, else a neutral phrase.
+func (a *App) selectedProfileLabel() string {
 	id := a.selectedProfileOrEmpty()
 	if profiles, err := a.GetProfiles(); err == nil {
 		for _, p := range profiles {
-			if p.ID == id {
-				return p.Name
+			if p.ID == id && p.Name != "" {
+				return fmt.Sprintf("profile %q", p.Name)
 			}
 		}
 	}
-	return id
+	if id != "" {
+		return fmt.Sprintf("profile %q", id)
+	}
+	return "the selected profile"
 }
 
 // BatchUploadResult is UploadProfileDocuments' return value.
@@ -371,7 +380,7 @@ func (a *App) UploadProfileDocuments(paths []string) (*BatchUploadResult, error)
 	}
 	return a.uploadBatch(paths, func(ctx context.Context, path string) (UploadResult, error) {
 		var one UploadResult
-		args, err := scopedCLIArgs(id, "profile", "upload-document", "--no-follow", path)
+		args, err := uploadDocumentArgs(id, path)
 		if err == nil {
 			err = a.runCLIArgsCtx(ctx, "", &one, args)
 		}

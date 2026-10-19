@@ -392,8 +392,7 @@ func (e *WorkflowEngine) cancelSubWorkflowChildren(parentID string, cause error)
 // completed, and no human review is pending. Such a run needs only a live
 // engine (this one runs the children it started, and resumes the parent).
 func (e *WorkflowEngine) WaitingOnSubWorkflows(ctx context.Context, executionID string) (bool, error) {
-	db := e.store.RawDB()
-	if db == nil {
+	if e.store.RawDB() == nil {
 		return false, nil
 	}
 	exec, err := e.store.GetExecution(ctx, executionID)
@@ -403,9 +402,42 @@ func (e *WorkflowEngine) WaitingOnSubWorkflows(ctx context.Context, executionID 
 	if exec == nil || exec.Status != "WAITING" {
 		return false, nil
 	}
+	return e.waitingOnChildren(ctx, exec)
+}
+
+// ExecutionInFlight reports executionID's status and whether a wait for it
+// goes on: it is QUEUED or RUNNING, or WAITING only for its sub-workflow
+// children (WaitingOnSubWorkflows). A WAITING run is decided on one read of
+// its record, so a parent this engine resumes between the status poll and
+// that read is in flight, not taken for a run that paused for a person.
+func (e *WorkflowEngine) ExecutionInFlight(ctx context.Context, executionID string) (string, bool, error) {
+	status, err := e.store.GetExecutionStatus(ctx, executionID)
+	if err != nil || status != "WAITING" {
+		return status, status == "QUEUED" || status == "RUNNING", err
+	}
+	exec, err := e.store.GetExecution(ctx, executionID)
+	if err != nil {
+		return status, false, fmt.Errorf("sub-workflow wait: %w", err)
+	}
+	if exec == nil {
+		return status, false, nil
+	}
+	if exec.Status != "WAITING" {
+		return exec.Status, exec.Status == "QUEUED" || exec.Status == "RUNNING", nil
+	}
+	waiting, err := e.waitingOnChildren(ctx, exec)
+	return exec.Status, waiting, err
+}
+
+// waitingOnChildren is WaitingOnSubWorkflows for exec, a WAITING record.
+func (e *WorkflowEngine) waitingOnChildren(ctx context.Context, exec *WorkflowExecution) (bool, error) {
+	db := e.store.RawDB()
+	if db == nil {
+		return false, nil
+	}
 	var reviews int
 	if err := db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM hil_pending WHERE execution_id = ? AND status = 'pending'`, executionID).Scan(&reviews); err != nil {
+		`SELECT COUNT(*) FROM hil_pending WHERE execution_id = ? AND status = 'pending'`, exec.ID).Scan(&reviews); err != nil {
 		return false, fmt.Errorf("sub-workflow wait: %w", err)
 	}
 	if reviews > 0 {
@@ -418,7 +450,7 @@ func (e *WorkflowEngine) WaitingOnSubWorkflows(ctx context.Context, executionID 
 		}
 	}
 	rows, err := db.QueryContext(ctx,
-		`SELECT DISTINCT parent_node_id FROM subworkflow_runs WHERE parent_execution_id = ? AND wait = 1`, executionID)
+		`SELECT DISTINCT parent_node_id FROM subworkflow_runs WHERE parent_execution_id = ? AND wait = 1`, exec.ID)
 	if err != nil {
 		return false, fmt.Errorf("sub-workflow wait: %w", err)
 	}

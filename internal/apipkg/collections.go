@@ -202,19 +202,26 @@ func objectsOf(v any) []map[string]any {
 // op doesn't declare (see undeclared): for an app node, or a native node
 // a package extends; nil for any other node type.
 func Undeclared(nodeType string, config map[string]any) []string {
-	if pkg, ok := ForNodeType(nodeType); ok {
-		op, err := pkg.resolveOp(config)
+	_, keys := UndeclaredIn(packages(), nodeType, config)
+	return keys
+}
+
+// UndeclaredIn is Undeclared over pkgs (Catalog's, say), with the op it
+// judged ("trello card/update"); op is "" when pkgs serve none.
+func UndeclaredIn(pkgs []*Package, nodeType string, config map[string]any) (op string, keys []string) {
+	if pkg, ok := forNodeTypeIn(pkgs, nodeType); ok {
+		o, err := pkg.resolveOp(config)
 		if err != nil {
-			return nil
+			return "", nil
 		}
-		return keyNames(op.undeclared(config))
+		return o.opLabel(pkg), keyNames(o.undeclared(config))
 	}
-	if pkg := extensionFor(nodeType); pkg != nil {
-		if op, ok := pkg.Op(strings.TrimSpace(str(config["resource"])), strings.TrimSpace(str(config["operation"]))); ok {
-			return keyNames(op.undeclared(config))
+	if pkg := extensionIn(pkgs, nodeType); pkg != nil {
+		if o, ok := pkg.Op(strings.TrimSpace(str(config["resource"])), strings.TrimSpace(str(config["operation"]))); ok {
+			return o.opLabel(pkg), keyNames(o.undeclared(config))
 		}
 	}
-	return nil
+	return "", nil
 }
 
 func keyNames(keys []undeclaredKey) []string {
