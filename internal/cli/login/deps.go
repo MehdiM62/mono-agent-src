@@ -47,6 +47,10 @@ type Deps struct {
 	// NewTable is the CLI's borderless table with these headers and, optionally, one alignment
 	// per column.
 	NewTable func(w io.Writer, headers []string, perColumnAlign []tw.Align) *tablewriter.Table
+	// Refusal is operator.Refusal: why this process may not do what only the user does, "" for
+	// the user. Logging in to a package that isn't built-in is the user's; nil refuses
+	// (clicore.OperatorRefusal).
+	Refusal func() string
 }
 
 // NewCommand returns the `login` command group.

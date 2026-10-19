@@ -268,9 +268,27 @@ it wrote by hand under `~/.monoagent/actions`. Now:
   local package, an imported one) doesn't run for an agent, the chat or a
   workflow you haven't approved, through `node run`, MCP `node_run` or a
   workflow step: it is refused before a tab opens. Built-in packages run as
-  before, and their sends wait for you (above). A package's trust tier is
-  read from the registry's files in `~/.monoagent`, which an agent with
-  your file access could edit too.
+  before, and their sends wait for you (above). A symlinked `actions` folder
+  loads as a local package and is refused the same way; a symlinked package
+  folder inside it isn't loaded.
+- `login <package>` and `login confirm <package>` of a package that isn't
+  built-in are yours too: such a package names its own login page and the
+  sites whose cookies its login keeps.
+- What counts as built-in is read from files your account can write. A
+  package is built-in because it was installed from the official monoes.me
+  library; its hash is checked once, when it is installed. After that its
+  files and its trust tier are kept under `~/.monoagent/automations`, and
+  the app doesn't check them against anything it ships. An agent that can
+  write there, as one working as you can, can change a built-in package's
+  actions or mark its own package built-in, and these checks don't stop it.
+  Only keeping agents out of `~/.monoagent` (a sandbox) does. Checking
+  built-in packages against hashes the app ships or monoes.me signs is
+  tracked in #900.
+- If you start the app, the daemon or the browser bridge from an agent's
+  shell, a chat or a workflow run, it inherits that agent's markers, and
+  your own replays, verifies, logins and runs in it are refused as an
+  agent's. Restart it from your own terminal or the desktop launcher; the
+  refusal says so.
 - The browser extension's verify reaches the app through the bridge, which
   any program that can read its pairing file can use, so the bridge's verify
   takes no `full`, opens a blank tab and stops before the first step that

@@ -3,6 +3,7 @@ package login
 import (
 	"bytes"
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -197,5 +198,62 @@ func TestLoginCheckURL(t *testing.T) {
 		if (err == nil) != c.ok {
 			t.Errorf("checkLoginURL(%q, %v) = %v, want ok=%v", c.m.Login.URL, c.m.Site.Domains, err, c.ok)
 		}
+	}
+}
+
+// A package that isn't built-in names its own login page and the sites whose
+// cookies its login keeps, in files anyone with the user's files can write:
+// an agent's `login <pkg>` and `login confirm <pkg>` of one are refused
+// (operator_only) before a browser connects. A built-in package's login, and
+// the user's login of any package, go on as before.
+func TestAnAgentLogsInToNoPackageThatIsntBuiltIn(t *testing.T) {
+	d := useTestLoginRegistry(t, filepath.Join(t.TempDir(), "login.db"))
+	reg, _ := d.OpenRegistry()
+	dir := filepath.Join(t.TempDir(), "handlogin")
+	for name, body := range map[string]string{
+		"automation.json": `{"schema":"monoagent.automation/v1","id":"handlogin","name":"Hand login","version":"1.0.0",
+  "site":{"startUrl":"https://example.com/","domains":["example.com"]},
+  "login":{"url":"https://example.com/login","loggedIn":{"cookie":"sid"}},
+  "permissions":{"steps":["navigate"],"scripts":[],"downloads":false},
+  "actions":["open"],"policy":{"tier":"standard"}}`,
+		"actions/open.json": `{"actionType":"open","automation":"handlogin","sideEffects":"read","steps":[{"id":"go","type":"navigate","url":"https://example.com/"}]}`,
+	} {
+		if err := os.MkdirAll(filepath.Dir(filepath.Join(dir, name)), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := reg.Install(dir, automation.InstallOptions{Source: automation.SourceLocal}); err != nil {
+		t.Fatalf("install: %v", err)
+	}
+	bridges := 0
+	d.ConnectBridge = func(string) (browserpkg.ExtensionBridge, error) {
+		bridges++
+		return nil, errors.New("no browser in tests")
+	}
+	run := func(args ...string) error {
+		cmd := d.newLoginCmd()
+		cmd.SetArgs(args)
+		cmd.SetOut(&bytes.Buffer{})
+		cmd.SetErr(&bytes.Buffer{})
+		return cmd.Execute()
+	}
+
+	d.Refusal = func() string { return "CLAUDECODE is set, so an agent is running this command" }
+	for _, args := range [][]string{{"handlogin"}, {"confirm", "handlogin"}} {
+		err := run(args...)
+		var coded interface{ JSONErrorFields() map[string]any }
+		if !errors.As(err, &coded) || coded.JSONErrorFields()["code"] != "operator_only" || bridges != 0 {
+			t.Fatalf("an agent's login %v: %v, bridges %d; want operator_only before a browser", args, err, bridges)
+		}
+	}
+	if _, err := d.loginAutomation("gemini"); err != nil {
+		t.Errorf("an agent's login to the built-in gemini: %v", err)
+	}
+	d.Refusal = func() string { return "" }
+	if err := run("handlogin"); err == nil || !strings.Contains(err.Error(), "no browser in tests") || bridges != 1 {
+		t.Errorf("the user's login: %v, bridges %d; want it to reach the browser", err, bridges)
 	}
 }

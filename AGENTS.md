@@ -596,7 +596,8 @@ dangerous calls.
   3, `operator_only`), except `record replay --dry-run`, which runs nothing,
   and so is a browser action of a package that isn't built-in (recorded,
   local, imported) run by one, by the chat or by an unapproved workflow
-  (`nodes.BrowserNode.RunRefusal`, `nodes.ErrUserOnlyBrowserRun`).
+  (`nodes.BrowserNode.RunRefusal`, `nodes.ErrUserOnlyBrowserRun`), and its
+  `login <package>` / `login confirm <package>` from one (exit 3).
   Put the step in a workflow and have the user save or activate it. Even in
   an approved workflow a reference resolves only where the stored config
   holds it as written (`secrets.ResolveConfig` gets the stored config): one
