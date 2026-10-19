@@ -12,6 +12,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/monoes/mono-agent/internal/commsync"
+	"github.com/monoes/mono-agent/internal/hilsend"
 	"github.com/monoes/mono-agent/internal/hilsuggest"
 	"github.com/monoes/mono-agent/internal/jev/jevconf"
 	"github.com/monoes/mono-agent/internal/nodes/nodeprofile"
@@ -214,10 +215,14 @@ func (n *HumanInLoopNode) createRows(ctx context.Context, db *sql.DB, input work
 	// whatever its auto_decide says: it waits for the user. The user's own
 	// workflows keep their auto_decide: that is the user delegating.
 	holdForUser := outbound && workflow.AIAuthoredFrom(ctx)
+	tags := askTags(ctx, db, input.ExecutionID)
 	for i := range input.Items {
 		cfg := map[string]interface{}{
 			"readonly_fields": readonlyFields,
 			"editable_fields": editableFields,
+		}
+		for k, v := range tags {
+			cfg[k] = v
 		}
 		status := "pending"
 		if plan != nil {
@@ -369,6 +374,28 @@ func parseAutoDecide(ctxDB *sql.DB, profileID string, config map[string]interfac
 		return nil, err
 	}
 	return c, nil
+}
+
+// askTags is the org and the coder chat an agent's run of this node is
+// for, as hilsend tags the agent's send items (Detect: MONOMIND_ORG_NAME,
+// MONOAGENT_CONVERSATION_ID), so its items reach that bubble. Like a send
+// item's, it is the agent's own word, and only says where the item shows.
+// A run that is no agent's (a schedule, the user's own) is untagged and
+// stays on the Human in Loop page, and so is an org-started execution's,
+// whose items are the org's decisions (orgdecide) until it hands them on.
+func askTags(ctx context.Context, db *sql.DB, executionID string) map[string]interface{} {
+	who, _ := hilsend.Detect() // no agent's: no tags
+	if orgStarted(ctx, db, executionID) {
+		return nil
+	}
+	tags := map[string]interface{}{}
+	if who.Org != "" {
+		tags["org"] = who.Org
+	}
+	if who.ConversationID != "" {
+		tags["conversationId"] = who.ConversationID
+	}
+	return tags
 }
 
 // orgStarted reports whether the execution was started by an org (a grant
