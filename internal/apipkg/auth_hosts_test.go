@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/monoes/mono-agent/internal/credhttp"
 )
 
 // A package's credential, and every header rendered from the connection,
@@ -318,7 +320,7 @@ func TestRedirectNeverReplaysTheCredentialsBody(t *testing.T) {
 // credential's headers go no further. https to https on the same host
 // keeps them.
 func TestRedirectToPlainHTTPDropsTheCredential(t *testing.T) {
-	first := withCredentialHeaders(httptest.NewRequest("GET", "https://api.example.test/x", nil), []string{"Authorization", "X-Api-Key"})
+	first := credhttp.Mark(httptest.NewRequest("GET", "https://api.example.test/x", nil), "Authorization", "X-Api-Key")
 	for target, kept := range map[string]bool{
 		"https://api.example.test/y":      true,
 		"http://api.example.test/y":       false,
@@ -328,7 +330,7 @@ func TestRedirectToPlainHTTPDropsTheCredential(t *testing.T) {
 		req := httptest.NewRequest("GET", target, nil)
 		req.Header.Set("Authorization", "Bearer t")
 		req.Header.Set("X-Api-Key", "k")
-		if err := dropCredentialsOnRedirect(req, []*http.Request{first}); err != nil {
+		if err := credhttp.CheckRedirect(req, []*http.Request{first}); err != nil {
 			t.Fatalf("%s: %v", target, err)
 		}
 		if got := req.Header.Get("Authorization") != "" && req.Header.Get("X-Api-Key") != ""; got != kept {

@@ -16,6 +16,8 @@ import (
 	goftp "github.com/jlaffaye/ftp"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/knownhosts"
+
+	"github.com/monoes/mono-agent/internal/credhttp"
 )
 
 // ValidateConnection calls the platform-specific validator and returns the
@@ -267,6 +269,11 @@ func getStr(data map[string]interface{}, key string) string {
 	return s
 }
 
+// validateHTTP sends every validation request: each carries the
+// connection's token or password, so a redirect elsewhere gets none of it
+// (credhttp).
+var validateHTTP = credhttp.Client(nil)
+
 // doGET makes a GET request with the given Authorization header (empty = no header),
 // sets Accept: application/json, and returns body bytes, HTTP status code, and any error.
 func doGET(ctx context.Context, url, authHeader string) ([]byte, int, error) {
@@ -279,8 +286,7 @@ func doGET(ctx context.Context, url, authHeader string) ([]byte, int, error) {
 	}
 	req.Header.Set("Accept", "application/json")
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := validateHTTP.Do(req)
 	if err != nil {
 		return nil, 0, fmt.Errorf("doGET: %w", err)
 	}

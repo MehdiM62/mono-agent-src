@@ -177,7 +177,7 @@ func twilioPost(ctx context.Context, endpoint, accountSID, authToken string, for
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.SetBasicAuth(accountSID, authToken)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := commHTTP.Do(req)
 	if err != nil {
 		return nil, err
 	}

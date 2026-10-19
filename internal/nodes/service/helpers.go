@@ -9,11 +9,14 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/monoes/mono-agent/internal/credhttp"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
-// httpClient is a package-level HTTP client with a 60-second timeout.
-var httpClient = &http.Client{Timeout: 60 * time.Second}
+// httpClient is a package-level HTTP client with a 60-second timeout. Its
+// requests carry the connection's token, so a redirect elsewhere gets none
+// of it (credhttp).
+var httpClient = credhttp.Client(&http.Client{Timeout: 60 * time.Second})
 
 // Response-size caps: no service-API response body is ever read unbounded,
 // and a non-2xx body echoed into an error message is capped far tighter so

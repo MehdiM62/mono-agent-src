@@ -13,6 +13,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/monoes/mono-agent/internal/credhttp"
 )
 
 // AWS AssumeRole (n8n's "AWS (Assume Role)" credential): a connection with
@@ -122,7 +124,7 @@ func assumeRole(ctx context.Context, endpoint string, base sigV4Params, role, ex
 	if err := signSigV4(req, body, base, sigV4Now()); err != nil {
 		return stsCreds{}, err
 	}
-	req = withCredentialHeaders(req, credentialHeaders(before, req.Header))
+	req = credhttp.Mark(req, credhttp.SetBy(before, req.Header)...)
 	resp, err := checkedClient().Do(req)
 	if err != nil {
 		return stsCreds{}, err

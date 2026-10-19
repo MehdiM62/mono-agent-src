@@ -18,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/monoes/mono-agent/internal/credhttp"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -45,7 +46,9 @@ const (
 	snowflakePollInterval = 500 * time.Millisecond
 )
 
-var snowflakeHTTP = &http.Client{Timeout: 5 * time.Minute}
+// snowflakeHTTP sends every SQL API request: each carries the token or
+// key-pair JWT, so a redirect elsewhere gets none of it (credhttp).
+var snowflakeHTTP = credhttp.Client(&http.Client{Timeout: 5 * time.Minute})
 
 func (n *SnowflakeNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
 	c, err := newSnowflakeClient(config)

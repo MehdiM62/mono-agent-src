@@ -1,18 +1,17 @@
 package apipkg
 
 import (
-	"context"
-	"errors"
 	"net/http"
 	"net/url"
 	"regexp"
-	"slices"
 	"strings"
+
+	"github.com/monoes/mono-agent/internal/credhttp"
 )
 
 // Where a package request's credential may go: the hosts the package or
 // the connection names (authHost), and on a redirect, to the same host
-// only (dropCredentialsOnRedirect).
+// only (credhttp.CheckRedirect).
 
 // credHostKey matches a connection field that names its server.
 var credHostKey = regexp.MustCompile(`(?i)(^|_)(url|host|hostname|domain|endpoint|server)$`)
@@ -81,31 +80,12 @@ func (r *opRun) authHost(host, base string) bool {
 	return false
 }
 
-// credHeadersKey carries, on a request the credential went on, its
-// credentialMark.
-type credHeadersKey struct{}
-
-// credentialMark names the headers the connection's credential put on a
-// request.
-type credentialMark struct{ headers []string }
-
-// withCredentialHeaders marks req as carrying the credential, in names
-// and perhaps in its body or query.
-func withCredentialHeaders(req *http.Request, names []string) *http.Request {
-	return req.WithContext(context.WithValue(req.Context(), credHeadersKey{}, &credentialMark{names}))
-}
-
 // credentialHeaders names the headers the credential set: those injectAuth
 // added or changed (before is the request's headers just before it), and
 // the package's and op's headers rendered from the connection
 // ("X-Account: {{ cred.account }}").
 func credentialHeaders(before, after http.Header, templates ...map[string]string) []string {
-	var names []string
-	for k, v := range after {
-		if !slices.Equal(before[k], v) {
-			names = append(names, k)
-		}
-	}
+	names := credhttp.SetBy(before, after)
 	for _, hs := range templates {
 		for k, tv := range hs {
 			if strings.Contains(tv, "cred") {
@@ -116,43 +96,11 @@ func credentialHeaders(before, after http.Header, templates ...map[string]string
 	return names
 }
 
-// checkedClient is httpClient with dropCredentialsOnRedirect, for a
+// checkedClient is httpClient with credhttp's redirect policy, for a
 // request the credential goes on outside an op's: a token request, a
-// metadata fetch. withCredentialHeaders marks it.
+// metadata fetch. credhttp.Mark marks it.
 func checkedClient() *http.Client {
 	c := *httpClient
-	c.CheckRedirect = dropCredentialsOnRedirect
+	c.CheckRedirect = credhttp.CheckRedirect
 	return &c
-}
-
-// dropCredentialsOnRedirect is every package request's CheckRedirect. A
-// redirect that leaves the request's host, or goes from https to plain
-// http, carries none of the headers the credential set (Go itself drops
-// only Authorization and cookies, keeps an X-Api-Key, and keeps them all
-// on the same host whatever the scheme). One that would send a request
-// the credential went on with its body again (307, 308), whose body may
-// hold the credential (inject.body, a body rendered from cred), isn't
-// followed: the redirect is the answer. It stops after 10 redirects, as
-// Go's default does.
-func dropCredentialsOnRedirect(req *http.Request, via []*http.Request) error {
-	if len(via) >= 10 {
-		return errors.New("stopped after 10 redirects")
-	}
-	first := via[0]
-	leaves := !strings.EqualFold(req.URL.Host, first.URL.Host) ||
-		(strings.EqualFold(first.URL.Scheme, "https") && !strings.EqualFold(req.URL.Scheme, "https"))
-	if !leaves {
-		return nil
-	}
-	mark, authed := first.Context().Value(credHeadersKey{}).(*credentialMark)
-	if authed && req.Body != nil && req.Body != http.NoBody {
-		return http.ErrUseLastResponse
-	}
-	if authed {
-		for _, h := range mark.headers {
-			req.Header.Del(h)
-		}
-	}
-	req.Header.Del("Authorization")
-	return nil
 }

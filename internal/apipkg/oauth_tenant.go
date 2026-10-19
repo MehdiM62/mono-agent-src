@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"github.com/monoes/mono-agent/internal/connections"
+	"github.com/monoes/mono-agent/internal/credhttp"
 )
 
 // oauthTemplated reports whether an OAuth block's endpoints, scopes or
@@ -89,7 +90,7 @@ func fetchMetadata(ctx context.Context, m *MetadataSpec, cred map[string]any) (m
 	if err := applyHeaders(req.Header, m.Headers, sc); err != nil {
 		return nil, fmt.Errorf("oauth metadata: %w", err)
 	}
-	req = withCredentialHeaders(req, credentialHeaders(before, req.Header, m.Headers))
+	req = credhttp.Mark(req, credentialHeaders(before, req.Header, m.Headers)...)
 	resp, err := checkedClient().Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("oauth metadata: %w", err)
