@@ -45,7 +45,7 @@ func (n *DevToNode) Execute(ctx context.Context, input workflow.NodeInput, confi
 	if apiKey == "" {
 		return nil, fmt.Errorf("service.devto: 'api_key' is required")
 	}
-	operation := strVal(config, "operation")
+	operation := workflow.ConfigOperation(config)
 
 	switch operation {
 	case "publish_article":

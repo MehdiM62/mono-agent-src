@@ -43,7 +43,7 @@ func (n *BlueskyNode) Execute(ctx context.Context, input workflow.NodeInput, con
 	if identifier == "" || appPassword == "" {
 		return nil, fmt.Errorf("service.bluesky: 'identifier' and 'app_password' are required")
 	}
-	operation := strVal(config, "operation")
+	operation := workflow.ConfigOperation(config)
 
 	accessJwt, did, err := blueskyAuth(ctx, identifier, appPassword)
 	if err != nil {
