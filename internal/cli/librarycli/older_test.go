@@ -43,10 +43,10 @@ func newOlderRig(t *testing.T) *olderRig {
 	account.SetHostForTest(t, r.fake.URL)
 	account.SetSealerForTest(t, account.NewMemorySealer())
 	libraryfake.TrustKey(t)
-	library.SetProductionHostForTest(t, r.fake.URL)
+	account.SetProductionHostForTest(t, r.fake.URL)
 	t.Setenv("HOME", r.home)
 	t.Setenv("USERPROFILE", r.home)
-	library.SetUserHomeForTest(t, r.home)
+	account.SetUserHomeForTest(t, r.home)
 	r.dbPath = filepath.Join(r.home, ".monoagent", "monoagent.db")
 	r.dbArg = r.dbPath
 	if err := os.MkdirAll(filepath.Dir(r.dbPath), 0o700); err != nil {
@@ -158,7 +158,7 @@ func TestOlderLoginIsLeftAloneOutsideTheUsersInstall(t *testing.T) {
 		place     func(t *testing.T, r *olderRig) string // moves the user's database or HOME; returns the database the commands use
 	}{
 		{"a HOME that is not the user's", "the home directory is", func(t *testing.T, r *olderRig) string {
-			library.SetUserHomeForTest(t, t.TempDir())
+			account.SetUserHomeForTest(t, t.TempDir())
 			return r.dbPath
 		}},
 		{"a copy beside the user's database", "the database is", func(t *testing.T, r *olderRig) string {
@@ -167,7 +167,7 @@ func TestOlderLoginIsLeftAloneOutsideTheUsersInstall(t *testing.T) {
 			return cp
 		}},
 		{"a user the system has no home directory for", "the system has no home directory", func(t *testing.T, r *olderRig) string {
-			library.SetUserHomeForTest(t, "")
+			account.SetUserHomeForTest(t, "")
 			return r.dbPath
 		}},
 	} {

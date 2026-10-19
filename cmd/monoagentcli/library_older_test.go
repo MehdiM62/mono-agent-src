@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/monoes/mono-agent/internal/account"
 	"github.com/monoes/mono-agent/internal/library"
 )
 
@@ -15,7 +16,7 @@ func TestLibraryLogoutRevokesTheOlderLoginOnlyOnTheUsersInstall(t *testing.T) {
 		t.Run(map[bool]string{true: "the user's install", false: "another HOME"}[own], func(t *testing.T) {
 			noSeed(t)
 			f := newLibFixture(t)
-			library.SetProductionHostForTest(t, f.fake.URL)
+			account.SetProductionHostForTest(t, f.fake.URL)
 			f.must(nil, "profile", "list") // makes the database
 			dbPath := filepath.Join(f.home, ".monoagent", "monoagent.db")
 			db, err := initDB(&globalConfig{DBPath: dbPath})
@@ -25,9 +26,9 @@ func TestLibraryLogoutRevokesTheOlderLoginOnlyOnTheUsersInstall(t *testing.T) {
 			seedOlderLogin(t, db, f.fake)
 			db.Close()
 			if own {
-				library.SetUserHomeForTest(t, f.home)
+				account.SetUserHomeForTest(t, f.home)
 			} else {
-				library.SetUserHomeForTest(t, t.TempDir())
+				account.SetUserHomeForTest(t, t.TempDir())
 			}
 			f.must(nil, "library", "logout")
 			revoked := f.fake.Requests["POST /api/auth/oauth2/revoke"]

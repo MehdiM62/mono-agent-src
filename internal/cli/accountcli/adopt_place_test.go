@@ -26,7 +26,7 @@ func ownDB(t *testing.T) string {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
-	library.SetUserHomeForTest(t, home)
+	account.SetUserHomeForTest(t, home)
 	path := filepath.Join(home, ".monoagent", "monoagent.db")
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		t.Fatal(err)
@@ -55,7 +55,7 @@ func newPlaceRig(t *testing.T) *placeRig {
 	t.Cleanup(r.fake.Close)
 	libraryfake.TrustKey(t)
 	account.SetHostForTest(t, r.fake.URL)
-	library.SetProductionHostForTest(t, r.fake.URL)
+	account.SetProductionHostForTest(t, r.fake.URL)
 	account.SetSealerForTest(t, account.NewMemorySealer())
 	account.SetEnforceFromForTest(t, time.Now().Add(-time.Hour))
 	r.seed(t)
@@ -165,7 +165,7 @@ func TestAdoptionLeavesACopiedDatabaseAlone(t *testing.T) {
 		place     func(t *testing.T, r *placeRig) string // moves the user's database or HOME; returns the path the command opens
 	}{
 		{"a HOME that is not the user's", "the home directory is", func(t *testing.T, r *placeRig) string {
-			library.SetUserHomeForTest(t, t.TempDir())
+			account.SetUserHomeForTest(t, t.TempDir())
 			return r.dbPath
 		}},
 		{"the user's database from another HOME", "the home directory is", func(t *testing.T, r *placeRig) string {
@@ -186,7 +186,7 @@ func TestAdoptionLeavesACopiedDatabaseAlone(t *testing.T) {
 			return cp
 		}},
 		{"a user the system has no home directory for", "the system has no home directory", func(t *testing.T, r *placeRig) string {
-			library.SetUserHomeForTest(t, "") // os/user failed, or /etc/passwd has no entry (LDAP, an arbitrary uid)
+			account.SetUserHomeForTest(t, "") // os/user failed, or /etc/passwd has no entry (LDAP, an arbitrary uid)
 			return r.dbPath
 		}},
 	} {
@@ -278,7 +278,7 @@ func TestAdoptionIsQuietWithoutAnOlderLogin(t *testing.T) {
 	accounttest.Install(t, accounttest.LockedNoLogin)
 	account.SetEnforceFromForTest(t, time.Now().Add(48*time.Hour))
 	path := ownDB(t)
-	library.SetUserHomeForTest(t, t.TempDir())
+	account.SetUserHomeForTest(t, t.TempDir())
 	var errb bytes.Buffer
 	cmd := find(t, "workflow", "list")
 	cmd.SetErr(&errb)

@@ -52,7 +52,7 @@ func newAdoptRig(t *testing.T, mode accounttest.Mode, afterTheDate bool) *adoptR
 func ownInstallDB(t *testing.T) string {
 	t.Helper()
 	home := freshHome(t)
-	library.SetUserHomeForTest(t, home)
+	account.SetUserHomeForTest(t, home)
 	path := filepath.Join(home, ".monoagent", "monoagent.db")
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		t.Fatal(err)

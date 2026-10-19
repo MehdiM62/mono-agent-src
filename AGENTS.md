@@ -348,10 +348,13 @@ time plus 24 hours.
 **Sign in once per machine; never copy or restore `~/.monoagent/account/` between
 machines or from an old backup, and never bake a sign-in into a Docker image.**
 monoes.me rotates the refresh token at every refresh and treats one that was already
-used as stolen: it ends that sign-in. A copy shares the sign-in of the machine it came
-from, so a stale copy, once presented, signs out the original and every copy, and each
-of them then has to sign in again; machines that signed in on their own keep working.
-Signing out of the monoes.me website does not sign out an install.
+used as stolen: it ends that sign-in. The refresh token names the folder it was sealed
+for, so a copy of `~/.monoagent/account` anywhere else is never renewed or revoked: it
+reports `keyring_unavailable` and has to sign in on its own. A copy put back in the
+same folder (an old backup) cannot be told apart: once presented, it signs out the
+original and every copy, and each of them then has to sign in again; machines that
+signed in on their own keep working. Signing out of the monoes.me website does not sign
+out an install.
 
 **Never copy `~/.monoagent/monoagent.db` into a test HOME either.** Its vault can hold
 a library login from an older release, and any copy made by the same OS user can open
@@ -369,6 +372,10 @@ same way. Every host but a loopback address counts as monoes.me. Setting
 and always talks to https://monoes.me (spec D24); only a `-tags devaccount` build
 changes the sign-in host. Each exchange prints one line on stderr saying what became of
 the login (signed in, no longer valid, answer lost, renewed, kept), never a token.
+These checks cover only the two credentials that harm the account when used twice: a
+copy of the database still gives every vault credential to any process running as the
+user, since the key is in the OS key store. Keep untrusted agents away from it with
+another OS user or a container without the key store; a HOME of their own is not enough.
 
 | `state` | Meaning | `reason` |
 |---|---|---|

@@ -1,6 +1,6 @@
 //go:build (cgo || darwin || windows) && (!osusergo || windows)
 
-package library
+package account
 
 import "os/user"
 
