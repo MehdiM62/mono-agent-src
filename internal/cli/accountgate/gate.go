@@ -87,7 +87,7 @@ func gateStatus(ctx context.Context, g *account.Guard) account.Status {
 // more repairs it.
 func KeyringAdvice() string {
 	if h, err := account.SystemHome(); err != nil || h == "" {
-		return "The system has no home directory for this OS user, so a sign-in saved by an earlier release cannot be told from a copy here. Sign in once more after upgrading: monoagentcli account login"
+		return "The system has no home directory for this OS user, so a sign-in saved by an earlier release cannot be told from a copy here: sign in once more after upgrading, or, if the key store is locked, unlock it. Sign in: monoagentcli account login"
 	}
 	return "Its saved refresh token cannot be read: the key store is locked or unavailable, or this account folder is a copy. Unlock the key store, or sign in once more: monoagentcli account login"
 }

@@ -245,3 +245,30 @@ func TestAnotherVersionOfTheSealedFormatIsRefused(t *testing.T) {
 		t.Fatalf("%d token requests and %d revocations, want none", r.sent(), r.revocations())
 	}
 }
+
+// A home renamed away and a copy of it put back at the sealed path (`mv ~/.monoagent{,.bak}` and a
+// restore): when both identities are known they decide, so the renamed original renews and the
+// copy at the sealed path does not. Only one of them ever presents the token.
+func TestACopyRestoredAtTheSealedPathAfterARename(t *testing.T) {
+	r := newSessionRig(t)
+	moved := filepath.Join(t.TempDir(), "moved")
+	if err := os.Rename(r.home, moved); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(accountDir(r.home)), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.CopyFS(accountDir(r.home), os.DirFS(accountDir(moved))); err != nil {
+		t.Fatal(err)
+	}
+	refresh(t) // HOME is still the sealed path: the restored copy
+	if r.sent() != 0 {
+		t.Fatalf("the copy at the sealed path sent %d token requests, want none", r.sent())
+	}
+	r.at(t, moved)
+	account.SetUserHomeForTest(t, moved)
+	refresh(t)
+	if r.refreshes() != 1 || r.sent() != 1 || r.fake.Replays != 0 {
+		t.Fatalf("the renamed original: %d refreshes, %d token requests, %d replays; want 1, 1, 0", r.refreshes(), r.sent(), r.fake.Replays)
+	}
+}

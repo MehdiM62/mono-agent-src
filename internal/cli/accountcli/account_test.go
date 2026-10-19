@@ -115,7 +115,7 @@ func TestDescribeStatusOfAnUnreadableRefreshToken(t *testing.T) {
 	st := account.Status{State: account.StateGrace, Reason: account.ReasonKeyringUnavailable, GraceUntil: until, User: &account.User{Username: "ada"}}
 	account.SetUserHomeForTest(t, "")
 	got := DescribeStatus(st)
-	if !strings.Contains(got, " as ada until "+until.Local().Format(time.RFC3339)) || !strings.Contains(got, "Sign in once more after upgrading: monoagentcli account login") ||
+	if !strings.Contains(got, " as ada until "+until.Local().Format(time.RFC3339)) || !strings.Contains(got, "sign in once more after upgrading, or, if the key store is locked, unlock it. Sign in: monoagentcli account login") ||
 		strings.Contains(got, "could not be reached") {
 		t.Fatalf("%q", got)
 	}

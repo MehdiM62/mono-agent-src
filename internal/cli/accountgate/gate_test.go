@@ -266,7 +266,7 @@ func TestTheGraceLineOfAnUnreadableRefreshToken(t *testing.T) {
 	enforceFrom, graceUntil := time.Now().Add(-time.Hour), time.Now().Add(time.Hour)
 	st := account.Status{State: account.StateGrace, Reason: account.ReasonKeyringUnavailable, Enforced: true, EnforceFrom: enforceFrom, GraceUntil: graceUntil}
 	for home, says := range map[string]string{
-		"":          "Sign in once more after upgrading: monoagentcli account login",
+		"":          "sign in once more after upgrading, or, if the key store is locked, unlock it. Sign in: monoagentcli account login",
 		t.TempDir(): "Unlock the key store, or sign in once more: monoagentcli account login",
 	} {
 		account.SetUserHomeForTest(t, home)

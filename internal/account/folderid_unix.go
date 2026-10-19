@@ -3,7 +3,6 @@
 package account
 
 import (
-	"fmt"
 	"os"
 	"syscall"
 )
@@ -19,5 +18,5 @@ func folderID(dir string) string {
 	if !ok {
 		return ""
 	}
-	return fmt.Sprintf("%d:%d", uint64(st.Dev), uint64(st.Ino))
+	return devIno(uint64(st.Dev), uint64(st.Ino))
 }

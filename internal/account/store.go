@@ -273,9 +273,10 @@ func (s *fileStore) LoadRefresh() (string, error) {
 }
 
 // SaveRefresh seals the refresh token for this folder (sealFor) and writes
-// refresh.enc. A key store that does not answer within keyStoreTimeout, or that
-// still waits for an earlier call that timed out, is ErrKeyringUnavailable, and
-// nothing is written.
+// refresh.enc. Its callers hold the store lock, whose file is in the folder, so
+// the folder exists and has an identity to seal. A key store that does not
+// answer within keyStoreTimeout, or that still waits for an earlier call that
+// timed out, is ErrKeyringUnavailable, and nothing is written.
 func (s *fileStore) SaveRefresh(token string) error {
 	if s.err != nil {
 		return s.err

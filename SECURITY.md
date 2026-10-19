@@ -652,15 +652,19 @@ between machines or from an old backup or disk image, and never bake a sign-in
 into a Docker image or a container snapshot: keep it in the container's volume.
 monoes.me rotates the refresh token at every refresh and treats one that was
 already used as stolen: it ends that sign-in. The refresh token names the folder
-it was sealed for, by its path and by its identity on the disk, so a copy of the
-folder anywhere else is never renewed, sent or revoked: it reports
-`keyring_unavailable` and has to sign in on its own. The folder itself may be
-renamed or moved on the same disk (a renamed home directory, a volume mounted at
-another path) and keeps working; moved to another disk, it has to sign in once
-more. A copy put back in the same folder, from an old backup or disk image,
-cannot be told apart: once presented, it signs out the original and every copy,
-and each of them then has to sign in again. Machines that signed in on their own
-keep working. A sign-in made by a release before this one names no folder: it is
+it was sealed for, by its identity on the disk (by its path where the disk gives
+none), so a copy of the folder is never renewed, sent or revoked, wherever it is,
+even put back where the original was: it reports `keyring_unavailable` and has to
+sign in on its own. The folder itself may be renamed or moved on the same disk (a
+renamed home directory, a volume mounted at another path) and keeps working;
+moved to another disk, or restored from a backup, it has to sign in once more.
+Only a disk image restored block for block keeps the folder's identity: once
+presented, such a stale copy signs out the original and every copy, and each of
+them then has to sign in again. Machines that signed in on their own keep
+working. These checks guard against accidents, such as an agent copying the
+folder: a program that runs as you and can call the key store can seal any
+folder's name, or unseal the token itself (see "A copy of `~/.monoagent` and the
+key store"). A sign-in made by a release before this one names no folder: it is
 read only in your own `~/.monoagent/account`, and its next renewal, within the
 hour, ties it to that folder. If the system has no home directory for your
 account (on Linux, one that is not in `/etc/passwd`: an LDAP account, a
