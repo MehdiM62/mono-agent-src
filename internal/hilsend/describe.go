@@ -83,6 +83,14 @@ type target struct {
 	op      string
 	show    []string
 	exprs   []string
+	// dest lists the config keys besides the recipient's that decide where
+	// the send goes (a webhook URL, an instance, a thread id); fixed is the
+	// recipient of an op that ignores its to (a reply, a draft); ruleless,
+	// a send no always-allow rule stands for (a call its TwiML directs).
+	// See sole.go.
+	dest     []string
+	fixed    string
+	ruleless bool
 }
 
 // classify reports whether nodeType with config is an outbound send.
@@ -95,7 +103,8 @@ func classify(nodeType string, config map[string]interface{}) (target, bool) {
 		return target{}, false
 	}
 	if r, ok := outbound[nodeType]; ok && r.covers(config) {
-		return target{action: r.action, text: r.text, subject: r.subject, to: r.to}, true
+		return target{action: r.action, text: r.text, subject: r.subject, to: r.to,
+			dest: destKeys[nodeType], fixed: fixedRecipient(nodeType, config), ruleless: ruleless(nodeType, config)}, true
 	}
 	// An API package's annotated op: an app node's, or one a package adds
 	// to a native node above (classifier.go).

@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 // MaxAllowRecipient is the longest recipient an always-allow rule takes, in
@@ -26,6 +27,10 @@ func CheckAllow(a Allow) error {
 		return fmt.Errorf("--action must be one of %s", strings.Join(Actions, ", "))
 	}
 	r := strings.TrimSpace(a.Recipient)
+	if i := strings.IndexFunc(r, odd); i >= 0 {
+		c, _ := utf8.DecodeRuneInString(r[i:])
+		return fmt.Errorf("--recipient holds U+%04X, a control, invisible or non-breaking character no send's recipient has: write it as the card shows it", c)
+	}
 	switch {
 	case r == "":
 		return errors.New("--recipient is required")
@@ -37,6 +42,13 @@ func CheckAllow(a Allow) error {
 		return fmt.Errorf("--recipient %q reads like a description, not an address: write the profile URL, address, handle or name the send card shows", r)
 	}
 	return nil
+}
+
+// odd reports a character a recipient never holds: a control character
+// (NUL, newline, tab), an invisible format character, or a space other than
+// U+0020 (a non-breaking or a figure space).
+func odd(c rune) bool {
+	return unicode.IsControl(c) || unicode.Is(unicode.Cf, c) || (unicode.IsSpace(c) && c != ' ')
 }
 
 // LabelLike says whether a recipient reads like a label rather than an

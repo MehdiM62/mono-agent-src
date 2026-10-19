@@ -158,7 +158,7 @@ func Guard(ctx context.Context, nodeType string, in workflow.NodeInput, config m
 		// for a cc, a bcc, a second address or a different reply-to: every
 		// such send gets its card.
 		allowed = allowed && !p.payload.Recipient.Label && p.sole &&
-			st.Allowed(ctx, p.payload.Action, p.payload.Account.Platform, p.payload.Account.Handle, keyOf(p.payload.Recipient))
+			st.Allowed(ctx, p.payload.Action, p.payload.Account.Platform, p.payload.Account.Handle, p.replay.Address)
 	}
 	if allowed && len(prepared) > 0 {
 		return nil, false, nil
@@ -209,6 +209,10 @@ func prepare(st Store, nodeType string, t target, who PreparedBy, config map[str
 		}
 		subjectField, subject := firstKey(o.config, t.subject)
 		rec := o.recipient
+		// A rule matches the recipient as the send addresses it, never the
+		// person a lookup found for it (keyOf would prefer the person's id
+		// once People knows them, and an email lookup matches by substring).
+		addr := keyOf(rec)
 		if rec.PersonID == "" && !o.labelled {
 			rec = st.person(t, nodeType, rec)
 		}
@@ -217,7 +221,7 @@ func prepare(st Store, nodeType string, t target, who PreparedBy, config map[str
 			Recipient: rec, Text: text, Subject: subject, Attachments: attachments(o.config), NodeType: nodeType,
 		}
 		out = append(out, prepared{payload: p, sole: soleRecipient(t, o.config), replay: replay{
-			NodeType: nodeType, Config: stripSecrets(o.config), Input: o.input, TextField: textField, SubjectKey: subjectField,
+			NodeType: nodeType, Config: stripSecrets(o.config), Input: o.input, TextField: textField, SubjectKey: subjectField, Address: addr,
 		}})
 	}
 	return out

@@ -74,7 +74,13 @@ func Resolve(ctx context.Context, st Store, id string, approve bool, edit Edit, 
 		return p, err
 	}
 	if always {
-		if err := st.Allow(ctx, Allow{Action: p.Action, Platform: p.Account.Platform, Account: p.Account.Handle, Recipient: keyOf(p.Recipient)}); err != nil {
+		// Keyed on the recipient as the send addressed it; an item queued
+		// before Address existed falls back to the card's identity.
+		addr := rp.Address
+		if addr == "" {
+			addr = keyOf(p.Recipient)
+		}
+		if err := st.Allow(ctx, Allow{Action: p.Action, Platform: p.Account.Platform, Account: p.Account.Handle, Recipient: addr}); err != nil {
 			return st.finishErr(ctx, p.ID, err)
 		}
 	}

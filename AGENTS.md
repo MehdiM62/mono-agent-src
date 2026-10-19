@@ -2699,7 +2699,26 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
   ("the client of invoice inv9"), `to_unset` the recipient when none is set
   ("the appointment's attendees"). Such a card names no address: `--always-allow` is
   refused on it (`hilsend.ErrAlwaysLabel`), no allow rule matches it, and its
-  Communications row is the account's own, not a People row. Besides messaging packages, the lint asks
+  Communications row is the account's own, not a People row.
+  An always-allow rule (action, platform, account, recipient) is keyed on the
+  recipient as the send addresses it (the `to`, chat id, number or profile
+  URL; `replay.Address`), never on the person People found for it, so a DM
+  rule made from a card matches the next DM to that chat or number. It stands
+  only for a send that goes to that one recipient alone (`hilsend.soleRecipient`):
+  any cc, bcc, recipient list, second address, reply-to elsewhere, or value
+  in a node's destination keys (`destKeys`: Discord's `webhook_url`,
+  Mastodon's `instance`/`instance_url`/`in_reply_to_id`, dev.to's
+  `article_id`, Hashnode's `publication_id`, Product Hunt's `post_id`,
+  YouTube's `comment_id`, Twilio's `url`, the mail nodes' `message_id`) gets
+  the card. Gmail's and Outlook's `reply` (and any truthy `reply_all`) and
+  `send_draft` ignore `to`: their card names the thread or the draft as a
+  label, so no rule matches them; a Discord webhook send names its webhook's
+  host the same way; and no rule stands for a Twilio `make_call`, whose TwiML
+  can dial anyone. A send whose card names no recipient (an Instagram
+  `send_dms` given a bare `profile_url` instead of `selectedListItems`)
+  matches no rule either. `hil allow add` refuses a rule with an unknown
+  action, a recipient over 320 bytes, `*`, `%`, a control, invisible or
+  non-breaking character, or one that reads like a label. Besides messaging packages, the lint asks
   about any app's write with a recipient-like param (to, recipient,
   receiver, addressee, email, mailTo, phone, tel, msisdn, sms, attendees,
   guests, participants, invitees, invites, subscribers, cc, bcc) or a

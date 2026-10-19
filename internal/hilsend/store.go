@@ -62,6 +62,9 @@ type replay struct {
 	// Publication is set once a registration claimed this send's approval
 	// (ClaimPublicationApproval): one approval registers one publication.
 	Publication string `json:"publication,omitempty"`
+	// Address is the recipient as the send addresses it, what an
+	// always-allow rule made from this item is keyed on.
+	Address string `json:"address,omitempty"`
 }
 
 type editable struct {

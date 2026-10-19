@@ -34,7 +34,13 @@ func TestHILAllowAddRefusesAWrongRule(t *testing.T) {
 		{"a SQL wildcard", "email", "%@example.test", "can't hold * or %"},
 		{"a recipient over 320 bytes", "email", strings.Repeat("a", 5000) + "@example.test", "a recipient is at most 320"},
 		{"a label", "email", "the ticket's requester", "reads like a description, not an address"},
-		{"a label behind a zero-width space", "dm", "\u200bThe customer", "reads like a description"},
+		{"a label behind a zero-width space", "dm", "\u200bThe customer", "holds U+200B"},
+		{"a NUL", "email", "ada@example.test\x00", "holds U+0000"},
+		{"a newline", "email", "ada@example.test\nevil@attacker.test", "holds U+000A"},
+		{"a tab", "email", "ada\t@example.test", "holds U+0009"},
+		{"a non-breaking space", "dm", "Ada\u00a0Lovelace", "holds U+00A0"},
+		{"a narrow non-breaking space", "dm", "Ada\u202fLovelace", "holds U+202F"},
+		{"a figure space", "dm", "Ada\u2007Lovelace", "holds U+2007"},
 	} {
 		_, err := run("add", "--action", c.action, "--recipient", c.recipient)
 		if exitCodeFor(err) != 3 || err == nil || !strings.Contains(err.Error(), c.want) {
