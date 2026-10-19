@@ -39,7 +39,8 @@ type Adopt func(ctx context.Context, db *sql.DB, g *account.Guard, report func(p
 // failure, is one line on the command's stderr, so that an incident can be reconstructed; never a
 // token.
 //
-// A real monoes.me login is presented only from this OS user's own install (notOwnInstall, #878):
+// A real monoes.me login is presented only from this OS user's own install (library.OlderLoginPath,
+// #878), and read from the file that check found, not from a path that may have changed since:
 // anywhere else, such as a copy of its database or a HOME made for a test, the try is neither made
 // nor claimed, and a line says why when the database holds an older login. dbPath is the command's
 // --db-path; adopt is library.AdoptIntoAccount.
@@ -58,7 +59,14 @@ func AdoptFirstRun(cmd *cobra.Command, dbPath string, adopt Adopt) {
 	if _, err := os.Stat(path); err != nil {
 		return
 	}
-	db, err := storage.NewDatabase(path)
+	w, host := cmd.ErrOrStderr(), account.Host()
+	own, why := library.OlderLoginPath(host, path)
+	placeChecked()
+	open := own
+	if why != "" {
+		open = path // only to say why when it holds an older login: names are read, nothing is decrypted
+	}
+	db, err := storage.NewDatabase(open)
 	if err != nil {
 		return
 	}
@@ -75,14 +83,11 @@ func AdoptFirstRun(cmd *cobra.Command, dbPath string, adopt Adopt) {
 	case !errors.Is(err, sql.ErrNoRows):
 		return
 	}
-	w, host := cmd.ErrOrStderr(), account.Host()
-	if isProductionHost(host) {
-		if why := notOwnInstall(path); why != "" {
-			if has, _ := library.HasOlderLogin(ctx, db.DB, host); has {
-				fmt.Fprintf(w, "The earlier library login in this database is not adopted as this machine's sign-in to %s: %s.\n", host, why)
-			}
-			return
+	if why != "" {
+		if has, _ := library.HasOlderLogin(ctx, db.DB, host); has {
+			fmt.Fprintln(w, notAdoptedNotice(host, why))
 		}
+		return
 	}
 	claim, err := db.DB.ExecContext(ctx, `INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)`,
 		AdoptionSetting, time.Now().UTC().Format(time.RFC3339))

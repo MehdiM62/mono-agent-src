@@ -144,12 +144,8 @@ func HasOlderLogin(ctx context.Context, db *sql.DB, host string) (bool, error) {
 		return false, err
 	}
 	for _, p := range profiles {
-		id, err := (&VaultStore{DB: db, ProfileID: p.ID, BaseURL: host}).find(ctx)
-		if err != nil {
-			return false, err
-		}
-		if id != "" {
-			return true, nil
+		if has, err := (&VaultStore{DB: db, ProfileID: p.ID, BaseURL: host}).Exists(ctx); err != nil || has {
+			return has, err
 		}
 	}
 	return false, nil

@@ -17,7 +17,6 @@ import (
 
 	"github.com/monoes/mono-agent/internal/account"
 	"github.com/monoes/mono-agent/internal/account/accounttest"
-	"github.com/monoes/mono-agent/internal/cli/accountcli"
 	"github.com/monoes/mono-agent/internal/library"
 	"github.com/monoes/mono-agent/internal/secrets"
 	"github.com/monoes/mono-agent/internal/storage"
@@ -53,7 +52,7 @@ func newAdoptRig(t *testing.T, mode accounttest.Mode, afterTheDate bool) *adoptR
 func ownInstallDB(t *testing.T) string {
 	t.Helper()
 	home := freshHome(t)
-	accountcli.SetUserHomeForTest(t, home)
+	library.SetUserHomeForTest(t, home)
 	path := filepath.Join(home, ".monoagent", "monoagent.db")
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		t.Fatal(err)

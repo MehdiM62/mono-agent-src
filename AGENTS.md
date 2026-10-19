@@ -355,17 +355,20 @@ Signing out of the monoes.me website does not sign out an install.
 
 **Never copy `~/.monoagent/monoagent.db` into a test HOME either.** Its vault can hold
 a library login from an older release, and any copy made by the same OS user can open
-it. The first gated command exchanges that login for the sign-in only on the user's own
-install: `HOME` is the OS account's home directory and the database is
-`~/.monoagent/monoagent.db` in it. Anywhere else the CLI sends nothing, keeps the login
-and prints `The earlier library login in this database is not adopted as this machine's
-sign-in to <host>: <why>.` Known limit: on Linux, for an account not listed in
-`/etc/passwd` (LDAP, a container's arbitrary uid), the CLI can only trust `HOME`, so
-this check does not protect there. Setting `MONOES_BASE_URL` does not protect either: a
-default build ignores it for the sign-in and always talks to https://monoes.me (spec
-D24); only a `-tags devaccount` build changes the sign-in host. Each exchange prints one
-line on stderr saying what became of the login (signed in, no longer valid, answer lost,
-renewed, kept), never a token.
+it. The CLI sends that login to monoes.me (the first gated command's exchange for the
+sign-in, a library read or refresh, `library logout`'s revocation) only from the user's
+own install: `HOME` is the OS account's home directory and the database is
+`~/.monoagent/monoagent.db` in it. Anywhere else it sends nothing and keeps the login;
+the adoption prints `The earlier library login in this database is not adopted as this
+machine's sign-in to <host>: <why>. Sign in instead: monoagentcli account login`, and
+`library logout` prints `The earlier library login of this profile is neither revoked at
+<host> nor removed: <why>.` An OS account the system has no home directory for (on
+Linux, one missing from `/etc/passwd`: LDAP, a container's arbitrary uid) is refused the
+same way. Every host but a loopback address counts as monoes.me. Setting
+`MONOES_BASE_URL` does not protect either: a default build ignores it for the sign-in
+and always talks to https://monoes.me (spec D24); only a `-tags devaccount` build
+changes the sign-in host. Each exchange prints one line on stderr saying what became of
+the login (signed in, no longer valid, answer lost, renewed, kept), never a token.
 
 | `state` | Meaning | `reason` |
 |---|---|---|

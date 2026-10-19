@@ -26,7 +26,7 @@ func ownDB(t *testing.T) string {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
-	SetUserHomeForTest(t, home)
+	library.SetUserHomeForTest(t, home)
 	path := filepath.Join(home, ".monoagent", "monoagent.db")
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		t.Fatal(err)
@@ -55,9 +55,7 @@ func newPlaceRig(t *testing.T) *placeRig {
 	t.Cleanup(r.fake.Close)
 	libraryfake.TrustKey(t)
 	account.SetHostForTest(t, r.fake.URL)
-	prev := isProductionHost
-	isProductionHost = func(h string) bool { return h == r.fake.URL }
-	t.Cleanup(func() { isProductionHost = prev })
+	library.SetProductionHostForTest(t, r.fake.URL)
 	account.SetSealerForTest(t, account.NewMemorySealer())
 	account.SetEnforceFromForTest(t, time.Now().Add(-time.Hour))
 	r.seed(t)
@@ -67,6 +65,24 @@ func newPlaceRig(t *testing.T) *placeRig {
 	}
 	account.InstallForTest(t, g)
 	return r
+}
+
+// reseed gives the default profile of the database at path a login of its own and returns its
+// refresh token.
+func (r *placeRig) reseed(t *testing.T, path string) string {
+	t.Helper()
+	db, err := storage.NewDatabase(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	access, refresh := r.fake.NewGrant("ada")
+	tok := &library.Token{AccessToken: access, RefreshToken: refresh, TokenType: "Bearer", Method: "pkce", BaseURL: r.fake.URL,
+		User: &library.User{ID: "u-ada", Username: "ada", Email: "ada@example.com"}}
+	if err := r.vault(db, "default").Save(context.Background(), tok); err != nil {
+		t.Fatal(err)
+	}
+	return refresh
 }
 
 // seed stores the older login in the default profile's vault, as the previous release did.
@@ -149,7 +165,7 @@ func TestAdoptionLeavesACopiedDatabaseAlone(t *testing.T) {
 		place     func(t *testing.T, r *placeRig) string // moves the user's database or HOME; returns the path the command opens
 	}{
 		{"a HOME that is not the user's", "the home directory is", func(t *testing.T, r *placeRig) string {
-			SetUserHomeForTest(t, t.TempDir())
+			library.SetUserHomeForTest(t, t.TempDir())
 			return r.dbPath
 		}},
 		{"the user's database from another HOME", "the home directory is", func(t *testing.T, r *placeRig) string {
@@ -169,6 +185,10 @@ func TestAdoptionLeavesACopiedDatabaseAlone(t *testing.T) {
 			}
 			return cp
 		}},
+		{"a user the system has no home directory for", "the system has no home directory", func(t *testing.T, r *placeRig) string {
+			library.SetUserHomeForTest(t, "") // os/user failed, or /etc/passwd has no entry (LDAP, an arbitrary uid)
+			return r.dbPath
+		}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			r := newPlaceRig(t)
@@ -183,8 +203,8 @@ func TestAdoptionLeavesACopiedDatabaseAlone(t *testing.T) {
 				t.Fatalf("the older login kept %v, the try claimed %v: want it kept and no claim", refresh == r.refresh, claimed)
 			}
 			out := r.stderr.String()
-			if strings.Count(out, "is not adopted") != 2 || !strings.Contains(out, c.why) {
-				t.Fatalf("each run must say why it adopted nothing (%q): %q", c.why, out)
+			if strings.Count(out, "is not adopted") != 2 || !strings.Contains(out, c.why) || !strings.Contains(out, "Sign in instead: monoagentcli account login") {
+				t.Fatalf("each run must say why it adopted nothing (%q) and how to sign in: %q", c.why, out)
 			}
 		})
 	}
@@ -258,7 +278,7 @@ func TestAdoptionIsQuietWithoutAnOlderLogin(t *testing.T) {
 	accounttest.Install(t, accounttest.LockedNoLogin)
 	account.SetEnforceFromForTest(t, time.Now().Add(48*time.Hour))
 	path := ownDB(t)
-	SetUserHomeForTest(t, t.TempDir())
+	library.SetUserHomeForTest(t, t.TempDir())
 	var errb bytes.Buffer
 	cmd := find(t, "workflow", "list")
 	cmd.SetErr(&errb)
@@ -269,17 +289,39 @@ func TestAdoptionIsQuietWithoutAnOlderLogin(t *testing.T) {
 	}
 }
 
-// The user's home comes from the system's user database, not from $HOME, which a test or an agent
-// sets to a directory of its own.
-func TestUserHomeIsNotHOME(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("USERPROFILE", home)
-	got, err := userHome()
+// The database is read from the file the place check found, not from the path the command was
+// given: a symlink flipped to a copy right after the check does not get the copy's login sent.
+func TestAdoptionReadsTheFileItChecked(t *testing.T) {
+	r := newPlaceRig(t)
+	cp := filepath.Join(r.home, "copy.db")
+	b, err := os.ReadFile(r.dbPath)
 	if err != nil {
-		t.Skip("the system has no entry for this user:", err)
+		t.Fatal(err)
 	}
-	if got == "" || sameFile(got, home) {
-		t.Fatalf("the user's home is %q, the HOME of the test", got)
+	if err := os.WriteFile(cp, b, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	copied := r.reseed(t, cp) // the copy holds a login of its own
+	link := filepath.Join(t.TempDir(), "db")
+	if err := os.Symlink(r.dbPath, link); err != nil {
+		t.Skip("no symlinks here:", err)
+	}
+	prev := placeChecked
+	placeChecked = func() {
+		if err := os.Remove(link); err != nil {
+			t.Error(err)
+		}
+		if err := os.Symlink(cp, link); err != nil {
+			t.Error(err)
+		}
+	}
+	t.Cleanup(func() { placeChecked = prev })
+	r.run(t, link)
+	reqs := r.fake.TokenRequests()
+	if len(reqs) != 1 || reqs[0].Form.Get("refresh_token") != r.refresh {
+		t.Fatalf("%d token requests; the one sent is the user's own login: %v", len(reqs), len(reqs) == 1 && reqs[0].Form.Get("refresh_token") == r.refresh)
+	}
+	if refresh, _ := r.olderLogin(t, cp); refresh != copied {
+		t.Fatal("the copy's login was touched")
 	}
 }

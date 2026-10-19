@@ -2,78 +2,17 @@ package accountcli
 
 import (
 	"fmt"
-	"os"
-	"os/user"
-	"path/filepath"
-	"testing"
 
-	"github.com/monoes/mono-agent/internal/account"
 	"github.com/monoes/mono-agent/internal/library"
 )
 
-// isProductionHost says whether host is the monoes.me whose logins are real: only there does it
-// matter which database an adoption reads (#878). Any other host is a devaccount build's
-// MONOES_BASE_URL, and a library login is stored for its host, so a copy of a real database holds
-// none to present to it. A test replaces it.
-var isProductionHost = func(host string) bool { return host == account.HostURL }
+// placeChecked runs between the check of where the database is (library.OlderLoginPath) and its
+// opening: a test changes the path there.
+var placeChecked = func() {}
 
-// userHome is the home directory the system gives this OS user (os/user), not $HOME. A test
-// replaces it (SetUserHomeForTest). On Linux a release build (CGO_ENABLED=0) reads /etc/passwd,
-// and for a user it has no entry for (an LDAP account, a container's arbitrary uid) os/user falls
-// back to $HOME: there the check passes for any HOME, as adoption did before #878.
-var userHome = func() (string, error) {
-	u, err := user.Current()
-	if err != nil {
-		return "", err
-	}
-	return u.HomeDir, nil
-}
-
-// SetUserHomeForTest makes the adoption take dir as the home directory the system gives this OS
-// user, for the rest of the test. It panics outside a test binary, and in a test that calls
-// t.Parallel() (t.Setenv does).
-func SetUserHomeForTest(t testing.TB, dir string) {
-	t.Helper()
-	if !testing.Testing() {
-		panic("accountcli.SetUserHomeForTest called outside a test binary")
-	}
-	t.Setenv("MONOAGENT_TEST_USER_HOME", dir) // only for t.Setenv's refusal of a parallel test
-	prev := userHome
-	userHome = func() (string, error) { return dir, nil }
-	t.Cleanup(func() { userHome = prev })
-}
-
-// notOwnInstall says why the database at path is not this OS user's own install, "" when it is.
-// An adoption presents a real monoes.me login, so it runs only on the database that install uses:
-// .monoagent/monoagent.db under the home directory the system gives the user, with $HOME, where
-// the session is stored, the same directory. A copy of that database anywhere else, or a HOME made
-// for a test, holds a login that is not its to present (#878).
-func notOwnInstall(path string) string {
-	own, err := userHome()
-	if err != nil || own == "" {
-		return "the system does not say which home directory this OS user has"
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "the home directory is not set"
-	}
-	if !sameFile(home, own) {
-		return fmt.Sprintf("the home directory is %s, not this OS user's %s", home, own)
-	}
-	if want := filepath.Join(own, ".monoagent", "monoagent.db"); !sameFile(path, want) {
-		return fmt.Sprintf("the database is %s, not %s", path, want)
-	}
-	return ""
-}
-
-// sameFile says whether a and b are one file or directory, however each is spelled.
-func sameFile(a, b string) bool {
-	fa, err := os.Stat(a)
-	if err != nil {
-		return false
-	}
-	fb, err := os.Stat(b)
-	return err == nil && os.SameFile(fa, fb)
+// notAdoptedNotice is the line that says an older login is left alone, and why.
+func notAdoptedNotice(host, why string) string {
+	return fmt.Sprintf("The earlier library login in this database is not adopted as this machine's sign-in to %s: %s. Sign in instead: monoagentcli account login", host, why)
 }
 
 // adoptionNotice is the line that says what an adoption made of a profile's older login. It never

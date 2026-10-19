@@ -25,6 +25,8 @@ type Deps struct {
 	ProfileID func() string
 	// OpenDB opens (and migrates) the database and resolves the profile (the CLI's initDB).
 	OpenDB func() (*storage.Database, error)
+	// DBPath is the database OpenDB opens (the CLI's --db-path, ~ not yet expanded).
+	DBPath func() string
 	// OpenRegistry opens the automation registry.
 	OpenRegistry func() (*automation.Registry, error)
 	// OpenWorkflowStore opens the workflow store on db.
