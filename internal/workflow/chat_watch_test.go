@@ -102,6 +102,34 @@ func watchInBackground(s *WebhookServer, route *chatRoute, execs WebhookExecutio
 	return done
 }
 
+// heldPauses makes the watch's pauses the test's: a pause starting sends
+// on paused, and resume(t) ends it, once the watch is waiting on it.
+func heldPauses(t *testing.T) (paused <-chan struct{}, resume func(*testing.T)) {
+	t.Helper()
+	entered, tick := make(chan struct{}, 1), make(chan time.Time)
+	old := chatWatchPause
+	chatWatchPause = func(time.Duration) <-chan time.Time { entered <- struct{}{}; return tick }
+	t.Cleanup(func() { chatWatchPause = old })
+	return entered, func(t *testing.T) {
+		t.Helper()
+		select {
+		case tick <- time.Now():
+		case <-time.After(5 * time.Second):
+			t.Fatal("the watch is not pausing")
+		}
+	}
+}
+
+// awaitPause fails the test unless the watch starts a pause within 5s.
+func awaitPause(t *testing.T, paused <-chan struct{}) {
+	t.Helper()
+	select {
+	case <-paused:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the watch did not pause")
+	}
+}
+
 // awaitWatch fails the test unless the watch ends within 5s.
 func awaitWatch(t *testing.T, done <-chan struct{}) {
 	t.Helper()
@@ -155,8 +183,8 @@ func TestChatWatchAnswersARunThatEndsAtTheLimit(t *testing.T) {
 }
 
 // The watch ends with the server, silently, and with the chat (its
-// workflow deactivated, or re-registered by an edit), saying the answer
-// won't come.
+// workflow deactivated, or re-registered by an edit), saying it stopped
+// being served and the answer won't come.
 func TestChatWatchEndsWithTheServerAndTheChat(t *testing.T) {
 	for _, c := range []struct {
 		name string
@@ -164,7 +192,7 @@ func TestChatWatchEndsWithTheServerAndTheChat(t *testing.T) {
 		want []string
 	}{
 		{"server stops", func(s *WebhookServer) { _ = s.Stop(context.Background()) }, nil},
-		{"chat deregisters", func(s *WebhookServer) { s.DeregisterChat("watch") }, []string{chatReconfigured}},
+		{"chat deregisters", func(s *WebhookServer) { s.DeregisterChat("watch") }, []string{chatNotServed}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			s, route := chatWatch(t, time.Hour)
@@ -183,22 +211,15 @@ func TestChatWatchEndsWithTheServerAndTheChat(t *testing.T) {
 
 // As the engine stops it ends the watches, then deregisters the chats. A
 // watch already past its pause then finds its chat gone with the watches
-// ended, and says nothing: the chat wasn't reconfigured.
+// ended, and says nothing: it is the engine that stopped.
 func TestChatWatchSaysNothingWhenTheEngineStops(t *testing.T) {
 	s, route := chatWatch(t, time.Hour)
-	entered, tick := make(chan struct{}, 1), make(chan time.Time)
-	old := chatWatchPause
-	chatWatchPause = func(time.Duration) <-chan time.Time { entered <- struct{}{}; return tick }
-	t.Cleanup(func() { chatWatchPause = old })
+	paused, resume := heldPauses(t)
 	session := watchSession("watch-engine-stop")
 	done := watchInBackground(s, route, &scriptedExecs{states: []watchState{{"WAITING", true}}}, session)
-	select {
-	case <-entered:
-	case <-time.After(5 * time.Second):
-		t.Fatal("the watch did not pause")
-	}
+	awaitPause(t, paused)
 	s.chats.mu.Lock() // holds the watch before it looks for its chat
-	tick <- time.Now()
+	resume(t)
 	// The watch is past its pause now.
 	s.endWatches()
 	delete(s.chats.m, route.Path) // DeregisterChat, under the lock held
@@ -206,6 +227,32 @@ func TestChatWatchSaysNothingWhenTheEngineStops(t *testing.T) {
 	awaitWatch(t, done)
 	if got := botMessages(session); len(got) != 0 {
 		t.Fatalf("bot said %q", got)
+	}
+}
+
+// A chat deregistered and registered again at its path (an edit) before
+// the watch looks is still served: the watch says nothing, goes on, and
+// the run's answer reaches the chat.
+func TestChatWatchGoesOnThroughAReRegister(t *testing.T) {
+	s, route := chatWatch(t, time.Hour)
+	paused, resume := heldPauses(t)
+	session := watchSession("watch-reregister")
+	execs := &scriptedExecs{states: []watchState{{"WAITING", true}, {"SUCCESS", false}}, exec: doneExec}
+	done := watchInBackground(s, route, execs, session)
+	awaitPause(t, paused)
+	s.DeregisterChat(route.Path)
+	if err := s.RegisterChat(&chatRoute{WorkflowID: "wf-1", NodeID: "t1", Path: route.Path, ResponseMode: ChatRespondLastNode}); err != nil {
+		t.Fatal(err)
+	}
+	resume(t)
+	awaitPause(t, paused) // read WAITING and paused again: still watching
+	if got := botMessages(session); len(got) != 0 {
+		t.Fatalf("bot said %q while the run waits", got)
+	}
+	resume(t)
+	awaitWatch(t, done)
+	if got := botMessages(session); len(got) != 1 || got[0] != "done" {
+		t.Fatalf("bot said %q, want only %q", got, "done")
 	}
 }
 

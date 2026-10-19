@@ -46,10 +46,11 @@ const chatWatchSlowest = time.Second
 var chatWatchPause = time.After
 
 // The chat's answer when the watch gives up on a run, and when its chat
-// stopped being served (deactivated, or re-registered by an edit) mid-run.
+// stopped being served mid-run: its workflow deactivated or re-registered
+// by an edit, or every trigger disarmed while the monoes.me login is locked.
 const (
 	chatStillRunning = "Sorry, the workflow is still running, and this chat has stopped waiting for its answer."
-	chatReconfigured = "This chat was reconfigured while the workflow ran; its answer won't appear here."
+	chatNotServed    = "This chat stopped being served while the workflow ran; its answer won't appear here."
 )
 
 // chatRoute is one active trigger.chat node.
@@ -294,7 +295,7 @@ func (s *WebhookServer) watchChatRun(route *chatRoute, execs WebhookExecutions, 
 			// Not when the server is stopping: the engine ends the
 			// watches before it deregisters the chats.
 			if s.watches.Err() == nil {
-				PostChatMessage(session, ChatMessage{Role: "bot", Text: chatReconfigured})
+				PostChatMessage(session, ChatMessage{Role: "bot", Text: chatNotServed})
 			}
 			return
 		}
