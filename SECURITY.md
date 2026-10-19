@@ -332,6 +332,62 @@ workflow run, so a new name or operation can't slip past. Operations that are
 no string are tested against Telegram's, Discord's and Outlook's own code, and
 in the walk for every send type.
 
+### Recording replays and saved recordings up to v0.152.0
+
+In releases up to and including v0.152.0, an agent could replay a recording,
+its own or yours, with `record replay`, or run a draft's steps with `record
+verify`, in your logged-in browser, with no approval: which steps count as
+changing a site is read from the recording or draft itself, a file an agent
+can write. It could also save a draft with `record save` and run it with
+`node run`, MCP `node_run` or a workflow step, and so with a browser package
+it wrote by hand under `~/.monoagent/actions`. Now:
+
+- `record replay`, `record verify` and `record save` are yours: an agent, the
+  chat or a workflow gets exit 3 (`operator_only`). Only `record replay
+  --dry-run`, which runs nothing, stays open.
+- A browser action of a package that isn't built-in (a saved recording, a
+  local package, an imported one) doesn't run for an agent, the chat or a
+  workflow you haven't approved, through `node run`, MCP `node_run` or a
+  workflow step: it is refused before a tab opens. Built-in packages run as
+  before, and their sends wait for you (above). A symlinked `actions` folder
+  loads as a local package and is refused the same way; a symlinked package
+  folder inside it isn't loaded.
+- `login <package>` and `login confirm <package>` of a package that isn't
+  built-in are yours too: such a package names its own login page and the
+  sites whose cookies its login keeps.
+- `automation rerecord` is yours: it opens a package's site, or any `--url`,
+  in your browser and rewrites the selector your click picks, which changes
+  what the package's actions click, a built-in one's too. So are `automation
+  doctor accept-repair`, which rewrites one without a click, and changing a
+  package's flags with `automation trust` (page scripts, real runs);
+  showing them stays open. `login names` refuses an agent when it would
+  open the site of a package that isn't built-in.
+- What counts as built-in is read from files your account can write.
+  Built-in packages are the ones the app seeds or installs from the official
+  library; nothing re-checks their files after that. Their files and their
+  trust tier are kept under `~/.monoagent/automations`. An agent that can
+  write there, as one working as you can, can change a built-in package's
+  actions or mark its own package built-in, and these checks don't stop it.
+  Only keeping agents out of `~/.monoagent` (a sandbox) does. Checking
+  built-in packages against hashes the app ships or monoes.me signs is
+  tracked in #900.
+- If you start the app, the daemon or the browser bridge from an agent's
+  shell, a chat or a workflow run, it inherits that agent's markers, and
+  your own replays, verifies, logins and runs in it are refused as an
+  agent's. Restart it from your own terminal or the desktop launcher; the
+  refusal says so.
+- The browser extension's verify reaches the app through the bridge, which
+  any program that can read its pairing file can use, so the bridge's verify
+  takes no `full`, opens a blank tab and stops before the first step that
+  touches a page, whatever the draft marks. It checks much less than before.
+- Your own replays, verifies and runs, in your terminal and the app, and
+  the workflows you approved, work as before.
+- An agent that hides its markers and owns a terminal can still answer a
+  replay's question and pass as you: the general limit of how agents are
+  recognised (see "Who can read a decrypted secret").
+
+We know of no use of this: it was found by code review.
+
 ## Assistant tools (chat `--tools`)
 
 The `chat` command can expose a monoagent tool surface to the assistant

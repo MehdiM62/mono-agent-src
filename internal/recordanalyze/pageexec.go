@@ -40,6 +40,7 @@ func PageExecWith(page browser.PageInterface, logger zerolog.Logger, o PageExecO
 		ae := action.NewActionExecutor(ctx, page, nil, nil, events, nil, logger)
 		ae.SetPackage(pkg)
 		ae.SetSafeMode(safe)
+		ae.SetStopAtActions(StopsAtActions(ctx))
 		ae.SetSelectorObserver(obs)
 		if lookup := o.Secrets; lookup != nil {
 			ae.SetSecretLookup(func(_, name string) (string, bool) { return lookup(name) })
@@ -116,4 +117,21 @@ func highlight(ctx context.Context, ae *action.ActionExecutor, page browser.Page
 		return false
 	}
 	return res.Bool()
+}
+
+type stopAtActionsKey struct{}
+
+// WithStopAtActions makes the replays PageExec runs under ctx stop, in safe
+// mode, before the first step that touches a page at all, whatever the draft
+// marks (action.ActionExecutor.SetStopAtActions), and the CLI's verify open a
+// blank tab for them: a verify whose caller can't be told (the extension's)
+// neither acts on nor reads a page with the user's cookies.
+func WithStopAtActions(ctx context.Context) context.Context {
+	return context.WithValue(ctx, stopAtActionsKey{}, true)
+}
+
+// StopsAtActions reports whether ctx is one WithStopAtActions made.
+func StopsAtActions(ctx context.Context) bool {
+	on, _ := ctx.Value(stopAtActionsKey{}).(bool)
+	return on
 }

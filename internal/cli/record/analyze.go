@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/nodes"
 	"github.com/monoes/mono-agent/internal/operator"
 	"github.com/monoes/mono-agent/internal/recordanalyze"
@@ -142,14 +143,31 @@ func printAnalyzeResult(w io.Writer, res *recordanalyze.Result) {
 }
 
 func newRecordVerifyCmd(d Deps) *cobra.Command {
-	var full, keepOpen bool
+	var full, keepOpen, stopAtActions bool
 	var inputs []string
 	var inputsFile string
 	cmd := &cobra.Command{
 		Use:   "verify <draft>",
 		Short: "Replay a draft in the browser (stops before the first side-effect step unless --full)",
-		Args:  cobra.ExactArgs(1),
+		Long: `Replays a draft in the browser in safe mode: it stops before the first step
+the draft marks as changing the site (a send, a post, a submit); --full also
+runs those. --stop-at-first-action (the browser extension's verify) opens a
+blank tab and stops before the first step that touches a page at all
+(opening a URL, typing, clicking, reading, a request), whatever the draft
+marks.
+
+Verify is the user's own: it runs in their logged-in browser, and which steps
+change a site is read from the draft, a file anyone can write. An agent, the
+chat or a workflow is refused (exit 3, operator_only).`,
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if why := clicore.OperatorRefusal(d.Refusal); why != "" {
+				return clicore.OperatorOnly("record verify runs a draft's steps in the user's logged-in browser, where they can post, send or buy, and which of them do is read from the draft itself, so only the user verifies one: %s; "+
+					"the user verifies it in their own terminal or the app", why)
+			}
+			if full && stopAtActions {
+				return d.InvalidInput("--full and --stop-at-first-action are exclusive")
+			}
 			dir, err := resolveDraftArg(args[0])
 			if err != nil {
 				return err
@@ -160,7 +178,11 @@ func newRecordVerifyCmd(d Deps) *cobra.Command {
 			}
 			secrets, release := d.SecretLookup(cmd.Context(), draft.TargetAutomation)
 			defer release()
-			exec, err := d.VerifyExec(vault.ContextWithProfileID(cmd.Context(), d.BrowserProfile()), draft.TargetAutomation, d.Verbose(), keepOpen, secrets)
+			ctx := cmd.Context()
+			if stopAtActions {
+				ctx = recordanalyze.WithStopAtActions(ctx)
+			}
+			exec, err := d.VerifyExec(vault.ContextWithProfileID(ctx, d.BrowserProfile()), draft.TargetAutomation, d.Verbose(), keepOpen, secrets)
 			if err != nil {
 				return err
 			}
@@ -179,7 +201,7 @@ func newRecordVerifyCmd(d Deps) *cobra.Command {
 				}
 				overrides[k] = v // --input wins over --inputs-file
 			}
-			rep, err := recordanalyze.Verify(cmd.Context(), dir, recordanalyze.VerifyOptions{Full: full, Exec: exec, Inputs: overrides, SecretLookup: secrets})
+			rep, err := recordanalyze.Verify(ctx, dir, recordanalyze.VerifyOptions{Full: full, Exec: exec, Inputs: overrides, SecretLookup: secrets})
 			if err != nil {
 				return err
 			}
@@ -201,6 +223,7 @@ func newRecordVerifyCmd(d Deps) *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&full, "full", false, "Also run side-effect steps (writes on the site)")
+	cmd.Flags().BoolVar(&stopAtActions, "stop-at-first-action", false, "Open a blank tab and stop before the first step that touches a page, whatever the draft marks (the extension's verify)")
 	cmd.Flags().BoolVar(&keepOpen, "keep-open", false, "Leave the replay tab open (it stays open anyway when safe mode outlines the element it stopped before)")
 	cmd.Flags().Bool("safe", true, "Stop before the first side-effect step (default)")
 	cmd.Flags().StringVar(&inputsFile, "inputs-file", "", "JSON object {name: value} of inputs (mode 0600, owned by you; values are never echoed)")
@@ -215,8 +238,13 @@ func newRecordSaveCmd(d Deps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "save <draft>",
 		Short: "Install a draft as an action, a fragment, or a workflow of actions",
+		Long:  "Installs a draft as an action, a fragment, or a workflow of actions. " + clicore.OperatorOnlyHelp,
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if why := clicore.OperatorRefusal(d.Refusal); why != "" {
+				return clicore.OperatorOnly("record save makes a draft a package whose actions run in the user's logged-in browser as written, so only the user saves one (as an action, a fragment or a workflow): %s; "+
+					"the user saves it in their own terminal or the app", why)
+			}
 			dir, err := resolveDraftArg(args[0])
 			if err != nil {
 				return err

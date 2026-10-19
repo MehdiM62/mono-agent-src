@@ -14,6 +14,7 @@ import (
 	logincli "github.com/monoes/mono-agent/internal/cli/login"
 	"github.com/monoes/mono-agent/internal/logging"
 	"github.com/monoes/mono-agent/internal/nodes"
+	"github.com/monoes/mono-agent/internal/operator"
 	"github.com/monoes/mono-agent/internal/storage"
 )
 
@@ -58,6 +59,7 @@ func loginDeps(cfg *globalConfig) logincli.Deps {
 		AuthConnection: errAuthConnection,
 		WriteJSON:      writeJSONTo,
 		NewTable:       newPlainTable,
+		Refusal:        operator.Refusal,
 	}
 }
 

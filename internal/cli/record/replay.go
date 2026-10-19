@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/monoes/mono-agent/internal/action"
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/jev/jevconf"
 	"github.com/monoes/mono-agent/internal/recordanalyze"
 	"github.com/monoes/mono-agent/internal/recording"
@@ -44,11 +45,21 @@ recorded for it (best first, then the recorded fallbacks). No model is used.
 Before a step that changes the site (Save, Send, Post, Publish, a form submit)
 the replay asks you in the terminal; without a terminal it stops there unless
 --yes is given. --self-heal (off by default) asks Jev to find an element only
-when every recorded selector for it missed; each such step is reported.`,
+when every recorded selector for it missed; each such step is reported.
+
+A replay is the user's own: it runs in their logged-in browser, and which
+steps change a site is read from the recording, a file anyone can write. An
+agent, the chat or a workflow is refused (exit 3, operator_only); only
+--dry-run, which runs nothing, is open to them.`,
 		Example: `  monoagentcli record replay rec-20261013-101010-abcd --dry-run
   monoagentcli record replay rec-20261013-101010-abcd --input account_password=… --yes`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			why := clicore.OperatorRefusal(d.Refusal)
+			if !dryRun && why != "" {
+				return clicore.OperatorOnly("record replay runs a recording's steps in the user's logged-in browser, where they can post, send or buy, and which of them do is read from the recording itself, so only the user replays one: %s; "+
+					"`record replay --dry-run` shows the steps, and the user replays it in their own terminal", why)
+			}
 			if err := applyRecordScope(d); err != nil {
 				return err
 			}
@@ -106,15 +117,7 @@ when every recorded selector for it missed; each such step is reported.`,
 					fmt.Fprintf(cmd.ErrOrStderr(), "self-heal: step %s (%s): every recorded selector missed; Jev picked the element\n", s.ID, s.Describe)
 				}
 			}
-			switch {
-			case yes:
-				run.Confirm = func(recordanalyze.ReplayStep) bool { return true }
-			case !d.JSONOutput() && d.StdinIsTerminal():
-				in := cmd.InOrStdin()
-				run.Confirm = func(s recordanalyze.ReplayStep) bool {
-					return confirmYes(in, cmd.ErrOrStderr(), fmt.Sprintf("Step %s will %s, which changes the site. Run it?", s.ID, s.Describe))
-				}
-			}
+			run.Confirm = d.replayConfirm(cmd, yes, why)
 			page, logger, err := d.ReplayPage(vault.ContextWithProfileID(ctx, d.BrowserProfile()), d.Verbose())
 			if err != nil {
 				return err
@@ -145,6 +148,23 @@ when every recorded selector for it missed; each such step is reported.`,
 	cmd.Flags().StringVar(&inputsFile, "inputs-file", "", "JSON object {name: value} of inputs (mode 0600, owned by you; values are never echoed)")
 	cmd.Flags().StringArrayVar(&inputs, "input", nil, "Input value name=value, overriding the recorded one (repeatable; see --dry-run for names)")
 	return cmd
+}
+
+// replayConfirm is how a replay decides a step that changes the site: --yes
+// runs it; the user's terminal asks them; anyone else (why, the refusal, is
+// set: an agent, the chat, a workflow) is never asked, even with a terminal,
+// and neither is a run with no terminal: nil, so the replay stops before it.
+func (d Deps) replayConfirm(cmd *cobra.Command, yes bool, why string) func(recordanalyze.ReplayStep) bool {
+	switch {
+	case yes:
+		return func(recordanalyze.ReplayStep) bool { return true }
+	case why == "" && !d.JSONOutput() && d.StdinIsTerminal():
+		in := cmd.InOrStdin()
+		return func(s recordanalyze.ReplayStep) bool {
+			return confirmYes(in, cmd.ErrOrStderr(), fmt.Sprintf("Step %s will %s, which changes the site. Run it?", s.ID, s.Describe))
+		}
+	}
+	return nil
 }
 
 // replayInputs merges --inputs-file and --input (which wins).

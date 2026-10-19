@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 )
 
 // `automation trust <id>`: the user's per-package trust choices (contracts
@@ -24,12 +26,20 @@ func (d Deps) newAutomationTrustCmd() *cobra.Command {
 			if live && noLive {
 				return errors.New("--live and --no-live are mutually exclusive")
 			}
+			id := args[0]
+			sp, lp := boolFlag(scripts, noScripts), boolFlag(live, noLive)
+			// What a package may do in the user's browser is their choice;
+			// showing it stays open.
+			if sp != nil || lp != nil {
+				if why := clicore.OperatorRefusal(d.Refusal); why != "" {
+					return clicore.OperatorOnly("automation trust changes what a package may do in the user's browser (page scripts, real runs of its write-level actions), so only the user changes it: %s; "+
+						"the user runs `monoagentcli automation trust %s` with the flag in their own terminal", why, id)
+				}
+			}
 			reg, err := d.OpenRegistry()
 			if err != nil {
 				return err
 			}
-			id := args[0]
-			sp, lp := boolFlag(scripts, noScripts), boolFlag(live, noLive)
 			if sp != nil || lp != nil {
 				if err := reg.SetTrustFlags(id, sp, lp); err != nil {
 					return err

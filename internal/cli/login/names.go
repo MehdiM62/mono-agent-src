@@ -8,9 +8,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/monoes/mono-agent/internal/action"
 	"github.com/monoes/mono-agent/internal/automation"
 	botpkg "github.com/monoes/mono-agent/internal/bot"
 	browserpkg "github.com/monoes/mono-agent/internal/browser"
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/spf13/cobra"
 )
 
@@ -89,6 +91,14 @@ func (d Deps) newLoginNamesCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if why := clicore.OperatorRefusal(d.Refusal); why != "" {
+				for _, p := range platforms {
+					if trust, ok := d.pageTrust(p); ok && trust != automation.TrustBuiltin {
+						return clicore.OperatorOnly("login names opens %s's site in the user's browser, and %s is a %s package, whose site is named in files anyone with the user's files can write, so only the user reads its name: %s; "+
+							"pass --platform for a built-in one, or the user runs `monoagentcli login names` in their own terminal", p, p, trust, why)
+					}
+				}
+			}
 			names := map[string]string{}
 			if len(platforms) > 0 {
 				bridge, err := d.ConnectBridge(d.ProfileID())
@@ -148,6 +158,25 @@ func nameless(ctx context.Context, db *sql.DB, profileID, only string) ([]string
 		}
 	}
 	return out, rows.Err()
+}
+
+// pageTrust is the trust tier of the package whose start page
+// readAccountName opens for platform (browserpkg.StartURL reads the same
+// action source), and whether a package names that page at all.
+func (d Deps) pageTrust(platform string) (string, bool) {
+	_, _ = d.OpenRegistry() // boots the action source, as a login lookup would
+	src := action.CurrentDefSource()
+	if src == nil {
+		return "", false
+	}
+	pkg := src.Package(strings.ToLower(platform))
+	if pkg == nil {
+		return "", false
+	}
+	if t, ok := pkg.(interface{ Trust() string }); ok {
+		return t.Trust(), true
+	}
+	return "", true
 }
 
 // readAccountName opens platform's start page in a tab, reads the account

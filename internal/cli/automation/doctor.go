@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/monoes/mono-agent/internal/automation"
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 	tw "github.com/olekukonko/tablewriter/tw"
 	"github.com/spf13/cobra"
 )
@@ -100,6 +101,12 @@ func (d Deps) newAutomationAcceptRepairCmd() *cobra.Command {
 		Short: "Replace a selector with the repair Jev fallback picks proposed",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Accepting a repair is the user's choice of what the package's
+			// actions click, as a rerecord is.
+			if why := clicore.OperatorRefusal(d.Refusal); why != "" {
+				return clicore.OperatorOnly("automation doctor accept-repair rewrites a selector, which changes what the package's actions click, so only the user accepts a repair: %s; "+
+					"the user runs `monoagentcli automation doctor accept-repair %s %s` in their own terminal", why, args[0], args[1])
+			}
 			reg, err := d.OpenRegistry()
 			if err != nil {
 				return err

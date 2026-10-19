@@ -49,6 +49,9 @@ type ActionExecutor struct {
 	pkg      PackageContext
 	selObs   SelectorObserver
 	safeMode bool
+	// stopAtActions widens safe mode to every step that acts on the page
+	// (SetStopAtActions).
+	stopAtActions bool
 	// safeStop is set when safe mode stopped before a side-effect step.
 	safeStop *SafeStop
 	// fatal is set by failRun (safe_mode.go): the run must unwind.

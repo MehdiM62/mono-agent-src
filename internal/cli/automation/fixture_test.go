@@ -97,6 +97,7 @@ func testDeps(cfg *testConfig) Deps {
 		},
 		OpenRegistry: openTestRegistry,
 		NewTable:     newTestTable,
+		Refusal:      func() string { return "" }, // the user
 		WithJSONErrors: func(cmd *cobra.Command) {
 			run := cmd.RunE
 			if run == nil {
