@@ -577,8 +577,12 @@ dangerous calls.
   and workflows read secrets' metadata and write other entries as before.
   The `--help` of each of these says so ("The user's own: an agent, the
   chat or a workflow is refused"), and a nil operator check refuses
-  (`clicore.OperatorRefusal`). `extension pair` stays open (an agent can
-  read the token file),
+  (`clicore.OperatorRefusal`). So are `extension bind|unbind|reset`,
+  `extension pair --open` and `extension install --zip`, which change which
+  profile a browser acts as, which bridge it pairs with, or the extension
+  code it loads; `extension pair` printing the token stays open (an agent can
+  read the token file), as do `extension install` of the signed release and
+  `extension serve` for a private bridge,
   and so does `image.vault_get` taking its id from data, by design. Names, masked
   values and metadata stay open. No secret reference resolves in a run of
   a definition the user hasn't approved: `secrets.Resolve` refuses under

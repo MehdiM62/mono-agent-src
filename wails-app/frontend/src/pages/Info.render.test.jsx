@@ -106,7 +106,8 @@ describe('Info page', () => {
     const f = screen.getByLabelText('First name')
     fireEvent.change(f, { target: { value: 'Grace' } })
     fireEvent.blur(f)
-    await waitFor(() => expect(screen.queryByLabelText('Filled by AI from cv.pdf')).not.toBeInTheDocument())
+    // The badge goes once the save settles; under a loaded CI machine that takes longer than waitFor's 1 s default.
+    await waitFor(() => expect(screen.queryByLabelText('Filled by AI from cv.pdf')).not.toBeInTheDocument(), { timeout: 5000 })
   })
 })
 

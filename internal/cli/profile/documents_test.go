@@ -302,3 +302,27 @@ func TestProfileDocumentsIndexPreservesPriorSuccessOnLaterFailure(t *testing.T) 
 		t.Fatalf("expected the new failure's IndexError to be recorded, got: %s", listOut)
 	}
 }
+
+func TestProfileUploadDocumentNoFollowRefusesASymlink(t *testing.T) {
+	setFakeMonomindOnPathCLI(t)
+	dbPath := newProfileDocsCLITestDB(t)
+	dir := t.TempDir()
+	real := filepath.Join(dir, "real.txt")
+	link := filepath.Join(dir, "link.txt")
+	if err := os.WriteFile(real, []byte("content"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(real, link); err != nil {
+		t.Skip("symlinks unavailable:", err)
+	}
+
+	if out, err := runProfileCmd(t, dbPath, "upload-document", "--no-follow", link); err == nil {
+		t.Fatalf("--no-follow uploaded a symlink: %s", out)
+	}
+	if out, err := runProfileCmd(t, dbPath, "documents", "list"); err != nil || strings.Contains(out, "link.txt") {
+		t.Fatalf("refused symlink left a document behind: %v %s", err, out)
+	}
+	if out, err := runProfileCmd(t, dbPath, "upload-document", link); err != nil {
+		t.Fatalf("a symlink should still upload without the flag: %v %s", err, out)
+	}
+}
