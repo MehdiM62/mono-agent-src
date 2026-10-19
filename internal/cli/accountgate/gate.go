@@ -80,6 +80,18 @@ func gateStatus(ctx context.Context, g *account.Guard) account.Status {
 	return g.Status()
 }
 
+// KeyringAdvice says why a session in grace with the reason keyring_unavailable is not renewed,
+// and what to do. Where the system has no home directory for this OS user (on Linux, an LDAP
+// account or a container's arbitrary uid with no /etc/passwd entry), the likely cause is a sign-in
+// saved by an earlier release, which cannot be told from a copy there (#878): only signing in once
+// more repairs it.
+func KeyringAdvice() string {
+	if h, err := account.SystemHome(); err != nil || h == "" {
+		return "The system has no home directory for this OS user, so a sign-in saved by an earlier release cannot be told from a copy here. Sign in once more after upgrading: monoagentcli account login"
+	}
+	return "Its saved refresh token cannot be read: the key store is locked or unavailable, or this account folder is a copy. Unlock the key store, or sign in once more: monoagentcli account login"
+}
+
 // announce is the one line an allowed command owes the user, on stderr only:
 // the grace line when the login works offline (or, once a refresh whose answer
 // never arrived has cost this machine its refresh token, A24, the line that says
@@ -94,6 +106,11 @@ func announce(w io.Writer, st account.Status) {
 		if st.Reason == account.ReasonUnconfirmed { // monoes.me is not the problem
 			fmt.Fprintf(w, "This login can no longer be renewed on this machine and works until %s. Sign in again: monoagentcli account login\n",
 				st.GraceUntil.Local().Format(time.RFC3339))
+			return
+		}
+		if st.Reason == account.ReasonKeyringUnavailable { // nor here: the refresh token cannot be read
+			fmt.Fprintf(w, "This login cannot be renewed on this machine and works until %s. %s\n",
+				st.GraceUntil.Local().Format(time.RFC3339), KeyringAdvice())
 			return
 		}
 		fmt.Fprintf(w, "monoes.me is unreachable; this login works offline until %s\n", st.GraceUntil.Local().Format(time.RFC3339))

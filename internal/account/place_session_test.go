@@ -22,6 +22,7 @@ type sessionRig struct {
 	home    string
 	refresh string // the stored refresh token
 	signIn  int    // the refresh grants the sign-in itself took
+	signReq int    // and the token requests it made
 }
 
 func newSessionRig(t *testing.T) *sessionRig {
@@ -46,12 +47,15 @@ func newSessionRig(t *testing.T) *sessionRig {
 	if r.refresh, err = store.LoadRefresh(); err != nil || r.refresh == "" {
 		t.Fatalf("no refresh token stored: %v", err)
 	}
-	r.signIn = r.fake.Refreshes
+	r.signIn, r.signReq = r.fake.Refreshes, len(r.fake.TokenRequests())
 	return r
 }
 
-// refreshes is the refresh grants sent since the sign-in.
+// refreshes is the refresh grants monoes.me honoured since the sign-in.
 func (r *sessionRig) refreshes() int { return r.fake.Refreshes - r.signIn }
+
+// sent is every token request since the sign-in, honoured or not.
+func (r *sessionRig) sent() int { return len(r.fake.TokenRequests()) - r.signReq }
 
 // at makes home the HOME of the process.
 func (r *sessionRig) at(t *testing.T, home string) {
@@ -117,8 +121,8 @@ func TestACopiedSessionIsNeitherRenewedNorRevoked(t *testing.T) {
 			r.at(t, other)
 			c.home(t, r, other)
 			refreshAndLogOut(t)
-			if r.refreshes() != 0 || r.revocations() != 0 {
-				t.Fatalf("the copy sent %d refreshes and %d revocations, want none", r.refreshes(), r.revocations())
+			if r.sent() != 0 || r.revocations() != 0 {
+				t.Fatalf("the copy sent %d token requests and %d revocations, want none", r.sent(), r.revocations())
 			}
 			r.at(t, r.home)
 			account.SetUserHomeForTest(t, r.home)
@@ -155,7 +159,7 @@ func TestARefreshTokenThatNamesNoFolder(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if plain, err := r.sealer.Open(blob); err != nil || !strings.HasPrefix(string(plain), "monoagent-account-v2\x00") {
+		if plain, err := r.sealer.Open(blob); err != nil || !strings.HasPrefix(string(plain), "monoagent-account-v3\x00") {
 			t.Fatalf("the successor names no folder (%v)", err)
 		}
 	})
@@ -178,8 +182,8 @@ func TestARefreshTokenThatNamesNoFolder(t *testing.T) {
 			r := newSessionRig(t)
 			c.move(t, r)
 			refreshAndLogOut(t)
-			if r.refreshes() != 0 || r.revocations() != 0 {
-				t.Fatalf("%d refreshes and %d revocations, want none", r.refreshes(), r.revocations())
+			if r.sent() != 0 || r.revocations() != 0 {
+				t.Fatalf("%d token requests and %d revocations, want none", r.sent(), r.revocations())
 			}
 		})
 	}
@@ -194,5 +198,50 @@ func TestASignInMadeOutsideTheUsersHomeIsItsOwn(t *testing.T) {
 	refreshAndLogOut(t)
 	if r.refreshes() != 1 || r.revocations() != 1 || r.fake.Replays != 0 {
 		t.Fatalf("%d refreshes, %d revocations, %d replays; want 1, 1, 0", r.refreshes(), r.revocations(), r.fake.Replays)
+	}
+}
+
+// A folder renamed or moved on its filesystem keeps its device and inode: its sign-in still renews
+// there (a renamed home, a volume mounted at another path), and the successor names the new path.
+// A copy gets a new inode and stays refused (TestACopiedSessionIsNeitherRenewedNorRevoked).
+func TestARenamedAccountFolderStillRenews(t *testing.T) {
+	r := newSessionRig(t)
+	moved := filepath.Join(t.TempDir(), "moved")
+	if err := os.Rename(r.home, moved); err != nil {
+		t.Fatal(err)
+	}
+	r.at(t, moved)
+	account.SetUserHomeForTest(t, moved)
+	refresh(t)
+	if r.refreshes() != 1 || r.fake.Replays != 0 {
+		t.Fatalf("%d refreshes, %d replays; want 1 and 0", r.refreshes(), r.fake.Replays)
+	}
+	blob, err := os.ReadFile(filepath.Join(accountDir(moved), "refresh.enc"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	real, err := filepath.EvalSymlinks(accountDir(moved))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plain, err := r.sealer.Open(blob); err != nil || !strings.HasPrefix(string(plain), "monoagent-account-v3\x00"+real+"\x00") {
+		t.Fatalf("the successor does not name the folder's new path (%v)", err)
+	}
+}
+
+// A sealed token of another version of the format (a build of this branch before v3 named the
+// path only) is refused, never presented as if its plaintext were the token.
+func TestAnotherVersionOfTheSealedFormatIsRefused(t *testing.T) {
+	r := newSessionRig(t)
+	blob, err := r.sealer.Seal([]byte("monoagent-account-v2\x00" + accountDir(r.home) + "\x00" + r.refresh))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(accountDir(r.home), "refresh.enc"), blob, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	refreshAndLogOut(t)
+	if r.sent() != 0 || r.revocations() != 0 {
+		t.Fatalf("%d token requests and %d revocations, want none", r.sent(), r.revocations())
 	}
 }

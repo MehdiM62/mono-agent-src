@@ -349,7 +349,8 @@ time plus 24 hours.
 machines or from an old backup, and never bake a sign-in into a Docker image.**
 monoes.me rotates the refresh token at every refresh and treats one that was already
 used as stolen: it ends that sign-in. The refresh token names the folder it was sealed
-for, so a copy of `~/.monoagent/account` anywhere else is never renewed or revoked: it
+for (its path, and its device and inode, so a rename or a move on the same disk keeps
+it), so a copy of `~/.monoagent/account` anywhere else is never renewed or revoked: it
 reports `keyring_unavailable` and has to sign in on its own. A copy put back in the
 same folder (an old backup) cannot be told apart: once presented, it signs out the
 original and every copy, and each of them then has to sign in again; machines that

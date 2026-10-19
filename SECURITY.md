@@ -652,15 +652,20 @@ between machines or from an old backup or disk image, and never bake a sign-in
 into a Docker image or a container snapshot: keep it in the container's volume.
 monoes.me rotates the refresh token at every refresh and treats one that was
 already used as stolen: it ends that sign-in. The refresh token names the folder
-it was sealed for, so a copy of the folder anywhere else is never renewed, sent
-or revoked: it reports `keyring_unavailable` and has to sign in on its own. A
-copy put back in the same folder, from an old backup or disk image, cannot be
-told apart: once presented, it signs out the original and every copy, and each
-of them then has to sign in again. Machines that signed in on their own keep
-working. A sign-in made by a release before this one names no folder: it is read
-only in your own `~/.monoagent/account`, and its next renewal, within the hour,
-ties it to that folder. If the system has no home directory for your account (on
-Linux, one that is not in `/etc/passwd`), sign in once more.
+it was sealed for, by its path and by its identity on the disk, so a copy of the
+folder anywhere else is never renewed, sent or revoked: it reports
+`keyring_unavailable` and has to sign in on its own. The folder itself may be
+renamed or moved on the same disk (a renamed home directory, a volume mounted at
+another path) and keeps working; moved to another disk, it has to sign in once
+more. A copy put back in the same folder, from an old backup or disk image,
+cannot be told apart: once presented, it signs out the original and every copy,
+and each of them then has to sign in again. Machines that signed in on their own
+keep working. A sign-in made by a release before this one names no folder: it is
+read only in your own `~/.monoagent/account`, and its next renewal, within the
+hour, ties it to that folder. If the system has no home directory for your
+account (on Linux, one that is not in `/etc/passwd`: an LDAP account, a
+container's arbitrary user id), that cannot be checked: sign in once more after
+upgrading. The CLI says so.
 
 Do not copy `~/.monoagent/monoagent.db` either. Its vault can still hold a
 library login from an older release, and any copy made by the same OS user can

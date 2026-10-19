@@ -107,3 +107,16 @@ func TestLoginPrintsWhatTheSignInReturns(t *testing.T) {
 		}
 	}
 }
+
+// `account status` says the same as the gate's line for a refresh token that cannot be read: for a
+// user the system has no home directory for, to sign in once more after upgrading (#878).
+func TestDescribeStatusOfAnUnreadableRefreshToken(t *testing.T) {
+	until := time.Now().Add(time.Hour)
+	st := account.Status{State: account.StateGrace, Reason: account.ReasonKeyringUnavailable, GraceUntil: until, User: &account.User{Username: "ada"}}
+	account.SetUserHomeForTest(t, "")
+	got := DescribeStatus(st)
+	if !strings.Contains(got, " as ada until "+until.Local().Format(time.RFC3339)) || !strings.Contains(got, "Sign in once more after upgrading: monoagentcli account login") ||
+		strings.Contains(got, "could not be reached") {
+		t.Fatalf("%q", got)
+	}
+}

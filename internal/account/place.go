@@ -42,6 +42,10 @@ func IsProductionHost(host string) bool { return isProductionHost(host) }
 // (systemHome, by build). A test replaces it (SetUserHomeForTest).
 var userHome = systemHome
 
+// SystemHome is the home directory the system's user database gives this OS user, never $HOME:
+// "" or an error when it has none (on Linux without cgo, a user /etc/passwd has no entry for).
+func SystemHome() (string, error) { return userHome() }
+
 // OwnHome is the home directory the system gives this OS user, when $HOME is that directory. why
 // says otherwise, "" when it is: a HOME made for a test or an agent is not the user's, and neither
 // is any HOME of a user the system has no home directory for.

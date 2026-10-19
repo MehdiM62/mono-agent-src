@@ -257,3 +257,26 @@ func TestRefusalTextPerReason(t *testing.T) {
 		t.Errorf("not logged in: message %q, want the first line alone", got)
 	}
 }
+
+// keyring_unavailable is not an outage: the refresh token cannot be read here. Where the system has
+// no home directory for this OS user (an LDAP account, a container's arbitrary uid), the line says
+// plainly to sign in once more after upgrading: a sign-in saved by an earlier release cannot be
+// told from a copy there (#878).
+func TestTheGraceLineOfAnUnreadableRefreshToken(t *testing.T) {
+	enforceFrom, graceUntil := time.Now().Add(-time.Hour), time.Now().Add(time.Hour)
+	st := account.Status{State: account.StateGrace, Reason: account.ReasonKeyringUnavailable, Enforced: true, EnforceFrom: enforceFrom, GraceUntil: graceUntil}
+	for home, says := range map[string]string{
+		"":          "Sign in once more after upgrading: monoagentcli account login",
+		t.TempDir(): "Unlock the key store, or sign in once more: monoagentcli account login",
+	} {
+		account.SetUserHomeForTest(t, home)
+		var stderr bytes.Buffer
+		if err := testGate().judge(ClassGated, st, &stderr); err != nil {
+			t.Fatal(err)
+		}
+		if got := stderr.String(); !strings.HasPrefix(got, "This login cannot be renewed on this machine and works until "+graceUntil.Local().Format(time.RFC3339)+". ") ||
+			!strings.HasSuffix(got, says+"\n") || strings.Contains(got, "unreachable") {
+			t.Errorf("home %q: %q", home, got)
+		}
+	}
+}
