@@ -1727,5 +1727,18 @@
     "collapse": "Contraer {{name}}",
     "cardNote": "Se guarda cifrada en este equipo. Nunca se envía a una IA. Solo se rellena en un sitio web cuando pulsas Rellenar tarjeta en la extensión del navegador.",
     "filePicker": "Elegir un archivo"
+  },
+  "toolLinks": {
+    "open": "Abrir en {{tab}}",
+    "command": "Comando",
+    "vaultHidden": "Un comando de la bóveda: sus valores no se muestran aquí.",
+    "page": {
+      "tasks": "Tablero de tareas",
+      "people": "Personas",
+      "noderunner": "Flujos de trabajo",
+      "documents": "Documentos",
+      "secretsVault": "Bóveda",
+      "orgs": "Organizaciones"
+    }
   }
 }

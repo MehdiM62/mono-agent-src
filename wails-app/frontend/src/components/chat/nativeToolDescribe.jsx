@@ -3,6 +3,7 @@ import {
 } from 'lucide-react'
 import { Tag, Section, ResultSection, DiffView, PatchDiffView, patchLines, preStyle, sectionLabel, mono, CYAN } from './nativeToolParts.jsx'
 import { diffLines, diffStats } from './unifiedDiff.js'
+import { monoagentCommand, cliTitle } from './toolLinks.js'
 
 // How one native tool call reads: by the normalized kind every coder
 // runtime reports on tool.started (shell, edit, write, read, search, web,
@@ -49,12 +50,36 @@ function exitTag(call) {
 
 const errorOnFail = (call) => call.ok === false && <ResultSection call={call} label="Error" />
 
-function shell(call, args) {
+function shell(call, args, childCalls, renderChild, t) {
   const command = Array.isArray(args.command) ? args.command.join(' ') : (args.command ?? '')
+  const cli = monoagentCommand(command)
+  if (cli) return monoagentShell(call, args, command, cli, t)
   return {
     icon: Terminal, title: `$ ${command}`, titleMono: true, subtitle: args.description || (args.cwd ? `in ${args.cwd}` : undefined),
     tags: [...(args.run_in_background ? [<Tag key="bg" color="#fbbf24">background</Tag>] : []), ...exitTag(call)],
     body: <ResultSection call={call} />,
+  }
+}
+
+// monoagentShell is a shell call that runs monoagentcli on one of the app's
+// tabs (toolLinks.js): it reads as that tab with the command's subject, and
+// links to it (link.page). A vault command shows the entry's name only:
+// never its command line, which can carry a value, nor its output, except a
+// list's (names and metadata).
+function monoagentShell(call, args, command, cli, t) {
+  const vault = cli.family === 'vault'
+  return {
+    icon: Terminal, title: cliTitle(cli, t), subtitle: vault ? undefined : args.description,
+    tags: [...(args.run_in_background ? [<Tag key="bg" color="#fbbf24">background</Tag>] : []), ...exitTag(call)],
+    link: { page: cli.page },
+    body: vault ? (
+      cli.sub === 'list' ? <ResultSection call={call} /> : <span data-testid="vault-hidden" style={{ fontFamily: mono, fontSize: 10, color: 'var(--text-muted)' }}>{t('toolLinks.vaultHidden')}</span>
+    ) : (
+      <>
+        <Section label={t('toolLinks.command')} copyText={command}><pre style={preStyle}>{command}</pre></Section>
+        <ResultSection call={call} />
+      </>
+    ),
   }
 }
 
@@ -227,7 +252,8 @@ function other(call, args) {
 const BY_KIND = { shell, edit, write, read, search, web, patch, mcp, task, todo }
 
 // describe returns how one call's card reads: header icon + title (+ an
-// optional subtitle and tags), whether it starts open, and its body.
-export function describe(call, args, childCalls, renderChild) {
-  return (BY_KIND[kindOf(call)] || other)(call, args, childCalls, renderChild)
+// optional subtitle and tags), whether it starts open, its body, and the
+// app tab it links to (link: {page}), if any. t is the card's translator.
+export function describe(call, args, childCalls, renderChild, t = k => k) {
+  return (BY_KIND[kindOf(call)] || other)(call, args, childCalls, renderChild, t)
 }
