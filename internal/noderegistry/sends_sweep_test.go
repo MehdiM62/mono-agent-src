@@ -16,9 +16,10 @@ var proseKeys = map[string]bool{"subject": true, "body": true, "text": true, "ht
 
 // strays are the shapes an address or a phone number takes in a field
 // (security review of #871 round 3: the net read ASCII emails and +phones
-// only).
+// only; of sole-net-widen, N1: punctuation before or after the @).
 var strays = []string{"evil@attacker.test", "\u00fc@ex\u00e4mple.de", "evil@intranet", "evil@[10.0.0.1]",
-	"5550100199", "0044 20 7946 0000", "+1 (555) 010-0199", "evil\uff20attacker.test", "evil%40attacker.test"}
+	"5550100199", "0044 20 7946 0000", "+1 (555) 010-0199", "evil\uff20attacker.test", "evil%40attacker.test",
+	"evil'@attacker.test", `"evil"@attacker.test`, "evil(c)@attacker.test", "evil@(c)attacker.test"}
 
 // sweepOp checks one send op: with an always-allow rule for its recipient,
 // the plain send goes out, and the same send with an address (each of

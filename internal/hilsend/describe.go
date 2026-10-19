@@ -135,7 +135,8 @@ func classify(nodeType string, config map[string]interface{}) (target, bool) {
 	if c := classifierOf(); c != nil {
 		if s, ok := c.Classify(nodeType, config); ok {
 			return target{action: s.Action, text: s.Text, subject: s.Subject, to: s.To, channel: s.Channel, perItem: s.PerItem,
-				toLabel: s.ToLabel, toUnset: s.ToUnset, op: s.Op, show: s.Show, exprs: s.Exprs, undeclared: s.Undeclared, unsent: s.Unsent}, true
+				toLabel: s.ToLabel, toUnset: s.ToUnset, op: s.Op, show: s.Show, exprs: s.Exprs, undeclared: s.Undeclared, unsent: s.Unsent,
+				dest: destKeys[nodeType]}, true
 		}
 	}
 	return target{}, false

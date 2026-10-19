@@ -161,7 +161,7 @@ func Guard(ctx context.Context, nodeType string, in workflow.NodeInput, config m
 		// for a cc, a bcc, a second address or a different reply-to: every
 		// such send gets its card.
 		allowed = allowed && !p.payload.Recipient.Label && p.sole &&
-			st.Allowed(ctx, p.payload.Action, p.payload.Account.Platform, p.payload.Account.Handle, p.replay.Address)
+			st.Allowed(ctx, p.payload.Action, p.payload.Account.Platform, ruleAccount(p.payload.Account.Handle, p.replay.Connection), p.replay.Address)
 	}
 	if allowed && len(prepared) > 0 {
 		return nil, false, nil
@@ -227,8 +227,13 @@ func prepare(ctx context.Context, st Store, nodeType string, t target, who Prepa
 			Recipient: rec, Text: text, Subject: subject, Attachments: attachments(o.config), NodeType: nodeType,
 			Unreviewable: unreviewable, Host: hostOf(nodeType, o.config), FetchURL: fetchURLOf(nodeType, o.config),
 		}
-		out = append(out, prepared{payload: p, sole: soleRecipient(ctx, st, t, nodeType, o.config), replay: replay{
+		saved, connection := savedConnection(ctx, st, nodeType, o.config), ""
+		if saved != nil {
+			connection = saved.ID
+		}
+		out = append(out, prepared{payload: p, sole: soleRecipient(saved, t, nodeType, o.config), replay: replay{
 			NodeType: nodeType, Config: stripSecrets(o.config), Input: o.input, TextField: textField, SubjectKey: subjectField, Address: addr,
+			Connection: connection,
 		}})
 	}
 	return out

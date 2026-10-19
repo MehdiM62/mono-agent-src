@@ -87,6 +87,10 @@ func recipientLike(k string) bool {
 	return false
 }
 
+// RecipientLike is recipientLike, for the sends lint
+// (internal/noderegistry).
+func RecipientLike(k string) bool { return recipientLike(k) }
+
 // recipientSkeleton is k without format characters (a zero-width space
 // between "t" and "o"), compatibility-normalized, with look-alike letters
 // replaced by the Latin ones they imitate.

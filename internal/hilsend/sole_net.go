@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	"golang.org/x/text/unicode/norm"
 )
@@ -133,35 +134,113 @@ var addressRE = regexp.MustCompile(`[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0
 // netAddresses calls f with each email address and phone number in s, as
 // the content net compares them, and stops when f returns false (reporting
 // false). It reads s as a mail or phone app might: width variants folded
-// (a fullwidth at sign), %XX escapes decoded (evil%40x.test) and an address
-// literal's brackets dropped (user@[10.0.0.1]). Then, of what
-// scanAddresses finds, an address is a word with an @ inside it (a Unicode
-// local part or domain, a domain with no dot), lowercased, its last @
-// splitting it, its local part starting after a link's punctuation
-// (mailto:ada@…, ?to=ada@…) and its domain ending before a path or query;
-// a phone number is any number numberTokens reads (+1 555 010 0199, 0044…,
-// 5550100199, an id of as many digits), as its digits and its +. Links,
+// (a fullwidth at sign), %XX escapes decoded (evil%40x.test), and the
+// punctuation that would split a word at an @ dropped (atJoined:
+// "evil"@x.test, evil(c)@x.test, user@[10.0.0.1]). An address is a word
+// scanAddresses finds with an @ inside it (a Unicode local part or domain,
+// a domain with no dot), lowercased, its last @ splitting it, its local
+// part starting after a link's punctuation (mailto:ada@…, ?to=ada@…) and
+// its domain ending before a path or query. A phone number is a number
+// numberTokens reads (+1 555 010 0199, 0044…, 5550100199, an id of as many
+// digits), as its digits and its +, unless its digits are glued after a
+// letter (INC0012345, a tracking number's 1Z999AA1…; idDigits). Links,
 // handles, channels, UUIDs and IP literals are no one's address here:
 // destKeys and hostKeys judge where a send goes.
+//
+// It doesn't see (security review of sole-net-widen, N2 and N3): what has
+// no address's shape, as an @handle, a Matrix or Slack id, a UUID or an
+// account id (the key rules judge those, and every recipient-like key of a
+// send op is decided: TestEveryRecipientLikeKeyOfASendIsDecided); an
+// address spelled out ("evil at attacker dot test"), in base64 or as an
+// HTML entity (&#64;), or with a space before its @ (a handle then); a
+// number a config holds as a JSON number; and a phone number split into
+// single digits, by / or _, or by 4 spaces or more, or one under 7 digits
+// (a short code).
 func netAddresses(s string, f func(string) bool) bool {
-	s = strings.ReplaceAll(foldWidth(unescapePercent(s)), "@[", "@")
-	return scanAddresses(s, func(t string) bool {
-		if at := strings.LastIndexByte(t, '@'); at > 0 {
-			local := t[strings.LastIndexAny(t[:at], "/:?=&")+1 : at]
-			domain := t[at+1:]
-			if i := strings.IndexAny(domain, "/?#&"); i >= 0 {
-				domain = domain[:i]
-			}
-			if local == "" || domain == "" {
-				return true
-			}
-			return f(strings.ToLower(local + "@" + domain))
-		}
+	s = atJoined(foldWidth(unescapePercent(s)))
+	phone := func(t string) bool {
 		if d := strings.TrimPrefix(t, "+"); len(d) >= 7 && len(d) <= 20 && strings.Trim(d, "0123456789") == "" {
 			return f(t)
 		}
-		return true
+		return true // an IPv4 literal
+	}
+	if !numberTokens(idDigits(s), phone) {
+		return false
+	}
+	return scanAddresses(s, func(t string) bool {
+		at := strings.LastIndexByte(t, '@')
+		if at <= 0 {
+			return true // a number (read above), a handle, a link…
+		}
+		local := t[strings.LastIndexAny(t[:at], "/:?=&")+1 : at]
+		domain := t[at+1:]
+		if i := strings.IndexAny(domain, "/?#&"); i >= 0 {
+			domain = domain[:i]
+		}
+		if local == "" || domain == "" {
+			return true
+		}
+		return f(strings.ToLower(local + "@" + domain))
 	})
+}
+
+// atBreaks are the characters besides spaces that scanAddresses ends a
+// word at: next to an @, they would hide an address ("evil"@x.test reads
+// as the handle @x.test).
+const atBreaks = ",;\"'<>()[]{}|\\`"
+
+// atJoined is s with each run of atBreaks next to an @ dropped, on either
+// side: "evil"@x.test reads as evil@x.test, evil(c)@x.test as c@x.test,
+// evil@(c)x.test as evil@c, user@[10.0.0.1] as user@10.0.0.1. Whatever it
+// reads is an address, and one that isn't the recipient's gets the card.
+func atJoined(s string) string {
+	if !strings.Contains(s, "@") {
+		return s
+	}
+	drop := make([]bool, len(s))
+	for i := 0; i < len(s); i++ {
+		if s[i] != '@' {
+			continue
+		}
+		for j := i - 1; j >= 0 && strings.IndexByte(atBreaks, s[j]) >= 0; j-- {
+			drop[j] = true
+		}
+		for j := i + 1; j < len(s) && strings.IndexByte(atBreaks, s[j]) >= 0; j++ {
+			drop[j] = true
+		}
+	}
+	b := make([]byte, 0, len(s))
+	for i := 0; i < len(s); i++ {
+		if !drop[i] {
+			b = append(b, s[i])
+		}
+	}
+	return string(b)
+}
+
+// idDigits is s, its digits folded to ASCII, with each run of digits glued
+// after a letter masked (INC0012345 reads as INCxxxxxxx): an id's digits,
+// not a phone number's.
+func idDigits(s string) string {
+	s = foldDigits(s)
+	b := []byte(s)
+	for i := 0; i < len(b); {
+		if !isDigit(b[i]) {
+			i++
+			continue
+		}
+		j := i
+		for j < len(b) && isDigit(b[j]) {
+			j++
+		}
+		if r, _ := utf8.DecodeLastRuneInString(s[:i]); unicode.IsLetter(r) {
+			for k := i; k < j; k++ {
+				b[k] = 'x'
+			}
+		}
+		i = j
+	}
+	return string(b)
 }
 
 // unescapePercent is s with its %XX escapes decoded, any other % left as
@@ -189,7 +268,9 @@ func unescapePercent(s string) string {
 // (SenderKey) and the one recipient in to. Whatever key a node reads a
 // copy from, a rule never stands for a send that names anyone else. Only
 // a string is prose: an object under a prose key ({"message": {"to": …}},
-// Graph's message) is walked like any other.
+// Graph's message) is walked like any other. Under a time-like key
+// (timeKey: send_at, createdAt), 10 or 13 digits that read as a Unix time
+// are one (epoch), not a phone number.
 func strayAddress(t target, nodeType string, config map[string]interface{}, to map[string]bool) bool {
 	own := map[string]bool{}
 	for v := range to {
@@ -205,24 +286,24 @@ func strayAddress(t target, nodeType string, config map[string]interface{}, to m
 			prose[joined(leaf)] = true
 		}
 	}
-	// inProse: v is under a prose key, as itself or in a list.
-	var walk func(v interface{}, inProse bool, depth int) bool
-	walk = func(v interface{}, inProse bool, depth int) bool {
+	// v is under key; inProse: under a prose key, as itself or in a list.
+	var walk func(v interface{}, key string, inProse bool, depth int) bool
+	walk = func(v interface{}, key string, inProse bool, depth int) bool {
 		if depth > 8 {
 			return true // too deep to judge: the card decides
 		}
 		switch x := v.(type) {
 		case string:
-			return !inProse && !netAddresses(x, func(a string) bool { return own[a] })
+			return !inProse && !netAddresses(x, func(a string) bool { return own[a] || timeKey(key) && epoch(a) })
 		case []string:
 			for _, s := range x {
-				if walk(s, inProse, depth+1) {
+				if walk(s, key, inProse, depth+1) {
 					return true
 				}
 			}
 		case []interface{}:
 			for _, s := range x {
-				if walk(s, inProse, depth+1) {
+				if walk(s, key, inProse, depth+1) {
 					return true
 				}
 			}
@@ -231,12 +312,12 @@ func strayAddress(t target, nodeType string, config map[string]interface{}, to m
 				if senderWord(k) || (depth == 0 && SenderKey(nodeType, k)) {
 					continue
 				}
-				if walk(sub, prose[joined(k)], depth+1) {
+				if walk(sub, k, prose[joined(k)], depth+1) {
 					return true
 				}
 			}
 		}
 		return false
 	}
-	return walk(config, false, 0)
+	return walk(config, "", false, 0)
 }

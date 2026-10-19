@@ -80,7 +80,7 @@ func Resolve(ctx context.Context, st Store, id string, approve bool, edit Edit, 
 		if addr == "" {
 			addr = keyOf(p.Recipient)
 		}
-		if err := st.Allow(ctx, Allow{Action: p.Action, Platform: p.Account.Platform, Account: p.Account.Handle, Recipient: addr}); err != nil {
+		if err := st.Allow(ctx, Allow{Action: p.Action, Platform: p.Account.Platform, Account: ruleAccount(p.Account.Handle, rp.Connection), Recipient: addr}); err != nil {
 			return st.finishErr(ctx, p.ID, err)
 		}
 	}

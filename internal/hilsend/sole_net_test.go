@@ -102,8 +102,59 @@ func TestEveryCopyAndStrayAddressGetsACard(t *testing.T) {
 	}
 	// The recipient written with a display name names no one else either
 	// (a rule is keyed on the address as written, so this is the net alone).
-	if !soleRecipient(context.Background(), Store{}, target{to: []string{"to"}}, "comm.email_send", with(emailConfig(), "to", "Ada <ada@example.test>")) {
+	if !soleRecipient(nil, target{to: []string{"to"}}, "comm.email_send", with(emailConfig(), "to", "Ada <ada@example.test>")) {
 		t.Error("the recipient with a display name tripped the net")
+	}
+}
+
+// Punctuation that ends a word next to an @ hides no address: quotes, a
+// comment, brackets, braces, a pipe, a backslash, a backtick, a comma
+// (security review of sole-net-widen, N1: each read as the handle
+// @attacker.test). A quoted local part and a comment are valid addresses
+// (RFC 5322), and ', |, {, } and ` are legal in a local part.
+func TestAnAddressSplitAtItsAtGetsACard(t *testing.T) {
+	st := allowFor(t, "comm.email_send", emailConfig())
+	for _, a := range []string{"evil'@attacker.test", "evil|@attacker.test", "evil}@attacker.test", "evil{@attacker.test",
+		"evil`@attacker.test", `"evil"@attacker.test`, `"ev il"@attacker.test`, "evil(c)@attacker.test", "evil[x]@attacker.test",
+		`evil\@attacker.test`, "evil,@attacker.test", "evil;@attacker.test", "evil>@attacker.test", "evil@(c)attacker.test",
+		"evil@{attacker.test}", "note: (evil)@attacker.test"} {
+		if h, _ := held(t, st, "comm.email_send", with(emailConfig(), "notes", a)); !h {
+			t.Errorf("%s: went out without a card", a)
+		}
+	}
+	for _, a := range []string{`"Ada" <ada@example.test>`, "(ada@example.test)", "[ada@example.test]", "ping @ada", "<@U0123ABCD>"} {
+		if h, _ := held(t, st, "comm.email_send", with(emailConfig(), "notes", a)); h {
+			t.Errorf("%s: held, but it names no one else", a)
+		}
+	}
+}
+
+// An id's digits glued after a letter, and a Unix time under a time-like
+// key, are no phone number (security review of sole-net-widen, N4); the
+// same digits standing alone elsewhere still are.
+func TestIdsAndTimesAreNoPhoneNumbers(t *testing.T) {
+	st := allowFor(t, "comm.email_send", emailConfig())
+	for name, cfg := range map[string]map[string]interface{}{
+		"an incident number":         with(emailConfig(), "reference", "INC0012345"),
+		"a SKU":                      with(emailConfig(), "reference", "ABC1234567"),
+		"a tracking number":          with(emailConfig(), "reference", "1Z999AA10123456784"),
+		"Arabic-Indic digits of one": with(emailConfig(), "reference", "INC\u0660\u0660\u0661\u0662\u0663\u0664\u0665"),
+		"a Unix time in seconds":     with(emailConfig(), "send_at", "1760868000"),
+		"a Unix time in ms":          with(emailConfig(), "options", map[string]interface{}{"createdAt": "1760868000123"}),
+	} {
+		if h, _ := held(t, st, "comm.email_send", cfg); h {
+			t.Errorf("%s: held, but it names no one", name)
+		}
+	}
+	for name, cfg := range map[string]map[string]interface{}{
+		"a Unix time's digits under another key": with(emailConfig(), "reference", "1760868000"),
+		"a phone number under a time key":        with(emailConfig(), "send_at", "5550100199"),
+		"a phone number after an id":             with(emailConfig(), "reference", "INC0012345 5550100199"),
+		"a phone number after a + or a colon":    with(emailConfig(), "reference", "tel:+15550100199"),
+	} {
+		if h, _ := held(t, st, "comm.email_send", cfg); !h {
+			t.Errorf("%s: went out without a card", name)
+		}
 	}
 }
 
@@ -132,9 +183,8 @@ func TestAServerOtherThanTheConnectionsGetsACard(t *testing.T) {
 	}
 	st := allowIn(t, db, "comm.email_send", merged(own, "smtp.example.test"))
 	for name, cfg := range map[string]map[string]interface{}{
-		"the connection's server":              merged(own, "smtp.example.test"),
-		"the connection's server in caps":      with(merged(own, "smtp.example.test"), "smtp_host", "SMTP.example.test"),
-		"no server named (the node's default)": emailConfig(),
+		"the connection's server":         merged(own, "smtp.example.test"),
+		"the connection's server in caps": with(merged(own, "smtp.example.test"), "smtp_host", "SMTP.example.test"),
 	} {
 		if h, _ := held(t, st, "comm.email_send", cfg); h {
 			t.Errorf("%s: held", name)
@@ -148,9 +198,54 @@ func TestAServerOtherThanTheConnectionsGetsACard(t *testing.T) {
 		"a credential_id that resolves to none": merged("nope", "smtp.attacker.test"),
 		"another profile's connection":          merged(othersProfile, "smtp.attacker.test"),
 		"its own host and no connection":        with(emailConfig(), "smtp_host", "smtp.example.test"),
+		"no connection at all":                  emailConfig(),
 	} {
 		if h, _ := held(t, st, "comm.email_send", cfg); !h {
 			t.Errorf("%s: went out without a card", name)
+		}
+	}
+}
+
+// An email rule is bound to the saved connection it was granted on: a send
+// through another connection of the profile, on the same server or with
+// no server in its config, sends as another mailbox with another password
+// than the card's rule was for, so it gets its card (security review of
+// sole-net-widen, N5).
+func TestAnEmailRuleIsBoundToItsConnection(t *testing.T) {
+	asAgent(t)
+	db := commsDB(t)
+	save := func(password string) string {
+		c := &connections.Connection{Platform: "smtp", Method: connections.MethodAppPass, ProfileID: "p1",
+			Data: map[string]interface{}{"smtp_host": "smtp.example.test", "password": password}}
+		if err := connections.NewStore(db).Save(context.Background(), c); err != nil {
+			t.Fatal(err)
+		}
+		return c.ID
+	}
+	merged := func(id string) map[string]interface{} {
+		return with(emailConfig(), "credential_id", id, "smtp_host", "smtp.example.test",
+			"credential", map[string]interface{}{"smtp_host": "smtp.example.test", "password": "x"})
+	}
+	own := save("hunter2")
+	st := allowIn(t, db, "comm.email_send", merged(own))
+	if rules, _ := st.Allows(context.Background()); len(rules) != 1 || rules[0].Account != "me@example.test via connection "+own {
+		t.Errorf("rules %+v, want one on me@example.test via connection %s", rules, own)
+	}
+	for name, cfg := range map[string]map[string]interface{}{
+		"its connection":                     merged(own),
+		"its platform name, resolving to it": merged("smtp"),
+	} {
+		if h, _ := held(t, st, "comm.email_send", cfg); h {
+			t.Errorf("%s: held", name)
+		}
+	}
+	other := save("other-password")
+	for name, cfg := range map[string]map[string]interface{}{
+		"another connection, its server merged": merged(other),
+		"another connection, no server named":   with(emailConfig(), "credential_id", other),
+	} {
+		if h, _ := held(t, st, "comm.email_send", cfg); !h {
+			t.Errorf("%s: went out on the rule for %s", name, own)
 		}
 	}
 }
