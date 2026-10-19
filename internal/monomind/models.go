@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"slices"
 	"strings"
 	"time"
 )
@@ -36,11 +37,14 @@ type RuntimeModel struct {
 // the surprising/costly behavior this static list avoids triggering. The
 // Agent SDK's supportedModels() is the real list (what Claude Code's /model
 // picker shows); monomind exposes it as `agent models` (capability
-// agent-models, see listAgentModels), and this copy of it as of 2026-09-28
-// is only the fallback for a monomind without that capability.
+// agent-models, see listAgentModels), and this copy of it as of 2026-10-19
+// is the fallback for a monomind without that capability and the source of
+// models the live list is too old to know (see withBuiltinClaude).
 var claudeModels = []RuntimeModel{
 	{ID: "claude-opus-5-5", Label: "Opus 5.5", EffortLevels: []string{"low", "medium", "high", "xhigh", "max"}},
 	{ID: "claude-fable-5-1", Label: "Fable 5.1", EffortLevels: []string{"low", "medium", "high", "xhigh", "max"}},
+	{ID: "claude-sonnet-5-5", Label: "Sonnet 5.5", EffortLevels: []string{"low", "medium", "high", "xhigh", "max"}},
+	{ID: "claude-haiku-5-5", Label: "Haiku 5.5"},
 	{ID: "claude-sonnet-5", Label: "Sonnet 5", EffortLevels: []string{"low", "medium", "high", "xhigh", "max"}},
 	{ID: "claude-haiku-4-5-20251001", Label: "Haiku 4.5"},
 	{ID: "claude-opus-5", Label: "Opus 5", EffortLevels: []string{"low", "medium", "high", "xhigh", "max"}},
@@ -107,7 +111,9 @@ var curatedModels = map[string][]RuntimeModel{
 	}, openRouterFree("openrouter/", "Needs OPENROUTER_API_KEY", []string{"off", "low", "medium", "high"})...),
 }
 
-// ListModels returns the models selectable for runtimeID's --model flag.
+// ListModels returns the models selectable for runtimeID's --model flag, for
+// a picker. For claude that is the live list plus the built-in models it lacks
+// (withBuiltinClaude); ListModelsStrict is the runtime's list as it is.
 // antigravity and codex both have a real discovery command (see
 // listAntigravityModels/listCodexModels); claude falls back to the curated
 // list above. binary is the runtime's own resolved path (from a ScanEntry)
@@ -118,6 +124,9 @@ func ListModels(ctx context.Context, runtimeID, binary string) ([]RuntimeModel, 
 	models, err := ListModelsStrict(ctx, runtimeID, binary)
 	if errors.Is(err, ErrBuiltinModels) {
 		err = nil
+	}
+	if err == nil {
+		models = withBuiltinClaude(runtimeID, models)
 	}
 	return models, err
 }
@@ -153,6 +162,33 @@ func ListModelsStrict(ctx context.Context, runtimeID, binary string) ([]RuntimeM
 		return fallback, berr
 	}
 	return builtinModels(ctx, runtimeID, binary)
+}
+
+// withBuiltinClaude adds the built-in claude models that the live list lacks.
+// `agent models` asks the Claude Code that monomind selected, which can be a
+// release or two behind (monomind skips an installed claude it does not
+// trust and runs the SDK's bundled copy), so a model released since then —
+// Haiku 5.5 on Claude Code 2.1.289 — would be missing from the picker. A
+// built-in model counts as listed when its id is a live id or the concrete
+// model a live alias resolves to. Other runtimes' lists are returned as is.
+func withBuiltinClaude(runtimeID string, live []RuntimeModel) []RuntimeModel {
+	if runtimeID != "claude" {
+		return live
+	}
+	listed := make(map[string]bool, 2*len(live))
+	for _, m := range live {
+		listed[m.ID] = true
+		if m.ResolvedID != "" {
+			listed[m.ResolvedID] = true
+		}
+	}
+	out := slices.Clone(live)
+	for _, m := range claudeModels {
+		if !listed[m.ID] {
+			out = append(out, m)
+		}
+	}
+	return out
 }
 
 // hasStaticList reports whether runtimeID's built-in models are a curated list
