@@ -79,11 +79,12 @@ func PendingHIL(ctx context.Context, db *sql.DB, profileID, org string, doc *org
 	return items, rows.Err()
 }
 
-// toPerson passes on record's result for an item escalated to a person. A
-// HIL item then carries its org in node_config, so the org's bubble shows
-// it (asksFor) as it waits on the person. One the org settles by rule or by
-// its decider, or hands to a boss or parent role, stays untagged, on the
-// Human in Loop page only.
+// toPerson passes on record's result for an item left to a person:
+// escalated to one, or kept pending when its decider failed. A HIL item
+// then carries its org in node_config, so the org's bubble shows it
+// (asksFor) as it waits on the person. One the org settles by rule or by
+// its decider (a failure it denies included), or hands to a boss or parent
+// role, stays untagged, on the Human in Loop page only.
 func (s *Service) toPerson(ctx context.Context, profileID, org string, it Item) func(*Decision, error) (*Decision, error) {
 	return func(d *Decision, err error) (*Decision, error) {
 		if err != nil || it.Kind != KindHIL || s.DB == nil {
