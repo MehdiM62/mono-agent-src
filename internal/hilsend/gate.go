@@ -153,7 +153,7 @@ func Guard(ctx context.Context, nodeType string, in workflow.NodeInput, config m
 	if !Enabled(db) {
 		return nil, false, nil
 	}
-	prepared := prepare(st, nodeType, t, who, config, in)
+	prepared := prepare(ctx, st, nodeType, t, who, config, in)
 	allowed := true
 	for _, p := range prepared {
 		// A label ("the ticket's requester") names no destination a rule
@@ -193,7 +193,7 @@ type prepared struct {
 }
 
 // prepare turns one node call into the items it would send.
-func prepare(st Store, nodeType string, t target, who PreparedBy, config map[string]interface{}, input workflow.NodeInput) []prepared {
+func prepare(ctx context.Context, st Store, nodeType string, t target, who PreparedBy, config map[string]interface{}, input workflow.NodeInput) []prepared {
 	in := make([]map[string]interface{}, 0, len(input.Items))
 	for _, it := range input.Items {
 		in = append(in, it.JSON)
@@ -227,7 +227,7 @@ func prepare(st Store, nodeType string, t target, who PreparedBy, config map[str
 			Recipient: rec, Text: text, Subject: subject, Attachments: attachments(o.config), NodeType: nodeType,
 			Unreviewable: unreviewable,
 		}
-		out = append(out, prepared{payload: p, sole: soleRecipient(t, nodeType, o.config), replay: replay{
+		out = append(out, prepared{payload: p, sole: soleRecipient(ctx, st, t, nodeType, o.config), replay: replay{
 			NodeType: nodeType, Config: stripSecrets(o.config), Input: o.input, TextField: textField, SubjectKey: subjectField, Address: addr,
 		}})
 	}

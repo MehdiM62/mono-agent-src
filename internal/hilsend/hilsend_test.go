@@ -65,11 +65,12 @@ func ctxFor(db *sql.DB) context.Context {
 
 var emailConfig = func() map[string]interface{} {
 	return map[string]interface{}{
-		"smtp_host": "smtp.example.test", "from": "me@example.test", "to": "ada@example.test",
+		"from": "me@example.test", "to": "ada@example.test",
 		"subject": "Hello", "body": "Original body", "password": "hunter2",
-		// The saved connection a run merges in: its server is the one the
-		// config names (ownServer).
-		"credential": map[string]interface{}{"password": "hunter2", "extra": "x", "smtp_host": "smtp.example.test"}, "extra": "x",
+		// The connection data a run merges in. It names no server: one that
+		// a config names is its own only when it is its saved connection's
+		// (ownServer, TestAServerOtherThanTheConnectionsGetsACard).
+		"credential": map[string]interface{}{"password": "hunter2", "extra": "x"}, "extra": "x",
 	}
 }
 

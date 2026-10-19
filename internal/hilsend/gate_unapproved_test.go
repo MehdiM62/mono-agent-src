@@ -205,9 +205,6 @@ func TestUnapprovedWorkflowsSendFollowsTheRules(t *testing.T) {
 	if len(sent) != 1 || len(runs) != 1 {
 		t.Fatalf("approving twice sent %d time(s)", len(sent))
 	}
-	// smtp_host is the saved connection's (emailConfig's credential map),
-	// so the queued payload leaves it to the connection, as every field of
-	// it (stripSecrets).
 	want := map[string]interface{}{"to": "ada@example.test", "subject": "Hello", "body": "Hi Ada", "from": "me@example.test"}
 	for k, v := range want {
 		if !reflect.DeepEqual(sent[0][k], v) {

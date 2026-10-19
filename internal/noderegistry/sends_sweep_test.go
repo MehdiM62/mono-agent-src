@@ -14,10 +14,17 @@ import (
 // proseKeys mirror hilsend's: fields that say what a send says.
 var proseKeys = map[string]bool{"subject": true, "body": true, "text": true, "html": true, "message": true, "content": true, "title": true, "description": true}
 
+// strays are the shapes an address or a phone number takes in a field
+// (security review of #871 round 3: the net read ASCII emails and +phones
+// only).
+var strays = []string{"evil@attacker.test", "\u00fc@ex\u00e4mple.de", "evil@intranet", "evil@[10.0.0.1]",
+	"5550100199", "0044 20 7946 0000", "+1 (555) 010-0199", "evil\uff20attacker.test", "evil%40attacker.test"}
+
 // sweepOp checks one send op: with an always-allow rule for its recipient,
-// the plain send goes out, and the same send with an address in any other
-// field of its schema (not its recipient, text, subject or sender) gets a
-// card. It reports whether the op stands for a rule at all.
+// the plain send goes out, and the same send with an address (each of
+// strays) in any other field of its schema (not its recipient, text,
+// subject or sender) gets a card. It reports whether the op stands for a
+// rule at all.
 func sweepOp(t *testing.T, db *sql.DB, key, nodeType string, base map[string]interface{}, skip map[string]bool, fields []workflow.NodeSchemaField) (ruled bool, checked int) {
 	t.Helper()
 	st := hilsend.Store{DB: db, Profile: "default"}
@@ -49,24 +56,25 @@ func sweepOp(t *testing.T, db *sql.DB, key, nodeType string, base map[string]int
 	}
 	for _, f := range fields {
 		k := f.Key
-		if k == "" || skip[k] || proseKeys[strings.ToLower(k)] || hilsend.SenderKey(nodeType, k) {
+		collection := f.Type == "collection" || f.Type == "fixedCollection" || f.Type == "json" || f.Type == "code"
+		// Only a string under a prose key is prose: an object there is
+		// read like any other (Graph's message holds recipients).
+		if k == "" || skip[k] || !collection && proseKeys[strings.ToLower(k)] || hilsend.SenderKey(nodeType, k) {
 			continue
 		}
-		cfg := map[string]interface{}{}
-		for bk, bv := range base {
-			cfg[bk] = bv
-		}
-		cfg = cloneDeep(cfg)
-		switch f.Type {
-		case "collection", "fixedCollection", "json", "code":
-			// A collection holds options: add one beside the ones the op's
-			// conditions set (options.sendUpdates), never in their place.
-			setParam(cfg, k+".email", "evil@attacker.test")
-		default:
-			setParam(cfg, k, "evil@attacker.test")
-		}
-		if h, _ := guard(cfg); !h {
-			t.Errorf("%s: an address in %q (%s) went out on the rule for the recipient", key, k, f.Type)
+		for _, stray := range strays {
+			cfg := cloneDeep(base)
+			if collection {
+				// A collection holds options: add one beside the ones the
+				// op's conditions set (options.sendUpdates), never in their
+				// place.
+				setParam(cfg, k+".email", stray)
+			} else {
+				setParam(cfg, k, stray)
+			}
+			if h, _ := guard(cfg); !h {
+				t.Errorf("%s: %q in %q (%s) went out on the rule for the recipient", key, stray, k, f.Type)
+			}
 		}
 		checked++
 	}

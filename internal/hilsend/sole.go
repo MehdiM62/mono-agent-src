@@ -1,8 +1,11 @@
 package hilsend
 
 import (
+	"context"
 	"net/url"
 	"strings"
+
+	"github.com/monoes/mono-agent/internal/connections"
 )
 
 // destKeys are, per node type (the canonical type that runs it: Guard
@@ -24,19 +27,35 @@ var destKeys = map[string][]string{
 }
 
 // hostKeys are, per node type, the keys that name the server a send goes
-// through. A send through a server other than its saved connection's (the
-// "credential" map the run merges into the config) is one more
-// destination: it would take the message, and the connection's password
-// with it.
+// through. A send through a server other than its saved connection's is
+// one more destination: it would take the message, and the connection's
+// password with it.
 var hostKeys = map[string][]string{"comm.email_send": {"smtp_host"}}
 
-// ownServer reports whether every host key of nodeType names the saved
-// connection's own server.
-func ownServer(nodeType string, config map[string]interface{}) bool {
-	cred, _ := config["credential"].(map[string]interface{})
+// ownServer reports whether every host key of nodeType that config sets
+// names the server of the saved connection its credential_id resolves to,
+// under st's profile, as the run resolves it. The "credential" map in the
+// config proves nothing (whoever writes the config can write it too): a
+// host with no saved connection behind it is not the send's own.
+func ownServer(ctx context.Context, st Store, nodeType string, config map[string]interface{}) bool {
+	var saved *connections.Connection
 	for _, k := range hostKeys[nodeType] {
 		v := str(config[k])
-		if v != "" && !strings.EqualFold(v, str(cred[k])) {
+		if v == "" {
+			continue
+		}
+		if saved == nil {
+			id := str(config["credential_id"])
+			if id == "" {
+				return false
+			}
+			conn, err := connections.NewStore(st.DB).GetOrResolve(ctx, id, st.Profile)
+			if err != nil || conn == nil {
+				return false
+			}
+			saved = conn
+		}
+		if !strings.EqualFold(v, str(saved.Data[k])) {
 			return false
 		}
 	}
@@ -112,7 +131,7 @@ func webhookHost(config map[string]interface{}) string {
 //   - and, the net under all of these, no address or phone number anywhere
 //     else in the config but its text, its sender and that recipient
 //     (strayAddress).
-func soleRecipient(t target, nodeType string, config map[string]interface{}) bool {
+func soleRecipient(ctx context.Context, st Store, t target, nodeType string, config map[string]interface{}) bool {
 	if t.fixed != "" || t.ruleless || truthy(config["reply_all"]) || (len(t.to) == 0 && !t.social) {
 		return false
 	}
@@ -124,7 +143,7 @@ func soleRecipient(t target, nodeType string, config map[string]interface{}) boo
 			to[strings.ToLower(v)] = true
 		}
 	}
-	if len(to) > 1 || !ownServer(nodeType, config) {
+	if len(to) > 1 || !ownServer(ctx, st, nodeType, config) {
 		return false
 	}
 	return !extraRecipients(config, "", to, own, 0) && !strayAddress(t, nodeType, config, to)

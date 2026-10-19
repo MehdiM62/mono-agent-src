@@ -4,6 +4,8 @@ import (
 	"context"
 	"slices"
 	"testing"
+
+	"github.com/monoes/mono-agent/internal/connections"
 )
 
 func TestKeyWordsSplitAKeyLikeAReader(t *testing.T) {
@@ -57,6 +59,22 @@ func TestEveryCopyAndStrayAddressGetsACard(t *testing.T) {
 		"a note":                      with(emailConfig(), "notes", "also tell "+evil),
 		"a phone number":              with(emailConfig(), "sms_backup", "+1 555 0100 999"),
 		"another server":              with(emailConfig(), "smtp_host", "smtp.attacker.test"),
+		// Every shape an address or a number takes (security review of #871
+		// round 3: the net read ASCII emails and +phones only).
+		"a Unicode address":     with(emailConfig(), "notes", "\u00fc@ex\u00e4mple.de"),
+		"a dotless domain":      with(emailConfig(), "notes", "evil@intranet"),
+		"a bracketed IP":        with(emailConfig(), "notes", "evil@[10.0.0.1]"),
+		"a bracketed IPv6":      with(emailConfig(), "notes", "evil@[IPv6:2001:db8::1]"),
+		"a plain phone number":  with(emailConfig(), "sms_backup", "5550100199"),
+		"a 00 phone number":     with(emailConfig(), "sms_backup", "0044 20 7946 0000"),
+		"a fullwidth at":        with(emailConfig(), "notes", "evil\uff20attacker.test"),
+		"a percent-encoded at":  with(emailConfig(), "notes", "evil%40attacker.test"),
+		"an address in a link":  with(emailConfig(), "callback", "https://x.test/hook?to=evil@attacker.test"),
+		"a recipient last of @": with(emailConfig(), "notes", "ada@example.test@attacker.test"),
+		// Only a string is prose: Graph's message object holds recipients.
+		"an object under message": with(emailConfig(), "message", map[string]interface{}{"to": evil}),
+		"an object under body":    with(emailConfig(), "body", map[string]interface{}{"address": evil}),
+		"objects in content":      with(emailConfig(), "content", []interface{}{map[string]interface{}{"to": evil}}),
 	} {
 		if h, _ := held(t, st, "comm.email_send", cfg); !h {
 			t.Errorf("%s: went out without a card", name)
@@ -67,6 +85,10 @@ func TestEveryCopyAndStrayAddressGetsACard(t *testing.T) {
 		"an address in the subject": with(emailConfig(), "subject", "Re: "+evil),
 		"the sender's login":        with(emailConfig(), "username", "me@example.test"),
 		"a thread id":               with(emailConfig(), "in_reply_to", "<abc@mail.example.test>"),
+		"strings in a list of text": with(emailConfig(), "content", []interface{}{"Write to " + evil}),
+		"the recipient, escaped":    with(emailConfig(), "notes", "ada%40example.test and ADA\uff20example.test"),
+		"a profile link":            with(emailConfig(), "link", "https://social.example.test/@ada"),
+		"a date and an IP":          with(emailConfig(), "notes", "on 2026-10-19 from 10.0.0.1"),
 	} {
 		if h, _ := held(t, st, "comm.email_send", cfg); h {
 			t.Errorf("%s: held, but it names no one else", name)
@@ -74,40 +96,69 @@ func TestEveryCopyAndStrayAddressGetsACard(t *testing.T) {
 	}
 	// The recipient written with a display name names no one else either
 	// (a rule is keyed on the address as written, so this is the net alone).
-	if !soleRecipient(target{to: []string{"to"}}, "comm.email_send", with(emailConfig(), "to", "Ada <ada@example.test>")) {
+	if !soleRecipient(context.Background(), Store{}, target{to: []string{"to"}}, "comm.email_send", with(emailConfig(), "to", "Ada <ada@example.test>")) {
 		t.Error("the recipient with a display name tripped the net")
 	}
 }
 
 // smtp_host names the server a send goes through: one other than the saved
-// connection's, or one set with no connection to compare, is one more
-// destination (it would take the connection's password too), so the send
-// gets its card whatever a rule says.
+// connection's is one more destination (it would take the connection's
+// password too), and so is one with no saved connection behind it,
+// whatever the config's credential map says, since whoever writes the
+// config writes that map too (security review of #871 round 3). Either way
+// the send gets its card whatever a rule says.
 func TestAServerOtherThanTheConnectionsGetsACard(t *testing.T) {
-	st := allowFor(t, "comm.email_send", emailConfig())
-	noConnection := emailConfig()
-	delete(noConnection, "credential")
+	asAgent(t)
+	db := commsDB(t)
+	save := func(profile, host string) string {
+		c := &connections.Connection{Platform: "smtp", Method: connections.MethodAppPass, ProfileID: profile,
+			Data: map[string]interface{}{"smtp_host": host, "password": "hunter2"}}
+		if err := connections.NewStore(db).Save(context.Background(), c); err != nil {
+			t.Fatal(err)
+		}
+		return c.ID
+	}
+	own, othersProfile := save("p1", "smtp.example.test"), save("p2", "smtp.attacker.test")
+	// A config as a run merges its connection in (mergeCredential).
+	merged := func(id, host string) map[string]interface{} {
+		return with(emailConfig(), "credential_id", id, "smtp_host", host,
+			"credential", map[string]interface{}{"smtp_host": host, "password": "hunter2"})
+	}
+	st := allowIn(t, db, "comm.email_send", merged(own, "smtp.example.test"))
 	for name, cfg := range map[string]map[string]interface{}{
-		"another host":           with(emailConfig(), "smtp_host", "smtp.attacker.test"),
-		"no connection to match": noConnection,
+		"the connection's server":              merged(own, "smtp.example.test"),
+		"the connection's server in caps":      with(merged(own, "smtp.example.test"), "smtp_host", "SMTP.example.test"),
+		"no server named (the node's default)": emailConfig(),
+	} {
+		if h, _ := held(t, st, "comm.email_send", cfg); h {
+			t.Errorf("%s: held", name)
+		}
+	}
+	noID := merged("", "smtp.attacker.test")
+	delete(noID, "credential_id")
+	for name, cfg := range map[string]map[string]interface{}{
+		"another host":                          with(merged(own, "smtp.example.test"), "smtp_host", "smtp.attacker.test"),
+		"a credential map and no connection":    noID,
+		"a credential_id that resolves to none": merged("nope", "smtp.attacker.test"),
+		"another profile's connection":          merged(othersProfile, "smtp.attacker.test"),
+		"its own host and no connection":        with(emailConfig(), "smtp_host", "smtp.example.test"),
 	} {
 		if h, _ := held(t, st, "comm.email_send", cfg); !h {
 			t.Errorf("%s: went out without a card", name)
 		}
 	}
-	if h, _ := held(t, st, "comm.email_send", with(emailConfig(), "smtp_host", "SMTP.example.test")); h {
-		t.Error("the connection's own server, in another case, was held")
-	}
 }
 
 // A rule is bound to the sending account a node names besides from:
-// WhatsApp's phone_number_id and Graph's send-as mailbox.
+// WhatsApp's phone_number_id and Graph's send-as mailbox. The business
+// number's id reads as a phone number, and it is the sender's: the net
+// reads past it.
 func TestARuleIsBoundToTheSendingNumberAndMailbox(t *testing.T) {
 	for _, c := range []struct {
 		node, key, other string
 		base             map[string]interface{}
 	}{
-		{"comm.whatsapp", "phone_number_id", "p2", map[string]interface{}{"operation": "send_message", "phone_number_id": "p1", "to": "+15550001", "message": "hi"}},
+		{"comm.whatsapp", "phone_number_id", "106540352242923", map[string]interface{}{"operation": "send_message", "phone_number_id": "106540352242922", "to": "+15550001", "message": "hi"}},
 		{"service.outlook_mail", "mailbox", "boss@example.test", map[string]interface{}{"operation": "send_message", "access_token": "x", "mailbox": "me@example.test", "to": "ada@example.test", "body": "hi"}},
 	} {
 		st := allowFor(t, c.node, c.base)

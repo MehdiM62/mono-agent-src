@@ -69,7 +69,7 @@ func TestSoleRecipientReadsEveryShape(t *testing.T) {
 		{"a cc", map[string]interface{}{"to": "ada@x.test", "Cc": "bo@x.test"}, false},
 		{"a reply-to object", map[string]interface{}{"to": "ada@x.test", "replyTo": map[string]interface{}{"address": "bo@x.test"}}, false},
 	} {
-		if got := soleRecipient(email, "comm.email_send", c.config); got != c.want {
+		if got := soleRecipient(context.Background(), Store{}, email, "comm.email_send", c.config); got != c.want {
 			t.Errorf("%s: soleRecipient = %v, want %v", c.name, got, c.want)
 		}
 	}

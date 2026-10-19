@@ -3,6 +3,7 @@ package hilsend
 import (
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -15,12 +16,7 @@ import (
 // invisible characters dropped first, so a fullwidth or zero-width-split
 // key reads as the key it imitates.
 func keyWords(k string) []string {
-	k = strings.Map(func(r rune) rune {
-		if unicode.Is(unicode.Cf, r) {
-			return -1
-		}
-		return r
-	}, norm.NFKC.String(k))
+	k = foldWidth(k)
 	var words []string
 	var cur []rune
 	rs := []rune(k)
@@ -49,6 +45,17 @@ func keyWords(k string) []string {
 }
 
 func joined(k string) string { return strings.Join(keyWords(k), "") }
+
+// foldWidth is s with its width variants folded (a fullwidth CC or at
+// sign reads as the ASCII one) and its invisible characters dropped.
+func foldWidth(s string) string {
+	return strings.Map(func(r rune) rune {
+		if unicode.Is(unicode.Cf, r) {
+			return -1
+		}
+		return r
+	}, norm.NFKC.String(s))
+}
 
 // listKeys name lists of recipients (any case, separators ignored).
 var listKeys = map[string]bool{
@@ -85,8 +92,9 @@ var proseKeys = []string{"subject", "body", "text", "html", "message", "content"
 var senderWords = []string{"from", "sender", "account", "username", "login", "identifier", "author", "owner", "mailbox", "credential", "credentials", "password", "token", "secret"}
 
 // senderKeys are, per (canonical) node type, more top-level keys that name
-// the sending side: Outlook's app-password login.
-var senderKeys = map[string][]string{"service.outlook_mail": {"email"}}
+// the sending side: Outlook's app-password login, and the WhatsApp
+// business number a message goes out from.
+var senderKeys = map[string][]string{"service.outlook_mail": {"email"}, "comm.whatsapp": {"phone_number_id"}}
 
 // threadKeys name a message or thread id (a Message-ID looks like an
 // address).
@@ -115,31 +123,73 @@ func senderWord(key string) bool {
 // addressRE finds an email address or a +phone number.
 var addressRE = regexp.MustCompile(`[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}|\+[0-9][0-9 ().-]{6,}[0-9]`)
 
-// addressKey is an address as compared: an email lowercased, a phone
-// number as + and its digits.
-func addressKey(a string) string {
-	if strings.Contains(a, "@") {
-		return strings.ToLower(a)
-	}
-	return "+" + strings.Map(func(r rune) rune {
-		if r >= '0' && r <= '9' {
-			return r
+// netAddresses calls f with each email address and phone number in s, as
+// the content net compares them, and stops when f returns false (reporting
+// false). It reads s as a mail or phone app might: width variants folded
+// (a fullwidth at sign), %XX escapes decoded (evil%40x.test) and an address
+// literal's brackets dropped (user@[10.0.0.1]). Then, of what
+// scanAddresses finds, an address is a word with an @ inside it (a Unicode
+// local part or domain, a domain with no dot), lowercased, its last @
+// splitting it, its local part starting after a link's punctuation
+// (mailto:ada@…, ?to=ada@…) and its domain ending before a path or query;
+// a phone number is any number numberTokens reads (+1 555 010 0199, 0044…,
+// 5550100199, an id of as many digits), as its digits and its +. Links,
+// handles, channels, UUIDs and IP literals are no one's address here:
+// destKeys and hostKeys judge where a send goes.
+func netAddresses(s string, f func(string) bool) bool {
+	s = strings.ReplaceAll(foldWidth(unescapePercent(s)), "@[", "@")
+	return scanAddresses(s, func(t string) bool {
+		if at := strings.LastIndexByte(t, '@'); at > 0 {
+			local := t[strings.LastIndexAny(t[:at], "/:?=&")+1 : at]
+			domain := t[at+1:]
+			if i := strings.IndexAny(domain, "/?#&"); i >= 0 {
+				domain = domain[:i]
+			}
+			if local == "" || domain == "" {
+				return true
+			}
+			return f(strings.ToLower(local + "@" + domain))
 		}
-		return -1
-	}, a)
+		if d := strings.TrimPrefix(t, "+"); len(d) >= 7 && len(d) <= 20 && strings.Trim(d, "0123456789") == "" {
+			return f(t)
+		}
+		return true
+	})
+}
+
+// unescapePercent is s with its %XX escapes decoded, any other % left as
+// it is.
+func unescapePercent(s string) string {
+	if !strings.Contains(s, "%") {
+		return s
+	}
+	var b strings.Builder
+	for i := 0; i < len(s); i++ {
+		if s[i] == '%' && i+2 < len(s) && isHex(s[i+1]) && isHex(s[i+2]) {
+			n, _ := strconv.ParseUint(s[i+1:i+3], 16, 8)
+			b.WriteByte(byte(n))
+			i += 2
+			continue
+		}
+		b.WriteByte(s[i])
+	}
+	return b.String()
 }
 
 // strayAddress is the net under the key rules: it reports an address or a
-// phone number in any string of the config but the op's text (its text and
-// subject params, and proseKeys), its sender (SenderKey) and the one
-// recipient in to. Whatever key a node reads a copy from, a rule never
-// stands for a send that names anyone else.
+// phone number (netAddresses) in any string of the config but the op's
+// text (its text and subject params, and proseKeys), its sender
+// (SenderKey) and the one recipient in to. Whatever key a node reads a
+// copy from, a rule never stands for a send that names anyone else. Only
+// a string is prose: an object under a prose key ({"message": {"to": …}},
+// Graph's message) is walked like any other.
 func strayAddress(t target, nodeType string, config map[string]interface{}, to map[string]bool) bool {
 	own := map[string]bool{}
 	for v := range to {
-		for _, a := range addressRE.FindAllString(v, -1) {
-			own[addressKey(a)] = true
-		}
+		netAddresses(v, func(a string) bool {
+			own[a] = true
+			return true
+		})
 	}
 	prose := map[string]bool{}
 	for _, k := range append(append(append([]string{}, t.text...), t.subject...), proseKeys...) {
@@ -148,41 +198,38 @@ func strayAddress(t target, nodeType string, config map[string]interface{}, to m
 			prose[joined(leaf)] = true
 		}
 	}
-	var walk func(v interface{}, key string, depth int) bool
-	walk = func(v interface{}, key string, depth int) bool {
+	// inProse: v is under a prose key, as itself or in a list.
+	var walk func(v interface{}, inProse bool, depth int) bool
+	walk = func(v interface{}, inProse bool, depth int) bool {
 		if depth > 8 {
 			return true // too deep to judge: the card decides
 		}
 		switch x := v.(type) {
 		case string:
-			for _, a := range addressRE.FindAllString(x, -1) {
-				if !own[addressKey(a)] {
-					return true
-				}
-			}
+			return !inProse && !netAddresses(x, func(a string) bool { return own[a] })
 		case []string:
 			for _, s := range x {
-				if walk(s, key, depth+1) {
+				if walk(s, inProse, depth+1) {
 					return true
 				}
 			}
 		case []interface{}:
 			for _, s := range x {
-				if walk(s, key, depth+1) {
+				if walk(s, inProse, depth+1) {
 					return true
 				}
 			}
 		case map[string]interface{}:
 			for k, sub := range x {
-				if prose[joined(k)] || senderWord(k) || (depth == 0 && SenderKey(nodeType, k)) {
+				if senderWord(k) || (depth == 0 && SenderKey(nodeType, k)) {
 					continue
 				}
-				if walk(sub, k, depth+1) {
+				if walk(sub, prose[joined(k)], depth+1) {
 					return true
 				}
 			}
 		}
 		return false
 	}
-	return walk(config, "", 0)
+	return walk(config, false, 0)
 }

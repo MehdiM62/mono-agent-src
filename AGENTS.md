@@ -2733,10 +2733,14 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
   matches no rule either, nor does an op with no recipient param of its own
   (Mastodon, Bluesky, dev.to, Hashnode, Product Hunt and YouTube posts and
   comments). Beside the key rules a content net holds: a send with an
-  address or a +phone number anywhere in its config but its text, its
-  sender and its one recipient gets the card (`hilsend.strayAddress`), and
-  so does an email through a server other than its saved connection's
-  (`smtp_host`). The rule's account is the sending number or mailbox when a
+  address or a phone number anywhere in its config but its text, its
+  sender and its one recipient gets the card (`hilsend.strayAddress`, read
+  by `netAddresses` on the show-card recogniser: Unicode and dotless
+  domains, bracketed IPs, fullwidth and `%40` at signs, plain, `00` and `+`
+  numbers; only a string under a text key is text, an object there is
+  read), and so does an email through a server other than the one of the
+  saved connection its `credential_id` resolves to (`smtp_host`,
+  `ownServer`; with none resolved, the server is not its own). The rule's account is the sending number or mailbox when a
   node names one (WhatsApp's `phone_number_id`, Graph's send-as `mailbox`).
   The card names the address the send goes to; the People row matched to
   that whole address (never a substring of a contact) is a tag beside it
