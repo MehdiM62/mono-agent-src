@@ -506,7 +506,7 @@ func TestSharedWritersAreUnchanged(t *testing.T) {
 		if b, _ := os.ReadFile(filepath.Join(repo, ".git", "info", "exclude")); strings.Contains(string(b), WorktreeDirName) {
 			t.Errorf("%q: the exclude file was changed", writers)
 		}
-		for _, tool := range ToolSpecs() {
+		for _, tool := range ToolSpecs(true) {
 			if tool.Name == ToolMerge {
 				t.Error("org_merge must only be given with isolated writers")
 			}

@@ -79,6 +79,12 @@ type Conductor struct {
 	mergeMu sync.Mutex
 	// subagents journals the workers' native subagents (monomind#387).
 	subagents Subagents
+	// The workers' profile context (ProfileContext), kept once per turn and
+	// asked for again after org_roster: its database queries and the
+	// extension probe would otherwise run at every spawn (profileContext).
+	profileMu    sync.Mutex
+	profileText  string
+	profileFresh bool
 }
 
 type worker struct {

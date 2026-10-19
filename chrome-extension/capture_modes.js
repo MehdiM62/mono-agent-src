@@ -104,6 +104,7 @@
     }
     const title = result.title ? `: ${result.title}` : "";
     const summary = MODES[mode] && MODES[mode].summarize ? " — the summary is being written" : "";
+    if (result.held) return { level: "warn", text: `${what} saved${title} — it waits for a profile: create one in MonoAgent` };
     if (result.queued) return { level: "warn", text: `${what} saved offline${title} — it goes to MonoAgent when the bridge is back${summary}` };
     const warn = (result.warnings || []).length;
     return {

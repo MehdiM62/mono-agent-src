@@ -38,17 +38,23 @@ func BootAutomations(home string) (*automation.Registry, error) {
 	if home == "" {
 		defaultBootTried = true
 	}
-	if bootedReg != nil && bootedHome == home {
+	// The cache is keyed by the directory itself: "" is the default home as
+	// $HOME has it now, which a test (or anything else) may have moved.
+	dir := home
+	if dir == "" {
+		var err error
+		if dir, err = automation.DefaultHome(); err != nil {
+			return nil, fmt.Errorf("open automation registry: %w", err)
+		}
+	}
+	if bootedReg != nil && bootedHome == dir {
+		// The loader is the boot's: put it back, whatever set it since.
+		action.SetDefSource(bootedReg.DefSource())
+		browser.SetStartURLResolver(packageStartURL)
 		return bootedReg, nil
 	}
 
-	var reg *automation.Registry
-	var err error
-	if home == "" {
-		reg, err = automation.Default()
-	} else {
-		reg, err = automation.Open(home)
-	}
+	reg, err := automation.Open(dir)
 	if err != nil {
 		return nil, fmt.Errorf("open automation registry: %w", err)
 	}
@@ -65,7 +71,7 @@ func BootAutomations(home string) (*automation.Registry, error) {
 
 	action.SetDefSource(src)
 	browser.SetStartURLResolver(packageStartURL)
-	bootedHome, bootedReg = home, reg
+	bootedHome, bootedReg = dir, reg
 	return reg, nil
 }
 

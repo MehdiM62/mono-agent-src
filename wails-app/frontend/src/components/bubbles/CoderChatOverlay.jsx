@@ -51,7 +51,7 @@ function prefersReducedMotion() {
 // them stop a running turn; the × closes the chat (onCloseChat, which
 // asks first when a turn is running). originRect is the bubble's screen rectangle, so
 // the overlay grows out of it.
-export function CoderChatOverlay({ bubble, store, originRect, onCollapse, onCloseChat, onNavigate }) {
+export function CoderChatOverlay({ bubble, store, originRect, onCollapse, onCloseChat, onNavigate, titleOf = folderName }) {
   const { t } = useTranslation()
   const view = store.getView(bubble.key)
   const [closing, setClosing] = useState(false)
@@ -172,7 +172,7 @@ export function CoderChatOverlay({ bubble, store, originRect, onCollapse, onClos
     }
   }, [liveConvId, liveTurnId, t])
 
-  const title = bubble.cwd ? folderName(bubble.cwd) : t('bubbles.newChat')
+  const title = bubble.cwd ? titleOf(bubble.cwd) : t('bubbles.newChat')
   const runtime = bubble.conversationId ? bubble.runtime : setup.runtime
   const model = bubble.model || setup.model
 
@@ -248,7 +248,7 @@ export function CoderChatOverlay({ bubble, store, originRect, onCollapse, onClos
           {selectedNode && (
             <StageDrawer node={selectedNode} calls={shown?.state?.agentCalls} leadInfo={{ runtime, model, effort: bubble.effort || setup.effort }}
               turnId={shown?.turnId || ''} isLive={!!shown?.isLive} onClose={() => setSelectedAgent(null)}
-              onStop={liveConvId && liveTurnId ? stopAgent : undefined} />
+              onStop={liveConvId && liveTurnId ? stopAgent : undefined} onNavigate={onNavigate} />
           )}
         </div>
       </div>

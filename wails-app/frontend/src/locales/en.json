@@ -1269,7 +1269,8 @@
       "mcp": "using {{name}}",
       "todo": "updating its plan",
       "org": "running the team: {{name}}",
-      "other": "using {{name}}"
+      "other": "using {{name}}",
+      "vault": "running a vault command (hidden)"
     },
     "pickConfidence": "role pick {{value}}",
     "jevConfidence": "model pick {{value}}",
@@ -1769,5 +1770,19 @@
     "collapse": "Collapse {{name}}",
     "cardNote": "Stored encrypted on this computer. Never sent to an AI. It is filled into a website only when you press Fill card in the browser extension.",
     "filePicker": "Choose a file"
+  },
+  "toolLinks": {
+    "open": "Open in {{tab}}",
+    "command": "Command",
+    "vaultHidden": "A vault command: its values are not shown here.",
+    "vaultRelated": "Vault-related command (hidden)",
+    "page": {
+      "tasks": "Task board",
+      "people": "People",
+      "noderunner": "Workflows",
+      "documents": "Documents",
+      "secretsVault": "Vault",
+      "orgs": "Orgs"
+    }
   }
 }

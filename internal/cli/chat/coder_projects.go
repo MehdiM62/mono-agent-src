@@ -189,7 +189,7 @@ func changeCoderProjects(cmd *cobra.Command, cfg *Deps, change func([]coderProje
 	if err := refuseInAgent("changing which folder a site's coder chats use"); err != nil {
 		return err
 	}
-	if err := cfg.RequireOperator("change which folder a site's coder chats use"); err != nil {
+	if err := clicore.RequireOperator(cfg.RequireOperator, "change which folder a site's coder chats use"); err != nil {
 		return err
 	}
 	db, err := cfg.OpenDB()

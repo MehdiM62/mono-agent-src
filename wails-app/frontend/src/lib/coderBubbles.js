@@ -4,6 +4,9 @@
 // here is plain data in, plain data out, so the rules are unit-testable
 // without React or Wails.
 
+import { vaultRelatedCall } from '../components/chat/toolLinks.js'
+import { maskCredentials } from '../components/chat/credentials.js'
+
 export const MAX_VISIBLE = 6
 export const STORAGE_KEY = 'monoagent:coderBubbles:v1'
 
@@ -181,6 +184,18 @@ export function shouldCollapseOnBackdrop({ pressStartedOnBackdrop, selectionText
 
 // monogram is the bubble's two-letter label from a folder name
 // ("20260927-brisk-otter" → "BO", "mono-agent" → "MA", "api" → "AP").
+// profileFolderName is the name of the profile whose own folder cwd is, or
+// '' (#477): a coder chat started in a profile works in that profile's
+// folder, usually ~/.monoagent/profiles/<id>, whose last segment is an id
+// nobody reads. A folder inside a profile's is named as itself.
+export function profileFolderName(cwd, profiles) {
+  const norm = p => String(p || '').replace(/[\\/]+$/, '')
+  const dir = norm(cwd)
+  if (!dir) return ''
+  const hit = (profiles || []).find(p => p && p.root_dir && norm(p.root_dir) === dir)
+  return hit ? hit.name || '' : ''
+}
+
 export function monogram(name) {
   const words = String(name || '').split(/[^A-Za-z]+/).filter(Boolean)
   if (words.length === 0) return '·'
@@ -190,16 +205,19 @@ export function monogram(name) {
 
 // nowDoing names what a live turn is doing right now, from its latest
 // running tool call ("Edit · src/app.go", "Bash · go test ./..."), or ''.
-export function nowDoing(turn) {
+// A call that may touch the vault names no target, and a credential in one
+// is masked (#872 review); t translates.
+export function nowDoing(turn, t = k => k) {
   const running = Object.values(turn?.calls || {}).filter(c => c.status === 'started')
   const call = running[running.length - 1]
   if (!call) return ''
+  if (vaultRelatedCall(call)) return `${call.name} · ${t('toolLinks.vaultRelated')}`
   let args = call.arguments
   if (typeof args === 'string') {
     try { args = JSON.parse(args) } catch { args = {} }
   }
   args = args && typeof args === 'object' ? args : {}
   const target = args.file_path || args.path || args.command || args.pattern || args.url || args.description || ''
-  const text = String(target).replace(/\s+/g, ' ').trim()
+  const text = maskCredentials(String(target).replace(/\s+/g, ' ').trim())
   return text ? `${call.name} · ${text.length > 60 ? text.slice(0, 59) + '…' : text}` : call.name
 }

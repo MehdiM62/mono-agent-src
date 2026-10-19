@@ -57,15 +57,25 @@ func Open(home string) (*Registry, error) {
 
 // Default opens the registry under ~/.monoagent (honouring $HOME).
 func Default() (*Registry, error) {
+	home, err := DefaultHome()
+	if err != nil {
+		return nil, err
+	}
+	return Open(home)
+}
+
+// DefaultHome is the directory Default opens: ~/.monoagent, with ~ from
+// $HOME as it is now.
+func DefaultHome() (string, error) {
 	home := os.Getenv("HOME")
 	if home == "" {
 		h, err := os.UserHomeDir()
 		if err != nil {
-			return nil, fmt.Errorf("automation: resolve home: %w", err)
+			return "", fmt.Errorf("automation: resolve home: %w", err)
 		}
 		home = h
 	}
-	return Open(filepath.Join(home, ".monoagent"))
+	return filepath.Join(home, ".monoagent"), nil
 }
 
 // Home is the directory the registry was opened on (e.g. ~/.monoagent).

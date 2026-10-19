@@ -21,8 +21,20 @@ func workflowRunDeps(cfg *globalConfig) workflowrun.Deps {
 		ProfileID:  func() string { return cfg.ProfileID },
 		OpenDB:     func() (*storage.Database, error) { return initDB(cfg) },
 		BuildEngine: func() (*workflow.WorkflowEngine, func(), error) {
-			quietRunFailureLogs(cfg)
-			return buildEngine(cfg, false)
+			// The demotion lasts as long as the engine: a process that runs
+			// another command after this one (a test binary) gets its lines back.
+			undo := quietRunFailureLogs(cfg)
+			engine, cleanup, err := buildEngine(cfg, false)
+			if err != nil {
+				undo()
+				return nil, nil, err
+			}
+			return engine, func() {
+				if cleanup != nil {
+					cleanup()
+				}
+				undo()
+			}, nil
 		},
 		NodeTypes: func() *workflow.NodeTypeRegistry { return buildNodeRegistry(cfg.Verbose, nil) },
 		DryRun: func(cmd *cobra.Command, workflowID string) error {

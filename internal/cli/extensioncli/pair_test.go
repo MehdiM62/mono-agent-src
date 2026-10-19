@@ -18,6 +18,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/monoes/mono-agent/internal/extension"
+	"github.com/monoes/mono-agent/internal/operator"
 )
 
 // pairTestHome gives the test its own HOME and bridge port, so it never
@@ -42,7 +43,7 @@ func runPairCmd(t *testing.T, args ...string) (string, error) {
 
 func runPairCmdJSON(t *testing.T, asJSON bool, args ...string) (string, error) {
 	t.Helper()
-	cmd := newExtensionPairCmd(&Deps{JSONOutput: func() bool { return asJSON }})
+	cmd := newExtensionPairCmd(&Deps{JSONOutput: func() bool { return asJSON }, Refusal: operator.Refusal})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	cmd.SetErr(&out)

@@ -13,6 +13,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
 
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/extension"
 	"github.com/monoes/mono-agent/internal/storage"
 )
@@ -29,6 +30,20 @@ type Deps struct {
 	Version func() string
 	// ServingCommand marks a long-running command that serves (the account's serving guard).
 	ServingCommand func(c *cobra.Command) *cobra.Command
+	// Refusal says why this process is not the operator's own terminal (""
+	// when it is; operator.Refusal). What changes which browser or profile
+	// the extension acts as, which bridge it pairs with, or what code it
+	// runs is the user's: bind, unbind, reset, pair --open and install
+	// --zip. Nil refuses (clicore.OperatorRefusal).
+	Refusal func() string
+}
+
+// operatorOnly refuses what only the user does, naming what and why.
+func (cfg *Deps) operatorOnly(what string) error {
+	if why := clicore.OperatorRefusal(cfg.Refusal); why != "" {
+		return clicore.OperatorOnly("%s, which only the user does: %s; run it yourself in your terminal, or use the app or the extension's side panel", what, why)
+	}
+	return nil
 }
 
 // connChecker is the minimal slice of browser.ExtensionBridge the hints need.

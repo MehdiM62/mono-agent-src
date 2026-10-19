@@ -120,7 +120,8 @@ func startDynamicOrg(ctx context.Context, cfg *Deps, journal *turnJournal, setti
 		journal.notice(noticeOrgUnavailable, "the agent works alone this turn: "+err.Error(), chatevents.SeverityWarning)
 		return nil, nil
 	}
-	// Workers and the lead see the active profile (name, folder, counts, names only).
+	// Workers see the active profile (name, folder, counts, names only); the
+	// lead has it in its own prompt already.
 	dynorg.ProfileContext = func(ctx context.Context) string { return profilectx.Block(ctx, db.DB, cfg.ProfileID()) }
 	dynorg.ProfileID = func(context.Context) string { return cfg.ProfileID() } // their --profile on every monoagentcli command
 	lead := dynorg.Model{Runtime: rt.ID, Model: t.model, FullAccess: true, Resume: rt.Resume}
@@ -134,7 +135,7 @@ func startDynamicOrg(ctx context.Context, cfg *Deps, journal *turnJournal, setti
 	lib := &dynorg.MonomindLibrary{Bin: opts.Bin, Cwd: t.cwd}
 	staffer := &dynorg.Staffer{
 		Roster: orgRoster(ctx, db.DB, st, lead), Lead: lead, ModelPicker: settings.OrgModelPicker, Router: settings.OrgRouter,
-		Picker: lib, Library: lib,
+		Picker: lib, Library: lib, NoAppAccess: !settings.appAccess(),
 	}
 	if q, err := agentroster.LoadQuality(ctx, db.DB, time.Now()); err == nil {
 		staffer.Quality = q
@@ -165,10 +166,11 @@ func startDynamicOrg(ctx context.Context, cfg *Deps, journal *turnJournal, setti
 		Remember: journal.rememberWorker,
 	})
 	cond.AddVeterans(journal.veterans())
-	opts.Tools = dynorg.ToolSpecs()
+	opts.Tools = dynorg.ToolSpecs(settings.appAccess())
 	opts.OnToolCall = cond.Handle
 	opts.ToolTimeout = dynorg.ToolTimeout
-	opts.SystemPrompt += dynorg.LeadPrompt(limits) + dynorg.LeadExtras(ctx, settings.OrgRouter)
+	// The profile context is already in the lead's prompt (coderLeadSystemPrompt).
+	opts.SystemPrompt += dynorg.LeadPrompt(limits, settings.appAccess()) + dynorg.LeadExtras(settings.OrgRouter)
 	if cond.Isolated() {
 		opts.Tools = append(opts.Tools, dynorg.MergeToolSpec())
 		opts.SystemPrompt += dynorg.IsolatedLeadPrompt
