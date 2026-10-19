@@ -1605,7 +1605,9 @@
     "notesMarker": "Notes",
     "announce": {
       "moved": "Moved “{{title}}” to {{column}}"
-    }
+    },
+    "markDone": "Done",
+    "backToReady": "Back to Ready"
   },
   "publication": {
     "title": "Publication",

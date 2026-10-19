@@ -1563,7 +1563,9 @@
     "notesMarker": "Notas",
     "announce": {
       "moved": "Se movió «{{title}}» a {{column}}"
-    }
+    },
+    "markDone": "Hecho",
+    "backToReady": "Volver a Listo"
   },
   "publication": {
     "title": "Publicación",

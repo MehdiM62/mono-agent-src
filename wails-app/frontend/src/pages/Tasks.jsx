@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { AppWindow, Archive, Plus, Check, CircleHelp, Globe, LayoutGrid, NotebookText, Sparkles, Terminal } from 'lucide-react'
+import { AppWindow, Archive, Plus, Check, CheckCheck, CircleHelp, Globe, LayoutGrid, NotebookText, Sparkles, Terminal, Undo2 } from 'lucide-react'
 import { tasksApi } from '../services/tasks.js'
 import { useTaskBoard } from '../lib/useTaskBoard.js'
 import { COLUMNS, findTask, filterBoard, placeFor, isNoopDrop, dropIndex, keyMove, focusTarget, isTypingTarget, claimState, sourceChip, shortAge, splitMinutes, actorColor, readFirst } from '../lib/taskModel.js'
@@ -54,8 +54,9 @@ function span(minutes, t) {
 // The card is a plain container: the title is its one control that opens it
 // (and takes the move keys), and the approve and archive buttons are siblings
 // of it, so no control sits inside another. A card with notes shows a notes
-// marker, and its Inbox button reads "Read and approve" (plan ruling F6).
-function Card({ task, status, readOnly, selected, pulse, now, onOpen, onKey, onDragStart, onApprove, onArchive, t }) {
+// marker, and its Inbox button reads "Read and approve" (plan ruling F6). A
+// Review card has Done and Back to Ready.
+function Card({ task, status, readOnly, selected, pulse, now, onOpen, onKey, onDragStart, onApprove, onMove, onArchive, t }) {
   const chip = sourceChip(task)
   const Icon = SOURCE_ICONS[chip.kind] || Terminal
   const age = shortAge(task.created_at, now)
@@ -100,6 +101,12 @@ function Card({ task, status, readOnly, selected, pulse, now, onOpen, onKey, onD
           {status === 'inbox' && (
             <button className="btn btn-ghost btn-icon btn-sm" type="button" title={notes ? t('tasks.readAndApprove') : t('tasks.approve')}
               aria-label={`${notes ? t('tasks.readAndApprove') : t('tasks.approve')}: ${task.title}`} onClick={() => onApprove(task)}><Check size={12} /></button>
+          )}
+          {status === 'review' && (
+            <>
+              <button className="btn btn-ghost btn-sm tb-done" type="button" aria-label={`${t('tasks.markDone')}: ${task.title}`} onClick={() => onMove(task.id, 'done')}><CheckCheck size={12} /> {t('tasks.markDone')}</button>
+              <button className="btn btn-ghost btn-sm" type="button" aria-label={`${t('tasks.backToReady')}: ${task.title}`} onClick={() => onMove(task.id, 'ready')}><Undo2 size={12} /> {t('tasks.backToReady')}</button>
+            </>
           )}
           <button className="btn btn-ghost btn-icon btn-sm" type="button" title={t('tasks.archive')} aria-label={`${t('tasks.archive')}: ${task.title}`} onClick={() => onArchive(task.id)}><Archive size={12} /></button>
         </div>
@@ -291,7 +298,7 @@ export default function Tasks({ isActive = true }) {
                   key={task.id} task={task} status={status} readOnly={readOnly} selected={openId === task.id} now={now}
                   pulse={status === 'done' && marks.done.has(task.id) ? 'done-pulse' : status === 'in_progress' && task.claim && marks.claimed.has(task.id) ? 'claim-pulse' : ''}
                   onOpen={openCard} onKey={onKey} onDragStart={id => { dragging.current = id }}
-                  onApprove={approveCard} onArchive={archiveRes} t={t}
+                  onApprove={approveCard} onMove={(id, to) => { refocus.current = id; moveCard(id, to, { where: '' }) }} onArchive={archiveRes} t={t}
                 />
               ))}
             </section>

@@ -366,6 +366,35 @@ describe('Tasks page', () => {
     })
   })
 
+  // Plan, "Approve and Done": a Review card is finished or sent back from the card.
+  describe('Review cards', () => {
+    beforeEach(() => { api.board.mockResolvedValue({ rev: 1, counts: {}, tasks: { inbox: [card(1)], review: [card(5, { last_event: { kind: 'result', actor: 'bot' } })] } }) })
+
+    it('marks a Review card Done, and announces it', async () => {
+      render(<Tasks />)
+      fireEvent.click(await screen.findByRole('button', { name: 'Done: Task 5' }))
+      await waitFor(() => expect(api.move).toHaveBeenCalledWith(5, 'done', { where: '' }))
+      expect(screen.getByTestId('tb-live')).toHaveTextContent('Moved “Task 5” to Done')
+    })
+
+    it('sends a Review card back to Ready', async () => {
+      render(<Tasks />)
+      fireEvent.click(await screen.findByRole('button', { name: 'Back to Ready: Task 5' }))
+      await waitFor(() => expect(api.move).toHaveBeenCalledWith(5, 'ready', { where: '' }))
+    })
+
+    it('shows them only on Review cards, and not read-only', async () => {
+      render(<Tasks />)
+      await screen.findByText('Task 1')
+      expect(within(screen.getByText('Task 1').closest('[data-task-id]')).queryByRole('button', { name: /^Done/ })).toBeNull()
+      cleanup()
+      api.agentShell.mockResolvedValue('monomind')
+      render(<Tasks />)
+      await screen.findByText(/Read-only/)
+      expect(screen.queryByRole('button', { name: 'Done: Task 5' })).toBeNull()
+    })
+  })
+
   describe('archive from the drawer', () => {
     it('keeps the drawer open until the CLI says yes, then closes it', async () => {
       let answer
