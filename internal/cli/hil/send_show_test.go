@@ -79,3 +79,56 @@ func TestHILShowQuotesAnAgentsClaim(t *testing.T) {
 		t.Fatalf("hil show =\n%s", got)
 	}
 }
+
+// `hil show` names the server a send goes through when it isn't the
+// platform's own, and the URL a Twilio call fetches its TwiML from, as the
+// app's card does.
+func TestHILShowNamesTheServerAndTheFetchedURL(t *testing.T) {
+	for _, k := range append(operator.MarkerEnv(), hilsend.EnvAgentRole, hilsend.EnvAgentID) {
+		t.Setenv(k, "")
+	}
+	t.Setenv("MONOAGENT_ACTOR", "agent-x")
+	for _, c := range []struct {
+		nodeType string
+		config   map[string]interface{}
+		want     []string
+		not      []string
+	}{
+		{"service.mastodon", map[string]interface{}{"operation": "publish_status", "status": "Hi", "instance": "https://fosstodon.example"},
+			[]string{"\nVia: fosstodon.example\n"}, []string{"Fetches:"}},
+		{"service.mastodon", map[string]interface{}{"operation": "publish_status", "status": "Hi", "instance": "https://mastodon.social"},
+			nil, []string{"Via:", "Fetches:"}},
+		{"comm.twilio", map[string]interface{}{"operation": "make_call", "to": "+15550002", "url": "https://twiml.example/call.xml"},
+			[]string{"\nFetches: https://twiml.example/call.xml\n"}, []string{"Via:"}},
+	} {
+		dbPath := newHILTestDB(t)
+		db, err := storage.NewDatabase(dbPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db.DB), "default")
+		out, handled, err := hilsend.Guard(ctx, c.nodeType, workflow.NodeInput{}, c.config)
+		db.Close()
+		if err != nil || !handled {
+			t.Fatalf("%s: queue: handled=%v err=%v", c.nodeType, handled, err)
+		}
+		var buf bytes.Buffer
+		cmd := testDeps(&testConfig{DBPath: dbPath}).newHILCmd()
+		cmd.SetOut(&buf)
+		cmd.SetArgs([]string{"show", out[0].Items[0].JSON["hil_id"].(string)})
+		if err := cmd.Execute(); err != nil {
+			t.Fatal(err)
+		}
+		got := buf.String()
+		for _, w := range c.want {
+			if !strings.Contains(got, w) {
+				t.Errorf("%s %v: hil show lacks %q:\n%s", c.nodeType, c.config, w, got)
+			}
+		}
+		for _, n := range c.not {
+			if strings.Contains(got, n) {
+				t.Errorf("%s %v: hil show has %q:\n%s", c.nodeType, c.config, n, got)
+			}
+		}
+	}
+}

@@ -2,6 +2,11 @@ package apipkg
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
+	"regexp"
+	"strings"
+	"sync"
 	"testing"
 )
 
@@ -84,4 +89,157 @@ func TestCredentialGoesOnlyToHostsThePackageNames(t *testing.T) {
 			t.Errorf("%s: credential sent %v, want %v", path, got, authed)
 		}
 	}
+}
+
+// aws_s3 bucket/create renders its host from the region param: a region
+// that names a host of its own gets neither the signature nor the session
+// token; a real region still signs.
+func TestS3RegionCantMoveTheCredential(t *testing.T) {
+	p := catalogPkg(t, "aws_s3")
+	op, ok := p.Op("bucket", "create")
+	if !ok {
+		t.Fatal("aws_s3 has no bucket/create")
+	}
+	cred := map[string]any{"access_key_id": "AKIDEXAMPLE", "secret_access_key": "secret", "session_token": "sess-tok-1", "region": "us-east-1"}
+	for _, c := range []struct {
+		region string
+		signed bool
+	}{
+		{"eu-west-1", true}, {"", true},
+		{"evil.test#", false}, {"evil.test/", false}, {"evil.test?x=", false}, {"evil.test:8443#", false},
+	} {
+		r := &opRun{pkg: p, op: op, credDef: p.selectCredential(cred),
+			scope: Scope{P: map[string]any{"name": "b1", "additionalFields": map[string]any{"region": c.region}}, Cred: cred}}
+		b, err := r.buildRequest(context.Background(), pageParams{})
+		if err != nil {
+			t.Fatalf("region %q: %v", c.region, err)
+		}
+		h := b.req.Header
+		signed := strings.HasPrefix(h.Get("Authorization"), "AWS4-HMAC-SHA256 ") && h.Get("X-Amz-Security-Token") == "sess-tok-1"
+		bare := h.Get("Authorization") == "" && h.Get("X-Amz-Security-Token") == ""
+		if (c.signed && !signed) || (!c.signed && !bare) {
+			t.Errorf("region %q to %s: Authorization %q, X-Amz-Security-Token %q; want signed %v", c.region, b.req.URL.Host, h.Get("Authorization"), h.Get("X-Amz-Security-Token"), c.signed)
+		}
+	}
+}
+
+// A redirect to another host carries none of the headers the credential
+// set, the X-Api-Key Go keeps included; one on the same host keeps them.
+func TestRedirectToAnotherHostDropsTheCredential(t *testing.T) {
+	type seen struct{ path, auth, key, account string }
+	var mu sync.Mutex
+	var got []seen
+	record := func(r *http.Request) {
+		mu.Lock()
+		got = append(got, seen{r.URL.Path, r.Header.Get("Authorization"), r.Header.Get("X-Api-Key"), r.Header.Get("X-Account")})
+		mu.Unlock()
+	}
+	other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		record(r)
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	defer other.Close()
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		record(r)
+		switch r.URL.Path {
+		case "/away":
+			http.Redirect(w, r, other.URL+"/landing", http.StatusFound)
+		case "/here":
+			http.Redirect(w, r, "/landed", http.StatusFound)
+		default:
+			_, _ = w.Write([]byte(`{}`))
+		}
+	}))
+	defer api.Close()
+	pkg := &Package{ID: "t", BaseURL: api.URL, Headers: map[string]string{"X-Account": "{{ cred.account }}"}}
+	cred := &Credential{Platform: "t", Inject: Inject{Headers: map[string]string{"Authorization": "Bearer {{ cred.token }}", "X-Api-Key": "{{ cred.token }}"}}}
+	for _, path := range []string{"/away", "/here"} {
+		got = nil
+		r := &opRun{pkg: pkg, op: &Operation{Method: "GET", Path: path}, credDef: cred,
+			scope: Scope{Cred: map[string]any{"token": "sekret-1", "account": "acct-7"}}}
+		b, err := r.buildRequest(context.Background(), pageParams{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp, err := r.client().Do(b.req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if len(got) != 2 || got[0].key != "sekret-1" {
+			t.Fatalf("%s: requests %+v", path, got)
+		}
+		want := seen{"/landing", "", "", ""}
+		if path == "/here" {
+			want = seen{"/landed", "Bearer sekret-1", "sekret-1", "acct-7"}
+		}
+		if got[1] != want {
+			t.Errorf("%s: the redirected request carried %+v, want %+v", path, got[1], want)
+		}
+	}
+}
+
+// paramHosts are the API package base URLs whose host part reads a param
+// or a response, and why the credential still goes only to a host the
+// package names (authHost renders the base from the package and the
+// connection alone). A new one fails until it is looked at.
+var paramHosts = map[string]string{
+	"aws_s3":     "the region a param or GetBucketLocation picks; signed only for *.amazonaws.com (auth_hosts)",
+	"contentful": "p.source picks preview or cdn.contentful.com; *.contentful.com (auth_hosts)",
+	"jira":       "api.atlassian.com, written in the package, or the connection's own domain",
+	"storyblok":  "p.source picks mapi or api.storyblok.com, both written in the package",
+}
+
+func TestAPackagesBaseHostFromAParamIsReviewed(t *testing.T) {
+	pkgs, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ref := regexp.MustCompile(`\b(p|pre|pres|item|el|res|hdr|page|main)\.`)
+	seen := map[string]bool{}
+	for _, p := range pkgs {
+		bases := []string{p.BaseURL}
+		for i := range p.Operations {
+			bases = append(bases, p.Operations[i].BaseURL)
+		}
+		for _, b := range bases {
+			if !ref.MatchString(hostPart(b)) {
+				continue
+			}
+			seen[p.ID] = true
+			if paramHosts[p.ID] == "" {
+				t.Errorf("%s: base_url %q takes its host from a param or a response: review it and list it in paramHosts with why the credential can't follow it", p.ID, b)
+			}
+		}
+	}
+	for id := range paramHosts {
+		if !seen[id] {
+			t.Errorf("paramHosts lists %s, whose base hosts no longer read a param", id)
+		}
+	}
+}
+
+// hostPart is a URL template up to the first "/" after its scheme that
+// isn't inside {{ }}.
+func hostPart(tmpl string) string {
+	i := strings.Index(tmpl, "://")
+	if i < 0 {
+		i = 0
+	} else {
+		i += 3
+	}
+	depth := 0
+	for j := i; j < len(tmpl); j++ {
+		switch {
+		case strings.HasPrefix(tmpl[j:], "{{"):
+			depth++
+			j++
+		case strings.HasPrefix(tmpl[j:], "}}"):
+			depth--
+			j++
+		case tmpl[j] == '/' && depth == 0:
+			return tmpl[:j]
+		}
+	}
+	return tmpl
 }

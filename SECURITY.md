@@ -127,6 +127,10 @@ token to a server it chose. Examples:
   password went to that host. With a card, approving sent through your
   own server.
 
+An app node's region setting (S3) could move the AWS access key id and
+session token to another host, and an app node's redirect to another host
+kept the connection's API key headers.
+
 Most such steps aren't sends, so no card held them. Default installs were
 affected. MCP's `node_run` was affected only if you registered monoagent's
 MCP server with `--allow-mutations`. We know of no use of this: it was
@@ -158,7 +162,8 @@ Now the settings that decide where the secret goes follow these rules:
   connection's own server, hosts written in the package, and its
   `auth_hosts` (such as S3's regions). A URL or a host part, such as an S3
   region, that a parameter or a response points at any other host goes
-  without them.
+  without them. A redirect to another host carries none of the headers
+  the connection set.
 - **Model vendors.** `agent.ask` and `ai.model` reach the vendor the
   connection is for. An embedding provider's region or location must be a
   region name.

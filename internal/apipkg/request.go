@@ -9,7 +9,6 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/url"
-	"regexp"
 	"sort"
 	"strings"
 )
@@ -157,78 +156,13 @@ func (r *opRun) buildRequest(ctx context.Context, pp pageParams) (*built, error)
 		req.Header.Set(k, v)
 	}
 	if authed {
+		before := req.Header.Clone()
 		if err := injectAuth(req, r.credDef, sc, body); err != nil {
 			return nil, r.errf("%w", err)
 		}
+		req = withCredentialHeaders(req, credentialHeaders(before, req.Header, r.pkg.Headers, r.op.Headers))
 	}
 	return &built{req: req, body: body}, nil
-}
-
-// credHostKey matches a connection field that names its server.
-var credHostKey = regexp.MustCompile(`(?i)(^|_)(url|host|hostname|domain|endpoint|server)$`)
-
-// urlHost is the host of a URL, or of a bare host[:port] ("" for none).
-func urlHost(raw string) string {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return ""
-	}
-	if !strings.Contains(raw, "://") {
-		raw = "https://" + raw
-	}
-	u, err := url.Parse(raw)
-	if err != nil {
-		return ""
-	}
-	return strings.ToLower(u.Hostname())
-}
-
-// literalHost finds the hosts written in a URL template, not rendered into
-// it ("https://upload.box.com/…", "…then:'https://sync.api.bannerbear.com/…'").
-var literalHost = regexp.MustCompile(`https?://([A-Za-z0-9.-]+)(?:[:/'"?#]|$)`)
-
-// authHost reports whether host is one the package or the connection
-// names, so the connection's secret may go to it: the host of the base URL
-// as the package and connection render it (base, "" when a param or a
-// response moved it), or one of its subdomains; a host the connection's
-// own URL or host fields name, or one of its subdomains; a host written
-// literally in the package's or the op's base URL or the op's path; or one
-// of the package's auth_hosts ("*.example.com" for its subdomains).
-func (r *opRun) authHost(host, base string) bool {
-	host = strings.ToLower(strings.TrimSuffix(host, "."))
-	if host == "" {
-		return false
-	}
-	within := func(named string) bool {
-		named = strings.ToLower(strings.TrimSuffix(named, "."))
-		return named != "" && (host == named || strings.HasSuffix(host, "."+named))
-	}
-	if within(urlHost(base)) {
-		return true
-	}
-	for k, v := range r.scope.Cred {
-		if s, ok := v.(string); ok && credHostKey.MatchString(k) && within(urlHost(s)) {
-			return true
-		}
-	}
-	for _, t := range []string{r.pkg.BaseURL, r.op.BaseURL, r.op.Path} {
-		for _, m := range literalHost.FindAllStringSubmatch(t, -1) {
-			if strings.EqualFold(strings.TrimSuffix(m[1], "."), host) {
-				return true
-			}
-		}
-	}
-	for _, h := range r.pkg.AuthHosts {
-		h = strings.ToLower(strings.TrimSpace(h))
-		if sub, ok := strings.CutPrefix(h, "*."); ok {
-			if strings.HasSuffix(host, "."+sub) {
-				return true
-			}
-		} else if host == h {
-			return true
-		}
-	}
-	return false
 }
 
 // buildBody renders the body for the op's body type.
