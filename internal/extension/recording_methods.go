@@ -173,9 +173,9 @@ func recordVerifyArgs(req *Request) ([]string, map[string]string, error) {
 		return nil, nil, badParam("%v", err)
 	}
 	// The bridge runs the CLI as the user, whoever asked over it (any
-	// process that can read the pairing token can), so its verify never
-	// runs a page action: no "full", and it stops before the first click,
-	// key press, option pick or bot call, whatever the draft marks. The
+	// process that can read the pairing token can), so its verify neither
+	// acts on nor reads a page: no "full", a blank tab, and a stop before
+	// the first step that touches a page, whatever the draft marks. The
 	// side panel never asks for more.
 	if _, ok := req.Params["full"]; ok {
 		return nil, nil, badParam("record.verify takes no \"full\": a full verify runs only from the user's own terminal or the app")

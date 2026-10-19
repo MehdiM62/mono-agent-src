@@ -23,9 +23,9 @@ import (
 
 // Through the CLI's own wiring (recordDeps, whose Refusal is
 // operator.Refusal) and a real marker in the environment, every `record
-// replay` and `record verify` refuses an agent before the browser (exit 3,
-// operator_only), for CLAUDECODE and for another agent's marker alike; only
-// --dry-run stays open. With the markers cleared, the user's replay reaches
+// replay`, `record verify` and `record save` refuses an agent before the
+// browser or the registry (exit 3, operator_only), for CLAUDECODE and for
+// another agent's marker alike; only --dry-run stays open. With the markers cleared, the user's replay reaches
 // the browser and the user's verify gets past the check (to the missing
 // draft). A stubbed Refusal could pass while the command was unwired.
 func TestRecordReplayAndVerifyRefuseAnAgentThroughTheCLI(t *testing.T) {
@@ -68,6 +68,7 @@ func TestRecordReplayAndVerifyRefuseAnAgentThroughTheCLI(t *testing.T) {
 		for _, args := range [][]string{
 			{"replay", "rec-op"}, {"replay", "rec-op", "--yes"},
 			{"verify", "nope"}, {"verify", "nope", "--full"},
+			{"save", "nope"}, {"save", "nope", "--as", "workflow"},
 		} {
 			out, err, browser := run(args...)
 			if exitCodeFor(err) != 3 || !strings.Contains(out, `"operator_only"`) || browser {
@@ -83,8 +84,10 @@ func TestRecordReplayAndVerifyRefuseAnAgentThroughTheCLI(t *testing.T) {
 	if out, err, browser := run("replay", "rec-op", "--yes"); !browser || strings.Contains(out, "operator_only") {
 		t.Errorf("the user's replay --yes: %v, browser %v, out %s; want it to reach the browser", err, browser, out)
 	}
-	if out, err, _ := run("verify", "nope"); err == nil || strings.Contains(out, "operator_only") {
-		t.Errorf("the user's verify: %v, out %s; want it past the check, to the missing draft", err, out)
+	for _, args := range [][]string{{"verify", "nope"}, {"save", "nope"}, {"save", "nope", "--as", "workflow"}} {
+		if out, err, _ := run(args...); err == nil || strings.Contains(out, "operator_only") {
+			t.Errorf("the user's %v: %v, out %s; want it past the check, to the missing draft", args, err, out)
+		}
 	}
 }
 
@@ -111,5 +114,16 @@ func ingestClickRecording(t *testing.T, id string) {
 	}
 	if _, err := in.Finalize(out.Stopped); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// The extension's verify (stopping at the first page step) opens a blank
+// tab, not the draft package's start URL, which is a file anyone can write.
+func TestTheExtensionsVerifyOpensABlankTab(t *testing.T) {
+	if got := verifyStartPlatform(recordanalyze.WithStopAtActions(context.Background()), "example-go"); got != "" {
+		t.Errorf("stop-at-actions verify opens %q's start page", got)
+	}
+	if got := verifyStartPlatform(context.Background(), "example-go"); got != "example-go" {
+		t.Errorf("the user's verify opens %q, want the draft's start page", got)
 	}
 }

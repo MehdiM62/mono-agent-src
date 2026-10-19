@@ -251,24 +251,32 @@ the operation through the same helper as the nodes, and a tool call and the
 and alias, through both `node run` and a workflow run, so a new name or
 operation can't slip past.
 
-### Recording replays up to v0.152.0
+### Recording replays and saved recordings up to v0.152.0
 
 In releases up to and including v0.152.0, an agent could replay a recording,
 its own or yours, with `record replay`, or run a draft's steps with `record
-verify`, in your logged-in browser, with no approval. Which steps count as
+verify`, in your logged-in browser, with no approval: which steps count as
 changing a site is read from the recording or draft itself, a file an agent
-can write, so steps that post, send or buy could run even without `--yes` or
-`--full`. Now:
+can write. It could also save a draft with `record save` and run it with
+`node run`, MCP `node_run` or a workflow step, and so with a browser package
+it wrote by hand under `~/.monoagent/actions`. Now:
 
-- Every `record replay` and `record verify` is yours: an agent, the chat or a
-  workflow gets exit 3 (`operator_only`). Only `record replay --dry-run`,
-  which runs nothing, stays open.
+- `record replay`, `record verify` and `record save` are yours: an agent, the
+  chat or a workflow gets exit 3 (`operator_only`). Only `record replay
+  --dry-run`, which runs nothing, stays open.
+- A browser action of a package that isn't built-in (a saved recording, a
+  local package, an imported one) doesn't run for an agent, the chat or a
+  workflow you haven't approved, through `node run`, MCP `node_run` or a
+  workflow step: it is refused before a tab opens. Built-in packages run as
+  before, and their sends wait for you (above). A package's trust tier is
+  read from the registry's files in `~/.monoagent`, which an agent with
+  your file access could edit too.
 - The browser extension's verify reaches the app through the bridge, which
   any program that can read its pairing file can use, so the bridge's verify
-  takes no `full` and stops before the first click, key press, option pick
-  or bot call, whatever the draft marks.
-- Your own replays and verifies, in your terminal and the app, work as
-  before.
+  takes no `full`, opens a blank tab and stops before the first step that
+  touches a page, whatever the draft marks. It checks much less than before.
+- Your own replays, verifies and runs, in your terminal and the app, and
+  the workflows you approved, work as before.
 - An agent that hides its markers and owns a terminal can still answer a
   replay's question and pass as you: the general limit of how agents are
   recognised (see "Who can read a decrypted secret").

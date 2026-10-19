@@ -139,9 +139,9 @@ func TestPageExecSafeModeRealExecutor(t *testing.T) {
 
 // A draft is a file anyone can write, and the mark that a step changes the
 // site is in it: with Save's mark taken off (and the action declared
-// read-only), safe mode clicks Save. A verify
-// that stops at actions (WithStopAtActions, the extension's) stops before
-// Save whatever the draft marks.
+// read-only), safe mode clicks Save. A verify that stops at actions
+// (WithStopAtActions, the extension's) stops before the first step that
+// touches the page, opening the start page: nothing is typed or clicked.
 func TestPageExecStopAtActionsIgnoresTheDraftsMarks(t *testing.T) {
 	run := func(ctx context.Context) (*VerifyReport, *fakePage) {
 		t.Helper()
@@ -177,8 +177,8 @@ func TestPageExecStopAtActionsIgnoresTheDraftsMarks(t *testing.T) {
 		t.Fatal("the unmarked Save was not clicked: the fixture no longer shows the hole")
 	}
 	rep, page := run(WithStopAtActions(context.Background()))
-	if page.elems[`[data-testid="contact-save"]`].clicked || rep.StoppedAt == nil || rep.StoppedAt.StepID != "save" {
-		t.Fatalf("stopping at actions: Save clicked=%v, stoppedAt=%+v", page.elems[`[data-testid="contact-save"]`].clicked, rep.StoppedAt)
+	if page.elems[`[data-testid="contact-save"]`].clicked || len(page.typed) != 0 || page.url != "" || rep.StoppedAt == nil || rep.StoppedAt.StepID != "open" {
+		t.Fatalf("stopping at actions: Save clicked=%v, typed %d, url %q, stoppedAt=%+v", page.elems[`[data-testid="contact-save"]`].clicked, len(page.typed), page.url, rep.StoppedAt)
 	}
 }
 

@@ -122,9 +122,10 @@ func highlight(ctx context.Context, ae *action.ActionExecutor, page browser.Page
 type stopAtActionsKey struct{}
 
 // WithStopAtActions makes the replays PageExec runs under ctx stop, in safe
-// mode, before the first click, key press, option pick or bot call too,
-// whatever the draft marks (action.ActionExecutor.SetStopAtActions): a
-// verify whose caller can't be told (the extension's) runs no page action.
+// mode, before the first step that touches a page at all, whatever the draft
+// marks (action.ActionExecutor.SetStopAtActions), and the CLI's verify open a
+// blank tab for them: a verify whose caller can't be told (the extension's)
+// neither acts on nor reads a page with the user's cookies.
 func WithStopAtActions(ctx context.Context) context.Context {
 	return context.WithValue(ctx, stopAtActionsKey{}, true)
 }
