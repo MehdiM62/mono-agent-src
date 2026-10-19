@@ -122,3 +122,16 @@ test("settle finds a card by its key, so cards that share a call id are told apa
   assert.ok(P.settle(chat, "2222222222222222", { state: "added" }));
   assert.deepEqual(chat.messages.map((m) => m.proposals[0].state), ["pending", "added"]);
 });
+
+// #868 review: a card is final only when trying again cannot help.
+test("an Add answered with no profile, or not answered, is pending again with the reason; full, empty and refused are final", () => {
+  const fb = (text) => ({ level: "error", text });
+  assert.deepEqual(P.afterAdd({ ok: true, status: "added", feedback: fb("Added to Inbox in Work (#3)") }), { state: "added", feedback: "Added to Inbox in Work (#3)" });
+  assert.deepEqual(P.afterAdd({ ok: true, status: "queued", feedback: fb("Saved: will sync when MonoAgent is running") }), { state: "queued", feedback: "Saved: will sync when MonoAgent is running" });
+  assert.deepEqual(P.afterAdd({ ok: false, status: "no_profile", feedback: fb("Choose a profile first") }), { state: "pending", feedback: "Choose a profile first" });
+  assert.deepEqual(P.afterAdd({ ok: false, error: "Could not establish connection. Receiving end does not exist." }), { state: "pending", feedback: "Could not establish connection. Receiving end does not exist." });
+  assert.deepEqual(P.afterAdd(undefined), { state: "pending", feedback: "Not added: try again" });
+  for (const status of ["refused", "full", "empty"]) assert.equal(P.afterAdd({ ok: false, status, feedback: fb("x") }).state, "refused", status);
+  const again = P.view({ id: "a", kind: "task", title: "T", state: "pending", feedback: "Choose a profile first" });
+  assert.deepEqual([again.actions, again.status], [["add", "dismiss"], "Choose a profile first"], "Add is offered again, with why");
+});

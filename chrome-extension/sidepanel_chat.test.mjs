@@ -508,3 +508,33 @@ test("a click acts on its own card when two turns' cards share a call id", async
   const kept = t.store["chatLog:p-work"].messages.map((m) => m.proposals[0].state);
   assert.deepEqual(kept, ["pending", "added"], "the older card is left as it was");
 });
+
+// #868 review: two quick clicks add one task; an Add that found no profile
+// can be pressed again once there is one.
+test("two quick clicks send one task, and a card refused for want of a profile can be retried", async () => {
+  let reply = { ok: false, status: "no_profile", feedback: { level: "error", text: "Choose a profile first" } };
+  const stored = {
+    "chatConv:p-work": "c-1",
+    "chatLog:p-work": { conversation: "c-1", turn: "t1", lastSeq: 9, nextId: 3, readPage: false,
+      messages: [{ id: "m2", role: "assistant", text: "Here.", tools: [], open: false,
+        proposals: [{ id: "toolu_1", kind: "task", title: "Book flights", notes: "", untrustedPage: false, state: "pending", nonce: "0123456789abcdef" }] }] },
+  };
+  const t = setup({ stored, replies: { ...READY, chat_events: { ok: true, turn: "t1", events: [], turn_active: false }, task_add_proposal: async () => (await settle(20), reply) } });
+  t.doc.fire("panel:profiles");
+  await settle(30);
+  const card = () => t.log().flatMap(function walk(n) { return [n, ...n.children.flatMap(walk)]; }).find((n) => n.className === "chat-proposal");
+  const addButton = () => [card()].flatMap(function walk(n) { return [n, ...n.children.flatMap(walk)]; }).find((n) => n.tag === "button" && n.textContent === "Add to Inbox");
+  const button = addButton();
+  button.fire("click");
+  button.fire("click");
+  await settle(60);
+  assert.equal(t.sent.filter((m) => m.type === "task_add_proposal").length, 1, "the second click finds the card already sending");
+  assert.match(card().textContent, /Choose a profile first/);
+  assert.equal(t.store["chatLog:p-work"].messages[0].proposals[0].state, "pending");
+
+  reply = { ok: true, status: "added", feedback: { level: "ok", text: "Added to Inbox in Work (#4)" } };
+  addButton().fire("click");
+  await settle(60);
+  assert.equal(t.sent.filter((m) => m.type === "task_add_proposal").length, 2);
+  assert.match(card().textContent, /Added to Inbox in Work \(#4\)/);
+});
