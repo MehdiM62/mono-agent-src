@@ -293,6 +293,7 @@ function SendBody({ ask, nameOf, canAct, busy, outcome, onDecide, onNavigate }) 
         <pre className="ask-text" data-testid="ask-text" aria-label={t('ask.textLabel')} tabIndex={0}>{text}</pre>
       )}
       {edited && pending && <Muted style={{ marginTop: 2 }}>{t('ask.edited')}</Muted>}
+      {ask.unreviewable && pending && <Muted style={{ marginTop: 2 }}><span role="alert" data-testid="ask-unreviewable">{t('ask.unreviewable', { why: ask.unreviewable })}</span></Muted>}
       <Attachments ask={ask} />
       {/* An agent names itself, so its name is its claim, JSON-quoted as the
           browser cards quote one (requesterParts): an inner quote or a newline
@@ -307,7 +308,7 @@ function SendBody({ ask, nameOf, canAct, busy, outcome, onDecide, onNavigate }) 
       )}
       {pending ? (
         <div className="ask-actions">
-          <button type="button" className="btn btn-primary btn-sm" data-testid="ask-approve" disabled={!canAct || busy || (!ask.textReadOnly && !text.trim())}
+          <button type="button" className="btn btn-primary btn-sm" data-testid="ask-approve" disabled={!canAct || busy || !!ask.unreviewable || (!ask.textReadOnly && !text.trim())}
             onClick={() => onDecide?.(ask, true, edited ? { editText: text } : {})} style={{ gap: 4 }}>
             {busy ? <Loader size={11} className="spin" /> : <Check size={11} />} {t('orgBubble.approve')}
           </button>

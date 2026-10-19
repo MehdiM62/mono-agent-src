@@ -103,9 +103,8 @@ func TestShowTextPutsRecipientsFirst(t *testing.T) {
 	for i := 0; i < 32; i++ {
 		many = append(many, map[string]interface{}{"to": "a@x.test"})
 	}
-	if got := render(many); !strings.Contains(got, "\n  [19]:") || strings.Contains(got, "[20]:") ||
-		!strings.HasSuffix(got, "\n  also with recipient keys: [20] has \"to\", [21] has \"to\", [22] has \"to\", [23] has \"to\", [24] has \"to\", [25] has \"to\", [26] has \"to\", [27] has \"to\", [28] has \"to\", [29] has \"to\", [30] has \"to\", [31] has \"to\"") {
-		t.Errorf("32 elements with a recipient: %q", got)
+	if got := render(many); !strings.HasSuffix(got, "\n  [31]:\n    \"to\": \"a@x.test\"") || strings.Contains(got, "more elements") {
+		t.Errorf("32 elements with a recipient, all shown: %q", got)
 	}
 
 	wide := map[string]interface{}{}

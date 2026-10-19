@@ -21,19 +21,34 @@ var recipientWords = map[string]bool{"to": true, "cc": true, "bcc": true, "email
 	"contacts": true, "assignee": true, "assignees": true, "owner": true, "owners": true, "member": true,
 	"members": true, "group": true, "groups": true, "audience": true, "audiences": true}
 
+// recipientWordsElsewhere are recipient words of other languages: Chinese,
+// Japanese, Korean, German, French, Spanish, Portuguese, Italian, Dutch,
+// Swedish, Polish, Turkish, Russian, Ukrainian, Greek, Arabic, Hebrew,
+// Hindi and Thai ones for recipient, addressee or send to.
+var recipientWordsElsewhere = []string{"收件人", "收件者", "收信人", "接收者", "受信者", "宛先", "受取人", "수신자", "받는사람",
+	"empfänger", "empfaenger", "adressat", "destinataire", "destinataires", "destinatario", "destinatarios",
+	"destinatário", "destinatários", "ontvanger", "mottagare", "odbiorca", "adresat", "alıcı", "получатель",
+	"получатели", "адресат", "одержувач", "παραλήπτης", "المستلم", "مستلم", "נמען", "प्राप्तकर्ता", "ส่งถึง", "ผู้รับ"}
+
+func init() {
+	for _, w := range recipientWordsElsewhere {
+		recipientWords[strings.ToLower(recipientSkeleton(w))] = true
+	}
+}
+
 // recipientInner are the recipient words also matched inside a longer run
 // of letters (recipientemail, emailaddress): all but the two-letter ones,
 // which would match too much (to in "total", cc in "account"); those match
 // at the end of one only (sendto, replyto, mailcc).
-var recipientInner = func() []string {
-	var out []string
+var recipientInner []string
+
+func init() {
 	for w := range recipientWords {
 		if len(w) > 2 {
-			out = append(out, w)
+			recipientInner = append(recipientInner, w)
 		}
 	}
-	return out
-}()
+}
 
 // recipientLike reports whether key k may say whom a send reaches: one of
 // its words (camelCase, snake_case, kebab-case) is a recipient word, or,
@@ -62,9 +77,16 @@ func recipientLike(k string) bool {
 	return false
 }
 
-// recipientSkeleton is k compatibility-normalized, with look-alike letters
+// recipientSkeleton is k without format characters (a zero-width space
+// between "t" and "o"), compatibility-normalized, with look-alike letters
 // replaced by the Latin ones they imitate.
 func recipientSkeleton(k string) string {
+	k = strings.Map(func(r rune) rune {
+		if unicode.Is(unicode.Cf, r) {
+			return -1
+		}
+		return r
+	}, k)
 	return strings.Map(func(r rune) rune {
 		if m, ok := lookAlike[r]; ok {
 			return m
@@ -74,7 +96,8 @@ func recipientSkeleton(k string) string {
 }
 
 // keyWords is k's words, lower-cased: split at a lower-case letter or digit
-// followed by an upper-case one, and at anything but letters and digits.
+// followed by an upper-case one, and at anything but letters, marks (Thai
+// and Hindi vowels) and digits.
 func keyWords(k string) []string {
 	var words []string
 	var cur strings.Builder
@@ -87,7 +110,7 @@ func keyWords(k string) []string {
 	}
 	for _, r := range k {
 		switch {
-		case !unicode.IsLetter(r) && !unicode.IsDigit(r):
+		case !unicode.IsLetter(r) && !unicode.IsMark(r) && !unicode.IsDigit(r):
 			flush()
 		case unicode.IsUpper(r) && (unicode.IsLower(prev) || unicode.IsDigit(prev)):
 			flush()

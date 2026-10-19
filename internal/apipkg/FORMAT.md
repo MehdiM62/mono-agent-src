@@ -168,7 +168,11 @@ capped away, with their values in full up to 4 KB (a list one element a
 line); a name and value pair ({"name": "recipientEmail", "value": …})
 counts as that field; a nested value names the keys inside it, four levels
 down, as paths (a.b.to, [1].to); and a list element past the tenth that
-has such a key is still shown. `"field if cond"`
+has such a key is still shown. Past its share a recipient value shows its
+head, its last element and the domains of what it leaves out. A value of
+more than a million keys and elements, or a card cut at 256 KB where it
+shows a recipient, makes the card too large to review: it can be
+rejected, never approved. `"field if cond"`
 (`cond` as in `if`) marks the field "(not sent)" on the card when `cond`
 doesn't hold: `"variablesJson if jsonParameters"`. When a `to`
 field holds an id rather than an address, `to_label` says what it is, and

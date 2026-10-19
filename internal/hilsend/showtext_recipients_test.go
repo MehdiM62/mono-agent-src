@@ -37,8 +37,8 @@ func TestARecipientValueShowsInFull(t *testing.T) {
 	if got := cardOf(map[string]interface{}{"to": long}); !strings.Contains(got, "evil@x.test\"") || strings.Contains(got, "…") {
 		t.Errorf("one long string: %q", got)
 	}
-	if got := cardOf(map[string]interface{}{"to": addresses(500)}); !strings.Contains(got, "\n    +") || !strings.HasSuffix(got, "more elements") {
-		t.Errorf("500 addresses, past the cap: %q", got[len(got)-80:])
+	if got := cardOf(map[string]interface{}{"to": addresses(500)}); !strings.Contains(got, " more elements, 1 distinct domains: x.test …\n    [499]: \"a499@x.test\"") {
+		t.Errorf("500 addresses, past the cap: %q", got[len(got)-120:])
 	}
 	// A list param whose own name is recipient-like lists every element too.
 	got := showText("op x/y", []string{"additionalFields.bcc_emails"}, nil, nil, true,
@@ -85,8 +85,10 @@ func TestNestedNamesGoDown(t *testing.T) {
 		t.Errorf("a list of lists: %q", got)
 	}
 	five := map[string]interface{}{"x": map[string]interface{}{"a": map[string]interface{}{"b": map[string]interface{}{"c": map[string]interface{}{"d": map[string]interface{}{"to": 1}}}}}}
-	if got := cardOf(five); !strings.Contains(got, "keys: \"a\", \"a.b\", \"a.b.c\", \"a.b.c.d\"\n") && !strings.HasSuffix(got, "keys: \"a\", \"a.b\", \"a.b.c\", \"a.b.c.d\"") {
-		t.Errorf("five levels down, names stop at four: %q", got)
+	// Names stop at four levels; a recipient-like key is named, and its
+	// value shown, at any depth.
+	if got := cardOf(five); !strings.HasSuffix(got, "\n    keys: \"a.b.c.d.to\", \"a\", \"a.b\", \"a.b.c\", \"a.b.c.d\"\n    \"a.b.c.d.to\": 1") {
+		t.Errorf("five levels down: %q", got)
 	}
 }
 
@@ -106,9 +108,8 @@ func TestRecipientLikeSeesRunOnsAndLookAlikes(t *testing.T) {
 	}
 }
 
-// Each key is checked once and no more than showClassifyMax per card, so a
-// value with 100,000 keys, or 10,000 elements of 50, renders in well under
-// a second; past the cap the card says the rest weren't checked.
+// Each key is checked once per card, so a value with 100,000 keys, or
+// 10,000 elements of 50, renders in well under a second.
 func TestACardStaysQuickOnAHugeValue(t *testing.T) {
 	wide := map[string]interface{}{}
 	for i := 0; i < 100000; i++ {
@@ -124,12 +125,11 @@ func TestACardStaysQuickOnAHugeValue(t *testing.T) {
 	}
 	for name, v := range map[string]interface{}{"100,000 keys": wide, "10,000 elements of 50 keys": long} {
 		start := time.Now()
-		got := cardOf(v)
+		if _, why := showCard("op x/y", []string{"v"}, nil, nil, false, map[string]interface{}{"v": v}); why != "" {
+			t.Errorf("%s: unreviewable: %s", name, why)
+		}
 		if took := time.Since(start); took > 2*time.Second {
 			t.Errorf("%s: %v", name, took)
-		}
-		if name == "100,000 keys" && !strings.HasSuffix(got, "the rest weren't checked for recipient fields)") {
-			t.Errorf("%s: no word of the keys left unchecked: %q", name, got[len(got)-100:])
 		}
 	}
 }

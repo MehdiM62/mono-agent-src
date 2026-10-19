@@ -3,6 +3,7 @@ package hil
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -76,5 +77,14 @@ func TestHILShowQuotesAnAgentsClaim(t *testing.T) {
 	}
 	if got := buf.String(); !strings.Contains(got, "\nPrepared by: an agent (claims: \"You (approved earlier today)\")\n") {
 		t.Fatalf("hil show =\n%s", got)
+	}
+}
+
+// A send whose card can't show all it sends is refused an approve with
+// exit 3, as an invalid request, and says why.
+func TestHILApproveOfAnUnreviewableSendExits3(t *testing.T) {
+	err := testDeps(&testConfig{}).hilSendError(fmt.Errorf("send item s1: %w (too large)", hilsend.ErrUnreviewable))
+	if exitCodeFor(err) != 3 || !strings.Contains(err.Error(), "too large to review") {
+		t.Errorf("exit %d: %v", exitCodeFor(err), err)
 	}
 }

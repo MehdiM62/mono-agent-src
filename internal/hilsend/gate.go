@@ -199,11 +199,13 @@ func prepare(st Store, nodeType string, t target, who PreparedBy, config map[str
 	var out []prepared
 	for _, o := range ones {
 		textField, text := firstKey(o.config, t.text)
+		unreviewable := ""
 		if len(t.show) > 0 {
 			// No message to show or edit: what the step would send, read-only
 			// (keys its op doesn't declare, or the params its annotation
 			// shows).
-			textField, text = "", showText(t.op, t.show, t.exprs, t.unsent, t.undeclared, o.config)
+			textField = ""
+			text, unreviewable = showCard(t.op, t.show, t.exprs, t.unsent, t.undeclared, o.config)
 		}
 		subjectField, subject := firstKey(o.config, t.subject)
 		rec := o.recipient
@@ -213,6 +215,7 @@ func prepare(st Store, nodeType string, t target, who PreparedBy, config map[str
 		p := Payload{
 			PreparedBy: who, Action: t.action, Channel: t.channelOf(nodeType), Account: t.accountOf(nodeType, o.config),
 			Recipient: rec, Text: text, Subject: subject, Attachments: attachments(o.config), NodeType: nodeType,
+			Unreviewable: unreviewable,
 		}
 		out = append(out, prepared{payload: p, replay: replay{
 			NodeType: nodeType, Config: stripSecrets(o.config), Input: o.input, TextField: textField, SubjectKey: subjectField,

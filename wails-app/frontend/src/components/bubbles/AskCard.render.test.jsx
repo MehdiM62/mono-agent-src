@@ -214,6 +214,18 @@ describe('AskCard: send approval', () => {
     expect(onDecide).toHaveBeenCalledWith(expect.objectContaining({ id: 'hil-send-1' }), true, { editText: 'Short.' })
   })
 
+  // A card too large to review (the CLI refuses its approve, #887) can be
+  // rejected, not approved, and says why.
+  it('refuses approval of a card too large to review, and says why', () => {
+    const onDecide = vi.fn()
+    const ask = normalizeAsk({ ...sendEmail, textReadOnly: true, unreviewable: 'v holds more than 1000000 keys and elements: too large to review' })
+    render(<AskCard ask={ask} nameOf={nameOf} onDecide={onDecide} />)
+    expect(screen.getByTestId('ask-approve')).toBeDisabled()
+    expect(screen.getByTestId('ask-unreviewable')).toHaveTextContent('more than 1000000 keys')
+    fireEvent.click(screen.getByTestId('ask-reject'))
+    expect(onDecide).toHaveBeenCalledWith(expect.objectContaining({ id: 'hil-send-1' }), false, {})
+  })
+
   it('does not approve an empty text', () => {
     render(<AskCard ask={send()} nameOf={nameOf} />)
     fireEvent.click(screen.getByTestId('ask-edit'))

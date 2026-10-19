@@ -45,6 +45,10 @@ var (
 	// ErrNoSubject: a subject edit of a card whose op names no subject
 	// field: the approved run would send none, while the record kept it.
 	ErrNoSubject = errors.New("this send has no subject field: there is no subject to edit; approve it as it is or reject it")
+	// ErrUnreviewable: an approve (always-allow included) of a card that
+	// can't show all the step would send. It can only be rejected, or the
+	// step changed and run again.
+	ErrUnreviewable = errors.New("this send is too large to review on its card, so it can't be approved: reject it, or change the step and run it again")
 )
 
 // replay is what approving needs to run the node again.
@@ -279,6 +283,11 @@ func (s Store) claim(ctx context.Context, id string, always bool) (p Payload, rp
 	}
 	if p.State != StatePending {
 		return p, rp, "", false, nil
+	}
+	if p.Unreviewable != "" {
+		// A card that can't show what the step sends isn't approved from:
+		// it stays pending, to be rejected.
+		return p, rp, "", false, fmt.Errorf("send item %s: %w (%s)", p.ID, ErrUnreviewable, p.Unreviewable)
 	}
 	if always && p.Recipient.Label {
 		// What is claimed decides, not an earlier read: it stays pending.
