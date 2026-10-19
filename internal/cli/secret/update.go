@@ -4,12 +4,14 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/monoes/mono-agent/internal/connections"
+	"github.com/monoes/mono-agent/internal/operator"
 	"github.com/monoes/mono-agent/internal/secrets"
 
 	"github.com/spf13/cobra"
@@ -94,8 +96,9 @@ func (d Deps) runSecretUpdate(newName, username, url, notes *string, fieldFlags 
 			}
 		}
 
+		var dropped []string
 		if fields != nil {
-			if fields, err = d.mergeFields(cmd, db.DB, profileID, id, args[0], fields, *merge); err != nil {
+			if fields, dropped, err = d.mergeFields(cmd, db.DB, profileID, id, args[0], fields, *merge); err != nil {
 				return err
 			}
 		}
@@ -103,6 +106,7 @@ func (d Deps) runSecretUpdate(newName, username, url, notes *string, fieldFlags 
 		if err := secrets.Update(writeCtx(cmd.Context()), db.DB, profileID, id, namePtr, usernamePtr, urlPtr, notesPtr, fields); err != nil {
 			return writeErr("updating entry", err)
 		}
+		warnDropped(cmd.ErrOrStderr(), args[0], dropped)
 		if namePtr != nil {
 			warnTokenless(cmd.ErrOrStderr(), *namePtr, fields)
 		} else {
@@ -188,15 +192,15 @@ func (d Deps) newSecretEncryptConnectionsCmd() *cobra.Command {
 const workflowRefPrefix = "@secret:"
 
 // mergeFields is the field set an update writes: given over the entry's own
-// with merge, else given as it is, with a warning naming the fields of the
-// entry it drops.
-func (d Deps) mergeFields(cmd *cobra.Command, db *sql.DB, profileID, id, name string, given map[string]string, merge bool) (map[string]string, error) {
+// with merge, else given as it is, and then the fields of the entry that
+// write drops.
+func (d Deps) mergeFields(cmd *cobra.Command, db *sql.DB, profileID, id, name string, given map[string]string, merge bool) (map[string]string, []string, error) {
 	current, _, err := secrets.DecryptFields(cmd.Context(), db, profileID, id)
 	if err != nil {
 		if merge {
-			return nil, fmt.Errorf("--merge needs %q's fields, which could not be read: %w", name, err)
+			return nil, nil, fmt.Errorf("--merge needs %q's fields, which could not be read: %w", name, err)
 		}
-		return given, nil // nothing to name; the write replaces whatever was there
+		return given, nil, nil // nothing to name; the write replaces whatever was there
 	}
 	if merge {
 		out := make(map[string]string, len(current)+len(given))
@@ -206,18 +210,35 @@ func (d Deps) mergeFields(cmd *cobra.Command, db *sql.DB, profileID, id, name st
 		for k, v := range given {
 			out[k] = v
 		}
-		return out, nil
+		return out, nil, nil
 	}
 	var dropped []string
 	for k := range current {
 		if _, kept := given[k]; !kept {
-			dropped = append(dropped, strconv.Quote(k))
+			dropped = append(dropped, k)
 		}
 	}
-	if len(dropped) > 0 {
-		sort.Strings(dropped)
-		fmt.Fprintf(cmd.ErrOrStderr(), "Warning: the fields given replace %q's whole field set, so this drops %s; pass --merge to keep them\n",
-			name, strings.Join(dropped, ", "))
+	sort.Strings(dropped)
+	return given, dropped, nil
+}
+
+// warnDropped says, once a replace has been written, which fields of the
+// entry it dropped: by name to the user, and only how many to an agent, the
+// chat or a workflow, which see an entry's field count and no field names.
+func warnDropped(w io.Writer, name string, dropped []string) {
+	if len(dropped) == 0 {
+		return
 	}
-	return given, nil
+	what := fmt.Sprintf("%d fields", len(dropped))
+	if len(dropped) == 1 {
+		what = "1 field"
+	}
+	if operator.Refusal() == "" {
+		quoted := make([]string, len(dropped))
+		for i, f := range dropped {
+			quoted[i] = strconv.Quote(f)
+		}
+		what = strings.Join(quoted, ", ")
+	}
+	fmt.Fprintf(w, "Warning: the fields given replaced %q's whole field set, so this dropped %s; pass --merge to keep them\n", name, what)
 }
