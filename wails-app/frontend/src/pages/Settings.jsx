@@ -12,6 +12,7 @@ import { useJevData } from '../components/settings/useJevData.js'
 import ApiSection from '../components/settings/ApiSection.jsx'
 import VaultKeyringSection from '../components/settings/VaultKeyringSection.jsx'
 import CoderModeSection from '../components/settings/CoderModeSection.jsx'
+import CoderOrgSection from '../components/settings/CoderOrgSection.jsx'
 import BrowserPermissionsSection from '../components/settings/BrowserPermissionsSection.jsx'
 import SandboxFallbackSection from '../components/settings/SandboxFallbackSection.jsx'
 import ProfileSection from '../components/settings/ProfileSection.jsx'
@@ -417,6 +418,14 @@ export default function Settings({ onNavigate, navData, isActive = true }) {
 
           <CoderModeSection />
 
+          {/* Coder chats' dynamic org and agents' sends (epic #475) */}
+          <div style={headingStyle}>
+            <span style={headingText}>{t('coderOrg.title')}</span>
+            <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+          </div>
+
+          <CoderOrgSection part="machine" />
+
           {/* What AI agents may do in the browsers (machine-wide; plan C8) */}
           <div style={headingStyle}>
             <span style={headingText}>Agent Browser Permissions</span>
@@ -506,6 +515,8 @@ export default function Settings({ onNavigate, navData, isActive = true }) {
           <ProfileSection profile={profile} />
 
           <BrowserBindingsSection />
+
+          <CoderOrgSection part="profile" />
 
           <JevSection part="profile" jev={jev} />
 

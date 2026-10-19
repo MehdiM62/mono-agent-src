@@ -66,7 +66,7 @@ func init() {
 // it, or it ends in "to" or "cc". Compatibility forms (fullwidth letters)
 // and Cyrillic and Greek look-alikes count as the Latin letters they show.
 func recipientLike(k string) bool {
-	words := keyWords(recipientSkeleton(k))
+	words := nameWords(recipientSkeleton(k))
 	for _, w := range words {
 		if recipientWords[w] {
 			return true
@@ -105,10 +105,10 @@ func recipientSkeleton(k string) string {
 	}, norm.NFKC.String(k))
 }
 
-// keyWords is k's words, lower-cased: split at a lower-case letter or digit
+// nameWords is k's words, lower-cased: split at a lower-case letter or digit
 // followed by an upper-case one, and at anything but letters, marks (Thai
 // and Hindi vowels) and digits.
-func keyWords(k string) []string {
+func nameWords(k string) []string {
 	var words []string
 	var cur strings.Builder
 	prev := rune(0)

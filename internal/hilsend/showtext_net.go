@@ -154,7 +154,7 @@ func timeKey(k string) bool {
 	if len(k) > showKeyNameMax {
 		return false
 	}
-	for _, w := range keyWords(k) {
+	for _, w := range nameWords(k) {
 		if timeWords[w] {
 			return true
 		}
@@ -167,7 +167,7 @@ func idKey(k string) bool {
 	if len(k) > showKeyNameMax {
 		return false
 	}
-	for _, w := range keyWords(k) {
+	for _, w := range nameWords(k) {
 		if w == "id" || w == "ids" {
 			return true
 		}

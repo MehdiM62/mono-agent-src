@@ -138,6 +138,12 @@ func setAt(m map[string]interface{}, key string, v interface{}) {
 // An op that names its recipient when none of its params is set means
 // that name, not a guess from the config's to, user or channel keys.
 func (t target) recipientOf(config map[string]interface{}) (r Recipient, labelled bool) {
+	if t.fixed != "" {
+		return Recipient{Name: t.fixed, Label: true}, true
+	}
+	if host := webhookHost(config); host != "" {
+		return Recipient{Name: "webhook on " + host, Label: true}, true
+	}
 	keys := append([]string{}, t.to...)
 	if t.toUnset == "" {
 		keys = append(keys, toKeys...)

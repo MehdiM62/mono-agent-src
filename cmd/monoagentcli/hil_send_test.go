@@ -214,14 +214,17 @@ func TestAlwaysAllowThroughResolveSkipsTheQueueNextTime(t *testing.T) {
 		t.Fatalf("allow list: %v %s", err, out)
 	}
 	// Same destination from an agent: not queued (it would go on to run the
-	// node, so use a node that fails fast without network: an unreachable
-	// host on a closed port).
+	// node, which fails fast here: it names no server, as a send through a
+	// saved connection's own server doesn't before the run merges it in).
 	asAgentProcess(t)
 	out, err = runSendCLI(t, cfg, newNodeRunCmd(cfg), "comm.email_send", "--output", "json", "--config",
-		`{"smtp_host":"127.0.0.1","smtp_port":1,"from":"me@example.test","to":"ada@example.test","subject":"Hi","body":"x"}`)
+		`{"from":"me@example.test","to":"ada@example.test","subject":"Hi","body":"x"}`)
 	if err == nil || strings.Contains(out, "queued for approval") {
 		t.Fatalf("an always-allowed destination was queued: %v %s", err, out)
 	}
+	// Through a server the agent names, with no connection to compare, it
+	// waits: the server is a destination too (security review of #871).
+	queueViaNodeRun(t, cfg, `{"smtp_host":"127.0.0.1","smtp_port":1,"from":"me@example.test","to":"ada@example.test","subject":"Hi","body":"x"}`)
 	// A different recipient still waits.
 	queueViaNodeRun(t, cfg, strings.Replace(sendConfig, "ada@", "bob@", 1))
 }

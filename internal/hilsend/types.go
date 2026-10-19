@@ -133,7 +133,9 @@ type Account struct {
 // recipient ("the ticket's requester", "the client of invoice inv9") and is
 // no address, so no always-allow rule and no People row is keyed on it.
 type Recipient struct {
-	PersonID   string `json:"personId,omitempty"`
+	PersonID string `json:"personId,omitempty"`
+	// PersonName is the People row's name beside the addressed Name.
+	PersonName string `json:"personName,omitempty"`
 	Name       string `json:"name"`
 	ProfileURL string `json:"profileUrl,omitempty"`
 	Label      bool   `json:"label,omitempty"`
