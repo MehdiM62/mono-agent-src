@@ -15,6 +15,9 @@
  *              recorder on this tab; the card then follows that recording
  *              (recordingId) to Review and save, and the automation is saved
  *              only by the Record section's own Save.
+ *   vault      an item (an address on the page, or the selection) and a name
+ *              -> Save to vault (vault_bridge.js), which fetches the item only
+ *              if it is on the page the person is on, and sends vault.save.
  * This table is the seam the vault save plugs into once the bridge has
  * vault.save: its tool in TOOLS, its kind in KINDS, and the worker message
  * the panel sends on its click.
@@ -31,11 +34,12 @@
   "use strict";
 
   const TITLE_RUNES = 200;
-  const PAGE_URL_CHARS = 2048;
   const NOTES_BYTES = 4000;
 
   // The proposal tools, by the kind each answers with.
-  const TOOLS = { propose_task: "task", propose_recording: "recording" };
+  const TOOLS = { propose_task: "task", propose_recording: "recording", propose_vault_save: "vault" };
+  const NAME_BYTES = 255;
+  const URL_CHARS = 2048;
 
   const str = (v) => (typeof v === "string" ? v : "");
   const oneLine = (s) => str(s).split(/\s+/).filter(Boolean).join(" ");
@@ -52,20 +56,110 @@
     return out;
   }
 
+  /** itemUrl is a vault item's address: absolute http(s), no spaces, not too long; else "". */
+  function itemUrl(v) {
+    const s = str(v).trim();
+    if (!s || s.length > URL_CHARS || /[\s\u0000-\u001f\u007f]/.test(s)) return "";
+    try {
+      const u = new URL(s);
+      return (u.protocol === "http:" || u.protocol === "https:") && u.host ? s : "";
+    } catch {
+      return "";
+    }
+  }
+
+  // Which hosts are on the person's own network (private_net.js, loaded first).
+  const privateHost = (host) => !!(root.MonoPrivateNet && root.MonoPrivateNet.isPrivateHost(host));
+
+  const hostOf = (url) => {
+    try {
+      return new URL(url).hostname;
+    } catch {
+      return "";
+    }
+  };
+
+  /** fileOf is the last part of an address's path, readable: what a file there is called. */
+  function fileOf(url) {
+    try {
+      const last = new URL(url).pathname.split("/").filter(Boolean).pop() || "";
+      return decodeURIComponent(last);
+    } catch {
+      return "";
+    }
+  }
+
   // What shows nothing on screen but the recorder and its analysis read:
   // controls, format characters (bidi, zero-width, the byte order mark),
-  // private-use, unassigned and lone surrogate code points, variation
-  // selectors, and the Unicode tag block (invisible "ASCII smuggling").
-  const HIDDEN = /[\p{Cc}\p{Cf}\p{Co}\p{Cn}\p{Cs}\u{FE00}-\u{FE0F}\u{E0100}-\u{E01EF}\u{E0000}-\u{E007F}]/gu;
+  // private-use, unassigned and lone surrogate code points, and the Unicode
+  // tag block (invisible "ASCII smuggling").
+  const HIDDEN = /[\p{Cc}\p{Cf}\p{Co}\p{Cn}\p{Cs}\u{E0000}-\u{E007F}]/u;
+  const SELECTORS = /[\u{180B}-\u{180D}\u{180F}\u{FE00}-\u{FE0F}\u{E0100}-\u{E01EF}]/u;
+  // The same character classes as Go's recording.cleanLine (privacy.go).
+  const EMOJI = /[\u00a9\u00ae\u203c\u2049\u2122\u2139\u24c2\u3030\u303d\u3297\u3299\u2190-\u21ff\u2300-\u23ff\u25a0-\u27bf\u2900-\u297f\u2b00-\u2bff\u{1F000}-\u{1FAFF}]/u;
+  const VIRAMA = /[\u094d\u09cd\u0a4d\u0acd\u0b4d\u0bcd\u0c4d\u0ccd\u0d4d\u0dca\u0e3a\u1039\u103a\u17d2\u1a60\u1b44\ua8c4\ua9c0\u{11046}]/u;
+  const JOIN_SCRIPT = /[\u0600-\u06ff\u0750-\u077f\u08a0-\u08ff\ufb50-\ufdff\ufe70-\ufeff\u0900-\u0dff]/u;
+  const LETTER = /\p{L}/u;
+  const DIRECTION = /[\u200e\u200f\u061c]/u;
+  const RTL = /[\u0590-\u08ff\ufb1d-\ufdff\ufe70-\ufeff\u{10800}-\u{10fff}\u{1e800}-\u{1efff}]/u;
+  const rtl = (c) => LETTER.test(c) && RTL.test(c);
+  const keycap = (base, next) => next === "\u20e3" && /[0-9#*]/.test(base);
 
-  /** cleanGoal is a recording goal without markup or hidden characters (HIDDEN), one line, 200 runes. */
+  /**
+   * cleanGoal is a recording goal as the recorder and its analysis get it:
+   * no markup and no hidden characters (HIDDEN), one line, 200 runes. What
+   * text needs stays, and no more, so what is kept carries no hidden bits: a
+   * ZWJ that joins emoji, or a conjunct after a virama or coeng; a ZWNJ
+   * inside an Arabic-script or Indic word; VS16 that makes an emoji, and VS15
+   * or VS16 on a keycap; a direction mark where the text turns between
+   * right-to-left and left-to-right letters, one per turn. A soft hyphen, and a
+   * joiner or selector that is not needed, are deleted. The same rules as
+   * Go's recording.CleanGoal.
+   */
   function cleanGoal(v) {
-    return runes(oneLine(str(v).replace(/<[^>]*>/g, " ").replace(/[<>]/g, " ").replace(HIDDEN, " ")), TITLE_RUNES);
+    const cps = [...str(v).replace(/<[^>]*>/g, " ").replace(/[<>]/g, " ")];
+    const out = [];
+    const last = () => (out.length ? out[out.length - 1] : " ");
+    // The last kept character but a variation selector: what a ZWJ after a heart and VS16 joins.
+    const lastBase = () => [...out].reverse().find((c) => c !== "\ufe0f" && c !== "\ufe0e") || " ";
+    // The direction of the last letter kept (the start counts as left-to-right),
+    // and whether a direction mark was kept since it; the text's end counts as
+    // left-to-right too.
+    let lastRTL = false;
+    let markSinceLetter = false;
+    const nextLetterRTL = (i) => {
+      const letter = cps.slice(i + 1).find((c) => LETTER.test(c));
+      return !!letter && rtl(letter);
+    };
+    cps.forEach((c, i) => {
+      const next = cps[i + 1] || " ";
+      let keep = true;
+      if (c === "\u00ad") keep = false; // a soft hyphen only says where a word may break
+      else if (c === "\u200d") keep = (EMOJI.test(lastBase()) && EMOJI.test(next)) || (VIRAMA.test(last()) && LETTER.test(next));
+      else if (c === "\u200c") keep = JOIN_SCRIPT.test(last()) && JOIN_SCRIPT.test(next) && LETTER.test(next);
+      else if (DIRECTION.test(c)) {
+        keep = !markSinceLetter && lastRTL !== nextLetterRTL(i);
+        markSinceLetter = markSinceLetter || keep;
+      }
+      else if (c === "\ufe0f") keep = EMOJI.test(last()) || keycap(last(), next);
+      else if (c === "\ufe0e") keep = keycap(last(), next);
+      else if (SELECTORS.test(c)) keep = false;
+      else if (HIDDEN.test(c)) {
+        out.push(" ");
+        return;
+      }
+      if (keep) out.push(c);
+      if (keep && LETTER.test(c)) {
+        lastRTL = rtl(c);
+        markSinceLetter = false;
+      }
+    });
+    return runes(oneLine(out.join("")), TITLE_RUNES);
   }
 
   /** pageOf is the page a card was proposed on ({tabId, url}), checked; null when there is none. */
   function pageOf(v) {
-    if (!v || !Number.isInteger(v.tabId) || v.tabId <= 0 || typeof v.url !== "string" || v.url.length > PAGE_URL_CHARS) return null;
+    if (!v || !Number.isInteger(v.tabId) || v.tabId <= 0 || typeof v.url !== "string" || v.url.length > URL_CHARS) return null;
     return { tabId: v.tabId, url: v.url };
   }
 
@@ -115,6 +209,34 @@
           edit: before ? { label: "What you will do", value: p.goal } : undefined,
         };
       },
+    },
+  };
+
+  KINDS.vault = {
+    heading: "Save to your vault?",
+    fields: (p) => {
+      const url = itemUrl(p.url);
+      return { url, selection: !url && p.selection === true, name: bytes(oneLine(p.name), NAME_BYTES) };
+    },
+    valid: (f) => !!f.url || f.selection,
+    text: (p) => {
+      const host = hostOf(p.url);
+      return {
+        title: p.name || fileOf(p.url) || (p.selection ? "Your selection" : "A file from this page"),
+        // Where it would come from, plainly: a page can embed an address on the person's own network.
+        source: !p.url ? "from the page you are on" : privateHost(host) ? `from ${host}, a private network address` : `from ${host}`,
+        notes: p.url || "The text you have selected on this page, as a text file",
+      };
+    },
+    check: "Check the file before you save it.",
+    states: new Set(["pending", "sending", "saved", "refused", "dismissed"]),
+    screen: (p) => {
+      const status = { sending: "Saving…", dismissed: "Not saved" }[p.state];
+      return {
+        actions: p.state === "pending" ? ["add", "dismiss"] : [],
+        labels: { add: "Save to vault", dismiss: "Dismiss" },
+        status: status !== undefined ? status : p.feedback || "",
+      };
     },
   };
 
@@ -236,15 +358,16 @@
   }
 
   /**
-   * afterAdd is what a task card becomes once its Add is answered
-   * (task_bridge.js add): added or queued for good; refused, full or empty
-   * final, as trying again cannot help; pending again with the reason when
-   * there was no profile or no answer at all, so the person can retry.
+   * afterAdd is what a task or vault card becomes once its click is
+   * answered (task_bridge.js add, vault_bridge.js save): added, queued or
+   * saved for good; refused, full or empty final, as trying again cannot
+   * help; pending again with the reason otherwise (no profile, no answer,
+   * a save to retry), so the person can press it again.
    */
   function afterAdd(answer) {
     const a = answer || {};
     const text = (a.feedback && a.feedback.text) || a.error || "";
-    if (a.status === "added" || a.status === "queued") return { state: a.status, feedback: text };
+    if (a.status === "added" || a.status === "queued" || a.status === "saved") return { state: a.status, feedback: text };
     if (a.status === "refused" || a.status === "full" || a.status === "empty") return { state: "refused", feedback: text || "Not added" };
     return { state: "pending", feedback: text || "Not added: try again" };
   }
@@ -289,6 +412,7 @@
     } else {
       line("chat-proposal-title", v.title);
     }
+    if (v.source) line("chat-proposal-source", v.source);
     if (v.notes) line("chat-proposal-notes", v.notes);
     if (v.warning) line("chat-proposal-warning", v.warning);
     // What happened so far, then what can be done next (a recording card has both).

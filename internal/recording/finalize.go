@@ -115,7 +115,7 @@ func (s *session) envelope(now time.Time) (*capture.Envelope, error) {
 
 	meta := capture.Meta{
 		URL:     SanitizeURL(s.start.URL),
-		Title:   clipRunes(s.start.Title, MaxTitleRunes),
+		Title:   cleanTitle(s.start.Title),
 		Source:  SourceRecording,
 		Profile: s.start.Profile,
 	}

@@ -1,9 +1,13 @@
 package main
 
 import (
+	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
+
+	"github.com/monoes/mono-agent/internal/imagescan"
 )
 
 // ── Image Vault ──────────────────────────────────────────────────────────────
@@ -125,10 +129,12 @@ func (a *App) SaveVaultImageToFile(id, suggestedName string) string {
 		return loginRequiredJSON(err)
 	}
 	// Check first, so an unknown id fails before the dialog is shown.
-	if _, err := a.GetVaultImage(id); err != nil {
+	item, err := a.GetVaultImage(id)
+	if err != nil {
 		return "error: image not found"
 	}
-	dest, err := saveImageDialog(a, suggestedName)
+	filename, _ := item["filename"].(string)
+	dest, err := saveImageDialog(a, saveVaultItemOptions(filename, suggestedName))
 	if err != nil || dest == "" {
 		return ""
 	}
@@ -143,14 +149,29 @@ func (a *App) SaveVaultImageToFile(id, suggestedName string) string {
 
 // saveImageDialog is the native save dialog, a variable so tests can
 // answer it.
-var saveImageDialog = func(a *App, suggestedName string) (string, error) {
-	return runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
+var saveImageDialog = func(a *App, opts runtime.SaveDialogOptions) (string, error) {
+	return runtime.SaveFileDialog(a.ctx, opts)
+}
+
+// saveVaultItemOptions is the save dialog for the vault item stored as
+// filename. A file the extension saved (vault.save: a PDF, a text file) gets
+// "Save File" and a filter of its own extension, so the dialog neither hides
+// its type nor adds an image extension to the name.
+func saveVaultItemOptions(filename, suggestedName string) runtime.SaveDialogOptions {
+	if ext := strings.ToLower(strings.TrimPrefix(filepath.Ext(filename), ".")); ext != "" && !imagescan.AllowedExtensions[ext] {
+		return runtime.SaveDialogOptions{
+			Title:           "Save File",
+			DefaultFilename: suggestedName,
+			Filters:         []runtime.FileFilter{{DisplayName: strings.ToUpper(ext), Pattern: "*." + ext}},
+		}
+	}
+	return runtime.SaveDialogOptions{
 		Title:           "Save Image",
 		DefaultFilename: suggestedName,
 		Filters: []runtime.FileFilter{
 			{DisplayName: "Images", Pattern: "*.png;*.jpg;*.jpeg;*.gif;*.webp;*.bmp;*.tif"},
 		},
-	})
+	}
 }
 
 // UpdateVaultImageLabel renames an image; an empty label clears it.

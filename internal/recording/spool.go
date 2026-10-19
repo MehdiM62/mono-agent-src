@@ -20,7 +20,7 @@ func (s *session) applyStart(f *Frame) error {
 		RecordingID: s.id,
 		TabID:       f.TabID,
 		URL:         SanitizeURL(f.URL),
-		Title:       clipRunes(f.Title, MaxTitleRunes),
+		Title:       cleanTitle(f.Title),
 		Goal:        CleanGoal(f.Goal),
 		StartedAt:   f.StartedAt,
 		Profile:     strings.TrimSpace(f.Profile),

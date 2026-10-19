@@ -424,9 +424,9 @@ extension starts runs in a mode of its own, `--tools monoagent:read`
 (with or without a page attached; one mode, so a later message cannot
 widen what an earlier page reached the model with):
 
-- **Five tools only**: `list_workflows`, `get_workflow`,
-  `list_node_types`, `propose_task` and `propose_recording`. The two
-  proposals write nothing. `propose_task` answers with the task it
+- **Six tools only**: `list_workflows`, `get_workflow`,
+  `list_node_types`, `propose_task`, `propose_recording` and
+  `propose_vault_save`. The three proposals write nothing. `propose_task` answers with the task it
   proposes, the side panel shows it as a card (marked "Suggested after
   reading a web page" once the conversation has read a page), and only the
   person's click on the card's Add button sends it to MonoAgent, which
@@ -436,9 +436,38 @@ widen what an earlier page reached the model with):
   panel's recorder only when the person presses Start recording, and the
   automation is saved only by the Record section's own Save, after the
   person has reviewed the draft. No tool starts a recording, and what is
-  recorded never goes back to the chat. A page cannot press those buttons:
+  recorded never goes back to the chat. `propose_vault_save` names one
+  item, an address on the page or the person's selection, and carries no
+  bytes; only the person's click on Save to vault makes the side panel
+  check that the item is on the page they are on now (or read their
+  selection at that moment), fetch it within a 20 MiB cap (MonoAgent's
+  own), and send it to MonoAgent's file vault as `vault.save`. The fetch
+  carries the person's cookies only when the file is on the page's own
+  origin, so a page cannot have a request to another site go out with
+  them. The card names the host the file would come from. A public page
+  never has the extension fetch a private network address: loopback,
+  private, carrier-grade NAT, link-local, benchmarking, multicast and
+  reserved IPv4 ranges; IPv6 loopback, unique-local, link- and site-local
+  and multicast addresses, and those that carry an IPv4 address (mapped,
+  NAT64, 6to4); `localhost` and the home, office and tailnet names (`.lan`,
+  `.home`, `.home.arpa`, `.corp`, `.local`, `.localdomain`, `.internal`,
+  `.intranet`, `.private`, `.ts.net`, single-label names). A page counts
+  as private, and may save such an address, only when it is an http or
+  https page on a private IP address, `localhost` or `*.localhost`; a page
+  on any name, including the network names above and the wildcard-DNS
+  services below (which can be served from anywhere), a file, a blob,
+  `about:`, `data:` and the browser's own pages count as public.
+  Two limits are known. A public name that resolves to a private address
+  through DNS is not caught: the extension cannot see the address a name
+  resolves to, only the name; the known wildcard-DNS services (`nip.io`,
+  `sslip.io`, `xip.io`, `xip.name`, `1u.ms`, `localtest.me`, `lvh.me`,
+  `traefik.me`, `vcap.me`, `lacolhost.com`, `fbi.com`, `localho.st`,
+  `local.gd`) are refused as private. And from a public page an address that redirects is
+  refused rather than followed, even when the redirect is harmless, so
+  some CDN links need "open the file itself, then save it from there". A
+  page cannot press those buttons:
   they are in the side panel, and the worker takes the requests only from
-  the extension's own pages. There is no secret, credential, vault, profile
+  the extension's own pages. There is no secret, credential, secret-vault, profile
   document, synced message, contact, publication, org, template or social
   list tool; no tool that writes or deletes anything; no `run_workflow`;
   no workflow or canvas builder; no Bash; no knowledge-graph search. A tool
@@ -494,6 +523,71 @@ and the wording of the model's reply, including a link you may choose to
 click (its host is shown), and the task it proposes: read a card before you
 add it, as you read an Inbox task before approving it. The page text and the reply stay in the local
 conversation database like any chat.
+
+### Saving to the vault from the extension (`vault.save`)
+
+The side panel's confirm card saves an image or document you clicked Save on
+into the image/file vault of the profile the panel is set to, the vault
+`image list` and the MCP tools `vault_item_list` and `vault_item_get_path`
+read. It is one bridge request method, `vault.save`
+(`internal/extension/vault_save.go`):
+
+- **Who can call it.** Only a paired extension socket: the bridge reads no
+  request frame until the socket has passed the token handshake, and a
+  request that reached the handler without a connection is refused. The
+  bridge cannot tell a click from a script, so the click is the extension's
+  half: it sends `vault.save` only from the confirm card's Save handler, and
+  no chat tool, agent or page script in the extension reaches that call.
+  **Token caveat (as for every bridge method, #858):** anything running as
+  your user can read `~/.monoagent/extension.token`, pair a socket of its own
+  and call `vault.save` with no click. The bridge is a courtesy layer against
+  mistakes and page-borne instructions, not a sandbox against your own
+  processes.
+- **It writes and never reads.** The reply names the item it made, or for a
+  client id already saved the item as stored (`id`, `created`, `name`,
+  `mime`, `size_bytes`); it never carries the file, its path or anything else
+  from the vault, and the bridge has no other `vault.*` method.
+- **Checked before anything is written:** at most 20 MiB once decoded (a
+  request is one WebSocket frame, read up to 32 MiB); only PNG, JPEG, GIF,
+  WebP, PDF, plain text, Markdown and CSV, and the bytes must sniff as the
+  type they claim (no SVG, HTML or executables); the name is a label of at
+  most 255 bytes with no path separator, control or bidi character and not
+  `.` or `..` (the file itself is stored as `img-NNN` plus the type's
+  extension, 0600, never under the sent name); the profile id is a valid
+  folder name and must be a profile that exists now, so a profile deleted
+  since the panel listed it gets no folder back; the source address is kept
+  only as http(s) scheme, host and path (no user-info, query, fragment or a
+  segment's `;parameters` such as `;jsessionid=`, so a presigned URL's
+  signature never shows in `image list` or the app). A token that is itself
+  a path segment is kept: nothing tells it from a file name.
+- **Limits per profile.** Files saved this way (vault items with a client id)
+  may total at most **2 GiB** and **5,000 items** per profile; the count and
+  the sum are read inside the save's own `BEGIN IMMEDIATE` transaction, so
+  saves at once cannot pass them together. Past either, the save is refused
+  with `quota_exceeded`, naming the limit (final: delete saved files in the
+  Image Vault). At most **20 saves a minute per profile** and **60 a minute in
+  all**, counted in memory in the bridge process; past either, `rate_limited`
+  with `retry_after` in seconds. A save is counted only once its profile is
+  known to exist, from a list of live profiles read at most once a second, so
+  made-up profile ids get neither a rate window nor any database work; the
+  file is decoded only after the rate check.
+  Accepted trade-off: the 60 a minute are shared, so a paired extension that
+  keeps sending junk saves on three or more live profiles can hold real saves
+  back for up to a minute. That takes the same pairing that can already write
+  60 files a minute, and the app and the CLI do not go through this limiter.
+- **Exactly one write per save.** Each request carries a client id; the
+  vault keeps one item per client id per profile (a unique index), so a retry
+  returns the item it already made and writes nothing. A file or symlink
+  already in the vault folder under the next item's name (left by a crash, or
+  put there by anyone) is never overwritten or followed: the save takes the
+  next free number, at most 5 times, then is refused with `storage_conflict`
+  (final: the message says to check the profile's vault folder).
+- **Documents stay out of the knowledge base.** A PDF, text, Markdown or CSV
+  file goes into the image/file vault too, not the documents vault
+  (`profile documents`): documents there are indexed into the knowledge base
+  that agents read, and content from a web page must not land in it without
+  the person adding it there themselves. For the same reason a save is not
+  indexed in the knowledge graph; it is recorded with source `extension`.
 
 ### Extension commands that only the user runs
 

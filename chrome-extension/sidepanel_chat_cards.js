@@ -12,6 +12,9 @@
  *              it is delivered, Review and save runs its analysis, and the
  *              draft opens in the Record section, whose Save is the only way
  *              it is saved. Nothing here saves an automation.
+ *   vault      Save to vault asks the worker (vault_save_proposal) to fetch
+ *              the card's item from the panel's page, if it is there, and
+ *              send it as vault.save.
  *
  *   create(deps) -> { confirm(key), dismiss(key), review(key), follow(event) }
  *
@@ -21,8 +24,8 @@
  * deps: chat() the conversation on screen, ask(message) the worker, profile(),
  * current() a token that changes when the panel switches profile, save(),
  * draw(), record (MonoPanelRecord, or null), page() the panel's page
- * ({tabId, url}): a recording card records the page it was proposed on, and
- * only while the panel shows it.
+ * ({tabId, url}): a vault card saves an item on it, and a recording card
+ * records the page it was proposed on, only while the panel shows it.
  */
 
 (function (root) {
@@ -35,6 +38,7 @@
     const keyOf = Proposals.keyOf;
     const find = (key) => cardsOf().find((p) => keyOf(p) === key) || null;
     const errorOf = (err) => (err && err.message) || String(err);
+    const tabOf = (page) => (page && page.tabId ? { tabId: page.tabId, url: page.url || "" } : null);
 
     async function settle(key, patch, mine) {
       if (mine !== undefined && mine !== deps.current()) return; // another profile's chat is on screen now
@@ -52,7 +56,12 @@
       const mine = deps.current();
       Proposals.settle(deps.chat(), key, { state: "sending", feedback: "" });
       deps.draw();
-      const answer = await deps.ask({ type: "task_add_proposal", profile: deps.profile(), proposal: { id: p.id, kind: p.kind, title: p.title, notes: p.notes, nonce: p.nonce } });
+      const answer = await deps.ask(
+        p.kind === "vault"
+          ? { type: "vault_save_proposal", profile: deps.profile(), tab: tabOf(deps.page && deps.page()),
+              proposal: { id: p.id, kind: p.kind, url: p.url, selection: p.selection, name: p.name, nonce: p.nonce } }
+          : { type: "task_add_proposal", profile: deps.profile(), proposal: { id: p.id, kind: p.kind, title: p.title, notes: p.notes, nonce: p.nonce } }
+      );
       await settle(key, Proposals.afterAdd(answer), mine);
     }
 

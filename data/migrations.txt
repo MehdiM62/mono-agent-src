@@ -92,3 +92,4 @@
 105_profile_info.sql
 106_workflow_approvals.sql
 107_person_messages_sent_at_utc.sql
+108_vault_images_client_id.sql
