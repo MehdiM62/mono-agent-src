@@ -214,3 +214,28 @@ test("a card's task id is scoped to the profile it is sent to", () => {
   const long = P.clientId({ id: "x".repeat(200), nonce: card.nonce }, "3f2a9c1e-7b4d-4c1a-9e2f-0a1b2c3d4e5f");
   assert.match(long, /^[A-Za-z0-9_-]{1,64}$/);
 });
+
+// #876 review: a recording card's goal goes to the recorder and its analysis.
+// It is cleaned of control characters and markup, shown in a field the person
+// can change, and Start sends what the field says.
+test("a recording card's goal is cleaned and editable, and Start sends what the field says", () => {
+  const p = P.fromTool("propose_recording", answer({ kind: "recording", goal: "<b>Export</b> the\u0007 report\u202e" }), "toolu_r", true);
+  assert.equal(p.goal, "Export the report");
+  assert.equal(P.cleanGoal("  Ship <i>it</i>\u0000\u2066 now > later "), "Ship it now later");
+  assert.deepEqual(P.view({ ...p, state: "pending" }).edit, { label: "What you will do", value: "Export the report" });
+  assert.equal(P.view({ ...p, state: "recording" }).edit, undefined, "only before Start");
+  const calls = [];
+  const card = P.card(doc, { ...p, state: "pending" }, { add: (value) => calls.push(value) });
+  const input = card.all().find((n) => n.tag === "input");
+  assert.equal(input.value, "Export the report");
+  input.value = "Export the weekly report";
+  card.all().find((n) => n.tag === "button" && n.textContent === "Start recording").listeners.click[0]({});
+  assert.deepEqual(calls, ["Export the weekly report"]);
+});
+
+test("a card keeps the page it was proposed on, checked again", () => {
+  const card = (page) => P.clone([{ id: "r", kind: "recording", goal: "G", state: "pending", page }])[0].page;
+  assert.deepEqual(card({ tabId: 5, url: "https://a.example/p" }), { tabId: 5, url: "https://a.example/p" });
+  assert.equal(card({ tabId: "5", url: 7 }), undefined);
+  assert.equal(card({ tabId: 5, url: "x".repeat(5000) }), undefined);
+});

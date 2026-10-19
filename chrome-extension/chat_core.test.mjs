@@ -460,3 +460,20 @@ test("two proposals under one repeated call id in one reply are two cards, and a
   assert.deepEqual(a.tools.map((t) => t.status), ["done", "done"], "each call's chip is done");
   assert.notEqual(a.proposals[0].nonce, a.proposals[1].nonce);
 });
+
+// #876 review: a card is bound to the page the panel showed when its turn was
+// sent, so Start recording can record that page and no other.
+test("a card is bound to the page its turn was sent from, also after the panel reopens", () => {
+  const { MonoChatCore: C2 } = loadExtensionScripts(["chat_proposals.js", "chat_core.js"]);
+  const s = C2.newState(null);
+  const page = { tabId: 5, url: "https://a.example/p" };
+  C2.startTurn(s, "record it", "A page", true, page);
+  C2.applyEvent(s, ev(1, "tool.started", { callId: "c1", name: "propose_recording" }));
+  C2.applyEvent(s, ev(2, "tool.completed", { callId: "c1", ok: true, result: JSON.stringify({ proposal: { kind: "recording", goal: "Export" } }) }));
+  assert.deepEqual(s.messages.at(-1).proposals[0].page, page);
+  const back = C2.newState(JSON.parse(JSON.stringify(C2.serialize(s))));
+  assert.deepEqual(back.messages.at(-1).proposals[0].page, page);
+  assert.deepEqual(back.turnPage, page, "a reply replayed after reopening binds to it too");
+  C2.startTurn(back, "and now?", "", false, null);
+  assert.equal(back.turnPage, null);
+});

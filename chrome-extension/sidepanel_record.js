@@ -200,8 +200,8 @@
 
   // ── controls ─────────────────────────────────────────────────────
 
-  // start records the panel's page; goalText, when given, goes in the box first.
-  async function start(goalText) {
+  // start records the panel's page, or a chat card's (tabId); goalText, when given, goes in the box first.
+  async function start(goalText, tabId) {
     if (state.recording) throw new Error("a recording is already running: stop it in the Record section first");
     if (typeof goalText === "string") goal.value = goalText;
     draftBox.hidden = true;
@@ -210,7 +210,7 @@
     const page = globalThis.MonoPanelPage && globalThis.MonoPanelPage.current();
     owner = true;
     if (port) port.postMessage({ type: "record_owner" });
-    return (await send({ type: "record_start", goal: goal.value.trim(), tabId: page && page.tabId })).state;
+    return (await send({ type: "record_start", goal: goal.value.trim(), tabId: tabId || (page && page.tabId) })).state;
   }
 
   toggle.addEventListener("click", async () => {
@@ -491,7 +491,7 @@
     if (panel.scrollIntoView) panel.scrollIntoView({ block: "nearest" });
   };
   globalThis.MonoPanelRecord = {
-    start: (goalText) => (show(), start(goalText)),
+    start: (goalText, tabId) => (show(), start(goalText, tabId)),
     analyze: (recordingId) => (show(), analyze(recordingId)),
     state: () => state,
     onChange: (fn) => listeners.add(fn),

@@ -114,3 +114,10 @@ test("the chat's way in has no save", () => {
   const t = setup();
   assert.deepEqual(Object.keys(t.R).sort(), ["analyze", "onChange", "start", "state"]);
 });
+
+// #876 review: a chat card names the tab its recording is for.
+test("a card's start records the tab the card was proposed on", async () => {
+  const t = setup();
+  await t.R.start("Export the report", 9);
+  assert.deepEqual(t.of("record_start"), [{ type: "record_start", goal: "Export the report", tabId: 9 }]);
+});

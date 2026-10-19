@@ -27,8 +27,9 @@ function world({ start, analyze, taskReply } = {}) {
   const calls = [];
   let saves = 0;
   let seq = 1;
+  let page = { tabId: 5, url: "https://a.example/p" };
   const record = {
-    start: async (goal) => (calls.push(["start", goal]), start ? start(goal) : { recording: true, id: "rec-1" }),
+    start: async (goal, tabId) => (calls.push(tabId !== undefined ? ["start", goal, tabId] : ["start", goal]), start ? start(goal) : { recording: true, id: "rec-1" }),
     analyze: async (id) => (calls.push(["analyze", id]), analyze ? analyze(id) : { draftDir: "/d" }),
   };
   const cards = C.create({
@@ -39,10 +40,11 @@ function world({ start, analyze, taskReply } = {}) {
     save: async () => saves++,
     draw: () => {},
     record,
+    page: () => page,
   });
   const card = (id) => chat.messages[0].proposals.find((p) => p.id === id);
   const state = (s) => cards.follow({ type: "state", state: Object.assign({ id: "rec-1", recording: false, steps: [{}, {}, {}] }, s) });
-  return { chat, calls, cards, card, state, record, saves: () => saves, switchProfile: () => seq++ };
+  return { chat, calls, cards, card, state, record, saves: () => saves, switchProfile: () => seq++, setPage: (p) => (page = p) };
 }
 
 test("a recording card starts nothing until Start recording, then starts the recorder with its goal, once", async () => {
@@ -193,4 +195,29 @@ test("a click starts its own card when two recording cards share a call id", asy
   await w.cards.confirm("2222222222222222");
   assert.deepEqual(w.calls, [["start", "New goal"]]);
   assert.deepEqual(proposals.map((p) => p.state), ["saved", "recording"]);
+});
+
+// #876 review: Start records the page the card was proposed on, with the goal
+// the person has seen and could change; another page in the panel starts nothing.
+test("Start records the card's own page with the goal from its field, and refuses another page", async () => {
+  const w = world();
+  const card = w.card("r1");
+  card.page = { tabId: 5, url: "https://a.example/p" };
+  w.setPage({ tabId: 6, url: "https://other.example/x" });
+  await w.cards.confirm("r1", "Export the weekly report");
+  assert.equal(w.calls.filter((c) => c[0] === "start").length, 0);
+  assert.equal(card.state, "pending", "it can be pressed again from that page");
+  assert.match(card.feedback, /a\.example\/p/);
+  assert.match(card.feedback, /other\.example\/x/);
+  w.setPage({ tabId: 5, url: "https://a.example/p#section" });
+  await w.cards.confirm("r1", " Export the <b>weekly</b> report\u0007 ");
+  assert.deepEqual(w.calls.filter((c) => c[0] === "start"), [["start", "Export the weekly report", 5]]);
+  assert.equal(card.goal, "Export the weekly report", "the card shows what was recorded");
+});
+
+test("a goal emptied in its field starts nothing and says why", async () => {
+  const w = world();
+  await w.cards.confirm("r1", " <b></b> ");
+  assert.equal(w.calls.filter((c) => c[0] === "start").length, 0);
+  assert.match(w.card("r1").feedback, /what you will do/i);
 });

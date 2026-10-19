@@ -31,6 +31,7 @@
   "use strict";
 
   const TITLE_RUNES = 200;
+  const PAGE_URL_CHARS = 2048;
   const NOTES_BYTES = 4000;
 
   // The proposal tools, by the kind each answers with.
@@ -49,6 +50,21 @@
       used += size;
     }
     return out;
+  }
+
+  // Control, bidi and zero-width characters: no place in a goal that the
+  // recorder and its analysis read.
+  const CONTROLS = /[\u0000-\u001f\u007f-\u009f\u061c\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g;
+
+  /** cleanGoal is a recording goal without markup or control characters, one line, 200 runes. */
+  function cleanGoal(v) {
+    return runes(oneLine(str(v).replace(/<[^>]*>/g, " ").replace(/[<>]/g, " ").replace(CONTROLS, " ")), TITLE_RUNES);
+  }
+
+  /** pageOf is the page a card was proposed on ({tabId, url}), checked; null when there is none. */
+  function pageOf(v) {
+    if (!v || !Number.isInteger(v.tabId) || v.tabId <= 0 || typeof v.url !== "string" || v.url.length > PAGE_URL_CHARS) return null;
+    return { tabId: v.tabId, url: v.url };
   }
 
   const RECORDING_STATUS = {
@@ -81,17 +97,20 @@
     },
     recording: {
       heading: "Record these steps?",
-      fields: (p) => ({ goal: runes(oneLine(p.goal), TITLE_RUNES), steps: bytes(str(p.steps).trim(), NOTES_BYTES) }),
+      fields: (p) => ({ goal: cleanGoal(p.goal), steps: bytes(str(p.steps).trim(), NOTES_BYTES) }),
       valid: (f) => !!f.goal,
       text: (p) => ({ title: p.goal, notes: p.steps || "" }),
       check: "Check the goal before you record.",
       states: new Set(["pending", "sending", "recording", "recorded", "reviewing", "saved", "empty", "refused", "dismissed"]),
       screen: (p) => {
         const again = p.state === "empty" || p.state === "refused";
+        const before = p.state === "pending" || again;
         return {
-          actions: p.state === "pending" || again ? ["add", "dismiss"] : p.state === "recorded" ? ["review"] : [],
+          actions: before ? ["add", "dismiss"] : p.state === "recorded" ? ["review"] : [],
           labels: { add: again ? "Record again" : "Start recording", dismiss: "Dismiss", review: "Review and save" },
           status: p.feedback || RECORDING_STATUS[p.state] || "",
+          // Before Start the goal is a field: the person sees it and can change it.
+          edit: before ? { label: "What you will do", value: p.goal } : undefined,
         };
       },
     },
@@ -158,6 +177,8 @@
       const c = cardOf(p, p && p.id, p && p.untrustedPage, state, p && p.feedback);
       if (!c) continue;
       if (NONCE.test(p.nonce)) c.nonce = p.nonce;
+      const page = pageOf(p.page);
+      if (page) c.page = page;
       if (c.kind === "recording" && usableRecording(p.recordingId)) c.recordingId = p.recordingId;
       else if (FOLLOWING.has(c.state)) Object.assign(c, { state: "pending", feedback: "" });
       out.push(c);
@@ -185,6 +206,7 @@
       if (patch && kind && kind.states.has(patch.state)) p.state = patch.state;
       if (patch && typeof patch.feedback === "string") p.feedback = patch.feedback.slice(0, 300);
       if (patch && p.kind === "recording" && usableRecording(patch.recordingId)) p.recordingId = patch.recordingId;
+      if (patch && p.kind === "recording" && cleanGoal(patch.goal)) p.goal = cleanGoal(patch.goal);
       return true;
     }
     return false;
@@ -254,7 +276,17 @@
       return el;
     };
     line("chat-proposal-heading", v.heading);
-    line("chat-proposal-title", v.title);
+    let field = null;
+    if (v.edit) {
+      field = doc.createElement("input");
+      field.type = "text";
+      field.className = "chat-proposal-goal";
+      field.value = v.edit.value;
+      field.setAttribute("aria-label", v.edit.label);
+      box.appendChild(field);
+    } else {
+      line("chat-proposal-title", v.title);
+    }
     if (v.notes) line("chat-proposal-notes", v.notes);
     if (v.warning) line("chat-proposal-warning", v.warning);
     // What happened so far, then what can be done next (a recording card has both).
@@ -267,7 +299,8 @@
         b.type = "button";
         b.className = cls;
         b.textContent = label;
-        b.addEventListener("click", () => fn && fn());
+        // A field's value goes with the click: the goal as the person left it.
+        b.addEventListener("click", () => fn && fn(field ? field.value : undefined));
         row.appendChild(b);
       };
       for (const a of v.actions) {
@@ -278,5 +311,5 @@
     return box;
   }
 
-  root.MonoChatProposals = { fromTool, clone, settle, keyOf, clientId, afterAdd, view, card, TOOLS, KINDS, TITLE_RUNES, NOTES_BYTES };
+  root.MonoChatProposals = { fromTool, clone, settle, keyOf, clientId, afterAdd, view, card, cleanGoal, pageOf, TOOLS, KINDS, TITLE_RUNES, NOTES_BYTES };
 })(globalThis);

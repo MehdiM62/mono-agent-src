@@ -378,8 +378,12 @@
       nextId: Number.isFinite(s.nextId) ? s.nextId : 1,
       // Whether the conversation has read a page: its proposal cards say so (chat_proposals.js).
       readPage: !!s.readPage,
+      // The page the panel showed when the turn was sent: its cards are bound to it.
+      turnPage: pageOf(s.turnPage),
     };
   }
+
+  const pageOf = (v) => (root.MonoChatProposals ? root.MonoChatProposals.pageOf(v) : null);
 
   function validMessage(m) {
     return m && (m.role === "user" || m.role === "assistant" || m.role === "notice") && typeof m.text === "string";
@@ -419,9 +423,11 @@
 
   /**
    * startTurn records what the person sent; the reply opens with its first
-   * event. withPage: the message carried a page context, titled or not.
+   * event. withPage: the message carried a page context, titled or not;
+   * page: the page the panel showed ({tabId, url}), which the reply's cards
+   * are bound to.
    */
-  function startTurn(state, text, pageTitle, withPage) {
+  function startTurn(state, text, pageTitle, withPage, page) {
     closeOpen(state);
     // A new turn numbers its events from 1 again; its id is learned from the
     // first event that names it, or from the final reply.
@@ -431,6 +437,7 @@
     if (pageTitle) msg.page = pageTitle;
     // Any page counts, with or without a title or address: its text is the page's.
     if (pageTitle || withPage) state.readPage = true;
+    state.turnPage = pageOf(page);
     push(state, msg);
   }
 
@@ -512,6 +519,7 @@
         const card = P && !failed && !t.carded ? P.fromTool(t.name, p, t.id, state.readPage) : null;
         if (card) {
           t.carded = true;
+          if (state.turnPage) card.page = Object.assign({}, state.turnPage);
           (a.proposals = a.proposals || []).push(card);
         }
         return true;
@@ -586,6 +594,7 @@
       lastSeq: state.lastSeq,
       nextId: state.nextId,
       readPage: !!state.readPage,
+      turnPage: state.turnPage || null,
       messages: state.messages.slice(-KEEP_MESSAGES).map((m) =>
         Object.assign({}, m, { text: clip(m.text, KEEP_MESSAGE_CHARS) })
       ),

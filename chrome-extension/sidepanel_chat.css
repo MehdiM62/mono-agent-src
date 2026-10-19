@@ -264,6 +264,13 @@
   overflow-wrap: anywhere;
 }
 
+.chat-proposal-goal {
+  width: 100%;
+  margin-top: var(--sp-1);
+  font: inherit;
+  font-weight: 600;
+}
+
 .chat-proposal-notes {
   margin-top: var(--sp-1);
   white-space: pre-wrap;
