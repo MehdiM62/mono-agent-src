@@ -1,11 +1,12 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AppWindow, Archive, Plus, Check, CheckCheck, CircleHelp, Globe, LayoutGrid, NotebookText, Sparkles, Terminal, Undo2 } from 'lucide-react'
 import { tasksApi } from '../services/tasks.js'
 import { useTaskBoard } from '../lib/useTaskBoard.js'
-import { COLUMNS, findTask, filterBoard, placeFor, isNoopDrop, dropIndex, keyMove, focusTarget, isTypingTarget, claimState, sourceChip, shortAge, splitMinutes, actorColor, readFirst } from '../lib/taskModel.js'
+import { COLUMNS, findTask, filterBoard, placeFor, isNoopDrop, keyMove, focusTarget, isTypingTarget, claimState, sourceChip, shortAge, splitMinutes, actorColor, readFirst } from '../lib/taskModel.js'
 import TaskDrawer from '../components/TaskDrawer.jsx'
 import { useFlip } from '../lib/useFlip.js'
+import { useCardDrag } from '../lib/useCardDrag.js'
 import { useMarks } from '../lib/useMarks.js'
 import { usePageVisible } from '../lib/usePageVisible.js'
 
@@ -55,8 +56,9 @@ function span(minutes, t) {
 // (and takes the move keys), and the approve and archive buttons are siblings
 // of it, so no control sits inside another. A card with notes shows a notes
 // marker, and its Inbox button reads "Read and approve" (plan ruling F6). A
-// Review card has Done and Back to Ready.
-function Card({ task, status, readOnly, selected, pulse, now, onOpen, onKey, onDragStart, onApprove, onMove, onArchive, t }) {
+// Review card has Done and Back to Ready. A press on it can start the ghost
+// drag (useCardDrag); while it is dragged it stays as a faded placeholder.
+function Card({ task, status, readOnly, selected, dragging, pulse, now, onOpen, onKey, onPress, onApprove, onMove, onArchive, t }) {
   const chip = sourceChip(task)
   const Icon = SOURCE_ICONS[chip.kind] || Terminal
   const age = shortAge(task.created_at, now)
@@ -67,10 +69,9 @@ function Card({ task, status, readOnly, selected, pulse, now, onOpen, onKey, onD
   return (
     <div
       data-task-id={task.id}
-      draggable={!readOnly}
+      onMouseDown={e => onPress(e, task.id, status)}
       onClick={e => { if (!e.target.closest('button')) onOpen(task.id) }}
-      onDragStart={e => { e.dataTransfer?.setData('text/plain', String(task.id)); onDragStart(task.id) }}
-      className={`tb-card${selected ? ' is-selected' : ''}${cs?.stale ? ' is-stale' : ''}${pulse ? ` tb-card--${pulse}` : ''}`}
+      className={`tb-card${selected ? ' is-selected' : ''}${dragging ? ' tb-card--dragging' : ''}${cs?.stale ? ' is-stale' : ''}${pulse ? ` tb-card--${pulse}` : ''}`}
     >
       <button
         type="button"
@@ -123,7 +124,6 @@ export default function Tasks({ isActive = true }) {
   // readFor: the card the drawer opened for to be read before it is approved (F6).
   const [readFor, setReadFor] = useState(null)
   const [shell, setShell] = useState(null) // null until agentShell() answers
-  const dragging = useRef(null)
   const root = useRef(null)
   const searchRef = useRef(null)
   // What the live region last said: each move is announced (spec §10).
@@ -242,20 +242,14 @@ export default function Tasks({ isActive = true }) {
     if (next) focusCard(next)
   }
 
-  const onDrop = (e, status) => {
-    e.preventDefault()
-    const id = dragging.current
-    dragging.current = null
-    const found = id && findTask(shown, id)
-    if (!found || readOnly) return
-    if (guarded(found.task, found.status, status)) { openToRead(id); return }
-    const cards = [...e.currentTarget.querySelectorAll('[data-task-id]')].filter(el => Number(el.dataset.taskId) !== id)
-    const ids = cards.map(el => Number(el.dataset.taskId))
-    const index = dropIndex(cards.map(el => el.getBoundingClientRect()), e.clientY)
-    const fromIds = shown.columns[found.status].map(x => x.id)
-    if (isNoopDrop(fromIds, found.status, status, ids, index, id)) return
-    moveCard(id, status, placeFor(ids, index))
+  const onDrop = ({ id, from, fromIds, to, ids, index }) => {
+    const found = findTask(shown, id)
+    if (!found || readOnly || isNoopDrop(fromIds, from, to, ids, index, id)) return
+    if (guarded(found.task, from, to)) { openToRead(id); return }
+    moveCard(id, to, placeFor(ids, index))
   }
+  const { drag, onCardMouseDown, consumeClick } = useCardDrag({ rootRef: root, onDrop, canDrag: () => !readOnly, layoutKey: shown })
+  const dragged = drag && findTask(shown, drag.id)?.task
 
   if (!b.board) {
     return <div className="page" style={{ padding: 16 }}>{b.error ? <div role="alert">{t('tasks.loadError')}: {b.error}</div> : t('tasks.loading')}</div>
@@ -285,32 +279,46 @@ export default function Tasks({ isActive = true }) {
         <div role="alert" onClick={b.clearNotice}>{t('tasks.refused', { error: b.notice.error })}</div>
       )}
       <div className="tb-main">
-        <div className="tb-cols">
-          {COLUMNS.map(status => (
-            <section
-              key={status}
-              aria-label={t(`tasks.column.${status}`)}
-              onDragOver={e => e.preventDefault()}
-              onDrop={e => onDrop(e, status)}
-              className="tb-col"
-            >
-              <h2 className="tb-col-head">{t(`tasks.column.${status}`)} <span className="tb-count">{shown.counts[status] ?? shown.columns[status].length}</span></h2>
-              {!readOnly && (status === 'inbox' || status === 'ready') && <QuickAdd status={status} onAdd={b.add} t={t} />}
-              {shown.columns[status].length === 0 && <div className="tb-empty">{t(`tasks.emptyBy.${status}`, { defaultValue: t('tasks.empty') })}</div>}
-              {shown.columns[status].map(task => (
-                <Card
-                  key={task.id} task={task} status={status} readOnly={readOnly} selected={openId === task.id} now={now}
-                  pulse={status === 'done' && marks.done.has(task.id) ? 'done-pulse' : status === 'in_progress' && task.claim && marks.claimed.has(task.id) ? 'claim-pulse' : ''}
-                  onOpen={openCard} onKey={onKey} onDragStart={id => { dragging.current = id }}
-                  onApprove={approveCard} onMove={(id, to) => { refocus.current = id; moveCard(id, to, { where: '' }) }} onArchive={archiveRes} t={t}
-                />
-              ))}
-            </section>
-          ))}
+        <div className="tb-cols" data-tb-board-scroll>
+          {COLUMNS.map(status => {
+            const over = drag?.overStatus === status
+            const lineAt = over ? (shown.columns[status].filter(x => x.id !== drag.id)[drag.overIndex]?.id ?? 'end') : null
+            return (
+              <section
+                key={status}
+                aria-label={t(`tasks.column.${status}`)}
+                data-tb-column={status}
+                data-drop-target={over ? 'true' : undefined}
+                className="tb-col"
+              >
+                <h2 className="tb-col-head">{t(`tasks.column.${status}`)} <span className="tb-count">{shown.counts[status] ?? shown.columns[status].length}</span></h2>
+                {!readOnly && (status === 'inbox' || status === 'ready') && <QuickAdd status={status} onAdd={b.add} t={t} />}
+                {shown.columns[status].length === 0 && <div className="tb-empty">{t(`tasks.emptyBy.${status}`, { defaultValue: t('tasks.empty') })}</div>}
+                {shown.columns[status].map(task => (
+                  <Fragment key={task.id}>
+                    {lineAt === task.id && <div className="tb-drop-line" data-testid="tb-drop-line" aria-hidden="true" />}
+                    <Card
+                      task={task} status={status} readOnly={readOnly} selected={openId === task.id} dragging={drag?.id === task.id} now={now}
+                      pulse={status === 'done' && marks.done.has(task.id) ? 'done-pulse' : status === 'in_progress' && task.claim && marks.claimed.has(task.id) ? 'claim-pulse' : ''}
+                      onOpen={id => { if (!consumeClick()) openCard(id) }} onKey={onKey} onPress={onCardMouseDown}
+                      onApprove={approveCard} onMove={(id, to) => { refocus.current = id; moveCard(id, to, { where: '' }) }} onArchive={archiveRes} t={t}
+                    />
+                  </Fragment>
+                ))}
+                {lineAt === 'end' && <div className="tb-drop-line" data-testid="tb-drop-line" aria-hidden="true" />}
+              </section>
+            )
+          })}
         </div>
         {open && <TaskDrawer task={open} status={findTask(b.board, open.id)?.status} readFirst={readFor === open.id} readOnly={readOnly} onClose={() => setOpenId(null)} onEdit={b.edit} onComment={b.comment} onApprove={() => approveNow(open.id)} onArchive={() => archiveRes(open.id)} archiving={archiving === open.id} archiveError={archiveError} />}
       </div>
       </div>
+      {dragged && (
+        <div className="tb-ghost" data-testid="tb-ghost" aria-hidden="true" style={{ left: drag.x - drag.offsetX, top: drag.y - drag.offsetY, width: drag.width }}>
+          <div className="tb-card-title">{dragged.title}</div>
+          <div className="tb-ghost-id">#{dragged.id}</div>
+        </div>
+      )}
     </div>
   )
 }

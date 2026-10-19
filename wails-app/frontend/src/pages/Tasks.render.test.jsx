@@ -296,8 +296,11 @@ describe('Tasks page', () => {
       expect(await screen.findByTestId('read-first')).toBeInTheDocument()
       fireEvent.click(screen.getByRole('button', { name: 'Close' }))
       await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
-      fireEvent.dragStart(screen.getByText('Task 2').closest('[data-task-id]'), { dataTransfer: { setData() {} } })
-      fireEvent.drop(screen.getByRole('region', { name: 'Ready' }), { clientY: 0 })
+      document.elementFromPoint = () => screen.getByRole('region', { name: 'Ready' })
+      fireEvent.mouseDown(screen.getByText('Task 2').closest('[data-task-id]'), { button: 0, clientX: 10, clientY: 10 })
+      fireEvent.mouseMove(document, { clientX: 320, clientY: 20 })
+      fireEvent.mouseUp(document, { clientX: 320, clientY: 20 })
+      delete document.elementFromPoint
       expect(await screen.findByTestId('read-first')).toBeInTheDocument()
       expect(api.move).not.toHaveBeenCalled()
       expect(api.approve).not.toHaveBeenCalled()

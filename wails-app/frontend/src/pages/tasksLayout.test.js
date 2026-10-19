@@ -34,6 +34,16 @@ describe('the Tasks board layout', () => {
     expect(rule('.tb-chip svg')).toMatch(/flex-shrink:\s*0/)
   })
 
+  // The drag hit-tests the point under the mouse: a ghost that took the
+  // pointer would hide every column from it.
+  it('keeps the drag ghost out of the hit test, and the drop zone and line visible', () => {
+    const ghost = rule('.tb-ghost')
+    expect(ghost).toMatch(/pointer-events:\s*none/)
+    expect(ghost).toMatch(/position:\s*fixed/)
+    expect(rule('.tb-col[data-drop-target]')).toMatch(/box-shadow:/)
+    expect(px(rule('.tb-drop-line'), 'height')).toBeGreaterThanOrEqual(2)
+  })
+
   it('sets the read-first note beside the drawer close button, not under it', () => {
     expect(rule('.tb-drawer-close')).toMatch(/float:\s*right/)
     expect(rule('.tb-read-first')).toMatch(/display:\s*flow-root/)
