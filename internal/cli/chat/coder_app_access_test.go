@@ -53,8 +53,13 @@ func TestCoderSetAppAccess(t *testing.T) {
 
 // runOrgTurn runs one dynamic-org turn through the fake monomind and returns
 // the lead's and the worker's system prompts and the lead's first and second
-// tool results.
+// tool results; leadTools is the lead's tools file.
 func runOrgTurn(t *testing.T, s coderSettings, call, call2 string) (lead, worker, reply, reply2 string) {
+	lead, worker, reply, reply2, _ = runOrgTurnTools(t, s, call, call2)
+	return lead, worker, reply, reply2
+}
+
+func runOrgTurnTools(t *testing.T, s coderSettings, call, call2 string) (lead, worker, reply, reply2, leadTools string) {
 	t.Helper()
 	t.Setenv("TYPESAFE_API_KEY", "")
 	t.Setenv("ORG_LEAD_CALL", call)
@@ -80,7 +85,7 @@ func runOrgTurn(t *testing.T, s coderSettings, call, call2 string) (lead, worker
 		b, _ := os.ReadFile(filepath.Join(filepath.Dir(argsLog), name))
 		return string(b)
 	}
-	return read("lead-system.txt"), read("worker-system.txt"), read("reply.json"), read("reply2.json")
+	return read("lead-system.txt"), read("worker-system.txt"), read("reply.json"), read("reply2.json"), read("lead-tools.json")
 }
 
 const (
@@ -96,9 +101,12 @@ const (
 // default to workspace runs as coding without them.
 func TestDynamicOrgWithAppAccessOff(t *testing.T) {
 	off := false
-	lead, worker, reply, reply2 := runOrgTurn(t, coderSettings{AppAccess: &off}, spawnWorkspace, spawnTaskManager)
-	if lead == "" || worker == "" {
-		t.Fatalf("no system prompts captured: lead %d bytes, worker %d bytes", len(lead), len(worker))
+	lead, worker, reply, reply2, tools := runOrgTurnTools(t, coderSettings{AppAccess: &off}, spawnWorkspace, spawnTaskManager)
+	if lead == "" || worker == "" || tools == "" {
+		t.Fatalf("nothing captured: lead %d bytes, worker %d bytes, tools %d bytes", len(lead), len(worker), len(tools))
+	}
+	if !strings.Contains(tools, "org_spawn") || strings.Contains(tools, "workspace (coding plus") {
+		t.Errorf("app access off: org_spawn still offers workspace: %s", tools)
 	}
 	for _, rule := range []string{workspaceRuleText, sendRuleText} {
 		if strings.Contains(lead, rule) || strings.Contains(worker, rule) {
@@ -114,7 +122,10 @@ func TestDynamicOrgWithAppAccessOff(t *testing.T) {
 }
 
 func TestDynamicOrgWithAppAccessOn(t *testing.T) {
-	lead, worker, _, reply2 := runOrgTurn(t, coderSettings{}, spawnWorkspace, spawnTaskManager)
+	lead, worker, _, reply2, tools := runOrgTurnTools(t, coderSettings{}, spawnWorkspace, spawnTaskManager)
+	if !strings.Contains(tools, "workspace (coding plus") {
+		t.Errorf("app access on: org_spawn does not offer workspace: %s", tools)
+	}
 	for _, rule := range []string{workspaceRuleText, sendRuleText} {
 		if !strings.Contains(lead, rule) || !strings.Contains(worker, rule) {
 			t.Errorf("app access on: a prompt lacks %q", rule)

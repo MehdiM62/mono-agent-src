@@ -32,9 +32,11 @@ if [ "$1" = "--version" ]; then echo '{"v":1,"version":"9.0.0","min_caller":"1.0
 if [ "$1" = "pick" ]; then echo '{"agents":{"confident":false,"ranked":[]},"skills":{"confident":false,"ranked":[]}}'; exit 0; fi
 if [ "$1" = "agent" ] && [ "$2" = "exec" ]; then
   sys=""
+  tools=""
   prev=""
   for a in "$@"; do
     if [ "$prev" = "--system-file" ]; then sys="$a"; fi
+    if [ "$prev" = "--tools-file" ]; then tools="$a"; fi
     prev="$a"
   done
   if [ -n "$sys" ] && grep -q "a worker in a team" "$sys"; then
@@ -49,6 +51,7 @@ if [ "$1" = "agent" ] && [ "$2" = "exec" ]; then
     exit 0
   fi
   if [ -n "$sys" ]; then cp "$sys" '` + filepath.Join(dir, "lead-system.txt") + `'; fi
+  if [ -n "$tools" ]; then cp "$tools" '` + filepath.Join(dir, "lead-tools.json") + `'; fi
   echo '{"v":1,"type":"start","runtime":"claude","cwd":"/w","pid":1,"access":"full"}'
   echo '{"v":1,"type":"session","session_id":"th_lead"}'
   if [ -n "$ORG_LEAD_CALL" ]; then

@@ -7,6 +7,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/monoes/mono-agent/internal/monomind"
 )
 
 func newAppAccessConductor(t *testing.T, ex *execScript, noAppAccess bool) *Conductor {
@@ -145,5 +147,36 @@ func TestWorkersProfileSectionIsCachedPerTurn(t *testing.T) {
 		if strings.Count(o.SystemPrompt, "## Profile context") != 1 || !strings.Contains(o.SystemPrompt, want) {
 			t.Errorf("worker run %d prompt has the wrong profile section (want %s):\n%s", i, want, o.SystemPrompt)
 		}
+	}
+}
+
+// org_spawn offers workspace only with app access: on, its description is
+// what it always was; off, the lead's and a spawning worker's leave it out.
+func TestSpawnToolOffersWorkspaceOnlyWithAppAccess(t *testing.T) {
+	access := func(specs []monomind.ToolSpec) string {
+		for _, s := range specs {
+			if s.Name == ToolSpawn {
+				b, _ := json.Marshal(s.Schema)
+				var schema struct {
+					Properties map[string]struct {
+						Description string `json:"description"`
+					} `json:"properties"`
+				}
+				_ = json.Unmarshal(b, &schema)
+				return schema.Properties["access"].Description
+			}
+		}
+		return ""
+	}
+	const always = "Access profile: workspace (coding plus every monoagent surface; sends need approval), coding, qa, automation, or research (read only)."
+	if got := access(ToolSpecs(true)); got != always {
+		t.Errorf("app access on: %q", got)
+	}
+	const off = "Access profile: coding, qa, automation, or research (read only)."
+	if got := access(ToolSpecs(false)); got != off {
+		t.Errorf("app access off: %q", got)
+	}
+	if got := access(childToolSpecs((&Staffer{NoAppAccess: true}).profiles())); got != off {
+		t.Errorf("a spawning worker with app access off: %q", got)
 	}
 }
