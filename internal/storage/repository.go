@@ -81,9 +81,9 @@ func (d *Database) UpsertPerson(person *Person) error {
 		return fmt.Errorf("upserting person %s/%s: %w", person.Platform, person.PlatformUsername, err)
 	}
 
-	d.kg.start(func() {
+	d.kg.start(func(started func()) {
 		node := monomind.KGNode{Name: personKGDisplayName(person), Type: "person", Description: personKGDescription(person)}
-		_ = monomind.SyncToKnowledgeGraph(context.Background(), d.DB, person.ProfileID, []monomind.KGNode{node}, nil, "person:"+person.ID)
+		_ = monomind.SyncToKnowledgeGraphStarted(context.Background(), d.DB, person.ProfileID, []monomind.KGNode{node}, nil, "person:"+person.ID, started)
 	})
 
 	return nil
@@ -335,7 +335,7 @@ func (d *Database) BatchUpsertPeople(people []*Person) error {
 		return err
 	}
 
-	d.kg.start(func() {
+	d.kg.start(func(started func()) {
 		// Batches are expected to belong to a single profile in practice;
 		// group by profile defensively rather than assuming that.
 		byProfile := make(map[string][]monomind.KGNode)
@@ -343,8 +343,16 @@ func (d *Database) BatchUpsertPeople(people []*Person) error {
 			node := monomind.KGNode{Name: personKGDisplayName(p), Type: "person", Description: personKGDescription(p)}
 			byProfile[p.ProfileID] = append(byProfile[p.ProfileID], node)
 		}
+		// The syncs run one after another: the batch has started once the
+		// last one has.
+		left := len(byProfile)
 		for profileID, nodes := range byProfile {
-			_ = monomind.SyncToKnowledgeGraph(context.Background(), d.DB, profileID, nodes, nil, "people-batch:"+people[0].ID)
+			left--
+			var last func()
+			if left == 0 {
+				last = started
+			}
+			_ = monomind.SyncToKnowledgeGraphStarted(context.Background(), d.DB, profileID, nodes, nil, "people-batch:"+people[0].ID, last)
 		}
 	})
 

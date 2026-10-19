@@ -73,7 +73,7 @@ func (d *Database) UpsertPersonMessage(msg *PersonMessage, profileID string) err
 		return fmt.Errorf("upserting message for person %s: %w", msg.PersonID, err)
 	}
 
-	d.kg.start(func() {
+	d.kg.start(func(started func()) {
 		label := msg.Subject
 		if label == "" {
 			label = msg.ID
@@ -90,7 +90,7 @@ func (d *Database) UpsertPersonMessage(msg *PersonMessage, profileID string) err
 		// only carries PersonID, and fetching the display name here would
 		// add an extra query for a best-effort sync.
 		edge := monomind.KGEdge{Source: label, Target: msg.PersonID, Relation: "sent_to", Description: msg.Source}
-		_ = monomind.SyncToKnowledgeGraph(context.Background(), d.DB, profileID, []monomind.KGNode{node}, []monomind.KGEdge{edge}, "message:"+msg.ID)
+		_ = monomind.SyncToKnowledgeGraphStarted(context.Background(), d.DB, profileID, []monomind.KGNode{node}, []monomind.KGEdge{edge}, "message:"+msg.ID, started)
 	})
 
 	return nil

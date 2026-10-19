@@ -80,14 +80,14 @@ func (s *SQLiteWorkflowStore) GetWorkflow(ctx context.Context, id string) (*Work
 	return w, nil
 }
 
-// ListWorkflows returns the profile's workflows ordered by created_at DESC.
-// An empty profileID is ErrNoProfile: "every profile" is spelled
-// ListAllProfilesWorkflows. Nodes and Connections are not populated; call
-// GetWorkflow for full detail.
 // workflowsNewestFirst orders workflows by when they were created: created_at
 // holds both a time.Time's text and RFC3339 (sqltime), which text order mixes.
 var workflowsNewestFirst = sqltime.SortKey("created_at") + " DESC, rowid DESC"
 
+// ListWorkflows returns the profile's workflows ordered by created_at DESC.
+// An empty profileID is ErrNoProfile: "every profile" is spelled
+// ListAllProfilesWorkflows. Nodes and Connections are not populated; call
+// GetWorkflow for full detail.
 func (s *SQLiteWorkflowStore) ListWorkflows(ctx context.Context, profileID string) ([]Workflow, error) {
 	if profileID == "" {
 		return nil, fmt.Errorf("listing workflows: %w", ErrNoProfile)

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/monoes/mono-agent/data"
+	"github.com/monoes/mono-agent/internal/monomind"
 
 	_ "modernc.org/sqlite"
 )
@@ -27,51 +28,33 @@ type Database struct {
 	kg     kgSyncs
 }
 
-// kgSyncCloseWait bounds how long Close waits for the knowledge-graph syncs
-// still running (each is capped by its own monomind timeout too).
-const kgSyncCloseWait = 5 * time.Second
-
 // kgSyncs tracks the knowledge-graph syncs a Database's upserts start in the
-// background. They read the database, so Close waits for them, for at most
-// kgSyncCloseWait: a short-lived command finishes the syncs it started
-// instead of cutting them off, and a stuck one cannot hold its exit. Once
-// closing starts, no new sync starts.
+// background. They read the database before their monomind process starts,
+// so Close lets them settle first (monomind.SyncGroup.Settle: about a second,
+// longer only for a sync not started yet), and once closing starts no new
+// sync starts.
 type kgSyncs struct {
 	mu      sync.Mutex
 	closing bool
-	wg      sync.WaitGroup
+	group   monomind.SyncGroup
 }
 
-func (k *kgSyncs) start(fn func()) {
+func (k *kgSyncs) start(fn func(started func())) {
 	k.mu.Lock()
 	defer k.mu.Unlock()
 	if k.closing {
 		return
 	}
-	k.wg.Add(1)
-	go func() {
-		defer k.wg.Done()
-		fn()
-	}()
+	k.group.Go(fn)
 }
 
-// stop refuses new syncs and waits up to limit for the running ones; false
-// means some were still running.
-func (k *kgSyncs) stop(limit time.Duration) bool {
+// stop refuses new syncs and lets the running ones settle; false means some
+// were still running.
+func (k *kgSyncs) stop() bool {
 	k.mu.Lock()
 	k.closing = true
 	k.mu.Unlock()
-	done := make(chan struct{})
-	go func() {
-		k.wg.Wait()
-		close(done)
-	}()
-	select {
-	case <-done:
-		return true
-	case <-time.After(limit):
-		return false
-	}
+	return k.group.Settle()
 }
 
 // pingDeadline bounds how long the first open retries a locked database;
@@ -532,7 +515,7 @@ func truncate(s string, n int) string {
 
 // Close closes the underlying database connection.
 func (d *Database) Close() error {
-	d.kg.stop(kgSyncCloseWait)
+	d.kg.stop()
 	if d.DB != nil {
 		return d.DB.Close()
 	}
