@@ -239,3 +239,24 @@ func TestExecuteCaseOutcomes(t *testing.T) {
 		t.Errorf("row item %v", eng.rows[1])
 	}
 }
+
+// movedOn is a run that paused for a person and was approved between the
+// in-flight check and the read of its record.
+type movedOn struct{ *fakeEngine }
+
+func (movedOn) ExecutionInFlight(context.Context, string) (string, bool, error) {
+	return "WAITING", false, nil
+}
+
+func (movedOn) GetExecution(_ context.Context, id string) (*workflow.WorkflowExecution, error) {
+	return &workflow.WorkflowExecution{ID: id, Status: "RUNNING"}, nil
+}
+
+// A case is judged on the status the wait decided on: a pause for a person,
+// not the RUNNING its record says by the time it is read.
+func TestWaitForJudgesTheStatusItDecidedOn(t *testing.T) {
+	exec, err := waitFor(context.Background(), movedOn{}, "e1", 5*time.Second)
+	if err != nil || exec == nil || exec.Status != "WAITING" {
+		t.Fatalf("waitFor = %+v, %v; want the WAITING it decided on", exec, err)
+	}
+}
