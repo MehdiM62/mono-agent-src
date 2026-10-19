@@ -11,6 +11,7 @@ import { api, notify, reportRunFailure, subscribeEvent } from '../services/api.j
 import { confirm } from '../components/ConfirmDialog.jsx'
 import ResourcePickerField from '../components/ResourcePickerField.jsx'
 import ImagePickerModal from '../components/ImagePickerModal'
+import { isVaultImage } from '../lib/vaultItems.js'
 import {
   NODE_CONFIG_FIELDS, BROWSER_NODE_GENERIC,
   deriveInputs, deriveOutputs, portsDependOnConfig, isCaseListSettled, remapSourceEdges,
@@ -464,7 +465,7 @@ function resolveSchema(node, liveSchemas) {
   return liveSchemas?.[node?.subtype] || node?.schema || null
 }
 
-function Inspector({ node, onConfigChange, onClose, onNavigate, liveSchemas, automationIds }) {
+export function Inspector({ node, onConfigChange, onClose, onNavigate, liveSchemas, automationIds }) {
   const schema = resolveSchema(node, liveSchemas)
   const [copied, setCopied] = useState(false)
   const [connections, setConnections] = useState([])
@@ -498,7 +499,7 @@ function Inspector({ node, onConfigChange, onClose, onNavigate, liveSchemas, aut
   }, [platformId, pickerMode, node?.id])
 
   useEffect(() => {
-    WailsApp.GetVaultImages(50).then(imgs => setVaultImages(imgs || [])).catch(() => {})
+    WailsApp.GetVaultImages(50).then(imgs => setVaultImages((imgs || []).filter(isVaultImage))).catch(() => {})
   }, [node?.id])
 
   if (!node) return null
