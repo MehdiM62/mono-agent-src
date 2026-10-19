@@ -3,6 +3,7 @@ package hilsend
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -13,11 +14,12 @@ import (
 // What the card shows of one value: a value is cut, never what follows it,
 // so padding can't push a key or a change out of sight.
 const (
-	showValueMax = 500 // bytes of a param's value
-	showKeyMax   = 200 // bytes of one key's value in an object
-	showKeysMax  = 20  // keys of an object listed with their values
-	showElemsMax = 10  // elements of a list listed one by one
-	showNameMax  = 80  // bytes of one key's name
+	showValueMax = 500  // bytes of a param's value
+	showKeyMax   = 200  // bytes of one key's value in an object
+	showKeysMax  = 20   // keys of an object listed with their values
+	showElemsMax = 10   // elements of a list listed one by one
+	showNameMax  = 80   // bytes of one key's name
+	showNamesMax = 2000 // bytes of a list of key names
 )
 
 // showText is the card's text for a send whose words aren't a message the
@@ -78,49 +80,147 @@ func structured(v interface{}) interface{} {
 }
 
 // writeElements lists arr's elements one by one, an object's keys under
-// it; past showElemsMax, how many more.
+// it. Past showElemsMax it lists only an object element with a
+// recipient-like key, up to showElemsMax more, and names the rest of
+// those; then says how many more elements there are.
 func writeElements(b *strings.Builder, arr []interface{}, indent string) {
 	if len(arr) == 0 {
 		b.WriteString(" []")
 		return
 	}
+	extra, more := 0, 0
+	var named []string
 	for i, el := range arr {
-		if i == showElemsMax {
-			fmt.Fprintf(b, "\n%s+%d more elements", indent, len(arr)-i)
-			return
+		obj, isObj := el.(map[string]interface{})
+		if i >= showElemsMax {
+			rk := firstRecipientLike(obj)
+			switch {
+			case rk == "":
+				more++
+				continue
+			case extra == showElemsMax:
+				named = append(named, fmt.Sprintf("[%d] has %s", i, cardValue(rk, showNameMax)))
+				continue
+			}
+			extra++
 		}
-		if obj, ok := el.(map[string]interface{}); ok {
+		if isObj {
 			fmt.Fprintf(b, "\n%s[%d]:", indent, i)
 			writeKeys(b, obj, indent+"  ")
 			continue
 		}
 		fmt.Fprintf(b, "\n%s[%d]: %s", indent, i, cardValue(el, showKeyMax))
 	}
+	if more > 0 {
+		fmt.Fprintf(b, "\n%s+%d more elements", indent, more)
+	}
+	if len(named) > 0 {
+		fmt.Fprintf(b, "\n%salso with recipient keys: %s", indent, nameList(named, false))
+	}
 }
 
-// writeKeys lists obj's keys, sorted, each on its own line with its value;
-// past showKeysMax, the names of the rest.
+// writeKeys lists obj's keys, each on its own line with its value: the
+// recipient-like ones first, all of them, then showKeysMax others, and
+// past those the names of the rest. A value that is an
+// object itself names all its keys under it, recipient-like first.
 func writeKeys(b *strings.Builder, obj map[string]interface{}, indent string) {
 	if len(obj) == 0 {
 		b.WriteString(" {}")
 		return
 	}
+	keys := orderKeys(obj)
+	others := 0
+	for i, k := range keys {
+		recipient := recipientLike(k)
+		if !recipient {
+			if others == showKeysMax {
+				fmt.Fprintf(b, "\n%s+%d more keys: %s", indent, len(keys)-i, nameList(keys[i:], true))
+				return
+			}
+			others++
+		}
+		name := cardValue(k, showNameMax)
+		if recipient {
+			name = cardValue(k, showValueMax)
+		}
+		b.WriteString("\n" + indent + name + ": " + cardValue(obj[k], showKeyMax))
+		if inner, ok := obj[k].(map[string]interface{}); ok && len(inner) > 0 {
+			b.WriteString("\n" + indent + "  keys: " + nameList(orderKeys(inner), true))
+		}
+	}
+}
+
+// orderKeys is obj's keys, sorted, the recipient-like ones first.
+func orderKeys(obj map[string]interface{}) []string {
 	keys := make([]string, 0, len(obj))
 	for k := range obj {
 		keys = append(keys, k)
 	}
-	sort.Strings(keys)
-	for i, k := range keys {
-		if i == showKeysMax {
-			names := make([]string, 0, len(keys)-i)
-			for _, n := range keys[i:] {
-				names = append(names, cardValue(n, showNameMax))
-			}
-			fmt.Fprintf(b, "\n%s+%d more keys: %s", indent, len(keys)-i, escapeHidden(cutBytes(strings.Join(names, ", "), showValueMax)))
-			return
+	sort.Slice(keys, func(i, j int) bool {
+		if ri, rj := recipientLike(keys[i]), recipientLike(keys[j]); ri != rj {
+			return ri
 		}
-		b.WriteString("\n" + indent + cardValue(k, showNameMax) + ": " + cardValue(obj[k], showKeyMax))
+		return keys[i] < keys[j]
+	})
+	return keys
+}
+
+// nameList joins names (JSON-quoted when quote) up to showNamesMax bytes,
+// saying how many more there are past that.
+func nameList(names []string, quote bool) string {
+	var b strings.Builder
+	for i, n := range names {
+		if quote {
+			n = cardValue(n, showNameMax)
+		}
+		if i > 0 && b.Len()+len(n)+2 > showNamesMax {
+			fmt.Fprintf(&b, ", +%d more names", len(names)-i)
+			break
+		}
+		if i > 0 {
+			b.WriteString(", ")
+		}
+		b.WriteString(n)
 	}
+	return b.String()
+}
+
+// recipientWords are the words of a key that may say whom a send reaches
+// (internal/apipkg's send lint takes the same ones for a recipient param).
+var recipientWords = map[string]bool{"to": true, "cc": true, "bcc": true, "email": true, "emails": true, "mail": true,
+	"mailto": true, "recipient": true, "recipients": true, "phone": true, "mobile": true, "tel": true, "telephone": true,
+	"sms": true, "msisdn": true, "whatsapp": true, "channel": true, "channels": true, "chat": true, "user": true,
+	"users": true, "url": true, "uri": true, "webhook": true, "endpoint": true, "address": true, "addresses": true,
+	"host": true, "receiver": true, "receivers": true, "addressee": true, "addressees": true, "attendee": true,
+	"attendees": true, "invitee": true, "invitees": true, "guest": true, "guests": true, "participant": true,
+	"participants": true, "subscriber": true, "subscribers": true, "invite": true, "invites": true, "invitation": true,
+	"notify": true, "notification": true, "notifications": true, "welcome": true, "activate": true, "activation": true}
+
+var (
+	keyHump  = regexp.MustCompile(`([a-z0-9])([A-Z])`)
+	keySplit = regexp.MustCompile(`[^A-Za-z0-9]+`)
+)
+
+// recipientLike reports a key one of whose words (camelCase, snake_case or
+// kebab-case) may say whom a send reaches: zz_to, recipientEmail, chat_id.
+func recipientLike(k string) bool {
+	for _, w := range keySplit.Split(keyHump.ReplaceAllString(k, "$1 $2"), -1) {
+		if recipientWords[strings.ToLower(w)] {
+			return true
+		}
+	}
+	return false
+}
+
+// firstRecipientLike is obj's first recipient-like key, or "".
+func firstRecipientLike(obj map[string]interface{}) string {
+	for _, k := range orderKeys(obj) {
+		if recipientLike(k) {
+			return k
+		}
+		return ""
+	}
+	return ""
 }
 
 // cardValue is v as JSON, cut to max bytes, with the characters that read

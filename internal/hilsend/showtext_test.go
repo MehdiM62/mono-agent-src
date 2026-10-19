@@ -24,7 +24,7 @@ func TestShowTextListsEveryKeyOfAPaddedObject(t *testing.T) {
 			[]string{"\n  \"to\": \"evil@x.test\""}},
 		"an object option, padded": {
 			map[string]interface{}{"raw": map[string]interface{}{"body": pad, "to": "evil@x.test"}},
-			[]string{"\n  \"body\": \"AAA", "…\n  \"to\": \"evil@x.test\""}},
+			[]string{"\n  \"to\": \"evil@x.test\"\n  \"body\": \"AAA"}},
 		"more keys than shown": {
 			map[string]interface{}{"raw": manyKeys(showKeysMax + 3)},
 			[]string{"\n  \"k00\": 0", "\n  \"k19\": 19\n  +3 more keys: \"k20\", \"k21\", \"k22\""}},
@@ -46,7 +46,7 @@ func TestShowTextListsEveryKeyOfAPaddedObject(t *testing.T) {
 // list alike; past showElemsMax, how many more.
 func TestShowTextListsEveryElementOfAPaddedList(t *testing.T) {
 	pad := strings.Repeat("A", 600)
-	second := "\n  [1]:\n    \"body\": \"x\"\n    \"to\": \"evil@x.test\""
+	second := "\n  [1]:\n    \"to\": \"evil@x.test\"\n    \"body\": \"x\""
 	for name, val := range map[string]interface{}{
 		"raw JSON": `[{"body":"` + pad + `","type":"email"},{"body":"x","to":"evil@x.test"}]`,
 		"a collection list": []interface{}{map[string]interface{}{"body": pad, "type": "email"},
@@ -65,6 +65,55 @@ func TestShowTextListsEveryElementOfAPaddedList(t *testing.T) {
 	got := showText("op x/y", []string{"v"}, nil, nil, false, map[string]interface{}{"v": many})
 	if !strings.Contains(got, "\n  [9]: \"AAA") || !strings.HasSuffix(got, "…\n  +2 more elements") || strings.Contains(got, "[10]") {
 		t.Errorf("many elements: %q", got)
+	}
+}
+
+// The caps can't hide a recipient: recipient-like keys come first, all of
+// them; a nested object names all its keys, recipient-like first; and a
+// list element past the first ten that has one is shown, or named.
+func TestShowTextPutsRecipientsFirst(t *testing.T) {
+	pad := strings.Repeat("A", 600)
+	render := func(v interface{}) string {
+		return showText("op x/y", []string{"v"}, nil, nil, false, map[string]interface{}{"v": v})
+	}
+
+	sixtyOne := manyKeys(60)
+	sixtyOne["zz_to"] = "evil@x.test"
+	if got := render(sixtyOne); !strings.HasPrefix(got, "op x/y with:\nv:\n  \"zz_to\": \"evil@x.test\"\n  \"k00\": 0") ||
+		!strings.Contains(got, "+40 more keys: \"k20\"") {
+		t.Errorf("61 keys, zz_to last: %q", got)
+	}
+
+	nested := map[string]interface{}{"outer": map[string]interface{}{"pad": pad, "zz_to": "evil@x.test"}}
+	if got := render(nested); !strings.Contains(got, "\n  \"outer\": {\"pad\":\"AAA") || !strings.Contains(got, "…\n    keys: \"zz_to\", \"pad\"") {
+		t.Errorf("a nested object: %q", got)
+	}
+
+	var list []interface{}
+	for i := 0; i < 14; i++ {
+		list = append(list, map[string]interface{}{"n": i})
+	}
+	list = append(list, map[string]interface{}{"n": 14, "recipientEmail": "evil@x.test"})
+	if got := render(list); !strings.Contains(got, "\n  [14]:\n    \"recipientEmail\": \"evil@x.test\"\n    \"n\": 14") ||
+		!strings.HasSuffix(got, "\n  +4 more elements") || strings.Contains(got, "[10]") {
+		t.Errorf("recipientEmail in the 15th element: %q", got)
+	}
+
+	var many []interface{}
+	for i := 0; i < 32; i++ {
+		many = append(many, map[string]interface{}{"to": "a@x.test"})
+	}
+	if got := render(many); !strings.Contains(got, "\n  [19]:") || strings.Contains(got, "[20]:") ||
+		!strings.HasSuffix(got, "\n  also with recipient keys: [20] has \"to\", [21] has \"to\", [22] has \"to\", [23] has \"to\", [24] has \"to\", [25] has \"to\", [26] has \"to\", [27] has \"to\", [28] has \"to\", [29] has \"to\", [30] has \"to\", [31] has \"to\"") {
+		t.Errorf("32 elements with a recipient: %q", got)
+	}
+
+	wide := map[string]interface{}{}
+	for i := 0; i < 400; i++ {
+		wide[fmt.Sprintf("key_number_%03d_padded", i)] = i
+	}
+	if got := render(wide); !strings.HasSuffix(got, " more names") || len(got) > 12000 {
+		t.Errorf("400 keys: %d bytes, ends %q", len(got), got[len(got)-40:])
 	}
 }
 
