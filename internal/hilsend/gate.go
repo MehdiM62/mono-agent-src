@@ -213,6 +213,9 @@ func prepare(st Store, nodeType string, t target, who PreparedBy, config map[str
 			textField = ""
 			text, unreviewable = showCard(t.op, t.show, t.exprs, t.unsent, t.undeclared, o.config)
 		}
+		if unreviewable == "" && sendsDraft(t, o.config) {
+			unreviewable = draftUnreviewable
+		}
 		subjectField, subject := firstKey(o.config, t.subject)
 		rec := o.recipient
 		// A rule matches the recipient as the send addresses it, never the

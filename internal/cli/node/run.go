@@ -208,6 +208,12 @@ platform name to override. Token refresh is handled automatically for OAuth conn
 							}
 						}
 						config["credential"] = credData
+						// A send's card keeps no credentials: pinned by id, its
+						// approval sends through this connection, not whichever
+						// the name picks then.
+						if id := connStore.PinnedID(context.Background(), credKey, d.ProfileID()); id != "" {
+							config["credential_id"] = id
+						}
 						if d.Verbose() {
 							fmt.Fprintf(os.Stderr, "  Resolved credential for platform %q\n", credKey)
 						}

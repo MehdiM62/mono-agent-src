@@ -142,6 +142,24 @@ describe('AskCard: send approval', () => {
     expect(screen.getByTestId('ask-detail-connection')).toHaveTextContent('conn-new')
   })
 
+  // An Outlook reply goes to its To as well as to the thread.
+  it("shows an Outlook reply's extra To as Also to", () => {
+    const ask = normalizeAsk({ ...sendEmail, recipient: { name: "the thread's sender and Also to", label: true },
+      details: [{ key: 'alsoTo', value: 'evil@example.test' }] })
+    render(<AskCard ask={ask} nameOf={nameOf} />)
+    expect(screen.getByTestId('ask-detail-alsoTo')).toHaveTextContent('evil@example.test')
+    expect(screen.getByTestId('org-chat-send')).toHaveTextContent('Also to')
+  })
+
+  // A draft's card can't show what sending it sends: reject only.
+  it("refuses approval of a draft's card, and says why", () => {
+    const ask = normalizeAsk({ ...sendEmail, unreviewable: "sending a draft sends the recipients, subject and text the draft holds in the mailbox, which this card can't show" })
+    render(<AskCard ask={ask} nameOf={nameOf} onDecide={vi.fn()} />)
+    expect(screen.getByTestId('ask-approve')).toBeDisabled()
+    expect(screen.getByTestId('ask-unreviewable')).toHaveTextContent("Can't be reviewed here")
+    expect(screen.getByTestId('ask-unreviewable')).toHaveTextContent('the draft holds in the mailbox')
+  })
+
   it('shows the recipient with a profile link, the account, the exact text and who prepared it', () => {
     const onNavigate = vi.fn()
     render(<AskCard ask={send()} nameOf={nameOf} onNavigate={onNavigate} />)

@@ -214,26 +214,29 @@ func resolveNodeCredential(ctx context.Context, rt *runtime, nodeType, explicit 
 	if key == "" {
 		key = nodeTypePlatform(nodeType)
 	}
-	data, err := credentialData(ctx, connections.NewStore(rt.db.DB), key, profileOf(ctx))
-	if err != nil || data == nil {
+	conn, err := credentialConnection(ctx, connections.NewStore(rt.db.DB), key, profileOf(ctx))
+	if err != nil || conn.Data == nil {
 		if explicit != "" {
 			return fmt.Errorf("credential resolution failed: %w", err)
 		}
 		return nil
 	}
-	for k, v := range data {
+	for k, v := range conn.Data {
 		if _, exists := config[k]; !exists {
 			config[k] = v
 		}
 	}
-	config["credential"] = data
+	config["credential"] = conn.Data
+	// A send's card keeps no credentials: pinned by id, its approval sends
+	// through this connection, not whichever the name picks then.
+	config["credential_id"] = conn.ID
 	return nil
 }
 
-// credentialData is the data of a connection of profileID found by id, else
-// by platform (an active one first), its OAuth token refreshed when it is
+// credentialConnection is a connection of profileID found by id, else by
+// platform (an active one first), its OAuth token refreshed when it is
 // about to expire.
-func credentialData(ctx context.Context, store *connections.Store, key, profileID string) (map[string]interface{}, error) {
+func credentialConnection(ctx context.Context, store *connections.Store, key, profileID string) (*connections.Connection, error) {
 	conn, err := store.Get(ctx, key)
 	if err == nil && conn != nil && conn.ProfileID != "" && conn.ProfileID != profileID {
 		conn = nil
@@ -259,5 +262,5 @@ func credentialData(ctx context.Context, store *connections.Store, key, profileI
 			}
 		}
 	}
-	return conn.Data, nil
+	return conn, nil
 }

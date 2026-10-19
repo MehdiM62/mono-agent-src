@@ -2724,9 +2724,12 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
   Mastodon's `instance`/`instance_url`/`in_reply_to_id`, dev.to's
   `article_id`, Hashnode's `publication_id`, Product Hunt's `post_id`,
   YouTube's `comment_id`, Twilio's `url`, the mail nodes' `message_id`) gets
-  the card. Gmail's and Outlook's `reply` (and any truthy `reply_all`) and
-  `send_draft` ignore `to`: their card names the thread or the draft as a
-  label, so no rule matches them; a Discord webhook send names its webhook's
+  the card. Gmail's `reply` (and any truthy `reply_all`) and both nodes'
+  `send_draft` ignore `to`, and Outlook's `reply` sends to `to` as well as
+  to the thread (the card's Also to): their card names the thread or the
+  draft as a label, so no rule matches them, and a `send_draft` card can
+  only be rejected (`Payload.Unreviewable`: the draft lives in the
+  mailbox); a Discord webhook send names its webhook's
   host the same way; and no rule stands for a Twilio `make_call`, whose TwiML
   can dial anyone. A send whose card names no recipient (an Instagram
   `send_dms` given a bare `profile_url` instead of `selectedListItems`)

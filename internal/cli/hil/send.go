@@ -61,8 +61,9 @@ func (d Deps) printSend(cmd *cobra.Command, p hilsend.Payload) error {
 	if p.Subject != "" {
 		fmt.Fprintf(w, "Subject: %s\n", p.Subject)
 	}
+	// A card made before details were escaped prints on one line too.
 	for _, dt := range p.Details {
-		fmt.Fprintf(w, "%s: %s\n", detailLabel(dt.Key), dt.Value)
+		fmt.Fprintf(w, "%s: %s\n", detailLabel(dt.Key), hilsend.OneLine(dt.Value))
 	}
 	fmt.Fprintf(w, "%s\n", p.Text)
 	if p.Error != "" {
@@ -74,6 +75,8 @@ func (d Deps) printSend(cmd *cobra.Command, p hilsend.Payload) error {
 // detailLabel is how the terminal names a card's detail, as the app does.
 func detailLabel(key string) string {
 	switch key {
+	case "alsoTo":
+		return "Also to"
 	case "cc":
 		return "Cc"
 	case "bcc":

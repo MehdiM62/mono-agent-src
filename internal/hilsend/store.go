@@ -47,9 +47,9 @@ var (
 	// field: the approved run would send none, while the record kept it.
 	ErrNoSubject = errors.New("this send has no subject field: there is no subject to edit; approve it as it is or reject it")
 	// ErrUnreviewable: an approve (always-allow included) of a card that
-	// can't show all the step would send. It can only be rejected, or the
-	// step changed and run again.
-	ErrUnreviewable = errors.New("this send is too large to review on its card, so it can't be approved: reject it, or change the step and run it again")
+	// can't show all the step would send (too large, or a draft's). It can
+	// only be rejected, or the step changed and run again.
+	ErrUnreviewable = errors.New("this send can't be reviewed on its card, so it can't be approved: reject it, or change the step and run it again")
 )
 
 // replay is what approving needs to run the node again.

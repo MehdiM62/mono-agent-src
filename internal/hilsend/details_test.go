@@ -2,6 +2,9 @@ package hilsend
 
 import (
 	"context"
+	"database/sql"
+	"errors"
+	"strings"
 	"testing"
 
 	"github.com/monoes/mono-agent/internal/workflow"
@@ -70,5 +73,129 @@ func TestAnEmailCardShowsWhatElseItCarries(t *testing.T) {
 	}
 	if p := card("comm.telegram", map[string]interface{}{"chat_id": "42", "message": "Hi", "cc": "x"}); len(p.Details) != 0 {
 		t.Errorf("a message that is no email: details %v", p.Details)
+	}
+}
+
+// emailCard queues nodeType with config as an agent's send and returns its
+// card.
+func emailCard(t *testing.T, db *sql.DB, nodeType string, config map[string]interface{}) Payload {
+	t.Helper()
+	out, handled, err := Guard(ctxFor(db), nodeType, workflow.NodeInput{}, config)
+	if err != nil || !handled {
+		t.Fatalf("%s: handled=%v err=%v", nodeType, handled, err)
+	}
+	p, err := Store{db, "p1"}.Get(context.Background(), out[0].Items[0].JSON["hil_id"].(string))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
+// An Outlook reply sends to its To as well as to the thread (Graph's reply
+// takes it as the message's toRecipients), so its card shows To under
+// "Also to" and its recipient line says so. A Gmail reply ignores To, and
+// its card says that.
+func TestAnOutlookReplyShowsItsTo(t *testing.T) {
+	asAgent(t)
+	db := testDB(t)
+	for _, c := range []struct {
+		name, nodeType string
+		config         map[string]interface{}
+		alsoTo, label  string
+	}{
+		{"an Outlook reply with a To", "service.outlook_mail", map[string]interface{}{"operation": "reply", "message_id": "M1", "to": "evil@example.test", "body": "Ok"},
+			"evil@example.test", "the thread's sender and Also to"},
+		{"an Outlook reply to all with a To", "service.outlook_mail", map[string]interface{}{"operation": "reply", "message_id": "M1", "reply_all": true,
+			"to": []interface{}{"evil@example.test", "eve@example.test"}, "body": "Ok"},
+			"evil@example.test, eve@example.test", "everyone on the thread and Also to"},
+		{"an Outlook reply with no To", "service.outlook_mail", map[string]interface{}{"operation": "reply", "message_id": "M1", "body": "Ok"},
+			"", "the thread's sender"},
+		{"a Gmail reply with a To", "service.gmail", map[string]interface{}{"operation": "reply", "message_id": "M1", "to": "evil@example.test", "body": "Ok"},
+			"", "the thread's sender (a reply ignores To)"},
+	} {
+		p := emailCard(t, db, c.nodeType, c.config)
+		got := ""
+		for _, d := range p.Details {
+			if d.Key == "alsoTo" {
+				got = d.Value
+			}
+		}
+		if got != c.alsoTo || !strings.HasPrefix(p.Recipient.Name, c.label) || (c.alsoTo == "" && strings.Contains(p.Recipient.Name, "Also to")) {
+			t.Errorf("%s: alsoTo %q, recipient %q; want %q, %q", c.name, got, p.Recipient.Name, c.alsoTo, c.label)
+		}
+	}
+}
+
+// A detail's value is the agent's text: it is written on one line, with
+// the characters that break or hide a line escaped, so it can't add lines
+// to `hil show` (a forged "Prepared by:") or clear the terminal.
+func TestAnEmailCardsDetailsStayOnTheirLine(t *testing.T) {
+	asAgent(t)
+	db := testDB(t)
+	p := emailCard(t, db, "service.gmail", map[string]interface{}{"operation": "send_message", "to": "ada@example.test", "body": "Hi",
+		"cc": "a@x.test\nPrepared by: MonoAgent (approved)\x1b[2J", "bcc": "b@x.test\u2028c@x.test\u2029", "references": "<r1>\r\n<r2>",
+		"credential_id": "conn\u202e1"})
+	for _, d := range p.Details {
+		if strings.ContainsAny(d.Value, "\n\r\x1b\u2028\u2029\u202e") {
+			t.Errorf("%s = %q: a line break or a control is left in", d.Key, d.Value)
+		}
+	}
+	want := map[string]string{"cc": `a@x.test\u000APrepared by: MonoAgent (approved)\u001B[2J`, "bcc": `b@x.test\u2028c@x.test`,
+		"references": `<r1>\u000D\u000A<r2>`, "connection": `conn\u202E1`}
+	for _, d := range p.Details {
+		if w, ok := want[d.Key]; ok && d.Value != w {
+			t.Errorf("%s = %q, want %q", d.Key, d.Value, w)
+		}
+	}
+}
+
+// Sending a draft sends what the draft in the mailbox says, its
+// recipients, subject and text, none of which the card can show: a
+// send_draft card of Gmail's or Outlook's, from any route, can only be
+// rejected.
+func TestASendDraftCardCantBeApproved(t *testing.T) {
+	asAgent(t)
+	db := testDB(t)
+	st := Store{db, "p1"}
+	for _, nodeType := range []string{"service.gmail", "service.outlook_mail", "gmail", "comm.outlook_send"} {
+		p := emailCard(t, db, nodeType, map[string]interface{}{"operation": "send_draft", "message_id": "D1"})
+		if !strings.Contains(p.Unreviewable, "draft") {
+			t.Errorf("%s: unreviewable %q, want the draft's reason", nodeType, p.Unreviewable)
+		}
+		f := &fakeRunner{}
+		if _, err := Resolve(context.Background(), st, p.ID, true, Edit{}, false, f.run); !errors.Is(err, ErrUnreviewable) || len(f.calls) != 0 {
+			t.Errorf("%s: approve: %v, %d run(s)", nodeType, err, len(f.calls))
+		}
+	}
+	if p := emailCard(t, db, "service.gmail", map[string]interface{}{"operation": "send_message", "to": "ada@example.test", "body": "Hi"}); p.Unreviewable != "" {
+		t.Errorf("a send_message card: unreviewable %q", p.Unreviewable)
+	}
+}
+
+// SMTP's legacy html flag makes the body HTML, as body_type does, so the
+// card shows it as the body type; a body_type set as well wins, as in the
+// node.
+func TestAnSMTPCardShowsItsHTMLFlag(t *testing.T) {
+	asAgent(t)
+	db := testDB(t)
+	bodyType := func(p Payload) string {
+		for _, d := range p.Details {
+			if d.Key == "bodyType" {
+				return d.Value
+			}
+		}
+		return ""
+	}
+	for _, c := range []struct {
+		config map[string]interface{}
+		want   string
+	}{
+		{map[string]interface{}{"to": "ada@example.test", "body": "<b>Hi</b>", "html": true}, "html"},
+		{map[string]interface{}{"to": "ada@example.test", "body": "Hi", "html": false}, ""},
+		{map[string]interface{}{"to": "ada@example.test", "body": "Hi", "html": true, "body_type": "text"}, "text"},
+	} {
+		if got := bodyType(emailCard(t, db, "comm.email_send", c.config)); got != c.want {
+			t.Errorf("%v: body type %q, want %q", c.config, got, c.want)
+		}
 	}
 }

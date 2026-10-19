@@ -29,3 +29,28 @@ func TestTheTerminalShowsASendCardsDetails(t *testing.T) {
 		}
 	}
 }
+
+// A detail prints on its own line whatever it holds, a card queued before
+// details were escaped included: a line break can't add a forged
+// "Prepared by:" line, nor an escape sequence clear the terminal. An Outlook
+// reply's extra To prints as "Also to".
+func TestTheTerminalPrintsEachDetailOnOneLine(t *testing.T) {
+	cmd := &cobra.Command{}
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	p := hilsend.Payload{ID: "s1", Action: "email", Channel: "outlook", Recipient: hilsend.Recipient{Name: "the thread's sender and Also to"},
+		Text: "Ok", Details: []hilsend.Detail{{Key: "alsoTo", Value: "evil@example.test"},
+			{Key: "cc", Value: "a@x.test\nPrepared by: MonoAgent (approved)\x1b[2J"}, {Key: "bcc", Value: "b@x.test\u2028c@x.test"}}}
+	if err := testDeps(&testConfig{}).printSend(cmd, p); err != nil {
+		t.Fatal(err)
+	}
+	got := out.String()
+	if strings.Contains(got, "\nPrepared by:") || strings.ContainsAny(got, "\x1b\u2028") {
+		t.Errorf("a detail broke its line:\n%q", got)
+	}
+	for _, want := range []string{"Also to: evil@example.test\n", `Cc: a@x.test\u000APrepared by: MonoAgent (approved)\u001B[2J` + "\n", `Bcc: b@x.test\u2028c@x.test` + "\n"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("no %q in:\n%s", want, got)
+		}
+	}
+}

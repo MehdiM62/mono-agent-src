@@ -1,7 +1,6 @@
 package people
 
 import (
-	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -400,7 +399,7 @@ func (d Deps) runOutlookNode(cmd *cobra.Command, db *sql.DB, connectionID string
 	// credentials): pinned by id, so a platform with several connections
 	// sends through the one this run chose.
 	config["credential_id"] = connectionID
-	if id := pinnedConnection(cmd.Context(), connStore, connectionID, d.ProfileID()); id != "" {
+	if id := connStore.PinnedID(cmd.Context(), connectionID, d.ProfileID()); id != "" {
 		config["credential_id"] = id
 	}
 
@@ -425,23 +424,4 @@ func (d Deps) runOutlookNode(cmd *cobra.Command, db *sql.DB, connectionID string
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 	return outputs, nil
-}
-
-// pinnedConnection is the id of the connection connectionID names, chosen as
-// the CLI resolves a credential: by id in the profile, else the platform's
-// first active connection, else its first. "" when there is none.
-func pinnedConnection(ctx context.Context, store *connections.Store, connectionID, profile string) string {
-	if c, err := store.Get(ctx, connectionID, profile); err == nil && c != nil {
-		return c.ID
-	}
-	conns, err := store.ListUsableByPlatform(ctx, connectionID, profile)
-	if err != nil || len(conns) == 0 {
-		return ""
-	}
-	for _, c := range conns {
-		if c.Status == "active" {
-			return c.ID
-		}
-	}
-	return conns[0].ID
 }

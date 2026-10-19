@@ -43,20 +43,30 @@ func ownServer(nodeType string, config map[string]interface{}) bool {
 	return true
 }
 
-// fixedRecipient is who an op that ignores its to really sends to, as the
-// card names it, or "": Gmail's and Outlook's reply answers the thread
-// (reply_all, everyone on it) and send_draft sends the draft to its own
-// recipients. Such a send never matches an always-allow rule, whatever its
-// to says.
+// fixedRecipient is who an op that doesn't send to its to alone really
+// sends to, as the card names it, or "": Gmail's and Outlook's reply
+// answers the thread (reply_all, everyone on it) and send_draft sends the
+// draft to its own recipients. Gmail's reply ignores To; Outlook's sends to
+// it too (Graph takes it as the reply's toRecipients), which the card
+// shows under Also to (detailsOf). Such a send never matches an
+// always-allow rule, whatever its to says.
 func fixedRecipient(nodeType string, config map[string]interface{}) string {
 	op := str(config["operation"])
 	switch nodeType {
 	case "service.gmail", "service.outlook_mail":
+		thread := "the thread's sender"
+		if truthy(config["reply_all"]) {
+			thread = "everyone on the thread"
+		} else if op != "reply" {
+			thread = ""
+		}
 		switch {
-		case truthy(config["reply_all"]):
-			return "everyone on the thread (a reply ignores To)"
-		case op == "reply":
-			return "the thread's sender (a reply ignores To)"
+		case thread != "" && nodeType == "service.gmail":
+			return thread + " (a reply ignores To)"
+		case thread != "" && detailValue(config["to"]) != "":
+			return thread + " and Also to"
+		case thread != "":
+			return thread
 		case op == "send_draft":
 			return "the draft's own recipients (sending a draft ignores To)"
 		}

@@ -57,6 +57,11 @@ func escapeHidden(s string) string {
 	return b.String()
 }
 
+// OneLine is s with what breaks or hides a line escaped (escapeHidden),
+// for a terminal that prints a card's text a line at a time. It leaves an
+// escaped value as it is.
+func OneLine(s string) string { return escapeHidden(s) }
+
 func hiddenRune(r rune) bool {
 	switch {
 	case unicode.IsControl(r), unicode.In(r, unicode.Cf, unicode.Co, unicode.Zl, unicode.Zp, unicode.Variation_Selector):

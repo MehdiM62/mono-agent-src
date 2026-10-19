@@ -1636,6 +1636,7 @@
     "from": "De",
     "subject": "Asunto",
     "detail": {
+      "alsoTo": "También a",
       "cc": "Cc",
       "bcc": "Cco",
       "replyAll": "Responder a todos",
@@ -1650,7 +1651,7 @@
     "unknownRecipient": "Destinatario desconocido",
     "textLabel": "Texto exacto que se enviará",
     "edited": "Editado: al aprobar se envía este texto.",
-    "unreviewable": "Demasiado grande para revisarlo aquí ({{why}}), así que no se puede aprobar: recházalo, o cambia el paso y vuelve a ejecutarlo.",
+    "unreviewable": "No se puede revisar aquí ({{why}}), así que no se puede aprobar: recházalo, o cambia el paso y vuelve a ejecutarlo.",
     "preparedBy": "Preparado por {{name}}. No se envía nada hasta que apruebes.",
     "preparedByClaim": "Preparado por un agente que dice ser {{name}}. No se envía nada hasta que apruebes.",
     "edit": "Editar",

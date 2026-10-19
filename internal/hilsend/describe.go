@@ -113,6 +113,8 @@ type target struct {
 	dest     []string
 	fixed    string
 	ruleless bool
+	// node is the type that runs a native send (outbound), "" otherwise.
+	node string
 }
 
 // classify reports whether nodeType with config is an outbound send, under
@@ -128,7 +130,7 @@ func classify(nodeType string, config map[string]interface{}) (target, bool) {
 	}
 	if r, ok := outbound[nodeType]; ok && r.covers(config) {
 		return target{action: r.action, text: r.text, subject: r.subject, to: r.to,
-			dest: destKeys[nodeType], fixed: fixedRecipient(nodeType, config), ruleless: ruleless(nodeType, config)}, true
+			dest: destKeys[nodeType], fixed: fixedRecipient(nodeType, config), ruleless: ruleless(nodeType, config), node: nodeType}, true
 	}
 	// An API package's annotated op: an app node's, or one a package adds
 	// to a native node above (classifier.go).

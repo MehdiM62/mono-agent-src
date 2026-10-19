@@ -84,7 +84,7 @@ func TestHILShowQuotesAnAgentsClaim(t *testing.T) {
 // exit 3, as an invalid request, and says why.
 func TestHILApproveOfAnUnreviewableSendExits3(t *testing.T) {
 	err := testDeps(&testConfig{}).hilSendError(fmt.Errorf("send item s1: %w (too large)", hilsend.ErrUnreviewable))
-	if exitCodeFor(err) != 3 || !strings.Contains(err.Error(), "too large to review") {
+	if exitCodeFor(err) != 3 || !strings.Contains(err.Error(), "can't be reviewed on its card") {
 		t.Errorf("exit %d: %v", exitCodeFor(err), err)
 	}
 }
