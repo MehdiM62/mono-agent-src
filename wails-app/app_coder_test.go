@@ -64,6 +64,20 @@ func TestApp_CoderSettings_ShellOutAndReturnTheCLIJSON(t *testing.T) {
 	}
 }
 
+func TestApp_CoderSetAppAccess_ShellsOutToCoderSet(t *testing.T) {
+	bin, argsLog := chatFakeCLI(t, fakeChatReply{match: "coder set", stdout: `{"enabled":true,"appAccess":false}` + "\n"})
+	a, _ := newCLIChatApp(t, bin)
+	a.selectForTest("work")
+	if got := a.CoderSetAppAccess(false); got != `{"enabled":true,"appAccess":false}` {
+		t.Errorf("CoderSetAppAccess = %s, want the status JSON verbatim", got)
+	}
+	a.CoderSetAppAccess(true)
+	got := strings.Join(readArgsLog(t, argsLog), "\n")
+	if !strings.Contains(got, "coder set --app-access off") || !strings.Contains(got, "coder set --app-access on") {
+		t.Errorf("CLI calls = %s", got)
+	}
+}
+
 func sortedCopy(s []string) []string {
 	out := append([]string(nil), s...)
 	sort.Strings(out)
