@@ -190,6 +190,9 @@ func (mt *MonoagentTools) ToolDefs() []ToolDef {
 	defs = append(defs, orgUnificationToolDefs(def)...)
 	defs = append(defs, publicationToolDefs()...)
 	if mt.pageRead() {
+		// The proposal tools exist only here: their answers are cards only
+		// the side panel draws.
+		defs = append(defs, proposalToolDefs()...)
 		kept := make([]ToolDef, 0, len(PageReadToolNames))
 		for _, d := range defs {
 			if pageReadAllows(d.Function.Name) {

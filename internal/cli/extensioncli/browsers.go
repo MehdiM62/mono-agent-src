@@ -65,10 +65,13 @@ func newExtensionBindCmd(cfg *Deps) *cobra.Command {
 		Short: "Run a profile's browser actions in one browser",
 		Long: "<browser> is an instance id (or its first 4+ characters) or a label from\n" +
 			"`extension browsers`; <profile> is a profile id or name. The browser keeps the\n" +
-			"binding across restarts; it is stored in that browser's extension.",
+			"binding across restarts; it is stored in that browser's extension.\n" + clicore.OperatorOnlyHelp,
 		Example: "  monoagentcli extension bind \"Edge Work\" Work\n  monoagentcli extension bind 3f2a Personal",
 		Args:    cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := cfg.operatorOnly("extension bind changes which profile a browser acts as"); err != nil {
+				return err
+			}
 			db, err := cfg.OpenDB()
 			if err != nil {
 				return fmt.Errorf("open database: %w", err)
@@ -87,9 +90,13 @@ func newExtensionUnbindCmd(cfg *Deps) *cobra.Command {
 	return &cobra.Command{
 		Use:     "unbind <browser>",
 		Short:   "Make a browser a default browser again (for profiles with none of their own)",
+		Long:    "The browser stops running its profile's browser actions. " + clicore.OperatorOnlyHelp,
 		Example: "  monoagentcli extension unbind \"Edge Work\"",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := cfg.operatorOnly("extension unbind changes which profile a browser acts as"); err != nil {
+				return err
+			}
 			return runExtensionBind(cmd.Context(), cfg, cmd.OutOrStdout(), args[0], "")
 		},
 	}

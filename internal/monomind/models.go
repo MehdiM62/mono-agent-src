@@ -22,6 +22,9 @@ type RuntimeModel struct {
 	// an earlier entry's model (protocol rev 28, capability
 	// agent-models-alias-of): the canonical id.
 	AliasOf string `json:"alias_of,omitempty"`
+	// ResolvedID is the concrete model an alias stands for today, as `agent
+	// models` reports it (claude "fable" → "claude-fable-5-1").
+	ResolvedID string `json:"resolved_id,omitempty"`
 }
 
 // claudeModels is curated by hand: unlike antigravity and codex (see
@@ -355,6 +358,7 @@ func listAgentModels(ctx context.Context, runtimeID string) (models []RuntimeMod
 			Description:  m.Description,
 			EffortLevels: execEfforts(m.EffortLevels),
 			AliasOf:      m.AliasOf,
+			ResolvedID:   m.ResolvedID,
 		})
 	}
 	return models, res.Supported, nil

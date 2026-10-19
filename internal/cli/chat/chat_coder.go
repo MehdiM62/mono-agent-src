@@ -48,12 +48,16 @@ func coderSystemPrompt(cwd string) string {
 
 // coderLeadSystemPrompt is the lead's whole system prompt for a turn in cwd:
 // the coder preamble, how to use the user's browser, the active profile's
-// context (who the chat works for, what that profile holds; secrets never),
-// and the publication rules.
-func coderLeadSystemPrompt(ctx context.Context, db *sql.DB, cfg *Deps, cwd string) string {
+// context (who the chat works for, what that profile holds; secrets never)
+// when appAccess (coder.appAccess) is on, and the publication rules.
+func coderLeadSystemPrompt(ctx context.Context, db *sql.DB, cfg *Deps, cwd string, appAccess bool) string {
 	parts := []string{coderSystemPrompt(cwd), coderBrowserPrompt(cfg.ProfileID())}
-	if block := profilectx.Block(ctx, db, cfg.ProfileID()); block != "" {
-		parts = append(parts, block)
+	// Off, the profile summary (task titles, document and people names,
+	// workflows, accounts, vault item names) is not given to the model.
+	if appAccess {
+		if block := profilectx.Block(ctx, db, cfg.ProfileID()); block != "" {
+			parts = append(parts, block)
+		}
 	}
 	return strings.Join(append(parts, cfg.PublicationPrompt()), "\n\n")
 }
@@ -90,7 +94,7 @@ func runCoderTurn(cmd *cobra.Command, cfg *Deps, journal *turnJournal, t coderTu
 	}
 	settings, st, rt, err := requireCoderReady(cmd, db.DB, t.runtime)
 	// The profile block is read while the database is open; it never fails.
-	systemPrompt := coderLeadSystemPrompt(ctx, db.DB, cfg, t.cwd)
+	systemPrompt := coderLeadSystemPrompt(ctx, db.DB, cfg, t.cwd, settings.appAccess())
 	db.Close()
 	if err != nil {
 		return err

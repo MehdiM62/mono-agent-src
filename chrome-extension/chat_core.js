@@ -376,8 +376,14 @@
       lastSeq: Number.isFinite(s.lastSeq) ? s.lastSeq : 0,
       messages: Array.isArray(s.messages) ? s.messages.filter(validMessage).map(cloneMessage) : [],
       nextId: Number.isFinite(s.nextId) ? s.nextId : 1,
+      // Whether the conversation has read a page: its proposal cards say so (chat_proposals.js).
+      readPage: !!s.readPage,
+      // The page the panel showed when the turn was sent: its cards are bound to it.
+      turnPage: pageOf(s.turnPage),
     };
   }
+
+  const pageOf = (v) => (root.MonoChatProposals ? root.MonoChatProposals.pageOf(v) : null);
 
   function validMessage(m) {
     return m && (m.role === "user" || m.role === "assistant" || m.role === "notice") && typeof m.text === "string";
@@ -395,7 +401,10 @@
         id: str(t.id),
         name: str(t.name),
         status: t.status === "failed" ? "failed" : t.status === "running" ? "running" : "done",
+        ...(t.carded ? { carded: true } : {}),
       }));
+      const P = root.MonoChatProposals;
+      if (P && Array.isArray(m.proposals) && m.proposals.length) out.proposals = P.clone(m.proposals);
     }
     return out;
   }
@@ -412,8 +421,13 @@
     return push(state, { role: "assistant", text: "", tools: [], open: true });
   }
 
-  /** startTurn records what the person sent; the reply opens with its first event. */
-  function startTurn(state, text, pageTitle) {
+  /**
+   * startTurn records what the person sent; the reply opens with its first
+   * event. withPage: the message carried a page context, titled or not;
+   * page: the page the panel showed ({tabId, url}), which the reply's cards
+   * are bound to.
+   */
+  function startTurn(state, text, pageTitle, withPage, page) {
     closeOpen(state);
     // A new turn numbers its events from 1 again; its id is learned from the
     // first event that names it, or from the final reply.
@@ -421,6 +435,9 @@
     state.lastSeq = 0;
     const msg = { role: "user", text: str(text) };
     if (pageTitle) msg.page = pageTitle;
+    // Any page counts, with or without a title or address: its text is the page's.
+    if (pageTitle || withPage) state.readPage = true;
+    state.turnPage = pageOf(page);
     push(state, msg);
   }
 
@@ -454,6 +471,7 @@
         // The user's text, for a replay of a turn this transcript lacks; not
         // added again when it already ends the transcript.
         // The backend wraps the page in front of the message; show only what was typed.
+        if (textOf(p).startsWith(WRAPPER_INTRO)) state.readPage = true;
         const t = unwrapMessage(textOf(p));
         const last = state.messages[state.messages.length - 1];
         if (t && !(last && last.role === "user" && last.text === t)) {
@@ -483,7 +501,8 @@
         const a = openAssistant(state);
         const id = str(p.callId) || str(p.id) || str(p.call_id) || str(p.tool_id);
         const name = str(p.name) || str(p.tool) || str(p.title);
-        let t = id ? a.tools.find((x) => x.id === id) : null;
+        // A runtime may reuse a call id within one reply: the call still running answers first.
+        let t = id ? a.tools.find((x) => x.id === id && x.status === "running") || a.tools.find((x) => x.id === id) : null;
         if (!t) t = [...a.tools].reverse().find((x) => x.status === "running" && (!name || x.name === name));
         if (!t) {
           t = { id: id || `t${ev.seq}`, name: clip(name || "tool", 80), status: "running" };
@@ -493,6 +512,16 @@
         const failed =
           p.ok === false || !!p.denied || !!p.cancelled || !!p.error || !!p.is_error || p.status === "error" || p.status === "failed";
         t.status = failed ? "failed" : "done";
+        // A proposal tool's answer is a card for the person (chat_proposals.js),
+        // once per call: a call that made its card (a replayed answer) makes no
+        // other. Cards are told apart by their nonce, never their call id.
+        const P = root.MonoChatProposals;
+        const card = P && !failed && !t.carded ? P.fromTool(t.name, p, t.id, state.readPage) : null;
+        if (card) {
+          t.carded = true;
+          if (state.turnPage) card.page = Object.assign({}, state.turnPage);
+          (a.proposals = a.proposals || []).push(card);
+        }
         return true;
       }
       case "notice": {
@@ -564,6 +593,8 @@
       turn: state.turn,
       lastSeq: state.lastSeq,
       nextId: state.nextId,
+      readPage: !!state.readPage,
+      turnPage: state.turnPage || null,
       messages: state.messages.slice(-KEEP_MESSAGES).map((m) =>
         Object.assign({}, m, { text: clip(m.text, KEEP_MESSAGE_CHARS) })
       ),
@@ -585,7 +616,10 @@
       // transcript and replay from the start. A different conversation
       // (New chat elsewhere) makes the stored transcript someone else's.
       if (conv !== state.conversation) {
-        if (state.conversation) state.messages = [];
+        if (state.conversation) {
+          state.messages = [];
+          state.readPage = false;
+        }
         state.conversation = conv;
         state.turn = "";
         state.lastSeq = 0;

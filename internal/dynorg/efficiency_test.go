@@ -156,19 +156,20 @@ func TestProfileContextHook(t *testing.T) {
 	if b := profileBlock(context.Background()); !strings.Contains(b, "Profile: Work") {
 		t.Errorf("block = %q", b)
 	}
-	if p := LeadExtras(context.Background(), RouterAuto); !strings.Contains(p, "Profile: Work") {
-		t.Error("lead prompt misses the profile context")
+	// The coder lead has the profile context in its own prompt: the extras don't repeat it.
+	if p := LeadExtras(RouterAuto); strings.Contains(p, "Profile: Work") {
+		t.Error("lead extras repeat the profile context")
 	}
 }
 
 func TestLeadPromptEncodesEfficiency(t *testing.T) {
-	p := LeadPrompt(DefaultLimits())
+	p := LeadPrompt(DefaultLimits(), true)
 	for _, want := range []string{"EFFICIENCY FIRST", "at most 3 skills", "cheapest model", "Pick a different model", "Reuse veterans", "NEVER finalize a send"} {
 		if !strings.Contains(p, want) {
 			t.Errorf("lead prompt misses %q", want)
 		}
 	}
-	if !strings.Contains(LeadExtras(context.Background(), RouterModel), "spawns without a role are refused") {
+	if !strings.Contains(LeadExtras(RouterModel), "spawns without a role are refused") {
 		t.Error("model router note")
 	}
 }
