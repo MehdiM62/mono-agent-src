@@ -287,6 +287,45 @@ and the wording of the model's reply, including a link you may choose to
 click (its host is shown). The page text and the reply stay in the local
 conversation database like any chat.
 
+### Saving to the vault from the extension (`vault.save`)
+
+The side panel's confirm card saves an image or document you clicked Save on
+into the image/file vault of the profile the panel is set to, the vault
+`image list` and the MCP tools `vault_item_list` and `vault_item_get_path`
+read. It is one bridge request method, `vault.save`
+(`internal/extension/vault_save.go`):
+
+- **Who can call it.** Only a paired extension socket: the bridge reads no
+  request frame until the socket has passed the token handshake, and a
+  request that reached the handler without a connection is refused. The
+  bridge cannot tell a click from a script, so the click is the extension's
+  half: it sends `vault.save` only from the confirm card's Save handler, and
+  no chat tool, agent or page script in the extension reaches that call.
+  **Token caveat (as for every bridge method, #858):** anything running as
+  your user can read `~/.monoagent/extension.token`, pair a socket of its own
+  and call `vault.save` with no click. The bridge is a courtesy layer against
+  mistakes and page-borne instructions, not a sandbox against your own
+  processes.
+- **It writes and never reads.** The reply names the item it made (`id`,
+  `created`, `name`, `mime`, `size_bytes`); it never carries the file, its
+  path or anything else from the vault, and the bridge has no other `vault.*`
+  method.
+- **Checked before anything is written:** at most 20 MiB once decoded (a
+  request is one WebSocket frame, read up to 32 MiB); only PNG, JPEG, GIF,
+  WebP, PDF, plain text, Markdown and CSV, and the bytes must sniff as the
+  type they claim (no SVG, HTML or executables); the name is a label of at
+  most 255 bytes with no path separator, control or bidi character and not
+  `.` or `..` (the file itself is stored as `img-NNN` plus the type's
+  extension, 0600, never under the sent name); the profile id is a valid
+  folder name and must be a profile that exists now, so a profile deleted
+  since the panel listed it gets no folder back; the source address is kept
+  only as http(s) without user-info or fragment.
+- **Exactly one write per save.** Each request carries a client id; the
+  vault keeps one item per client id per profile (a unique index), so a retry
+  returns the item it already made and writes nothing.
+- Saves are recorded with source `extension` and are not indexed in the
+  knowledge graph.
+
 ## Network use, telemetry and crash reporting
 
 **No analytics, no usage counters, no device identifier.** Mono Agent does not

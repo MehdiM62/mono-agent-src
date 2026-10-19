@@ -1,0 +1,244 @@
+package extension
+
+import (
+	"context"
+	"encoding/base64"
+	"fmt"
+	"net/http"
+	"net/url"
+	"strings"
+	"unicode"
+	"unicode/utf8"
+
+	"github.com/monoes/mono-agent/internal/profiledir"
+)
+
+// vault.save: "keep this file in my vault" (#451), the side panel's confirm
+// card. The extension sends one image or document the person clicked Save on;
+// it lands in the image/file vault of the profile the request names, the vault
+// `image list`, vault_item_list and vault_item_get_path read.
+//
+// The method only writes. Nothing here, and no other bridge method, reads the
+// vault or returns a stored file: the reply names the item it made and no more.
+// A request comes only from a paired extension socket (the token handshake in
+// server_auth.go runs before any frame is read), and the extension sends this
+// only from the card's click handler; the bridge cannot tell a click from a
+// script, so that half is the extension's (SECURITY.md, "Saving to the vault
+// from the extension").
+//
+// Like task.add, a save is idempotent by its client id: the extension keeps the
+// id while it retries, and the vault answers an id it has seen with the item it
+// already made. Every limit is checked here, at the boundary, before the sink
+// opens the database; the sink checks that the profile is live. The vault lives
+// in the host's database, so the host hands over a VaultSink
+// (internal/cli/extensioncli/vault.go); a host with none does not advertise the
+// method. Nothing here logs a payload.
+//
+//	extension -> Go  {"kind":"request","id":"req-...","method":"vault.save",
+//	                  "params":{"client_id":"v-...","profile":"p-work","name":"invoice.pdf",
+//	                            "mime":"application/pdf","data":"<base64>","source_url":"https://..."}}
+//	Go -> extension  {"kind":"reply","id":"req-...","ok":true,
+//	                  "data":{"id":"img-012","created":true,"name":"invoice.pdf","mime":"application/pdf","size_bytes":48213}}
+
+// MethodVaultSave saves one file into a profile's vault.
+const MethodVaultSave = "vault.save"
+
+// Limits on a vault.save, all checked before anything is written.
+const (
+	// VaultSaveMaxBytes caps the decoded file. A request is one WebSocket frame
+	// and the bridge reads at most maxMessageSize (32 MiB) per frame, so the
+	// base64 of 20 MiB (about 26.7 MiB) fits with room for the rest; it is
+	// also the desktop app's cap on a chat attachment.
+	VaultSaveMaxBytes = 20 << 20
+	// vaultSaveMaxName caps the name in bytes, as most filesystems do.
+	vaultSaveMaxName = 255
+	// vaultSaveMaxClientID and vaultSaveMaxURL cap the other strings.
+	vaultSaveMaxClientID = 128
+	vaultSaveMaxURL      = 2048
+)
+
+// vaultSaveTypes are the media types vault.save takes, each with the extension
+// its file is stored under. The bytes must match the type (vaultTypeMatches);
+// the stored name is the item's id plus this extension, never the sender's name.
+var vaultSaveTypes = map[string]string{
+	"image/png":       ".png",
+	"image/jpeg":      ".jpg",
+	"image/gif":       ".gif",
+	"image/webp":      ".webp",
+	"application/pdf": ".pdf",
+	"text/plain":      ".txt",
+	"text/markdown":   ".md",
+	"text/csv":        ".csv",
+}
+
+// VaultFile is a checked vault.save request, as the sink receives it.
+type VaultFile struct {
+	ProfileID string
+	ClientID  string
+	// Name is the label the item shows; it never becomes a path.
+	Name string
+	MIME string
+	// Ext is the stored file's extension, from MIME.
+	Ext  string
+	Data []byte
+	// SourceURL is the http(s) address the file came from, without user-info
+	// or fragment; "" when the request named none (or one of another scheme).
+	SourceURL string
+}
+
+// VaultSaved is vault.save's reply: the item, and whether this request made it
+// (false: the client id was seen before and this is that item). It never
+// carries the file, its path or anything else read from the vault.
+type VaultSaved struct {
+	ID        string `json:"id"`
+	Created   bool   `json:"created"`
+	Name      string `json:"name"`
+	MIME      string `json:"mime"`
+	SizeBytes int    `json:"size_bytes"`
+}
+
+// VaultSink stores checked files. An error that must reach the extension with
+// its code is a *RequestError (CodeInvalidInput for a profile that is gone,
+// CodeUnavailable); any other error arrives as CodeInternal.
+type VaultSink interface {
+	SaveToVault(ctx context.Context, f VaultFile) (VaultSaved, error)
+}
+
+// SetVaultSink installs the sink behind vault.save and registers the method
+// with it; nil takes the method away again, as SetTaskSink does.
+func (s *Server) SetVaultSink(sink VaultSink) {
+	if sink == nil {
+		s.handlerMu.Lock()
+		delete(s.handlers, MethodVaultSave)
+		s.handlerMu.Unlock()
+		return
+	}
+	s.HandleRequest(MethodVaultSave, func(ctx context.Context, req *Request, _ ProgressFunc) (any, error) {
+		f, err := vaultFileOf(req)
+		if err != nil {
+			return nil, err
+		}
+		return sink.SaveToVault(ctx, f)
+	})
+}
+
+// vaultFileOf reads and checks a vault.save request. Every refusal is
+// invalid_input: sending the same request again would be refused again.
+func vaultFileOf(req *Request) (VaultFile, error) {
+	if req.Origin.ConnectedAt.IsZero() {
+		// serveRequest stamps every request with its paired socket; one
+		// without came from no browser.
+		return VaultFile{}, refusal("vault.save takes requests only from a paired browser")
+	}
+	f := VaultFile{
+		ProfileID: req.String("profile"),
+		ClientID:  req.String("client_id"),
+		MIME:      strings.ToLower(req.String("mime")),
+	}
+	if i := strings.IndexByte(f.MIME, ';'); i >= 0 {
+		f.MIME = strings.TrimSpace(f.MIME[:i])
+	}
+	switch {
+	case f.ProfileID == "":
+		return VaultFile{}, refusal(chooseProfileMessage)
+	case !profiledir.ValidProfileID(f.ProfileID):
+		return VaultFile{}, refusal(fmt.Sprintf("vault.save: %.64q is not a profile id", f.ProfileID))
+	case f.ClientID == "":
+		return VaultFile{}, refusal("vault.save needs a client_id, so that a retry cannot save a file twice")
+	case !validClientID(f.ClientID):
+		return VaultFile{}, refusal(fmt.Sprintf("vault.save: client_id must be 1-%d letters, digits or . _ : -", vaultSaveMaxClientID))
+	}
+	name, ok := req.Params["name"].(string)
+	if !ok || !safeFileName(name) {
+		return VaultFile{}, refusal(fmt.Sprintf("vault.save: the name must be a file name of at most %d bytes, without a folder, control characters, or . and ..", vaultSaveMaxName))
+	}
+	f.Name = name
+	ext, ok := vaultSaveTypes[f.MIME]
+	if !ok {
+		return VaultFile{}, refusal(fmt.Sprintf("vault.save does not take %.64q; it takes PNG, JPEG, GIF and WebP images, PDF, and plain text, Markdown and CSV", f.MIME))
+	}
+	f.Ext = ext
+	encoded, _ := req.Params["data"].(string)
+	if encoded == "" {
+		return VaultFile{}, refusal("vault.save needs the file's bytes, base64 in data")
+	}
+	if base64.StdEncoding.DecodedLen(len(encoded)) > VaultSaveMaxBytes+2 {
+		return VaultFile{}, refusal(fmt.Sprintf("vault.save: the file is over the %d MiB limit", VaultSaveMaxBytes>>20))
+	}
+	data, err := base64.StdEncoding.DecodeString(encoded)
+	switch {
+	case err != nil:
+		return VaultFile{}, refusal("vault.save: data is not base64")
+	case len(data) == 0:
+		return VaultFile{}, refusal("vault.save: the file is empty")
+	case len(data) > VaultSaveMaxBytes:
+		return VaultFile{}, refusal(fmt.Sprintf("vault.save: the file is over the %d MiB limit", VaultSaveMaxBytes>>20))
+	case !vaultTypeMatches(f.MIME, data):
+		return VaultFile{}, refusal(fmt.Sprintf("vault.save: the bytes are not %s", f.MIME))
+	}
+	f.Data = data
+	f.SourceURL = cleanSourceURL(req.String("source_url"))
+	return f, nil
+}
+
+// validClientID reports whether id is 1-vaultSaveMaxClientID of [A-Za-z0-9._:-].
+func validClientID(id string) bool {
+	if len(id) > vaultSaveMaxClientID {
+		return false
+	}
+	for _, r := range id {
+		if !(r < utf8.RuneSelf && (unicode.IsLetter(r) || unicode.IsDigit(r) || strings.ContainsRune("._:-", r))) {
+			return false
+		}
+	}
+	return id != ""
+}
+
+// safeFileName reports whether name is usable as a file's name on its own: not
+// blank, at most vaultSaveMaxName bytes of valid UTF-8, without a path
+// separator, control or format character, and not "." or "..". It is only a label (the
+// file is stored under the item's id), but a name that could name a folder or
+// climb out of one is refused rather than repaired.
+func safeFileName(name string) bool {
+	if strings.TrimSpace(name) == "" || len(name) > vaultSaveMaxName || !utf8.ValidString(name) {
+		return false
+	}
+	if name == "." || name == ".." || strings.ContainsAny(name, `/\`) {
+		return false
+	}
+	for _, r := range name {
+		if unicode.In(r, unicode.Cc, unicode.Cf) { // control, and bidi/format (a name shown reversed)
+			return false
+		}
+	}
+	return true
+}
+
+// vaultTypeMatches reports whether data is what mime says, by its bytes
+// (http.DetectContentType): an image or a PDF must sniff as itself, and text
+// must be UTF-8 that sniffs as plain text, so neither a script nor HTML is
+// stored under another type's name.
+func vaultTypeMatches(mime string, data []byte) bool {
+	sniffed := http.DetectContentType(data)
+	switch mime {
+	case "text/plain", "text/markdown", "text/csv":
+		return utf8.Valid(data) && strings.HasPrefix(sniffed, "text/plain")
+	}
+	return sniffed == mime
+}
+
+// cleanSourceURL is raw as an absolute http(s) address without user-info or
+// fragment, or "" for anything else (data:, blob:, javascript:, a relative
+// path): the address is a note on the item, so a bad one is dropped, not
+// refused.
+func cleanSourceURL(raw string) string {
+	if raw == "" || len(raw) > vaultSaveMaxURL {
+		return ""
+	}
+	u, err := url.Parse(raw)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return ""
+	}
+	u.User, u.Fragment, u.RawFragment = nil, "", ""
+	return u.String()
+}
