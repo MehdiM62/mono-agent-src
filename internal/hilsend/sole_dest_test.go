@@ -2,6 +2,7 @@ package hilsend
 
 import (
 	"context"
+	"database/sql"
 	"strings"
 	"testing"
 
@@ -13,7 +14,12 @@ import (
 func allowFor(t *testing.T, nodeType string, config map[string]interface{}) Store {
 	t.Helper()
 	asAgent(t)
-	db := testDB(t)
+	return allowIn(t, testDB(t), nodeType, config)
+}
+
+// allowIn is allowFor in db.
+func allowIn(t *testing.T, db *sql.DB, nodeType string, config map[string]interface{}) Store {
+	t.Helper()
 	st := Store{db, "p1"}
 	out, handled, err := Guard(ctxFor(db), nodeType, workflow.NodeInput{}, config)
 	if err != nil || !handled {

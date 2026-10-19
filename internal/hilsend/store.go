@@ -70,6 +70,10 @@ type replay struct {
 	// Address is the recipient as the send addresses it, what an
 	// always-allow rule made from this item is keyed on.
 	Address string `json:"address,omitempty"`
+	// Connection is the id of the saved connection a send with host keys
+	// goes through (savedConnection), which an always-allow rule made from
+	// this item is bound to (ruleAccount).
+	Connection string `json:"connection,omitempty"`
 }
 
 type editable struct {

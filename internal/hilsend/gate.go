@@ -153,7 +153,7 @@ func Guard(ctx context.Context, nodeType string, in workflow.NodeInput, config m
 	if !Enabled(db) {
 		return nil, false, nil
 	}
-	prepared := prepare(st, nodeType, t, who, config, in)
+	prepared := prepare(ctx, st, nodeType, t, who, config, in)
 	allowed := true
 	for _, p := range prepared {
 		// A label ("the ticket's requester") names no destination a rule
@@ -161,7 +161,7 @@ func Guard(ctx context.Context, nodeType string, in workflow.NodeInput, config m
 		// for a cc, a bcc, a second address or a different reply-to: every
 		// such send gets its card.
 		allowed = allowed && !p.payload.Recipient.Label && p.sole &&
-			st.Allowed(ctx, p.payload.Action, p.payload.Account.Platform, p.payload.Account.Handle, p.replay.Address)
+			st.Allowed(ctx, p.payload.Action, p.payload.Account.Platform, ruleAccount(p.payload.Account.Handle, p.replay.Connection), p.replay.Address)
 	}
 	if allowed && len(prepared) > 0 {
 		return nil, false, nil
@@ -193,7 +193,7 @@ type prepared struct {
 }
 
 // prepare turns one node call into the items it would send.
-func prepare(st Store, nodeType string, t target, who PreparedBy, config map[string]interface{}, input workflow.NodeInput) []prepared {
+func prepare(ctx context.Context, st Store, nodeType string, t target, who PreparedBy, config map[string]interface{}, input workflow.NodeInput) []prepared {
 	in := make([]map[string]interface{}, 0, len(input.Items))
 	for _, it := range input.Items {
 		in = append(in, it.JSON)
@@ -231,8 +231,13 @@ func prepare(st Store, nodeType string, t target, who PreparedBy, config map[str
 			Details: detailsOf(t, o.config), Unreviewable: unreviewable,
 			Host: hostOf(nodeType, o.config), FetchURL: fetchURLOf(nodeType, o.config),
 		}
-		out = append(out, prepared{payload: p, sole: soleRecipient(t, nodeType, o.config), replay: replay{
+		saved, connection := savedConnection(ctx, st, nodeType, o.config), ""
+		if saved != nil {
+			connection = saved.ID
+		}
+		out = append(out, prepared{payload: p, sole: soleRecipient(saved, t, nodeType, o.config), replay: replay{
 			NodeType: nodeType, Config: stripSecrets(o.config), Input: o.input, TextField: textField, SubjectKey: subjectField, Address: addr,
+			Connection: connection,
 		}})
 	}
 	return out

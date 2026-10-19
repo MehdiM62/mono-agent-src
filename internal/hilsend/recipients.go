@@ -23,7 +23,7 @@ var recipientWords = map[string]bool{"to": true, "cc": true, "bcc": true, "email
 	"mention": true, "mentions": true, "viewer": true, "viewers": true, "reviewer": true, "reviewers": true,
 	"team": true, "teams": true, "sender": true, "senders": true, "login": true, "principal": true,
 	"principals": true, "rcpt": true, "rcpts": true, "recip": true, "recips": true, "tos": true, "kontakt": true,
-	"kontakte": true}
+	"kontakte": true, "ccs": true, "bccs": true, "watcher": true, "watchers": true}
 
 // recipientWholeOnly are recipient words matched as whole words only: inside
 // a longer one they match too much (tos in "photos", team in "steam", recip
@@ -86,6 +86,10 @@ func recipientLike(k string) bool {
 	}
 	return false
 }
+
+// RecipientLike is recipientLike, for the sends lint
+// (internal/noderegistry).
+func RecipientLike(k string) bool { return recipientLike(k) }
 
 // recipientSkeleton is k without format characters (a zero-width space
 // between "t" and "o"), compatibility-normalized, with look-alike letters

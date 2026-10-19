@@ -2758,10 +2758,30 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
   matches no rule either, nor does an op with no recipient param of its own
   (Mastodon, Bluesky, dev.to, Hashnode, Product Hunt and YouTube posts and
   comments). Beside the key rules a content net holds: a send with an
-  address or a +phone number anywhere in its config but its text, its
-  sender and its one recipient gets the card (`hilsend.strayAddress`), and
-  so does an email through a server other than its saved connection's
-  (`smtp_host`). The rule's account is the sending number or mailbox when a
+  address or a phone number anywhere in its config but its text, its
+  sender and its one recipient gets the card (`hilsend.strayAddress`, read
+  by `netAddresses` on the show-card recogniser: Unicode and dotless
+  domains, bracketed IPs, fullwidth and `%40` at signs, quotes, comments,
+  brackets or other punctuation next to the `@` (`atJoined`), plain, `00`
+  and `+` numbers; only a string under a text key is text, an object there
+  is read). Digits glued after a letter (INC0012345, a tracking number) and
+  a Unix time under a time-like key (`send_at`, `createdAt`) are no phone
+  number. The net doesn't see what has no address's shape (an @handle, a
+  Slack, Matrix or account id: the key rules judge those), an address
+  spelled out, in base64 or as an HTML entity, or with a space before its
+  `@`, a number held as a JSON number, or a phone number split into single
+  digits, by `/`, `_` or 4 spaces or more, or under 7 digits. So every
+  recipient-like param of a send op is decided by
+  `TestEveryRecipientLikeKeyOfASendIsDecided` (internal/noderegistry): its
+  recipient, text or subject, a key the gate judges by name
+  (`hilsend.JudgedByKey`: a copy, a reply-to, the sender's, a `destKeys` or
+  `hostKeys` entry), a boolean, or `notRecipients` with why. An email
+  through a server other than the one of the saved connection its
+  `credential_id` resolves to gets the card too (`smtp_host`, `ownServer`;
+  with none resolved, the server is not its own), and an email rule is
+  bound to that connection: its account reads `<from> via connection <id>`
+  (`ruleAccount`), so a send through another connection of the profile
+  gets its card. The rule's account is the sending number or mailbox when a
   node names one (WhatsApp's `phone_number_id`, Graph's send-as `mailbox`).
   The card names the address the send goes to; the People row matched to
   that whole address (never a substring of a contact) is a tag beside it

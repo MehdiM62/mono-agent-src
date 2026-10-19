@@ -1,8 +1,12 @@
 package hilsend
 
 import (
+	"context"
 	"net/url"
+	"slices"
 	"strings"
+
+	"github.com/monoes/mono-agent/internal/connections"
 )
 
 // destKeys are, per node type (the canonical type that runs it: Guard
@@ -21,26 +25,71 @@ var destKeys = map[string][]string{
 	"service.gmail":        {"message_id"},
 	"service.outlook_mail": {"message_id"},
 	"comm.twilio":          {"url"},
+	// An API package's: the chat a member is added to (its members see
+	// them join), and the URL uProc posts each SMS's delivery report to.
+	"app.microsoft_teams": {"chatId"},
+	"app.uproc":           {"url_dlr"},
 }
 
 // hostKeys are, per node type, the keys that name the server a send goes
-// through. A send through a server other than its saved connection's (the
-// "credential" map the run merges into the config) is one more
-// destination: it would take the message, and the connection's password
-// with it.
+// through. A send through a server other than its saved connection's is
+// one more destination: it would take the message, and the connection's
+// password with it.
 var hostKeys = map[string][]string{"comm.email_send": {"smtp_host"}}
 
-// ownServer reports whether every host key of nodeType names the saved
-// connection's own server.
-func ownServer(nodeType string, config map[string]interface{}) bool {
-	cred, _ := config["credential"].(map[string]interface{})
+// savedConnection is the saved connection a send of a node type with host
+// keys goes through: the one its credential_id resolves to under st's
+// profile, as the run resolves it; nil for another node type, or when
+// none resolves.
+func savedConnection(ctx context.Context, st Store, nodeType string, config map[string]interface{}) *connections.Connection {
+	id := str(config["credential_id"])
+	if len(hostKeys[nodeType]) == 0 || id == "" {
+		return nil
+	}
+	conn, err := connections.NewStore(st.DB).GetOrResolve(ctx, id, st.Profile)
+	if err != nil {
+		return nil
+	}
+	return conn
+}
+
+// ownServer reports whether every host key of nodeType that config sets
+// names the server of saved, the connection its credential_id resolved to
+// (savedConnection). The "credential" map in the config proves nothing
+// (whoever writes the config can write it too): a host with no saved
+// connection behind it is not the send's own.
+func ownServer(saved *connections.Connection, nodeType string, config map[string]interface{}) bool {
 	for _, k := range hostKeys[nodeType] {
-		v := str(config[k])
-		if v != "" && !strings.EqualFold(v, str(cred[k])) {
+		if v := str(config[k]); v != "" && (saved == nil || !strings.EqualFold(v, str(saved.Data[k]))) {
 			return false
 		}
 	}
 	return true
+}
+
+// ruleAccount is the account an always-allow rule is keyed on: the
+// sending account the card names, bound to the saved connection a send
+// with host keys goes through (its id; replay.Connection), so a rule
+// granted on one SMTP connection never stands for a send through another
+// with a different mailbox and password (security review of
+// sole-net-widen, N5).
+func ruleAccount(handle, connection string) string {
+	if connection == "" {
+		return handle
+	}
+	return handle + " via connection " + connection
+}
+
+// JudgedByKey reports whether the gate judges key, in a send of nodeType,
+// by its name whatever it holds: a copy (copyKey), a reply-to, the
+// sender's (SenderKey), or one of the node type's destination or host keys.
+// The sends lint asks it of each recipient-like key (RecipientLike) a send
+// op doesn't name as its recipient.
+func JudgedByKey(nodeType, key string) bool {
+	j := joined(key)
+	same := func(k string) bool { return joined(k) == j }
+	return copyKey(key) || replyToKey(key) || SenderKey(nodeType, key) ||
+		slices.ContainsFunc(destKeys[nodeType], same) || slices.ContainsFunc(hostKeys[nodeType], same)
 }
 
 // fixedRecipient is who an op that doesn't send to its to alone really
@@ -116,13 +165,14 @@ func webhookHost(config map[string]interface{}) string {
 //   - an op that sends to a recipient param of its own (not a reply, a
 //     draft, a call its TwiML directs, or an op with no recipient param);
 //   - one value across its recipient params and destination keys
-//     (destKeys), through its saved connection's own server (hostKeys);
+//     (destKeys), through the own server (hostKeys) of saved, the
+//     connection it resolved (savedConnection);
 //   - no cc, bcc or recipient list under any key, and no reply-to other
 //     than that recipient (extraRecipients);
 //   - and, the net under all of these, no address or phone number anywhere
 //     else in the config but its text, its sender and that recipient
 //     (strayAddress).
-func soleRecipient(t target, nodeType string, config map[string]interface{}) bool {
+func soleRecipient(saved *connections.Connection, t target, nodeType string, config map[string]interface{}) bool {
 	if t.fixed != "" || t.ruleless || truthy(config["reply_all"]) || (len(t.to) == 0 && !t.social) {
 		return false
 	}
@@ -134,7 +184,7 @@ func soleRecipient(t target, nodeType string, config map[string]interface{}) boo
 			to[strings.ToLower(v)] = true
 		}
 	}
-	if len(to) > 1 || !ownServer(nodeType, config) {
+	if len(to) > 1 || !ownServer(saved, nodeType, config) {
 		return false
 	}
 	return !extraRecipients(config, "", to, own, 0) && !strayAddress(t, nodeType, config, to)

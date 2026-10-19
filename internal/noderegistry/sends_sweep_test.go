@@ -14,10 +14,18 @@ import (
 // proseKeys mirror hilsend's: fields that say what a send says.
 var proseKeys = map[string]bool{"subject": true, "body": true, "text": true, "html": true, "message": true, "content": true, "title": true, "description": true}
 
+// strays are the shapes an address or a phone number takes in a field
+// (security review of #871 round 3: the net read ASCII emails and +phones
+// only; of sole-net-widen, N1: punctuation before or after the @).
+var strays = []string{"evil@attacker.test", "\u00fc@ex\u00e4mple.de", "evil@intranet", "evil@[10.0.0.1]",
+	"5550100199", "0044 20 7946 0000", "+1 (555) 010-0199", "evil\uff20attacker.test", "evil%40attacker.test",
+	"evil'@attacker.test", `"evil"@attacker.test`, "evil(c)@attacker.test", "evil@(c)attacker.test"}
+
 // sweepOp checks one send op: with an always-allow rule for its recipient,
-// the plain send goes out, and the same send with an address in any other
-// field of its schema (not its recipient, text, subject or sender) gets a
-// card. It reports whether the op stands for a rule at all.
+// the plain send goes out, and the same send with an address (each of
+// strays) in any other field of its schema (not its recipient, text,
+// subject or sender) gets a card. It reports whether the op stands for a
+// rule at all.
 func sweepOp(t *testing.T, db *sql.DB, key, nodeType string, base map[string]interface{}, skip map[string]bool, fields []workflow.NodeSchemaField) (ruled bool, checked int) {
 	t.Helper()
 	st := hilsend.Store{DB: db, Profile: "default"}
@@ -49,26 +57,37 @@ func sweepOp(t *testing.T, db *sql.DB, key, nodeType string, base map[string]int
 	}
 	for _, f := range fields {
 		k := f.Key
-		if k == "" || skip[k] || proseKeys[strings.ToLower(k)] || hilsend.SenderKey(nodeType, k) {
+		collection := f.Type == "collection" || f.Type == "fixedCollection" || f.Type == "json" || f.Type == "code"
+		// Only a string under a prose key is prose: an object there is
+		// read like any other (Graph's message holds recipients).
+		if k == "" || skip[k] || !collection && proseKeys[strings.ToLower(k)] || hilsend.SenderKey(nodeType, k) {
 			continue
 		}
-		cfg := map[string]interface{}{}
-		for bk, bv := range base {
-			cfg[bk] = bv
-		}
-		cfg = cloneDeep(cfg)
-		switch f.Type {
-		case "collection", "fixedCollection", "json", "code":
-			// A collection holds options: add one beside the ones the op's
-			// conditions set (options.sendUpdates), never in their place.
-			setParam(cfg, k+".email", "evil@attacker.test")
-		default:
-			setParam(cfg, k, "evil@attacker.test")
-		}
-		if h, _ := guard(cfg); !h {
-			t.Errorf("%s: an address in %q (%s) went out on the rule for the recipient", key, k, f.Type)
+		for _, stray := range strays {
+			cfg := cloneDeep(base)
+			if collection {
+				// A collection holds options: add one beside the ones the
+				// op's conditions set (options.sendUpdates), never in their
+				// place.
+				setParam(cfg, k+".email", stray)
+			} else {
+				setParam(cfg, k, stray)
+			}
+			if h, _ := guard(cfg); !h {
+				t.Errorf("%s: %q in %q (%s) went out on the rule for the recipient", key, stray, k, f.Type)
+			}
 		}
 		checked++
+	}
+	// A copy by id has no address for the net to read: its key alone gets
+	// the card (ccs, bccs, watchers, a recipients object, at any depth).
+	for _, k := range []string{"ccs", "bccs", "watchers", "options.watcherIds",
+		"notificationRecipientsUi.notificationRecipientsValues.users", "recipientsUi.groups"} {
+		cfg := cloneDeep(base)
+		setParam(cfg, k, []interface{}{"5b10ac8d82e05b22cc7d4ef5"})
+		if h, _ := guard(cfg); !h {
+			t.Errorf("%s: a copy by id in %q went out on the rule for the recipient", key, k)
+		}
 	}
 	return true, checked
 }
@@ -175,6 +194,48 @@ func TestEverySendOpStandsForItsOneRecipientOnly(t *testing.T) {
 	t.Logf("%d send ops, %d stand for a rule, %d fields checked", ops, ruled, fields)
 	if ruled < 200 || fields < 900 {
 		t.Errorf("only %d ops stood for a rule and %d fields were checked: the sweep lost its subjects?", ruled, fields)
+	}
+}
+
+// Jira's issue/notify mails whoever its notificationRecipientsUi names
+// (users and groups by account id, the reporter, the watchers) besides the
+// issue: a rule for the issue never stands for them.
+func TestAJiraNotifyToMoreThanTheIssueGetsACard(t *testing.T) {
+	asOperator(t)
+	t.Setenv(hilsend.EnvAgentContext, "coder")
+	Build(nil)
+	db := sendsDB(t)
+	st := hilsend.Store{DB: db, Profile: "default"}
+	guard := func(cfg map[string]interface{}) (bool, hilsend.Payload) {
+		out, handled, err := hilsend.Guard(sendsCtx(db), "service.jira", workflow.NodeInput{}, cfg)
+		if err != nil || !handled {
+			return false, hilsend.Payload{}
+		}
+		p, _ := st.Get(context.Background(), out[0].Items[0].JSON["hil_id"].(string))
+		return true, p
+	}
+	base := map[string]interface{}{"resource": "issue", "operation": "notify", "issueKey": "PROJ-1", "notificationRecipientsUi": map[string]interface{}{}}
+	h, card := guard(base)
+	if !h || card.Recipient.Name != "PROJ-1" {
+		t.Fatalf("the notify wasn't queued for PROJ-1: %v %+v", h, card.Recipient)
+	}
+	if err := st.Allow(context.Background(), hilsend.Allow{Action: card.Action, Platform: card.Account.Platform, Account: card.Account.Handle, Recipient: "PROJ-1"}); err != nil {
+		t.Fatal(err)
+	}
+	if h, _ := guard(base); h {
+		t.Fatal("the notify to the issue alone was held under its rule")
+	}
+	for name, values := range map[string]map[string]interface{}{
+		"users by account id":  {"users": []interface{}{"5b10ac8d82e05b22cc7d4ef5"}},
+		"groups by name":       {"groups": []interface{}{"jira-administrators"}},
+		"the issue's watchers": {"watchers": true},
+		"the reporter":         {"reporter": true},
+	} {
+		cfg := cloneDeep(base)
+		cfg["notificationRecipientsUi"] = map[string]interface{}{"notificationRecipientsValues": values}
+		if h, _ := guard(cfg); !h {
+			t.Errorf("%s: went out on the rule for the issue", name)
+		}
 	}
 }
 

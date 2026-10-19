@@ -334,7 +334,7 @@ function SendBody({ ask, nameOf, canAct, busy, outcome, onDecide, onNavigate }) 
             {busy ? <Loader size={11} className="spin" /> : <Check size={11} />} {t('orgBubble.approve')}
           </button>
           {canAlwaysAllow && (
-            <button type="button" className="btn btn-ghost btn-sm" data-testid="ask-always-allow" disabled={!canAct || busy || (!ask.textReadOnly && !text.trim())}
+            <button type="button" className="btn btn-ghost btn-sm" data-testid="ask-always-allow" disabled={!canAct || busy || !!ask.unreviewable || (!ask.textReadOnly && !text.trim())}
               onClick={alwaysAllow} style={{ gap: 4 }}>
               <CheckCheck size={11} /> {t('coderOrg.alwaysAllow')}
             </button>
