@@ -23,8 +23,8 @@
 
   // Files a capture that names no profile as it is sent (D2: there is no
   // Unassigned pile), or answers null to keep it queued: capture_profile.js.
-  const preparer = () =>
-    root.MonoCaptureProfile ? root.MonoCaptureProfile.preparer(root.MonoAsk, chrome.storage.local) : null;
+  const preparer = (opts) =>
+    root.MonoCaptureProfile ? root.MonoCaptureProfile.preparer(root.MonoAsk, chrome.storage.local, opts) : null;
 
   /**
    * install hands over the pieces background.js owns: send(message) writes one
@@ -206,7 +206,8 @@
     return root.MonoCapture.flushQueue(
       chrome.storage.local,
       (envelope) => sendEnvelope(envelope.id, envelope, PUSH_TYPE),
-      preparer()
+      // A queued capture may name a profile deleted since (#862).
+      preparer({ verify: true })
     );
   }
 

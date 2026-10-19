@@ -64,10 +64,11 @@
   }
 
   // prepare files a capture that names no profile as it is sent, or holds it
-  // when no profile exists (capture_profile.js preparer; D2).
-  const bridge = () => {
+  // when no profile exists (capture_profile.js preparer; D2). opts.verify
+  // also re-checks a profile it names: a retry may name a deleted one.
+  const bridge = (opts) => {
     const P = root.MonoCaptureProfile;
-    const prepare = P ? P.preparer(root.MonoAsk, storage()) : null;
+    const prepare = P ? P.preparer(root.MonoAsk, storage(), opts) : null;
     return Object.assign({ send, isConnected: () => deps.isConnected() }, prepare ? { prepare } : {});
   };
 
@@ -333,7 +334,7 @@
     },
     queue_state: async () => Object.assign({ ok: true }, await root.MonoCaptureQueue.pending(storage())),
     queue_retry: async (msg) => {
-      const result = await root.MonoCaptureQueue.retry(bridge(), storage(), msg.key);
+      const result = await root.MonoCaptureQueue.retry(bridge({ verify: true }), storage(), msg.key);
       await root.MonoCaptureQueue.paintBadge(storage());
       return Object.assign({ ok: result.ok }, result);
     },

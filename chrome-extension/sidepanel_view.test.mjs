@@ -178,6 +178,12 @@ test("captures held for want of a profile are counted in the note (D2, #822)", (
   assert.equal(V.describeProfiles({ profiles: PROFILES, profile: "p-work", profilesOffline: false, unfiled: 3 }).note, null);
 });
 
+// #862: with no profiles at all, one that names a deleted profile waits too.
+test("with no profiles every queued capture is counted as waiting for one", () => {
+  const view = V.describeProfiles({ profiles: [], profile: "", profilesOffline: false, unfiled: 1, counts: { queued: 3, failed: 0 } });
+  assert.equal(view.note.text, "3 captures wait for a profile: create one in MonoAgent. To add one, run:");
+});
+
 test("offline with nothing cached keeps the remembered choice, by name when known", () => {
   const view = V.describeProfiles({ profiles: [], profile: "p-work", profileName: "work", profilesOffline: true });
   assert.equal(view.interactive, false);

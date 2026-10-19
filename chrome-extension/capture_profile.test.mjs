@@ -303,3 +303,30 @@ test("stampEnvelope files an unfiled envelope, leaves a filed one alone, and has
   assert.equal(await P.stampEnvelope(unfiled, async () => ""), null);
   assert.equal(await P.stampEnvelope(unfiled, async () => "../evil"), null);
 });
+
+// #862: a queued capture can name a profile deleted since it was queued. A
+// flush or a retry (preparer with verify) checks it against the live list.
+test("a verifying preparer files a capture whose profile is gone into the default, or holds it", async () => {
+  const ask = fakeAsk({ profiles: PROFILES });
+  const prepare = P.preparer(ask, fakeStorage(), { verify: true });
+  const gone = { id: "g", meta: { title: "T", profile: "p-gone" }, warnings: ["w0"] };
+  const filed = await prepare(gone);
+  assert.equal(filed.meta.profile, "p-work");
+  assert.equal(filed.meta.title, "T");
+  assert.deepEqual(filed.warnings, ["w0", 'the profile "p-gone" no longer exists: filed into Work instead']);
+  assert.equal(gone.meta.profile, "p-gone", "the queued envelope is not changed in place");
+  const live = { id: "h", meta: { profile: "p-home" } };
+  assert.equal(await prepare(live), live, "a live profile is left alone");
+  assert.equal(ask.calls.length, 1, "the list is asked for once per run");
+
+  const none = P.preparer(fakeAsk({ profiles: [] }), fakeStorage(), { verify: true });
+  assert.equal(await none(gone), null, "no profile to file it into: held");
+});
+
+test("a named profile is kept when nobody can list profiles, and not checked without verify", async () => {
+  const gone = { id: "g", meta: { profile: "p-gone" } };
+  assert.equal(await P.preparer(fakeAsk(null, { fail: true }), fakeStorage(), { verify: true })(gone), gone);
+  const ask = fakeAsk({ profiles: PROFILES });
+  assert.equal(await P.preparer(ask, fakeStorage())(gone), gone, "a fresh capture is not checked here");
+  assert.equal(ask.calls.length, 0);
+});

@@ -403,3 +403,28 @@ test("with no profile at all a capture is held, not sent unfiled, and goes once 
   assert.equal(sent.at(-1).data.meta.profile, "p-work");
   assert.deepEqual(store.captureQueue, []);
 });
+
+// #862: a capture queued for a profile deleted since is filed into the
+// default one at the flush, and held while no profile exists.
+test("a queued capture whose profile was deleted is filed into the default one at the flush", async () => {
+  const queued = (n) => ({
+    queuedAt: `2026-10-19T00:00:0${n}Z`,
+    envelope: {
+      id: `ext-${n}`,
+      meta: { url: "https://a.test/", title: "A", profile: "p-gone" },
+      artifacts: [{ name: "readable.md", encoding: "base64", bytes: "eA==", rawBytes: 1 }],
+      warnings: [],
+    },
+  });
+  const { env, store, sent, lists } = bridge({ seed: { captureQueue: [queued(1)] } });
+  assert.deepEqual(await env.MonoCaptureBridge.flush(), { flushed: 1 });
+  assert.equal(sent[0].data.meta.profile, "p-work");
+  assert.match(sent[0].data.warnings.join("\n"), /"p-gone" no longer exists/);
+  assert.deepEqual(store.captureQueue, []);
+
+  lists.profiles = [];
+  store.captureQueue = [queued(2)];
+  assert.deepEqual(await env.MonoCaptureBridge.flush(), { flushed: 0, held: 1 });
+  assert.equal(sent.length, 1, "nothing goes out for a profile that is gone");
+  assert.equal(store.captureQueue[0].envelope.meta.profile, "p-gone", "held as it was");
+});

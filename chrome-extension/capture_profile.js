@@ -297,11 +297,43 @@
    * preparer is the prepare(envelope) for one run of sends (a flush, one
    * capture, a retry): stampEnvelope with the profile asked for once, and
    * only if an envelope names none. null from it means: keep it queued.
+   *
+   * opts.verify (a flush, a retry) also checks a profile an envelope names
+   * against the live list, asked for once (refileGone): a capture queued
+   * before its profile was deleted still names it.
    */
-  function preparer(ask, storage) {
+  function preparer(ask, storage, opts) {
     let asked = null;
+    let listed = null;
     const resolveId = () => (asked = asked || profileForSending(ask, storage));
-    return (envelope) => stampEnvelope(envelope, resolveId);
+    const listLive = () => (listed = listed || fetchProfiles(ask));
+    const verify = !!(opts && opts.verify);
+    return async (envelope) => {
+      const checked = verify ? await refileGone(envelope, listLive) : envelope;
+      return checked && stampEnvelope(checked, resolveId);
+    };
+  }
+
+  /**
+   * refileGone files an envelope whose profile is gone from the live list
+   * into the default one, with a warning, and answers null when no profile
+   * exists: it is held like one that names none. An envelope whose profile
+   * is there, or that nobody can check (no live list), is returned as it
+   * is; the bridge checks it again before it writes.
+   */
+  async function refileGone(envelope, listLive) {
+    const meta = (envelope && envelope.meta) || {};
+    if (!isValidProfileId(meta.profile)) return envelope;
+    const named = meta.profile.trim();
+    const live = await listLive();
+    if (live.offline || live.profiles.some((p) => p.id === named)) return envelope;
+    const fallback = defaultProfile(live.profiles);
+    if (!fallback) return null;
+    const warning = `the profile "${named}" no longer exists: filed into ${fallback.name} instead`;
+    return Object.assign({}, envelope, {
+      meta: applyToMeta(Object.assign({}, meta), fallback.id),
+      warnings: ((envelope && envelope.warnings) || []).concat([warning]),
+    });
   }
 
   /**

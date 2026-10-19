@@ -205,7 +205,9 @@
     }
 
     if (!offline) {
-      const waiting = Math.max(0, Number(s.unfiled) || 0);
+      // With no profile at all every queued capture waits for one, including
+      // one that names a profile deleted since (a flush re-checks it).
+      const waiting = Math.max(0, Number(s.unfiled) || 0, Number(s.counts && s.counts.queued) || 0);
       const text = waiting
         ? `${waiting} ${waiting === 1 ? "capture waits" : "captures wait"} for a profile: create one in MonoAgent. To add one, run:`
         : "No profiles yet, so a capture waits here until there is one. To add one, run:";

@@ -422,6 +422,20 @@ test("a retry against a swallowing socket leaves the capture exactly where it wa
   assert.equal(w.store.captureQueue.length, 1, "still queued, not deleted on a send that did nothing");
 });
 
+// #862: a retry checks a profile the capture names against the live list.
+test("a retry files a capture whose profile was deleted into the default one, or holds it", async () => {
+  const w = world({ profiles: [] });
+  const artifacts = [{ name: "readable.md", encoding: "base64", bytes: "eA==", rawBytes: 1 }];
+  const envelope = { id: "ext-g", meta: { url: "https://a.test/", title: "A", profile: "p-gone" }, artifacts, warnings: [] };
+  w.store.captureQueue = [{ queuedAt: "2026-10-19T00:00:00Z", envelope }];
+  const held = await w.ask({ type: "queue_retry", key: "ext-g" });
+  assert.deepEqual([held.ok, w.frames.length, w.store.captureQueue.length], [false, 0, 1]);
+  w.lists.profiles = [{ id: "p-work", name: "Work", default: true }];
+  assert.equal((await w.ask({ type: "queue_retry", key: "ext-g" })).ok, true);
+  assert.equal(w.frames[0].data.meta.profile, "p-work");
+  assert.deepEqual(w.store.captureQueue, []);
+});
+
 // ── the side panel's own window ─────────────────────────────────────
 //
 // A side panel outlives the tab and the focus that opened it. "The last
