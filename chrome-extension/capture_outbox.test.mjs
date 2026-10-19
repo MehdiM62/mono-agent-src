@@ -92,3 +92,45 @@ test("a flush files captures as it sends them, and holds those with no profile t
   assert.deepEqual(store.captureQueue.map((e) => e.envelope.id), ["c", "d"], "held and new captures stay");
   assert.equal(store.captureQueue[0].envelope.meta.profile, undefined, "a held capture is kept as it was");
 });
+
+// #862: ws.onopen and a reconnect can both start a flush. Each reads the
+// queue before it sends, so two at once would each send everything.
+test("two flushes at once send each capture once", async () => {
+  const store = {};
+  const storage = {
+    get: async (key) => ({ [key]: store[key] }),
+    set: async (update) => Object.assign(store, update),
+  };
+  await MonoCapture.queueCapture(storage, { id: "a", meta: {} });
+  await MonoCapture.queueCapture(storage, { id: "b", meta: {} });
+
+  const sent = [];
+  const prepare = async (e) => (await new Promise((r) => setTimeout(r, 2)), e); // asks the bridge
+  const results = await Promise.all([
+    MonoCapture.flushQueue(storage, (e) => sent.push(e.id), prepare),
+    MonoCapture.flushQueue(storage, (e) => sent.push(e.id), prepare),
+  ]);
+  assert.deepEqual(sent, ["a", "b"]);
+  assert.deepEqual(results, [{ flushed: 2 }, { flushed: 0 }], "the second waits, then finds nothing left");
+  assert.deepEqual(store.captureQueue, []);
+});
+
+test("a prepare that throws stops the flush without sending again what already went", async () => {
+  const store = {};
+  const storage = {
+    get: async (key) => ({ [key]: store[key] }),
+    set: async (update) => Object.assign(store, update),
+  };
+  for (const id of ["a", "b", "c"]) await MonoCapture.queueCapture(storage, { id, meta: {} });
+
+  const sent = [];
+  const result = await MonoCapture.flushQueue(storage, (e) => sent.push(e.id), async (e) => {
+    if (e.id === "b") throw new Error("profile.list failed");
+    return e;
+  });
+  assert.deepEqual(result, { flushed: 1, reason: "profile.list failed" });
+  assert.deepEqual(store.captureQueue.map((e) => e.envelope.id), ["b", "c"]);
+
+  assert.deepEqual(await MonoCapture.flushQueue(storage, (e) => sent.push(e.id), async (e) => e), { flushed: 2 });
+  assert.deepEqual(sent, ["a", "b", "c"], "a went once");
+});

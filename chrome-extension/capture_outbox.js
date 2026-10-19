@@ -35,8 +35,27 @@
    * given, files an envelope that names no profile (D2: there is no
    * Unassigned pile) and answers null for one that has no profile to go to:
    * that one stays queued, as it was, until a later flush can file it.
+   *
+   * One flush runs at a time (#862): ws.onopen and a reconnect can both
+   * start one, and two that each read the queue before sending would each
+   * send all of it. A call made while one runs waits for it, then flushes
+   * what is left.
    */
-  async function flushQueue(storage, send, prepare) {
+  function flushQueue(storage, send, prepare) {
+    const ahead = flushing.get(storage) || Promise.resolve();
+    const run = ahead.then(() => flushOnce(storage, send, prepare));
+    const done = run.catch(() => {});
+    flushing.set(storage, done);
+    done.then(() => {
+      if (flushing.get(storage) === done) flushing.delete(storage);
+    });
+    return run;
+  }
+
+  // The flush running for each storage area, which a later one waits on.
+  const flushing = new WeakMap();
+
+  async function flushOnce(storage, send, prepare) {
     const queued = (await storage.get(QUEUE_KEY))[QUEUE_KEY] || [];
     if (!queued.length) return { flushed: 0 };
 
@@ -56,17 +75,19 @@
     let reason = null;
     const sent = new Set();
     for (const entry of queued) {
-      const envelope = prepare ? await prepare(entry.envelope) : entry.envelope;
-      if (!envelope) {
-        held++;
-        continue;
-      }
       try {
+        const envelope = prepare ? await prepare(entry.envelope) : entry.envelope;
+        if (!envelope) {
+          held++;
+          continue;
+        }
         send(envelope);
         flushed++;
         sent.add(entry);
       } catch (err) {
-        reason = err.message;
+        // A frame that did not reach the wire, or a prepare that failed: what
+        // went is still taken off the queue below, so it is not sent again.
+        reason = (err && err.message) || String(err);
         break;
       }
     }
