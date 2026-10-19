@@ -197,15 +197,31 @@
       return { recording: st.recording && !!sender.tab && sender.tab.id === st.tabId };
     },
     record_start: async (msg) => {
-      // The panel that asks owns the recording, and closing it stops it
-      // (registerPorts); one that closed before this arrived gets nothing.
-      if (!panelOpen(msg.panel)) throw new Error("the side panel that asked has closed or lost the extension: open it and press Record again");
-      let tabId = msg.tabId;
-      if (!tabId) {
-        const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-        tabId = tab && tab.id;
+      // The panel that asks owns the recording from this moment, and closing
+      // it stops it (registerPorts); one that closed before this arrived gets
+      // nothing, and one that closes while the start awaits stops it here.
+      const port = panelPort(msg.panel);
+      if (!port) throw new Error("the side panel that asked has closed or lost the extension: open it and press Record again");
+      const previous = ownerPort;
+      ownerPort = port;
+      let state;
+      try {
+        let tabId = msg.tabId;
+        if (!tabId) {
+          const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+          tabId = tab && tab.id;
+        }
+        state = await session.start({ tabId, goal: msg.goal });
+      } catch (err) {
+        // Refused (another recording runs): its owner stays the owner.
+        if (ownerPort === port) ownerPort = previous;
+        throw err;
       }
-      return { ok: true, state: await session.start({ tabId, goal: msg.goal }) };
+      if (!ports.has(port)) {
+        await session.stop("panel_closed");
+        throw new Error("the side panel closed while the recording started");
+      }
+      return { ok: true, state };
     },
     record_stop: async () => ({ ok: true, state: await session.stop("user") }),
     record_pick: async (msg) => ({ ok: true, state: await session.setPick(!!msg.on) }),
@@ -296,11 +312,15 @@
   // A panel's id as crypto.randomUUID makes it.
   const PANEL_ID = /^[0-9a-f-]{36}$/;
 
-  /** panelOpen is true while the panel with this id has its port open; never for no id. */
-  function panelOpen(id) {
-    if (typeof id !== "string" || !PANEL_ID.test(id)) return false;
-    for (const port of ports) if (port.panelId === id) return true;
-    return false;
+  /**
+   * panelPort is the open port of the panel with this id, the newest when a
+   * panel reconnected after a worker restart; null for none, and for no id.
+   */
+  function panelPort(id) {
+    if (typeof id !== "string" || !PANEL_ID.test(id)) return null;
+    let found = null;
+    for (const port of ports) if (port.panelId === id) found = port;
+    return found;
   }
 
   function registerPorts() {
