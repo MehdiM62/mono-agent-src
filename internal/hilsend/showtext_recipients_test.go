@@ -109,7 +109,10 @@ func TestRecipientLikeSeesRunOnsAndLookAlikes(t *testing.T) {
 }
 
 // Each key is checked once per card, so a value with 100,000 keys, or
-// 10,000 elements of 50, renders in well under a second.
+// 10,000 elements of 50, renders in about half a second on a quiet machine.
+// The bound is 10s, not 2s: a loaded CI runner takes several times as long
+// (2.4s was seen), while a regression to a pass per key pair would take
+// minutes, which is what the bound is there to catch.
 func TestACardStaysQuickOnAHugeValue(t *testing.T) {
 	wide := map[string]interface{}{}
 	for i := 0; i < 100000; i++ {
@@ -128,7 +131,7 @@ func TestACardStaysQuickOnAHugeValue(t *testing.T) {
 		if _, why := showCard("op x/y", []string{"v"}, nil, nil, false, map[string]interface{}{"v": v}); why != "" {
 			t.Errorf("%s: unreviewable: %s", name, why)
 		}
-		if took := time.Since(start); took > 2*time.Second {
+		if took := time.Since(start); took > 10*time.Second {
 			t.Errorf("%s: %v", name, took)
 		}
 	}

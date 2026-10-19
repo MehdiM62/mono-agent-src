@@ -390,6 +390,28 @@ func TestAlwaysAllowIsPerDestinationAndOperatorMade(t *testing.T) {
 	}
 }
 
+// An item is found by its exact id (a key lookup) or by a unique prefix of it.
+func TestAnItemIsFoundByItsIDOrAUniquePrefix(t *testing.T) {
+	asAgent(t)
+	db := testDB(t)
+	st := Store{db, "p1"}
+	id := queueEmail(t, db)
+	if _, err := st.Get(context.Background(), id); err != nil {
+		t.Fatalf("exact id: %v", err)
+	}
+	if _, err := st.Get(context.Background(), " "+id+" "); err != nil {
+		t.Fatalf("exact id with spaces: %v", err)
+	}
+	if _, err := st.Get(context.Background(), id[:8]); err != nil {
+		t.Fatalf("unique prefix: %v", err)
+	}
+	for _, miss := range []string{"", "no-such-id", id + "x"} {
+		if _, err := st.Get(context.Background(), miss); !errors.Is(err, ErrNotFound) {
+			t.Errorf("Get(%q) = %v, want ErrNotFound", miss, err)
+		}
+	}
+}
+
 func TestProfilesDoNotSeeEachOthersItems(t *testing.T) {
 	asAgent(t)
 	db := testDB(t)

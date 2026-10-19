@@ -130,10 +130,24 @@ func (s Store) find(ctx context.Context, id string) (row, error) {
 	if id == "" {
 		return row{}, ErrNotFound
 	}
+	// An exact id is a primary-key lookup. The prefix scan below reads every
+	// pending item of the profile (an OR with LIKE cannot use the key), so it
+	// runs only when the id is not exact.
+	var exact row
+	err := s.DB.QueryRowContext(ctx,
+		`SELECT id, status, readonly_data, editable_data, node_config FROM hil_pending
+		 WHERE profile_id = ? AND id = ?`, s.Profile, id).
+		Scan(&exact.id, &exact.status, &exact.ro, &exact.ed, &exact.nc)
+	if err == nil {
+		return exact, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return row{}, err
+	}
 	rows, err := s.DB.QueryContext(ctx,
 		`SELECT id, status, readonly_data, editable_data, node_config FROM hil_pending
-		 WHERE profile_id = ? AND (id = ? OR id LIKE ? ESCAPE '\') LIMIT 3`,
-		s.Profile, id, escapeLike(id)+"%")
+		 WHERE profile_id = ? AND id LIKE ? ESCAPE '\' LIMIT 3`,
+		s.Profile, escapeLike(id)+"%")
 	if err != nil {
 		return row{}, err
 	}
@@ -143,9 +157,6 @@ func (s Store) find(ctx context.Context, id string) (row, error) {
 		var r row
 		if err := rows.Scan(&r.id, &r.status, &r.ro, &r.ed, &r.nc); err != nil {
 			return row{}, err
-		}
-		if r.id == id {
-			return r, nil
 		}
 		found = append(found, r)
 	}
