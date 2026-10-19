@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -336,6 +335,17 @@ func newCoderDisableCmd(cfg *Deps) *cobra.Command {
 // where a full-access chat works and the caps on how far it goes.
 var operatorCoderFlags = []string{"workspace-root", "max-turns", "timeout", "budget-usd", "org-max-agents", "org-max-concurrent", "org-budget-usd"}
 
+// operatorOrgFlags are the dynamic-org `coder set` flags only the operator
+// changes, and why: whether the workers' briefs go to Jev (TypeSafe), the
+// egress `jev enable` is the user's for, and whether their commits skip git
+// hooks. With these, --send-approval and --app-access, every flag of `coder
+// set` is the operator's.
+var operatorOrgFlags = []struct{ name, why string }{
+	{"org-router", "which decides whether the workers' briefs go to Jev (TypeSafe)"},
+	{"org-model-picker", "which decides whether the workers' briefs go to Jev (TypeSafe)"},
+	{"org-writers", "which decides whether the workers' commits skip git hooks"},
+}
+
 func newCoderSetCmd(cfg *Deps) *cobra.Command {
 	var (
 		root     string
@@ -358,6 +368,14 @@ func newCoderSetCmd(cfg *Deps) *cobra.Command {
 		for _, name := range operatorCoderFlags {
 			if f.Changed(name) {
 				if err := cfg.RequireOperator("change coder mode's --" + name + ", which bounds a full-access chat"); err != nil {
+					return err
+				}
+				break
+			}
+		}
+		for _, o := range operatorOrgFlags {
+			if f.Changed(o.name) {
+				if err := cfg.RequireOperator("change coder mode's --" + o.name + ", " + o.why); err != nil {
 					return err
 				}
 				break
@@ -443,12 +461,8 @@ func newCoderSetCmd(cfg *Deps) *cobra.Command {
 		}
 		return nil
 	})
-	ownFlags := make([]string, 0, len(operatorCoderFlags)+2)
-	for _, name := range append([]string{"app-access", "send-approval"}, operatorCoderFlags...) {
-		ownFlags = append(ownFlags, "--"+name)
-	}
-	c.Long = "Change coder mode's defaults.\n\n" + strings.Join(ownFlags, ", ") + ": " + clicore.OperatorOnlyHelp +
-		" The other flags are anyone's."
+	c.Long = "Change coder mode's defaults. " + clicore.OperatorOnlyHelp +
+		" Without flags it only prints the settings, which anyone may."
 	c.Flags().BoolVar(&sendAppr, "send-approval", true, "An agent's sends (email, DM, comment, post, connect, publish) wait for your approval (operator only)")
 	c.Flags().StringVar(&appAcc, "app-access", "", "on (default) or off: a dynamic org's workers get the workspace access profile, every monoagent surface (tasks, documents, people, vault, workflows, apps), and the prompts say how to use it; off leaves both out, and sends still wait for approval (operator only)")
 	c.Flags().StringVar(&root, "workspace-root", "", "Folder new test workspaces are created in (operator only)")
@@ -458,9 +472,9 @@ func newCoderSetCmd(cfg *Deps) *cobra.Command {
 	c.Flags().IntVar(&orgMax, "org-max-agents", 0, "Dynamic org: workers the lead may spawn per message (default 6; operator only)")
 	c.Flags().IntVar(&orgConc, "org-max-concurrent", 0, "Dynamic org: workers running at once (default 3; operator only)")
 	c.Flags().Float64Var(&orgBudg, "org-budget-usd", 0, "Dynamic org: worker cost cap per message in USD, estimated for runtimes that report none (0 = none; operator only)")
-	c.Flags().StringVar(&picker, "org-model-picker", "", "Dynamic org: who picks a worker's model when the lead doesn't: lead-then-jev (default) or lead")
-	c.Flags().StringVar(&router, "org-router", "", "Dynamic org (coder.router): who picks a worker's role and skills when the lead doesn't: auto (default; monomind pick when confident, else Jev, else the lead), jev or model (the lead names roles from org_roster)")
-	c.Flags().StringVar(&writers, "org-writers", "", "Dynamic org: shared (default; one writer at a time under the write lease) or isolated (each writer gets its own git worktree and branch, merged by the lead; its checkpoint commits skip git hooks, so merged work never passed pre-commit, and the worktrees under .monoagent-worktrees/ are visible to tools that ignore git excludes)")
+	c.Flags().StringVar(&picker, "org-model-picker", "", "Dynamic org: who picks a worker's model when the lead doesn't: lead-then-jev (default) or lead (operator only)")
+	c.Flags().StringVar(&router, "org-router", "", "Dynamic org (coder.router): who picks a worker's role and skills when the lead doesn't: auto (default; monomind pick when confident, else Jev, else the lead), jev or model (the lead names roles from org_roster; operator only)")
+	c.Flags().StringVar(&writers, "org-writers", "", "Dynamic org: shared (default; one writer at a time under the write lease) or isolated (each writer gets its own git worktree and branch, merged by the lead; its checkpoint commits skip git hooks, so merged work never passed pre-commit, and the worktrees under .monoagent-worktrees/ are visible to tools that ignore git excludes; operator only)")
 	return c
 }
 

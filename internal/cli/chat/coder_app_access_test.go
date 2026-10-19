@@ -14,7 +14,7 @@ import (
 
 // coder.appAccess: on by default, `coder set --app-access on|off` changes it
 // (the operator's refusal of an agent is tested in cmd/monoagentcli), and
-// --help names it among the user's own flags.
+// --help says the command is the user's own.
 func TestCoderSetAppAccess(t *testing.T) {
 	dbPath := newChatCLITestDB(t)
 	withCoderCaps(t)
@@ -46,7 +46,7 @@ func TestCoderSetAppAccess(t *testing.T) {
 	cmd.SetOut(&help)
 	cmd.SetArgs([]string{"--help"})
 	_ = cmd.Execute()
-	if h := help.String(); !strings.Contains(h, "--app-access, --send-approval") || !strings.Contains(h, clicore.OperatorOnlyHelp) {
+	if h := help.String(); !strings.Contains(h, "--app-access") || !strings.Contains(h, clicore.OperatorOnlyHelp) {
 		t.Errorf("coder set --help:\n%s", h)
 	}
 }

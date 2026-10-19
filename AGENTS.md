@@ -1759,6 +1759,13 @@ monoagentcli --profile work chat --conversation <conv> --turn <id> -- "make the 
 monoagentcli --profile work chat --mode coder --cwd ~/code/app -- "…"   # one unjournaled turn
 ```
 
+- Every `coder set` flag is the operator's own (exit 3, `operator_only` for
+  an agent, the chat or a workflow): the caps, `--send-approval`,
+  `--app-access`, and the dynamic org's `--org-router` and
+  `--org-model-picker` (they decide whether workers' briefs go to Jev) and
+  `--org-writers` (isolated writers' commits skip git hooks). Without flags
+  it only prints the settings. `TestEveryCoderSetFlagIsTheOperators` fails
+  for a new flag until it is classified.
 - The mode and folder are fixed when the conversation is created. The
   CLIs key their sessions by folder, so a conversation always resumes in the
   same one.

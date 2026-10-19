@@ -98,6 +98,8 @@ Every command, tool and request that acts on a profile now names that profile. T
 
 ### Security
 
+- **Agents can't change how a dynamic org is staffed.** `coder set --org-router`, `--org-model-picker` and `--org-writers` are now yours alone, like every other `coder set` flag: an agent, the chat or a workflow is refused (exit 3, `operator_only`). Before, an agent shell could switch staffing to Jev, which sends the workers' briefs to TypeSafe when Jev is on, or turn on isolated writers, whose commits skip git hooks.
+
 - **Go standard library and `golang.org/x/net` updated.** The pinned toolchain moves from go1.26.6 to go1.26.9 and `golang.org/x/net` from v0.59.0 to v0.60.0, which fixes 12 standard-library advisories (net/http, crypto/tls, mime/multipart, html/template, os; GO-2026-6599 through GO-2026-6617) that `govulncheck` reported against released binaries. The vulnerability scan is clean again.
 
 ### Changed
