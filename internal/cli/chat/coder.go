@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -44,6 +45,13 @@ type coderSettings struct {
 	// SendApproval (default on): an agent's outbound sends wait for the
 	// operator's approval (internal/hilsend). Only the operator changes it.
 	SendApproval *bool `json:"sendApproval,omitempty"`
+	// AppAccess (coder.appAccess, default on): a dynamic org's workers may
+	// get the workspace access profile (every monoagent surface through
+	// monoagentcli) and the prompts say how to use it. Off, no worker gets
+	// it and the prompts leave those rules out (internal/dynorg); sends wait
+	// for approval either way while SendApproval is on. Only the operator
+	// changes it.
+	AppAccess *bool `json:"appAccess,omitempty"`
 }
 
 const (
@@ -82,8 +90,15 @@ func (s coderSettings) withDefaults() coderSettings {
 		on := true
 		s.SendApproval = &on
 	}
+	if s.AppAccess == nil {
+		on := true
+		s.AppAccess = &on
+	}
 	return s
 }
+
+// appAccess reports coder.appAccess; unset is on.
+func (s coderSettings) appAccess() bool { return s.AppAccess == nil || *s.AppAccess }
 
 func loadCoderSettings(db *sql.DB) (coderSettings, error) {
 	var raw string
@@ -334,6 +349,7 @@ func newCoderSetCmd(cfg *Deps) *cobra.Command {
 		router   string
 		writers  string
 		sendAppr bool
+		appAcc   string
 	)
 	c := coderSettingsCmd(cfg, "set", "Change coder mode's defaults", func(cmd *cobra.Command, s *coderSettings) error {
 		f := cmd.Flags()
@@ -415,9 +431,26 @@ func newCoderSetCmd(cfg *Deps) *cobra.Command {
 			}
 			s.SendApproval = &sendAppr
 		}
+		if f.Changed("app-access") {
+			if err := cfg.RequireOperator("change the app-access setting"); err != nil {
+				return err
+			}
+			if appAcc != "on" && appAcc != "off" {
+				return clicore.InvalidInput("--app-access must be on or off")
+			}
+			on := appAcc == "on"
+			s.AppAccess = &on
+		}
 		return nil
 	})
+	ownFlags := make([]string, 0, len(operatorCoderFlags)+2)
+	for _, name := range append([]string{"app-access", "send-approval"}, operatorCoderFlags...) {
+		ownFlags = append(ownFlags, "--"+name)
+	}
+	c.Long = "Change coder mode's defaults.\n\n" + strings.Join(ownFlags, ", ") + ": " + clicore.OperatorOnlyHelp +
+		" The other flags are anyone's."
 	c.Flags().BoolVar(&sendAppr, "send-approval", true, "An agent's sends (email, DM, comment, post, connect, publish) wait for your approval (operator only)")
+	c.Flags().StringVar(&appAcc, "app-access", "", "on (default) or off: a dynamic org's workers get the workspace access profile, every monoagent surface (tasks, documents, people, vault, workflows, apps), and the prompts say how to use it; off leaves both out, and sends still wait for approval (operator only)")
 	c.Flags().StringVar(&root, "workspace-root", "", "Folder new test workspaces are created in (operator only)")
 	c.Flags().IntVar(&maxTurns, "max-turns", 0, "Agent turn cap per message (operator only)")
 	c.Flags().StringVar(&timeout, "timeout", "", "Wall-clock cap per message (e.g. 60m; operator only)")

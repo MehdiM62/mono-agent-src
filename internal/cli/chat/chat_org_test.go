@@ -18,7 +18,8 @@ import (
 // exec calls org_spawn (waiting), or $ORG_LEAD_CALL and then
 // $ORG_LEAD_CALL2 when set, and saves the tool results it gets back;
 // a worker's exec (its system prompt names it a worker) edits a file and
-// reports. `pick` ranks nothing and `org skills show` fails, so staffing
+// reports. Each copies its system prompt to lead-system.txt or
+// worker-system.txt next to argsLog. `pick` ranks nothing and `org skills show` fails, so staffing
 // uses the built-in roles.
 func writeOrgMonomind(t *testing.T) (bin, argsLog string) {
 	t.Helper()
@@ -37,6 +38,7 @@ if [ "$1" = "agent" ] && [ "$2" = "exec" ]; then
     prev="$a"
   done
   if [ -n "$sys" ] && grep -q "a worker in a team" "$sys"; then
+    cp "$sys" '` + filepath.Join(dir, "worker-system.txt") + `'
     echo '{"v":1,"type":"start","runtime":"claude","cwd":"/w","pid":2,"access":"read"}'
     echo '{"v":1,"type":"session","session_id":"th_worker"}'
     echo '{"v":1,"type":"assistant","text":"Checking the cache."}'
@@ -46,6 +48,7 @@ if [ "$1" = "agent" ] && [ "$2" = "exec" ]; then
     echo '{"v":1,"type":"done","exit_code":0}'
     exit 0
   fi
+  if [ -n "$sys" ]; then cp "$sys" '` + filepath.Join(dir, "lead-system.txt") + `'; fi
   echo '{"v":1,"type":"start","runtime":"claude","cwd":"/w","pid":1,"access":"full"}'
   echo '{"v":1,"type":"session","session_id":"th_lead"}'
   if [ -n "$ORG_LEAD_CALL" ]; then

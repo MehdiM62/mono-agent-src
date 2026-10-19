@@ -221,16 +221,25 @@ type RosterView struct {
 }
 
 // Roster describes what the lead can staff with, and the workers so far.
+// It is how the lead asks for the current state, so the workers' profile
+// section is rebuilt at the next spawn.
 func (c *Conductor) Roster() RosterView {
+	c.profileMu.Lock()
+	c.profileFresh = false
+	c.profileMu.Unlock()
+	s := c.cfg.Staffer
 	v := RosterView{
-		Models:     c.cfg.Staffer.Roster,
-		Profiles:   profileRules,
+		Models:     s.Roster,
+		Profiles:   map[string]string{},
 		RoleNote:   "role accepts any registry agent id listed here (monomind's agents come first) or a built-in role; leave it empty to have one picked for the brief. Smallest sufficient role, at most 3 skills",
 		Agents:     c.registryAgents(context.Background()),
-		ModelHints: c.cfg.Staffer.ModelHints(),
+		ModelHints: s.ModelHints(),
+	}
+	for _, p := range s.profiles() {
+		v.Profiles[p] = profileRules[p]
 	}
 	for _, r := range builtinRoles {
-		v.Roles = append(v.Roles, map[string]any{"id": r.ID, "title": r.Title, "category": r.Category, "default_access": r.Profile, "does": firstSentence(r.Body)})
+		v.Roles = append(v.Roles, map[string]any{"id": r.ID, "title": r.Title, "category": r.Category, "default_access": s.fitAccess(r.Profile), "does": firstSentence(r.Body)})
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()

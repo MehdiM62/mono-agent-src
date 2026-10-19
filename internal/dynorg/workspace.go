@@ -9,8 +9,9 @@ import (
 // ProfileContext builds the active profile's context block (name, folder,
 // connected accounts, counts and recent items of tasks, documents, people,
 // workflows, orgs, vault item names): internal/profilectx. The caller wires
-// it once at startup; nil skips the block. It is included in the lead's and
-// every worker's system prompt and must never contain secret values.
+// it once at startup; nil skips the block. It is included in every worker's
+// system prompt (once per turn, see profileSection; the coder lead has it in
+// its own prompt) and must never contain secret values.
 var ProfileContext func(ctx context.Context) string
 
 // ProfileID is the chat's mono-agent profile id. The caller wires it with
@@ -49,6 +50,19 @@ func profileBlock(ctx context.Context) string {
 }
 
 const maxProfileContext = 6000
+
+// profileSection is profileBlock for this turn's workers: built at the
+// first spawn and reused, until org_roster (Roster) asks for a fresh one.
+// It is built under the turn's context, not one worker's, so a worker
+// stopped mid-build can't leave a half-read block for the rest.
+func (c *Conductor) profileSection() string {
+	c.profileMu.Lock()
+	defer c.profileMu.Unlock()
+	if !c.profileFresh {
+		c.profileText, c.profileFresh = profileBlock(c.ctx), true
+	}
+	return c.profileText
+}
 
 // workspaceRules are the surface rules of the workspace access profile,
 // shared by the worker prompt and the lead's.

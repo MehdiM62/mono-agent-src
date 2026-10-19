@@ -3,12 +3,14 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/monoes/mono-agent/internal/browserctl"
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/hilsend"
 	"github.com/monoes/mono-agent/internal/orgsign"
 	"github.com/monoes/mono-agent/internal/profiledir"
@@ -389,6 +391,24 @@ func TestPublicationRegisterFromAChatOrWorkflowRunNeedsApproval(t *testing.T) {
 		}
 		t.Setenv(env[0], "")
 	}
+}
+
+// coder.appAccess is the operator's (exit 3, operator_only for an agent), and
+// turning it off leaves the send gate alone: an agent's send is still queued.
+func TestCoderAppAccessSettingKeepsTheSendGate(t *testing.T) {
+	cfg := sendEnv(t)
+	asAgentProcess(t)
+	_, err := runSendCLI(t, cfg, newCoderSetCmd(cfg), "--app-access", "off")
+	var coded interface{ JSONErrorFields() map[string]any }
+	if clicore.ExitCodeFor(err) != 3 || !errors.As(err, &coded) || coded.JSONErrorFields()["code"] != "operator_only" {
+		t.Fatalf("an agent turned app access off: %v", err)
+	}
+	asOperatorProcess(t)
+	out, err := runSendCLI(t, cfg, newCoderSetCmd(cfg), "--app-access", "off")
+	if err != nil || !strings.Contains(out, `"appAccess":false`) || !strings.Contains(out, `"sendApproval":true`) {
+		t.Fatalf("operator off: %v %s", err, out)
+	}
+	queueViaNodeRun(t, cfg, `{"smtp_host":"127.0.0.1","smtp_port":1,"from":"me@example.test","to":"ada@example.test","subject":"Hi","body":"x"}`)
 }
 
 func TestCoderSendApprovalSetting(t *testing.T) {

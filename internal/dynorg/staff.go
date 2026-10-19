@@ -49,6 +49,27 @@ type Staffer struct {
 	// Quality is the roster's track record from earlier workers (#230):
 	// bad fits for a worker's category rank last, and Jev sees the rates.
 	Quality agentroster.Quality
+	// NoAppAccess is coder.appAccess off: no worker gets the workspace
+	// profile. A lead that asks for it is refused; one staffing picked is
+	// lowered to coding.
+	NoAppAccess bool
+}
+
+// profiles are the access profiles this turn's workers may get.
+func (s *Staffer) profiles() []string {
+	if s == nil || !s.NoAppAccess {
+		return Profiles
+	}
+	return slices.DeleteFunc(slices.Clone(Profiles), func(p string) bool { return p == ProfileWorkspace })
+}
+
+// fitAccess is a picked access profile within what this turn allows:
+// workspace becomes coding while app access is off.
+func (s *Staffer) fitAccess(profile string) string {
+	if s != nil && s.NoAppAccess && profile == ProfileWorkspace {
+		return ProfileCoding
+	}
+	return profile
 }
 
 // Staff turns a spawn request into a staffed worker. The lead's own choices
@@ -65,12 +86,19 @@ func (s *Staffer) Staff(ctx context.Context, req SpawnRequest) (Staff, error) {
 	}
 	if req.Access != "" {
 		if !slices.Contains(Profiles, req.Access) {
-			return st, fmt.Errorf("unknown access %q; use one of %s", req.Access, strings.Join(Profiles, ", "))
+			return st, fmt.Errorf("unknown access %q; use one of %s", req.Access, strings.Join(s.profiles(), ", "))
+		}
+		if !slices.Contains(s.profiles(), req.Access) {
+			return st, fmt.Errorf("access %q is off: the user turned app access off; use one of %s", req.Access, strings.Join(s.profiles(), ", "))
 		}
 		st.Access = req.Access
 		st.Why = append(st.Why, "lead chose access")
 	} else if st.Access == "" {
 		st.Access = profileForCategory(st.Category, st.AgentType)
+	}
+	if fit := s.fitAccess(st.Access); fit != st.Access {
+		st.Access = fit
+		st.Why = append(st.Why, "access lowered to coding: app access is off")
 	}
 	if req.NeedsWrite != nil && *req.NeedsWrite && st.Access == ProfileResearch {
 		st.Access = ProfileCoding

@@ -31,7 +31,7 @@ func TestWorkerPromptDescribesBrowser(t *testing.T) {
 			t.Errorf("%s prompt still says `extension` drives the browser", access)
 		}
 	}
-	if strings.Contains(LeadPrompt(DefaultLimits()), "`extension`") || !strings.Contains(workspaceRules, "`browser`") {
+	if strings.Contains(LeadPrompt(DefaultLimits(), true), "`extension`") || !strings.Contains(workspaceRules, "`browser`") {
 		t.Error("the workspace rules (the lead's too) name `browser`, not `extension`")
 	}
 	if strings.Contains(workerSystemPrompt(Staff{Role: "R", Access: ProfileResearch}, "/w", nil, false), "browser screenshot") {
@@ -62,8 +62,9 @@ func TestEveryWorkerKnowsItsProfileID(t *testing.T) {
 			t.Errorf("a worker's prompt misses its profile id:\n%s", o.SystemPrompt)
 		}
 	}
-	if !strings.Contains(LeadExtras(context.Background(), RouterAuto), "`--profile p-9`") {
-		t.Error("the lead's extras miss the profile id")
+	// The lead's own prompt has its profile id (coderBrowserPrompt); the extras don't repeat it.
+	if strings.Contains(LeadExtras(RouterAuto), "--profile") {
+		t.Error("the lead's extras repeat the profile id")
 	}
 	if ProfileRule("") != "" || ProfileRule("  ") != "" {
 		t.Error("no id, no rule")
