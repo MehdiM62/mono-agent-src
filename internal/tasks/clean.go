@@ -15,9 +15,8 @@ var (
 )
 
 // hidden reports characters that show nothing but can carry text to a reader:
-// the Unicode tag block (invisible "ASCII smuggling"), bidi controls, the
-// zero-width space U+200B and the byte order mark U+FEFF (the zero-width
-// no-break space).
+// the Unicode tag block (invisible "ASCII smuggling"), bidi controls and the
+// byte order mark U+FEFF (the zero-width no-break space).
 func hidden(r rune) bool {
 	switch {
 	case r >= 0xE0000 && r <= 0xE007F:
@@ -25,17 +24,22 @@ func hidden(r rune) bool {
 	case r >= 0x202A && r <= 0x202E, r >= 0x2066 && r <= 0x2069:
 		return true
 	}
-	return r == 0xFEFF || r == 0x200B
+	return r == 0xFEFF
 }
 
+// zeroWidthSpace is U+200B. It is the word separator of Thai, Khmer and Lao,
+// so text keeps it; a title drops it (one line to read, where it only hides
+// a break inside a word) and a URL with one is refused.
+const zeroWidthSpace = '\u200b'
+
 // invisible reports characters that show nothing but that a script or an emoji
-// sequence needs, so text keeps them (see cleanText): the zero-width
-// non-joiner and joiner U+200C and U+200D, the left-to-right and right-to-left
-// marks U+200E and U+200F, the Arabic letter mark U+061C, the word joiner
-// U+2060 and the Mongolian vowel separator U+180E.
+// sequence needs, so text keeps them (see cleanText): the zero-width space
+// U+200B, the zero-width non-joiner and joiner U+200C and U+200D, the
+// left-to-right and right-to-left marks U+200E and U+200F, the Arabic letter
+// mark U+061C, the word joiner U+2060 and the Mongolian vowel separator U+180E.
 func invisible(r rune) bool {
 	switch r {
-	case 0x200C, 0x200D, 0x200E, 0x200F, 0x061C, 0x2060, 0x180E:
+	case zeroWidthSpace, 0x200C, 0x200D, 0x200E, 0x200F, 0x061C, 0x2060, 0x180E:
 		return true
 	}
 	return false
@@ -53,9 +57,9 @@ func blank(s string) bool {
 // U+2028 and U+2029, which the printers would not split on) become \n, control
 // characters other than \n and \t and the hidden characters are dropped (an
 // escape byte would otherwise reach a terminal), and the ends are trimmed. The
-// characters that languages and emoji need are kept: the zero-width joiners
-// U+200C and U+200D, the marks U+200E and U+200F and the Arabic letter mark
-// U+061C.
+// characters that languages and emoji need are kept: the zero-width space
+// U+200B, the zero-width joiners U+200C and U+200D, the marks U+200E and
+// U+200F and the Arabic letter mark U+061C.
 func cleanText(s string) string {
 	s = strings.ToValidUTF8(s, "\ufffd")
 	s = strings.ReplaceAll(s, "\r\n", "\n")
@@ -102,14 +106,18 @@ func cutBytes(s string, maxBytes int) string {
 	return cut + notice
 }
 
-// cleanTitle is a title as stored: one line, at most MaxTitleRunes; "" when
-// nothing visible is left.
+// cleanTitle is a title as stored: one line without zero-width spaces, at most
+// MaxTitleRunes; "" when nothing visible is left.
 func cleanTitle(s string) string {
-	t := cutRunes(oneLine(s), MaxTitleRunes)
+	t := cutRunes(oneLine(dropZeroWidthSpaces(s)), MaxTitleRunes)
 	if blank(t) {
 		return ""
 	}
 	return t
+}
+
+func dropZeroWidthSpaces(s string) string {
+	return strings.ReplaceAll(s, string(zeroWidthSpace), "")
 }
 
 // deriveTitleNotes turns the three ways a task's words arrive into the stored
@@ -144,7 +152,7 @@ func deriveTitleNotes(title, notes, text string) (string, string, error) {
 			break
 		}
 	}
-	derived := cutRunes(strings.Join(strings.Fields(first), " "), DerivedTitleRunes)
+	derived := cutRunes(strings.Join(strings.Fields(dropZeroWidthSpaces(first)), " "), DerivedTitleRunes)
 	if derived == text {
 		return derived, "", nil
 	}
@@ -153,14 +161,14 @@ func deriveTitleNotes(title, notes, text string) (string, string, error) {
 
 // cleanURL returns the URL when it is a plain http or https address, without
 // user-info and within the limit; otherwise "". A URL with invalid UTF-8, a
-// control character or a hidden character anywhere is refused, not rewritten:
-// net/url keeps a query exactly as typed.
+// control character, a hidden character or a zero-width space anywhere is
+// refused, not rewritten: net/url keeps a query exactly as typed.
 func cleanURL(raw string) string {
 	raw = strings.TrimSpace(raw)
 	if raw == "" || len(raw) > MaxURLBytes {
 		return ""
 	}
-	if !utf8.ValidString(raw) || strings.ContainsFunc(raw, func(r rune) bool { return unicode.IsControl(r) || hidden(r) }) {
+	if !utf8.ValidString(raw) || strings.ContainsFunc(raw, func(r rune) bool { return unicode.IsControl(r) || hidden(r) || r == zeroWidthSpace }) {
 		return ""
 	}
 	u, err := url.Parse(raw)

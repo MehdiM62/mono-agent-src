@@ -36,17 +36,75 @@ func TestATitleOfInvisibleCharactersOnlyIsEmpty(t *testing.T) {
 	}
 }
 
-// The zero-width space is dropped wherever it sits, and refused in a URL like
-// the other hidden characters.
-func TestTheZeroWidthSpaceIsDropped(t *testing.T) {
-	if got := cleanText("pay\u200bpal"); got != "paypal" {
-		t.Errorf("cleanText = %q, want the zero-width space dropped", got)
-	}
+// The zero-width space is dropped from a title and refused in a URL, but text
+// keeps it: Thai, Khmer and Lao write no spaces between words, and U+200B is
+// their word separator.
+func TestTheZeroWidthSpaceIsDroppedFromATitleOnly(t *testing.T) {
 	if got := cleanTitle("Fix\u200b it"); got != "Fix it" {
 		t.Errorf("cleanTitle = %q", got)
 	}
+	if got := cleanTitle("pay\u200bpal"); got != "paypal" {
+		t.Errorf("cleanTitle = %q, want the zero-width space dropped", got)
+	}
+	if got := cleanText("pay\u200bpal"); got != "pay\u200bpal" {
+		t.Errorf("cleanText = %q, want the zero-width space kept", got)
+	}
 	if got := cleanURL("https://pay\u200bpal.example/"); got != "" {
 		t.Errorf("cleanURL kept a URL with a zero-width space: %q", got)
+	}
+}
+
+// Thai with U+200B between its words: notes, a text's notes, an edit and a
+// comment are stored byte for byte; a title drops the separators.
+func TestThaiTextKeepsItsWordSeparators(t *testing.T) {
+	const thai = "\u0e2a\u0e27\u0e31\u0e2a\u0e14\u0e35\u200b\u0e04\u0e23\u0e31\u0e1a\u200b\u0e27\u0e31\u0e19\u0e19\u0e35\u0e49"
+	s, _, _ := newTestStore(t)
+	task, _, err := s.Add(bg, "default", AddInput{Title: thai, Notes: thai}, human)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := strings.ReplaceAll(thai, "\u200b", ""); task.Title != want {
+		t.Errorf("title %q, want %q", task.Title, want)
+	}
+	if task.Notes != thai {
+		t.Errorf("notes %q, want %q byte for byte", task.Notes, thai)
+	}
+	got, _, err := s.Get(bg, "default", task.ID)
+	if err != nil || got.Notes != thai {
+		t.Errorf("read back: notes %q, err %v", got.Notes, err)
+	}
+
+	fromText, _, err := s.Add(bg, "default", AddInput{Text: "Thai\n" + thai}, human)
+	if err != nil || fromText.Notes != "Thai\n"+thai {
+		t.Errorf("text: notes %q, err %v", fromText.Notes, err)
+	}
+
+	edited := "\u0e01\u0e02\u200b" + thai
+	if got, err := s.Edit(bg, "default", task.ID, Edit{Notes: &edited}, human); err != nil || got.Notes != edited {
+		t.Errorf("edit: notes %q, err %v", got.Notes, err)
+	}
+
+	if _, err := s.Comment(bg, "default", task.ID, thai, human); err != nil {
+		t.Fatal(err)
+	}
+	_, events, err := s.Get(bg, "default", task.ID)
+	if err != nil || len(events) == 0 || events[len(events)-1].Note != thai {
+		t.Errorf("comment: events %+v, err %v", events, err)
+	}
+}
+
+// A title of zero-width spaces alone is still refused.
+func TestATitleOfZeroWidthSpacesIsRefused(t *testing.T) {
+	s, _, _ := newTestStore(t)
+	for _, in := range []AddInput{{Title: "\u200b"}, {Title: "\u200b \u200b", Notes: "n"}, {Text: "\u200b"}} {
+		if _, _, err := s.Add(bg, "default", in, human); !errors.Is(err, ErrInvalid) {
+			t.Errorf("Add(%+v): err %v, want it refused", in, err)
+		}
+	}
+	task := mustAdd(t, s, "default", "t", false)
+	zw := "\u200b"
+	if _, err := s.Edit(bg, "default", task.ID, Edit{Title: &zw}, human); !errors.Is(err, ErrInvalid) {
+		t.Errorf("Edit to a zero-width title: err %v, want it refused", err)
 	}
 }
 
