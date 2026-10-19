@@ -1543,12 +1543,16 @@
         "question": "preguntó",
         "result": "informó",
         "released": "liberó"
-      }
+      },
+      "readFirst": "Esta tarjeta tiene notas. Léelas antes de aprobarla: en Listo, los agentes actúan sobre todo su texto.",
+      "readFirstMove": "Esta tarjeta tiene notas. Léelas antes de que salga de la Bandeja: los agentes actúan sobre todo su texto.",
+      "moveTo": "Mover a {{column}}",
+      "saveFirst": "Guarda primero tus cambios"
     },
     "refused": "Rechazado: {{error}}",
     "emptyBy": {
       "inbox": "Resalta texto en Chrome y elige MonoAgent, Add selection as task, o selecciona texto en cualquier app: Servicios, Add to MonoAgent Tasks",
-      "ready": "Aprueba tareas desde Inbox para que los agentes puedan tomarlas"
+      "ready": "Aprueba tareas de la Bandeja para que los agentes puedan tomarlas"
     },
     "capture": {
       "title": "Cómo capturar",
@@ -1556,7 +1560,17 @@
       "mac": "En Mac: selecciona texto en cualquier app y elige Servicios, Add to MonoAgent Tasks.",
       "cli": "En una terminal:",
       "agents": "Los agentes añaden tareas con las herramientas de tareas; su trabajo aparece aquí en segundos."
-    }
+    },
+    "readAndApprove": "Leer y aprobar",
+    "hasNotes": "Esta tarjeta tiene notas: ábrela para leerlas",
+    "notesMarker": "Notas",
+    "announce": {
+      "moved": "Se movió «{{title}}» a {{column}}",
+      "failed": "No se pudo mover «{{title}}» a {{column}}: {{error}}"
+    },
+    "markDone": "Hecho",
+    "backToReady": "Volver a Listo",
+    "inProfile": "en {{name}}"
   },
   "publication": {
     "title": "Publicación",

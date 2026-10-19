@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/monoes/mono-agent/internal/commsync"
+	"github.com/monoes/mono-agent/internal/workflow"
 )
 
 // Store keeps send items in hil_pending (so `hil list` and the HIL badge see
@@ -456,7 +457,9 @@ func (s Store) VerifyApproval(ctx context.Context, id, proof, nodeType string) b
 		return false
 	}
 	var rp replay
-	if json.Unmarshal([]byte(nc), &rp) != nil || rp.Kind != "send" || rp.NodeType != nodeType || rp.ProofHash == "" {
+	// An approval queued under a legacy name is the canonical type's.
+	if json.Unmarshal([]byte(nc), &rp) != nil || rp.Kind != "send" ||
+		workflow.CanonicalNodeType(rp.NodeType) != workflow.CanonicalNodeType(nodeType) || rp.ProofHash == "" {
 		return false
 	}
 	sum := sha256.Sum256([]byte(proof))
