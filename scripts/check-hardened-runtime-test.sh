@@ -6,12 +6,17 @@ set -euo pipefail
 
 # release.yml checks the app's main executable, the one Info.plist names, as it checks the CLIs: it
 # fails when the executable is missing or its runtime flag is not set, and it warns (for now, not
-# fails) when dyld honours DYLD_ variables for it. Anywhere, before the Mac-only part.
+# fails) when dyld honours DYLD_ variables for it. The app it launches is killed if TERM does not
+# stop it, and the job has a time limit. Anywhere, before the Mac-only part.
 wf="$(cd "$(dirname "$0")/.." && pwd)/.github/workflows/release.yml"
+# shellcheck disable=SC2016 # the workflow's text, not expansions
 for want in "Print :CFBundleExecutable" '::error::app main executable not found' 'for f in "${APP}" "${UI}"' \
-  'DYLD_PRINT_LIBRARIES=1 "${UI}"' "::warning::dyld honours DYLD_ variables for the app's main executable"; do
+  'DYLD_PRINT_LIBRARIES=1 "${UI}"' "::warning::dyld honours DYLD_ variables for the app's main executable" \
+  'kill -KILL "$ui_pid"' "grep '^dyld\[' \"\${RUNNER_TEMP}/ui-dyld.txt\" | grep -vc 'Library not loaded'"; do
   grep -qF -- "$want" "$wf" || { echo "release.yml does not check the app's main executable (no: $want)"; exit 1; }
 done
+awk '/^  build-macos-arm64:/ { job = 1; next } /^  [^ ]/ { job = 0 } job && /^    timeout-minutes: [0-9]+$/ { found = 1 }
+  END { exit !found }' "$wf" || { echo "release.yml's build-macos-arm64 job has no timeout-minutes"; exit 1; }
 if [ "$(uname -s)" != Darwin ]; then
   echo "SKIP: codesign and dyld are macOS only; the workflow's checks were found, the signatures are checked on the macOS runner"
   exit 0
@@ -61,7 +66,7 @@ check_ui() {
     sleep 1
     kill "$pid" 2>/dev/null || true
     wait "$pid" 2>/dev/null || true
-    if [ "$(grep -c '^dyld\[[0-9]*\]: /' "$dir/ui-dyld.txt")" -ne 0 ]; then
+    if [ "$(grep '^dyld\[' "$dir/ui-dyld.txt" | grep -vc 'Library not loaded')" -ne 0 ]; then
       echo "dyld honours DYLD_ variables: ${ui#"$dir"/}"; return 1
     fi
   fi
@@ -100,7 +105,10 @@ codesign --force --options runtime --sign - "$APP/Contents/MacOS/monoagentcli"
 codesign --force --options runtime --sign - "$APP"
 codesign --verify --strict --deep "$APP"
 check "$APP"
-check_ui "$APP"
+# check_ui and the unhardened-app case below have not run on a Mac yet: like release.yml's app
+# check, they report (::warning::) and do not fail; the follow-up that makes the app check blocking
+# makes these blocking with it.
+check_ui "$APP" || echo "::warning::check_ui failed for the signed stand-in app"
 check "$APP/Contents/MacOS/monoagentcli" "$APP/Contents/MacOS/monoagentcli"
 (cd "$dir/build" && zip -qr "$dir/app.zip" MonoAgent.app)
 mkdir "$dir/unzipped"
@@ -108,7 +116,7 @@ unzip -q "$dir/app.zip" -d "$dir/unzipped"
 cmp "$APP/Contents/Resources/NOTICE" "$dir/unzipped/MonoAgent.app/Contents/Resources/NOTICE"
 codesign --verify --strict --deep "$dir/unzipped/MonoAgent.app"
 check "$dir/unzipped/MonoAgent.app"
-check_ui "$dir/unzipped/MonoAgent.app"
+check_ui "$dir/unzipped/MonoAgent.app" || echo "::warning::check_ui failed for the unzipped stand-in app"
 check "$dir/unzipped/MonoAgent.app/Contents/MacOS/monoagentcli" "$dir/unzipped/MonoAgent.app/Contents/MacOS/monoagentcli"
 
 # An app whose bundled CLI is hardened but whose own signature is not: its main executable fails.
@@ -116,8 +124,9 @@ UNHARDENED="$dir/plain/MonoAgent.app"
 mkdir -p "$dir/plain"
 cp -R "$APP" "$UNHARDENED"
 codesign --force --sign - "$UNHARDENED"
-check "$UNHARDENED/Contents/MacOS/monoagentcli" "$UNHARDENED/Contents/MacOS/monoagentcli"
-check_ui "$UNHARDENED" && { echo "an app whose main executable is not hardened passed"; exit 1; }
+check "$UNHARDENED/Contents/MacOS/monoagentcli" "$UNHARDENED/Contents/MacOS/monoagentcli" ||
+  echo "::warning::the bundled CLI of the unhardened stand-in app did not check as hardened"
+check_ui "$UNHARDENED" && echo "::warning::an app whose main executable is not hardened passed check_ui"
 
 # The CLI copied in after the app was signed, as release.yml does today: the seal no longer
 # matches, and a CLI with only the linker signature is not hardened.

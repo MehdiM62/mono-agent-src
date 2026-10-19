@@ -242,6 +242,9 @@ jobs:
   build-macos-arm64:
     needs: version
     runs-on: macos-latest
+    # The job takes 2-4 minutes; the bound keeps a stuck step (the app launch below) from
+    # holding a runner for hours.
+    timeout-minutes: 45
     env:
       TAG: ${{ needs.version.outputs.tag }}
     steps:
@@ -318,12 +321,20 @@ jobs:
             HOME="${RUNNER_TEMP}/ui-home" DYLD_PRINT_LIBRARIES=1 "${UI}" > "${RUNNER_TEMP}/ui-dyld.txt" 2>&1 &
             ui_pid=$!
             sleep 3
-            kill "$ui_pid" 2>/dev/null || true
+            # A bounded stop: TERM, up to 5 s for it to go, then KILL, so an app that ignores
+            # TERM cannot hold the step.
+            kill -TERM "$ui_pid" 2>/dev/null || true
+            for _ in 1 2 3 4 5 6 7 8 9 10; do
+              kill -0 "$ui_pid" 2>/dev/null || break
+              sleep 0.5
+            done
+            kill -KILL "$ui_pid" 2>/dev/null || true
             wait "$ui_pid" 2>/dev/null || true
             echo "::notice::the app's main executable printed, first lines: $(head -n 5 "${RUNNER_TEMP}/ui-dyld.txt" | tr '\n' ' ')"
-            # A loaded library is "dyld[<pid>]: /path"; a load failure is "dyld[<pid>]: Library not
-            # loaded …", which is no sign of DYLD_ variables being honoured.
-            if [ "$(grep -c '^dyld\[[0-9]*\]: /' "${RUNNER_TEMP}/ui-dyld.txt")" -ne 0 ]; then
+            # A loaded library is "dyld[<pid>]: /path" (newer dyld puts a UUID before the path);
+            # a load failure is "dyld[<pid>]: Library not loaded …", which is no sign of DYLD_
+            # variables being honoured.
+            if [ "$(grep '^dyld\[' "${RUNNER_TEMP}/ui-dyld.txt" | grep -vc 'Library not loaded')" -ne 0 ]; then
               echo "::warning::dyld honours DYLD_ variables for the app's main executable"
             fi
             if grep -q '^dyld\[[0-9]*\]: Library not loaded' "${RUNNER_TEMP}/ui-dyld.txt"; then
