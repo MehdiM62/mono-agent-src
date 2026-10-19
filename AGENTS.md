@@ -2939,7 +2939,11 @@ newline is stripped.
 monoagentcli --profile work secret list                 # metadata only, never values
 monoagentcli --profile work secret add --kind secret --name aws \
   --field access_key_id=... --field secret_access_key=...   # still argv — avoid for high-value secrets
+monoagentcli --profile work secret update aws --field region=eu-west-1 --merge   # change one field, keep the rest
 ```
+
+Without `--merge`, `--field`/`--stdin-json` replace the entry's whole field
+set, and a replace that drops fields prints a warning naming them.
 
 Note: `--value` exists as a shorthand but leaks through process listings
 and shell history — prefer stdin or the interactive prompt for real secrets.
