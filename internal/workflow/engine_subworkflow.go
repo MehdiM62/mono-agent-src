@@ -402,7 +402,7 @@ func (e *WorkflowEngine) WaitingOnSubWorkflows(ctx context.Context, executionID 
 	if exec == nil || exec.Status != "WAITING" {
 		return false, nil
 	}
-	return e.waitingOnChildren(ctx, exec)
+	return waitingOnChildren(ctx, e.store, exec)
 }
 
 // ExecutionInFlight reports executionID's status and whether a wait for it
@@ -411,27 +411,44 @@ func (e *WorkflowEngine) WaitingOnSubWorkflows(ctx context.Context, executionID 
 // its record, so a parent this engine resumes between the status poll and
 // that read is in flight, not taken for a run that paused for a person.
 func (e *WorkflowEngine) ExecutionInFlight(ctx context.Context, executionID string) (string, bool, error) {
-	status, err := e.store.GetExecutionStatus(ctx, executionID)
+	return ExecutionInFlight(ctx, e.store, executionID)
+}
+
+// ExecutionInFlight is WorkflowEngine.ExecutionInFlight over store, for a
+// wait that holds the store and not the engine running the execution (the
+// MCP server's and the HTTP API's): that engine runs the children and
+// resumes the parent all the same.
+func ExecutionInFlight(ctx context.Context, store WorkflowStore, executionID string) (string, bool, error) {
+	status, err := store.GetExecutionStatus(ctx, executionID)
 	if err != nil || status != "WAITING" {
 		return status, status == "QUEUED" || status == "RUNNING", err
 	}
-	exec, err := e.store.GetExecution(ctx, executionID)
+	exec, err := store.GetExecution(ctx, executionID)
 	if err != nil {
 		return status, false, fmt.Errorf("sub-workflow wait: %w", err)
 	}
 	if exec == nil {
 		return status, false, nil
 	}
-	if exec.Status != "WAITING" {
-		return exec.Status, exec.Status == "QUEUED" || exec.Status == "RUNNING", nil
+	inFlight, err := RecordInFlight(ctx, store, exec)
+	return exec.Status, inFlight, err
+}
+
+// RecordInFlight is whether a wait for exec, a record already read, goes on:
+// it is QUEUED or RUNNING, or WAITING only for its sub-workflow children.
+func RecordInFlight(ctx context.Context, store WorkflowStore, exec *WorkflowExecution) (bool, error) {
+	switch exec.Status {
+	case "QUEUED", "RUNNING":
+		return true, nil
+	case "WAITING":
+		return waitingOnChildren(ctx, store, exec)
 	}
-	waiting, err := e.waitingOnChildren(ctx, exec)
-	return exec.Status, waiting, err
+	return false, nil
 }
 
 // waitingOnChildren is WaitingOnSubWorkflows for exec, a WAITING record.
-func (e *WorkflowEngine) waitingOnChildren(ctx context.Context, exec *WorkflowExecution) (bool, error) {
-	db := e.store.RawDB()
+func waitingOnChildren(ctx context.Context, store WorkflowStore, exec *WorkflowExecution) (bool, error) {
+	db := store.RawDB()
 	if db == nil {
 		return false, nil
 	}

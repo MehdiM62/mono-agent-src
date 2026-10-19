@@ -274,7 +274,7 @@ func toolWorkflowRun(ctx context.Context, s *Server, args json.RawMessage) (inte
 	if exec.ErrorMessage != "" {
 		result["error"] = exec.ErrorMessage
 	}
-	if exec.Status == "RUNNING" || exec.Status == "QUEUED" {
+	if inFlight, _ := workflow.RecordInFlight(ctx, rt.store, exec); inFlight {
 		result["timed_out"] = true
 	}
 	return result, nil
@@ -298,16 +298,14 @@ func waitForExecution(ctx context.Context, rt *runtime, executionID string, time
 	for {
 		select {
 		case <-ticker.C:
-			status, err := rt.store.GetExecutionStatus(ctx, executionID)
+			// Queued, running, or waiting only for its sub-workflows (the
+			// engine runs them and resumes it): the wait goes on. A final
+			// status, or a pause for a person, ends it.
+			status, inFlight, err := workflow.ExecutionInFlight(ctx, rt.store, executionID)
 			if err != nil || status == "" {
 				continue
 			}
-			switch status {
-			case "QUEUED", "RUNNING":
-				if time.Now().After(deadline) {
-					return load()
-				}
-			default: // SUCCESS, FAILED, CANCELLED, WAITING (HIL pause)
+			if !inFlight || time.Now().After(deadline) {
 				return load()
 			}
 		case <-ctx.Done():
