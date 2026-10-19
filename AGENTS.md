@@ -169,7 +169,8 @@ monoagentcli node schema <type>
 monoagentcli --profile work workflow validate <id>
 monoagentcli --profile work workflow validate --file <workflow.json>
 # Keys an app node sends that its operation doesn't declare (an agent's run of
-# it waits for approval). No --profile, no database; exit 0 clean, 1 found, 3 bad file.
+# it waits for approval). No --profile, no database; exit 0 clean, 1 found, 3 a file
+# it can't check (unreadable, not a regular file, over 16 MB, not JSON) or no catalog.
 monoagentcli --json workflow check-keys <file.json…|->
 # Signed out, from a source checkout: the same check, writing nothing under HOME.
 go run ./scripts/checkkeys [--json] <file.json…|->
