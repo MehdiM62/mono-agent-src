@@ -295,12 +295,18 @@ func waitFor(ctx context.Context, eng Engine, execID string, timeout time.Durati
 			return nil, ctx.Err()
 		case <-t.C:
 		}
-		_, inFlight, err := eng.ExecutionInFlight(ctx, execID)
+		status, inFlight, err := eng.ExecutionInFlight(ctx, execID)
 		if err != nil {
 			return nil, err
 		}
 		if !inFlight {
-			return eng.GetExecution(ctx, execID)
+			// The case is judged on the status the check decided on, not on
+			// a record that may have moved on since (a review approved).
+			exec, err := eng.GetExecution(ctx, execID)
+			if exec != nil {
+				exec.Status = status
+			}
+			return exec, err
 		}
 		if time.Now().After(deadline) {
 			return nil, errors.New("timed out waiting for execution " + execID)

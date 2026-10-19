@@ -59,3 +59,29 @@ func TestWaitForExecutionKeepsWaitingForAParentResumedMidPoll(t *testing.T) {
 		t.Fatalf("the wait polled %d times: it returned while the parent was RUNNING, want it to poll on to SUCCESS", store.polled)
 	}
 }
+
+// What the wait reports, and its exit, are the status the in-flight check
+// decided on. The record is read once more only for its error message, and a
+// change in between (a person approving a paused run) does not turn a pause
+// or a failure into a "RUNNING" that exits 0.
+func TestWaitForExecutionReportsTheStatusItDecidedOn(t *testing.T) {
+	for _, c := range []struct {
+		polls, records []string
+		printed        string
+		fails          bool
+	}{
+		{[]string{"WAITING"}, []string{"WAITING", "RUNNING"}, "Status: WAITING\nHint:   " + waitingHint + "\n", false},
+		{[]string{"FAILED"}, []string{"RUNNING"}, "Status: FAILED\n", true},
+	} {
+		store := &resumingStore{SQLiteWorkflowStore: workflow.NewSQLiteWorkflowStore(nil), polls: c.polls, records: c.records}
+		engine := workflow.NewWorkflowEngineWithStore(store, nil, nil, workflow.NewNodeTypeRegistry(),
+			workflow.EngineConfig{ProfileID: "default", WebhookAddr: "127.0.0.1:0", MaxConcurrent: 1}, zerolog.Nop())
+		var err error
+		out := captureStdout(t, func() {
+			err = waitForExecution(context.Background(), engine, "run", 15*time.Second, false, nil)
+		})
+		if out != c.printed || (err != nil) != c.fails {
+			t.Errorf("poll %v, records %v: printed %q, err %v; want %q, fails %v", c.polls, c.records, out, err, c.printed, c.fails)
+		}
+	}
+}
