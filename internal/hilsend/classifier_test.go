@@ -26,6 +26,9 @@ func (fakeClassifier) Classify(nodeType string, config map[string]interface{}) (
 	case "raw":
 		return Classified{Action: ActionPost, Channel: "fake", ToUnset: "whoever its undeclared fields (zz) reach",
 			Op: "fake thing/update", Show: []string{"updateFields.zz"}, Undeclared: true, PerItem: []string{"updateFields"}}, true
+	case "rawreply":
+		return Classified{Action: ActionComment, Channel: "fake", To: []string{"ticket"}, Text: []string{"updateFields.publicReply"},
+			Op: "fake ticket/update", Show: []string{"updateFields.zz"}, Undeclared: true}, true
 	case "settings":
 		return Classified{Action: ActionPost, Channel: "fake", To: []string{"stream"},
 			Op: "fake stream/update", Show: []string{"updateFields.description", "updateFields.private"}}, true
@@ -290,5 +293,30 @@ func TestAShownSendListsItsParamsReadOnly(t *testing.T) {
 		if _, err := st.Edit(ctxFor(db), id, &text, nil); !errors.Is(err, ErrNoText) {
 			t.Errorf("%s: edit: %v", config, err)
 		}
+	}
+}
+
+// A card that shows what a step sends has no message field to edit, even
+// when its op names one: the run sends the config, so a text edit would
+// go into that field unseen (the op's reply here), not what the card shows.
+func TestAShownCardDropsTheOpsTextField(t *testing.T) {
+	asAgent(t)
+	db := testDB(t)
+	SetClassifier(fakeClassifier{})
+	t.Cleanup(func() { SetClassifier(nil) })
+	st := Store{db, "p1"}
+	out, handled, err := Guard(ctxFor(db), "app.fake", workflow.NodeInput{}, map[string]interface{}{"operation": "rawreply", "ticket": "T1",
+		"updateFields": map[string]interface{}{"publicReply": "Hi", "zz": "x"}})
+	if !handled || err != nil {
+		t.Fatalf("handled=%v err=%v", handled, err)
+	}
+	id := out[0].Items[0].JSON["hil_id"].(string)
+	p, err := st.Get(ctxFor(db), id)
+	if err != nil || p.Text != "fake ticket/update with fields it doesn't declare:\nupdateFields.zz: \"x\"" || !p.TextReadOnly {
+		t.Errorf("text %q, read-only %v, %v", p.Text, p.TextReadOnly, err)
+	}
+	typed := "CHANGED"
+	if _, err := st.Edit(ctxFor(db), id, &typed, nil); !errors.Is(err, ErrNoText) {
+		t.Errorf("edit: %v", err)
 	}
 }
