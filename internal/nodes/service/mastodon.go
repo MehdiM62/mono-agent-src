@@ -47,7 +47,7 @@ func (n *MastodonNode) Execute(ctx context.Context, input workflow.NodeInput, co
 	if accessToken == "" {
 		return nil, fmt.Errorf("service.mastodon: 'access_token' is required")
 	}
-	operation := strVal(config, "operation")
+	operation := workflow.ConfigOperation(config)
 
 	instance := mastodonNormalizeInstanceURL(strVal(config, "instance"))
 	if instance == "" {
