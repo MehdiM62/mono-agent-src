@@ -10,10 +10,9 @@
  * The wording lives in sidepanel_record_view.js (node-tested). `ask` and
  * MonoPanelPage come from sidepanel.js, loaded first.
  *
- * MonoPanelRecord is the chat's way in (sidepanel_chat_cards.js): start() is
- * the Record button's start and analyze() its Analyze, each on the person's
- * click on a chat card, and onChange tells the card what happened. A draft
- * is saved only by the Save button here.
+ * MonoPanelRecord is the chat cards' way in (sidepanel_chat_cards.js): start()
+ * and analyze() are the Record and Analyze buttons' own, on a click on a card,
+ * and onChange tells the card what happened. Only the Save button saves.
  */
 
 (function () {
@@ -66,6 +65,7 @@
   let draftRecording = "";
   const listeners = new Set();
   const PING_MS = 20000;
+  const PANEL_ID = crypto.randomUUID(); // this panel document: a start is refused unless its port is open
 
   function emit(event) {
     for (const fn of listeners) {
@@ -210,7 +210,7 @@
     const page = globalThis.MonoPanelPage && globalThis.MonoPanelPage.current();
     owner = true;
     if (port) port.postMessage({ type: "record_owner" });
-    return (await send({ type: "record_start", goal: goal.value.trim(), tabId: tabId || (page && page.tabId) })).state;
+    return (await send({ type: "record_start", goal: goal.value.trim(), tabId: tabId || (page && page.tabId), panel: PANEL_ID })).state;
   }
 
   toggle.addEventListener("click", async () => {
@@ -454,7 +454,7 @@
 
   function connectPort() {
     try {
-      port = chrome.runtime.connect({ name: "monoagent-record" });
+      port = chrome.runtime.connect({ name: `monoagent-record:${PANEL_ID}` });
     } catch {
       port = null;
       return;
@@ -484,8 +484,7 @@
 
   connectPort();
 
-  // The chat's recording cards (sidepanel_chat_cards.js): each call is a
-  // person's click on a card, and brings this section into view.
+  // The chat's recording cards: each call is a click on a card, and shows this section.
   const show = () => {
     panel.open = true;
     if (panel.scrollIntoView) panel.scrollIntoView({ block: "nearest" });
@@ -495,5 +494,6 @@
     analyze: (recordingId) => (show(), analyze(recordingId)),
     state: () => state,
     onChange: (fn) => listeners.add(fn),
+    panelId: PANEL_ID,
   };
 })();

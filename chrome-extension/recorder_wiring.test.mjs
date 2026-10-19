@@ -30,7 +30,10 @@ function area(data = {}) {
 }
 
 // Who is asking: the side panel (an extension page) or a page recorder (a tab).
-const PANEL = { id: "ext", url: "chrome-extension://ext/sidepanel.html", documentId: "doc-panel" };
+const PANEL = { id: "ext", url: "chrome-extension://ext/sidepanel.html" };
+// The id a side panel document makes for itself (crypto.randomUUID): in its
+// port's name, and in its record_start.
+const PANEL_ID = "2f1c9d4e-7b3a-4c5d-9e8f-0a1b2c3d4e5f";
 const PAGE = (tabId) => ({ id: "ext", tab: { id: tabId }, url: "https://app.test/" });
 
 function fakeChrome() {
@@ -81,13 +84,15 @@ function load({ panel = true } = {}) {
   const send = (f) => (wire.push(f), true);
   g.MonoAsk.install({ send, isConnected: () => true });
   g.MonoRecorderWiring.install({ send, isConnected: () => true, storage: chrome.storage.local });
+  // A start names this panel unless a test says otherwise.
+  const named = (msg) => (msg.type === "record_start" && !("panel" in msg) ? { ...msg, panel: PANEL_ID } : msg);
   const call = (msg, sender = PANEL) =>
     new Promise((resolve) => {
-      const handled = chrome.runtime.onMessage.fire(msg, sender, resolve);
+      const handled = chrome.runtime.onMessage.fire(named(msg), sender, resolve);
       if (!handled.some(Boolean)) resolve(undefined);
     });
   const port = () => {
-    const p = { name: g.MonoRecorderWiring.PORT_NAME, sender: PANEL, onMessage: event(), onDisconnect: event(), sent: [] };
+    const p = { name: `${g.MonoRecorderWiring.PORT_NAME}:${PANEL_ID}`, sender: PANEL, onMessage: event(), onDisconnect: event(), sent: [] };
     p.postMessage = (m) => p.sent.push(m);
     chrome.runtime.onConnect.fire(p);
     return p;
@@ -235,8 +240,8 @@ test("analyze refuses while the recording has not reached the bridge", async () 
   g.MonoAsk.install({ send: () => false, isConnected: () => false });
   g.MonoRecorderWiring.install({ send: () => false, isConnected: () => false, storage: chrome.storage.local });
   const call = (msg) => new Promise((resolve) => chrome.runtime.onMessage.fire(msg, PANEL, resolve));
-  chrome.runtime.onConnect.fire({ name: g.MonoRecorderWiring.PORT_NAME, sender: PANEL, onMessage: event(), onDisconnect: event(), postMessage() {} });
-  await call({ type: "record_start", tabId: 7 });
+  chrome.runtime.onConnect.fire({ name: `${g.MonoRecorderWiring.PORT_NAME}:${PANEL_ID}`, sender: PANEL, onMessage: event(), onDisconnect: event(), postMessage() {} });
+  await call({ type: "record_start", tabId: 7, panel: PANEL_ID });
   await call({ type: "record_stop" });
   const res = await call({ type: "record_analyze" });
   assert.equal(res.ok, false);
@@ -362,14 +367,15 @@ test("a start from a panel that has closed starts nothing", async () => {
   assert.equal((await call({ type: "record_start", tabId: 7 })).ok, true, "an open panel starts one");
 });
 
-// #876 review: every side panel has the same address, so only the document
-// tells one panel from another. A start that names no document, or another
-// panel's, starts nothing while this panel's port is open.
-test("a start is the asking panel's own: no document id, or another panel's, starts nothing", async () => {
+// #876 review: every side panel has the same address and, to the worker, no
+// document id (Chromium sends neither for a side panel), so a start names the
+// id its panel made; it is refused unless that panel's port is open.
+test("a start is the asking panel's own: no panel id, or another panel's, starts nothing", async () => {
   const { chrome, wire, call } = load();
-  const noDoc = await call({ type: "record_start", tabId: 7 }, { id: "ext", url: PANEL.url });
-  const other = await call({ type: "record_start", tabId: 7 }, { ...PANEL, documentId: "doc-other-panel" });
-  assert.deepEqual([noDoc.ok, other.ok], [false, false]);
+  const none = await call({ type: "record_start", tabId: 7, panel: "" });
+  const other = await call({ type: "record_start", tabId: 7, panel: "9e8f0a1b-2c3d-4e5f-8a7b-6c5d4e3f2a1b" });
+  const bare = await call({ type: "record_start", tabId: 7, panel: "not-a-panel-id" });
+  assert.deepEqual([none.ok, other.ok, bare.ok], [false, false, false]);
   assert.deepEqual([wire.filter((f) => f.op === "start").length, chrome.scripts.length], [0, 0]);
   assert.equal((await call({ type: "record_start", tabId: 7 })).ok, true, "the panel whose port is open starts one");
 });

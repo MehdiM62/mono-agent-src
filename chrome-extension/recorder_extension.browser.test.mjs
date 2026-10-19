@@ -79,8 +79,12 @@ describe("the unpacked extension records a real page", { skip: browser ? false :
     const panel = await attach(`chrome-extension://${extId}/sidepanel.html`);
     await sleep(500);
 
-    const ask = (msg) =>
-      cdp.evaluate(panel, `new Promise((r) => chrome.runtime.sendMessage(${JSON.stringify(msg)}, (res) => r(JSON.stringify(res || null))))`).then(JSON.parse);
+    // A start names the panel that asks, by the id its page made (recorder_wiring.js panelOpen).
+    const panelId = await cdp.evaluate(panel, "globalThis.MonoPanelRecord.panelId");
+    const ask = (msg) => {
+      const m = msg.type === "record_start" ? { ...msg, panel: panelId } : msg;
+      return cdp.evaluate(panel, `new Promise((r) => chrome.runtime.sendMessage(${JSON.stringify(m)}, (res) => r(JSON.stringify(res || null))))`).then(JSON.parse);
+    };
     const tabId = await cdp.evaluate(panel, `chrome.tabs.query({}).then((ts) => ts.find((t) => t.url === ${JSON.stringify(pageUrl)}).id)`);
 
     const started = await ask({ type: "record_start", tabId, goal: "e2e" });
