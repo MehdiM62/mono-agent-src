@@ -46,8 +46,8 @@ func TestAppAccessOffKeepsWorkspaceOutOfTheSpawn(t *testing.T) {
 	if strings.Contains(p, workspaceRules) || strings.Contains(p, sendRule) {
 		t.Errorf("the worker's prompt keeps the workspace rules:\n%s", p)
 	}
-	if !strings.Contains(p, "Never read, send or change the user's messages") {
-		t.Errorf("the worker's prompt lacks the no-messages rule:\n%s", p)
+	if !strings.Contains(p, "Never read, send or change the user's messages") || !strings.Contains(p, sendGateRule) {
+		t.Errorf("the worker's prompt lacks the no-messages or the send rule:\n%s", p)
 	}
 	v := c.Roster()
 	if _, ok := v.Profiles[ProfileWorkspace]; ok || len(v.Profiles) != len(Profiles)-1 {
@@ -75,15 +75,20 @@ func TestAppAccessOnStaffsWorkspace(t *testing.T) {
 	}
 }
 
+// Off, the lead loses the workspace profile and its surface rules, never the
+// send rule.
 func TestLeadPromptWithoutAppAccess(t *testing.T) {
 	on, off := LeadPrompt(DefaultLimits(), true), LeadPrompt(DefaultLimits(), false)
-	for _, rule := range []string{workspaceRules, sendRule, "(workspace, coding"} {
+	for _, rule := range []string{workspaceRules, "(workspace, coding"} {
 		if !strings.Contains(on, rule) {
 			t.Errorf("app access on: the lead prompt misses %q", rule)
 		}
 		if strings.Contains(off, rule) {
 			t.Errorf("app access off: the lead prompt keeps %q", rule)
 		}
+	}
+	if !strings.Contains(on, sendRule) || !strings.Contains(off, sendRule) {
+		t.Errorf("the send rule must stay whatever app access says:\non %v, off %v", strings.Contains(on, sendRule), strings.Contains(off, sendRule))
 	}
 	if !strings.Contains(off, "(coding, qa, automation, research)") {
 		t.Errorf("app access off: profiles listed wrong:\n%s", off)
@@ -178,5 +183,56 @@ func TestSpawnToolOffersWorkspaceOnlyWithAppAccess(t *testing.T) {
 	}
 	if got := access(childToolSpecs((&Staffer{NoAppAccess: true}).profiles())); got != off {
 		t.Errorf("a spawning worker with app access off: %q", got)
+	}
+}
+
+// Off, workers get the profile id to pass as --profile and no profile
+// summary: the hook is never even asked. On, they get both.
+func TestAppAccessOffGivesWorkersNoProfileSummary(t *testing.T) {
+	var reads atomic.Int32
+	ProfileContext = func(context.Context) string { reads.Add(1); return "Profile: Work (vault: bank-login)" }
+	ProfileID = func(context.Context) string { return "p-9" }
+	defer func() { ProfileContext, ProfileID = nil, nil }()
+	for _, off := range []bool{true, false} {
+		reads.Store(0)
+		ex := &execScript{}
+		c := newAppAccessConductor(t, ex, off)
+		if _, err := c.Spawn(context.Background(), SpawnRequest{Brief: "implement it", Wait: true}); err != nil {
+			t.Fatal(err)
+		}
+		p := ex.calls[0].SystemPrompt
+		if !strings.Contains(p, "`--profile p-9`") {
+			t.Errorf("app access off=%v: the worker lacks its profile id:\n%s", off, p)
+		}
+		if got := strings.Contains(p, "bank-login"); got == off || (reads.Load() == 0) != off {
+			t.Errorf("app access off=%v: profile summary in the prompt %v, hook read %d times", off, got, reads.Load())
+		}
+	}
+}
+
+// A profile read that failed (the hook gives "": a locked database) is not
+// kept for the turn: the next spawn reads again.
+func TestAFailedProfileReadIsNotKept(t *testing.T) {
+	var reads atomic.Int32
+	ProfileContext = func(context.Context) string {
+		if reads.Add(1) == 1 {
+			return ""
+		}
+		return "Profile: Work"
+	}
+	defer func() { ProfileContext = nil }()
+	ex := &execScript{}
+	c := newAppAccessConductor(t, ex, false)
+	for _, brief := range []string{"implement a", "implement b", "implement c"} {
+		if _, err := c.Spawn(context.Background(), SpawnRequest{Brief: brief, Wait: true}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if strings.Contains(ex.calls[0].SystemPrompt, "Profile: Work") || !strings.Contains(ex.calls[1].SystemPrompt, "Profile: Work") ||
+		!strings.Contains(ex.calls[2].SystemPrompt, "Profile: Work") {
+		t.Errorf("spawns after a failed read lack the profile")
+	}
+	if n := reads.Load(); n != 2 {
+		t.Errorf("hook read %d times, want 2 (the failure, then one kept read)", n)
 	}
 }

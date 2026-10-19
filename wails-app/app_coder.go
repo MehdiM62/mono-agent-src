@@ -133,9 +133,11 @@ func (a *App) CoderSet(workspaceRoot string, maxTurns int, timeout string, budge
 }
 
 // CoderSetAppAccess is `coder set --app-access on|off` (coder.appAccess,
-// default on): whether a dynamic org's workers get every monoagent surface.
-// The CLI refuses anyone but the user. Returns coder status, whose appAccess
-// CoderStatus also reads back.
+// default on): whether coder prompts carry the profile summary and a dynamic
+// org's workers are offered MonoAgent's surfaces. It changes what agents are
+// told, not what they can do (see `coder set --help`). The CLI refuses anyone
+// but the user. Returns coder status, whose appAccess CoderStatus also reads
+// back.
 func (a *App) CoderSetAppAccess(on bool) string {
 	if err := a.signedOut(); err != nil {
 		return loginRequiredJSON(err)

@@ -2,6 +2,7 @@ package chat
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"github.com/monoes/mono-agent/internal/ai"
 	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/monomind"
+	"github.com/monoes/mono-agent/internal/storage"
 )
 
 // coder.appAccess: on by default, `coder set --app-access on|off` changes it
@@ -94,6 +96,8 @@ const (
 	// From dynorg's workspaceRules and sendRule.
 	workspaceRuleText = "every part of the user's mono-agent through"
 	sendRuleText      = "NEVER finalize a send"
+	// From profilectx's block: the profile summary.
+	profileSummaryText = "You work for the mono-agent profile"
 )
 
 // The kill switch, end to end: off, the lead's prompt has no workspace or
@@ -108,9 +112,20 @@ func TestDynamicOrgWithAppAccessOff(t *testing.T) {
 	if !strings.Contains(tools, "org_spawn") || strings.Contains(tools, "workspace (coding plus") {
 		t.Errorf("app access off: org_spawn still offers workspace: %s", tools)
 	}
-	for _, rule := range []string{workspaceRuleText, sendRuleText} {
-		if strings.Contains(lead, rule) || strings.Contains(worker, rule) {
-			t.Errorf("app access off: a prompt keeps %q", rule)
+	if strings.Contains(lead, workspaceRuleText) || strings.Contains(worker, workspaceRuleText) {
+		t.Errorf("app access off: a prompt keeps the workspace rules")
+	}
+	// The send rule stays in both; the profile summary is in neither, the
+	// profile id to pass as --profile is in both.
+	for name, p := range map[string]string{"lead": lead, "worker": worker} {
+		if !strings.Contains(p, sendRuleText) {
+			t.Errorf("app access off: the %s's prompt lost the send rule", name)
+		}
+		if strings.Contains(p, profileSummaryText) {
+			t.Errorf("app access off: the %s's prompt carries the profile summary", name)
+		}
+		if !strings.Contains(p, "`--profile default`") {
+			t.Errorf("app access off: the %s's prompt lacks its profile id", name)
 		}
 	}
 	if !strings.Contains(reply, "app access off") {
@@ -126,7 +141,7 @@ func TestDynamicOrgWithAppAccessOn(t *testing.T) {
 	if !strings.Contains(tools, "workspace (coding plus") {
 		t.Errorf("app access on: org_spawn does not offer workspace: %s", tools)
 	}
-	for _, rule := range []string{workspaceRuleText, sendRuleText} {
+	for _, rule := range []string{workspaceRuleText, sendRuleText, profileSummaryText} {
 		if !strings.Contains(lead, rule) || !strings.Contains(worker, rule) {
 			t.Errorf("app access on: a prompt lacks %q", rule)
 		}
@@ -146,5 +161,52 @@ func TestDynamicOrgLeadGetsTheProfileOnce(t *testing.T) {
 	}
 	if n := strings.Count(worker, header); n != 1 {
 		t.Errorf("the worker's prompt has the profile block %d times, want 1", n)
+	}
+}
+
+// The solo coder lead too: off, no profile summary (the vault item names
+// included); on, the summary is there.
+func TestCoderLeadPromptHasTheProfileOnlyWithAppAccess(t *testing.T) {
+	dbPath := newChatCLITestDB(t)
+	custom, _ := filepath.EvalSymlinks(t.TempDir())
+	addTestProfile(t, dbPath, "work", "Work Stuff", custom)
+	db, err := storage.NewDatabase(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if _, err := db.DB.Exec(`INSERT INTO vault_secrets (id, seq, profile_id, kind, name, ciphertext, nonce, created_at, updated_at)
+		VALUES ('s1', 1, 'work', 'login', 'bank-login', x'53454352455421', x'00', '2026-01-01', '2026-01-01')`); err != nil {
+		t.Fatal(err)
+	}
+	cfg := testDeps(&testConfig{DBPath: dbPath, ProfileID: "work", JSONOutput: true})
+	on := coderLeadSystemPrompt(context.Background(), db.DB, cfg, custom, true)
+	off := coderLeadSystemPrompt(context.Background(), db.DB, cfg, custom, false)
+	if !strings.Contains(on, profileSummaryText) || !strings.Contains(on, "bank-login") {
+		t.Errorf("app access on: the lead lacks the profile summary:\n%s", on)
+	}
+	if strings.Contains(off, profileSummaryText) || strings.Contains(off, "bank-login") || strings.Contains(off, "Work Stuff") {
+		t.Errorf("app access off: the lead carries the profile summary:\n%s", off)
+	}
+	if !strings.Contains(off, "`--profile work`") {
+		t.Errorf("app access off: the lead lacks its profile id:\n%s", off)
+	}
+}
+
+// coder status in text says what the setting is.
+func TestCoderStatusTextNamesAppAccess(t *testing.T) {
+	dbPath := newChatCLITestDB(t)
+	withCoderCaps(t)
+	off := false
+	setCoderSettings(t, dbPath, coderSettings{AppAccess: &off})
+	cmd := newCoderCmd(testDeps(&testConfig{DBPath: dbPath, ProfileID: "default"}))
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetArgs([]string{"status"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "app access (profile summary in prompts, org workers' MonoAgent surfaces): off") {
+		t.Errorf("coder status:\n%s", out.String())
 	}
 }

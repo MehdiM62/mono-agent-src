@@ -13,8 +13,8 @@ import "strings"
 //   - browser_agent_allowlist: the older per-site allow rules, still read as
 //     allow rules (browserctl.AllowlistSetting; `browser allow`).
 //   - coder_mode: coder mode on or off, sendApproval: whether an agent's
-//     sends wait for approval, appAccess: whether a dynamic org's workers get
-//     every monoagent surface, and the org's router, model picker and writers
+//     sends wait for approval, appAccess: what coder agents are told and offered
+//     about MonoAgent (the profile summary, the workspace profile), and the org's router, model picker and writers
 //     (internal/cli/chat, internal/hilsend; `coder enable`, `coder set`, every
 //     flag of which is the operator's).
 //   - sandbox.fallback: what an agent turn does when its runtime has no
