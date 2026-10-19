@@ -40,8 +40,9 @@ importScripts("task_outbox.js", "task_bridge.js", "task_menu.js");
 
 // The side panel's chat (issue #451): it asks over ask.js, so it also follows
 // the recall group. summary_ai.js (loaded above) supplies its runtime/model.
-// The chat's proposals (chat_proposals.js): task_bridge.js checks a confirmed one with it.
-importScripts("chat_proposals.js");
+// The chat's proposals (chat_proposals.js): task_bridge.js checks a confirmed one with it;
+// private_net.js says which addresses a vault card may not fetch from a public page.
+importScripts("private_net.js", "chat_proposals.js");
 importScripts("chat_core.js", "chat_bridge.js");
 // Handing work to the coder (C6): the side panel's Coder section and the
 // right-click items. Over ask.js too; the menu items hang under the capture
@@ -49,6 +50,8 @@ importScripts("chat_core.js", "chat_bridge.js");
 importScripts("coder_bridge.js", "coder_menu.js");
 // Filling the page's form from the profile (form.fill); same channel as chat.
 importScripts("form_bridge.js");
+// Saving a page's file to the vault when the person confirms the chat's card (vault.save).
+importScripts("vault_bridge.js");
 // The raw CDP proxy (GLU-01/RIG-07): the generalisation of eval_cdp/type_cdp
 // that lets monobrowse drive the user's own Chrome. Events flow back through
 // it unasked-for, which is why it needs its own module rather than another
@@ -1505,6 +1508,10 @@ MonoChat.install({
   storage: chrome.storage.local,
 });
 MonoForm.install();
+MonoVault.install({
+  isConnected: openAndSignedIn,
+  storage: chrome.storage.local,
+});
 
 // The side panel hears of a change at once. Signed out the bridge is asked
 // again every few seconds, signed in every minute: its answer to ping (read in
