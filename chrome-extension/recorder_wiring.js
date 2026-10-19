@@ -7,10 +7,13 @@
  * install() with the socket, as it does for recall_bridge.js, plus one line
  * each in onopen (flush) and onmessage (acks).
  *
- * The side panel holds a long-lived port named "monoagent-record". It is how
- * the panel hears state changes, and its disconnect is how "the panel was
- * closed" is noticed — the recording stops with reason "panel_closed" when
- * the port that started it goes away.
+ * The side panel holds a long-lived port named "monoagent-record:<panel id>",
+ * the id its document made for itself. It is how the panel hears state
+ * changes, and its disconnect is how "the panel was closed" is noticed — the
+ * recording stops with reason "panel_closed" when the port that started it
+ * goes away. A start names its panel id, and is refused unless that panel's
+ * port is open: every side panel has the same address and, to the worker, no
+ * document id, so the id is what tells one panel from another.
  *
  * Analyze / verify / save are extension→Go requests over ask.js
  * (record.analyze, record.verify, record.save); the Go side runs
@@ -194,12 +197,31 @@
       return { recording: st.recording && !!sender.tab && sender.tab.id === st.tabId };
     },
     record_start: async (msg) => {
-      let tabId = msg.tabId;
-      if (!tabId) {
-        const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-        tabId = tab && tab.id;
+      // The panel that asks owns the recording from this moment, and closing
+      // it stops it (registerPorts); one that closed before this arrived gets
+      // nothing, and one that closes while the start awaits stops it here.
+      const port = panelPort(msg.panel);
+      if (!port) throw new Error("the side panel that asked has closed or lost the extension: open it and press Record again");
+      const previous = ownerPort;
+      ownerPort = port;
+      let state;
+      try {
+        let tabId = msg.tabId;
+        if (!tabId) {
+          const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+          tabId = tab && tab.id;
+        }
+        state = await session.start({ tabId, goal: msg.goal });
+      } catch (err) {
+        // Refused (another recording runs): its owner stays the owner.
+        if (ownerPort === port) ownerPort = previous;
+        throw err;
       }
-      return { ok: true, state: await session.start({ tabId, goal: msg.goal }) };
+      if (!ports.has(port)) {
+        await session.stop("panel_closed");
+        throw new Error("the side panel closed while the recording started");
+      }
+      return { ok: true, state };
     },
     record_stop: async () => ({ ok: true, state: await session.stop("user") }),
     record_pick: async (msg) => ({ ok: true, state: await session.setPick(!!msg.on) }),
@@ -287,10 +309,26 @@
     return !!base && String(sender.url || "").startsWith(base);
   }
 
+  // A panel's id as crypto.randomUUID makes it.
+  const PANEL_ID = /^[0-9a-f-]{36}$/;
+
+  /**
+   * panelPort is the open port of the panel with this id, the newest when a
+   * panel reconnected after a worker restart; null for none, and for no id.
+   */
+  function panelPort(id) {
+    if (typeof id !== "string" || !PANEL_ID.test(id)) return null;
+    let found = null;
+    for (const port of ports) if (port.panelId === id) found = port;
+    return found;
+  }
+
   function registerPorts() {
     chrome.runtime.onConnect.addListener((port) => {
-      if (port.name !== PORT_NAME) return;
+      // "monoagent-record:<panel id>"; an older panel's bare name carries none.
+      if (port.name !== PORT_NAME && !port.name.startsWith(`${PORT_NAME}:`)) return;
       if (!port.sender || port.sender.id !== chrome.runtime.id || !isExtensionPage(port.sender)) return;
+      port.panelId = port.name.slice(PORT_NAME.length + 1);
       ports.add(port);
       port.onMessage.addListener((msg) => {
         // The panel that presses Record owns the recording: closing it stops it.

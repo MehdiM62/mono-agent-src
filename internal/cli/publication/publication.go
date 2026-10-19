@@ -12,6 +12,7 @@ import (
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/publication"
 	"github.com/monoes/mono-agent/internal/storage"
 )
@@ -33,7 +34,8 @@ type Deps struct {
 	// NewTable is the CLI's borderless table with these headers.
 	NewTable func(w io.Writer, headers []string) *tablewriter.Table
 	// Operator refuses an agent-driven caller (--as, MONOAGENT_ACTOR or an org agent's
-	// context) what only the operator may do; nil for the operator.
+	// context) what only the operator may do; nil for the operator. Unset, it refuses
+	// (clicore.RequireOperator).
 	Operator func(what string) error
 	// RequireApproval refuses `register` from an agent unless approvalID is an approved, sent
 	// send that made e (when approvals of sends are on), and claims it: release gives the
@@ -127,7 +129,7 @@ func NewCommand(d Deps) *cobra.Command {
 	list.Flags().IntVar(&f.Offset, "offset", 0, "Records to skip")
 	list.Flags().StringVar(&f.Cursor, "cursor", "", "Continue after a previous page; --cursor '' starts keyset paging and JSON output gains next_cursor")
 	del := &cobra.Command{Use: "delete <id>", Short: "Remove a publication from this profile's history (operator only)", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
-		if err := d.Operator("delete publication history"); err != nil {
+		if err := clicore.RequireOperator(d.Operator, "delete publication history"); err != nil {
 			return err
 		}
 		return d.withStore(func(store *publication.Store) error {
@@ -143,7 +145,7 @@ func NewCommand(d Deps) *cobra.Command {
 	}}
 	var redactTitle bool
 	redact := &cobra.Command{Use: "redact <id>", Short: "Replace a publication's body with [redacted], keeping the entry (operator only)", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
-		if err := d.Operator("redact publication history"); err != nil {
+		if err := clicore.RequireOperator(d.Operator, "redact publication history"); err != nil {
 			return err
 		}
 		return d.withStore(func(store *publication.Store) error {

@@ -132,6 +132,10 @@ const inheritedHint = "if you started the MonoAgent app, the daemon or the brows
 // that does not go through Refusal.
 func InheritedHint() string { return "If" + strings.TrimPrefix(inheritedHint, "if") + "." }
 
+// InheritedHintClause is inheritedHint as a clause, for a refusal that gives
+// it in parentheses after its reason, as Refusal does.
+func InheritedHintClause() string { return inheritedHint }
+
 // Refusal says why this process is not the operator's own terminal, and how
 // to fix a marker it inherited, for an error message; "" for the operator.
 func Refusal() string {

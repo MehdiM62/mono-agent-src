@@ -30,18 +30,12 @@ func waitForExecution(ctx context.Context, engine *workflow.WorkflowEngine, exec
 	for {
 		select {
 		case <-ticker.C:
-			status, err := engine.GetExecutionStatus(ctx, executionID)
+			// Paused only for its sub-workflows, the run is in flight too:
+			// this engine runs the children and resumes the run, so the wait
+			// goes on. A human review still ends the wait as WAITING.
+			status, inFlight, err := engine.ExecutionInFlight(ctx, executionID)
 			if err != nil {
 				return fmt.Errorf("poll execution: %w", err)
-			}
-			inFlight := status == "RUNNING" || status == "QUEUED"
-			if status == "WAITING" {
-				// Paused only for its sub-workflows: this engine runs the
-				// children and resumes the run, so the wait goes on. A
-				// human review still ends the wait as WAITING.
-				if inFlight, err = engine.WaitingOnSubWorkflows(ctx, executionID); err != nil {
-					return fmt.Errorf("poll execution: %w", err)
-				}
 			}
 			switch {
 			case inFlight:
@@ -50,19 +44,22 @@ func waitForExecution(ctx context.Context, engine *workflow.WorkflowEngine, exec
 				}
 				// keep polling
 			default:
-				// Terminal: load the full record once for the error fields.
+				// Final, or a pause for a person: the outcome is the status
+				// ExecutionInFlight decided on. The record is read again only
+				// for its error message: a person approving the run in between
+				// must not turn a WAITING into a "RUNNING" that exits 0.
 				exec, err := engine.GetExecution(ctx, executionID)
 				if err != nil {
 					return fmt.Errorf("poll execution: %w", err)
 				}
-				exec.ErrorMessage = rr.String(exec.ErrorMessage)
+				errMsg := rr.String(exec.ErrorMessage)
 				if !quiet {
-					if exec.ErrorMessage != "" {
-						fmt.Fprintf(os.Stdout, "Status: %s\nError:  %s\n", exec.Status, exec.ErrorMessage)
+					if errMsg != "" {
+						fmt.Fprintf(os.Stdout, "Status: %s\nError:  %s\n", status, errMsg)
 					} else {
-						fmt.Fprintf(os.Stdout, "Status: %s\n", exec.Status)
+						fmt.Fprintf(os.Stdout, "Status: %s\n", status)
 					}
-					if exec.Status == "WAITING" {
+					if status == "WAITING" {
 						// A documented pause, not a failure (exit stays 0) —
 						// tell the operator where the approval lives.
 						fmt.Fprintf(os.Stdout, "Hint:   %s\n", waitingHint)
@@ -73,21 +70,21 @@ func waitForExecution(ctx context.Context, engine *workflow.WorkflowEngine, exec
 				// execution record (with error fields populated) before this
 				// propagates.
 				var failed error
-				switch exec.Status {
+				switch status {
 				case "FAILED":
-					msg := exec.ErrorMessage
+					msg := errMsg
 					if msg == "" {
 						msg = "unknown error"
 					}
 					failed = fmt.Errorf("execution %s failed: %s", executionID, msg)
 				case "CANCELLED":
-					msg := exec.ErrorMessage
+					msg := errMsg
 					if msg == "" {
 						msg = "cancelled"
 					}
 					failed = fmt.Errorf("execution %s was cancelled: %s", executionID, msg)
 				case workflow.StatusRejected:
-					failed = fmt.Errorf("execution %s was rejected by a reviewer: %s", executionID, exec.ErrorMessage)
+					failed = fmt.Errorf("execution %s was rejected by a reviewer: %s", executionID, errMsg)
 				}
 				if failed != nil && !quiet {
 					// The summary above said it; main only sets the exit code.

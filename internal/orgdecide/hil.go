@@ -79,6 +79,25 @@ func PendingHIL(ctx context.Context, db *sql.DB, profileID, org string, doc *org
 	return items, rows.Err()
 }
 
+// toPerson passes on record's result for an item left to a person:
+// escalated to one, or kept pending when its decider failed. A HIL item
+// then carries its org in node_config, so the org's bubble shows it
+// (asksFor) as it waits on the person. One the org settles by rule or by
+// its decider (a failure it denies included), or hands to a boss or parent
+// role, stays untagged, on the Human in Loop page only.
+func (s *Service) toPerson(ctx context.Context, profileID, org string, it Item) func(*Decision, error) (*Decision, error) {
+	return func(d *Decision, err error) (*Decision, error) {
+		if err != nil || it.Kind != KindHIL || s.DB == nil {
+			return d, err
+		}
+		if _, uerr := s.DB.ExecContext(ctx, `UPDATE hil_pending SET node_config = json_set(COALESCE(NULLIF(node_config, ''), '{}'), '$.org', ?)
+			WHERE id = ? AND profile_id = ? AND status = 'pending'`, org, it.Ref, profileID); uerr != nil {
+			s.Logf("orgdecide: showing HIL item %s in %s's bubble: %v", it.Ref, org, uerr)
+		}
+		return d, err
+	}
+}
+
 // resolveHIL approves or rejects a HIL item; the paused run resumes on the
 // engine's next poll. It never approves one whose approval lets a message to
 // a person go out: only the user decides that (`hil approve`), whatever
