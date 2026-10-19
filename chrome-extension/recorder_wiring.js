@@ -193,7 +193,10 @@
       const st = session.status();
       return { recording: st.recording && !!sender.tab && sender.tab.id === st.tabId };
     },
-    record_start: async (msg) => {
+    record_start: async (msg, sender) => {
+      // The panel that asks owns the recording, and closing it stops it
+      // (registerPorts); one that closed before this arrived gets nothing.
+      if (!panelOpen(sender)) throw new Error("the side panel that asked has closed or lost the extension: open it and press Record again");
       let tabId = msg.tabId;
       if (!tabId) {
         const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
@@ -285,6 +288,15 @@
   function isExtensionPage(sender) {
     const base = chrome.runtime.getURL ? chrome.runtime.getURL("") : "";
     return !!base && String(sender.url || "").startsWith(base);
+  }
+
+  /** panelOpen is true while the page that sent a message has its panel port open. */
+  function panelOpen(sender) {
+    for (const port of ports) {
+      const s = port.sender || {};
+      if (sender && sender.documentId && s.documentId ? s.documentId === sender.documentId : s.url === (sender && sender.url)) return true;
+    }
+    return false;
   }
 
   function registerPorts() {

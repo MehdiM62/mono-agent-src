@@ -39,7 +39,7 @@ function world({ start, analyze, taskReply } = {}) {
   });
   const card = (id) => chat.messages[0].proposals.find((p) => p.id === id);
   const state = (s) => cards.follow({ type: "state", state: Object.assign({ id: "rec-1", recording: false, steps: [{}, {}, {}] }, s) });
-  return { calls, cards, card, state, saves: () => saves, switchProfile: () => seq++ };
+  return { calls, cards, card, state, record, saves: () => saves, switchProfile: () => seq++ };
 }
 
 test("a recording card starts nothing until Start recording, then starts the recorder with its goal, once", async () => {
@@ -148,4 +148,34 @@ test("a start answered after the panel moved to another profile leaves the card 
   release({ recording: true, id: "rec-1" });
   await pressed;
   assert.equal(w.card("r1").recordingId, undefined);
+});
+
+// The lead's two rules for the handoff: Start recording is the only way a
+// card starts a recording, and Review and save cannot save.
+test("only Start recording starts one: following, reviewing, dismissing and saves elsewhere start nothing", async () => {
+  const w = world();
+  // A recording someone started from the Record section, and all that follows it.
+  w.state({ id: "rec-5", recording: true });
+  w.state({ id: "rec-5", recording: false, delivered: true });
+  w.cards.follow({ type: "saved", recordingId: "rec-5", text: "Saved." });
+  await w.cards.review("r1");
+  assert.deepEqual([w.card("r1").state, w.card("r1").recordingId], ["pending", undefined], "a card never adopts a recording it did not start");
+  await w.cards.dismiss("r1");
+  await w.cards.confirm("r1");
+  assert.equal(w.calls.filter((c) => c[0] === "start").length, 0, "nothing started, and a dismissed card starts nothing");
+});
+
+test("Review and save cannot save: it analyzes, and the card is saved only when the Record section says so", async () => {
+  const w = world();
+  const saves = [];
+  w.record.save = () => saves.push("save");
+  await w.cards.confirm("r1");
+  w.state({ delivered: true });
+  await w.cards.review("r1");
+  await w.cards.review("r1");
+  w.state({ delivered: true });
+  assert.equal(w.card("r1").state, "reviewing");
+  assert.deepEqual(saves, []);
+  assert.deepEqual(w.calls.filter((c) => c[0] === "ask"), [], "nothing reaches the worker");
+  assert.deepEqual(w.calls.map((c) => c[0]), ["start", "analyze"], "one analysis for two clicks while it is open");
 });

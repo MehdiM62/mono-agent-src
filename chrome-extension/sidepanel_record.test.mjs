@@ -107,3 +107,10 @@ test("a failed analysis is said in the Record section and rejects for the card",
   await assert.rejects(t.R.analyze("rec-1"), /the bridge is not running/);
   assert.match(t.el("rec-msg").textContent, /Analysis failed: the bridge is not running/);
 });
+
+// Review and save on a chat card goes through this seam, which has no way to
+// save: only the Save button here sends record_save.
+test("the chat's way in has no save", () => {
+  const t = setup();
+  assert.deepEqual(Object.keys(t.R).sort(), ["analyze", "onChange", "start", "state"]);
+});

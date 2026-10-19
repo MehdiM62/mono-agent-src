@@ -523,3 +523,25 @@ test("an untitled page still counts as read", async () => {
   assert.equal(lastOf(t.sent, "chat_send").context, ctx);
   assert.equal(t.store["chatLog:p-work"].readPage, true);
 });
+
+// A panel closed before the click, or between the click and the start,
+// starts nothing when it is opened again: the card waits for a new click.
+test("reopening the panel starts no recording, also for a card closed mid-start", async () => {
+  const listeners = [];
+  const record = { calls: [], state: () => ({ id: "rec-7", recording: false, delivered: true, steps: [{}] }), onChange: (fn) => listeners.push(fn),
+    start: async (goal) => (record.calls.push(["start", goal]), { recording: true, id: "rec-8" }), analyze: async () => ({}) };
+  const card = (id, state) => ({ id, kind: "recording", goal: "Export the report", steps: "", untrustedPage: false, state });
+  const stored = {
+    "chatConv:p-work": "c-1",
+    "chatLog:p-work": { conversation: "c-1", turn: "t1", lastSeq: 9, nextId: 3, readPage: false,
+      messages: [{ id: "m2", role: "assistant", text: "Record it.", tools: [], open: false, proposals: [card("a", "pending"), card("b", "sending")] }] },
+  };
+  const t = setup({ stored, record, replies: { ...READY, chat_events: { ok: true, turn: "t1", events: [], turn_active: false } } });
+  t.doc.fire("panel:profiles");
+  await settle(30);
+  for (const fn of listeners) fn({ type: "state", state: { id: "rec-7", recording: true, steps: [] } });
+  await settle(30);
+  assert.deepEqual(record.calls, []);
+  const labels = t.log().flatMap(function walk(n) { return [n, ...n.children.flatMap(walk)]; }).filter((n) => n.tag === "button").map((b) => b.textContent);
+  assert.deepEqual(labels.filter((l) => l === "Start recording").length, 2, "both wait for a click");
+});

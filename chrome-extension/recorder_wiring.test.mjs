@@ -72,7 +72,9 @@ function fakeChrome() {
   return c;
 }
 
-function load() {
+// The side panel connects its port as it loads, before anyone can press
+// Record; load() does the same unless a test is about a panel that is gone.
+function load({ panel = true } = {}) {
   const chrome = fakeChrome();
   const wire = [];
   const g = loadExtensionScripts(["ask.js", "recorder_privacy.js", "recorder_outbox.js", "recorder_session.js", "recorder_wiring.js"], { chrome });
@@ -91,6 +93,7 @@ function load() {
     return p;
   };
   const settle = () => new Promise((r) => setTimeout(r, 200));
+  if (panel) port();
   return { g, chrome, wire, call, port, settle };
 }
 
@@ -232,6 +235,7 @@ test("analyze refuses while the recording has not reached the bridge", async () 
   g.MonoAsk.install({ send: () => false, isConnected: () => false });
   g.MonoRecorderWiring.install({ send: () => false, isConnected: () => false, storage: chrome.storage.local });
   const call = (msg) => new Promise((resolve) => chrome.runtime.onMessage.fire(msg, PANEL, resolve));
+  chrome.runtime.onConnect.fire({ name: g.MonoRecorderWiring.PORT_NAME, sender: PANEL, onMessage: event(), onDisconnect: event(), postMessage() {} });
   await call({ type: "record_start", tabId: 7 });
   await call({ type: "record_stop" });
   const res = await call({ type: "record_analyze" });
@@ -339,4 +343,21 @@ test("a selector_conflict refusal reaches the panel with its code and keys", asy
   const req = wire.filter((f) => f.method === "record.save").at(-1);
   g.MonoAsk.handleFrame({ kind: "reply", id: req.id, ok: false, error: "selectors differ", code: "selector_conflict", data: { keys: ["contact.name_input"] } });
   assert.deepEqual(await saving, { ok: false, error: "selectors differ", code: "selector_conflict", data: { keys: ["contact.name_input"] } });
+});
+
+// #451: a recording is owned by the panel that starts it and stops when that
+// panel closes. A start that reaches the worker after its panel closed (a
+// click, then the panel shut before the message landed) starts nothing.
+test("a start from a panel that has closed starts nothing", async () => {
+  const { chrome, wire, call, port, settle } = load({ panel: false });
+  const p = port();
+  p.onDisconnect.fire();
+  await settle();
+  const res = await call({ type: "record_start", tabId: 7, goal: "demo" });
+  assert.equal(res.ok, false);
+  assert.match(res.error, /side panel/);
+  assert.deepEqual([wire.filter((f) => f.op === "start").length, chrome.scripts.length], [0, 0], "nothing injected, nothing sent");
+  assert.equal((await call({ type: "record_status" })).state.recording, false);
+  port();
+  assert.equal((await call({ type: "record_start", tabId: 7 })).ok, true, "an open panel starts one");
 });
