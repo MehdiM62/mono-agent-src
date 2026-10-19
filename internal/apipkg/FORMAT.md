@@ -171,13 +171,22 @@ down, as paths (a.b.to, [1].to); and a list element past the tenth that
 has such a key is still shown. Past its share a recipient value shows its
 head, its last element and every distinct domain of what it leaves out.
 The word lists only sort: under the fields, the card lists every email
-address, link, @handle, #channel or channel id, phone number and long id
-(under a key with "id") in what the step sends that it doesn't already
-show, with its path, however its key is named or wherever the caps left
-it. A value of more than a million keys and elements, raw JSON text over
-8 MB, a key over 256 bytes, or a card cut at 256 KB where it shows a
-recipient or one of those makes the card too large to review: it can be
-rejected, never approved. `"field if cond"`
+address (a@b, no dot needed), link, tel:, sip: or sms: URI, @handle or
+Matrix id (@user:server), #channel or channel id, phone number (7 to 15
+digits, with or without +), long number, UUID, IP literal, bare domain
+with a common TLD (evil.com) and long id (under a key with "id") in what
+the step sends that it doesn't already show, with its path, however its
+key is named or wherever the caps left it. One in a recipient-like field
+is listed unless a recipient-like field shows it, even when a field such
+as notes does. A date isn't a phone number, nor are 10 or 13 digits alone
+under a time-like key (createdAt, ts). The net reads shapes: an address
+spelled out (evil at x dot com), percent-encoded (%40), in base64 or HTML
+entities (&#64;), with a fullwidth ＠, or split over two leaves
+isn't found. A value of more than a million keys and elements, raw JSON
+text over 8 MB, a key over 256 bytes, or a card cut at 256 KB where it
+shows a recipient or before the net has listed all it found makes the
+card too large to review: it can be rejected, never approved.
+`"field if cond"`
 (`cond` as in `if`) marks the field "(not sent)" on the card when `cond`
 doesn't hold: `"variablesJson if jsonParameters"`. When a `to`
 field holds an id rather than an address, `to_label` says what it is, and

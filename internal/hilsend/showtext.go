@@ -52,7 +52,7 @@ func showText(op string, show, exprs, unsent []string, undeclared bool, config m
 // address, link, handle, phone number and id in what the step sends that
 // it doesn't already show (net). unreviewable says why the card can't be
 // approved from, "" when it can: a param too large to check, or a card cut
-// where it shows a recipient or one of those.
+// where it shows a recipient or before the net has listed all it found.
 func showCard(op string, show, exprs, unsent []string, undeclared bool, config map[string]interface{}) (text, unreviewable string) {
 	c := &card{recipients: map[string]bool{}}
 	var shown []shownParam
@@ -157,8 +157,10 @@ func countNodes(v interface{}, max int) int {
 type card struct {
 	b            strings.Builder
 	recipients   map[string]bool
-	cut          bool   // something didn't fit showCardMax
-	unreviewable string // why the card can't be approved from
+	cut          bool     // something didn't fit showCardMax
+	unreviewable string   // why the card can't be approved from
+	inField      bool     // writing a recipient-like field's value (fullValue)
+	fields       [][2]int // where the text shows the outermost of those: start, end
 }
 
 // put writes s, or, past showCardMax, nothing more: when s shows a
@@ -337,8 +339,16 @@ func (c *card) keys(obj map[string]interface{}, indent string) {
 // fullValue writes a recipient-like value under name: up to share bytes of
 // a string; a list's elements up to share bytes, at least its first
 // showListHead and always its last, and for what it leaves out how many
-// and their domains; an object's keys.
+// and their domains; an object's keys. It records where the text shows the
+// outermost such value, for the net.
 func (c *card) fullValue(name string, v interface{}, indent string, share int) {
+	if !c.inField {
+		c.inField = true
+		defer func(start int) {
+			c.inField = false
+			c.fields = append(c.fields, [2]int{start, c.b.Len()})
+		}(c.b.Len())
+	}
 	switch x := v.(type) {
 	case map[string]interface{}:
 		c.put("\n"+indent+name+":", true)

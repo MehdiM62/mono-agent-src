@@ -16,145 +16,132 @@ type shownParam struct {
 }
 
 // net is the card's guarantee past its word lists: it lists every
-// address, link, @handle, phone number, channel and long id in what the
-// step sends (each param's string leaves, its key names, and the numbers
-// under a key with "id" in it) that the card's text doesn't already show,
-// each with its path, under the fields. Whatever the caps left out, and
-// however its keys are named, none of those is out of sight: when they
-// don't all fit, the card is cut and can't be approved from.
+// address, link, @handle, phone number, channel and id in what the step
+// sends (each param's string leaves, its key names, and the numbers under
+// a key with "id" in it) that the card's text doesn't already show, each
+// with its path, under the fields. One in a recipient-like field (to, a
+// pair's value) is listed unless a recipient-like field shows it: one that
+// shows only in a field such as notes still reads as no recipient.
+// Whatever the caps left out, and however its keys are named, none of
+// those is out of sight: when they don't all fit, even after the card was
+// cut elsewhere, the card can't be approved from.
 func (c *card) net(params []shownParam) {
-	visible := map[string]bool{}
-	for _, t := range addressTokens(c.b.String()) {
-		visible[t] = true
+	if c.cut && c.unreviewable != "" {
+		return
 	}
-	listed := map[string]bool{}
-	header := false
-	add := func(path, token string) {
-		if c.cut || visible[token] || listed[token] {
+	inFields, elsewhere := map[string]bool{}, map[string]bool{}
+	text, at := c.b.String(), 0
+	see := func(s string, seen map[string]bool) {
+		for _, t := range addressTokens(cardText.Replace(s)) {
+			seen[t] = true
+		}
+	}
+	for _, f := range c.fields {
+		see(text[at:f[0]], elsewhere)
+		see(text[f[0]:f[1]], inFields)
+		at = f[1]
+	}
+	see(text[at:], elsewhere)
+	type hit struct{ path, token string }
+	var first, rest []hit
+	// The walk stops once its lines can't fit (each takes at least its
+	// token and 9 bytes): the card is cut, and can't be approved from,
+	// whatever else it would find.
+	room, counted := showCardMax-c.b.Len(), map[string]bool{}
+	found := func(path, token string, field bool) {
+		switch {
+		case inFields[token]:
+			return
+		case field:
+			first = append(first, hit{path, token})
+		case !elsewhere[token]:
+			rest = append(rest, hit{path, token})
+		default:
 			return
 		}
-		listed[token] = true
-		if !header {
-			header = true
-			c.put("\nAlso in what it sends, not shown above (addresses, links, handles, phone numbers, ids):", true)
+		if !counted[token] {
+			counted[token] = true
+			room -= min(len(token), showValueMax/2) + 9
 		}
-		c.put("\n  "+cardValue(path, showValueMax)+": "+cardValue(token, showValueMax), true)
 	}
-	var walk func(v interface{}, path, key string)
-	walk = func(v interface{}, path, key string) {
-		if c.cut {
+	var walk func(v interface{}, path, key string, field bool)
+	walk = func(v interface{}, path, key string, field bool) {
+		if room < 0 {
 			return
 		}
 		switch x := v.(type) {
 		case map[string]interface{}:
+			by, _ := c.pair(x)
 			for _, k := range sortedKeys(x) {
+				in := field || c.recipient(k) || by != "" && k != by
 				for _, t := range addressTokens(k) {
-					add(path, t)
+					found(path, t, in)
 				}
-				walk(x[k], joinPath(path, k), k)
+				walk(x[k], joinPath(path, k), k, in)
 			}
 		case []interface{}:
 			for i, el := range x {
-				walk(el, path+"["+strconv.Itoa(i)+"]", key)
+				walk(el, path+"["+strconv.Itoa(i)+"]", key, field)
 			}
 		case string:
 			for _, t := range addressTokens(x) {
-				add(path, t)
+				if t != x || !timeKey(key) || len(x) != 10 && len(x) != 13 {
+					found(path, t, field)
+				}
 			}
 			if idKey(key) && longNumber(x) {
-				add(path, x)
+				found(path, x, field)
 			}
 		case float64:
 			if n := strconv.FormatFloat(x, 'f', -1, 64); idKey(key) && longNumber(n) {
-				add(path, n)
+				found(path, n, field)
 			}
 		}
 	}
 	for _, p := range params {
-		walk(p.value, p.path, p.path[strings.LastIndex(p.path, ".")+1:])
+		key := p.path[strings.LastIndex(p.path, ".")+1:]
+		walk(p.value, p.path, key, c.recipient(key))
 	}
-}
-
-// addressTokens finds what in s addresses someone: email addresses
-// (a@b.c), links (any scheme with a host), @handles, #channels, Slack-style
-// channel ids (C0…), and phone numbers (+ and 7 to 15 digits, as "+"
-// and the digits).
-func addressTokens(s string) []string {
-	var out []string
-	for i := 0; i+1 < len(s); i++ {
-		if s[i] != '+' || s[i+1] < '0' || s[i+1] > '9' {
+	listed := map[string]bool{}
+	for _, h := range append(first, rest...) {
+		if listed[h.token] {
 			continue
 		}
-		digits := []byte{'+'}
-		j := i + 1
-	number:
-		for ; j < len(s) && len(digits) <= 16; j++ {
-			switch b := s[j]; {
-			case b >= '0' && b <= '9':
-				digits = append(digits, b)
-			case b == ' ' || b == '-' || b == '.' || b == '(' || b == ')':
-			default:
-				break number
-			}
+		if len(listed) == 0 {
+			c.put("\nAlso in what it sends, not shown above (addresses, links, handles, phone numbers, ids):", true)
 		}
-		if n := len(digits) - 1; n >= 7 && n <= 15 {
-			out = append(out, string(digits))
-		}
-		i = j - 1
-	}
-	for _, t := range strings.FieldsFunc(s, func(r rune) bool {
-		return unicode.IsSpace(r) || strings.ContainsRune(",;\"'<>()[]{}|\\`", r)
-	}) {
-		if t = strings.TrimRight(t, ".:!?"); t == "" {
-			continue
-		}
-		switch at := strings.LastIndexByte(t, '@'); {
-		case at > 0 && at < len(t)-1 && strings.Contains(t[at+1:], "."):
-			out = append(out, t)
-		case strings.Contains(t, "://") && !strings.HasSuffix(t, "://") && !strings.HasPrefix(t, "://"):
-			out = append(out, t)
-		case (t[0] == '@' || t[0] == '#') && len(t) >= 3 && handle(t[1:]):
-			out = append(out, t)
-		case channelID(t):
-			out = append(out, t)
+		listed[h.token] = true
+		c.put("\n  "+cardValue(h.path, showValueMax)+": "+cardValue(h.token, showValueMax), true)
+		if c.cut {
+			return
 		}
 	}
-	return out
 }
 
-// handle reports a handle's or a channel name's characters, a letter
-// among them.
-func handle(s string) bool {
-	letter := false
-	for _, r := range s {
-		switch {
-		case unicode.IsLetter(r):
-			letter = true
-		case unicode.IsDigit(r) || r == '_' || r == '.' || r == '-':
-		default:
-			return false
-		}
-	}
-	return letter
-}
+// cardText is how the net reads the card's text: its JSON values' escapes
+// of <, > and & as those characters, and \n, \r, \t and \\ as the word
+// breaks they are in what the step sends.
+var cardText = strings.NewReplacer(`\\`, " ", `\n`, " ", `\r`, " ", `\t`, " ", `\u003c`, "<", `\u003e`, ">", `\u0026`, "&")
 
-// channelID reports a Slack-style channel, group or user id: C, G, D, U
-// or W and 8 to 11 upper-case letters and digits, a digit among them.
-func channelID(s string) bool {
-	if len(s) < 9 || len(s) > 12 || !strings.ContainsRune("CGDUW", rune(s[0])) {
+// timeWords are the words of a key whose value is a time: under one, 10
+// or 13 digits alone are a Unix time in seconds or milliseconds, not a
+// phone number.
+var timeWords = map[string]bool{"time": true, "times": true, "timestamp": true, "timestamps": true, "ts": true,
+	"date": true, "datetime": true, "at": true, "on": true, "created": true, "updated": true, "modified": true,
+	"expires": true, "expiry": true, "since": true, "until": true, "epoch": true, "unix": true, "start": true,
+	"end": true, "due": true, "deadline": true, "when": true}
+
+// timeKey reports a key with a time word among its words (createdAt, ts).
+func timeKey(k string) bool {
+	if len(k) > showKeyNameMax {
 		return false
 	}
-	digit := false
-	for _, r := range s[1:] {
-		switch {
-		case r >= '0' && r <= '9':
-			digit = true
-		case r >= 'A' && r <= 'Z':
-		default:
-			return false
+	for _, w := range keyWords(k) {
+		if timeWords[w] {
+			return true
 		}
 	}
-	return digit
+	return false
 }
 
 // idKey reports a key with "id" among its words (chat_id, principalId).
