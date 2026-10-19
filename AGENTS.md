@@ -168,6 +168,12 @@ monoagentcli node schema <type>
 # unknown_upstream_field, needs_setup (warnings: e.g. no account chosen yet).
 monoagentcli --profile work workflow validate <id>
 monoagentcli --profile work workflow validate --file <workflow.json>
+# Keys an app node sends that its operation doesn't declare (an agent's run of
+# it waits for approval). No --profile, no database; exit 0 clean, 1 found, 3 a file
+# it can't check (unreadable, not a regular file, over 16 MB, not JSON) or no catalog.
+monoagentcli --json workflow check-keys <file.json…|->
+# Signed out, from a source checkout: the same check, writing nothing under HOME.
+go run ./scripts/checkkeys [--json] <file.json…|->
 
 # Draft a workflow from a description: an agent turn writes it, validate's
 # errors go back to it until it passes, and it is saved inactive.
