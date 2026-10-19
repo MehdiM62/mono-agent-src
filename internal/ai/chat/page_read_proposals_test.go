@@ -224,7 +224,7 @@ func TestProposeVaultSaveNamesOneItemAndCarriesNoBytes(t *testing.T) {
 	for _, args := range []string{
 		`{}`, `{"name":"x.png"}`, `not json`,
 		`{"url":"https://a.example/x.png","selection":true}`,
-		`{"url":"file:///etc/passwd"}`, `{"url":"javascript:alert(1)"}`, `{"url":"/relative.png"}`,
+		`{"url":"file:///etc/passwd"}`, `{"url":"javascript:alert(1)"}`, `{"url":"/relative.png"}`, `{"url":"ftp://a.example/x.png"}`,
 		`{"url":"data:image/png;base64,iVBORw0KGgo="}`, `{"url":"https://a.example/` + strings.Repeat("x", 2100) + `"}`,
 		`{"url":"https://a.example/a b.png"}`,
 	} {

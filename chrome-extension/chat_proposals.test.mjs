@@ -7,7 +7,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { loadExtensionScripts } from "./test_helpers.mjs";
 
-const { MonoChatProposals: P } = loadExtensionScripts(["chat_proposals.js"]);
+const { MonoChatProposals: P } = loadExtensionScripts(["private_net.js", "chat_proposals.js"]);
 
 const answer = (proposal) => ({ result: JSON.stringify({ proposal, added: false, note: "…" }) });
 
@@ -288,17 +288,6 @@ test("a vault card says which host the file is from, and flags a private network
   assert.equal(line.textContent, "from 192.168.1.2, a private network address");
 });
 
-test("private network addresses are told from public ones, in every form an address takes", () => {
-  const host = (u) => new URL(u).hostname;
-  for (const u of ["http://127.0.0.1/", "http://127.9.9.9/", "http://10.1.2.3/", "http://172.16.0.1/", "http://172.31.255.255/", "http://192.168.1.1/",
-    "http://169.254.169.254/", "http://0.0.0.0/", "http://[::1]/", "http://[fc00::1]/", "http://[fd12:3456::1]/", "http://[fe80::1]/",
-    "http://[::ffff:127.0.0.1]/", "http://2130706433/", "http://0x7f.1/", "http://localhost/", "http://app.localhost/", "http://printer.local/",
-    "http://intranet/", "http://db.internal/"]) assert.equal(P.isPrivateHost(host(u)), true, u);
-  for (const u of ["https://a.example/", "http://172.32.0.1/", "http://8.8.8.8/", "http://[2001:db8::1]/", "http://192.169.1.1/"]) {
-    assert.equal(P.isPrivateHost(host(u)), false, u);
-  }
-});
-
 // #876 review: what shows nothing on screen but a model still reads is
 // dropped from a recording's goal: the tag block ("ASCII smuggling"),
 // variation selectors, format, private-use and unassigned code points.
@@ -325,11 +314,36 @@ test("a recording goal keeps joiners and selectors that join or mark something, 
     "\u0915\u094d\u200d\u0937", // Devanagari half form
     "\u1780\u17d2\u200d\u1780", // Khmer coeng and joiner
     "\u05e9\u05dc\u05d5\u05dd\u200f!", // a direction mark
+    "\u{1F9D1}\u200d\u{1F4BB}", // technologist
+    "\u2764\ufe0f\u200d\u{1F525}", // heart on fire
+    "\u{1F3F3}\ufe0f\u200d\u26a7\ufe0f", // transgender flag
+    "#\ufe0f\u20e3", // keycap hash
+    "1\ufe0e\u20e3", // text keycap
+    "\u{1F9D1}\u{1F3FD}\u200d\u{1F4BB}", // skin tone, joined
   ]) assert.equal(P.cleanGoal(`Send ${keep} now`), `Send ${keep} now`, JSON.stringify(keep));
   assert.equal(P.cleanGoal("co\u00adoperate"), "cooperate");
   for (const [input, want] of [
     ["\u200dExport", "Export"], ["Export\u200d", "Export"], ["Export \u200c the", "Export the"], ["\ufe0fExport", "Export"],
     ["Export \ufe0f report", "Export report"], ["\u200d", ""], ["a\u200d\u{E0041}b", "a b"], ["a\u200d\ufe0f", "a"],
     ["Export\u{E0100} report", "Export report"],
+  ]) assert.equal(P.cleanGoal(input), want, JSON.stringify(input));
+});
+
+// Vault card review: only http and https addresses are items, whatever else
+// a URL parser calls a host.
+test("a vault card names only http and https addresses", () => {
+  for (const url of ["ftp://a.example/x.png", "ws://a.example/x.png", "wss://a.example/x.png", "gopher://a.example/x"]) {
+    assert.equal(P.fromTool("propose_vault_save", answer({ kind: "vault", url }), "t", false), null, url);
+  }
+});
+
+// Vault card review: what is kept leaves no room for hidden bits. The same
+// cases as Go's TestCleanGoalLeavesNoRoomForHiddenBits.
+test("a recording goal keeps a joiner, ZWNJ, selector or direction mark only where the text needs one", () => {
+  for (const [input, want] of [
+    ["pass\u200dword", "password"], ["pass\u200cword", "password"], ["\u65e5\u200d\u672c", "\u65e5\u672c"],
+    ["a\u200c\u062e", "a\u062e"], ["\u0915\u094d\u200d now", "\u0915\u094d now"], ["a\ufe0f", "a"], ["1\ufe0f", "1"],
+    ["\u2764\ufe0e", "\u2764"], ["\u845b\ufe00", "\u845b"], ["\u1820\u180b", "\u1820"],
+    ["\u05e9\u200f\u200f\u200e\u200f!", "\u05e9\u200f!"], ["x\u200d\u200d\u{1F4BB}", "x\u{1F4BB}"],
   ]) assert.equal(P.cleanGoal(input), want, JSON.stringify(input));
 });

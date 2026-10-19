@@ -68,14 +68,20 @@ func TestIngestKeepsTheGoalWithoutHiddenText(t *testing.T) {
 // without leaving a gap.
 func TestCleanGoalKeepsWhatLanguagesAndEmojiNeed(t *testing.T) {
 	for name, keep := range map[string]string{
-		"family emoji":    "\U0001F468\u200d\U0001F469\u200d\U0001F467",
-		"rainbow flag":    "\U0001F3F3\ufe0f\u200d\U0001F308",
-		"red heart":       "\u2764\ufe0f",
-		"keycap one":      "1\ufe0f\u20e3",
-		"Persian ZWNJ":    "\u0645\u06cc\u200c\u062e\u0648\u0627\u0647\u0645",
-		"Devanagari ZWJ":  "\u0915\u094d\u200d\u0937",
-		"Khmer coeng ZWJ": "\u1780\u17d2\u200d\u1780",
-		"direction mark":  "\u05e9\u05dc\u05d5\u05dd\u200f!",
+		"family emoji":     "\U0001F468\u200d\U0001F469\u200d\U0001F467",
+		"rainbow flag":     "\U0001F3F3\ufe0f\u200d\U0001F308",
+		"red heart":        "\u2764\ufe0f",
+		"keycap one":       "1\ufe0f\u20e3",
+		"Persian ZWNJ":     "\u0645\u06cc\u200c\u062e\u0648\u0627\u0647\u0645",
+		"Devanagari ZWJ":   "\u0915\u094d\u200d\u0937",
+		"Khmer coeng ZWJ":  "\u1780\u17d2\u200d\u1780",
+		"direction mark":   "\u05e9\u05dc\u05d5\u05dd\u200f!",
+		"technologist":     "\U0001F9D1\u200d\U0001F4BB",
+		"heart on fire":    "\u2764\ufe0f\u200d\U0001F525",
+		"transgender flag": "\U0001F3F3\ufe0f\u200d\u26a7\ufe0f",
+		"keycap hash":      "#\ufe0f\u20e3",
+		"text keycap":      "1\ufe0e\u20e3",
+		"skin tone joined": "\U0001F9D1\U0001F3FD\u200d\U0001F4BB",
 	} {
 		if got, want := CleanGoal("Send "+keep+" now"), "Send "+keep+" now"; got != want {
 			t.Errorf("%s: CleanGoal = %q, want %q", name, got, want)
@@ -152,5 +158,31 @@ func TestARecordingKeptBeforeReadsBackClean(t *testing.T) {
 	}
 	if sum.Title != "Old page" || sum.Goal != "old goal" {
 		t.Fatalf("summary title %q, goal %q", sum.Title, sum.Goal)
+	}
+}
+
+// What is kept leaves no room for hidden bits: a joiner only joins emoji, or
+// a conjunct after a virama or coeng; a ZWNJ only sits inside Arabic-script
+// or Indic words; a variation selector only makes an emoji or a keycap; a run
+// of direction marks is one mark. A joiner or selector that is dropped is
+// deleted, not turned into a space.
+func TestCleanGoalLeavesNoRoomForHiddenBits(t *testing.T) {
+	for in, want := range map[string]string{
+		"pass\u200dword":                  "password",
+		"pass\u200cword":                  "password",
+		"\u65e5\u200d\u672c":              "\u65e5\u672c",
+		"a\u200c\u062e":                   "a\u062e",
+		"\u0915\u094d\u200d now":          "\u0915\u094d now",
+		"a\ufe0f":                         "a",
+		"1\ufe0f":                         "1",
+		"\u2764\ufe0e":                    "\u2764",
+		"\u845b\ufe00":                    "\u845b",
+		"\u1820\u180b":                    "\u1820",
+		"\u05e9\u200f\u200f\u200e\u200f!": "\u05e9\u200f!",
+		"x\u200d\u200d\U0001F4BB":         "x\U0001F4BB",
+	} {
+		if got := CleanGoal(in); got != want {
+			t.Errorf("CleanGoal(%q) = %q, want %q", in, got, want)
+		}
 	}
 }

@@ -48,7 +48,7 @@ function world(o = {}) {
       },
     };
   };
-  const sandbox = loadExtensionScripts(["capture_profile.js", "chat_proposals.js", "vault_bridge.js"], { chrome, fetch });
+  const sandbox = loadExtensionScripts(["capture_profile.js", "private_net.js", "chat_proposals.js", "vault_bridge.js"], { chrome, fetch });
   sandbox.MonoAsk = {
     supports: async (m) => (o.methods || ["ping", "vault.save"]).includes(m),
     request: async (method, params) => {
@@ -78,6 +78,7 @@ test("an item on the page is fetched after the click and saved under the card's 
   assert.deepEqual(w.calls.scripts[0].args, ["https://a.example/img/chart.png"]);
   assert.deepEqual(w.calls.fetches.map((f) => [f.url, f.init.credentials]), [["https://a.example/img/chart.png", "include"]]);
   assert.equal(w.calls.fetches[0].init.redirect, "manual", "a public page's file is not followed elsewhere");
+  assert.equal(w.calls.fetches[0].init.credentials, "include", "the page's own origin: its cookies, as the page itself would send");
   assert.match(w.calls.requests[0].params.client_id, new RegExp(`^chat-${NONCE}-[0-9a-f]{8}-toolu_v$`), "scoped to the profile, as tasks are");
   delete w.calls.requests[0].params.client_id;
   assert.deepEqual(w.calls.requests, [{ method: "vault.save", params: {
@@ -118,13 +119,13 @@ test("the selection saved is the text selected in the page now, as a text file",
 });
 
 test("a file too big for the side panel is refused for good, before or while it is read", async () => {
-  const declared = world({ contentLength: String(6 * 1024 * 1024) });
+  const declared = world({ contentLength: String(21 * 1024 * 1024) });
   const out = await declared.send(ask());
   assert.equal(out.status, "refused");
   assert.match(out.feedback.text, /too big/);
   assert.equal(declared.calls.requests.length, 0);
 
-  const big = new Uint8Array(5 * 1024 * 1024 + 1);
+  const big = new Uint8Array(20 * 1024 * 1024 + 1);
   big.set(PNG);
   const streamed = world({ body: big, contentLength: null });
   const out2 = await streamed.send(ask());
@@ -226,4 +227,43 @@ test("a public page's file that redirects is not followed, and nothing is saved"
   assert.equal(out.status, "refused");
   assert.match(out.feedback.text, /redirects/);
   assert.equal(w.calls.requests.length, 0);
+});
+
+// Vault card review: a page counts as private only when it is an http or https
+// page on a private host. A file, a blob, about:, data:, view-source: or the
+// browser's own pages are public: a public page can open a blob of its own.
+test("only an http(s) page on a private host may save a private address", async () => {
+  for (const pageUrl of ["blob:https://a.example/0b6c3e4a-1d2e-4f5a-8b9c-0d1e2f3a4b5c", "file:///home/me/notes.html", "about:blank", "about:srcdoc",
+    "data:text/html,<img src=http://127.0.0.1/a.png>", "view-source:http://127.0.0.1/", "chrome://newtab/", "chrome-extension://abc/page.html", ""]) {
+    const w = world({ pageUrl });
+    const out = await w.send(ask({ url: "http://127.0.0.1:9222/json/list.txt" }));
+    assert.equal(out.status, "refused", pageUrl);
+    assert.match(out.feedback.text, /private network/, pageUrl);
+    assert.deepEqual([w.calls.scripts.length, w.calls.fetches.length], [0, 0], pageUrl);
+  }
+});
+
+// Vault card review: a GET through the extension must not carry the person's
+// cookies to another site (a page could link a bank's action URL).
+test("a file from another origin is fetched without cookies; the page's own origin with them", async () => {
+  const cross = world({ contentType: "image/png" });
+  await cross.send(ask({ url: "https://cdn.example/img/chart.png" }));
+  assert.deepEqual([cross.calls.fetches[0].init.credentials, cross.calls.fetches[0].init.redirect], ["omit", "manual"]);
+
+  const inside = world({ pageUrl: "http://192.168.1.10/dashboard" });
+  await inside.send(ask({ url: "http://192.168.1.10/chart.png" }));
+  assert.deepEqual([inside.calls.fetches[0].init.credentials, inside.calls.fetches[0].init.redirect], ["include", "follow"]);
+  const elsewhere = world({ pageUrl: "http://192.168.1.10/dashboard" });
+  await elsewhere.send(ask({ url: "http://192.168.1.11/chart.png" }));
+  assert.deepEqual([elsewhere.calls.fetches[0].init.credentials, elsewhere.calls.fetches[0].init.redirect], ["omit", "follow"]);
+});
+
+// Vault card review: the cap is MonoAgent's own, 20 MiB: a large PDF fits.
+test("a file up to 20 MiB is saved", async () => {
+  const pdf = new Uint8Array(6 * 1024 * 1024);
+  pdf.set(new TextEncoder().encode("%PDF-1.7\n"));
+  const w = world({ body: pdf, contentType: "application/pdf" });
+  const out = await w.send(ask({ url: "https://a.example/files/big.pdf" }));
+  assert.equal(out.status, "saved");
+  assert.equal(w.calls.requests[0].params.mime, "application/pdf");
 });

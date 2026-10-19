@@ -15,9 +15,9 @@
  *      the panel's tab is asked (itemOnPage) whether the page shows it, links
  *      to it, or is it; a selection is read from the page now, never taken
  *      from the chat;
- *   3. the worker fetches the address itself (http/https, the person's
- *      cookies), at most MAX_BYTES, which keeps the frame under the 8 MB
- *      budget once base64 grows it by a third;
+ *   3. the worker fetches the address itself (http/https), with the
+ *      person's cookies only from the page's own origin, at most MAX_BYTES
+ *      (MonoAgent's own cap: base64 of it fits the bridge's 32 MiB frame);
  *   4. the bytes decide the type: PNG, JPEG, GIF, WebP and PDF by their
  *      magic numbers, text, Markdown and CSV only when they are UTF-8 text;
  *   5. vault.save goes under the card's key (MonoChatProposals.clientId), so
@@ -28,14 +28,14 @@
  * bridge, not on this page, unavailable, internal). There is no outbox: a
  * multi-megabyte file does not belong in chrome.storage.
  *
- * After ask.js, capture_profile.js and chat_proposals.js.
+ * After ask.js, capture_profile.js, private_net.js and chat_proposals.js.
  */
 
 (function (root) {
   "use strict";
 
   const METHOD = "vault.save";
-  const MAX_BYTES = 5 * 1024 * 1024;
+  const MAX_BYTES = 20 * 1024 * 1024;
   const FETCH_TIMEOUT_MS = 30000;
   const SAVE_TIMEOUT_MS = 60000;
   const NAME_BYTES = 255;
@@ -201,9 +201,11 @@
   /**
    * fetchItem fetches an address that is on the page, capped and typed.
    * From a public page it follows no redirect: one could lead to the
-   * person's own network, which only a page on that network may reach.
+   * person's own network, which only a page on that network may reach. It
+   * sends the person's cookies only to the page's own origin (withCookies):
+   * a page must not get a request to another site made with them.
    */
-  async function fetchItem(tabId, url, follow) {
+  async function fetchItem(tabId, url, follow, withCookies) {
     const found = await inFrames(tabId, itemOnPage, [url]);
     if (!found.some((r) => r && r.result === true)) {
       throw fail("that file is not on the page you are on. Open the page it is on, then press Save again");
@@ -213,7 +215,7 @@
     try {
       let res;
       try {
-        res = await fetch(url, { credentials: "include", redirect: follow ? "follow" : "manual", signal: abort.signal });
+        res = await fetch(url, { credentials: withCookies ? "include" : "omit", redirect: follow ? "follow" : "manual", signal: abort.signal });
       } catch (err) {
         throw fail(`the file could not be fetched (${(err && err.message) || err})`);
       }
@@ -262,6 +264,7 @@
 
   async function save(msg) {
     const P = root.MonoChatProposals;
+    const Net = root.MonoPrivateNet;
     const raw = msg && msg.proposal;
     const card = P && raw && raw.kind === "vault" ? P.clone([Object.assign({}, raw, { state: "pending" })])[0] : null;
     if (!card) return refuse("Not saved: that is not a file the chat proposed");
@@ -275,28 +278,35 @@
 
     const tab = await chrome.tabs.get(tabId).catch(() => null);
     const pageUrl = (tab && tab.url) || "";
-    // A public page may not have the extension fetch from the person's own network.
-    const local = (u) => {
+    // A public page may not have the extension fetch from the person's own
+    // network. A page is on that network only as an http(s) page on a private
+    // host: a file, a blob, about:, data: or the browser's own pages count as
+    // public, since a public page can open a blob of its own.
+    const parse = (u) => {
       try {
-        return P.isPrivateHost(new URL(u).hostname);
+        return new URL(u);
       } catch {
-        return false;
+        return null;
       }
     };
-    const pagePrivate = local(pageUrl);
-    if (card.url && local(card.url) && !pagePrivate) {
-      return refuse(`Not saved: ${new URL(card.url).hostname} is on a private network and this page is not, so MonoAgent will not fetch it from here`);
+    const page = parse(pageUrl);
+    const item = card.url ? parse(card.url) : null;
+    const pageWeb = !!page && (page.protocol === "http:" || page.protocol === "https:") && !!page.hostname;
+    const pagePrivate = pageWeb && Net.isPrivateHost(page.hostname);
+    const sameOrigin = pageWeb && !!item && item.origin === page.origin;
+    if (item && Net.isPrivateHost(item.hostname) && !pagePrivate) {
+      return refuse(`Not saved: ${item.hostname} is on a private network and this page is not, so MonoAgent will not fetch it from here`);
     }
 
-    let item;
+    let file;
     try {
-      item = card.url ? await fetchItem(tabId, card.url, pagePrivate) : await selectionItem(tabId, pageUrl);
+      file = card.url ? await fetchItem(tabId, card.url, pagePrivate, sameOrigin) : await selectionItem(tabId, pageUrl);
     } catch (err) {
       return err.final ? refuse(`Not saved: ${err.message}`) : retry(`Not saved: ${err.message}`);
     }
-    const name = fileName(card.name || item.name, item.mime);
-    const params = { client_id: P.clientId(card, profile), profile, name, mime: item.mime, data: toBase64(item.bytes) };
-    if (item.source) params.source_url = item.source;
+    const name = fileName(card.name || file.name, file.mime);
+    const params = { client_id: P.clientId(card, profile), profile, name, mime: file.mime, data: toBase64(file.bytes) };
+    if (file.source) params.source_url = file.source;
     let data;
     try {
       data = await root.MonoAsk.request(METHOD, params, { timeoutMs: SAVE_TIMEOUT_MS, idleTimeoutMs: SAVE_TIMEOUT_MS });

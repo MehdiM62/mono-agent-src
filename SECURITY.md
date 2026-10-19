@@ -246,16 +246,28 @@ widen what an earlier page reached the model with):
   item, an address on the page or the person's selection, and carries no
   bytes; only the person's click on Save to vault makes the side panel
   check that the item is on the page they are on now (or read their
-  selection at that moment), fetch it within a 5 MiB cap, and send it to
-  MonoAgent's file vault as `vault.save`. The card names the host the file
-  would come from. A public page never has the extension fetch a private
-  network address (loopback, private and link-local ranges, `localhost`
-  and intranet names). Two limits are known. A public name that resolves
-  to a private address through DNS is not caught: the extension cannot see
-  the address a name resolves to, only the name. And from a public page an
-  address that redirects is refused rather than followed, even when the
-  redirect is harmless, so some CDN links need "open the file itself, then
-  save it from there". A page cannot press those buttons:
+  selection at that moment), fetch it within a 20 MiB cap (MonoAgent's
+  own), and send it to MonoAgent's file vault as `vault.save`. The fetch
+  carries the person's cookies only when the file is on the page's own
+  origin, so a page cannot have a request to another site go out with
+  them. The card names the host the file would come from. A public page
+  never has the extension fetch a private network address: loopback,
+  private, carrier-grade NAT, link-local, benchmarking, multicast and
+  reserved IPv4 ranges; IPv6 loopback, unique-local, link- and site-local
+  and multicast addresses, and those that carry an IPv4 address (mapped,
+  NAT64, 6to4); `localhost` and the home, office and tailnet names (`.lan`,
+  `.home`, `.home.arpa`, `.corp`, `.local`, `.localdomain`, `.internal`,
+  `.intranet`, `.private`, `.ts.net`, single-label names). A page counts
+  as private only when it is an http or https page on such a host; a file,
+  a blob, `about:`, `data:` or the browser's own pages count as public.
+  Two limits are known. A public name that resolves to a private address
+  through DNS is not caught: the extension cannot see the address a name
+  resolves to, only the name; the known wildcard-DNS services (`nip.io`,
+  `sslip.io`, `xip.io`, `localtest.me`, `lvh.me`, `traefik.me`) are
+  refused as private. And from a public page an address that redirects is
+  refused rather than followed, even when the redirect is harmless, so
+  some CDN links need "open the file itself, then save it from there". A
+  page cannot press those buttons:
   they are in the side panel, and the worker takes the requests only from
   the extension's own pages. There is no secret, credential, secret-vault, profile
   document, synced message, contact, publication, org, template or social

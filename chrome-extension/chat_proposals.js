@@ -68,34 +68,8 @@
     }
   }
 
-  /**
-   * isPrivateHost: a host (as URL parsing writes it) on the person's own
-   * machine or network, or a name only such a network resolves: loopback,
-   * 10/8, 172.16/12, 192.168/16, link-local, 0/8, ::1, fc00::/7, fe80::/10,
-   * IPv4-mapped IPv6, localhost, .local, .internal and single-label names.
-   * Literal addresses only: a public name that resolves privately is not seen.
-   */
-  function isPrivateHost(host) {
-    const h = str(host).toLowerCase().replace(/^\[|\]$/g, "").replace(/\.$/, "");
-    if (!h) return true;
-    if (h === "localhost" || /\.(localhost|local|internal)$/.test(h) || (!h.includes(".") && !h.includes(":"))) return true;
-    const v4 = /^(\d{1,3})\.(\d{1,3})\.\d{1,3}\.\d{1,3}$/.exec(h);
-    if (v4) {
-      const a = Number(v4[1]);
-      const b = Number(v4[2]);
-      return a === 127 || a === 10 || a === 0 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254);
-    }
-    if (!h.includes(":")) return false;
-    if (h === "::1" || h === "::") return true;
-    const mapped = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(h);
-    if (mapped) {
-      const hi = parseInt(mapped[1], 16);
-      const lo = parseInt(mapped[2], 16);
-      return isPrivateHost(`${hi >> 8}.${hi & 255}.${lo >> 8}.${lo & 255}`);
-    }
-    const first = parseInt(h.split(":")[0] || "0", 16);
-    return (first & 0xfe00) === 0xfc00 || (first & 0xffc0) === 0xfe80;
-  }
+  // Which hosts are on the person's own network (private_net.js, loaded first).
+  const privateHost = (host) => !!(root.MonoPrivateNet && root.MonoPrivateNet.isPrivateHost(host));
 
   const hostOf = (url) => {
     try {
@@ -117,39 +91,49 @@
 
   // What shows nothing on screen but the recorder and its analysis read:
   // controls, format characters (bidi, zero-width, the byte order mark),
-  // private-use, unassigned and lone surrogate code points, the Unicode tag
-  // block (invisible "ASCII smuggling") and the variation selector supplement.
-  const HIDDEN = /[\p{Cc}\p{Cf}\p{Co}\p{Cn}\p{Cs}\u{E0000}-\u{E007F}\u{E0100}-\u{E01EF}]/u;
-  // A character that shows on its own (emoji are symbols), and a mark kept on one.
-  const BASE = /[\p{L}\p{N}\p{S}\p{P}]/u;
-  const MARK = /\p{M}/u;
-  // The variation selectors a character may carry (VS16 makes ❤ an emoji).
-  const SELECTOR = /[\u{180B}-\u{180D}\u{180F}\u{FE00}-\u{FE0F}]/u;
+  // private-use, unassigned and lone surrogate code points, and the Unicode
+  // tag block (invisible "ASCII smuggling").
+  const HIDDEN = /[\p{Cc}\p{Cf}\p{Co}\p{Cn}\p{Cs}\u{E0000}-\u{E007F}]/u;
+  const SELECTORS = /[\u{180B}-\u{180D}\u{180F}\u{FE00}-\u{FE0F}\u{E0100}-\u{E01EF}]/u;
+  // The same character classes as Go's recording.cleanLine (privacy.go).
+  const EMOJI = /[\u00a9\u00ae\u203c\u2049\u2122\u2139\u24c2\u3030\u303d\u3297\u3299\u2190-\u21ff\u2300-\u23ff\u25a0-\u27bf\u2900-\u297f\u2b00-\u2bff\u{1F000}-\u{1FAFF}]/u;
+  const VIRAMA = /[\u094d\u09cd\u0a4d\u0acd\u0b4d\u0bcd\u0c4d\u0ccd\u0d4d\u0dca\u0e3a\u1039\u103a\u17d2\u1a60\u1b44\ua8c4\ua9c0\u{11046}]/u;
+  const JOIN_SCRIPT = /[\u0600-\u06ff\u0750-\u077f\u08a0-\u08ff\ufb50-\ufdff\ufe70-\ufeff\u0900-\u0dff]/u;
+  const LETTER = /\p{L}/u;
+  const DIRECTION = /[\u200e\u200f\u061c]/u;
+  const keycap = (base, next) => next === "\u20e3" && /[0-9#*]/.test(base);
 
   /**
    * cleanGoal is a recording goal as the recorder and its analysis get it:
    * no markup and no hidden characters (HIDDEN), one line, 200 runes. What
-   * languages and emoji need stays: a joiner (ZWJ, ZWNJ) between characters
-   * that show, a selector on one, the direction marks; a soft hyphen goes
-   * without a gap. A joiner or selector that joins or marks nothing is
-   * dropped. The same rules as Go's recording.CleanGoal.
+   * text needs stays, and no more, so what is kept carries no hidden bits: a
+   * ZWJ that joins emoji, or a conjunct after a virama or coeng; a ZWNJ
+   * inside an Arabic-script or Indic word; VS16 that makes an emoji, and VS15
+   * or VS16 on a keycap; one direction mark of a run. A soft hyphen, and a
+   * joiner or selector that is not needed, are deleted. The same rules as
+   * Go's recording.CleanGoal.
    */
   function cleanGoal(v) {
     const cps = [...str(v).replace(/<[^>]*>/g, " ").replace(/[<>]/g, " ")];
     const out = [];
     const last = () => (out.length ? out[out.length - 1] : " ");
+    // The last kept character but a variation selector: what a ZWJ after a heart and VS16 joins.
+    const lastBase = () => [...out].reverse().find((c) => c !== "\ufe0f" && c !== "\ufe0e") || " ";
     cps.forEach((c, i) => {
-      if (c === "\u00ad") return; // a soft hyphen only says where a word may break
-      if (c === "\u200c" || c === "\u200d") {
-        const joins = (BASE.test(last()) || MARK.test(last())) && i + 1 < cps.length && BASE.test(cps[i + 1]);
-        out.push(joins ? c : " ");
-      } else if (c === "\u200e" || c === "\u200f" || c === "\u061c") {
-        out.push(c);
-      } else if (SELECTOR.test(c)) {
-        out.push(BASE.test(last()) ? c : " ");
-      } else {
-        out.push(HIDDEN.test(c) ? " " : c);
+      const next = cps[i + 1] || " ";
+      let keep = true;
+      if (c === "\u00ad") keep = false; // a soft hyphen only says where a word may break
+      else if (c === "\u200d") keep = (EMOJI.test(lastBase()) && EMOJI.test(next)) || (VIRAMA.test(last()) && LETTER.test(next));
+      else if (c === "\u200c") keep = JOIN_SCRIPT.test(last()) && JOIN_SCRIPT.test(next) && LETTER.test(next);
+      else if (DIRECTION.test(c)) keep = !DIRECTION.test(last());
+      else if (c === "\ufe0f") keep = EMOJI.test(last()) || keycap(last(), next);
+      else if (c === "\ufe0e") keep = keycap(last(), next);
+      else if (SELECTORS.test(c)) keep = false;
+      else if (HIDDEN.test(c)) {
+        out.push(" ");
+        return;
       }
+      if (keep) out.push(c);
     });
     return runes(oneLine(out.join("")), TITLE_RUNES);
   }
@@ -221,7 +205,7 @@
       return {
         title: p.name || fileOf(p.url) || (p.selection ? "Your selection" : "A file from this page"),
         // Where it would come from, plainly: a page can embed an address on the person's own network.
-        source: !p.url ? "from the page you are on" : isPrivateHost(host) ? `from ${host}, a private network address` : `from ${host}`,
+        source: !p.url ? "from the page you are on" : privateHost(host) ? `from ${host}, a private network address` : `from ${host}`,
         notes: p.url || "The text you have selected on this page, as a text file",
       };
     },
@@ -434,5 +418,5 @@
     return box;
   }
 
-  root.MonoChatProposals = { fromTool, clone, settle, keyOf, clientId, afterAdd, view, card, cleanGoal, pageOf, isPrivateHost, TOOLS, KINDS, TITLE_RUNES, NOTES_BYTES };
+  root.MonoChatProposals = { fromTool, clone, settle, keyOf, clientId, afterAdd, view, card, cleanGoal, pageOf, TOOLS, KINDS, TITLE_RUNES, NOTES_BYTES };
 })(globalThis);
