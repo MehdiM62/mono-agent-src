@@ -442,3 +442,38 @@ test("a turn that carried an untitled page counts as reading one", () => {
   C2.startTurn(none, "hello", "", false);
   assert.equal(none.readPage, false);
 });
+
+// #876 review: a runtime that reuses call ids may answer two proposals in one
+// reply under the same id. Each call is a card; a replayed answer is not.
+test("two proposals under one repeated call id in one reply are two cards, and a replay adds none", () => {
+  const { MonoChatCore: C2 } = loadExtensionScripts(["chat_proposals.js", "chat_core.js"]);
+  const s = C2.newState(null);
+  C2.startTurn(s, "add two tasks", "");
+  const done = (seq, title) => ev(seq, "tool.completed", { callId: "functions.propose_task:0", ok: true, result: JSON.stringify({ proposal: { kind: "task", title } }) });
+  C2.applyEvent(s, ev(1, "tool.started", { callId: "functions.propose_task:0", name: "propose_task" }));
+  C2.applyEvent(s, done(2, "Book flights"));
+  C2.applyEvent(s, ev(3, "tool.started", { callId: "functions.propose_task:0", name: "propose_task" }));
+  C2.applyEvent(s, done(4, "Pack"));
+  C2.applyEvent(s, done(5, "Book flights")); // the first answer again, replayed under a new number
+  const a = s.messages.at(-1);
+  assert.deepEqual(a.proposals.map((p) => p.title), ["Book flights", "Pack"]);
+  assert.deepEqual(a.tools.map((t) => t.status), ["done", "done"], "each call's chip is done");
+  assert.notEqual(a.proposals[0].nonce, a.proposals[1].nonce);
+});
+
+// #876 review: a card is bound to the page the panel showed when its turn was
+// sent, so Start recording can record that page and no other.
+test("a card is bound to the page its turn was sent from, also after the panel reopens", () => {
+  const { MonoChatCore: C2 } = loadExtensionScripts(["chat_proposals.js", "chat_core.js"]);
+  const s = C2.newState(null);
+  const page = { tabId: 5, url: "https://a.example/p" };
+  C2.startTurn(s, "record it", "A page", true, page);
+  C2.applyEvent(s, ev(1, "tool.started", { callId: "c1", name: "propose_recording" }));
+  C2.applyEvent(s, ev(2, "tool.completed", { callId: "c1", ok: true, result: JSON.stringify({ proposal: { kind: "recording", goal: "Export" } }) }));
+  assert.deepEqual(s.messages.at(-1).proposals[0].page, page);
+  const back = C2.newState(JSON.parse(JSON.stringify(C2.serialize(s))));
+  assert.deepEqual(back.messages.at(-1).proposals[0].page, page);
+  assert.deepEqual(back.turnPage, page, "a reply replayed after reopening binds to it too");
+  C2.startTurn(back, "and now?", "", false, null);
+  assert.equal(back.turnPage, null);
+});

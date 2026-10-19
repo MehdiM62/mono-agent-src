@@ -94,7 +94,7 @@ func Normalize(sum *recording.Summary, events []recording.Event) *Normalized {
 
 	n := &Normalized{}
 	if sum != nil {
-		n.RecordingID, n.Goal, n.StartURL = sum.ID, sum.Goal, SanitizeURL(sum.URL)
+		n.RecordingID, n.Goal, n.StartURL = sum.ID, recording.CleanGoal(sum.Goal), SanitizeURL(sum.URL)
 	}
 	params := map[string]string{} // ref event id → input name
 	var steps []Step

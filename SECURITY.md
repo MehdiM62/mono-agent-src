@@ -232,15 +232,21 @@ extension starts runs in a mode of its own, `--tools monoagent:read`
 (with or without a page attached; one mode, so a later message cannot
 widen what an earlier page reached the model with):
 
-- **Four tools only**: `list_workflows`, `get_workflow`,
-  `list_node_types`, and `propose_task`, which writes nothing: it answers
-  with the task it proposes, the side panel shows it as a card (marked
-  "Suggested after reading a web page" once the conversation has read a
-  page), and only the person's click on the card's Add button sends it to
-  MonoAgent, which files it in the Inbox as the agent
-  `agent:extension-chat`, never in Ready. A page cannot press that button:
-  it is in the side panel, and the worker takes the request only from the
-  extension's own pages. There is no secret, credential, vault, profile
+- **Five tools only**: `list_workflows`, `get_workflow`,
+  `list_node_types`, `propose_task` and `propose_recording`. The two
+  proposals write nothing. `propose_task` answers with the task it
+  proposes, the side panel shows it as a card (marked "Suggested after
+  reading a web page" once the conversation has read a page), and only the
+  person's click on the card's Add button sends it to MonoAgent, which
+  files it in the Inbox as the agent `agent:extension-chat`, never in
+  Ready. `propose_recording` answers with a goal and the steps for the
+  person to perform; its card (marked the same way) starts the side
+  panel's recorder only when the person presses Start recording, and the
+  automation is saved only by the Record section's own Save, after the
+  person has reviewed the draft. No tool starts a recording, and what is
+  recorded never goes back to the chat. A page cannot press those buttons:
+  they are in the side panel, and the worker takes the requests only from
+  the extension's own pages. There is no secret, credential, vault, profile
   document, synced message, contact, publication, org, template or social
   list tool; no tool that writes or deletes anything; no `run_workflow`;
   no workflow or canvas builder; no Bash; no knowledge-graph search. A tool

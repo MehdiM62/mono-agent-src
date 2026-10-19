@@ -8,9 +8,13 @@
  * on the card sends it on. Each card is checked again here: the answer is a
  * model's, steered by whatever page it read.
  *
- * Kinds, and what a click does:
- *   task   title and notes -> task.add kind "chat" (task_bridge.js), which
- *          MonoAgent files in the Inbox as the agent agent:extension-chat.
+ * Kinds, and what a click does (sidepanel_chat_cards.js):
+ *   task       title and notes -> task.add kind "chat" (task_bridge.js), which
+ *              MonoAgent files in the Inbox as the agent agent:extension-chat.
+ *   recording  goal and steps -> Start recording starts the Record section's
+ *              recorder on this tab; the card then follows that recording
+ *              (recordingId) to Review and save, and the automation is saved
+ *              only by the Record section's own Save.
  * This table is the seam the vault save plugs into once the bridge has
  * vault.save: its tool in TOOLS, its kind in KINDS, and the worker message
  * the panel sends on its click.
@@ -27,10 +31,11 @@
   "use strict";
 
   const TITLE_RUNES = 200;
+  const PAGE_URL_CHARS = 2048;
   const NOTES_BYTES = 4000;
 
   // The proposal tools, by the kind each answers with.
-  const TOOLS = { propose_task: "task" };
+  const TOOLS = { propose_task: "task", propose_recording: "recording" };
 
   const str = (v) => (typeof v === "string" ? v : "");
   const oneLine = (s) => str(s).split(/\s+/).filter(Boolean).join(" ");
@@ -47,17 +52,76 @@
     return out;
   }
 
-  // What each kind keeps of an answer, and when it is a card at all.
+  // What shows nothing on screen but the recorder and its analysis read:
+  // controls, format characters (bidi, zero-width, the byte order mark),
+  // private-use, unassigned and lone surrogate code points, variation
+  // selectors, and the Unicode tag block (invisible "ASCII smuggling").
+  const HIDDEN = /[\p{Cc}\p{Cf}\p{Co}\p{Cn}\p{Cs}\u{FE00}-\u{FE0F}\u{E0100}-\u{E01EF}\u{E0000}-\u{E007F}]/gu;
+
+  /** cleanGoal is a recording goal without markup or hidden characters (HIDDEN), one line, 200 runes. */
+  function cleanGoal(v) {
+    return runes(oneLine(str(v).replace(/<[^>]*>/g, " ").replace(/[<>]/g, " ").replace(HIDDEN, " ")), TITLE_RUNES);
+  }
+
+  /** pageOf is the page a card was proposed on ({tabId, url}), checked; null when there is none. */
+  function pageOf(v) {
+    if (!v || !Number.isInteger(v.tabId) || v.tabId <= 0 || typeof v.url !== "string" || v.url.length > PAGE_URL_CHARS) return null;
+    return { tabId: v.tabId, url: v.url };
+  }
+
+  const RECORDING_STATUS = {
+    sending: "Starting…",
+    recording: "Recording in the Record section below: do the steps on the page, then press Stop there.",
+    recorded: "Recorded.",
+    reviewing: "Analyzing the recording…",
+    empty: "Nothing was recorded.",
+    dismissed: "Not recorded",
+  };
+
+  // What each kind keeps of an answer, and when it is a card at all; its
+  // states, and what a card in each one says and offers (screen).
   const KINDS = {
     task: {
       heading: "Add a task?",
-      confirm: "Add to Inbox",
       fields: (p) => ({ title: runes(oneLine(p.title), TITLE_RUNES), notes: bytes(str(p.notes).trim(), NOTES_BYTES) }),
       valid: (f) => !!f.title,
+      text: (p) => ({ title: p.title, notes: p.notes || "" }),
+      check: "Check it before you add it.",
+      states: new Set(["pending", "sending", "added", "queued", "refused", "dismissed"]),
+      screen: (p) => {
+        const status = { sending: "Adding…", dismissed: "Not added" }[p.state];
+        return {
+          actions: p.state === "pending" ? ["add", "dismiss"] : [],
+          labels: { add: "Add to Inbox", dismiss: "Dismiss" },
+          status: status !== undefined ? status : p.feedback || "",
+        };
+      },
+    },
+    recording: {
+      heading: "Record these steps?",
+      fields: (p) => ({ goal: cleanGoal(p.goal), steps: bytes(str(p.steps).trim(), NOTES_BYTES) }),
+      valid: (f) => !!f.goal,
+      text: (p) => ({ title: p.goal, notes: p.steps || "" }),
+      check: "Check the goal before you record.",
+      states: new Set(["pending", "sending", "recording", "recorded", "reviewing", "saved", "empty", "refused", "dismissed"]),
+      screen: (p) => {
+        const again = p.state === "empty" || p.state === "refused";
+        const before = p.state === "pending" || again;
+        return {
+          actions: before ? ["add", "dismiss"] : p.state === "recorded" ? ["review"] : [],
+          labels: { add: again ? "Record again" : "Start recording", dismiss: "Dismiss", review: "Review and save" },
+          status: p.feedback || RECORDING_STATUS[p.state] || "",
+          // Before Start the goal is a field: the person sees it and can change it.
+          edit: before ? { label: "What you will do", value: p.goal } : undefined,
+        };
+      },
     },
   };
 
-  const STATES = new Set(["pending", "sending", "added", "queued", "refused", "dismissed"]);
+  // A recording's id as the recorder makes it (rec-<stamp>-<rand>).
+  const usableRecording = (id) => typeof id === "string" && /^[A-Za-z0-9_-]{1,80}$/.test(id);
+  // The recording card's states that need the recording they follow.
+  const FOLLOWING = new Set(["recording", "recorded", "reviewing"]);
 
   // Each card's own random key, made with it and kept with it: its task's id
   // (clientId) is never another card's, however the call ids compare.
@@ -102,15 +166,24 @@
   /**
    * clone checks stored cards again. A card left "sending" by a panel that
    * closed mid-send is pending again: the task's id makes a second send add
-   * nothing twice.
+   * nothing twice. A recording card keeps the recording it follows; one cut
+   * off mid-review (its draft went with the panel) offers Review again, and
+   * one that lost its recording starts over.
    */
   function clone(list) {
     const out = [];
     for (const p of Array.isArray(list) ? list : []) {
-      const state = STATES.has(p && p.state) && p.state !== "sending" ? p.state : "pending";
+      const kind = p && KINDS[p.kind];
+      let state = kind && kind.states.has(p.state) && p.state !== "sending" ? p.state : "pending";
+      if (state === "reviewing") state = "recorded";
       const c = cardOf(p, p && p.id, p && p.untrustedPage, state, p && p.feedback);
-      if (c && NONCE.test(p.nonce)) c.nonce = p.nonce;
-      if (c) out.push(c);
+      if (!c) continue;
+      if (NONCE.test(p.nonce)) c.nonce = p.nonce;
+      const page = pageOf(p.page);
+      if (page) c.page = page;
+      if (c.kind === "recording" && usableRecording(p.recordingId)) c.recordingId = p.recordingId;
+      else if (FOLLOWING.has(c.state)) Object.assign(c, { state: "pending", feedback: "" });
+      out.push(c);
     }
     return out;
   }
@@ -122,13 +195,20 @@
    */
   const keyOf = (p) => (p && NONCE.test(p.nonce) ? p.nonce : str(p && p.id));
 
-  /** settle records what became of a card ({state, feedback}), found by its key; true when there was one. */
+  /**
+   * settle records what became of a card ({state, feedback}, and a recording
+   * card's recordingId), found by its key; true when there was one. A state
+   * the card's kind does not have is not taken.
+   */
   function settle(chatState, key, patch) {
     for (const m of (chatState && chatState.messages) || []) {
       const p = (m.proposals || []).find((x) => keyOf(x) === key);
       if (!p) continue;
-      if (patch && STATES.has(patch.state)) p.state = patch.state;
+      const kind = KINDS[p.kind];
+      if (patch && kind && kind.states.has(patch.state)) p.state = patch.state;
       if (patch && typeof patch.feedback === "string") p.feedback = patch.feedback.slice(0, 300);
+      if (patch && p.kind === "recording" && usableRecording(patch.recordingId)) p.recordingId = patch.recordingId;
+      if (patch && p.kind === "recording" && cleanGoal(patch.goal)) p.goal = cleanGoal(patch.goal);
       return true;
     }
     return false;
@@ -169,22 +249,17 @@
     return { state: "pending", feedback: text || "Not added: try again" };
   }
 
-  /** view is what a card says, from its state. */
+  /** view is what a card says, from its state: its buttons are actions, named by labels. */
   function view(p) {
     const k = KINDS[p.kind] || KINDS.task;
-    const status = {
-      sending: "Adding…",
-      dismissed: "Not added",
-    }[p.state];
-    return {
-      heading: k.heading,
-      title: p.title,
-      notes: p.notes || "",
-      warning: p.untrustedPage ? "Suggested after reading a web page, which can steer the chat. Check it before you add it." : "",
-      actions: p.state === "pending" ? ["add", "dismiss"] : [],
-      confirm: k.confirm,
-      status: status !== undefined ? status : p.feedback || "",
-    };
+    return Object.assign(
+      {
+        heading: k.heading,
+        warning: p.untrustedPage ? `Suggested after reading a web page, which can steer the chat. ${k.check}` : "",
+      },
+      k.text(p),
+      k.screen(p)
+    );
   }
 
   /** card builds a card's DOM: text only, and a button calls back only when pressed. */
@@ -203,9 +278,21 @@
       return el;
     };
     line("chat-proposal-heading", v.heading);
-    line("chat-proposal-title", v.title);
+    let field = null;
+    if (v.edit) {
+      field = doc.createElement("input");
+      field.type = "text";
+      field.className = "chat-proposal-goal";
+      field.value = v.edit.value;
+      field.setAttribute("aria-label", v.edit.label);
+      box.appendChild(field);
+    } else {
+      line("chat-proposal-title", v.title);
+    }
     if (v.notes) line("chat-proposal-notes", v.notes);
     if (v.warning) line("chat-proposal-warning", v.warning);
+    // What happened so far, then what can be done next (a recording card has both).
+    if (v.status) line("chat-proposal-status", v.status).setAttribute("role", "status");
     if (v.actions.length) {
       const row = doc.createElement("div");
       row.className = "chat-proposal-actions";
@@ -214,16 +301,17 @@
         b.type = "button";
         b.className = cls;
         b.textContent = label;
-        b.addEventListener("click", () => fn && fn());
+        // A field's value goes with the click: the goal as the person left it.
+        b.addEventListener("click", () => fn && fn(field ? field.value : undefined));
         row.appendChild(b);
       };
-      button(v.confirm, on && on.add, "btn-secondary btn-tiny chat-proposal-add");
-      button("Dismiss", on && on.dismiss, "btn-secondary btn-tiny");
+      for (const a of v.actions) {
+        button(v.labels[a], on && on[a], a === "dismiss" ? "btn-secondary btn-tiny" : "btn-secondary btn-tiny chat-proposal-add");
+      }
       box.appendChild(row);
     }
-    if (v.status) line("chat-proposal-status", v.status).setAttribute("role", "status");
     return box;
   }
 
-  root.MonoChatProposals = { fromTool, clone, settle, keyOf, clientId, afterAdd, view, card, TOOLS, KINDS, TITLE_RUNES, NOTES_BYTES };
+  root.MonoChatProposals = { fromTool, clone, settle, keyOf, clientId, afterAdd, view, card, cleanGoal, pageOf, TOOLS, KINDS, TITLE_RUNES, NOTES_BYTES };
 })(globalThis);

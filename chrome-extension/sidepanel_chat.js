@@ -15,8 +15,9 @@
  *     by its number (chat_core applyEvent), so neither can double a reply.
  *   - An older MonoAgent that has no chat says so, once, in the section,
  *     instead of the panel breaking.
- *   - What the chat proposes (a task) is a card; only the person's click on
- *     it sends anything (chat_proposals.js, task_add_proposal).
+ *   - What the chat proposes (a task, a recording) is a card; only the
+ *     person's click on it does anything (chat_proposals.js, and
+ *     sidepanel_chat_cards.js for what each click does).
  *
  * After sidepanel.js: it uses that file's `ask`, `profiles` and `page`, and
  * redraws on the `panel:profiles`, `panel:page` and `panel:bridge-up`
@@ -108,7 +109,8 @@
       else if (m.open && !m.tools.length) box.appendChild(document.createTextNode("Thinking…"));
       // What the chat proposed: a card each, sent on only by the person's click.
       for (const p of (Proposals && m.proposals) || []) {
-        box.appendChild(Proposals.card(document, p, { add: () => confirmProposal(Proposals.keyOf(p)), dismiss: () => dismissProposal(Proposals.keyOf(p)) }));
+        const key = Proposals.keyOf(p);
+        box.appendChild(Proposals.card(document, p, { add: (value) => cards.confirm(key, value), dismiss: () => cards.dismiss(key), review: () => cards.review(key) }));
       }
     } else if (m.role === "user") {
       const text = document.createElement("div");
@@ -203,6 +205,11 @@
 
   const save = () => Core.saveState(chrome.storage.local, profile, chat);
 
+  // What a click on a card does; the recording cards follow the Record section.
+  const record = globalThis.MonoPanelRecord || null;
+  const cards = globalThis.MonoChatCards.create({ chat: () => chat, ask: (m) => ask(m), profile: () => profile, current: () => loadSeq, save, draw, record, page: pageNow });
+  if (record) record.onChange((event) => cards.follow(event));
+
   /** applyAll folds events in and tells whether anything changed. */
   function applyAll(events) {
     let changed = false;
@@ -247,6 +254,7 @@
     nodes.forEach((n) => n.root.remove());
     nodes.clear();
     draw();
+    if (record) cards.follow({ type: "state", state: record.state() });
 
     const ready = await ask({ type: "chat_ready" });
     if (mine !== loadSeq) return;
@@ -369,7 +377,8 @@
     }
     if (!active || active.tag !== tag) return;
 
-    Core.startTurn(chat, message, Core.pageLabel(context), context != null);
+    const shown = pageNow(); // the reply's cards are bound to this page
+    Core.startTurn(chat, message, Core.pageLabel(context), context != null, shown && { tabId: shown.tabId, url: shown.url });
     await save();
     draw();
 
@@ -400,37 +409,6 @@
     if (answer.code === "offline") return "MonoAgent went offline before the reply finished.";
     if (answer.code === "timeout") return "The reply stopped coming. You can send another message to carry on.";
     return answer.error || "The reply failed.";
-  }
-
-  // ── proposals (chat_proposals.js): only the person's click sends one ──
-
-  function proposalOf(key) {
-    for (const m of chat.messages) {
-      const p = (m.proposals || []).find((x) => Proposals.keyOf(x) === key);
-      if (p) return p;
-    }
-    return null;
-  }
-
-  async function confirmProposal(id) {
-    const p = proposalOf(id);
-    if (!p || p.state !== "pending") return;
-    const mine = loadSeq;
-    Proposals.settle(chat, id, { state: "sending", feedback: "" });
-    draw();
-    const answer = await ask({ type: "task_add_proposal", profile, proposal: { id: p.id, kind: p.kind, title: p.title, notes: p.notes, nonce: p.nonce } });
-    if (mine !== loadSeq) return; // the panel moved to another profile meanwhile
-    Proposals.settle(chat, id, Proposals.afterAdd(answer));
-    await save();
-    draw();
-  }
-
-  async function dismissProposal(id) {
-    const p = proposalOf(id);
-    if (!p || p.state !== "pending") return;
-    Proposals.settle(chat, id, { state: "dismissed" });
-    await save();
-    draw();
   }
 
   async function stop() {
