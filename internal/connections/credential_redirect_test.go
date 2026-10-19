@@ -2,10 +2,13 @@ package connections
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 
+	"github.com/monoes/mono-agent/internal/credhttp"
 	"github.com/monoes/mono-agent/internal/credhttp/credhttptest"
 )
 
@@ -18,8 +21,11 @@ func TestTokenRequestsKeepTheirSecretOnRedirect(t *testing.T) {
 		p := credhttptest.NewPair(t, code, `{}`)
 		form := url.Values{"client_id": {"cid"}, "client_secret": {"s3cret-c"}, "refresh_token": {"r3fresh"}, "grant_type": {"refresh_token"}}
 		for _, platform := range []string{"github", "reddit", "notion"} {
-			if _, status, err := postForm(platform, p.From+"/token", form); err != nil || status != code {
-				t.Errorf("%d %s: status %d, err %v; want the redirect as the answer", code, platform, status, err)
+			// The error names where the redirect went, not "token
+			// endpoint returned status 307".
+			if _, _, err := postForm(platform, p.From+"/token", form); !errors.Is(err, credhttp.ErrResend) ||
+				!strings.Contains(err.Error(), "redirected to "+strings.TrimPrefix(p.To, "http://")) {
+				t.Errorf("%d %s: %v; want the redirect refused, naming the target", code, platform, err)
 			}
 		}
 		if got := p.Got(); len(got) != 0 {

@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/monoes/mono-agent/internal/account"
+	"github.com/monoes/mono-agent/internal/credhttp"
 )
 
 // MaxArtifactBytes caps a download (the library accepts at most 20 MB).
@@ -65,7 +66,7 @@ func NewClient(baseURL string, store TokenStore) (*Client, error) {
 	}
 	return &Client{
 		BaseURL: baseURL,
-		HTTP:    &http.Client{Timeout: 2 * time.Minute, CheckRedirect: noRedirectWithABody},
+		HTTP:    credhttp.Client(&http.Client{Timeout: 2 * time.Minute, CheckRedirect: noRedirectWithABody}),
 		Store:   store,
 		Now:     time.Now,
 	}, nil
@@ -77,7 +78,8 @@ func NewClient(baseURL string, store TokenStore) (*Client, error) {
 // The redirect answer is then the answer, which no caller reads as a success.
 //
 // No request follows an https to http redirect, a GET included: the downgrade would send the
-// Authorization header, which Go keeps on a same-host redirect, in the clear.
+// Authorization header, which Go keeps on a same-host redirect, in the clear. credhttp.Client runs
+// after it: a GET it lets go to another host, another port or a subdomain carries no bearer.
 func noRedirectWithABody(req *http.Request, via []*http.Request) error {
 	if last := via[len(via)-1]; last.URL.Scheme == "https" && req.URL.Scheme == "http" {
 		return fmt.Errorf("refusing a redirect from https to http (%s)", req.URL.Redacted())

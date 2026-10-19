@@ -11,13 +11,19 @@ import (
 	"testing"
 )
 
-// directClients are the non-test files that build an http.Client, use
-// http.DefaultClient, or call http.Get/Head/Post/PostForm themselves, with
-// how many such uses each has and why it needs no credhttp: it carries no
-// credential, or it has a redirect policy of its own at least as strict
-// for what it sends. A client passed straight to credhttp.Client doesn't
-// count. A request that carries a credential goes through credhttp.Client
-// (or credhttp.CheckRedirect with credhttp.Mark).
+// directClients are the non-test files that build an http.Client (a
+// literal, new(http.Client), a variable or a struct field of the value
+// type), use http.DefaultClient, or call http.Get/Head/Post/PostForm
+// themselves, with how many such uses each has and why it needs no
+// credhttp: it carries no credential, or it has a redirect policy of its
+// own at least as strict for what it sends. A client passed straight to
+// credhttp.Client doesn't count. A request that carries a credential goes
+// through credhttp.Client (or credhttp.CheckRedirect with credhttp.Mark).
+//
+// Not covered: the clients third-party SDKs build inside themselves.
+// slack-go (comm.slack), telegram-bot-api (comm.telegram) and gofeed
+// (system.rss_read) send to their fixed service hosts with clients this
+// scan can't see.
 var directClients = map[string]struct {
 	n   int
 	why string
@@ -45,7 +51,6 @@ var directClients = map[string]struct {
 	"internal/extension/pairing_probe.go":               {1, "probes the local extension bridge; no credential"},
 	"internal/extension/remote.go":                      {1, "the local extension bridge on this machine; its token stays here"},
 	"internal/extension/status.go":                      {1, "the local extension bridge's status; no credential"},
-	"internal/library/client.go":                        {1, "monoes.me library: noRedirectWithABody refuses https to http and any redirect of a request with a body"},
 	"internal/nodemgr/nodemgr.go":                       {1, "downloads Node.js releases; no credential"},
 	"internal/nodes/ai/crawl/engine.go":                 {1, "reads public pages; its CheckRedirect guards every hop's address"},
 	"internal/nodes/http/send.go":                       {1, "http.request's own redirectPolicy: drops the request's credentials on another host unless send_credentials_on_redirect"},
@@ -80,9 +85,12 @@ func TestNoUnreviewedDirectHTTPClient(t *testing.T) {
 		if err != nil {
 			return err
 		}
+		rel, _ := filepath.Rel(root, p)
 		if n := directUses(f); n > 0 {
-			rel, _ := filepath.Rel(root, p)
 			got[filepath.ToSlash(rel)] = n
+		}
+		if n := discardedMarks(f); n > 0 {
+			t.Errorf("%s drops the request credhttp.Mark returns (%d): use it, or the redirect policy never sees the mark", filepath.ToSlash(rel), n)
 		}
 		return nil
 	})
@@ -178,8 +186,91 @@ func directUses(f *ast.File) int {
 			if isHTTP(x, "DefaultClient") {
 				n++
 			}
+		case *ast.ValueSpec:
+			if x.Type != nil && isHTTP(x.Type, "Client") {
+				n += len(x.Names) // var c http.Client
+			}
+		case *ast.Field:
+			if isHTTP(x.Type, "Client") {
+				n++ // a struct field of type http.Client
+			}
 		}
 		return true
 	})
 	return n
+}
+
+// discardedMarks counts the credhttp.Mark calls whose result f drops:
+// Mark returns the marked request, so a dropped one marks nothing.
+func discardedMarks(f *ast.File) int {
+	isMark := func(e ast.Expr) bool {
+		call, ok := e.(*ast.CallExpr)
+		if !ok {
+			return false
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok || sel.Sel.Name != "Mark" {
+			return false
+		}
+		id, ok := sel.X.(*ast.Ident)
+		return ok && id.Name == "credhttp"
+	}
+	n := 0
+	ast.Inspect(f, func(node ast.Node) bool {
+		switch x := node.(type) {
+		case *ast.ExprStmt:
+			if isMark(x.X) {
+				n++
+			}
+		case *ast.AssignStmt:
+			for i, rhs := range x.Rhs {
+				if id, ok := x.Lhs[i].(*ast.Ident); ok && id.Name == "_" && isMark(rhs) {
+					n++
+				}
+			}
+		}
+		return true
+	})
+	return n
+}
+
+// The scan sees every form of a direct client, and a dropped Mark.
+func TestDirectUsesSeesEveryForm(t *testing.T) {
+	src := `package p
+
+import (
+	"net/http"
+
+	"x/credhttp"
+)
+
+type holder struct {
+	c   http.Client
+	ok  *http.Client
+}
+
+var a http.Client
+var b = &http.Client{}
+var c = credhttp.Client(&http.Client{})
+var d = new(http.Client)
+
+func f(r *http.Request) {
+	_, _ = http.DefaultClient.Do(r)
+	_, _ = http.Get("u")
+	credhttp.Mark(r)
+	_ = credhttp.Mark(r, "X")
+	r = credhttp.Mark(r)
+}
+`
+	f, err := parser.ParseFile(token.NewFileSet(), "p.go", src, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// holder.c, a, b, d, DefaultClient, Get: c is wrapped, ok is a pointer.
+	if n := directUses(f); n != 6 {
+		t.Errorf("directUses = %d, want 6", n)
+	}
+	if n := discardedMarks(f); n != 2 {
+		t.Errorf("discardedMarks = %d, want 2", n)
+	}
 }
