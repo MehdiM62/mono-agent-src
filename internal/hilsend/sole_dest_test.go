@@ -80,9 +80,8 @@ func TestRepliesAndDraftsNeverMatchARule(t *testing.T) {
 	}
 }
 
-// A destination key besides the recipient (a webhook URL, an instance, a
-// thread or article id) is one more destination: a rule for the recipient
-// doesn't stand for it.
+// A destination key besides the recipient (a webhook URL, a TwiML URL) is
+// one more destination: a rule for the recipient doesn't stand for it.
 func TestDestinationKeysBesideTheRecipientGetACard(t *testing.T) {
 	for _, c := range []struct {
 		node, key, value string
@@ -90,14 +89,9 @@ func TestDestinationKeysBesideTheRecipientGetACard(t *testing.T) {
 	}{
 		{"service.discord", "webhook_url", "https://attacker.test/hook", map[string]interface{}{"operation": "send_message", "bot_token": "x", "channel_id": "123", "text": "hi"}},
 		{"comm.discord", "webhook_url", "https://attacker.test/hook", map[string]interface{}{"operation": "send_message", "bot_token": "x", "channel_id": "123", "text": "hi"}},
-		{"service.mastodon", "instance", "https://attacker.test", map[string]interface{}{"operation": "publish_status", "access_token": "x", "status": "hi", "user": "@ada"}},
-		{"service.mastodon", "instance_url", "https://attacker.test", map[string]interface{}{"operation": "publish_status", "access_token": "x", "status": "hi", "user": "@ada"}},
-		{"service.mastodon", "in_reply_to_id", "1099", map[string]interface{}{"operation": "publish_status", "access_token": "x", "status": "hi", "user": "@ada"}},
-		{"service.devto", "article_id", "42", map[string]interface{}{"operation": "create_comment", "api_key": "x", "body_markdown": "hi", "user": "ada"}},
-		{"service.hashnode", "publication_id", "p9", map[string]interface{}{"operation": "publish_post", "token": "x", "content_markdown": "hi", "title": "t", "user": "ada"}},
-		{"service.producthunt", "post_id", "77", map[string]interface{}{"operation": "create_comment", "token": "x", "body": "hi", "user": "ada"}},
-		{"service.youtube", "comment_id", "c5", map[string]interface{}{"operation": "reply_to_comment", "access_token": "x", "text": "hi", "user": "ada"}},
 		{"comm.twilio", "url", "https://attacker.test/twiml", map[string]interface{}{"operation": "send_sms", "from": "+15550199", "to": "+15550100", "body": "hi"}},
+		{"service.reddit", "url", "https://attacker.test/x", map[string]interface{}{"operation": "submit_post", "access_token": "x", "subreddit": "golang", "title": "t", "text": "hi"}},
+		{"service.outlook_mail", "message_id", "m1", map[string]interface{}{"operation": "send_message", "access_token": "x", "to": "ada@example.test", "body": "hi"}},
 	} {
 		st := allowFor(t, c.node, c.base)
 		if h, _ := held(t, st, c.node, c.base); h {
@@ -106,6 +100,41 @@ func TestDestinationKeysBesideTheRecipientGetACard(t *testing.T) {
 		}
 		if h, _ := held(t, st, c.node, with(c.base, c.key, c.value)); !h {
 			t.Errorf("%s with %s: went out without a card", c.node, c.key)
+		}
+	}
+}
+
+// No rule stands for an op with no recipient param of its own, whatever a
+// fallback key (user, channel) says: its card would name a decoy while the
+// node posts to its thread, article, publication or instance (third
+// security review of #871).
+func TestNoRuleStandsForAnOpWithNoRecipientParam(t *testing.T) {
+	for _, c := range []struct {
+		node string
+		cfg  map[string]interface{}
+	}{
+		{"service.mastodon", map[string]interface{}{"operation": "publish_status", "access_token": "x", "status": "hi", "user": "@ada"}},
+		{"service.bluesky", map[string]interface{}{"operation": "create_post", "identifier": "me.bsky.social", "text": "hi", "user": "ada"}},
+		{"service.devto", map[string]interface{}{"operation": "create_comment", "api_key": "x", "body_markdown": "hi", "user": "ada"}},
+		{"service.hashnode", map[string]interface{}{"operation": "publish_post", "token": "x", "content_markdown": "hi", "title": "t", "user": "ada"}},
+		{"service.producthunt", map[string]interface{}{"operation": "create_comment", "token": "x", "body": "hi", "user": "ada"}},
+		{"service.youtube", map[string]interface{}{"operation": "reply_to_comment", "access_token": "x", "text": "hi", "user": "ada"}},
+	} {
+		asAgent(t)
+		db := testDB(t)
+		st := Store{db, "p1"}
+		h, p := held(t, st, c.node, c.cfg)
+		if !h {
+			t.Fatalf("%s: not held", c.node)
+		}
+		if err := st.Allow(context.Background(), Allow{Action: p.Action, Platform: p.Account.Platform, Account: p.Account.Handle, Recipient: "ada"}); err != nil {
+			t.Fatal(err)
+		}
+		if err := st.Allow(context.Background(), Allow{Action: p.Action, Platform: p.Account.Platform, Account: p.Account.Handle, Recipient: "@ada"}); err != nil {
+			t.Fatal(err)
+		}
+		if h, _ := held(t, st, c.node, c.cfg); !h {
+			t.Errorf("%s: went out on a rule for its fallback key", c.node)
 		}
 	}
 }

@@ -220,37 +220,62 @@ func prepare(st Store, nodeType string, t target, who PreparedBy, config map[str
 			PreparedBy: who, Action: t.action, Channel: t.channelOf(nodeType), Account: t.accountOf(nodeType, o.config),
 			Recipient: rec, Text: text, Subject: subject, Attachments: attachments(o.config), NodeType: nodeType,
 		}
-		out = append(out, prepared{payload: p, sole: soleRecipient(t, o.config), replay: replay{
+		out = append(out, prepared{payload: p, sole: soleRecipient(t, nodeType, o.config), replay: replay{
 			NodeType: nodeType, Config: stripSecrets(o.config), Input: o.input, TextField: textField, SubjectKey: subjectField, Address: addr,
 		}})
 	}
 	return out
 }
 
-// person fills the recipient from the people table when it knows them.
+// person tags the recipient with the People row it is, when there is one:
+// the card keeps the addressed value as its name and shows the person
+// beside it (PersonName), so a card never names someone the send doesn't
+// address. An email matches a contact's address whole (case aside), never
+// a part of one: da@example.test is not ada@example.test, and ceo@acme.co
+// is not ceo@acme.co.uk.
 func (s Store) person(t target, nodeType string, r Recipient) Recipient {
 	if r.Name == "" && r.ProfileURL == "" {
 		return r
 	}
-	platform := t.channelOf(nodeType)
 	var id, name string
-	var err error
 	if t.action == ActionEmail {
-		err = s.DB.QueryRow(`SELECT id, COALESCE(full_name,'') FROM people WHERE contact_details LIKE ? ESCAPE '\' LIMIT 1`,
-			"%"+escapeLike(r.Name)+"%").Scan(&id, &name)
+		id, name = s.personByEmail(r.Name)
 	} else {
 		user := lastSegment(firstNonEmpty(r.ProfileURL, r.Name))
-		err = s.DB.QueryRow(`SELECT id, COALESCE(full_name,'') FROM people WHERE LOWER(platform) = LOWER(?) AND LOWER(platform_username) = LOWER(?) LIMIT 1`,
-			platform, user).Scan(&id, &name)
+		_ = s.DB.QueryRow(`SELECT id, COALESCE(full_name,'') FROM people WHERE LOWER(platform) = LOWER(?) AND LOWER(platform_username) = LOWER(?) LIMIT 1`,
+			t.channelOf(nodeType), user).Scan(&id, &name)
 	}
-	if err != nil {
-		return r
-	}
-	r.PersonID = id
-	if name != "" {
-		r.Name = name
+	if id != "" {
+		r.PersonID, r.PersonName = id, name
 	}
 	return r
+}
+
+// personByEmail is the People row whose contact details hold the address
+// in to whole, or "".
+func (s Store) personByEmail(to string) (id, name string) {
+	addr := addressRE.FindString(to)
+	if addr == "" || !strings.Contains(addr, "@") {
+		return "", ""
+	}
+	rows, err := s.DB.Query(`SELECT id, COALESCE(full_name,''), COALESCE(contact_details,'') FROM people WHERE contact_details LIKE ? ESCAPE '\' LIMIT 50`,
+		"%"+escapeLike(addr)+"%")
+	if err != nil {
+		return "", ""
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var pid, pname, details string
+		if rows.Scan(&pid, &pname, &details) != nil {
+			continue
+		}
+		for _, a := range addressRE.FindAllString(details, -1) {
+			if strings.EqualFold(a, addr) {
+				return pid, pname
+			}
+		}
+	}
+	return "", ""
 }
 
 func firstNonEmpty(vs ...string) string {

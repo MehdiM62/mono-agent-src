@@ -145,6 +145,19 @@ describe('AskCard: send approval', () => {
     expect(onNavigate).toHaveBeenCalledWith('people', { person: 'p-42' })
   })
 
+  // #871 review: the card names the address the send goes to; the person
+  // People matched to it is a tag beside it, never in its place.
+  it('names the addressed recipient, with the matched person as a tag', () => {
+    const onNavigate = vi.fn()
+    const ask = normalizeAsk({ ...sendEmail, recipient: { name: 'da@example.test', personId: 'p-7', personName: 'Ada Lovelace' } })
+    render(<AskCard ask={ask} nameOf={nameOf} onNavigate={onNavigate} />)
+    const to = screen.getByTestId('ask-recipient')
+    expect(to.querySelector('strong')).toHaveTextContent('da@example.test')
+    fireEvent.click(within(to).getByTestId('ask-person'))
+    expect(within(to).getByTestId('ask-person')).toHaveTextContent('Ada Lovelace')
+    expect(onNavigate).toHaveBeenCalledWith('people', { person: 'p-7' })
+  })
+
   it("names MonoAgent's own preparer as is: an unapproved workflow", () => {
     const ask = normalizeAsk({ ...sendEmail, preparedBy: { role: 'unapproved workflow wf1', agentId: 'unapproved-workflow', workflow: 'wf1', system: true } })
     render(<AskCard ask={ask} nameOf={nameOf} />)

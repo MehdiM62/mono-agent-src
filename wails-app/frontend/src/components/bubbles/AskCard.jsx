@@ -287,8 +287,11 @@ function SendBody({ ask, nameOf, canAct, busy, outcome, onDecide, onNavigate }) 
             {profile && (
               <> · <button type="button" className="ask-link" onClick={() => hil.openUrl(profile)}>{t('ask.profile')}</button></>
             )}
+            {/* The card names who the send addresses; the person People
+                matched to that address is a tag beside it, never instead. */}
             {rcpt.personId && onNavigate && (
-              <> · <button type="button" className="ask-link" onClick={() => onNavigate('people', { person: rcpt.personId })}>{t('ask.person')}</button></>
+              <> · <button type="button" className="ask-link" data-testid="ask-person" title={t('ask.person')}
+                onClick={() => onNavigate('people', { person: rcpt.personId })}>{rcpt.personName || t('ask.person')}</button></>
             )}
             {onNavigate && askHilRef(ask) && (
               <> · <button type="button" className="ask-link" data-testid="ask-see-comms" onClick={() => onNavigate('communications', { hil_ref: askHilRef(ask) })}>{t('comms.seeInComms')}</button></>

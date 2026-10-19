@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -50,6 +51,26 @@ var outbound = map[string]rule{
 	"service.hashnode":    {action: ActionPublish, ops: []string{"publish_post"}, text: []string{"content_markdown"}, subject: []string{"title"}},
 	"service.producthunt": {action: ActionComment, ops: []string{"create_comment"}, text: []string{"body"}},
 	"service.youtube":     {action: ActionPublish, ops: []string{"upload_video", "reply_to_comment"}, text: []string{"description", "text"}, subject: []string{"title"}},
+}
+
+// NativeSend is one send this package classifies itself (outbound): its
+// node type, the ops that send (nil: every op), and its recipient, text and
+// subject params.
+type NativeSend struct {
+	NodeType          string
+	Ops               []string
+	To, Text, Subject []string
+}
+
+// NativeSends lists them, sorted by node type, for the tests that sweep
+// every send.
+func NativeSends() []NativeSend {
+	out := make([]NativeSend, 0, len(outbound))
+	for nt, r := range outbound {
+		out = append(out, NativeSend{NodeType: nt, Ops: r.ops, To: r.to, Text: r.text, Subject: r.subject})
+	}
+	slices.SortFunc(out, func(a, b NativeSend) int { return strings.Compare(a.NodeType, b.NodeType) })
+	return out
 }
 
 // socialActions maps the action part of a browser node type
@@ -379,7 +400,10 @@ func inlineCredential(config map[string]interface{}) bool {
 // accountOf reads the sending account from config, on the node type's own
 // platform (PlatformOf).
 func accountOf(nodeType string, config map[string]interface{}) Account {
-	_, handle := firstKey(config, []string{"account", "from", "username", "identifier", "instance"})
+	// mailbox (Graph's send-as) and phone_number_id (WhatsApp's sending
+	// number) name the sending account before any other key, so a rule is
+	// bound to them.
+	_, handle := firstKey(config, []string{"mailbox", "phone_number_id", "account", "from", "username", "identifier", "instance"})
 	return Account{Platform: PlatformOf(nodeType), Handle: handle}
 }
 

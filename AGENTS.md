@@ -2718,7 +2718,20 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
   host the same way; and no rule stands for a Twilio `make_call`, whose TwiML
   can dial anyone. A send whose card names no recipient (an Instagram
   `send_dms` given a bare `profile_url` instead of `selectedListItems`)
-  matches no rule either. `hil allow add` refuses a rule with an unknown
+  matches no rule either, nor does an op with no recipient param of its own
+  (Mastodon, Bluesky, dev.to, Hashnode, Product Hunt and YouTube posts and
+  comments). Beside the key rules a content net holds: a send with an
+  address or a +phone number anywhere in its config but its text, its
+  sender and its one recipient gets the card (`hilsend.strayAddress`), and
+  so does an email through a server other than its saved connection's
+  (`smtp_host`). The rule's account is the sending number or mailbox when a
+  node names one (WhatsApp's `phone_number_id`, Graph's send-as `mailbox`).
+  The card names the address the send goes to; the People row matched to
+  that whole address (never a substring of a contact) is a tag beside it
+  (`Recipient.PersonName`). The `outlook` platform is shared by Outlook's
+  SMTP app-password sends (`comm.outlook_send`, `service.outlook_mail` with
+  `auth: app_password`) and its Graph sends, so one rule covers both.
+  `hil allow add` refuses a rule with an unknown
   action, a recipient over 320 bytes, `*`, `%`, a control, invisible or
   non-breaking character, or one that reads like a label. Besides messaging packages, the lint asks
   about any app's write with a recipient-like param (to, recipient,
