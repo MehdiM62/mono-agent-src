@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { X, Copy, Trash2, Edit3, Check, AlertTriangle, Wand2, Download } from 'lucide-react'
+import { X, Copy, Trash2, Edit3, Check, AlertTriangle, Wand2, Download, FileText } from 'lucide-react'
 import * as WailsApp from '../wailsjs/go/main/App'
 import ImageEditorFullscreen from './ImageEditorFullscreen'
+import { isVaultImage, vaultFileKind } from '../lib/vaultItems.js'
 
 export default function ImageDetailModal({ image, onClose, onDelete, onRename, onSaved }) {
   const overlayRef = useRef(null)
@@ -25,6 +26,8 @@ export default function ImageDetailModal({ image, onClose, onDelete, onRename, o
     setImgError(false)
     setConfirmDelete(false)
     setRenaming(false)
+    // A file the extension saved (a PDF, a text file) has no preview to fetch.
+    if (!isVaultImage(image)) return
     try {
       const p = WailsApp.GetVaultImageData(image.id)
       if (p && typeof p.then === 'function') {
@@ -34,6 +37,7 @@ export default function ImageDetailModal({ image, onClose, onDelete, onRename, o
   }, [image?.id])
 
   if (!image) return null
+  const isImage = isVaultImage(image)
 
   const handleDelete = async () => {
     if (!confirmDelete) { setConfirmDelete(true); return }
@@ -132,7 +136,17 @@ export default function ImageDetailModal({ image, onClose, onDelete, onRename, o
           border: '1px solid #1e3a4f', minHeight: 120, maxHeight: 280,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
-          {imgError ? (
+          {!isImage ? (
+            <div
+              role="img"
+              aria-label={`file ${image.label || image.filename}`}
+              style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, color: '#64748b', padding: 20 }}
+            >
+              <FileText size={28} />
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#e2e8f0', wordBreak: 'break-all', textAlign: 'center' }}>{image.label || image.filename}</span>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10 }}>{vaultFileKind(image)}</span>
+            </div>
+          ) : imgError ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, color: '#334155', padding: 20 }}>
               <span style={{ fontSize: 28 }}>🖼</span>
               <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10 }}>Image unavailable</span>
@@ -194,8 +208,8 @@ export default function ImageDetailModal({ image, onClose, onDelete, onRename, o
         {/* Actions */}
         {!renaming && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {/* Adjust full-screen button */}
-            <button
+            {/* Adjust full-screen button: images only */}
+            {isImage && <button
               onClick={() => setEditing(true)}
               style={{
                 width: '100%', background: 'rgba(0,180,216,0.1)',
@@ -206,7 +220,7 @@ export default function ImageDetailModal({ image, onClose, onDelete, onRename, o
               }}
             >
               <Wand2 size={13} /> Adjust Image
-            </button>
+            </button>}
 
             {/* Save to disk */}
             <button
@@ -219,7 +233,7 @@ export default function ImageDetailModal({ image, onClose, onDelete, onRename, o
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
               }}
             >
-              <Download size={13} /> Save Image
+              <Download size={13} /> {isImage ? 'Save Image' : 'Save File'}
             </button>
 
             <div style={{ display: 'flex', gap: 8 }}>

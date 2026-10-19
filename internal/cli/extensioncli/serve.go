@@ -60,12 +60,14 @@ func bridgeLifetimeHint(bridge connChecker) string {
 
 // newExtensionServer builds an extension server wired up the way every
 // process that owns one needs it (bridge.NewServer): answering the popup's
-// profile picker and its task entries, and reporting this build in its status.
+// profile picker, its task entries and its vault saves, and reporting this
+// build in its status.
 func newExtensionServer(logger zerolog.Logger, version string) *extension.Server {
 	return bridge.NewServer(logger, bridge.Options{
 		ListenAddr: bridge.ListenAddr(),
 		Profiles:   capturecli.ExtensionProfileSource(capturecli.DefaultDBPath),
 		Tasks:      extensionTaskSink(capturecli.DefaultDBPath),
+		Vault:      extensionVaultSink(capturecli.DefaultDBPath),
 		FormFiller: extensionFormFiller(capturecli.DefaultDBPath, configuredSummaryRuntime()),
 		Version:    version,
 		InstallCaptureSummaries: func(srv *extension.Server, logf func(string, ...any)) {
