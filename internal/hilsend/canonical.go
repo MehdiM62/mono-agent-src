@@ -43,8 +43,12 @@ func canonical(nodeType string, config map[string]interface{}) (string, map[stri
 
 // opOf is the operation config names as the node reads it
 // (workflow.ConfigOperation): a value that is no string names none, so on a
-// node whose blank operation sends it is that send. It is trimmed, which
-// only ever judges more as a send.
+// node whose blank operation sends it is that send. It is trimmed on
+// purpose: the built-in nodes match an operation exactly, so a padded one
+// (" send_message ") never sends there and trimming can only hold more (a
+// card for a step that would fail), while an API package's extension path
+// trims it (extensionOwns, apipkg.SendOf), and the gate stays on the safe
+// side of every reader.
 func opOf(config map[string]interface{}) string {
 	return strings.TrimSpace(workflow.ConfigOperation(config))
 }

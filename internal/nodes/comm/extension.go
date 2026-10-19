@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/monoes/mono-agent/internal/apipkg"
+	"github.com/monoes/mono-agent/internal/workflow"
 )
 
 // A declarative API package can extend a native node with more operations
@@ -20,7 +21,7 @@ import (
 // extensionOwns reports whether the package extending nodeType handles
 // config's (resource, operation).
 func extensionOwns(nodeType string, config map[string]interface{}) bool {
-	op := strings.TrimSpace(str(config["operation"]))
+	op := strings.TrimSpace(workflow.ConfigOperation(config))
 	if op == "" {
 		return false
 	}
