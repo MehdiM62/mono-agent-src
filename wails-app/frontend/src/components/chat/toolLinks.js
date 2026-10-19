@@ -107,26 +107,31 @@ export function isSingleCommand(command) {
 }
 
 // MonoAgent's own commands that take or print a secret outside the vault:
-// profile info (ID, bank and card numbers), an account sign-in code, a Jev
-// key, an OAuth client secret, and a new API key in api key create's output.
+// profile info (ID, bank and card numbers), a monoes.me or library sign-in
+// code, a Jev key, an OAuth client secret, a connection's credentials on
+// stdin (connect save, connect oauth --stdin-json, heredoc and pipe
+// included), a new API key in api key create's output and the bridge
+// pairing token extension pair prints.
 const SECRET_COMMANDS = [
-  /\bprofile\s+info\s+set\b/i, /\bprofile\s+info\s+get\b.*--reveal/i, /\baccount\s+login\b/i, /\bjev\s+key\s+set\b/i,
-  /\bset-oauth-client\b/i, /\bget-oauth-client\b.*--reveal/i, /\bapi\s+key\s+create\b/i,
+  /\bprofile\s+info\s+set\b/i, /\bprofile\s+info\s+get\b.*--reveal/i, /\baccount\s+login\b/i, /\blibrary\s+login\b/i,
+  /\bjev\s+key\s+set\b/i, /\bset-oauth-client\b/i, /\bget-oauth-client\b.*--reveal/i, /\bconnect\s+save\b/i,
+  /\bconnect\s+oauth\b.*--stdin-json/i, /\bapi\s+key\s+create\b/i, /\bextension\s+pair\b/i,
 ]
 
 // A vault command can carry a value (--value, --field k=v, a heredoc), and
 // so can the commands above, so a card that might show one shows nothing of
 // it: no command line, no output. vaultRelated is the safe rule for text a
-// card cannot read as one monoagentcli call: it names monoagentcli anywhere
-// (behind bash -c, sh -c, env, sudo, xargs, eval or a variable set to it)
-// and mentions secret, vault, --value or --field, or runs one of the
-// commands above, anywhere. Quotes, backslashes and invisible characters are
-// ignored and width variants folded, so monoagent'cli' and
-// mono<U+200B>agentcli count. Better a false hide than a leak (#872 review).
+// card cannot read as one monoagentcli call: it names monoagent in any case
+// anywhere (monoagentcli, MONOAGENTCLI on a case-blind disk, a path, behind
+// bash -c, sh -c, env, sudo, xargs, eval or a variable set to it) and
+// mentions secret, vault, --value or --field, or runs one of the commands
+// above, anywhere. Quotes, backslashes and invisible characters are ignored
+// and width variants folded, so monoagent'cli' and mono<U+200B>agentcli
+// count. Better a false hide than a leak (#872 review).
 export function vaultRelated(text) {
   if (typeof text !== 'string') return false
   const plain = text.normalize('NFKC').replace(/[\p{Cf}"'\\]/gu, '')
-  return plain.includes('monoagentcli') && (/secret|vault|--value|--field/i.test(plain) || SECRET_COMMANDS.some(re => re.test(plain)))
+  return /monoagent/i.test(plain) && (/secret|vault|--value|--field/i.test(plain) || SECRET_COMMANDS.some(re => re.test(plain)))
 }
 
 // vaultRelatedCall is vaultRelated for a tool call's arguments read whole

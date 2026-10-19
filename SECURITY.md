@@ -295,23 +295,33 @@ stage and in the background-process banner. Two rules keep secrets off
 those surfaces, and they are not equally strong.
 
 - **Hiding is the guarantee, for MonoAgent's own secret commands.** A
-  call that names `monoagentcli` together with `secret`, `vault`,
-  `--value` or `--field`, or that runs `profile info set`,
-  `profile info get --reveal`, `account login`, `jev key set`,
-  `connect set-oauth-client`, `connect get-oauth-client --reveal` or
-  `api key create`, shows no command line, input or output at all,
-  however it is wrapped (`bash -c`, `eval`, a variable, a chain). A vault
-  card names the entry only for `get`, `reveal`, `update` and `rm`.
+  call that names `monoagent` (in any case) together with `secret`,
+  `vault`, `--value` or `--field`, or that runs `profile info set`,
+  `profile info get --reveal`, `account login`, `library login`,
+  `jev key set`, `connect set-oauth-client`,
+  `connect get-oauth-client --reveal`, `connect save`,
+  `connect oauth --stdin-json`, `api key create` or `extension pair`,
+  shows no command line, input or output at all, however it is wrapped
+  (`bash -c`, `eval`, a variable, a chain, a heredoc or pipe into it). A
+  vault card names the entry only for `get`, `reveal`, `update` and `rm`.
 - **Masking is best effort, for everything else.** Values after a
   credential-shaped name (`--token`, `API_KEY=`, `"apiKey":`,
   `Authorization:`, `?access_token=`, `curl -u user:`, `mysql -p` and
   more) and well-known token shapes (`sk-`, `ghp_`, `xoxb-`, `AKIA`,
   JWTs, Stripe, npm, GitLab, SendGrid, private key blocks, webhook URLs,
   a URL's password) read `•••` in command lines and inputs; output gets
-  the token shapes. It catches known names and shapes; it cannot promise
-  to catch every secret. A value with no telling name or shape (a
-  positional argument, a here-string, a base64 blob, a long hex string)
-  shows as written. Long hex and base64 are left alone on purpose: they
+  the token shapes. So does the value of a name/value pair whose label is
+  a credential's (`{"name": "password", "value": …}`, a Kubernetes env
+  entry, helm's `name=password,value=…`), every `--input` of
+  `record verify` and `record replay`, and the text `browser type` types
+  into a field whose selector names a credential (`type=password`,
+  `#pw`, `[name=otp]`, `.card-number`). It catches known names and
+  shapes; it cannot promise to catch every secret. What it cannot catch:
+  a secret piped in on stdin (`echo … | docker login --password-stdin`,
+  `sudo -S`, `chpasswd`, `htpasswd -b`), a here-string, a positional
+  argument with no telling name, a base64 blob or a long hex string, and
+  a secret written into prose (a task's title or notes, a comment, an
+  edited message). Long hex and base64 are left alone on purpose: they
   would also hide commit hashes and ordinary data.
 
 ## Network use, telemetry and crash reporting

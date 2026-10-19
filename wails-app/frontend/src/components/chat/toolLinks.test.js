@@ -190,3 +190,30 @@ describe("MonoAgent's own secret commands", () => {
     expect(vaultRelated(`mono\u2060agentcli account login --code 1`)).toBe(true)
   })
 })
+
+// #872 review, round 3: more of MonoAgent's commands that take or print a
+// secret, and the binary's name in any case.
+describe("MonoAgent's own secret commands, round 3", () => {
+  const S = 'Zq8Xfake4417'
+  it.each([
+    `monoagentcli library login --email me@x.test --code ${S}`,
+    `printf %s '{"value":"${S}"}' | monoagentcli connect save linear --method apikey --stdin-json`,
+    `monoagentcli connect save linear --method apikey --stdin-json <<'EOF'\n{"value":"${S}"}\nEOF`,
+    `printf %s '{"consumer_key":"${S}"}' | monoagentcli connect oauth trello --stdin-json`,
+    'monoagentcli extension pair',
+    `MONOAGENTCLI secret add --value ${S}`,
+    `monoagent secret add --value ${S}`,
+  ])('%s is hidden', (command) => {
+    expect(vaultRelated(command)).toBe(true)
+  })
+
+  it.each([
+    'monoagentcli connect show github',
+    'monoagentcli api key show ci',
+    'monoagentcli extension status',
+    'monoagentcli connect oauth github',
+    'monoagentcli library list',
+  ])('%s is not: it prints no secret', (command) => {
+    expect(vaultRelated(command)).toBe(false)
+  })
+})

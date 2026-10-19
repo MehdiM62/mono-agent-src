@@ -16,10 +16,13 @@ describe('the credential keys', () => {
 
   it('are names that hold a credential word', () => {
     for (const k of ['api_key', 'apiKey', 'API_KEY', 'x-api-key', 'GITHUB_TOKEN', 'accessToken', 'client_secret', 'Authorization',
-      'db_password', 'passwd', 'basic_auth', 'X-Auth-Token', 'sessionId', 'Set-Cookie', 'credentials', 'max_tokens']) {
+      'db_password', 'passwd', 'basic_auth', 'X-Auth-Token', 'sessionId', 'Set-Cookie', 'credentials']) {
       expect(isCredentialKey(k), k).toBe(true)
     }
-    for (const k of ['name', 'title', 'author', 'keyboard', 'monkey', 'oauth_url', 'value', 'field']) {
+    // Token limits, tokenizers, key files, key sizes and timeouts hold a
+    // credential word but never a credential (#872 round 3).
+    for (const k of ['name', 'title', 'author', 'keyboard', 'monkey', 'oauth_url', 'value', 'field', 'max_tokens', 'maxNewTokens',
+      'tokenizer', 'key-file', 'token_file', 'KEY_BITS', 'SESSION_TIMEOUT']) {
       expect(isCredentialKey(k), k).toBe(false)
     }
   })
@@ -111,7 +114,7 @@ describe('maskArgs', () => {
       command: `curl -H "Authorization: Bearer ${MASK}" x`,
       env: { OPENAI_API_KEY: MASK, HOME: '/home/u' },
       argv: [`--token=${MASK}`, 'ok'],
-      headers: [{ name: 'Cookie', value: 'x' }],
+      headers: [{ name: 'Cookie', value: MASK }], // a pair: the label stays, the value goes
       api_key: MASK,
       timeout: 5,
     })

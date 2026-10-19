@@ -104,3 +104,25 @@ describe("a native subagent's result on the stage", () => {
     expect(JSON.stringify(stage)).not.toContain(TOKEN)
   })
 })
+
+// #872 review, round 3, on the cards.
+describe('round 3 on the cards', () => {
+  it.each([
+    [`printf %s '{"value":"${S}"}' | monoagentcli connect save linear --method apikey --stdin-json`, 'saved'],
+    ['monoagentcli extension pair', `Pairing token: ${S}`],
+    [`monoagentcli library login --email me@x.test --code ${S}`, 'signed in'],
+  ])('%s is hidden, output included', (command, result) => {
+    const el = card(command, result)
+    expect(el).toHaveTextContent('Vault-related command (hidden)')
+    expect(document.body.innerHTML).not.toContain(S)
+  })
+
+  it('masks the text typed into a password field, and a pair in a workflow input', () => {
+    const typed = card(`monoagentcli browser type "#password" ${S}`, 'typed')
+    expect(typed).toHaveTextContent(`browser type "#password" ${MASK}`)
+    cleanup()
+    const run = card(`monoagentcli workflow run abc --input '[{"name":"password","value":"${S}"}]'`, 'ok')
+    expect(run).toHaveTextContent(`{"name":"password","value":"${MASK}"}`)
+    expect(document.body.innerHTML).not.toContain(S)
+  })
+})
