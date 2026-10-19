@@ -348,10 +348,37 @@ time plus 24 hours.
 **Sign in once per machine; never copy or restore `~/.monoagent/account/` between
 machines or from an old backup, and never bake a sign-in into a Docker image.**
 monoes.me rotates the refresh token at every refresh and treats one that was already
-used as stolen: it ends that sign-in. A copy shares the sign-in of the machine it came
-from, so a stale copy, once presented, signs out the original and every copy, and each
-of them then has to sign in again; machines that signed in on their own keep working.
-Signing out of the monoes.me website does not sign out an install.
+used as stolen: it ends that sign-in. The refresh token names the folder it was sealed
+for (its device and inode, or its path where the disk gives none; a rename or a move on
+the same disk keeps it), so a copy of `~/.monoagent/account` is never renewed or
+revoked, wherever it is, even restored where the original was: it reports
+`keyring_unavailable` and has to sign in on its own. Only a disk image restored block
+for block keeps the folder's identity: once presented, such a stale copy signs out the
+original and every copy, and each of them then has to sign in again; machines that
+signed in on their own keep working. This guards against accidents only: a process
+running as the user can seal any folder's name, or unseal the token itself. Signing out of the monoes.me website does not sign
+out an install.
+
+**Never copy `~/.monoagent/monoagent.db` into a test HOME either.** Its vault can hold
+a library login from an older release, and any copy made by the same OS user can open
+it. The CLI sends that login to monoes.me (the first gated command's exchange for the
+sign-in, a library read or refresh, `library logout`'s revocation) only from the user's
+own install: `HOME` is the OS account's home directory and the database is
+`~/.monoagent/monoagent.db` in it. Anywhere else it sends nothing and keeps the login;
+the adoption prints `The earlier library login in this database is not adopted as this
+machine's sign-in to <host>: <why>. Sign in instead: monoagentcli account login`, and
+`library logout` prints `The earlier library login of this profile is neither revoked at
+<host> nor removed: <why>.` An OS account the system has no home directory for (on
+Linux, one missing from `/etc/passwd`: LDAP, a container's arbitrary uid) is refused the
+same way. Every host but a loopback address counts as monoes.me. Setting
+`MONOES_BASE_URL` does not protect either: a default build ignores it for the sign-in
+and always talks to https://monoes.me (spec D24); only a `-tags devaccount` build
+changes the sign-in host. Each exchange prints one line on stderr saying what became of
+the login (signed in, no longer valid, answer lost, renewed, kept), never a token.
+These checks cover only the two credentials that harm the account when used twice: a
+copy of the database still gives every vault credential to any process running as the
+user, since the key is in the OS key store. Keep untrusted agents away from it with
+another OS user or a container without the key store; a HOME of their own is not enough.
 
 | `state` | Meaning | `reason` |
 |---|---|---|
@@ -3241,7 +3268,7 @@ keys and the clock, and panic outside a test binary.
 | `MONOAGENT_CRASH_REPORT` | Set to `1` to allow crash reports to be filed to GitHub (also requires the `monomind` CLI on `PATH`). Default: unset — crash reports stay in local files under `~/.monoagent/crashes/`. |
 | `MONOAGENT_EXTENSION_PORT` | Bind-port override for the browser-extension bridge server; the extension probes this port and falls back to 9323. Default: unset — 9323 only. |
 | `MONOAGENT_SUMMARY_RUNTIME` | Agent runtime the extension bridge uses to write `summary.md` for captures saved with "Save page summary" / "Save video summary" (`extension serve --summary-runtime` wins over it). This is the default: a capture can name its own installed runtime and model (the side panel's "AI for summaries" picker, or `capture page --summary-runtime/--summary-model`), and `summary.json` records the pair used. `off` disables summaries; each capture that asked then records why in `summary.json`. Default: unset — `claude`. |
-| `MONOES_BASE_URL` | monoes.me host for the `library` commands. Default: unset — `https://monoes.me`. Plain `http` is accepted only for a loopback host (a local dev server). A default build refuses to sign in to any other host; that needs `-tags devaccount`. |
+| `MONOES_BASE_URL` | monoes.me host for the `library` commands. Default: unset — `https://monoes.me`. Plain `http` is accepted only for a loopback host (a local dev server). A default build refuses to sign in to any other host; that needs `-tags devaccount`. A default build's sign-in, refresh and first-run adoption always go to `https://monoes.me` (spec D24). |
 | `MONOAGENT_DEV_ENFORCE_FROM` | Forces the warn period (a future date such as `2999-01-01T00:00:00Z`) or enforcement (a past date) for a test: an RFC 3339 time. Read only by a `-tags devaccount` build; a default build does not read it, so it never relaxes anything. Default: unset — the date compiled into the binary (2026-10-11 UTC). |
 | `MONOMIND_BIN` | Path to the `monomind` binary; checked before `PATH` and the other install locations (see [How AI works in mono-agent](#how-ai-works-in-mono-agent)). Default: unset — discovered. |
 | `MONOAGENT_AI_RUNTIME` | Agent runtime `ai.extract_page` uses to generate selectors. Default: unset — the first installed runtime, `claude` first. |

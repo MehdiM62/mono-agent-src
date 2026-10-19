@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"github.com/monoes/mono-agent/internal/account"
 	"github.com/monoes/mono-agent/internal/cli/accountgate"
 	"github.com/monoes/mono-agent/internal/cli/clicore"
+	"github.com/monoes/mono-agent/internal/library"
 	"github.com/monoes/mono-agent/internal/storage"
 )
 
@@ -21,7 +23,7 @@ const AdoptionSetting = "account_adoption"
 
 // Adopt exchanges an older library login for the machine session: library.AdoptIntoAccount, which
 // the CLI hands over so that a test can see whether the wiring calls it without a monoes.me to call.
-type Adopt func(ctx context.Context, db *sql.DB, g *account.Guard) (bool, error)
+type Adopt func(ctx context.Context, db *sql.DB, g *account.Guard, report func(profile string, o library.Outcome)) (bool, error)
 
 // AdoptFirstRun is the first run of release R (spec section 8 step 3, D23): a library login that
 // already exists, on any profile, is exchanged for the machine session. It runs before a gated or
@@ -33,8 +35,15 @@ type Adopt func(ctx context.Context, db *sql.DB, g *account.Guard) (bool, error)
 // if absent, so two processes that start together make one try between them, and a failed try is
 // never repeated (presenting a spent refresh token again could end every login of the account, A24).
 // The exchange itself runs under the account store lock (library.AdoptIntoAccount). Any failure is
-// swallowed: the command goes on, and nothing is printed or logged, tokens least of all. dbPath is
-// the command's --db-path; adopt is library.AdoptIntoAccount.
+// swallowed: the command goes on. What became of each login an exchange was made for, and a local
+// failure, is one line on the command's stderr, so that an incident can be reconstructed; never a
+// token.
+//
+// A real monoes.me login is presented only from this OS user's own install (library.OlderLoginPath,
+// #878), and read from the file that check found, not from a path that may have changed since:
+// anywhere else, such as a copy of its database or a HOME made for a test, the try is neither made
+// nor claimed, and a line says why when the database holds an older login. dbPath is the command's
+// --db-path; adopt is library.AdoptIntoAccount.
 func AdoptFirstRun(cmd *cobra.Command, dbPath string, adopt Adopt) {
 	if accountgate.CommandClass(cmd) == accountgate.ClassOpen || account.EnforceDate().IsZero() {
 		return
@@ -50,7 +59,14 @@ func AdoptFirstRun(cmd *cobra.Command, dbPath string, adopt Adopt) {
 	if _, err := os.Stat(path); err != nil {
 		return
 	}
-	db, err := storage.NewDatabase(path)
+	w, host := cmd.ErrOrStderr(), account.Host()
+	own, why := library.OlderLoginPath(host, path)
+	placeChecked()
+	open := own
+	if why != "" {
+		open = path // only to say why when it holds an older login: names are read, nothing is decrypted
+	}
+	db, err := storage.NewDatabase(open)
 	if err != nil {
 		return
 	}
@@ -67,22 +83,31 @@ func AdoptFirstRun(cmd *cobra.Command, dbPath string, adopt Adopt) {
 	case !errors.Is(err, sql.ErrNoRows):
 		return
 	}
+	if why != "" {
+		if has, _ := library.HasOlderLogin(ctx, db.DB, host); has {
+			fmt.Fprintln(w, notAdoptedNotice(host, why))
+		}
+		return
+	}
 	claim, err := db.DB.ExecContext(ctx, `INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)`,
 		AdoptionSetting, time.Now().UTC().Format(time.RFC3339))
 	if err != nil {
 		return
 	}
 	if n, _ := claim.RowsAffected(); n == 1 { // otherwise this database has had its try, or another process is making it
-		_, _ = adopt(ctx, db.DB, g)
+		_, err := adopt(ctx, db.DB, g, func(profile string, o library.Outcome) { fmt.Fprintln(w, adoptionNotice(host, profile, o)) })
+		if err != nil {
+			fmt.Fprintf(w, "Adopting an earlier library login failed: %v\n", err)
+		}
 	}
 }
 
 // AdoptBeforeGate runs the adoption ahead of the gate, which judges before cobra runs any command
 // hook. The command and the database path are found on a throwaway tree, as the gate's AsksForHelp
 // does, so that the real tree's flags are parsed only once, by its own run. A help request is an
-// open invocation and is skipped. newProbe builds the CLI's tree with its classes applied;
-// adoptFirstRun is AdoptFirstRun as the CLI calls it.
-func AdoptBeforeGate(ctx context.Context, args []string, newProbe func() *cobra.Command, adoptFirstRun func(cmd *cobra.Command, dbPath string)) {
+// open invocation and is skipped. The command writes its lines to stderr. newProbe builds the CLI's
+// tree with its classes applied; adoptFirstRun is AdoptFirstRun as the CLI calls it.
+func AdoptBeforeGate(ctx context.Context, args []string, stderr io.Writer, newProbe func() *cobra.Command, adoptFirstRun func(cmd *cobra.Command, dbPath string)) {
 	probe := newProbe()
 	probe.SetOut(io.Discard)
 	probe.SetErr(io.Discard)
@@ -102,5 +127,6 @@ func AdoptBeforeGate(ctx context.Context, args []string, newProbe func() *cobra.
 		return
 	}
 	cmd.SetContext(ctx)
+	cmd.SetErr(stderr)
 	adoptFirstRun(cmd, dbPath)
 }

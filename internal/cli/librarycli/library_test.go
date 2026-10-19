@@ -75,6 +75,7 @@ func (f *fixture) deps(jsonOut bool) Deps {
 		OpenDB: func() (*storage.Database, error) {
 			return storage.NewDatabase(f.dbPath)
 		},
+		DBPath:         func() string { return f.dbPath },
 		OpenRegistry:   func() (*automation.Registry, error) { return f.reg, nil },
 		WithJSONErrors: func(*cobra.Command) {},
 		AddSignIn: func(cmd *cobra.Command, name string) func(*cobra.Command) (account.Status, bool, error) {
