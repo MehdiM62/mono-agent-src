@@ -46,7 +46,7 @@ func (n *OutlookMailNode) Execute(ctx context.Context, input workflow.NodeInput,
 	if err := credentialScopeCheck(config, "outlook"); err != nil {
 		return nil, fmt.Errorf("outlook_mail: %w", err)
 	}
-	operation := strVal(config, "operation")
+	operation := workflow.ConfigOperation(config)
 	maxResults := intVal(config, "max_results")
 	if maxResults == 0 {
 		maxResults = 10
