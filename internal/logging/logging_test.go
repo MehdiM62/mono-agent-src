@@ -256,6 +256,46 @@ func TestZerologDemote(t *testing.T) {
 	}
 }
 
+// Each undo takes out its own demotion and leaves the others: undone in
+// reverse (nested) or in the order made (overlapping), the level in effect
+// is always the newest demotion still made.
+func TestDemotionsUndoOnlyThemselves(t *testing.T) {
+	const msg = "node failed twice"
+	level := func() string {
+		if l, ok := demotedLevel(msg); ok {
+			return l.String()
+		}
+		return "none"
+	}
+	for name, c := range map[string]struct {
+		undoFirstFirst bool
+		between        string
+	}{
+		"nested":      {false, "INFO"},
+		"overlapping": {true, "DEBUG"},
+	} {
+		first := Demote(slog.LevelInfo, msg)
+		second := Demote(slog.LevelDebug, msg)
+		if got := level(); got != "DEBUG" {
+			t.Errorf("%s: both made: %s, want the newest's DEBUG", name, got)
+		}
+		if c.undoFirstFirst {
+			first()
+		} else {
+			second()
+		}
+		if got := level(); got != c.between {
+			t.Errorf("%s: one undone: %s, want %s", name, got, c.between)
+		}
+		first()
+		second()
+		second() // an undo twice is a no-op
+		if got := level(); got != "none" {
+			t.Errorf("%s: both undone: %s, want none", name, got)
+		}
+	}
+}
+
 func TestZerologFollowsRootLevel(t *testing.T) {
 	initFor(t, []string{"--log-level=debug"}, nil)
 	if got := Zerolog().GetLevel(); got != zerolog.DebugLevel {
