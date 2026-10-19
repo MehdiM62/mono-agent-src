@@ -369,7 +369,7 @@
     }
     if (!active || active.tag !== tag) return;
 
-    Core.startTurn(chat, message, Core.pageLabel(context));
+    Core.startTurn(chat, message, Core.pageLabel(context), context != null);
     await save();
     draw();
 
@@ -418,7 +418,7 @@
     const mine = loadSeq;
     Proposals.settle(chat, id, { state: "sending", feedback: "" });
     draw();
-    const answer = await ask({ type: "task_add_proposal", profile, proposal: { id: p.id, kind: p.kind, title: p.title, notes: p.notes } });
+    const answer = await ask({ type: "task_add_proposal", profile, proposal: { id: p.id, kind: p.kind, title: p.title, notes: p.notes, nonce: p.nonce } });
     if (mine !== loadSeq) return; // the panel moved to another profile meanwhile
     const state = answer.status === "added" ? "added" : answer.status === "queued" ? "queued" : "refused";
     Proposals.settle(chat, id, { state, feedback: (answer.feedback && answer.feedback.text) || answer.error || "Not added" });

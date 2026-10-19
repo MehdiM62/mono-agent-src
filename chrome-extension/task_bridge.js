@@ -107,7 +107,7 @@
       await afterChange();
       const { stopped } = await flush();
       const sent = outcomes.get(entry.client_id) || { state: "kept", code: stopped || "offline" };
-      if (sent.state === "added") return outcome("added", { id: sent.id, name: await profileName(what.profile) });
+      if (sent.state === "added") return outcome("added", { id: sent.id, created: sent.created, name: await profileName(what.profile) });
       if (sent.state === "refused") return outcome("refused", { reason: sent.reason });
       return outcome("queued", { code: sent.code, reason: sent.reason });
     } finally {
@@ -130,7 +130,8 @@
     const i = info || {};
     switch (status) {
       case "added":
-        return { level: "ok", text: `Added to Inbox in ${i.name} (#${i.id})` };
+        // created false: MonoAgent already had a task under this id (a resend).
+        return { level: "ok", text: `${i.created === false ? "Already added" : "Added"} to Inbox in ${i.name} (#${i.id})` };
       case "queued":
         if (i.code === "offline") return { level: "warn", text: "Saved: will sync when MonoAgent is running" };
         if (i.code === "outdated") {
