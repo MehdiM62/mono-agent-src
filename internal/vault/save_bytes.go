@@ -25,7 +25,31 @@ type SaveInput struct {
 	// address it was saved from ("" for none).
 	ClientID  string
 	SourceURL string
+	// MaxItems and MaxBytes cap what the profile's vault holds from saves
+	// made this way (rows with a client id), this one included; 0 = no cap.
+	MaxItems int
+	MaxBytes int64
 }
+
+// ErrStorageConflict is a save that found files nobody's row owns where the
+// next items would go, maxOrphanSkips times over: the vault folder needs a
+// look before saving can go on.
+var ErrStorageConflict = errors.New("vault.SaveBytes: files that are no vault item's sit where the next items would go")
+
+// ErrQuotaExceeded is wrapped by QuotaError.
+var ErrQuotaExceeded = errors.New("vault.SaveBytes: quota exceeded")
+
+// QuotaError is a save refused for a SaveInput cap: Limit is "items" or
+// "bytes", Max the cap.
+type QuotaError struct {
+	Limit string
+	Max   int64
+}
+
+func (e *QuotaError) Error() string {
+	return fmt.Sprintf("vault.SaveBytes: the profile's saved files would pass the %s cap of %d", e.Limit, e.Max)
+}
+func (e *QuotaError) Unwrap() error { return ErrQuotaExceeded }
 
 // ErrNoClientID refuses a SaveBytes without a client id: without one a retry
 // could store the same file twice.
@@ -43,8 +67,8 @@ type SavedItem struct {
 }
 
 // maxOrphanSkips bounds how many seq numbers SaveBytes passes over because a
-// file of that name is already in the vault folder.
-const maxOrphanSkips = 32
+// file (or a symlink) of that name is already in the vault folder.
+const maxOrphanSkips = 5
 
 // SaveBytes stores in.Data in the profile's vault as a new item (vault_images,
 // the vault `image list`, vault_item_list and vault_item_get_path read), at
@@ -56,10 +80,13 @@ const maxOrphanSkips = 32
 // once store one item.
 //
 // A file already at img-NNN<ext> (one a crash left between its write and the
-// commit, or anything else put there) is never overwritten: the save takes
-// the next seq instead, up to maxOrphanSkips times. Unlike Register it does
-// not index the item in the knowledge graph: that shells out to monomind,
-// which a bridge request must not wait on.
+// commit, a symlink, anything else put there) is never overwritten or
+// followed: the save takes the next seq instead, up to maxOrphanSkips times,
+// then fails with ErrStorageConflict. The caps (MaxItems, MaxBytes) are
+// checked inside the same transaction, so saves at once cannot pass them
+// together; a client id already saved is answered before they are. Unlike
+// Register it does not index the item in the knowledge graph: that shells out
+// to monomind, which a bridge request must not wait on.
 func SaveBytes(ctx context.Context, db *sql.DB, profileID string, in SaveInput) (SavedItem, error) {
 	if db == nil {
 		return SavedItem{}, fmt.Errorf("vault.SaveBytes: db is nil")
@@ -103,6 +130,21 @@ func SaveBytes(ctx context.Context, db *sql.DB, profileID string, in SaveInput) 
 		return SavedItem{}, fmt.Errorf("vault.SaveBytes: look up client id: %w", err)
 	}
 
+	if in.MaxItems > 0 || in.MaxBytes > 0 {
+		var items int
+		var bytes int64
+		if err := conn.QueryRowContext(ctx, `SELECT COUNT(*), COALESCE(SUM(size_bytes), 0) FROM vault_images WHERE profile_id = ? AND client_id IS NOT NULL`,
+			profileID).Scan(&items, &bytes); err != nil {
+			return SavedItem{}, fmt.Errorf("vault.SaveBytes: read quota: %w", err)
+		}
+		if in.MaxItems > 0 && items+1 > in.MaxItems {
+			return SavedItem{}, &QuotaError{Limit: "items", Max: int64(in.MaxItems)}
+		}
+		if in.MaxBytes > 0 && bytes+int64(len(in.Data)) > in.MaxBytes {
+			return SavedItem{}, &QuotaError{Limit: "bytes", Max: in.MaxBytes}
+		}
+	}
+
 	var seq int
 	if err := conn.QueryRowContext(ctx, `SELECT COALESCE(MAX(seq), 0) + 1 FROM vault_images`).Scan(&seq); err != nil {
 		return SavedItem{}, fmt.Errorf("vault.SaveBytes: get next seq: %w", err)
@@ -119,8 +161,11 @@ func SaveBytes(ctx context.Context, db *sql.DB, profileID string, in SaveInput) 
 		if err == nil {
 			break
 		}
-		if !errors.Is(err, fs.ErrExist) || skips == maxOrphanSkips {
+		if !errors.Is(err, fs.ErrExist) {
 			return SavedItem{}, fmt.Errorf("vault.SaveBytes: write file: %w", err)
+		}
+		if skips == maxOrphanSkips {
+			return SavedItem{}, fmt.Errorf("%w (%s and the %d before it)", ErrStorageConflict, destFilename, maxOrphanSkips)
 		}
 		seq++ // a file no row of ours made sits there: leave it, take the next
 	}

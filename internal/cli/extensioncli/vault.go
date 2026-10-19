@@ -22,6 +22,14 @@ import (
 // vaultSaveSource is the source every extension save is recorded with.
 const vaultSaveSource = "extension"
 
+// vaultSaveQuota caps what one profile's vault holds from vault.save (a var
+// so tests can lower it): 2 GiB and 5,000 items, counted inside the save's
+// own transaction (vault.SaveBytes).
+var vaultSaveQuota = struct {
+	Bytes int64
+	Items int
+}{Bytes: 2 << 30, Items: 5000}
+
 // vaultSink saves vault.save requests into the vault of the database at path,
 // opening it per request as boardSink does.
 type vaultSink struct{ path string }
@@ -60,15 +68,46 @@ func (v vaultSink) SaveToVault(ctx context.Context, f extension.VaultFile) (exte
 	}
 	item, err := vault.SaveBytes(ctx, db.DB, f.ProfileID, vault.SaveInput{
 		Data: f.Data, Ext: f.Ext, Label: f.Name, Source: vaultSaveSource, ClientID: f.ClientID, SourceURL: f.SourceURL,
+		MaxItems: vaultSaveQuota.Items, MaxBytes: vaultSaveQuota.Bytes,
 	})
 	if err != nil {
-		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-			return extension.VaultSaved{}, err
-		}
-		return extension.VaultSaved{}, &extension.RequestError{Code: extension.CodeInternal, Err: errors.New("MonoAgent could not save the file; try again")}
+		return extension.VaultSaved{}, vaultSaveErr(err)
 	}
 	// The reply is the item as stored: a retry of a client id gets the item
 	// the first save made, whatever name or bytes this request carried.
 	return extension.VaultSaved{ID: item.ID, Created: item.Created, Name: item.Label, MIME: extension.VaultSaveMIME(item.Filename),
 		SizeBytes: int(item.SizeBytes)}, nil
+}
+
+// vaultSaveErr gives a failed save the code the extension acts on, under a
+// fixed message (a database error can name files): quota_exceeded and
+// storage_conflict are final until the person acts, internal may be tried
+// again.
+func vaultSaveErr(err error) error {
+	var quota *vault.QuotaError
+	switch {
+	case errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded):
+		return err
+	case errors.As(err, &quota) && quota.Limit == "items":
+		return &extension.RequestError{Code: extension.CodeQuotaExceeded, Data: map[string]any{"limit": "items", "max": quota.Max},
+			Err: fmt.Errorf("this profile already holds %d files saved from the browser, the most it takes: delete some in the Image Vault to save more", quota.Max)}
+	case errors.As(err, &quota):
+		return &extension.RequestError{Code: extension.CodeQuotaExceeded, Data: map[string]any{"limit": "bytes", "max": quota.Max},
+			Err: fmt.Errorf("files saved from the browser would pass this profile's %s limit: delete some in the Image Vault to save more", sizeText(quota.Max))}
+	case errors.Is(err, vault.ErrStorageConflict):
+		return &extension.RequestError{Code: extension.CodeStorageConflict,
+			Err: errors.New("MonoAgent could not save the file: files it did not make sit where its next vault items go; check the profile's vault folder (.monoagent/vault in the profile's folder)")}
+	}
+	return &extension.RequestError{Code: extension.CodeInternal, Err: errors.New("MonoAgent could not save the file; try again")}
+}
+
+// sizeText is n bytes in GiB or MiB, or bytes when smaller.
+func sizeText(n int64) string {
+	switch {
+	case n >= 1<<30 && n%(1<<30) == 0:
+		return fmt.Sprintf("%d GiB", n>>30)
+	case n >= 1<<20 && n%(1<<20) == 0:
+		return fmt.Sprintf("%d MiB", n>>20)
+	}
+	return fmt.Sprintf("%d bytes", n)
 }

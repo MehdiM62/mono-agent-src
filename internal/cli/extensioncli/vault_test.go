@@ -3,9 +3,11 @@ package extensioncli
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 
@@ -233,10 +235,11 @@ func TestEveryBridgeAnswersVaultSaveAndNothingReadsTheVault(t *testing.T) {
 	}
 }
 
-// A file already at the next img-NNN<ext> (a crash between the write and the
-// commit left it, with no row) is left alone, and the save takes the next
-// free seq instead of failing every later save of that type.
-func TestVaultSinkSkipsAFileNoRowOwns(t *testing.T) {
+// A file or symlink already at the next img-NNN<ext> (a crash between the
+// write and the commit left it, with no row) is left alone, and the save takes
+// the next free seq, up to 5 times; past that a final storage_conflict says to
+// check the vault folder, so the extension does not retry for ever.
+func TestVaultSinkSkipsStrayFilesThenReportsAConflict(t *testing.T) {
 	path, home := vaultEnv(t)
 	vaultDir := filepath.Join(home, ".monoagent", "profiles", "p-work", ".monoagent", "vault")
 	if err := os.MkdirAll(vaultDir, 0o700); err != nil {
@@ -246,22 +249,112 @@ func TestVaultSinkSkipsAFileNoRowOwns(t *testing.T) {
 	if err := os.WriteFile(orphan, []byte("someone's data"), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	target := filepath.Join(home, "elsewhere.pdf")
+	if err := os.WriteFile(target, []byte("not the vault's"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, filepath.Join(vaultDir, "img-002.pdf")); err != nil {
+		t.Skipf("no symlinks here: %v", err)
+	}
 	got, err := extensionVaultSink(path).SaveToVault(context.Background(), vaultFile("p-work", "v-1"))
-	if err != nil || !got.Created || got.ID != "img-002" {
-		t.Fatalf("save next to an orphan: %+v, %v", got, err)
+	if err != nil || !got.Created || got.ID != "img-003" {
+		t.Fatalf("save past an orphan and a symlink: %+v, %v", got, err)
 	}
 	if b, _ := os.ReadFile(orphan); string(b) != "someone's data" {
 		t.Errorf("the orphan was overwritten: %q", b)
 	}
-	if rows := vaultRows(t, path); len(rows) != 1 || rows[0].path != filepath.Join(vaultDir, "img-002.pdf") {
+	if b, _ := os.ReadFile(target); string(b) != "not the vault's" {
+		t.Errorf("the symlink's target was written: %q", b)
+	}
+	if rows := vaultRows(t, path); len(rows) != 1 || rows[0].path != filepath.Join(vaultDir, "img-003.pdf") {
 		t.Errorf("rows = %+v", rows)
 	}
-	// The skip is bounded: a folder full of strays ends in an error, not a loop.
-	for seq := 3; seq <= 3+33; seq++ {
+	// Five strays in a row are skipped...
+	for seq := 4; seq <= 8; seq++ {
 		_ = os.WriteFile(filepath.Join(vaultDir, fmt.Sprintf("img-%03d.pdf", seq)), []byte("x"), 0o600)
 	}
-	if _, err := extensionVaultSink(path).SaveToVault(context.Background(), vaultFile("p-work", "v-2")); err == nil || sinkCode(t, err) != extension.CodeInternal {
-		t.Errorf("past the skip limit: %v, want internal", err)
+	if got, err := extensionVaultSink(path).SaveToVault(context.Background(), vaultFile("p-work", "v-2")); err != nil || got.ID != "img-009" {
+		t.Fatalf("past five strays: %+v, %v", got, err)
+	}
+	// ...six are a conflict, final, and the message says where to look.
+	for seq := 10; seq <= 15; seq++ {
+		_ = os.WriteFile(filepath.Join(vaultDir, fmt.Sprintf("img-%03d.pdf", seq)), []byte("x"), 0o600)
+	}
+	_, err = extensionVaultSink(path).SaveToVault(context.Background(), vaultFile("p-work", "v-3"))
+	if err == nil || sinkCode(t, err) != extension.CodeStorageConflict || !strings.Contains(err.Error(), "vault folder") {
+		t.Errorf("past the skip limit: %v, want storage_conflict naming the vault folder", err)
+	}
+}
+
+// Saves from the browser are capped per profile, in items and in bytes, with a
+// final quota_exceeded that names the cap; a retry of a saved client id is
+// still answered, and another profile has its own caps.
+func TestVaultSinkQuota(t *testing.T) {
+	prev := vaultSaveQuota
+	defer func() { vaultSaveQuota = prev }()
+
+	path, _ := vaultEnv(t)
+	vaultSaveQuota.Items, vaultSaveQuota.Bytes = 2, 0
+	for _, c := range []string{"v-1", "v-2"} {
+		if _, err := extensionVaultSink(path).SaveToVault(context.Background(), vaultFile("p-work", c)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_, err := extensionVaultSink(path).SaveToVault(context.Background(), vaultFile("p-work", "v-3"))
+	if err == nil || sinkCode(t, err) != extension.CodeQuotaExceeded || !strings.Contains(err.Error(), "2 files") {
+		t.Errorf("past the item cap: %v", err)
+	}
+	if got, err := extensionVaultSink(path).SaveToVault(context.Background(), vaultFile("p-work", "v-1")); err != nil || got.Created {
+		t.Errorf("a retry of a saved client id at the cap: %+v, %v", got, err)
+	}
+	if _, err := extensionVaultSink(path).SaveToVault(context.Background(), vaultFile("p-home", "v-1")); err != nil {
+		t.Errorf("another profile: %v", err)
+	}
+
+	path, _ = vaultEnv(t)
+	size := int64(len(vaultFile("p-work", "x").Data))
+	vaultSaveQuota.Items, vaultSaveQuota.Bytes = 0, 2*size+size/2
+	for _, c := range []string{"v-1", "v-2"} {
+		if _, err := extensionVaultSink(path).SaveToVault(context.Background(), vaultFile("p-work", c)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_, err = extensionVaultSink(path).SaveToVault(context.Background(), vaultFile("p-work", "v-3"))
+	var re *extension.RequestError
+	if !errors.As(err, &re) || re.Code != extension.CodeQuotaExceeded || re.Data.(map[string]any)["limit"] != "bytes" {
+		t.Errorf("past the byte cap: %v", err)
+	}
+}
+
+// The cap is checked inside the save's transaction: saves at once cannot pass
+// it together.
+func TestVaultSinkQuotaHoldsUnderConcurrency(t *testing.T) {
+	prev := vaultSaveQuota
+	defer func() { vaultSaveQuota = prev }()
+	vaultSaveQuota.Items, vaultSaveQuota.Bytes = 3, 0
+	path, _ := vaultEnv(t)
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	created, refused := 0, 0
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			_, err := extensionVaultSink(path).SaveToVault(context.Background(), vaultFile("p-work", fmt.Sprintf("v-%d", i)))
+			mu.Lock()
+			defer mu.Unlock()
+			if err == nil {
+				created++
+			} else if errors.As(err, new(*extension.RequestError)) && sinkCode(t, err) == extension.CodeQuotaExceeded {
+				refused++
+			} else {
+				t.Errorf("save %d: %v", i, err)
+			}
+		}(i)
+	}
+	wg.Wait()
+	if created != 3 || refused != 5 || len(vaultRows(t, path)) != 3 {
+		t.Errorf("created %d, refused %d, rows %d; want 3, 5, 3", created, refused, len(vaultRows(t, path)))
 	}
 }
 

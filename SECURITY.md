@@ -319,12 +319,22 @@ read. It is one bridge request method, `vault.save`
   extension, 0600, never under the sent name); the profile id is a valid
   folder name and must be a profile that exists now, so a profile deleted
   since the panel listed it gets no folder back; the source address is kept
-  only as http(s) without user-info or fragment.
+  only as http(s) scheme, host and path (no user-info, query or fragment, so
+  a presigned URL's signature never shows in `image list` or the app).
+- **Limits per profile.** Files saved this way (vault items with a client id)
+  may total at most **2 GiB** and **5,000 items** per profile; the count and
+  the sum are read inside the save's own `BEGIN IMMEDIATE` transaction, so
+  saves at once cannot pass them together. Past either, the save is refused
+  with `quota_exceeded`, naming the limit (final: delete saved files in the
+  Image Vault). At most **20 saves a minute per profile**, counted in memory in
+  the bridge process; past that, `rate_limited` with `retry_after` in seconds.
 - **Exactly one write per save.** Each request carries a client id; the
   vault keeps one item per client id per profile (a unique index), so a retry
-  returns the item it already made and writes nothing. A file already in the
-  vault folder under the next item's name (left by a crash, or put there by
-  anyone) is never overwritten: the save takes the next free number.
+  returns the item it already made and writes nothing. A file or symlink
+  already in the vault folder under the next item's name (left by a crash, or
+  put there by anyone) is never overwritten or followed: the save takes the
+  next free number, at most 5 times, then is refused with `storage_conflict`
+  (final: the message says to check the profile's vault folder).
 - **Documents stay out of the knowledge base.** A PDF, text, Markdown or CSV
   file goes into the image/file vault too, not the documents vault
   (`profile documents`): documents there are indexed into the knowledge base

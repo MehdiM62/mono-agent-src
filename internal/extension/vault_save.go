@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -40,9 +41,24 @@ import (
 //	                            "mime":"application/pdf","data":"<base64>","source_url":"https://..."}}
 //	Go -> extension  {"kind":"reply","id":"req-...","ok":true,
 //	                  "data":{"id":"img-012","created":true,"name":"invoice.pdf","mime":"application/pdf","size_bytes":48213}}
+//
+// Refusals: invalid_input, quota_exceeded (data {limit, max}) and
+// storage_conflict are final; rate_limited (data {retry_after}), unavailable
+// and internal may be tried again.
 
 // MethodVaultSave saves one file into a profile's vault.
 const MethodVaultSave = "vault.save"
+
+// Codes vault.save answers with beyond invalid_input, unavailable and
+// internal. storage_conflict and quota_exceeded are final, like invalid_input:
+// the same save is refused again until the person acts (checks the vault
+// folder, deletes saved files). rate_limited is not: its data carries
+// retry_after, the seconds until one more save fits.
+const (
+	CodeStorageConflict = "storage_conflict"
+	CodeQuotaExceeded   = "quota_exceeded"
+	CodeRateLimited     = "rate_limited"
+)
 
 // Limits on a vault.save, all checked before anything is written.
 const (
@@ -94,8 +110,9 @@ type VaultFile struct {
 	// Ext is the stored file's extension, from MIME.
 	Ext  string
 	Data []byte
-	// SourceURL is the http(s) address the file came from, without user-info
-	// or fragment; "" when the request named none (or one of another scheme).
+	// SourceURL is the http(s) address the file came from as scheme, host and
+	// path only (no user-info, query or fragment: a signed URL's signature is
+	// in its query); "" when the request named none, or one of another scheme.
 	SourceURL string
 }
 
@@ -127,10 +144,16 @@ func (s *Server) SetVaultSink(sink VaultSink) {
 		s.handlerMu.Unlock()
 		return
 	}
+	limiter := newSaveRateLimiter(vaultSaveRate, vaultSaveNow)
 	s.HandleRequest(MethodVaultSave, func(ctx context.Context, req *Request, _ ProgressFunc) (any, error) {
 		f, err := vaultFileOf(req)
 		if err != nil {
 			return nil, err
+		}
+		if wait, ok := limiter.allow(f.ProfileID); !ok {
+			secs := max(1, int((wait+time.Second-1)/time.Second))
+			return nil, &RequestError{Code: CodeRateLimited, Data: map[string]any{"retry_after": secs},
+				Err: fmt.Errorf("vault.save: at most %d saves a minute for one profile; try again in %d s", vaultSaveRate, secs)}
 		}
 		return sink.SaveToVault(ctx, f)
 	})
@@ -242,10 +265,11 @@ func vaultTypeMatches(mime string, data []byte) bool {
 	return sniffed == mime
 }
 
-// cleanSourceURL is raw as an absolute http(s) address without user-info or
-// fragment, or "" for anything else (data:, blob:, javascript:, a relative
-// path): the address is a note on the item, so a bad one is dropped, not
-// refused.
+// cleanSourceURL is raw as scheme, host and path of an absolute http(s)
+// address, without user-info, query or fragment (a presigned URL's signature
+// is in its query, and the address shows in `image list` and the app), or ""
+// for anything else (data:, blob:, javascript:, a relative path): the address
+// is a note on the item, so a bad one is dropped, not refused.
 func cleanSourceURL(raw string) string {
 	if raw == "" || len(raw) > vaultSaveMaxURL {
 		return ""
@@ -254,6 +278,5 @@ func cleanSourceURL(raw string) string {
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 		return ""
 	}
-	u.User, u.Fragment, u.RawFragment = nil, "", ""
-	return u.String()
+	return (&url.URL{Scheme: u.Scheme, Host: u.Host, Path: u.Path, RawPath: u.RawPath}).String()
 }

@@ -108,7 +108,7 @@ func TestVaultSave_HandsTheSinkACheckedFile(t *testing.T) {
 	}
 	f := sink.got[0]
 	if f.ProfileID != "p-work" || f.ClientID != "v-0001" || f.Name != "chart.png" || f.MIME != "image/png" || f.Ext != ".png" ||
-		!bytes.Equal(f.Data, pngBytes(64)) || f.SourceURL != "https://example.test/a/chart.png?x=1" {
+		!bytes.Equal(f.Data, pngBytes(64)) || f.SourceURL != "https://example.test/a/chart.png" {
 		t.Errorf("sink got %+v", f)
 	}
 }
@@ -204,8 +204,10 @@ func TestVaultSave_OnlyFromAPairedBrowser(t *testing.T) {
 
 func TestVaultSave_SourceURLIsCleanedOrDropped(t *testing.T) {
 	for raw, want := range map[string]string{
-		"https://u:p@example.test/x.pdf#page=2":           "https://example.test/x.pdf",
-		"http://example.test/a?b=c":                       "http://example.test/a?b=c",
+		"https://u:p@example.test/x.pdf#page=2": "https://example.test/x.pdf",
+		"http://example.test/a?b=c":             "http://example.test/a",
+		"https://bucket.s3.amazonaws.com/inv/a.pdf?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIA%2F20261019&X-Amz-Signature=ab12": "https://bucket.s3.amazonaws.com/inv/a.pdf",
+		"https://example.test:8443/x%20y.pdf?sig=1":       "https://example.test:8443/x%20y.pdf",
 		"data:image/png;base64,AAAA":                      "",
 		"blob:https://example.test/1":                     "",
 		"javascript:alert(1)":                             "",
@@ -271,5 +273,55 @@ func TestVaultSaveMIMEReadsTheStoredExtension(t *testing.T) {
 		if got := VaultSaveMIME(name); got != want {
 			t.Errorf("VaultSaveMIME(%q) = %q, want %q", name, got, want)
 		}
+	}
+}
+
+// The DecodedLen precheck refuses an oversized request before decoding it:
+// the refusal names the limit even when the data is not base64 at all.
+func TestVaultSave_SizeIsCheckedBeforeDecoding(t *testing.T) {
+	sink := &fakeVaultSink{}
+	_, err := callVaultSave(t, sink, vaultParams(map[string]any{"data": strings.Repeat("!", base64.StdEncoding.EncodedLen(VaultSaveMaxBytes)+8)}))
+	if err == nil || codeOf(t, err) != CodeInvalidInput || !strings.Contains(err.Error(), "MiB limit") {
+		t.Errorf("an oversized non-base64 request: %v, want the size refusal", err)
+	}
+}
+
+// Past vaultSaveRate saves a minute for one profile, rate_limited with
+// retry_after; another profile is not held up, and the window slides.
+func TestVaultSave_RateLimit(t *testing.T) {
+	now := time.Date(2026, 10, 19, 12, 0, 0, 0, time.UTC)
+	prevRate, prevNow := vaultSaveRate, vaultSaveNow
+	vaultSaveRate, vaultSaveNow = 3, func() time.Time { return now }
+	defer func() { vaultSaveRate, vaultSaveNow = prevRate, prevNow }()
+
+	sink := &fakeVaultSink{}
+	srv := NewServer("127.0.0.1:0", zerolog.Nop())
+	srv.SetVaultSink(sink)
+	h, _ := srv.handlerFor(MethodVaultSave)
+	call := func(profile string) error {
+		_, err := h(context.Background(), &Request{Method: MethodVaultSave, Params: vaultParams(map[string]any{"profile": profile}),
+			Origin: ConnInfo{Instance: "b1", ConnectedAt: now}}, func(string, string) {})
+		return err
+	}
+	for i := 0; i < 3; i++ {
+		if err := call("p-work"); err != nil {
+			t.Fatalf("save %d: %v", i+1, err)
+		}
+		now = now.Add(10 * time.Second)
+	}
+	err := call("p-work")
+	var re *RequestError
+	if !asRequestError(err, &re) || re.Code != CodeRateLimited || re.Data.(map[string]any)["retry_after"] != 30 {
+		t.Fatalf("the 4th save in a minute: %v (%+v), want rate_limited with retry_after 30", err, re)
+	}
+	if err := call("p-home"); err != nil {
+		t.Errorf("another profile was held up: %v", err)
+	}
+	now = now.Add(31 * time.Second) // the first save has left the window
+	if err := call("p-work"); err != nil {
+		t.Errorf("after the window slid: %v", err)
+	}
+	if sink.calls() != 5 {
+		t.Errorf("sink calls = %d, want 5 (a limited save never reaches it)", sink.calls())
 	}
 }
