@@ -202,3 +202,15 @@ test("an Add answered with no profile, or not answered, is pending again with th
   const again = P.view({ id: "a", kind: "task", title: "T", state: "pending", feedback: "Choose a profile first" });
   assert.deepEqual([again.actions, again.status], [["add", "dismiss"], "Choose a profile first"], "Add is offered again, with why");
 });
+
+// #868 review: a card's task id is scoped to the profile it goes to, so a
+// retry under another profile is never the same id in two outboxes' entries.
+test("a card's task id is scoped to the profile it is sent to", () => {
+  const card = { id: "toolu_1", nonce: "0123456789abcdef" };
+  const work = P.clientId(card, "p-work");
+  assert.equal(work, P.clientId(card, "p-work"), "stable for one profile, so a resend adds nothing twice");
+  assert.notEqual(work, P.clientId(card, "p-home"));
+  assert.match(work, /^chat-0123456789abcdef-[0-9a-f]{8}-toolu_1$/);
+  const long = P.clientId({ id: "x".repeat(200), nonce: card.nonce }, "3f2a9c1e-7b4d-4c1a-9e2f-0a1b2c3d4e5f");
+  assert.match(long, /^[A-Za-z0-9_-]{1,64}$/);
+});
