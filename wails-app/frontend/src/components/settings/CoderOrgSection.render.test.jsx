@@ -4,14 +4,6 @@ import '@testing-library/jest-dom/vitest'
 import { render, screen, fireEvent, waitFor, within, cleanup } from '@testing-library/react'
 import '../../i18n.js'
 import ConfirmHost from '../ConfirmDialog.jsx'
-
-// CoderSetAppAccess is monomind-attach's binding (fix/coder-app-access); its
-// wailsjs stub lands with that branch. Until then it is added here, calling
-// window.go like the generated stubs do.
-vi.mock('../../wailsjs/go/main/App', async (importOriginal) => ({
-  ...(await importOriginal()),
-  CoderSetAppAccess: (...a) => window.go.main.App.CoderSetAppAccess(...a),
-}))
 import CoderOrgSection from './CoderOrgSection.jsx'
 
 // Each control calls its binding (and so `monoagentcli coder set` / `hil
