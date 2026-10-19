@@ -91,9 +91,9 @@ messages, not a barrier:
   secret a workflow reads.
 - The HTTP API's `X-Full-Outputs: 1` gives whoever holds an API key
   unredacted outputs.
-- By your decision, a step that picks its own address (`http.request`) can
-  use a saved connection in any run, so a workflow can send that
-  connection's token to any address.
+- A saved connection's secret goes only to the hosts the connection names,
+  or that a workflow you approved names: see "Where a saved connection's
+  secret goes" below.
 - The extension commands that redirect the browser are yours: see
   "Extension commands that only the user runs" below.
 - Writing secrets, connections and profiles stays open to an agent on
@@ -105,6 +105,55 @@ messages, not a barrier:
   server or your own command, so a new writer can't reach it by accident.
 - An agent with full access to your computer can do anything you can,
   including reading the keyring.
+
+### Where a saved connection's secret goes
+
+A step that uses a saved connection (its `credential_id`, or the connection
+`node run` and MCP `node_run` find for the node's platform) sends the
+connection's password, token or key to the host its settings name. Up to
+this release a step's own settings won over the connection's, so a step
+could send your connection's secret to a host of its choosing. An agent's
+`node run` or `node_run`, a workflow it wrote, and a send you had
+always-allowed needed no approval for that. Examples: `comm.email_send`
+with your mail connection and its own `smtp_host` (the mail and your mail
+password went to that host), `comm.email_read` with its own `imap_host`,
+and `service.mastodon` with its own `instance`.
+
+Now the settings that decide where the secret goes follow these rules:
+
+- **The connection names the host.** The step can't name another one. A
+  different SMTP or IMAP host or port, Mastodon instance, Jira, Salesforce
+  or Shopify site, FTP, SSH or LDAP server, Kafka, RabbitMQ, AMQP or MQTT
+  broker, Snowflake account, or embedding or vector store URL is refused.
+  The error names the field and the connection's host. To use another
+  host, change the connection.
+- **The connection names no host.** The node's own default is used.
+  A host the step sets must be written in a workflow you approved. A host
+  taken from the run's data (its input, a webhook body, an earlier step,
+  an AI tool's arguments) is refused. So is a host in a workflow you
+  haven't approved, or in a step an agent runs on its own.
+- **`http.request` and `http.graphql` follow the same rules.** Their URL
+  and proxy are bound to the connection. A bare path still goes to the
+  connection's base URL. A next page on another host, which the response
+  names, goes without the request's auth, as a redirect does.
+- **API packages (`app.*` nodes).** They send the credential, and
+  anything rendered from the connection, only to the hosts the package
+  names: the base URL's host and its subdomains, hosts written in the
+  package, and its `auth_hosts`. A URL that a parameter or a response
+  names on any other host is sent without them.
+- **Model vendors.** `agent.ask` and `ai.model` reach the vendor the
+  connection is for. An embedding provider's region or location must be a
+  region name.
+- **Queue triggers.** Kafka, RabbitMQ, AMQP and MQTT triggers check the
+  same rules when they start. Brokers the connection doesn't name come
+  only from a workflow you approved.
+- **The send approval card.** In the app and in `hil show`, the card names
+  the mail relay or Mastodon instance a send goes through, and the TwiML
+  URL a Twilio call fetches. That URL must be a public http(s) address,
+  not this machine or a private network.
+
+What stays open: a workflow you approved may name a host for a connection
+that names none, and the secret goes there whoever runs the workflow.
 
 ### File-based keyring fallback (weaker posture)
 
