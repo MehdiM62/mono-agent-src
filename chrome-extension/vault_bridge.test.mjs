@@ -54,7 +54,7 @@ function world(o = {}) {
     supports: async (m) => (o.methods || ["ping", "vault.save"]).includes(m),
     request: async (method, params) => {
       calls.requests.push({ method, params });
-      if (o.fail) throw Object.assign(new Error(o.fail.message), { code: o.fail.code });
+      if (o.fail) throw Object.assign(new Error(o.fail.message), { code: o.fail.code }, o.fail.data ? { data: o.fail.data } : {});
       return o.reply || { id: "v1", created: true, name: params.name, mime: params.mime, size_bytes: 12 };
     },
   };
@@ -301,4 +301,28 @@ test("base64 in slices is the plain encoding, across slice boundaries and for an
   assert.equal(V.toBase64(bytes), Buffer.from(bytes).toString("base64"));
   assert.equal(V.toBase64(Uint8Array.of(1, 2)), Buffer.from([1, 2]).toString("base64"));
   assert.equal(V.toBase64(new Uint8Array(0)), "");
+});
+
+// vault.save's own refusals: quota_exceeded and storage_conflict are final
+// until the person acts; rate_limited is another click, and says when.
+test("a full vault and a blocked vault folder are final; a rate limit says when to try again", async () => {
+  const say = async (fail) => world({ fail }).send(ask());
+  const items = await say({ code: "quota_exceeded", message: "this profile already holds 5000 files", data: { limit: "items", max: 5000 } });
+  assert.deepEqual([items.status, items.feedback.text], ["refused",
+    "Not saved: this profile already holds 5,000 files saved from the browser, the most it takes. Delete some in the Image Vault to save more"]);
+  const bytes = await say({ code: "quota_exceeded", message: "over the limit", data: { limit: "bytes", max: 2 * 1024 * 1024 * 1024 } });
+  assert.deepEqual([bytes.status, bytes.feedback.text], ["refused",
+    "Not saved: files saved from the browser would pass this profile's 2 GiB limit. Delete some in the Image Vault to save more"]);
+  const bare = await say({ code: "quota_exceeded", message: "the vault is full: delete some in the Image Vault" });
+  assert.deepEqual([bare.status, bare.feedback.text], ["refused", "Not saved: the vault is full: delete some in the Image Vault"], "no data: MonoAgent's own words");
+
+  const conflict = await say({ code: "storage_conflict", message: "files it did not make sit where its next vault items go; check the profile's vault folder" });
+  assert.deepEqual([conflict.status, conflict.feedback.text], ["refused",
+    "Not saved: files it did not make sit where its next vault items go; check the profile's vault folder"]);
+
+  const limited = await say({ code: "rate_limited", message: "vault.save: at most 10 saves a minute for one profile; try again in 7 s", data: { retry_after: 7 } });
+  assert.deepEqual([limited.status, limited.feedback.text], ["retry",
+    "Not saved yet: MonoAgent takes only so many saves a minute from the browser. Try again in 7 s"]);
+  const soon = await say({ code: "rate_limited", message: "too many saves" });
+  assert.deepEqual([soon.status, soon.feedback.text], ["retry", "Not saved yet: too many saves. Press Save to try again"]);
 });

@@ -23,9 +23,10 @@
  *   5. vault.save goes under the card's key (MonoChatProposals.clientId), so
  *      a second click saves nothing twice.
  *
- * "refused" is final (the bridge's invalid_input, too big, not a type the
- * vault takes); "retry" keeps the card for another click (no profile, no
- * bridge, not on this page, unavailable, internal). There is no outbox: a
+ * "refused" is final (the bridge's invalid_input, quota_exceeded and
+ * storage_conflict, too big, not a type the vault takes); "retry" keeps the
+ * card for another click (no profile, no bridge, not on this page,
+ * rate_limited, unavailable, internal). There is no outbox: a
  * multi-megabyte file does not belong in chrome.storage.
  *
  * After ask.js, capture_profile.js, private_net.js and chat_proposals.js.
@@ -261,6 +262,50 @@
     return { bytes, mime: "text/plain", name: host ? `Selection from ${host}` : "Selection", source: page };
   }
 
+  /**
+   * saveRefusal is what a refused vault.save means for the card. Final, as the
+   * same save is refused again until the person acts: invalid_input,
+   * quota_exceeded (data {limit, max}: delete some saved files) and
+   * storage_conflict (stray files block the vault folder). Another click:
+   * rate_limited (data {retry_after}: the seconds until one more save fits),
+   * unavailable, internal, no answer.
+   */
+  function saveRefusal(err) {
+    const why = (err && err.message) || "MonoAgent did not answer";
+    const data = (err && err.data) || {};
+    switch (err && err.code) {
+      case "invalid_input":
+      case "storage_conflict":
+        return refuse(`Not saved: ${why}`);
+      case "quota_exceeded":
+        return refuse(`Not saved: ${quotaText(data) || why}`);
+      case "rate_limited": {
+        const secs = Number(data.retry_after);
+        if (Number.isFinite(secs) && secs > 0) {
+          return retry(`Not saved yet: MonoAgent takes only so many saves a minute from the browser. Try again in ${Math.ceil(secs)} s`);
+        }
+        break;
+      }
+    }
+    return retry(`Not saved yet: ${why}. Press Save to try again`);
+  }
+
+  /** quotaText names the limit a full vault reached; "" without one. */
+  function quotaText(data) {
+    const max = Number(data.max);
+    if (!Number.isFinite(max) || max <= 0) return "";
+    if (data.limit === "items") {
+      return `this profile already holds ${max.toLocaleString("en-US")} files saved from the browser, the most it takes. Delete some in the Image Vault to save more`;
+    }
+    if (data.limit === "bytes") {
+      const GiB = 1024 ** 3;
+      const MiB = 1024 ** 2;
+      const size = max >= GiB && max % GiB === 0 ? `${max / GiB} GiB` : max >= MiB && max % MiB === 0 ? `${max / MiB} MiB` : `${max} bytes`;
+      return `files saved from the browser would pass this profile's ${size} limit. Delete some in the Image Vault to save more`;
+    }
+    return "";
+  }
+
   async function profileName(id) {
     try {
       const { profiles } = await root.MonoCaptureProfile.load(deps.storage);
@@ -321,8 +366,7 @@
     try {
       data = await root.MonoAsk.request(METHOD, params, { timeoutMs: SAVE_TIMEOUT_MS, idleTimeoutMs: SAVE_TIMEOUT_MS });
     } catch (err) {
-      const why = (err && err.message) || "MonoAgent did not answer";
-      return err && err.code === "invalid_input" ? refuse(`Not saved: ${why}`) : retry(`Not saved yet: ${why}. Press Save to try again`);
+      return saveRefusal(err);
     }
     const where = await profileName(profile);
     const created = !(data && data.created === false);
