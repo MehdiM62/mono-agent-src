@@ -18,7 +18,8 @@ func TestKeyWordsSplitAKeyLikeAReader(t *testing.T) {
 			t.Errorf("keyWords(%q) = %q, want %q", k, got, want)
 		}
 	}
-	for _, k := range []string{"ccEmail", "bccEmail", "bccAddress", "bcc_address", "Bcc", "CC", "ccRecipients", "additional_emails", "attendees", "recipients"} {
+	for _, k := range []string{"ccEmail", "bccEmail", "bccAddress", "bcc_address", "Bcc", "CC", "ccRecipients", "additional_emails", "attendees", "recipients",
+		"ccs", "Bccs", "watchers", "watcherIds", "add_watcher"} {
 		if !copyKey(k) {
 			t.Errorf("copyKey(%q) = false", k)
 		}
@@ -75,6 +76,11 @@ func TestEveryCopyAndStrayAddressGetsACard(t *testing.T) {
 		"an object under message": with(emailConfig(), "message", map[string]interface{}{"to": evil}),
 		"an object under body":    with(emailConfig(), "body", map[string]interface{}{"address": evil}),
 		"objects in content":      with(emailConfig(), "content", []interface{}{map[string]interface{}{"to": evil}}),
+		// Copies by id: no address for the net to read, the key alone.
+		"ccs with an id":      with(emailConfig(), "ccs", []interface{}{"5b10ac8d82e05b22cc7d4ef5"}),
+		"bccs with an id":     with(emailConfig(), "bccs", "5b10ac8d82e05b22cc7d4ef6"),
+		"watchers with an id": with(emailConfig(), "watchers", []interface{}{"5b10ac8d82e05b22cc7d4ef7"}),
+		"fields.watcherIds":   with(emailConfig(), "fields", map[string]interface{}{"watcherIds": []interface{}{"5b10ac8d82e05b22cc7d4ef8"}}),
 	} {
 		if h, _ := held(t, st, "comm.email_send", cfg); !h {
 			t.Errorf("%s: went out without a card", name)

@@ -63,13 +63,18 @@ var listKeys = map[string]bool{
 	"attendees": true, "additionalemails": true, "carboncopy": true, "blindcarboncopy": true,
 }
 
+// copyWords mark a key that adds recipients beside the card's one: a cc or
+// a bcc (ccs, bccs) and an issue's watchers, whatever their value (an
+// address, or an id the net can't read as one).
+var copyWords = []string{"cc", "ccs", "bcc", "bccs", "watcher", "watchers"}
+
 // copyKey reports a key that adds recipients beside the card's one: any key
-// with a word cc or bcc (cc, Bcc, ccEmail, bcc_address, ccRecipients,
-// options.bcc_address at any depth), or a list of recipients
+// with a copy word (cc, Bcc, ccEmail, bcc_address, ccRecipients, ccs,
+// watcherIds, options.bcc_address at any depth), or a list of recipients
 // (additional_emails, attendees).
 func copyKey(k string) bool {
 	ws := keyWords(k)
-	return slices.Contains(ws, "cc") || slices.Contains(ws, "bcc") || listKeys[strings.Join(ws, "")]
+	return slices.ContainsFunc(ws, func(w string) bool { return slices.Contains(copyWords, w) }) || listKeys[strings.Join(ws, "")]
 }
 
 // replyToKey reports a reply-to address, which takes the answers

@@ -78,6 +78,15 @@ func sweepOp(t *testing.T, db *sql.DB, key, nodeType string, base map[string]int
 		}
 		checked++
 	}
+	// A copy by id has no address for the net to read: its key alone gets
+	// the card (ccs, bccs, watchers, at any depth).
+	for _, k := range []string{"ccs", "bccs", "watchers", "options.watcherIds"} {
+		cfg := cloneDeep(base)
+		setParam(cfg, k, []interface{}{"5b10ac8d82e05b22cc7d4ef5"})
+		if h, _ := guard(cfg); !h {
+			t.Errorf("%s: a copy by id in %q went out on the rule for the recipient", key, k)
+		}
+	}
 	return true, checked
 }
 

@@ -120,6 +120,32 @@ func TestAnUnknownPairShowsItsValue(t *testing.T) {
 	}
 }
 
+// Copies and watchers by id (ccs, bccs, watchers) are recipients: their ids,
+// past key 25, are on the card.
+func TestCopiesAndWatchersByIDAreOnTheCard(t *testing.T) {
+	keys := map[string]interface{}{}
+	for i := 0; i < 25; i++ {
+		keys[fmt.Sprintf("aa_k%02d", i)] = i
+	}
+	keys["ccs"] = "654321"
+	keys["bccs"] = []interface{}{float64(765432)}
+	keys["watchers"] = float64(7654321)
+	got, why := probe(keys)
+	for _, w := range []string{"654321", "765432", "7654321"} {
+		if !strings.Contains(got, w) {
+			t.Errorf("%s not on the card:\n%s", w, got)
+		}
+	}
+	if why != "" {
+		t.Errorf("unreviewable: %s", why)
+	}
+	for _, k := range []string{"ccs", "bccs", "watchers", "issueWatchers", "watcher_ids"} {
+		if !recipientLike(k) {
+			t.Errorf("%q is not taken for a recipient", k)
+		}
+	}
+}
+
 // What addresses someone has a shape: an email address, a link with a host,
 // an @handle, a #channel, a Slack-style channel id, a phone number.
 func TestAddressTokens(t *testing.T) {
