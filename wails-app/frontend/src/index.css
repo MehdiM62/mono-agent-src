@@ -2051,7 +2051,7 @@ body.tb-dragging, body.tb-dragging * { cursor: grabbing !important; user-select:
 .tb-drawer-close { float: right; }
 .tb-field { display: block; margin-bottom: 12px; font-size: 11px; color: var(--text-muted); }
 .tb-field > div { margin-bottom: 4px; }
-.tb-drawer-actions { display: flex; gap: 8px; }
+.tb-drawer-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .tb-live { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .tb-profile-pill { padding: 2px 9px; border: 1px solid var(--border-bright); border-radius: 999px; font-family: var(--font-mono); font-size: 10.5px; color: var(--cyan); background: var(--cyan-glow); white-space: nowrap; }
 .tb-search { position: relative; display: inline-flex; align-items: center; }

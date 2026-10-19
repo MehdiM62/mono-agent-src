@@ -44,6 +44,12 @@ describe('the Tasks board layout', () => {
     expect(px(rule('.tb-drop-line'), 'height')).toBeGreaterThanOrEqual(2)
   })
 
+  // A card read before it leaves Inbox can show Save, Approve, Move to and
+  // Archive at once: the row wraps rather than run out of the drawer.
+  it('wraps the drawer actions', () => {
+    expect(rule('.tb-drawer-actions')).toMatch(/flex-wrap:\s*wrap/)
+  })
+
   it('sets the read-first note beside the drawer close button, not under it', () => {
     expect(rule('.tb-drawer-close')).toMatch(/float:\s*right/)
     expect(rule('.tb-read-first')).toMatch(/display:\s*flow-root/)

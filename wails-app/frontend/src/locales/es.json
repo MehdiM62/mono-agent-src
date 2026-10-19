@@ -1544,6 +1544,8 @@
         "released": "liberó"
       },
       "readFirst": "Esta tarjeta tiene notas. Léelas antes de aprobarla: en Listo, los agentes actúan sobre todo su texto.",
+      "readFirstMove": "Esta tarjeta tiene notas. Léelas antes de que salga de la Bandeja: los agentes actúan sobre todo su texto.",
+      "moveTo": "Mover a {{column}}",
       "saveFirst": "Guarda primero tus cambios"
     },
     "refused": "Rechazado: {{error}}",
@@ -1562,7 +1564,8 @@
     "hasNotes": "Esta tarjeta tiene notas: ábrela para leerlas",
     "notesMarker": "Notas",
     "announce": {
-      "moved": "Se movió «{{title}}» a {{column}}"
+      "moved": "Se movió «{{title}}» a {{column}}",
+      "failed": "No se pudo mover «{{title}}» a {{column}}: {{error}}"
     },
     "markDone": "Hecho",
     "backToReady": "Volver a Listo",

@@ -57,9 +57,9 @@ describe('the ghost drag', () => {
   it('drags past the threshold with a ghost, a glowing column and a drop line, and drops between two cards', async () => {
     await board()
     fireEvent.mouseDown(cardEl(1), { button: 0, clientX: 10, clientY: 10 })
-    fireEvent.mouseMove(document, { clientX: 12, clientY: 12 }) // under the threshold
+    fireEvent.mouseMove(document, { buttons: 1, clientX: 12, clientY: 12 }) // under the threshold
     expect(screen.queryByTestId('tb-ghost')).toBeNull()
-    fireEvent.mouseMove(document, { clientX: 320, clientY: 95 })
+    fireEvent.mouseMove(document, { buttons: 1, clientX: 320, clientY: 95 })
     expect(screen.getByTestId('tb-ghost')).toHaveTextContent('Task 1')
     expect(colEl('ready')).toHaveAttribute('data-drop-target', 'true')
     expect(colEl('inbox')).not.toHaveAttribute('data-drop-target')
@@ -79,7 +79,7 @@ describe('the ghost drag', () => {
   it('drops below the last card as right after it, and from the title too', async () => {
     await board()
     fireEvent.mouseDown(cardEl(1).querySelector('[data-card-open]'), { button: 0, clientX: 10, clientY: 10 })
-    fireEvent.mouseMove(document, { clientX: 320, clientY: 200 })
+    fireEvent.mouseMove(document, { buttons: 1, clientX: 320, clientY: 200 })
     expect(screen.getByTestId('tb-drop-line').previousElementSibling).toBe(cardEl(4))
     fireEvent.mouseUp(document, { clientX: 320, clientY: 200 })
     await waitFor(() => expect(api.move).toHaveBeenCalledWith(1, 'ready', { where: 'after', ref: 4 }))
@@ -94,24 +94,24 @@ describe('the ghost drag', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
 
     fireEvent.mouseDown(cardEl(1), { button: 0, clientX: 10, clientY: 10 })
-    fireEvent.mouseMove(document, { clientX: 320, clientY: 95 })
+    fireEvent.mouseMove(document, { buttons: 1, clientX: 320, clientY: 95 })
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(screen.queryByTestId('tb-ghost')).toBeNull()
     fireEvent.mouseUp(document, { clientX: 320, clientY: 95 })
 
     fireEvent.mouseDown(cardEl(1), { button: 0, clientX: 10, clientY: 10 })
-    fireEvent.mouseMove(document, { clientX: 320, clientY: 95 })
+    fireEvent.mouseMove(document, { buttons: 1, clientX: 320, clientY: 95 })
     fireEvent.blur(window)
     expect(screen.queryByTestId('tb-ghost')).toBeNull()
     fireEvent.mouseUp(document, { clientX: 320, clientY: 95 })
 
     fireEvent.mouseDown(screen.getByRole('button', { name: 'Archive: Task 1' }), { button: 0, clientX: 10, clientY: 10 })
-    fireEvent.mouseMove(document, { clientX: 320, clientY: 95 })
+    fireEvent.mouseMove(document, { buttons: 1, clientX: 320, clientY: 95 })
     expect(screen.queryByTestId('tb-ghost')).toBeNull()
     fireEvent.mouseUp(document, { clientX: 320, clientY: 95 })
 
     fireEvent.mouseDown(cardEl(3), { button: 0, clientX: 310, clientY: 50 })
-    fireEvent.mouseMove(document, { clientX: 320, clientY: 55 }) // a drag that ends where #3 already is
+    fireEvent.mouseMove(document, { buttons: 1, clientX: 320, clientY: 55 }) // a drag that ends where #3 already is
     fireEvent.mouseUp(document, { clientX: 320, clientY: 55 })
     expect(api.move).not.toHaveBeenCalled()
     expect(api.archive).not.toHaveBeenCalled()
@@ -120,7 +120,7 @@ describe('the ghost drag', () => {
   it('opens a card with notes dropped on Ready to be read, moving nothing (plan ruling F6)', async () => {
     await board()
     fireEvent.mouseDown(cardEl(2), { button: 0, clientX: 10, clientY: 10 })
-    fireEvent.mouseMove(document, { clientX: 320, clientY: 95 })
+    fireEvent.mouseMove(document, { buttons: 1, clientX: 320, clientY: 95 })
     fireEvent.mouseUp(document, { clientX: 320, clientY: 95 })
     expect(await screen.findByTestId('read-first')).toBeInTheDocument()
     expect(api.move).not.toHaveBeenCalled()
@@ -133,7 +133,7 @@ describe('the ghost drag', () => {
     render(<Tasks />)
     await screen.findByText(/Read-only/)
     fireEvent.mouseDown(cardEl(1), { button: 0, clientX: 10, clientY: 10 })
-    fireEvent.mouseMove(document, { clientX: 320, clientY: 95 })
+    fireEvent.mouseMove(document, { buttons: 1, clientX: 320, clientY: 95 })
     expect(screen.queryByTestId('tb-ghost')).toBeNull()
     fireEvent.mouseUp(document, { clientX: 320, clientY: 95 })
     expect(api.move).not.toHaveBeenCalled()
@@ -148,7 +148,7 @@ describe('the ghost drag', () => {
     Object.defineProperty(col, 'scrollTop', { value: 0, writable: true })
     Object.defineProperty(cols, 'scrollLeft', { value: 0, writable: true })
     fireEvent.mouseDown(cardEl(1), { button: 0, clientX: 10, clientY: 10 })
-    fireEvent.mouseMove(document, { clientX: 990, clientY: 290 }) // the column's bottom edge, the board's right edge
+    fireEvent.mouseMove(document, { buttons: 1, clientX: 990, clientY: 290 }) // the column's bottom edge, the board's right edge
     runFrame()
     expect(col.scrollTop).toBeGreaterThan(0)
     expect(cols.scrollLeft).toBeGreaterThan(0)
@@ -156,4 +156,58 @@ describe('the ghost drag', () => {
     runFrame()
     expect(frames).toEqual([]) // the drag ended: no more scrolling
   })
+
+  // #888 review: the click that ends a cancelled drag's press must not open
+  // the card, however late the button is let go; the next press is a click.
+  it('opens nothing when the button is let go over the card after Escape or a lost window', async () => {
+    await board()
+    for (const cancel of [() => fireEvent.keyDown(document, { key: 'Escape' }), () => fireEvent.blur(window)]) {
+      fireEvent.mouseDown(cardEl(1), { button: 0, clientX: 10, clientY: 10 })
+      fireEvent.mouseMove(document, { buttons: 1, clientX: 320, clientY: 95 })
+      cancel()
+      fireEvent.mouseUp(cardEl(1), { clientX: 10, clientY: 10 })
+      fireEvent.click(cardEl(1).querySelector('[data-card-open]'))
+      expect(screen.queryByRole('dialog')).toBeNull()
+    }
+    fireEvent.mouseDown(cardEl(1), { button: 0, clientX: 10, clientY: 10 })
+    fireEvent.mouseUp(cardEl(1), { clientX: 10, clientY: 10 })
+    fireEvent.click(cardEl(1).querySelector('[data-card-open]'))
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
+    expect(api.move).not.toHaveBeenCalled()
+  })
+
+  it('ends the drag, dropping nothing, when the button was let go outside the window', async () => {
+    await board()
+    fireEvent.mouseDown(cardEl(1), { button: 0, clientX: 10, clientY: 10 })
+    fireEvent.mouseMove(document, { buttons: 1, clientX: 320, clientY: 95 })
+    expect(screen.getByTestId('tb-ghost')).toBeInTheDocument()
+    fireEvent.mouseMove(document, { buttons: 0, clientX: 320, clientY: 95 })
+    expect(screen.queryByTestId('tb-ghost')).toBeNull()
+    fireEvent.mouseUp(document, { clientX: 320, clientY: 95 })
+    expect(api.move).not.toHaveBeenCalled()
+    // The next press is a plain click again.
+    fireEvent.mouseDown(cardEl(3), { button: 0, clientX: 310, clientY: 50 })
+    fireEvent.mouseUp(cardEl(3), { clientX: 310, clientY: 50 })
+    fireEvent.click(cardEl(3))
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
+  })
+
+  it.each([
+    ['a scroll', () => fireEvent.scroll(colEl('ready'))],
+    ['a resize', () => fireEvent(window, new Event('resize'))],
+  ])('takes the landing place afresh after %s, without a move', async (_, change) => {
+    await board()
+    fireEvent.mouseDown(cardEl(1), { button: 0, clientX: 10, clientY: 10 })
+    fireEvent.mouseMove(document, { buttons: 1, clientX: 320, clientY: 95 })
+    expect(screen.getByTestId('tb-drop-line').nextElementSibling).toBe(cardEl(4))
+    // The cards moved down under a still pointer: it now sits above #3.
+    for (const [id, top] of [[3, 140], [4, 190]]) {
+      cardEl(id).getBoundingClientRect = () => ({ top, height: 40, bottom: top + 40, left: 300, width: 200, right: 500 })
+    }
+    change()
+    expect(screen.getByTestId('tb-drop-line').nextElementSibling).toBe(cardEl(3))
+    fireEvent.mouseUp(document, { clientX: 320, clientY: 95 })
+    await waitFor(() => expect(api.move).toHaveBeenCalledWith(1, 'ready', { where: 'before', ref: 3 }))
+  })
 })
+

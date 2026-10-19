@@ -121,7 +121,8 @@ export default function Tasks({ isActive = true }) {
   const b = useTaskBoard(isActive)
   const [query, setQuery] = useState('')
   const [openId, setOpenId] = useState(null)
-  // readFor: the card the drawer opened for to be read before it is approved (F6).
+  // readFor: the card the drawer opened for to be read before it leaves
+  // Inbox (F6), and the move it was asked for: {id, to, place}.
   const [readFor, setReadFor] = useState(null)
   const [shell, setShell] = useState(null) // null until agentShell() answers
   const root = useRef(null)
@@ -175,12 +176,16 @@ export default function Tasks({ isActive = true }) {
   }, [openId])
 
   const focusCard = (id) => root.current?.querySelector(`[data-task-id="${id}"] [data-card-open]`)?.focus()
-  const announce = (id, to) => {
+  // A move is announced once the CLI has answered: done, or refused and why.
+  const announced = async (id, to, call) => {
     const title = findTask(b.board, id)?.task.title || `#${id}`
-    setAnnouncement(t('tasks.announce.moved', { title, column: t(`tasks.column.${to}`) }))
+    const res = await call()
+    const column = t(`tasks.column.${to}`)
+    setAnnouncement(res?.error ? t('tasks.announce.failed', { title, column, error: res.error }) : t('tasks.announce.moved', { title, column }))
+    return res
   }
-  const moveCard = (id, to, place) => { announce(id, to); return b.move(id, to, place) }
-  const approveNow = (id) => { announce(id, 'ready'); return b.approve(id) }
+  const moveCard = (id, to, place) => announced(id, to, () => b.move(id, to, place))
+  const approveNow = (id) => announced(id, 'ready', () => b.approve(id))
   const openQuickAdd = () => root.current?.querySelector('.tb-quick input')?.focus()
 
   // `/` focuses search and `N` the Inbox quick add, from anywhere on the page
@@ -196,12 +201,13 @@ export default function Tasks({ isActive = true }) {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [isActive, readOnly])
 
-  // A card with notes never goes from Inbox to Ready in one gesture (plan
-  // ruling F6): Approve, Shift+Right and a drop on Ready open its drawer, where
-  // the person approves it with the notes in front of them.
+  // A card with notes never leaves Inbox in one gesture (plan ruling F6, and
+  // the #888 review for the other columns): Approve, Shift+Right and a drop
+  // on any column open its drawer, where the person approves or moves it
+  // with the notes in front of them.
   const openCard = (id) => { setReadFor(null); setOpenId(id) }
-  const openToRead = (id) => { setOpenId(id); setReadFor(id) }
-  const guarded = (task, from, to) => from === 'inbox' && to === 'ready' && readFirst(task)
+  const openToRead = (id, to = 'ready', place = { where: '' }) => { setOpenId(id); setReadFor({ id, to, place }) }
+  const guarded = (task, from, to) => from === 'inbox' && to !== 'inbox' && readFirst(task)
   const approveCard = (task) => {
     if (guarded(task, 'inbox', 'ready')) openToRead(task.id)
     else approveNow(task.id)
@@ -234,7 +240,7 @@ export default function Tasks({ isActive = true }) {
     if (e.shiftKey || e.altKey) {
       if (readOnly) return
       const m = keyMove(shown, task.id, key)
-      if (m && !m.blocked && guarded(task, findTask(shown, task.id)?.status, m.to)) { openToRead(task.id); return }
+      if (m && !m.blocked && guarded(task, findTask(shown, task.id)?.status, m.to)) { openToRead(task.id, m.to, m.place); return }
       if (m && !m.blocked) { refocus.current = task.id; moveCard(task.id, m.to, m.place) }
       return
     }
@@ -245,7 +251,7 @@ export default function Tasks({ isActive = true }) {
   const onDrop = ({ id, from, fromIds, to, ids, index }) => {
     const found = findTask(shown, id)
     if (!found || readOnly || isNoopDrop(fromIds, from, to, ids, index, id)) return
-    if (guarded(found.task, from, to)) { openToRead(id); return }
+    if (guarded(found.task, from, to)) { openToRead(id, to, placeFor(ids, index)); return }
     moveCard(id, to, placeFor(ids, index))
   }
   const { drag, onCardMouseDown, consumeClick } = useCardDrag({ rootRef: root, onDrop, canDrag: () => !readOnly, layoutKey: shown })
@@ -310,7 +316,9 @@ export default function Tasks({ isActive = true }) {
             )
           })}
         </div>
-        {open && <TaskDrawer task={open} status={findTask(b.board, open.id)?.status} readFirst={readFor === open.id} readOnly={readOnly} onClose={() => setOpenId(null)} onEdit={b.edit} onComment={b.comment} onApprove={() => approveNow(open.id)} onArchive={() => archiveRes(open.id)} archiving={archiving === open.id} archiveError={archiveError} />}
+        {open && <TaskDrawer task={open} status={findTask(b.board, open.id)?.status} readFirst={readFor?.id === open.id} readOnly={readOnly}
+          moveTo={readFor?.id === open.id && readFor.to !== 'ready' ? readFor.to : null} onMoveTo={() => moveCard(open.id, readFor.to, readFor.place)}
+          onClose={() => setOpenId(null)} onEdit={b.edit} onComment={b.comment} onApprove={() => approveNow(open.id)} onArchive={() => archiveRes(open.id)} archiving={archiving === open.id} archiveError={archiveError} />}
       </div>
       </div>
       {dragged && (

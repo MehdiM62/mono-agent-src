@@ -1586,6 +1586,8 @@
         "released": "released"
       },
       "readFirst": "This card has notes. Read them before you approve it: in Ready, agents act on its whole text.",
+      "readFirstMove": "This card has notes. Read them before it leaves Inbox: agents act on its whole text.",
+      "moveTo": "Move to {{column}}",
       "saveFirst": "Save your edits first"
     },
     "refused": "Refused: {{error}}",
@@ -1604,7 +1606,8 @@
     "hasNotes": "This card has notes: open it to read them",
     "notesMarker": "Notes",
     "announce": {
-      "moved": "Moved “{{title}}” to {{column}}"
+      "moved": "Moved “{{title}}” to {{column}}",
+      "failed": "Couldn't move “{{title}}” to {{column}}: {{error}}"
     },
     "markDone": "Done",
     "backToReady": "Back to Ready",
