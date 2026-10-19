@@ -7,6 +7,7 @@ import (
 
 	"github.com/monoes/mono-agent/internal/action"
 	"github.com/monoes/mono-agent/internal/automation"
+	"github.com/monoes/mono-agent/internal/browser"
 )
 
 // A boot that finds its registry already booted puts the action loader back
@@ -23,6 +24,7 @@ func TestBootAutomations_ACacheHitIsTheRegistryOfTheHomeItNames(t *testing.T) {
 		bootedReg, bootedHome = nil, ""
 		bootMu.Unlock()
 		action.SetDefSource(nil)
+		browser.SetStartURLResolver(nil)
 		automation.TestSeed = prevSeed
 	})
 
@@ -33,8 +35,12 @@ func TestBootAutomations_ACacheHitIsTheRegistryOfTheHomeItNames(t *testing.T) {
 		t.Fatal(err)
 	}
 	action.SetDefSource(nil) // as a test, or anything else, may
+	browser.SetStartURLResolver(nil)
 	if _, err := BootAutomations(""); err != nil {
 		t.Fatal(err)
+	}
+	if got := browser.StartURL("acme-one"); got != "https://app.example.test/" {
+		t.Errorf("a boot that found its registry booted left the start-URL resolver unset: StartURL = %q", got)
 	}
 	if src := action.CurrentDefSource(); src == nil {
 		t.Fatal("a boot that found its registry booted left the loader unset")
