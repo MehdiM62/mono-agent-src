@@ -172,6 +172,30 @@ func TestASendDraftCardCantBeApproved(t *testing.T) {
 	}
 }
 
+// The Outlook package's draft/send sends the draft to the draft's own
+// recipients, whatever its to says: its card, like send_draft's, can only be
+// rejected (security review of send-card-fidelity, B1).
+func TestAnOutlookPackageDraftSendCardCantBeApproved(t *testing.T) {
+	outlook := target{node: "service.outlook_mail"}
+	for _, c := range []struct {
+		node   string
+		config map[string]interface{}
+		want   bool
+	}{
+		{"service.outlook_mail", map[string]interface{}{"resource": "draft", "operation": "send", "draftId": "D1", "to": "ada@example.test"}, true},
+		{"service.outlook_mail", map[string]interface{}{"resource": " Draft ", "operation": " send "}, true},
+		{"service.outlook_mail", map[string]interface{}{"operation": "send_draft"}, true},
+		{"service.gmail", map[string]interface{}{"operation": "send_draft"}, true},
+		{"service.outlook_mail", map[string]interface{}{"resource": "message", "operation": "send"}, false},
+		{"service.gmail", map[string]interface{}{"resource": "draft", "operation": "send"}, false},
+	} {
+		outlook.node = c.node
+		if got := sendsDraft(outlook, c.config); got != c.want {
+			t.Errorf("%s %v: sendsDraft = %v, want %v", c.node, c.config, got, c.want)
+		}
+	}
+}
+
 // SMTP's legacy html flag makes the body HTML, as body_type does, so the
 // card shows it as the body type; a body_type set as well wins, as in the
 // node.

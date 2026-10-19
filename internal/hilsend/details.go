@@ -110,5 +110,10 @@ const draftUnreviewable = "sending a draft sends the recipients, subject and tex
 // sendsDraft reports a Gmail or Outlook send_draft: what it sends is the
 // draft as the mailbox holds it, none of which the card shows.
 func sendsDraft(t target, config map[string]interface{}) bool {
+	if t.node == "service.outlook_mail" && opOf(config) == "send" && strings.EqualFold(strings.TrimSpace(str(config["resource"])), "draft") {
+		// The Outlook package's draft/send: Graph sends the draft to its
+		// own recipients whatever the config's to says.
+		return true
+	}
 	return (t.node == "service.gmail" || t.node == "service.outlook_mail") && opOf(config) == "send_draft"
 }
