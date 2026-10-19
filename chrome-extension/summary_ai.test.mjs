@@ -247,7 +247,7 @@ function worker() {
     runtime: { onMessage: { addListener: () => {} }, sendMessage: () => Promise.resolve() },
   };
   const env = loadExtensionScripts(
-    ["capture_meta.js", "capture.js", "capture_modes.js", "capture_form.js", "capture_profile.js", "summary_ai.js",
+    ["capture_meta.js", "capture.js", "capture_outbox.js", "capture_modes.js", "capture_form.js", "capture_profile.js", "summary_ai.js",
       "capture_batch.js", "capture_queue.js", "capture_actions.js"],
     { chrome }
   );
@@ -264,9 +264,9 @@ function worker() {
       return { meta, artifacts: [], warnings: [] };
     },
   });
-  // A sticky profile, so no capture stops to ask for one.
-  store.captureProfile = "";
-  store.captureProfilesCache = [];
+  // A sticky profile, so no capture stops to ask for one (or waits for one: D2).
+  store.captureProfile = "p-work";
+  store.captureProfilesCache = [{ id: "p-work", name: "Work" }];
   return { env, store, captures, frames, ask: (m) => env.MonoCaptureActions.handle(m) };
 }
 
@@ -307,7 +307,7 @@ test("the choice is read at commit, and a snapshot begun in another mode is reta
 // --- plumbing: the right-click menu -------------------------------------------
 
 function menuWorld(seed) {
-  const store = Object.assign({ captureProfile: "" }, seed);
+  const store = Object.assign({ captureProfile: "p-work", captureProfilesCache: [{ id: "p-work", name: "Work" }] }, seed);
   const sent = [];
   const chrome = {
     runtime: { onMessage: { addListener: () => {} }, lastError: null, sendMessage: () => Promise.resolve() },
@@ -332,7 +332,7 @@ function menuWorld(seed) {
     },
   };
   const env = loadExtensionScripts(
-    ["capture_meta.js", "capture.js", "capture_profile.js", "summary_ai.js", "capture_modes.js", "youtube_video.js", "capture_bridge.js"],
+    ["capture_meta.js", "capture.js", "capture_outbox.js", "capture_profile.js", "summary_ai.js", "capture_modes.js", "youtube_video.js", "capture_bridge.js"],
     { chrome }
   );
   env.MonoCaptureBridge.install({

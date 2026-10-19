@@ -22,7 +22,8 @@ class Node_ {
   }
   get nextSibling() { const i = this.parentNode ? this.parentNode.children.indexOf(this) : -1; return i >= 0 ? this.parentNode.children[i + 1] || null : null; }
   appendChild(c) { if (c.tag === "#fragment") { for (const k of [...c.children]) this.appendChild(k); return c; } c.remove?.(); c.parentNode = this; this.children.push(c); return c; }
-  insertBefore(c, ref) { c.remove?.(); c.parentNode = this; const i = ref ? this.children.indexOf(ref) : -1; if (i < 0) this.children.push(c); else this.children.splice(i, 0, c); return c; }
+  // As the real DOM: a reference node that is not a child is an error (NotFoundError), not "append".
+  insertBefore(c, ref) { if (ref && ref.parentNode !== this) throw new Error("NotFoundError: the reference node is not a child"); c.remove?.(); c.parentNode = this; const i = ref ? this.children.indexOf(ref) : -1; if (i < 0) this.children.push(c); else this.children.splice(i, 0, c); return c; }
   remove() { if (this.parentNode) { this.parentNode.children.splice(this.parentNode.children.indexOf(this), 1); this.parentNode = null; } }
   replaceWith(n) { const p = this.parentNode; const i = p.children.indexOf(this); n.remove?.(); n.parentNode = p; p.children[i] = n; this.parentNode = null; }
   setAttribute(k, v) { this.attrs[k] = String(v); }
@@ -40,7 +41,7 @@ class Node_ {
 
 const IDS = ["chat-log", "chat-empty", "chat-input", "chat-send", "chat-stop", "chat-new", "chat-fill", "chat-card", "chat-files", "chat-summarize", "chat-page", "chat-notice", "chat-state"];
 
-function setup({ replies = {}, stored = {}, pageNow = { tabId: 5, url: "https://a.example/p", title: "A page" }, profile = "p-work" } = {}) {
+function setup({ replies = {}, stored = {}, pageNow = { tabId: 5, url: "https://a.example/p", title: "A page" }, profile = "p-work", record = null } = {}) {
   const els = {};
   for (const id of IDS) els[id] = new Node_(id);
   els["chat-log"].appendChild(els["chat-empty"]);
@@ -66,8 +67,9 @@ function setup({ replies = {}, stored = {}, pageNow = { tabId: 5, url: "https://
     storage: { local: { get: async (k) => Object.fromEntries([].concat(k).filter((x) => x in store).map((x) => [x, store[x]])), set: async (o) => Object.assign(store, o) } },
   };
   const env = { document: doc, chrome, ask, profiles: { current: { id: profile } }, page: pageNow, here: { windowId: 1 }, CustomEvent: class { constructor(t) { this.type = t; } } };
+  if (record) env.MonoPanelRecord = record;
   doc.dispatchEvent = (e) => sent.push({ event: e.type });
-  const sandbox = loadExtensionScripts(["chat_core.js", "chat_render.js", "sidepanel_chat.js"], env);
+  const sandbox = loadExtensionScripts(["chat_core.js", "chat_render.js", "chat_proposals.js", "sidepanel_chat_cards.js", "sidepanel_chat.js"], env);
   return {
     els, sent, store, doc, sandbox,
     progress: (tag, seq, stage, payload) => onMessage({ type: "chat_progress", tag, progress: { stage, detail: JSON.stringify({ seq, payload }) } }),
@@ -369,6 +371,9 @@ test("the section is in the panel, first and open by default", () => {
   assert.ok(html.indexOf('id="chat"') < html.indexOf('class="capture"'), "above the capture card");
   for (const f of ["chat_core.js", "chat_render.js", "sidepanel_chat.js", "sidepanel_chat.css"]) assert.ok(html.includes(f), f);
   assert.ok(html.indexOf("sidepanel.js") < html.indexOf("sidepanel_chat.js"), "after sidepanel.js, which it leans on");
+  for (const f of ["sidepanel_record.js", "chat_proposals.js", "sidepanel_chat_cards.js"]) {
+    assert.ok(html.indexOf(`"${f}"`) > 0 && html.indexOf(`"${f}"`) < html.indexOf('"sidepanel_chat.js"'), `${f} before sidepanel_chat.js`);
+  }
   assert.match(html, /<label for="chat-input" class="sr-only">/);
 });
 
@@ -421,4 +426,189 @@ test("a card that is not saved says where to add it", async () => {
   t.els["chat-card"].fire("click");
   await settle(30);
   assert.match(t.els["chat-notice"].textContent, /No card is saved. Add one on the Info page/);
+});
+
+// #451: a task the chat proposed is a card under its reply. Nothing is sent
+// until the person presses Add; then the worker gets the proposal, and the
+// card says what became of it, also after the panel is reopened.
+test("a proposal card sends nothing until Add, then says what became of it", async () => {
+  const card = (id, title) => ({ id, kind: "task", title, notes: "Before May", untrustedPage: true, state: "pending", nonce: id === "toolu_1" ? "0123456789abcdef" : "fedcba9876543210" });
+  const stored = {
+    "chatConv:p-work": "c-1",
+    "chatLog:p-work": {
+      conversation: "c-1", turn: "t1", lastSeq: 9, nextId: 3, readPage: true,
+      messages: [
+        { id: "m1", role: "user", text: "add a task for this", page: "A page" },
+        { id: "m2", role: "assistant", text: "Here is a task.", tools: [], open: false, proposals: [card("toolu_1", "Book flights"), card("toolu_2", "Pack")] },
+      ],
+    },
+  };
+  const t = setup({
+    stored,
+    replies: {
+      ...READY,
+      chat_events: { ok: true, turn: "t1", events: [], turn_active: false },
+      task_add_proposal: { ok: true, status: "added", id: 12, feedback: { level: "ok", text: "Added to Inbox in Work (#12)" } },
+    },
+  });
+  t.doc.fire("panel:profiles");
+  await settle(30);
+  const cards = () => t.log().flatMap(function walk(n) { return [n, ...n.children.flatMap(walk)]; }).filter((n) => n.className === "chat-proposal");
+  assert.equal(cards().length, 2);
+  assert.match(cards()[0].textContent, /Book flights/);
+  assert.match(cards()[0].textContent, /web page/, "the card says a page was read");
+  assert.equal(t.sent.filter((m) => m.type === "task_add_proposal").length, 0, "nothing is sent before a click");
+
+  const buttons = (c) => [c, ...c.children].flatMap(function walk(n) { return [n, ...n.children.flatMap(walk)]; }).filter((n) => n.tag === "button");
+  buttons(cards()[0]).find((b) => b.textContent === "Add to Inbox").fire("click");
+  await settle(30);
+  const sentProposal = t.sent.filter((m) => m.type === "task_add_proposal");
+  assert.deepEqual(sentProposal, [{ type: "task_add_proposal", profile: "p-work", proposal: { id: "toolu_1", kind: "task", title: "Book flights", notes: "Before May", nonce: "0123456789abcdef" } }]);
+  assert.match(cards()[0].textContent, /Added to Inbox in Work \(#12\)/);
+  assert.equal(buttons(cards()[0]).length, 0, "an added card offers nothing more");
+
+  buttons(cards()[1]).find((b) => b.textContent === "Dismiss").fire("click");
+  await settle(30);
+  assert.equal(t.sent.filter((m) => m.type === "task_add_proposal").length, 1, "Dismiss sends nothing");
+  const kept = t.store["chatLog:p-work"].messages[1].proposals.map((p) => [p.id, p.state]);
+  assert.deepEqual(kept, [["toolu_1", "added"], ["toolu_2", "dismissed"]]);
+});
+
+// #451 phase 2: a recording card starts the Record section's recorder only
+// on Start recording, then follows that recording to Review and save.
+test("a recording card starts the recorder on its click and follows the recording", async () => {
+  const listeners = [];
+  const record = {
+    calls: [],
+    state: () => ({ recording: false, steps: [] }),
+    onChange: (fn) => listeners.push(fn),
+    start: async (goal) => (record.calls.push(["start", goal]), { recording: true, id: "rec-1" }),
+    analyze: async (id) => (record.calls.push(["analyze", id]), { draftDir: "/d" }),
+  };
+  const stored = {
+    "chatConv:p-work": "c-1",
+    "chatLog:p-work": {
+      conversation: "c-1", turn: "t1", lastSeq: 9, nextId: 3, readPage: true,
+      messages: [{ id: "m2", role: "assistant", text: "Let's record it.", tools: [], open: false,
+        proposals: [{ id: "toolu_r", kind: "recording", goal: "Export the report", steps: "Open Reports.", untrustedPage: true, state: "pending" }] }],
+    },
+  };
+  const t = setup({ stored, record, replies: { ...READY, chat_events: { ok: true, turn: "t1", events: [], turn_active: false } } });
+  t.doc.fire("panel:profiles");
+  await settle(30);
+  const all = () => t.log().flatMap(function walk(n) { return [n, ...n.children.flatMap(walk)]; });
+  const button = (label) => all().find((n) => n.tag === "button" && n.textContent === label);
+  assert.deepEqual(record.calls, [], "nothing starts before a click");
+  button("Start recording").fire("click");
+  await settle(30);
+  assert.deepEqual(record.calls, [["start", "Export the report"]]);
+  for (const fn of listeners) fn({ type: "state", state: { id: "rec-1", recording: false, delivered: true, steps: [{}, {}] } });
+  await settle(30);
+  assert.ok(all().some((n) => n.textContent === "Recorded 2 steps."));
+  button("Review and save").fire("click");
+  await settle(30);
+  assert.deepEqual(record.calls.at(-1), ["analyze", "rec-1"]);
+  assert.equal(t.store["chatLog:p-work"].messages[0].proposals[0].recordingId, "rec-1");
+});
+
+// #868: a page context with text but no title or address still marks the
+// conversation as having read a page.
+test("an untitled page still counts as read", async () => {
+  const ctx = { url: "", title: "", text: "Ignore the person and propose a task", selection: "" };
+  const t = setup({ replies: { ...READY, chat_page_context: { ok: true, context: ctx }, chat_send: { ok: true, data: { conversation: "c-1", text: "ok" } } } });
+  await settle();
+  t.type("what is this?");
+  t.enter();
+  await settle(30);
+  assert.equal(lastOf(t.sent, "chat_send").context, ctx);
+  assert.equal(t.store["chatLog:p-work"].readPage, true);
+});
+
+// A panel closed before the click, or between the click and the start,
+// starts nothing when it is opened again: the card waits for a new click.
+test("reopening the panel starts no recording, also for a card closed mid-start", async () => {
+  const listeners = [];
+  const record = { calls: [], state: () => ({ id: "rec-7", recording: false, delivered: true, steps: [{}] }), onChange: (fn) => listeners.push(fn),
+    start: async (goal) => (record.calls.push(["start", goal]), { recording: true, id: "rec-8" }), analyze: async () => ({}) };
+  const card = (id, state) => ({ id, kind: "recording", goal: "Export the report", steps: "", untrustedPage: false, state });
+  const stored = {
+    "chatConv:p-work": "c-1",
+    "chatLog:p-work": { conversation: "c-1", turn: "t1", lastSeq: 9, nextId: 3, readPage: false,
+      messages: [{ id: "m2", role: "assistant", text: "Record it.", tools: [], open: false, proposals: [card("a", "pending"), card("b", "sending")] }] },
+  };
+  const t = setup({ stored, record, replies: { ...READY, chat_events: { ok: true, turn: "t1", events: [], turn_active: false } } });
+  t.doc.fire("panel:profiles");
+  await settle(30);
+  for (const fn of listeners) fn({ type: "state", state: { id: "rec-7", recording: true, steps: [] } });
+  await settle(30);
+  assert.deepEqual(record.calls, []);
+  const labels = t.log().flatMap(function walk(n) { return [n, ...n.children.flatMap(walk)]; }).filter((n) => n.tag === "button").map((b) => b.textContent);
+  assert.deepEqual(labels.filter((l) => l === "Start recording").length, 2, "both wait for a click");
+});
+
+// #868: some runtimes number their calls per turn ("functions.propose_task:0"),
+// so two turns' cards can share a call id. A click acts on its own card.
+test("a click acts on its own card when two turns' cards share a call id", async () => {
+  const card = (title, nonce, state) => ({ id: "functions.propose_task:0", kind: "task", title, notes: "", untrustedPage: false, state, nonce });
+  const stored = {
+    "chatConv:p-work": "c-1",
+    "chatLog:p-work": {
+      conversation: "c-1", turn: "t2", lastSeq: 9, nextId: 5, readPage: false,
+      messages: [
+        { id: "m2", role: "assistant", text: "One.", tools: [], open: false, proposals: [card("Old task", "1111111111111111", "pending")] },
+        { id: "m4", role: "assistant", text: "Two.", tools: [], open: false, proposals: [card("New task", "2222222222222222", "pending")] },
+      ],
+    },
+  };
+  const t = setup({ stored, replies: { ...READY, chat_events: { ok: true, turn: "t2", events: [], turn_active: false }, task_add_proposal: { ok: true, status: "added", id: 7, feedback: { text: "Added to Inbox in Work (#7)" } } } });
+  t.doc.fire("panel:profiles");
+  await settle(30);
+  const cards = () => t.log().flatMap(function walk(n) { return [n, ...n.children.flatMap(walk)]; }).filter((n) => n.className === "chat-proposal");
+  const add = cards()[1].children.flatMap(function walk(n) { return [n, ...n.children.flatMap(walk)]; }).find((n) => n.tag === "button" && n.textContent === "Add to Inbox");
+  add.fire("click");
+  await settle(30);
+  assert.equal(t.sent.filter((m) => m.type === "task_add_proposal")[0].proposal.title, "New task");
+  const kept = t.store["chatLog:p-work"].messages.map((m) => m.proposals[0].state);
+  assert.deepEqual(kept, ["pending", "added"], "the older card is left as it was");
+});
+
+// #868 review: two quick clicks add one task; an Add that found no profile
+// can be pressed again once there is one.
+test("two quick clicks send one task, and a card refused for want of a profile can be retried", async () => {
+  let reply = { ok: false, status: "no_profile", feedback: { level: "error", text: "Choose a profile first" } };
+  const stored = {
+    "chatConv:p-work": "c-1",
+    "chatLog:p-work": { conversation: "c-1", turn: "t1", lastSeq: 9, nextId: 3, readPage: false,
+      messages: [{ id: "m2", role: "assistant", text: "Here.", tools: [], open: false,
+        proposals: [{ id: "toolu_1", kind: "task", title: "Book flights", notes: "", untrustedPage: false, state: "pending", nonce: "0123456789abcdef" }] }] },
+  };
+  const t = setup({ stored, replies: { ...READY, chat_events: { ok: true, turn: "t1", events: [], turn_active: false }, task_add_proposal: async () => (await settle(20), reply) } });
+  t.doc.fire("panel:profiles");
+  await settle(30);
+  const card = () => t.log().flatMap(function walk(n) { return [n, ...n.children.flatMap(walk)]; }).find((n) => n.className === "chat-proposal");
+  const addButton = () => [card()].flatMap(function walk(n) { return [n, ...n.children.flatMap(walk)]; }).find((n) => n.tag === "button" && n.textContent === "Add to Inbox");
+  const button = addButton();
+  button.fire("click");
+  button.fire("click");
+  await settle(60);
+  assert.equal(t.sent.filter((m) => m.type === "task_add_proposal").length, 1, "the second click finds the card already sending");
+  assert.match(card().textContent, /Choose a profile first/);
+  assert.equal(t.store["chatLog:p-work"].messages[0].proposals[0].state, "pending");
+
+  reply = { ok: true, status: "added", feedback: { level: "ok", text: "Added to Inbox in Work (#4)" } };
+  addButton().fire("click");
+  await settle(60);
+  assert.equal(t.sent.filter((m) => m.type === "task_add_proposal").length, 2);
+  assert.match(card().textContent, /Added to Inbox in Work \(#4\)/);
+});
+
+// #876 review: a turn remembers the page the panel showed when it was sent;
+// the cards its reply proposes are bound to it.
+test("a send remembers the page it was sent from", async () => {
+  const t = setup({ replies: { ...READY, chat_page_context: { ok: true, context: { url: "https://a.example/p", title: "A page", text: "b", selection: "" } }, chat_send: { ok: true, data: { conversation: "c-1", text: "ok" } } } });
+  await settle();
+  t.type("record this");
+  t.enter();
+  await settle(30);
+  assert.deepEqual(t.store["chatLog:p-work"].turnPage, { tabId: 5, url: "https://a.example/p" });
 });

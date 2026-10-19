@@ -87,6 +87,7 @@
   let refusedText = ""; // MonoAgent's own words when it will not take coder work (coder mode off)
   let target = null; // { tabId, key, selector }: an element, on the page it was taken from
   let projects = { projects: [], recent: [] };
+  let projectsFor = null; // the profile those folders are for
   let chosenCwd = null; // the folder the person picked, or null for the page's own
   let items = [];
   let conversations = [];
@@ -105,14 +106,10 @@
   const withProfile = (m) => (profileId() ? Object.assign(m, { profile: profileId() }) : m);
   const ready = () => availability === "ready";
   const usable = () => ready() && !refusedText;
+  // Every coder.* request is about a profile, and the bridge refuses one that
+  // names none: nothing is asked until the header has one (#822).
+  const asking = () => ready() && !!profileId();
   const visible = () => section.open && document.visibilityState !== "hidden";
-  const originOf = (url) => {
-    try {
-      return new URL(url).origin;
-    } catch {
-      return "";
-    }
-  };
   const baseName = Mirror.baseName;
 
   function say(kind, text) {
@@ -123,24 +120,7 @@
 
   // ── the form ─────────────────────────────────────────────────────
 
-  /** cwdChoices: the page's mapped folder first, then the other mapped and recent ones, then the default. */
-  function cwdChoices() {
-    const origin = originOf((pageNow() && pageNow().url) || "");
-    const out = [];
-    const seen = new Set();
-    const add = (dir, label) => {
-      if (typeof dir !== "string" || !dir || seen.has(dir)) return;
-      seen.add(dir);
-      out.push({ value: dir, label });
-    };
-    // A folder that is gone is not offered: the coder could not start there.
-    const mapped = (projects.projects || []).filter((p) => p && typeof p.dir === "string" && p.exists !== false);
-    for (const p of mapped) if (p.origin === origin) add(p.dir, `${baseName(p.dir)} (this site's project)`);
-    for (const p of mapped) add(p.dir, `${baseName(p.dir)} (${p.origin || "mapped"})`);
-    for (const r of projects.recent || []) if (r && r.exists !== false) add(r.path, baseName(r.path));
-    out.push({ value: "", label: "The coder's default folder" });
-    return out;
-  }
+  const cwdChoices = () => Mirror.folderChoices(projects, (pageNow() && pageNow().url) || "");
 
   function drawCwd() {
     const choices = cwdChoices();
@@ -159,6 +139,7 @@
   /** why says what is missing before Queue can be pressed, or "". */
   function why() {
     if (!usable()) return "unavailable";
+    if (!profileId()) return "Choose a profile at the top first.";
     if (!pageOk()) return "Open a web page first.";
     if (NEEDS_ELEMENT.has(kindSel.value) && !(target && target.selector)) return "Pick the element first.";
     if (NEEDS_NOTE.has(kindSel.value) && !noteBox.value.trim()) return "Say what you want in the note.";
@@ -291,7 +272,7 @@
   }
 
   async function loadLists() {
-    if (!ready()) return;
+    if (!asking()) return;
     const [q, c] = await Promise.all([ask(withProfile({ type: "coder_queue_list" })), ask(withProfile({ type: "coder_list" }))]);
     if (q.ok) items = Array.isArray(q.items) ? q.items : [];
     if (c.ok) conversations = Array.isArray(c.conversations) ? c.conversations : [];
@@ -300,6 +281,7 @@
   }
 
   async function loadProjects() {
+    projectsFor = profileId();
     const answer = await ask(withProfile({ type: "coder_projects" }));
     if (answer.ok) {
       projects = { projects: answer.projects || [], recent: answer.recent || [] };
@@ -318,7 +300,7 @@
     const answer = await ask({ type: "coder_ready" });
     availability = answer.ok ? answer.state || "offline" : "offline";
     refusedText = "";
-    if (ready()) await loadProjects();
+    if (asking()) await loadProjects();
     drawForm();
     loadLists(); // the summary's count, open or not
     schedule();
@@ -358,7 +340,7 @@
   async function poll() {
     clearTimeout(pollTimer);
     const w = watching;
-    if (!w || !visible() || !ready()) return;
+    if (!w || !visible() || !asking()) return;
     const events = (extra) => ask(withProfile(Object.assign({ type: "coder_events", conversationId: w.id }, extra)));
     let answer = await events({ since: w.chat.lastSeq });
     let changed = false;
@@ -419,7 +401,7 @@
     clearInterval(listTimer);
     listTimer = null;
     clearTimeout(pollTimer);
-    if (!visible() || !ready()) return;
+    if (!visible() || !asking()) return;
     listTimer = setInterval(loadLists, LIST_MS);
     if (watching) poll();
   }
@@ -483,9 +465,15 @@
     if (!ready()) load();
   });
   document.addEventListener("panel:profiles", () => {
-    // A refusal at load may have been for want of a profile: ask again now one is chosen.
-    if (ready() && refusedText) loadProjects();
-    if (ready()) loadLists();
+    if (!asking()) return drawForm();
+    // The folders, lists and chats are the profile's: asked for once one is chosen, again when it changes.
+    if (projectsFor !== profileId()) {
+      watching = null;
+      drawMirror();
+      loadProjects().then(drawForm);
+    }
+    loadLists();
+    schedule();
   });
 
   chrome.storage.onChanged.addListener((changes, area) => {

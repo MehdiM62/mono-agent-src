@@ -1,7 +1,6 @@
 package dynorg
 
 import (
-	"context"
 	"fmt"
 	"strings"
 )
@@ -86,27 +85,35 @@ func workerSystemPrompt(st Staff, cwd string, files []string, canSpawn bool) str
 	if st.Access == ProfileWorkspace {
 		b.WriteString("- " + sendRule + "\n")
 	} else {
-		b.WriteString("- Never read, send or change the user's messages or people records.\n")
+		b.WriteString("- Never read, send or change the user's messages or people records. " + sendGateRule + "\n")
 	}
 	b.WriteString("- Finish with a report for the lead of at most 200 words: what you did, what you found, and, if you changed files, the list of files.\n")
 	return b.String()
 }
 
 // LeadPrompt is added to the lead's system prompt when its chat runs as a
-// dynamic org.
-func LeadPrompt(l Limits) string {
+// dynamic org. appAccess is coder.appAccess: off, the workspace profile and
+// its surface rules (workspaceRules) are left out; the send rule stays.
+func LeadPrompt(l Limits, appAccess bool) string {
 	budget := ""
 	if l.BudgetUSD > 0 {
 		budget = fmt.Sprintf(", and $%.2f of worker cost", l.BudgetUSD)
+	}
+	profiles := (&Staffer{NoAppAccess: !appAccess}).profiles()
+	// The send rule stays either way: the lead has a shell and can still
+	// reach monoagentcli's send paths.
+	ownRules := "Your own rules: " + sendRule + " "
+	if appAccess {
+		ownRules = "Your own rules: " + workspaceRules + " " + sendRule + " "
 	}
 	return "\n\nYou lead a dynamic org. Besides your own tools you have org tools to bring in workers: " +
 		"org_roster (the models, roles and access profiles you can use), org_spawn (start a worker with a brief), " +
 		"org_wait (wait for workers and read their reports), org_message (a follow-up to a finished worker), " +
 		"org_stop and org_rate (rate a worker's result). " + efficiencyRules +
 		"You decide each worker's brief and may choose its role, skills, model, effort and access profile " +
-		"(workspace, coding, qa, automation, research); leave any of them out and they are picked for you. " +
+		"(" + strings.Join(profiles, ", ") + "); leave any of them out and they are picked for you. " +
 		"Roles and skills come from monomind's registered agents first (org_roster lists them by category); the built-in roles are the fallback. " +
-		"Your own rules: " + workspaceRules + " " + sendRule + " " +
+		ownRules +
 		"Only one worker edits files at a time (the others queue), so run research and review workers in parallel and " +
 		"give writers separate files. " +
 		"A worker can start sub-workers of its own only when you pass allow_spawn: true (for a big part that splits further); " +
@@ -133,16 +140,16 @@ const efficiencyRules = "EFFICIENCY FIRST. Do small things yourself; start no wo
 	"Pick a different model when a better-fitting one is ready; don't default to your own. Reuse veterans (org_message) before spawning. "
 
 // LeadExtras is the part of the lead's system prompt that depends on the
-// settings and the profile: how roles are routed, and the profile context.
-func LeadExtras(ctx context.Context, router string) string {
-	var note string
+// settings: how roles are routed. The profile context is not repeated here:
+// the coder lead's own prompt has it (internal/cli/chat).
+func LeadExtras(router string) string {
 	switch NormalizeRouter(router) {
 	case RouterModel:
-		note = "\n\nYou choose every worker's role yourself: pass role (an agent id or built-in role from org_roster); spawns without a role are refused."
+		return "\n\nYou choose every worker's role yourself: pass role (an agent id or built-in role from org_roster); spawns without a role are refused."
 	case RouterJev:
-		note = "\n\nLeave role and skills out: Jev chooses them from monomind's shortlist."
+		return "\n\nLeave role and skills out: Jev chooses them from monomind's shortlist."
 	}
-	return note + profileBlock(ctx)
+	return ""
 }
 
 func clipText(s string, max int) string {

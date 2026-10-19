@@ -90,6 +90,38 @@ func TestWorkflowRunHumanModeQuietsFailureLogs(t *testing.T) {
 	}
 }
 
+// An engine that could not be built leaves the run's quieting behind
+// neither: the next of the engine's failure lines is logged at its level.
+func TestARunWhoseEngineFailsQuietsNothingAfter(t *testing.T) {
+	_, cfg := persistTestEnv(t)
+	cfg.JSONOutput = false
+	notADir := filepath.Join(t.TempDir(), "file")
+	if err := os.WriteFile(notADir, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg.DBPath = filepath.Join(notADir, "wf.db") // no database can be made there
+	t.Setenv(logging.EnvLevel, "")
+	prevDefault, prevOut, prevFlags, prevLevel := slog.Default(), log.Writer(), log.Flags(), logging.Level()
+	var buf bytes.Buffer
+	logging.Init(nil, func(string) string { return "" }, &buf)
+	t.Cleanup(func() {
+		logging.Init(nil, func(string) string { return "" }, os.Stderr)
+		slog.SetDefault(prevDefault)
+		log.SetOutput(prevOut)
+		log.SetFlags(prevFlags)
+		logging.SetLevel(prevLevel)
+	})
+
+	if _, _, err := workflowRunDeps(cfg).BuildEngine(); err == nil {
+		t.Fatal("an engine was built on a path no database can be made at")
+	}
+	zl := logging.Zerolog()
+	zl.Warn().Msg("engine: execution finished with error")
+	if !strings.Contains(buf.String(), `level=WARN msg="engine: execution finished with error"`) {
+		t.Errorf("the failed build left its quieting behind:\n%s", buf.String())
+	}
+}
+
 // --json output is unchanged: the record on stdout, the engine's lines on
 // stderr as before.
 func TestWorkflowRunJSONKeepsFailureLogs(t *testing.T) {

@@ -30,7 +30,7 @@ export function normalizeAsk(raw) {
     kind: 'hil', id: raw.id, ref: raw.id, pending: state === 'pending', state,
     workflowName: raw.workflow_name || raw.workflow_id || '', nodeName: raw.node_name || raw.node_id || '',
     readonly: raw.readonly_data || {}, editable: raw.editable_data || {},
-    org: raw.node_config?.org || raw.org || '', conversationId: raw.conversationId || '',
+    org: raw.node_config?.org || raw.org || '', conversationId: raw.node_config?.conversationId || raw.conversationId || '',
     role: '', suggestion: raw.suggestion || raw.node_config?.suggestion || null,
     hilRef: raw.hil_ref || '', personId: raw.person_id || '',
   }
@@ -41,10 +41,12 @@ export function normalizeAsks(rows) {
 }
 
 // asksFor keeps the asks that belong in one bubble. An ask tagged with an
-// org or conversation belongs to that one only. An untagged send item
-// belongs to the org bubble whose roles include the role that prepared it;
-// untagged send items otherwise show in coder bubbles. Untagged workflow
-// HIL items belong to no bubble (they stay on the Human in Loop page).
+// org or conversation belongs to that one only: a workflow's HIL item is
+// tagged when an agent's run queued it (core.human_in_loop writes the org
+// and conversation into node_config). An untagged send item belongs to the
+// org bubble whose roles include the role that prepared it; untagged send
+// items otherwise show in coder bubbles. Untagged workflow HIL items belong
+// to no bubble (they stay on the Human in Loop page).
 export function asksFor(asks, { org = '', conversationId = '', roleIds = [] } = {}) {
   return (asks || []).filter(a => {
     if (a.org) return a.org === org

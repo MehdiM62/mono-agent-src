@@ -55,6 +55,7 @@ func (s *Server) acceptUnsolicitedCapture(resp *Response) {
 		return // more chunks to come
 	}
 	go func() {
+		s.fileUnderLiveProfile(env)
 		res, err := writer.Write(env)
 		if err != nil {
 			s.logger.Error().Err(err).Str("id", resp.ID).Msg("queued capture could not be written")

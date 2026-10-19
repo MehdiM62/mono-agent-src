@@ -32,7 +32,7 @@ function pct(v) {
 // stops just this agent; without it (a finished turn) the button is
 // disabled and says so. canStop false leaves the button out (a running
 // org's roles stop with the org).
-export function StageDrawer({ node, calls, leadInfo, turnId, isLive, onClose, onStop, canStop = true }) {
+export function StageDrawer({ node, calls, leadInfo, turnId, isLive, onClose, onStop, canStop = true, onNavigate }) {
   const { t } = useTranslation()
   const timeline = useMemo(() => agentTimeline(node, calls), [node, calls])
   const isLead = node.id === LEAD_ID
@@ -112,7 +112,7 @@ export function StageDrawer({ node, calls, leadInfo, turnId, isLive, onClose, on
         {timeline.parts.length > 0 && (
           <section data-testid="stage-tools">
             <h4>{t('stage.work')}</h4>
-            <ChatTimeline state={timeline} turnId={`${turnId}-${node.id}`} isLive={isLive} />
+            <ChatTimeline state={timeline} turnId={`${turnId}-${node.id}`} isLive={isLive} onNavigate={onNavigate} />
           </section>
         )}
         {isLead && <div style={{ color: 'var(--text-muted)' }}>{t('stage.leadInChat')}</div>}
