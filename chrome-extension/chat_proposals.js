@@ -117,13 +117,41 @@
 
   // What shows nothing on screen but the recorder and its analysis read:
   // controls, format characters (bidi, zero-width, the byte order mark),
-  // private-use, unassigned and lone surrogate code points, variation
-  // selectors, and the Unicode tag block (invisible "ASCII smuggling").
-  const HIDDEN = /[\p{Cc}\p{Cf}\p{Co}\p{Cn}\p{Cs}\u{FE00}-\u{FE0F}\u{E0100}-\u{E01EF}\u{E0000}-\u{E007F}]/gu;
+  // private-use, unassigned and lone surrogate code points, the Unicode tag
+  // block (invisible "ASCII smuggling") and the variation selector supplement.
+  const HIDDEN = /[\p{Cc}\p{Cf}\p{Co}\p{Cn}\p{Cs}\u{E0000}-\u{E007F}\u{E0100}-\u{E01EF}]/u;
+  // A character that shows on its own (emoji are symbols), and a mark kept on one.
+  const BASE = /[\p{L}\p{N}\p{S}\p{P}]/u;
+  const MARK = /\p{M}/u;
+  // The variation selectors a character may carry (VS16 makes ❤ an emoji).
+  const SELECTOR = /[\u{180B}-\u{180D}\u{180F}\u{FE00}-\u{FE0F}]/u;
 
-  /** cleanGoal is a recording goal without markup or hidden characters (HIDDEN), one line, 200 runes. */
+  /**
+   * cleanGoal is a recording goal as the recorder and its analysis get it:
+   * no markup and no hidden characters (HIDDEN), one line, 200 runes. What
+   * languages and emoji need stays: a joiner (ZWJ, ZWNJ) between characters
+   * that show, a selector on one, the direction marks; a soft hyphen goes
+   * without a gap. A joiner or selector that joins or marks nothing is
+   * dropped. The same rules as Go's recording.CleanGoal.
+   */
   function cleanGoal(v) {
-    return runes(oneLine(str(v).replace(/<[^>]*>/g, " ").replace(/[<>]/g, " ").replace(HIDDEN, " ")), TITLE_RUNES);
+    const cps = [...str(v).replace(/<[^>]*>/g, " ").replace(/[<>]/g, " ")];
+    const out = [];
+    const last = () => (out.length ? out[out.length - 1] : " ");
+    cps.forEach((c, i) => {
+      if (c === "\u00ad") return; // a soft hyphen only says where a word may break
+      if (c === "\u200c" || c === "\u200d") {
+        const joins = (BASE.test(last()) || MARK.test(last())) && i + 1 < cps.length && BASE.test(cps[i + 1]);
+        out.push(joins ? c : " ");
+      } else if (c === "\u200e" || c === "\u200f" || c === "\u061c") {
+        out.push(c);
+      } else if (SELECTOR.test(c)) {
+        out.push(BASE.test(last()) ? c : " ");
+      } else {
+        out.push(HIDDEN.test(c) ? " " : c);
+      }
+    });
+    return runes(oneLine(out.join("")), TITLE_RUNES);
   }
 
   /** pageOf is the page a card was proposed on ({tabId, url}), checked; null when there is none. */

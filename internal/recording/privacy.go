@@ -79,17 +79,66 @@ func Sanitize(ev *Event) {
 	}
 }
 
-// CleanGoal is a recording's goal as it is kept and handed to the analysis:
-// one line of at most MaxGoalRunes runes, without what shows nothing on
-// screen but a model still reads (see invisible).
-func CleanGoal(s string) string {
-	s = strings.Map(func(r rune) rune {
-		if invisible(r) {
+// CleanGoal is a recording's goal as it is kept and handed to the analysis
+// (cleanLine, at most MaxGoalRunes runes).
+func CleanGoal(s string) string { return cleanLine(s, MaxGoalRunes) }
+
+// cleanTitle is a page's title as a recording keeps it: the page wrote it.
+func cleanTitle(s string) string { return cleanLine(s, MaxTitleRunes) }
+
+// cleanLine is model- or page-written text as a recording keeps it: one line
+// of at most max runes, without what shows nothing on screen but a model
+// still reads (invisible). What languages and emoji need stays: a joiner
+// (ZWJ, ZWNJ) between two characters that show, a variation selector on a
+// character that shows, and the direction marks; a soft hyphen goes without
+// leaving a gap. A joiner or a selector that joins or marks nothing (leading,
+// trailing, alone, beside a space) is dropped.
+func cleanLine(s string, max int) string {
+	rs := []rune(strings.ToValidUTF8(s, ""))
+	out := make([]rune, 0, len(rs))
+	last := func() rune {
+		if len(out) == 0 {
 			return ' '
 		}
-		return r
-	}, strings.ToValidUTF8(s, ""))
-	return clipRunes(strings.Join(strings.Fields(s), " "), MaxGoalRunes)
+		return out[len(out)-1]
+	}
+	for i, r := range rs {
+		switch {
+		case r == 0x00AD: // a soft hyphen only says where a word may break
+		case r == 0x200C || r == 0x200D:
+			if shows(last()) && i+1 < len(rs) && base(rs[i+1]) {
+				out = append(out, r)
+			} else {
+				out = append(out, ' ')
+			}
+		case r == 0x200E || r == 0x200F || r == 0x061C:
+			out = append(out, r)
+		case selector(r):
+			if base(last()) {
+				out = append(out, r)
+			} else {
+				out = append(out, ' ')
+			}
+		case invisible(r):
+			out = append(out, ' ')
+		default:
+			out = append(out, r)
+		}
+	}
+	return clipRunes(strings.Join(strings.Fields(string(out)), " "), max)
+}
+
+// base is a character that shows on its own: a letter, a digit, a symbol
+// (emoji are symbols) or punctuation.
+func base(r rune) bool { return unicode.In(r, unicode.L, unicode.N, unicode.S, unicode.P) }
+
+// shows is a base, or a mark kept on one (a virama, a variation selector).
+func shows(r rune) bool { return base(r) || unicode.Is(unicode.M, r) }
+
+// selector is a variation selector a character may carry (VS16 makes ❤ an
+// emoji); the supplement, U+E0100 to U+E01EF, is a smuggling vector.
+func selector(r rune) bool {
+	return unicode.Is(unicode.Variation_Selector, r) && !(r >= 0xE0100 && r <= 0xE01EF)
 }
 
 // invisible reports a character that shows nothing: a control, the Unicode
