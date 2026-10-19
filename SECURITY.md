@@ -225,7 +225,13 @@ workflow you hadn't approved could send some messages without a card:
   a saved connection for that service;
 - in a workflow, with the old node names: a Mastodon post (`comm.mastodon`), a
   Reddit reply (`comm.reddit`), or a Discord or Outlook send with no operation
-  set (`comm.discord`, `comm.outlook_send`).
+  set (`comm.discord`, `comm.outlook_send`);
+- with an operation written as a number or true/false on Telegram, Discord or
+  Outlook, which send a message when no operation is named;
+- through a messaging step attached to an AI agent step as a tool, whenever
+  the model called it, in any workflow: tool calls weren't checked at all;
+- with `people messages compose`, `reply` and `send-draft`, which sent email
+  through the profile's saved Outlook connection.
 
 Default installs were affected. MCP's `node_run` was affected only if you
 registered monoagent's MCP server with `--allow-mutations` (setup asks, and
@@ -234,12 +240,16 @@ connected accounts with the approvals you remember: each service's own sent
 history, and in the app the Communications tab, the messages on people's pages
 and the run history. A send that skipped approval left no card, so the
 service's own history is the full record. We know of no use of this: it was
-found by code review and confirmed by tests with fake senders.
+found by code review and confirmed by tests with fake senders. A workflow you
+approved and run yourself sends as before, its AI agent's tools included.
 
 Technical detail: the gate looked a node up by the name it was given rather
-than the node type that runs it. It now resolves every name to that type
-first, and a test walks every node type and alias, through both `node run`
-and a workflow run, so a new name or operation can't slip past.
+than the node type that runs it, and read an operation that is no string
+differently from the node. It now resolves every name to that type and reads
+the operation through the same helper as the nodes, and a tool call and the
+`people messages` sends pass it as a step does. A test walks every node type
+and alias, through both `node run` and a workflow run, so a new name or
+operation can't slip past.
 
 ## Assistant tools (chat `--tools`)
 
