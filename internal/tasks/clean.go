@@ -32,24 +32,28 @@ func hidden(r rune) bool {
 // a break inside a word) and a URL with one is refused.
 const zeroWidthSpace = '\u200b'
 
-// invisible reports characters that show nothing but that a script or an emoji
-// sequence needs, so text keeps them (see cleanText): the zero-width space
-// U+200B, the zero-width non-joiner and joiner U+200C and U+200D, the
-// left-to-right and right-to-left marks U+200E and U+200F, the Arabic letter
-// mark U+061C, the word joiner U+2060 and the Mongolian vowel separator U+180E.
-func invisible(r rune) bool {
+// drawsNothing reports characters that show nothing on their own: format
+// characters (the zero-width space, joiners and direction marks, the soft
+// hyphen U+00AD, the invisible operators such as U+2062), combining marks
+// (an accent with nothing to sit on, the grapheme joiner U+034F, a variation
+// selector such as U+FE0F), and the characters that are letters or symbols to
+// Unicode but draw nothing: the Hangul fillers U+115F, U+1160, U+3164 and
+// U+FFA0 (the classic empty-title trick), the Braille blank U+2800 and the
+// object replacement character U+FFFC.
+func drawsNothing(r rune) bool {
 	switch r {
-	case zeroWidthSpace, 0x200C, 0x200D, 0x200E, 0x200F, 0x061C, 0x2060, 0x180E:
+	case 0x115F, 0x1160, 0x3164, 0xFFA0, 0x2800, 0xFFFC:
 		return true
 	}
-	return false
+	return unicode.In(r, unicode.Cf, unicode.Mn, unicode.Me)
 }
 
-// blank reports whether s shows nothing: white space and invisible characters
-// only. A joiner inside an emoji sequence stays; a title of joiners alone is
-// still empty.
+// blank reports whether s shows nothing: white space and characters that draw
+// nothing only. It only decides: text that shows something keeps them all, so
+// an emoji sequence keeps its joiners and a word its accents, but a title of
+// them alone is empty.
 func blank(s string) bool {
-	return !strings.ContainsFunc(s, func(r rune) bool { return !unicode.IsSpace(r) && !invisible(r) })
+	return !strings.ContainsFunc(s, func(r rune) bool { return !unicode.IsSpace(r) && !drawsNothing(r) })
 }
 
 // cleanText makes text safe to store and to print: invalid UTF-8 becomes

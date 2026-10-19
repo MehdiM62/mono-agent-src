@@ -22,6 +22,18 @@ func TestATitleOfInvisibleCharactersOnlyIsEmpty(t *testing.T) {
 		{"right-to-left mark U+200F", "\u200f"},
 		{"Arabic letter mark U+061C", "\u061c"},
 		{"several, with spaces", " \u200b \u200d\u2060 \ufeff\u180e "},
+		{"Hangul filler U+3164", "\u3164"},
+		{"halfwidth Hangul filler U+FFA0", "\uffa0"},
+		{"Hangul jungseong filler U+1160", "\u1160"},
+		{"Hangul choseong filler U+115F", "\u115f"},
+		{"Braille blank U+2800", "\u2800"},
+		{"soft hyphen U+00AD", "\u00ad"},
+		{"combining grapheme joiner U+034F", "\u034f"},
+		{"invisible times U+2062", "\u2062"},
+		{"object replacement character U+FFFC", "\ufffc"},
+		{"a lone variation selector U+FE0F", "\ufe0f"},
+		{"a lone combining acute accent U+0301", "\u0301"},
+		{"fillers and marks, with spaces", "\u3164 \u2800\u00ad \ufe0f\u0301"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			if got := cleanTitle(c.in); got != "" {
@@ -33,6 +45,22 @@ func TestATitleOfInvisibleCharactersOnlyIsEmpty(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// A title with something to show keeps the characters that draw nothing,
+// as given: they only decide whether a title is empty.
+func TestATitleWithTextKeepsItsInvisibleCharacters(t *testing.T) {
+	for _, in := range []string{
+		"Hi \u3164", "\uffa0Report", "Plan\u00adning", "Cafe\u0301", "\u2764\ufe0f launch", "x\u2062y",
+		"See \ufffc", "Look \u2800 here", "a\u034fb", "\u1160\u115fNotes",
+	} {
+		if got := cleanTitle(in); got != in {
+			t.Errorf("cleanTitle(%q) = %q, want it as given", in, got)
+		}
+		if title, _, err := deriveTitleNotes(in, "", ""); err != nil || title != in {
+			t.Errorf("deriveTitleNotes(%q) = %q, %v", in, title, err)
+		}
 	}
 }
 
