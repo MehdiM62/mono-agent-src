@@ -583,6 +583,8 @@ dangerous calls.
   code it loads; `extension pair` printing the token stays open (an agent can
   read the token file), as do `extension install` of the signed release and
   `extension serve` for a private bridge,
+  (`clicore.OperatorRefusal`; for CLI authors, every `Deps.RequireOperator`, `NotOperator` and `Refusal` goes through `clicore.RequireOperator` / `clicore.OperatorRefusal`, which refuse when the check is nil). `extension pair` stays open (an agent can
+  read the token file),
   and so does `image.vault_get` taking its id from data, by design. Names, masked
   values and metadata stay open. No secret reference resolves in a run of
   a definition the user hasn't approved: `secrets.Resolve` refuses under
