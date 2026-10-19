@@ -15,8 +15,9 @@ var (
 )
 
 // hidden reports characters that show nothing but can carry text to a reader:
-// the Unicode tag block (invisible "ASCII smuggling"), bidi controls and the
-// byte order mark.
+// the Unicode tag block (invisible "ASCII smuggling"), bidi controls, the
+// zero-width space U+200B and the byte order mark U+FEFF (the zero-width
+// no-break space).
 func hidden(r rune) bool {
 	switch {
 	case r >= 0xE0000 && r <= 0xE007F:
@@ -24,7 +25,27 @@ func hidden(r rune) bool {
 	case r >= 0x202A && r <= 0x202E, r >= 0x2066 && r <= 0x2069:
 		return true
 	}
-	return r == 0xFEFF
+	return r == 0xFEFF || r == 0x200B
+}
+
+// invisible reports characters that show nothing but that a script or an emoji
+// sequence needs, so text keeps them (see cleanText): the zero-width
+// non-joiner and joiner U+200C and U+200D, the left-to-right and right-to-left
+// marks U+200E and U+200F, the Arabic letter mark U+061C, the word joiner
+// U+2060 and the Mongolian vowel separator U+180E.
+func invisible(r rune) bool {
+	switch r {
+	case 0x200C, 0x200D, 0x200E, 0x200F, 0x061C, 0x2060, 0x180E:
+		return true
+	}
+	return false
+}
+
+// blank reports whether s shows nothing: white space and invisible characters
+// only. A joiner inside an emoji sequence stays; a title of joiners alone is
+// still empty.
+func blank(s string) bool {
+	return !strings.ContainsFunc(s, func(r rune) bool { return !unicode.IsSpace(r) && !invisible(r) })
 }
 
 // cleanText makes text safe to store and to print: invalid UTF-8 becomes
@@ -81,14 +102,27 @@ func cutBytes(s string, maxBytes int) string {
 	return cut + notice
 }
 
-// cleanTitle is a title as stored: one line, at most MaxTitleRunes.
-func cleanTitle(s string) string { return cutRunes(oneLine(s), MaxTitleRunes) }
+// cleanTitle is a title as stored: one line, at most MaxTitleRunes; "" when
+// nothing visible is left.
+func cleanTitle(s string) string {
+	t := cutRunes(oneLine(s), MaxTitleRunes)
+	if blank(t) {
+		return ""
+	}
+	return t
+}
 
 // deriveTitleNotes turns the three ways a task's words arrive into the stored
-// title and notes (spec 4.6). It refuses words that clean to nothing, and notes
-// given together with text.
+// title and notes (spec 4.6). It refuses words that clean to nothing visible,
+// and notes given together with text.
 func deriveTitleNotes(title, notes, text string) (string, string, error) {
 	title, notes, text = cleanTitle(title), cutBytes(cleanText(notes), MaxNotesBytes), cleanText(text)
+	if blank(notes) {
+		notes = ""
+	}
+	if blank(text) {
+		text = ""
+	}
 	switch {
 	case notes != "" && text != "":
 		return "", "", invalid("give notes or text, not both")
@@ -102,9 +136,13 @@ func deriveTitleNotes(title, notes, text string) (string, string, error) {
 	case text == "":
 		return "", "", invalid("a task needs a title or some text")
 	}
-	first := text
-	if i := strings.IndexByte(text, '\n'); i >= 0 {
-		first = text[:i]
+	// The title is the first line that shows something.
+	first := ""
+	for _, line := range strings.Split(text, "\n") {
+		if !blank(line) {
+			first = line
+			break
+		}
 	}
 	derived := cutRunes(strings.Join(strings.Fields(first), " "), DerivedTitleRunes)
 	if derived == text {
