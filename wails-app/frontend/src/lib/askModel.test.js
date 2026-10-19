@@ -60,6 +60,14 @@ describe('asksFor with workflow HIL items an agent queued', () => {
     expect(asksFor(asks, { conversationId: 'c2' })).toEqual([])
     expect(asksFor(asks, { org: 'other', roleIds: ['dev'] })).toEqual([])
   })
+  // orgdecide tags an org-started item with its org when it escalates it to
+  // a person; until then the item has no org and no bubble shows it.
+  it('shows an org-started item in its org bubble once escalated', () => {
+    const queued = normalizeAsk({ ...workflow, id: 'w-org-run', node_config: { outbound: false } })
+    const escalated = normalizeAsk({ ...workflow, id: 'w-org-run', node_config: { outbound: false, org: 'growth' } })
+    expect(asksFor([queued], { org: 'growth', roleIds: ['writer'] })).toEqual([])
+    expect(asksFor([escalated], { org: 'growth', roleIds: ['writer'] }).map(a => a.id)).toEqual(['w-org-run'])
+  })
 })
 
 describe('helpers', () => {

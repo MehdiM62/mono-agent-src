@@ -48,3 +48,46 @@ func TestHILItemsOfOrgRunsAreRouted(t *testing.T) {
 		t.Fatalf("hil statuses: org=%s solo=%s", orgStatus, soloStatus)
 	}
 }
+
+// A HIL item of an org's run that is escalated to a person, by the level ×
+// tier matrix or by the decider, carries the org in node_config, so the
+// org's bubble shows it; one the org settles by rule stays untagged and off
+// the bubble.
+func TestEscalatedHILItemsCarryTheirOrg(t *testing.T) {
+	org := &fakeOrg{}
+	dec := &scriptedDecider{replies: map[string]string{KindApproval: `{"verdict":"escalate","rationale":"needs a person"}`}}
+	s := newTestService(t, org, dec)
+	ctx := context.Background()
+	db := s.DB
+	mustExec := func(q string, args ...interface{}) {
+		t.Helper()
+		if _, err := db.Exec(q, args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mustExec(`INSERT INTO workflows (id, name, profile_id) VALUES ('wf', 'Publish', 'p')`)
+	for alias, tier := range map[string]string{"tidy": orgdesign.TierRoutine, "publish": orgdesign.TierConsequential, "purge": orgdesign.TierIrreversible} {
+		mustExec(`INSERT INTO workflow_executions (id, workflow_id, status, trigger_type, trigger_data, profile_id) VALUES (?, 'wf', 'WAITING', 'org_tool', ?, 'p')`,
+			"e-"+alias, `{"org":{"name":"growth","role":"writer","automation":"`+alias+`"}}`)
+		mustExec(`INSERT INTO hil_pending (id, execution_id, workflow_id, node_id, node_name, readonly_data, node_config, profile_id) VALUES (?, ?, 'wf', 'n', 'Review', '{}', '{"outbound":false}', 'p')`,
+			"hil-"+alias, "e-"+alias)
+		if _, err := orggrant.NewStore(db).UpsertGrant(ctx, orggrant.GrantInput{ProfileID: "p", OrgName: "growth", RoleID: "writer",
+			Tool: orggrant.Tool{Alias: alias, WorkflowID: "wf", Tier: tier}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	setLevel(t, s, orgdesign.LevelMid)
+	if _, err := s.ProcessOrg(ctx, "p", t.TempDir(), "growth"); err != nil {
+		t.Fatal(err)
+	}
+	for id, want := range map[string]string{"hil-tidy": "approved/", "hil-publish": "pending/growth", "hil-purge": "pending/growth"} {
+		var status, tag, outbound string
+		if err := db.QueryRow(`SELECT status, COALESCE(json_extract(node_config, '$.org'), ''), json_extract(node_config, '$.outbound')
+			FROM hil_pending WHERE id = ?`, id).Scan(&status, &tag, &outbound); err != nil {
+			t.Fatal(err)
+		}
+		if got := status + "/" + tag; got != want || outbound != "0" {
+			t.Errorf("%s: %s (outbound %s), want %s", id, got, outbound, want)
+		}
+	}
+}
