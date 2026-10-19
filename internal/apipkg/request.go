@@ -160,7 +160,9 @@ func (r *opRun) buildRequest(ctx context.Context, pp pageParams) (*built, error)
 		if err := injectAuth(req, r.credDef, sc, body); err != nil {
 			return nil, r.errf("%w", err)
 		}
-		req = withCredentialHeaders(req, credentialHeaders(before, req.Header, r.pkg.Headers, r.op.Headers))
+		if r.credDef != nil || len(sc.Cred) > 0 {
+			req = withCredentialHeaders(req, credentialHeaders(before, req.Header, r.pkg.Headers, r.op.Headers))
+		}
 	}
 	return &built{req: req, body: body}, nil
 }

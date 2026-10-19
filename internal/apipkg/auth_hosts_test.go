@@ -2,6 +2,7 @@ package apipkg
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -37,6 +38,14 @@ func TestCredentialGoesOnlyToHostsThePackageNames(t *testing.T) {
 		{path: "https://{{ p.url }}/x", param: "attacker.test"},
 		{path: "/items", next: "https://attacker.test/page2"},
 		{path: "/items", next: "https://api.example.test/v1/items?page=2", authed: true},
+		// A next page a response names gets the credential only on a host
+		// the package names, however it dresses another one up.
+		{path: "/items", next: "https://API.Example.Test./v1/items?page=3", authed: true},
+		{path: "/items", next: "https://api.example.test@attacker.test/p"},
+		{path: "/items", next: "https://attacker.test/https://api.example.test/v1"},
+		{path: "/items", next: "https://api.example.test.attacker.test/p"},
+		{path: "/items", next: "//attacker.test/p"},
+		{path: "/items", next: "https://attacker.test/?next=https://api.example.test"},
 	}
 	for _, c := range cases {
 		r := &opRun{pkg: pkg, op: &Operation{Method: "GET", Path: c.path}, credDef: cred,
@@ -242,4 +251,88 @@ func hostPart(tmpl string) string {
 		}
 	}
 	return tmpl
+}
+
+// A 307 or 308 to another host would send a request the credential went
+// on again, body and all, and the body may hold the credential
+// (inject.body): such a redirect isn't followed, for JSON, form and
+// multipart bodies alike. A request without the credential follows it.
+func TestRedirectNeverReplaysTheCredentialsBody(t *testing.T) {
+	var mu sync.Mutex
+	var bodies []string
+	other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		mu.Lock()
+		bodies = append(bodies, string(b))
+		mu.Unlock()
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	defer other.Close()
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		code := http.StatusTemporaryRedirect
+		if r.URL.Path == "/permanent" {
+			code = http.StatusPermanentRedirect
+		}
+		http.Redirect(w, r, other.URL+"/landing", code)
+	}))
+	defer api.Close()
+	pkg := &Package{ID: "t", BaseURL: api.URL}
+	cred := &Credential{Platform: "t", Inject: Inject{Body: map[string]string{"api_key": "{{ cred.token }}"}}}
+	for _, c := range []struct {
+		path, bodyType string
+		credential     bool
+	}{
+		{"/away", BodyJSON, true}, {"/permanent", BodyJSON, true}, {"/away", BodyForm, true}, {"/away", BodyMultipart, true},
+		{"/away", BodyJSON, false},
+	} {
+		bodies = nil
+		r := &opRun{pkg: pkg, op: &Operation{Method: "POST", Path: c.path, BodyType: c.bodyType, Body: map[string]any{"x": "1"}}}
+		if c.credential {
+			r.credDef, r.scope = cred, Scope{Cred: map[string]any{"token": "SECRET-T"}}
+		}
+		b, err := r.buildRequest(context.Background(), pageParams{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp, err := r.client().Do(b.req)
+		if err != nil {
+			t.Fatalf("%s %s: %v", c.path, c.bodyType, err)
+		}
+		resp.Body.Close()
+		mu.Lock()
+		got := append([]string(nil), bodies...)
+		mu.Unlock()
+		if c.credential {
+			if len(got) != 0 || resp.StatusCode < 300 {
+				t.Errorf("%s %s with the credential: the other host got %q, status %d", c.path, c.bodyType, got, resp.StatusCode)
+			}
+			continue
+		}
+		if len(got) != 1 || strings.Contains(got[0], "SECRET") {
+			t.Errorf("%s %s without the credential: the other host got %q, want the body once", c.path, c.bodyType, got)
+		}
+	}
+}
+
+// From https to plain http on the same host is leaving it too: the
+// credential's headers go no further. https to https on the same host
+// keeps them.
+func TestRedirectToPlainHTTPDropsTheCredential(t *testing.T) {
+	first := withCredentialHeaders(httptest.NewRequest("GET", "https://api.example.test/x", nil), []string{"Authorization", "X-Api-Key"})
+	for target, kept := range map[string]bool{
+		"https://api.example.test/y":      true,
+		"http://api.example.test/y":       false,
+		"https://api.example.test:8443/y": false,
+		"https://other.example.test/y":    false,
+	} {
+		req := httptest.NewRequest("GET", target, nil)
+		req.Header.Set("Authorization", "Bearer t")
+		req.Header.Set("X-Api-Key", "k")
+		if err := dropCredentialsOnRedirect(req, []*http.Request{first}); err != nil {
+			t.Fatalf("%s: %v", target, err)
+		}
+		if got := req.Header.Get("Authorization") != "" && req.Header.Get("X-Api-Key") != ""; got != kept {
+			t.Errorf("%s: headers %v, want the credential kept %v", target, req.Header, kept)
+		}
+	}
 }

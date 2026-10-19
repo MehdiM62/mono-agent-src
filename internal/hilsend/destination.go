@@ -2,6 +2,8 @@ package hilsend
 
 import (
 	"net/url"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/monoes/mono-agent/internal/workflow"
@@ -42,14 +44,34 @@ func hostOf(nodeType string, config map[string]interface{}) string {
 	if p := str(config[h.port]); p != "" && !strings.Contains(host, ":") {
 		host += ":" + p
 	}
+	if !cardHost.MatchString(host) {
+		return strconv.QuoteToASCII(host)
+	}
 	return host
+}
+
+// cardHost is a host[:port] the card shows as it is; anything else shows
+// quoted (OneLine).
+var cardHost = regexp.MustCompile(`^([a-z0-9.-]+|\[[0-9a-f:.]+\])(:[0-9]{1,5})?$`)
+
+// OneLine is s as a card line shows it: as it is when it is printable
+// ASCII, else quoted with its control, escape and other non-ASCII
+// characters escaped, so a value can't add a line to the card ("Prepared
+// by: …") or move the terminal's cursor.
+func OneLine(s string) string {
+	for _, r := range s {
+		if r < 0x20 || r > 0x7e {
+			return strconv.QuoteToASCII(s)
+		}
+	}
+	return s
 }
 
 // fetchURLOf is the URL the platform fetches what a send says from, for
 // the card: a Twilio call's TwiML.
 func fetchURLOf(nodeType string, config map[string]interface{}) string {
 	if nodeType == "comm.twilio" && workflow.ConfigOperation(config) == "make_call" {
-		return str(config["url"])
+		return OneLine(str(config["url"]))
 	}
 	return ""
 }

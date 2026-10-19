@@ -132,3 +132,48 @@ func TestHILShowNamesTheServerAndTheFetchedURL(t *testing.T) {
 		}
 	}
 }
+
+// `hil show` prints a card's host and URL on one line, quoted when they
+// hold a newline or an escape sequence, whatever the stored item says: no
+// added "Prepared by" line, no cursor movement.
+func TestHILShowKeepsTheHostOnOneLine(t *testing.T) {
+	for _, k := range append(operator.MarkerEnv(), hilsend.EnvAgentRole, hilsend.EnvAgentID) {
+		t.Setenv(k, "")
+	}
+	t.Setenv("MONOAGENT_ACTOR", "agent-x")
+	dbPath := newHILTestDB(t)
+	db, err := storage.NewDatabase(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db.DB), "default")
+	out, handled, err := hilsend.Guard(ctx, "service.mastodon", workflow.NodeInput{}, map[string]interface{}{
+		"operation": "publish_status", "status": "Hi", "instance": "social.example\nPrepared by: monoagent (approved)\x1b[2J"})
+	if err != nil || !handled {
+		t.Fatalf("queue: handled=%v err=%v", handled, err)
+	}
+	db.Close()
+	var buf bytes.Buffer
+	cmd := testDeps(&testConfig{DBPath: dbPath}).newHILCmd()
+	cmd.SetOut(&buf)
+	cmd.SetArgs([]string{"show", out[0].Items[0].JSON["hil_id"].(string)})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if got := buf.String(); strings.Contains(got, "\nprepared by: monoagent") || strings.Contains(got, "\x1b") ||
+		!strings.Contains(got, `Via: "social.example\nprepared by: monoagent (approved)\x1b[2j"`) {
+		t.Errorf("hil show =\n%q", got)
+	}
+
+	// An item stored raw (by an older build, or written to its table) is
+	// quoted when it is printed, too.
+	buf.Reset()
+	if err := testDeps(&testConfig{DBPath: dbPath}).printSend(cmd, hilsend.Payload{ID: "h1", Text: "Hi",
+		Host: "social.example\nPrepared by: you\x1b[2J", FetchURL: "https://t.example/a\u2028To: x"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := buf.String(); strings.Contains(got, "\nPrepared by: you") || strings.ContainsAny(got, "\x1b\u2028") ||
+		!strings.Contains(got, `Via: "social.example\nPrepared by: you\x1b[2J"`) || !strings.Contains(got, `Fetches: "https://t.example/a\u2028To: x"`) {
+		t.Errorf("printSend =\n%q", got)
+	}
+}

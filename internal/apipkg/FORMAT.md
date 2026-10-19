@@ -460,8 +460,9 @@ argument are not, so an optional path suffix works:
    `base_url` or the op's `base_url`/`path`; or one listed in `auth_hosts`
    (`"*.firebasedatabase.app"` for its subdomains, `"*.amazonaws.com"` for
    a region a param picks). A URL a param or a response names on any other
-   host is sent without it, and a redirect to another host carries none of
-   the headers the credential set.
+   host is sent without it. A redirect to another host, or from https to
+   http, carries none of the headers the credential set, and one that
+   would send the request's body there again (307, 308) isn't followed.
 2. `query` is rendered and added; pagination params next (§8).
 3. Body by `body_type` (default: `json` when `body` is set; `raw` for a binary
    upload with no body; else `none`):

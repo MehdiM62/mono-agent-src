@@ -81,15 +81,18 @@ func (r *opRun) authHost(host, base string) bool {
 	return false
 }
 
-// credHeadersKey carries, on a request's context, the names of the headers
-// the connection's credential put on it.
+// credHeadersKey carries, on a request the credential went on, its
+// credentialMark.
 type credHeadersKey struct{}
 
+// credentialMark names the headers the connection's credential put on a
+// request.
+type credentialMark struct{ headers []string }
+
+// withCredentialHeaders marks req as carrying the credential, in names
+// and perhaps in its body or query.
 func withCredentialHeaders(req *http.Request, names []string) *http.Request {
-	if len(names) == 0 {
-		return req
-	}
-	return req.WithContext(context.WithValue(req.Context(), credHeadersKey{}, names))
+	return req.WithContext(context.WithValue(req.Context(), credHeadersKey{}, &credentialMark{names}))
 }
 
 // credentialHeaders names the headers the credential set: those injectAuth
@@ -113,20 +116,34 @@ func credentialHeaders(before, after http.Header, templates ...map[string]string
 	return names
 }
 
-// dropCredentialsOnRedirect is every package request's CheckRedirect: a
-// redirect to another host carries none of the headers the credential set
-// (Go itself drops only Authorization and cookies, and keeps an X-Api-Key).
-// It stops after 10 redirects, as Go's default does.
+// dropCredentialsOnRedirect is every package request's CheckRedirect. A
+// redirect that leaves the request's host, or goes from https to plain
+// http, carries none of the headers the credential set (Go itself drops
+// only Authorization and cookies, keeps an X-Api-Key, and keeps them all
+// on the same host whatever the scheme). One that would send a request
+// the credential went on with its body again (307, 308), whose body may
+// hold the credential (inject.body, a body rendered from cred), isn't
+// followed: the redirect is the answer. It stops after 10 redirects, as
+// Go's default does.
 func dropCredentialsOnRedirect(req *http.Request, via []*http.Request) error {
 	if len(via) >= 10 {
 		return errors.New("stopped after 10 redirects")
 	}
-	if !strings.EqualFold(req.URL.Host, via[0].URL.Host) {
-		names, _ := via[0].Context().Value(credHeadersKey{}).([]string)
-		for _, h := range names {
+	first := via[0]
+	leaves := !strings.EqualFold(req.URL.Host, first.URL.Host) ||
+		(strings.EqualFold(first.URL.Scheme, "https") && !strings.EqualFold(req.URL.Scheme, "https"))
+	if !leaves {
+		return nil
+	}
+	mark, authed := first.Context().Value(credHeadersKey{}).(*credentialMark)
+	if authed && req.Body != nil && req.Body != http.NoBody {
+		return http.ErrUseLastResponse
+	}
+	if authed {
+		for _, h := range mark.headers {
 			req.Header.Del(h)
 		}
-		req.Header.Del("Authorization")
 	}
+	req.Header.Del("Authorization")
 	return nil
 }
