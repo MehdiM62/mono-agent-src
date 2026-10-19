@@ -166,7 +166,7 @@ func startDynamicOrg(ctx context.Context, cfg *Deps, journal *turnJournal, setti
 		Remember: journal.rememberWorker,
 	})
 	cond.AddVeterans(journal.veterans())
-	opts.Tools = dynorg.ToolSpecs()
+	opts.Tools = dynorg.ToolSpecs(settings.appAccess())
 	opts.OnToolCall = cond.Handle
 	opts.ToolTimeout = dynorg.ToolTimeout
 	// The profile context is already in the lead's prompt (coderLeadSystemPrompt).

@@ -1946,7 +1946,7 @@ budget.
 |---|---|
 | `coding` | Full access; checks its work in the user's browser with `monoagentcli browser` (no browser lease: it passes `--tab`). |
 | `qa`, `automation` | Full access, plus `monoagentcli` for the browser (`browser`, the browser lease), workflows and automations. |
-| `workspace` | Coding plus every monoagent surface through `monoagentcli` (apps, tasks, documents, people, vault, workflows); outbound sends wait for approval. `coder set --app-access off` (`appAccess`, operator only, default on) takes it away: a lead's explicit ask is refused, a picked one runs as `coding`, and the lead's and workers' prompts and `org_roster` leave the workspace and send rules out. The send approval (`--send-approval`) stays as it is. |
+| `workspace` | Coding plus every monoagent surface through `monoagentcli` (apps, tasks, documents, people, vault, workflows); outbound sends wait for approval. `coder set --app-access off` (`appAccess`, operator only, default on) takes it away: a lead's explicit ask is refused, a picked one runs as `coding`, and the lead's and workers' prompts, `org_roster` and `org_spawn`'s description leave the workspace profile and the workspace and send rules out. The send approval (`--send-approval`) stays as it is. |
 | `research` | Read-only, confined as described below. |
 
 How workers run:
