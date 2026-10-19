@@ -21,6 +21,11 @@
   const PUSH_TYPE = "page_capture";
   let deps = null;
 
+  // Files a capture that names no profile as it is sent (D2: there is no
+  // Unassigned pile), or answers null to keep it queued: capture_profile.js.
+  const preparer = (opts) =>
+    root.MonoCaptureProfile ? root.MonoCaptureProfile.preparer(root.MonoAsk, chrome.storage.local, opts) : null;
+
   /**
    * install hands over the pieces background.js owns: send(message) writes one
    * frame to the WebSocket, isConnected() reports whether that will land, and
@@ -168,32 +173,41 @@
     }
 
     const id = `ext-${(crypto.randomUUID && crypto.randomUUID()) || Date.now()}`;
+    const envelope = { id, meta: result.meta, artifacts: result.artifacts, warnings: result.warnings };
+    let held = false;
     if (deps.isConnected()) {
-      sendEnvelope(id, result, PUSH_TYPE);
-      badge(result.warnings.length ? "!" : "ok", result.warnings.length ? "#c98a00" : "#2e8b57");
-      return { ok: true, queued: false, title: result.meta.title, warnings: result.warnings };
+      const prepare = preparer();
+      const ready = prepare ? await prepare(envelope) : envelope;
+      if (ready) {
+        sendEnvelope(id, ready, PUSH_TYPE);
+        badge(result.warnings.length ? "!" : "ok", result.warnings.length ? "#c98a00" : "#2e8b57");
+        return { ok: true, queued: false, title: result.meta.title, warnings: result.warnings };
+      }
+      held = true; // no profile exists yet: kept here until one does
     }
 
-    const queued = await root.MonoCapture.queueCapture(chrome.storage.local, {
-      id,
-      meta: result.meta,
-      artifacts: result.artifacts,
-      warnings: result.warnings,
-    });
+    const queued = await root.MonoCapture.queueCapture(chrome.storage.local, envelope);
     badge(queued.queued ? "q" : "!", queued.queued ? "#c98a00" : "#c0392b");
     return {
       ok: queued.queued,
       queued: queued.queued,
+      held: held && queued.queued,
       title: result.meta.title,
       warnings: result.warnings.concat(queued.queued ? [] : [queued.reason]),
     };
   }
 
-  /** flush resends everything captured while the bridge was down. */
+  /**
+   * flush resends everything captured while the bridge was down, filing
+   * what names no profile; what has no profile to go to stays queued.
+   */
   function flush() {
     if (!deps || !deps.isConnected()) return Promise.resolve({ flushed: 0 });
-    return root.MonoCapture.flushQueue(chrome.storage.local, (envelope) =>
-      sendEnvelope(envelope.id, envelope, PUSH_TYPE)
+    return root.MonoCapture.flushQueue(
+      chrome.storage.local,
+      (envelope) => sendEnvelope(envelope.id, envelope, PUSH_TYPE),
+      // A queued capture may name a profile deleted since (#862).
+      preparer({ verify: true })
     );
   }
 

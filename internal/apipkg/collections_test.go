@@ -1,6 +1,8 @@
 package apipkg
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -154,5 +156,39 @@ func TestSubfieldsAreChecked(t *testing.T) {
 		case want != "" && (err == nil || !strings.Contains(err.Error(), want)):
 			t.Errorf("%s: err %v, want it to mention %q", sub, err, want)
 		}
+	}
+}
+
+// Catalog serves the catalog as shipped, for a check that must read no
+// state: an installed package, here one that doesn't parse, is never read,
+// where Load reports it. UndeclaredIn judges over it and names the op.
+func TestCatalogReadsNoInstalledPackage(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	dir := filepath.Join(home, ".monoagent", "apipkgs", "broken")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "package.json"), []byte("{"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(); err == nil || !strings.Contains(err.Error(), "broken") {
+		t.Fatalf("Load: %v, want the installed package's error", err)
+	}
+	pkgs, err := Catalog()
+	if err != nil || len(pkgs) < 250 {
+		t.Fatalf("Catalog: %d packages, %v", len(pkgs), err)
+	}
+	for _, p := range pkgs {
+		if p.Source != "catalog" {
+			t.Errorf("%s comes from %s", p.ID, p.Source)
+		}
+	}
+	trello := map[string]any{"resource": "card", "operation": "update", "id": "c1", "updateFields": map[string]any{"zz_extra": "x", "name": "N"}}
+	if op, keys := UndeclaredIn(pkgs, "app.trello", trello); op != "trello card/update" || !reflect.DeepEqual(keys, []string{"zz_extra"}) {
+		t.Errorf("trello: %q %v", op, keys)
+	}
+	if op, keys := UndeclaredIn(pkgs, "core.set", map[string]any{"zz_extra": 1}); op != "" || keys != nil {
+		t.Errorf("core.set: %q %v", op, keys)
 	}
 }

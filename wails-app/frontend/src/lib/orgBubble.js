@@ -29,6 +29,7 @@
 //   org started / org stopped       → turn.started / turn.finished
 
 import { stageReducer, initialStage, ownerOf, LEAD_ID, MAX_CALLS } from './orgStage.js'
+import { maskCredentials } from '../components/chat/credentials.js'
 import {
   initialState as activityInitial, applyEvent as activityApply, parseAddress, pendingGates,
 } from '../components/orgdesigner/orgActivity.js'
@@ -527,13 +528,14 @@ export function threadView(items, view, state = {}) {
   return items || []
 }
 
-// toolSummary is a tool call's one-line target ("Bash · go test ./...").
+// toolSummary is a tool call's one-line target ("Bash · go test ./..."),
+// with any credential in it masked (#872 review).
 export function toolSummary(call) {
   let args = call?.arguments
   if (typeof args === 'string') {
     try { args = JSON.parse(args) } catch { args = {} }
   }
   args = args && typeof args === 'object' ? args : {}
-  const target = String(args.file_path || args.path || args.command || args.pattern || args.url || args.description || '').replace(/\s+/g, ' ').trim()
+  const target = maskCredentials(String(args.file_path || args.path || args.command || args.pattern || args.url || args.description || '').replace(/\s+/g, ' ').trim())
   return target ? `${call.name} · ${target.length > 70 ? target.slice(0, 69) + '…' : target}` : call?.name || 'tool'
 }

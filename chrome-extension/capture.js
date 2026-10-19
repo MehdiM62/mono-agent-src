@@ -437,56 +437,8 @@
     }
   }
 
-  // --- CLIP-08: nothing captured is ever silently lost ---------------------
-
-  const QUEUE_KEY = "captureQueue";
-  const QUEUE_MAX_ENTRIES = 20;
-  // chrome.storage.local is a ~10MB bucket; a big MHTML does not belong in it.
-  const QUEUE_MAX_ENTRY_BYTES = 4 * MB;
-
-  async function queueCapture(storage, envelope) {
-    const size = utf8Bytes(JSON.stringify(envelope));
-    if (size > QUEUE_MAX_ENTRY_BYTES) {
-      return { queued: false, reason: `capture too large to queue offline (${mb(size)})` };
-    }
-    const current = (await storage.get(QUEUE_KEY))[QUEUE_KEY] || [];
-    const next = current.concat([{ queuedAt: new Date().toISOString(), envelope }]).slice(-QUEUE_MAX_ENTRIES);
-    await storage.set({ [QUEUE_KEY]: next });
-    return { queued: true, depth: next.length };
-  }
-
-  async function flushQueue(storage, send) {
-    const queued = (await storage.get(QUEUE_KEY))[QUEUE_KEY] || [];
-    if (!queued.length) return { flushed: 0 };
-
-    // The queue is emptied AFTER the sending, never before. Clearing it up
-    // front and relying on the catch to put the rest back cannot work:
-    // ws.onopen calls this and an MV3 socket is routinely torn down seconds
-    // later, so the usual shape of a failed flush is the first envelope
-    // going out and the rest being dropped into a queue key that was already
-    // emptied — captures gone, and reported as flushed.
-    //
-    // The cost of this order is that a worker suspended between the last
-    // send and the write-back re-sends what it already sent. A duplicate
-    // capture is a duplicate row on the Go side; a lost one is a page the
-    // person never gets back. CLIP-08 picks the duplicate every time.
-    let flushed = 0;
-    let reason = null;
-    for (const entry of queued) {
-      try {
-        send(entry.envelope);
-        flushed++;
-      } catch (err) {
-        reason = err.message;
-        break;
-      }
-    }
-    await storage.set({ [QUEUE_KEY]: queued.slice(flushed) });
-    return reason ? { flushed, reason } : { flushed };
-  }
-
   root.MonoCapture = {
-    pageCapture, planMessages, applySizeCaps, queueCapture, flushQueue,
+    pageCapture, planMessages, applySizeCaps,
     utf8ToBase64, base64Bytes, utf8Bytes, escapeHtml,
     DEFAULT_MAX_ARTIFACT_BYTES, DEFAULT_MAX_MESSAGE_BYTES, DEFAULT_FORMATS, PAGE_SCRIPTS,
   };

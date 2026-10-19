@@ -50,6 +50,31 @@ describe('asksFor', () => {
   })
 })
 
+// core.human_in_loop tags an item an agent's run queued with the org and
+// the coder chat in node_config; a scheduled run's item is untagged.
+describe('asksFor with workflow HIL items an agent queued', () => {
+  const asks = normalizeAsks([
+    { ...workflow, id: 'w-org', node_config: { org: 'acme' } },
+    { ...workflow, id: 'w-chat', node_config: { conversationId: 'c1' } },
+    { ...workflow, id: 'w-free', node_config: {} },
+  ])
+  it('routes a tagged item to its bubble and keeps an untagged one off every bubble', () => {
+    expect(asks.find(a => a.id === 'w-chat').conversationId).toBe('c1')
+    expect(asksFor(asks, { org: 'acme', roleIds: ['dev'] }).map(a => a.id)).toEqual(['w-org'])
+    expect(asksFor(asks, { conversationId: 'c1' }).map(a => a.id)).toEqual(['w-chat'])
+    expect(asksFor(asks, { conversationId: 'c2' })).toEqual([])
+    expect(asksFor(asks, { org: 'other', roleIds: ['dev'] })).toEqual([])
+  })
+  // orgdecide tags an org-started item with its org when it escalates it to
+  // a person; until then the item has no org and no bubble shows it.
+  it('shows an org-started item in its org bubble once escalated', () => {
+    const queued = normalizeAsk({ ...workflow, id: 'w-org-run', node_config: { outbound: false } })
+    const escalated = normalizeAsk({ ...workflow, id: 'w-org-run', node_config: { outbound: false, org: 'growth' } })
+    expect(asksFor([queued], { org: 'growth', roleIds: ['writer'] })).toEqual([])
+    expect(asksFor([escalated], { org: 'growth', roleIds: ['writer'] }).map(a => a.id)).toEqual(['w-org-run'])
+  })
+})
+
 describe('helpers', () => {
   it('formats sizes', () => {
     expect(formatBytes(12)).toBe('12 B')

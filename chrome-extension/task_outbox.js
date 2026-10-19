@@ -53,7 +53,7 @@
   /** titleOf is the line a task is listed under: its first line, short. */
   function titleOf(entry) {
     const e = entry || {};
-    const first = String(e.text || "").split("\n").find((line) => line.trim()) || e.title || e.url || "";
+    const first = String(e.text || e.task_title || "").split("\n").find((line) => line.trim()) || e.title || e.url || "";
     const line = String(first).trim().replace(/\s+/g, " ");
     return line.length > 80 ? `${line.slice(0, 77)}...` : line;
   }

@@ -55,10 +55,15 @@ type WebhookResponse struct {
 // execution ID before the run is queued.
 type WebhookRunner func(workflowID, nodeID string, items []Item, prepare func(executionID string)) (string, error)
 
-// WebhookExecutions reads back the runs a webhook started.
+// WebhookExecutions reads back the runs a webhook started, and their
+// workflows.
 type WebhookExecutions interface {
 	GetExecutionStatus(ctx context.Context, id string) (string, error)
 	GetExecution(ctx context.Context, id string) (*WorkflowExecution, error)
+	GetWorkflow(ctx context.Context, id string) (*Workflow, error)
+	// ExecutionInFlight is WorkflowEngine.ExecutionInFlight: the run is
+	// queued, running, or waiting only for its sub-workflows.
+	ExecutionInFlight(ctx context.Context, id string) (string, bool, error)
 }
 
 // webhookResponders holds the requests waiting for a Respond to Webhook node,
