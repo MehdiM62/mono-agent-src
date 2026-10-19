@@ -36,6 +36,10 @@ func (f *fakeExecs) GetExecution(context.Context, string) (*WorkflowExecution, e
 	return f.exec, nil
 }
 
+func (f *fakeExecs) GetWorkflow(context.Context, string) (*Workflow, error) {
+	return nil, ErrWorkflowNotFound
+}
+
 func (f *fakeExecs) ExecutionInFlight(ctx context.Context, id string) (string, bool, error) {
 	st, err := f.GetExecutionStatus(ctx, id)
 	return st, st == "QUEUED" || st == "RUNNING", err
