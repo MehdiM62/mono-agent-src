@@ -1963,7 +1963,7 @@ budget.
 |---|---|
 | `coding` | Full access; checks its work in the user's browser with `monoagentcli browser` (no browser lease: it passes `--tab`). |
 | `qa`, `automation` | Full access, plus `monoagentcli` for the browser (`browser`, the browser lease), workflows and automations. |
-| `workspace` | Coding plus every monoagent surface through `monoagentcli` (apps, tasks, documents, people, vault, workflows); outbound sends wait for approval. `coder set --app-access off` (`appAccess`, operator only, default on) changes what agents are told and offered, not what they can do: workers are not offered this profile (a lead's explicit ask is refused, a picked one runs as `coding`), the lead's and workers' prompts, `org_roster` and `org_spawn`'s description leave it and its surface rules out, and no coder prompt carries the profile summary. The coder lead keeps full access, a worker with a shell can still run `monoagentcli` itself, and operator-only commands, the send rule in every prompt and the send gate (`--send-approval`) apply either way. Routing still asks Jev when a Jev key is set, whatever app access says; `--org-router model` keeps briefs local. |
+| `workspace` | Coding plus every monoagent surface through `monoagentcli` (apps, tasks, documents, people, vault, workflows); outbound sends wait for approval. `coder set --app-access off` (`appAccess`, operator only, default on) changes what agents are told and offered, not what they can do: workers are not offered this profile (a lead's explicit ask is refused, a picked one runs as `coding`), the lead's and workers' prompts, `org_roster` and `org_spawn`'s description leave it and its surface rules out, and no coder prompt carries the profile summary. The coder lead keeps full access, a worker with a shell can still run `monoagentcli` itself, and operator-only commands, the send rule in every prompt and the send gate (`--send-approval`) apply either way. With a Jev key set, a worker's brief goes to Jev (TypeSafe) whatever app access and the router say: `auto` and `jev` route with it, and Jev picks the model and effort the lead leaves open, with `--org-router model` too. Only removing the Jev key keeps briefs on this machine. |
 | `research` | Read-only, confined as described below. |
 
 How workers run:
@@ -2711,7 +2711,41 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
   ("the client of invoice inv9"), `to_unset` the recipient when none is set
   ("the appointment's attendees"). Such a card names no address: `--always-allow` is
   refused on it (`hilsend.ErrAlwaysLabel`), no allow rule matches it, and its
-  Communications row is the account's own, not a People row. Besides messaging packages, the lint asks
+  Communications row is the account's own, not a People row.
+  An always-allow rule (action, platform, account, recipient) names the
+  node's own platform (`hilsend.PlatformOf`: discord, reddit, telegram, never
+  the family service or comm, so a Discord channel rule never matches a
+  Reddit id), and is keyed on the recipient as the send addresses it (the `to`, chat id, number or profile
+  URL; `replay.Address`), never on the person People found for it, so a DM
+  rule made from a card matches the next DM to that chat or number. It stands
+  only for a send that goes to that one recipient alone (`hilsend.soleRecipient`):
+  any cc, bcc, recipient list, second address, reply-to elsewhere, or value
+  in a node's destination keys (`destKeys`: Discord's `webhook_url`,
+  Mastodon's `instance`/`instance_url`/`in_reply_to_id`, dev.to's
+  `article_id`, Hashnode's `publication_id`, Product Hunt's `post_id`,
+  YouTube's `comment_id`, Twilio's `url`, the mail nodes' `message_id`) gets
+  the card. Gmail's and Outlook's `reply` (and any truthy `reply_all`) and
+  `send_draft` ignore `to`: their card names the thread or the draft as a
+  label, so no rule matches them; a Discord webhook send names its webhook's
+  host the same way; and no rule stands for a Twilio `make_call`, whose TwiML
+  can dial anyone. A send whose card names no recipient (an Instagram
+  `send_dms` given a bare `profile_url` instead of `selectedListItems`)
+  matches no rule either, nor does an op with no recipient param of its own
+  (Mastodon, Bluesky, dev.to, Hashnode, Product Hunt and YouTube posts and
+  comments). Beside the key rules a content net holds: a send with an
+  address or a +phone number anywhere in its config but its text, its
+  sender and its one recipient gets the card (`hilsend.strayAddress`), and
+  so does an email through a server other than its saved connection's
+  (`smtp_host`). The rule's account is the sending number or mailbox when a
+  node names one (WhatsApp's `phone_number_id`, Graph's send-as `mailbox`).
+  The card names the address the send goes to; the People row matched to
+  that whole address (never a substring of a contact) is a tag beside it
+  (`Recipient.PersonName`). The `outlook` platform is shared by Outlook's
+  SMTP app-password sends (`comm.outlook_send`, `service.outlook_mail` with
+  `auth: app_password`) and its Graph sends, so one rule covers both.
+  `hil allow add` refuses a rule with an unknown
+  action, a recipient over 320 bytes, `*`, `%`, a control, invisible or
+  non-breaking character, or one that reads like a label. Besides messaging packages, the lint asks
   about any app's write with a recipient-like param (to, recipient,
   receiver, addressee, email, mailTo, phone, tel, msisdn, sms, attendees,
   guests, participants, invitees, invites, subscribers, cc, bcc) or a

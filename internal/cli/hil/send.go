@@ -40,7 +40,8 @@ func (d Deps) hilSendError(err error) error {
 		return d.NotFound("send item not found")
 	case errors.Is(err, hilsend.ErrNotSend):
 		return d.InvalidInput("that Human-in-Loop item is not a send item")
-	case errors.Is(err, hilsend.ErrAlwaysLabel), errors.Is(err, hilsend.ErrNoText), errors.Is(err, hilsend.ErrNoSubject):
+	case errors.Is(err, hilsend.ErrAlwaysLabel), errors.Is(err, hilsend.ErrNoText), errors.Is(err, hilsend.ErrNoSubject),
+		errors.Is(err, hilsend.ErrUnreviewable):
 		return d.InvalidInput(err.Error())
 	}
 	return err
@@ -360,8 +361,9 @@ func (d Deps) newHILAllowCmd() *cobra.Command {
 			if err := clicore.RequireOperator(d.RequireOperator, "allow a destination"); err != nil {
 				return err
 			}
-			if a.Action == "" || a.Recipient == "" {
-				return d.InvalidInput("--action and --recipient are required")
+			// Every caller (the app's form included) gets the same checks.
+			if err := hilsend.CheckAllow(a); err != nil {
+				return d.InvalidInput("%s", err)
 			}
 			return d.withSendDB(func(_ *sql.DB, st hilsend.Store) error {
 				if err := st.Allow(cmd.Context(), a); err != nil {

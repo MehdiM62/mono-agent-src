@@ -67,7 +67,9 @@ var emailConfig = func() map[string]interface{} {
 	return map[string]interface{}{
 		"smtp_host": "smtp.example.test", "from": "me@example.test", "to": "ada@example.test",
 		"subject": "Hello", "body": "Original body", "password": "hunter2",
-		"credential": map[string]interface{}{"password": "hunter2", "extra": "x"}, "extra": "x",
+		// The saved connection a run merges in: its server is the one the
+		// config names (ownServer).
+		"credential": map[string]interface{}{"password": "hunter2", "extra": "x", "smtp_host": "smtp.example.test"}, "extra": "x",
 	}
 }
 
@@ -333,7 +335,7 @@ func TestSocialBatchBecomesOneItemPerRecipient(t *testing.T) {
 	}
 	ada := list[0]
 	if ada.Action != ActionDM || ada.Channel != "instagram" || ada.Account.Handle != "acme" || ada.Recipient.PersonID != "p9" ||
-		ada.Recipient.Name != "Ada Lovelace" || ada.Recipient.ProfileURL != "https://www.instagram.com/ada/" || ada.Text != "Hi there" {
+		ada.Recipient.Name != "ada" || ada.Recipient.PersonName != "Ada Lovelace" || ada.Recipient.ProfileURL != "https://www.instagram.com/ada/" || ada.Text != "Hi there" {
 		t.Fatalf("ada = %+v", ada)
 	}
 	if list[1].Recipient.Name != "bob" || list[1].Recipient.PersonID != "" {

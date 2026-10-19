@@ -72,6 +72,10 @@ type Payload struct {
 	// SubjectReadOnly: the op names no subject field, so the run sends no
 	// subject and none can be edited in (ErrNoSubject).
 	SubjectReadOnly bool `json:"subjectReadOnly,omitempty"`
+	// Unreviewable says why the card can't show all a step would send
+	// (too large to review, or cut where it shows a recipient): it can be
+	// rejected, never approved (ErrUnreviewable).
+	Unreviewable string `json:"unreviewable,omitempty"`
 	// NodeType is the node that performs the send on approval.
 	NodeType string `json:"nodeType"`
 	// Error is why a failed item failed.
@@ -133,7 +137,9 @@ type Account struct {
 // recipient ("the ticket's requester", "the client of invoice inv9") and is
 // no address, so no always-allow rule and no People row is keyed on it.
 type Recipient struct {
-	PersonID   string `json:"personId,omitempty"`
+	PersonID string `json:"personId,omitempty"`
+	// PersonName is the People row's name beside the addressed Name.
+	PersonName string `json:"personName,omitempty"`
 	Name       string `json:"name"`
 	ProfileURL string `json:"profileUrl,omitempty"`
 	Label      bool   `json:"label,omitempty"`

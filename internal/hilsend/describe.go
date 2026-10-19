@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -50,6 +51,26 @@ var outbound = map[string]rule{
 	"service.youtube":     {action: ActionPublish, ops: []string{"upload_video", "reply_to_comment"}, text: []string{"description", "text"}, subject: []string{"title"}},
 }
 
+// NativeSend is one send this package classifies itself (outbound): its
+// node type, the ops that send (nil: every op), and its recipient, text and
+// subject params.
+type NativeSend struct {
+	NodeType          string
+	Ops               []string
+	To, Text, Subject []string
+}
+
+// NativeSends lists them, sorted by node type, for the tests that sweep
+// every send.
+func NativeSends() []NativeSend {
+	out := make([]NativeSend, 0, len(outbound))
+	for nt, r := range outbound {
+		out = append(out, NativeSend{NodeType: nt, Ops: r.ops, To: r.to, Text: r.text, Subject: r.subject})
+	}
+	slices.SortFunc(out, func(a, b NativeSend) int { return strings.Compare(a.NodeType, b.NodeType) })
+	return out
+}
+
 // socialActions maps the action part of a browser node type
 // (<platform>.<action>) to what it does.
 var socialActions = map[string]string{
@@ -81,6 +102,17 @@ type target struct {
 	op      string
 	show    []string
 	exprs   []string
+	// undeclared: show holds keys the op doesn't declare (showText).
+	undeclared bool
+	unsent     []string
+	// dest lists the config keys besides the recipient's that decide where
+	// the send goes (a webhook URL, an instance, a thread id); fixed is the
+	// recipient of an op that ignores its to (a reply, a draft); ruleless,
+	// a send no always-allow rule stands for (a call its TwiML directs).
+	// See sole.go.
+	dest     []string
+	fixed    string
+	ruleless bool
 }
 
 // classify reports whether nodeType with config is an outbound send, under
@@ -95,14 +127,15 @@ func classify(nodeType string, config map[string]interface{}) (target, bool) {
 		return target{}, false
 	}
 	if r, ok := outbound[nodeType]; ok && r.covers(config) {
-		return target{action: r.action, text: r.text, subject: r.subject, to: r.to}, true
+		return target{action: r.action, text: r.text, subject: r.subject, to: r.to,
+			dest: destKeys[nodeType], fixed: fixedRecipient(nodeType, config), ruleless: ruleless(nodeType, config)}, true
 	}
 	// An API package's annotated op: an app node's, or one a package adds
 	// to a native node above (classifier.go).
 	if c := classifierOf(); c != nil {
 		if s, ok := c.Classify(nodeType, config); ok {
 			return target{action: s.Action, text: s.Text, subject: s.Subject, to: s.To, channel: s.Channel, perItem: s.PerItem,
-				toLabel: s.ToLabel, toUnset: s.ToUnset, op: s.Op, show: s.Show, exprs: s.Exprs}, true
+				toLabel: s.ToLabel, toUnset: s.ToUnset, op: s.Op, show: s.Show, exprs: s.Exprs, undeclared: s.Undeclared, unsent: s.Unsent}, true
 		}
 	}
 	return target{}, false
@@ -368,19 +401,14 @@ func inlineCredential(config map[string]interface{}) bool {
 	return false
 }
 
-// accountOf reads the sending account from config.
+// accountOf reads the sending account from config, on the node type's own
+// platform (PlatformOf).
 func accountOf(nodeType string, config map[string]interface{}) Account {
-	platform, _, _ := strings.Cut(nodeType, ".")
-	switch nodeType {
-	case "comm.email_send":
-		platform = "email"
-	case "comm.outlook_send", "service.outlook_mail":
-		platform = "outlook"
-	case "service.gmail":
-		platform = "gmail"
-	}
-	_, handle := firstKey(config, []string{"account", "from", "username", "identifier", "instance"})
-	return Account{Platform: platform, Handle: handle}
+	// mailbox (Graph's send-as) and phone_number_id (WhatsApp's sending
+	// number) name the sending account before any other key, so a rule is
+	// bound to them.
+	_, handle := firstKey(config, []string{"mailbox", "phone_number_id", "account", "from", "username", "identifier", "instance"})
+	return Account{Platform: PlatformOf(nodeType), Handle: handle}
 }
 
 // channelOf is the channel name shown on the card.
