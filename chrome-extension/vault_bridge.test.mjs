@@ -15,7 +15,7 @@ const NONCE = "0123456789abcdef";
 
 function world(o = {}) {
   const body = o.body || PNG;
-  const calls = { scripts: [], fetches: [], requests: [], cancelled: false };
+  const calls = { scripts: [], fetches: [], requests: [], cancelled: false, reads: 0 };
   const listeners = [];
   const store = { captureProfilesCache: [{ id: "p-work", name: "Work" }] };
   const chrome = {
@@ -34,7 +34,8 @@ function world(o = {}) {
   const headers = { "content-type": o.contentType || "image/png", "content-length": o.contentLength !== undefined ? o.contentLength : String(body.length) };
   const fetch = async (url, init) => {
     calls.fetches.push({ url, init });
-    let given = false;
+    // The body arrives in o.chunks when given (a big file read piece by piece), else in one piece.
+    const pieces = o.chunks ? o.chunks.slice() : [body];
     if (o.redirects) return { ok: false, status: 0, type: "opaqueredirect", headers: { get: () => null } };
     return {
       ok: (o.status || 200) < 400,
@@ -42,7 +43,7 @@ function world(o = {}) {
       headers: { get: (h) => headers[h.toLowerCase()] ?? null },
       body: {
         getReader: () => ({
-          read: async () => (given ? { done: true } : ((given = true), { done: false, value: body })),
+          read: async () => (calls.reads++, pieces.length ? { done: false, value: pieces.shift() } : { done: true }),
           cancel: async () => (calls.cancelled = true),
         }),
       },
@@ -119,18 +120,23 @@ test("the selection saved is the text selected in the page now, as a text file",
 });
 
 test("a file too big for the side panel is refused for good, before or while it is read", async () => {
+  // Content-Length over the cap: refused before a single byte is read.
   const declared = world({ contentLength: String(21 * 1024 * 1024) });
   const out = await declared.send(ask());
   assert.equal(out.status, "refused");
   assert.match(out.feedback.text, /too big/);
-  assert.equal(declared.calls.requests.length, 0);
+  assert.deepEqual([declared.calls.reads, declared.calls.requests.length], [0, 0], "nothing read, nothing sent");
 
-  const big = new Uint8Array(20 * 1024 * 1024 + 1);
-  big.set(PNG);
-  const streamed = world({ body: big, contentLength: null });
+  // No Content-Length, 25 MiB in 1 MiB pieces: reading stops at the cap, not at the end.
+  const MiB = 1024 * 1024;
+  const chunks = Array.from({ length: 25 }, () => new Uint8Array(MiB));
+  chunks[0].set(PNG);
+  const streamed = world({ chunks, contentLength: null });
   const out2 = await streamed.send(ask());
   assert.equal(out2.status, "refused");
-  assert.ok(streamed.calls.cancelled, "the rest is not read");
+  assert.match(out2.feedback.text, /too big/);
+  assert.equal(streamed.calls.reads, 21, "the 21st MiB is the one past the cap; nothing after it is read");
+  assert.ok(streamed.calls.cancelled, "the rest is cancelled");
   assert.equal(streamed.calls.requests.length, 0);
 });
 
