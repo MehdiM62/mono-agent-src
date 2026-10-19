@@ -395,9 +395,13 @@ func (d Deps) runOutlookNode(cmd *cobra.Command, db *sql.DB, connectionID string
 	for k, v := range credData {
 		config[k] = v
 	}
-	// The approved send resolves the connection again: a card keeps no
-	// credentials.
+	// The approved send resolves the connection again (a card keeps no
+	// credentials): pinned by id, so a platform with several connections
+	// sends through the one this run chose.
 	config["credential_id"] = connectionID
+	if id := connStore.PinnedID(cmd.Context(), connectionID, d.ProfileID()); id != "" {
+		config["credential_id"] = id
+	}
 
 	// An agent's send waits for approval here as in a workflow or `node run`
 	// (internal/hilsend): the guard queues it as a card, and nothing runs.

@@ -52,8 +52,7 @@ func validateNotion(ctx context.Context, c *Connection) (string, error) {
 	req.Header.Set("Notion-Version", "2022-06-28")
 	req.Header.Set("Accept", "application/json")
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := validateHTTP.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("validateNotion: %w", err)
 	}
@@ -134,8 +133,7 @@ func validateJira(ctx context.Context, c *Connection) (string, error) {
 	req.SetBasicAuth(email, apiToken)
 	req.Header.Set("Accept", "application/json")
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := validateHTTP.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("validateJira: %w", err)
 	}
@@ -186,8 +184,7 @@ func validateLinear(ctx context.Context, c *Connection) (string, error) {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := validateHTTP.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("validateLinear: %w", err)
 	}
@@ -235,8 +232,7 @@ func validateStripe(ctx context.Context, c *Connection) (string, error) {
 	req.SetBasicAuth(key, "")
 	req.Header.Set("Accept", "application/json")
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := validateHTTP.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("validateStripe: %w", err)
 	}

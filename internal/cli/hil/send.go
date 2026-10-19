@@ -40,7 +40,8 @@ func (d Deps) hilSendError(err error) error {
 		return d.NotFound("send item not found")
 	case errors.Is(err, hilsend.ErrNotSend):
 		return d.InvalidInput("that Human-in-Loop item is not a send item")
-	case errors.Is(err, hilsend.ErrAlwaysLabel), errors.Is(err, hilsend.ErrNoText), errors.Is(err, hilsend.ErrNoSubject):
+	case errors.Is(err, hilsend.ErrAlwaysLabel), errors.Is(err, hilsend.ErrNoText), errors.Is(err, hilsend.ErrNoSubject),
+		errors.Is(err, hilsend.ErrUnreviewable):
 		return d.InvalidInput(err.Error())
 	}
 	return err
@@ -66,11 +67,40 @@ func (d Deps) printSend(cmd *cobra.Command, p hilsend.Payload) error {
 	if p.Subject != "" {
 		fmt.Fprintf(w, "Subject: %s\n", p.Subject)
 	}
+	// A card made before details were escaped prints on one line too.
+	for _, dt := range p.Details {
+		fmt.Fprintf(w, "%s: %s\n", detailLabel(dt.Key), hilsend.OneLine(dt.Value))
+	}
 	fmt.Fprintf(w, "%s\n", p.Text)
 	if p.Error != "" {
 		fmt.Fprintf(w, "Error: %s\n", p.Error)
 	}
 	return nil
+}
+
+// detailLabel is how the terminal names a card's detail, as the app does.
+func detailLabel(key string) string {
+	switch key {
+	case "alsoTo":
+		return "Also to"
+	case "cc":
+		return "Cc"
+	case "bcc":
+		return "Bcc"
+	case "replyAll":
+		return "Reply all"
+	case "inReplyTo":
+		return "In reply to"
+	case "draft":
+		return "Draft"
+	case "references":
+		return "References"
+	case "bodyType":
+		return "Body type"
+	case "connection":
+		return "Connection"
+	}
+	return key
 }
 
 func (d Deps) withSendDB(fn func(*sql.DB, hilsend.Store) error) error {
@@ -340,8 +370,9 @@ func (d Deps) newHILAllowCmd() *cobra.Command {
 			if err := clicore.RequireOperator(d.RequireOperator, "allow a destination"); err != nil {
 				return err
 			}
-			if a.Action == "" || a.Recipient == "" {
-				return d.InvalidInput("--action and --recipient are required")
+			// Every caller (the app's form included) gets the same checks.
+			if err := hilsend.CheckAllow(a); err != nil {
+				return d.InvalidInput("%s", err)
 			}
 			return d.withSendDB(func(_ *sql.DB, st hilsend.Store) error {
 				if err := st.Allow(cmd.Context(), a); err != nil {

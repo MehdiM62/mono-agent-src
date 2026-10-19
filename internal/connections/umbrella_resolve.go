@@ -63,6 +63,27 @@ func (s *Store) ListUsableByPlatform(ctx context.Context, platform, profileID st
 	return out, nil
 }
 
+// PinnedID is the id of the connection idOrPlatform names, chosen as the
+// CLI resolves a credential: by id in the profile, else the platform's
+// first active usable connection, else its first. "" when there is none.
+// A send card pins it (credential_id), so an approval sends through the
+// connection the run chose.
+func (s *Store) PinnedID(ctx context.Context, idOrPlatform, profileID string) string {
+	if c, err := s.Get(ctx, idOrPlatform, profileID); err == nil && c != nil {
+		return c.ID
+	}
+	conns, err := s.ListUsableByPlatform(ctx, idOrPlatform, profileID)
+	if err != nil || len(conns) == 0 {
+		return ""
+	}
+	for _, c := range conns {
+		if c.Status == "active" {
+			return c.ID
+		}
+	}
+	return conns[0].ID
+}
+
 // pickUmbrellaConnection chooses, among umbrella connections, the one to
 // serve a node of credential platform product: active and granted the
 // product's scopes first, then any active one, then the first.

@@ -109,6 +109,23 @@ messages, not a barrier:
 - An agent with full access to your computer can do anything you can,
   including reading the keyring.
 
+### A copy of `~/.monoagent` and the key store
+
+The key that opens the vault is in the OS key store, not in the database, and
+the key store gives it to any program running as your OS user. So a copy of
+`~/.monoagent/monoagent.db`, made by you, a script or an agent, gives any
+process running as you every credential in it: API keys, OAuth tokens, website
+logins and saved connections, in every profile. The CLI's own checks keep a copy
+from using the two credentials that harm your account when they are used twice,
+the monoes.me sign-in and the older library login (see "One sign-in per machine,
+never copied" and "Network use"). They cannot stop a program that decrypts the
+copy itself, or that reads the real database: such a program has what you have.
+
+To keep a tool or an agent you do not trust away from your credentials, run it
+where your key store is not: as another OS user, or in a container or virtual
+machine that has neither your home directory nor your key store. A `HOME` of its
+own is not enough.
+
 ### Where a saved connection's secret goes
 
 A step that uses a saved connection (its `credential_id`, or the connection
@@ -691,7 +708,19 @@ list of the situations in which Mono Agent makes network requests:
    resource. On the first gated command, a monoes.me
    library login left by an older release is exchanged once for this sign-in (its
    refresh token, the client id and the resource); if monoes.me does not allow
-   that, nothing changes and you sign in once more. monoes.me learns which
+   that, nothing changes and you sign in once more. That older login is sent
+   to monoes.me (exchanged, refreshed, used for a library request, or revoked
+   by `library logout`) only from your own install: `HOME` is your OS account's
+   home directory and the database is `~/.monoagent/monoagent.db` in it. A copy
+   of the database, used from another `HOME` or with `--db-path`, sends nothing
+   and keeps the login, and the CLI prints why. When the system cannot say
+   which home directory your OS account has (on Linux, an account that is not
+   in `/etc/passwd`, such as an LDAP account or a container running under an
+   arbitrary user id), the login is not sent either: sign in with
+   `monoagentcli account login` instead. Every host counts as monoes.me here
+   except a loopback address (a development server on your machine). Each
+   exchange prints one line saying what became of the login, never the token
+   itself. monoes.me learns which
    account, when, and the IP address the request comes from. Nothing else is
    sent: no device identifier, no usage data, no workflow content, no file path.
 2. **monoes.me, for the library** (`library list`, `show`, `install`, `publish`,
@@ -772,10 +801,32 @@ Sign in once on each machine. Never copy or restore `~/.monoagent/account/`
 between machines or from an old backup or disk image, and never bake a sign-in
 into a Docker image or a container snapshot: keep it in the container's volume.
 monoes.me rotates the refresh token at every refresh and treats one that was
-already used as stolen: it ends that sign-in. A copy shares the sign-in of the
-machine it came from, so a stale copy, once presented, signs out the original and
-every copy, and each of them then has to sign in again. Machines that signed in
-on their own keep working.
+already used as stolen: it ends that sign-in. The refresh token names the folder
+it was sealed for, by its identity on the disk (by its path where the disk gives
+none), so a copy of the folder is never renewed, sent or revoked, wherever it is,
+even put back where the original was: it reports `keyring_unavailable` and has to
+sign in on its own. The folder itself may be renamed or moved on the same disk (a
+renamed home directory, a volume mounted at another path) and keeps working;
+moved to another disk, or restored from a backup, it has to sign in once more.
+Only a disk image restored block for block keeps the folder's identity: once
+presented, such a stale copy signs out the original and every copy, and each of
+them then has to sign in again. Machines that signed in on their own keep
+working. These checks guard against accidents, such as an agent copying the
+folder: a program that runs as you and can call the key store can seal any
+folder's name, or unseal the token itself (see "A copy of `~/.monoagent` and the
+key store"). A sign-in made by a release before this one names no folder: it is
+read only in your own `~/.monoagent/account`, and its next renewal, within the
+hour, ties it to that folder. If the system has no home directory for your
+account (on Linux, one that is not in `/etc/passwd`: an LDAP account, a
+container's arbitrary user id), that cannot be checked: sign in once more after
+upgrading. The CLI says so.
+
+Do not copy `~/.monoagent/monoagent.db` either. Its vault can still hold a
+library login from an older release, and any copy made by the same OS user can
+open it. The CLI sends that login to monoes.me only from your own install (see
+"Network use" above). Setting `MONOES_BASE_URL` does not keep a copy away from monoes.me:
+in a default build it changes where the library's requests go, not where you sign
+in. Only a `-tags devaccount` build changes the sign-in host (spec D24).
 
 ### When a sign-in is locked
 
@@ -1043,6 +1094,32 @@ layers, from strongest:
 - **Cross-root messaging.** Orgs under the same profile folder can always
   message each other. Restricting messages between profile folders needs
   monomind with capability `org-federation`.
+
+## Send approval cards
+
+A send that an agent, or a workflow you never approved, prepares waits as a
+`send:` item in the Human in Loop queue (`internal/hilsend`). When its words
+aren't a message you could edit, its card shows each field it sends, the
+recipient-like ones first and in full up to their share, and then every
+address in the payload the fields don't show, with its path: email
+addresses, links and tel:, sip: and sms: URIs, @handles and Matrix ids,
+channels and Slack ids, phone numbers, long numbers, UUIDs, IP literals and
+bare domains (`internal/apipkg/FORMAT.md` §3). A card that can't show all
+of that, or whose payload is too large to check, can be rejected, never
+approved.
+
+**Known gaps (accepted for now):** the card reads shapes, not meaning, so
+it doesn't find an address that a reader wouldn't take for one either:
+spelled out or otherwise obfuscated (`evil at x dot com`), percent-encoded
+(`evil%40x.test`), in base64 or HTML entities (`evil&#64;x.test`), written
+with a fullwidth `＠`, or split over two leaves the service joins
+(`{"user": "evil", "domain": "x.test"}`). Such a payload still shows its
+fields, cut with a mark and never left out silently. Also: a domain whose
+last label is a file name's ending (`evil.py`) and a number inside a word
+on both sides (`ab5551234567cd`) aren't read; 10 or 13 digits alone under a
+time-like key that read as a time from 2001 to 2100 count as a Unix time;
+and an address that one recipient-like field shows isn't listed again from
+another.
 
 ## Webhook trigger surface
 

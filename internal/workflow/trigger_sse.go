@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/monoes/mono-agent/internal/credhttp"
 	"github.com/monoes/mono-agent/internal/secrets"
 )
 
@@ -183,6 +184,10 @@ func (c *sseConn) loop(ctx context.Context, emit func(Item)) {
 	}
 }
 
+// sseHTTP is a trigger.sse source's client when it names none: its headers
+// may carry a token, so a redirect elsewhere gets none of them (credhttp).
+var sseHTTP = credhttp.Client(nil)
+
 // stream makes one request and reads events until the body ends; got says
 // whether any event arrived.
 func (c *sseConn) stream(ctx context.Context, emit func(Item)) (got bool, err error) {
@@ -200,7 +205,7 @@ func (c *sseConn) stream(ctx context.Context, emit func(Item)) (got bool, err er
 	}
 	client := c.src.Client
 	if client == nil {
-		client = &http.Client{}
+		client = sseHTTP
 	}
 	resp, err := client.Do(req)
 	if err != nil {

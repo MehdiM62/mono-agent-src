@@ -31,11 +31,12 @@ func (s *openCounter) Open(sealed []byte) ([]byte, error) {
 	return s.Sealer.Open(sealed)
 }
 
-// sealedOfSize seals a refresh token so that refresh.enc is exactly size bytes:
-// the version byte, the 12-byte nonce and the 16-byte tag around the token.
-func sealedOfSize(t *testing.T, s Sealer, size int) []byte {
+// sealedOfSize seals a refresh token for dir so that refresh.enc is exactly size
+// bytes: the version byte, the 12-byte nonce and the 16-byte tag around the token
+// and the folder it is sealed for (sealFor).
+func sealedOfSize(t *testing.T, s Sealer, dir string, size int) []byte {
 	t.Helper()
-	blob, err := s.Seal(bytes.Repeat([]byte("r"), size-1-nonceSize-16))
+	blob, err := s.Seal(sealFor(dir, string(bytes.Repeat([]byte("r"), size-1-nonceSize-16-len(sealFor(dir, ""))))))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,8 +61,8 @@ func TestTheStoreReadsAtMost64KiBOfEitherFile(t *testing.T) {
 	if l := loadWithin(t, st); l.err != nil || l.sess == nil || l.sess.Host != "h" {
 		t.Errorf("a session.json of exactly 64 KiB: a session %v, %v, want it read", l.sess != nil, l.err)
 	}
-	writeFile(t, refresh, sealedOfSize(t, sealer, maxStoreFile))
-	if r := loadRefreshWithin(t, st); r.err != nil || len(r.token) != maxStoreFile-1-nonceSize-16 {
+	writeFile(t, refresh, sealedOfSize(t, sealer, dir, maxStoreFile))
+	if r := loadRefreshWithin(t, st); r.err != nil || len(r.token) != maxStoreFile-1-nonceSize-16-len(sealFor(dir, "")) {
 		t.Errorf("a refresh.enc of exactly 64 KiB: a token of %d bytes, %v, want it read", len(r.token), r.err)
 	}
 
@@ -70,7 +71,7 @@ func TestTheStoreReadsAtMost64KiBOfEitherFile(t *testing.T) {
 		t.Errorf("a session.json one byte over 64 KiB: a session %v, %v, want the too-large refusal", l.sess != nil, l.err)
 	}
 	opens := sealer.opens.Load()
-	writeFile(t, refresh, sealedOfSize(t, sealer, maxStoreFile+1))
+	writeFile(t, refresh, sealedOfSize(t, sealer, dir, maxStoreFile+1))
 	if r := loadRefreshWithin(t, st); r.token != "" || !errors.Is(r.err, errTooLarge) {
 		t.Errorf("a refresh.enc one byte over 64 KiB: a token %v, %v, want the too-large refusal", r.token != "", r.err)
 	}
@@ -136,16 +137,19 @@ func TestTheStoreRefusesADirectoryInPlaceOfAFile(t *testing.T) {
 }
 
 // A linked folder or file is legitimate: the store follows the link, and what it
-// leads to is read when it is a regular file.
+// leads to is read when it is a regular file (and, for refresh.enc, sealed for
+// the folder that links to it).
 func TestTheStoreFollowsALinkToARegularFile(t *testing.T) {
 	real, dir := t.TempDir(), t.TempDir()
 	sealer := NewMemorySealer()
 	if err := OpenStore(real, sealer).Save(&Session{Host: "h"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := OpenStore(real, sealer).SaveRefresh("rt-1"); err != nil {
+	blob, err := sealer.Seal(sealFor(dir, "rt-1"))
+	if err != nil {
 		t.Fatal(err)
 	}
+	writeFile(t, filepath.Join(real, refreshFile), blob)
 	for _, name := range []string{sessionFile, refreshFile} {
 		if err := os.Symlink(filepath.Join(real, name), filepath.Join(dir, name)); err != nil {
 			t.Skipf("cannot make a symbolic link here: %v", err)

@@ -11,6 +11,8 @@ import (
 	"net/url"
 	"sort"
 	"strings"
+
+	"github.com/monoes/mono-agent/internal/credhttp"
 )
 
 // Body types.
@@ -161,7 +163,7 @@ func (r *opRun) buildRequest(ctx context.Context, pp pageParams) (*built, error)
 			return nil, r.errf("%w", err)
 		}
 		if r.credDef != nil || len(sc.Cred) > 0 {
-			req = withCredentialHeaders(req, credentialHeaders(before, req.Header, r.pkg.Headers, r.op.Headers))
+			req = credhttp.Mark(req, credentialHeaders(before, req.Header, r.pkg.Headers, r.op.Headers)...)
 		}
 	}
 	return &built{req: req, body: body}, nil

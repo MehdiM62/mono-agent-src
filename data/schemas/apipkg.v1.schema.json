@@ -373,6 +373,7 @@
             "to": { "type": "array", "items": { "type": "string" } },
             "text": { "type": "array", "items": { "type": "string" } },
             "subject": { "type": "array", "items": { "type": "string" } },
+            "show": { "type": "array", "items": { "type": "string" } },
             "if": { "type": ["string", "array"], "items": { "type": "string" } },
             "to_label": { "$ref": "#/$defs/stringMap" },
             "to_unset": { "type": "string" }

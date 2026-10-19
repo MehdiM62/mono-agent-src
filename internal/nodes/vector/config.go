@@ -21,12 +21,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/monoes/mono-agent/internal/credhttp"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
 // httpClient is shared by every REST provider. Tests swap base URLs, not
-// the client.
-var httpClient = &http.Client{Timeout: 120 * time.Second}
+// the client. Its requests carry the provider's key, so a redirect
+// elsewhere gets none of it (credhttp).
+var httpClient = credhttp.Client(&http.Client{Timeout: 120 * time.Second})
 
 // Response-size caps, matching internal/nodes/service/helpers.go: no
 // provider response is read unbounded, and an error body echoed into a

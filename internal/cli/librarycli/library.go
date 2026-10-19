@@ -58,12 +58,19 @@ type libEnv struct {
 	reg     *automation.Registry
 	session *library.AccountSession // the machine session every library call reads with
 	guard   *account.Guard
+	vaultDB *storage.Database // the database the older login is read from, when not db (olderLoginStore)
+	// olderRefused says why the profile's older login is not presented from here, "" when it may be.
+	olderRefused string
 }
 
 func (e *libEnv) Close() {
 	if e.db != nil {
 		e.db.Close()
 		e.db = nil
+	}
+	if e.vaultDB != nil {
+		e.vaultDB.Close()
+		e.vaultDB = nil
 	}
 	if e.guard != nil {
 		e.guard.Close()
@@ -81,7 +88,11 @@ func (e *libEnv) open() (*library.Client, error) {
 	}
 	e.db = db
 	base := library.BaseURL()
-	c, err := library.NewClient(base, &library.VaultStore{DB: db.DB, ProfileID: e.deps.ProfileID(), BaseURL: base})
+	store, err := e.olderLoginStore(db, base)
+	if err != nil {
+		return nil, err
+	}
+	c, err := library.NewClient(base, store)
 	if err != nil {
 		return nil, clicore.InvalidInput("%v", err)
 	}
@@ -372,6 +383,7 @@ func newLibraryLogoutCmd(e *libEnv) *cobra.Command {
 			if err := c.LogoutLegacy(ctx); err != nil {
 				return err
 			}
+			e.sayOlderLoginKept(cmd, c.BaseURL)
 			return e.print(cmd, map[string]any{"logged_out": true, "base_url": c.BaseURL}, func(w io.Writer) {
 				fmt.Fprintf(w, "Logged out of %s.\n", c.BaseURL)
 			})

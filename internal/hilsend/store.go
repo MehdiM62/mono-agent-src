@@ -46,6 +46,10 @@ var (
 	// ErrNoSubject: a subject edit of a card whose op names no subject
 	// field: the approved run would send none, while the record kept it.
 	ErrNoSubject = errors.New("this send has no subject field: there is no subject to edit; approve it as it is or reject it")
+	// ErrUnreviewable: an approve (always-allow included) of a card that
+	// can't show all the step would send (too large, or a draft's). It can
+	// only be rejected, or the step changed and run again.
+	ErrUnreviewable = errors.New("this send can't be reviewed on its card, so it can't be approved: reject it, or change the step and run it again")
 )
 
 // replay is what approving needs to run the node again.
@@ -63,6 +67,13 @@ type replay struct {
 	// Publication is set once a registration claimed this send's approval
 	// (ClaimPublicationApproval): one approval registers one publication.
 	Publication string `json:"publication,omitempty"`
+	// Address is the recipient as the send addresses it, what an
+	// always-allow rule made from this item is keyed on.
+	Address string `json:"address,omitempty"`
+	// Connection is the id of the saved connection a send with host keys
+	// goes through (savedConnection), which an always-allow rule made from
+	// this item is bound to (ruleAccount).
+	Connection string `json:"connection,omitempty"`
 }
 
 type editable struct {
@@ -119,10 +130,24 @@ func (s Store) find(ctx context.Context, id string) (row, error) {
 	if id == "" {
 		return row{}, ErrNotFound
 	}
+	// An exact id is a primary-key lookup. The prefix scan below reads every
+	// pending item of the profile (an OR with LIKE cannot use the key), so it
+	// runs only when the id is not exact.
+	var exact row
+	err := s.DB.QueryRowContext(ctx,
+		`SELECT id, status, readonly_data, editable_data, node_config FROM hil_pending
+		 WHERE profile_id = ? AND id = ?`, s.Profile, id).
+		Scan(&exact.id, &exact.status, &exact.ro, &exact.ed, &exact.nc)
+	if err == nil {
+		return exact, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return row{}, err
+	}
 	rows, err := s.DB.QueryContext(ctx,
 		`SELECT id, status, readonly_data, editable_data, node_config FROM hil_pending
-		 WHERE profile_id = ? AND (id = ? OR id LIKE ? ESCAPE '\') LIMIT 3`,
-		s.Profile, id, escapeLike(id)+"%")
+		 WHERE profile_id = ? AND id LIKE ? ESCAPE '\' LIMIT 3`,
+		s.Profile, escapeLike(id)+"%")
 	if err != nil {
 		return row{}, err
 	}
@@ -132,9 +157,6 @@ func (s Store) find(ctx context.Context, id string) (row, error) {
 		var r row
 		if err := rows.Scan(&r.id, &r.status, &r.ro, &r.ed, &r.nc); err != nil {
 			return row{}, err
-		}
-		if r.id == id {
-			return r, nil
 		}
 		found = append(found, r)
 	}
@@ -280,6 +302,11 @@ func (s Store) claim(ctx context.Context, id string, always bool) (p Payload, rp
 	}
 	if p.State != StatePending {
 		return p, rp, "", false, nil
+	}
+	if p.Unreviewable != "" {
+		// A card that can't show what the step sends isn't approved from:
+		// it stays pending, to be rejected.
+		return p, rp, "", false, fmt.Errorf("send item %s: %w (%s)", p.ID, ErrUnreviewable, p.Unreviewable)
 	}
 	if always && p.Recipient.Label {
 		// What is claimed decides, not an earlier read: it stays pending.

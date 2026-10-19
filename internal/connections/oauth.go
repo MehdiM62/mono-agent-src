@@ -15,6 +15,8 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/monoes/mono-agent/internal/credhttp"
 )
 
 // OAuthResult holds the token data returned after a successful OAuth flow.
@@ -269,8 +271,10 @@ func PostTokenRequestWithAudienceFallback(platformID, tokenURL string, form url.
 
 // tokenHTTPClient bounds every token exchange/refresh so a blackholed
 // provider token endpoint can't hang the caller (workflow node, connect
-// flow) forever — http.DefaultClient has no timeout.
-var tokenHTTPClient = &http.Client{Timeout: 30 * time.Second}
+// flow) forever — http.DefaultClient has no timeout. Its requests carry
+// the client secret, a code or a refresh token, so a redirect elsewhere
+// gets none of it (credhttp).
+var tokenHTTPClient = credhttp.Client(&http.Client{Timeout: 30 * time.Second})
 
 // usesBasicClientAuth reports whether platformID's token endpoint requires
 // client credentials via HTTP Basic Auth (RFC 6749 §2.3.1) instead of as

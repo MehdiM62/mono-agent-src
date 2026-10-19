@@ -13,8 +13,8 @@ import (
 	"github.com/monoes/mono-agent/internal/account"
 	"github.com/monoes/mono-agent/internal/account/accounttest"
 	"github.com/monoes/mono-agent/internal/cli/accountgate"
+	"github.com/monoes/mono-agent/internal/library"
 	"github.com/monoes/mono-agent/internal/storage"
-	"github.com/monoes/mono-agent/internal/testdb"
 )
 
 // adoptTree is a small tree of the gate's classes: version is open, workflow list gated, daemon serves.
@@ -42,7 +42,10 @@ func find(t *testing.T, args ...string) *cobra.Command {
 
 // counter is an Adopt that counts its calls.
 func counter(n *int) Adopt {
-	return func(context.Context, *sql.DB, *account.Guard) (bool, error) { *n++; return false, nil }
+	return func(context.Context, *sql.DB, *account.Guard, func(string, library.Outcome)) (bool, error) {
+		*n++
+		return false, nil
+	}
 }
 
 // These install the process guard (accounttest), so they run one at a time.
@@ -50,7 +53,7 @@ func counter(n *int) Adopt {
 func TestAdoptFirstRunTriesOncePerDatabase(t *testing.T) {
 	accounttest.Install(t, accounttest.LockedNoLogin)
 	account.SetEnforceFromForTest(t, time.Now().Add(48*time.Hour))
-	path := testdb.Path(t)
+	path := ownDB(t)
 	calls := 0
 	AdoptFirstRun(find(t, "workflow", "list"), path, counter(&calls))
 	AdoptFirstRun(find(t, "daemon"), path, counter(&calls))
@@ -84,7 +87,7 @@ func TestAdoptFirstRunSkips(t *testing.T) {
 			if c.mode == accounttest.LockedNoLogin {
 				account.SetEnforceFromForTest(t, time.Now().Add(48*time.Hour))
 			}
-			path := testdb.Path(t)
+			path := ownDB(t)
 			if c.noDB {
 				path = filepath.Join(t.TempDir(), "absent.db")
 			}
@@ -113,7 +116,7 @@ func TestAdoptBeforeGateFindsTheCommandAndItsDatabase(t *testing.T) {
 		{[]string{"nope"}, "", ""},
 	} {
 		gotCmd, gotDB := "", ""
-		AdoptBeforeGate(context.Background(), c.args, adoptTree, func(cmd *cobra.Command, dbPath string) {
+		AdoptBeforeGate(context.Background(), c.args, io.Discard, adoptTree, func(cmd *cobra.Command, dbPath string) {
 			gotCmd, gotDB = cmd.Name(), dbPath
 			if cmd.Context() == nil {
 				t.Errorf("%v: no context", c.args)

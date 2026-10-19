@@ -19,12 +19,8 @@ func TestSendCardNamesTheServerAndTheFetchedURL(t *testing.T) {
 		config      map[string]interface{}
 		host, fetch string
 	}{
-		{"comm.email_send", emailConfig(), "smtp.example.test", ""},
-		{"comm.email_send", func() map[string]interface{} {
-			c := emailConfig()
-			c["smtp_port"] = float64(2525)
-			return c
-		}(), "smtp.example.test:2525", ""},
+		{"comm.email_send", with(emailConfig(), "smtp_host", "smtp.example.test"), "smtp.example.test", ""},
+		{"comm.email_send", with(emailConfig(), "smtp_host", "smtp.example.test", "smtp_port", float64(2525)), "smtp.example.test:2525", ""},
 		{"service.mastodon", map[string]interface{}{"operation": "publish_status", "status": "Hi", "instance": "https://Fosstodon.example/"}, "fosstodon.example", ""},
 		{"service.mastodon", map[string]interface{}{"operation": "publish_status", "status": "Hi", "instance_url": "https://hachyderm.example"}, "hachyderm.example", ""},
 		{"service.mastodon", map[string]interface{}{"operation": "publish_status", "status": "Hi", "instance": "https://mastodon.social"}, "", ""},

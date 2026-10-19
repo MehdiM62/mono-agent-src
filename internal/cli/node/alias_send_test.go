@@ -8,8 +8,10 @@ import (
 	"testing"
 
 	"github.com/monoes/mono-agent/internal/browserctl"
+	"github.com/monoes/mono-agent/internal/connections"
 	"github.com/monoes/mono-agent/internal/hilsend"
 	"github.com/monoes/mono-agent/internal/orgsign"
+	"github.com/monoes/mono-agent/internal/storage"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -66,5 +68,65 @@ func TestNodeRunOfALegacyNameWaits(t *testing.T) {
 	}
 	if n := runs.Load(); n != 0 {
 		t.Errorf("%d of the sends ran without an approval", n)
+	}
+}
+
+// An agent's `node run` of a send names its connection as it likes (an id,
+// or a platform with several connections): the card pins the one this run
+// resolved, by id, so an approval sends through the same connection rather
+// than whichever it would pick then.
+func TestNodeRunOfASendPinsItsConnection(t *testing.T) {
+	for _, k := range append(orgsign.AgentContextMarkers(), hilsend.EnvAgentContext, "MONOAGENT_ACTOR", browserctl.EnvAICaller, workflow.EnvWorkflowRun,
+		hilsend.EnvApprovalID, hilsend.EnvApprovalProof, hilsend.EnvConversation, hilsend.EnvAgentRole, hilsend.EnvAgentID) {
+		t.Setenv(k, "")
+	}
+	dbPath := nodeVaultTestDB(t)
+	db, err := storage.NewDatabase(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.ApplyMigrations(); err != nil {
+		t.Fatal(err)
+	}
+	store := connections.NewStore(db.DB)
+	for _, c := range []*connections.Connection{
+		{ID: "conn-old", Platform: "outlook", Method: "oauth", Status: "expired", ProfileID: "default", Data: map[string]interface{}{"email": "me@x.com"}},
+		{ID: "conn-new", Platform: "outlook", Method: "oauth", Status: "active", ProfileID: "default", Data: map[string]interface{}{"email": "me@x.com"}},
+	} {
+		if err := store.Save(context.Background(), c); err != nil {
+			t.Fatal(err)
+		}
+	}
+	db.Close()
+	var runs atomic.Int32
+	d := testDeps(dbPath, "default", false)
+	d.ResolveCredential = func(context.Context, *connections.Store, string, string) (map[string]interface{}, error) {
+		return map[string]interface{}{"access_token": "tok"}, nil
+	}
+	d.BuildRegistry = func(*sql.DB) *workflow.NodeTypeRegistry {
+		workflow.SetExecGuard(hilsend.Guard) // as noderegistry.Build does
+		r := workflow.NewNodeTypeRegistry()
+		r.Register("service.outlook_mail", func() workflow.NodeExecutor { return sentNode{typ: "service.outlook_mail", runs: &runs} })
+		return r
+	}
+	t.Setenv(hilsend.EnvAgentContext, "coder")
+	raw, _ := json.Marshal(map[string]interface{}{"config": map[string]interface{}{"operation": "send_message", "to": "ada@example.test",
+		"subject": "Hi", "body": "Hello", "credential_id": "outlook"}})
+	if out, err := runNodeSubcmdStdin(t, d, string(raw), "service.outlook_mail"); err != nil || runs.Load() != 0 {
+		t.Fatalf("node run: %v (runs %d)\n%s", err, runs.Load(), out)
+	}
+	db, err = storage.NewDatabase(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	cards, err := hilsend.Store{DB: db.DB, Profile: "default"}.List(context.Background())
+	if err != nil || len(cards) != 1 {
+		t.Fatalf("cards: %v %+v", err, cards)
+	}
+	for _, dt := range cards[0].Details {
+		if dt.Key == "connection" && dt.Value != "conn-new" {
+			t.Fatalf("connection %q, want conn-new pinned", dt.Value)
+		}
 	}
 }

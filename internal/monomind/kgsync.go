@@ -58,6 +58,14 @@ type kgIngestEdge struct {
 // missing, non-zero exit, timeout) — never on KG-side outcomes, since ingest
 // is idempotent.
 func SyncToKnowledgeGraph(ctx context.Context, db *sql.DB, profileID string, nodes []KGNode, edges []KGEdge, originRef string) error {
+	return SyncToKnowledgeGraphStarted(ctx, db, profileID, nodes, edges, originRef, nil)
+}
+
+// SyncToKnowledgeGraphStarted is SyncToKnowledgeGraph that calls started, when
+// not nil, once the monomind process runs. From then on the sync needs
+// nothing from this process, not even its database: the ingest finishes even
+// if this process exits first, as a normal exit does not stop it.
+func SyncToKnowledgeGraphStarted(ctx context.Context, db *sql.DB, profileID string, nodes []KGNode, edges []KGEdge, originRef string, started func()) error {
 	if len(nodes) == 0 && len(edges) == 0 {
 		return nil
 	}
@@ -113,7 +121,13 @@ func SyncToKnowledgeGraph(ctx context.Context, db *sql.DB, profileID string, nod
 	// ambient MONOMIND_* first so the explicit value below is the only one
 	// the child sees (a duplicate inherited entry could otherwise shadow it).
 	cmd.Env = PinEnv(append(FilteredEnviron(), "MONOMIND_CWD="+profileDir), bin)
-	if err := cmd.Run(); err != nil {
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("kgsync: memory_kg_ingest: %w", err)
+	}
+	if started != nil {
+		started()
+	}
+	if err := cmd.Wait(); err != nil {
 		return fmt.Errorf("kgsync: memory_kg_ingest: %w", err)
 	}
 	return nil

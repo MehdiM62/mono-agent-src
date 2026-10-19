@@ -10,6 +10,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/monoes/mono-agent/internal/credhttp"
 )
 
 // shapeOutput applies output.each, output.expand and output.match to a
@@ -345,10 +347,10 @@ func (r *opRun) pagingOn() bool {
 // allow_unauthorized_certs field is true (self-hosted Venafi, TheHive with
 // self-signed certificates) skips TLS verification, as n8n's credential
 // option does, and a redirect to another host carries none of the
-// credential's headers (dropCredentialsOnRedirect).
+// credential's headers (credhttp.CheckRedirect).
 func (r *opRun) client() *http.Client {
 	c := *r.baseClient()
-	c.CheckRedirect = dropCredentialsOnRedirect
+	c.CheckRedirect = credhttp.CheckRedirect
 	return &c
 }
 

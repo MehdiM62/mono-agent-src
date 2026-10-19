@@ -79,6 +79,30 @@ func TestSendOf(t *testing.T) {
 		{"sendy sending", "app.sendy", map[string]any{"resource": "campaign", "operation": "create", "sendCampaign": true},
 			&Send{Action: "email", Channel: "sendy"}},
 		{"not a package", "comm.email_send", map[string]any{}, nil},
+		// Zulip's notification bot posts a stream's new name or description
+		// in the stream, a description cleared to "" included, and its
+		// privacy and posting permissions; raw JSON may set any of them.
+		{"zulip renaming a stream", "app.zulip", map[string]any{"resource": "stream", "operation": "update", "streamId": "7",
+			"additionalFields": map[string]any{"newName": "launch"}}, &Send{Action: "post", Channel: "zulip", To: []string{"streamId"}}},
+		{"zulip updating a stream with raw JSON", "app.zulip", map[string]any{"resource": "stream", "operation": "update", "streamId": "7",
+			"jsonParameters": true, "additionalFieldsJson": `{"description":"x"}`}, &Send{Action: "post", Channel: "zulip"}},
+		{"zulip making a stream private", "app.zulip", map[string]any{"resource": "stream", "operation": "update", "streamId": "7",
+			"additionalFields": map[string]any{"isPrivate": true}}, &Send{Action: "post", Channel: "zulip", To: []string{"streamId"}}},
+		{"zulip clearing a stream's description", "app.zulip", map[string]any{"resource": "stream", "operation": "update", "streamId": "7",
+			"additionalFields": map[string]any{"description": ""}}, &Send{Action: "post", Channel: "zulip"}},
+		{"zulip changing who may post", "app.zulip", map[string]any{"resource": "stream", "operation": "update", "streamId": "7",
+			"additionalFields": map[string]any{"streamPostPolicy": 2}}, &Send{Action: "post", Channel: "zulip"}},
+		{"zulip updating nothing", "app.zulip", map[string]any{"resource": "stream", "operation": "update", "streamId": "7",
+			"additionalFields": map[string]any{"isPrivate": false}}, nil},
+		// A Salesforce flow may email what its inputs say: it waits when
+		// given any; a flow invoked with none runs as built.
+		{"salesforce invoking a flow", "service.salesforce", map[string]any{"resource": "flow", "operation": "invoke", "apiName": "Notify"}, nil},
+		{"salesforce invoking a flow with raw variables", "service.salesforce", map[string]any{"resource": "flow", "operation": "invoke",
+			"apiName": "Notify", "jsonParameters": true, "variablesJson": `{"body":"x"}`},
+			&Send{Action: "email", To: []string{"apiName"}}},
+		{"salesforce invoking a flow with variables", "service.salesforce", map[string]any{"resource": "flow", "operation": "invoke",
+			"apiName": "Notify", "variablesUi": map[string]any{"variablesValues": []any{map[string]any{"name": "body", "value": "x"}}}},
+			&Send{Action: "email"}},
 	} {
 		got, ok := SendOf(c.nodeType, c.config)
 		if c.want == nil {
@@ -95,6 +119,46 @@ func TestSendOf(t *testing.T) {
 		}
 		if strings.HasPrefix(c.nodeType, NodeTypePrefix) && len(got.PerItem) == 0 {
 			t.Errorf("%s: an app node resolves its params per item, PerItem is empty", c.name)
+		}
+	}
+	// A send whose words are settings or a flow's inputs lists its params
+	// on the card, read-only, in place of a message.
+	for _, c := range []struct {
+		nodeType string
+		config   map[string]any
+		op       string
+		show     []string
+	}{
+		{"app.zulip", map[string]any{"resource": "stream", "operation": "update", "streamId": "7", "additionalFields": map[string]any{"isPrivate": true}},
+			"zulip stream/update", []string{"additionalFields.description", "additionalFields.newName", "additionalFields.isPrivate",
+				"additionalFields.historyPublicToSubscribers", "additionalFields.isAnnouncementOnly", "additionalFields.streamPostPolicy", "additionalFieldsJson"}},
+		{"service.salesforce", map[string]any{"resource": "flow", "operation": "invoke", "apiName": "Notify", "jsonParameters": true, "variablesJson": "{}"},
+			"salesforce flow/invoke", []string{"variablesUi.variablesValues", "variablesJson"}},
+	} {
+		got, ok := SendOf(c.nodeType, c.config)
+		if !ok || got.Op != c.op || !reflect.DeepEqual(got.Show, c.show) || got.Undeclared || got.Text != nil {
+			t.Errorf("%s: %+v, want op %q showing %v", c.nodeType, got, c.op, c.show)
+		}
+	}
+	// A shown param the run doesn't send is marked: raw JSON its switch
+	// leaves off, a Salesforce flow's variables fields when it sends JSON.
+	vars := map[string]any{"variablesValues": []any{map[string]any{"name": "body", "value": "x"}}}
+	for _, c := range []struct {
+		nodeType string
+		config   map[string]any
+		unsent   []string
+	}{
+		{"service.salesforce", map[string]any{"resource": "flow", "operation": "invoke", "apiName": "N", "jsonParameters": true,
+			"variablesJson": `{"body":"x"}`, "variablesUi": vars}, []string{"variablesUi.variablesValues"}},
+		{"service.salesforce", map[string]any{"resource": "flow", "operation": "invoke", "apiName": "N",
+			"variablesJson": `{"body":"x"}`, "variablesUi": vars}, []string{"variablesJson"}},
+		{"app.zulip", map[string]any{"resource": "stream", "operation": "update", "streamId": "7",
+			"additionalFields": map[string]any{"isPrivate": true}, "additionalFieldsJson": `{"is_private":false}`}, []string{"additionalFieldsJson"}},
+		{"app.zulip", map[string]any{"resource": "stream", "operation": "update", "streamId": "7", "jsonParameters": true,
+			"additionalFieldsJson": `{"is_private":true}`}, nil},
+	} {
+		if got, ok := SendOf(c.nodeType, c.config); !ok || !reflect.DeepEqual(got.Unsent, c.unsent) {
+			t.Errorf("%s %v: unsent %v, want %v", c.nodeType, c.config, got.Unsent, c.unsent)
 		}
 	}
 	if !SendsSome("app.mailgun") || !SendsSome("comm.slack") || SendsSome("app.aws_sqs") || SendsSome("comm.email_send") {

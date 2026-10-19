@@ -105,15 +105,33 @@ func (s *fakeSMTP) got() ([]string, int) {
 func emailDeps(t *testing.T, relay *fakeSMTP) Deps {
 	t.Helper()
 	d := testDeps(nodeVaultTestDB(t), "default", true)
+	// The connection is a real saved one: the gate resolves a send's
+	// credential_id from the database to bind its always-allow rule to it
+	// (security review of sole-net-widen, N5).
+	db, err := d.OpenDB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	data := map[string]interface{}{"username": "me@mail.test", "password": "conn-secret",
+		"smtp_host": "localhost", "smtp_port": float64(relay.port)}
+	conn := &connections.Connection{Platform: "smtp", Method: connections.MethodAppPass, ProfileID: "default", Data: data}
+	if err := connections.NewStore(db.DB).Save(context.Background(), conn); err != nil {
+		t.Fatal(err)
+	}
+	mailConn = conn.ID
 	d.ResolveCredential = func(_ context.Context, _ *connections.Store, key, _ string) (map[string]interface{}, error) {
-		if key != "mail-conn" {
+		if key != mailConn {
 			return nil, errors.New("no such connection")
 		}
-		return map[string]interface{}{"username": "me@mail.test", "password": "conn-secret",
-			"smtp_host": "localhost", "smtp_port": float64(relay.port)}, nil
+		return data, nil
 	}
 	return d
 }
+
+// mailConn is the id of the saved connection emailDeps made; the tests in
+// this file run one at a time.
+var mailConn string
 
 func emailPayload(t *testing.T, config map[string]interface{}) string {
 	t.Helper()
@@ -139,11 +157,11 @@ func TestNodeRunSendsTheConnectionsPasswordOnlyToItsRelay(t *testing.T) {
 	}
 	defer db.Close()
 	st := hilsend.Store{DB: db.DB, Profile: "default"}
-	if err := st.Allow(context.Background(), hilsend.Allow{Action: hilsend.ActionEmail, Platform: "email", Account: "me@mail.test", Recipient: "ada@x.test"}); err != nil {
+	if err := st.Allow(context.Background(), hilsend.Allow{Action: hilsend.ActionEmail, Platform: "email", Account: "me@mail.test via connection " + mailConn, Recipient: "ada@x.test"}); err != nil {
 		t.Fatal(err)
 	}
 	send := func(extra map[string]interface{}) (string, error) {
-		config := map[string]interface{}{"credential_id": "mail-conn", "from": "me@mail.test", "to": "ada@x.test", "subject": "Hi", "body": "Hello"}
+		config := map[string]interface{}{"credential_id": mailConn, "from": "me@mail.test", "to": "ada@x.test", "subject": "Hi", "body": "Hello"}
 		for k, v := range extra {
 			config[k] = v
 		}
@@ -152,7 +170,7 @@ func TestNodeRunSendsTheConnectionsPasswordOnlyToItsRelay(t *testing.T) {
 
 	t.Setenv(hilsend.EnvAgentContext, "coder")
 	out, err := send(map[string]interface{}{"smtp_host": "127.0.0.1", "smtp_port": float64(attacker.port)})
-	if !errors.Is(err, workflow.ErrCredentialDestination) || !strings.Contains(err.Error(), `"smtp_host": the saved connection "mail-conn" sends its secret to localhost`) {
+	if !errors.Is(err, workflow.ErrCredentialDestination) || !strings.Contains(err.Error(), `"smtp_host": the saved connection "`+mailConn+`" sends its secret to localhost`) {
 		t.Errorf("an agent's relay of its own: %v\n%s", err, out)
 	}
 	if pw, mails := attacker.got(); len(pw) != 0 || mails != 0 {
@@ -185,7 +203,7 @@ func TestSendCardNamesTheRelay(t *testing.T) {
 	relay := newFakeSMTP(t, "127.0.0.1:0")
 	d := emailDeps(t, relay)
 	t.Setenv(hilsend.EnvAgentContext, "coder")
-	config := map[string]interface{}{"credential_id": "mail-conn", "from": "me@mail.test", "to": "bob@x.test", "subject": "Hi", "body": "Hello"}
+	config := map[string]interface{}{"credential_id": mailConn, "from": "me@mail.test", "to": "bob@x.test", "subject": "Hi", "body": "Hello"}
 	out, err := runNodeSubcmdStdin(t, d, emailPayload(t, config), "comm.email_send")
 	if err != nil {
 		t.Fatalf("node run: %v\n%s", err, out)

@@ -22,6 +22,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/monoes/mono-agent/internal/credhttp"
 )
 
 // Question types accepted by /v1/systemone.
@@ -163,7 +165,7 @@ func NewClient(apiKey, model string) (*Client, error) {
 		APIKey:  apiKey,
 		BaseURL: strings.TrimRight(base, "/"),
 		Model:   model,
-		HTTP:    &http.Client{Timeout: 25 * time.Second},
+		HTTP:    credhttp.Client(&http.Client{Timeout: 25 * time.Second}), // a redirect elsewhere gets no API key
 		Retries: 2,
 	}, nil
 }

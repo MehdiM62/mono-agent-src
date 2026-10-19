@@ -252,7 +252,8 @@ func (s *fileStore) Mtime() (time.Time, error) {
 // never reaches the key store, so reading a machine with no session cannot
 // raise a keychain prompt. A key store that does not answer within
 // keyStoreTimeout, or that still waits for an earlier call that timed out, is
-// ErrKeyringUnavailable (callKeyStore).
+// ErrKeyringUnavailable (callKeyStore), and so is a token sealed for another
+// folder: this one is a copy (sealedFor).
 func (s *fileStore) LoadRefresh() (string, error) {
 	if s.err != nil {
 		return "", nil
@@ -268,12 +269,14 @@ func (s *fileStore) LoadRefresh() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return string(plain), nil
+	return sealedFor(s.dir, plain)
 }
 
-// SaveRefresh seals the refresh token and writes refresh.enc. A key store that
-// does not answer within keyStoreTimeout, or that still waits for an earlier call
-// that timed out, is ErrKeyringUnavailable, and nothing is written.
+// SaveRefresh seals the refresh token for this folder (sealFor) and writes
+// refresh.enc. Its callers hold the store lock, whose file is in the folder, so
+// the folder exists and has an identity to seal. A key store that does not
+// answer within keyStoreTimeout, or that still waits for an earlier call that
+// timed out, is ErrKeyringUnavailable, and nothing is written.
 func (s *fileStore) SaveRefresh(token string) error {
 	if s.err != nil {
 		return s.err
@@ -281,7 +284,7 @@ func (s *fileStore) SaveRefresh(token string) error {
 	if token == "" {
 		return errors.New("account: empty refresh token")
 	}
-	sealed, err := callKeyStore(s.limit, s.sealer, func() ([]byte, error) { return s.sealer.Seal([]byte(token)) })
+	sealed, err := callKeyStore(s.limit, s.sealer, func() ([]byte, error) { return s.sealer.Seal(sealFor(s.dir, token)) })
 	if err != nil {
 		return err
 	}

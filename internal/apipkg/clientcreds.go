@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/monoes/mono-agent/internal/credhttp"
 )
 
 // clientFields names the credential fields holding the client id/secret.
@@ -85,7 +87,9 @@ func clientCredentialsToken(ctx context.Context, c *Credential, cred map[string]
 	if basic {
 		req.SetBasicAuth(id, secret)
 	}
-	resp, err := httpClient.Do(req)
+	// The form holds the client secret: a redirect elsewhere doesn't get it.
+	req = credhttp.Mark(req, "Authorization")
+	resp, err := checkedClient().Do(req)
 	if err != nil {
 		return "", fmt.Errorf("credential %s: token request: %w", c.Platform, err)
 	}

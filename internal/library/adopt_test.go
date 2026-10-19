@@ -92,7 +92,7 @@ func (f *adoptFixture) session(t *testing.T) *account.Session {
 func TestAdoptTurnsAnOlderLoginIntoTheSession(t *testing.T) {
 	f := newAdoptFixture(t)
 	ctx := context.Background()
-	adopted, err := library.AdoptIntoAccount(ctx, f.db.DB, f.guard)
+	adopted, err := library.AdoptIntoAccount(ctx, f.db.DB, f.guard, nil)
 	if err != nil || !adopted {
 		t.Fatalf("adopted %v, %v", adopted, err)
 	}
@@ -106,7 +106,7 @@ func TestAdoptTurnsAnOlderLoginIntoTheSession(t *testing.T) {
 		t.Fatalf("a new guard does not see the session: %v", err)
 	}
 	before := f.fake.Refreshes
-	if again, err := library.AdoptIntoAccount(ctx, f.db.DB, f.guard); err != nil || again || f.fake.Refreshes != before {
+	if again, err := library.AdoptIntoAccount(ctx, f.db.DB, f.guard, nil); err != nil || again || f.fake.Refreshes != before {
 		t.Fatalf("a second run: adopted %v, %v, refreshes %d -> %d", again, err, before, f.fake.Refreshes)
 	}
 	if f.fake.Replays != 0 {
@@ -118,7 +118,7 @@ func TestAdoptTurnsAnOlderLoginIntoTheSession(t *testing.T) {
 func TestAdoptIsDormantUntilTheGateIs(t *testing.T) {
 	f := newAdoptFixture(t)
 	account.SetEnforceFromForTest(t, time.Time{})
-	if adopted, err := library.AdoptIntoAccount(context.Background(), f.db.DB, f.guard); err != nil || adopted {
+	if adopted, err := library.AdoptIntoAccount(context.Background(), f.db.DB, f.guard, nil); err != nil || adopted {
 		t.Fatalf("adopted %v, %v", adopted, err)
 	}
 	if f.fake.Refreshes != 0 {
@@ -137,7 +137,7 @@ func TestAdoptNeverReadsAnAnswerAsARefusalAndDropsADeadLogin(t *testing.T) {
 	f := newAdoptFixture(t)
 	ctx := context.Background()
 	f.fake.SetRefreshMode(libraryfake.RefreshInvalidGrant)
-	if adopted, err := library.AdoptIntoAccount(ctx, f.db.DB, f.guard); err != nil || adopted {
+	if adopted, err := library.AdoptIntoAccount(ctx, f.db.DB, f.guard, nil); err != nil || adopted {
 		t.Fatalf("invalid_grant: adopted %v, %v", adopted, err)
 	}
 	if g, err := account.NewDefaultGuard(); err != nil || g.Status().Reason != account.ReasonNotLoggedIn || f.session(t) != nil {
@@ -147,7 +147,7 @@ func TestAdoptNeverReadsAnAnswerAsARefusalAndDropsADeadLogin(t *testing.T) {
 		t.Fatal("the dead login is still in the vault: an older binary would present it again")
 	}
 	asked := len(f.fake.TokenRequests())
-	if again, err := library.AdoptIntoAccount(ctx, f.db.DB, f.guard); err != nil || again || len(f.fake.TokenRequests()) != asked {
+	if again, err := library.AdoptIntoAccount(ctx, f.db.DB, f.guard, nil); err != nil || again || len(f.fake.TokenRequests()) != asked {
 		t.Fatalf("a second call presented something (adopted %v, %v)", again, err)
 	}
 	if f.fake.Replays != 0 {
@@ -168,7 +168,7 @@ func TestAdoptKeepsTheOlderLoginsAfterATransientFailureAndAsksOnce(t *testing.T)
 	first, _ := f.vault.Load(ctx)
 	asked := len(f.fake.TokenRequests())
 	f.fake.SetRefreshMode(libraryfake.RefreshInvalidClient)
-	if adopted, err := library.AdoptIntoAccount(ctx, f.db.DB, f.guard); err != nil || adopted {
+	if adopted, err := library.AdoptIntoAccount(ctx, f.db.DB, f.guard, nil); err != nil || adopted {
 		t.Fatalf("a failing monoes.me: adopted %v, %v", adopted, err)
 	}
 	if kept, _ := f.vault.Load(ctx); kept == nil || kept.RefreshToken != first.RefreshToken {
@@ -195,7 +195,7 @@ func TestAdoptStillGoesAheadAfterTheGuardHasWrittenItsRecord(t *testing.T) {
 	if sess := f.session(t); sess == nil || sess.AccessToken != "" || sess.HW.IsZero() {
 		t.Fatalf("the guard's pass left a session %v, want the record of a machine that never signed in: no token, a high-water mark", sess != nil)
 	}
-	if adopted, err := library.AdoptIntoAccount(ctx, f.db.DB, f.guard); err != nil || !adopted {
+	if adopted, err := library.AdoptIntoAccount(ctx, f.db.DB, f.guard, nil); err != nil || !adopted {
 		t.Fatalf("adopted %v, %v", adopted, err)
 	}
 	if sess := f.session(t); sess == nil || sess.AccessToken == "" || f.fake.Replays != 0 {
@@ -225,7 +225,7 @@ func TestAdoptDropsTheOlderLoginWhenTheAnswerIsLost(t *testing.T) {
 			second := f.addProfile(t, "second-profile")
 			asked := len(f.fake.TokenRequests())
 			f.fake.SetRefreshMode(tc.mode)
-			if adopted, err := library.AdoptIntoAccount(ctx, f.db.DB, f.guard); err != nil || adopted {
+			if adopted, err := library.AdoptIntoAccount(ctx, f.db.DB, f.guard, nil); err != nil || adopted {
 				t.Fatalf("adopted %v, %v", adopted, err)
 			}
 			if tok, _ := f.vault.Load(ctx); tok != nil {
@@ -256,7 +256,7 @@ func TestAdoptDropsTheOlderLoginWhenTheAnswerCannotBeStored(t *testing.T) {
 	ctx := context.Background()
 	second := f.addProfile(t, "second-profile")
 	account.SetSealerForTest(t, unavailableSealer{})
-	adopted, err := library.AdoptIntoAccount(ctx, f.db.DB, f.guard)
+	adopted, err := library.AdoptIntoAccount(ctx, f.db.DB, f.guard, nil)
 	if adopted || !errors.Is(err, account.ErrKeyringUnavailable) {
 		t.Fatalf("adopted %v, %v: want the key store's failure", adopted, err)
 	}
@@ -279,7 +279,7 @@ func TestAdoptKeepsTheOlderLoginAliveWithWhatTheExchangeIssued(t *testing.T) {
 	ctx := context.Background()
 	f.fake.SetOpaqueTokens(true) // the exchange works, but its token cannot be a session
 	old, _ := f.vault.Load(ctx)
-	if adopted, err := library.AdoptIntoAccount(ctx, f.db.DB, f.guard); err != nil || adopted {
+	if adopted, err := library.AdoptIntoAccount(ctx, f.db.DB, f.guard, nil); err != nil || adopted {
 		t.Fatalf("opaque: adopted %v, %v", adopted, err)
 	}
 	kept, _ := f.vault.Load(ctx)
@@ -302,7 +302,7 @@ func TestAdoptDropsTheOlderLoginWhenTheVaultCannotKeepItAlive(t *testing.T) {
 	if _, err := f.db.DB.Exec(`CREATE TRIGGER vault_takes_no_update BEFORE UPDATE ON vault_secrets BEGIN SELECT RAISE(ABORT, 'the vault cannot be written'); END`); err != nil {
 		t.Fatal(err)
 	}
-	if adopted, err := library.AdoptIntoAccount(ctx, f.db.DB, f.guard); err != nil || adopted {
+	if adopted, err := library.AdoptIntoAccount(ctx, f.db.DB, f.guard, nil); err != nil || adopted {
 		t.Fatalf("adopted %v, %v", adopted, err)
 	}
 	if tok, _ := f.vault.Load(ctx); tok != nil {
@@ -325,7 +325,7 @@ func TestAdoptDropsADeadLoginAndTriesTheNextProfile(t *testing.T) {
 		t.Fatal(err)
 	}
 	second := f.addProfile(t, "second-profile")
-	if adopted, err := library.AdoptIntoAccount(ctx, f.db.DB, f.guard); err != nil || !adopted {
+	if adopted, err := library.AdoptIntoAccount(ctx, f.db.DB, f.guard, nil); err != nil || !adopted {
 		t.Fatalf("adopted %v, %v", adopted, err)
 	}
 	if gone, _ := f.vault.Load(ctx); gone != nil {
@@ -347,7 +347,7 @@ func TestAdoptCompletesWhenTheCallerGivesUp(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	f.fake.OnToken(cancel)
-	if adopted, err := library.AdoptIntoAccount(ctx, f.db.DB, f.guard); err != nil || !adopted {
+	if adopted, err := library.AdoptIntoAccount(ctx, f.db.DB, f.guard, nil); err != nil || !adopted {
 		t.Fatalf("adopted %v, %v", adopted, err)
 	}
 	if sess := f.session(t); sess == nil || sess.Host != f.fake.URL {
@@ -375,7 +375,7 @@ func TestAdoptWritesNothingOnAMachineWithoutAnOlderLogin(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if adopted, err := library.AdoptIntoAccount(context.Background(), db.DB, g); err != nil || adopted {
+	if adopted, err := library.AdoptIntoAccount(context.Background(), db.DB, g, nil); err != nil || adopted {
 		t.Fatalf("adopted %v, %v", adopted, err)
 	}
 	if _, err := os.Stat(filepath.Join(home, ".monoagent", "account")); !os.IsNotExist(err) {
