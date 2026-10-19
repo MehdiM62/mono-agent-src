@@ -601,3 +601,25 @@ test("two quick clicks send one task, and a card refused for want of a profile c
   assert.equal(t.sent.filter((m) => m.type === "task_add_proposal").length, 2);
   assert.match(card().textContent, /Added to Inbox in Work \(#4\)/);
 });
+
+// #451: a vault card's Save to vault asks the worker for its item, from the
+// panel's own page; nothing is asked before the click.
+test("a vault card's Save sends its item and the panel's page to the worker", async () => {
+  const stored = {
+    "chatConv:p-work": "c-1",
+    "chatLog:p-work": { conversation: "c-1", turn: "t1", lastSeq: 9, nextId: 3, readPage: true,
+      messages: [{ id: "m2", role: "assistant", text: "Here.", tools: [], open: false,
+        proposals: [{ id: "toolu_v", kind: "vault", url: "https://a.example/q3.pdf", selection: false, name: "", untrustedPage: true, state: "pending", nonce: "4444444444444444" }] }] },
+  };
+  const t = setup({ stored, replies: { ...READY, chat_events: { ok: true, turn: "t1", events: [], turn_active: false },
+    vault_save_proposal: { ok: true, status: "saved", created: true, feedback: { text: "Saved to the vault in Work: q3.pdf" } } } });
+  t.doc.fire("panel:profiles");
+  await settle(30);
+  const all = () => t.log().flatMap(function walk(n) { return [n, ...n.children.flatMap(walk)]; });
+  assert.equal(t.sent.filter((m) => m.type === "vault_save_proposal").length, 0);
+  all().find((n) => n.tag === "button" && n.textContent === "Save to vault").fire("click");
+  await settle(30);
+  const sent = t.sent.filter((m) => m.type === "vault_save_proposal");
+  assert.deepEqual(sent.map((m) => [m.profile, m.tab, m.proposal.url, m.proposal.nonce]), [["p-work", { tabId: 5, url: "https://a.example/p" }, "https://a.example/q3.pdf", "4444444444444444"]]);
+  assert.ok(all().some((n) => n.textContent === "Saved to the vault in Work: q3.pdf"));
+});

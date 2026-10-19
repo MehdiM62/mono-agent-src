@@ -207,7 +207,7 @@
 
   // What a click on a card does; the recording cards follow the Record section.
   const record = globalThis.MonoPanelRecord || null;
-  const cards = globalThis.MonoChatCards.create({ chat: () => chat, ask: (m) => ask(m), profile: () => profile, current: () => loadSeq, save, draw, record });
+  const cards = globalThis.MonoChatCards.create({ chat: () => chat, ask: (m) => ask(m), profile: () => profile, current: () => loadSeq, save, draw, record, page: pageNow });
   if (record) record.onChange((event) => cards.follow(event));
 
   /** applyAll folds events in and tells whether anything changed. */

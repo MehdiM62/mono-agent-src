@@ -15,6 +15,9 @@
  *              recorder on this tab; the card then follows that recording
  *              (recordingId) to Review and save, and the automation is saved
  *              only by the Record section's own Save.
+ *   vault      an item (an address on the page, or the selection) and a name
+ *              -> Save to vault (vault_bridge.js), which fetches the item only
+ *              if it is on the page the person is on, and sends vault.save.
  * This table is the seam the vault save plugs into once the bridge has
  * vault.save: its tool in TOOLS, its kind in KINDS, and the worker message
  * the panel sends on its click.
@@ -34,7 +37,9 @@
   const NOTES_BYTES = 4000;
 
   // The proposal tools, by the kind each answers with.
-  const TOOLS = { propose_task: "task", propose_recording: "recording" };
+  const TOOLS = { propose_task: "task", propose_recording: "recording", propose_vault_save: "vault" };
+  const NAME_BYTES = 255;
+  const URL_CHARS = 2048;
 
   const str = (v) => (typeof v === "string" ? v : "");
   const oneLine = (s) => str(s).split(/\s+/).filter(Boolean).join(" ");
@@ -49,6 +54,28 @@
       used += size;
     }
     return out;
+  }
+
+  /** itemUrl is a vault item's address: absolute http(s), no spaces, not too long; else "". */
+  function itemUrl(v) {
+    const s = str(v).trim();
+    if (!s || s.length > URL_CHARS || /[\s\u0000-\u001f\u007f]/.test(s)) return "";
+    try {
+      const u = new URL(s);
+      return (u.protocol === "http:" || u.protocol === "https:") && u.host ? s : "";
+    } catch {
+      return "";
+    }
+  }
+
+  /** fileOf is the last part of an address's path, readable: what a file there is called. */
+  function fileOf(url) {
+    try {
+      const last = new URL(url).pathname.split("/").filter(Boolean).pop() || "";
+      return decodeURIComponent(last);
+    } catch {
+      return "";
+    }
   }
 
   const RECORDING_STATUS = {
@@ -94,6 +121,29 @@
           status: p.feedback || RECORDING_STATUS[p.state] || "",
         };
       },
+    },
+  };
+
+  KINDS.vault = {
+    heading: "Save to your vault?",
+    fields: (p) => {
+      const url = itemUrl(p.url);
+      return { url, selection: !url && p.selection === true, name: bytes(oneLine(p.name), NAME_BYTES) };
+    },
+    valid: (f) => !!f.url || f.selection,
+    text: (p) => ({
+      title: p.name || fileOf(p.url) || (p.selection ? "Your selection" : "A file from this page"),
+      notes: p.url || "The text you have selected on this page, as a text file",
+    }),
+    check: "Check the file before you save it.",
+    states: new Set(["pending", "sending", "saved", "refused", "dismissed"]),
+    screen: (p) => {
+      const status = { sending: "Saving…", dismissed: "Not saved" }[p.state];
+      return {
+        actions: p.state === "pending" ? ["add", "dismiss"] : [],
+        labels: { add: "Save to vault", dismiss: "Dismiss" },
+        status: status !== undefined ? status : p.feedback || "",
+      };
     },
   };
 
@@ -202,15 +252,16 @@
   }
 
   /**
-   * afterAdd is what a task card becomes once its Add is answered
-   * (task_bridge.js add): added or queued for good; refused, full or empty
-   * final, as trying again cannot help; pending again with the reason when
-   * there was no profile or no answer at all, so the person can retry.
+   * afterAdd is what a task or vault card becomes once its click is
+   * answered (task_bridge.js add, vault_bridge.js save): added, queued or
+   * saved for good; refused, full or empty final, as trying again cannot
+   * help; pending again with the reason otherwise (no profile, no answer,
+   * a save to retry), so the person can press it again.
    */
   function afterAdd(answer) {
     const a = answer || {};
     const text = (a.feedback && a.feedback.text) || a.error || "";
-    if (a.status === "added" || a.status === "queued") return { state: a.status, feedback: text };
+    if (a.status === "added" || a.status === "queued" || a.status === "saved") return { state: a.status, feedback: text };
     if (a.status === "refused" || a.status === "full" || a.status === "empty") return { state: "refused", feedback: text || "Not added" };
     return { state: "pending", feedback: text || "Not added: try again" };
   }

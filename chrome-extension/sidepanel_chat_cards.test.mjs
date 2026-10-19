@@ -31,9 +31,11 @@ function world({ start, analyze, taskReply } = {}) {
     start: async (goal) => (calls.push(["start", goal]), start ? start(goal) : { recording: true, id: "rec-1" }),
     analyze: async (id) => (calls.push(["analyze", id]), analyze ? analyze(id) : { draftDir: "/d" }),
   };
+  let reply = () => taskReply || { ok: true, status: "added", feedback: { text: "Added to Inbox in Work (#4)" } };
   const cards = C.create({
     chat: () => chat,
-    ask: async (m) => (calls.push(["ask", m]), taskReply || { ok: true, status: "added", feedback: { text: "Added to Inbox in Work (#4)" } }),
+    ask: async (m) => (calls.push(["ask", m]), reply()),
+    page: () => ({ tabId: 5, url: "https://a.example/p" }),
     profile: () => "p-work",
     current: () => seq,
     save: async () => saves++,
@@ -42,7 +44,7 @@ function world({ start, analyze, taskReply } = {}) {
   });
   const card = (id) => chat.messages[0].proposals.find((p) => p.id === id);
   const state = (s) => cards.follow({ type: "state", state: Object.assign({ id: "rec-1", recording: false, steps: [{}, {}, {}] }, s) });
-  return { chat, calls, cards, card, state, record, saves: () => saves, switchProfile: () => seq++ };
+  return { chat, calls, cards, card, state, record, saves: () => saves, switchProfile: () => seq++, setReply: (fn) => (reply = fn) };
 }
 
 test("a recording card starts nothing until Start recording, then starts the recorder with its goal, once", async () => {
@@ -193,4 +195,24 @@ test("a click starts its own card when two recording cards share a call id", asy
   await w.cards.confirm("2222222222222222");
   assert.deepEqual(w.calls, [["start", "New goal"]]);
   assert.deepEqual(proposals.map((p) => p.state), ["saved", "recording"]);
+});
+
+// #451: a vault card's Save asks the worker to fetch and save its item, from
+// the panel's page; nothing goes before the click, and once per click.
+test("a vault card's Save sends its item with the panel's page, once, and says what became of it", async () => {
+  const replies = [{ ok: false, status: "retry", feedback: { text: "Not saved: that file is not on the page you are on" } }, { ok: true, status: "saved", created: true, feedback: { text: "Saved to the vault in Work: q3.pdf" } }];
+  const w = world({ taskReply: null });
+  const proposals = w.chat.messages[0].proposals;
+  proposals.push({ id: "toolu_v", kind: "vault", url: "https://a.example/q3.pdf", selection: false, name: "", untrustedPage: true, state: "pending", feedback: "", nonce: "3333333333333333" });
+  w.setReply(() => replies.shift());
+  const first = w.cards.confirm("3333333333333333");
+  await w.cards.confirm("3333333333333333");
+  await first;
+  const asked = w.calls.filter((c) => c[0] === "ask").map((c) => c[1]);
+  assert.deepEqual(asked, [{ type: "vault_save_proposal", profile: "p-work", tab: { tabId: 5, url: "https://a.example/p" },
+    proposal: { id: "toolu_v", kind: "vault", url: "https://a.example/q3.pdf", selection: false, name: "", nonce: "3333333333333333" } }]);
+  assert.deepEqual([proposals[2].state, proposals[2].feedback], ["pending", "Not saved: that file is not on the page you are on"], "a retry keeps the card");
+  await w.cards.confirm("3333333333333333");
+  assert.deepEqual([proposals[2].state, proposals[2].feedback], ["saved", "Saved to the vault in Work: q3.pdf"]);
+  assert.equal(w.calls.filter((c) => c[0] === "start").length, 0);
 });

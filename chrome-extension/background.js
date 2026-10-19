@@ -49,6 +49,8 @@ importScripts("chat_core.js", "chat_bridge.js");
 importScripts("coder_bridge.js", "coder_menu.js");
 // Filling the page's form from the profile (form.fill); same channel as chat.
 importScripts("form_bridge.js");
+// Saving a page's file to the vault when the person confirms the chat's card (vault.save).
+importScripts("vault_bridge.js");
 // The raw CDP proxy (GLU-01/RIG-07): the generalisation of eval_cdp/type_cdp
 // that lets monobrowse drive the user's own Chrome. Events flow back through
 // it unasked-for, which is why it needs its own module rather than another
@@ -1505,6 +1507,10 @@ MonoChat.install({
   storage: chrome.storage.local,
 });
 MonoForm.install();
+MonoVault.install({
+  isConnected: openAndSignedIn,
+  storage: chrome.storage.local,
+});
 
 // The side panel hears of a change at once. Signed out the bridge is asked
 // again every few seconds, signed in every minute: its answer to ping (read in

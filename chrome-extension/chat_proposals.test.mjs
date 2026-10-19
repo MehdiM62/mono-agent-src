@@ -202,3 +202,38 @@ test("an Add answered with no profile, or not answered, is pending again with th
   const again = P.view({ id: "a", kind: "task", title: "T", state: "pending", feedback: "Choose a profile first" });
   assert.deepEqual([again.actions, again.status], [["add", "dismiss"], "Choose a profile first"], "Add is offered again, with why");
 });
+
+// #451: the chat may suggest saving a file from the page, or the selection,
+// to the vault. The card names the item; the worker fetches it after the click.
+test("a propose_vault_save answer is a vault card naming one item, checked again", () => {
+  const card = (proposal) => P.fromTool("propose_vault_save", answer(Object.assign({ kind: "vault" }, proposal)), "toolu_v", true);
+  const { nonce, ...p } = card({ url: "https://a.example/files/q3.pdf", name: " Q3\nreport " });
+  assert.match(nonce, /^[0-9a-f]{16}$/);
+  assert.deepEqual(p, { id: "toolu_v", kind: "vault", url: "https://a.example/files/q3.pdf", selection: false, name: "Q3 report", untrustedPage: true, state: "pending", feedback: "" });
+  const sel = card({ selection: true });
+  assert.deepEqual([sel.url, sel.selection, sel.name], ["", true, ""]);
+  for (const bad of [{}, { url: "file:///etc/passwd" }, { url: "javascript:alert(1)" }, { url: "/x.png" }, { url: "https://a.example/a b.png" }, { url: "https://a.example/" + "x".repeat(2100) }, { url: "data:image/png;base64,AA" }]) {
+    assert.equal(card(bad), null, JSON.stringify(bad).slice(0, 60));
+  }
+  assert.equal(card({ url: "https://a.example/x.png", data: "iVBORw0KGgo=" }).data, undefined, "an answer carries no bytes onto the card");
+  assert.equal(P.fromTool("propose_vault_save", answer({ kind: "task", title: "x" }), "t", false), null, "the kind must be the tool's");
+});
+
+test("a vault card says what it would save, and offers Save to vault only while pending", () => {
+  const v = (extra) => P.view(Object.assign({ id: "v", kind: "vault", url: "https://a.example/img/chart%20one.png", selection: false, name: "", untrustedPage: true, state: "pending" }, extra));
+  assert.deepEqual([v().heading, v().title, v().notes], ["Save to your vault?", "chart one.png", "https://a.example/img/chart%20one.png"]);
+  assert.equal(v({ name: "Sales chart" }).title, "Sales chart");
+  assert.match(v().warning, /web page/);
+  assert.deepEqual([v().actions, v().labels.add], [["add", "dismiss"], "Save to vault"]);
+  const sel = v({ url: "", selection: true });
+  assert.equal(sel.title, "Your selection");
+  assert.match(sel.notes, /selected on this page/);
+  assert.deepEqual(v({ state: "saved", feedback: "Saved to the vault in Work: chart.png" }).actions, []);
+  assert.equal(v({ state: "sending" }).status, "Saving…");
+  assert.equal(v({ state: "dismissed" }).status, "Not saved");
+  assert.deepEqual(P.afterAdd({ ok: true, status: "saved", feedback: { text: "Already saved to the vault in Work: a.png" } }), { state: "saved", feedback: "Already saved to the vault in Work: a.png" });
+  assert.deepEqual(P.afterAdd({ ok: false, status: "retry", feedback: { text: "Not saved yet: MonoAgent is busy" } }), { state: "pending", feedback: "Not saved yet: MonoAgent is busy" });
+  assert.equal(P.afterAdd({ ok: false, status: "refused", feedback: { text: "Not saved: too big" } }).state, "refused");
+  const stored = P.clone([{ id: "v", kind: "vault", url: "https://a.example/x.png", state: "saved", feedback: "Saved", nonce: "0123456789abcdef" }])[0];
+  assert.deepEqual([stored.state, stored.nonce], ["saved", "0123456789abcdef"]);
+});
