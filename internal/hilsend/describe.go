@@ -376,19 +376,11 @@ func inlineCredential(config map[string]interface{}) bool {
 	return false
 }
 
-// accountOf reads the sending account from config.
+// accountOf reads the sending account from config, on the node type's own
+// platform (PlatformOf).
 func accountOf(nodeType string, config map[string]interface{}) Account {
-	platform, _, _ := strings.Cut(nodeType, ".")
-	switch nodeType {
-	case "comm.email_send":
-		platform = "email"
-	case "comm.outlook_send", "service.outlook_mail":
-		platform = "outlook"
-	case "service.gmail":
-		platform = "gmail"
-	}
 	_, handle := firstKey(config, []string{"account", "from", "username", "identifier", "instance"})
-	return Account{Platform: platform, Handle: handle}
+	return Account{Platform: PlatformOf(nodeType), Handle: handle}
 }
 
 // channelOf is the channel name shown on the card.

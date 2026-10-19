@@ -2700,8 +2700,10 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
   ("the appointment's attendees"). Such a card names no address: `--always-allow` is
   refused on it (`hilsend.ErrAlwaysLabel`), no allow rule matches it, and its
   Communications row is the account's own, not a People row.
-  An always-allow rule (action, platform, account, recipient) is keyed on the
-  recipient as the send addresses it (the `to`, chat id, number or profile
+  An always-allow rule (action, platform, account, recipient) names the
+  node's own platform (`hilsend.PlatformOf`: discord, reddit, telegram, never
+  the family service or comm, so a Discord channel rule never matches a
+  Reddit id), and is keyed on the recipient as the send addresses it (the `to`, chat id, number or profile
   URL; `replay.Address`), never on the person People found for it, so a DM
   rule made from a card matches the next DM to that chat or number. It stands
   only for a send that goes to that one recipient alone (`hilsend.soleRecipient`):
