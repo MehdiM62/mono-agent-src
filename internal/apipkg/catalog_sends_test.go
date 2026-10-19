@@ -121,6 +121,23 @@ func TestSendOf(t *testing.T) {
 			t.Errorf("%s: an app node resolves its params per item, PerItem is empty", c.name)
 		}
 	}
+	// A send whose words are settings lists its params on the card,
+	// read-only, in place of a message.
+	for _, c := range []struct {
+		nodeType string
+		config   map[string]any
+		op       string
+		show     []string
+	}{
+		{"app.zulip", map[string]any{"resource": "stream", "operation": "update", "streamId": "7", "additionalFields": map[string]any{"isPrivate": true}},
+			"zulip stream/update", []string{"additionalFields.description", "additionalFields.newName", "additionalFields.isPrivate",
+				"additionalFields.historyPublicToSubscribers", "additionalFields.isAnnouncementOnly", "additionalFields.streamPostPolicy", "additionalFieldsJson"}},
+	} {
+		got, ok := SendOf(c.nodeType, c.config)
+		if !ok || got.Op != c.op || !reflect.DeepEqual(got.Show, c.show) || got.Undeclared || got.Text != nil {
+			t.Errorf("%s: %+v, want op %q showing %v", c.nodeType, got, c.op, c.show)
+		}
+	}
 	if !SendsSome("app.mailgun") || !SendsSome("comm.slack") || SendsSome("app.aws_sqs") || SendsSome("comm.email_send") {
 		t.Error("SendsSome")
 	}

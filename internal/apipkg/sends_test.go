@@ -28,6 +28,9 @@ func TestSendsAnnotationIsChecked(t *testing.T) {
 		`,"sends":{"action":"post","if":"nobody.type not in note|web"}`:                                               `"nobody.type not in note|web"`,
 		`,"sends":{"action":"post","to_label":{"body":"channel"}}`:                                                    "to_label",
 		`,"sends":true`: "sends",
+		`,"sends":{"action":"post","show":["body"]}`:                 "",
+		`,"sends":{"action":"post","show":["nobody"]}`:               `"nobody"`,
+		`,"sends":{"action":"post","show":["body"],"text":["body"]}`: "don't go together",
 	} {
 		_, err := Parse([]byte(base(sends)), "test")
 		switch {

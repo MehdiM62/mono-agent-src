@@ -2,6 +2,7 @@ package hilsend
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -24,7 +25,10 @@ func (fakeClassifier) Classify(nodeType string, config map[string]interface{}) (
 		return Classified{Action: ActionComment, Channel: "fake", To: []string{"ticket"}, Text: []string{"updateFields.publicReply"}}, true
 	case "raw":
 		return Classified{Action: ActionPost, Channel: "fake", ToUnset: "whoever its undeclared fields (zz) reach",
-			Op: "fake thing/update", Show: []string{"updateFields.zz"}, PerItem: []string{"updateFields"}}, true
+			Op: "fake thing/update", Show: []string{"updateFields.zz"}, Undeclared: true, PerItem: []string{"updateFields"}}, true
+	case "settings":
+		return Classified{Action: ActionPost, Channel: "fake", To: []string{"stream"},
+			Op: "fake stream/update", Show: []string{"updateFields.description", "updateFields.private"}}, true
 	case "remind":
 		return Classified{Action: ActionEmail, Channel: "fake", To: []string{"email", "invoiceId"},
 			ToLabel: map[string]string{"invoiceId": "the client of invoice"}, ToUnset: "the invoice's client"}, true
@@ -255,5 +259,36 @@ func TestASubjectEditOfACardWithNoSubjectIsRefused(t *testing.T) {
 	if _, err := Resolve(context.Background(), st, mail, true, Edit{Subject: &subject}, false, f.run); err != nil ||
 		len(f.calls) != 1 || f.calls[0].Config["subject"] != subject {
 		t.Errorf("email approve: %v, %+v", err, f.calls)
+	}
+}
+
+// An op whose words are settings, not a message, lists the params its
+// annotation shows that the config sets, read-only: the approver sees what
+// changes and can't type a message the run would write into a setting.
+func TestAShownSendListsItsParamsReadOnly(t *testing.T) {
+	asAgent(t)
+	db := testDB(t)
+	SetClassifier(fakeClassifier{})
+	t.Cleanup(func() { SetClassifier(nil) })
+	st := Store{db, "p1"}
+	for config, want := range map[string]string{
+		`{"private": true}`:   "fake stream/update with:\nupdateFields.private: true",
+		`{"description": ""}`: "fake stream/update with:\nupdateFields.description: \"\"",
+	} {
+		var fields map[string]interface{}
+		_ = json.Unmarshal([]byte(config), &fields)
+		out, handled, err := Guard(ctxFor(db), "app.fake", workflow.NodeInput{}, map[string]interface{}{"operation": "settings", "stream": "7", "updateFields": fields})
+		if !handled || err != nil {
+			t.Fatalf("%s: handled=%v err=%v", config, handled, err)
+		}
+		id := out[0].Items[0].JSON["hil_id"].(string)
+		p, err := st.Get(ctxFor(db), id)
+		if err != nil || p.Text != want || !p.TextReadOnly || p.Recipient.Name != "7" {
+			t.Errorf("%s: text %q, read-only %v, to %q, %v; want %q", config, p.Text, p.TextReadOnly, p.Recipient.Name, err, want)
+		}
+		text := "CHANGED"
+		if _, err := st.Edit(ctxFor(db), id, &text, nil); !errors.Is(err, ErrNoText) {
+			t.Errorf("%s: edit: %v", config, err)
+		}
 	}
 }

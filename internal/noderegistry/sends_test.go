@@ -73,9 +73,10 @@ func TestEveryAnnotatedSendQueues(t *testing.T) {
 			}
 			s := o.Sends
 			if len(s.If) > 0 {
-				// "param=value" is set to its value, a bare param to true;
-				// "param!=value" sends while the param is unset, and "param
-				// not in a|b" once it is set to something else.
+				// "param=value" is set to its value, a bare param (or a
+				// present one, "param?") to true; "param!=value" sends while
+				// the param is unset, and "param not in a|b" once it is set
+				// to something else.
 				if name, _, ok := strings.Cut(s.If[0], " not in "); ok {
 					setParam(config, name, "other")
 				} else if name, value, eq := strings.Cut(s.If[0], "="); eq {
@@ -83,7 +84,7 @@ func TestEveryAnnotatedSendQueues(t *testing.T) {
 						setParam(config, name, value)
 					}
 				} else {
-					setParam(config, name, true)
+					setParam(config, strings.TrimSuffix(name, "?"), true)
 				}
 			}
 			to := s.ToUnset // the card's recipient

@@ -27,6 +27,11 @@ type Sends struct {
 	To      []string `json:"to,omitempty"`
 	Text    []string `json:"text,omitempty"`
 	Subject []string `json:"subject,omitempty"`
+	// Show names the params the card lists, read-only, in place of a
+	// message, for an op whose words are settings or a flow's inputs rather
+	// than a message the approver could edit (Zulip's stream update, a
+	// Salesforce flow's variables). It goes without Text.
+	Show []string `json:"show,omitempty"`
 	// ToLabel names what a To param holds when it is not an address the
 	// card can show as it is ("invoiceId": "invoice" shows "invoice inv9");
 	// ToUnset is the card's recipient when no To param is set ("the
@@ -125,7 +130,10 @@ func (o *Operation) checkSends(where string, fields map[string]bool) []string {
 	if !sendActions[s.Action] {
 		add("sends.action %q must be email, dm, post, comment, publish, connect or invite", s.Action)
 	}
-	for _, keys := range [][]string{s.To, s.Text, s.Subject, s.If} {
+	if len(s.Show) > 0 && len(s.Text) > 0 {
+		add("sends.show and sends.text don't go together: the card lists the params or shows a message")
+	}
+	for _, keys := range [][]string{s.To, s.Text, s.Subject, s.Show, s.If} {
 		for _, k := range keys {
 			name, _, _ := strings.Cut(k, notIn)
 			name, _, _ = strings.Cut(name, "=")
@@ -151,13 +159,15 @@ type Send struct {
 	To, Text, Subject []string
 	ToLabel           map[string]string
 	ToUnset           string
-	// Op and Show are set for a send of keys the op doesn't declare: the op
-	// ("trello card/update") and the param paths that hold the keys, which
-	// the card shows as its text in place of a message. Exprs are the Show
-	// paths given as an expression, which the card says in place of a value.
-	Op    string
-	Show  []string
-	Exprs []string
+	// Op and Show are set for a send of keys the op doesn't declare
+	// (Undeclared) and for one whose annotation shows params (Sends.Show):
+	// the op ("trello card/update") and the param paths the card lists as
+	// its text, read-only, in place of a message. Exprs are the Show paths
+	// given as an expression, which the card says in place of a value.
+	Op         string
+	Show       []string
+	Exprs      []string
+	Undeclared bool
 	// PerItem lists the params the node resolves per input item (an app
 	// node's fields); a native node's extension resolves none.
 	PerItem []string
@@ -175,22 +185,15 @@ func SendOf(nodeType string, config map[string]any) (Send, bool) {
 		if err != nil {
 			return Send{}, false
 		}
-		s, opLabel := op.Sends, ""
-		var show, exprs []string
-		if !op.sends(config) {
-			keys := op.undeclared(config)
-			if len(keys) == 0 {
-				return Send{}, false
-			}
-			s, opLabel = op.undeclaredSend(keys), op.opLabel(pkg)
-			show, exprs = undeclaredPaths(keys)
+		s, ok := op.sendFor(pkg, config)
+		if !ok {
+			return Send{}, false
 		}
-		perItem := pkg.fieldKeys()
+		s.Channel, s.PerItem = pkg.ID, pkg.fieldKeys()
 		if op.Batch {
-			perItem = nil // one request for every item: one card
+			s.PerItem = nil // one request for every item: one card
 		}
-		return Send{Action: s.Action, Channel: pkg.ID, To: s.To, Text: s.Text, Subject: s.Subject,
-			ToLabel: s.ToLabel, ToUnset: s.ToUnset, Op: opLabel, Show: show, Exprs: exprs, PerItem: perItem}, true
+		return s, true
 	}
 	if pkg := extensionFor(nodeType); pkg != nil {
 		opName := strings.TrimSpace(str(config["operation"]))
@@ -201,20 +204,36 @@ func SendOf(nodeType string, config map[string]any) (Send, bool) {
 		if !ok {
 			return Send{}, false
 		}
-		s, opLabel := op.Sends, ""
-		var show, exprs []string
-		if !op.sends(config) {
-			keys := op.undeclared(config)
-			if len(keys) == 0 {
-				return Send{}, false
-			}
-			s, opLabel = op.undeclaredSend(keys), op.opLabel(pkg)
-			show, exprs = undeclaredPaths(keys)
-		}
-		return Send{Action: s.Action, To: s.To, Text: s.Text, Subject: s.Subject, ToLabel: s.ToLabel, ToUnset: s.ToUnset,
-			Op: opLabel, Show: show, Exprs: exprs}, true
+		return op.sendFor(pkg, config)
 	}
 	return Send{}, false
+}
+
+// sendFor is the send o of pkg makes with config: as annotated, or, when
+// that doesn't send, one of keys o doesn't declare, if config has some.
+// Either may list params on the card in place of a message (Show).
+func (o *Operation) sendFor(pkg *Package, config map[string]any) (Send, bool) {
+	s := o.Sends
+	var out Send
+	switch {
+	case !o.sends(config):
+		keys := o.undeclared(config)
+		if len(keys) == 0 {
+			return Send{}, false
+		}
+		s = o.undeclaredSend(keys)
+		out.Op, out.Undeclared = o.opLabel(pkg), true
+		out.Show, out.Exprs = undeclaredPaths(keys)
+	case len(s.Show) > 0:
+		out.Op, out.Show = o.opLabel(pkg), s.Show
+		for _, p := range s.Show {
+			if v, ok := paramAt(config, p).(string); ok && hasTemplate(v) {
+				out.Exprs = append(out.Exprs, p)
+			}
+		}
+	}
+	out.Action, out.To, out.Text, out.Subject, out.ToLabel, out.ToUnset = s.Action, s.To, s.Text, s.Subject, s.ToLabel, s.ToUnset
+	return out, true
 }
 
 // SendsSome reports whether some op of nodeType's package, or of the

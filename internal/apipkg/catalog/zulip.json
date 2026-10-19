@@ -396,9 +396,14 @@
         "to": [
           "streamId"
         ],
-        "text": [
+        "show": [
           "additionalFields.description",
-          "additionalFields.newName"
+          "additionalFields.newName",
+          "additionalFields.isPrivate",
+          "additionalFields.historyPublicToSubscribers",
+          "additionalFields.isAnnouncementOnly",
+          "additionalFields.streamPostPolicy",
+          "additionalFieldsJson"
         ],
         "if": [
           "additionalFields.description?",

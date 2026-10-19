@@ -200,9 +200,10 @@ func prepare(st Store, nodeType string, t target, who PreparedBy, config map[str
 	for _, o := range ones {
 		textField, text := firstKey(o.config, t.text)
 		if len(t.show) > 0 {
-			// No message to show or edit: what the step would send that
-			// its op doesn't declare.
-			textField, text = "", undeclaredText(t.op, t.show, t.exprs, o.config)
+			// No message to show or edit: what the step would send, read-only
+			// (keys its op doesn't declare, or the params its annotation
+			// shows).
+			textField, text = "", showText(t.op, t.show, t.exprs, t.undeclared, o.config)
 		}
 		subjectField, subject := firstKey(o.config, t.subject)
 		rec := o.recipient

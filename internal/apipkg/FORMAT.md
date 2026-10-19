@@ -125,7 +125,8 @@ card in the Human in Loop queue, `internal/hilsend`) instead of going out:
   "subject": ["subject"],        // optional
   "if": "sendCampaign",          // optional: the op sends only when this field is set
   "to_label": {"invoiceId": "the client of invoice"}, // optional: a "to" field that holds no address
-  "to_unset": "the appointment's attendees"           // optional: the card's recipient when no "to" is set
+  "to_unset": "the appointment's attendees",          // optional: the card's recipient when no "to" is set
+  "show": ["additionalFields.isPrivate"]               // optional, instead of "text": params the card lists, read-only
 }
 ```
 
@@ -149,7 +150,11 @@ ticket goes out with an article that isn't a note, web or phone one, an
 unknown or templated type included, and not without one). `"field?"` sends
 when the field is there at all, `""` and `false` included, for a request
 that sends an empty value too: a Zulip stream's description cleared to
-`""` is still posted in the stream. When a `to`
+`""` is still posted in the stream. An op whose words are settings or a flow's inputs, not a message an
+approver could edit, lists them instead with `show` (and no `text`): the
+card's text is the op and each shown field the config sets, with its value
+as the run sends it, and can't be edited (Zulip's stream update shows its
+privacy and description changes). When a `to`
 field holds an id rather than an address, `to_label` says what it is, and
 the card shows "the client of invoice inv9", not "inv9"; `to_unset` is what
 the card shows when no `to` field is set.
