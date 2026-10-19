@@ -91,9 +91,12 @@ messages, not a barrier:
   secret a workflow reads.
 - The HTTP API's `X-Full-Outputs: 1` gives whoever holds an API key
   unredacted outputs.
-- A saved connection's secret goes only to the hosts the connection names,
-  or that a workflow you approved names: see "Where a saved connection's
-  secret goes" below.
+- By your decision, a step that picks its own address (`http.request`) can
+  use a saved connection in any run, so a workflow can send that
+  connection's token to any address. With this release, `http.request` and
+  `http.graphql` are the only steps that can send a saved connection's
+  token to an address the connection doesn't name (see "Where a saved
+  connection's secret goes" below).
 - The extension commands that redirect the browser are yours: see
   "Extension commands that only the user runs" below.
 - Writing secrets, connections and profiles stays open to an agent on
@@ -132,10 +135,10 @@ Now the settings that decide where the secret goes follow these rules:
   taken from the run's data (its input, a webhook body, an earlier step,
   an AI tool's arguments) is refused. So is a host in a workflow you
   haven't approved, or in a step an agent runs on its own.
-- **`http.request` and `http.graphql` follow the same rules.** Their URL
-  and proxy are bound to the connection. A bare path still goes to the
-  connection's base URL. A next page on another host, which the response
-  names, goes without the request's auth, as a redirect does.
+- **`http.request` and `http.graphql` stay open, by your decision.** Their
+  URL, endpoint and proxy may name any address, in any run, with a saved
+  connection. A next page on another host, which the response names, now
+  goes without the request's auth, as a redirect does.
 - **API packages (`app.*` nodes).** They send the credential, and
   anything rendered from the connection, only to the hosts the package
   names: the base URL's host and its subdomains, hosts written in the
@@ -152,8 +155,13 @@ Now the settings that decide where the secret goes follow these rules:
   URL a Twilio call fetches. That URL must be a public http(s) address,
   not this machine or a private network.
 
-What stays open: a workflow you approved may name a host for a connection
-that names none, and the secret goes there whoever runs the workflow.
+What stays open:
+
+- By your decision, `http.request` and `http.graphql` can send a saved
+  connection's token to any address. They are the only steps that can
+  send it to an address the connection doesn't name.
+- A workflow you approved may name a host for a connection that names
+  none, and the secret goes there whoever runs the workflow.
 
 ### File-based keyring fallback (weaker posture)
 

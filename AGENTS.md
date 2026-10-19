@@ -619,6 +619,12 @@ dangerous calls.
     its `--json` output;
   - the HTTP API's `X-Full-Outputs: 1` gives whoever holds an API key
     unredacted outputs;
+  - by the user's decision, a step that picks its own URL (`http.request`)
+    may use a saved connection's credential in any run, so a run can send
+    that token to any address. With this release, `http.request` and
+    `http.graphql` are the only steps that can send a saved connection's
+    token to an address the connection doesn't name (`openByDecision` in
+    `internal/noderegistry/credential_hosts_test.go` pins it);
   - a workflow the user approved may name a host for a connection that
     names none, and the secret goes there whoever runs it.
 

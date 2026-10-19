@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"errors"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"strconv"
 	"strings"
 	"sync"
@@ -223,5 +225,39 @@ func TestNodeRunMastodonInstanceComesFromTheConnection(t *testing.T) {
 		if !errors.Is(err, workflow.ErrCredentialDestination) || !strings.Contains(err.Error(), "fosstodon.example:443, not attacker.test:443") {
 			t.Errorf("%s of its own: %v\n%s", key, err, out)
 		}
+	}
+}
+
+// By the user's decision, http.request picks its own address with a saved
+// connection in any run (SECURITY.md): an agent's `node run http.request`
+// with a credential_id and a url the connection doesn't name still runs,
+// and the connection's token goes there.
+func TestNodeRunHTTPRequestAddressStaysOpenByTheUsersDecision(t *testing.T) {
+	var mu sync.Mutex
+	var auths []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		auths = append(auths, r.Header.Get("Authorization"))
+		mu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer srv.Close()
+	d := testDeps(nodeVaultTestDB(t), "default", true)
+	d.ResolveCredential = func(_ context.Context, _ *connections.Store, key, _ string) (map[string]interface{}, error) {
+		if key != "api-conn" {
+			return nil, errors.New("no such connection")
+		}
+		return map[string]interface{}{"access_token": "api-tok", "base_url": "https://api.example.test"}, nil
+	}
+	t.Setenv(hilsend.EnvAgentContext, "coder")
+	out, err := runNodeSubcmdStdin(t, d, emailPayload(t, map[string]interface{}{"url": srv.URL + "/anything", "credential_id": "api-conn"}), "http.request")
+	if err != nil {
+		t.Fatalf("an agent's node run http.request with a connection and its own url: %v\n%s", err, out)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(auths) != 1 || auths[0] != "Bearer api-tok" {
+		t.Fatalf("the url got %q, want the connection's token, as the user decided", auths)
 	}
 }

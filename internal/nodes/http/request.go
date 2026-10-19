@@ -20,14 +20,6 @@ type RequestNode struct{}
 
 func (n *RequestNode) Type() string { return "http.request" }
 
-// CredentialDestinationKeys: where the connection's auth goes, the URL (a
-// bare path goes to the connection's base URL) and the proxy that carries
-// it (workflow.CheckCredentialDestinations). A next page on another host
-// goes without it (prepare).
-func (n *RequestNode) CredentialDestinationKeys() [][]string {
-	return [][]string{{"url", "base_url", "instance_url"}, {"proxy"}}
-}
-
 // requestPerItemFields are the config fields that commonly vary per item
 // (e.g. a URL path or query param built from $json) and so must be resolved
 // fresh for each item rather than once for the whole batch using only the
