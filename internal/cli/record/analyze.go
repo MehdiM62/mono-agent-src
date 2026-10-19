@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/nodes"
 	"github.com/monoes/mono-agent/internal/operator"
 	"github.com/monoes/mono-agent/internal/recordanalyze"
@@ -148,8 +149,16 @@ func newRecordVerifyCmd(d Deps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "verify <draft>",
 		Short: "Replay a draft in the browser (stops before the first side-effect step unless --full)",
-		Args:  cobra.ExactArgs(1),
+		Long: `Replays a draft in the browser in safe mode: it stops before the first step
+that changes the site (a send, a post, a submit), and anyone may run it.
+--full also runs those steps, which is the user's own: an agent, the chat or a
+workflow is refused (exit 3, operator_only).`,
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if why := clicore.OperatorRefusal(d.Refusal); full && why != "" {
+				return clicore.OperatorOnly("record verify --full also runs a draft's steps that change a site (post, send, buy) in the user's browser, which only the user does: %s; "+
+					"verify it without --full (it stops before the first such step), or the user runs it in their terminal or the app", why)
+			}
 			dir, err := resolveDraftArg(args[0])
 			if err != nil {
 				return err
@@ -200,7 +209,7 @@ func newRecordVerifyCmd(d Deps) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().BoolVar(&full, "full", false, "Also run side-effect steps (writes on the site)")
+	cmd.Flags().BoolVar(&full, "full", false, "Also run side-effect steps (writes on the site; the user's own)")
 	cmd.Flags().BoolVar(&keepOpen, "keep-open", false, "Leave the replay tab open (it stays open anyway when safe mode outlines the element it stopped before)")
 	cmd.Flags().Bool("safe", true, "Stop before the first side-effect step (default)")
 	cmd.Flags().StringVar(&inputsFile, "inputs-file", "", "JSON object {name: value} of inputs (mode 0600, owned by you; values are never echoed)")

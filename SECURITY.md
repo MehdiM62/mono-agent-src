@@ -251,6 +251,19 @@ the operation through the same helper as the nodes, and a tool call and the
 and alias, through both `node run` and a workflow run, so a new name or
 operation can't slip past.
 
+### Recording replays up to v0.152.0
+
+In releases up to and including v0.152.0, an agent could replay a recording,
+its own or yours, in your logged-in browser with `record replay --yes`, or run
+a draft's steps with `record verify --full`, including the steps that post,
+send or buy, with no approval; without `--yes`, it could answer the replay's
+own question in a terminal. Now `--yes` and `--full` are yours (exit 3,
+`operator_only` for an agent, the chat or a workflow), and an agent's replay
+is never asked: it stops before the first step that changes a site. Plain
+`record verify`, which stops there too, stays open. The app and the browser
+extension run verify as you, unless the app was started from an agent's
+shell. We know of no use of this: it was found by code review.
+
 ## Assistant tools (chat `--tools`)
 
 The `chat` command can expose a monoagent tool surface to the assistant

@@ -11,6 +11,7 @@ import (
 	browserpkg "github.com/monoes/mono-agent/internal/browser"
 	recordcli "github.com/monoes/mono-agent/internal/cli/record"
 	"github.com/monoes/mono-agent/internal/logging"
+	"github.com/monoes/mono-agent/internal/operator"
 	"github.com/monoes/mono-agent/internal/recordanalyze"
 	"github.com/monoes/mono-agent/internal/storage"
 	"github.com/monoes/mono-agent/internal/vault"
@@ -98,6 +99,7 @@ func recordDeps(cfg *globalConfig) recordcli.Deps {
 		WriteJSON:       writeJSONTo,
 		WithJSONErrors:  func(cmd *cobra.Command) { withJSONErrors(cfg, cmd) },
 		StdinIsTerminal: stdinIsTerminal,
+		Refusal:         operator.Refusal,
 		AnalyzeRunner:   recordcli.ExecRunner,
 		VerifyExec:      recordVerifyExec,
 		ReplayPage:      recordReplayPage,
