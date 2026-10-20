@@ -82,9 +82,9 @@ func (d *Database) snapshotBeforeMigrate(ctx context.Context, conn *sql.Conn, la
 }
 
 // SnapshotBeforeAdoption writes the same kind of snapshot as snapshotBeforeMigrate
-// for a change made before migrations run (the first-run account adoption), so
-// a backup always holds the database as it was before this binary changed
-// anything. It never blocks the caller: every failure is a warning on stderr.
+// for the first-run account adoption. Migrations have already run by then, so
+// the snapshot holds the database as migrated, before adoption changes it.
+// It never blocks the caller: every failure is a warning on stderr.
 func (d *Database) SnapshotBeforeAdoption(ctx context.Context) {
 	if !d.isFileBacked() {
 		return
