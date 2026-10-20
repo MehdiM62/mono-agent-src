@@ -22,6 +22,10 @@ type SyncGroup struct {
 	changed   chan struct{} // closed on the next change; nil when nobody waits
 }
 
+// Background tracks the syncs of packages that have no database handle of
+// their own to settle (the vault's), so storage's Close can let them land.
+var Background SyncGroup
+
 // Go runs fn in the background. fn passes started to
 // SyncToKnowledgeGraphStarted; returning counts as started too.
 func (g *SyncGroup) Go(fn func(started func())) {
