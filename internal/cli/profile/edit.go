@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 	"golang.org/x/text/unicode/norm"
@@ -39,12 +40,14 @@ type profileImpact struct {
 	// FolderKept says the profile's folder on disk is never deleted.
 	FolderKept bool `json:"folder_kept"`
 	// Backup is the database snapshot taken before a delete ("" for --summary).
-	// It holds every profile's data and is never pruned.
+	// It holds every profile's data; old ones are pruned by later deletes.
 	Backup string `json:"backup,omitempty"`
 	// KeyRemoved says the profile's vault key left the OS keychain.
 	KeyRemoved bool `json:"key_removed,omitempty"`
 	// BrowsersUnbound is how many connected browsers bound to the profile were unbound.
 	BrowsersUnbound int `json:"browsers_unbound,omitempty"`
+	// AttachmentsRemoved is how many synced message attachment files were deleted.
+	AttachmentsRemoved int `json:"attachments_removed,omitempty"`
 	// Warnings are steps after the delete that did not finish.
 	Warnings []string `json:"warnings,omitempty"`
 }
@@ -52,7 +55,7 @@ type profileImpact struct {
 const (
 	// backupNote is said wherever a backup path is.
 	backupNote = "It is a full copy of the database (every profile, not only this one), it is not encrypted, " +
-		"and it is never deleted automatically: `monoagentcli profile backups purge` removes these copies. " +
+		"and only the oldest are deleted automatically (beyond the newest 3 and 30 days): `monoagentcli profile backups purge` removes these copies. " +
 		"The profile's vault key is deleted, so the vault secrets in that copy cannot be decrypted."
 )
 
@@ -178,15 +181,16 @@ func profileWorkflowFiles(ctx context.Context, db *sql.DB, profileID string) (di
 }
 
 func (d Deps) newProfileDeleteCmd() *cobra.Command {
-	var summary bool
+	var summary, keepAttachments bool
 	var confirmName string
 	cmd := &cobra.Command{
 		Use:   "delete <name-or-id>",
 		Short: "Delete a profile and everything stored under it",
 		Long: "Delete a profile with its rows in every profile-scoped table (people, messages, workflows, tasks, " +
 			"publications, vault items, documents, credentials, chats, ...), its workflow files, its settings entries " +
-			"and its vault key in the OS keychain. The profile's folder on disk is kept. A database snapshot is taken " +
-			"first. --summary only prints what would be deleted. Deleting needs --yes-delete-profile <the profile's " +
+			"and its vault key in the OS keychain, and the message attachments it synced (--keep-attachments leaves them). " +
+			"The profile's folder on disk is kept. A database snapshot is taken first; snapshots older than 30 days " +
+			"beyond the newest 3 are removed. --summary only prints what would be deleted. Deleting needs --yes-delete-profile <the profile's " +
 			"exact name>, only the user can run it, and it is refused while the profile has running workflows.",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -227,10 +231,21 @@ func (d Deps) newProfileDeleteCmd() *cobra.Command {
 			if err := refuseRunning(ctx, db.DB, p.ID); err != nil {
 				return d.InvalidInput("%v", err)
 			}
+			var attWarnings []string
 			impact := profileImpact{Profile: *p, FolderKept: true}
 			impact.Backup, err = db.SnapshotBeforeProfileDelete(ctx)
 			if err != nil {
 				return fmt.Errorf("backing up the database before deleting (nothing was deleted): %w", err)
+			}
+			if paths, lerr := db.ProfileDeleteBackups(); lerr == nil {
+				pruneBackups(paths, impact.Backup, time.Now())
+			}
+			var attFiles []string
+			if !keepAttachments {
+				attFiles, err = profileAttachments(ctx, db.DB, p.ID)
+				if err != nil {
+					return fmt.Errorf("listing the profile's message attachments (nothing was deleted): %w", err)
+				}
 			}
 			wfDir, wfFiles, ferr := profileWorkflowFiles(ctx, db.DB, p.ID)
 			if ferr != nil {
@@ -247,6 +262,8 @@ func (d Deps) newProfileDeleteCmd() *cobra.Command {
 					impact.Warnings = append(impact.Warnings, fmt.Sprintf("workflow file %s was not removed: %v", name, err))
 				}
 			}
+			impact.AttachmentsRemoved, attWarnings = removeAttachments(attFiles)
+			impact.Warnings = append(impact.Warnings, attWarnings...)
 			if d.UnbindBrowsers != nil {
 				if n, err := d.UnbindBrowsers(ctx, p.ID); err != nil {
 					impact.Warnings = append(impact.Warnings, "browsers bound to the profile were not all unbound (`monoagentcli extension unbind <browser>`): "+err.Error())
@@ -262,7 +279,12 @@ func (d Deps) newProfileDeleteCmd() *cobra.Command {
 			if d.JSONOutput() {
 				return printJSON(impact)
 			}
-			fmt.Printf("Deleted profile: %s (%s)\nDatabase backup: %s\n%s\nIts folder %s was left on disk, and so were its synced message attachments (%s).\n", p.Name, p.ID, impact.Backup, backupNote, p.RootDir, attachments.Dir())
+			fmt.Printf("Deleted profile: %s (%s)\nDatabase backup: %s\n%s\nIts folder %s was left on disk.\n", p.Name, p.ID, impact.Backup, backupNote, p.RootDir)
+			if keepAttachments {
+				fmt.Printf("Its synced message attachments (%s) were kept.\n", attachments.Dir())
+			} else {
+				fmt.Printf("Removed %d synced message attachment file(s).\n", impact.AttachmentsRemoved)
+			}
 			for _, w := range impact.Warnings {
 				fmt.Printf("warning: %s\n", w)
 			}
@@ -270,6 +292,7 @@ func (d Deps) newProfileDeleteCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&summary, "summary", false, "Only print what deleting would remove")
+	cmd.Flags().BoolVar(&keepAttachments, "keep-attachments", false, "Leave the profile's synced message attachment files on disk")
 	cmd.Flags().StringVar(&confirmName, "yes-delete-profile", "", "Confirm the deletion by giving the profile's exact name")
 	return cmd
 }
@@ -294,7 +317,7 @@ func (d Deps) printDeleteSummary(ctx context.Context, db *sql.DB, p *profileJSON
 	for _, t := range tables {
 		fmt.Printf("  %-32s %d\n", t.Table, t.Rows)
 	}
-	fmt.Printf("and its vault key. Its folder %s and its synced message attachments (%s) would be left on disk.\n", p.RootDir, attachments.Dir())
+	fmt.Printf("and its vault key and synced message attachments (%s; --keep-attachments leaves them). Its folder %s would be left on disk.\n", attachments.Dir(), p.RootDir)
 	return nil
 }
 
