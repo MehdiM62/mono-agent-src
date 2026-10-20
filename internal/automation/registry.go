@@ -250,12 +250,23 @@ func (r *Registry) Get(id string) (*Package, error) {
 	if err != nil {
 		return nil, err
 	}
-	p, err := OpenDir(r.versionDir(id, e.Version))
+	trust, snap := r.effectiveTrustFS(id, e)
+	dir := r.versionDir(id, e.Version)
+	var p *Package
+	if snap != nil {
+		// A verified built-in runs from the files that were hashed.
+		p, err = OpenFS(snap, SourceLocal)
+		if err == nil {
+			p.Dir, err = filepath.Abs(dir)
+		}
+	} else {
+		p, err = OpenDir(dir)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("automation %s: %w", id, err)
 	}
 	p.Source = e.Source
-	p.Trust = r.effectiveTrust(id, e)
+	p.Trust = trust
 	p.scriptsFlag, p.liveFlag = e.ScriptsAllowed, e.LiveRunConfirmed
 	p.reg = r
 	return p, nil

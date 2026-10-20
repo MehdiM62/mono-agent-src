@@ -6,8 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"sort"
-	"testing"
+		"testing"
 
 	"github.com/monoes/mono-agent/automations"
 )
@@ -32,19 +31,22 @@ func sourceHashes(t *testing.T) map[string]string {
 func TestOfficialHashesCoverSources(t *testing.T) {
 	src := sourceHashes(t)
 	if *updateOfficialHashes {
-		raw := map[string][]string{}
+		raw := map[string]officialEntry{}
 		for id, hs := range officialHashes {
-			for h := range hs {
-				raw[id] = append(raw[id], h)
-			}
+			raw[id] = officialEntry{MinVersion: officialMin[id], Hashes: hs}
 		}
-		for id, h := range src {
-			if !isOfficialHash(id, h) {
-				raw[id] = append(raw[id], h)
+		seeds, _, _ := loadSeeds(automations.Tree())
+		for _, s := range seeds {
+			id := s.pkg.Manifest.ID
+			if isOfficialRelease(id, s.pkg.Manifest.Version, s.hash) {
+				continue
 			}
-		}
-		for id := range raw {
-			sort.Strings(raw[id])
+			e := raw[id]
+			if e.Hashes == nil {
+				e.Hashes = map[string]string{}
+			}
+			e.Hashes[s.hash] = s.pkg.Manifest.Version
+			raw[id] = e
 		}
 		b, _ := json.MarshalIndent(raw, "", "  ")
 		if err := os.WriteFile("official_hashes.json", append(b, '\n'), 0o644); err != nil {
@@ -52,8 +54,13 @@ func TestOfficialHashesCoverSources(t *testing.T) {
 		}
 		return
 	}
+	vers := map[string]string{}
+	seeds, _, _ := loadSeeds(automations.Tree())
+	for _, s := range seeds {
+		vers[s.pkg.Manifest.ID] = s.pkg.Manifest.Version
+	}
 	for id, h := range src {
-		if !isOfficialHash(id, h) {
+		if !isOfficialRelease(id, vers[id], h) {
 			t.Errorf("package %s (%s) is not in official_hashes.json: run go test ./internal/automation -run TestOfficialHashes -update", id, h)
 		}
 	}
@@ -125,9 +132,9 @@ func TestUnlistedPackageClaimingBuiltinIsNotBuiltin(t *testing.T) {
 func officialForTest(t *testing.T, id, hash string) {
 	t.Helper()
 	if officialHashes[id] == nil {
-		officialHashes[id] = map[string]bool{}
+		officialHashes[id] = map[string]string{}
 	}
-	officialHashes[id][hash] = true
+	officialHashes[id][hash] = "*"
 	t.Cleanup(func() {
 		delete(officialHashes[id], hash)
 		if len(officialHashes[id]) == 0 {
@@ -149,4 +156,102 @@ func seedHashForTest(t *testing.T, id string, seeds fs.FS) string {
 	}
 	t.Fatalf("no seed %s", id)
 	return ""
+}
+
+func hackernewsDir(t *testing.T, r *Registry) string {
+	t.Helper()
+	info, err := r.Info("hackernews")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return info.Dir
+}
+
+// A symlink, a dotfile or a special file added inside a genuine built-in's
+// version dir is read at run time (os.DirFS follows links) without being
+// hashed, so the package does not keep the built-in tier.
+func TestBuiltinWithExtraTreeEntriesIsNotBuiltin(t *testing.T) {
+	cases := map[string]func(t *testing.T, dir string){
+		"symlink": func(t *testing.T, dir string) {
+			if err := os.MkdirAll(filepath.Join(dir, "scripts"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink(os.DevNull, filepath.Join(dir, "scripts", "x.js")); err != nil {
+				t.Skip("no symlinks:", err)
+			}
+		},
+		"dotfile": func(t *testing.T, dir string) {
+			if err := os.WriteFile(filepath.Join(dir, ".hidden"), []byte("x"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		},
+		"dotdir": func(t *testing.T, dir string) {
+			if err := os.MkdirAll(filepath.Join(dir, "scripts", ".d"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(dir, "scripts", ".d", "a.js"), []byte("x"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		},
+	}
+	for name, add := range cases {
+		t.Run(name, func(t *testing.T) {
+			r := seededOfficial(t)
+			add(t, hackernewsDir(t, r))
+			p, err := r.Get("hackernews")
+			if err != nil || p.Trust != TrustImported {
+				t.Fatalf("trust = %q, %v; want imported", p.Trust, err)
+			}
+		})
+	}
+}
+
+// The files a built-in run reads are the ones that were hashed: a file
+// swapped after Get does not reach the running package.
+func TestBuiltinGetServesTheVerifiedSnapshot(t *testing.T) {
+	r := seededOfficial(t)
+	p, err := r.Get("hackernews")
+	if err != nil || p.Trust != TrustBuiltin {
+		t.Fatalf("trust = %q, %v", p.Trust, err)
+	}
+	before, err := fs.ReadFile(p.FS, ManifestFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := filepath.Join(hackernewsDir(t, r), ManifestFile)
+	if err := os.WriteFile(f, append(append([]byte{}, before...), []byte("\n/* swapped */")...), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	after, err := fs.ReadFile(p.FS, ManifestFile)
+	if err != nil || string(after) != string(before) {
+		t.Fatalf("package read the swapped file: %v", err)
+	}
+}
+
+// An old official release is not built-in again once the shipped minimum
+// for its package has moved past it, and a hash filed for one version does
+// not vouch for a tree that says another.
+func TestOfficialHashIsPerVersionWithAMinimum(t *testing.T) {
+	r := seededOfficial(t)
+	p, _ := r.Get("hackernews")
+	h, err := fsHash(p.FS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	v := p.Manifest.Version
+	if !isOfficialRelease("hackernews", v, h) {
+		t.Fatal("the shipped release is not official")
+	}
+	if isOfficialRelease("hackernews", "0.0.1", h) {
+		t.Fatal("a hash vouched for another version")
+	}
+	old := officialMin["hackernews"]
+	officialMin["hackernews"] = "99.0.0"
+	t.Cleanup(func() { officialMin["hackernews"] = old })
+	if isOfficialRelease("hackernews", v, h) {
+		t.Fatal("a release below the minimum is still official")
+	}
+	if got, _ := r.Get("hackernews"); got.Trust != TrustImported {
+		t.Fatalf("trust = %q below the minimum", got.Trust)
+	}
 }
