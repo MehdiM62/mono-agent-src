@@ -42,7 +42,7 @@ importScripts("task_outbox.js", "task_bridge.js", "task_menu.js");
 // the recall group. summary_ai.js (loaded above) supplies its runtime/model.
 // The chat's proposals (chat_proposals.js): task_bridge.js checks a confirmed one with it;
 // private_net.js says which addresses a vault card may not fetch from a public page.
-importScripts("private_net.js", "chat_proposals.js");
+importScripts("private_net.js", "chat_proposals_act.js", "chat_proposals.js");
 importScripts("chat_core.js", "chat_bridge.js");
 // Handing work to the coder (C6): the side panel's Coder section and the
 // right-click items. Over ask.js too; the menu items hang under the capture
@@ -68,6 +68,9 @@ importScripts("bridge_health.js");
 // agent module registers with it; agent_commands.js, the dispatch, last.
 importScripts("agent_cdp.js", "agent_redact.js", "agent_tabs.js", "agent_screenshot.js", "agent_watch.js", "agent_a11y.js");
 importScripts("agent_submit_page.js", "agent_guard_bar.js", "agent_submit_guard.js", "agent_submit_prompt.js", "agent_commands.js");
+// The chat's Run on a page action card: the page's half, its debugger fallback
+// (through agent_cdp.js's attach and send), and the message handler.
+importScripts("page_action_page.js", "page_action_cdp.js", "page_action_bridge.js");
 
 // ---------------------------------------------------------------------------
 // State
@@ -1564,6 +1567,11 @@ MonoAgentCommands.install({
   onDebuggerDetach: (fn) => chrome.debugger.onDetach.addListener(fn),
   onTabRemoved: (fn) => chrome.tabs.onRemoved.addListener(fn),
   // The idle release's last step; a tab the CDP relay still listens to stays attached.
+  detach: (tabId) => (debuggerPinned.has(tabId) ? undefined : detachDebugger(tabId)),
+});
+
+// The chat's page actions (page_action_run), from the side panel's Run only.
+MonoPageActionBridge.install({
   detach: (tabId) => (debuggerPinned.has(tabId) ? undefined : detachDebugger(tabId)),
 });
 

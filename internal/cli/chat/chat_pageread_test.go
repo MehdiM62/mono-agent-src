@@ -99,7 +99,7 @@ func TestPageReadTurnOffersOnlyTheReadTools(t *testing.T) {
 	}
 	got := toolNamesIn(t, toolsCopy)
 	// The proposals write nothing: the person confirms each in the side panel (#451).
-	want := map[string]bool{"list_workflows": true, "get_workflow": true, "list_node_types": true, "propose_task": true, "propose_recording": true, "propose_vault_save": true}
+	want := map[string]bool{"list_workflows": true, "get_workflow": true, "list_node_types": true, "propose_task": true, "propose_recording": true, "propose_vault_save": true, "propose_page_action": true, "propose_coder_handoff": true}
 	if len(got) != len(want) {
 		t.Fatalf("tools offered = %v, want exactly %v", got, want)
 	}

@@ -80,7 +80,7 @@ func TestProposeTaskProposesAndWritesNothing(t *testing.T) {
 func TestProposalsAreOnlyOfferedToThePageReadChat(t *testing.T) {
 	db := newMonoagentTestDB(t)
 	mt := NewMonoagentTools(db.DB, "", "default")
-	for _, tool := range []string{"propose_task", "propose_recording", "propose_vault_save"} {
+	for _, tool := range []string{"propose_task", "propose_recording", "propose_vault_save", "propose_page_action", "propose_coder_handoff"} {
 		for _, n := range toolNames(mt) {
 			if n == tool {
 				t.Fatalf("%s is offered outside page-read mode", tool)

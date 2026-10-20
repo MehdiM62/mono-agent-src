@@ -15,8 +15,14 @@
  *   vault      Save to vault asks the worker (vault_save_proposal) to fetch
  *              the card's item from the panel's page, if it is there, and
  *              send it as vault.save.
+ *   action     Run sends page_action_run to the worker (page_action_bridge.js),
+ *              which does it in the tab the card was proposed on, if that
+ *              page is still there. A failed card also offers Hand to coder.
+ *   coder      Hand to coder queues a coder chat (coder_queue, kind "ask") for
+ *              this tab with the card's goal and why, and nothing else: the
+ *              person presses Start in the MonoAgent app, never the extension.
  *
- *   create(deps) -> { confirm(key), dismiss(key), review(key), follow(event) }
+ *   create(deps) -> { confirm(key), dismiss(key), review(key), run(key), coder(key), follow(event) }
  *
  * A card is named by its key (MonoChatProposals.keyOf), not its call id:
  * two turns' cards can share a call id.
@@ -52,6 +58,8 @@
       const p = find(key);
       if (!p) return;
       if (p.kind === "recording") return startRecording(p, value);
+      if (p.kind === "action") return run(key);
+      if (p.kind === "coder") return coder(key);
       if (p.state !== "pending") return;
       const mine = deps.current();
       Proposals.settle(deps.chat(), key, { state: "sending", feedback: "" });
@@ -86,10 +94,18 @@
     }
 
     /** movedFrom says why a card proposed on `bound` cannot record the page the panel shows now; "" when it can. */
-    function movedFrom(bound) {
+    function movedFrom(bound, button = "Start recording", sameOrigin = false) {
       if (!bound) return "";
       const now = deps.page && deps.page();
-      const bare = (u) => String(u || "").split("#")[0];
+      const origin = (u) => {
+        try {
+          return new URL(u).origin;
+        } catch {
+          return String(u || "");
+        }
+      };
+      // A recording is of one address; an action or a handoff only needs the same site (a page that navigates within itself is still the page).
+      const bare = sameOrigin ? origin : (u) => String(u || "").split("#")[0];
       if (now && now.tabId === bound.tabId && bare(now.url) === bare(bound.url)) return "";
       const short = (u) => {
         try {
@@ -99,12 +115,76 @@
           return String(u || "").slice(0, 80);
         }
       };
-      return `This was suggested for ${short(bound.url)}, but the panel shows ${now ? short(now.url) : "no page"} now. Go back to that page, then press Start recording again.`;
+      return `This was suggested for ${short(bound.url)}, but the panel shows ${now ? short(now.url) : "no page"} now. Go back to that page, then press ${button} again.`;
+    }
+
+    // What a finished Run says: done, or why not (the worker's words).
+    function afterRun(answer, action) {
+      const a = answer || {};
+      if (a.ok) return { state: "done", feedback: action === "open_url" ? "Opened in a new tab." : "Done.", code: null };
+      return { state: "failed", feedback: `Not done: ${a.error || "no answer from the extension"}`, code: a.code || "failed" };
+    }
+
+    // Run: the click is the only thing that does anything, and only on the page the card was made for.
+    async function run(key) {
+      const p = find(key);
+      if (!p || p.kind !== "action" || !["pending", "failed"].includes(p.state)) return;
+      if (p.state === "failed" && p.code === "submit_blocked") return;
+      if (p.action !== "open_url") {
+        if (!p.page) return settle(key, { feedback: "This was not suggested for a page: ask again with the page open." });
+        const moved = movedFrom(p.page, "Run", true);
+        if (moved) return settle(key, { feedback: moved });
+      }
+      const mine = deps.current();
+      Proposals.settle(deps.chat(), key, { state: "sending", feedback: "", code: null });
+      deps.draw();
+      let answer;
+      try {
+        answer = await deps.ask({
+          type: "page_action_run",
+          tab: tabOf(p.page),
+          proposal: { id: p.id, kind: p.kind, action: p.action, target: p.target, text: p.text, url: p.url, nonce: p.nonce },
+        });
+      } catch (err) {
+        answer = { ok: false, error: errorOf(err), code: "failed" };
+      }
+      await settle(key, afterRun(answer, p.action), mine);
+    }
+
+    // Hand to coder: a coder chat is queued for this tab with the card's words only.
+    async function coder(key) {
+      const p = find(key);
+      const handoff = p && p.kind === "coder" && p.state === "pending";
+      const retry = p && p.kind === "action" && p.state === "failed" && p.code !== "submit_blocked";
+      if (!handoff && !retry) return;
+      const now = deps.page && deps.page();
+      if (!now || !now.tabId) return settle(key, { feedback: "There is no page to hand over." });
+      const moved = movedFrom(p.page, "Hand to coder", true);
+      if (moved) return settle(key, { feedback: moved });
+      const v = Proposals.view(p);
+      const note = (handoff ? [p.goal, p.why] : [`${v.title}.`, p.action === "type" ? p.text : ""]).filter(Boolean).join("\n\n");
+      const mine = deps.current();
+      Proposals.settle(deps.chat(), key, { state: "sending", feedback: "" });
+      deps.draw();
+      let answer;
+      try {
+        answer = await deps.ask({ type: "coder_queue", kind: "ask", tabId: now.tabId, note, profile: deps.profile() });
+      } catch (err) {
+        answer = { ok: false, error: errorOf(err) };
+      }
+      const queued = !!(answer && answer.ok);
+      await settle(
+        key,
+        queued
+          ? { state: "queued", feedback: Proposals.QUEUED }
+          : { state: handoff ? "pending" : "failed", feedback: `Not queued: ${(answer && answer.error) || "no answer from the extension"}` },
+        mine
+      );
     }
 
     async function dismiss(key) {
       const p = find(key);
-      const open = p && p.kind === "recording" ? ["pending", "empty", "refused"] : ["pending"];
+      const open = p && p.kind === "recording" ? ["pending", "empty", "refused"] : p && p.kind === "action" ? ["pending", "failed"] : ["pending"];
       if (!p || !open.includes(p.state)) return;
       await settle(key, { state: "dismissed" });
     }
@@ -164,7 +244,7 @@
       }
     }
 
-    return { confirm, dismiss, review, follow };
+    return { confirm, dismiss, review, run, coder, follow };
   }
 
   root.MonoChatCards = { create };
