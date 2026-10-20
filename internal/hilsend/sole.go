@@ -25,6 +25,10 @@ var destKeys = map[string][]string{
 	"service.gmail":        {"message_id"},
 	"service.outlook_mail": {"message_id"},
 	"comm.twilio":          {"url"},
+	// An API package's: the team an invite gives the invitee access to, and
+	// the group of agents that handles a ticket.
+	"app.mattermost": {"teamId"},
+	"app.zammad":     {"group"},
 	// An API package's: the chat a member is added to (its members see
 	// them join), and the URL uProc posts each SMS's delivery report to.
 	"app.microsoft_teams": {"chatId"},
@@ -64,7 +68,27 @@ func ownServer(saved *connections.Connection, nodeType string, config map[string
 			return false
 		}
 	}
-	return true
+	return samePort(saved, nodeType, config)
+}
+
+// samePort reports whether a send's smtp_port, when its config sets one, is
+// the saved connection's (587 when the connection sets none): a server's
+// port is another service on the host.
+func samePort(saved *connections.Connection, nodeType string, config map[string]interface{}) bool {
+	if len(hostKeys[nodeType]) == 0 {
+		return true
+	}
+	port := str(config["smtp_port"])
+	if port == "" {
+		return true
+	}
+	theirs := "587"
+	if saved != nil {
+		if p := str(saved.Data["smtp_port"]); p != "" {
+			theirs = p
+		}
+	}
+	return port == theirs
 }
 
 // ruleAccount is the account an always-allow rule is keyed on: the

@@ -157,7 +157,11 @@ var addressRE = regexp.MustCompile(`[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0
 // single digits, by / or _, or by 4 spaces or more, or one under 7 digits
 // (a short code).
 func netAddresses(s string, f func(string) bool) bool {
-	s = atJoined(foldWidth(unescapePercent(s)))
+	s = foldWidth(unescapePercent(s))
+	if !brokenAddresses(s, f) {
+		return false
+	}
+	s = atJoined(s)
 	phone := func(t string) bool {
 		if d := strings.TrimPrefix(t, "+"); len(d) >= 7 && len(d) <= 20 && strings.Trim(d, "0123456789") == "" {
 			return f(t)
@@ -182,6 +186,25 @@ func netAddresses(s string, f func(string) bool) bool {
 		}
 		return f(strings.ToLower(local + "@" + domain))
 	})
+}
+
+// brokenAddresses calls f with each space-free word of s that has an @ and,
+// once the break characters around it (<ada@x.test>, "ada@x.test", a
+// trailing comma) are trimmed, a break character inside it: evil|ada@x.test,
+// evil(ada)@x.test, ada"@x.test (from "evil ada"@x.test). A mail app reads
+// those as one mailbox, whose local part ends where the allowed recipient's
+// begins, so the word counts as an address of its own, whole. It stops when
+// f returns false (reporting false).
+func brokenAddresses(s string, f func(string) bool) bool {
+	for _, w := range strings.FieldsFunc(s, unicode.IsSpace) {
+		if !strings.Contains(w, "@") {
+			continue
+		}
+		if inner := strings.Trim(w, atBreaks); strings.ContainsAny(inner, atBreaks) && !f(strings.ToLower(inner)) {
+			return false
+		}
+	}
+	return true
 }
 
 // atBreaks are the characters besides spaces that scanAddresses ends a
@@ -294,7 +317,7 @@ func strayAddress(t target, nodeType string, config map[string]interface{}, to m
 		}
 		switch x := v.(type) {
 		case string:
-			return !inProse && !netAddresses(x, func(a string) bool { return own[a] || timeKey(key) && epoch(a) })
+			return !inProse && !netAddresses(x, func(a string) bool { return own[a] || timeKey(key) && !recipientLike(key) && epoch(a) })
 		case []string:
 			for _, s := range x {
 				if walk(s, key, inProse, depth+1) {
