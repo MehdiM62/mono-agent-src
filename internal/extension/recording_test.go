@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -21,7 +22,7 @@ import (
 // nextAck reads frames until the recording ack for id arrives.
 func (f *fakeExtension) nextAck(id string) *Response {
 	f.t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
+	deadline := time.Now().Add(waitBudget(f.t))
 	for {
 		_ = f.conn.SetReadDeadline(deadline)
 		_, msg, err := f.conn.ReadMessage()
@@ -183,8 +184,7 @@ func TestRecordMethodArgsValidation(t *testing.T) {
 	}{
 		{recordAnalyzeArgs, map[string]any{"recordingId": "2026-09-25T09-00-00Z-x", "automation": "acme"},
 			"record analyze 2026-09-25T09-00-00Z-x --automation=acme --json"},
-		{verifyArgsOnly, map[string]any{"draftDir": draft, "full": true}, "record verify " + realDraft + " --full --json"},
-		{verifyArgsOnly, map[string]any{"draftDir": "rec-1"}, "record verify " + realDraft + " --json"},
+		{verifyArgsOnly, map[string]any{"draftDir": "rec-1"}, "record verify " + realDraft + " --stop-at-first-action --json"},
 		{recordSaveArgs, map[string]any{"draftDir": draft, "saveAs": "fragment", "new": "my-site", "name": "Create contact"},
 			"record save " + realDraft + " --as=fragment --new=my-site --name=Create contact --json"},
 		{recordSaveArgs, map[string]any{"draftDir": draft, "force": true}, "record save " + realDraft + " --force --json"},
@@ -252,6 +252,26 @@ func TestSelfRunnerRefusesForeignBinary(t *testing.T) {
 	var re *RequestError
 	if err == nil || !asRequestError(err, &re) || re.Code != CodeUnavailable {
 		t.Fatalf("test binary exec'd as monoagentcli: %v", err)
+	}
+}
+
+// The bridge runs the CLI as the user for whoever holds the pairing token, so
+// its verify takes no "full" (true, false or anything else), and always
+// stops before the first page action. The side panel never sent "full".
+func TestRecordVerifyOverTheBridgeRunsNoPageAction(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	drafts, _ := recording.DraftsDir()
+	if err := os.MkdirAll(filepath.Join(drafts, "rec-1"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for _, full := range []any{true, false, "true"} {
+		if args, _, err := recordVerifyArgs(&Request{Params: map[string]any{"draftDir": "rec-1", "profile": "work", "full": full}}); err == nil {
+			t.Errorf("full %v accepted: %q", full, args)
+		}
+	}
+	args, _, err := recordVerifyArgs(&Request{Params: map[string]any{"draftDir": "rec-1", "profile": "work"}})
+	if err != nil || !slices.Contains(args, "--stop-at-first-action") || slices.Contains(args, "--full") {
+		t.Fatalf("args = %q, %v", args, err)
 	}
 }
 

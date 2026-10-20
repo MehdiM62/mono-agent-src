@@ -205,7 +205,7 @@ func TestUnapprovedWorkflowsSendFollowsTheRules(t *testing.T) {
 	if len(sent) != 1 || len(runs) != 1 {
 		t.Fatalf("approving twice sent %d time(s)", len(sent))
 	}
-	want := map[string]interface{}{"to": "ada@example.test", "subject": "Hello", "body": "Hi Ada", "from": "me@example.test", "smtp_host": "smtp.example.test"}
+	want := map[string]interface{}{"to": "ada@example.test", "subject": "Hello", "body": "Hi Ada", "from": "me@example.test"}
 	for k, v := range want {
 		if !reflect.DeepEqual(sent[0][k], v) {
 			t.Errorf("sent %s = %v, want %v", k, sent[0][k], v)

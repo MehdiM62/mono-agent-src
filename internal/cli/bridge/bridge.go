@@ -25,6 +25,8 @@ type Options struct {
 	Profiles extension.ProfileSource
 	// Tasks files the extension's task entries into the board (task.add).
 	Tasks extension.TaskSink
+	// Vault stores the files the side panel's confirm card saves (vault.save).
+	Vault extension.VaultSink
 	// FormFiller answers the side panel's form.fill (the profile's documents).
 	FormFiller extension.FormFiller
 	// Version is this build, reported in the bridge's status.
@@ -50,6 +52,10 @@ func NewServer(logger zerolog.Logger, o Options) *extension.Server {
 	// profile they name (extension_tasks.go). Advertised in ping, so a newer
 	// extension knows this bridge takes tasks.
 	srv.SetTaskSink(o.Tasks)
+	// vault.save: a file the person clicked Save on in the side panel's
+	// confirm card goes into the image/file vault of the profile it names
+	// (internal/extension/vault_save.go). Write only; advertised in ping.
+	srv.SetVaultSink(o.Vault)
 	// chat.send / chat.stop / chat.events: the side panel's chat, run as the
 	// same `chat --conversation --turn` child the desktop app runs
 	// (internal/extension/chat.go). Read-mostly tools only, never runs.

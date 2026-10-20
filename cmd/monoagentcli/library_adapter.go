@@ -23,6 +23,7 @@ func libraryDeps(cfg *globalConfig) librarycli.Deps {
 		JSONOutput:        func() bool { return cfg.JSONOutput },
 		ProfileID:         func() string { return cfg.ProfileID },
 		OpenDB:            func() (*storage.Database, error) { return initDB(cfg) },
+		DBPath:            func() string { return cfg.DBPath },
 		OpenRegistry:      openAutomationRegistry,
 		OpenWorkflowStore: openWorkflowStore,
 		WithJSONErrors:    func(cmd *cobra.Command) { withJSONErrors(cfg, cmd) },

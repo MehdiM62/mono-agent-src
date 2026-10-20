@@ -1269,7 +1269,8 @@
       "mcp": "using {{name}}",
       "todo": "updating its plan",
       "org": "running the team: {{name}}",
-      "other": "using {{name}}"
+      "other": "using {{name}}",
+      "vault": "running a vault command (hidden)"
     },
     "pickConfidence": "role pick {{value}}",
     "jevConfidence": "model pick {{value}}",
@@ -1584,7 +1585,11 @@
         "question": "asked",
         "result": "reported",
         "released": "released"
-      }
+      },
+      "readFirst": "This card has notes. Read them before you approve it: in Ready, agents act on its whole text.",
+      "readFirstMove": "This card has notes. Read them before it leaves Inbox: agents act on its whole text.",
+      "moveTo": "Move to {{column}}",
+      "saveFirst": "Save your edits first"
     },
     "refused": "Refused: {{error}}",
     "emptyBy": {
@@ -1597,7 +1602,17 @@
       "mac": "On a Mac: select text in any app, then Services, Add to MonoAgent Tasks.",
       "cli": "In a terminal:",
       "agents": "Agents add tasks through the task tools; their work shows here within seconds."
-    }
+    },
+    "readAndApprove": "Read and approve",
+    "hasNotes": "This card has notes: open it to read them",
+    "notesMarker": "Notes",
+    "announce": {
+      "moved": "Moved “{{title}}” to {{column}}",
+      "failed": "Couldn't move “{{title}}” to {{column}}: {{error}}"
+    },
+    "markDone": "Done",
+    "backToReady": "Back to Ready",
+    "inProfile": "in {{name}}"
   },
   "publication": {
     "title": "Publication",
@@ -1661,12 +1676,26 @@
     },
     "to": "To",
     "from": "From",
+    "via": "Via",
+    "fetches": "Fetches",
     "subject": "Subject",
+    "detail": {
+      "alsoTo": "Also to",
+      "cc": "Cc",
+      "bcc": "Bcc",
+      "replyAll": "Reply all",
+      "inReplyTo": "In reply to",
+      "draft": "Draft",
+      "references": "References",
+      "bodyType": "Body type",
+      "connection": "Connection"
+    },
     "profile": "profile",
     "person": "open person",
     "unknownRecipient": "Unknown recipient",
     "textLabel": "Exact text that will be sent",
     "edited": "Edited: approving sends this text.",
+    "unreviewable": "Can't be reviewed here ({{why}}), so it can't be approved: reject it, or change the step and run it again.",
     "preparedBy": "Prepared by {{name}}. Nothing is sent until you approve.",
     "preparedByClaim": "Prepared by an agent that says it is {{name}}. Nothing is sent until you approve.",
     "edit": "Edit",
@@ -1769,5 +1798,70 @@
     "collapse": "Collapse {{name}}",
     "cardNote": "Stored encrypted on this computer. Never sent to an AI. It is filled into a website only when you press Fill card in the browser extension.",
     "filePicker": "Choose a file"
+  },
+  "coderOrg": {
+    "title": "Coder chat team and sends",
+    "machineHint": "How a coder chat's lead staffs its workers, and whether what agents send waits for you. For this whole computer.",
+    "routerLabel": "Who picks a worker's role",
+    "routerHint": "When a coder chat's lead starts a worker without naming its role and skills.",
+    "routerJevNote": "With a Jev key set, a worker's brief goes to Jev (TypeSafe) whatever you pick here: Automatic and TypeSafe Jev route with it, and Jev picks the model and effort the lead leaves open. Only removing the Jev key keeps briefs on this machine.",
+    "router": {
+      "auto": "Automatic",
+      "jev": "TypeSafe Jev",
+      "model": "The lead"
+    },
+    "routerDesc": {
+      "auto": "monomind's picker when it is confident, else Jev, else the lead.",
+      "jev": "Jev picks the role and skills.",
+      "model": "The lead names roles from its org roster."
+    },
+    "sendApproval": "Agents' sends wait for my approval",
+    "sendApprovalHint": "Email, direct messages, comments, posts, connection requests and publishing that an agent prepares wait on a card until you approve them. Destinations you always allow go out without asking.",
+    "sendApprovalOffTitle": "Let agents send without asking?",
+    "sendApprovalOffBody": "Agents could send email, direct messages, comments and posts, and publish, as you, without asking you first. A page or message an agent reads can steer it.",
+    "sendApprovalOffConfirm": "Let agents send",
+    "unavailable": "These settings are unavailable: {{error}}",
+    "saving": "Saving…",
+    "allowTitle": "Always allowed destinations",
+    "allowHint": "An agent's sends to these go out without asking, for this profile. A card's Always allow adds one. To add one here, write the action, platform, account and recipient exactly as the card shows them.",
+    "allowEmpty": "No destination is always allowed.",
+    "allowLoading": "Loading…",
+    "allowAction": "Action",
+    "allowPlatform": "Platform",
+    "allowAccount": "From account",
+    "allowRecipient": "To",
+    "allowRecipientPlaceholder": "Profile URL, address or name, as the card shows it",
+    "allowRecipientLabel": "That reads like a description, not an address: write the profile URL, address, handle or name the send card shows.",
+    "allowAdd": "Add",
+    "allowRemove": "Stop always allowing {{recipient}}",
+    "action": {
+      "email": "Email",
+      "dm": "Direct message",
+      "comment": "Comment",
+      "post": "Post",
+      "connect": "Connection request",
+      "publish": "Publish"
+    },
+    "alwaysAllow": "Always allow",
+    "alwaysAllowTitle": "Always allow this destination?",
+    "alwaysAllowBody": "This sends this {{channel}} now, and from now on an agent's {{channel}} to {{recipient}} from {{account}} goes out without asking you.",
+    "alwaysAllowNoAccount": "any account",
+    "alwaysAllowConfirm": "Send and always allow",
+    "appAccess": "Coder agents are told about MonoAgent",
+    "appAccessHint": "On: coder prompts carry the profile's summary, and org workers are offered MonoAgent's tabs (tasks, documents, people, vault, workflows and apps) and told how to use them. Off: org workers aren't told about or offered MonoAgent's tabs, and agents get no profile summary; the coder lead keeps full access, operator-only commands and send approval still apply."
+  },
+  "toolLinks": {
+    "open": "Open in {{tab}}",
+    "command": "Command",
+    "vaultHidden": "A vault command: its values are not shown here.",
+    "vaultRelated": "Vault-related command (hidden)",
+    "page": {
+      "tasks": "Task board",
+      "people": "People",
+      "noderunner": "Workflows",
+      "documents": "Documents",
+      "secretsVault": "Vault",
+      "orgs": "Orgs"
+    }
   }
 }

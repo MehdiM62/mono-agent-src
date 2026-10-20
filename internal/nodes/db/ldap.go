@@ -91,8 +91,12 @@ var ldapPerItemFields = []string{"dn", "target_dn", "attribute_id", "value", "at
 // Type: "db.ldap"
 type LDAPNode struct{}
 
-func (n *LDAPNode) Type() string                  { return "db.ldap" }
-func (n *LDAPNode) PerItemConfigFields() []string { return ldapPerItemFields }
+func (n *LDAPNode) Type() string { return "db.ldap" }
+
+// CredentialDestinationKeys: the directory the bind password goes to
+// (workflow.CheckCredentialDestinations).
+func (n *LDAPNode) CredentialDestinationKeys() [][]string { return [][]string{{"hostname"}, {"port"}} }
+func (n *LDAPNode) PerItemConfigFields() []string         { return ldapPerItemFields }
 
 func (n *LDAPNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
 	op := cfgString(config, "operation")

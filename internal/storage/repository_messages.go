@@ -5,21 +5,10 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/monoes/mono-agent/internal/monomind"
 )
-
-// kgSyncs counts the fire-and-forget knowledge-graph syncs that the upserts
-// start, so a caller that is about to remove the directories they write to
-// (a test's temp HOME) can wait for them.
-var kgSyncs sync.WaitGroup
-
-// WaitForKGSync blocks until every knowledge-graph sync started so far by an
-// upsert has finished. Production code has no need for it: the syncs are
-// best-effort and nothing depends on them.
-func WaitForKGSync() { kgSyncs.Wait() }
 
 // ---------------------------------------------------------------------------
 // Person Messages
@@ -48,6 +37,10 @@ func (d *Database) UpsertPersonMessage(msg *PersonMessage, profileID string) err
 	if msg.Status == "" {
 		msg.Status = "sent"
 	}
+	// sent_at is stored in UTC. A time in another zone (an RFC3339 --sent-at
+	// or import with an offset) is stored by the driver as Go's time text with
+	// a numeric zone name, "… +0330 +0330", which it cannot read back, and
+	// would order by its local time.
 
 	var exists int
 	err := d.DB.QueryRow(`SELECT 1 FROM people WHERE id = ? AND profile_id = ?`, msg.PersonID, profileID).Scan(&exists)
@@ -74,15 +67,13 @@ func (d *Database) UpsertPersonMessage(msg *PersonMessage, profileID string) err
 			sent_at   = excluded.sent_at`,
 		msg.ID, msg.PersonID, msg.Source, msg.ExternalID, msg.Direction,
 		nullStr(msg.Sender), nullStr(msg.Subject), nullStr(msg.Body),
-		nullStr(msg.Metadata), msg.Status, nullTime(msg.SentAt), profileID, time.Now().UTC(),
+		nullStr(msg.Metadata), msg.Status, nullTime(msg.SentAt.UTC()), profileID, time.Now().UTC(),
 	)
 	if err != nil {
 		return fmt.Errorf("upserting message for person %s: %w", msg.PersonID, err)
 	}
 
-	kgSyncs.Add(1)
-	go func() {
-		defer kgSyncs.Done()
+	d.kg.start(func(started func()) {
 		label := msg.Subject
 		if label == "" {
 			label = msg.ID
@@ -99,8 +90,8 @@ func (d *Database) UpsertPersonMessage(msg *PersonMessage, profileID string) err
 		// only carries PersonID, and fetching the display name here would
 		// add an extra query for a best-effort sync.
 		edge := monomind.KGEdge{Source: label, Target: msg.PersonID, Relation: "sent_to", Description: msg.Source}
-		_ = monomind.SyncToKnowledgeGraph(context.Background(), d.DB, profileID, []monomind.KGNode{node}, []monomind.KGEdge{edge}, "message:"+msg.ID)
-	}()
+		_ = monomind.SyncToKnowledgeGraphStarted(context.Background(), d.DB, profileID, []monomind.KGNode{node}, []monomind.KGEdge{edge}, "message:"+msg.ID, started)
+	})
 
 	return nil
 }

@@ -333,6 +333,7 @@ func (s *Server) CapturePage(req CaptureRequest) (*capture.Result, error) {
 			if env == nil {
 				continue // more chunks to come
 			}
+			s.fileUnderLiveProfile(env)
 			res, err := writer.Write(env)
 			if err == nil {
 				s.written(res)

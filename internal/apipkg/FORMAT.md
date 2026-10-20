@@ -60,6 +60,7 @@ Where packages live:
   "n8n_types": ["n8n-nodes-base.todoist"],           // n8n node types this package imports
   "n8n_trigger_types": ["n8n-nodes-base.todoistTrigger"], // trigger types (the importer maps them to webhook/schedule triggers, §12)
   "base_url": "https://api.todoist.com/api/v1",       // may use {{ cred.x }}
+  "auth_hosts": ["upload.todoist.com"],    // optional: more hosts the credential may go to (§6)
   "headers": { "Accept": "application/json" },        // sent on every request; templates allowed
   "credentials": [ … ],                    // §7
   "resources": [ { "value": "task", "label": "Task" } ],  // n8n "resource" options; omit when n8n has none
@@ -125,7 +126,8 @@ card in the Human in Loop queue, `internal/hilsend`) instead of going out:
   "subject": ["subject"],        // optional
   "if": "sendCampaign",          // optional: the op sends only when this field is set
   "to_label": {"invoiceId": "the client of invoice"}, // optional: a "to" field that holds no address
-  "to_unset": "the appointment's attendees"           // optional: the card's recipient when no "to" is set
+  "to_unset": "the appointment's attendees",          // optional: the card's recipient when no "to" is set
+  "show": ["additionalFields.isPrivate"]               // optional, instead of "text": params the card lists, read-only
 }
 ```
 
@@ -146,7 +148,53 @@ that value (unset counts: Onfleet texts a task's recipient unless
 `recipientSkipSMSNotifications` is true), and `"field not in a|b|c"` when
 the field is set to none of those values (unset doesn't count: a Zammad
 ticket goes out with an article that isn't a note, web or phone one, an
-unknown or templated type included, and not without one). When a `to`
+unknown or templated type included, and not without one). `"field?"` sends
+when the field is there at all, `""` and `false` included, for a request
+that sends an empty value too: a Zulip stream's description cleared to
+`""` is still posted in the stream. `?` goes alone at the end of a field:
+`"field=x?"`, `"field not in a|b?"` and `"field?!"` are refused, since the
+`?` would be read as part of a value and the condition would never hold.
+An op whose words are settings or a flow's inputs, not a message an
+approver could edit, lists them instead with `show` (and no `text`): the
+card's text is the op and each shown field the config sets, with its value
+as the run sends it, and can't be edited (Zulip's stream update shows its
+privacy and description changes, a Salesforce flow its variables). An
+object, or raw JSON text that holds one, lists each top-level key with its
+own value, and a list each element (an object element its keys), so
+padding can't hide a change behind it. Keys that may name whom a send
+reaches (to, cc, email, recipient, phone, channel, url, webhook, host,
+destination, contact, owner, group, …, also run together as in sendto, and
+spelled with look-alike or fullwidth letters) come first and are never
+capped away, with their values in full up to 4 KB (a list one element a
+line); a name and value pair ({"name": "recipientEmail", "value": …})
+counts as that field; a nested value names the keys inside it, four levels
+down, as paths (a.b.to, [1].to); and a list element past the tenth that
+has such a key is still shown. Past its share a recipient value shows its
+head, its last element and every distinct domain of what it leaves out.
+The word lists only sort: under the fields, the card lists every email
+address (a@b, no dot needed), link, tel:, sip: or sms: URI, @handle or
+Matrix id (@user:server), #channel or channel id, phone number (7 to 15
+digits, with or without +, each of several side by side, also glued to a
+word on one side: tel5551234567), long number, UUID (with or without
+dashes), IP literal, bare domain (evil.com, evil.zip, printer.local,
+localhost:8080; not a file name such as main.py) and id of 6 digits or
+more (under a key with "id", after one in JSON text, in or next to a
+recipient-like field) in what the step sends that it doesn't already
+show, with its path, however its key is named or wherever the caps left
+it. Fullwidth and Arabic-Indic digits count as ASCII ones. One in a
+recipient-like field is listed unless a recipient-like field shows it,
+even when a field such as notes does. A valid date isn't a phone number,
+nor are 10 or 13 digits alone under a time-like key (createdAt, ts) that
+read as a Unix time from 2001 to 2100. The net reads shapes: an address
+spelled out (evil at x dot com), percent-encoded (%40), in base64 or HTML
+entities (&#64;), with a fullwidth ＠, or split over two leaves
+isn't found. A value of more than a million keys and elements, raw JSON
+text over 8 MB, a key over 256 bytes, or a card cut at 256 KB where it
+shows a recipient or before the net has listed all it found makes the
+card too large to review: it can be rejected, never approved.
+`"field if cond"`
+(`cond` as in `if`) marks the field "(not sent)" on the card when `cond`
+doesn't hold: `"variablesJson if jsonParameters"`. When a `to`
 field holds an id rather than an address, `to_label` says what it is, and
 the card shows "the client of invoice inv9", not "inv9"; `to_unset` is what
 the card shows when no `to` field is set.
@@ -182,6 +230,15 @@ the reason saying so.
   participants, invitees, invites, subscribers, cc, bcc) or a switch that
   has the service message someone (activate, sendEmail, notify, welcome,
   invite): a new user's activation email, an event's invitations.
+
+Raw JSON goes out as written, whatever an op's fields declare. In a package
+that has a send, `TestRawJSONParamsAreDecided` fails for an op whose
+request takes a json-typed field, or a param a template parses with
+`fromjson`, unless the op holds on it: it sends unconditionally, or its
+`if` names the param or a param of the same template (its `jsonParameters`
+switch). An op that can't send through its JSON (a read's filter, a
+workflow's inputs, fields mapped key by key) says why in `rawJSONReasons`
+(`rawjson_sends_test.go`).
 
 An op without `sends` runs as before. The lint covers the built-in catalog
 only: a package the user installs (`~/.monoagent/apipkgs`, which also
@@ -450,7 +507,18 @@ argument are not, so an optional path suffix works:
 ## 6. Request building
 
 1. URL = `op.base_url` or `base_url` (rendered) + rendered `path`. A path that
-   renders to an absolute `http(s)://` URL is used as is.
+   renders to an absolute `http(s)://` URL is used as is. The credential
+   (§7, and anything rendered from `cred`) goes only to a host the package
+   or the connection names: the base URL's host as the package and the
+   connection alone render it (a param or a response can't move it), or a
+   subdomain of it; a host or subdomain of the connection's own URL, host,
+   domain, endpoint or server field; a host written literally in
+   `base_url` or the op's `base_url`/`path`; or one listed in `auth_hosts`
+   (`"*.firebasedatabase.app"` for its subdomains, `"*.amazonaws.com"` for
+   a region a param picks). A URL a param or a response names on any other
+   host is sent without it. A redirect to another host, or from https to
+   http, carries none of the headers the credential set, and one that
+   would send the request's body there again (307, 308) isn't followed.
 2. `query` is rendered and added; pagination params next (§8).
 3. Body by `body_type` (default: `json` when `body` is set; `raw` for a binary
    upload with no body; else `none`):
@@ -898,7 +966,7 @@ and later ones with `{}`, so paginated ops stop after page one. Failure
 messages name the package, op and what differed, e.g.
 `todoist · task.getAll: query: got {"limit":"50","query":"x"}, want {"query":"x"}`.
 
-**Multi-request ops** (`before`, `also`, `output.expand`, pagination): `"responses": [ {…}, {…} ]` answers the requests in order (later ones get `{}`; overrides `response`). `expect` checks the MAIN request — the first one with the expected method and path (so `before` steps skipped by their `when` don't shift it; otherwise the one after the `before` steps). A path segment `<any>` in an expected `path` matches any non-empty segment (`/send/m.room.message/<any>` for `{{ uuid }}` ids). A value of `"<any>"` in expect `query`/`body` matches any present non-empty value (`{{ uuid }}`, timestamps). To check every request in order use `"expect_requests": [ {method, path, query, body, headers}, … ]`. `"response_headers": {"X-Goog-Upload-Url": "https://up.example.test/s?id=1"}` is sent with every answer. A response `{"$sse": [{…}, {…}]}` is sent as a `text/event-stream` with one `data:` event per element (for `stream` ops and steps).
+**Multi-request ops** (`before`, `also`, `output.expand`, pagination): `"responses": [ {…}, {…} ]` answers the requests in order (later ones get `{}`; overrides `response`). `expect` checks the MAIN request — the first one with the expected method and path (so `before` steps skipped by their `when` don't shift it; otherwise the one after the `before` steps). A path segment `<any>` in an expected `path` matches any non-empty segment (`/send/m.room.message/<any>` for `{{ uuid }}` ids). A value of `"<any>"` in expect `query`/`body` matches any present non-empty value (`{{ uuid }}`, timestamps). To check every request in order use `"expect_requests": [ {method, path, query, body, headers}, … ]`; `"no_auth": true` on one wants no credential on it (a URL a response gave on a host the package doesn't name, §6). `"response_headers": {"X-Goog-Upload-Url": "https://up.example.test/s?id=1"}` is sent with every answer. A response `{"$sse": [{…}, {…}]}` is sent as a `text/event-stream` with one `data:` event per element (for `stream` ops and steps).
 ```json
 "values.append": {
   "params": { "documentId": "abc", "sheetName": "Main" },

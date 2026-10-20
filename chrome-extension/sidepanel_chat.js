@@ -15,6 +15,9 @@
  *     by its number (chat_core applyEvent), so neither can double a reply.
  *   - An older MonoAgent that has no chat says so, once, in the section,
  *     instead of the panel breaking.
+ *   - What the chat proposes (a task, a recording) is a card; only the
+ *     person's click on it does anything (chat_proposals.js, and
+ *     sidepanel_chat_cards.js for what each click does).
  *
  * After sidepanel.js: it uses that file's `ask`, `profiles` and `page`, and
  * redraws on the `panel:profiles`, `panel:page` and `panel:bridge-up`
@@ -27,6 +30,7 @@
 
   const Core = globalThis.MonoChatCore;
   const Render = globalThis.MonoChatRender;
+  const Proposals = globalThis.MonoChatProposals;
   const el = (id) => document.getElementById(id);
 
   const log = el("chat-log");
@@ -79,7 +83,8 @@
   // ── drawing ──────────────────────────────────────────────────────
 
   function signature(m) {
-    return `${m.role}|${m.text.length}|${m.open ? 1 : 0}|${(m.tools || []).map((t) => t.status).join(",")}`;
+    const cards = (m.proposals || []).map((p) => `${p.state}:${(p.feedback || "").length}`).join(",");
+    return `${m.role}|${m.text.length}|${m.open ? 1 : 0}|${(m.tools || []).map((t) => t.status).join(",")}|${cards}`;
   }
 
   function buildMessage(m) {
@@ -102,6 +107,11 @@
       }
       if (m.text) box.appendChild(Render.toDom(document, Render.parse(m.text)));
       else if (m.open && !m.tools.length) box.appendChild(document.createTextNode("Thinking…"));
+      // What the chat proposed: a card each, sent on only by the person's click.
+      for (const p of (Proposals && m.proposals) || []) {
+        const key = Proposals.keyOf(p);
+        box.appendChild(Proposals.card(document, p, { add: (value) => cards.confirm(key, value), dismiss: () => cards.dismiss(key), review: () => cards.review(key), run: () => cards.run(key), coder: () => cards.coder(key) }));
+      }
     } else if (m.role === "user") {
       const text = document.createElement("div");
       text.className = "chat-text";
@@ -138,6 +148,8 @@
         nodes.set(m.id, n);
       } else if (n.sig !== sig) {
         const fresh = buildMessage(m);
+        // The node it replaces may be where the next one goes: follow it.
+        if (cursor === n.root) cursor = fresh;
         n.root.replaceWith(fresh);
         n = { root: fresh, sig };
         nodes.set(m.id, n);
@@ -193,6 +205,11 @@
 
   const save = () => Core.saveState(chrome.storage.local, profile, chat);
 
+  // What a click on a card does; the recording cards follow the Record section.
+  const record = globalThis.MonoPanelRecord || null;
+  const cards = globalThis.MonoChatCards.create({ chat: () => chat, ask: (m) => ask(m), profile: () => profile, current: () => loadSeq, save, draw, record, page: pageNow });
+  if (record) record.onChange((event) => cards.follow(event));
+
   /** applyAll folds events in and tells whether anything changed. */
   function applyAll(events) {
     let changed = false;
@@ -237,6 +254,7 @@
     nodes.forEach((n) => n.root.remove());
     nodes.clear();
     draw();
+    if (record) cards.follow({ type: "state", state: record.state() });
 
     const ready = await ask({ type: "chat_ready" });
     if (mine !== loadSeq) return;
@@ -359,7 +377,8 @@
     }
     if (!active || active.tag !== tag) return;
 
-    Core.startTurn(chat, message, Core.pageLabel(context));
+    const shown = pageNow(); // the reply's cards are bound to this page
+    Core.startTurn(chat, message, Core.pageLabel(context), context != null, shown && { tabId: shown.tabId, url: shown.url });
     await save();
     draw();
 

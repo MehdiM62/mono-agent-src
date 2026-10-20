@@ -30,8 +30,9 @@ type queueTriggerSource struct {
 
 func (s *queueTriggerSource) Activate(w *workflow.Workflow, node *workflow.WorkflowNode, fire func(items []workflow.Item)) (func(), error) {
 	profileID := w.ProfileID
+	keys := dbnodes.TriggerDestinationKeys(s.nodeType)
 	resolve := func(ctx context.Context, cfg map[string]interface{}) (map[string]interface{}, error) {
-		return s.engine.ResolveCredentials(vault.ContextWithProfileID(ctx, profileID), s.nodeType, cfg), nil
+		return s.engine.ResolveTriggerCredentials(vault.ContextWithProfileID(ctx, profileID), w, s.nodeType, keys, cfg)
 	}
 	wfID, nodeID := w.ID, node.ID
 	onErr := func(nodeType string, err error) {

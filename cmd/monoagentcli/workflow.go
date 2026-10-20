@@ -241,6 +241,7 @@ func newWorkflowCmd(cfg *globalConfig) *cobra.Command {
 		newWorkflowRunCmd(cfg),
 		newWorkflowInputsCmd(cfg),
 		newWorkflowValidateCmd(cfg),
+		newWorkflowCheckKeysCmd(cfg),
 		newWorkflowActivateCmd(cfg),
 		newWorkflowDeactivateCmd(cfg),
 		newWorkflowDeleteCmd(cfg),

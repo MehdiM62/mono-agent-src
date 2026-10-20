@@ -35,6 +35,13 @@ func (s *VaultStore) find(ctx context.Context) (string, error) {
 	return "", nil
 }
 
+// Exists says whether the profile holds a login for this host, from the entry's name and host
+// alone: nothing is decrypted.
+func (s *VaultStore) Exists(ctx context.Context) (bool, error) {
+	id, err := s.find(ctx)
+	return id != "", err
+}
+
 // Load returns the stored login, or nil when there is none.
 func (s *VaultStore) Load(ctx context.Context) (*Token, error) {
 	id, err := s.find(ctx)

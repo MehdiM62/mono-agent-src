@@ -10,6 +10,7 @@
     "n8n-nodes-base.awsS3"
   ],
   "base_url": "https://s3.{{ cred.region | default:'us-east-1' }}.amazonaws.com{{ cred.region | matches:'^cn-' | then:'.cn' }}",
+  "auth_hosts": ["*.amazonaws.com", "*.amazonaws.com.cn"],
   "credentials": [
     {
       "platform": "aws",

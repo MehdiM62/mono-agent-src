@@ -45,7 +45,10 @@ const vaultWriteTimeout = 10 * time.Second
 // refresh token is written to the vault, even if ctx is cancelled meanwhile (A20): a
 // spent refresh token left in the vault would be presented again. A caller that must
 // judge at once afterwards builds a new guard.
-func AdoptIntoAccount(ctx context.Context, db *sql.DB, g *account.Guard) (adopted bool, err error) {
+//
+// report, when not nil, is told what became of each profile's login that an exchange was
+// made for, by the profile's name, so that the caller can say so (#878).
+func AdoptIntoAccount(ctx context.Context, db *sql.DB, g *account.Guard, report func(profile string, o Outcome)) (adopted bool, err error) {
 	if db == nil || g == nil || account.EnforceDate().IsZero() {
 		return false, nil
 	}
@@ -91,6 +94,9 @@ func AdoptIntoAccount(ctx context.Context, db *sql.DB, g *account.Guard) (adopte
 				keepAlive(vctx, vs, cur, res.Tokens)
 			}
 		})
+		if cur != nil && report != nil {
+			report(p.Name, outcomeOf(res))
+		}
 		switch {
 		case aerr != nil:
 			return false, aerr
@@ -99,6 +105,47 @@ func AdoptIntoAccount(ctx context.Context, db *sql.DB, g *account.Guard) (adopte
 			return true, nil
 		case cur != nil && !res.Dead:
 			return false, nil // no verdict on this login (it stays, or went if it may be spent): the others wait
+		}
+	}
+	return false, nil
+}
+
+// Outcome is what an adoption made of one profile's older login, for its caller to report. It holds
+// no token.
+type Outcome int
+
+const (
+	OutcomeAdopted     Outcome = iota + 1 // it became the machine session; its vault entry is removed
+	OutcomeDead                           // monoes.me answered invalid_grant (spent, revoked or expired); removed
+	OutcomeUnconfirmed                    // sent, and its answer was lost or could not be stored here (A24); removed
+	OutcomeRenewed                        // monoes.me spent it and issued tokens no session could be made of; the login keeps them
+	OutcomeKept                           // nothing was sent, or monoes.me processed nothing; the login is as it was
+)
+
+func outcomeOf(res account.AdoptResult) Outcome {
+	switch {
+	case res.Adopted:
+		return OutcomeAdopted
+	case res.Dead:
+		return OutcomeDead
+	case res.Unconfirmed:
+		return OutcomeUnconfirmed
+	case res.Tokens != nil:
+		return OutcomeRenewed
+	}
+	return OutcomeKept
+}
+
+// HasOlderLogin says whether a profile's vault holds an older library login for host, from the
+// entries' names and hosts alone: nothing is decrypted.
+func HasOlderLogin(ctx context.Context, db *sql.DB, host string) (bool, error) {
+	profiles, err := profiledir.List(ctx, db)
+	if err != nil {
+		return false, err
+	}
+	for _, p := range profiles {
+		if has, err := (&VaultStore{DB: db, ProfileID: p.ID, BaseURL: host}).Exists(ctx); err != nil || has {
+			return has, err
 		}
 	}
 	return false, nil

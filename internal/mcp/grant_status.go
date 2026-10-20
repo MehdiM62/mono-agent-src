@@ -106,7 +106,12 @@ func executionView(ctx context.Context, rt *runtime, id string, maxBytes int) (m
 	workflow.NewReplyRedactor(ctx, rt.db.DB, id).Execution(exec)
 	view := map[string]interface{}{"execution_id": id, "status": strings.ToLower(exec.Status)}
 	switch exec.Status {
-	case "SUCCESS":
+	case "SUCCESS", "SUCCESS_WITH_ERRORS":
+		// A run with node failures it tolerated (on_error) is over too: its
+		// output, and what failed.
+		if exec.ErrorMessage != "" {
+			view["error"] = exec.ErrorMessage
+		}
 		node, text := lastOutput(exec, "")
 		view["node"] = node
 		if maxBytes <= 0 {
@@ -121,7 +126,7 @@ func executionView(ctx context.Context, rt *runtime, id string, maxBytes int) (m
 			view["output"] = text
 		}
 		return view, true, nil
-	case "FAILED", "CANCELLED":
+	case "FAILED", "CANCELLED", workflow.StatusRejected:
 		view["error"] = exec.ErrorMessage
 		return view, true, nil
 	case "WAITING":

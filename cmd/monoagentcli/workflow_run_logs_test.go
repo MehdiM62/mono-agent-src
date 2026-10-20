@@ -58,13 +58,13 @@ func runLogsFor(t *testing.T, cfg *globalConfig, workflowID string, args ...stri
 	cmd := newWorkflowCmd(cfg)
 	cmd.SetArgs([]string{"run", workflowID, "--timeout", "30s"})
 	stdout = captureStdout(t, func() { err = cmd.Execute() })
-	// Undo the run's demotion (a CLI process runs one command).
-	logging.Demote(slog.LevelInfo, oneShotRunLogs...)()
 	return buf.String(), stdout, err
 }
 
 // A human-mode run's summary reports a failed node; the engine's own log
-// lines about it stay off the terminal unless a level was chosen.
+// lines about it stay off the terminal unless a level was chosen. The
+// demotion ends with the run: the next run of the process (here, with a
+// level chosen) logs them again.
 func TestWorkflowRunHumanModeQuietsFailureLogs(t *testing.T) {
 	_, cfg := persistTestEnv(t)
 	id := failingRunWorkflow(t, cfg)
@@ -87,6 +87,38 @@ func TestWorkflowRunHumanModeQuietsFailureLogs(t *testing.T) {
 	logs, _, _ = runLogsFor(t, cfg, id, "--log-level=warn")
 	if !strings.Contains(logs, `msg="node emitted error output`) || !strings.Contains(logs, `msg="engine: execution finished with error"`) {
 		t.Errorf("--log-level=warn hid the node failure:\n%s", logs)
+	}
+}
+
+// An engine that could not be built leaves the run's quieting behind
+// neither: the next of the engine's failure lines is logged at its level.
+func TestARunWhoseEngineFailsQuietsNothingAfter(t *testing.T) {
+	_, cfg := persistTestEnv(t)
+	cfg.JSONOutput = false
+	notADir := filepath.Join(t.TempDir(), "file")
+	if err := os.WriteFile(notADir, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg.DBPath = filepath.Join(notADir, "wf.db") // no database can be made there
+	t.Setenv(logging.EnvLevel, "")
+	prevDefault, prevOut, prevFlags, prevLevel := slog.Default(), log.Writer(), log.Flags(), logging.Level()
+	var buf bytes.Buffer
+	logging.Init(nil, func(string) string { return "" }, &buf)
+	t.Cleanup(func() {
+		logging.Init(nil, func(string) string { return "" }, os.Stderr)
+		slog.SetDefault(prevDefault)
+		log.SetOutput(prevOut)
+		log.SetFlags(prevFlags)
+		logging.SetLevel(prevLevel)
+	})
+
+	if _, _, err := workflowRunDeps(cfg).BuildEngine(); err == nil {
+		t.Fatal("an engine was built on a path no database can be made at")
+	}
+	zl := logging.Zerolog()
+	zl.Warn().Msg("engine: execution finished with error")
+	if !strings.Contains(buf.String(), `level=WARN msg="engine: execution finished with error"`) {
+		t.Errorf("the failed build left its quieting behind:\n%s", buf.String())
 	}
 }
 

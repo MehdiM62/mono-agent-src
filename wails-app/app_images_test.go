@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // The image-vault bindings go through `monoagentcli image …`, not the
@@ -30,7 +32,11 @@ esac
 	a.ctx = context.Background()
 	a.selectForTest("work")
 	orig := saveImageDialog
-	saveImageDialog = func(*App, string) (string, error) { return "/out/logo.png", nil }
+	var dialogs []runtime.SaveDialogOptions
+	saveImageDialog = func(_ *App, opts runtime.SaveDialogOptions) (string, error) {
+		dialogs = append(dialogs, opts)
+		return "/out/logo.png", nil
+	}
 	t.Cleanup(func() { saveImageDialog = orig })
 	var events []string
 	recordImageEvents(t, func(name string, data map[string]interface{}) {
@@ -57,6 +63,9 @@ esac
 	}
 	if got := a.SaveVaultImageToFile("img-002", "logo.png"); got != "/out/logo.png" {
 		t.Fatalf("SaveVaultImageToFile = %q", got)
+	}
+	if len(dialogs) != 1 || dialogs[0].Title != "Save Image" || dialogs[0].DefaultFilename != "logo.png" || dialogs[0].Filters[0].DisplayName != "Images" {
+		t.Fatalf("the save dialog for an image: %+v", dialogs)
 	}
 	if err := a.UpdateVaultImageLabel("img-002", "New"); err != nil {
 		t.Fatal(err)
@@ -119,7 +128,7 @@ func TestImageVaultBindingsReportCLIErrors(t *testing.T) {
 	opened := false
 	recordImageEvents(t, func(name string, _ map[string]interface{}) { t.Errorf("unexpected %s after a failed call", name) })
 	orig := saveImageDialog
-	saveImageDialog = func(*App, string) (string, error) { opened = true; return "/x", nil }
+	saveImageDialog = func(*App, runtime.SaveDialogOptions) (string, error) { opened = true; return "/x", nil }
 	t.Cleanup(func() { saveImageDialog = orig })
 
 	if _, err := a.GetVaultImage("nope"); err == nil || err.Error() != `vault image not found: "nope"` {
@@ -136,5 +145,45 @@ func TestImageVaultBindingsReportCLIErrors(t *testing.T) {
 	}
 	if got := a.SaveVaultImageToFile("nope", "x.png"); got != "error: image not found" || opened {
 		t.Fatalf("SaveVaultImageToFile = %q, dialog opened %v", got, opened)
+	}
+}
+
+// A file the extension saved (vault.save) is saved through a "Save File"
+// dialog filtered to its own extension, not the images-only one, which could
+// hide a PDF or have the OS add an image extension to its name.
+func TestSaveVaultImageToFileOffersAFileItsOwnType(t *testing.T) {
+	row := `{"id":"img-003","path":"/v/img-003.pdf","filename":"img-003.pdf","size_bytes":9,"source":"extension","label":"invoice.pdf","url":"/vault-image/img-003"}`
+	t.Setenv("MONOAGENTCLI_BIN", fakeCLI(t, `case "$*" in
+  *" image get "*) echo '`+row+`' ;;
+  *" image export "*) echo '{"id":"img-003","path":"/out/invoice.pdf"}' ;;
+  *) echo '{}' ;;
+esac
+`))
+	a := newTestApp(t)
+	a.ctx = context.Background()
+	a.selectForTest("work")
+	var dialogs []runtime.SaveDialogOptions
+	orig := saveImageDialog
+	saveImageDialog = func(_ *App, opts runtime.SaveDialogOptions) (string, error) {
+		dialogs = append(dialogs, opts)
+		return "/out/invoice.pdf", nil
+	}
+	t.Cleanup(func() { saveImageDialog = orig })
+
+	if got := a.SaveVaultImageToFile("img-003", "invoice.pdf"); got != "/out/invoice.pdf" {
+		t.Fatalf("SaveVaultImageToFile = %q", got)
+	}
+	want := runtime.SaveDialogOptions{Title: "Save File", DefaultFilename: "invoice.pdf", Filters: []runtime.FileFilter{{DisplayName: "PDF", Pattern: "*.pdf"}}}
+	if len(dialogs) != 1 || fmt.Sprint(dialogs[0]) != fmt.Sprint(want) {
+		t.Fatalf("the save dialog for a PDF: %+v, want %+v", dialogs, want)
+	}
+
+	for filename, title := range map[string]string{
+		"img-001.PNG": "Save Image", "img-002.tiff": "Save Image", "img-004.svg": "Save Image", "": "Save Image",
+		"img-005.md": "Save File", "img-006.csv": "Save File", "img-007.txt": "Save File",
+	} {
+		if got := saveVaultItemOptions(filename, "x").Title; got != title {
+			t.Errorf("saveVaultItemOptions(%q).Title = %q, want %q", filename, got, title)
+		}
 	}
 }

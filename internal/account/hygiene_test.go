@@ -11,7 +11,7 @@ import (
 )
 
 // The import rule (index §3.1): this package imports the standard library,
-// golang.org/x/sys (the Windows lock and rename) and internal/secrets, and nothing
+// golang.org/x/sys (the Windows lock, rename and folder id) and internal/secrets, and nothing
 // else of this repository, so that every other package may import it without a
 // cycle.
 func TestImportsOnlyWhatTheImportRuleAllows(t *testing.T) {
@@ -46,12 +46,12 @@ func importAllowed(file, path string) bool {
 	case path == "github.com/monoes/mono-agent/internal/secrets":
 		return true
 	case path == "golang.org/x/sys/windows":
-		return file == "lock_windows.go" || file == "rename_windows.go"
+		return file == "lock_windows.go" || file == "rename_windows.go" || file == "folderid_windows.go"
 	}
 	return false
 }
 
-// The rule is as strict as it reads: x/sys/windows only in the two files that make
+// The rule is as strict as it reads: x/sys/windows only in the three files that make
 // a Windows system call, and nothing else outside the standard library but
 // internal/secrets. A rule that nothing tests could be loosened without a failure.
 func TestTheImportRuleForbidsWhatItSays(t *testing.T) {
@@ -66,6 +66,7 @@ func TestTheImportRuleForbidsWhatItSays(t *testing.T) {
 		{"sealer.go", secrets, true},
 		{"lock_windows.go", windows, true},
 		{"rename_windows.go", windows, true},
+		{"folderid_windows.go", windows, true},
 		{"store.go", windows, false},
 		{"guard_refresh.go", windows, false},
 		{"rename_unix.go", windows, false},

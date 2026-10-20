@@ -24,7 +24,7 @@ import (
 // profile is a package global of internal/recording, so they run serially.
 
 // seams are the Deps seams a test stubs: AnalyzeRunner, SecretLookup, SelfHeal, VerifyExec,
-// ReplayPage and StdinIsTerminal. A nil one is testDeps' default.
+// ReplayPage, StdinIsTerminal and Refusal. A nil one is testDeps' default.
 var seams Deps
 
 // cliError is the fake of the CLI's coded errors (3: invalid input).
@@ -102,6 +102,7 @@ func testDeps(jsonOut bool, dbPath string) Deps {
 		},
 		WithJSONErrors:  func(cmd *cobra.Command) { withJSONErrors(jsonOut, cmd) },
 		StdinIsTerminal: func() bool { return false },
+		Refusal:         func() string { return "" },
 		AnalyzeRunner: func(string, string, time.Duration) recordanalyze.Runner {
 			return recordanalyze.RunnerFunc(func(context.Context, string) (string, error) {
 				return "", errors.New("no AI in tests: stub it with stubRecordAI")
@@ -133,6 +134,9 @@ func testDeps(jsonOut bool, dbPath string) Deps {
 	}
 	if seams.StdinIsTerminal != nil {
 		d.StdinIsTerminal = seams.StdinIsTerminal
+	}
+	if seams.Refusal != nil {
+		d.Refusal = seams.Refusal
 	}
 	return d
 }

@@ -23,11 +23,12 @@ var (
 // read executions back for the waiting response modes, and remember delivery
 // IDs in the database.
 func (e *WorkflowEngine) wireWebhookRuns() {
-	e.webhookServer.SetRunner(e.handleWebhookTrigger, e.store)
+	var execs WebhookExecutions
 	var db *sql.DB
 	if e.store != nil {
-		db = e.store.RawDB()
+		execs, db = e, e.store.RawDB()
 	}
+	e.webhookServer.SetRunner(e.handleWebhookTrigger, execs)
 	e.webhookServer.SetStateDB(db)
 	e.triggerMgr.SetAppWebhooks(db, e.resolveCredential)
 	if db != nil {

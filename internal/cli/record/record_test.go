@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -172,5 +173,48 @@ func TestRecordJSONErrorsWrapIsIdempotent(t *testing.T) {
 	_ = cmd.Execute()
 	if n := strings.Count(out.String(), `"error"`); n != 1 {
 		t.Fatalf("error printed %d times: %q", n, out.String())
+	}
+}
+
+// A recording kept before its goal and title were cleaned prints clean: the
+// hidden characters a page put in them never reach the terminal.
+func TestRecordShowPrintsAnOldRecordingClean(t *testing.T) {
+	store := recordTestHome(t, "rec-h")
+	metas, _ := filepath.Glob(filepath.Join(store, "*", capture.MetaFile))
+	if len(metas) != 1 {
+		t.Fatalf("meta files = %v", metas)
+	}
+	raw, err := os.ReadFile(metas[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	var m map[string]any
+	if err := json.Unmarshal(raw, &m); err != nil {
+		t.Fatal(err)
+	}
+	hide := func(s string) string {
+		var b strings.Builder
+		for _, r := range s {
+			b.WriteRune(0xE0000 + r)
+		}
+		return b.String()
+	}
+	m["title"] = "Old page\u202e" + hide("payload")
+	m["goal"] = "old goal" + hide(" and more") + "\x1b[31m"
+	out, _ := json.Marshal(m)
+	if err := os.WriteFile(metas[0], out, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{{"show", "rec-h"}, {"list"}} {
+		text, err := runRecordCLI(t, false, args...)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.ContainsAny(text, "\u202e\x1b") || strings.ContainsFunc(text, func(r rune) bool { return r >= 0xE0000 && r <= 0xE007F }) {
+			t.Fatalf("%v printed hidden characters:\n%q", args, text)
+		}
+		if args[0] == "show" && !strings.Contains(text, "goal: old goal [31m") {
+			t.Fatalf("show: %q", text)
+		}
 	}
 }

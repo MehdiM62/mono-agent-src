@@ -28,6 +28,21 @@ func TestSendsAnnotationIsChecked(t *testing.T) {
 		`,"sends":{"action":"post","if":"nobody.type not in note|web"}`:                                               `"nobody.type not in note|web"`,
 		`,"sends":{"action":"post","to_label":{"body":"channel"}}`:                                                    "to_label",
 		`,"sends":true`: "sends",
+		// "?" goes alone at the end of a param in "if": with =, != or not
+		// in it would be read as part of a value and never hold.
+		`,"sends":{"action":"post","if":"body?"}`:                    "",
+		`,"sends":{"action":"post","if":"body=x?"}`:                  `"?" goes alone`,
+		`,"sends":{"action":"post","if":"body!=x?"}`:                 `"?" goes alone`,
+		`,"sends":{"action":"post","if":"body not in a|b?"}`:         `"?" goes alone`,
+		`,"sends":{"action":"post","if":"body?!"}`:                   `"?" goes alone`,
+		`,"sends":{"action":"post","if":"body??"}`:                   `"?" goes alone`,
+		`,"sends":{"action":"post","to":["to?"]}`:                    `"?" goes in sends.if only`,
+		`,"sends":{"action":"post","show":["body"]}`:                 "",
+		`,"sends":{"action":"post","show":["body if to"]}`:           "",
+		`,"sends":{"action":"post","show":["body if nobody"]}`:       `"nobody"`,
+		`,"sends":{"action":"post","show":["body if to=x?"]}`:        `"?" goes alone`,
+		`,"sends":{"action":"post","show":["nobody"]}`:               `"nobody"`,
+		`,"sends":{"action":"post","show":["body"],"text":["body"]}`: "don't go together",
 	} {
 		_, err := Parse([]byte(base(sends)), "test")
 		switch {
@@ -124,6 +139,19 @@ func TestSendsIfSeesDefaultsAndValues(t *testing.T) {
 		_ = json.Unmarshal([]byte(config), &c)
 		if got := op.sends(c); got != want {
 			t.Errorf("item note: sends(%s) = %v, want %v", config, got, want)
+		}
+	}
+	// There at all: "" and false included, null not; a list on the way fans
+	// out.
+	op.Sends.If = Cond{"updateFields.description?", "itemsUi.itemsValues.note?"}
+	for config, want := range map[string]bool{`{}`: false, `{"updateFields":{}}`: false, `{"updateFields":{"description":null}}`: false,
+		`{"updateFields":{"description":""}}`: true, `{"updateFields":{"description":false}}`: true,
+		`{"updateFields":{"description":"x"}}`: true, `{"itemsUi":{"itemsValues":[{"amount":"5"}]}}`: false,
+		`{"itemsUi":{"itemsValues":[{"amount":"5"},{"note":""}]}}`: true} {
+		var c map[string]any
+		_ = json.Unmarshal([]byte(config), &c)
+		if got := op.sends(c); got != want {
+			t.Errorf("present: sends(%s) = %v, want %v", config, got, want)
 		}
 	}
 	op.Sends.If = Cond{"domain=notify", "domain=tts"}

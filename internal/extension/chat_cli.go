@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
@@ -33,7 +32,7 @@ func (b *cliChatBackend) binary() (string, error) {
 	if b.bin != "" {
 		return b.bin, nil
 	}
-	bin, err := os.Executable()
+	bin, err := selfExecutable()
 	if err != nil {
 		return "", Unavailable("cannot locate monoagentcli: %v", err)
 	}

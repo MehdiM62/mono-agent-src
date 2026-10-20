@@ -12,6 +12,7 @@ import (
 
 	"github.com/monoes/mono-agent/internal/action"
 	"github.com/monoes/mono-agent/internal/automation"
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/extension"
 	"github.com/monoes/mono-agent/internal/logging"
 	"github.com/monoes/mono-agent/internal/recording"
@@ -125,6 +126,13 @@ func (d Deps) newAutomationRerecordCmd() *cobra.Command {
 		Short: "Re-record one selector by clicking the element in your browser",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// It opens the package's site, or any --url, in the user's
+			// logged-in browser and rewrites the selector the click picks, a
+			// built-in package's too, which changes what its actions click.
+			if why := clicore.OperatorRefusal(d.Refusal); why != "" {
+				return clicore.OperatorOnly("automation rerecord opens a page in the user's browser and rewrites the selector their click picks, which changes what the package's actions click, so only the user re-records one: %s; "+
+					"the user runs `monoagentcli automation rerecord %s %s` in their own terminal", why, args[0], args[1])
+			}
 			reg, err := d.OpenRegistry()
 			if err != nil {
 				return err

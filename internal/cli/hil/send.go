@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/hilsend"
 	"github.com/monoes/mono-agent/internal/profiledir"
 	"github.com/spf13/cobra"
@@ -39,7 +40,8 @@ func (d Deps) hilSendError(err error) error {
 		return d.NotFound("send item not found")
 	case errors.Is(err, hilsend.ErrNotSend):
 		return d.InvalidInput("that Human-in-Loop item is not a send item")
-	case errors.Is(err, hilsend.ErrAlwaysLabel), errors.Is(err, hilsend.ErrNoText), errors.Is(err, hilsend.ErrNoSubject):
+	case errors.Is(err, hilsend.ErrAlwaysLabel), errors.Is(err, hilsend.ErrNoText), errors.Is(err, hilsend.ErrNoSubject),
+		errors.Is(err, hilsend.ErrUnreviewable):
 		return d.InvalidInput(err.Error())
 	}
 	return err
@@ -56,14 +58,49 @@ func (d Deps) printSend(cmd *cobra.Command, p hilsend.Payload) error {
 	if by := p.PreparedBy.Label(); by != "" {
 		fmt.Fprintf(w, "Prepared by: %s\n", by)
 	}
+	if p.Host != "" {
+		fmt.Fprintf(w, "Via: %s\n", hilsend.OneLine(p.Host))
+	}
+	if p.FetchURL != "" {
+		fmt.Fprintf(w, "Fetches: %s\n", hilsend.OneLine(p.FetchURL))
+	}
 	if p.Subject != "" {
 		fmt.Fprintf(w, "Subject: %s\n", p.Subject)
+	}
+	// A card made before details were escaped prints on one line too.
+	for _, dt := range p.Details {
+		fmt.Fprintf(w, "%s: %s\n", detailLabel(dt.Key), hilsend.OneLine(dt.Value))
 	}
 	fmt.Fprintf(w, "%s\n", p.Text)
 	if p.Error != "" {
 		fmt.Fprintf(w, "Error: %s\n", p.Error)
 	}
 	return nil
+}
+
+// detailLabel is how the terminal names a card's detail, as the app does.
+func detailLabel(key string) string {
+	switch key {
+	case "alsoTo":
+		return "Also to"
+	case "cc":
+		return "Cc"
+	case "bcc":
+		return "Bcc"
+	case "replyAll":
+		return "Reply all"
+	case "inReplyTo":
+		return "In reply to"
+	case "draft":
+		return "Draft"
+	case "references":
+		return "References"
+	case "bodyType":
+		return "Body type"
+	case "connection":
+		return "Connection"
+	}
+	return key
 }
 
 func (d Deps) withSendDB(fn func(*sql.DB, hilsend.Store) error) error {
@@ -78,7 +115,7 @@ func (d Deps) withSendDB(fn func(*sql.DB, hilsend.Store) error) error {
 // resolveSend decides a send item; shared by `hil resolve` and the older
 // `hil approve|reject`.
 func (d Deps) resolveSend(cmd *cobra.Command, st hilsend.Store, id string, approve bool, edit hilsend.Edit, always bool) error {
-	if err := d.RequireOperator("approve or reject a send"); err != nil {
+	if err := clicore.RequireOperator(d.RequireOperator, "approve or reject a send"); err != nil {
 		return err
 	}
 	p, err := hilsend.Resolve(cmd.Context(), st, id, approve, edit, always, d.SendRunner())
@@ -184,7 +221,7 @@ func (d Deps) newHILEditCmd() *cobra.Command {
 		Short: "Change a pending send's text or subject (operator only); it stays pending and re-previews",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := d.RequireOperator("edit a send"); err != nil {
+			if err := clicore.RequireOperator(d.RequireOperator, "edit a send"); err != nil {
 				return err
 			}
 			var t, s *string
@@ -330,11 +367,12 @@ func (d Deps) newHILAllowCmd() *cobra.Command {
 	add := &cobra.Command{
 		Use: "add", Short: "Always allow one destination", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if err := d.RequireOperator("allow a destination"); err != nil {
+			if err := clicore.RequireOperator(d.RequireOperator, "allow a destination"); err != nil {
 				return err
 			}
-			if a.Action == "" || a.Recipient == "" {
-				return d.InvalidInput("--action and --recipient are required")
+			// Every caller (the app's form included) gets the same checks.
+			if err := hilsend.CheckAllow(a); err != nil {
+				return d.InvalidInput("%s", err)
 			}
 			return d.withSendDB(func(_ *sql.DB, st hilsend.Store) error {
 				if err := st.Allow(cmd.Context(), a); err != nil {
@@ -351,7 +389,7 @@ func (d Deps) newHILAllowCmd() *cobra.Command {
 	remove := &cobra.Command{
 		Use: "remove <rule-id>", Short: "Stop always allowing a destination", Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := d.RequireOperator("remove an always-allow rule"); err != nil {
+			if err := clicore.RequireOperator(d.RequireOperator, "remove an always-allow rule"); err != nil {
 				return err
 			}
 			return d.withSendDB(func(_ *sql.DB, st hilsend.Store) error {

@@ -136,7 +136,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	}
 
 	// The older login is adopted before the gate judges (spec D23), or a gated command would be refused first.
-	adoptBeforeGate(ctx, args)
+	adoptBeforeGate(ctx, args, stderr)
 
 	// The gate comes before anything runs: no first-run check, no database.
 	if err := gateCommand(ctx, root, args, g, stderr); err != nil {

@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/commsync"
 )
 
@@ -35,7 +36,7 @@ func (d Deps) requireOperatorIfOutbound(cmd *cobra.Command, id string) error {
 		return fmt.Errorf("reading HIL item %s: %w", id, err)
 	}
 	if commsync.OutboundHIL(nc) {
-		return d.RequireOperator("approve or reject a workflow step that sends a message to someone")
+		return clicore.RequireOperator(d.RequireOperator, "approve or reject a workflow step that sends a message to someone")
 	}
 	return nil
 }

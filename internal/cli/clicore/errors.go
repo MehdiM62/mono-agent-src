@@ -76,6 +76,17 @@ func OperatorRefusal(refusal func() string) string {
 	return refusal()
 }
 
+// RequireOperator is require's answer for what (a command's
+// Deps.RequireOperator: the CLI's operator check, nil error for the user). A
+// nil require refuses, as OperatorRefusal does, so an unwired check never
+// opens a command.
+func RequireOperator(require func(what string) error, what string) error {
+	if require == nil {
+		return OperatorOnly("only the user can %s: %s", what, unwiredRefusal)
+	}
+	return require(what)
+}
+
 // OperatorOnly is the refusal of what only the operator may do: exit 3, and
 // the code operator_only in the --json error document, so a caller tells it
 // from invalid input.

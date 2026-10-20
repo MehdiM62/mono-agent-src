@@ -260,9 +260,9 @@ func summaryOf(dir string, meta *capture.Meta) Summary {
 	return Summary{
 		ID:         filepath.Base(dir),
 		Dir:        dir,
-		Title:      meta.Title,
+		Title:      cleanTitle(meta.Title),
 		URL:        meta.URL,
-		Goal:       extraString(meta, ExtraGoal),
+		Goal:       CleanGoal(extraString(meta, ExtraGoal)),
 		StartedAt:  started,
 		Events:     extraInt(meta, ExtraEventCount),
 		Complete:   extraBool(meta, ExtraComplete),

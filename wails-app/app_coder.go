@@ -105,10 +105,12 @@ func (a *App) CoderDisable() string {
 	return a.jsonResult("coder", "disable")
 }
 
-// coderSetArgs builds `coder set`. An empty workspace root, maxTurns <= 0 or
-// an empty timeout leave that setting unchanged; budgetUsd 0 clears the
-// budget and a negative one leaves it unchanged.
-func coderSetArgs(workspaceRoot string, maxTurns int, timeout string, budgetUsd float64) []string {
+// coderSetArgs builds `coder set`. An empty workspace root, maxTurns <= 0,
+// an empty timeout or an empty orgRouter leave that setting unchanged;
+// budgetUsd 0 clears the budget and a negative one leaves it unchanged.
+// orgRouter is the dynamic org's router: auto, jev or model (the CLI checks).
+// App access has its own binding, CoderSetAppAccess.
+func coderSetArgs(workspaceRoot string, maxTurns int, timeout string, budgetUsd float64, orgRouter string) []string {
 	args := []string{"coder", "set"}
 	if workspaceRoot != "" {
 		args = append(args, "--workspace-root", workspaceRoot)
@@ -122,14 +124,34 @@ func coderSetArgs(workspaceRoot string, maxTurns int, timeout string, budgetUsd 
 	if budgetUsd >= 0 {
 		args = append(args, "--budget-usd", strconv.FormatFloat(budgetUsd, 'f', -1, 64))
 	}
+	if orgRouter != "" {
+		args = append(args, "--org-router", orgRouter)
+	}
 	return args
 }
 
-func (a *App) CoderSet(workspaceRoot string, maxTurns int, timeout string, budgetUsd float64) string {
+func (a *App) CoderSet(workspaceRoot string, maxTurns int, timeout string, budgetUsd float64, orgRouter string) string {
 	if err := a.signedOut(); err != nil {
 		return loginRequiredJSON(err)
 	}
-	return a.jsonResult(coderSetArgs(workspaceRoot, maxTurns, timeout, budgetUsd)...)
+	return a.jsonResult(coderSetArgs(workspaceRoot, maxTurns, timeout, budgetUsd, orgRouter)...)
+}
+
+// CoderSetAppAccess is `coder set --app-access on|off` (coder.appAccess,
+// default on): whether coder prompts carry the profile summary and a dynamic
+// org's workers are offered MonoAgent's surfaces. It changes what agents are
+// told, not what they can do (see `coder set --help`). The CLI refuses anyone
+// but the user. Returns coder status, whose appAccess CoderStatus also reads
+// back.
+func (a *App) CoderSetAppAccess(on bool) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
+	v := "off"
+	if on {
+		v = "on"
+	}
+	return a.jsonResult("coder", "set", "--app-access", v)
 }
 
 // CoderWorkspaceRoot sets up the coder root itself as the chat's working

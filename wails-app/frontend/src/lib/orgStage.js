@@ -11,6 +11,9 @@
 // The reducer only ever reads the event envelope ({seq, at, type,
 // payload}); a running org (#229) can feed it the same shapes.
 
+import { vaultRelated } from '../components/chat/toolLinks.js'
+import { maskCredentials, maskSecretShapes } from '../components/chat/credentials.js'
+
 export const LEAD_ID = 'lead'
 
 // How many recent items the stage keeps; older ones fall off so a long
@@ -80,6 +83,8 @@ function commandOf(args) {
 // doingOf is what a tool call says the agent is doing: its kind and a short
 // target ("chat.go", "go test ./...", "example.com"). The stage words it
 // per kind ("editing chat.go", "running go test", "browsing example.com").
+// A shell command that may touch the vault says only that (vault: true),
+// and a credential in any target is masked (#872 review).
 export function doingOf(name, kind, rawArgs) {
   const k = toolKind(name, kind)
   const args = parseArgs(rawArgs)
@@ -90,6 +95,7 @@ export function doingOf(name, kind, rawArgs) {
       break
     case 'shell':
       target = commandOf(args)
+      if (vaultRelated(target)) return { kind: k, name: name || '', target: '', vault: true }
       break
     case 'web':
       try { target = args.url ? new URL(args.url).host : (args.query || '') } catch { target = args.url || '' }
@@ -103,7 +109,7 @@ export function doingOf(name, kind, rawArgs) {
     default:
       target = ''
   }
-  return { kind: k, name: name || '', target: clip(target, 48) }
+  return { kind: k, name: name || '', target: clip(maskCredentials(target), 48) }
 }
 
 function newNode(id, patch = {}) {
@@ -322,10 +328,11 @@ function onToolCompleted(d, ev, p) {
     const sub = d.node(nativeId)
     setStatus(d, ev, nativeId, p.cancelled ? 'cancelled' : failed ? 'failed' : 'done')
     sub.outcome = sub.status
-    sub.summary = clip(p.result, 600)
+    const result = maskSecretShapes(p.result)
+    sub.summary = clip(result, 600)
     sub.limited = limitedOf(sub)
     if (sub.spawnAt && ev.at) sub.durationMs = Math.max(0, Date.parse(ev.at) - Date.parse(sub.spawnAt)) || 0
-    if (p.result) addFlight(d, ev, 'result', nativeId, sub.parentId || LEAD_ID, p.result)
+    if (result) addFlight(d, ev, 'result', nativeId, sub.parentId || LEAD_ID, result)
     addFeed(d, ev, nativeId, 'finished', sub.summary, sub.status)
   }
 }

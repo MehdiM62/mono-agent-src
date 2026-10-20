@@ -51,7 +51,7 @@ func (n *GmailNode) Execute(ctx context.Context, input workflow.NodeInput, confi
 	if err := credentialScopeCheck(config, "gmail"); err != nil {
 		return nil, fmt.Errorf("gmail: %w", err)
 	}
-	operation := strVal(config, "operation")
+	operation := workflow.ConfigOperation(config)
 	maxResults := intVal(config, "max_results")
 	if maxResults == 0 {
 		maxResults = 10

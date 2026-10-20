@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"io"
 
 	"github.com/spf13/cobra"
 
@@ -44,15 +45,15 @@ var adoptOlderLogin = library.AdoptIntoAccount
 
 // adoptFirstRun is accountcli.AdoptFirstRun on the command's --db-path.
 func adoptFirstRun(cmd *cobra.Command, cfg *globalConfig) {
-	accountcli.AdoptFirstRun(cmd, cfg.DBPath, func(ctx context.Context, db *sql.DB, g *account.Guard) (bool, error) {
-		return adoptOlderLogin(ctx, db, g)
+	accountcli.AdoptFirstRun(cmd, cfg.DBPath, func(ctx context.Context, db *sql.DB, g *account.Guard, report func(string, library.Outcome)) (bool, error) {
+		return adoptOlderLogin(ctx, db, g, report)
 	})
 }
 
 // adoptBeforeGate runs the adoption ahead of the gate (accountcli.AdoptBeforeGate), on a
-// throwaway tree of this CLI.
-func adoptBeforeGate(ctx context.Context, args []string) {
-	accountcli.AdoptBeforeGate(ctx, args, func() *cobra.Command {
+// throwaway tree of this CLI, with its lines on stderr.
+func adoptBeforeGate(ctx context.Context, args []string, stderr io.Writer) {
+	accountcli.AdoptBeforeGate(ctx, args, stderr, func() *cobra.Command {
 		probe := newProbeRootCmd()
 		applyClassification(probe)
 		return probe
