@@ -2,6 +2,7 @@ package dynorg
 
 import (
 	"context"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -23,7 +24,7 @@ func Concerns(brief string) []builtinRole {
 		n int
 	}
 	var hits []hit
-	for _, r := range builtinRoles {
+	for _, r := range slices.Concat(appRoles, coreRoles) { // the specific app roles win ties
 		if n := r.hits(brief); n > 0 {
 			hits = append(hits, hit{r, n})
 		}

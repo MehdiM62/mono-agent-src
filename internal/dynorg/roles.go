@@ -69,6 +69,19 @@ func appRoleFor(brief string) (builtinRole, bool) {
 	return best, bestHits > 0
 }
 
+// appRolesNamed is every app-aware role the brief names, best match first:
+// a brief that spans surfaces (tasks and documents) offers all of them.
+func appRolesNamed(brief string) []builtinRole {
+	var out []builtinRole
+	for _, r := range appRoles {
+		if r.hits(brief) > 0 {
+			out = append(out, r)
+		}
+	}
+	slices.SortStableFunc(out, func(a, b builtinRole) int { return b.hits(brief) - a.hits(brief) })
+	return out
+}
+
 // setBuiltin staffs a worker with a built-in role.
 func (st *Staff) setBuiltin(r builtinRole, why string) {
 	st.Role, st.AgentType, st.Category, st.AgentBody = r.Title, r.ID, r.Category, r.Body

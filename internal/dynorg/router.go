@@ -50,7 +50,9 @@ func (s *Staffer) routeRole(ctx context.Context, req SpawnRequest, st *Staff) (b
 	if router == RouterAuto && confident {
 		return s.useAgent(ctx, list[0], "role from monomind pick", st), nil
 	}
-	if router == RouterAuto && hasApp {
+	named := appRolesNamed(req.Brief)
+	// Several surfaces named and Jev around: let Jev choose among them.
+	if router == RouterAuto && hasApp && (len(named) == 1 || s.Chooser == nil) {
 		st.setBuiltin(app, "app-aware built-in role (monomind pick was not sure)")
 		return true, nil
 	}
@@ -58,8 +60,8 @@ func (s *Staffer) routeRole(ctx context.Context, req SpawnRequest, st *Staff) (b
 	for _, c := range list {
 		opts[c.ID] = strings.TrimSpace(c.Name + ": " + c.Description)
 	}
-	if hasApp {
-		opts[app.ID] = app.Title + ": " + firstSentence(app.Body)
+	for _, r := range named {
+		opts[r.ID] = r.Title + ": " + firstSentence(r.Body)
 	}
 	if s.Chooser != nil && len(opts) > 1 {
 		if id, conf, err := s.Chooser.Choose(ctx, map[string]any{"brief": req.Brief}, "Which agent should do this brief?", opts); err == nil {
@@ -69,9 +71,9 @@ func (s *Staffer) routeRole(ctx context.Context, req SpawnRequest, st *Staff) (b
 					return true, nil
 				}
 			}
-			if hasApp && id == app.ID {
+			if i := slices.IndexFunc(named, func(r builtinRole) bool { return r.ID == id }); i >= 0 {
 				st.JevConf = &conf
-				st.setBuiltin(app, "app-aware built-in role chosen by Jev")
+				st.setBuiltin(named[i], "app-aware built-in role chosen by Jev")
 				return true, nil
 			}
 		}
