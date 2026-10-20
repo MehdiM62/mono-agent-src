@@ -265,3 +265,63 @@ func TestHomeFromPasswd(t *testing.T) {
 		t.Fatalf("got %q", got)
 	}
 }
+
+// Rebind without --from names a recorded old path only after the key opens with it, and shows it
+// without control characters.
+func TestBind_RebindHintIsVerified(t *testing.T) {
+	keyring.MockInit()
+	ctx := context.Background()
+	dir := t.TempDir()
+	old := filepath.Join(dir, "old", "monoagent.db")
+	os.MkdirAll(filepath.Dir(old), 0o700)
+	db := openAt(t, old)
+	if _, err := getOrCreateDEK(ctx, db.DB, "p1"); err != nil {
+		t.Fatal(err)
+	}
+	moved := filepath.Join(dir, "new", "monoagent.db")
+	copyDB(t, db, old, moved)
+	db2 := openAt(t, moved)
+
+	forged := "/etc/passwd\x1b[31m delete everything \x07"
+	if _, err := db2.DB.Exec(`INSERT INTO vault_key_hints (profile_id, bound_path) VALUES ('p1', ?)
+		ON CONFLICT(profile_id) DO UPDATE SET bound_path = excluded.bound_path`, forged); err != nil {
+		t.Fatal(err)
+	}
+	_, err := Rebind(ctx, db2.DB, "p1", "")
+	if err == nil || strings.Contains(err.Error(), "try --from") || strings.Contains(err.Error(), "passwd") {
+		t.Fatalf("an unverified hint was shown: %v", err)
+	}
+
+	if _, err := db2.DB.Exec(`UPDATE vault_key_hints SET bound_path = ?`, canonicalPath(old)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = Rebind(ctx, db2.DB, "p1", ""); err == nil || !strings.Contains(err.Error(), "try --from "+canonicalPath(old)) {
+		t.Fatalf("a verified hint was not shown: %v", err)
+	}
+}
+
+func TestOwnedHome(t *testing.T) {
+	parent := t.TempDir()
+	home := filepath.Join(parent, "me")
+	os.Mkdir(home, 0o700)
+	uid := os.Getuid()
+	if !ownedHome(home, uid, parent) {
+		t.Fatal("own directory refused")
+	}
+	if ownedHome(home, uid+1, parent) {
+		t.Fatal("another uid's directory accepted")
+	}
+	if ownedHome(home, uid, filepath.Join(parent, "x")) {
+		t.Fatal("a directory outside the expected parent accepted")
+	}
+	link := filepath.Join(parent, "link")
+	if err := os.Symlink(home, link); err != nil {
+		t.Fatal(err)
+	}
+	if ownedHome(link, uid, parent) {
+		t.Fatal("a symlink accepted")
+	}
+	if ownedHome("", uid, parent) || ownedHome("relative", uid, parent) || ownedHome(filepath.Join(parent, "gone"), uid, parent) {
+		t.Fatal("empty, relative or missing path accepted")
+	}
+}

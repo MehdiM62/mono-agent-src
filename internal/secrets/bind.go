@@ -13,6 +13,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"unicode"
 )
 
 // A wrapped DEK is bound to the install it was made in (#903): its AES-GCM seal carries the
@@ -59,10 +60,26 @@ func systemHome() string {
 	}
 	f, err := os.Open("/etc/passwd")
 	if err != nil {
-		return ""
+		return darwinFallbackHome()
 	}
 	defer f.Close()
-	return homeFromPasswd(f, uid)
+	if h := homeFromPasswd(f, uid); h != "" {
+		return h
+	}
+	return darwinFallbackHome()
+}
+
+// darwinFallbackHome is the home directory on darwin when the user database lookup came up
+// empty (a CGO_ENABLED=0 build there has no /etc/passwd users): os.UserHomeDir, accepted only
+// when ownedHome says it is the user's own directory under /Users. "" elsewhere.
+func darwinFallbackHome() string {
+	if runtime.GOOS != "darwin" {
+		return ""
+	}
+	if h, err := os.UserHomeDir(); err == nil && ownedHome(h, os.Getuid(), "/Users") {
+		return h
+	}
+	return ""
 }
 
 // homeFromPasswd is the home directory of uid in passwd-format r, "" when absent.
@@ -220,6 +237,29 @@ func boundHint(ctx context.Context, db *sql.DB, profileID string) string {
 	return p
 }
 
+// verifiedHint is the recorded bound path when the key really opens with it (the hint table is
+// only a database row, so an unverified one is never shown), with control characters removed and
+// its length limited; "" otherwise.
+func verifiedHint(ctx context.Context, db *sql.DB, profileID string, kek, wrapped, nonce []byte) string {
+	hint := boundHint(ctx, db, profileID)
+	if hint == "" {
+		return ""
+	}
+	if _, err := decryptAD(kek, wrapped, nonce, bindingAD(hint)); err != nil {
+		return ""
+	}
+	clean := strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return -1
+		}
+		return r
+	}, hint)
+	if r := []rune(clean); len(r) > 200 {
+		clean = string(r[:200]) + "..."
+	}
+	return clean
+}
+
 // Rebind binds profileID's vault to the install db is open on, for a move the user made on
 // purpose (a renamed HOME, a database restored to a new place). The key is opened as the install
 // it was made for (from, that install's database path as it was) or, when from is "", as one with
@@ -262,7 +302,7 @@ func Rebind(ctx context.Context, db *sql.DB, profileID, from string) (string, er
 		d, derr := decryptAD(kek, wrapped, nonce, nil)
 		if derr != nil {
 			msg := "secrets: this vault key is bound to another install; pass --from <the old monoagent.db path>"
-			if hint := boundHint(ctx, db, profileID); hint != "" {
+			if hint := verifiedHint(ctx, db, profileID, kek, wrapped, nonce); hint != "" {
 				msg = "secrets: this vault key is bound to another install; try --from " + hint
 			}
 			return "", errors.New(msg)
