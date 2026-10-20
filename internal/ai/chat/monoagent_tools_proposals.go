@@ -38,7 +38,7 @@ const (
 // proposalToolNames are the proposal tools. They are offered only in a
 // page-read session (PageReadToolNames), the one chat whose replies the
 // side panel turns into cards.
-var proposalToolNames = []string{proposeTaskTool, proposeRecordingTool, proposeVaultSaveTool}
+var proposalToolNames = []string{proposeTaskTool, proposeRecordingTool, proposeVaultSaveTool, proposePageActionTool, proposeCoderTool}
 
 const (
 	// proposalTitleRunes is the board's own title limit (tasks.MaxTitleRunes).
@@ -64,10 +64,18 @@ type proposal struct {
 	URL       string `json:"url,omitempty"`
 	Selection bool   `json:"selection,omitempty"`
 	Name      string `json:"name,omitempty"`
+	Action    string `json:"action,omitempty"`
+	Target    string `json:"target,omitempty"`
+	Text      string `json:"text,omitempty"`
+	Why       string `json:"why,omitempty"`
 }
 
 // proposalToolDefs are the proposal tools' definitions.
 func proposalToolDefs() []ToolDef {
+	return append(baseProposalToolDefs(), pageActionToolDefs()...)
+}
+
+func baseProposalToolDefs() []ToolDef {
 	return []ToolDef{{Type: "function", Function: ToolFunction{
 		Name: proposeTaskTool,
 		Description: "Suggest a task for the person's task board. This adds nothing: the side panel shows the person a card with " +
@@ -128,6 +136,10 @@ func (mt *MonoagentTools) executeProposal(name, args string) (string, bool, erro
 		out, err = proposeRecording(args)
 	case proposeVaultSaveTool:
 		out, err = proposeVaultSave(args)
+	case proposePageActionTool:
+		out, err = proposePageAction(args)
+	case proposeCoderTool:
+		out, err = proposeCoderHandoff(args)
 	default:
 		return "", false, nil
 	}
