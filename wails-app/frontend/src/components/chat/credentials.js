@@ -21,7 +21,15 @@ export const MASK = '•••'
 
 // Names that hold a credential word but never a credential: token limits
 // and tokenizers, key and password files, key sizes, timeouts.
-const NOT_CREDENTIAL = /^max[\W_]*\w*tokens?$|tokeni[sz]er|[-_.](?:file|path)$|[-_]bits$|timeout$/i
+// Token counts (max-new-tokens, num_tokens, token_budget, tokens_per_min) and
+// database or cache keys (cache-key, sort_key, primary-key) are not secrets.
+const NOT_CREDENTIAL = new RegExp([
+  '^max[\\W_]*\\w*tokens?$',
+  '^(?:num|n|min|max|total|new|prompt|completion|input|output|context)(?:[-_.]\\w+)*[-_.]tokens$',
+  '^tokens?[-_.](?:budget|limit|count|used|usage|per[-_.]\\w+)$',
+  '^(?:cache|sort|primary|foreign|partition|group)[-_.]key$',
+  'tokeni[sz]er', '[-_.](?:file|path)$', '[-_]bits$', 'timeout$',
+].join('|'), 'i')
 
 // isCredentialKey says whether a flag, parameter or key name holds a
 // credential, read with %XX decoded (api%5Fkey).
@@ -60,9 +68,13 @@ const VALUE = [
   "'[^']*'?",
   '(?:[^\\s\'";&|\\\\]|\\\\(?![ntr"]))+', // a bare word
 ].join('|')
+// A YAML anchor or tag before a value: &a, !!str, !secret.
+const YAML_TAGS = '(?:[&!][^\\s"\']*[ \\t]+)*'
 const SCHEMES = '(?:Bearer|Basic|Token)'
 // The rest of a header inside its quotes.
 const HEADER_REST = '(?:[^"\'\\n\\\\]|\\\\(?![n"\']))+'
+// Flags between "config set" and the key: --profile p, --region r, -g.
+const SET_FLAGS = '(?:(?:--?(?:profile|region|endpoint-url|prefix|userconfig|location|registry|scope)(?:=\\S+|\\s+\\S+)|--?[A-Za-z][\\w-]*)\\s+)*'
 const rule = (re, flags, keyOk = isCredentialKey) => ({ re: new RegExp(re, flags), keyOk })
 const KEY_RULES = [
   // JSON: "key": "value" (a cut-short value runs to the end).
@@ -84,18 +96,22 @@ const KEY_RULES = [
   rule(`(?<head>--arg(?:json)?${GAP}(?<key>${NAME})${GAP})(?<value>${VALUE})`, 'g'),
   // npm config set //registry/:_authToken K, aws configure set
   // aws_secret_access_key K, and the like.
-  rule(`(?<head>\\bconfig(?:ure)?\\s+set\\s+(?<key>[^\\s=]+)\\s+)(?<value>${VALUE})`, 'g'),
+  rule(`(?<head>\\bconfig(?:ure)?\\s+set\\s+${SET_FLAGS}(?<key>[^\\s=-][^\\s=]*)\\s+)(?<value>${VALUE})`, 'g'),
   // A key=value: API_KEY=K, ?access_token=K, process.env.TOKEN='K',
   // --from-literal=pw=K, :_authToken=K.
   rule(`(?<head>${EDGE}(?<key>${NAME})=)(?<value>${VALUE})`, 'g'),
   // The same with spaces: password = K, pw = "K", export TOKEN = K (not
   // ==, => or =~, and not a bare "key = value", which is prose).
   rule(`(?<head>${EDGE}(?<key>${NAME})(?:[ \\t]+=(?![=>~])[ \\t]*|=[ \\t]+))(?<value>${VALUE})`, 'g', k => isCredentialKey(k) && k.toLowerCase() !== 'key'),
+  // A YAML block scalar: password: | (or >-, |+2) and its indented lines.
+  rule(`(?<head>(?:^|\\n)[ \\t]*(?<key>${NAME})[ \\t]*:[ \\t]*)(?<value>[|>][+-]?\\d*[ \\t]*(?:\\r?\\n[ \\t]+[^\\n]*)+)`, 'g', k => isCredentialKey(k) && k.toLowerCase() !== 'auth'),
+  // A YAML line with a quoted value: password: "K", token: 'K'.
+  rule(`(?<head>(?:^|\\\\[ntr]|\\s)(?<key>${NAME})[ \\t]*:[ \\t]*${YAML_TAGS})(?<value>"(?:[^"\\\\]|\\\\.)*"?|'[^']*'?)`, 'g', k => isCredentialKey(k) && k.toLowerCase() !== 'auth'),
   // A header or a YAML line: Authorization: Bearer K, X-Api-Key: K, and
   // password: K under db: (the value is on the name's line). A bare "auth:"
   // outside a header flag is left alone: it is a commit message's scope far
   // more often.
-  rule(`(?<head>(?:^|\\\\[ntr]|[\\s"'])(?<key>${NAME})[ \\t]*:[ \\t]*(?:${SCHEMES}\\s+)?)(?<value>[^\\s"',;\\\\]+)`, 'gi', k => isCredentialKey(k) && k.toLowerCase() !== 'auth'),
+  rule(`(?<head>(?:^|\\\\[ntr]|[\\s"'])(?<key>${NAME})[ \\t]*:[ \\t]*${YAML_TAGS}(?:${SCHEMES}\\s+)?)(?<value>[^\\s"',;\\\\]+)`, 'gi', k => isCredentialKey(k) && k.toLowerCase() !== 'auth'),
 ]
 
 // Credentials that sit in a command's own syntax rather than after a name.
@@ -144,19 +160,84 @@ export function credentialSelector(selector) {
 // single-quoted dict, JSON inside a JSON string, a Kubernetes env entry
 // (- name: DB_PASSWORD / value: K) and helm's name=password,value=K. When
 // the label is a credential's, the value is masked and the label kept.
-const OBJECT = /\{[^{}]*\}/g
 const PAIR_LABEL = /(?<q>\\?["'])(?:name|key|field|k)\k<q>\s*:\s*(?<q2>\\?["'])(?<label>.*?)\k<q2>/i
 const PAIR_VALUE = /(?<q>\\?["'])(?:value|val|v)\k<q>\s*:\s*/gi
 const QUOTED_AT = [/^"((?:[^"\\]|\\.)*)/, /^\\"((?:[^"\\]|\\[^"])*)/, /^'([^']*)/, /^([^\s,}\]]+)/]
-function maskPairObject(obj) {
-  const label = PAIR_LABEL.exec(obj)?.groups.label
-  if (label == null || !isCredentialKey(label)) return obj
+
+// balancedEnd is the index of the } or ] that closes the { or [ at `from`,
+// with quoted strings (and their braces) skipped; -1 if it never closes.
+function balancedEnd(text, from) {
+  let depth = 0
+  for (let i = from; i < text.length; i++) {
+    const c = text[i]
+    if (c === '\\' && text[i + 1] === '"') {
+      const close = text.indexOf('\\"', i + 2)
+      if (close < 0) return -1
+      i = close + 1
+    } else if (c === '\\') {
+      i++
+    } else if (c === '"' || c === "'") {
+      let j = i + 1
+      while (j < text.length && text[j] !== c) j += text[j] === '\\' ? 2 : 1
+      if (j >= text.length) return -1
+      i = j
+    } else if (c === '{' || c === '[') {
+      depth++
+    } else if ((c === '}' || c === ']') && --depth === 0) {
+      return i
+    }
+  }
+  return -1
+}
+
+// objectsIn masks every pair object in the text: one whose label is a
+// credential's loses its value (a string, a number, or a whole object or
+// array); any other is searched for pairs inside it.
+function objectsIn(text) {
   let out = ''
   let at = 0
-  for (const m of obj.matchAll(PAIR_VALUE)) {
+  for (let i = text.indexOf('{'); i >= 0; i = text.indexOf('{', at)) {
+    let end = balancedEnd(text, i)
+    if (end < 0) end = text.indexOf('}', i)
+    if (end < 0) break
+    out += text.slice(at, i) + maskPairObject(text.slice(i, end + 1))
+    at = end + 1
+  }
+  return out + text.slice(at)
+}
+
+// The object with its nested objects and arrays blanked, so a label or value
+// key is read from this level only.
+function ownLevel(obj) {
+  let flat = obj.slice(0, 1)
+  for (let i = 1; i < obj.length; i++) {
+    const end = obj[i] === '{' || obj[i] === '[' ? balancedEnd(obj, i) : -1
+    if (end < 0) { flat += obj[i]; continue }
+    flat += obj[i] + ' '.repeat(end - i)
+    i = end
+  }
+  return flat
+}
+
+function maskPairObject(obj) {
+  if (!obj.endsWith('}')) return obj
+  const flat = ownLevel(obj)
+  const label = PAIR_LABEL.exec(flat)?.groups.label
+  if (label == null || !isCredentialKey(label)) return '{' + objectsIn(obj.slice(1, -1)) + '}'
+  let out = ''
+  let at = 0
+  for (const m of flat.matchAll(PAIR_VALUE)) {
     const start = m.index + m[0].length
+    if (start < at) continue
+    if ('{['.includes(obj[start])) {
+      const end = balancedEnd(obj, start)
+      if (end < 0) continue
+      out += obj.slice(at, start) + MASK
+      at = end + 1
+      continue
+    }
     const v = QUOTED_AT.map(re => re.exec(obj.slice(start))).find(Boolean)
-    if (start < at || !v || PLAIN.test(v[1]) || v[1] === MASK) continue
+    if (!v || PLAIN.test(v[1]) || v[1] === MASK) continue
     out += obj.slice(at, start + v[0].length - v[1].length) + MASK
     at = start + v[0].length
   }
@@ -167,7 +248,7 @@ const PAIR_RULES = [
   /(?<head>\b(?:name|key)=(?<label>[^,\s"']+),[ \t]*value=)(?<value>[^,\s"']+)/gi,
 ]
 function maskPairs(text) {
-  let out = text.replace(OBJECT, maskPairObject)
+  let out = objectsIn(text)
   for (const re of PAIR_RULES) {
     out = out.replace(re, (all, ...a) => {
       const { head, label, value } = a.at(-1)
