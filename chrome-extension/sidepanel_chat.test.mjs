@@ -69,7 +69,7 @@ function setup({ replies = {}, stored = {}, pageNow = { tabId: 5, url: "https://
   const env = { document: doc, chrome, ask, profiles: { current: { id: profile } }, page: pageNow, here: { windowId: 1 }, CustomEvent: class { constructor(t) { this.type = t; } } };
   if (record) env.MonoPanelRecord = record;
   doc.dispatchEvent = (e) => sent.push({ event: e.type });
-  const sandbox = loadExtensionScripts(["chat_core.js", "chat_render.js", "private_net.js", "chat_proposals.js", "sidepanel_chat_cards.js", "sidepanel_chat.js"], env);
+  const sandbox = loadExtensionScripts(["chat_context.js", "chat_core.js", "chat_render.js", "private_net.js", "chat_proposals.js", "sidepanel_chat_cards.js", "sidepanel_chat.js"], env);
   return {
     els, sent, store, doc, sandbox,
     progress: (tag, seq, stage, payload) => onMessage({ type: "chat_progress", tag, progress: { stage, detail: JSON.stringify({ seq, payload }) } }),
@@ -179,7 +179,7 @@ test("sharing the page is on for the first message only, and the chip says what 
 });
 
 test("a reopened conversation does not share the page until asked", async () => {
-  const { MonoChatCore: Core } = loadExtensionScripts(["chat_core.js"]);
+  const { MonoChatCore: Core } = loadExtensionScripts(["chat_context.js", "chat_core.js"]);
   const earlier = Core.newState(null);
   Core.startTurn(earlier, "earlier", "");
   earlier.conversation = "c-9";
@@ -369,7 +369,7 @@ test("the section is in the panel, first and open by default", () => {
   const html = readFileSync(join(HERE, "sidepanel.html"), "utf8");
   assert.match(html, /<details class="panel chat" id="chat" open>/);
   assert.ok(html.indexOf('id="chat"') < html.indexOf('class="capture"'), "above the capture card");
-  for (const f of ["chat_core.js", "chat_render.js", "sidepanel_chat.js", "sidepanel_chat.css"]) assert.ok(html.includes(f), f);
+  for (const f of ["chat_context.js", "chat_core.js", "chat_render.js", "sidepanel_chat.js", "sidepanel_chat.css"]) assert.ok(html.includes(f), f);
   assert.ok(html.indexOf("sidepanel.js") < html.indexOf("sidepanel_chat.js"), "after sidepanel.js, which it leans on");
   for (const f of ["sidepanel_record.js", "private_net.js", "chat_proposals.js", "sidepanel_chat_cards.js"]) {
     assert.ok(html.indexOf(`"${f}"`) > 0 && html.indexOf(`"${f}"`) < html.indexOf('"sidepanel_chat.js"'), `${f} before sidepanel_chat.js`);

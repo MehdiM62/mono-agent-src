@@ -14,7 +14,7 @@ const background = readFileSync(join(HERE, "background.js"), "utf8");
 const count = (needle) => background.split(needle).length - 1;
 
 test("the worker loads chat after ask.js and summary_ai.js", () => {
-  const chat = background.indexOf('importScripts("chat_core.js", "chat_bridge.js")');
+  const chat = background.indexOf('importScripts("chat_context.js", "chat_core.js", "chat_bridge.js")');
   assert.ok(chat !== -1, "chat_core.js and chat_bridge.js are not imported");
   assert.ok(chat > background.indexOf('importScripts("ask.js"'));
   assert.ok(chat > background.indexOf('"summary_ai.js"'));
@@ -26,7 +26,7 @@ test("the worker installs chat once, after the recall group installed ask.js", (
 });
 
 test("the worker loads and installs the form filler after chat", () => {
-  assert.ok(background.indexOf('importScripts("form_bridge.js")') > background.indexOf('importScripts("chat_core.js", "chat_bridge.js")'));
+  assert.ok(background.indexOf('importScripts("form_bridge.js")') > background.indexOf('importScripts("chat_context.js", "chat_core.js", "chat_bridge.js")'));
   assert.equal(count("MonoForm.install("), 1);
 });
 

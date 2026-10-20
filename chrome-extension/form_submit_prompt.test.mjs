@@ -30,7 +30,7 @@ function setup({ fields = FIELDS, values = [{ id: "m1", value: "Sam Doe" }], app
       },
     },
   };
-  const scripts = ["chat_core.js", ...(withCoder ? ["coder_bridge.js"] : []), "form_bridge.js"];
+  const scripts = ["chat_context.js", "chat_core.js", ...(withCoder ? ["coder_bridge.js"] : []), "form_bridge.js"];
   const sandbox = loadExtensionScripts(scripts, { chrome });
   sandbox.MonoSummaryAI = { sticky: async () => ({}) };
   sandbox.MonoAsk = {
