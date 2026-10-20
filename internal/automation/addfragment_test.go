@@ -72,6 +72,7 @@ func TestAddFragmentIntoBuiltin(t *testing.T) {
 	if rep, _ := r.SeedWithReport(seedFS("1.0.1", "b")); len(rep.Pending) != 1 {
 		t.Errorf("newer seed not pending: %+v", rep)
 	}
+	officialForTest(t, "demo", seedHashForTest(t, "demo", seedFS("1.0.1", "b")))
 	if err := r.Restore("demo", seedFS("1.0.1", "b")); err != nil {
 		t.Fatal(err)
 	}

@@ -51,6 +51,7 @@ func TestAddActionToBuiltinKeepsSeedLineage(t *testing.T) {
 	if info.Version != "1.0.0+local.2" || info.PendingUpdate != "1.0.1" {
 		t.Fatalf("user change lost or release dropped: %+v", info)
 	}
+	officialForTest(t, "demo", seedHashForTest(t, "demo", seedFS("1.0.1", "b")))
 	if err := r.Restore("demo", seedFS("1.0.1", "b")); err != nil {
 		t.Fatalf("restore: %v", err)
 	}
