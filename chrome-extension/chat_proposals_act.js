@@ -64,6 +64,7 @@
   const quoted = (v) => `“${runes(v, 80)}${[...str(v)].length > 80 ? "…" : ""}”`;
 
   const TOOLS = { propose_page_action: "action", propose_coder_handoff: "coder" };
+  const UNKNOWN = "Unknown outcome \u2014 check the page";
   const QUEUED = "Queued — press Start in the MonoAgent app.";
 
   const KINDS = {
@@ -85,7 +86,7 @@
         const words = {
           click: `Click ${quoted(p.target)} on this page`,
           double_click: `Double-click ${quoted(p.target)} on this page`,
-          type: `Type into ${quoted(p.target)} on this page`,
+          type: `Type into ${quoted(p.target)} on this page (replaces what is in the field)`,
           open_url: `Open ${hostOf(p.url)} in a new tab`,
         };
         const out = { title: words[p.action] || "" };
@@ -97,11 +98,12 @@
         return out;
       },
       check: "Check it before you run it.",
-      states: new Set(["pending", "sending", "done", "failed", "queued", "dismissed"]),
+      states: new Set(["pending", "sending", "done", "failed", "unknown", "queued", "dismissed"]),
       screen: (p) => {
         const blocked = p.state === "failed" && p.code === "submit_blocked";
-        const actions = { pending: ["run", "dismiss"], failed: blocked ? ["dismiss"] : ["run", "coder", "dismiss"] }[p.state] || [];
-        const status = { sending: "Running…", dismissed: "Not run", done: p.feedback || "Done." }[p.state];
+        // An unknown outcome may have happened: no Run again, only a look at the page.
+        const actions = { pending: ["run", "dismiss"], failed: blocked ? ["dismiss"] : ["run", "coder", "dismiss"], unknown: ["coder", "dismiss"] }[p.state] || [];
+        const status = { sending: "Running…", dismissed: "Not run", done: p.feedback || "Done.", unknown: p.feedback || UNKNOWN }[p.state];
         return {
           actions,
           labels: { run: p.state === "failed" ? "Try again" : "Run", coder: "Hand to coder", dismiss: "Dismiss" },
@@ -127,5 +129,5 @@
     },
   };
 
-  root.MonoChatProposalKinds = { TOOLS, KINDS, QUEUED, httpUrl, TARGET_RUNES, TEXT_RUNES, GOAL_RUNES, WHY_RUNES, URL_CHARS };
+  root.MonoChatProposalKinds = { TOOLS, KINDS, QUEUED, UNKNOWN, httpUrl, TARGET_RUNES, TEXT_RUNES, GOAL_RUNES, WHY_RUNES, URL_CHARS };
 })(globalThis);

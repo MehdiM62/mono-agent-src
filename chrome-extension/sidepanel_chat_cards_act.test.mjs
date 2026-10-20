@@ -119,13 +119,50 @@ test("a failed run says why and offers Hand to coder; a held-back submit offers 
   assert.equal(w.calls.length, before, "neither Run again nor a handoff for a held-back submit");
 });
 
-test("no answer from the worker is a failed card, not a stuck one; Try again clears the old reason", async () => {
-  const w = world({ reply: () => undefined });
+test("Try again clears the old reason", async () => {
+  const w = world({ reply: () => ({ ok: false, code: "not_found", error: "not found" }) });
   await w.cards.run(N("a"));
-  assert.deepEqual([w.card("a1").state, w.card("a1").feedback], ["failed", "Not done: no answer from the extension"]);
+  assert.deepEqual([w.card("a1").state, w.card("a1").code], ["failed", "not_found"]);
   w.setAnswer(() => ({ ok: true }));
   await w.cards.run(N("a"));
   assert.deepEqual([w.card("a1").state, w.card("a1").code], ["done", undefined]);
+});
+
+test("no answer, a call that threw, or an unknown outcome is terminal: no Run, no Try again", async () => {
+  for (const reply of [() => undefined, () => { throw new Error("Extension context invalidated"); }, () => ({ ok: false, code: "unknown_outcome", error: "the page changed while the step ran; check the page" })]) {
+    const w = world({ reply });
+    await w.cards.run(N("a"));
+    const c = w.card("a1");
+    assert.deepEqual([c.state, c.feedback, c.code], ["unknown", "Unknown outcome \u2014 check the page", undefined]);
+    assert.deepEqual(P.view(c).actions, ["coder", "dismiss"]);
+    await w.cards.run(N("a"));
+    assert.equal(w.calls.length, 1, "pressing Run again does nothing");
+    w.setAnswer(() => ({ ok: true, item: {} }));
+    await w.cards.coder(N("a"));
+    assert.equal(w.card("a1").state, "queued", "it can still be handed to the coder");
+  }
+});
+
+test("a success says what was actually matched, so a partial match is not passed off as the card's words", async () => {
+  const w = world({ reply: () => ({ ok: true, method: "script", matched: "Annual report final draft", exact: false }) });
+  await w.cards.run(N("a"));
+  assert.equal(w.card("a1").feedback, "Done: double-clicked \u201cAnnual report final draft\u201d");
+  await w.cards.run(N("b"));
+  assert.equal(w.card("a2").feedback, "Done: typed into \u201cAnnual report final draft\u201d");
+  w.setAnswer(() => ({ ok: true, matched: "x\u202e\n" + "y".repeat(500) }));
+  const again = world({ reply: () => ({ ok: true, matched: "Pay\u202e now\n" + "y".repeat(500) }) });
+  await again.cards.run(N("a"));
+  assert.ok(![...again.card("a1").feedback].some((c) => c === "\u202e" || c === "\n"));
+  assert.ok(again.card("a1").feedback.length < 260);
+});
+
+test("a coder card with no page of its own refuses to queue instead of using the tab on screen", async () => {
+  const w = world();
+  w.card("c1").page = undefined;
+  await w.cards.coder(N("d"));
+  assert.deepEqual(w.calls, []);
+  assert.equal(w.card("c1").state, "pending");
+  assert.match(w.card("c1").feedback, /not suggested for a page/);
 });
 
 test("a coder card queues a coder chat for this tab with the goal and why, and nothing else", async () => {
@@ -166,7 +203,7 @@ test("Hand to coder from a failed action card carries the action in plain words"
   w.setAnswer(() => ({ ok: true, item: {} }));
   await w.cards.coder(N("b"));
   const q = w.calls.at(-1);
-  assert.deepEqual([q.type, q.kind, q.tabId, q.note], ["coder_queue", "ask", 5, "Type into “Search” on this page.\n\nannual report"]);
+  assert.deepEqual([q.type, q.kind, q.tabId, q.note], ["coder_queue", "ask", 5, "Type into “Search” on this page (replaces what is in the field).\n\nannual report"]);
   assert.equal(w.card("a2").state, "queued");
 });
 

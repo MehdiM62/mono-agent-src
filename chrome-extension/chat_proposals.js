@@ -310,7 +310,13 @@
       const kind = p && KINDS[p.kind];
       let state = kind && kind.states.has(p.state) && p.state !== "sending" ? p.state : "pending";
       if (state === "reviewing") state = "recorded";
-      const c = cardOf(p, p && p.id, p && p.untrustedPage, state, p && p.feedback);
+      let feedback = p && p.feedback;
+      // A Run cut off mid-send may have happened: it is never offered again.
+      if (p && p.kind === "action" && p.state === "sending") {
+        state = "unknown";
+        feedback = Act.UNKNOWN;
+      }
+      const c = cardOf(p, p && p.id, p && p.untrustedPage, state, feedback);
       if (!c) continue;
       if (NONCE.test(p.nonce)) c.nonce = p.nonce;
       const page = pageOf(p.page);
@@ -451,5 +457,5 @@
     return box;
   }
 
-  root.MonoChatProposals = { fromTool, clone, settle, keyOf, clientId, afterAdd, view, card, cleanGoal, pageOf, QUEUED: Act.QUEUED, TOOLS, KINDS, TITLE_RUNES, NOTES_BYTES };
+  root.MonoChatProposals = { fromTool, clone, settle, keyOf, clientId, afterAdd, view, card, cleanGoal, pageOf, QUEUED: Act.QUEUED, UNKNOWN: Act.UNKNOWN, TOOLS, KINDS, TITLE_RUNES, NOTES_BYTES };
 })(globalThis);

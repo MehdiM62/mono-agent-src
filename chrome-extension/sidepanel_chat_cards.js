@@ -17,7 +17,8 @@
  *              send it as vault.save.
  *   action     Run sends page_action_run to the worker (page_action_bridge.js),
  *              which does it in the tab the card was proposed on, if that
- *              page is still there. A failed card also offers Hand to coder.
+ *              page is still there. A failed card also offers Hand to coder; one whose outcome is unknown (no
+ *              answer, or cut off) is never run again.
  *   coder      Hand to coder queues a coder chat (coder_queue, kind "ask") for
  *              this tab with the card's goal and why, and nothing else: the
  *              person presses Start in the MonoAgent app, never the extension.
@@ -99,7 +100,8 @@
       const now = deps.page && deps.page();
       const origin = (u) => {
         try {
-          return new URL(u).origin;
+          const x = new URL(u);
+          return x.protocol === "file:" ? x.href.split("#")[0] : x.origin; // a file has no origin: the file itself
         } catch {
           return String(u || "");
         }
@@ -121,8 +123,16 @@
     // What a finished Run says: done, or why not (the worker's words).
     function afterRun(answer, action) {
       const a = answer || {};
-      if (a.ok) return { state: "done", feedback: action === "open_url" ? "Opened in a new tab." : "Done.", code: null };
-      return { state: "failed", feedback: `Not done: ${a.error || "no answer from the extension"}`, code: a.code || "failed" };
+      if (a.ok) {
+        const did = { click: "clicked", double_click: "double-clicked", type: "typed into" }[action];
+        // What was actually matched, so a partial match is never passed off as the words on the card.
+        const name = String(a.matched || "").replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069]/g, " ").trim().slice(0, 200);
+        const text = action === "open_url" ? "Opened in a new tab." : did && name ? `Done: ${did} \u201c${name}\u201d` : "Done.";
+        return { state: "done", feedback: text, code: null };
+      }
+      // No answer, or the call itself threw: it may have happened. Never offered again.
+      if (!answer || a.code === "unknown_outcome" || a.code === "call_failed") return { state: "unknown", feedback: Proposals.UNKNOWN, code: null };
+      return { state: "failed", feedback: `Not done: ${a.error || "it failed"}`, code: a.code || "failed" };
     }
 
     // Run: the click is the only thing that does anything, and only on the page the card was made for.
@@ -146,7 +156,7 @@
           proposal: { id: p.id, kind: p.kind, action: p.action, target: p.target, text: p.text, url: p.url, nonce: p.nonce },
         });
       } catch (err) {
-        answer = { ok: false, error: errorOf(err), code: "failed" };
+        answer = { ok: false, error: errorOf(err), code: "call_failed" };
       }
       await settle(key, afterRun(answer, p.action), mine);
     }
@@ -155,8 +165,10 @@
     async function coder(key) {
       const p = find(key);
       const handoff = p && p.kind === "coder" && p.state === "pending";
-      const retry = p && p.kind === "action" && p.state === "failed" && p.code !== "submit_blocked";
+      const retry = p && p.kind === "action" && ["failed", "unknown"].includes(p.state) && p.code !== "submit_blocked";
       if (!handoff && !retry) return;
+      // The tab is the card's own page: a card with none does not borrow the one on screen.
+      if (!p.page) return settle(key, { feedback: "This was not suggested for a page: ask again with the page open." });
       const now = deps.page && deps.page();
       if (!now || !now.tabId) return settle(key, { feedback: "There is no page to hand over." });
       const moved = movedFrom(p.page, "Hand to coder", true);
@@ -184,7 +196,7 @@
 
     async function dismiss(key) {
       const p = find(key);
-      const open = p && p.kind === "recording" ? ["pending", "empty", "refused"] : p && p.kind === "action" ? ["pending", "failed"] : ["pending"];
+      const open = p && p.kind === "recording" ? ["pending", "empty", "refused"] : p && p.kind === "action" ? ["pending", "failed", "unknown"] : ["pending"];
       if (!p || !open.includes(p.state)) return;
       await settle(key, { state: "dismissed" });
     }

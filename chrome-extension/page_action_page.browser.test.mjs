@@ -41,7 +41,8 @@ const PAGE = `<!doctype html><meta charset=utf-8><body>
   <div role=option id=twin1><span>Twin</span></div>
   <div role=option id=twin2><span>Twin</span></div>
   <div role=option id=partial1><span>Annual report final draft</span></div>
-  <div role=option id=partial2><span>Annual report final draft v2</span></div>
+  <div role=option id=partial2><span>Annual report v2 draft</span></div>
+  <div role=option id=longer><span>Quarterly sales numbers for the whole of the northern region</span></div>
 </div>
 <button id=plain type=button><span>Open menu</span></button>
 <button id=ghost type=button style="display:none">Ghost</button>
@@ -65,6 +66,19 @@ const PAGE = `<!doctype html><meta charset=utf-8><body>
 <button id=postit type=button>Post</button>
 <button id=fine type=button>Save as draft</button>
 <a id=sendlink href="#x">Send us feedback</a>
+<a id=postal href="#p">Postal information</a>
+<button id=del type=button>Delete forever</button>
+<button id=loesch type=button>Löschen</button>
+<button id=bez type=button>Jetzt bezahlen</button>
+<button id=comp type=button>Comprar ahora</button>
+<button id=logout type=button>Log out</button>
+<button id=cart type=button>Add to cart</button>
+<span id=oc onclick="window.__log.push('oc')" role=menuitem>Remove item</span>
+<form id=f2 onsubmit="return false"><a id=formlink href="#y">Read more</a><div role=option id=formrow>Report.pdf</div><span id=bare>Plain words</span></form>
+<input id=hiddensub type=submit form=f style="display:none"><label id=lab for=hiddensub>Proceed to the next page</label>
+<button id=lb type=button aria-labelledby=lbl></button><span id=lbl hidden>Delete my account</span>
+<a id=alt href="#z"><img alt="Subscribe now" src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" width=20 height=20></a>
+<input id=tb type=button value="Send it" onclick="window.__log.push('tb')">
 <script>
   window.__log = [];
   for (const el of document.querySelectorAll("[id]")) {
@@ -85,7 +99,12 @@ describe("page_action_page.js in a browser", { skip, concurrency: 1 }, () => {
     await browser.evaluate(await readFile(join(HERE, "page_action_page.js"), "utf8"));
   }
   const json = async (expr) => JSON.parse(await browser.evaluate(`JSON.stringify(${expr})`));
-  const run = (action, target, text) => json(`MonoPageAction.run(${JSON.stringify(action)}, ${JSON.stringify(target)}, ${JSON.stringify(text)})`);
+  const full = (action, target, text, origin) => json(`MonoPageAction.run(${JSON.stringify(action)}, ${JSON.stringify(target)}, ${JSON.stringify(text)}, ${JSON.stringify(origin)})`);
+  // What matters of a result: ok, or why not.
+  const run = async (action, target, text) => {
+    const { matched, exact, ...rest } = await full(action, target, text);
+    return rest;
+  };
   const log = (prefix) => json("window.__log").then((l) => (prefix ? l.filter((x) => x.startsWith(prefix)) : l));
 
   it("finds an element by its aria-label once, even with the same words nested inside it", async () => {
@@ -102,8 +121,11 @@ describe("page_action_page.js in a browser", { skip, concurrency: 1 }, () => {
 
   it("falls back to a text that contains the words when nothing is an exact match", async () => {
     await open();
-    assert.deepEqual(await run("click", "Open men"), { ok: true });
-    assert.deepEqual(await log("click:"), ["click:plain:1"], "the button, not the span inside it");
+    const out = await full("click", "Save as");
+    assert.deepEqual([out.ok, out.exact, out.matched], [true, false, "Save as draft"], "it says what it matched");
+    assert.deepEqual(await log("click:"), ["click:fine:1"]);
+    await full("click", "Open menu");
+    assert.deepEqual(await log("click:plain"), ["click:plain:1"], "the button, not the span inside it");
   });
 
   it("does not guess between two equally good matches", async () => {
@@ -162,15 +184,62 @@ describe("page_action_page.js in a browser", { skip, concurrency: 1 }, () => {
     for (const target of ["Continue", "Go on", "Next step", "Post"]) {
       const out = await run("click", target);
       assert.deepEqual([out.ok, out.code], [false, "submit_blocked"], target);
-      assert.match(out.error, /press that button yourself/);
+      assert.match(out.error, /press that yourself/);
     }
     assert.deepEqual(await run("click", "Save as draft"), { ok: true }, "a plain button outside a form");
     assert.deepEqual((await log("")).filter((x) => /SUBMITTED/.test(x) || /^click:(plainsubmit|subinput|insideform|postit):/.test(x)), [], "nothing was clicked or submitted");
     assert.deepEqual(await run("double_click", "Continue").then((o) => o.code), "submit_blocked");
   });
 
-  it("holds back a link-like 'send' only when it is a button", async () => {
+  it("a link whose words are a submit-like verb is held back too; a longer word is not the verb", async () => {
     await open();
-    assert.deepEqual(await run("click", "Send us feedback"), { ok: true }, "a link is followed");
+    assert.equal((await run("click", "Send us feedback")).code, "submit_blocked");
+    assert.deepEqual(await run("click", "Postal information"), { ok: true }, "'Postal' is not 'Post'");
+  });
+
+  it("holds back destructive and account verbs, in English, German, Spanish, on buttons, menu items and [onclick]", async () => {
+    await open();
+    for (const target of ["Delete forever", "Löschen", "Jetzt bezahlen", "Comprar ahora", "Log out", "Add to cart", "Remove item", "Send it"]) {
+      assert.equal((await run("click", target)).code, "submit_blocked", target);
+    }
+    assert.deepEqual((await log("")).filter((x) => /^(click|mousedown|pointerdown|mouseup):(del|loesch|bez|comp|logout|cart|oc|tb)/.test(x) || x === "oc" || x === "tb"), [], "none was clicked");
+  });
+
+  it("anything clickable inside a form is held back, whatever it says; a row outside is not", async () => {
+    await open();
+    assert.equal((await run("click", "Read more")).code, "submit_blocked", "a link in a form");
+    assert.equal((await run("double_click", "Report.pdf")).code, "submit_blocked", "a role=option row in a form");
+    assert.deepEqual(await run("click", "Plain words"), { ok: true }, "plain text with nothing clickable around it");
+  });
+
+  it("a visible label of a hidden submit is held back: the control is what the click reaches", async () => {
+    await open();
+    assert.equal((await run("click", "Proceed to the next page")).code, "submit_blocked");
+    assert.deepEqual((await log("")).filter((x) => /hiddensub|SUBMITTED/.test(x)), []);
+  });
+
+  it("reads aria-labelledby text and an image's alt, as the resolver does", async () => {
+    await open();
+    assert.equal((await run("click", "Delete my account")).code, "submit_blocked", "the button is named by a hidden span");
+    assert.equal((await run("click", "Subscribe now")).code, "submit_blocked", "a link named by its image");
+  });
+
+  it("partial matches are whole words in a name at most twice as long, and never used for typing", async () => {
+    await open();
+    assert.deepEqual(await run("click", "Open men"), { ok: false, code: "not_found", error: "not found" }, "not inside a word");
+    assert.deepEqual(await run("click", "Save a"), { ok: false, code: "not_found", error: "not found" }, "'a' ends inside 'as'");
+    assert.equal((await full("click", "Share")).matched, "Share", "an exact match says its own name");
+    assert.deepEqual(await run("click", "sales"), { ok: false, code: "not_found", error: "not found" }, "the name is far longer than the words");
+    assert.deepEqual(await run("type", "Search", "q"), { ok: false, code: "not_found", error: "not found" }, "typing wants the exact name (the placeholder is 'Search files')");
+    assert.deepEqual(await run("type", "Search files", "q"), { ok: true });
+  });
+
+  it("acts only on the origin the card was made for: the page checks its own", async () => {
+    await open();
+    const out = await full("click", "Share", undefined, "https://other.example");
+    assert.deepEqual([out.ok, out.code], [false, "page_changed"]);
+    assert.deepEqual(await log("click:"), []);
+    const here = await browser.evaluate("location.origin");
+    assert.equal((await full("click", "Share", undefined, here)).ok, true);
   });
 });

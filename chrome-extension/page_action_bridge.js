@@ -4,7 +4,7 @@
  *   page_action_run {tab: {tabId, url}, proposal: {action, target?, text?, url?}}
  *     -> {ok:true, method: "script"|"debugger"|"tab"}
  *      | {ok:false, code, error, method?}
- *        codes: invalid, page_changed, not_found, ambiguous, submit_blocked,
+ *        codes: invalid, page_changed, unknown_outcome, not_found, ambiguous, submit_blocked,
  *               not_allowed, unavailable
  *
  * The side panel's chat may propose a click, double-click, typing or a new
@@ -16,8 +16,10 @@
  *   3. otherwise the tab must still be on the origin the card was proposed on,
  *      else nothing is done ("the page changed");
  *   4. the page's half (page_action_page.js) is put in with chrome.scripting
- *      and finds the element by its words and does the action. A page the
- *      browser refuses throws, and only then the debugger path
+ *      and finds the element by its words and does the action. Only a refused
+ *      injection falls back: once the step started it is never retried, and a
+ *      failure then is "unknown_outcome". The page compares its own
+ *      location.origin first. A page the browser refuses: the debugger path
  *      (page_action_cdp.js) does the same through background.js's own
  *      attach/send, and detaches afterwards unless something holds the tab.
  *      "not found", "ambiguous" and "submit_blocked" are answers, not
@@ -39,10 +41,11 @@
 
   const answer = (code, error, extra) => Object.assign({ ok: false, code, error }, extra);
 
+  // A file: page has no origin to compare (every file is "null"), so it is never acted on.
   const originOf = (url) => {
     try {
       const u = new URL(url);
-      return u.protocol === "http:" || u.protocol === "https:" || u.protocol === "file:" ? u.origin : "";
+      return u.protocol === "http:" || u.protocol === "https:" ? u.origin : "";
     } catch {
       return "";
     }
@@ -54,22 +57,33 @@
     return !!base && String(sender.url || "").startsWith(base);
   }
 
-  /** viaScript: the page's half injected, then run. Throws when the browser refuses the page. */
-  async function viaScript(tabId, a) {
-    await chrome.scripting.executeScript({ target: { tabId }, files: [PAGE_FILE] });
-    const [res] = await chrome.scripting.executeScript({
-      target: { tabId },
-      func: (action, target, text) => globalThis.MonoPageAction.run(action, target, text),
-      args: [a.action, a.target, a.text],
-    });
-    if (!res || !res.result) throw new Error("the page gave no answer");
-    return res.result;
+  const UNKNOWN = "the page changed while the step ran; check the page";
+  const unknown = () => answer("unknown_outcome", UNKNOWN);
+
+  /** inject puts the page's half in. Throws when the browser refuses the page: the only thing that falls back. */
+  const inject = (tabId) => chrome.scripting.executeScript({ target: { tabId }, files: [PAGE_FILE] });
+
+  /**
+   * call runs the step. It is never retried: once it started, a failure leaves
+   * the outcome unknown, and the page checks the origin itself before it acts.
+   */
+  async function call(tabId, a, origin) {
+    try {
+      const [res] = await chrome.scripting.executeScript({
+        target: { tabId },
+        func: (action, target, text, expected) => globalThis.MonoPageAction.run(action, target, text, expected),
+        args: [a.action, a.target, a.text, origin],
+      });
+      return res && res.result ? Object.assign({ method: "script" }, res.result) : unknown();
+    } catch {
+      return unknown();
+    }
   }
 
   /** viaDebugger: the same through CDP; the tab is let go afterwards unless something holds it. */
-  async function viaDebugger(tabId, a) {
+  async function viaDebugger(tabId, a, origin) {
     try {
-      return await root.MonoPageActionCdp.run(tabId, a);
+      return await root.MonoPageActionCdp.run(tabId, Object.assign({ origin }, a));
     } finally {
       if (!root.MonoAgentCdp.holds(tabId) && deps.detach) {
         try {
@@ -103,13 +117,15 @@
 
     let scriptError = "";
     try {
-      return Object.assign({ method: "script" }, await viaScript(tab.tabId, a));
+      await inject(tab.tabId);
     } catch (err) {
       scriptError = (err && err.message) || String(err);
     }
+    if (!scriptError) return call(tab.tabId, a, was);
     try {
-      return Object.assign({ method: "debugger" }, await viaDebugger(tab.tabId, a));
+      return Object.assign({ method: "debugger" }, await viaDebugger(tab.tabId, a, was));
     } catch (err) {
+      if (err && err.started) return Object.assign({ method: "debugger" }, unknown());
       return answer("unavailable", `this page cannot be acted on (${scriptError}; ${(err && err.message) || err})`);
     }
   }

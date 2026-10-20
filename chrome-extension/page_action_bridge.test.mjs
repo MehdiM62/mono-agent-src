@@ -23,6 +23,8 @@ function world(o = {}) {
         calls.scripts.push(opts);
         if (o.scriptFails) throw new Error("Cannot access contents of url \"chrome://extensions\"");
         if (opts.files) return [{ result: undefined }];
+        if (o.callFails) throw new Error("Frame with ID 0 was removed.");
+        if (o.noResult) return [];
         return [{ result: o.pageReply || { ok: true } }];
       },
     },
@@ -45,6 +47,7 @@ function world(o = {}) {
   g.MonoPageActionCdp.run = async (tabId, act) => {
     calls.cdpRuns.push([tabId, act]);
     if (o.debuggerFails) throw new Error("debugger attach: Cannot attach to this target");
+    if (o.debuggerStarted) throw Object.assign(new Error("Target closed"), { started: true });
     return o.cdpReply || { ok: true };
   };
   if (o.held) g.MonoAgentCdp.hold(5, "watch");
@@ -63,7 +66,7 @@ test("Run puts the page half in, then does the action there: script first", asyn
   const w = world();
   assert.deepEqual(await w.send(ask()), { method: "script", ok: true });
   assert.deepEqual(w.calls.scripts[0], { target: { tabId: 5 }, files: ["page_action_page.js"] });
-  assert.deepEqual(w.calls.scripts[1].args, ["double_click", "CV - Morteza Nokhodian 2025 Apr", ""]);
+  assert.deepEqual(w.calls.scripts[1].args, ["double_click", "CV - Morteza Nokhodian 2025 Apr", "", "https://a.example"]);
   assert.equal(w.calls.scripts[1].target.tabId, 5);
   assert.deepEqual([w.calls.cdpRuns.length, w.calls.cdp.length, w.calls.detached.length], [0, 0, 0], "the debugger is not touched");
 });
@@ -115,7 +118,7 @@ test("the debugger is used only when the browser refuses the page, then detached
   const w = world({ scriptFails: true });
   assert.deepEqual(await w.send(ask()), { method: "debugger", ok: true });
   assert.equal(w.calls.scripts.length, 1, "the script path was tried first and refused");
-  assert.deepEqual(w.calls.cdpRuns, [[5, { action: "double_click", target: "CV - Morteza Nokhodian 2025 Apr", text: "", url: "" }]]);
+  assert.deepEqual(w.calls.cdpRuns, [[5, { origin: "https://a.example", action: "double_click", target: "CV - Morteza Nokhodian 2025 Apr", text: "", url: "" }]]);
   assert.deepEqual(w.calls.detached, [5], "let go afterwards");
 });
 
@@ -129,7 +132,7 @@ test("what the page answers is final: not found, ambiguous and submit blocked ne
   for (const reply of [
     { ok: false, code: "not_found", error: "not found" },
     { ok: false, code: "ambiguous", error: "ambiguous (3 matches)" },
-    { ok: false, code: "submit_blocked", error: "that would submit a form, so it was not clicked: press that button yourself" },
+    { ok: false, code: "submit_blocked", error: "that would submit a form, so it was not clicked: press that yourself" },
   ]) {
     const w = world({ pageReply: reply });
     assert.deepEqual(await w.send(ask()), Object.assign({ method: "script" }, reply));
@@ -151,5 +154,37 @@ test("when both ways are refused (chrome:// and store pages) the answer says so,
 test("typed text rides to the page as the card's text", async () => {
   const w = world();
   await w.send(ask({ action: "type", target: "Search", text: "annual report" }));
-  assert.deepEqual(w.calls.scripts[1].args, ["type", "Search", "annual report"]);
+  assert.deepEqual(w.calls.scripts[1].args, ["type", "Search", "annual report", "https://a.example"]);
+});
+
+test("only a refused injection falls back: once the step started, a failure is an unknown outcome and is never retried", async () => {
+  for (const o of [{ callFails: true }, { noResult: true }]) {
+    const w = world(o);
+    const out = await w.send(ask());
+    assert.deepEqual(out, { ok: false, code: "unknown_outcome", error: "the page changed while the step ran; check the page" }, JSON.stringify(o));
+    assert.equal(w.calls.scripts.length, 2, "injected once, called once");
+    assert.deepEqual([w.calls.cdpRuns.length, w.calls.cdp.length, w.calls.detached.length], [0, 0, 0], "the debugger never repeats it");
+  }
+});
+
+test("the expected origin goes into the page's call, which compares its own location.origin", async () => {
+  const w = world({ pageReply: { ok: false, code: "page_changed", error: "the page changed since this was suggested" } });
+  const out = await w.send(ask());
+  assert.deepEqual([out.method, out.code], ["script", "page_changed"]);
+  assert.equal(w.calls.scripts[1].args[3], "https://a.example");
+});
+
+test("a debugger step that failed after input was sent is an unknown outcome, not unavailable", async () => {
+  const w = world({ scriptFails: true, debuggerStarted: true });
+  assert.deepEqual(await w.send(ask()), { method: "debugger", ok: false, code: "unknown_outcome", error: "the page changed while the step ran; check the page" });
+  assert.deepEqual(w.calls.detached, [5]);
+});
+
+test("a file: page has no origin to compare, so it is never acted on", async () => {
+  for (const [card, live] of [["file:///home/a/one.html", "file:///home/a/one.html"], ["file:///home/a/one.html", "file:///home/a/two.html"]]) {
+    const w = world({ liveUrl: live });
+    const out = await w.send(ask({}, { tabId: 5, url: card }));
+    assert.deepEqual([out.ok, out.code], [false, "page_changed"], `${card} -> ${live}`);
+    assert.deepEqual([w.calls.scripts.length, w.calls.cdp.length], [0, 0]);
+  }
 });

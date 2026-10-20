@@ -30,10 +30,9 @@
   const val = (v) => (v && v.value !== undefined && v.value !== null ? v.value : "");
   const gone = (reason) => ({ ok: false, code: reason.code, error: reason.error });
 
-  /** candidates: the AX nodes that could be `target`, by tier (exact name, name that contains the words). */
+  /** candidates: the AX nodes that could be `target`, by tier (exact name; whole-word containment in a name of at most twice the length, never for typing). */
   function candidates(axNodes, target, action) {
     const want = norm(target);
-    const longest = Math.max(want.length * 3, want.length + 60);
     const out = { byId: new Map(axNodes.map((n) => [n.nodeId, n])), exact: [], partial: [] };
     for (const n of axNodes) {
       const role = String(val(n.role));
@@ -43,12 +42,12 @@
       const name = norm(val(n.name));
       if (!name) continue;
       if (name === want) out.exact.push(n);
-      else if (name.includes(want) && name.length <= longest) out.partial.push(n);
+      else if (action !== "type" && name.length <= want.length * 2 && root.MonoPageAction.bounded(name, want)) out.partial.push(n);
     }
     return out;
   }
 
-  /** pick: of the candidates on screen (shown), the best tier's innermost nodes. */
+  /** pick: of the candidates on screen (shown), the best tier's innermost nodes: {nodes, exact}. */
   function pick(c, shown) {
     const exact = c.exact.filter((n) => shown.has(n.nodeId));
     const tier = exact.length ? exact : c.partial.filter((n) => shown.has(n.nodeId));
@@ -57,7 +56,7 @@
     for (const n of tier) {
       for (let up = c.byId.get(n.parentId); up; up = c.byId.get(up.parentId)) outer.add(up.nodeId);
     }
-    return tier.filter((n) => !outer.has(n.nodeId));
+    return { nodes: tier.filter((n) => !outer.has(n.nodeId)), exact: exact.length > 0 };
   }
 
   const area = (q) => {
@@ -104,19 +103,60 @@
     }
   }
 
+  /** hits: the element at that point is the target or inside it, so the press lands on what was found. */
+  async function hits(send, targetId, at) {
+    let hit;
+    try {
+      ({ backendNodeId: hit } = await send("DOM.getNodeForLocation", { x: Math.round(at.x), y: Math.round(at.y) }));
+    } catch {
+      return false;
+    }
+    if (hit === targetId) return true;
+    if (!Number.isInteger(hit)) return false;
+    const a = await send("DOM.resolveNode", { backendNodeId: targetId });
+    const b = await send("DOM.resolveNode", { backendNodeId: hit });
+    try {
+      const res = await send("Runtime.callFunctionOn", {
+        objectId: a.object.objectId,
+        functionDeclaration: "function(o){return this===o||this.contains(o)}",
+        arguments: [{ objectId: b.object.objectId }],
+        returnByValue: true,
+      });
+      return !!(res && res.result && res.result.value === true);
+    } finally {
+      send("Runtime.releaseObject", { objectId: a.object.objectId }).catch(() => {});
+      send("Runtime.releaseObject", { objectId: b.object.objectId }).catch(() => {});
+    }
+  }
+
+  /** onOrigin: the page is still on the origin the card was proposed on, asked right now. */
+  async function onOrigin(send, origin) {
+    if (typeof origin !== "string") return true;
+    const res = await send("Runtime.evaluate", { expression: "location.origin", returnByValue: true });
+    return !!(res && res.result && res.result.value === origin);
+  }
+
+  // Focus is checked in the page: the node took it, and it is still a field that may be typed into.
   async function typeInto(send, backendNodeId, text) {
     await send("DOM.focus", { backendNodeId });
     const { object } = await send("DOM.resolveNode", { backendNodeId });
+    let state;
     try {
-      // What is in the field is replaced, as typing over a selection does.
-      await send("Runtime.callFunctionOn", {
+      const res = await send("Runtime.callFunctionOn", {
         objectId: object.objectId,
-        functionDeclaration: "function(){this.focus();if(typeof this.select==='function')this.select();else getSelection().selectAllChildren(this);}",
+        functionDeclaration:
+          "function(){const guard=" + root.MonoPageAction.guard.toString() + ";this.focus();const a=document.activeElement;if(a!==this)return 'focus_lost';const g=guard.call(a,'type');if(g)return g;" +
+          "if(typeof this.select==='function')this.select();else getSelection().selectAllChildren(this);return '';}",
+        returnByValue: true,
       });
+      state = String((res && res.result && res.result.value) || "");
     } finally {
       send("Runtime.releaseObject", { objectId: object.objectId }).catch(() => {});
     }
+    if (state === "focus_lost") return gone({ code: "not_found", error: "the field did not take focus" });
+    if (state) return gone({ code: state, error: "that field is not one to type into" });
     await send("Input.insertText", { text });
+    return { ok: true };
   }
 
   async function run(tabId, act) {
@@ -127,22 +167,33 @@
     for (const n of [...c.exact, ...c.partial].slice(0, MAX_CANDIDATES)) {
       if (await centre(send, n.backendDOMNodeId)) shown.add(n.nodeId);
     }
-    const found = pick(c, shown);
+    const { nodes: found, exact } = pick(c, shown);
     if (found.length === 0) return gone({ code: "not_found", error: "not found" });
     if (found.length > 1) return gone({ code: "ambiguous", error: `ambiguous (${found.length} matches)` });
     const id = found[0].backendDOMNodeId;
+    const matched = String(val(found[0].name)).slice(0, 200);
     const blocked = await guardOf(send, id, act.action);
-    if (blocked === "submit_blocked") return gone({ code: blocked, error: "that would submit a form, so it was not clicked: press that button yourself" });
+    if (blocked === "submit_blocked") return gone({ code: blocked, error: root.MonoPageAction.HELD });
     if (blocked) return gone({ code: blocked, error: "that field is not one to type into" });
     await send("DOM.scrollIntoViewIfNeeded", { backendNodeId: id });
-    if (act.action === "type") {
-      await typeInto(send, id, String(act.text || ""));
-      return { ok: true };
+    if (!(await onOrigin(send, act.origin))) return gone({ code: "page_changed", error: "the page changed since this was suggested" });
+    let started = false;
+    try {
+      if (act.action === "type") {
+        started = true;
+        const typed = await typeInto(send, id, String(act.text || ""));
+        return typed.ok ? { ok: true, matched, exact } : typed;
+      }
+      const at = await centre(send, id); // it moved when it scrolled
+      if (!at || !(await hits(send, id, at))) return gone({ code: "not_found", error: "not found: something else is on top of it" });
+      started = true;
+      await press(send, at, act.action === "double_click" ? 2 : 1);
+      return { ok: true, matched, exact };
+    } catch (err) {
+      // Once input was sent, a failure leaves the outcome unknown (the bridge says so).
+      if (started) err.started = true;
+      throw err;
     }
-    const at = await centre(send, id); // it moved when it scrolled
-    if (!at) return gone({ code: "not_found", error: "not found" });
-    await press(send, at, act.action === "double_click" ? 2 : 1);
-    return { ok: true };
   }
 
   root.MonoPageActionCdp = { run, candidates, pick };

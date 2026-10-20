@@ -77,7 +77,7 @@ test("a propose_coder_handoff answer is a coder card: goal 2000, why 300, one li
   assert.equal(P.fromTool("propose_coder_handoff", answer({ kind: "coder", goal: "g", state: "queued" }), "t", false).state, "pending", "an answer cannot settle its own card");
 });
 
-test("stored cards are checked again; a card cut off while sending is pending again, and keeps why it failed", () => {
+test("stored cards are checked again; a Run cut off while sending is an unknown outcome, never pending again", () => {
   const out = P.clone([
     { id: "a", kind: "action", action: "click", target: "Go", state: "sending", feedback: "" },
     { id: "b", kind: "action", action: "click", target: "Go", state: "failed", code: "submit_blocked", feedback: "Not done: x" },
@@ -87,8 +87,14 @@ test("stored cards are checked again; a card cut off while sending is pending ag
     { id: "f", kind: "coder", goal: "G", state: "done" },
     { id: "g", kind: "action", action: "click", target: "Go", state: "queued" },
   ]);
-  assert.deepEqual(out.map((p) => p.id + ":" + p.state), ["a:pending", "b:failed", "c:failed", "e:queued", "f:pending", "g:queued"]);
+  assert.deepEqual(out.map((p) => p.id + ":" + p.state), ["a:unknown", "b:failed", "c:failed", "e:queued", "f:pending", "g:queued"]);
   assert.equal(out[1].code, "submit_blocked");
+  assert.equal(out[0].feedback, "Unknown outcome \u2014 check the page");
+  assert.deepEqual(P.view(out[0]).actions, ["coder", "dismiss"], "no Run again after a restart: it may have happened");
+  const again = P.clone([out[0]]);
+  assert.deepEqual([again[0].state, P.view(again[0]).actions], ["unknown", ["coder", "dismiss"]], "and it stays that way");
+  const coderSending = P.clone([{ id: "h", kind: "coder", goal: "G", state: "sending" }]);
+  assert.equal(coderSending[0].state, "pending", "a coder card queued twice is only a second queue item, so it may be pressed again");
   assert.equal(out[2].code, undefined, "a code is a plain word or nothing");
 });
 
@@ -108,7 +114,7 @@ test("an action card says it in plain words; a typed text and an address are sho
   assert.equal(v({ action: "double_click", target: "CV - Morteza Nokhodian 2025 Apr" }).title, "Double-click “CV - Morteza Nokhodian 2025 Apr” on this page");
   assert.equal(v({ action: "click", target: "Save" }).title, "Click “Save” on this page");
   const t = v({ action: "type", target: "Search", text: "hello" });
-  assert.deepEqual([t.title, t.notes], ["Type into “Search” on this page", "hello"]);
+  assert.deepEqual([t.title, t.notes], ["Type into “Search” on this page (replaces what is in the field)", "hello"]);
   const o = v({ action: "open_url", url: "https://a.example/x" });
   assert.deepEqual([o.title, o.notes, o.source], ["Open a.example in a new tab", "https://a.example/x", undefined]);
   assert.match(v({ action: "open_url", url: "http://192.168.1.1/admin" }).source, /private network/);
