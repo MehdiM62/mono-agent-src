@@ -472,7 +472,7 @@ func copyFileOpt(src, dst string, noFollow bool) (retErr error) {
 
 // background tracks Register's knowledge-graph syncs, which run after it
 // returns and write under the profile's folder.
-var background monomind.SyncGroup
+var background = &monomind.Background
 
 // Wait blocks until every knowledge-graph sync Register started has
 // finished. Tests call it before their temporary HOME is removed, since a

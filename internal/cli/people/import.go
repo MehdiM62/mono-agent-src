@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/monoes/mono-agent/internal/monomind"
 	"github.com/monoes/mono-agent/internal/operator"
 	"github.com/monoes/mono-agent/internal/peoplereview"
 	"github.com/monoes/mono-agent/internal/storage"
@@ -88,6 +89,7 @@ func (d Deps) newPeopleImportCmd() *cobra.Command {
 
 			now := time.Now().UTC()
 			var imported int
+			var nodes []monomind.KGNode
 			// Run by anyone but the user, the import may not approve anyone
 			// for outreach (peoplereview.NotOperatorCategory).
 			notOperator := operator.Refusal()
@@ -155,10 +157,32 @@ func (d Deps) newPeopleImportCmd() *cobra.Command {
 					return fmt.Errorf("importing person %s: %w", username, err)
 				}
 				imported++
+				name := fullName
+				if name == "" {
+					name = username
+				}
+				desc := name + " on " + strings.ToLower(platform)
+				if jobTitle != "" {
+					desc += ", " + jobTitle
+				}
+				if introduction != "" {
+					desc += " — " + introduction
+				}
+				nodes = append(nodes, monomind.KGNode{Name: name, Type: "person", Description: desc})
 			}
 
 			if err := tx.Commit(); err != nil {
 				return fmt.Errorf("committing import: %w", err)
+			}
+
+			// Raw SQL above, so the storage layer's own sync did not run: send the
+			// people to the knowledge graph and let it land before the process exits.
+			if len(nodes) > 0 {
+				var kg monomind.SyncGroup
+				kg.Go(func(started func()) {
+					_ = monomind.SyncToKnowledgeGraphStarted(cmd.Context(), db.DB, d.ProfileID(), nodes, nil, "people-import:"+nodes[0].Name, started)
+				})
+				kg.Settle()
 			}
 
 			fmt.Fprintf(os.Stdout, "Imported %d person(s) for platform %s.\n", imported, platform)

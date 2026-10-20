@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+
+	"github.com/monoes/mono-agent/internal/profiledir"
 )
 
 // dialBrowser connects one fake extension that reports an instance id, a
@@ -217,5 +219,35 @@ func TestRequestReplyGoesBackToTheAskingBrowser(t *testing.T) {
 	_ = a.SetReadDeadline(time.Now().Add(300 * time.Millisecond))
 	if _, msg, err := a.ReadMessage(); err == nil {
 		t.Fatalf("A received %s; the reply belongs to B", msg)
+	}
+}
+
+// A browser that reports a binding to a profile that no longer exists is
+// treated as unbound on connect, so it falls back to the default browser
+// instead of being matched to (and logged into) a deleted profile.
+func TestBindingToDeletedProfileIsDropped(t *testing.T) {
+	srv, _, wsURL, _ := startStatusTestServer(t)
+	srv.SetProfileSource(func(context.Context) ([]profiledir.Profile, error) {
+		return []profiledir.Profile{{ID: "p-live"}}, nil
+	})
+	dialBrowser(t, wsURL, instA, "p-gone", "Edge")
+	dialBrowser(t, wsURL, instB, "p-live", "Chrome")
+	byID := map[string]string{}
+	for _, b := range waitBrowsers(t, srv, 2) {
+		byID[b.Instance] = b.Profile
+	}
+	if byID[instA] != "" || byID[instB] != "p-live" {
+		t.Fatalf("profiles = %+v, want the deleted one dropped and the live one kept", byID)
+	}
+}
+
+// A profile list that cannot be read keeps the binding: a locked database is
+// no reason to unbind a browser of a live profile.
+func TestBindingKeptWhenProfilesCannotBeListed(t *testing.T) {
+	srv, _, wsURL, _ := startStatusTestServer(t)
+	srv.SetProfileSource(func(context.Context) ([]profiledir.Profile, error) { return nil, errors.New("locked") })
+	dialBrowser(t, wsURL, instA, "p-a", "")
+	if got := waitBrowsers(t, srv, 1); got[0].Profile != "p-a" {
+		t.Fatalf("profile = %q, want it kept", got[0].Profile)
 	}
 }
