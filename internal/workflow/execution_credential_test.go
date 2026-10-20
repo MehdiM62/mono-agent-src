@@ -65,3 +65,35 @@ func TestCredentialFillsOnlyUnsetKeys(t *testing.T) {
 		t.Errorf("credential = %v, want the full connection data", got["credential"])
 	}
 }
+
+// A step's credential_id reaches the node as the id of the connection the
+// run resolved, so a send card approved later goes through that connection
+// and not one chosen again by platform name (#913).
+func TestCredentialIDIsPinnedToTheResolvedConnection(t *testing.T) {
+	keyring.MockInit()
+	db := testdb.Open(t).DB
+	store := connections.NewStore(db)
+	c := &connections.Connection{ProfileID: "default", Platform: "github", Method: connections.MethodAPIKey, Label: "gh",
+		Data: map[string]interface{}{"token": "t1"}}
+	if err := store.Save(context.Background(), c); err != nil {
+		t.Fatal(err)
+	}
+	rec := cfgRec{mu: &sync.Mutex{}, cfg: &map[string]interface{}{}}
+	reg := workflow.NewNodeTypeRegistry()
+	reg.Register("test.cfg", func() workflow.NodeExecutor { return rec })
+	wf := &workflow.Workflow{ID: "wf", Nodes: []workflow.WorkflowNode{
+		{ID: "t", Type: "trigger.manual", Name: "Start"},
+		{ID: "n", Type: "test.cfg", Name: "N", Config: map[string]interface{}{"credential_id": "github"}},
+	}, Connections: []workflow.WorkflowConnection{conn("t", "main", "n")}}
+	dag, err := workflow.BuildDAG(wf.Nodes, wf.Connections)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exec := &workflow.WorkflowExecution{ID: "e", WorkflowID: wf.ID, ProfileID: "default", TriggerData: map[string]interface{}{}}
+	if err := workflow.RunExecution(context.Background(), exec, wf, dag, reg, &recStore{}, store, workflow.NewExpressionEngine(), zerolog.Nop()); err != nil {
+		t.Fatal(err)
+	}
+	if got := (*rec.cfg)["credential_id"]; got != c.ID {
+		t.Errorf("credential_id = %v, want the connection's id %s", got, c.ID)
+	}
+}
