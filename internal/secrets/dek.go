@@ -222,6 +222,9 @@ func createDEK(ctx context.Context, db *sql.DB, execer dbExecer, kek []byte, pro
 	if err != nil {
 		return nil, fmt.Errorf("secrets: storing wrapped DEK: %w", err)
 	}
+	if path, perr := installPath(ctx, db); perr == nil {
+		recordBoundHint(ctx, execer, profileID, path)
+	}
 	return dek, nil
 }
 

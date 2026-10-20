@@ -5,6 +5,8 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/zalando/go-keyring"
@@ -170,5 +172,96 @@ func TestBind_RebindAfterMove(t *testing.T) {
 	got, err := getOrCreateDEK(ctx, db2.DB, "p1")
 	if err != nil || string(got) != string(dek) {
 		t.Fatalf("after rebind: %v", err)
+	}
+}
+
+// A bound DEK opened at another path is reported as not bound (never the generic key mismatch),
+// with the path it was made for, which `doctor` and `secret rebind` use.
+func TestBind_CopyElsewhereIsNotBoundWithHint(t *testing.T) {
+	keyring.MockInit()
+	ctx := context.Background()
+	dir := t.TempDir()
+	orig := filepath.Join(dir, "a", "monoagent.db")
+	os.MkdirAll(filepath.Dir(orig), 0o700)
+	db := openAt(t, orig)
+	if _, err := getOrCreateDEK(ctx, db.DB, "p1"); err != nil {
+		t.Fatal(err)
+	}
+	cp := filepath.Join(dir, "b", "monoagent.db")
+	copyDB(t, db, orig, cp)
+	db2 := openAt(t, cp)
+	_, err := getOrCreateDEK(ctx, db2.DB, "p1")
+	if !errors.Is(err, ErrNotBound) || !strings.Contains(err.Error(), canonicalPath(orig)) {
+		t.Fatalf("copy: %v", err)
+	}
+	st, err := CheckVault(ctx, db2.DB, "p1")
+	if st != VaultNotBound || err == nil || !strings.Contains(err.Error(), "--from "+canonicalPath(orig)) {
+		t.Fatalf("CheckVault = %s, %v", st, err)
+	}
+	// A hint naming a path the key was not bound to is only a hint: no false not-bound.
+	if _, err := db2.DB.Exec(`UPDATE vault_key_hints SET bound_path = ?`, filepath.Join(dir, "zzz", "monoagent.db")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := getOrCreateDEK(ctx, db2.DB, "p1"); errors.Is(err, ErrNotBound) {
+		t.Fatalf("a wrong hint reported not bound: %v", err)
+	}
+}
+
+// Rebind takes the old path relative to the working directory, and as typed when the
+// directory it named is gone.
+func TestBind_RebindFromRelativeAndGonePath(t *testing.T) {
+	keyring.MockInit()
+	ctx := context.Background()
+	dir := t.TempDir()
+	old := filepath.Join(dir, "old", "monoagent.db")
+	os.MkdirAll(filepath.Dir(old), 0o700)
+	db := openAt(t, old)
+	dek, err := getOrCreateDEK(ctx, db.DB, "p1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	moved := filepath.Join(dir, "new", "monoagent.db")
+	copyDB(t, db, old, moved)
+	db.DB.Close()
+	if err := os.RemoveAll(filepath.Dir(old)); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(dir)
+	db2 := openAt(t, moved)
+	if _, err := Rebind(ctx, db2.DB, "p1", filepath.Join("old", "monoagent.db")); err != nil {
+		t.Fatalf("rebind from a relative, gone path: %v", err)
+	}
+	got, err := getOrCreateDEK(ctx, db2.DB, "p1")
+	if err != nil || string(got) != string(dek) {
+		t.Fatalf("after rebind: %v", err)
+	}
+}
+
+// The user's own database path comes from the system's user database, not $HOME or $USER.
+func TestOwnInstallDB_IgnoresEnvironment(t *testing.T) {
+	f, err := os.Open("/etc/passwd")
+	if err != nil {
+		t.Skip("no /etc/passwd")
+	}
+	defer f.Close()
+	home := homeFromPasswd(f, strconv.Itoa(os.Getuid()))
+	if home == "" {
+		t.Skip("uid not in /etc/passwd")
+	}
+	t.Setenv("HOME", "/nonexistent-evil-home")
+	t.Setenv("USER", "evil")
+	t.Setenv("LOGNAME", "evil")
+	if got, want := ownInstallDB(), filepath.Join(home, ".monoagent", "monoagent.db"); got != want {
+		t.Fatalf("ownInstallDB = %q, want %q", got, want)
+	}
+}
+
+func TestHomeFromPasswd(t *testing.T) {
+	const passwd = "root:x:0:0:root:/root:/bin/bash\n# c\nbob:x:1000:1000:Bob:/home/bob:/bin/sh\nbad line\n"
+	if got := homeFromPasswd(strings.NewReader(passwd), "1000"); got != "/home/bob" {
+		t.Fatalf("got %q", got)
+	}
+	if got := homeFromPasswd(strings.NewReader(passwd), "5"); got != "" {
+		t.Fatalf("got %q", got)
 	}
 }

@@ -137,6 +137,16 @@ monoagent.db>`; it is the user's own command (an agent is refused). This stops
 the accidental copy only: a program that computes the original path's binding on
 purpose, or reads the real database, still has what you have.
 
+Two limits of the binding. The first open at your own install rewraps an
+earlier release's key under the binding, and that is one-way: an older bundled
+CLI (or app) opened on the same database afterwards sees a key mismatch, so
+update the CLI, the app and the app-bundled CLI together. And the bound path is
+compared as an exact string after symlinks are resolved: on a case-insensitive
+filesystem (default macOS and Windows volumes) the same file reached with
+different letter case is another path, so open the database by the exact path
+it was bound to, or run `secret rebind`. The copy's error, `doctor` and
+`secret rebind` name the path the key was made for when the database records it.
+
 To keep a tool or an agent you do not trust away from your credentials, run it
 where your key store is not: as another OS user, or in a container or virtual
 machine that has neither your home directory nor your key store. A `HOME` of its

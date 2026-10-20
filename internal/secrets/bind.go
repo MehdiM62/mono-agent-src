@@ -1,13 +1,18 @@
 package secrets
 
 import (
+	"bufio"
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/user"
 	"path/filepath"
+	"runtime"
+	"strconv"
+	"strings"
 )
 
 // A wrapped DEK is bound to the install it was made in (#903): its AES-GCM seal carries the
@@ -30,13 +35,50 @@ var ErrNotBound = errors.New("secrets: this vault was made for another install")
 const bindingTag = "monoagent-vault-install/v1\x00"
 
 // ownInstallDB is this OS user's own database file, per the system's user database (never
-// $HOME), "" when the system has none. A test replaces it.
+// $HOME or $USER: a release build is CGO_ENABLED=0, where os/user trusts them), "" when the
+// system has none. A test replaces it.
 var ownInstallDB = func() string {
-	u, err := user.Current()
-	if err != nil || u.HomeDir == "" {
+	home := systemHome()
+	if home == "" {
 		return ""
 	}
-	return filepath.Join(u.HomeDir, ".monoagent", "monoagent.db")
+	return filepath.Join(home, ".monoagent", "monoagent.db")
+}
+
+// systemHome is the current user's home directory from the user database by uid.
+func systemHome() string {
+	if runtime.GOOS == "windows" {
+		if u, err := user.Current(); err == nil {
+			return u.HomeDir
+		}
+		return ""
+	}
+	uid := strconv.Itoa(os.Getuid())
+	if u, err := user.LookupId(uid); err == nil && u.HomeDir != "" {
+		return u.HomeDir
+	}
+	f, err := os.Open("/etc/passwd")
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+	return homeFromPasswd(f, uid)
+}
+
+// homeFromPasswd is the home directory of uid in passwd-format r, "" when absent.
+func homeFromPasswd(r io.Reader, uid string) string {
+	sc := bufio.NewScanner(r)
+	for sc.Scan() {
+		line := sc.Text()
+		if strings.HasPrefix(line, "#") {
+			continue
+		}
+		f := strings.Split(line, ":")
+		if len(f) >= 6 && f[2] == uid {
+			return f[5]
+		}
+	}
+	return ""
 }
 
 // canonicalPath is p made absolute with symlinks resolved, so one install has one name however it
@@ -121,7 +163,13 @@ func unwrapDEK(ctx context.Context, db *sql.DB, kek, wrapped, nonce []byte, prof
 	}
 	legacy, lerr := Decrypt(kek, wrapped, nonce)
 	if lerr != nil {
-		// Neither this install's binding nor none: another install's, or a wrong key.
+		// Neither this install's binding nor none: another install's, or a wrong key. The
+		// recorded hint says which, when it names the path the key really is bound to.
+		if hint := boundHint(ctx, db, profileID); hint != "" && hint != path {
+			if _, herr := decryptAD(kek, wrapped, nonce, bindingAD(hint)); herr == nil {
+				return nil, fmt.Errorf("%w: its key was made for %s, not %s (if it moved on purpose, run `monoagentcli secret rebind --from %s`)", ErrNotBound, hint, path, hint)
+			}
+		}
 		return nil, err
 	}
 	if !isOwnInstall(path) {
@@ -144,7 +192,32 @@ func rewrapDEK(ctx context.Context, db *sql.DB, kek, dek []byte, profileID, path
 	if _, err := db.ExecContext(ctx, `UPDATE vault_keys SET wrapped_dek = ?, wrapped_nonce = ? WHERE profile_id = ?`, wrapped, nonce, profileID); err != nil {
 		return fmt.Errorf("secrets: binding the key to %s: %w", path, err)
 	}
+	recordBoundHint(ctx, db, profileID, path)
 	return nil
+}
+
+// hintExecer is what recordBoundHint writes through: a *sql.DB or the *sql.Conn of a transaction.
+type hintExecer interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+}
+
+// recordBoundHint notes the path profileID's key is bound to. Best effort: it is only an aid
+// for error messages (a database without the table just has no hint).
+func recordBoundHint(ctx context.Context, x hintExecer, profileID, path string) {
+	if path == "" {
+		return
+	}
+	_, _ = x.ExecContext(ctx, `INSERT INTO vault_key_hints (profile_id, bound_path) VALUES (?, ?)
+		ON CONFLICT(profile_id) DO UPDATE SET bound_path = excluded.bound_path`, profileID, path)
+}
+
+// boundHint is the recorded path profileID's key was bound to, "" when none.
+func boundHint(ctx context.Context, db *sql.DB, profileID string) string {
+	var p string
+	if err := db.QueryRowContext(ctx, `SELECT bound_path FROM vault_key_hints WHERE profile_id = ?`, profileID).Scan(&p); err != nil {
+		return ""
+	}
+	return p
 }
 
 // Rebind binds profileID's vault to the install db is open on, for a move the user made on
@@ -181,19 +254,38 @@ func Rebind(ctx context.Context, db *sql.DB, profileID, from string) (string, er
 		_ = dek
 		return "already bound to " + path, nil
 	}
-	var oldAD []byte
-	if from != "" {
-		if _, serr := os.Stat(filepath.Dir(from)); serr == nil {
-			from = canonicalPath(from)
+	// from as typed (made absolute), and resolved when it can be: the key was bound to the
+	// resolved name, which a path whose directory is gone cannot be resolved to.
+	var dek []byte
+	var tried []string
+	if from == "" {
+		d, derr := decryptAD(kek, wrapped, nonce, nil)
+		if derr != nil {
+			msg := "secrets: this vault key is bound to another install; pass --from <the old monoagent.db path>"
+			if hint := boundHint(ctx, db, profileID); hint != "" {
+				msg = "secrets: this vault key is bound to another install; try --from " + hint
+			}
+			return "", errors.New(msg)
 		}
-		oldAD = bindingAD(from)
-	}
-	dek, err := decryptAD(kek, wrapped, nonce, oldAD)
-	if err != nil {
-		if from == "" {
-			return "", errors.New("secrets: this vault key is bound to another install; pass --from <the old monoagent.db path>")
+		dek = d
+	} else {
+		abs, aerr := filepath.Abs(from)
+		if aerr != nil {
+			abs = filepath.Clean(from)
 		}
-		return "", fmt.Errorf("secrets: this vault key was not bound to %s", from)
+		for _, cand := range []string{abs, canonicalPath(abs)} {
+			if len(tried) > 0 && tried[len(tried)-1] == cand {
+				continue
+			}
+			tried = append(tried, cand)
+			if d, derr := decryptAD(kek, wrapped, nonce, bindingAD(cand)); derr == nil {
+				dek = d
+				break
+			}
+		}
+		if dek == nil {
+			return "", fmt.Errorf("secrets: this vault key was not bound to %s", tried[len(tried)-1])
+		}
 	}
 	if err := rewrapDEK(ctx, db, kek, dek, profileID, path); err != nil {
 		return "", err
