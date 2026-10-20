@@ -75,6 +75,13 @@ func TestCallReadsOnlyTheServerTheWorkflowNames(t *testing.T) {
 		t.Errorf("the workflow's own server: %v", err)
 	}
 
+	// The address is the second way to redirect an entry's headers (#897).
+	const urlFromData = `"url": the address its headers go to must be written in the workflow, not taken from its data`
+	addr := map[string]interface{}{"server": "crm", "url": "{{ $json.body.u }}", "operation": "list_tools"}
+	if err := run(addr, map[string]interface{}{"u": "http://127.0.0.1:1/mcp"}); err == nil || !strings.Contains(err.Error(), urlFromData) {
+		t.Errorf("a url built from the body: %v", err)
+	}
+
 	// A header resolves references inside its text, so one the body put
 	// there is refused; text without one goes on to the (absent) server.
 	header := map[string]interface{}{"url": "http://127.0.0.1:1/mcp", "operation": "list_tools",

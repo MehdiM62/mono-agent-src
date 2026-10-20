@@ -181,6 +181,8 @@ func checkStoredFields(executor NodeExecutor, stored, resolved map[string]interf
 		switch f {
 		case "credential_id":
 			what = "the saved connection"
+		case "url": // mcp.call's: where the vault entry's headers go
+			what = "the address its headers go to"
 		case "username": // a browser node's: the session it signs in with
 			what = "the account it acts as"
 		}
