@@ -43,7 +43,7 @@ importScripts("task_outbox.js", "task_bridge.js", "task_menu.js");
 // The chat's proposals (chat_proposals.js): task_bridge.js checks a confirmed one with it;
 // private_net.js says which addresses a vault card may not fetch from a public page.
 importScripts("private_net.js", "chat_proposals_act.js", "chat_proposals.js");
-importScripts("chat_core.js", "chat_bridge.js");
+importScripts("chat_context.js", "chat_core.js", "chat_bridge.js");
 // Handing work to the coder (C6): the side panel's Coder section and the
 // right-click items. Over ask.js too; the menu items hang under the capture
 // group's parent, so this follows it.

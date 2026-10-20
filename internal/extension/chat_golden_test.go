@@ -112,13 +112,13 @@ func TestChatForgedFieldLinesAreMarked(t *testing.T) {
 // The extension's stripper spells the constants itself (it is JavaScript);
 // this keeps the two spellings equal.
 func TestChatCoreJSSpellsTheSameBoundary(t *testing.T) {
-	js, err := os.ReadFile("../../chrome-extension/chat_core.js")
+	js, err := os.ReadFile("../../chrome-extension/chat_context.js")
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, s := range []string{ChatMessageBoundary, ChatWrapperIntro} {
 		if !strings.Contains(string(js), s) {
-			t.Errorf("chat_core.js does not contain %q", s)
+			t.Errorf("chat_context.js does not contain %q", s)
 		}
 	}
 }

@@ -135,3 +135,30 @@ func (s *Server) fileUnderLiveProfile(env *capture.Envelope) {
 	env.Meta.Profile = ""
 	env.Warnings = append(env.Warnings, fmt.Sprintf("profile %.64q no longer exists: saved to the default inbox instead", id))
 }
+
+// dropDeletedBinding treats a browser bound to a profile that no longer
+// exists as unbound: the user deleted the profile, and the browser must not
+// stay matched to it. With no source, or one that cannot answer right now,
+// the binding is kept, as in fileUnderLiveProfile.
+func (s *Server) dropDeletedBinding(c *extConn) {
+	id := c.boundProfile()
+	if id == "" {
+		return
+	}
+	s.pendMu.Lock()
+	src := s.profileSource
+	s.pendMu.Unlock()
+	if src == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), profileCheckTimeout)
+	defer cancel()
+	profiles, err := src(ctx)
+	if err != nil || slices.ContainsFunc(profiles, func(p profiledir.Profile) bool { return p.ID == id }) {
+		return
+	}
+	s.logger.Warn().Str("instance", c.id).Str("profile", id).Msg("browser is bound to a profile that no longer exists: treating it as unbound")
+	c.mu.Lock()
+	c.profile = ""
+	c.mu.Unlock()
+}

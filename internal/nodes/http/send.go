@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/monoes/mono-agent/internal/credhttp"
 	"github.com/monoes/mono-agent/internal/tracesig"
 )
 
@@ -86,6 +87,9 @@ type redirectPolicy struct {
 	// keepCredentials sends them (and Authorization) on to another host
 	// too: send_credentials_on_redirect, off by default.
 	keepCredentials bool
+	// marked: the request carries a credential (credhttp.Mark), so a
+	// redirect follows credhttp's policy too.
+	marked bool
 }
 
 // newHTTPClient builds the client and returns a cleanup that closes its
@@ -114,6 +118,12 @@ func newHTTPClient(o clientOptions) (*http.Client, func()) {
 		// header included. The signed chain token never leaves the host.
 		req.Header.Del(tracesig.Header)
 		pol, _ := req.Context().Value(redirectPolicyKey{}).(redirectPolicy)
+		if pol.marked {
+			// Also: no body resent to another host (307, 308), no
+			// Proxy-Authorization, Cookie or Referer, nothing on an
+			// https-to-http hop (credhttp).
+			return credhttp.CheckRedirect(req, via)
+		}
 		if pol.keepCredentials {
 			for _, h := range []string{"Authorization", "Cookie"} {
 				if v := via[0].Header.Get(h); v != "" {
@@ -154,6 +164,7 @@ type fetched struct {
 // Digest auth. Transport failures and an over-limit body are errors.
 func send(ctx context.Context, client *http.Client, ob *outbound, maxBody int64, config, itemJSON map[string]interface{}) (*fetched, error) {
 	pol := redirectPolicy{keepCredentials: ob.keepCreds}
+	pol.marked = !ob.keepCreds && (ob.auth != authPlan{} || len(ob.headers) > 0)
 	for _, h := range ob.headers {
 		pol.sensitive = append(pol.sensitive, h.Name)
 	}
@@ -165,6 +176,9 @@ func send(ctx context.Context, client *http.Client, ob *outbound, maxBody int64,
 	req, err := buildRequest(ctx, ob, config, itemJSON, "")
 	if err != nil {
 		return nil, err
+	}
+	if pol.marked {
+		req = credhttp.Mark(req, pol.sensitive...)
 	}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -180,6 +194,9 @@ func send(ctx context.Context, client *http.Client, ob *outbound, maxBody int64,
 			}
 			if req, err = buildRequest(ctx, ob, config, itemJSON, authz); err != nil {
 				return nil, err
+			}
+			if pol.marked {
+				req = credhttp.Mark(req, pol.sensitive...)
 			}
 			if resp, err = client.Do(req); err != nil {
 				return nil, err

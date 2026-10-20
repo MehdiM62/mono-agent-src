@@ -43,6 +43,17 @@ describe('ProfileSection', () => {
     expect(screen.getByText('settings.profile.deleteButton').closest('button')).toBeDisabled()
   })
 
+  it('re-reads the profile count when Settings becomes active again', async () => {
+    App.GetProfiles.mockResolvedValue([{ id: 'p1' }])
+    const { rerender } = render(<ProfileSection profile={profile} isActive />)
+    expect(await screen.findByText('settings.profile.onlyProfile')).toBeInTheDocument()
+    rerender(<ProfileSection profile={profile} isActive={false} />)
+    App.GetProfiles.mockResolvedValue([{ id: 'p1' }, { id: 'p2' }])
+    rerender(<ProfileSection profile={profile} isActive />)
+    await waitFor(() => expect(screen.queryByText('settings.profile.onlyProfile')).not.toBeInTheDocument())
+    expect(screen.getByText('settings.profile.deleteButton').closest('button')).not.toBeDisabled()
+  })
+
   it('renames through UpdateProfile and shows the error when it fails', async () => {
     App.UpdateProfile.mockRejectedValue(new Error('a profile with that name exists'))
     render(<ProfileSection profile={profile} />)

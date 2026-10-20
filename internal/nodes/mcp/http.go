@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"mime"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -31,8 +32,57 @@ func newHTTPTransport(url string, headers map[string]string) *httpTransport {
 	t := &httpTransport{url: url, headers: headers}
 	// A configured header (an API key, say) never follows a redirect to
 	// another host, nor a request body that a 307 would resend (credhttp).
-	t.client = credhttp.Client(nil)
+	t.client = credhttp.Client(&http.Client{CheckRedirect: refuseInternalRedirect})
 	return t
+}
+
+// refuseInternal is false only in tests whose servers all live on loopback.
+var refuseInternal = true
+
+// refuseInternalRedirect stops a redirect from an MCP endpoint to a
+// loopback, private or link-local address of another host:port. A 301 or
+// 302 on a POST becomes a GET, so following it would make a request from
+// this machine to an internal address the server chose (SSRF). A redirect
+// within the endpoint's own host:port, or to a public address, follows.
+func refuseInternalRedirect(req *http.Request, via []*http.Request) error {
+	if !refuseInternal || len(via) == 0 || req.URL.Host == via[0].URL.Host {
+		return nil
+	}
+	host := req.URL.Hostname()
+	ips, err := net.LookupIP(host)
+	if err != nil || len(ips) == 0 {
+		return fmt.Errorf("redirected to %s, which could not be resolved: not followed", req.URL.Host)
+	}
+	for _, ip := range ips {
+		if isInternalIP(ip) {
+			return fmt.Errorf("redirected to %s, an internal address: not followed", req.URL.Host)
+		}
+	}
+	return nil
+}
+
+var internalNets = func() []*net.IPNet {
+	var nets []*net.IPNet
+	for _, c := range []string{"100.64.0.0/10", "0.0.0.0/8", "64:ff9b::/96"} {
+		_, n, _ := net.ParseCIDR(c)
+		nets = append(nets, n)
+	}
+	return nets
+}()
+
+// isInternalIP is true for loopback, private, link-local, unspecified and
+// multicast addresses, and for carrier-grade NAT, 0.0.0.0/8 and NAT64.
+func isInternalIP(ip net.IP) bool {
+	if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() ||
+		ip.IsUnspecified() || ip.IsMulticast() {
+		return true
+	}
+	for _, n := range internalNets {
+		if n.Contains(ip) {
+			return true
+		}
+	}
+	return false
 }
 
 func (t *httpTransport) newRequest(ctx context.Context, method string, body []byte) (*http.Request, error) {

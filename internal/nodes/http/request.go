@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/monoes/mono-agent/internal/credhttp"
 	"github.com/monoes/mono-agent/internal/secrets"
 	"github.com/monoes/mono-agent/internal/tracesig"
 	"github.com/monoes/mono-agent/internal/vault"
@@ -33,6 +34,14 @@ var requestPerItemFields = []string{"url", "query_params", "body", "headers"}
 // paginationTemplateFields are held back from the engine's resolution
 // too, but resolved per page (they read $response and $pageCount).
 var paginationTemplateFields = []string{"pagination_next_url", "pagination_complete_expression", "pagination_parameters"}
+
+// CredentialDestinationKeys: the host a saved connection's token goes to is
+// the one the connection names (its base_url or instance_url); a url on
+// another host, or a proxy, must be written in an approved workflow
+// (workflow.CheckCredentialDestinations).
+func (n *RequestNode) CredentialDestinationKeys() [][]string {
+	return [][]string{{"url", "base_url", "instance_url"}, {"proxy"}}
+}
 
 // PerItemConfigFields declares requestPerItemFields and the pagination
 // templates — see their doc comments.
@@ -209,8 +218,8 @@ func (r *requestRun) prepare(ctx context.Context, itemConfig map[string]interfac
 		if err != nil || (next.Scheme != "http" && next.Scheme != "https") {
 			return nil, fmt.Errorf("http.request: pagination_next_url: %q is not a valid URL", ov.url)
 		}
-		if !strings.EqualFold(next.Host, u.Host) && !r.keepCreds {
-			// A next page on another host, which the response names, goes
+		if credhttp.Leaves(u, next) && !r.keepCreds {
+			// A next page on another origin or an https-to-http hop, which the response names, goes
 			// without the request's auth, as a redirect there does unless
 			// send_credentials_on_redirect is set (send.go).
 			auth = authPlan{}

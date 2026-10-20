@@ -65,6 +65,7 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 	// Only reached after authenticate succeeds, so an unauthenticated
 	// socket never replaces anything.
 	c := newExtConn(conn, auth, time.Now())
+	s.dropDeletedBinding(c)
 	s.installConn(c)
 
 	s.connOnce.Do(func() { close(s.connected) })

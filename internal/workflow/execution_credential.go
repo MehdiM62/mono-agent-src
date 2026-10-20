@@ -100,6 +100,11 @@ func mergeCredential(ctx context.Context, connStore *connections.Store, logger z
 				}
 			}
 			config["credential"] = conn.Data
+			// Pinned to the connection this run chose: a send's card is
+			// approved later, and must not choose again by name.
+			if conn.ID != "" {
+				config["credential_id"] = conn.ID
+			}
 			// Which service the connection is for, for nodes that serve
 			// several (agent.ask with a model vendor's key).
 			if isUnsetConfigValue(config["credential_platform"]) && conn.Platform != "" {
@@ -181,6 +186,8 @@ func checkStoredFields(executor NodeExecutor, stored, resolved map[string]interf
 		switch f {
 		case "credential_id":
 			what = "the saved connection"
+		case "url": // mcp.call's: where the vault entry's headers go
+			what = "the address its headers go to"
 		case "username": // a browser node's: the session it signs in with
 			what = "the account it acts as"
 		}

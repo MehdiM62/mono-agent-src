@@ -516,6 +516,8 @@ func truncate(s string, n int) string {
 // Close closes the underlying database connection.
 func (d *Database) Close() error {
 	d.kg.stop()
+	// The vault's image syncs read this database too (vault.Register, through monomind.Background).
+	monomind.Background.Settle()
 	if d.DB != nil {
 		return d.DB.Close()
 	}

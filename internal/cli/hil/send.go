@@ -52,7 +52,7 @@ func (d Deps) printSend(cmd *cobra.Command, p hilsend.Payload) error {
 		return d.WriteJSON(cmd.OutOrStdout(), p)
 	}
 	w := cmd.OutOrStdout()
-	fmt.Fprintf(w, "%s  %s  %s via %s  to %s\n", p.ID, p.State, p.Action, p.Channel, p.Recipient.Name)
+	fmt.Fprintf(w, "%s  %s  %s via %s  to %s\n", p.ID, p.State, p.Action, p.Channel, hilsend.OneLine(p.Recipient.Name))
 	// Who prepared it, as the app's card says it: MonoAgent's own label as
 	// it is, an agent's self-description as its claim.
 	if by := p.PreparedBy.Label(); by != "" {
@@ -65,7 +65,7 @@ func (d Deps) printSend(cmd *cobra.Command, p hilsend.Payload) error {
 		fmt.Fprintf(w, "Fetches: %s\n", hilsend.OneLine(p.FetchURL))
 	}
 	if p.Subject != "" {
-		fmt.Fprintf(w, "Subject: %s\n", p.Subject)
+		fmt.Fprintf(w, "Subject: %s\n", hilsend.OneLine(p.Subject))
 	}
 	// A card made before details were escaped prints on one line too.
 	for _, dt := range p.Details {

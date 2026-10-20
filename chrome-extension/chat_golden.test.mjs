@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { loadExtensionScripts } from "./test_helpers.mjs";
 
-const { MonoChatCore: C } = loadExtensionScripts(["chat_core.js"]);
+const { MonoChatCore: C } = loadExtensionScripts(["chat_context.js", "chat_core.js"]);
 
 const golden = (name) => JSON.parse(readFileSync(new URL(`../internal/extension/testdata/${name}`, import.meta.url), "utf8"));
 const ev = (seq, type, payload = {}) => ({ seq, type, payload });

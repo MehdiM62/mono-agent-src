@@ -116,7 +116,7 @@ test("the shown host is the one the browser will use, not the one the text claim
 });
 
 test("the renderer and the panel never use innerHTML or friends", () => {
-  for (const f of ["chat_render.js", "sidepanel_chat.js", "chat_bridge.js", "chat_core.js"]) {
+  for (const f of ["chat_render.js", "sidepanel_chat.js", "chat_bridge.js", "chat_context.js", "chat_core.js"]) {
     const src = readFileSync(join(HERE, f), "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
     assert.doesNotMatch(src, /innerHTML|outerHTML|insertAdjacentHTML|document\.write|\beval\(|new Function/, f);
   }

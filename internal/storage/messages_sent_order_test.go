@@ -87,9 +87,6 @@ func TestApplyMigration107_SentAtInUTC(t *testing.T) {
 		}
 		before[c.id] = quotedSentAt(t, db, c.id)
 	}
-	if _, err := db.ListPersonMessages("p1", "", "pr1", 20, 0); err == nil {
-		t.Fatal("listing p1 before the migration worked; the test no longer holds an unreadable value")
-	}
 	if err := db.ApplyMigrations(); err != nil {
 		t.Fatal(err)
 	}
@@ -319,4 +316,45 @@ func messageIDs(ms []*PersonMessage) (ids []string) {
 		ids = append(ids, m.ID)
 	}
 	return ids
+}
+
+// sent_at written by older code or by hand (unix seconds, REAL, empty, RFC3339,
+// Go time text) lists without error, and the mix orders by instant.
+func TestListPersonMessagesToleratesAnySentAtForm(t *testing.T) {
+	db := newUpsertPersonTestDB(t)
+	if _, err := db.DB.Exec(`INSERT INTO people (id, platform_username, platform, profile_id) VALUES ('p1', 'ada', 'email', 'pr1')`); err != nil {
+		t.Fatal(err)
+	}
+	base := time.Date(2026, 10, 19, 9, 0, 0, 0, time.UTC)
+	rows := []struct {
+		id string
+		at any
+	}{
+		{"rfc3339-10", "2026-10-19T10:00:00Z"},
+		{"gotext-11", "2026-10-19 11:00:00 +0000 UTC"},
+		{"int-12", base.Add(3 * time.Hour).Unix()},
+		{"real-13", float64(base.Add(4*time.Hour).Unix()) + 0.5},
+		{"rfc3339-zoned-0830", "2026-10-19T12:00:00+03:30"},
+		{"empty", ""},
+	}
+	for _, r := range rows {
+		if _, err := db.DB.Exec(`INSERT INTO person_messages (id, person_id, source, external_id, sent_at, created_at, profile_id) VALUES (?, 'p1', 'email', ?, ?, '2026-10-19 07:00:00 +0000 UTC', 'pr1')`, r.id, r.id, r.at); err != nil {
+			t.Fatal(err)
+		}
+	}
+	want := []string{"real-13", "int-12", "gotext-11", "rfc3339-10", "rfc3339-zoned-0830", "empty"}
+	got, err := db.ListPersonMessages("p1", "", "pr1", 20, 0)
+	if err != nil {
+		t.Fatalf("listing: %v", err)
+	}
+	if fmt.Sprint(messageIDs(got)) != fmt.Sprint(want) {
+		t.Errorf("order = %v, want %v", messageIDs(got), want)
+	}
+	all, err := db.ListAllPersonMessages("pr1", "", 20, 0)
+	if err != nil || len(all) != len(rows) {
+		t.Fatalf("listing all: %d rows, err %v", len(all), err)
+	}
+	if m, err := db.GetPersonMessage("empty"); err != nil || m == nil || !m.SentAt.IsZero() {
+		t.Errorf("empty sent_at: %v %v", m, err)
+	}
 }

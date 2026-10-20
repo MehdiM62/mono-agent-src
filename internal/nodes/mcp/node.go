@@ -206,6 +206,11 @@ func loadServer(ctx context.Context, config map[string]interface{}) (*serverConf
 		srv.Cwd = s
 	}
 	if s := str(config, "url"); s != "" {
+		// A server entry's url wins: its headers go there and nowhere else
+		// (#897). A differing node url could redirect them.
+		if srv.URL != "" && s != srv.URL {
+			return nil, invalid("url %q differs from the url of the server entry %q: the entry's headers go only to its own address", s, str(config, "server"))
+		}
 		srv.URL = s
 	}
 	for key, dst := range map[string]*map[string]string{"env": &srv.Env, "headers": &srv.Headers} {
@@ -449,9 +454,10 @@ func stringMap(v interface{}) (map[string]string, error) {
 	return out, nil
 }
 
-// LiteralConfigFields: server names the vault entry the server is read from
-// (workflow.LiteralConfigResolver).
-func (n *CallNode) LiteralConfigFields() []string { return []string{"server"} }
+// LiteralConfigFields: server names the vault entry the server is read from,
+// and url is where that entry's headers go: neither may come from the run's
+// data (workflow.LiteralConfigResolver).
+func (n *CallNode) LiteralConfigFields() []string { return []string{"server", "url"} }
 
 // SecretTextFields: env and header values may hold @secret references inside
 // their text (workflow.SecretTextResolver).

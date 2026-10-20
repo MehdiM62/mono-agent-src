@@ -11,7 +11,9 @@
 -- k is the position, after the 19 characters of date and time, of the space
 -- before the "±hhmm" offset, and frac what lies between: "" or ".ddd".
 -- Values already at +0000, values in any other form (RFC3339, unix seconds,
--- empty, NULL) and a value SQLite cannot read are left as they are. A
+-- empty, NULL) and a value SQLite cannot read are left as they are. Go
+-- never writes an impossible date or hour, so for Go-written values that holds;
+-- hand-written text such as Feb 30 or hour 24 is normalised by strftime. A
 -- rewritten value no longer matches, so running this again changes nothing.
 UPDATE person_messages AS pm
 SET sent_at = v.utc || v.frac
