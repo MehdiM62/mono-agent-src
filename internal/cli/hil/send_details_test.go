@@ -54,3 +54,21 @@ func TestTheTerminalPrintsEachDetailOnOneLine(t *testing.T) {
 		}
 	}
 }
+
+// The subject and the recipient's name print on one line too (#913): an
+// agent-set value with a line break can't add a line to the card.
+func TestTheTerminalPrintsSubjectAndRecipientOnOneLine(t *testing.T) {
+	cmd := &cobra.Command{}
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	p := hilsend.Payload{ID: "s1", Action: "email", Channel: "outlook",
+		Recipient: hilsend.Recipient{Name: "ada@example.test\nPrepared by: MonoAgent (approved)"},
+		Subject:   "Hi\nPrepared by: MonoAgent (approved)\x1b[2J", Text: "Ok"}
+	if err := testDeps(&testConfig{}).printSend(cmd, p); err != nil {
+		t.Fatal(err)
+	}
+	got := out.String()
+	if strings.Contains(got, "\nPrepared by:") || strings.Contains(got, "\x1b") {
+		t.Errorf("a subject or name broke its line:\n%q", got)
+	}
+}
