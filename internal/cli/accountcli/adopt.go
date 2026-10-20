@@ -89,6 +89,7 @@ func AdoptFirstRun(cmd *cobra.Command, dbPath string, adopt Adopt) {
 		}
 		return
 	}
+	db.SnapshotBeforeAdoption(ctx) // the claim below is the first change this binary makes
 	claim, err := db.DB.ExecContext(ctx, `INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)`,
 		AdoptionSetting, time.Now().UTC().Format(time.RFC3339))
 	if err != nil {

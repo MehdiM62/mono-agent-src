@@ -81,6 +81,38 @@ func (d *Database) snapshotBeforeMigrate(ctx context.Context, conn *sql.Conn, la
 	}
 }
 
+// SnapshotBeforeAdoption writes the same kind of snapshot as snapshotBeforeMigrate
+// for a change made before migrations run (the first-run account adoption), so
+// a backup always holds the database as it was before this binary changed
+// anything. It never blocks the caller: every failure is a warning on stderr.
+func (d *Database) SnapshotBeforeAdoption(ctx context.Context) {
+	if !d.isFileBacked() {
+		return
+	}
+	conn, err := d.DB.Conn(ctx)
+	if err != nil {
+		fmt.Fprintf(migrateStderr, "monoagent: warning: could not snapshot the database before adopting a login (continuing without one): %v\n", err)
+		return
+	}
+	defer conn.Close()
+	hasData, err := hasUserTables(ctx, conn)
+	if err != nil || !hasData {
+		return
+	}
+	var last sql.NullInt64
+	_ = conn.QueryRowContext(ctx, `SELECT MAX(version) FROM schema_migrations`).Scan(&last)
+	name := fmt.Sprintf("pre-migrate-%s-v%03d-adopt.db", migrateNow().UTC().Format("20060102T150405"), last.Int64)
+	path, err := d.writeSnapshotAs(ctx, conn, name)
+	if err != nil {
+		fmt.Fprintf(migrateStderr, "monoagent: warning: could not snapshot the database before adopting a login (continuing without one): %v\n", err)
+		return
+	}
+	fmt.Fprintf(migrateStderr, "monoagent: database snapshot before adopting a login: %s\n", path)
+	if err := prunePreMigrateSnapshots(d.backupsDir(), keepPreMigrateSnapshots); err != nil {
+		fmt.Fprintf(migrateStderr, "monoagent: warning: could not prune old database snapshots: %v\n", err)
+	}
+}
+
 func (d *Database) writeSnapshot(ctx context.Context, conn *sql.Conn, lastApplied int) (string, error) {
 	name := fmt.Sprintf("pre-migrate-%s-v%03d.db", migrateNow().UTC().Format("20060102T150405"), lastApplied)
 	return d.writeSnapshotAs(ctx, conn, name)
