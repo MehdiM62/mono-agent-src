@@ -125,6 +125,18 @@ the monoes.me sign-in and the older library login (see "One sign-in per machine,
 never copied" and "Network use"). They cannot stop a program that decrypts the
 copy itself, or that reads the real database: such a program has what you have.
 
+Since this release (#903) the vault key is also bound to the install it was
+made in: the wrapped data key carries the canonical path of `monoagent.db`, so a
+copy of the database in another place, from an agent, a script or a backup
+restored elsewhere, does not open even though the key store gives it the same
+key, and `doctor` reports `not-bound`. A database from an earlier release has
+no binding: it is bound on the first open at your own `~/.monoagent` and refused
+anywhere else. After a move you made on purpose (a renamed home directory, a
+restore to a new place) run `monoagentcli secret rebind --from <old path of
+monoagent.db>`; it is the user's own command (an agent is refused). This stops
+the accidental copy only: a program that computes the original path's binding on
+purpose, or reads the real database, still has what you have.
+
 To keep a tool or an agent you do not trust away from your credentials, run it
 where your key store is not: as another OS user, or in a container or virtual
 machine that has neither your home directory nor your key store. A `HOME` of its

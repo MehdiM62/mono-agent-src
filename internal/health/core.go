@@ -208,6 +208,9 @@ func checkVault(ctx context.Context, env *Env) Result {
 	case "key-mismatch":
 		return Result{Status: StatusFail, Summary: "OS keychain holds a different key than the vault was sealed with",
 			Detail: detail + "\nrestore from a `monoagentcli secret export` backup"}
+	case "not-bound":
+		return Result{Status: StatusFail, Summary: "the vault key was made for another install (a copied database?) — stored secrets are not opened here",
+			Detail: detail + "\nif this database was moved on purpose, run `monoagentcli secret rebind`"}
 	default:
 		return Result{Status: StatusFail, Summary: "cannot check the vault", Detail: detail}
 	}

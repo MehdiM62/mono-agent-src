@@ -119,7 +119,7 @@ func fetchOrCreateDEK(ctx context.Context, db *sql.DB, profileID string) ([]byte
 			Scan(&wrappedDEK, &wrappedNonce)
 		switch {
 		case err == nil:
-			dek, err := Decrypt(kek, wrappedDEK, wrappedNonce)
+			dek, err := unwrapDEK(ctx, db, kek, wrappedDEK, wrappedNonce, profileID, true)
 			if err != nil {
 				return nil, fmt.Errorf("secrets: unwrapping DEK: %w", err)
 			}
@@ -177,7 +177,7 @@ func bootstrapDEKLocked(ctx context.Context, db *sql.DB, profileID string) ([]by
 	var dek []byte
 	switch {
 	case err == sql.ErrNoRows:
-		dek, err = createDEK(ctx, conn, kek, profileID)
+		dek, err = createDEK(ctx, db, conn, kek, profileID)
 		if err != nil {
 			return nil, err
 		}
@@ -186,7 +186,7 @@ func bootstrapDEKLocked(ctx context.Context, db *sql.DB, profileID string) ([]by
 	default:
 		// Another process already finished bootstrapping between our
 		// fast-path peek and acquiring this lock.
-		dek, err = Decrypt(kek, wrappedDEK, wrappedNonce)
+		dek, err = unwrapDEK(ctx, db, kek, wrappedDEK, wrappedNonce, profileID, false)
 		if err != nil {
 			return nil, fmt.Errorf("secrets: unwrapping DEK: %w", err)
 		}
@@ -206,12 +206,12 @@ type dbExecer interface {
 	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
 }
 
-func createDEK(ctx context.Context, execer dbExecer, kek []byte, profileID string) ([]byte, error) {
+func createDEK(ctx context.Context, db *sql.DB, execer dbExecer, kek []byte, profileID string) ([]byte, error) {
 	dek := make([]byte, 32)
 	if _, err := rand.Read(dek); err != nil {
 		return nil, fmt.Errorf("secrets: generating DEK: %w", err)
 	}
-	wrappedDEK, wrappedNonce, err := Encrypt(kek, dek)
+	wrappedDEK, wrappedNonce, err := wrapDEK(ctx, db, kek, dek)
 	if err != nil {
 		return nil, fmt.Errorf("secrets: wrapping DEK: %w", err)
 	}
