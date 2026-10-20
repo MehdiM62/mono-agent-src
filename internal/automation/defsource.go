@@ -41,9 +41,19 @@ func (d *defSource) usable(id string) (*Package, error) {
 
 // Load returns the raw action JSON for automation/action.
 func (d *defSource) Load(automation, actionType string) ([]byte, error) {
+	b, _, _, err := d.Resolve(automation, actionType)
+	return b, err
+}
+
+// Resolve returns the action JSON together with the package context of the
+// same Get: the definition and the trust decision come from one verified
+// snapshot, so files changed between two calls cannot pair a tampered
+// definition with a built-in context (#900). cacheable is false for a
+// package filed as built-in whose files failed verification.
+func (d *defSource) Resolve(automation, actionType string) ([]byte, action.PackageContext, bool, error) {
 	p, err := d.usable(strings.ToLower(automation))
 	if err != nil {
-		return nil, err
+		return nil, nil, false, err
 	}
 	name := actionType
 	if !contains(p.Manifest.Actions, name) {
@@ -55,7 +65,11 @@ func (d *defSource) Load(automation, actionType string) ([]byte, error) {
 			}
 		}
 	}
-	return p.ActionJSON(name)
+	b, err := p.ActionJSON(name)
+	if err != nil {
+		return nil, nil, false, err
+	}
+	return b, p.Context(), !p.downgraded, nil
 }
 
 // List returns "<automation>/<action>" for every enabled, available package.

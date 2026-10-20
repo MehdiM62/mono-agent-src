@@ -73,7 +73,10 @@ func (ae *ActionExecutor) prepareRun(platform string, def *ActionDef) error {
 	ae.resetRunState()
 	if isNilPackage(ae.pkg) {
 		ae.pkg = nil
-		if src := CurrentDefSource(); src != nil {
+		if !isNilPackage(def.pkg) {
+			// Loaded together with its trust decision: same snapshot.
+			ae.pkg = def.pkg
+		} else if src := CurrentDefSource(); src != nil {
 			if p := src.Package(strings.ToLower(strings.TrimSpace(platform))); !isNilPackage(p) {
 				ae.pkg = p
 			}

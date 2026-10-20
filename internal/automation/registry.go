@@ -267,6 +267,7 @@ func (r *Registry) Get(id string) (*Package, error) {
 	}
 	p.Source = e.Source
 	p.Trust = trust
+	p.downgraded = e.trust() == TrustBuiltin && trust != TrustBuiltin
 	p.scriptsFlag, p.liveFlag = e.ScriptsAllowed, e.LiveRunConfirmed
 	p.reg = r
 	return p, nil
