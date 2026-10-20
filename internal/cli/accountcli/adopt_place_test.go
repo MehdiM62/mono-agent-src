@@ -14,6 +14,7 @@ import (
 	"github.com/monoes/mono-agent/internal/library"
 	"github.com/monoes/mono-agent/internal/library/libraryfake"
 	"github.com/monoes/mono-agent/internal/profiledir"
+	"github.com/monoes/mono-agent/internal/secrets"
 	"github.com/monoes/mono-agent/internal/storage"
 	"github.com/monoes/mono-agent/internal/testdb"
 )
@@ -183,6 +184,7 @@ func TestAdoptionLeavesACopiedDatabaseAlone(t *testing.T) {
 			if err := os.WriteFile(cp, b, 0o600); err != nil {
 				t.Fatal(err)
 			}
+			bindCopy(t, r.dbPath, cp)
 			return cp
 		}},
 		{"a user the system has no home directory for", "the system has no home directory", func(t *testing.T, r *placeRig) string {
@@ -301,6 +303,7 @@ func TestAdoptionReadsTheFileItChecked(t *testing.T) {
 	if err := os.WriteFile(cp, b, 0o600); err != nil {
 		t.Fatal(err)
 	}
+	bindCopy(t, r.dbPath, cp)
 	copied := r.reseed(t, cp) // the copy holds a login of its own
 	link := filepath.Join(t.TempDir(), "db")
 	if err := os.Symlink(r.dbPath, link); err != nil {
@@ -323,5 +326,35 @@ func TestAdoptionReadsTheFileItChecked(t *testing.T) {
 	}
 	if refresh, _ := r.olderLogin(t, cp); refresh != copied {
 		t.Fatal("the copy's login was touched")
+	}
+}
+
+// bindCopy makes the vault of the copy at cp open, as a program that computes the original's
+// binding on purpose does (#903): a plain copy no longer opens it, but the guard on the copy's
+// logins must hold for one that does.
+func bindCopy(t *testing.T, orig, cp string) {
+	t.Helper()
+	db, err := storage.NewDatabase(cp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	rows, err := db.DB.Query(`SELECT profile_id FROM vault_keys`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			t.Fatal(err)
+		}
+		ids = append(ids, id)
+	}
+	rows.Close()
+	for _, id := range ids {
+		if _, err := secrets.Rebind(context.Background(), db.DB, id, orig); err != nil {
+			t.Fatal(err)
+		}
 	}
 }

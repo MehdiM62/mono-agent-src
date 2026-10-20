@@ -328,7 +328,7 @@ func TestFetchOrCreateDEK_ConcurrentColdBootstrapIsRaceFree(t *testing.T) {
 	if err := db.DB.QueryRow(`SELECT wrapped_dek, wrapped_nonce FROM vault_keys WHERE profile_id = 'default'`).Scan(&wrappedDEK, &wrappedNonce); err != nil {
 		t.Fatalf("reading persisted vault_keys row: %v", err)
 	}
-	dek, err := Decrypt(kek, wrappedDEK, wrappedNonce)
+	dek, err := unwrapDEK(context.Background(), db.DB, kek, wrappedDEK, wrappedNonce, "default", false)
 	if err != nil {
 		t.Fatalf("keychain KEK cannot decrypt the persisted DEK row: %v", err)
 	}
