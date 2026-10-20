@@ -93,12 +93,34 @@ func profileAttachments(ctx context.Context, db *sql.DB, profileID string) ([]st
 	return files, nil
 }
 
+// plainFileUnder is true when f is a regular file (not a symlink) whose
+// folder, with links resolved, is inside root. A link planted in the
+// attachments folder must not turn a delete into one elsewhere.
+func plainFileUnder(root, f string) bool {
+	fi, err := os.Lstat(f)
+	if err != nil {
+		return true // gone already: Remove reports nothing for it
+	}
+	if !fi.Mode().IsRegular() {
+		return false
+	}
+	dir, err := filepath.EvalSymlinks(filepath.Dir(f))
+	if err != nil || root == "" {
+		return false
+	}
+	return strings.HasPrefix(dir+string(filepath.Separator), filepath.Clean(root)+string(filepath.Separator))
+}
+
 // removeAttachments deletes the files, and the per-message folder that held
 // them once empty. It returns how many files went and a warning per failure.
 func removeAttachments(files []string) (int, []string) {
 	n := 0
 	var warnings []string
+	root, _ := filepath.EvalSymlinks(attachments.Dir())
 	for _, f := range files {
+		if !plainFileUnder(root, f) {
+			continue
+		}
 		if err := os.Remove(f); err != nil {
 			if !os.IsNotExist(err) {
 				warnings = append(warnings, "attachment "+f+" was not removed: "+err.Error())

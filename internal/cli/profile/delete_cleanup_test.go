@@ -126,3 +126,33 @@ func TestPruneBackupsKeepsNewestAndRecent(t *testing.T) {
 		}
 	}
 }
+
+// removeAttachments never follows a symlink: a link in the attachments
+// folder is skipped, and so is a file reached through a linked folder.
+func TestRemoveAttachmentsDoesNotFollowSymlinks(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	dir := attachments.Dir()
+	outside := t.TempDir()
+	secret := filepath.Join(outside, "secret.txt")
+	if err := os.WriteFile(secret, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "m1"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(dir, "m1", "link.txt")
+	if err := os.Symlink(secret, link); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(dir, "m2")); err != nil {
+		t.Fatal(err)
+	}
+	n, _ := removeAttachments([]string{link, filepath.Join(dir, "m2", "secret.txt")})
+	if _, err := os.Stat(secret); err != nil {
+		t.Errorf("a file outside the attachments folder was removed: %v", err)
+	}
+	if n != 0 {
+		t.Errorf("removed %d, want 0", n)
+	}
+}
