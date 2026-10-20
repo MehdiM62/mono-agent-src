@@ -54,6 +54,15 @@ ACTING ON THE PAGE
   browser type <selector> <text>
   browser press <key>
   browser wait <selector> [--timeout 10s]
+  browser upload <selector> <file>...       files into the <input type=file> the selector matches
+  browser upload --chooser <selector> <file>...
+                                            the selector is the button/label that opens the file
+                                            chooser: the input behind it is filled and the native
+                                            dialog never shows. {tabId,uploaded,selector,url}.
+                                            An agent's upload on an allowed page that is not local
+                                            waits for approval like a submit (exit 3, awaiting_approval,
+                                            the card lists each file with size and digest); then
+                                            browser upload --hil <hil_id> uploads exactly those files, once.
   browser eval <js>                         {result}; an agent only on local and dev pages
                                             (eval_not_allowed elsewhere: a script could
                                             send a form around the approval it needs)
@@ -124,7 +133,9 @@ WHERE AN AGENT MAY GO
   "Coder · <label>". No cookie commands and no raw CDP for agents.
   browser permissions [--json]              {levels,sites,kinds,catalog,you:{kind,level}};
                                             an agent may read it, never change it
-  browser permissions set <kind> <level>    the user's (refused in an agent)
+  browser permissions set <kind|all> <level>
+                                            the user's (refused in an agent); all sets every kind,
+                                            e.g. set all full
   browser permissions site <origin> <allow|block|clear>
                                             the user's; origin scheme://host[:port] or *.host
                                             (a block also takes a bare host)

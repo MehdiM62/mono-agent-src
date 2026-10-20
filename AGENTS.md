@@ -2700,6 +2700,22 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
   Then `monoagentcli --profile <id> browser submit --hil <hil_id>` sends
   exactly that submit, once, from the same tab, only while it still shows
   the same page and form contents.
+- **File uploads.** `browser upload <selector> <file>...` puts files into a
+  file input; `--chooser` takes the button or label that opens the file
+  chooser instead and fills the input behind it, so no native dialog shows
+  (a page that opens its chooser from a detached input or
+  `showOpenFilePicker()` is not reached: `set_files: clicking it did not
+  open a file chooser`). Files are read by the CLI (any path, `~` expanded,
+  at most 10 and 20 MB together). For an agent the gate is the one of form
+  submits: on an allowed page that is not local, at every level but
+  `full-no-approvals`, the upload becomes a Human-in-Loop item (`via`
+  `upload`, every file named with its size and digest) and the command exits
+  **3** with `awaiting_approval`; after the user's approval,
+  `browser upload --hil <hil_id>` uploads exactly those files, once, and
+  refuses (`submit_changed`) a file that changed or another page. An
+  upload item cannot be used as a form submit, nor the reverse.
+  `browser permissions set all <level>` sets every kind of agent at once
+  (the user's, like `set <kind>`).
 - **browser.jev** arms the same guard (again whenever the page moves to
   another origin, before acting there) when an AI caller started its run: an
   agent's shell, a chat tool call (`run_workflow` starts `workflow run` with

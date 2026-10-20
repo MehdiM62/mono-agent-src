@@ -88,6 +88,9 @@ func pagePath(rawURL string) string {
 // is checked by resubmit, in the same evaluation as the submit. Its errors
 // wrap ErrNotSent.
 func VerifyHeld(p *extension.ExtensionPage, it SubmitItem) error {
+	if it.Via == ViaUpload {
+		return fmt.Errorf("%w: item %s is an upload, not a form submit: use `browser upload --hil %s`", ErrNotSent, it.ID, it.ID)
+	}
 	if it.FormDigest == "" {
 		return ErrSubmitUnbound
 	}

@@ -67,7 +67,7 @@ func newBrowserCmd(cfg *globalConfig) *cobra.Command {
 		newBrowserBrowsersCmd, newBrowserTabsCmd, newBrowserOpenCmd, newBrowserNavigateCmd, newBrowserReloadCmd,
 		newBrowserCloseCmd, newBrowserClickCmd, newBrowserTypeCmd, newBrowserPressCmd, newBrowserWaitCmd,
 		newBrowserEvalCmd, newBrowserScreenshotCmd, newBrowserConsoleCmd, newBrowserNetworkCmd, newBrowserA11yCmd,
-		newBrowserPickCmd, newBrowserAllowCmd, newBrowserPermissionsCmd, newBrowserSubmitCmd,
+		newBrowserPickCmd, newBrowserAllowCmd, newBrowserPermissionsCmd, newBrowserSubmitCmd, newBrowserUploadCmd,
 	}
 	for _, f := range append(builtin, browserSubcommands...) {
 		cmd.AddCommand(f(cfg))
@@ -204,8 +204,8 @@ func browserErr(cmd *cobra.Command, cfg *globalConfig, err error) error {
 		if cfg.JSONOutput {
 			_ = writeJSONTo(cmd.OutOrStdout(), map[string]any{
 				"status": "awaiting_approval", "hil_id": aw.HILID, "origin": aw.Origin, "url": aw.URL, "via": aw.Via,
-				"hint": fmt.Sprintf("ask the user to approve it (monoagentcli %s hil approve %s, or the Human in Loop page), then run monoagentcli %s browser submit --hil %s",
-					browserctl.ProfileFlag(aw.Profile), aw.HILID, browserctl.ProfileFlag(aw.Profile), aw.HILID),
+				"hint": fmt.Sprintf("ask the user to approve it (monoagentcli %s hil approve %s, or the Human in Loop page), then run monoagentcli %s browser %s --hil %s",
+					browserctl.ProfileFlag(aw.Profile), aw.HILID, browserctl.ProfileFlag(aw.Profile), awaitingVerb(aw), aw.HILID),
 			})
 		}
 		return reportedError{Err: errInvalidInput("%s", aw.Error())}
@@ -244,6 +244,14 @@ func browserErr(cmd *cobra.Command, cfg *globalConfig, err error) error {
 		return errNotFound("%s — see `monoagentcli %s browser tabs`", strings.TrimPrefix(msg, "extension error: "), browserctl.ProfileFlag(cfg.ProfileID))
 	}
 	return err
+}
+
+// awaitingVerb is the command that carries out a held action once approved.
+func awaitingVerb(aw *browserctl.AwaitingApproval) string {
+	if aw.Via == browserctl.ViaUpload {
+		return "upload"
+	}
+	return "submit"
 }
 
 // browserCut shortens s to at most n runes for a table cell.

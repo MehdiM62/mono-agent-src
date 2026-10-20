@@ -105,6 +105,9 @@ type SubmitRequest struct {
 	// FrameID is the frame the submit was held in (submit_guard's record);
 	// 0, the top frame, is the only one a held submit can be repeated in.
 	FrameID int
+	// Digest binds a held item that has no form to read from a page (an
+	// upload, ViaUpload); with a Page it is the form's own digest.
+	Digest string
 }
 
 // ApprovedByOperator is SubmitItem.ApprovedBy for an approval made through
@@ -171,7 +174,7 @@ func CreateSubmitItem(ctx context.Context, db *sql.DB, req SubmitRequest) (Submi
 	if req.Profile == "" {
 		return SubmitItem{}, profiledir.ErrNoProfile
 	}
-	digest := ""
+	digest := req.Digest
 	if req.Page != nil && req.FrameID == 0 {
 		if f, d, err := bindForm(req.Page, req.Form); err == nil {
 			req.Form, digest = f, d

@@ -636,8 +636,39 @@ function keyNameToKeyCode(key) {
 // Set files on a file input — for image/video upload
 // ---------------------------------------------------------------------------
 
-async function setFiles({ elementId, selector, xpath, fileData }) {
-  const el = resolveElement({ elementId, selector, xpath });
+// Click `trigger` and take the file input the click would open the chooser
+// for: a capture listener on the window cancels the chooser (preventDefault)
+// and hands the input back. A page that opens its chooser from a detached
+// input or showOpenFilePicker() never reaches the window, so it times out.
+function openedFileInput(trigger, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    let done = false;
+    const finish = (fn, v) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      window.removeEventListener('click', onClick, true);
+      fn(v);
+    };
+    const onClick = (e) => {
+      const t = e.target;
+      if (t instanceof HTMLInputElement && t.type === 'file') {
+        e.preventDefault();
+        finish(resolve, t);
+      }
+    };
+    const timer = setTimeout(
+      () => finish(reject, new Error('set_files: clicking it did not open a file chooser')),
+      timeoutMs || 3000,
+    );
+    window.addEventListener('click', onClick, true);
+    trigger.click();
+  });
+}
+
+async function setFiles({ elementId, selector, xpath, fileData, viaClick }) {
+  let el = resolveElement({ elementId, selector, xpath });
+  if (viaClick && el) el = await openedFileInput(el);
   if (!el || el.tagName !== 'INPUT' || el.type !== 'file') {
     throw new Error('set_files: element is not a file input');
   }

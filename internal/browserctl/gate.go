@@ -35,6 +35,10 @@ type AwaitingApproval struct {
 }
 
 func (a *AwaitingApproval) Error() string {
+	if a.Via == ViaUpload {
+		return fmt.Sprintf("the file upload on %s waits for a person's approval (HIL item %s): ask the user to approve it with `monoagentcli %s hil approve %s` or on the Human in Loop page, then run `monoagentcli %s browser upload --hil %s`",
+			a.Origin, a.HILID, ProfileFlag(a.Profile), a.HILID, ProfileFlag(a.Profile), a.HILID)
+	}
 	return fmt.Sprintf("the form submit on %s waits for a person's approval (HIL item %s): ask the user to approve it with `monoagentcli %s hil approve %s` or on the Human in Loop page, then run `monoagentcli %s browser submit --hil %s`",
 		a.Origin, a.HILID, ProfileFlag(a.Profile), a.HILID, ProfileFlag(a.Profile), a.HILID)
 }
