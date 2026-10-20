@@ -54,12 +54,35 @@ func refuseInternalRedirect(req *http.Request, via []*http.Request) error {
 		return fmt.Errorf("redirected to %s, which could not be resolved: not followed", req.URL.Host)
 	}
 	for _, ip := range ips {
-		if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() ||
-			ip.IsUnspecified() || ip.IsMulticast() {
+		if isInternalIP(ip) {
 			return fmt.Errorf("redirected to %s, an internal address: not followed", req.URL.Host)
 		}
 	}
 	return nil
+}
+
+var internalNets = func() []*net.IPNet {
+	var nets []*net.IPNet
+	for _, c := range []string{"100.64.0.0/10", "0.0.0.0/8", "64:ff9b::/96"} {
+		_, n, _ := net.ParseCIDR(c)
+		nets = append(nets, n)
+	}
+	return nets
+}()
+
+// isInternalIP is true for loopback, private, link-local, unspecified and
+// multicast addresses, and for carrier-grade NAT, 0.0.0.0/8 and NAT64.
+func isInternalIP(ip net.IP) bool {
+	if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() ||
+		ip.IsUnspecified() || ip.IsMulticast() {
+		return true
+	}
+	for _, n := range internalNets {
+		if n.Contains(ip) {
+			return true
+		}
+	}
+	return false
 }
 
 func (t *httpTransport) newRequest(ctx context.Context, method string, body []byte) (*http.Request, error) {

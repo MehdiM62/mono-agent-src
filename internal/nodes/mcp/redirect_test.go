@@ -3,6 +3,7 @@ package mcpnode
 import (
 	"context"
 	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -63,6 +64,20 @@ func TestMCPDoesNotFollowRedirectToInternalAddress(t *testing.T) {
 		}
 		if err == nil {
 			t.Errorf("%d: the redirect was not refused", code)
+		}
+	}
+}
+
+// The internal-address check covers carrier-grade NAT, 0.0.0.0/8 and the
+// NAT64 prefix, which reach internal hosts but are not "private" to net.IP.
+func TestInternalAddressRanges(t *testing.T) {
+	for ip, want := range map[string]bool{
+		"100.64.0.1": true, "100.127.255.254": true, "0.1.2.3": true, "64:ff9b::7f00:1": true,
+		"127.0.0.1": true, "10.0.0.1": true, "169.254.169.254": true,
+		"100.128.0.1": false, "8.8.8.8": false, "2606:4700::1111": false,
+	} {
+		if got := isInternalIP(net.ParseIP(ip)); got != want {
+			t.Errorf("isInternalIP(%s) = %v, want %v", ip, got, want)
 		}
 	}
 }
