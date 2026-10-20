@@ -6,7 +6,8 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-		"testing"
+	"strings"
+	"testing"
 
 	"github.com/monoes/mono-agent/automations"
 )
@@ -253,5 +254,20 @@ func TestOfficialHashIsPerVersionWithAMinimum(t *testing.T) {
 	}
 	if got, _ := r.Get("hackernews"); got.Trust != TrustImported {
 		t.Fatalf("trust = %q below the minimum", got.Trust)
+	}
+}
+
+func TestUnshippedOfficialWarning(t *testing.T) {
+	r := seededOfficial(t)
+	if w := r.UnshippedOfficialWarning("hackernews"); w != "" {
+		t.Fatalf("shipped release warned: %s", w)
+	}
+	f := filepath.Join(hackernewsDir(t, r), "automation.json")
+	b, _ := os.ReadFile(f)
+	if err := os.WriteFile(f, append(b, ' '), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if w := r.UnshippedOfficialWarning("hackernews"); !strings.Contains(w, "update the app") {
+		t.Fatalf("warning = %q", w)
 	}
 }

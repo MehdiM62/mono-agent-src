@@ -429,6 +429,15 @@ it wrote by hand under `~/.monoagent/actions`. Now:
   built-in is not hashed, and an official library item that is not in
   `automations/` has no shipped hash and installs as imported. Hashes signed
   by monoes.me would cover both (#900).
+  The check also requires the tree to hold only regular files and
+  directories (a symlink, special file or dotfile makes the package
+  imported), runs a built-in from the files that were hashed, and files each
+  hash for one release version with a minimum trusted version per package
+  (`official_hashes.json`): an older official release below that minimum is
+  imported, not built-in, so a known-vulnerable release cannot be put back
+  under the built-in tier. An official item newer than the app's shipped
+  hashes installs as imported, and `library install`/`update` warns that
+  agents are refused it until the app is updated.
 - If you start the app, the daemon or the browser bridge from an agent's
   shell, a chat or a workflow run, it inherits that agent's markers, and
   your own replays, verifies, logins and runs in it are refused as an

@@ -165,3 +165,18 @@ func (r *Registry) effectiveTrustFS(id string, e *indexEntry) (string, fs.FS) {
 	}
 	return TrustImported, nil
 }
+
+// UnshippedOfficialWarning is the warning for an installed package that is
+// filed as built-in (an official library item) but is not a release this
+// binary ships a hash for, so agents are refused it: "" when it is trusted or
+// not filed as built-in.
+func (r *Registry) UnshippedOfficialWarning(id string) string {
+	e, err := r.entry(id)
+	if err != nil || e.Removed || e.trust() != TrustBuiltin {
+		return ""
+	}
+	if r.effectiveTrust(id, e) == TrustBuiltin {
+		return ""
+	}
+	return "official package " + id + " " + e.Version + " is newer than the releases this app knows (or its files differ), so agents are refused it as an imported package until you update the app"
+}

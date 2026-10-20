@@ -211,6 +211,11 @@ func (e *libEnv) installAutomation(it *library.Item, data []byte, sum string, o 
 		return clicore.WithInstallResult(e.deps.Err(err), ir)
 	}
 	res.Installed = ir.Installed
+	if ir.Installed {
+		if w := reg.UnshippedOfficialWarning(ir.ID); w != "" {
+			res.Warnings = append(res.Warnings, w)
+		}
+	}
 	if ir.Review.Trust == automation.TrustBuiltin {
 		res.Trust = automation.TrustBuiltin
 	}
