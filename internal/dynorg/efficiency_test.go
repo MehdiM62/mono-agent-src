@@ -209,3 +209,45 @@ func TestRosterListsAgentsHintsAndSuggestion(t *testing.T) {
 		t.Errorf("builtin roles = %d", len(v.Roles))
 	}
 }
+
+type optionsChooser struct {
+	choice string
+	opts   map[string]string
+}
+
+func (c *optionsChooser) Choose(_ context.Context, _ any, _ string, opts map[string]string) (string, float64, error) {
+	if c.opts == nil { // the role question comes first
+		c.opts = opts
+	}
+	return c.choice, 0.9, nil
+}
+
+// A brief naming two monoagent surfaces offers Jev every app role it
+// names, not just the best match.
+func TestJevSeesEveryAppRoleTheBriefNames(t *testing.T) {
+	ch := &optionsChooser{choice: "doc-writer"}
+	st, err := routerStaffer(RouterAuto, false, ch).Staff(context.Background(), SpawnRequest{Brief: "put this on my task board and write a doc about it"})
+	if err != nil || st.AgentType != "doc-writer" {
+		t.Fatalf("staffed %+v, %v", st, err)
+	}
+	if _, ok := ch.opts["task-manager"]; !ok {
+		t.Errorf("options %v lack task-manager", ch.opts)
+	}
+}
+
+func TestSuggestTeamStaffsAppRolesAcrossCategories(t *testing.T) {
+	s := &Staffer{Roster: []Model{opus, haiku}, Lead: opus}
+	team, err := s.SuggestTeam(context.Background(), "add the follow-ups to my task board, write a doc about the vault rotation and look up the contact at Acme")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]string{}
+	for _, st := range team {
+		got[st.AgentType] = st.Access
+	}
+	for _, id := range []string{"task-manager", "doc-writer", "people-researcher"} {
+		if got[id] != ProfileWorkspace {
+			t.Errorf("team %v lacks workspace %s", got, id)
+		}
+	}
+}
