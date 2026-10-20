@@ -333,7 +333,7 @@ func TestListPersonMessagesToleratesAnySentAtForm(t *testing.T) {
 		{"rfc3339-10", "2026-10-19T10:00:00Z"},
 		{"gotext-11", "2026-10-19 11:00:00 +0000 UTC"},
 		{"int-12", base.Add(3 * time.Hour).Unix()},
-		{"real-13", float64(base.Add(4 * time.Hour).Unix()) + 0.5},
+		{"real-13", float64(base.Add(4*time.Hour).Unix()) + 0.5},
 		{"rfc3339-zoned-0830", "2026-10-19T12:00:00+03:30"},
 		{"empty", ""},
 	}

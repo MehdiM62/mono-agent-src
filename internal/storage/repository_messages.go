@@ -123,7 +123,7 @@ func (d *Database) ListPersonMessages(personID, source, profileID string, limit,
 		query += " AND pm.source = ?"
 		args = append(args, source)
 	}
-	query += " ORDER BY COALESCE("+sentAtInstant("pm.sent_at")+", "+sentAtInstant("pm.created_at")+") DESC LIMIT ? OFFSET ?"
+	query += " ORDER BY COALESCE(" + sentAtInstant("pm.sent_at") + ", " + sentAtInstant("pm.created_at") + ") DESC LIMIT ? OFFSET ?"
 	args = append(args, limit, offset)
 
 	rows, err := d.DB.Query(query, args...)
@@ -156,7 +156,7 @@ func (d *Database) ListPersonMessages(personID, source, profileID string, limit,
 func (d *Database) GetPersonMessage(id string) (*PersonMessage, error) {
 	m := &PersonMessage{}
 	var sentAt sentAtValue
-		var readAt sql.NullTime
+	var readAt sql.NullTime
 	err := d.DB.QueryRow(`
 		SELECT id, person_id, source, external_id, direction,
 		       COALESCE(sender,''), COALESCE(subject,''), COALESCE(body,''),
@@ -309,7 +309,7 @@ func (d *Database) ListAllPersonMessagesByStatus(profileID, source, status strin
 	if unreadOnly {
 		query += " AND pm.direction = 'inbound' AND pm.read_at IS NULL"
 	}
-	query += " ORDER BY COALESCE("+sentAtInstant("pm.sent_at")+", "+sentAtInstant("pm.created_at")+") DESC LIMIT ? OFFSET ?"
+	query += " ORDER BY COALESCE(" + sentAtInstant("pm.sent_at") + ", " + sentAtInstant("pm.created_at") + ") DESC LIMIT ? OFFSET ?"
 	args = append(args, limit, offset)
 
 	rows, err := d.DB.Query(query, args...)
