@@ -18,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/monoes/mono-agent/internal/browserctl"
 	"github.com/monoes/mono-agent/internal/jev"
 	"github.com/monoes/mono-agent/internal/jev/jevconf"
 	"github.com/monoes/mono-agent/internal/jevpick"
@@ -46,6 +47,17 @@ type driver interface {
 	Act(ctx context.Context, page *jevpick.PageState, a *jevpick.Action, text string) error
 }
 
+// chooserDriver is an optional driver capability: keeping a file chooser a
+// click asked for, to answer it with the node's files. *jevpick.Browser has it.
+type chooserDriver interface {
+	ArmFileChooser() error
+	WaitFileChooser(ctx context.Context, d time.Duration) (*jevpick.Chooser, error)
+	SetChooserFiles(files []jevpick.ChooserFile) error
+}
+
+// chooserWait is how long after a click the page may take to ask for a chooser.
+const chooserWait = 700 * time.Millisecond
+
 // Node implements browser.jev.
 type Node struct {
 	// newClient, writer, open and sites are seams for tests; nil means the real ones.
@@ -68,6 +80,7 @@ type runConfig struct {
 	timeout     time.Duration
 	failBlocked bool
 	values      []namedValue
+	files       []browserctl.UploadFile // given to the page's file choosers, in order
 }
 
 func (n *Node) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
@@ -86,6 +99,14 @@ func (n *Node) Execute(ctx context.Context, input workflow.NodeInput, config map
 		return nil, fmt.Errorf("%w: browser.jev max_actions must be 1..200", workflow.ErrInvalidConfig)
 	}
 	if cfg.values, err = parseValues(ctx, config); err != nil {
+		return nil, err
+	}
+	if config["profile_info"] == true {
+		if cfg.values, err = withProfileInfo(ctx, cfg.values); err != nil {
+			return nil, err
+		}
+	}
+	if cfg.files, err = parseFiles(config); err != nil {
 		return nil, err
 	}
 	newClient := n.newClient
@@ -222,6 +243,14 @@ func (n *Node) run(ctx context.Context, cfg runConfig, client *jev.Client, write
 	if err := gate.arm(ctx, drv); err != nil {
 		return nil, err
 	}
+	var chooser chooserDriver
+	if len(cfg.files) > 0 {
+		var ok bool
+		if chooser, ok = drv.(chooserDriver); !ok {
+			return nil, fmt.Errorf("%w: this browser can't answer a file chooser, so browser.jev cannot take files", workflow.ErrInvalidConfig)
+		}
+	}
+	files := cfg.files // not given to a page yet
 	observe := func() (*jevpick.PageState, error) {
 		p, err := drv.Observe(ctx)
 		if err != nil {
@@ -322,6 +351,17 @@ func (n *Node) run(ctx context.Context, cfg runConfig, client *jev.Client, write
 		if err := gate.beforeAct(ctx, page.URL); err != nil {
 			return nil, err
 		}
+		armed := chooser != nil && a.Kind == "click" && len(files) > 0
+		if armed {
+			if err := chooser.ArmFileChooser(); errors.Is(err, jevpick.ErrStale) {
+				if page, err = observe(); err != nil {
+					return nil, err
+				}
+				continue
+			} else if err != nil {
+				return nil, err
+			}
+		}
 		if err := drv.Act(ctx, page, a, text); errors.Is(err, jevpick.ErrStale) {
 			if page, err = observe(); err != nil {
 				return nil, err
@@ -340,6 +380,19 @@ func (n *Node) run(ctx context.Context, cfg runConfig, client *jev.Client, write
 		history = append(history, step{Step: len(history) + 1, Action: a.Label, Kind: a.Kind,
 			Operation: d.Operation, Target: d.Target, Text: recorded, ValueName: valueName, Probability: d.Probability,
 			Confidence: d.Confidence, LatencyMS: d.LatencyMS, URL: page.URL})
+		if armed {
+			given, end, err := answerChooser(ctx, chooser, gate, page.URL, files)
+			if err != nil {
+				return nil, err
+			}
+			if end != "" {
+				return finish("blocked", end), nil
+			}
+			if len(given) > 0 {
+				files = files[len(given):]
+				history[len(history)-1].Text = "uploaded " + strings.Join(uploadNames(given), ", ")
+			}
+		}
 		if end, err := gate.afterAct(ctx, a.Kind); err != nil {
 			return nil, err
 		} else if end != nil {
@@ -365,6 +418,87 @@ func (n *Node) run(ctx context.Context, cfg runConfig, client *jev.Client, write
 			}
 		}
 	}
+}
+
+// answerChooser gives the page the files it asked for with a click, if it
+// asked: the next file, or every file left for an input that takes several.
+// end is why the run must stop instead ("" to go on); given is what was set.
+func answerChooser(ctx context.Context, c chooserDriver, gate *runGate, pageURL string, files []browserctl.UploadFile) (given []browserctl.UploadFile, end string, err error) {
+	ch, err := c.WaitFileChooser(ctx, chooserWait)
+	if err != nil || ch == nil {
+		if errors.Is(err, jevpick.ErrStale) {
+			err = nil // the page moved on: it asked for nothing we can see
+		}
+		return nil, "", err
+	}
+	if err := gate.uploadAllowed(pageURL); err != nil {
+		return nil, err.Error(), nil
+	}
+	if len(files) == 0 {
+		return nil, "the page asked for a file and every file in the node's files was used", nil
+	}
+	given = files[:1]
+	if ch.Multiple {
+		given = files
+	}
+	wire := make([]jevpick.ChooserFile, len(given))
+	for i, f := range given {
+		wire[i] = jevpick.ChooserFile{Name: f.Name, Mime: f.Mime, Data: f.Base64()}
+	}
+	if err := c.SetChooserFiles(wire); err != nil {
+		return nil, "", err
+	}
+	return given, "", nil
+}
+
+func uploadNames(files []browserctl.UploadFile) []string {
+	names := make([]string, len(files))
+	for i, f := range files {
+		names[i] = f.Name
+	}
+	return names
+}
+
+// parseFiles reads `files`: a list of paths, or one path, or a JSON list of
+// them as text.
+func parseFiles(config map[string]interface{}) ([]browserctl.UploadFile, error) {
+	var paths []string
+	switch v := config["files"].(type) {
+	case nil:
+		return nil, nil
+	case string:
+		v = strings.TrimSpace(v)
+		switch {
+		case v == "":
+			return nil, nil
+		case strings.HasPrefix(v, "["):
+			if err := json.Unmarshal([]byte(v), &paths); err != nil {
+				return nil, fmt.Errorf("%w: browser.jev files must be a list of paths: %v", workflow.ErrInvalidConfig, err)
+			}
+		default:
+			paths = []string{v}
+		}
+	case []string:
+		paths = v
+	case []interface{}:
+		for _, e := range v {
+			s, ok := e.(string)
+			if !ok {
+				return nil, fmt.Errorf("%w: browser.jev files must be a list of paths", workflow.ErrInvalidConfig)
+			}
+			paths = append(paths, s)
+		}
+	default:
+		return nil, fmt.Errorf("%w: browser.jev files must be a list of paths", workflow.ErrInvalidConfig)
+	}
+	if len(paths) == 0 {
+		return nil, nil
+	}
+	files, err := browserctl.ReadUploadFiles(paths)
+	if err != nil {
+		return nil, fmt.Errorf("%w: browser.jev files: %v", workflow.ErrInvalidConfig, err)
+	}
+	return files, nil
 }
 
 func fieldContext(goal string, a *jevpick.Action, page *jevpick.PageState, history []step) map[string]any {

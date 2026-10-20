@@ -2730,6 +2730,13 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
   held item is used only by its own command (`submit`, `upload`, `fill`).
   An image for a file box can be made with a `gemini.generate_image` node,
   then `browser upload` puts it in.
+- **browser.jev files and profile_info.** `files` (paths) answers the file
+  chooser an Upload click opens: the page's input is kept instead of the
+  native dialog and given the next file (all left, for a multiple input). An
+  AI-started run does it only on local pages or at full-no-approvals, else it
+  ends `blocked` and `browser upload` (which asks) is the way. `profile_info:
+  true` adds the profile's Info page to `values` by key (ID and bank numbers
+  as secrets; never photos or the card).
 - **browser.jev** arms the same guard (again whenever the page moves to
   another origin, before acting there) when an AI caller started its run: an
   agent's shell, a chat tool call (`run_workflow` starts `workflow run` with

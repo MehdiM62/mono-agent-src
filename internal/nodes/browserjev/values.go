@@ -114,14 +114,19 @@ func parseValues(ctx context.Context, config map[string]interface{}) ([]namedVal
 		}
 		out = append(out, nv)
 	}
-	// Longest first, so a value containing another is replaced whole.
+	sortValues(out)
+	return out, nil
+}
+
+// sortValues puts the longest first, so a value containing another is
+// replaced whole.
+func sortValues(out []namedValue) {
 	sort.Slice(out, func(i, j int) bool {
 		if len(out[i].Value) != len(out[j].Value) {
 			return len(out[i].Value) > len(out[j].Value)
 		}
 		return out[i].Name < out[j].Name
 	})
-	return out, nil
 }
 
 // scrubber replaces configured values with <value:NAME> in anything that

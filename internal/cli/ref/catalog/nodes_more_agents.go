@@ -209,6 +209,8 @@ Port of browser-use/jev-ultrafast.`,
     "To":       "London",
     "email":    "@secret:airline-email" // vault-backed: stricter field match
   },
+  "profile_info": false,                // true: the profile's Info page (first_name, email, …) joins values
+  "files": ["~/Documents/cv.pdf"],      // answers the file chooser an Upload click opens, in order
   "text_runtime": "claude",             // local agent for TYPE_TEXT values
   "text_model":   "",                   // e.g. haiku
   "max_actions":  40,                   // decisions are capped at 2×
@@ -233,7 +235,18 @@ shown as <value:NAME> in steps[].text; an unresolvable @secret: ref is a config
 error. Password inputs are never observed (the snapshot skips them), so no
 value is ever typed into one. Gate on low_confidence_steps downstream when a
 shaky run matters.
-Skips file inputs too; frames, shadow DOM, canvas and uploads can block.
+profile_info: true adds the running profile's Info page to values, each by its key
+(first_name, email, address_line1, …): ID and bank numbers as secrets, never the
+card or photos. A value you list under the same name wins.
+files: paths on this machine. When a click on an Upload button makes the page
+ask for a file chooser, the page keeps the input instead of opening the native
+dialog, and the next file (all that are left, for an input that takes several)
+is put in it as if picked; the step's text says "uploaded cv.pdf". The page asking
+for a file when none is left ends the run blocked. A run an AI started gives a file
+only to a local page, or at full-no-approvals: elsewhere it ends blocked and
+"monoagentcli browser upload" (which asks the user) is the way. To upload an
+image made by a gemini.generate_image node, pass its path in files.
+Frames, shadow DOM, canvas and a chooser opened by showOpenFilePicker() can block.
 Get a key at console.typesafe.ai and store it: "monoagentcli jev key set".
 A run an AI started (a coder chat or its worker, an org role, another agent
 shell, a chat tool call, a workflow run one of them started, also when a

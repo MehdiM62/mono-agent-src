@@ -104,6 +104,9 @@ func uploadMime(path string, data []byte) string {
 	return http.DetectContentType(data)
 }
 
+// Base64 is the file's content, base64.
+func (f UploadFile) Base64() string { return base64.StdEncoding.EncodeToString(f.data) }
+
 // UploadDigest binds an approval to what was shown: the target, the mode and
 // every file's path and content.
 func UploadDigest(selector string, chooser bool, files []UploadFile) string {
@@ -127,7 +130,7 @@ func (s *Session) Upload(selector string, chooser bool, files []UploadFile) (int
 	}
 	fd := make([]wire, len(files))
 	for i, f := range files {
-		fd[i] = wire{Name: f.Name, Data: base64.StdEncoding.EncodeToString(f.data), MimeType: f.Mime}
+		fd[i] = wire{Name: f.Name, Data: f.Base64(), MimeType: f.Mime}
 	}
 	params := map[string]interface{}{"selector": selector, "fileData": fd}
 	if chooser {
