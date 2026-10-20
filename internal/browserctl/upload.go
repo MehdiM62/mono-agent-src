@@ -132,7 +132,7 @@ func (s *Session) Upload(selector string, chooser bool, files []UploadFile) (int
 	for i, f := range files {
 		fd[i] = wire{Name: f.Name, Data: f.Base64(), MimeType: f.Mime}
 	}
-	params := map[string]interface{}{"selector": selector, "fileData": fd}
+	params := map[string]interface{}{"selector": selector, "fileData": fd, "strict": true}
 	if chooser {
 		params["viaClick"] = true
 	}

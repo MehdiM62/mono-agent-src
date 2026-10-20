@@ -42,7 +42,7 @@ func TestBrowserUploadSetsTheFilesOnLocalPages(t *testing.T) {
 		t.Fatalf("result = %v", res)
 	}
 	calls := setFilesCalls(bt)
-	if len(calls) != 1 || calls[0].Params["selector"] != "input[type=file]" || calls[0].Params["viaClick"] != nil {
+	if len(calls) != 1 || calls[0].Params["selector"] != "input[type=file]" || calls[0].Params["viaClick"] != nil || calls[0].Params["strict"] != true {
 		t.Fatalf("set_files calls = %v", calls)
 	}
 	var fd []struct {

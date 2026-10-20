@@ -666,11 +666,15 @@ function openedFileInput(trigger, timeoutMs) {
   });
 }
 
-async function setFiles({ elementId, selector, xpath, fileData, viaClick }) {
+async function setFiles({ elementId, selector, xpath, fileData, viaClick, strict }) {
   let el = resolveElement({ elementId, selector, xpath });
   if (viaClick && el) el = await openedFileInput(el);
   if (!el || el.tagName !== 'INPUT' || el.type !== 'file') {
     throw new Error('set_files: element is not a file input');
+  }
+  // `monoagentcli browser upload` is strict: a page that takes one file is not given two.
+  if (strict && !el.multiple && fileData && fileData.length > 1) {
+    throw new Error('set_files: this file input takes one file, not ' + fileData.length);
   }
 
   // fileData is an array of {name, data (base64), mimeType} sent from Go.
