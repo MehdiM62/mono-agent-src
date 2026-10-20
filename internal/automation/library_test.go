@@ -31,6 +31,13 @@ func TestLibraryInstallTrustTiers(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			r := newReg(t)
+			if tc.official { // the hash of the official release ships in the binary
+				h, err := fsHash(os.DirFS(acmeDir(t)))
+				if err != nil {
+					t.Fatal(err)
+				}
+				officialForTest(t, "acme-crm", h)
+			}
 			origin := &LibraryOrigin{ItemID: "it-1", Slug: "acme-crm", Version: "1.2.0", SHA256: sum, Official: tc.official}
 			res, err := r.Install(pkg, InstallOptions{ExpectSHA256: sum, Library: origin})
 			if err != nil {

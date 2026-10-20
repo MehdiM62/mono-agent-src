@@ -392,15 +392,16 @@ it wrote by hand under `~/.monoagent/actions`. Now:
   package's flags with `automation trust` (page scripts, real runs);
   showing them stays open. `login names` refuses an agent when it would
   open the site of a package that isn't built-in.
-- What counts as built-in is read from files your account can write.
-  Built-in packages are the ones the app seeds or installs from the official
-  library; nothing re-checks their files after that. Their files and their
-  trust tier are kept under `~/.monoagent/automations`. An agent that can
-  write there, as one working as you can, can change a built-in package's
-  actions or mark its own package built-in, and these checks don't stop it.
-  Only keeping agents out of `~/.monoagent` (a sandbox) does. Checking
-  built-in packages against hashes the app ships or monoes.me signs is
-  tracked in #900.
+- A package counts as built-in only while its files hash to an official
+  release of it. The hashes of the official packages (the ones in
+  `automations/`) ship inside the binary, and every run, `automation list`
+  and `automation info` checks the installed files against them. An agent
+  that edits a built-in package's files, or files its own package as
+  built-in in `~/.monoagent/automations`, gets an imported package, which
+  these checks refuse it. Still open: the overlay of selector fixes beside a
+  built-in is not hashed, and an official library item that is not in
+  `automations/` has no shipped hash and installs as imported. Hashes signed
+  by monoes.me would cover both (#900).
 - If you start the app, the daemon or the browser bridge from an agent's
   shell, a chat or a workflow run, it inherits that agent's markers, and
   your own replays, verifies, logins and runs in it are refused as an
