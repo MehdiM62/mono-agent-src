@@ -246,11 +246,10 @@ func TestNodeRunMastodonInstanceComesFromTheConnection(t *testing.T) {
 	}
 }
 
-// By the user's decision, http.request picks its own address with a saved
-// connection in any run (SECURITY.md): an agent's `node run http.request`
-// with a credential_id and a url the connection doesn't name still runs,
-// and the connection's token goes there.
-func TestNodeRunHTTPRequestAddressStaysOpenByTheUsersDecision(t *testing.T) {
+// A saved connection's token goes only to the host the connection names:
+// an agent's `node run http.request` with a credential_id and a url or
+// proxy elsewhere is refused, and nothing reaches that address (#912).
+func TestNodeRunHTTPRequestAddressIsBoundToTheConnection(t *testing.T) {
 	var mu sync.Mutex
 	var auths []string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -269,13 +268,18 @@ func TestNodeRunHTTPRequestAddressStaysOpenByTheUsersDecision(t *testing.T) {
 		return map[string]interface{}{"access_token": "api-tok", "base_url": "https://api.example.test"}, nil
 	}
 	t.Setenv(hilsend.EnvAgentContext, "coder")
-	out, err := runNodeSubcmdStdin(t, d, emailPayload(t, map[string]interface{}{"url": srv.URL + "/anything", "credential_id": "api-conn"}), "http.request")
-	if err != nil {
-		t.Fatalf("an agent's node run http.request with a connection and its own url: %v\n%s", err, out)
+	for _, config := range []map[string]interface{}{
+		{"url": srv.URL + "/anything", "credential_id": "api-conn"},
+		{"url": "https://api.example.test/v1", "proxy": srv.URL, "credential_id": "api-conn"},
+	} {
+		out, err := runNodeSubcmdStdin(t, d, emailPayload(t, config), "http.request")
+		if !errors.Is(err, workflow.ErrCredentialDestination) {
+			t.Errorf("%v: err = %v\n%s", config, err, out)
+		}
 	}
 	mu.Lock()
 	defer mu.Unlock()
-	if len(auths) != 1 || auths[0] != "Bearer api-tok" {
-		t.Fatalf("the url got %q, want the connection's token, as the user decided", auths)
+	if len(auths) != 0 {
+		t.Fatalf("the address got %q, want nothing", auths)
 	}
 }

@@ -91,12 +91,16 @@ messages, not a barrier:
   secret a workflow reads.
 - The HTTP API's `X-Full-Outputs: 1` gives whoever holds an API key
   unredacted outputs.
-- By your decision, a step that picks its own address (`http.request`) can
-  use a saved connection in any run, so a workflow can send that
-  connection's token to any address. With this release, `http.request` and
-  `http.graphql` are the only steps that can send a saved connection's
-  token to an address the connection doesn't name (see "Where a saved
-  connection's secret goes" below).
+- A saved connection's token goes only to the host the connection names
+  (its base URL). `http.request` and `http.graphql` send it to another
+  address, or through a proxy, only when the address is written in a
+  workflow you approved; an agent's `node run` and a workflow you haven't
+  approved are refused (see "Where a saved connection's secret goes"
+  below). A redirect to another host drops the credential and isn't
+  followed when it would resend the request's body.
+- `mcp.call` sends a vault server entry's headers only to the entry's own
+  url, and doesn't follow a redirect to a loopback, private or link-local
+  address.
 - The extension commands that redirect the browser are yours: see
   "Extension commands that only the user runs" below.
 - Writing secrets, connections and profiles stays open to an agent on
@@ -196,9 +200,6 @@ Now the settings that decide where the secret goes follow these rules:
 
 What stays open:
 
-- By your decision, `http.request` and `http.graphql` can send a saved
-  connection's token to any address. They are the only steps that can
-  send it to an address the connection doesn't name.
 - A workflow you approved may name a host for a connection that names
   none, and the secret goes there whoever runs the workflow.
 

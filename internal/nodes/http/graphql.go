@@ -21,6 +21,11 @@ func (n *GraphQLNode) Type() string { return "http.graphql" }
 var graphqlPerItemFields = []string{"endpoint", "query", "variables", "operation_name", "headers"}
 
 // PerItemConfigFields declares graphqlPerItemFields.
+// CredentialDestinationKeys: see RequestNode.CredentialDestinationKeys.
+func (n *GraphQLNode) CredentialDestinationKeys() [][]string {
+	return [][]string{{"endpoint", "base_url", "instance_url"}, {"proxy"}}
+}
+
 func (n *GraphQLNode) PerItemConfigFields() []string { return graphqlPerItemFields }
 
 type graphqlRun struct {

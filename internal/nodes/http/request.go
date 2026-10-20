@@ -34,6 +34,14 @@ var requestPerItemFields = []string{"url", "query_params", "body", "headers"}
 // too, but resolved per page (they read $response and $pageCount).
 var paginationTemplateFields = []string{"pagination_next_url", "pagination_complete_expression", "pagination_parameters"}
 
+// CredentialDestinationKeys: the host a saved connection's token goes to is
+// the one the connection names (its base_url or instance_url); a url on
+// another host, or a proxy, must be written in an approved workflow
+// (workflow.CheckCredentialDestinations).
+func (n *RequestNode) CredentialDestinationKeys() [][]string {
+	return [][]string{{"url", "base_url", "instance_url"}, {"proxy"}}
+}
+
 // PerItemConfigFields declares requestPerItemFields and the pagination
 // templates — see their doc comments.
 func (n *RequestNode) PerItemConfigFields() []string {

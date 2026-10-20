@@ -22,15 +22,6 @@ import (
 // hostKey matches a config key that names where a node's request goes.
 var hostKey = regexp.MustCompile(`(?i)^(.*_)?(host|hostname|url|uri|endpoint|instance|server|domain|brokers|proxy|base|baseurl)$|(?i)(host|url|endpoint)$`)
 
-// openByDecision are the host fields the user decided stay open: a step
-// that picks its own address may send a saved connection's token there
-// (SECURITY.md, "By your decision"). Binding one is the user's call, not a
-// node change: the tests fail when a type declares one.
-var openByDecision = map[string][]string{
-	"http.request": {"url", "proxy"},
-	"http.graphql": {"endpoint", "proxy"},
-}
-
 // notDestinations are the host-like keys of registered node types that a
 // saved connection's secret never goes to, and why ("<type> <key>").
 var notDestinations = map[string]string{
@@ -81,9 +72,6 @@ var notDestinationReads = map[string]string{
 	"data url":                 "the URL property of a calendar event it writes",
 	"db vhost":                 "a virtual host on the broker the connection names, not a host",
 	"http pagination_next_url": "a next page on another host goes without the request's auth (prepare)",
-	"http url":                 "http.request's url: open by the user's decision (openByDecision)",
-	"http proxy":               "http.request's and http.graphql's proxy: open by the user's decision (openByDecision)",
-	"http endpoint":            "http.graphql's endpoint: open by the user's decision (openByDecision)",
 	"mcp server":               "a vault entry's name; no saved connection",
 	"mcp url":                  "no saved connection: its headers come from the vault entry, which a run the user hasn't approved doesn't resolve",
 	"service avatar_url":       "a Discord webhook's avatar",
@@ -146,12 +134,8 @@ func TestEveryNodeTypesHostFieldsKeepTheConnectionsSecret(t *testing.T) {
 		if err := json.Unmarshal(data, &schema); err != nil {
 			t.Fatalf("%s: %v", nodeType, err)
 		}
-		open := map[string]bool{}
-		for _, k := range openByDecision[nodeType] {
-			open[k] = true
-		}
 		for _, f := range schema.Fields {
-			if !hostKey.MatchString(f.Key) || declared[f.Key] || open[f.Key] {
+			if !hostKey.MatchString(f.Key) || declared[f.Key] {
 				continue
 			}
 			k := nodeType + " " + f.Key
@@ -164,28 +148,6 @@ func TestEveryNodeTypesHostFieldsKeepTheConnectionsSecret(t *testing.T) {
 	for k := range notDestinations {
 		if !seen[k] {
 			t.Errorf("notDestinations lists %q, which no registered type's schema has (or the type declares it now)", k)
-		}
-	}
-}
-
-// The fields the user decided stay open stay open: http.request's url and
-// proxy and http.graphql's endpoint and proxy are none of their types'
-// destination keys.
-func TestHostFieldsOpenByTheUsersDecisionStayOpen(t *testing.T) {
-	registry := Build(nil)
-	for nodeType, keys := range openByDecision {
-		factory, ok := registry.Get(nodeType)
-		if !ok {
-			t.Fatalf("%s is not registered", nodeType)
-		}
-		var declared map[string]bool
-		if d, ok := factory().(workflow.CredentialDestinations); ok {
-			declared = declaredKeys(d.CredentialDestinationKeys())
-		}
-		for _, k := range keys {
-			if declared[k] {
-				t.Errorf("%s declares %q a destination key, but the user decided it stays open (SECURITY.md): ask them before binding it", nodeType, k)
-			}
 		}
 	}
 }

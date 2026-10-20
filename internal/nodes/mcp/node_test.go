@@ -414,3 +414,21 @@ func TestStdioServerMarksTheWorkflowRun(t *testing.T) {
 		t.Errorf("the server saw %#v, want exec-7", got)
 	}
 }
+
+// A vault server entry's own url wins: a node url that names another
+// address is refused, so the entry's headers cannot be sent there (#897).
+func TestServerEntryURLWins(t *testing.T) {
+	def := `{"url":"http://127.0.0.1:1/mcp","headers":{"X-Api-Key":"k"}}`
+	_, err := loadServer(context.Background(), map[string]interface{}{"server": def, "url": "http://127.0.0.2:1/mcp"})
+	if err == nil || !strings.Contains(err.Error(), "differs from the url of the server entry") {
+		t.Fatalf("a differing url: %v", err)
+	}
+	srv, err := loadServer(context.Background(), map[string]interface{}{"server": def, "url": "http://127.0.0.1:1/mcp"})
+	if err != nil || srv.URL != "http://127.0.0.1:1/mcp" {
+		t.Fatalf("the same url: %v %+v", err, srv)
+	}
+	srv, err = loadServer(context.Background(), map[string]interface{}{"server": def})
+	if err != nil || srv.URL != "http://127.0.0.1:1/mcp" {
+		t.Fatalf("no node url: %v %+v", err, srv)
+	}
+}
