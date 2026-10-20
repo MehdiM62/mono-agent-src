@@ -23,8 +23,8 @@ func TestAdoptFirstRunSnapshotsBeforeChangingAnything(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := seed.DB.Exec(`INSERT INTO vault_secrets (id, seq, profile_id, kind, name, ciphertext, nonce, created_at, updated_at)
-		VALUES ('s1', 1, 'default', 'library', 'library-login', x'00', x'00', 'now', 'now')`); err != nil {
+	if _, err := seed.DB.Exec(`INSERT INTO vault_secrets (id, seq, profile_id, kind, name, url, ciphertext, nonce, created_at, updated_at)
+		VALUES ('s1', 1, 'default', 'secret', ?, ?, x'00', x'00', 'now', 'now')`, library.VaultSecretName, account.Host()); err != nil {
 		t.Fatal(err)
 	}
 	seed.Close()

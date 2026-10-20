@@ -89,7 +89,11 @@ func AdoptFirstRun(cmd *cobra.Command, dbPath string, adopt Adopt) {
 		}
 		return
 	}
-	db.SnapshotBeforeAdoption(ctx) // migrations have already run; the claim below is the first change after them
+	// Migrations have already run; the claim below is the first change after them. A database with no
+	// older login has nothing to adopt, so it gets neither a snapshot nor a line on stderr.
+	if has, _ := library.HasOlderLogin(ctx, db.DB, host); has {
+		db.SnapshotBeforeAdoption(ctx)
+	}
 	claim, err := db.DB.ExecContext(ctx, `INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)`,
 		AdoptionSetting, time.Now().UTC().Format(time.RFC3339))
 	if err != nil {
