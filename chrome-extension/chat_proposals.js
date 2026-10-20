@@ -18,6 +18,10 @@
  *   vault      an item (an address on the page, or the selection) and a name
  *              -> Save to vault (vault_bridge.js), which fetches the item only
  *              if it is on the page the person is on, and sends vault.save.
+ *   action     (chat_proposals_act.js) a click, double-click, typing or a new
+ *              tab on this page -> Run (page_action_bridge.js).
+ *   coder      (chat_proposals_act.js) a goal -> Hand to coder queues a coder
+ *              chat (coder_bridge.js); the person starts it in the app.
  * This table is the seam the vault save plugs into once the bridge has
  * vault.save: its tool in TOOLS, its kind in KINDS, and the worker message
  * the panel sends on its click.
@@ -37,7 +41,10 @@
   const NOTES_BYTES = 4000;
 
   // The proposal tools, by the kind each answers with.
-  const TOOLS = { propose_task: "task", propose_recording: "recording", propose_vault_save: "vault" };
+  // The two "do something" kinds (propose_page_action, propose_coder_handoff) come from
+  // chat_proposals_act.js, loaded first; without it they are simply not cards.
+  const Act = root.MonoChatProposalKinds || { TOOLS: {}, KINDS: {} };
+  const TOOLS = Object.assign({ propose_task: "task", propose_recording: "recording", propose_vault_save: "vault" }, Act.TOOLS);
   const NAME_BYTES = 255;
   const URL_CHARS = 2048;
 
@@ -240,6 +247,11 @@
     },
   };
 
+  Object.assign(KINDS, Act.KINDS);
+
+  // A failed action card's reason (submit_blocked, not_found, ...), as the worker names it.
+  const usableCode = (c) => typeof c === "string" && /^[a-z_]{1,40}$/.test(c);
+
   // A recording's id as the recorder makes it (rec-<stamp>-<rand>).
   const usableRecording = (id) => typeof id === "string" && /^[A-Za-z0-9_-]{1,80}$/.test(id);
   // The recording card's states that need the recording they follow.
@@ -298,11 +310,18 @@
       const kind = p && KINDS[p.kind];
       let state = kind && kind.states.has(p.state) && p.state !== "sending" ? p.state : "pending";
       if (state === "reviewing") state = "recorded";
-      const c = cardOf(p, p && p.id, p && p.untrustedPage, state, p && p.feedback);
+      let feedback = p && p.feedback;
+      // A Run cut off mid-send may have happened: it is never offered again.
+      if (p && p.kind === "action" && p.state === "sending") {
+        state = "unknown";
+        feedback = Act.UNKNOWN;
+      }
+      const c = cardOf(p, p && p.id, p && p.untrustedPage, state, feedback);
       if (!c) continue;
       if (NONCE.test(p.nonce)) c.nonce = p.nonce;
       const page = pageOf(p.page);
       if (page) c.page = page;
+      if (c.kind === "action" && usableCode(p.code)) c.code = p.code;
       if (c.kind === "recording" && usableRecording(p.recordingId)) c.recordingId = p.recordingId;
       else if (FOLLOWING.has(c.state)) Object.assign(c, { state: "pending", feedback: "" });
       out.push(c);
@@ -329,6 +348,7 @@
       const kind = KINDS[p.kind];
       if (patch && kind && kind.states.has(patch.state)) p.state = patch.state;
       if (patch && typeof patch.feedback === "string") p.feedback = patch.feedback.slice(0, 300);
+      if (patch && p.kind === "action" && "code" in patch) p.code = usableCode(patch.code) ? patch.code : undefined;
       if (patch && p.kind === "recording" && usableRecording(patch.recordingId)) p.recordingId = patch.recordingId;
       if (patch && p.kind === "recording" && cleanGoal(patch.goal)) p.goal = cleanGoal(patch.goal);
       return true;
@@ -437,5 +457,5 @@
     return box;
   }
 
-  root.MonoChatProposals = { fromTool, clone, settle, keyOf, clientId, afterAdd, view, card, cleanGoal, pageOf, TOOLS, KINDS, TITLE_RUNES, NOTES_BYTES };
+  root.MonoChatProposals = { fromTool, clone, settle, keyOf, clientId, afterAdd, view, card, cleanGoal, pageOf, QUEUED: Act.QUEUED, UNKNOWN: Act.UNKNOWN, TOOLS, KINDS, TITLE_RUNES, NOTES_BYTES };
 })(globalThis);

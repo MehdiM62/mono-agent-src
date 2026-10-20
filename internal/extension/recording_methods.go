@@ -440,7 +440,7 @@ func isReport(obj map[string]any) bool {
 type selfRunner struct{}
 
 func (selfRunner) Run(ctx context.Context, args ...string) ([]byte, error) {
-	bin, err := os.Executable()
+	bin, err := selfExecutable()
 	if err != nil {
 		return nil, Unavailable("cannot locate monoagentcli: %v", err)
 	}

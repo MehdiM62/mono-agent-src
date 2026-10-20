@@ -110,7 +110,7 @@
       // What the chat proposed: a card each, sent on only by the person's click.
       for (const p of (Proposals && m.proposals) || []) {
         const key = Proposals.keyOf(p);
-        box.appendChild(Proposals.card(document, p, { add: (value) => cards.confirm(key, value), dismiss: () => cards.dismiss(key), review: () => cards.review(key) }));
+        box.appendChild(Proposals.card(document, p, { add: (value) => cards.confirm(key, value), dismiss: () => cards.dismiss(key), review: () => cards.review(key), run: () => cards.run(key), coder: () => cards.coder(key) }));
       }
     } else if (m.role === "user") {
       const text = document.createElement("div");

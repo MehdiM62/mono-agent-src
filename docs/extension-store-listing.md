@@ -34,7 +34,9 @@ Connects your own browser to the MonoAgent app on your computer, to save pages, 
 >
 > Everything stays on your computer. The extension talks only to the MonoAgent
 > app on 127.0.0.1 and refuses any other server unless you override that for a
-> single save. No account, no analytics, no ads, nothing sent to us.
+> single save. The one other request it makes is one you ask for: saving a file
+> from the page you are on (an image or PDF) fetches that file from the page's own site.
+> No account, no analytics, no ads, nothing sent to us.
 >
 > Get MonoAgent: https://monoes.me
 
@@ -73,8 +75,9 @@ Paste into the certification notes field:
 > MonoAgent from https://monoes.me, run `monoagentcli extension pair`, paste
 > the printed token into the side panel's pairing box. After that the side
 > panel shows "connected" and the shortcuts work (Ctrl+Shift+S saves the page
-> to the local library). The extension makes no network requests other than to
-> 127.0.0.1. [If a test build/video is provided, link it here.]
+> to the local library). Apart from 127.0.0.1, the extension
+> only fetches a file from the page's own site when the user confirms "Save to vault"
+> (and, in an automation's data-extraction step, a same-site page it was told to read). [If a test build/video is provided, link it here.]
 
 ## Assets to prepare (not in the repo)
 
@@ -98,15 +101,17 @@ also stores a pairing token and your settings in the browser's extension
 storage.
 
 **Where it goes.** That information is sent only to the MonoAgent app on your
-own computer, over a connection to 127.0.0.1. The extension rejects other
+own computer, over a connection to 127.0.0.1. The one exception is a file you
+ask to save from a page (an image, PDF or text file): the extension downloads it
+from that page's own site, sending your cookies for that site only, and hands it to the app. The extension rejects other
 servers unless you explicitly allow one for a single save. We do not receive,
 collect, sell or share this information, and the extension contains no
 analytics, advertising or tracking.
 
 **What MonoAgent does with it.** The app stores saved items locally under your
-user profile. If you use the chat or summary features, the app sends the text
-you chose to the AI provider you configured in MonoAgent; that is governed by
-that provider's terms and your MonoAgent settings, not by the extension.
+user profile. If you use the chat or summary features, the app passes the text
+you chose to the AI runtime you selected in MonoAgent (for example Claude Code);
+that is governed by that runtime's provider terms and your MonoAgent settings, not by the extension.
 
 **Your control.** Remove the pairing in the side panel or with
 `monoagentcli extension reset`; uninstalling the extension deletes its stored
