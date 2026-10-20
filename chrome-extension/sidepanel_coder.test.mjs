@@ -118,7 +118,7 @@ function setup({ replies = {}, session = {}, pageNow = PAGE(), windowId = 1, tab
     document: doc, chrome, ask, profiles: { current }, page: pageNow, here: { windowId },
     setTimeout: timers.setTimeout, clearTimeout: timers.clearTimeout, setInterval: timers.setInterval, clearInterval: timers.clearInterval,
   };
-  const sandbox = loadExtensionScripts(["chat_core.js", "chat_render.js", "coder_mirror.js", "sidepanel_coder.js"], env);
+  const sandbox = loadExtensionScripts(["chat_context.js", "chat_core.js", "chat_render.js", "coder_mirror.js", "sidepanel_coder.js"], env);
   return {
     els, doc, sent, timers, store, sandbox, env,
     of: (type) => sent.filter((m) => m.type === type),

@@ -174,7 +174,7 @@ export function DeleteProfileDialog({ profile, onClose, onDeleted }) {
 }
 
 /** ProfileSection — rename the profile Settings shows, change its icon, or delete it. */
-export default function ProfileSection({ profile }) {
+export default function ProfileSection({ profile, isActive = true }) {
   const { t } = useTranslation()
   const [name, setName] = useState(profile?.name || '')
   const [iconPickerOpen, setIconPickerOpen] = useState(false)
@@ -186,7 +186,7 @@ export default function ProfileSection({ profile }) {
   useEffect(() => {
     // Like Settings' own read: the count stays unknown rather than throwing a render.
     try { WailsApp.GetProfiles().then(l => setProfileCount(Array.isArray(l) ? l.length : null)).catch(() => {}) } catch { /* unknown */ }
-  }, [profile?.id])
+  }, [profile?.id, isActive])
 
   if (!profile?.id) return null
 

@@ -34,7 +34,7 @@ function setup({ methods = ["chat.send", "chat.stop", "chat.events"], connected 
     tabs: { query: async () => (tab === undefined ? [{ id: 7, url: "https://a.example/p", title: "Page" }] : tab ? [tab] : []), get: async () => (tabNow ? tabNow() : tab === undefined ? { id: 7, url: "https://a.example/p", title: "Page" } : tab) },
     scripting: { executeScript: scripts || (async () => [{ result: { url: "https://a.example/p", title: "Page", text: "body", selection: "sel" } }]) },
   };
-  const env = loadExtensionScripts(["youtube_video.js", "chat_core.js", "chat_bridge.js"], {
+  const env = loadExtensionScripts(["youtube_video.js", "chat_context.js", "chat_core.js", "chat_bridge.js"], {
     ...(transcript ? { MonoYouTubeTranscript: transcript } : {}),
     chrome,
     MonoAsk,

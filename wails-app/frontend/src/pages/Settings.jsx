@@ -512,7 +512,7 @@ export default function Settings({ onNavigate, navData, isActive = true }) {
             <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
           </div>
 
-          <ProfileSection profile={profile} />
+          <ProfileSection profile={profile} isActive={isActive} />
 
           <BrowserBindingsSection />
 

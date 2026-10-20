@@ -674,7 +674,11 @@ those surfaces, and they are not equally strong.
   entry, helm's `name=password,value=…`), every `--input` of
   `record verify` and `record replay`, and the text `browser type` types
   into a field whose selector names a credential (`type=password`,
-  `#pw`, `[name=otp]`, `.card-number`). It catches known names and
+  `#pw`, `[name=otp]`, `.card-number`); text typed into a selector that
+  names no credential (`#field3`, `.form-control`, `input:nth-child(2)`)
+  is shown as typed, by design. Token counts and key-like names that are
+  not secrets (`--max-new-tokens`, `token_budget`, `--cache-key`) stay
+  readable. It catches known names and
   shapes; it cannot promise to catch every secret. What it cannot catch:
   a secret piped in on stdin (`echo … | docker login --password-stdin`,
   `sudo -S`, `chpasswd`, `htpasswd -b`), a here-string, a positional
