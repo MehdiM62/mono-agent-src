@@ -247,6 +247,7 @@ func (c *capturingHost) RoundTrip(r *http.Request) (*http.Response, error) {
 }
 
 func TestMailchimpMetadataAtRunTime(t *testing.T) {
+	metaCache = sync.Map{} // a lookup cached by an earlier run would skip the one counted here
 	seen := mailchimpMetaServer(t)
 	hosts := &capturingHost{next: httpClient.Transport}
 	httpClient = &http.Client{Transport: hosts}

@@ -6,7 +6,7 @@
 import React, { useEffect } from 'react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import '@testing-library/jest-dom/vitest'
-import { render, screen, fireEvent, waitFor, cleanup, act } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, cleanup, act, within } from '@testing-library/react'
 import '../../i18n.js'
 import history from './__fixtures__/acme-history.json'
 // The bus that history was built from (internal/orgchat/testdata, kept in
@@ -234,6 +234,55 @@ describe('an org bubble', () => {
     expect(orgEventHolders('acme')).toBe(0)
     expect(api.stopOrgEvents).toHaveBeenCalled()
     expect(api.controlOrg).not.toHaveBeenCalled()
+  })
+
+  it('takes focus into the dialog at once, and into the composer once the thread has loaded (#477)', async () => {
+    const pending = deferred()
+    api.getOrgChatHistory.mockReturnValue(pending.promise)
+    render(<Harness />)
+    const panel = await screen.findByTestId('org-bubble-overlay')
+    const composer = panel.querySelector('textarea')
+    expect(composer).toBeDisabled()
+    expect(panel.contains(document.activeElement)).toBe(true)
+    await act(async () => { pending.resolve(history) })
+    await waitFor(() => expect(document.activeElement).toBe(composer))
+  })
+
+  it('leaves focus where the person put it while the thread was loading', async () => {
+    const pending = deferred()
+    api.getOrgChatHistory.mockReturnValue(pending.promise)
+    render(<Harness />)
+    const panel = await screen.findByTestId('org-bubble-overlay')
+    const tab = panel.querySelector('[data-thread-tab="team"]')
+    tab.focus()
+    await act(async () => { pending.resolve(history) })
+    await waitFor(() => expect(panel.querySelector('textarea')).not.toBeDisabled())
+    expect(document.activeElement).toBe(tab)
+  })
+
+  it('keeps the header on one row at a narrow width: titles shrink, the buttons stay (#477)', async () => {
+    const wide = window.innerWidth
+    window.innerWidth = 480
+    try {
+      render(<Harness />)
+      const panel = await screen.findByTestId('org-bubble-overlay')
+      await waitFor(() => expect(screen.getByTestId('org-bubble-pause')).toBeInTheDocument())
+      const header = panel.firstElementChild
+      expect(header.style.flexWrap).toBe('nowrap')
+      const close = within(header).getByRole('button', { name: /Close this bubble/ })
+      for (const b of within(header).getAllByRole('button')) expect(b.style.flexShrink).toBe('0')
+      expect(close.closest('[data-testid="org-bubble-overlay"] > div')).toBe(header)
+      // Narrow, the text buttons are icons, named for screen readers.
+      for (const id of ['org-bubble-pause', 'org-bubble-stop']) {
+        const b = screen.getByTestId(id)
+        expect(b.textContent.trim()).toBe('')
+        expect(b).toHaveAccessibleName()
+      }
+      const title = within(header).getByText('acme')
+      expect(title.style.minWidth).toBe('0px')
+    } finally {
+      window.innerWidth = wide
+    }
   })
 
   it('is kept across restarts and opens collapsed when asked', async () => {

@@ -53,6 +53,11 @@ type Deps struct {
 	WithJSONErrors func(cmd *cobra.Command)
 	// StdinIsTerminal says whether a person can be asked (replay's confirmation).
 	StdinIsTerminal func() bool
+	// Refusal is operator.Refusal: why this process may not do what only the
+	// user does, "" for the user. Running a recording's steps that change a
+	// site (replay --yes, verify --full, a replay's confirmation) is the
+	// user's; nil refuses (clicore.OperatorRefusal).
+	Refusal func() string
 
 	// AnalyzeRunner is the AI runner of analyze (production: ExecRunner).
 	AnalyzeRunner func(runtime, model string, timeout time.Duration) recordanalyze.Runner

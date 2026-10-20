@@ -28,7 +28,7 @@ gate.install(chrome);
 // form's model, batch capture, the offline queue's face, and the dispatch
 // that answers sidepanel.js. tables.js (CLIP-11) is absent on purpose — it runs in
 // the page, injected by capture.js, not in this worker.
-importScripts("capture_meta.js", "capture.js", "capture_modes.js", "youtube_video.js", "youtube_transcript.js", "capture_bridge.js");
+importScripts("capture_meta.js", "capture.js", "capture_outbox.js", "capture_modes.js", "youtube_video.js", "youtube_transcript.js", "capture_bridge.js");
 importScripts("capture_form.js", "capture_profile.js", "browser_binding.js", "summary_ai.js", "capture_batch.js", "capture_queue.js", "capture_actions.js");
 // The in-page recall group (RCL-02/04/05): the extension→Go request channel
 // and the three things that ride it. ask.js must come first — the others
@@ -40,6 +40,9 @@ importScripts("task_outbox.js", "task_bridge.js", "task_menu.js");
 
 // The side panel's chat (issue #451): it asks over ask.js, so it also follows
 // the recall group. summary_ai.js (loaded above) supplies its runtime/model.
+// The chat's proposals (chat_proposals.js): task_bridge.js checks a confirmed one with it;
+// private_net.js says which addresses a vault card may not fetch from a public page.
+importScripts("private_net.js", "chat_proposals_act.js", "chat_proposals.js");
 importScripts("chat_core.js", "chat_bridge.js");
 // Handing work to the coder (C6): the side panel's Coder section and the
 // right-click items. Over ask.js too; the menu items hang under the capture
@@ -47,6 +50,8 @@ importScripts("chat_core.js", "chat_bridge.js");
 importScripts("coder_bridge.js", "coder_menu.js");
 // Filling the page's form from the profile (form.fill); same channel as chat.
 importScripts("form_bridge.js");
+// Saving a page's file to the vault when the person confirms the chat's card (vault.save).
+importScripts("vault_bridge.js");
 // The raw CDP proxy (GLU-01/RIG-07): the generalisation of eval_cdp/type_cdp
 // that lets monobrowse drive the user's own Chrome. Events flow back through
 // it unasked-for, which is why it needs its own module rather than another
@@ -63,6 +68,9 @@ importScripts("bridge_health.js");
 // agent module registers with it; agent_commands.js, the dispatch, last.
 importScripts("agent_cdp.js", "agent_redact.js", "agent_tabs.js", "agent_screenshot.js", "agent_watch.js", "agent_a11y.js");
 importScripts("agent_submit_page.js", "agent_guard_bar.js", "agent_submit_guard.js", "agent_submit_prompt.js", "agent_commands.js");
+// The chat's Run on a page action card: the page's half, its debugger fallback
+// (through agent_cdp.js's attach and send), and the message handler.
+importScripts("page_action_page.js", "page_action_cdp.js", "page_action_bridge.js");
 
 // ---------------------------------------------------------------------------
 // State
@@ -1503,6 +1511,10 @@ MonoChat.install({
   storage: chrome.storage.local,
 });
 MonoForm.install();
+MonoVault.install({
+  isConnected: openAndSignedIn,
+  storage: chrome.storage.local,
+});
 
 // The side panel hears of a change at once. Signed out the bridge is asked
 // again every few seconds, signed in every minute: its answer to ping (read in
@@ -1555,6 +1567,11 @@ MonoAgentCommands.install({
   onDebuggerDetach: (fn) => chrome.debugger.onDetach.addListener(fn),
   onTabRemoved: (fn) => chrome.tabs.onRemoved.addListener(fn),
   // The idle release's last step; a tab the CDP relay still listens to stays attached.
+  detach: (tabId) => (debuggerPinned.has(tabId) ? undefined : detachDebugger(tabId)),
+});
+
+// The chat's page actions (page_action_run), from the side panel's Run only.
+MonoPageActionBridge.install({
   detach: (tabId) => (debuggerPinned.has(tabId) ? undefined : detachDebugger(tabId)),
 });
 

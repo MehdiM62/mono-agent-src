@@ -71,8 +71,15 @@ func mqttConnect(o *mqtt.ClientOptions) (mqtt.Client, error) {
 // Type: "queue.mqtt"
 type MQTTNode struct{}
 
-func (n *MQTTNode) Type() string                  { return "queue.mqtt" }
-func (n *MQTTNode) PerItemConfigFields() []string { return queuePerItemFields }
+func (n *MQTTNode) Type() string { return "queue.mqtt" }
+
+// mqttDestinations are the broker the connection's password goes to.
+var mqttDestinations = [][]string{{"host"}, {"port"}}
+
+// CredentialDestinationKeys: the broker the password goes to
+// (workflow.CheckCredentialDestinations).
+func (n *MQTTNode) CredentialDestinationKeys() [][]string { return mqttDestinations }
+func (n *MQTTNode) PerItemConfigFields() []string         { return queuePerItemFields }
 
 func (n *MQTTNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
 	o, err := mqttClientOptions(config)

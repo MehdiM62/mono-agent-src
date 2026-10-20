@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/monoes/mono-agent/internal/account"
+	"github.com/monoes/mono-agent/internal/cli/accountgate"
 	"github.com/monoes/mono-agent/internal/cli/clicore"
 )
 
@@ -135,6 +136,10 @@ func DescribeStatus(st account.Status) string {
 		if st.Reason == account.ReasonUnconfirmed { // monoes.me is not the problem: this machine gave up its saved login (A24)
 			return fmt.Sprintf("Logged in to monoes.me%s until %s, but this machine can no longer renew the login: monoes.me may have received a refresh whose answer never arrived, so this machine stopped using its saved login to protect your other installs. Sign in again on this machine: monoagentcli account login",
 				as, st.GraceUntil.Local().Format(time.RFC3339))
+		}
+		if st.Reason == account.ReasonKeyringUnavailable { // nor here: the refresh token cannot be read
+			return fmt.Sprintf("Logged in to monoes.me%s until %s, but this machine cannot renew the login. %s",
+				as, st.GraceUntil.Local().Format(time.RFC3339), accountgate.KeyringAdvice())
 		}
 		return fmt.Sprintf("Logged in to monoes.me%s, but monoes.me could not be reached (%s). This login works offline until %s.",
 			as, st.Reason, st.GraceUntil.Local().Format(time.RFC3339))

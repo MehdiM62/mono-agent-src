@@ -93,7 +93,12 @@ messages, not a barrier:
   unredacted outputs.
 - By your decision, a step that picks its own address (`http.request`) can
   use a saved connection in any run, so a workflow can send that
-  connection's token to any address.
+  connection's token to any address. With this release, `http.request` and
+  `http.graphql` are the only steps that can send a saved connection's
+  token to an address the connection doesn't name (see "Where a saved
+  connection's secret goes" below).
+- The extension commands that redirect the browser are yours: see
+  "Extension commands that only the user runs" below.
 - Writing secrets, connections and profiles stays open to an agent on
   purpose (`secret add|update|rm`, `connect save|set-oauth-client`,
   `profile create`): none of them shows a decrypted value. The exception is
@@ -103,6 +108,99 @@ messages, not a barrier:
   server or your own command, so a new writer can't reach it by accident.
 - An agent with full access to your computer can do anything you can,
   including reading the keyring.
+
+### A copy of `~/.monoagent` and the key store
+
+The key that opens the vault is in the OS key store, not in the database, and
+the key store gives it to any program running as your OS user. So a copy of
+`~/.monoagent/monoagent.db`, made by you, a script or an agent, gives any
+process running as you every credential in it: API keys, OAuth tokens, website
+logins and saved connections, in every profile. The CLI's own checks keep a copy
+from using the two credentials that harm your account when they are used twice,
+the monoes.me sign-in and the older library login (see "One sign-in per machine,
+never copied" and "Network use"). They cannot stop a program that decrypts the
+copy itself, or that reads the real database: such a program has what you have.
+
+To keep a tool or an agent you do not trust away from your credentials, run it
+where your key store is not: as another OS user, or in a container or virtual
+machine that has neither your home directory nor your key store. A `HOME` of its
+own is not enough.
+
+### Where a saved connection's secret goes
+
+A step that uses a saved connection (its `credential_id`, or the connection
+`node run` and MCP `node_run` find for the node's platform) sends the
+connection's password, token or key to the host its settings name.
+
+In releases up to and including v0.152.0, a step's own settings won over
+the connection's. So a coding agent on your computer, the in-app chat or a
+workflow you hadn't approved could send a saved connection's password or
+token to a server it chose. Examples:
+
+- `comm.email_read` with its own `imap_host`, with no approval card.
+- `service.mastodon` reading with its own `instance`, with no card.
+- `comm.email_send` with its own `smtp_host`, when you had always allowed
+  the recipient or turned send approvals off. The mail and your mail
+  password went to that host. With a card, approving sent through your
+  own server.
+
+An app node's region setting (S3) could move the AWS access key id and
+session token to another host. An app node's redirect to another host
+kept the connection's API key headers, and a 307 or 308 sent a body
+holding the key there again.
+
+Most such steps aren't sends, so no card held them. Default installs were
+affected. MCP's `node_run` was affected only if you registered monoagent's
+MCP server with `--allow-mutations`. We know of no use of this: it was
+found by code review and confirmed by tests with fake servers. If you're
+concerned, rotate the passwords and API keys of the connections an agent
+could reach. `monoagentcli connect list --profile <id>` lists them.
+
+Now the settings that decide where the secret goes follow these rules:
+
+- **The connection names the host.** The step can't name another one. A
+  different SMTP or IMAP host or port, Mastodon instance, Jira, Salesforce
+  or Shopify site, FTP, SSH or LDAP server, Kafka, RabbitMQ, AMQP or MQTT
+  broker, Snowflake account, or embedding or vector store URL is refused.
+  The error names the field and the connection's host. To use another
+  host, change the connection.
+- **The connection names no host.** The node's own default is used.
+  A host the step sets must be written in a workflow you approved. A host
+  taken from the run's data (its input, a webhook body, an earlier step,
+  an AI tool's arguments) is refused. So is a host in a workflow you
+  haven't approved, or in a step an agent runs on its own.
+- **`http.request` and `http.graphql` stay open, by your decision.** Their
+  URL, endpoint and proxy may name any address, in any run, with a saved
+  connection. A next page on another host, which the response names, now
+  goes without the request's auth, as a redirect does.
+- **API packages (`app.*` nodes).** They send the credential, and
+  anything rendered from the connection, only to the hosts the package or
+  the connection names. That covers the base URL's host as the package and
+  connection render it, and its subdomains. It also covers the
+  connection's own server, hosts written in the package, and its
+  `auth_hosts` (such as S3's regions). A URL or a host part, such as an S3
+  region, that a parameter or a response points at any other host goes
+  without them. A redirect to another host, or from https to plain http,
+  carries none of the headers the connection set. One that would send a
+  body there again (307, 308) isn't followed.
+- **Model vendors.** `agent.ask` and `ai.model` reach the vendor the
+  connection is for. An embedding provider's region or location must be a
+  region name.
+- **Queue triggers.** Kafka, RabbitMQ, AMQP and MQTT triggers check the
+  same rules when they start. Brokers the connection doesn't name come
+  only from a workflow you approved.
+- **The send approval card.** In the app and in `hil show`, the card names
+  the mail relay or Mastodon instance a send goes through, and the TwiML
+  URL a Twilio call fetches. That URL must be a public http(s) address,
+  not this machine or a private network.
+
+What stays open:
+
+- By your decision, `http.request` and `http.graphql` can send a saved
+  connection's token to any address. They are the only steps that can
+  send it to an address the connection doesn't name.
+- A workflow you approved may name a host for a connection that names
+  none, and the secret goes there whoever runs the workflow.
 
 ### File-based keyring fallback (weaker posture)
 
@@ -194,6 +292,119 @@ stdin, the terminal. Keeping the passphrase next to the keyring means
 anyone who can read your home directory as you can open the vault — the
 same trade-off as the environment-variable file.
 
+## An agent's sends wait for you
+
+When a coding agent on your computer, the in-app chat or a workflow you
+haven't approved tries to send a message or post (email, Outlook, Gmail,
+Slack, Telegram, Twilio, WhatsApp, Discord, Reddit, Mastodon, Bluesky,
+dev.to, Hashnode, Product Hunt and YouTube, the social browser actions that
+message, comment, post or follow, and the API packages' sends), nothing goes
+out. The message becomes a card in Human in Loop and is sent only when you
+approve it. Coder mode's `sendApproval` setting turns this off. An agent is
+recognised as described in
+[Who can read a decrypted secret](#who-can-read-a-decrypted-secret), with the
+same limits.
+
+What isn't held: likes, reposts, boosts and reactions (they carry none of your
+text); other changes on outside services (an issue, a record, a payment, a
+file made public), which a grant's outbound check covers for an org role
+([Org automations and autonomy](#org-automations-and-autonomy)); and general
+steps that can reach any address (`http.request`, `core.code`'s JavaScript).
+
+### Sends that skipped approval up to v0.152.0
+
+In releases up to and including v0.152.0, an agent, the in-app chat or a
+workflow you hadn't approved could send some messages without a card:
+
+- with `node run` under the short names `telegram`, `gmail`, `discord`,
+  `slack`, `twilio`, `whatsapp` or `email_send`, when the profile it named had
+  a saved connection for that service;
+- in a workflow, with the old node names: a Mastodon post (`comm.mastodon`), a
+  Reddit reply (`comm.reddit`), or a Discord or Outlook send with no operation
+  set (`comm.discord`, `comm.outlook_send`);
+- with an operation written as a number or true/false on Telegram, Discord or
+  Outlook, which send a message when no operation is named;
+- through a messaging step attached to an AI agent step as a tool, whenever
+  the model called it, in any workflow: tool calls weren't checked at all;
+- with `people messages compose`, `reply` and `send-draft`, which sent email
+  through the profile's saved Outlook connection.
+
+Default installs were affected. MCP's `node_run` was affected only if you
+registered monoagent's MCP server with `--allow-mutations` (setup asks, and
+the default is no). If you're worried, compare what was sent from your
+connected accounts with the approvals you remember: each service's own sent
+history, and in the app the Communications tab, the messages on people's pages
+and the run history. A send that skipped approval left no card, so the
+service's own history is the full record. We know of no use of this: it was
+found by code review and confirmed by tests with fake senders. A workflow you
+approved and run yourself sends as before, its AI agent's tools included.
+
+Technical detail: the gate looked a node up by the name it was given rather
+than the node type that runs it, and read an operation that is no string
+differently from the node. It now resolves every name to that type and reads
+the operation through the same helper as the nodes, and a tool call and the
+`people messages` sends pass it as a step does. A test walks every `comm.*`
+and `service.*` node type and every alias, through both `node run` and a
+workflow run, so a new name or operation can't slip past. Operations that are
+no string are tested against Telegram's, Discord's and Outlook's own code, and
+in the walk for every send type.
+
+### Recording replays and saved recordings up to v0.152.0
+
+In releases up to and including v0.152.0, an agent could replay a recording,
+its own or yours, with `record replay`, or run a draft's steps with `record
+verify`, in your logged-in browser, with no approval: which steps count as
+changing a site is read from the recording or draft itself, a file an agent
+can write. It could also save a draft with `record save` and run it with
+`node run`, MCP `node_run` or a workflow step, and so with a browser package
+it wrote by hand under `~/.monoagent/actions`. Now:
+
+- `record replay`, `record verify` and `record save` are yours: an agent, the
+  chat or a workflow gets exit 3 (`operator_only`). Only `record replay
+  --dry-run`, which runs nothing, stays open.
+- A browser action of a package that isn't built-in (a saved recording, a
+  local package, an imported one) doesn't run for an agent, the chat or a
+  workflow you haven't approved, through `node run`, MCP `node_run` or a
+  workflow step: it is refused before a tab opens. Built-in packages run as
+  before, and their sends wait for you (above). A symlinked `actions` folder
+  loads as a local package and is refused the same way; a symlinked package
+  folder inside it isn't loaded.
+- `login <package>` and `login confirm <package>` of a package that isn't
+  built-in are yours too: such a package names its own login page and the
+  sites whose cookies its login keeps.
+- `automation rerecord` is yours: it opens a package's site, or any `--url`,
+  in your browser and rewrites the selector your click picks, which changes
+  what the package's actions click, a built-in one's too. So are `automation
+  doctor accept-repair`, which rewrites one without a click, and changing a
+  package's flags with `automation trust` (page scripts, real runs);
+  showing them stays open. `login names` refuses an agent when it would
+  open the site of a package that isn't built-in.
+- What counts as built-in is read from files your account can write.
+  Built-in packages are the ones the app seeds or installs from the official
+  library; nothing re-checks their files after that. Their files and their
+  trust tier are kept under `~/.monoagent/automations`. An agent that can
+  write there, as one working as you can, can change a built-in package's
+  actions or mark its own package built-in, and these checks don't stop it.
+  Only keeping agents out of `~/.monoagent` (a sandbox) does. Checking
+  built-in packages against hashes the app ships or monoes.me signs is
+  tracked in #900.
+- If you start the app, the daemon or the browser bridge from an agent's
+  shell, a chat or a workflow run, it inherits that agent's markers, and
+  your own replays, verifies, logins and runs in it are refused as an
+  agent's. Restart it from your own terminal or the desktop launcher; the
+  refusal says so.
+- The browser extension's verify reaches the app through the bridge, which
+  any program that can read its pairing file can use, so the bridge's verify
+  takes no `full`, opens a blank tab and stops before the first step that
+  touches a page, whatever the draft marks. It checks much less than before.
+- Your own replays, verifies and runs, in your terminal and the app, and
+  the workflows you approved, work as before.
+- An agent that hides its markers and owns a terminal can still answer a
+  replay's question and pass as you: the general limit of how agents are
+  recognised (see "Who can read a decrypted secret").
+
+We know of no use of this: it was found by code review.
+
 ## Assistant tools (chat `--tools`)
 
 The `chat` command can expose a monoagent tool surface to the assistant
@@ -230,8 +441,50 @@ extension starts runs in a mode of its own, `--tools monoagent:read`
 (with or without a page attached; one mode, so a later message cannot
 widen what an earlier page reached the model with):
 
-- **Three tools only**: `list_workflows`, `get_workflow`,
-  `list_node_types`. There is no secret, credential, vault, profile
+- **Six tools only**: `list_workflows`, `get_workflow`,
+  `list_node_types`, `propose_task`, `propose_recording` and
+  `propose_vault_save`. The three proposals write nothing. `propose_task` answers with the task it
+  proposes, the side panel shows it as a card (marked "Suggested after
+  reading a web page" once the conversation has read a page), and only the
+  person's click on the card's Add button sends it to MonoAgent, which
+  files it in the Inbox as the agent `agent:extension-chat`, never in
+  Ready. `propose_recording` answers with a goal and the steps for the
+  person to perform; its card (marked the same way) starts the side
+  panel's recorder only when the person presses Start recording, and the
+  automation is saved only by the Record section's own Save, after the
+  person has reviewed the draft. No tool starts a recording, and what is
+  recorded never goes back to the chat. `propose_vault_save` names one
+  item, an address on the page or the person's selection, and carries no
+  bytes; only the person's click on Save to vault makes the side panel
+  check that the item is on the page they are on now (or read their
+  selection at that moment), fetch it within a 20 MiB cap (MonoAgent's
+  own), and send it to MonoAgent's file vault as `vault.save`. The fetch
+  carries the person's cookies only when the file is on the page's own
+  origin, so a page cannot have a request to another site go out with
+  them. The card names the host the file would come from. A public page
+  never has the extension fetch a private network address: loopback,
+  private, carrier-grade NAT, link-local, benchmarking, multicast and
+  reserved IPv4 ranges; IPv6 loopback, unique-local, link- and site-local
+  and multicast addresses, and those that carry an IPv4 address (mapped,
+  NAT64, 6to4); `localhost` and the home, office and tailnet names (`.lan`,
+  `.home`, `.home.arpa`, `.corp`, `.local`, `.localdomain`, `.internal`,
+  `.intranet`, `.private`, `.ts.net`, single-label names). A page counts
+  as private, and may save such an address, only when it is an http or
+  https page on a private IP address, `localhost` or `*.localhost`; a page
+  on any name, including the network names above and the wildcard-DNS
+  services below (which can be served from anywhere), a file, a blob,
+  `about:`, `data:` and the browser's own pages count as public.
+  Two limits are known. A public name that resolves to a private address
+  through DNS is not caught: the extension cannot see the address a name
+  resolves to, only the name; the known wildcard-DNS services (`nip.io`,
+  `sslip.io`, `xip.io`, `xip.name`, `1u.ms`, `localtest.me`, `lvh.me`,
+  `traefik.me`, `vcap.me`, `lacolhost.com`, `fbi.com`, `localho.st`,
+  `local.gd`) are refused as private. And from a public page an address that redirects is
+  refused rather than followed, even when the redirect is harmless, so
+  some CDN links need "open the file itself, then save it from there". A
+  page cannot press those buttons:
+  they are in the side panel, and the worker takes the requests only from
+  the extension's own pages. There is no secret, credential, secret-vault, profile
   document, synced message, contact, publication, org, template or social
   list tool; no tool that writes or deletes anything; no `run_workflow`;
   no workflow or canvas builder; no Bash; no knowledge-graph search. A tool
@@ -284,8 +537,151 @@ widen what an earlier page reached the model with):
 **Residual risk:** hidden text on a page can still steer what the three
 read tools show (workflow definitions, which may name accounts or targets)
 and the wording of the model's reply, including a link you may choose to
-click (its host is shown). The page text and the reply stay in the local
+click (its host is shown), and the task it proposes: read a card before you
+add it, as you read an Inbox task before approving it. The page text and the reply stay in the local
 conversation database like any chat.
+
+### Saving to the vault from the extension (`vault.save`)
+
+The side panel's confirm card saves an image or document you clicked Save on
+into the image/file vault of the profile the panel is set to, the vault
+`image list` and the MCP tools `vault_item_list` and `vault_item_get_path`
+read. It is one bridge request method, `vault.save`
+(`internal/extension/vault_save.go`):
+
+- **Who can call it.** Only a paired extension socket: the bridge reads no
+  request frame until the socket has passed the token handshake, and a
+  request that reached the handler without a connection is refused. The
+  bridge cannot tell a click from a script, so the click is the extension's
+  half: it sends `vault.save` only from the confirm card's Save handler, and
+  no chat tool, agent or page script in the extension reaches that call.
+  **Token caveat (as for every bridge method, #858):** anything running as
+  your user can read `~/.monoagent/extension.token`, pair a socket of its own
+  and call `vault.save` with no click. The bridge is a courtesy layer against
+  mistakes and page-borne instructions, not a sandbox against your own
+  processes.
+- **It writes and never reads.** The reply names the item it made, or for a
+  client id already saved the item as stored (`id`, `created`, `name`,
+  `mime`, `size_bytes`); it never carries the file, its path or anything else
+  from the vault, and the bridge has no other `vault.*` method.
+- **Checked before anything is written:** at most 20 MiB once decoded (a
+  request is one WebSocket frame, read up to 32 MiB); only PNG, JPEG, GIF,
+  WebP, PDF, plain text, Markdown and CSV, and the bytes must sniff as the
+  type they claim (no SVG, HTML or executables); the name is a label of at
+  most 255 bytes with no path separator, control or bidi character and not
+  `.` or `..` (the file itself is stored as `img-NNN` plus the type's
+  extension, 0600, never under the sent name); the profile id is a valid
+  folder name and must be a profile that exists now, so a profile deleted
+  since the panel listed it gets no folder back; the source address is kept
+  only as http(s) scheme, host and path (no user-info, query, fragment or a
+  segment's `;parameters` such as `;jsessionid=`, so a presigned URL's
+  signature never shows in `image list` or the app). A token that is itself
+  a path segment is kept: nothing tells it from a file name.
+- **Limits per profile.** Files saved this way (vault items with a client id)
+  may total at most **2 GiB** and **5,000 items** per profile; the count and
+  the sum are read inside the save's own `BEGIN IMMEDIATE` transaction, so
+  saves at once cannot pass them together. Past either, the save is refused
+  with `quota_exceeded`, naming the limit (final: delete saved files in the
+  Image Vault). At most **20 saves a minute per profile** and **60 a minute in
+  all**, counted in memory in the bridge process; past either, `rate_limited`
+  with `retry_after` in seconds. A save is counted only once its profile is
+  known to exist, from a list of live profiles read at most once a second, so
+  made-up profile ids get neither a rate window nor any database work; the
+  file is decoded only after the rate check.
+  Accepted trade-off: the 60 a minute are shared, so a paired extension that
+  keeps sending junk saves on three or more live profiles can hold real saves
+  back for up to a minute. That takes the same pairing that can already write
+  60 files a minute, and the app and the CLI do not go through this limiter.
+- **Exactly one write per save.** Each request carries a client id; the
+  vault keeps one item per client id per profile (a unique index), so a retry
+  returns the item it already made and writes nothing. A file or symlink
+  already in the vault folder under the next item's name (left by a crash, or
+  put there by anyone) is never overwritten or followed: the save takes the
+  next free number, at most 5 times, then is refused with `storage_conflict`
+  (final: the message says to check the profile's vault folder).
+- **Documents stay out of the knowledge base.** A PDF, text, Markdown or CSV
+  file goes into the image/file vault too, not the documents vault
+  (`profile documents`): documents there are indexed into the knowledge base
+  that agents read, and content from a web page must not land in it without
+  the person adding it there themselves. For the same reason a save is not
+  indexed in the knowledge graph; it is recorded with source `extension`.
+
+### Extension commands that only the user runs
+
+`extension bind`, `extension unbind`, `extension reset`, `extension pair
+--open` and `extension install --zip` refuse an agent, the chat and a
+workflow run: any process carrying one of the operator markers, or whose
+parent process carries one. They exit 3 with code `operator_only`.
+
+- `bind` and `unbind` decide which profile a browser acts as, so an agent
+  could point your browser, with its logged-in accounts, at another
+  profile, or take its profile away.
+- `reset` revokes the pairing token and cuts every browser off until you
+  pair it again.
+- `pair --open` opens a pairing page that pairs the browser with whichever
+  bridge served it, so an agent running a bridge of its own could take
+  your browser over.
+- `install --zip` unpacks a zip that no release signed into the folder the
+  browser loads the extension from.
+
+Printing the token (`extension pair` without `--open`) stays open, because
+anything running as you can read `~/.monoagent/extension.token`. So does
+the plain `extension install`, which installs only the release matching
+the CLI, checked against its signed manifest. `serve`, `status` and
+`browsers` stay open too: they change no binding, rotate no token, and
+agents use `serve` for private test bridges. Like the other operator
+checks, this keeps agents from doing these things by accident or on a
+page's instructions, and it is a courtesy layer for the CLI, not a barrier
+against an agent running as you:
+
+- `~/.monoagent/extension.token` is readable by anything running as you
+  (mode 0600, same user). With it, a process can drive the bridge protocol
+  directly: post a `set_binding` to `/monoagent/relay`, or connect to the
+  websocket as a browser and claim a profile in a `binding` frame, so an
+  endpoint it runs would receive that profile's browser actions. The gates
+  above don't cover that path.
+- The `pair --open` gate is cosmetic against an agent with a shell, which
+  can start a bridge of its own and open the pairing page itself.
+- An agent with a shell can also edit the files these commands manage.
+
+So it is not a sandbox: it stops mistakes and planted instructions that
+go through the CLI.
+### What the app shows of an agent's commands
+
+Coder chats and orgs show each tool call an agent makes: its command line,
+its input and its output, on a card, in an org bubble's tool rows, on the
+stage and in the background-process banner. Two rules keep secrets off
+those surfaces, and they are not equally strong.
+
+- **Hiding is the guarantee, for MonoAgent's own secret commands.** A
+  call that names `monoagent` (in any case) together with `secret`,
+  `vault`, `--value` or `--field`, or that runs `profile info set`,
+  `profile info get --reveal`, `account login`, `library login`,
+  `jev key set`, `connect set-oauth-client`,
+  `connect get-oauth-client --reveal`, `connect save`,
+  `connect oauth --stdin-json`, `api key create` or `extension pair`,
+  shows no command line, input or output at all, however it is wrapped
+  (`bash -c`, `eval`, a variable, a chain, a heredoc or pipe into it). A
+  vault card names the entry only for `get`, `reveal`, `update` and `rm`.
+- **Masking is best effort, for everything else.** Values after a
+  credential-shaped name (`--token`, `API_KEY=`, `"apiKey":`,
+  `Authorization:`, `?access_token=`, `curl -u user:`, `mysql -p` and
+  more) and well-known token shapes (`sk-`, `ghp_`, `xoxb-`, `AKIA`,
+  JWTs, Stripe, npm, GitLab, SendGrid, private key blocks, webhook URLs,
+  a URL's password) read `•••` in command lines and inputs; output gets
+  the token shapes. So does the value of a name/value pair whose label is
+  a credential's (`{"name": "password", "value": …}`, a Kubernetes env
+  entry, helm's `name=password,value=…`), every `--input` of
+  `record verify` and `record replay`, and the text `browser type` types
+  into a field whose selector names a credential (`type=password`,
+  `#pw`, `[name=otp]`, `.card-number`). It catches known names and
+  shapes; it cannot promise to catch every secret. What it cannot catch:
+  a secret piped in on stdin (`echo … | docker login --password-stdin`,
+  `sudo -S`, `chpasswd`, `htpasswd -b`), a here-string, a positional
+  argument with no telling name, a base64 blob or a long hex string, and
+  a secret written into prose (a task's title or notes, a comment, an
+  edited message). Long hex and base64 are left alone on purpose: they
+  would also hide commit hashes and ordinary data.
 
 ## Network use, telemetry and crash reporting
 
@@ -312,7 +708,19 @@ list of the situations in which Mono Agent makes network requests:
    resource. On the first gated command, a monoes.me
    library login left by an older release is exchanged once for this sign-in (its
    refresh token, the client id and the resource); if monoes.me does not allow
-   that, nothing changes and you sign in once more. monoes.me learns which
+   that, nothing changes and you sign in once more. That older login is sent
+   to monoes.me (exchanged, refreshed, used for a library request, or revoked
+   by `library logout`) only from your own install: `HOME` is your OS account's
+   home directory and the database is `~/.monoagent/monoagent.db` in it. A copy
+   of the database, used from another `HOME` or with `--db-path`, sends nothing
+   and keeps the login, and the CLI prints why. When the system cannot say
+   which home directory your OS account has (on Linux, an account that is not
+   in `/etc/passwd`, such as an LDAP account or a container running under an
+   arbitrary user id), the login is not sent either: sign in with
+   `monoagentcli account login` instead. Every host counts as monoes.me here
+   except a loopback address (a development server on your machine). Each
+   exchange prints one line saying what became of the login, never the token
+   itself. monoes.me learns which
    account, when, and the IP address the request comes from. Nothing else is
    sent: no device identifier, no usage data, no workflow content, no file path.
 2. **monoes.me, for the library** (`library list`, `show`, `install`, `publish`,
@@ -393,10 +801,32 @@ Sign in once on each machine. Never copy or restore `~/.monoagent/account/`
 between machines or from an old backup or disk image, and never bake a sign-in
 into a Docker image or a container snapshot: keep it in the container's volume.
 monoes.me rotates the refresh token at every refresh and treats one that was
-already used as stolen: it ends that sign-in. A copy shares the sign-in of the
-machine it came from, so a stale copy, once presented, signs out the original and
-every copy, and each of them then has to sign in again. Machines that signed in
-on their own keep working.
+already used as stolen: it ends that sign-in. The refresh token names the folder
+it was sealed for, by its identity on the disk (by its path where the disk gives
+none), so a copy of the folder is never renewed, sent or revoked, wherever it is,
+even put back where the original was: it reports `keyring_unavailable` and has to
+sign in on its own. The folder itself may be renamed or moved on the same disk (a
+renamed home directory, a volume mounted at another path) and keeps working;
+moved to another disk, or restored from a backup, it has to sign in once more.
+Only a disk image restored block for block keeps the folder's identity: once
+presented, such a stale copy signs out the original and every copy, and each of
+them then has to sign in again. Machines that signed in on their own keep
+working. These checks guard against accidents, such as an agent copying the
+folder: a program that runs as you and can call the key store can seal any
+folder's name, or unseal the token itself (see "A copy of `~/.monoagent` and the
+key store"). A sign-in made by a release before this one names no folder: it is
+read only in your own `~/.monoagent/account`, and its next renewal, within the
+hour, ties it to that folder. If the system has no home directory for your
+account (on Linux, one that is not in `/etc/passwd`: an LDAP account, a
+container's arbitrary user id), that cannot be checked: sign in once more after
+upgrading. The CLI says so.
+
+Do not copy `~/.monoagent/monoagent.db` either. Its vault can still hold a
+library login from an older release, and any copy made by the same OS user can
+open it. The CLI sends that login to monoes.me only from your own install (see
+"Network use" above). Setting `MONOES_BASE_URL` does not keep a copy away from monoes.me:
+in a default build it changes where the library's requests go, not where you sign
+in. Only a `-tags devaccount` build changes the sign-in host (spec D24).
 
 ### When a sign-in is locked
 
@@ -665,6 +1095,32 @@ layers, from strongest:
   message each other. Restricting messages between profile folders needs
   monomind with capability `org-federation`.
 
+## Send approval cards
+
+A send that an agent, or a workflow you never approved, prepares waits as a
+`send:` item in the Human in Loop queue (`internal/hilsend`). When its words
+aren't a message you could edit, its card shows each field it sends, the
+recipient-like ones first and in full up to their share, and then every
+address in the payload the fields don't show, with its path: email
+addresses, links and tel:, sip: and sms: URIs, @handles and Matrix ids,
+channels and Slack ids, phone numbers, long numbers, UUIDs, IP literals and
+bare domains (`internal/apipkg/FORMAT.md` §3). A card that can't show all
+of that, or whose payload is too large to check, can be rejected, never
+approved.
+
+**Known gaps (accepted for now):** the card reads shapes, not meaning, so
+it doesn't find an address that a reader wouldn't take for one either:
+spelled out or otherwise obfuscated (`evil at x dot com`), percent-encoded
+(`evil%40x.test`), in base64 or HTML entities (`evil&#64;x.test`), written
+with a fullwidth `＠`, or split over two leaves the service joins
+(`{"user": "evil", "domain": "x.test"}`). Such a payload still shows its
+fields, cut with a mark and never left out silently. Also: a domain whose
+last label is a file name's ending (`evil.py`) and a number inside a word
+on both sides (`ab5551234567cd`) aren't read; 10 or 13 digits alone under a
+time-like key that read as a time from 2001 to 2100 count as a Unix time;
+and an address that one recipient-like field shows isn't listed again from
+another.
+
 ## Webhook trigger surface
 
 The webhook trigger server (`internal/workflow/webhook_server.go`) binds
@@ -772,7 +1228,7 @@ that works a task acts on them. The defences:
   The labels `you`, `agent`, `capture`, `chrome` and `os` are reserved,
   in any case, so an agent's events never read as the operator's or a
   capture's.
-- **Tasks from the Chrome extension.** The extension adds tasks through the bridge it already uses (loopback, paired token): one request method, `task.add`, which only adds to the Inbox of a profile that exists, as the browser capture `chrome`, whatever the environment of the process that hosts the bridge. The page address sent with a task loses its user-info, fragment and session-token parameters in the extension, and MonoAgent checks it again; a tab title that is only that address is not sent either. A selection carries what `getSelection()` reads: text hidden with `display:none` is left out, text hidden by colour, size or position is not. Both are why the operator reads a captured task before approving it. The floating selection panel that carries the task button lives in a closed shadow root and ignores events with `isTrusted` false, so a page cannot find or press it; a page can still move or cover its host and bait a real click, which files an Inbox task with text the page chose.
+- **Tasks from the Chrome extension.** The extension adds tasks through the bridge it already uses (loopback, paired token): one request method, `task.add`, which only adds to the Inbox of a profile that exists, as the browser capture `chrome`, whatever the environment of the process that hosts the bridge; a task the side-panel chat proposed and the person added with its card's button (kind `chat`) is filed as the agent `agent:extension-chat` instead, still Inbox only. The page address sent with a task loses its user-info, fragment and session-token parameters in the extension, and MonoAgent checks it again; a tab title that is only that address is not sent either. A selection carries what `getSelection()` reads: text hidden with `display:none` is left out, text hidden by colour, size or position is not. Both are why the operator reads a captured task before approving it. The floating selection panel that carries the task button lives in a closed shadow root and ignores events with `isTrusted` false, so a page cannot find or press it; a page can still move or cover its host and bait a real click, which files an Inbox task with text the page chose.
 - **No HTTP route and no new port.** The task board does not listen on the network.
 
 ## OpenAI-compatible API surface

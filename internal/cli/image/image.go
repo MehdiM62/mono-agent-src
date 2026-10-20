@@ -222,8 +222,8 @@ func (d Deps) newImageAddCmd() *cobra.Command {
 				ctx := vault.ContextWithProfileID(cmd.Context(), d.ProfileID())
 				id, err := vault.Register(ctx, db, args[0], source, "", "")
 				// Register indexes the image in the knowledge graph in the
-				// background; let that finish before this process exits.
-				defer vault.Wait()
+				// background; let that settle before this process exits.
+				defer vault.Settle()
 				if err != nil {
 					return fmt.Errorf("vault register: %w", err)
 				}

@@ -247,9 +247,10 @@ export const api = {
   coderStatus:        () => GoApp.CoderStatus().then(parseStreamResult),
   coderEnable:        () => GoApp.CoderEnable().then(parseStreamResult),
   coderDisable:       () => GoApp.CoderDisable().then(parseStreamResult),
-  // budgetUsd 0 clears the per-turn budget; see coderSetArgs (app_coder.go).
-  coderSet:           ({ workspaceRoot = '', maxTurns = 0, timeout = '', budgetUsd = -1 }) =>
-    GoApp.CoderSet(workspaceRoot, maxTurns, timeout, budgetUsd).then(parseStreamResult),
+  // budgetUsd 0 clears the per-turn budget; orgRouter is auto|jev|model, ''
+  // leaves it alone. See coderSetArgs (app_coder.go).
+  coderSet:           ({ workspaceRoot = '', maxTurns = 0, timeout = '', budgetUsd = -1, orgRouter = '' }) =>
+    GoApp.CoderSet(workspaceRoot, maxTurns, timeout, budgetUsd, orgRouter).then(parseStreamResult),
   // {stopped, gone, refused} pids of a turn's leftover background processes.
   // Dynamic org (#226): 'solo' or 'dynamic', from the next turn on.
   // Answer a dynamic-org worker's question (#256).
@@ -262,6 +263,7 @@ export const api = {
   // The active profile's own folder, set up for the runtime: {path, profile:{id,name}, source, init}.
   coderWorkspaceDefault: (runtimeID = '') => GoApp.CoderWorkspaceDefault(runtimeID).then(parseStreamResult),
   getActiveProfile: () => GoApp.GetActiveProfile(),
+  getProfiles: () => GoApp.GetProfiles(),
   // Send approval (coder-bubble-v2 point 3): an agent's outbound send waits as a
   // HIL item of kind "send" (also in getHILItems as item.send). Payload shape:
   // internal/hilsend/types.go. hilSendResolve performs the previewed payload
@@ -279,6 +281,9 @@ export const api = {
     GoApp.HilSendAllowAdd(action, platform, account, recipient).then(parseStreamResult),
   hilSendAllowRemove:  (ruleID) => GoApp.HilSendAllowRemove(ruleID).then(parseStreamResult),
   hilSendSetApproval:  (on) => GoApp.HilSendSetApproval(on).then(parseStreamResult),
+  // `coder set --app-access on|off` (operator only): whether a coder chat's
+  // workers get the workspace profile. Returns coder status ({appAccess}).
+  coderSetAppAccess:   (on) => GoApp.CoderSetAppAccess(!!on).then(parseStreamResult),
   coderWorkspaceRoot: (runtimeID = '') => GoApp.CoderWorkspaceRoot(runtimeID).then(parseStreamResult),
   coderWorkspaceList: () => GoApp.CoderWorkspaceList().then(parseStreamResult),
   // Sandbox fallback setting: `monoagentcli sandbox fallback`; a bad value rejects with the CLI's message.

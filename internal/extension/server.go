@@ -35,6 +35,9 @@ type Server struct {
 	connected chan struct{} // closed when first connection arrives
 	connOnce  sync.Once
 
+	// vaultRate is vault.save's rate windows, set by SetVaultSink.
+	vaultRate *saveRateLimiter
+
 	// Capture plumbing (see capture.go). streams carries the multi-message
 	// page_capture responses, which pending cannot: it is single-shot, and
 	// one capture may span many messages under one id. Both are guarded by
@@ -46,6 +49,9 @@ type Server struct {
 	captureOptions capture.Options
 	onCapture      func(*capture.Result, error)
 	afterWrite     func(*capture.Result)
+	// profileSource is profile.list's source, kept so a capture naming a
+	// deleted profile is caught before it is written (fileUnderLiveProfile).
+	profileSource ProfileSource
 
 	// token authenticates /monoagent/relay requests (see handleRelay). Set
 	// once Start has won the port bind; empty (and thus relay-rejecting)

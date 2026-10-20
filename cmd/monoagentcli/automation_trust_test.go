@@ -8,9 +8,13 @@ import (
 	"testing"
 
 	"github.com/monoes/mono-agent/internal/automation"
+	"github.com/monoes/mono-agent/internal/operator"
 )
 
 func TestAutomationTrustAndReplaceBuiltin(t *testing.T) {
+	for _, k := range operator.MarkerEnv() {
+		t.Setenv(k, "")
+	}
 	home := t.TempDir()
 	file := filepath.Join(home, "gemini.mpkg")
 	var exp map[string]string

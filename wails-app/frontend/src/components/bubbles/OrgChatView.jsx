@@ -6,6 +6,8 @@ import { ChatComposer } from '../chat/ChatComposer.jsx'
 import { threadView, toolSummary } from '../../lib/orgBubble.js'
 import { normalizeAsk } from '../../lib/askModel.js'
 import { AskCard } from './AskCard.jsx'
+import { ToolLink } from '../chat/ToolLink.jsx'
+import { cliOf, cliTitle, vaultRelatedCall } from '../chat/toolLinks.js'
 import { useHilAsks } from './useHilAsks.js'
 import '../chat/chat.css'
 
@@ -39,15 +41,21 @@ function TeamRow({ item, nameOf, defaultOpen = false }) {
 }
 
 // ToolRow is one tool call of a role, in that role's thread.
-function ToolRow({ item }) {
+function ToolRow({ item, onNavigate }) {
   const { t } = useTranslation()
   const call = item.call
+  // A monoagentcli call on a tab links to it; a vault call shows the entry's
+  // name only, and one it cannot read a neutral label: never its command
+  // line (#473, #872).
+  const cli = cliOf(call)
+  const label = cli?.family === 'vault' ? cliTitle(cli, t) : vaultRelatedCall(call) ? t('toolLinks.vaultRelated') : toolSummary(call)
   const state = call.status === 'started' ? 'running' : call.ok === false ? (call.denied ? 'denied' : 'failed') : 'ok'
   return (
     <div data-testid="org-chat-tool" data-state={state} className="org-tool-row">
       <Wrench size={10} aria-hidden="true" />
-      <span className="org-tool-name">{toolSummary(call)}</span>
+      <span className="org-tool-name">{label}</span>
       <span className="org-tool-state" data-state={state}>{t(`orgBubble.tool.${state}`)}</span>
+      <ToolLink link={cli && (cli.family === 'vault' || !vaultRelatedCall(call)) && { page: cli.page }} onNavigate={onNavigate} />
     </div>
   )
 }
@@ -171,7 +179,7 @@ export function OrgChatView({ conv, nameOf, draft, onDraftChange, orgName = '', 
             case 'team':
               return <TeamRow key={`${view.mode}-${key}`} item={item} nameOf={nameOf} defaultOpen={view.mode === 'team'} />
             case 'tool':
-              return <ToolRow key={key} item={item} />
+              return <ToolRow key={key} item={item} onNavigate={onNavigate} />
             case 'status':
               return view.mode === 'boss'
                 ? <Muted key={key} style={{ textAlign: 'center', margin: '6px 0' }}>{/^org started/.test(item.text) ? t('orgBubble.started') : t('orgBubble.stopped')}</Muted>

@@ -48,7 +48,7 @@ func (n *WhatsAppNode) Execute(ctx context.Context, input workflow.NodeInput, co
 	if to == "" {
 		return nil, fmt.Errorf("comm.whatsapp: to is required")
 	}
-	operation, _ := config["operation"].(string)
+	operation := workflow.ConfigOperation(config)
 	if operation == "" {
 		return nil, fmt.Errorf("comm.whatsapp: operation is required")
 	}
@@ -141,7 +141,7 @@ func whatsappPost(ctx context.Context, endpoint, accessToken string, payload map
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := commHTTP.Do(req)
 	if err != nil {
 		return nil, err
 	}

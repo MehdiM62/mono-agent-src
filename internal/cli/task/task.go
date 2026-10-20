@@ -11,6 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/operator"
 	"github.com/monoes/mono-agent/internal/orgsign"
 	"github.com/monoes/mono-agent/internal/tasks"
@@ -213,13 +214,9 @@ func (d Deps) author(c Caller) tasks.Actor {
 	return tasks.Actor{Kind: tasks.Agent, Name: by}
 }
 
-// notOperator is NotOperator's answer, "" without one.
-func (d Deps) notOperator() string {
-	if d.NotOperator == nil {
-		return ""
-	}
-	return d.NotOperator()
-}
+// notOperator is NotOperator's answer; without one the caller isn't the
+// operator (clicore.OperatorRefusal: an unwired check fails closed).
+func (d Deps) notOperator() string { return clicore.OperatorRefusal(d.NotOperator) }
 
 // operator returns the operator's actor, or the refusal an agent-driven caller gets, as
 // does one that no agent named but that is not the operator's own terminal (NotOperator).
@@ -237,7 +234,7 @@ func (c Caller) operator(what string) (tasks.Actor, error) {
 	case c.marker != "" && c.envBlank:
 		why = c.marker + " is set and MONOAGENT_ACTOR is set to a blank value, so an agent is running this command"
 	case c.marker != "":
-		why = c.marker + " is set, so an agent is running this command. " + operator.InheritedHint()
+		why = c.marker + " is set, so an agent is running this command (" + operator.InheritedHintClause() + ")"
 	case c.asBlank:
 		why = "--as is given with no name, which counts as an agent"
 	case c.envBlank:

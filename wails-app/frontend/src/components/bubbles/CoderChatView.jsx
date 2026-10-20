@@ -184,7 +184,7 @@ export function CoderChatView({ conv, isDraft, setup, onSetupChange, draft, onDr
               msg.role === 'coder-init' ? <CoderInitNote key={i} workspace={msg.workspace} />
                 : msg.role === 'turn' ? (
                   <div key={i} className="chat-assistant-turn">
-                    <ChatTimeline state={msg.state} turnId={msg.turnId} isLive={false} agentFilter={msg.turnId === agentFilterTurnId ? agentFilter : null} />
+                    <ChatTimeline state={msg.state} turnId={msg.turnId} isLive={false} agentFilter={msg.turnId === agentFilterTurnId ? agentFilter : null} onNavigate={onNavigate} />
                     <TurnStatus state={msg.state} stopRequested={false} ownedByThisInstance={msg.ownedByThisInstance} />
                     {isAgentNotSetup(msg.state.terminal?.code) && <AgentSetupLink onNavigate={onNavigate} />}
                   </div>
@@ -197,7 +197,7 @@ export function CoderChatView({ conv, isDraft, setup, onSetupChange, draft, onDr
             ))}
             {conv.streaming && (
               <div className="chat-assistant-turn">
-                <ChatTimeline state={conv.liveTurn} turnId={conv.activeTurnId} isLive agentFilter={conv.activeTurnId === agentFilterTurnId ? agentFilter : null} />
+                <ChatTimeline state={conv.liveTurn} turnId={conv.activeTurnId} isLive agentFilter={conv.activeTurnId === agentFilterTurnId ? agentFilter : null} onNavigate={onNavigate} />
                 <TurnStatus state={conv.liveTurn} stopRequested={conv.stopRequested} />
               </div>
             )}

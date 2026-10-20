@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"syscall"
 
 	"github.com/monoes/mono-agent/internal/monomind"
@@ -200,9 +199,7 @@ func Register(ctx context.Context, db *sql.DB, src, source, workflowID, executio
 // syncImageToKG indexes a newly registered image in the knowledge graph in
 // the background (see Wait).
 func syncImageToKG(db *sql.DB, profileID, id, source, workflowID, executionID string) {
-	background.Add(1)
-	go func() {
-		defer background.Done()
+	background.Go(func(started func()) {
 		desc := "source: " + source
 		if workflowID != "" {
 			desc += ", workflow: " + workflowID
@@ -211,8 +208,8 @@ func syncImageToKG(db *sql.DB, profileID, id, source, workflowID, executionID st
 			desc += ", execution: " + executionID
 		}
 		node := monomind.KGNode{Name: id, Type: "file", Description: desc}
-		_ = monomind.SyncToKnowledgeGraph(context.Background(), db, profileID, []monomind.KGNode{node}, nil, "vault:"+id)
-	}()
+		_ = monomind.SyncToKnowledgeGraphStarted(context.Background(), db, profileID, []monomind.KGNode{node}, nil, "vault:"+id, started)
+	})
 }
 
 // legacyVaultDir is the single flat directory every profile's files used to
@@ -475,10 +472,15 @@ func copyFileOpt(src, dst string, noFollow bool) (retErr error) {
 
 // background tracks Register's knowledge-graph syncs, which run after it
 // returns and write under the profile's folder.
-var background sync.WaitGroup
+var background monomind.SyncGroup
 
 // Wait blocks until every knowledge-graph sync Register started has
 // finished. Tests call it before their temporary HOME is removed, since a
-// sync still writing there makes the cleanup fail; a process that is about
-// to exit can call it to let the syncs land.
+// sync still writing there makes the cleanup fail.
 func Wait() { background.Wait() }
+
+// Settle is for a command about to exit or close the database it passed to
+// Register: it lets the syncs land the way storage's Close does
+// (monomind.SyncGroup.Settle), about a second at most unless one has not
+// started yet.
+func Settle() { background.Settle() }

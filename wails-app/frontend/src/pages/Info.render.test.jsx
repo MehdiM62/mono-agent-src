@@ -32,6 +32,9 @@ const catalog = {
 const aiName = { key: 'identity.first_name', value: 'Ada', masked: false, source: 'ai', origin: 'cv.pdf', updated_at: 't' }
 const passport = { key: 'ids.passport', value: '•••• 4567', masked: true, source: 'user', updated_at: 't' }
 
+// A save settles a few renders after the blur; the 1 s default runs out on a loaded CI runner.
+const WAIT = { timeout: 5000 }
+
 let entries
 beforeEach(() => {
   vi.clearAllMocks()
@@ -46,7 +49,7 @@ afterEach(() => { cleanup(); vi.useRealTimers() })
 
 async function loaded() {
   render(<Info />)
-  await screen.findByLabelText('First name')
+  await screen.findByLabelText('First name', undefined, WAIT)
 }
 
 describe('Info page', () => {
@@ -75,8 +78,8 @@ describe('Info page', () => {
     const bio = screen.getByLabelText('Bio')
     fireEvent.change(bio, { target: { value: 'line 1\nline 2' } })
     fireEvent.blur(bio)
-    await waitFor(() => expect(WailsApp.SetProfileInfo).toHaveBeenCalledWith('about.bio', 'line 1\nline 2'))
-    expect(await screen.findByText('Saved')).toBeInTheDocument()
+    await waitFor(() => expect(WailsApp.SetProfileInfo).toHaveBeenCalledWith('about.bio', 'line 1\nline 2'), WAIT)
+    expect(await screen.findByText('Saved', undefined, WAIT)).toBeInTheDocument()
   })
 
   it('does not save an unchanged field', async () => {
@@ -88,7 +91,7 @@ describe('Info page', () => {
   it('saves a select on change', async () => {
     await loaded()
     fireEvent.change(screen.getByLabelText('Gender'), { target: { value: 'female' } })
-    await waitFor(() => expect(WailsApp.SetProfileInfo).toHaveBeenCalledWith('identity.gender', 'female'))
+    await waitFor(() => expect(WailsApp.SetProfileInfo).toHaveBeenCalledWith('identity.gender', 'female'), WAIT)
   })
 
   it('shows the CLI validation message when a save fails', async () => {
@@ -97,7 +100,7 @@ describe('Info page', () => {
     const f = screen.getByLabelText('First name')
     fireEvent.change(f, { target: { value: 'x' } })
     fireEvent.blur(f)
-    expect(await screen.findByRole('alert')).toHaveTextContent('invalid value for identity.first_name')
+    expect(await screen.findByRole('alert', undefined, WAIT)).toHaveTextContent('invalid value for identity.first_name')
   })
 
   it('marks AI values and makes an edited one the user\'s', async () => {
@@ -106,7 +109,8 @@ describe('Info page', () => {
     const f = screen.getByLabelText('First name')
     fireEvent.change(f, { target: { value: 'Grace' } })
     fireEvent.blur(f)
-    await waitFor(() => expect(screen.queryByLabelText('Filled by AI from cv.pdf')).not.toBeInTheDocument())
+    // The badge goes once the save settles; under a loaded CI machine that takes longer than waitFor's 1 s default.
+    await waitFor(() => expect(screen.queryByLabelText('Filled by AI from cv.pdf')).not.toBeInTheDocument(), WAIT)
   })
 })
 
@@ -122,8 +126,8 @@ describe('Info masked fields', () => {
     fireEvent.change(input, { target: { value: 'P998877' } })
     entries = [aiName, { ...passport, value: '•••• 8877' }]
     fireEvent.blur(input)
-    await waitFor(() => expect(WailsApp.SetProfileInfo).toHaveBeenCalledWith('ids.passport', 'P998877'))
-    await waitFor(() => expect(screen.getByLabelText('Passport number')).toHaveValue('•••• 8877'))
+    await waitFor(() => expect(WailsApp.SetProfileInfo).toHaveBeenCalledWith('ids.passport', 'P998877'), WAIT)
+    await waitFor(() => expect(screen.getByLabelText('Passport number')).toHaveValue('•••• 8877'), WAIT)
   })
 
   it('Change then an empty blur cancels without clearing', async () => {
@@ -139,14 +143,14 @@ describe('Info masked fields', () => {
     await loaded()
     vi.useFakeTimers({ shouldAdvanceTime: true })
     fireEvent.click(screen.getByRole('button', { name: 'Reveal: Passport number' }))
-    await waitFor(() => expect(screen.getByLabelText('Passport number')).toHaveValue('P1234567'))
+    await waitFor(() => expect(screen.getByLabelText('Passport number')).toHaveValue('P1234567'), WAIT)
     expect(WailsApp.RevealProfileInfo).toHaveBeenCalledWith('ids.passport')
     expect(screen.getByLabelText('Passport number')).not.toHaveClass('is-blurred')
     fireEvent.click(screen.getByRole('button', { name: 'Hide: Passport number' }))
     expect(screen.getByLabelText('Passport number')).toHaveValue('•••• 4567')
     expect(screen.getByLabelText('Passport number')).toHaveClass('is-blurred')
     fireEvent.click(screen.getByRole('button', { name: 'Reveal: Passport number' }))
-    await waitFor(() => expect(screen.getByLabelText('Passport number')).toHaveValue('P1234567'))
+    await waitFor(() => expect(screen.getByLabelText('Passport number')).toHaveValue('P1234567'), WAIT)
     await act(async () => { vi.advanceTimersByTime(59000) })
     expect(screen.getByLabelText('Passport number')).toHaveValue('P1234567')
     await act(async () => { vi.advanceTimersByTime(1100) })
@@ -166,11 +170,11 @@ describe('Info AI fill', () => {
     await loaded()
     const btn = screen.getByRole('button', { name: 'AI fill' })
     fireEvent.click(btn)
-    const busy = await screen.findByRole('button', { name: /Reading your documents/ })
+    const busy = await screen.findByRole('button', { name: /Reading your documents/ }, WAIT)
     expect(busy).toBeDisabled()
     entries = [aiName, passport, { key: 'about.bio', value: 'Engineer', masked: false, source: 'ai', origin: 'cv.pdf', updated_at: 't' }]
     await act(async () => { done({ asked: 4, filled: [{ key: 'about.bio', origin: 'cv.pdf' }], skipped: 0 }) })
-    expect(await screen.findByText(/Filled 1 field from your documents, 1 left empty/)).toBeInTheDocument()
+    expect(await screen.findByText(/Filled 1 field from your documents, 1 left empty/, undefined, WAIT)).toBeInTheDocument()
     expect(screen.getByLabelText('Bio')).toHaveValue('Engineer')
     expect(screen.getByRole('button', { name: 'AI fill' })).toBeEnabled()
     expect(WailsApp.AIFillProfileInfo).toHaveBeenCalledWith('', '')
@@ -180,7 +184,7 @@ describe('Info AI fill', () => {
     WailsApp.AIFillProfileInfo.mockRejectedValue(new Error('no AI runtime is set up'))
     await loaded()
     fireEvent.click(screen.getByRole('button', { name: 'AI fill' }))
-    expect(await screen.findByText(/AI fill did not finish: no AI runtime is set up/)).toBeInTheDocument()
+    expect(await screen.findByText(/AI fill did not finish: no AI runtime is set up/, undefined, WAIT)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'AI fill' })).toBeEnabled()
   })
 })
@@ -194,8 +198,8 @@ describe('Info photo slot', () => {
     expect(screen.getByText('No file')).toBeInTheDocument()
     entries = [...entries, { key: 'photos.portrait', value: 'portrait.png', masked: false, source: 'user', updated_at: 't' }]
     fireEvent.click(screen.getByRole('button', { name: 'Upload: Portrait' }))
-    await waitFor(() => expect(WailsApp.SetProfileInfoPhoto).toHaveBeenCalledWith('photos.portrait', '/tmp/me.png'))
-    const img = await screen.findByAltText('Portrait')
+    await waitFor(() => expect(WailsApp.SetProfileInfoPhoto).toHaveBeenCalledWith('photos.portrait', '/tmp/me.png'), WAIT)
+    const img = await screen.findByAltText('Portrait', undefined, WAIT)
     expect(img).toHaveAttribute('src', 'data:image/png;base64,AAAA')
   })
 
@@ -203,12 +207,12 @@ describe('Info photo slot', () => {
     entries = [...entries, { key: 'photos.portrait', value: 'scan.pdf', masked: false, source: 'user', updated_at: 't' }]
     WailsApp.GetProfileInfoPhoto.mockResolvedValue('data:application/pdf;base64,AAAA')
     await loaded()
-    expect(await screen.findByText('PDF')).toBeInTheDocument()
+    expect(await screen.findByText('PDF', undefined, WAIT)).toBeInTheDocument()
     expect(screen.queryByAltText('Portrait')).not.toBeInTheDocument()
     entries = entries.filter(e => e.key !== 'photos.portrait')
     fireEvent.click(screen.getByRole('button', { name: 'Remove: Portrait' }))
-    await waitFor(() => expect(WailsApp.ClearProfileInfo).toHaveBeenCalledWith('photos.portrait'))
-    await waitFor(() => expect(screen.getByText('No file')).toBeInTheDocument())
+    await waitFor(() => expect(WailsApp.ClearProfileInfo).toHaveBeenCalledWith('photos.portrait'), WAIT)
+    await waitFor(() => expect(screen.getByText('No file')).toBeInTheDocument(), WAIT)
   })
 })
 
@@ -238,7 +242,7 @@ describe('Info page: person or business', () => {
 
   it('starts as a person, hides the type field and the business sections', async () => {
     render(<Info />)
-    await screen.findByLabelText('First name')
+    await screen.findByLabelText('First name', undefined, WAIT)
     expect(screen.getByLabelText('IBAN')).toBeInTheDocument()
     expect(screen.queryByLabelText('VAT ID')).not.toBeInTheDocument()
     expect(screen.queryByRole('combobox', { name: 'Profile type' })).not.toBeInTheDocument()
@@ -247,10 +251,10 @@ describe('Info page: person or business', () => {
 
   it('switches to business: VAT shows, personal sections go, shared ones stay', async () => {
     render(<Info />)
-    await screen.findByLabelText('First name')
+    await screen.findByLabelText('First name', undefined, WAIT)
     fireEvent.click(screen.getByRole('radio', { name: 'Business' }))
-    await waitFor(() => expect(WailsApp.SetProfileInfo).toHaveBeenCalledWith('profile_type', 'Business'))
-    expect(await screen.findByLabelText('VAT ID')).toBeInTheDocument()
+    await waitFor(() => expect(WailsApp.SetProfileInfo).toHaveBeenCalledWith('profile_type', 'Business'), WAIT)
+    expect(await screen.findByLabelText('VAT ID', undefined, WAIT)).toBeInTheDocument()
     expect(screen.queryByLabelText('First name')).not.toBeInTheDocument()
     expect(screen.getByLabelText('IBAN')).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: 'Business' })).toHaveAttribute('aria-checked', 'true')

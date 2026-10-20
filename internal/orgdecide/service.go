@@ -409,9 +409,9 @@ func (s *Service) decide(ctx context.Context, profileID, root, org, runID, level
 	switch route {
 	case RouteHuman:
 		if it.Sends {
-			return record("human", VerdictEscalated, "", "approving it lets a message to a person go out, which only a person decides", nil, nil)
+			return s.toPerson(ctx, profileID, org, it)(record("human", VerdictEscalated, "", "approving it lets a message to a person go out, which only a person decides", nil, nil))
 		}
-		return record("human", VerdictEscalated, "", fmt.Sprintf("%s routes %s items to a person", level, it.Tier), nil, nil)
+		return s.toPerson(ctx, profileID, org, it)(record("human", VerdictEscalated, "", fmt.Sprintf("%s routes %s items to a person", level, it.Tier), nil, nil))
 	case RouteRule:
 		reason := fmt.Sprintf("%s items are approved by rule at %s", it.Tier, level)
 		if err := s.apply(ctx, root, org, it, true, "", "rule", reason); err != nil {
@@ -477,7 +477,7 @@ func (s *Service) decide(ctx context.Context, profileID, root, org, runID, level
 	v := outcome.Verdict
 	switch v.Verdict {
 	case "escalate":
-		return record(resolver, VerdictEscalated, "", v.Rationale, &cost, &lat)
+		return s.toPerson(ctx, profileID, org, it)(record(resolver, VerdictEscalated, "", v.Rationale, &cost, &lat))
 	case "answer":
 		if err := s.apply(ctx, root, org, it, true, v.Answer, resolver, v.Rationale); err != nil {
 			return nil, err

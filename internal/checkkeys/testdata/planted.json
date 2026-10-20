@@ -1,0 +1,12 @@
+{
+  "name": "A planted template",
+  "workflow": {
+    "nodes": [
+      {"id": "t1", "type": "trigger.manual", "config": {}},
+      {"id": "c1", "name": "Card", "type": "app.trello", "config": {"resource": "card", "operation": "update", "id": "x",
+        "updateFields": {"name": "N", "zz_extra": "x"}}},
+      {"id": "f1", "type": "app.freshservice", "config": {"resource": "ticket", "operation": "create", "email": "a@example.test",
+        "subject": "S", "description": "D", "additionalFields": "{{ $json.extra }}"}}
+    ]
+  }
+}

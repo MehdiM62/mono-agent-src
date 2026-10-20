@@ -3,12 +3,16 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/spf13/pflag"
+
 	"github.com/monoes/mono-agent/internal/browserctl"
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/hilsend"
 	"github.com/monoes/mono-agent/internal/orgsign"
 	"github.com/monoes/mono-agent/internal/profiledir"
@@ -210,14 +214,17 @@ func TestAlwaysAllowThroughResolveSkipsTheQueueNextTime(t *testing.T) {
 		t.Fatalf("allow list: %v %s", err, out)
 	}
 	// Same destination from an agent: not queued (it would go on to run the
-	// node, so use a node that fails fast without network: an unreachable
-	// host on a closed port).
+	// node, which fails fast here: it names no server, as a send through a
+	// saved connection's own server doesn't before the run merges it in).
 	asAgentProcess(t)
 	out, err = runSendCLI(t, cfg, newNodeRunCmd(cfg), "comm.email_send", "--output", "json", "--config",
-		`{"smtp_host":"127.0.0.1","smtp_port":1,"from":"me@example.test","to":"ada@example.test","subject":"Hi","body":"x"}`)
+		`{"from":"me@example.test","to":"ada@example.test","subject":"Hi","body":"x"}`)
 	if err == nil || strings.Contains(out, "queued for approval") {
 		t.Fatalf("an always-allowed destination was queued: %v %s", err, out)
 	}
+	// Through a server the agent names, with no connection to compare, it
+	// waits: the server is a destination too (security review of #871).
+	queueViaNodeRun(t, cfg, `{"smtp_host":"127.0.0.1","smtp_port":1,"from":"me@example.test","to":"ada@example.test","subject":"Hi","body":"x"}`)
 	// A different recipient still waits.
 	queueViaNodeRun(t, cfg, strings.Replace(sendConfig, "ada@", "bob@", 1))
 }
@@ -388,6 +395,71 @@ func TestPublicationRegisterFromAChatOrWorkflowRunNeedsApproval(t *testing.T) {
 			t.Errorf("register with %s set: %v", env[0], err)
 		}
 		t.Setenv(env[0], "")
+	}
+}
+
+// coder.appAccess is the operator's (exit 3, operator_only for an agent), and
+// turning it off leaves the send gate alone: an agent's send is still queued.
+func TestCoderAppAccessSettingKeepsTheSendGate(t *testing.T) {
+	cfg := sendEnv(t)
+	asAgentProcess(t)
+	_, err := runSendCLI(t, cfg, newCoderSetCmd(cfg), "--app-access", "off")
+	var coded interface{ JSONErrorFields() map[string]any }
+	if clicore.ExitCodeFor(err) != 3 || !errors.As(err, &coded) || coded.JSONErrorFields()["code"] != "operator_only" {
+		t.Fatalf("an agent turned app access off: %v", err)
+	}
+	asOperatorProcess(t)
+	out, err := runSendCLI(t, cfg, newCoderSetCmd(cfg), "--app-access", "off")
+	if err != nil || !strings.Contains(out, `"appAccess":false`) || !strings.Contains(out, `"sendApproval":true`) {
+		t.Fatalf("operator off: %v %s", err, out)
+	}
+	queueViaNodeRun(t, cfg, `{"smtp_host":"127.0.0.1","smtp_port":1,"from":"me@example.test","to":"ada@example.test","subject":"Hi","body":"x"}`)
+}
+
+// Every `coder set` flag is the operator's: an agent is refused each one
+// (exit 3, operator_only) and changes nothing; the operator sets each. A new
+// flag fails here until it gets a value below, which is the moment to decide
+// whether it is the operator's.
+func TestEveryCoderSetFlagIsTheOperators(t *testing.T) {
+	cfg := sendEnv(t)
+	values := map[string]string{
+		"send-approval": "false", "app-access": "off", "workspace-root": t.TempDir(), "max-turns": "5",
+		"timeout": "5m", "budget-usd": "1", "org-max-agents": "2", "org-max-concurrent": "2",
+		"org-budget-usd": "1", "org-model-picker": "lead", "org-router": "jev", "org-writers": "isolated",
+	}
+	before, err := runSendCLI(t, cfg, newCoderSetCmd(cfg))
+	if err != nil {
+		t.Fatal(err)
+	}
+	newCoderSetCmd(cfg).Flags().VisitAll(func(f *pflag.Flag) {
+		if f.Name == "help" {
+			return
+		}
+		v, ok := values[f.Name]
+		if !ok {
+			t.Errorf("--%s has no test value: decide whether only the operator may set it, then add it here", f.Name)
+			return
+		}
+		arg := "--" + f.Name + "=" + v
+		asAgentProcess(t)
+		_, err := runSendCLI(t, cfg, newCoderSetCmd(cfg), arg)
+		var coded interface{ JSONErrorFields() map[string]any }
+		if clicore.ExitCodeFor(err) != 3 || !errors.As(err, &coded) || coded.JSONErrorFields()["code"] != "operator_only" {
+			t.Errorf("an agent ran coder set %s: %v", arg, err)
+		}
+		asOperatorProcess(t)
+		if after, _ := runSendCLI(t, cfg, newCoderSetCmd(cfg)); after != before {
+			t.Errorf("an agent's coder set %s changed the settings:\n%s\n%s", arg, before, after)
+		}
+	})
+	for name, v := range values {
+		if _, err := runSendCLI(t, cfg, newCoderSetCmd(cfg), "--"+name+"="+v); err != nil {
+			t.Errorf("the operator's coder set --%s=%s: %v", name, v, err)
+		}
+	}
+	out, _ := runSendCLI(t, cfg, newCoderSetCmd(cfg))
+	if !strings.Contains(out, `"orgRouter":"jev"`) || !strings.Contains(out, `"orgWriters":"isolated"`) || !strings.Contains(out, `"orgModelPicker":"lead"`) {
+		t.Errorf("the operator's settings were not kept: %s", out)
 	}
 }
 

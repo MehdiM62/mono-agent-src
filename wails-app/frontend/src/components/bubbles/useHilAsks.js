@@ -44,7 +44,7 @@ export function useHilAsks(scope, enabled = true) {
     busyRef.current = { ...busyRef.current, [ask.id]: true }
     setBusy(busyRef.current)
     try {
-      const res = await hil.resolve(ask.id, { approve, editText: extras.editText, data: extras.data, kind: ask.kind })
+      const res = await hil.resolve(ask.id, { approve, editText: extras.editText, data: extras.data, kind: ask.kind, alwaysAllow: extras.alwaysAllow })
       setOutcome(o => ({ ...o, [ask.id]: res.error ? { error: res.error } : { state: res.state } }))
       if (!res.error) {
         keptRef.current = { ...keptRef.current, [ask.id]: { ...ask, pending: false, state: res.state } }

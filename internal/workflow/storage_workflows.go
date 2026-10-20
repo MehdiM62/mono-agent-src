@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/monoes/mono-agent/internal/sqltime"
 )
 
 // ---------------------------------------------------------------------------
@@ -78,6 +80,10 @@ func (s *SQLiteWorkflowStore) GetWorkflow(ctx context.Context, id string) (*Work
 	return w, nil
 }
 
+// workflowsNewestFirst orders workflows by when they were created: created_at
+// holds both a time.Time's text and RFC3339 (sqltime), which text order mixes.
+var workflowsNewestFirst = sqltime.SortKey("created_at") + " DESC, rowid DESC"
+
 // ListWorkflows returns the profile's workflows ordered by created_at DESC.
 // An empty profileID is ErrNoProfile: "every profile" is spelled
 // ListAllProfilesWorkflows. Nodes and Connections are not populated; call
@@ -88,7 +94,7 @@ func (s *SQLiteWorkflowStore) ListWorkflows(ctx context.Context, profileID strin
 	}
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, name, description, is_active, version, profile_id, created_at, updated_at
-		FROM workflows WHERE profile_id = ? ORDER BY created_at DESC`, profileID)
+		FROM workflows WHERE profile_id = ? ORDER BY `+workflowsNewestFirst, profileID)
 	if err != nil {
 		return nil, fmt.Errorf("listing workflows: %w", err)
 	}
@@ -101,7 +107,7 @@ func (s *SQLiteWorkflowStore) ListWorkflows(ctx context.Context, profileID strin
 func (s *SQLiteWorkflowStore) ListAllProfilesWorkflows(ctx context.Context) ([]Workflow, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, name, description, is_active, version, profile_id, created_at, updated_at
-		FROM workflows ORDER BY created_at DESC`)
+		FROM workflows ORDER BY `+workflowsNewestFirst)
 	if err != nil {
 		return nil, fmt.Errorf("listing workflows: %w", err)
 	}
@@ -389,7 +395,7 @@ func saveConnectionsTx(ctx context.Context, tx *sql.Tx, workflowID string, conns
 func (s *SQLiteWorkflowStore) loadWorkflowNodes(ctx context.Context, workflowID string) ([]WorkflowNode, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, workflow_id, node_type, name, config, position_x, position_y, disabled, created_at, updated_at
-		FROM workflow_nodes WHERE workflow_id = ? ORDER BY created_at ASC`, workflowID)
+		FROM workflow_nodes WHERE workflow_id = ? ORDER BY `+sqltime.SortKey("created_at")+`, rowid`, workflowID)
 	if err != nil {
 		return nil, fmt.Errorf("loading nodes for workflow %s: %w", workflowID, err)
 	}

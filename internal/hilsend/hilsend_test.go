@@ -65,8 +65,11 @@ func ctxFor(db *sql.DB) context.Context {
 
 var emailConfig = func() map[string]interface{} {
 	return map[string]interface{}{
-		"smtp_host": "smtp.example.test", "from": "me@example.test", "to": "ada@example.test",
+		"from": "me@example.test", "to": "ada@example.test",
 		"subject": "Hello", "body": "Original body", "password": "hunter2",
+		// The connection data a run merges in. It names no server: one that
+		// a config names is its own only when it is its saved connection's
+		// (ownServer, TestAServerOtherThanTheConnectionsGetsACard).
 		"credential": map[string]interface{}{"password": "hunter2", "extra": "x"}, "extra": "x",
 	}
 }
@@ -333,7 +336,7 @@ func TestSocialBatchBecomesOneItemPerRecipient(t *testing.T) {
 	}
 	ada := list[0]
 	if ada.Action != ActionDM || ada.Channel != "instagram" || ada.Account.Handle != "acme" || ada.Recipient.PersonID != "p9" ||
-		ada.Recipient.Name != "Ada Lovelace" || ada.Recipient.ProfileURL != "https://www.instagram.com/ada/" || ada.Text != "Hi there" {
+		ada.Recipient.Name != "ada" || ada.Recipient.PersonName != "Ada Lovelace" || ada.Recipient.ProfileURL != "https://www.instagram.com/ada/" || ada.Text != "Hi there" {
 		t.Fatalf("ada = %+v", ada)
 	}
 	if list[1].Recipient.Name != "bob" || list[1].Recipient.PersonID != "" {
@@ -384,6 +387,28 @@ func TestAlwaysAllowIsPerDestinationAndOperatorMade(t *testing.T) {
 	}
 	if _, handled, _ := Guard(ctxFor(db), "comm.email_send", workflow.NodeInput{}, emailConfig()); !handled {
 		t.Fatal("a removed rule still allows")
+	}
+}
+
+// An item is found by its exact id (a key lookup) or by a unique prefix of it.
+func TestAnItemIsFoundByItsIDOrAUniquePrefix(t *testing.T) {
+	asAgent(t)
+	db := testDB(t)
+	st := Store{db, "p1"}
+	id := queueEmail(t, db)
+	if _, err := st.Get(context.Background(), id); err != nil {
+		t.Fatalf("exact id: %v", err)
+	}
+	if _, err := st.Get(context.Background(), " "+id+" "); err != nil {
+		t.Fatalf("exact id with spaces: %v", err)
+	}
+	if _, err := st.Get(context.Background(), id[:8]); err != nil {
+		t.Fatalf("unique prefix: %v", err)
+	}
+	for _, miss := range []string{"", "no-such-id", id + "x"} {
+		if _, err := st.Get(context.Background(), miss); !errors.Is(err, ErrNotFound) {
+			t.Errorf("Get(%q) = %v, want ErrNotFound", miss, err)
+		}
 	}
 }
 

@@ -16,6 +16,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/monoes/mono-agent/internal/credhttp"
 )
 
 // Item is a single listable resource (spreadsheet, channel, etc.).
@@ -56,9 +58,14 @@ type Client struct {
 }
 
 // New returns a Client for the real provider APIs with a bounded timeout.
+// Its requests carry the connection's token, so a redirect elsewhere gets
+// none of it (credhttp).
 func New() *Client {
-	return &Client{HTTP: &http.Client{Timeout: 30 * time.Second}, Endpoints: DefaultEndpoints}
+	return &Client{HTTP: credhttp.Client(&http.Client{Timeout: 30 * time.Second}), Endpoints: DefaultEndpoints}
 }
+
+// defaultHTTP is the client of a Client with none.
+var defaultHTTP = credhttp.Client(nil)
 
 // ErrUnsupported marks a platform or resource type that can't be listed or
 // created; test with errors.Is.
@@ -315,7 +322,7 @@ func (c *Client) do(ctx context.Context, method, apiURL, token string, payload i
 	}
 	hc := c.HTTP
 	if hc == nil {
-		hc = http.DefaultClient
+		hc = defaultHTTP
 	}
 	resp, err := hc.Do(req)
 	if err != nil {

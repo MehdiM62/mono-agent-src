@@ -39,6 +39,15 @@ func (n *subNode) Execute(context.Context, workflow.NodeInput, map[string]interf
 	return nil, fmt.Errorf("%w: %s is a sub-node: connect its %s output to Agent Ask", workflow.ErrInvalidConfig, n.typ, n.kind)
 }
 
+// CredentialDestinationKeys: a chat model's vendor, as agent.ask's
+// (workflow.CheckCredentialDestinations).
+func (n *subNode) CredentialDestinationKeys() [][]string {
+	if n.typ == TypeModel {
+		return [][]string{{"credential_platform"}}
+	}
+	return nil
+}
+
 // PerItemConfigFields leaves a memory's session key unresolved, so the root
 // resolves it against each of its items.
 func (n *subNode) PerItemConfigFields() []string {

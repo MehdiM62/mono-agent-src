@@ -10,6 +10,11 @@ describe('normalizeAsk', () => {
     expect(a.attachments).toHaveLength(3)
     expect(a.recipient.name).toBe('Sam Rivera')
   })
+  it("carries a send's server and fetched URL from a `hil list` row", () => {
+    const a = normalizeAsk({ id: 'h2', kind: 'send', send: { id: 'h2', state: 'pending', channel: 'mastodon', host: 'fosstodon.example', fetchUrl: 'https://twiml.example/call.xml' } })
+    expect(a).toMatchObject({ host: 'fosstodon.example', fetchUrl: 'https://twiml.example/call.xml' })
+    expect(normalizeAsk(sendEmail)).toMatchObject({ host: '', fetchUrl: '' })
+  })
   it('reads a workflow item, with the org it belongs to', () => {
     const a = normalizeAsk(workflow)
     expect(a).toMatchObject({ kind: 'hil', id: 'hil-wf-1', pending: true, workflowName: 'Weekly outreach', org: 'acme' })
@@ -42,6 +47,31 @@ describe('asksFor', () => {
   })
   it('counts the pending ones', () => {
     expect(pendingCount(asks)).toBe(5)
+  })
+})
+
+// core.human_in_loop tags an item an agent's run queued with the org and
+// the coder chat in node_config; a scheduled run's item is untagged.
+describe('asksFor with workflow HIL items an agent queued', () => {
+  const asks = normalizeAsks([
+    { ...workflow, id: 'w-org', node_config: { org: 'acme' } },
+    { ...workflow, id: 'w-chat', node_config: { conversationId: 'c1' } },
+    { ...workflow, id: 'w-free', node_config: {} },
+  ])
+  it('routes a tagged item to its bubble and keeps an untagged one off every bubble', () => {
+    expect(asks.find(a => a.id === 'w-chat').conversationId).toBe('c1')
+    expect(asksFor(asks, { org: 'acme', roleIds: ['dev'] }).map(a => a.id)).toEqual(['w-org'])
+    expect(asksFor(asks, { conversationId: 'c1' }).map(a => a.id)).toEqual(['w-chat'])
+    expect(asksFor(asks, { conversationId: 'c2' })).toEqual([])
+    expect(asksFor(asks, { org: 'other', roleIds: ['dev'] })).toEqual([])
+  })
+  // orgdecide tags an org-started item with its org when it escalates it to
+  // a person; until then the item has no org and no bubble shows it.
+  it('shows an org-started item in its org bubble once escalated', () => {
+    const queued = normalizeAsk({ ...workflow, id: 'w-org-run', node_config: { outbound: false } })
+    const escalated = normalizeAsk({ ...workflow, id: 'w-org-run', node_config: { outbound: false, org: 'growth' } })
+    expect(asksFor([queued], { org: 'growth', roleIds: ['writer'] })).toEqual([])
+    expect(asksFor([escalated], { org: 'growth', roleIds: ['writer'] }).map(a => a.id)).toEqual(['w-org-run'])
   })
 })
 

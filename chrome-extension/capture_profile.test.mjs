@@ -37,6 +37,8 @@ const PROFILES = [
   { id: "p-work", name: "Work", default: true },
 ];
 
+const settle = () => new Promise((r) => setTimeout(r, 5));
+
 /** fakeAsk stands in for MonoAsk. */
 function fakeAsk(reply, opts = {}) {
   const calls = [];
@@ -237,9 +239,94 @@ test("a disconnected bridge is never asked, and never blocks the capture", async
   assert.equal(await P.stickyOrAsk(ask, fakeStorage(), true), "");
 });
 
-test("a remembered choice is never re-litigated with the backend", async () => {
+test("a remembered choice that still exists is kept: checking the list does not change it", async () => {
   const ask = fakeAsk({ profiles: PROFILES });
   const storage = fakeStorage({ [P.PROFILE_KEY]: "p-home" });
   assert.equal(await P.stickyOrAsk(ask, storage, true), "p-home");
+  await settle();
+  assert.equal(await P.stickyOrAsk(ask, storage, true), "p-home");
+  assert.equal(storage.data[P.PROFILE_KEY], "p-home");
+});
+
+// #822: the selected profile deleted in MonoAgent. The cached list still had
+// it, so every lookup went to a profile that no longer exists until someone
+// opened the side panel. A lookup made while connected now checks the list
+// in the background (never making the caller wait), at most once a minute.
+test("a profile deleted in MonoAgent drops out of the cache, and lookups fall back, without the side panel", async () => {
+  const ask = fakeAsk({ profiles: [{ id: "p-work", name: "Work", default: true }] });
+  const storage = fakeStorage({ [P.PROFILE_KEY]: "p-home", [P.PROFILES_KEY]: PROFILES });
+  assert.equal(await P.stickyOrAsk(ask, storage, true), "p-home", "the caller is answered from the cache, at once");
+  await settle();
+  assert.equal(ask.calls.length, 1);
+  assert.deepEqual(storage.data[P.PROFILES_KEY].map((p) => p.id), ["p-work"], "the cache knows it is gone");
+  assert.equal(await P.stickyOrAsk(ask, storage, true), "p-work", "the next lookup falls back");
+  assert.equal(await P.sticky(storage), "p-work", "so does the shortcut");
+  assert.equal(storage.data[P.PROFILE_KEY], "p-home", "the choice is kept, so the side panel can say it was deleted");
+  await settle();
+  assert.equal(ask.calls.length, 1, "checked at most once a minute");
+});
+
+test("the background check never asks a disconnected bridge, and a dead one changes nothing", async () => {
+  const quiet = fakeAsk({ profiles: [] });
+  const storage = fakeStorage({ [P.PROFILE_KEY]: "p-home", [P.PROFILES_KEY]: PROFILES });
+  assert.equal(await P.stickyOrAsk(quiet, storage, false), "p-home");
+  await settle();
+  assert.equal(quiet.calls.length, 0);
+  const dead = fakeAsk(null, { fail: true });
+  const other = fakeStorage({ [P.PROFILE_KEY]: "p-home", [P.PROFILES_KEY]: PROFILES });
+  assert.equal(await P.stickyOrAsk(dead, other, true), "p-home");
+  await settle();
+  assert.deepEqual(other.data[P.PROFILES_KEY], PROFILES, "an unanswered check keeps the cache");
+});
+
+// D2 (#822): a capture is filed when it is sent, into the remembered profile
+// or else the default, and a sender asks the bridge to find out.
+test("profileForSending is the remembered profile, else the default, asking when it must", async () => {
+  assert.equal(await P.profileForSending(fakeAsk({ profiles: PROFILES }), fakeStorage({ [P.PROFILE_KEY]: "p-home" })), "p-home");
+  assert.equal(await P.profileForSending(fakeAsk({ profiles: PROFILES }), fakeStorage()), "p-work");
+  assert.equal(await P.profileForSending(fakeAsk({ profiles: [] }), fakeStorage()), "", "no profile at all");
+  // An empty list was the answer once; a profile made since is found.
+  const storage = fakeStorage({ [P.PROFILES_KEY]: [] });
+  assert.equal(await P.profileForSending(fakeAsk({ profiles: PROFILES }), storage), "p-work");
+});
+
+test("stampEnvelope files an unfiled envelope, leaves a filed one alone, and has nothing to say without a profile", async () => {
+  const unfiled = { id: "a", meta: { title: "T" } };
+  const stamped = await P.stampEnvelope(unfiled, async () => "p-work");
+  assert.equal(stamped.meta.profile, "p-work");
+  assert.equal(stamped.meta.title, "T");
+  assert.equal(unfiled.meta.profile, undefined, "the queued envelope is not changed in place");
+  let asked = 0;
+  const filed = { id: "b", meta: { profile: "p-home" } };
+  assert.equal(await P.stampEnvelope(filed, async () => (asked++, "p-work")), filed);
+  assert.equal(asked, 0, "nobody is asked for a capture that already names its profile");
+  assert.equal(await P.stampEnvelope(unfiled, async () => ""), null);
+  assert.equal(await P.stampEnvelope(unfiled, async () => "../evil"), null);
+});
+
+// #862: a queued capture can name a profile deleted since it was queued. A
+// flush or a retry (preparer with verify) checks it against the live list.
+test("a verifying preparer files a capture whose profile is gone into the default, or holds it", async () => {
+  const ask = fakeAsk({ profiles: PROFILES });
+  const prepare = P.preparer(ask, fakeStorage(), { verify: true });
+  const gone = { id: "g", meta: { title: "T", profile: "p-gone" }, warnings: ["w0"] };
+  const filed = await prepare(gone);
+  assert.equal(filed.meta.profile, "p-work");
+  assert.equal(filed.meta.title, "T");
+  assert.deepEqual(filed.warnings, ["w0", 'the profile "p-gone" no longer exists: filed into Work instead']);
+  assert.equal(gone.meta.profile, "p-gone", "the queued envelope is not changed in place");
+  const live = { id: "h", meta: { profile: "p-home" } };
+  assert.equal(await prepare(live), live, "a live profile is left alone");
+  assert.equal(ask.calls.length, 1, "the list is asked for once per run");
+
+  const none = P.preparer(fakeAsk({ profiles: [] }), fakeStorage(), { verify: true });
+  assert.equal(await none(gone), null, "no profile to file it into: held");
+});
+
+test("a named profile is kept when nobody can list profiles, and not checked without verify", async () => {
+  const gone = { id: "g", meta: { profile: "p-gone" } };
+  assert.equal(await P.preparer(fakeAsk(null, { fail: true }), fakeStorage(), { verify: true })(gone), gone);
+  const ask = fakeAsk({ profiles: PROFILES });
+  assert.equal(await P.preparer(ask, fakeStorage())(gone), gone, "a fresh capture is not checked here");
   assert.equal(ask.calls.length, 0);
 });

@@ -73,7 +73,7 @@ func validateBluesky(ctx context.Context, c *Connection) (string, error) {
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := validateHTTP.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("validateBluesky: %w", err)
 	}
@@ -110,7 +110,7 @@ func validateReddit(ctx context.Context, c *Connection) (string, error) {
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("User-Agent", redditUserAgent)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := validateHTTP.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("validateReddit: %w", err)
 	}
@@ -173,8 +173,7 @@ func validateTwilio(ctx context.Context, c *Connection) (string, error) {
 	req.SetBasicAuth(accountSID, authToken)
 	req.Header.Set("Accept", "application/json")
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := validateHTTP.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("validateTwilio: %w", err)
 	}
@@ -241,7 +240,7 @@ func validateDevTo(ctx context.Context, c *Connection) (string, error) {
 		return "", err
 	}
 	req.Header.Set("api-key", apiKey)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := validateHTTP.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("validateDevTo: %w", err)
 	}
@@ -278,10 +277,9 @@ func validateHashnode(ctx context.Context, c *Connection) (string, error) {
 	// publication isn't on a Pro plan. The default client would silently
 	// follow it, fail to parse HTML as JSON, and misreport this as a bad
 	// token via the "could not resolve username" case below.
-	client := &http.Client{
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
+	client := *validateHTTP
+	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
 	}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -322,7 +320,7 @@ func validateProductHunt(ctx context.Context, c *Connection) (string, error) {
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+token)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := validateHTTP.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("validateProductHunt: %w", err)
 	}

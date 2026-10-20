@@ -1,0 +1,95 @@
+# Every migration in data/migrations, oldest first, one file per line.
+#
+# Add a new migration as the LAST line here, in the same change that adds its
+# file: internal/storage's TestMigrationManifestListsEveryMigration fails when
+# the two disagree. Two branches that each add a migration both change the end
+# of this file, so whichever merges second gets a merge conflict here, instead
+# of master getting two migrations with one number. Resolve it by giving your
+# migration the next free number after the other branch's and keeping both
+# lines, theirs first.
+001_initial.sql
+002_rename_action_types.sql
+003_add_profile_url.sql
+004_add_tags.sql
+005_add_action_params.sql
+006_workflow_system.sql
+007_posts_comments.sql
+008_execution_pid.sql
+009_image_vault.sql
+010_hil_pending.sql
+011_profiles.sql
+012_person_messages.sql
+013_oauth_credentials_per_profile.sql
+014_people_profile_scoped_unique.sql
+015_person_messages_status.sql
+016_person_status_updates.sql
+017_secrets_vault.sql
+018_crawler_sessions_profile_scoped_unique.sql
+019_actions_platform_uppercase.sql
+020_execution_resume_state.sql
+021_vault_kv_fields.sql
+022_credential_vault_unification.sql
+025_execution_list_index.sql
+026_workflows_profile_default_index.sql
+027_vault_keys_per_profile.sql
+028_profiles_root_dir.sql
+029_action_daily_counters.sql
+030_workflow_action_bridge.sql
+031_applications.sql
+032_application_titles.sql
+034_vault_documents.sql
+035_vault_documents_application_link.sql
+036_application_evaluations.sql
+037_vault_documents_indexed.sql
+038_vault_documents_discovery.sql
+039_profiles_icon.sql
+040_ai_chat_conversation_foreign_keys.sql
+041_org_unification.sql
+042_vault_documents_captures.sql
+043_jev_usage.sql
+044_org_decisions_jev.sql
+045_org_asks_question.sql
+046_person_links.sql
+047_automation_selector_health.sql
+048_automation_selector_health_rerecorded.sql
+049_execution_profile_time_index.sql
+050_person_messages_read.sql
+051_drop_ai_providers.sql
+052_vault_image_ignored.sql
+053_people_profile_details.sql
+054_people_profile_extras.sql
+055_ai_chat_conversations_effort.sql
+056_agent_model_validations.sql
+057_agent_model_validations_cost_estimated.sql
+058_agent_model_outcome_events.sql
+059_agent_model_validations_login_hint.sql
+060_ai_chat_org_workers.sql
+061_api_keys.sql
+062_tasks.sql
+063_publications.sql
+064_publications_sortable_ts.sql
+065_send_allow.sql
+070_execution_trigger_node_id.sql
+071_execution_error_class.sql
+072_workflow_versions.sql
+073_workflow_state.sql
+074_webhook_deliveries.sql
+075_data_tables.sql
+076_subworkflow_runs.sql
+077_app_webhooks.sql
+078_wait_replies.sql
+079_app_webhooks_expiry.sql
+080_agent_usage.sql
+081_chat_memory.sql
+095_adhoc_tables.sql
+096_drop_legacy_credentials.sql
+097_evaluation_runs.sql
+098_posts_profile_scoped.sql
+099_stamp_legacy_profile_ids.sql
+100_tags_profile_unique.sql
+101_drop_active_profile_setting.sql
+102_comms_status.sql
+105_profile_info.sql
+106_workflow_approvals.sql
+107_person_messages_sent_at_utc.sql
+108_vault_images_client_id.sql

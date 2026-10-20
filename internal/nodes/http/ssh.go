@@ -25,6 +25,12 @@ type SSHNode struct{}
 
 func (n *SSHNode) Type() string { return "http.ssh" }
 
+// CredentialDestinationKeys: the server the connection's key or password
+// goes to (workflow.CheckCredentialDestinations).
+func (n *SSHNode) CredentialDestinationKeys() [][]string {
+	return [][]string{{"host"}, {"port"}}
+}
+
 func (n *SSHNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
 	host, _ := config["host"].(string)
 	if host == "" {

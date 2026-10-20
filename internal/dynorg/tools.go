@@ -38,12 +38,18 @@ func strList(desc string) map[string]any {
 	return map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": desc}
 }
 
-// ToolSpecs are the lead's org tools.
-func ToolSpecs() []monomind.ToolSpec {
+// ToolSpecs are the lead's org tools. appAccess is coder.appAccess: off,
+// org_spawn does not offer the workspace access profile.
+func ToolSpecs(appAccess bool) []monomind.ToolSpec {
+	return toolSpecs((&Staffer{NoAppAccess: !appAccess}).profiles())
+}
+
+// toolSpecs are the lead's org tools, offering these access profiles.
+func toolSpecs(profiles []string) []monomind.ToolSpec {
 	return []monomind.ToolSpec{
 		{Name: ToolRoster, Description: "List what you can staff workers with: the ready models (runtime, model, effort levels, access), the access profiles, the built-in roles, the registry agents by category, cost/quality hints per model, the limits, and the workers so far. Pass brief to get the smallest suggested team for it (an empty team means do it yourself).",
 			Schema: obj(map[string]any{"brief": str("Optional: the task, to get a suggested team.")})},
-		spawnSpec(true),
+		spawnSpec(true, profiles),
 		{Name: ToolWait, Description: "Wait for workers to finish (up to timeout_s, at most 100) and get their reports. Call it again for workers still running.",
 			Schema: obj(map[string]any{
 				"agent_ids": strList("Workers to wait for; empty = all."),
@@ -60,7 +66,7 @@ func ToolSpecs() []monomind.ToolSpec {
 
 // spawnSpec is org_spawn's spec: the lead's has allow_spawn, a spawning
 // worker's doesn't (its sub-workers can't spawn).
-func spawnSpec(lead bool) monomind.ToolSpec {
+func spawnSpec(lead bool, profiles []string) monomind.ToolSpec {
 	props := map[string]any{
 		"brief":       str("What the worker should do, with everything it needs to know. It can't see this conversation."),
 		"role":        str("A role: a monomind agent id (e.g. engineering-code-reviewer) or a built-in role (coder, reviewer, tester, researcher, planner, task-manager, doc-writer, people-researcher, vault-keeper, workflow-builder, automation-operator, browser-operator, org-designer, data-analyst, security-reviewer)."),
@@ -68,7 +74,7 @@ func spawnSpec(lead bool) monomind.ToolSpec {
 		"runtime":     str("Runtime to run on (e.g. claude, codex). Must have a ready model; see org_roster."),
 		"model":       str("Model id on that runtime; see org_roster."),
 		"effort":      str("Reasoning effort, one of the model's effort levels."),
-		"access":      str("Access profile: workspace (coding plus every monoagent surface; sends need approval), coding, qa, automation, or research (read only)."),
+		"access":      str(accessDesc(profiles)),
 		"files":       strList("Files the worker should keep to."),
 		"needs_write": map[string]any{"type": "boolean", "description": "The worker will edit files (it then waits its turn for the write lease)."},
 		"wait":        map[string]any{"type": "boolean", "description": "Wait for the worker to finish (up to 100s) before returning."},
@@ -82,14 +88,25 @@ func spawnSpec(lead bool) monomind.ToolSpec {
 	return monomind.ToolSpec{Name: ToolSpawn, Description: desc, Schema: obj(props, "brief")}
 }
 
+// accessDesc is org_spawn's access argument, naming the profiles offered.
+func accessDesc(profiles []string) string {
+	notes := map[string]string{ProfileWorkspace: " (coding plus every monoagent surface; sends need approval)", ProfileResearch: " (read only)"}
+	parts := make([]string, len(profiles))
+	for i, p := range profiles {
+		parts[i] = p + notes[p]
+	}
+	parts[len(parts)-1] = "or " + parts[len(parts)-1]
+	return "Access profile: " + strings.Join(parts, ", ") + "."
+}
+
 // childToolSpecs are the org tools of a worker the lead let spawn: its own
-// sub-workers only.
-func childToolSpecs() []monomind.ToolSpec {
+// sub-workers only, offering these access profiles.
+func childToolSpecs(profiles []string) []monomind.ToolSpec {
 	var out []monomind.ToolSpec
-	for _, t := range ToolSpecs() {
+	for _, t := range toolSpecs(profiles) {
 		switch t.Name {
 		case ToolSpawn:
-			out = append(out, spawnSpec(false))
+			out = append(out, spawnSpec(false, profiles))
 		case ToolWait, ToolMessage:
 			out = append(out, t)
 		}
@@ -221,16 +238,25 @@ type RosterView struct {
 }
 
 // Roster describes what the lead can staff with, and the workers so far.
+// It is how the lead asks for the current state, so the workers' profile
+// section is rebuilt at the next spawn.
 func (c *Conductor) Roster() RosterView {
+	c.profileMu.Lock()
+	c.profileFresh = false
+	c.profileMu.Unlock()
+	s := c.cfg.Staffer
 	v := RosterView{
-		Models:     c.cfg.Staffer.Roster,
-		Profiles:   profileRules,
+		Models:     s.Roster,
+		Profiles:   map[string]string{},
 		RoleNote:   "role accepts any registry agent id listed here (monomind's agents come first) or a built-in role; leave it empty to have one picked for the brief. Smallest sufficient role, at most 3 skills",
 		Agents:     c.registryAgents(context.Background()),
-		ModelHints: c.cfg.Staffer.ModelHints(),
+		ModelHints: s.ModelHints(),
+	}
+	for _, p := range s.profiles() {
+		v.Profiles[p] = profileRules[p]
 	}
 	for _, r := range builtinRoles {
-		v.Roles = append(v.Roles, map[string]any{"id": r.ID, "title": r.Title, "category": r.Category, "default_access": r.Profile, "does": firstSentence(r.Body)})
+		v.Roles = append(v.Roles, map[string]any{"id": r.ID, "title": r.Title, "category": r.Category, "default_access": s.fitAccess(r.Profile), "does": firstSentence(r.Body)})
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()

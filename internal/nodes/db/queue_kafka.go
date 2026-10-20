@@ -86,6 +86,13 @@ type KafkaNode struct{}
 func (n *KafkaNode) Type() string                  { return "queue.kafka" }
 func (n *KafkaNode) PerItemConfigFields() []string { return queuePerItemFields }
 
+// kafkaDestinations are the brokers the connection's SASL password goes to.
+var kafkaDestinations = [][]string{{"brokers"}}
+
+// CredentialDestinationKeys: the brokers the SASL password goes to
+// (workflow.CheckCredentialDestinations).
+func (n *KafkaNode) CredentialDestinationKeys() [][]string { return kafkaDestinations }
+
 func (n *KafkaNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
 	opts, err := kafkaClientOpts(config)
 	if err != nil {

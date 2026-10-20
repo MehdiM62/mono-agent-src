@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -10,9 +11,11 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/monoes/mono-agent/data"
+	"github.com/monoes/mono-agent/internal/monomind"
 
 	_ "modernc.org/sqlite"
 )
@@ -22,6 +25,36 @@ import (
 type Database struct {
 	DB     *sql.DB
 	dbPath string
+	kg     kgSyncs
+}
+
+// kgSyncs tracks the knowledge-graph syncs a Database's upserts start in the
+// background. They read the database before their monomind process starts,
+// so Close lets them settle first (monomind.SyncGroup.Settle: about a second,
+// longer only for a sync not started yet), and once closing starts no new
+// sync starts.
+type kgSyncs struct {
+	mu      sync.Mutex
+	closing bool
+	group   monomind.SyncGroup
+}
+
+func (k *kgSyncs) start(fn func(started func())) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	if k.closing {
+		return
+	}
+	k.group.Go(fn)
+}
+
+// stop refuses new syncs and lets the running ones settle; false means some
+// were still running.
+func (k *kgSyncs) stop() bool {
+	k.mu.Lock()
+	k.closing = true
+	k.mu.Unlock()
+	return k.group.Settle()
 }
 
 // pingDeadline bounds how long the first open retries a locked database;
@@ -62,32 +95,54 @@ func NewDatabase(dbPath string) (*Database, error) {
 	// Verify the connection is usable.
 	// The first open of a fresh file switches it to WAL, which needs an
 	// exclusive lock the busy timeout does not cover; a concurrent first
-	// start can hit SQLITE_BUSY here, so retry briefly.
-	pingCtx, cancelPing := context.WithTimeout(context.Background(), pingDeadline)
-	defer cancelPing()
-	var pingErr error
-	for {
-		pingErr = pingContext(pingCtx, db)
-		if pingErr == nil {
-			break
-		}
-		busy := strings.Contains(pingErr.Error(), "SQLITE_BUSY")
-		if !busy && pingCtx.Err() == nil {
-			break
-		}
-		if pingCtx.Err() != nil {
-			db.Close()
-			return nil, fmt.Errorf("database %s stayed locked for %s: %w", absPath, pingDeadline, pingErr)
-		}
-		time.Sleep(50 * time.Millisecond)
+	// start can hit SQLITE_BUSY here, so a busy answer is retried. No ping is
+	// cut off: a slow one is disk I/O, not a lock (a fresh file's WAL switch
+	// took up to 14s on a loaded disk); only the retrying is bounded
+	// (retryBusyPing).
+	pingErr := pingContext(context.Background(), db)
+	if isBusy(pingErr) {
+		pingErr = retryBusyPing(db, absPath, pingErr)
 	}
-	if err := pingErr; err != nil {
+	if pingErr != nil {
 		db.Close()
-		return nil, fmt.Errorf("pinging database: %w", err)
+		if errors.Is(pingErr, errStayedLocked) {
+			return nil, pingErr
+		}
+		return nil, fmt.Errorf("pinging database: %w", pingErr)
 	}
 	privatizeNewDB(created, absPath)
 
 	return &Database{DB: db, dbPath: absPath}, nil
+}
+
+// errStayedLocked marks the error of a database that answered SQLITE_BUSY
+// for the whole retry window.
+var errStayedLocked = errors.New("stayed locked")
+
+func isBusy(err error) bool { return err != nil && strings.Contains(err.Error(), "SQLITE_BUSY") }
+
+// retryBusyPing pings db again, every 50ms, until it answers, fails with
+// something other than SQLITE_BUSY, or pingDeadline has passed since the first
+// busy answer (first). No new retry starts once that window has passed, but a
+// retry already running is awaited, never cut off: it is either waiting for the
+// lock, which SQLite's busy_timeout ends, or it got the lock and is switching
+// the file to WAL, disk I/O that may be slow and must not be mistaken for a
+// lock. A locked database therefore fails after at most the window plus one
+// busy_timeout (10s + 5s).
+func retryBusyPing(db *sql.DB, absPath string, first error) error {
+	window := time.Now().Add(pingDeadline)
+	last := first
+	for {
+		time.Sleep(50 * time.Millisecond)
+		if time.Now().After(window) {
+			return fmt.Errorf("database %s %w for %s: %w", absPath, errStayedLocked, pingDeadline, last)
+		}
+		err := pingContext(context.Background(), db)
+		if !isBusy(err) {
+			return err // answered, or failed with something other than a lock
+		}
+		last = err
+	}
 }
 
 // ApplyMigrations reads embedded SQL migration files from data/migrations/ and
@@ -460,6 +515,7 @@ func truncate(s string, n int) string {
 
 // Close closes the underlying database connection.
 func (d *Database) Close() error {
+	d.kg.stop()
 	if d.DB != nil {
 		return d.DB.Close()
 	}

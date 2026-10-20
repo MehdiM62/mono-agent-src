@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 	browserpkg "github.com/monoes/mono-agent/internal/browser"
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/cli/revealgate"
 	cfgpkg "github.com/monoes/mono-agent/internal/config"
 	"github.com/monoes/mono-agent/internal/connections"
@@ -186,6 +188,7 @@ platform name to override. Token refresh is handled automatically for OAuth conn
 
 			// Resolve credentials: --credential flag → config.credential_id → auto-resolve by platform.
 			// This matches the Wails app's getResourceCredentialData pattern.
+			var cred *workflow.CredentialUse
 			if rawDB != nil {
 				connStore := connections.NewStore(rawDB)
 				credKey := credentialID // from --credential flag
@@ -208,6 +211,19 @@ platform name to override. Token refresh is handled automatically for OAuth conn
 							}
 						}
 						config["credential"] = credData
+						// A send's card keeps no credentials: pinned by id, its
+						// approval sends through this connection, not whichever
+						// the name picks then.
+						if id := connStore.PinnedID(context.Background(), credKey, d.ProfileID()); id != "" {
+							config["credential_id"] = id
+						}
+						cred = &workflow.CredentialUse{Name: credKey, Platform: credKey, Data: credData}
+						if c, gerr := connStore.Get(context.Background(), credKey); gerr == nil && c != nil {
+							cred.Platform = c.Platform
+							if c.Label != "" {
+								cred.Name = c.Label
+							}
+						}
 						if d.Verbose() {
 							fmt.Fprintf(os.Stderr, "  Resolved credential for platform %q\n", credKey)
 						}
@@ -243,6 +259,13 @@ platform name to override. Token refresh is handled automatically for OAuth conn
 			}
 			_ = logger
 
+			// The connection's secret goes only to the hosts it names, or, from
+			// the user's own terminal, to one the config names; an agent's step
+			// gets no host of its own, card or always-allow rule alike.
+			if err := workflow.CheckCredentialDestinations(factory(), cred, operator.Refusal() == "", config, config); err != nil {
+				return fmt.Errorf("node %s: %w", nodeType, err)
+			}
+
 			// An outbound send started by an agent is queued for approval instead
 			// of run (internal/hilsend); this comes before any browser is touched.
 			guardCtx := context.Background()
@@ -254,6 +277,15 @@ platform name to override. Token refresh is handled automatically for OAuth conn
 					return fmt.Errorf("node %s failed: %w", nodeType, gerr)
 				}
 				return renderNodeOutputs(outputFmt, queued)
+			}
+
+			// A browser action of a package that isn't built-in is the user's
+			// (nodes.BrowserNode.RunRefusal): refused before a browser is
+			// connected, or launched.
+			if bn, ok := factory().(*nodes.BrowserNode); ok {
+				if err := bn.RunRefusal(context.Background()); err != nil {
+					return clicore.OperatorOnly("node %s: %v", nodeType, err)
+				}
 			}
 
 			// Set up browser session provider, bot registry, and config manager for social/browser nodes.
@@ -346,6 +378,9 @@ platform name to override. Token refresh is handled automatically for OAuth conn
 				hilsend.ConsumeForSend(ctx, rawDB, d.ProfileID(), recorded)
 			}
 
+			if errors.Is(err, nodes.ErrUserOnlyBrowserRun) {
+				return clicore.OperatorOnly("node %s: %v", nodeType, err)
+			}
 			if err != nil {
 				return fmt.Errorf("node %s failed: %w", nodeType, err)
 			}

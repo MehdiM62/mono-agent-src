@@ -242,8 +242,12 @@ export function CoderEnable() {
   return window['go']['main']['App']['CoderEnable']();
 }
 
-export function CoderSet(arg1, arg2, arg3, arg4) {
-  return window['go']['main']['App']['CoderSet'](arg1, arg2, arg3, arg4);
+export function CoderSet(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['main']['App']['CoderSet'](arg1, arg2, arg3, arg4, arg5);
+}
+
+export function CoderSetAppAccess(arg1) {
+  return window['go']['main']['App']['CoderSetAppAccess'](arg1);
 }
 
 export function CoderStatus() {

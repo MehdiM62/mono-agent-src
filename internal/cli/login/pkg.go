@@ -16,6 +16,7 @@ import (
 	"github.com/monoes/mono-agent/internal/bot"
 	browserpkg "github.com/monoes/mono-agent/internal/browser"
 	"github.com/monoes/mono-agent/internal/chromecookies"
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 )
 
 // Login for installed automation packages that declare a manifest "login"
@@ -49,6 +50,15 @@ func (d Deps) loginAutomation(id string) (*automation.Manifest, error) {
 	}
 	if p.Manifest.Login == nil || p.Manifest.Login.URL == "" {
 		return nil, fmt.Errorf("automation %q declares no login — it runs without a browser session", id)
+	}
+	// A package that isn't built-in names its own login page and the sites
+	// whose cookies its login keeps, in files anyone with the user's files
+	// can write; only the user logs in to one (#898).
+	if p.Trust != automation.TrustBuiltin {
+		if why := clicore.OperatorRefusal(d.Refusal); why != "" {
+			return nil, clicore.OperatorOnly("%s is a %s package, which names its own login page and the sites whose cookies its login keeps, so only the user logs in to it: %s; "+
+				"the user runs `monoagentcli login %s` in their own terminal", id, p.Trust, why, id)
+		}
 	}
 	return &p.Manifest, nil
 }

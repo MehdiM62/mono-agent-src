@@ -81,12 +81,10 @@ func (d *Database) UpsertPerson(person *Person) error {
 		return fmt.Errorf("upserting person %s/%s: %w", person.Platform, person.PlatformUsername, err)
 	}
 
-	kgSyncs.Add(1)
-	go func() {
-		defer kgSyncs.Done()
+	d.kg.start(func(started func()) {
 		node := monomind.KGNode{Name: personKGDisplayName(person), Type: "person", Description: personKGDescription(person)}
-		_ = monomind.SyncToKnowledgeGraph(context.Background(), d.DB, person.ProfileID, []monomind.KGNode{node}, nil, "person:"+person.ID)
-	}()
+		_ = monomind.SyncToKnowledgeGraphStarted(context.Background(), d.DB, person.ProfileID, []monomind.KGNode{node}, nil, "person:"+person.ID, started)
+	})
 
 	return nil
 }
@@ -337,20 +335,20 @@ func (d *Database) BatchUpsertPeople(people []*Person) error {
 		return err
 	}
 
-	kgSyncs.Add(1)
-	go func() {
-		defer kgSyncs.Done()
-		// Batches are expected to belong to a single profile in practice;
-		// group by profile defensively rather than assuming that.
-		byProfile := make(map[string][]monomind.KGNode)
-		for _, p := range people {
-			node := monomind.KGNode{Name: personKGDisplayName(p), Type: "person", Description: personKGDescription(p)}
-			byProfile[p.ProfileID] = append(byProfile[p.ProfileID], node)
-		}
-		for profileID, nodes := range byProfile {
-			_ = monomind.SyncToKnowledgeGraph(context.Background(), d.DB, profileID, nodes, nil, "people-batch:"+people[0].ID)
-		}
-	}()
+	// Batches are expected to belong to a single profile in practice;
+	// group by profile defensively rather than assuming that. Each profile's
+	// sync is a sync of its own, so each counts as started when its monomind
+	// process runs.
+	byProfile := make(map[string][]monomind.KGNode)
+	for _, p := range people {
+		node := monomind.KGNode{Name: personKGDisplayName(p), Type: "person", Description: personKGDescription(p)}
+		byProfile[p.ProfileID] = append(byProfile[p.ProfileID], node)
+	}
+	for profileID, nodes := range byProfile {
+		d.kg.start(func(started func()) {
+			_ = monomind.SyncToKnowledgeGraphStarted(context.Background(), d.DB, profileID, nodes, nil, "people-batch:"+people[0].ID, started)
+		})
+	}
 
 	return nil
 }

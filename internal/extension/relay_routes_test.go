@@ -136,3 +136,35 @@ func TestCdpClientIsPinnedToOneBrowser(t *testing.T) {
 		t.Fatalf("client got %s, want only B's event", msg)
 	}
 }
+
+// Deleting a profile unbinds its browsers through the remote sender (extensioncli.UnbindProfile):
+// list them, then set_binding with an empty profile. The server's view must show them unbound.
+func TestRemoteSenderUnbindsABrowser(t *testing.T) {
+	srv, base, wsURL, _ := startStatusTestServer(t)
+	a := dialBrowser(t, wsURL, instA, "p-a", "Edge Work")
+	waitBrowsers(t, srv, 1)
+	dialBrowser(t, wsURL, instB, "p-b", "")
+	waitBrowsers(t, srv, 2)
+
+	r := NewRemoteSender(base)
+	list, err := r.Browsers()
+	if err != nil || len(list) != 2 {
+		t.Fatalf("Browsers = %+v, %v", list, err)
+	}
+	errc := make(chan error, 1)
+	go func() { errc <- r.SetBinding(instA, "", "") }()
+	cmd := answerNext(t, a, 0, map[string]any{"profile": ""})
+	if cmd == nil || cmd.Type != CmdSetBinding || cmd.Params["profile"] != "" {
+		t.Fatalf("the browser got %+v, want set_binding with an empty profile", cmd)
+	}
+	if err := <-errc; err != nil {
+		t.Fatalf("SetBinding: %v", err)
+	}
+	bound := map[string]string{}
+	for _, b := range srv.Browsers() {
+		bound[b.Instance] = b.Profile
+	}
+	if bound[instA] != "" || bound[instB] != "p-b" {
+		t.Fatalf("after unbinding: %v, want a unbound and b still p-b", bound)
+	}
+}

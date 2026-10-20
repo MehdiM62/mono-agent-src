@@ -72,9 +72,13 @@
    * what has already failed, newest last, with the counts the badge needs.
    */
   async function pending(storage) {
-    const queued = (await list(storage, QUEUE_KEY)).map((e, i) => describe(e, i, "queued"));
+    const entries = await list(storage, QUEUE_KEY);
+    const queued = entries.map((e, i) => describe(e, i, "queued"));
     const failed = (await list(storage, FAILURES_KEY)).map((e, i) => describe(e, i, "failed"));
-    return { queued, failed, counts: { queued: queued.length, failed: failed.length } };
+    // Queued captures that name no profile: filed when they are sent, or
+    // held until a profile exists (the side panel says which).
+    const unfiled = entries.filter((e) => !(e && e.envelope && e.envelope.meta && e.envelope.meta.profile)).length;
+    return { queued, failed, counts: { queued: queued.length, failed: failed.length }, unfiled };
   }
 
   /**
@@ -100,13 +104,22 @@
   /**
    * deliver sends an envelope if the bridge is up, queues it if not, and
    * records a failure if it can do neither. deps.send(envelope) does the
-   * framing; this file never touches the wire format.
+   * framing; this file never touches the wire format. deps.prepare, when
+   * given, files an envelope that names no profile (capture_profile.js
+   * stampEnvelope); one with no profile to go to is queued, held, not sent.
    */
   async function deliver(deps, storage, envelope) {
     if (deps.isConnected()) {
+      const ready = deps.prepare ? await deps.prepare(envelope) : envelope;
+      if (!ready) {
+        const queued = await root.MonoCapture.queueCapture(storage, envelope);
+        if (queued.queued) return { sent: false, queued: true, held: true, depth: queued.depth };
+        return Object.assign({ sent: false, queued: false }, await recordFailure(storage, envelope, queued.reason, { keepEnvelope: false }));
+      }
       try {
-        deps.send(envelope);
-        return { sent: true, queued: false };
+        deps.send(ready);
+        const profile = ready.meta && ready.meta.profile;
+        return profile ? { sent: true, queued: false, profile } : { sent: true, queued: false };
       } catch (err) {
         // The socket died between the check and the write.
         const queued = await root.MonoCapture.queueCapture(storage, envelope);
@@ -154,9 +167,11 @@
     if (!deps.isConnected()) {
       return { ok: false, reason: "the bridge is still disconnected" };
     }
+    const ready = deps.prepare ? await deps.prepare(envelope) : envelope;
+    if (!ready) return { ok: false, reason: "there is no profile to file it into: create one in MonoAgent" };
 
     try {
-      deps.send(envelope);
+      deps.send(ready);
     } catch (err) {
       const entries = found.entries.slice();
       entries[found.index] = Object.assign({}, found.entry, { reason: err.message });

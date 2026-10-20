@@ -5,7 +5,7 @@ import { loadExtensionScripts } from "./test_helpers.mjs";
 
 const SCRIPTS = [
   "capture_profile.js", "capture_modes.js", "capture_queue.js", "recorder_privacy.js",
-  "task_outbox.js", "task_bridge.js", "task_menu.js",
+  "task_outbox.js", "task_bridge.js", "task_menu.js", "chat_proposals.js",
 ];
 
 const clone = (v) => (v === undefined ? v : JSON.parse(JSON.stringify(v)));
@@ -25,19 +25,33 @@ export function fakeStorage(seed = {}) {
 /**
  * fakeAsk stands in for ask.js. `methods` is what ping advertised, or null
  * for a bridge that never answered; `reply(params, method)` answers a
- * request, returning its data or throwing refuse(code, message).
+ * request, returning its data or throwing refuse(code, message); profile.list
+ * is answered with `profiles` and recorded in `listed`, not `calls`.
  */
-export function fakeAsk({ methods = ["ping", "profile.list", "task.add"], reply = () => ({ id: 1, created: true }) } = {}) {
+export function fakeAsk({
+  methods = ["ping", "profile.list", "task.add"],
+  reply = () => ({ id: 1, created: true }),
+  profiles = [{ id: "p-work", name: "Work" }, { id: "p-home", name: "Home" }],
+} = {}) {
   const calls = [];
+  const listed = [];
   let inFlight = 0;
   let most = 0;
   return {
     calls,
+    listed,
     most: () => most,
     probe: async () => methods || [],
     known: () => methods,
     supports: async (m) => !!methods && methods.includes(m),
     async request(method, params) {
+      // The profile list, which capture_profile.js checks in the background
+      // (#822): the same profiles setupTasks seeds, kept apart from the
+      // requests a test counts.
+      if (method === "profile.list") {
+        listed.push(clone(params));
+        return { profiles: clone(profiles) };
+      }
       calls.push({ method, params: clone(params) });
       inFlight += 1;
       most = Math.max(most, inFlight);

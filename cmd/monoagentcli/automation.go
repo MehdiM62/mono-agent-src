@@ -8,6 +8,7 @@ import (
 	browserpkg "github.com/monoes/mono-agent/internal/browser"
 	automationcli "github.com/monoes/mono-agent/internal/cli/automation"
 	"github.com/monoes/mono-agent/internal/cli/clicore"
+	"github.com/monoes/mono-agent/internal/operator"
 	"github.com/monoes/mono-agent/internal/storage"
 	"github.com/spf13/cobra"
 )
@@ -62,6 +63,7 @@ func automationDeps(cfg *globalConfig) automationcli.Deps {
 		EnsureConnected: func(bridge browserpkg.ExtensionBridge, timeout time.Duration) error {
 			return ensureExtensionConnected(bridge, timeout)
 		},
+		Refusal: operator.Refusal,
 	}
 }
 

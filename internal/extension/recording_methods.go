@@ -172,10 +172,15 @@ func recordVerifyArgs(req *Request) ([]string, map[string]string, error) {
 	if err != nil {
 		return nil, nil, badParam("%v", err)
 	}
-	args := []string{"record", "verify", dir}
-	if full, _ := req.Params["full"].(bool); full {
-		args = append(args, "--full")
+	// The bridge runs the CLI as the user, whoever asked over it (any
+	// process that can read the pairing token can), so its verify neither
+	// acts on nor reads a page: no "full", a blank tab, and a stop before
+	// the first step that touches a page, whatever the draft marks. The
+	// side panel never asks for more.
+	if _, ok := req.Params["full"]; ok {
+		return nil, nil, badParam("record.verify takes no \"full\": a full verify runs only from the user's own terminal or the app")
 	}
+	args := []string{"record", "verify", dir, "--stop-at-first-action"}
 	inputs, err := verifyInputs(req.Params["inputs"])
 	if err != nil {
 		return nil, nil, err
@@ -435,7 +440,7 @@ func isReport(obj map[string]any) bool {
 type selfRunner struct{}
 
 func (selfRunner) Run(ctx context.Context, args ...string) ([]byte, error) {
-	bin, err := os.Executable()
+	bin, err := selfExecutable()
 	if err != nil {
 		return nil, Unavailable("cannot locate monoagentcli: %v", err)
 	}

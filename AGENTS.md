@@ -168,6 +168,12 @@ monoagentcli node schema <type>
 # unknown_upstream_field, needs_setup (warnings: e.g. no account chosen yet).
 monoagentcli --profile work workflow validate <id>
 monoagentcli --profile work workflow validate --file <workflow.json>
+# Keys an app node sends that its operation doesn't declare (an agent's run of
+# it waits for approval). No --profile, no database; exit 0 clean, 1 found, 3 a file
+# it can't check (unreadable, not a regular file, over 16 MB, not JSON) or no catalog.
+monoagentcli --json workflow check-keys <file.json…|->
+# Signed out, from a source checkout: the same check, writing nothing under HOME.
+go run ./scripts/checkkeys [--json] <file.json…|->
 
 # Draft a workflow from a description: an agent turn writes it, validate's
 # errors go back to it until it passes, and it is saved inactive.
@@ -275,7 +281,7 @@ The desktop app does everything through these commands; they are equally usable 
 - **Chat:**
   - `chat history list|show|create|turns|turn|events|delete|finish|reconcile`, scoped to the profile named by `--profile` (`reconcile` sweeps every profile).
   - `chat history create --runtime R [--model M] [--workflow W] [--mode coder --cwd DIR|--coder-root|--new-workspace]` makes a conversation (coder mode: see "Coder mode" below), `chat history turns <conv> [--cursor] [--limit]` pages its turns, and `chat history events <conv> <turn> [--after-seq N] [--limit N]` returns the events with the turn's status.
-  - `chat --conversation <conv> --turn <id> [--instance <app-id>] [--tools monoagent[,runs]] -- <message>` runs one turn and journals it itself. It takes the runtime, model and session from the conversation. Stdout is an admission line, then each committed event as NDJSON. A repeated turn id never runs twice. `--prompt-stdin` (instead of `-- <message>`) reads the prompt from stdin. `--tools monoagent:read` is a mode of its own, never combined with `runs`, `--canvas` or other members: only `list_workflows`, `get_workflow`, `list_node_types`, no Bash, and the turn counts as carrying untrusted web-page text. It is the only mode the browser extension's side-panel chat (`chat.send`, `chat.stop`, `chat.events` over the extension bridge) starts, with the message on stdin; see SECURITY.md, "The extension's side-panel chat".
+  - `chat --conversation <conv> --turn <id> [--instance <app-id>] [--tools monoagent[,runs]] -- <message>` runs one turn and journals it itself. It takes the runtime, model and session from the conversation. Stdout is an admission line, then each committed event as NDJSON. A repeated turn id never runs twice. `--prompt-stdin` (instead of `-- <message>`) reads the prompt from stdin. `--tools monoagent:read` is a mode of its own, never combined with `runs`, `--canvas` or other members: only `list_workflows`, `get_workflow`, `list_node_types`, `propose_task` (writes nothing: the side panel shows the proposed task as a card, and only the person's click sends it, as `task.add` kind `chat`) `propose_recording` (starts nothing: the card starts the side panel's recorder only on the person's click, and the automation is saved only by the Record section's Save) and `propose_vault_save` (saves nothing: it names an item on the page or the selection, and the side panel fetches it and sends `vault.save` only on the person's click, if it is on the page they are on), no Bash, and the turn counts as carrying untrusted web-page text. It is the only mode the browser extension's side-panel chat (`chat.send`, `chat.stop`, `chat.events` over the extension bridge) starts, with the message on stdin; see SECURITY.md, "The extension's side-panel chat".
   - `chat history delete` refuses a conversation with an active turn (exit 3). `chat history finish <conv> <turn> --status S` records the end of a turn whose process was killed; it does nothing if the turn already finished. `chat history reconcile --except-owner <app-id>` marks turns left active as interrupted, at app startup.
   - `chat history transcript <history-id>` reads the legacy transcript that plain `chat --history-id` still writes.
 - **monoes.me library:** `library status [--offline]|login|logout|list|show|install|publish|update|installed` (see [monoes.me library](#monoesme-library)). All reads need the monoes.me sign-in: without one they exit 4 with `"login_required": true`. `library login|logout|status` are aliases of `account login|logout|status`. `library login` streams `{"kind":"url","url"}` on stderr with `--json` and waits for the browser; the app kills it to cancel.
@@ -342,10 +348,37 @@ time plus 24 hours.
 **Sign in once per machine; never copy or restore `~/.monoagent/account/` between
 machines or from an old backup, and never bake a sign-in into a Docker image.**
 monoes.me rotates the refresh token at every refresh and treats one that was already
-used as stolen: it ends that sign-in. A copy shares the sign-in of the machine it came
-from, so a stale copy, once presented, signs out the original and every copy, and each
-of them then has to sign in again; machines that signed in on their own keep working.
-Signing out of the monoes.me website does not sign out an install.
+used as stolen: it ends that sign-in. The refresh token names the folder it was sealed
+for (its device and inode, or its path where the disk gives none; a rename or a move on
+the same disk keeps it), so a copy of `~/.monoagent/account` is never renewed or
+revoked, wherever it is, even restored where the original was: it reports
+`keyring_unavailable` and has to sign in on its own. Only a disk image restored block
+for block keeps the folder's identity: once presented, such a stale copy signs out the
+original and every copy, and each of them then has to sign in again; machines that
+signed in on their own keep working. This guards against accidents only: a process
+running as the user can seal any folder's name, or unseal the token itself. Signing out of the monoes.me website does not sign
+out an install.
+
+**Never copy `~/.monoagent/monoagent.db` into a test HOME either.** Its vault can hold
+a library login from an older release, and any copy made by the same OS user can open
+it. The CLI sends that login to monoes.me (the first gated command's exchange for the
+sign-in, a library read or refresh, `library logout`'s revocation) only from the user's
+own install: `HOME` is the OS account's home directory and the database is
+`~/.monoagent/monoagent.db` in it. Anywhere else it sends nothing and keeps the login;
+the adoption prints `The earlier library login in this database is not adopted as this
+machine's sign-in to <host>: <why>. Sign in instead: monoagentcli account login`, and
+`library logout` prints `The earlier library login of this profile is neither revoked at
+<host> nor removed: <why>.` An OS account the system has no home directory for (on
+Linux, one missing from `/etc/passwd`: LDAP, a container's arbitrary uid) is refused the
+same way. Every host but a loopback address counts as monoes.me. Setting
+`MONOES_BASE_URL` does not protect either: a default build ignores it for the sign-in
+and always talks to https://monoes.me (spec D24); only a `-tags devaccount` build
+changes the sign-in host. Each exchange prints one line on stderr saying what became of
+the login (signed in, no longer valid, answer lost, renewed, kept), never a token.
+These checks cover only the two credentials that harm the account when used twice: a
+copy of the database still gives every vault credential to any process running as the
+user, since the key is in the OS key store. Keep untrusted agents away from it with
+another OS user or a container without the key store; a HOME of their own is not enough.
 
 | `state` | Meaning | `reason` |
 |---|---|---|
@@ -577,7 +610,13 @@ dangerous calls.
   and workflows read secrets' metadata and write other entries as before.
   The `--help` of each of these says so ("The user's own: an agent, the
   chat or a workflow is refused"), and a nil operator check refuses
-  (`clicore.OperatorRefusal`). `extension pair` stays open (an agent can
+  (`clicore.OperatorRefusal`). So are `extension bind|unbind|reset`,
+  `extension pair --open` and `extension install --zip`, which change which
+  profile a browser acts as, which bridge it pairs with, or the extension
+  code it loads; `extension pair` printing the token stays open (an agent can
+  read the token file), as do `extension install` of the signed release and
+  `extension serve` for a private bridge,
+  (`clicore.OperatorRefusal`; for CLI authors, every `Deps.RequireOperator`, `NotOperator` and `Refusal` goes through `clicore.RequireOperator` / `clicore.OperatorRefusal`, which refuse when the check is nil). `extension pair` stays open (an agent can
   read the token file),
   and so does `image.vault_get` taking its id from data, by design. Names, masked
   values and metadata stay open. No secret reference resolves in a run of
@@ -588,7 +627,15 @@ dangerous calls.
   `trigger.sse` headers; the step fails naming the reference, never the
   value. CLI `node run` from a marked process runs as an unapproved step
   (`WithUnapprovedStep`), like MCP `node_run`, so the program and hidden-home
-  gates apply to it too; `record verify|replay` from one reads no secret.
+  gates apply to it too; `record verify|replay|save` from one is refused (exit
+  3, `operator_only`), except `record replay --dry-run`, which runs nothing,
+  and so is a browser action of a package that isn't built-in (recorded,
+  local, imported) run by one, by the chat or by an unapproved workflow
+  (`nodes.BrowserNode.RunRefusal`, `nodes.ErrUserOnlyBrowserRun`), and its
+  `login <package>` / `login confirm <package>` from one (exit 3), as are
+  `automation rerecord`, `automation doctor accept-repair`, `automation
+  trust` with a flag, and a `login names` that would open such a package's
+  site.
   Put the step in a workflow and have the user save or activate it. Even in
   an approved workflow a reference resolves only where the stored config
   holds it as written (`secrets.ResolveConfig` gets the stored config): one
@@ -603,8 +650,17 @@ dangerous calls.
   name) must be written in the workflow too; one an expression produced refuses the step. Node authors:
   a node that resolves references inside a field's text implements
   `workflow.SecretTextResolver`; one with a field that names a vault entry
-  or a saved session implements `workflow.LiteralConfigResolver`. Still
-  open:
+  or a saved session implements `workflow.LiteralConfigResolver`; one whose
+  config fields decide where a saved connection's secret goes (a relay, an
+  instance, a base URL, brokers) implements `workflow.CredentialDestinations`.
+  Such a field comes from the connection when the connection names it.
+  Otherwise it must be written in an approved workflow
+  (`internal/noderegistry/credential_hosts_test.go` fails for a host-like
+  field that is neither declared nor listed with a reason). A request that
+  carries a credential goes out through `credhttp.Client` (or
+  `credhttp.CheckRedirect` with `credhttp.Mark`):
+  `internal/credhttp/lint_test.go` fails on a new direct `http.Client`,
+  `http.DefaultClient` or `http.Get`/`Post` outside its allowlist. Still open:
   - an approved workflow resolves its secrets whoever runs it, and a value
     a step outputs under a field name the redaction doesn't know shows in
     its `--json` output;
@@ -612,7 +668,12 @@ dangerous calls.
     unredacted outputs;
   - by the user's decision, a step that picks its own URL (`http.request`)
     may use a saved connection's credential in any run, so a run can send
-    that token to any address.
+    that token to any address. With this release, `http.request` and
+    `http.graphql` are the only steps that can send a saved connection's
+    token to an address the connection doesn't name (`openByDecision` in
+    `internal/noderegistry/credential_hosts_test.go` pins it);
+  - a workflow the user approved may name a host for a connection that
+    names none, and the secret goes there whoever runs it.
 
   The app reveals by running these commands as the user, and the CLI can't
   tell it from an agent that runs the same command from an unmarked
@@ -900,10 +961,14 @@ the profile in the path in both standalone and daemon-hosted mode: another
 profile's workflow ID returns 404. A workflow with no profile ID belongs
 to nobody (404 for every profile); legacy rows and files are stamped by
 migration 099 and the file stamp. The daemon still serves every profile's triggers
-internally. A standalone `httpapi` starts one engine per profile on that
-profile's first mutating request, but the single webhook port is bound by only
-one of them: other profiles' webhook triggers are served only by `daemon`
-(the server prints a warning saying so at start). Full endpoint list:
+internally. A standalone `httpapi` serves the webhook triggers of one
+profile at most: it starts a profile's engine on that profile's first run or
+activate request (read-only mode starts none), and the first engine to find
+the webhook port (`MONOAGENT_WEBHOOK_ADDR`, default `127.0.0.1:9321`) free takes
+it, never while a daemon or another monoagent process holds it. Other
+profiles' webhook triggers are not served; `daemon` serves them all, and this
+same API (`--api`, on by default). The server prints a warning saying so at
+start. Full endpoint list:
 `internal/httpapi/openapi.yaml` (OpenAPI 3, validated in CI); curl
 walkthrough: `examples/httpapi-quickstart.md`; offline copy of this
 section: `monoagentcli ref api`.
@@ -1660,7 +1725,7 @@ a row here):
 |---|---|
 | CLI | `monoagentcli --profile <id> task ...` (this section) |
 | Session-start hook | `monoagentcli --profile <id> task digest`; nothing installs the hook for you |
-| Chrome extension | *Add selection as task*, *Add page as task*, the side panel's box and the `add-task` key send `task.add` over the extension bridge: a capture, Inbox only, in the profile the extension is "Saving into" (README, Chrome Extension) |
+| Chrome extension | *Add selection as task*, *Add page as task*, the side panel's box and the `add-task` key send `task.add` over the extension bridge: a capture, Inbox only, in the profile the extension is "Saving into" (README, Chrome Extension). A task the side-panel chat proposed (`propose_task`) and the person added with the card's button is `task.add` kind `chat`, filed as the agent `agent:extension-chat`, Inbox only |
 | MCP, any server | `monoagentcli mcp`: `task_list`, `task_get`, `task_next`; with `--allow-mutations` also `task_claim`, `task_comment`, `task_finish`, `task_release`, `task_add`, acting on the call's profile as `agent:<client>#<4 hex>`; text in fields ending in `_untrusted`; no tool edits, moves or archives a task, and none approves unless the user delegated it (next row) |
 | MCP, the board alone | `claude mcp add monoagent-tasks -- monoagentcli mcp --tasks-only --allow-mutations`: the same eight tools and no other, one server for every profile (each call passes `profile`); nothing registers it for you. While the user has run `task agents allow --approve` for the profile (default: off), it also serves `task_approve`; no tool changes that setting |
 | Claude Code skill | `~/.claude/skills/monoagent-tasks/SKILL.md`, written create-only by the next CLI run on a machine with `~/.claude` |
@@ -1766,6 +1831,14 @@ monoagentcli --profile work chat --conversation <conv> --turn <id> -- "make the 
 monoagentcli --profile work chat --mode coder --cwd ~/code/app -- "…"   # one unjournaled turn
 ```
 
+- Every `coder set` flag is the operator's own (exit 3, `operator_only` for
+  an agent, the chat or a workflow): the caps, `--send-approval`,
+  `--app-access`, and the dynamic org's `--org-router` and
+  `--org-model-picker` (they decide whether workers' briefs go to Jev) and
+  `--org-writers` (isolated writers' commits skip git hooks). Without flags
+  it only prints the settings. `TestEveryCoderSetFlagIsTheOperators` fails
+  for a new flag until it is classified. `coder disable` is anyone's: it
+  only turns coder mode off.
 - The mode and folder are fixed when the conversation is created. The
   CLIs key their sessions by folder, so a conversation always resumes in the
   same one.
@@ -1825,7 +1898,11 @@ monoagentcli --profile work chat --mode coder --cwd ~/code/app -- "…"   # one 
   `QWEN_CODE`, `DSH_SHELL`, `DSH_SESSION_ID`, and `MONOMIND_CLINE_TURN` /
   `MONOMIND_AIDER` (set by monomind's runners, since cline and aider set
   none of their own). A shell that sets the generic `AI_AGENT` or `AGENT`
-  itself is refused too. Every operator check reads these markers. On
+  itself is refused too. Every operator check reads these markers
+  (`operator.MarkerEnv()`). `MONOAGENT_AGENT_KIND` and
+  `MONOAGENT_AGENT_KIND_TOKEN` are in that list but count only alongside
+  another marker, by design: a declared kind and its token say what kind
+  of agent a marked process is, and alone they make no shell an agent. On
   Linux any of them in a parent process counts too, as does a parent
   that is a `monomind agent exec` turn, up to 32 levels up; a deeper
   chain counts as marked. A process whose marked parents have exited (a
@@ -1946,12 +2023,19 @@ budget.
 |---|---|
 | `coding` | Full access; checks its work in the user's browser with `monoagentcli browser` (no browser lease: it passes `--tab`). |
 | `qa`, `automation` | Full access, plus `monoagentcli` for the browser (`browser`, the browser lease), workflows and automations. |
+| `workspace` | Coding plus every monoagent surface through `monoagentcli` (apps, tasks, documents, people, vault, workflows); outbound sends wait for approval. `coder set --app-access off` (`appAccess`, operator only, default on) changes what agents are told and offered, not what they can do: workers are not offered this profile (a lead's explicit ask is refused, a picked one runs as `coding`), the lead's and workers' prompts, `org_roster` and `org_spawn`'s description leave it and its surface rules out, and no coder prompt carries the profile summary. The coder lead keeps full access, a worker with a shell can still run `monoagentcli` itself, and operator-only commands, the send rule in every prompt and the send gate (`--send-approval`) apply either way. With a Jev key set, a worker's brief goes to Jev (TypeSafe) whatever app access and the router say: `auto` and `jev` route with it, and Jev picks the model and effort the lead leaves open, with `--org-router model` too. Only removing the Jev key keeps briefs on this machine. |
 | `research` | Read-only, confined as described below. |
 
 How workers run:
 
 - **Processes:** each worker is its own `agent exec` in the chat folder,
   with the user's setup loaded.
+- **Profile context:** with app access on, each worker's prompt carries the
+  profile block (`profile context`), read once per turn and again at the
+  next spawn after the lead calls `org_roster`; a read that failed (a locked
+  database) is not kept, so the next spawn tries again. The lead has it
+  once, in its own coder prompt. With app access off neither has it; every
+  prompt keeps the profile id to pass as `--profile`.
 - **Leases:** one worker edits at a time (the write lease), and one uses the
   browser at a time (the browser lease). Readers run in parallel. The lead's
   own file edits (`Edit`, `Write`, patch tool calls in its event stream)
@@ -2687,7 +2771,64 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
   ("the client of invoice inv9"), `to_unset` the recipient when none is set
   ("the appointment's attendees"). Such a card names no address: `--always-allow` is
   refused on it (`hilsend.ErrAlwaysLabel`), no allow rule matches it, and its
-  Communications row is the account's own, not a People row. Besides messaging packages, the lint asks
+  Communications row is the account's own, not a People row.
+  An always-allow rule (action, platform, account, recipient) names the
+  node's own platform (`hilsend.PlatformOf`: discord, reddit, telegram, never
+  the family service or comm, so a Discord channel rule never matches a
+  Reddit id), and is keyed on the recipient as the send addresses it (the `to`, chat id, number or profile
+  URL; `replay.Address`), never on the person People found for it, so a DM
+  rule made from a card matches the next DM to that chat or number. It stands
+  only for a send that goes to that one recipient alone (`hilsend.soleRecipient`):
+  any cc, bcc, recipient list, second address, reply-to elsewhere, or value
+  in a node's destination keys (`destKeys`: Discord's `webhook_url`,
+  Mastodon's `instance`/`instance_url`/`in_reply_to_id`, dev.to's
+  `article_id`, Hashnode's `publication_id`, Product Hunt's `post_id`,
+  YouTube's `comment_id`, Twilio's `url`, the mail nodes' `message_id`) gets
+  the card. Gmail's `reply` (and any truthy `reply_all`) and both nodes'
+  `send_draft` ignore `to`, and Outlook's `reply` sends to `to` as well as
+  to the thread (the card's Also to): their card names the thread or the
+  draft as a label, so no rule matches them, and a `send_draft` card can
+  only be rejected (`Payload.Unreviewable`: the draft lives in the
+  mailbox); a Discord webhook send names its webhook's
+  host the same way; and no rule stands for a Twilio `make_call`, whose TwiML
+  can dial anyone. A send whose card names no recipient (an Instagram
+  `send_dms` given a bare `profile_url` instead of `selectedListItems`)
+  matches no rule either, nor does an op with no recipient param of its own
+  (Mastodon, Bluesky, dev.to, Hashnode, Product Hunt and YouTube posts and
+  comments). Beside the key rules a content net holds: a send with an
+  address or a phone number anywhere in its config but its text, its
+  sender and its one recipient gets the card (`hilsend.strayAddress`, read
+  by `netAddresses` on the show-card recogniser: Unicode and dotless
+  domains, bracketed IPs, fullwidth and `%40` at signs, quotes, comments,
+  brackets or other punctuation next to the `@` (`atJoined`), plain, `00`
+  and `+` numbers; only a string under a text key is text, an object there
+  is read). Digits glued after a letter (INC0012345, a tracking number) and
+  a Unix time under a time-like key (`send_at`, `createdAt`) are no phone
+  number. The net doesn't see what has no address's shape (an @handle, a
+  Slack, Matrix or account id: the key rules judge those), an address
+  spelled out, in base64 or as an HTML entity, or with a space before its
+  `@`, a number held as a JSON number, or a phone number split into single
+  digits, by `/`, `_` or 4 spaces or more, or under 7 digits. So every
+  recipient-like param of a send op is decided by
+  `TestEveryRecipientLikeKeyOfASendIsDecided` (internal/noderegistry): its
+  recipient, text or subject, a key the gate judges by name
+  (`hilsend.JudgedByKey`: a copy, a reply-to, the sender's, a `destKeys` or
+  `hostKeys` entry), a boolean, or `notRecipients` with why. An email
+  through a server other than the one of the saved connection its
+  `credential_id` resolves to gets the card too (`smtp_host`, `ownServer`;
+  with none resolved, the server is not its own), and an email rule is
+  bound to that connection: its account reads `<from> via connection <id>`
+  (`ruleAccount`), so a send through another connection of the profile
+  gets its card. The rule's account is the sending number or mailbox when a
+  node names one (WhatsApp's `phone_number_id`, Graph's send-as `mailbox`).
+  The card names the address the send goes to; the People row matched to
+  that whole address (never a substring of a contact) is a tag beside it
+  (`Recipient.PersonName`). The `outlook` platform is shared by Outlook's
+  SMTP app-password sends (`comm.outlook_send`, `service.outlook_mail` with
+  `auth: app_password`) and its Graph sends, so one rule covers both.
+  `hil allow add` refuses a rule with an unknown
+  action, a recipient over 320 bytes, `*`, `%`, a control, invisible or
+  non-breaking character, or one that reads like a label. Besides messaging packages, the lint asks
   about any app's write with a recipient-like param (to, recipient,
   receiver, addressee, email, mailTo, phone, tel, msisdn, sms, attendees,
   guests, participants, invitees, invites, subscribers, cc, bcc) or a
@@ -2946,7 +3087,11 @@ newline is stripped.
 monoagentcli --profile work secret list                 # metadata only, never values
 monoagentcli --profile work secret add --kind secret --name aws \
   --field access_key_id=... --field secret_access_key=...   # still argv — avoid for high-value secrets
+monoagentcli --profile work secret update aws --field region=eu-west-1 --merge   # change one field, keep the rest
 ```
+
+Without `--merge`, `--field`/`--stdin-json` replace the entry's whole field
+set, and a replace that drops fields prints a warning naming them.
 
 Note: `--value` exists as a shorthand but leaks through process listings
 and shell history — prefer stdin or the interactive prompt for real secrets.
@@ -3134,7 +3279,7 @@ keys and the clock, and panic outside a test binary.
 | `MONOAGENT_CRASH_REPORT` | Set to `1` to allow crash reports to be filed to GitHub (also requires the `monomind` CLI on `PATH`). Default: unset — crash reports stay in local files under `~/.monoagent/crashes/`. |
 | `MONOAGENT_EXTENSION_PORT` | Bind-port override for the browser-extension bridge server; the extension probes this port and falls back to 9323. Default: unset — 9323 only. |
 | `MONOAGENT_SUMMARY_RUNTIME` | Agent runtime the extension bridge uses to write `summary.md` for captures saved with "Save page summary" / "Save video summary" (`extension serve --summary-runtime` wins over it). This is the default: a capture can name its own installed runtime and model (the side panel's "AI for summaries" picker, or `capture page --summary-runtime/--summary-model`), and `summary.json` records the pair used. `off` disables summaries; each capture that asked then records why in `summary.json`. Default: unset — `claude`. |
-| `MONOES_BASE_URL` | monoes.me host for the `library` commands. Default: unset — `https://monoes.me`. Plain `http` is accepted only for a loopback host (a local dev server). A default build refuses to sign in to any other host; that needs `-tags devaccount`. |
+| `MONOES_BASE_URL` | monoes.me host for the `library` commands. Default: unset — `https://monoes.me`. Plain `http` is accepted only for a loopback host (a local dev server). A default build refuses to sign in to any other host; that needs `-tags devaccount`. A default build's sign-in, refresh and first-run adoption always go to `https://monoes.me` (spec D24). |
 | `MONOAGENT_DEV_ENFORCE_FROM` | Forces the warn period (a future date such as `2999-01-01T00:00:00Z`) or enforcement (a past date) for a test: an RFC 3339 time. Read only by a `-tags devaccount` build; a default build does not read it, so it never relaxes anything. Default: unset — the date compiled into the binary (2026-10-11 UTC). |
 | `MONOMIND_BIN` | Path to the `monomind` binary; checked before `PATH` and the other install locations (see [How AI works in mono-agent](#how-ai-works-in-mono-agent)). Default: unset — discovered. |
 | `MONOAGENT_AI_RUNTIME` | Agent runtime `ai.extract_page` uses to generate selectors. Default: unset — the first installed runtime, `claude` first. |

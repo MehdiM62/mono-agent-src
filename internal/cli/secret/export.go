@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/cli/revealgate"
 	"github.com/monoes/mono-agent/internal/connections"
 	"github.com/monoes/mono-agent/internal/secrets"
@@ -92,6 +93,10 @@ func (d Deps) newSecretImportCmd() *cobra.Command {
 			line, err := reader.ReadString('\n')
 			if err != nil {
 				return fmt.Errorf("reading passphrase from stdin: %w", err)
+			}
+			if !clicore.StdinIsTerminal() {
+				// Nothing echoed the line's end: what follows starts a line of its own.
+				fmt.Fprintln(os.Stderr)
 			}
 			passphrase := strings.TrimRight(line, "\r\n")
 

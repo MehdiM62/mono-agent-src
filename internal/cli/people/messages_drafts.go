@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/monoes/mono-agent/internal/cli/clicore"
+	"github.com/monoes/mono-agent/internal/operator"
 	"github.com/monoes/mono-agent/internal/storage"
 	"github.com/spf13/cobra"
 )
@@ -74,8 +76,14 @@ func (d Deps) newPeopleMessagesSendDraftCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "send-draft <message-id>",
 		Short: "Send a previously-created draft message",
-		Args:  cobra.ExactArgs(1),
+		Long: "Sends a draft as it is in the mailbox. " + clicore.OperatorOnlyHelp + " A draft's recipients, " +
+			"subject and text live in the mailbox, so an approval card for an agent's send-draft could not show them.",
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if why := operator.Refusal(); why != "" {
+				return clicore.OperatorOnly("people messages send-draft sends a draft as the mailbox holds it, its recipients and text included, which no approval card shows, so only the user sends it: %s; "+
+					"they send %s in their own terminal or the app", why, args[0])
+			}
 			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
