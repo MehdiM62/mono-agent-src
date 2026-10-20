@@ -2716,6 +2716,20 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
   upload item cannot be used as a form submit, nor the reverse.
   `browser permissions set all <level>` sets every kind of agent at once
   (the user's, like `set <kind>`).
+- **Form fill.** `browser fill` runs the side panel's Fill form on a tab as
+  `--profile` (bridge command `form_run`): the profile's Info page and its
+  own documents answer the page's fields, passwords, card numbers and codes
+  are never filled, and nothing is submitted (the user is asked to press
+  Submit). `--generate` also lets the model write an answer to an open
+  question in a `textarea` from the facts alone (never a name, number, date or
+  address); those values come back `generated` and are counted in
+  `generated`. `--files` attaches the profile's stored photos and scans on
+  secure pages. It is gated like an upload: an agent's fill on an allowed
+  page that is not local waits for approval (`via` `fill`, bound to the
+  profile, the page and the flags), then `browser fill --hil <hil_id>`. A
+  held item is used only by its own command (`submit`, `upload`, `fill`).
+  An image for a file box can be made with a `gemini.generate_image` node,
+  then `browser upload` puts it in.
 - **browser.jev** arms the same guard (again whenever the page moves to
   another origin, before acting there) when an AI caller started its run: an
   agent's shell, a chat tool call (`run_workflow` starts `workflow run` with

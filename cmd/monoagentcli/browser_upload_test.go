@@ -111,12 +111,14 @@ func TestBrowserUploadWaitsForApprovalOnRealSites(t *testing.T) {
 	}
 	t.Setenv("CLAUDECODE", "1")
 
-	// The approval is for a form submit's command only when it is one.
-	if _, err := bt.run("submit", "--hil", id); err == nil {
-		t.Fatal("an upload approval was used as a form submit")
-	}
-	if it, _ := browserctl.GetSubmitItem(t.Context(), db, "default", id); it.Status != "approved" {
-		t.Fatalf("the approval was not handed back: %s", it.Status)
+	// The approval is for the upload command only.
+	for _, verb := range []string{"submit", "fill"} {
+		if _, err := bt.run(verb, "--hil", id); err == nil {
+			t.Fatalf("an upload approval was used by %s", verb)
+		}
+		if it, _ := browserctl.GetSubmitItem(t.Context(), db, "default", id); it.Status != "approved" {
+			t.Fatalf("%s: the approval was not handed back: %s", verb, it.Status)
+		}
 	}
 	// A file changed after the approval is not uploaded.
 	if err := os.WriteFile(cv, []byte("second"), 0o600); err != nil {

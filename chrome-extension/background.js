@@ -170,7 +170,7 @@ const SENSITIVE_COMMANDS = new Set([
   "scroll", "keyboard_type", "keyboard_press", "wait_element", "race",
   "focus", "html", "property", "scroll_into_view", "insert_text",
   "get_rect", "set_files", "query_count", "query_text", "fetch_image_base64",
-  "page_capture",
+  "form_run", "page_capture",
   // The element picker (re-record one selector) reads the page's structure.
   "pick_element",
   // Raw CDP is the most sensitive of the lot: it bypasses page CSP and can
@@ -782,6 +782,10 @@ async function handleCommand(cmd) {
       case "query_text":
       case "fetch_image_base64":
         result = await sendToContent(params.tabId, { ...cmd, params });
+        break;
+      case "form_run":
+        // `monoagentcli browser fill`: the side panel's Fill form on one tab.
+        result = await MonoForm.run(params);
         break;
       case "set_binding":
         // `monoagentcli extension bind` / the app's Settings → Browsers. The

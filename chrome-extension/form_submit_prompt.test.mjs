@@ -17,7 +17,7 @@ const FIELDS = [
 function setup({ fields = FIELDS, values = [{ id: "m1", value: "Sam Doe" }], applied = 1, withCoder = true } = {}) {
   const record = { scripts: [], prompts: [], asked: [] };
   const chrome = {
-    tabs: { query: async () => [{ id: 42, windowId: 7 }] },
+    tabs: { query: async () => [{ id: 42, windowId: 7 }], get: async (id) => ({ id, windowId: 7, url: "https://visa.example/apply" }) },
     storage: { local: { get: async () => ({}) } },
     scripting: {
       executeScript: async ({ target, func, files, args }) => {
@@ -83,4 +83,28 @@ test("without the coder bridge loaded the fill still works and asks nothing", as
   assert.deepEqual([out.ok, out.filled], [true, 1]);
   assert.deepEqual(record.prompts, []);
   noSubmit(record);
+});
+
+// The command line's way in (bridge command form_run, `browser fill`): it
+// names its tab, may ask the model to write open answers, reports how many it
+// wrote, and still never submits.
+test("form_run fills the named tab, passes generate on, and counts what the model wrote", async () => {
+  const { F, record } = setup({ values: [{ id: "m1", value: "Sam Doe" }, { id: "m2", value: "About me", generated: true }], applied: 2 });
+  const out = await F.run({ profile: "p-work", tabId: 99, what: "fill", generate: true });
+  assert.deepEqual([out.ok, out.filled, out.generated], [true, 2, 1]);
+  assert.equal(record.asked[0].params.generate, true);
+  assert.ok(record.scripts.every((s) => !s.target || s.target.tabId === 99), "every script ran in the named tab");
+  noSubmit(record);
+});
+
+test("form_run without a tab, or with an unknown mode, is refused", async () => {
+  const { F } = setup();
+  await assert.rejects(() => F.run({ profile: "p-work", what: "fill" }), /needs a tab/);
+  await assert.rejects(() => F.run({ profile: "p-work", tabId: 1, what: "card" }), /fill or files/);
+});
+
+test("without generate the request carries none", async () => {
+  const { F, record } = setup();
+  await F.run({ profile: "p-work", tabId: 99, what: "fill" });
+  assert.equal("generate" in record.asked[0].params, false);
 });

@@ -63,6 +63,17 @@ ACTING ON THE PAGE
                                             waits for approval like a submit (exit 3, awaiting_approval,
                                             the card lists each file with size and digest); then
                                             browser upload --hil <hil_id> uploads exactly those files, once.
+  browser fill [--generate | --files]       the side panel's Fill form, on the tab, from --profile: its Info
+                                            page and documents answer the fields; never submits (the user
+                                            is asked to press Submit); passwords/cards/codes never filled.
+                                            --generate: the model may also WRITE answers to open questions
+                                            in text areas from the profile's facts ("generated" counts them).
+                                            --files: attach the profile's stored photos/scans (https pages).
+                                            {tabId,mode,filled,attached,found,generated,sources}. An agent's
+                                            fill on a page that is not local waits for approval like a
+                                            submit; then browser fill --hil <hil_id>.
+                                            Other files (a CV from the profile's documents, an image made
+                                            with a gemini.generate_image node): browser upload.
   browser eval <js>                         {result}; an agent only on local and dev pages
                                             (eval_not_allowed elsewhere: a script could
                                             send a form around the approval it needs)

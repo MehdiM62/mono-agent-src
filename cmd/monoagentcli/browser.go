@@ -67,7 +67,7 @@ func newBrowserCmd(cfg *globalConfig) *cobra.Command {
 		newBrowserBrowsersCmd, newBrowserTabsCmd, newBrowserOpenCmd, newBrowserNavigateCmd, newBrowserReloadCmd,
 		newBrowserCloseCmd, newBrowserClickCmd, newBrowserTypeCmd, newBrowserPressCmd, newBrowserWaitCmd,
 		newBrowserEvalCmd, newBrowserScreenshotCmd, newBrowserConsoleCmd, newBrowserNetworkCmd, newBrowserA11yCmd,
-		newBrowserPickCmd, newBrowserAllowCmd, newBrowserPermissionsCmd, newBrowserSubmitCmd, newBrowserUploadCmd,
+		newBrowserPickCmd, newBrowserAllowCmd, newBrowserPermissionsCmd, newBrowserSubmitCmd, newBrowserUploadCmd, newBrowserFillCmd,
 	}
 	for _, f := range append(builtin, browserSubcommands...) {
 		cmd.AddCommand(f(cfg))
@@ -248,8 +248,11 @@ func browserErr(cmd *cobra.Command, cfg *globalConfig, err error) error {
 
 // awaitingVerb is the command that carries out a held action once approved.
 func awaitingVerb(aw *browserctl.AwaitingApproval) string {
-	if aw.Via == browserctl.ViaUpload {
+	switch aw.Via {
+	case browserctl.ViaUpload:
 		return "upload"
+	case browserctl.ViaFill:
+		return "fill"
 	}
 	return "submit"
 }
