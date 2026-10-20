@@ -73,15 +73,26 @@ Paste into the certification notes field:
 > MonoAgent from https://monoes.me, run `monoagentcli extension pair`, paste
 > the printed token into the side panel's pairing box. After that the side
 > panel shows "connected" and the shortcuts work (Ctrl+Shift+S saves the page
-> to the local library). The extension makes no network requests other than to
-> 127.0.0.1. [If a test build/video is provided, link it here.]
+> to the local library). The extension sends user data only to the MonoAgent app
+> on 127.0.0.1. It also fetches the web pages, captions and images the user
+> chooses to save or automate, from the user's own browser, using the user's own
+> session on that site. It contacts no server operated by us and includes no
+> analytics. [If a test build/video is provided, link it here.]
 
-## Assets to prepare (not in the repo)
+## Store Assets (Ready for Upload)
 
-- 1280x800 (or 640x400) screenshots, at least 1: side panel connected, a saved page, the chat panel.
-- Small promo tile 440x280 (Edge and Chrome Web Store).
-- Support URL and homepage URL on monoes.me.
-- Edge only: a "search terms" list (automation, browser, workflow, clipper, tasks).
+Kept in `store-assets/`:
+- **Store Icon (128x128):** `store-assets/store-icon-128x128.png` (transparent padded) & `store-icon-128x128-badge.png`
+- **Screenshots (1280x800, 24-bit PNG no alpha + JPEG):**
+  1. `screenshot-1-save-page.png` / `.jpg` — 1-click web clipper & Markdown sync
+  2. `screenshot-2-ai-chat.png` / `.jpg` — side-panel AI chat with active page
+  3. `screenshot-3-smart-highlights.png` / `.jpg` — persistent inline highlights & notes
+  4. `screenshot-4-quick-tasks.png` / `.jpg` — turn web context into actionable tasks (Ctrl+Shift+K)
+  5. `screenshot-5-browser-automations.png` / `.jpg` — record & replay browser automations
+- **Small promo tile (440x280, 24-bit PNG no alpha + JPEG):** `small-promo-tile-440x280.png` / `.jpg`
+- **Marquee promo tile (1400x560, 24-bit PNG no alpha + JPEG):** `marquee-promo-tile-1400x560.png` / `.jpg`
+
+## Additional Store URLs & Edge Metadata
 
 ## Privacy policy (host this text at a public URL)
 
@@ -101,7 +112,10 @@ storage.
 own computer, over a connection to 127.0.0.1. The extension rejects other
 servers unless you explicitly allow one for a single save. We do not receive,
 collect, sell or share this information, and the extension contains no
-analytics, advertising or tracking.
+analytics, advertising or tracking. To save or automate a page, the extension
+may also fetch the web pages, captions and images you chose, from your own
+browser, using your own session on that site; those requests go to the site
+you are working with, not to us.
 
 **What MonoAgent does with it.** The app stores saved items locally under your
 user profile. If you use the chat or summary features, the app sends the text
