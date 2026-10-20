@@ -209,3 +209,22 @@ func TestGraphQLCredentialAuth(t *testing.T) {
 		t.Fatalf("Authorization = %q", got)
 	}
 }
+
+// A 307 or 308 that would send the request's body, and the credential
+// with it, to another host isn't followed (#912); a request with nothing
+// secret on it follows as before.
+func TestRequestCredentialIsNotResentByA307(t *testing.T) {
+	hit := false
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { hit = true }))
+	t.Cleanup(target.Close)
+	targetURL := strings.Replace(target.URL, "127.0.0.1", "localhost", 1)
+	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, targetURL+"/final", http.StatusTemporaryRedirect)
+	}))
+	t.Cleanup(origin.Close)
+	cfg := credCfg(origin.URL+"/start", map[string]interface{}{"api_key": "rk-1"}, map[string]interface{}{"method": "POST", "body": `{"a":1}`, "never_error": true})
+	_, e := execute(t, &RequestNode{}, cfg)
+	if hit || len(e) != 1 || !strings.Contains(e[0].JSON["error"].(string), "redirected to") {
+		t.Fatalf("target hit = %v, errors = %v", hit, e)
+	}
+}
