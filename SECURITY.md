@@ -126,6 +126,33 @@ where your key store is not: as another OS user, or in a container or virtual
 machine that has neither your home directory nor your key store. A `HOME` of its
 own is not enough.
 
+### Agent mode: a sandbox and the scoped HTTP API
+
+Against a process of your own OS user only an OS boundary works, so this is the
+supported way to run a coding agent that you do not fully trust:
+
+1. Print a sandbox profile and start the agent inside it:
+   `monoagentcli agent-mode sandbox --runtime bwrap > agent-sandbox.sh; sh agent-sandbox.sh claude`
+   (`--runtime seatbelt` for macOS `sandbox-exec`, `--runtime claude-code` for
+   Claude Code's own sandbox settings). The profile hides `~/.monoagent`, the
+   Secret Service / KWallet / macOS keychain files and, where it can, the D-Bus
+   session bus. It leaves loopback networking open.
+2. The agent does not run `monoagentcli` as you. It calls the daemon's HTTP API
+   (`127.0.0.1:9322`, `/profiles/{profile}/...`) with that profile's bearer token. The
+   token opens that one profile only, and the API is read-only unless the daemon
+   was started with `--allow-mutations`. You read the token outside the sandbox
+   (`monoagentcli --profile <p> secret reveal httpapi-token --reveal`)
+   and hand it to the agent through its environment, for example `MONOAGENT_API_TOKEN`.
+   The names are only a convention; nothing in mono-agent reads them.
+
+Limits: the profiles are written for Linux (bwrap), macOS (seatbelt) and Claude
+Code's settings; the seatbelt service names and Claude Code's setting keys were
+not checked against every release, so test that the agent cannot read
+`~/.monoagent` before you rely on one. An abstract-socket D-Bus session bus (some
+distributions) is not hidden by file masking. The bearer token is the agent's
+credential: anyone holding it can use the API as that profile, including the
+`X-Full-Outputs` header. Windows has no profile yet: use another OS user or a VM.
+
 ### Where a saved connection's secret goes
 
 A step that uses a saved connection (its `credential_id`, or the connection
