@@ -44,7 +44,10 @@ func (d *fakeChooser) WaitFileChooser(context.Context, time.Duration) (*jevpick.
 	return &jevpick.Chooser{Multiple: d.multiple}, nil
 }
 
-func (d *fakeChooser) SetChooserFiles(f []jevpick.ChooserFile) error { d.given = append(d.given, f); return nil }
+func (d *fakeChooser) SetChooserFiles(f []jevpick.ChooserFile) error {
+	d.given = append(d.given, f)
+	return nil
+}
 
 func writeFiles(t *testing.T, names ...string) []interface{} {
 	t.Helper()
