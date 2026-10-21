@@ -2,6 +2,7 @@ package extension
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -19,8 +20,11 @@ const extOrigin = "chrome-extension://abcdefghijklmnopabcdefghijklmnop"
 
 // claimReq is a claim that passes every check; each test spoils one thing.
 func claimReq(mut func(*http.Request)) *http.Request {
-	r := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:9222/monoagent/pair/claim",
-		strings.NewReader(`{"instance":"0123456789abcdef","label":"Edge Work"}`))
+	return claimReqBody(`{"instance":"0123456789abcdef","label":"Edge Work"}`, mut)
+}
+
+func claimReqBody(body string, mut func(*http.Request)) *http.Request {
+	r := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:9222/monoagent/pair/claim", strings.NewReader(body))
 	r.RemoteAddr = "127.0.0.1:50000"
 	r.Header.Set("Origin", extOrigin)
 	r.Header.Set("User-Agent", "Mozilla/5.0 Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0")
@@ -37,6 +41,14 @@ func newClaimServer(t *testing.T) *Server {
 	t.Setenv(AutoPairEnv, "")
 	t.Setenv(ExtensionIDsEnv, "")
 	return NewServer("127.0.0.1:9222", zerolog.Nop())
+}
+
+// newAutoServer is a server in auto mode, the zero-step opt-in.
+func newAutoServer(t *testing.T) *Server {
+	t.Helper()
+	srv := newClaimServer(t)
+	srv.SetPairMode(func() string { return PairModeAuto })
+	return srv
 }
 
 func claim(srv *Server, r *http.Request) *httptest.ResponseRecorder {
@@ -90,27 +102,38 @@ func TestPairClaimSignedOutIsRefused(t *testing.T) {
 	}
 }
 
-func TestPairClaimKillSwitch(t *testing.T) {
+func TestPairClaimModes(t *testing.T) {
 	accounttest.Install(t, accounttest.SignedIn)
 	srv := newClaimServer(t)
-	srv.SetAutoPair(func() bool { return false })
+	if srv.PairMode() != PairModeAsk {
+		t.Fatalf("default mode = %q, want ask", srv.PairMode())
+	}
+	srv.SetPairMode(func() string { return "off" })
 	if w := claim(srv, claimReq(nil)); w.Code != 403 || !strings.Contains(w.Body.String(), "extension pair") {
-		t.Fatalf("claim with the switch off = %d %s", w.Code, w.Body)
+		t.Fatalf("claim with pairing off = %d %s", w.Code, w.Body)
 	}
-	srv.SetAutoPair(func() bool { return true })
-	if w := claim(srv, claimReq(nil)); w.Code != 200 {
-		t.Fatalf("claim with the switch on = %d %s", w.Code, w.Body)
+	srv.SetPairMode(func() string { return "auto" })
+	if w := claim(srv, claimReq(nil)); w.Code != 200 || !strings.Contains(w.Body.String(), `"token"`) {
+		t.Fatalf("claim in auto = %d %s", w.Code, w.Body)
 	}
-	srv.SetAutoPair(nil) // default: on
+	srv.SetPairMode(func() string { return "garbage" }) // unknown is the safe mode
+	if srv.PairMode() != PairModeAsk {
+		t.Fatalf("unknown setting = %q, want ask", srv.PairMode())
+	}
+	srv.SetPairMode(nil)
 	t.Setenv(AutoPairEnv, "0")
 	if w := claim(srv, claimReq(nil)); w.Code != 403 {
 		t.Fatalf("claim with %s=0 = %d", AutoPairEnv, w.Code)
+	}
+	t.Setenv(AutoPairEnv, "auto")
+	if srv.PairMode() != PairModeAuto {
+		t.Fatalf("env auto = %q", srv.PairMode())
 	}
 }
 
 func TestPairClaimExtensionIDList(t *testing.T) {
 	accounttest.Install(t, accounttest.SignedIn)
-	srv := newClaimServer(t)
+	srv := newAutoServer(t)
 	t.Setenv(ExtensionIDsEnv, "someotherextensionidsomeotherextens, "+strings.TrimPrefix(extOrigin, "chrome-extension://"))
 	if w := claim(srv, claimReq(nil)); w.Code != 200 {
 		t.Fatalf("listed id = %d %s", w.Code, w.Body)
@@ -121,20 +144,30 @@ func TestPairClaimExtensionIDList(t *testing.T) {
 	}
 }
 
-func TestPairClaimRateLimit(t *testing.T) {
+func instanceReq(i int, origin string) *http.Request {
+	return claimReqBody(fmt.Sprintf(`{"instance":"inst%012d","label":"b%d"}`, i, i), func(r *http.Request) { r.Header.Set("Origin", origin) })
+}
+
+// The rate limit is per origin: forged claims from one origin do not use up
+// another origin's quota (a global limit let a forger starve the real extension).
+func TestPairClaimRateLimitIsPerOrigin(t *testing.T) {
 	accounttest.Install(t, accounttest.SignedIn)
-	srv := newClaimServer(t)
+	srv := newAutoServer(t)
+	forged := "chrome-extension://forgedforgedforgedforgedforgedfo"
 	for i := 0; i < claimsPerWindow; i++ {
-		if w := claim(srv, claimReq(nil)); w.Code != 200 {
+		if w := claim(srv, instanceReq(i, forged)); w.Code != 200 {
 			t.Fatalf("claim %d = %d %s", i, w.Code, w.Body)
 		}
 	}
-	w := claim(srv, claimReq(nil))
+	w := claim(srv, instanceReq(99, forged))
 	if w.Code != 429 || strings.Contains(w.Body.String(), `"token"`) || w.Header().Get("Retry-After") == "" {
 		t.Fatalf("over the limit = %d %s", w.Code, w.Body)
 	}
-	// Refused requests (a web page) do not use up the quota of the real one.
-	srv2 := newClaimServer(t)
+	if w := claim(srv, instanceReq(100, extOrigin)); w.Code != 200 {
+		t.Fatalf("the real origin after a forger's flood = %d %s", w.Code, w.Body)
+	}
+	// Refused requests (a web page) do not use up anyone's quota.
+	srv2 := newAutoServer(t)
 	for i := 0; i < 3*claimsPerWindow; i++ {
 		claim(srv2, claimReq(func(r *http.Request) { r.Header.Set("Origin", "https://evil.example") }))
 	}
@@ -146,7 +179,7 @@ func TestPairClaimRateLimit(t *testing.T) {
 func TestPairClaimGrantsAPerBrowserTokenThatRevokes(t *testing.T) {
 	accounttest.Install(t, accounttest.SignedIn)
 	srv, base := startPairingTestServer(t)
-	_ = srv
+	srv.SetPairMode(func() string { return PairModeAuto })
 	w := claim(srv, claimReq(nil))
 	if w.Code != 200 {
 		t.Fatalf("claim = %d %s", w.Code, w.Body)
@@ -192,8 +225,8 @@ func TestPairClaimGrantsAPerBrowserTokenThatRevokes(t *testing.T) {
 	if _, ok := dial(got.Token); ok {
 		t.Fatal("a revoked token still authenticates")
 	}
-	srv.sweepRevoked()
-	deadline := time.Now().Add(2 * time.Second)
+	// No sweep is called here: the socket notices the revoke by itself.
+	deadline := time.Now().Add(revokeCheckInterval + 3*time.Second)
 	for srv.IsConnected() && time.Now().Before(deadline) {
 		time.Sleep(20 * time.Millisecond)
 	}
@@ -205,17 +238,91 @@ func TestPairClaimGrantsAPerBrowserTokenThatRevokes(t *testing.T) {
 	}
 }
 
-func TestPairClaimReplacesTheSameInstance(t *testing.T) {
+// A claim naming a victim's instance id must not delete the victim's token.
+func TestPairClaimCannotReplaceAnInstanceItDoesNotOwn(t *testing.T) {
 	accounttest.Install(t, accounttest.SignedIn)
-	srv := newClaimServer(t)
-	var first, second claimReply
-	_ = json.Unmarshal(claim(srv, claimReq(nil)).Body.Bytes(), &first)
-	_ = json.Unmarshal(claim(srv, claimReq(nil)).Body.Bytes(), &second)
-	if _, ok := pairedBrowserForToken(first.Token); ok {
-		t.Fatal("the earlier token of the same browser still works")
+	srv := newAutoServer(t)
+	var victim claimReply
+	_ = json.Unmarshal(claim(srv, claimReq(nil)).Body.Bytes(), &victim)
+	if victim.Token == "" {
+		t.Fatal("no victim token")
 	}
-	if _, ok := pairedBrowserForToken(second.Token); !ok {
+	for _, body := range []string{
+		`{"instance":"0123456789abcdef","label":"attacker"}`,
+		`{"instance":"0123456789abcdef","label":"attacker","token":"` + strings.Repeat("0", 64) + `"}`,
+	} {
+		w := claim(srv, claimReqBody(body, nil))
+		if w.Code != 409 || strings.Contains(w.Body.String(), `"token"`) {
+			t.Fatalf("claim over a victim's instance = %d %s", w.Code, w.Body)
+		}
+	}
+	if _, ok := pairedBrowserForToken(victim.Token); !ok {
+		t.Fatal("a forged claim killed the victim's token")
+	}
+	// The browser that holds its token may rotate it.
+	var rotated claimReply
+	w := claim(srv, claimReqBody(`{"instance":"0123456789abcdef","label":"Edge Work","token":"`+victim.Token+`"}`, nil))
+	_ = json.Unmarshal(w.Body.Bytes(), &rotated)
+	if w.Code != 200 || rotated.Token == "" || rotated.Token == victim.Token {
+		t.Fatalf("rotation = %d %s", w.Code, w.Body)
+	}
+	if _, ok := pairedBrowserForToken(victim.Token); ok {
+		t.Fatal("the rotated-out token still works")
+	}
+	if _, ok := pairedBrowserForToken(rotated.Token); !ok {
 		t.Fatal("the new token does not work")
+	}
+}
+
+// At the cap a new pairing is refused; no valid token is evicted.
+func TestPairClaimRefusesAtTheCapWithoutEvicting(t *testing.T) {
+	accounttest.Install(t, accounttest.SignedIn)
+	for _, mode := range []string{PairModeAuto, PairModeAsk} {
+		srv := newClaimServer(t)
+		srv.SetPairMode(func() string { return mode })
+		var list []PairedBrowser
+		for i := 0; i < maxPairedBrowsers; i++ {
+			tok, e, err := addPairedBrowser(PairedBrowser{Label: fmt.Sprint("b", i), Instance: fmt.Sprintf("seed%012d", i)}, mintOpts{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			_ = tok
+			list = append(list, e)
+		}
+		w := claim(srv, instanceReq(500, extOrigin))
+		if w.Code != 409 || strings.Contains(w.Body.String(), `"token"`) || strings.Contains(w.Body.String(), `"pollSecret"`) {
+			t.Fatalf("%s: claim at the cap = %d %s", mode, w.Code, w.Body)
+		}
+		got, _ := ListPairedBrowsers()
+		if len(got) != maxPairedBrowsers {
+			t.Fatalf("%s: %d browsers after a refused claim, want %d", mode, len(got), maxPairedBrowsers)
+		}
+		have := map[string]bool{}
+		for _, e := range got {
+			have[e.ID] = true
+		}
+		for _, e := range list {
+			if !have[e.ID] {
+				t.Fatalf("%s: entry %s was evicted", mode, e.ID)
+			}
+		}
+	}
+}
+
+func TestPairClaimCapsStoredFields(t *testing.T) {
+	accounttest.Install(t, accounttest.SignedIn)
+	srv := newAutoServer(t)
+	long := strings.Repeat("x", 5000)
+	w := claim(srv, claimReqBody(`{"instance":"0123456789abcdef","label":"`+long+`"}`, func(r *http.Request) {
+		r.Header.Set("Origin", "chrome-extension://"+strings.Repeat("a", 3000))
+		r.Header.Set("User-Agent", "")
+	}))
+	if w.Code != 200 {
+		t.Fatalf("claim = %d %s", w.Code, w.Body)
+	}
+	list, _ := ListPairedBrowsers()
+	if len(list) != 1 || len(list[0].Label) > maxFieldLen || len(list[0].Origin) > maxFieldLen {
+		t.Fatalf("stored fields are not capped: %d %d", len(list[0].Label), len(list[0].Origin))
 	}
 }
 
@@ -234,10 +341,10 @@ func TestClaimStatus(t *testing.T) {
 	accounttest.Install(t, accounttest.SignedIn)
 	var st ClaimStatus
 	w := get(func(r *http.Request) { r.Header.Set("Origin", extOrigin) })
-	if err := json.Unmarshal(w.Body.Bytes(), &st); err != nil || !st.SignedIn || st.Service != ServiceName || !st.AutoPair || st.Paired {
+	if err := json.Unmarshal(w.Body.Bytes(), &st); err != nil || !st.SignedIn || st.Service != ServiceName || st.PairMode != PairModeAsk || st.Paired {
 		t.Fatalf("signed in status = %s", w.Body)
 	}
-	if strings.Count(w.Body.String(), ":") != 4 {
+	if strings.Count(w.Body.String(), ":") != 4 || strings.Contains(w.Body.String(), "token") {
 		t.Fatalf("status says more than it should: %s", w.Body)
 	}
 	accounttest.Install(t, accounttest.LockedNoLogin)

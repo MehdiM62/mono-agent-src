@@ -12,14 +12,15 @@ const { MonoAutoPair: A } = loadExtensionScripts(["autopair.js"]);
 const json = (body, status = 200) => ({ ok: status >= 200 && status < 300, status, json: async () => body });
 
 /** bridge answers /status and /pair/claim on the given ports; any other port is refused. */
-function fakeBridge({ ports = [9222], doc = {}, claim = json({ token: "t".repeat(64), id: "abc123" }) } = {}) {
+function fakeBridge({ ports = [9222], doc = {}, claim = json({ token: "t".repeat(64), id: "abc123" }), poll = json({ status: "pending" }) } = {}) {
   const calls = [];
   const impl = async (url, init = {}) => {
-    calls.push({ url, method: init.method || "GET", body: init.body });
+    calls.push({ url, method: init.method || "GET", body: init.body, headers: init.headers });
     const m = /^http:\/\/127\.0\.0\.1:(\d+)(\/.*)$/.exec(url);
     if (!m || !ports.includes(Number(m[1]))) throw new TypeError("refused");
-    if (m[2] === "/monoagent/status") return json(Object.assign({ service: "monoagent-bridge", signedIn: false, paired: false, autoPair: true }, doc));
+    if (m[2] === "/monoagent/status") return json(Object.assign({ service: "monoagent-bridge", signedIn: false, paired: false, pairMode: "auto" }, doc));
     if (m[2] === "/monoagent/pair/claim") return claim;
+    if (m[2].startsWith("/monoagent/pair/claim/")) return poll;
     throw new Error("unexpected " + url);
   };
   return { impl, calls };
@@ -32,7 +33,7 @@ test("bridge up and signed in: claims, and sends who it is", async () => {
   assert.equal(r.token.length, 64);
   assert.equal(r.wsUrl, "ws://127.0.0.1:9222/monoagent");
   const claim = b.calls.find((c) => c.method === "POST");
-  assert.deepEqual(JSON.parse(claim.body), { instance: "0123456789abcdef", label: "Edge 0123" });
+  assert.deepEqual(JSON.parse(claim.body), { instance: "0123456789abcdef", label: "Edge 0123", token: "" });
 });
 
 test("bridge up and signed out: no claim, says signed_out", async () => {
@@ -59,8 +60,8 @@ test("something else on the port is not the bridge", async () => {
   assert.equal((await A.step({ fetch: impl })).kind, "down");
 });
 
-test("automatic pairing off: manual path, no claim", async () => {
-  const b = fakeBridge({ doc: { signedIn: true, autoPair: false } });
+test("pairing off: manual path, no claim", async () => {
+  const b = fakeBridge({ doc: { signedIn: true, pairMode: "off" } });
   const r = await A.step({ fetch: b.impl });
   assert.equal(r.kind, "disabled");
   assert.equal(b.calls.some((c) => c.method === "POST"), false);
@@ -86,4 +87,67 @@ test("a bridge that accepts and never answers does not hang the step", async () 
 
 test("the configured address is asked first", () => {
   assert.deepEqual(A.bases({ wsUrl: "ws://127.0.0.1:9500/monoagent" }), ["http://127.0.0.1:9500", "http://127.0.0.1:9222", "http://127.0.0.1:9323"]);
+});
+
+const pendingReply = json({ pending: true, claimId: "c1c1c1c1c1c1c1c1", pollSecret: "s".repeat(64), expiresAt: "2099-01-01T00:00:00Z" }, 202);
+
+test("ask mode: the claim comes back pending, with what is needed to poll; no token is assumed", async () => {
+  const b = fakeBridge({ doc: { signedIn: true, pairMode: "ask" }, claim: pendingReply });
+  const r = await A.step({ fetch: b.impl, instance: "0123456789abcdef", label: "Edge" });
+  assert.equal(r.kind, "pending");
+  assert.equal(r.claimId, "c1c1c1c1c1c1c1c1");
+  assert.equal(r.pollSecret, "s".repeat(64));
+  assert.equal(r.token, undefined);
+});
+
+test("a 202 without the poll handles is refused, not read as paired", async () => {
+  const b = fakeBridge({ doc: { signedIn: true, pairMode: "ask" }, claim: json({ pending: true }, 202) });
+  assert.equal((await A.step({ fetch: b.impl })).kind, "refused");
+});
+
+test("polling sends the secret as a bearer, never in the URL, and does not claim again", async () => {
+  const b = fakeBridge({ doc: { signedIn: true, pairMode: "ask" }, poll: json({ status: "pending" }) });
+  const r = await A.step({ fetch: b.impl, pending: { claimId: "c1c1c1c1c1c1c1c1", pollSecret: "sec" } });
+  assert.equal(r.kind, "pending");
+  assert.equal(b.calls.some((c) => c.method === "POST"), false, "a request is already waiting: no second card");
+  const p = b.calls.find((c) => c.url.includes("/pair/claim/"));
+  assert.equal(p.url, "http://127.0.0.1:9222/monoagent/pair/claim/c1c1c1c1c1c1c1c1");
+  assert.equal(p.headers.Authorization, "Bearer sec");
+});
+
+test("approved: the poll yields the token", async () => {
+  const b = fakeBridge({ doc: { signedIn: true, pairMode: "ask" }, poll: json({ status: "approved", token: "k".repeat(64), id: "id1" }) });
+  const r = await A.step({ fetch: b.impl, pending: { claimId: "c1", pollSecret: "sec" } });
+  assert.equal(r.kind, "claimed");
+  assert.equal(r.token, "k".repeat(64));
+});
+
+test("denied, and expired (410 or forgotten 404), are told apart from waiting", async () => {
+  const mk = (poll) => fakeBridge({ doc: { signedIn: true, pairMode: "ask" }, poll });
+  assert.equal((await A.step({ fetch: mk(json({ status: "denied" })).impl, pending: { claimId: "c", pollSecret: "s" } })).kind, "denied");
+  assert.equal((await A.step({ fetch: mk(json({ status: "expired" }, 410)).impl, pending: { claimId: "c", pollSecret: "s" } })).kind, "expired");
+  assert.equal((await A.step({ fetch: mk(json({ error: "no such" }, 404)).impl, pending: { claimId: "c", pollSecret: "s" } })).kind, "expired");
+});
+
+test("an unanswered poll keeps waiting rather than dropping the request", async () => {
+  const b = fakeBridge({ doc: { signedIn: true, pairMode: "ask" } });
+  const impl = async (url, init = {}) => {
+    if (url.includes("/pair/claim/")) throw new TypeError("reset");
+    return b.impl(url, init);
+  };
+  const r = await A.step({ fetch: impl, pending: { claimId: "c", pollSecret: "s" } });
+  assert.equal(r.kind, "pending");
+});
+
+test("a signed-out or pairing-off bridge is not polled", async () => {
+  const off = fakeBridge({ doc: { signedIn: true, pairMode: "off" } });
+  assert.equal((await A.step({ fetch: off.impl, pending: { claimId: "c", pollSecret: "s" } })).kind, "disabled");
+  const out = fakeBridge({ doc: { signedIn: false } });
+  assert.equal((await A.step({ fetch: out.impl, pending: { claimId: "c", pollSecret: "s" } })).kind, "signed_out");
+});
+
+test("a token the bridge turned away is offered back, so the same browser may rotate it", async () => {
+  const b = fakeBridge({ doc: { signedIn: true } });
+  await A.step({ fetch: b.impl, instance: "0123456789abcdef", token: "old" });
+  assert.equal(JSON.parse(b.calls.find((c) => c.method === "POST").body).token, "old");
 });

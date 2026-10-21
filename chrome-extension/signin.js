@@ -30,6 +30,13 @@
       // The bridge is up, so signing in is all it takes: this browser pairs
       // itself the moment the account is signed in, and this screen leaves.
       out.state = "Sign in in the MonoAgent app or run monoagentcli account login. This window updates automatically.";
+    } else if (unpaired && s.reason === "pair_waiting") {
+      // The bridge holds this browser's request until the owner decides.
+      out.state = "Waiting for approval in the MonoAgent app (or run monoagentcli extension approve --latest). This window updates automatically.";
+    } else if (unpaired && (s.reason === "pair_denied" || s.reason === "pair_expired")) {
+      out.unpaired = true;
+      out.state = s.reason === "pair_denied" ? "The request to pair this browser was denied." : "The request to pair this browser expired before it was approved.";
+      out.pair = `Press Check again to ask once more, or run ${PAIR_COMMAND} and paste the token it prints below.`;
     } else if (unpaired) {
       // Automatic pairing is off or was refused: the manual path.
       out.unpaired = true;
@@ -74,8 +81,8 @@
     }
   }
 
-  function recheck() {
-    chrome.runtime.sendMessage({ type: "account_recheck" }, (reply) => {
+  function recheck(manual) {
+    chrome.runtime.sendMessage({ type: "account_recheck", manual }, (reply) => {
       void chrome.runtime.lastError; // a worker still waking answers the next time
       if (reply) show(reply);
     });
@@ -104,7 +111,7 @@
   chrome.runtime.onMessage.addListener((msg) => {
     if (msg && msg.type === "status") show(msg);
   });
-  $("signin-recheck").addEventListener("click", recheck);
+  $("signin-recheck").addEventListener("click", () => recheck(true));
   $("signin-copy").addEventListener("click", async () => {
     try {
       await navigator.clipboard.writeText(LOGIN_COMMAND);

@@ -706,51 +706,90 @@ against an agent running as you:
 
 So it is not a sandbox: it stops mistakes and planted instructions that
 go through the CLI.
-### Pairing a browser without a step (the claim)
+### Pairing a browser without typing a token (the claim)
 
-While this machine is signed in to monoes.me, a freshly installed extension
-pairs itself: it asks `GET /monoagent/status` and then
-`POST /monoagent/pair/claim` on the bridge and is handed a token of its own.
-Each browser's token is recorded (a SHA-256 of it, a label, the extension
-origin, when) in `~/.monoagent/extension.browsers.json`, listed with
+A freshly installed extension has no token. While this machine is signed in
+to monoes.me it asks `GET /monoagent/status` and then
+`POST /monoagent/pair/claim` on the bridge. What that yields depends on
+`extension autopair ask|auto|off` (setting `extension.autoPair`, read by the
+bridge on every request; `MONOAGENT_EXTENSION_AUTOPAIR=0|ask|auto` in the
+bridge's environment overrides it). An agent's shell cannot change the mode,
+approve or deny (operator-only).
+
+**Why `ask` is the default.** The `Origin` header a claim relies on is a
+string the caller chooses, not a credential. Any local process
+(`curl -H 'Origin: chrome-extension://x'`), any OTHER OS USER on the machine
+(loopback is shared between users) and any other browser extension with host
+permission for `127.0.0.1` can send an extension origin. A per-browser token
+grants what `~/.monoagent/extension.token` (mode 0600, readable only by you)
+grants: documents, vault, tasks, chat, form fill and the browser-control
+commands (page text, cookies, scripts). So an Origin check alone must not
+hand that out.
+
+- **ask (default).** The claim only records a pending request (an id, the
+  browser label, its origin; two minutes to live; at most five waiting and two
+  per origin, a full queue refuses new ones and drops none) and answers with
+  the id and a poll secret (32 random bytes; only its SHA-256 is stored,
+  compared in constant time). No token exists until you approve: on the card
+  in the app's Human in Loop queue ("claims access to your documents, vault,
+  tasks and page control") or with `monoagentcli extension approve
+  <id>|--latest` (`extension deny` refuses). The extension polls
+  `GET /monoagent/pair/claim/<id>` with the secret as a bearer; the poll that
+  sees the approval receives the token once and the record is destroyed. A
+  wrong id, a wrong secret and another origin's request all get the same 404.
+  The side panel says "Waiting for approval in the MonoAgent app (or run
+  monoagentcli extension approve --latest)". An approval made on the card's
+  row by any route other than `hil approve` or the app does not approve the
+  claim. Protects against: other OS users, other extensions, scripts and
+  anything else that can reach the loopback port but cannot also answer the
+  prompt. It does NOT protect against a user who approves a request they did
+  not start; the card names the browser and origin to make that decision
+  informed. A process that can drive your approvals (your own shell) already
+  holds your account's power.
+- **auto (opt-in; single-user machines only).** The claim returns a token at
+  once. Any extension, local process or other OS user on this machine that can
+  reach the bridge gets one while you are signed in. Use it only on a machine
+  only you use and whose browsers you control.
+- **off.** No claims; every browser needs `extension pair`.
+
+In every mode, a claim or poll is refused (403, nothing recorded or handed
+out, a warning logged) unless: the TCP peer is loopback and the `Host` header
+is a loopback name (a DNS-rebound page sends its own domain); the `Origin` is
+`chrome-extension://` or `moz-extension://` (a claim with a web or no origin
+is refused; Chrome sends no `Origin` on the extension's GET poll, which is
+accepted because the secret is its proof, but a web origin on it is refused);
+`Sec-Fetch-Site` is not same-origin/same-site and `Sec-Fetch-Mode` is not
+`navigate`; the account guard says signed in; the origin made at most five
+claims in the last minute (per origin, so forged claims cannot use up the real
+extension's quota); and, when `MONOAGENT_EXTENSION_IDS` lists extension ids
+(comma-separated; an unpacked development build has its own id and must be
+listed), the origin is one of them. The id list narrows who can ask; it is
+still a header, so it is not a substitute for `ask`.
+
+Per-browser tokens are recorded (a SHA-256, a label, the origin, when, capped
+at 256 characters each) in `~/.monoagent/extension.browsers.json`, listed with
 `extension browsers list` and cut off alone with `extension browsers revoke
-<id>` (a live socket closes within about half a minute). The shared
-`extension.token` is never handed out; `extension reset` still ends every
-pairing of that kind.
+<id>`; a live socket is closed within a few seconds of the revoke. The shared
+`extension.token` is never handed out; `extension reset` still ends it.
+At 32 paired browsers new pairings are refused until you revoke one: no valid
+token is ever evicted. A claim that names an instance id already paired cannot
+replace or delete that entry: it needs the entry's own token (a browser
+rotating its token) or, in `ask`, your approval of a card that says so.
 
-A claim is refused (403, nothing handed out, a warning logged) unless all of
-these hold: the TCP peer is loopback and the `Host` header is a loopback name
-(a DNS-rebound page sends its own domain); the `Origin` is
-`chrome-extension://` or `moz-extension://` (a web page always sends its own
-http(s) origin, and a request with no `Origin` is refused, so a script gets
-nothing it could not read from `extension.token`); `Sec-Fetch-Site` is not
-same-origin/same-site and `Sec-Fetch-Mode` is not `navigate`; the account
-guard says signed in (the check gated commands use, so signed out never gets
-a token); at most five claims arrived in the last minute (a refused request
-does not use the quota); and automatic pairing is on. The pairing is logged
-(`browser paired automatically`, with the revoke command).
+Remaining limits:
 
-Switch it off with `extension autopair off` (a setting the bridge reads on
-every request) or `MONOAGENT_EXTENSION_AUTOPAIR=0` in the bridge's
-environment; browsers then need `extension pair` as before. Browsers paired
-earlier keep working until revoked.
-
-Accepted trade-offs:
-
-- Any extension that has host permission for `127.0.0.1` can send an
-  extension `Origin` of its own and claim while you are signed in. The store
-  id of this extension is not known to the bridge yet, so by default any
-  extension id is accepted; set `MONOAGENT_EXTENSION_IDS` (comma-separated
-  ids) in the bridge's environment to accept only those. An unpacked
-  development build has its own id and must be listed there, or have
-  automatic pairing turned off.
+- A forger can fill the pending queue (five slots, two minutes each) and so
+  delay the real extension's request; it can never obtain a token. Deny or
+  wait.
+- The pending-claim and browsers files are shared by the bridge and the CLI
+  as plain files with atomic renames and no cross-process lock; an approved
+  claim can mint only once (its entry id is the claim's), but two processes
+  racing on the same file can lose a write, which at worst means asking again.
 - A process running as you can already read `extension.token`, so the claim
-  gives it nothing new; with the sign-in in place it can also claim a
-  per-browser token, which is the lesser credential.
+  adds nothing for it.
 - `/monoagent/status` says, to any loopback caller with no or an extension
-  `Origin`, only whether an account is signed in, whether a browser is
-  connected and whether automatic pairing is on. It adds no CORS header, so
-  a web page cannot read it.
+  `Origin`, whether an account is signed in, whether a browser is connected
+  and the pairing mode. It adds no CORS header, so a web page cannot read it.
 
 ### What the app shows of an agent's commands
 

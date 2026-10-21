@@ -42,6 +42,8 @@ func newExtensionCmd(cfg *Deps) *cobra.Command {
 		newExtensionResetCmd(cfg),
 		newExtensionBrowsersCmd(cfg),
 		newExtensionAutoPairCmd(cfg),
+		newExtensionDecideCmd(cfg, true),
+		newExtensionDecideCmd(cfg, false),
 		newExtensionBindCmd(cfg),
 		newExtensionUnbindCmd(cfg),
 		newExtensionInstallCmd(cfg),

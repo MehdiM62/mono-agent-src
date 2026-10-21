@@ -1,6 +1,7 @@
 package hil
 
 import (
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/monoes/mono-agent/internal/browserctl"
 	"github.com/monoes/mono-agent/internal/cli/clicore"
+	"github.com/monoes/mono-agent/internal/extension"
 )
 
 // A form submit an agent tried on a page that is not local (internal/browserctl:
@@ -32,6 +34,9 @@ func (d Deps) decideIfBrowserSubmit(cmd *cobra.Command, id string, approve bool)
 		return false, nil
 	}
 	var itemID, status string
+	if claim, ok := extension.IsPairCard(nc); ok {
+		return d.decidePairCard(cmd, db.DB, id, claim, approve)
+	}
 	switch {
 	case browserctl.IsSubmitItem(nc):
 		if err := clicore.RequireOperator(d.RequireOperator, "approve or reject a browser form submit"); err != nil {
@@ -79,4 +84,35 @@ func (d Deps) decisionError(id string, err error) error {
 		return d.InvalidInput("%s", blocked.Error())
 	}
 	return err
+}
+
+// decidePairCard decides a browser's request to pair (a card the bridge filed
+// for extension.autoPair=ask). It is the owner's: an agent is refused. Only
+// this path and `extension approve` ever approve a claim, so an approval made
+// on the row by any other route (the MCP hil tools, the HTTP API) changes
+// nothing about the claim.
+func (d Deps) decidePairCard(cmd *cobra.Command, db *sql.DB, cardID, claim string, approve bool) (bool, error) {
+	if err := clicore.RequireOperator(d.RequireOperator, "approve or deny a browser's request to pair"); err != nil {
+		return true, err
+	}
+	c, err := extension.DecidePendingClaim(claim, approve)
+	status := "rejected"
+	if approve {
+		status = "approved"
+	}
+	if err != nil {
+		// Gone, expired or already decided: the card has nothing left to decide.
+		_ = extension.SettlePairCards(cmd.Context(), db, claim, "expired")
+		return true, d.NotFound("HIL item %q not found or already resolved", cardID)
+	}
+	_ = extension.SettlePairCards(cmd.Context(), db, c.ID, status)
+	if d.JSONOutput() {
+		return true, json.NewEncoder(os.Stdout).Encode(map[string]string{"id": cardID, "status": status})
+	}
+	verb := "Denied"
+	if approve {
+		verb = "Approved"
+	}
+	fmt.Printf("%s HIL item %s\n", verb, cardID)
+	return true, nil
 }

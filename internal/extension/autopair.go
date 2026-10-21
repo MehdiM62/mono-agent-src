@@ -2,6 +2,7 @@ package extension
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -12,39 +13,46 @@ import (
 	"time"
 )
 
-// Zero-step pairing.
+// Pairing without typing a token.
 //
-// A freshly installed extension has no token, and the only way the old design
-// let it learn that the person had signed in was a paired socket. So every new
-// browser showed "Sign in" and "run extension pair" even on a machine where
-// the app was signed in already. The claim flow removes the step: when the
-// bridge is up and the account is signed in, the extension asks
-// GET /monoagent/status, then POST /monoagent/pair/claim, and receives a
-// token of its own.
+// A freshly installed extension has no token. When the bridge is up and the
+// account is signed in, the extension asks GET /monoagent/status, then
+// POST /monoagent/pair/claim. What the claim yields depends on the pairing
+// mode (`extension autopair ask|auto|off`, setting extension.autoPair):
 //
-// Who may claim (all must hold, otherwise 403 with nothing handed out):
+//   - ask (the default): the claim is only recorded as PENDING and a card
+//     appears in the Human in Loop queue. The extension polls
+//     GET /monoagent/pair/claim/<id> with its poll secret; the owner approves
+//     with `monoagentcli extension approve` or on the card, and the poll that
+//     sees the approval receives the token once (pairclaims.go);
+//   - auto: the claim returns a token at once. For single-user machines only;
+//   - off: no claims.
+//
+// Why ask is the default: the Origin header on which a claim relies is a
+// string, not a credential. Any local process (curl -H 'Origin: chrome-
+// extension://x'), any OTHER OS USER on this machine (loopback is shared) and
+// any other extension with host access to 127.0.0.1 can send an extension
+// origin of its own, and a token grants the powers of extension.token (0600,
+// readable only by the owner): documents, vault, tasks, page control. A human
+// decision is the only thing those callers cannot forge.
+//
+// Checks a claim or a poll must pass in every mode (otherwise 403 and nothing
+// is recorded or handed out):
 //   - the TCP peer is loopback and the Host header is a loopback name (a
 //     DNS-rebound web page carries its own domain as Host);
-//   - the Origin header is chrome-extension:// or moz-extension:// with a host.
-//     A web page always carries its http(s) origin; a request with no Origin
-//     (curl, a local script) is refused too, so the flow is not a free token
-//     for scripts that never needed one: they can read extension.token;
-//   - Sec-Fetch-Site, where sent, is not same-origin/same-site, and
-//     Sec-Fetch-Mode is not navigate;
+//   - the Origin is chrome-extension:// or moz-extension:// with a host (a web
+//     page carries its http(s) origin; no Origin is refused);
+//   - Sec-Fetch-Site is not same-origin/same-site, Sec-Fetch-Mode not navigate;
 //   - when MONOAGENT_EXTENSION_IDS lists extension ids, the Origin is one of them;
-//   - auto-pairing is on (`extension autopair off`, MONOAGENT_EXTENSION_AUTOPAIR=0);
-//   - the monoes.me account is signed in (the guard every gated command uses);
-//   - fewer than claimsPerWindow claims were made in the last claimWindow.
+//   - the monoes.me account is signed in;
+//   - the origin made fewer than claimsPerWindow claims in the last claimWindow
+//     (per origin, so forged claims do not starve the real extension's).
 //
-// What is NOT defended: another extension that holds host permission for
-// 127.0.0.1 can send an extension Origin of its own (and a same-user local
-// process can already read ~/.monoagent/extension.token, so the claim adds
-// nothing for it). Set MONOAGENT_EXTENSION_IDS to the store id to shut the
-// first case; unpacked development builds have a path-derived id and need to
-// be listed there, or auto-pairing turned off.
+// Unpacked development builds have a path-derived id and need to be listed in
+// MONOAGENT_EXTENSION_IDS when that list is used.
 
 const (
-	// AutoPairEnv, set to 0/false/off/no, turns the claim flow off without a database.
+	// AutoPairEnv overrides the setting: 0/false/off/no turns claims off, ask or auto forces that mode.
 	AutoPairEnv = "MONOAGENT_EXTENSION_AUTOPAIR"
 	// ExtensionIDsEnv is a comma-separated list of extension ids allowed to claim.
 	ExtensionIDsEnv = "MONOAGENT_EXTENSION_IDS"
@@ -52,25 +60,90 @@ const (
 	claimsPerWindow = 5
 	claimWindow     = time.Minute
 	maxClaimBody    = 4 << 10
+	// maxClaimOrigins bounds the per-origin rate table.
+	maxClaimOrigins = 1024
 )
 
-// SetAutoPair installs the kill-switch reader (`extension autopair`).
-// nil, the default, means on.
-func (s *Server) SetAutoPair(enabled func() bool) {
+// Pairing modes (`extension autopair`).
+const (
+	PairModeAsk  = "ask"
+	PairModeAuto = "auto"
+	PairModeOff  = "off"
+)
+
+// ParsePairMode reads a stored setting. Anything it does not recognise is ask,
+// the safe default.
+func ParsePairMode(v string) string {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "false", "0", "off", "no":
+		return PairModeOff
+	case "auto":
+		return PairModeAuto
+	}
+	return PairModeAsk
+}
+
+// SetPairMode installs the reader of the pairing mode setting. nil means ask.
+func (s *Server) SetPairMode(mode func() string) {
 	s.claimMu.Lock()
-	s.autoPair = enabled
+	s.pairMode = mode
 	s.claimMu.Unlock()
 }
 
-func (s *Server) autoPairOn() bool {
-	switch strings.ToLower(strings.TrimSpace(os.Getenv(AutoPairEnv))) {
-	case "0", "false", "off", "no":
-		return false
+// SetPairCards installs the Human in Loop card sink for pending claims.
+func (s *Server) SetPairCards(c PairCards) {
+	s.claimMu.Lock()
+	s.pairCards = c
+	s.claimMu.Unlock()
+}
+
+func (s *Server) cards() PairCards {
+	s.claimMu.Lock()
+	defer s.claimMu.Unlock()
+	return s.pairCards
+}
+
+// cardJob runs a card operation off the request path, in order: opening the
+// database to file or close a card must not make a claim or a poll answer
+// late (the extension gives the bridge about a second and a half).
+func (s *Server) cardJob(fn func(PairCards)) {
+	c := s.cards()
+	if c == nil {
+		return
+	}
+	s.cardOnce.Do(func() {
+		s.cardJobs = make(chan func(), 64)
+		go func() {
+			for job := range s.cardJobs {
+				job()
+				s.cardWG.Done()
+			}
+		}()
+	})
+	s.cardWG.Add(1)
+	select {
+	case s.cardJobs <- func() { fn(c) }:
+	default:
+		s.cardWG.Done()
+		s.logger.Warn().Msg("pairing card queue is full; the card is not filed (extension approve still works)")
+	}
+}
+
+// flushCards waits for the queued card operations (tests).
+func (s *Server) flushCards() { s.cardWG.Wait() }
+
+// PairMode is the mode in force: the environment first, then the setting.
+func (s *Server) PairMode() string {
+	if v := strings.ToLower(strings.TrimSpace(os.Getenv(AutoPairEnv))); v != "" {
+		return ParsePairMode(v)
 	}
 	s.claimMu.Lock()
-	fn := s.autoPair
+	fn := s.pairMode
 	s.claimMu.Unlock()
-	return fn == nil || fn()
+	if fn == nil {
+		return PairModeAsk
+	}
+	return ParsePairMode(fn())
 }
 
 // claimOrigin returns the extension id of an Origin header, and whether it is
@@ -107,15 +180,19 @@ func loopbackPeer(r *http.Request) bool {
 
 // claimAllowed runs the checks that do not need the account or the rate
 // limit, and returns the reason it refuses ("" when it does not).
+//
+// A poll (GET) is sent by Chrome without an Origin header, so it may omit it;
+// an Origin it does send must still be an allowed extension's. The poll's own
+// proof is the claim id plus the 32-byte secret.
 func claimAllowed(r *http.Request) (originID, refusal string) {
 	if !loopbackPeer(r) || !loopbackHost(r.Host) {
 		return "", "not a loopback request"
 	}
 	id, ok := claimOrigin(r.Header.Get("Origin"))
-	if !ok {
+	if !ok && !(r.Method == http.MethodGet && r.Header.Get("Origin") == "") {
 		return "", "not from a browser extension"
 	}
-	if !extensionIDAllowed(id) {
+	if ok && !extensionIDAllowed(id) {
 		return "", "this extension id is not allowed to pair"
 	}
 	switch r.Header.Get("Sec-Fetch-Site") {
@@ -141,7 +218,7 @@ type ClaimStatus struct {
 	Service  string `json:"service"`
 	SignedIn bool   `json:"signedIn"`
 	Paired   bool   `json:"paired"`
-	AutoPair bool   `json:"autoPair"`
+	PairMode string `json:"pairMode"`
 }
 
 // handleClaimStatus answers /monoagent/status.
@@ -164,18 +241,28 @@ func (s *Server) handleClaimStatus(w http.ResponseWriter, r *http.Request) {
 		Service:  ServiceName,
 		SignedIn: !accountRefuses(),
 		Paired:   s.IsConnected(),
-		AutoPair: s.autoPairOn(),
+		PairMode: s.PairMode(),
 	})
 }
 
 type claimRequest struct {
 	Instance string `json:"instance"`
 	Label    string `json:"label"`
+	// Token is the browser's current token, if it has one: it lets a browser
+	// that is already paired rotate its own token.
+	Token string `json:"token"`
 }
 
 type claimReply struct {
-	Token string `json:"token"`
-	ID    string `json:"id"`
+	Token string `json:"token,omitempty"`
+	ID    string `json:"id,omitempty"`
+	// Pending replies (ask mode): the extension polls with ClaimID and PollSecret.
+	Pending    bool   `json:"pending,omitempty"`
+	ClaimID    string `json:"claimId,omitempty"`
+	PollSecret string `json:"pollSecret,omitempty"`
+	ExpiresAt  string `json:"expiresAt,omitempty"`
+	// Status of a poll: pending, approved, denied or expired.
+	Status string `json:"status,omitempty"`
 }
 
 // uaHints are tried in order: Edge and Opera also say Chrome.
@@ -184,48 +271,73 @@ var uaHints = []*regexp.Regexp{
 	regexp.MustCompile(`Firefox/[\d.]+`), regexp.MustCompile(`Chrome/[\d.]+`),
 }
 
-// allowClaim is the sliding-window rate limit.
-func (s *Server) allowClaim(now time.Time) bool {
+// allowClaim is the per-origin sliding-window rate limit. An origin is a
+// header a caller chooses, so the limit only keeps one origin from hammering;
+// the pending queue bound is what keeps the owner's queue sane.
+func (s *Server) allowClaim(origin string, now time.Time) bool {
 	s.claimMu.Lock()
 	defer s.claimMu.Unlock()
-	kept := s.claimTimes[:0]
-	for _, t := range s.claimTimes {
+	if s.claimTimes == nil {
+		s.claimTimes = map[string][]time.Time{}
+	}
+	if len(s.claimTimes) >= maxClaimOrigins {
+		for o, ts := range s.claimTimes {
+			if len(ts) == 0 || now.Sub(ts[len(ts)-1]) >= claimWindow {
+				delete(s.claimTimes, o)
+			}
+		}
+		if _, known := s.claimTimes[origin]; !known && len(s.claimTimes) >= maxClaimOrigins {
+			return false
+		}
+	}
+	kept := s.claimTimes[origin][:0]
+	for _, t := range s.claimTimes[origin] {
 		if now.Sub(t) < claimWindow {
 			kept = append(kept, t)
 		}
 	}
-	s.claimTimes = kept
-	if len(s.claimTimes) >= claimsPerWindow {
+	if len(kept) >= claimsPerWindow {
+		s.claimTimes[origin] = kept
 		return false
 	}
-	s.claimTimes = append(s.claimTimes, now)
+	s.claimTimes[origin] = append(kept, now)
 	return true
+}
+
+func (s *Server) claimGuard(w http.ResponseWriter, r *http.Request, method string) (originID string, ok bool) {
+	refuse := func(code int, reason string) (string, bool) {
+		s.logger.Warn().Str("remote", r.RemoteAddr).Str("origin", clip(r.Header.Get("Origin"))).Str("reason", reason).Msg("browser pairing claim refused")
+		writeJSONStatus(w, code, map[string]string{"error": reason})
+		return "", false
+	}
+	if r.Method != method {
+		return refuse(http.StatusMethodNotAllowed, "method not allowed")
+	}
+	if s.PairMode() == PairModeOff {
+		return refuse(http.StatusForbidden, "automatic pairing is turned off: run monoagentcli extension pair")
+	}
+	id, why := claimAllowed(r)
+	if why != "" {
+		return refuse(http.StatusForbidden, why)
+	}
+	if accountRefuses() {
+		return refuse(http.StatusForbidden, "signed out: sign in to MonoAgent first")
+	}
+	return id, true
 }
 
 // handlePairClaim answers POST /monoagent/pair/claim.
 func (s *Server) handlePairClaim(w http.ResponseWriter, r *http.Request) {
+	originID, ok := s.claimGuard(w, r, http.MethodPost)
+	if !ok {
+		return
+	}
 	refuse := func(code int, reason string) {
-		s.logger.Warn().Str("remote", r.RemoteAddr).Str("origin", r.Header.Get("Origin")).Str("reason", reason).Msg("browser pairing claim refused")
+		s.logger.Warn().Str("remote", r.RemoteAddr).Str("origin", clip(r.Header.Get("Origin"))).Str("reason", reason).Msg("browser pairing claim refused")
 		writeJSONStatus(w, code, map[string]string{"error": reason})
 	}
-	if r.Method != http.MethodPost {
-		refuse(http.StatusMethodNotAllowed, "method not allowed")
-		return
-	}
-	if !s.autoPairOn() {
-		refuse(http.StatusForbidden, "automatic pairing is turned off: run monoagentcli extension pair")
-		return
-	}
-	originID, why := claimAllowed(r)
-	if why != "" {
-		refuse(http.StatusForbidden, why)
-		return
-	}
-	if accountRefuses() {
-		refuse(http.StatusForbidden, "signed out: sign in to MonoAgent first")
-		return
-	}
-	if !s.allowClaim(time.Now()) {
+	origin := clip(r.Header.Get("Origin"))
+	if !s.allowClaim(origin, time.Now()) {
 		w.Header().Set("Retry-After", "60")
 		refuse(http.StatusTooManyRequests, "too many pairing attempts; try again in a minute")
 		return
@@ -250,10 +362,38 @@ func (s *Server) handlePairClaim(w http.ResponseWriter, r *http.Request) {
 	if label == "" {
 		label = "browser " + originID
 	}
+	label = clip(label)
+	if pairedBrowserCount() >= maxPairedBrowsers {
+		refuse(http.StatusConflict, ErrBrowserLimit.Error())
+		return
+	}
+	if s.PairMode() == PairModeAsk {
+		s.expireClaims()
+		c, secret, err := CreatePendingClaim(PendingClaim{Label: label, Origin: origin, Agent: agent, Instance: req.Instance})
+		switch {
+		case errors.Is(err, ErrClaimsFull):
+			w.Header().Set("Retry-After", "60")
+			refuse(http.StatusTooManyRequests, err.Error())
+			return
+		case err != nil:
+			s.logger.Error().Err(err).Msg("browser pairing claim failed")
+			writeJSONStatus(w, http.StatusInternalServerError, map[string]string{"error": "could not record the pairing request"})
+			return
+		}
+		s.cardJob(func(cards PairCards) { cards.Open(s.ctx, c) })
+		s.logger.Info().Str("claim", c.ID).Str("label", c.Label).Str("origin", c.Origin).
+			Msg("browser asks to pair; approve with: monoagentcli extension approve " + c.ID)
+		writeJSONStatus(w, http.StatusAccepted, claimReply{Pending: true, ClaimID: c.ID, PollSecret: secret, ExpiresAt: c.ExpiresAt.Format(time.RFC3339), Status: ClaimPending})
+		return
+	}
 	token, entry, err := addPairedBrowser(PairedBrowser{
-		Label: label, Origin: r.Header.Get("Origin"), Agent: agent, Instance: req.Instance,
-	})
+		Label: label, Origin: origin, Agent: agent, Instance: req.Instance,
+	}, mintOpts{RotateToken: req.Token})
 	if err != nil {
+		if errors.Is(err, ErrInstancePaired) || errors.Is(err, ErrBrowserLimit) {
+			refuse(http.StatusConflict, err.Error())
+			return
+		}
 		s.logger.Error().Err(err).Msg("browser pairing claim failed")
 		writeJSONStatus(w, http.StatusInternalServerError, map[string]string{"error": "could not record the pairing"})
 		return
@@ -261,6 +401,60 @@ func (s *Server) handlePairClaim(w http.ResponseWriter, r *http.Request) {
 	s.logger.Info().Str("browser", entry.ID).Str("label", entry.Label).Str("origin", entry.Origin).
 		Msg("browser paired automatically (revoke with: monoagentcli extension browsers revoke " + entry.ID + ")")
 	writeJSONStatus(w, http.StatusOK, claimReply{Token: token, ID: entry.ID})
+}
+
+// handlePairPoll answers GET /monoagent/pair/claim/<id> with the poll secret
+// as a bearer token. A wrong id, a wrong secret and another origin's claim
+// all get the same 404.
+func (s *Server) handlePairPoll(w http.ResponseWriter, r *http.Request) {
+	if _, ok := s.claimGuard(w, r, http.MethodGet); !ok {
+		return
+	}
+	id := strings.TrimPrefix(r.URL.Path, "/monoagent/pair/claim/")
+	secret := strings.TrimSpace(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "))
+	out, err := pollClaim(id, secret, clip(r.Header.Get("Origin")))
+	switch {
+	case errors.Is(err, ErrNoSuchClaim):
+		writeJSONStatus(w, http.StatusNotFound, map[string]string{"error": "no such pairing request"})
+		return
+	case errors.Is(err, ErrBrowserLimit):
+		writeJSONStatus(w, http.StatusConflict, map[string]string{"error": err.Error()})
+		return
+	case err != nil:
+		s.logger.Error().Err(err).Msg("browser pairing poll failed")
+		writeJSONStatus(w, http.StatusInternalServerError, map[string]string{"error": "could not read the pairing request"})
+		return
+	}
+	if out.State != ClaimPending {
+		s.cardJob(func(cards PairCards) { cards.Settle(s.ctx, out.Claim.ID, cardStatus(out.State)) })
+	}
+	switch out.State {
+	case ClaimApproved:
+		s.logger.Info().Str("browser", out.Entry.ID).Str("label", out.Entry.Label).
+			Msg("browser paired after approval (revoke with: monoagentcli extension browsers revoke " + out.Entry.ID + ")")
+		writeJSONStatus(w, http.StatusOK, claimReply{Status: ClaimApproved, Token: out.Token, ID: out.Entry.ID})
+	case "expired":
+		writeJSONStatus(w, http.StatusGone, claimReply{Status: "expired"})
+	default:
+		writeJSONStatus(w, http.StatusOK, claimReply{Status: out.State})
+	}
+}
+
+func cardStatus(state string) string {
+	switch state {
+	case ClaimApproved:
+		return "approved"
+	case ClaimDenied:
+		return "rejected"
+	}
+	return "expired"
+}
+
+// expireClaims drops claims past their time and closes their cards.
+func (s *Server) expireClaims() {
+	for _, id := range expiredClaimIDs() {
+		s.cardJob(func(cards PairCards) { cards.Settle(s.ctx, id, "expired") })
+	}
 }
 
 // sweepRevoked closes the sockets whose per-browser token has been revoked.

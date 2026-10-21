@@ -71,13 +71,13 @@ func TestBrowsersRevokeIsOperatorOnly(t *testing.T) {
 	}
 }
 
-func TestExtensionAutoPairReadsSetting(t *testing.T) {
+func TestExtensionPairModeReadsSetting(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
 	path := filepath.Join(home, "monoagent.db")
-	if !extensionAutoPair(path)() {
-		t.Fatal("no database must leave auto-pairing on")
+	if got := extensionPairMode(path)(); got != extension.PairModeAsk {
+		t.Fatalf("no database = %q, want ask", got)
 	}
 	db, err := storage.NewDatabase(path)
 	if err != nil {
@@ -87,46 +87,82 @@ func TestExtensionAutoPairReadsSetting(t *testing.T) {
 	if err := db.ApplyMigrations(); err != nil {
 		t.Fatal(err)
 	}
-	if !extensionAutoPair(path)() {
-		t.Fatal("no entry must leave auto-pairing on")
+	if got := extensionPairMode(path)(); got != extension.PairModeAsk {
+		t.Fatalf("no entry = %q, want ask", got)
 	}
-	for _, off := range []string{"false", "FALSE", "0", "off", " no "} {
-		if err := db.SetSetting(autoPairSetting, off); err != nil {
-			t.Fatal(err)
-		}
-		if extensionAutoPair(path)() {
-			t.Errorf("extension.autoPair=%q left auto-pairing on", off)
-		}
-	}
-	for _, on := range []string{"true", "on"} {
-		_ = db.SetSetting(autoPairSetting, on)
-		if !extensionAutoPair(path)() {
-			t.Errorf("extension.autoPair=%q turned it off", on)
+	for v, want := range map[string]string{"false": "off", "FALSE": "off", "0": "off", "off": "off", " no ": "off", "auto": "auto", "ask": "ask", "on": "ask", "true": "ask", "junk": "ask"} {
+		_ = db.SetSetting(autoPairSetting, v)
+		if got := extensionPairMode(path)(); got != want {
+			t.Errorf("extension.autoPair=%q = %q, want %q", v, got, want)
 		}
 	}
 }
 
-func TestAutoPairCommandSetsTheSwitch(t *testing.T) {
+func TestAutoPairCommandSetsTheMode(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
 	path := filepath.Join(home, "monoagent.db")
 	d := testDepsDB(false, path)
 	out, err := runExt(t, d, "autopair")
-	if err != nil || !strings.Contains(out, "is on") {
+	if err != nil || !strings.Contains(out, "asks you") {
 		t.Fatalf("autopair = %q, %v", out, err)
+	}
+	if out, err = runExt(t, d, "autopair", "auto"); err != nil || !strings.Contains(out, "automatic") {
+		t.Fatalf("autopair auto = %q, %v", out, err)
+	}
+	if got := extensionPairMode(path)(); got != "auto" {
+		t.Fatalf("the bridge's reader sees %q", got)
 	}
 	if out, err = runExt(t, d, "autopair", "off"); err != nil || !strings.Contains(out, "is off") {
 		t.Fatalf("autopair off = %q, %v", out, err)
 	}
-	if extensionAutoPair(path)() {
-		t.Fatal("the bridge's reader still sees it on")
-	}
-	if _, err := runExt(t, d, "autopair", "maybe"); err == nil {
-		t.Fatal("a value other than on/off should be refused")
+	for _, bad := range []string{"maybe", "on"} {
+		if _, err := runExt(t, d, "autopair", bad); err == nil {
+			t.Fatalf("%q should be refused", bad)
+		}
 	}
 	d.Refusal = func() string { return "an agent shell" }
-	if _, err := runExt(t, d, "autopair", "on"); !operatorOnlyErr(err) {
-		t.Fatalf("an agent turning it on = %v, want operator_only", err)
+	if _, err := runExt(t, d, "autopair", "auto"); !operatorOnlyErr(err) {
+		t.Fatalf("an agent switching to auto = %v, want operator_only", err)
+	}
+	if got := extensionPairMode(path)(); got != "off" {
+		t.Fatalf("a refused change moved the mode to %q", got)
+	}
+}
+
+func TestExtensionApproveAndDeny(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	d := testDepsDB(false, filepath.Join(home, "monoagent.db"))
+	a, _, _ := extension.CreatePendingClaim(extension.PendingClaim{Label: "Edge", Origin: "chrome-extension://aaaa"})
+	b, _, _ := extension.CreatePendingClaim(extension.PendingClaim{Label: "Chrome", Origin: "chrome-extension://bbbb"})
+
+	if _, err := runExt(t, d, "approve"); err == nil {
+		t.Fatal("approve with neither an id nor --latest should fail")
+	}
+	// An agent's shell cannot approve; the claim stays waiting.
+	d.Refusal = func() string { return "an agent shell" }
+	if _, err := runExt(t, d, "approve", "--latest"); !operatorOnlyErr(err) {
+		t.Fatalf("approve from a marked process = %v, want operator_only", err)
+	}
+	if _, err := runExt(t, d, "deny", a.ID); !operatorOnlyErr(err) {
+		t.Fatalf("deny from a marked process = %v, want operator_only", err)
+	}
+	if left, _ := extension.ListPendingClaims(); len(left) != 2 {
+		t.Fatalf("a refused decision changed the queue: %+v", left)
+	}
+	d.Refusal = func() string { return "" }
+	out, err := runExt(t, d, "approve", "--latest")
+	if err != nil || !strings.Contains(out, b.ID) || !strings.Contains(out, "Chrome") {
+		t.Fatalf("approve --latest = %q, %v", out, err)
+	}
+	if out, err = runExt(t, d, "deny", a.ID[:5]); err != nil || !strings.Contains(out, "Denied "+a.ID) {
+		t.Fatalf("deny = %q, %v", out, err)
+	}
+	_, err = runExt(t, d, "approve", "--latest")
+	if err == nil {
+		t.Fatal("nothing is waiting any more")
 	}
 }

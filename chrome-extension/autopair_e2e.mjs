@@ -5,13 +5,19 @@
  * scratch HOME, a private port) and signs in or out as this script asks.
  *
  *   node autopair_e2e.mjs signed-in  <bridge-port>
+ *   node autopair_e2e.mjs ask        <bridge-port>
  *   node autopair_e2e.mjs signed-out <bridge-port>
  *
- * signed-in:  the side panel shows the normal panel, never the sign-in
- *             screen, and the browser holds a pairing token it was handed.
+ * signed-in:  the bridge is in auto mode (`extension autopair auto`): the side
+ *             panel shows the normal panel, never the sign-in screen, and the
+ *             browser holds a pairing token it was handed.
+ * ask:        the default mode, signed in: the panel shows "Waiting for
+ *             approval", the browser holds no token; after "WAITING_OK" is
+ *             printed and the driver prints "go" on stdin (it ran `extension
+ *             approve --latest`) the panel flips to the normal one.
  * signed-out: the side panel shows the sign-in screen and, after "SIGNED_OUT_OK"
- *             is printed and the driver prints "go" on stdin (it signs in),
- *             flips to the normal panel by itself.
+ *             is printed and the driver prints "go" on stdin (it signs in), the
+ *             browser asks to pair and waits for approval, as in ask.
  *
  * Prints "OK" and exits 0 on success; a failure exits 1 with the reason.
  * SHOTS=<dir> saves screenshots.
@@ -25,8 +31,8 @@ import { attach, sleep, start } from "./extension_harness.mjs";
 
 const [mode, portArg] = process.argv.slice(2);
 const port = Number(portArg);
-if (!["signed-in", "signed-out"].includes(mode) || !port) {
-  console.error("usage: autopair_e2e.mjs signed-in|signed-out <bridge-port>");
+if (!["signed-in", "ask", "signed-out"].includes(mode) || !port) {
+  console.error("usage: autopair_e2e.mjs signed-in|ask|signed-out <bridge-port>");
   process.exit(2);
 }
 const CHROME = findChrome();
@@ -61,7 +67,13 @@ try {
       }
       await sleep(100);
     }
-    fail(`timed out waiting for ${what}`);
+    let seen = "";
+    try {
+      seen = await ev(`location.pathname + " | " + (document.getElementById("signin-state")?.textContent || document.body.innerText.slice(0, 200))`);
+    } catch {
+      // nothing to add
+    }
+    fail(`timed out waiting for ${what} (panel: ${seen}; worker: ${await swEval("connectionStatus + '/' + connectionReason").catch(() => "?")})`);
   };
   const shot = async (name) => {
     if (!process.env.SHOTS) return;
@@ -74,9 +86,32 @@ try {
     if (!/^[0-9a-f]{64}$/.test(o.pairingToken || "")) fail(`no pairing token was stored: ${JSON.stringify(Object.keys(o))}`);
     if (o.pairedWsUrl !== `ws://127.0.0.1:${port}/monoagent`) fail(`paired to ${o.pairedWsUrl}`);
   };
+  // One reader for the whole run: a line that arrives before it is awaited is kept.
+  const stdinLines = [];
+  const stdinWaiters = [];
+  createInterface({ input: process.stdin }).on("line", (l) => (stdinWaiters.length ? stdinWaiters.shift()(l) : stdinLines.push(l)));
+  const lineOnStdin = () => new Promise((res) => (stdinLines.length ? res(stdinLines.shift()) : stdinWaiters.push(res)));
+  // The request is with the owner: the panel says where to approve it, no
+  // token is stored, then the driver approves and the panel flips by itself.
+  const waitThenApprove = async () => {
+    await until(`/Waiting for approval in the MonoAgent app \\(or run monoagentcli extension approve --latest\\)/.test(document.getElementById("signin-state")?.textContent || "")`, "the waiting-for-approval line", 45000);
+    const screen = JSON.parse(await ev(`JSON.stringify({ pathname: location.pathname, tokenFieldHidden: document.getElementById("signin-pairing").hidden })`));
+    if (screen.pathname !== "/signin.html" || !screen.tokenFieldHidden) fail("waiting for approval must be the sign-in screen without a token box");
+    // Several polls pass with nothing handed out.
+    await sleep(7000);
+    if ((await stored()).pairingToken) fail("a token was stored before the owner approved");
+    await shot("autopair-waiting.png");
+    console.log("WAITING_OK");
+    await lineOnStdin();
+    await until(`${normalPanel} && document.documentElement.style.visibility === ""`, "the panel to flip to the normal one after approval", 45000);
+    await paired();
+    await shot("autopair-approved.png");
+  };
   const normalPanel = `location.pathname === "/sidepanel.html" && document.readyState === "complete"`;
 
-  if (mode === "signed-in") {
+  if (mode === "ask") {
+    await waitThenApprove();
+  } else if (mode === "signed-in") {
     // Never on the sign-in screen, from the first moment to a settled normal panel.
     let sawSignIn = false;
     let settled = 0;
@@ -110,10 +145,8 @@ try {
     if (o.pairingToken) fail("a token was handed out while signed out");
     await shot("autopair-signed-out.png");
     console.log("SIGNED_OUT_OK");
-    await new Promise((res) => createInterface({ input: process.stdin }).once("line", res));
-    await until(`${normalPanel} && document.documentElement.style.visibility === ""`, "the panel to flip to the normal one by itself", 45000);
-    await paired();
-    await shot("autopair-flipped.png");
+    await lineOnStdin();
+    await waitThenApprove();
   }
   console.log("OK");
 } catch (e) {

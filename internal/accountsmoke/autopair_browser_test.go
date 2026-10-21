@@ -28,7 +28,7 @@ func TestExtensionPairsItselfInARealBrowser(t *testing.T) {
 	}
 	script, _ := filepath.Abs("../../chrome-extension/autopair_e2e.mjs")
 
-	drive := func(t *testing.T, r *rig, mode string, onSignedOut func()) string {
+	drive := func(t *testing.T, r *rig, mode string, onSignedOut, onWaiting func()) string {
 		t.Helper()
 		ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
 		defer cancel()
@@ -53,9 +53,14 @@ func TestExtensionPairsItselfInARealBrowser(t *testing.T) {
 				onSignedOut()
 				_, _ = io.WriteString(stdin, "go\n")
 			}
+			if line == "WAITING_OK" && onWaiting != nil {
+				onWaiting()
+				_, _ = io.WriteString(stdin, "go\n")
+			}
 		}
 		if err := cmd.Wait(); err != nil {
-			t.Fatalf("autopair_e2e.mjs %s: %v\nstdout: %s\nstderr: %s", mode, err, out.String(), stderr.String())
+			log, _ := os.ReadFile(filepath.Join(r.dir, "extension.log"))
+			t.Fatalf("autopair_e2e.mjs %s: %v\nstdout: %s\nstderr: %s\nbridge log: %s", mode, err, out.String(), stderr.String(), log)
 		}
 		if strings.HasPrefix(out.String(), "SKIP") {
 			t.Skip(strings.TrimSpace(out.String()))
@@ -77,12 +82,13 @@ func TestExtensionPairsItselfInARealBrowser(t *testing.T) {
 		return doc.Paired
 	}
 
-	t.Run("signed in: the normal panel with no sign-in step", func(t *testing.T) {
+	t.Run("auto mode, signed in: the normal panel with no sign-in step", func(t *testing.T) {
 		r := newRig(t, rigOptions{enforce: past})
 		r.signIn()
+		mustExit(t, r.run("extension", "autopair", "auto"), 0)
 		r.start("extension", "serve")
 		r.waitFor("the bridge", 60*time.Second, func() bool { return bridgeUp(r) })
-		drive(t, r, "signed-in", nil)
+		drive(t, r, "signed-in", nil, nil)
 		list := paired(t, r)
 		if len(list) != 1 {
 			t.Fatalf("paired browsers = %v, want the one browser", list)
@@ -100,19 +106,55 @@ func TestExtensionPairsItselfInARealBrowser(t *testing.T) {
 		}
 	})
 
-	t.Run("signed out: the sign-in screen, then the panel flips by itself", func(t *testing.T) {
+	// approveLatest is what the owner does: the card is in the HIL queue with
+	// the wording, and `extension approve --latest` (the real CLI) lets it in.
+	approveLatest := func(t *testing.T, r *rig, wantCard bool) func() {
+		return func() {
+			if got := paired(t, r); len(got) != 0 {
+				t.Errorf("a browser paired before the owner approved: %v", got)
+			}
+			if wantCard {
+				hil := r.run("hil", "list", "--json")
+				mustExit(t, hil, 0)
+				for _, want := range []string{"extension.pair", "claims access to your documents, vault, tasks and page control", "chrome-extension://"} {
+					if !strings.Contains(hil.stdout, want) {
+						t.Errorf("the HIL card lacks %q: %s", want, hil.stdout)
+					}
+				}
+			}
+			res := r.run("extension", "approve", "--latest")
+			mustExit(t, res, 0)
+		}
+	}
+
+	t.Run("ask mode, signed in: waits for the owner, then the panel flips", func(t *testing.T) {
+		r := newRig(t, rigOptions{enforce: past})
+		r.signIn()
+		// A machine that runs the app has its database; the card needs one to be filed in.
+		mustExit(t, r.run("hil", "list"), 0)
+		r.start("extension", "serve")
+		r.waitFor("the bridge", 60*time.Second, func() bool { return bridgeUp(r) })
+		drive(t, r, "ask", nil, approveLatest(t, r, true))
+		if got := paired(t, r); len(got) != 1 {
+			t.Fatalf("paired browsers after approval = %v, want 1", got)
+		}
+	})
+
+	t.Run("signed out: the sign-in screen, then it asks and waits for approval", func(t *testing.T) {
 		r := newRig(t, rigOptions{enforce: past})
 		r.start("extension", "serve")
 		r.waitFor("the bridge", 60*time.Second, func() bool { return bridgeUp(r) })
 		drive(t, r, "signed-out", func() {
-			// The CLI is gated while signed out, so read the file the bridge writes.
-			if b, err := os.ReadFile(filepath.Join(r.home, ".monoagent", "extension.browsers.json")); err == nil && strings.TrimSpace(string(b)) != "null" && strings.TrimSpace(string(b)) != "[]" {
-				t.Errorf("a browser paired while signed out: %s", b)
+			// The CLI is gated while signed out, so read the files the bridge writes.
+			for _, f := range []string{"extension.browsers.json", "extension.pending.json"} {
+				if b, err := os.ReadFile(filepath.Join(r.home, ".monoagent", f)); err == nil && strings.TrimSpace(string(b)) != "null" && strings.TrimSpace(string(b)) != "[]" {
+					t.Errorf("%s was written while signed out: %s", f, b)
+				}
 			}
 			r.signIn()
-		})
+		}, approveLatest(t, r, false))
 		if got := paired(t, r); len(got) != 1 {
-			t.Fatalf("paired browsers after signing in = %v, want 1", got)
+			t.Fatalf("paired browsers after signing in and approving = %v, want 1", got)
 		}
 	})
 }

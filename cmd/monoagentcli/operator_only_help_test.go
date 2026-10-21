@@ -17,6 +17,7 @@ func TestTheUsersOwnCommandsSaySoInTheirHelp(t *testing.T) {
 		{"jev", "enable"}, {"jev", "key", "set"}, {"jev", "key", "adopt"}, {"jev", "key", "remove"},
 		{"org", "teardown-profile"},
 		{"extension", "bind"}, {"extension", "unbind"}, {"extension", "reset"},
+		{"extension", "autopair"}, {"extension", "approve"}, {"extension", "deny"},
 	} {
 		cmd, _, err := root.Find(path)
 		if err != nil || cmd.Name() != path[len(path)-1] {

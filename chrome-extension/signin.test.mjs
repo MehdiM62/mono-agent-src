@@ -29,6 +29,24 @@ test("a bridge nobody is signed in to: sign in, and the window updates by itself
   assert.equal(v.unpaired, false, "no token field: this browser pairs itself");
 });
 
+test("a request waiting for the owner says where to approve it, and offers no token box", () => {
+  const v = S.view({ status: "unpaired", reason: "pair_waiting" });
+  assert.match(v.state, /Waiting for approval in the MonoAgent app \(or run monoagentcli extension approve --latest\)/);
+  assert.equal(v.unpaired, false);
+  assert.equal(v.pair, "");
+});
+
+test("denied and expired requests say so and offer asking again or the manual path", () => {
+  const d = S.view({ status: "unpaired", reason: "pair_denied" });
+  assert.match(d.state, /denied/);
+  const e = S.view({ status: "unpaired", reason: "pair_expired" });
+  assert.match(e.state, /expired/);
+  for (const v of [d, e]) {
+    assert.equal(v.unpaired, true);
+    assert.match(v.pair, /Check again.*monoagentcli extension pair/);
+  }
+});
+
 test("automatic pairing off or refused: the manual path, kept as the fallback", () => {
   for (const reason of ["autopair_off", "auth_rejected", ""]) {
     const v = S.view({ status: "unpaired", reason });

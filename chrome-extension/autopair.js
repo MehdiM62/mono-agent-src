@@ -5,18 +5,27 @@
  * MonoAgent: that arrives over a paired socket. So instead of asking the
  * person to run `extension pair`, the worker asks the bridge directly:
  *
- *   GET  /monoagent/status      {service, signedIn, paired, autoPair}
- *   POST /monoagent/pair/claim  {instance, label} -> {token, id}
+ *   GET  /monoagent/status             {service, signedIn, paired, pairMode}
+ *   POST /monoagent/pair/claim         {instance, label, token?}
+ *        -> {token, id}                                  (pairMode auto)
+ *        -> 202 {pending, claimId, pollSecret, expiresAt} (pairMode ask)
+ *   GET  /monoagent/pair/claim/<id>    Authorization: Bearer <pollSecret>
+ *        -> {status: pending|approved|denied|expired, token?, id?}
  *
- * The bridge hands a token to a loopback request from an extension origin
- * while the account is signed in (internal/extension/autopair.go). `step`
- * decides what to do from what the bridge says; the worker acts on the answer:
+ * In ask mode (the default) the bridge hands out nothing until the OWNER
+ * approves the request in the MonoAgent app or with `monoagentcli extension
+ * approve`: the Origin header this request carries is not proof of anything.
+ * `step` decides what to do from what the bridge says; the worker acts on the
+ * answer:
  *
  *   claimed     the token to store and dial with;
+ *   pending     waiting for the owner: keep {claimId, pollSecret} and poll;
+ *   denied      the owner said no;
+ *   expired     nobody answered in time (or the bridge forgot the request);
  *   down        no bridge on any port: "MonoAgent isn't running";
  *   signed_out  the bridge is up and nobody is signed in: poll, claim the
  *               moment that changes;
- *   disabled    automatic pairing is off on this machine: the manual path;
+ *   disabled    pairing is off on this machine: the manual path;
  *   refused     the bridge turned the claim down (reason in `error`).
  *
  * Pure apart from the injected fetch, so it runs in node (autopair.test.mjs).
@@ -32,6 +41,9 @@
   // After a refused claim the worker does not ask again for this long: the
   // bridge rate-limits claims, and a refusal does not change by asking.
   const REFUSED_BACKOFF_MS = 60 * 1000;
+  // After a denial or an expiry it does not ask again for this long, unless
+  // the person presses "Check again": each request puts a card in front of them.
+  const DECLINED_BACKOFF_MS = 10 * 60 * 1000;
 
   /** bases lists the http origins to ask, best first: the configured ones, then the defaults. */
   function bases(known) {
@@ -68,7 +80,7 @@
     try {
       const doc = await res.json();
       if (!doc || doc.service !== SERVICE) return null;
-      return { signedIn: doc.signedIn === true, autoPair: doc.autoPair !== false, paired: doc.paired === true };
+      return { signedIn: doc.signedIn === true, mode: typeof doc.pairMode === "string" ? doc.pairMode : doc.autoPair === false ? "off" : "ask", paired: doc.paired === true };
     } catch {
       return null;
     }
@@ -76,7 +88,9 @@
 
   /**
    * step is one pass of the state machine. deps: fetch, known (stored wsUrl,
-   * pairedWsUrl, workingWsUrl), instance, label, timeoutMs.
+   * pairedWsUrl, workingWsUrl), instance, label, token (the one the bridge
+   * turned away, if any), pending ({claimId, pollSecret} of a request already
+   * made), timeoutMs.
    */
   async function step(deps) {
     const d = deps || {};
@@ -91,7 +105,34 @@
     const s = found[at];
     const wsUrl = `ws://${base.slice("http://".length)}/monoagent`;
     if (!s.signedIn) return { kind: "signed_out", wsUrl };
-    if (!s.autoPair) return { kind: "disabled", wsUrl };
+    if (s.mode === "off") return { kind: "disabled", wsUrl };
+
+    const pending = d.pending && d.pending.claimId && d.pending.pollSecret ? d.pending : null;
+    if (pending) {
+      const r = await withDeadline(
+        fetchImpl,
+        `${base}/monoagent/pair/claim/${encodeURIComponent(pending.claimId)}`,
+        { method: "GET", headers: { Authorization: `Bearer ${pending.pollSecret}` } },
+        ms
+      );
+      // No answer: the bridge is busy, the request still stands.
+      if (!r) return { kind: "pending", claimId: pending.claimId, pollSecret: pending.pollSecret, expiresAt: pending.expiresAt, wsUrl };
+      let doc = null;
+      try {
+        doc = await r.json();
+      } catch {
+        // handled by the status below
+      }
+      if (r.ok && doc && doc.status === "approved" && typeof doc.token === "string" && doc.token) {
+        return { kind: "claimed", token: doc.token, id: String(doc.id || ""), wsUrl };
+      }
+      if (r.ok && doc && doc.status === "pending") {
+        return { kind: "pending", claimId: pending.claimId, pollSecret: pending.pollSecret, expiresAt: pending.expiresAt, wsUrl };
+      }
+      if (r.ok && doc && doc.status === "denied") return { kind: "denied", wsUrl };
+      if (r.status === 404 || r.status === 410) return { kind: "expired", wsUrl };
+      return { kind: "refused", error: (doc && doc.error) || `the bridge refused the pairing check (${r.status})`, wsUrl };
+    }
 
     const res = await withDeadline(
       fetchImpl,
@@ -99,7 +140,7 @@
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ instance: d.instance || "", label: d.label || "" }),
+        body: JSON.stringify({ instance: d.instance || "", label: d.label || "", token: d.token || "" }),
       },
       ms
     );
@@ -110,11 +151,14 @@
     } catch {
       // not JSON: handled below
     }
+    if (body && body.pending === true && body.claimId && body.pollSecret) {
+      return { kind: "pending", claimId: String(body.claimId), pollSecret: String(body.pollSecret), expiresAt: String(body.expiresAt || ""), wsUrl };
+    }
     if (res.ok && body && typeof body.token === "string" && body.token) {
       return { kind: "claimed", token: body.token, id: String(body.id || ""), wsUrl };
     }
     return { kind: "refused", error: (body && body.error) || `the bridge refused to pair (${res.status})`, wsUrl };
   }
 
-  root.MonoAutoPair = { step, bases, REFUSED_BACKOFF_MS, PORTS };
+  root.MonoAutoPair = { step, bases, REFUSED_BACKOFF_MS, DECLINED_BACKOFF_MS, PORTS };
 })(globalThis);

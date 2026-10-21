@@ -94,8 +94,12 @@ type Server struct {
 	// The zero-step claim flow (autopair.go): the kill-switch reader and the
 	// rate-limit window.
 	claimMu    sync.Mutex
-	autoPair   func() bool
-	claimTimes []time.Time
+	pairMode   func() string
+	pairCards  PairCards
+	cardOnce   sync.Once
+	cardJobs   chan func()
+	cardWG     sync.WaitGroup
+	claimTimes map[string][]time.Time
 
 	// The self-description served at /monoagent/health (see status.go).
 	// lastAuthFailure is what lets that endpoint say "running, but this
@@ -276,6 +280,7 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("/monoagent/pair/nonce", s.handlePairNonce)
 	mux.HandleFunc("/monoagent/status", s.handleClaimStatus)
 	mux.HandleFunc("/monoagent/pair/claim", s.handlePairClaim)
+	mux.HandleFunc("/monoagent/pair/claim/", s.handlePairPoll)
 	mux.HandleFunc("/monoagent/resolve", s.handleResolve)
 	mux.HandleFunc("/monoagent/browsers", s.handleBrowsers)
 

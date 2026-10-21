@@ -370,23 +370,59 @@ async function getPairingToken() {
 // Why an unpaired worker is unpaired, as the side panel's sign-in screen words it.
 const AUTOPAIR_SIGNED_OUT = "bridge_signed_out";
 const AUTOPAIR_OFF = "autopair_off";
+const AUTOPAIR_WAITING = "pair_waiting";
+const AUTOPAIR_DENIED = "pair_denied";
+const AUTOPAIR_EXPIRED = "pair_expired";
 let staleSecret = null; // a token the bridge refused; replaced by a claim, never retried as it is
 let autoPairBackoffUntil = 0;
+let autoPairDeclined = ""; // pair_denied / pair_expired while the backoff after one runs
+
+async function loadPairClaim() {
+  try {
+    const { pairClaim } = await chrome.storage.local.get("pairClaim");
+    return pairClaim && pairClaim.claimId && pairClaim.pollSecret ? pairClaim : null;
+  } catch {
+    return null;
+  }
+}
+
+async function savePairClaim(claim) {
+  try {
+    if (claim) await chrome.storage.local.set({ pairClaim: claim });
+    else await chrome.storage.local.remove("pairClaim");
+  } catch {
+    // the request is then asked again next time
+  }
+}
 
 /**
  * tryAutoPair is one pass of the pairing-without-a-step state machine
  * (autopair.js). It returns the token it was given, stored, or null after
- * setting the status the person reads.
+ * setting the status the person reads. A request the bridge is holding for the
+ * owner's approval is kept in storage and polled on each pass. manual is a
+ * press of "Check again": it ignores the backoff after a denial or expiry.
  */
-async function tryAutoPair() {
-  if (Date.now() < autoPairBackoffUntil) return null;
+async function tryAutoPair(manual = false) {
+  if (manual) {
+    autoPairBackoffUntil = 0;
+    autoPairDeclined = "";
+  }
+  if (Date.now() < autoPairBackoffUntil) {
+    if (autoPairDeclined) setStatus("unpaired", autoPairDeclined);
+    return null;
+  }
   let known = {};
   try {
     known = await chrome.storage.local.get(["wsUrl", "pairedWsUrl", "workingWsUrl"]);
   } catch {
     // probe the defaults
   }
-  const r = await MonoAutoPair.step({ known, instance: binding.instance, label: binding.label });
+  let pending = await loadPairClaim();
+  if (pending && pending.expiresAt && Date.parse(pending.expiresAt) < Date.now()) {
+    await savePairClaim(null);
+    pending = null;
+  }
+  const r = await MonoAutoPair.step({ known, instance: binding.instance, label: binding.label, token: staleSecret || "", pending });
   switch (r.kind) {
     case "claimed":
       try {
@@ -395,9 +431,21 @@ async function tryAutoPair() {
         console.warn("[monoagent] could not store the pairing token:", err.message);
         return null;
       }
+      await savePairClaim(null);
       staleSecret = null;
-      console.log("[monoagent] Paired automatically with the bridge");
+      console.log("[monoagent] Paired with the bridge");
       return r.token;
+    case "pending":
+      await savePairClaim({ claimId: r.claimId, pollSecret: r.pollSecret, expiresAt: r.expiresAt });
+      setStatus("unpaired", AUTOPAIR_WAITING);
+      return null;
+    case "denied":
+    case "expired":
+      await savePairClaim(null);
+      autoPairDeclined = r.kind === "denied" ? AUTOPAIR_DENIED : AUTOPAIR_EXPIRED;
+      autoPairBackoffUntil = Date.now() + MonoAutoPair.DECLINED_BACKOFF_MS;
+      setStatus("unpaired", autoPairDeclined);
+      return null;
     case "signed_out":
       setStatus("unpaired", AUTOPAIR_SIGNED_OUT);
       return null;
@@ -406,6 +454,7 @@ async function tryAutoPair() {
       return null;
     case "refused":
       autoPairBackoffUntil = Date.now() + MonoAutoPair.REFUSED_BACKOFF_MS;
+      autoPairDeclined = "";
       console.warn("[monoagent] automatic pairing refused:", r.error);
       setStatus("unpaired", AUTOPAIR_OFF);
       return null;
@@ -416,10 +465,12 @@ async function tryAutoPair() {
 }
 
 let connectingPromise = null;
+let manualRecheck = false; // set by a press of "Check again"; the next pairing pass ignores the backoff
 
 // Serialized: concurrent callers await/reuse the in-flight connection attempt
 // instead of racing to open a second socket.
-function connect() {
+function connect(manual = false) {
+  if (manual) manualRecheck = true;
   if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
     return Promise.resolve();
   }
@@ -445,7 +496,9 @@ async function doConnect() {
   // HOME): ask the bridge for one before giving up. It hands one out while
   // the person is signed in to MonoAgent, so a new browser needs no step.
   if (!pairingSecret || staleSecret === pairingSecret) {
-    const claimed = await tryAutoPair();
+    const manual = manualRecheck;
+    manualRecheck = false;
+    const claimed = await tryAutoPair(manual);
     if (claimed) pairingSecret = claimed;
   }
   if (!pairingSecret) {
@@ -1471,7 +1524,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       // Unpaired too: a token saved since, or a bridge restarted with the
       // token this browser holds, is only found by dialling again.
       fastRetryCount = 0;
-      connect();
+      connect(msg.manual === true);
       fastRetryConnect();
     }
     queuedItems().then((queued) => sendResponse(Object.assign(statusPayload(), { queued })));

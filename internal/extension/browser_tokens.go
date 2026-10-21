@@ -28,9 +28,13 @@ import (
 // takes effect at the next handshake and, for a socket that is already open,
 // at the next sweepRevoked (every ping interval).
 
-// maxPairedBrowsers bounds the file. A browser that claims past it replaces
-// the oldest entry, so a loop of claims cannot grow the file without limit.
+// maxPairedBrowsers bounds the file. At the cap a new pairing is REFUSED
+// (ErrBrowserLimit), never made by evicting an existing one: a loop of claims
+// must not be able to push a valid browser out. The owner revokes to make room.
 const maxPairedBrowsers = 32
+
+// maxFieldLen caps the stored Label/Origin/Agent, which a claimant chooses.
+const maxFieldLen = 256
 
 // PairedBrowser is one browser the claim flow has paired.
 type PairedBrowser struct {
@@ -45,6 +49,24 @@ type PairedBrowser struct {
 
 // ErrNoSuchBrowser means a revoke named no paired browser (or several).
 var ErrNoSuchBrowser = errors.New("no such paired browser")
+
+var (
+	// ErrBrowserLimit: the file holds maxPairedBrowsers entries.
+	ErrBrowserLimit = errors.New("the limit of paired browsers is reached: revoke one with `monoagentcli extension browsers revoke <id>`")
+	// ErrInstancePaired: a browser with this instance id is already paired and
+	// the request neither holds its token nor was approved by the owner, so it
+	// may not replace it (a forged claim must not kill a victim's token).
+	ErrInstancePaired = errors.New("a browser with this instance id is already paired: revoke it first with `monoagentcli extension browsers revoke <id>`")
+	// ErrClaimConsumed: the approved claim already produced its token.
+	ErrClaimConsumed = errors.New("this pairing claim was already used")
+)
+
+func clip(s string) string {
+	if len(s) > maxFieldLen {
+		return strings.ToValidUTF8(s[:maxFieldLen], "")
+	}
+	return s
+}
 
 var browsersMu sync.Mutex
 
@@ -149,9 +171,22 @@ func RevokePairedBrowser(idOrPrefix string) (PairedBrowser, error) {
 	return gone, nil
 }
 
-// addPairedBrowser mints a token for b, replacing any earlier entry of the
-// same instance (a browser re-claiming gets a new token and the old one dies).
-func addPairedBrowser(b PairedBrowser) (token string, _ PairedBrowser, _ error) {
+// mintOpts says how addPairedBrowser may treat an existing entry.
+type mintOpts struct {
+	// ID, when set, is the new entry's id (the approved claim's), so a claim
+	// can mint at most once.
+	ID string
+	// RotateToken is the current token of the entry sharing b.Instance; a
+	// match lets the new token replace it.
+	RotateToken string
+	// ReplaceInstance lets the owner's approval replace the entry sharing b.Instance.
+	ReplaceInstance bool
+}
+
+// addPairedBrowser mints a token for b. It never evicts: at the cap it fails
+// with ErrBrowserLimit, and an entry sharing b.Instance is replaced only with
+// its own token (o.RotateToken) or the owner's approval (o.ReplaceInstance).
+func addPairedBrowser(b PairedBrowser, o mintOpts) (token string, _ PairedBrowser, _ error) {
 	buf := make([]byte, 32)
 	if _, err := rand.Read(buf); err != nil {
 		return "", PairedBrowser{}, fmt.Errorf("generate token: %w", err)
@@ -162,6 +197,10 @@ func addPairedBrowser(b PairedBrowser) (token string, _ PairedBrowser, _ error) 
 	}
 	token = hex.EncodeToString(buf)
 	b.ID = hex.EncodeToString(idBuf)
+	if o.ID != "" {
+		b.ID = o.ID
+	}
+	b.Label, b.Origin, b.Agent = clip(b.Label), clip(b.Origin), clip(b.Agent)
 	b.TokenHash = hashToken(token)
 	b.PairedAt = time.Now().UTC()
 
@@ -171,24 +210,41 @@ func addPairedBrowser(b PairedBrowser) (token string, _ PairedBrowser, _ error) 
 	if err != nil {
 		return "", PairedBrowser{}, err
 	}
+	for _, e := range list {
+		if o.ID != "" && e.ID == o.ID {
+			return "", PairedBrowser{}, ErrClaimConsumed
+		}
+	}
 	if b.Instance != "" {
-		kept := list[:0]
+		kept := make([]PairedBrowser, 0, len(list))
 		for _, e := range list {
 			if e.Instance != b.Instance {
 				kept = append(kept, e)
+				continue
+			}
+			owns := o.RotateToken != "" && subtle.ConstantTimeCompare([]byte(e.TokenHash), []byte(hashToken(o.RotateToken))) == 1
+			if !owns && !o.ReplaceInstance {
+				return "", PairedBrowser{}, ErrInstancePaired
 			}
 		}
 		list = kept
 	}
-	list = append(list, b)
-	if len(list) > maxPairedBrowsers {
-		sort.SliceStable(list, func(i, j int) bool { return list[i].PairedAt.Before(list[j].PairedAt) })
-		list = list[len(list)-maxPairedBrowsers:]
+	if len(list) >= maxPairedBrowsers {
+		return "", PairedBrowser{}, ErrBrowserLimit
 	}
+	list = append(list, b)
 	if err := writeBrowsersLocked(list); err != nil {
 		return "", PairedBrowser{}, err
 	}
 	return token, b, nil
+}
+
+// pairedBrowserCount is how many browsers are paired.
+func pairedBrowserCount() int {
+	browsersMu.Lock()
+	defer browsersMu.Unlock()
+	list, _ := readBrowsersLocked()
+	return len(list)
 }
 
 // pairedBrowserForToken finds the entry a presented token belongs to,
