@@ -18,7 +18,7 @@
 - The GUI keeps "the profile I am looking at" as UI state only; every CLI call it makes passes `--profile`. The CLI and MCP never learn what the GUI shows.
 - Legacy rows with NULL/empty `profile_id` are stamped with the profile whose id is `default` if it exists, else the oldest profile.
 - Machine-wide data stays machine-wide: `templates`, `configs`, `settings` (minus profile-qualified keys), `agent_model_*`, `automation_selector_health`, the monoes.me account, `api config`. Those commands are `global` and take no profile.
-- Keep files under 500 lines. Conventional commits (`type(scope): description`). No attribution lines. Run the pinned formatter before pushing: `$(GOTOOLCHAIN=go1.26.9 go env GOROOT)/bin/gofmt -l .`
+- Keep files under 500 lines. Conventional commits (`type(scope): description`). No attribution lines. Run the pinned formatter before pushing: `$(GOTOOLCHAIN=go1.26.10 go env GOROOT)/bin/gofmt -l .`
 - Branch builds must not touch the real database: run CLI/tests with a scratch `HOME` under `~/scratch` (never `/tmp`).
 - A push to `master` is a release. Every phase is one PR to an `integration/strict-profile-*` branch; the final enforce flip is its own release with a version bump and release notes.
 

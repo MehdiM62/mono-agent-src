@@ -201,7 +201,7 @@ Policy (agent context only; a human terminal is unrestricted):
 ## Verification
 
 - Every agent: `go build ./... && go vet ./...`, its packages' tests, pinned gofmt
-  (`$(GOTOOLCHAIN=go1.26.9 go env GOROOT)/bin/gofmt -l .`), `node --check` + `node --test` for extension files,
+  (`$(GOTOOLCHAIN=go1.26.10 go env GOROOT)/bin/gofmt -l .`), `node --check` + `node --test` for extension files,
   `npx vitest run` in `wails-app/frontend` for GUI files.
 - Live checks only with a scratch HOME (`HOME=~/scratch/cb-home-<agent>`), a private bridge port
   (`MONOAGENT_EXTENSION_PORT`), and a headless Edge with its own `--user-data-dir` and debug port. Never port 9222,
