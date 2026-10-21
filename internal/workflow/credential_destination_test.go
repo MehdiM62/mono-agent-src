@@ -297,3 +297,30 @@ func TestTriggerCredentialsKeepTheirHosts(t *testing.T) {
 		t.Errorf("a host other than the connection's: %v", err)
 	}
 }
+
+// A connection that names a bare host (no scheme, no port) is for that
+// host over https on the default port: a URL of the workflow naming http://
+// or another port of it is not the connection's destination.
+func TestBareHostConnectionMeansHTTPSDefaultPort(t *testing.T) {
+	bare := &CredentialUse{Name: "c", Data: map[string]interface{}{"base_url": "api.example.com"}}
+	stated := &CredentialUse{Name: "c", Data: map[string]interface{}{"base_url": "http://api.example.com:8080"}}
+	keys := [][]string{{"base_url"}}
+	for _, tc := range []struct {
+		use *CredentialUse
+		url string
+		ok  bool
+	}{
+		{bare, "https://api.example.com/v1", true},
+		{bare, "https://api.example.com:443/v1", true},
+		{bare, "api.example.com", true},
+		{bare, "http://api.example.com/v1", false},
+		{bare, "https://api.example.com:8443/v1", false},
+		{stated, "http://api.example.com:8080/v1", true},
+		{stated, "https://api.example.com:8080/v1", true},
+	} {
+		cfg := map[string]interface{}{"base_url": tc.url}
+		if err := CheckDestinationKeys(keys, tc.use, true, cfg, cfg); (err == nil) != tc.ok {
+			t.Errorf("%v with %s: %v, want allowed %v", tc.use.Data["base_url"], tc.url, err, tc.ok)
+		}
+	}
+}
