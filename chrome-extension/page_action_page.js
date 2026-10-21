@@ -176,7 +176,7 @@
   function guard(action, extra) {
     const CLICKABLE = "a,button,input,select,textarea,summary,label,[role],[onclick],[tabindex]";
     const VERBS =
-      "submit|send|post|publish|pay|buy|confirm|order|sign ?up|apply|delete|remove|archive|unsubscribe|subscribe|transfer|withdraw|authori[sz]e|allow|grant|donate|check ?out|add to (?:cart|bag|basket)|log ?out|log ?off|sign ?out|install|reset|revoke|erase|destroy|wipe|discard|deactivate|terminate|" +
+      "submit|send|post|publish|pay|buy|confirm|order|sign ?up|apply|delete|remove|archive|unsubscribe|subscribe|transfer|withdraw|authori[sz]e|allow|grant|donate|check ?out|add to (?:cart|bag|basket)|log ?out|log ?off|sign ?out|install|reset|revoke|erase|destroy|wipe|discard|deactivate|terminate|accept|agree|approve|continue|proceed|" +
       "senden|absenden|bezahlen|kaufen|löschen|bestellen|envoyer|payer|acheter|supprimer|enviar|pagar|comprar|eliminar";
     const WORDS = new RegExp("(?<![\\p{L}\\p{N}])(?:" + VERBS + ")(?![\\p{L}\\p{N}])", "iu");
     const said = (el) => {
@@ -188,7 +188,7 @@
       // A box or a drop-down: not a click, but ticking or choosing may grant, accept or delete.
       // `extra` is the words around it. Only the verbs that grant or destroy, not "send" or "post".
       const ASK =
-        "delete|remove|erase|destroy|wipe|discard|revoke|deactivate|terminate|reset|authori[sz]e|allow|grant|accept|agree|consent|confirm|pay|buy|purchase|order|subscribe|unsubscribe|donate|publish|install|" +
+        "delete|remove|erase|destroy|wipe|discard|revoke|deactivate|terminate|reset|authori[sz]e|allow|grant|accept|agree|approve|proceed|consent|confirm|pay|buy|purchase|order|subscribe|unsubscribe|donate|publish|install|" +
         "löschen|bezahlen|kaufen|bestellen|akzeptieren|zustimmen|supprimer|payer|acheter|accepter|eliminar|pagar|comprar|aceptar";
       const ASKED = new RegExp("(?<![\\p{L}\\p{N}])(?:" + ASK + ")(?![\\p{L}\\p{N}])", "iu");
       return ASKED.test(said(this) + " " + (extra || "")) ? "submit_blocked" : "";
@@ -203,12 +203,31 @@
         continue;
       }
       if (type === "submit" || (tag === "INPUT" && type === "image")) return "submit_blocked";
-      if (el.form || el.closest("form")) {
-        for (let n = el; n; n = n.parentElement) if (n.matches(CLICKABLE)) return "submit_blocked";
+      // Through shadow roots: a form is also the host's, and a host may be a form-associated control.
+      let inForm = !!el.form;
+      let clickable = false;
+      for (let n = el; n; n = n.parentElement || (n.getRootNode && n.getRootNode().host) || null) {
+        if (n.tagName === "FORM" || n.form) inForm = true;
+        if (n.matches && n.matches(CLICKABLE)) clickable = true;
       }
+      if (inForm && clickable) return "submit_blocked";
       const role = el.getAttribute("role");
-      const wordy = tag === "BUTTON" || tag === "A" || tag === "INPUT" || ["button", "link", "menuitem"].includes(role) || el.hasAttribute("onclick");
-      if (wordy && WORDS.test(said(el))) return "submit_blocked";
+      // Rows of text (files, list items) are named by their words, not tested by them.
+      const plainRow = ["option", "row", "gridcell", "listitem", "treeitem"].includes(role) && !el.hasAttribute("onclick") && tag !== "A" && tag !== "BUTTON";
+      if (!plainRow && el.matches(CLICKABLE) && WORDS.test(said(el))) return "submit_blocked";
+      if (tag === "A" && el.hasAttribute("href")) {
+        const raw = (el.getAttribute("href") || "").replace(/[\u0000-\u0020\u007f-\u009f]/g, "");
+        if (/^(?:javascript|data|vbscript):/i.test(raw)) return "submit_blocked";
+        let where = raw;
+        try {
+          const u = new URL(el.href);
+          where = u.pathname + " " + u.search;
+          where = decodeURIComponent(where);
+        } catch {
+          // keep the raw text
+        }
+        if (WORDS.test(where.replace(/[\/_+=&?.-]+/g, " "))) return "submit_blocked";
+      }
     }
     return "";
   }

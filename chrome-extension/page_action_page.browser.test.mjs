@@ -352,6 +352,42 @@ describe("page_action_page.js in a browser", { skip, concurrency: 1 }, () => {
     assert.ok(out.href, "and its address");
   });
 
+  const SNEAKY = `<!doctype html><meta charset=utf-8><body>
+<form id=f onsubmit="window.__log.push('SUBMITTED'); return false"><div id=host></div></form>
+<div id=d1 tabindex=0 onfocus="void 0">Delete account</div>
+<div id=d2 role=switch tabindex=0>Revoke access</div>
+<a id=js href="javascript:window.__log.push('JS')">Open the guide</a>
+<a id=dl href="/account/delete?confirm=1">Download CV</a>
+<a id=ok href="/docs/guide">Read the guide</a>
+<button id=acc type=button>Accept all</button>
+<button id=agr type=button>I agree</button>
+<a id=dat href="data:text/html,hi">Preview thing</a>
+<script>
+  window.__log = [];
+  document.querySelector("#host").attachShadow({ mode: "open" }).innerHTML = "<button type=button id=sb>Shadow go</button>";
+  for (const el of document.querySelectorAll("[id]")) el.addEventListener("click", (e) => { window.__log.push("click:" + el.id); e.preventDefault(); });
+  document.querySelector("#host").shadowRoot.querySelector("#sb").addEventListener("click", () => window.__log.push("click:sb"));
+</script>`;
+
+  it("a button in a shadow root inside a form is held back like any in a form", async () => {
+    await open(SNEAKY);
+    assert.equal((await run("click", "Shadow go")).code, "submit_blocked");
+    assert.deepEqual(await log("click:sb"), []);
+  });
+
+  it("every actionable target is checked by its words, not just buttons and links", async () => {
+    await open(SNEAKY);
+    for (const t of ["Delete account", "Revoke access", "Accept all", "I agree"]) assert.equal((await run("click", t)).code, "submit_blocked", t);
+    assert.deepEqual(await log("click:"), []);
+  });
+
+  it("a link is judged by where it goes: javascript: and data: never, a path of delete held, a plain one fine", async () => {
+    await open(SNEAKY);
+    for (const t of ["Open the guide", "Preview thing", "Download CV"]) assert.equal((await run("click", t)).code, "submit_blocked", t);
+    assert.deepEqual(await log(""), [], "the javascript: link did not run");
+    assert.deepEqual(await run("click", "Read the guide"), { ok: true });
+  });
+
   it("hovers, scrolls the page, and presses only the safe keys", async () => {
     await open(QUIZ);
     assert.equal((await run("hover", "Products")).ok, true);
