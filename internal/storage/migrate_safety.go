@@ -121,14 +121,28 @@ func (d *Database) SnapshotBeforeAdoption(ctx context.Context) {
 
 // adoptionSnapshotEvery is how long an adoption snapshot of a schema version
 // stands in for a new one.
-const adoptionSnapshotEvery = 24 * time.Hour
+const adoptionSnapshotEvery = time.Hour
 
 // hasRecentAdoptionSnapshot reports whether backups holds an adoption
-// snapshot of schema version v written within adoptionSnapshotEvery.
+// snapshot of schema version v written within adoptionSnapshotEvery, not
+// dated in the future, and not older than the database's last change (one
+// that predates the data stands in for nothing).
 func (d *Database) hasRecentAdoptionSnapshot(v int) bool {
+	var changed time.Time
+	for _, suffix := range []string{"", "-wal"} {
+		if fi, err := os.Stat(d.dbPath + suffix); err == nil && fi.ModTime().After(changed) {
+			changed = fi.ModTime()
+		}
+	}
 	paths, _ := filepath.Glob(filepath.Join(d.backupsDir(), fmt.Sprintf("pre-migrate-*-v%03d-adopt.db", v)))
+	now := migrateNow()
 	for _, p := range paths {
-		if fi, err := os.Stat(p); err == nil && migrateNow().Sub(fi.ModTime()) < adoptionSnapshotEvery {
+		fi, err := os.Stat(p)
+		if err != nil {
+			continue
+		}
+		age := now.Sub(fi.ModTime())
+		if age >= 0 && age < adoptionSnapshotEvery && !fi.ModTime().Before(changed) {
 			return true
 		}
 	}
