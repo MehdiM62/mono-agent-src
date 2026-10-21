@@ -198,6 +198,21 @@ test("every frame is searched; the step runs only in the frame that holds the on
   assert.deepEqual(w.calls.scripts[2].target, { tabId: 5, frameIds: [7] });
 });
 
+test("a subframe's step carries the address it was found at; the top frame's does not", async () => {
+  const w = world({ frames: [{ frameId: 0, result: { count: 0, exact: false, matched: "", held: "" } }, { frameId: 7, result: { count: 1, exact: true, matched: "GBP 200", held: "", origin: "https://f.example", href: "https://f.example/q" } }] });
+  await w.send(ask({ action: "click", target: "GBP 200" }));
+  assert.deepEqual(w.calls.scripts[2].args.slice(3), ["https://a.example", "https://f.example/q"], "the card's origin, then the frame's address");
+  const top = world({ frames: [{ frameId: 0, result: { count: 1, exact: true, matched: "x", held: "", origin: "https://a.example", href: "https://a.example/files" } }] });
+  await top.send(ask());
+  assert.equal(top.calls.scripts[2].args.length, 4);
+});
+
+test("what is held in the found frame is reported, not hidden by the bridge", async () => {
+  const w = world({ pageReply: { ok: false, code: "page_changed", error: "the page changed since this was suggested" }, frames: [{ frameId: 4, result: { count: 1, exact: true, matched: "x", held: "", origin: "https://f.example", href: "https://f.example/" } }] });
+  const out = await w.send(ask());
+  assert.deepEqual([out.ok, out.code, out.frame], [false, "page_changed", 4]);
+});
+
 test("one match in each of two frames is ambiguous, and nothing is done; an exact name beats a loose one", async () => {
   const two = world({ frames: [{ frameId: 0, result: { count: 1, exact: true, matched: "a", held: "" } }, { frameId: 3, result: { count: 1, exact: true, matched: "a", held: "" } }] });
   assert.deepEqual(await two.send(ask()), { ok: false, code: "ambiguous", error: "ambiguous (2 matches)" });

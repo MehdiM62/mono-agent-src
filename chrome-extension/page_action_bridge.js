@@ -77,6 +77,8 @@
    */
   async function call(tabId, a, origin) {
     let frameId = 0;
+    // The address the frame had when it was searched: a subframe is checked against it (its own origin is not the card's).
+    let frameHref;
     if (!(BARE.has(a.action) && !a.target)) {
       let seen;
       try {
@@ -95,12 +97,13 @@
       if (total === 0) return answer("not_found", "not found");
       if (total > 1) return answer("ambiguous", `ambiguous (${total} matches)`);
       frameId = tier[0].frameId || 0;
+      if (frameId) frameHref = tier[0].result.href || "";
     }
     try {
       const [res] = await chrome.scripting.executeScript({
         target: { tabId, frameIds: [frameId] },
-        func: (action, target, text, expected) => globalThis.MonoPageAction.run(action, target, text, expected),
-        args: [a.action, a.target, a.text, origin],
+        func: (action, target, text, expected, href) => globalThis.MonoPageAction.run(action, target, text, expected, href),
+        args: frameId ? [a.action, a.target, a.text, origin, frameHref] : [a.action, a.target, a.text, origin],
       });
       return res && res.result ? Object.assign({ method: "script" }, frameId ? { frame: frameId } : {}, res.result) : unknown();
     } catch {

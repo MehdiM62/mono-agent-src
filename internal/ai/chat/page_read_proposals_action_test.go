@@ -120,3 +120,18 @@ func TestProposePageActionTakesTheSafeSteps(t *testing.T) {
 }
 
 func str(v interface{}) string { s, _ := v.(string); return s }
+
+func TestPageActionDescriptionStatesWhatIsHeld(t *testing.T) {
+	defs := pageActionToolDefs()
+	d := ""
+	for _, def := range defs {
+		if def.Function.Name == proposePageActionTool {
+			d = def.Function.Description
+		}
+	}
+	for _, want := range []string{"iframe", "grant, accept, pay or delete", "drop-down option", "does not tie"} {
+		if !strings.Contains(d, want) {
+			t.Errorf("description does not say %q: %s", want, d)
+		}
+	}
+}

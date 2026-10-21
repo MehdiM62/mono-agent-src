@@ -157,6 +157,15 @@ test("a success says what was actually matched, so a partial match is not passed
   assert.ok(again.card("a1").feedback.length < 260);
 });
 
+test("a step done in an iframe says so, with the frame's origin, cleaned", async () => {
+  const w = world({ reply: () => ({ ok: true, method: "script", matched: "GBP 200", frame: 7, frameOrigin: "https://quiz.example\u202e" }) });
+  await w.cards.run(N("a"));
+  assert.equal(w.card("a1").feedback, "Done: double-clicked \u201cGBP 200\u201d in an iframe (https://quiz.example)");
+  const none = world({ reply: () => ({ ok: true, method: "script", frame: 3 }) });
+  await none.cards.run(N("a"));
+  assert.equal(none.card("a1").feedback, "Done in an iframe.");
+});
+
 test("a coder card with no page of its own refuses to queue instead of using the tab on screen", async () => {
   const w = world();
   w.card("c1").page = undefined;

@@ -49,7 +49,9 @@ func pageActionToolDefs() []ToolDef {
 			"opens on a double-click), type text into a field, check or uncheck a checkbox, radio button or switch (name the option's own text), " +
 			"select an option in a drop-down (target the drop-down, text the option), hover, scroll (text: up, down, top or bottom; no target scrolls the " +
 			"page), press_key (text: Tab, Escape, an arrow key, PageUp, PageDown, Home or End; target optional), or open_url in a new tab. Forms and " +
-			"frames on the page are reached the same way. A step that submits or changes something is refused: the person presses that themselves. " +
+			"frames on the page are reached the same way (the card says when a step ran in an iframe). A step that submits or changes something is refused: " +
+			"the person presses that themselves; so is checking a box or choosing a drop-down option whose words grant, accept, pay or delete, and a box " +
+			"that the page does not tie to the text you named. " +
 			"This does nothing itself: the side panel " +
 			"shows the person a card, and the step runs only if they press Run. Name the element by the text a person sees on it " +
 			"(its label, button text or placeholder), exactly as it appears on the page, never by a selector. One step per card. " +
