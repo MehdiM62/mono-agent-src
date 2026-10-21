@@ -11,7 +11,9 @@ import (
 	"mime"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/monoes/mono-agent/internal/credhttp"
@@ -32,12 +34,71 @@ func newHTTPTransport(url string, headers map[string]string) *httpTransport {
 	t := &httpTransport{url: url, headers: headers}
 	// A configured header (an API key, say) never follows a redirect to
 	// another host, nor a request body that a 307 would resend (credhttp).
-	t.client = credhttp.Client(&http.Client{CheckRedirect: refuseInternalRedirect})
+	t.client = credhttp.Client(&http.Client{
+		CheckRedirect: refuseInternalRedirect,
+		Transport:     &http.Transport{Proxy: http.ProxyFromEnvironment, DialContext: guardedDial(url), ForceAttemptHTTP2: true},
+	})
 	return t
 }
 
 // refuseInternal is false only in tests whose servers all live on loopback.
 var refuseInternal = true
+
+// lookupIP is net.LookupIP; a test swaps it.
+var lookupIP = net.LookupIP
+
+// guardedDial dials the endpoint's own host:port freely and any other
+// host:port (one a redirect led to) only at an address that is not
+// internal. The check runs in the dialer's Control hook, on the address
+// actually connected to, so a name that resolves differently for the
+// redirect check and for the dial cannot get through (DNS rebinding).
+func guardedDial(endpoint string) func(context.Context, string, string) (net.Conn, error) {
+	own, proxy := "", ""
+	if u, err := url.Parse(endpoint); err == nil {
+		own = hostPort(u)
+	}
+	if pu, err := http.ProxyFromEnvironment(&http.Request{URL: mustURL(endpoint)}); err == nil && pu != nil {
+		proxy = hostPort(pu) // a proxy resolves and connects for us
+	}
+	free := &net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second}
+	guarded := &net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second,
+		Control: func(_, address string, _ syscall.RawConn) error {
+			host, _, err := net.SplitHostPort(address)
+			if err != nil {
+				return err
+			}
+			if ip := net.ParseIP(host); ip == nil || isInternalIP(ip) {
+				return fmt.Errorf("redirected to %s, an internal address: not followed", address)
+			}
+			return nil
+		}}
+	return func(ctx context.Context, network, addr string) (net.Conn, error) {
+		if !refuseInternal || strings.EqualFold(addr, own) || (proxy != "" && strings.EqualFold(addr, proxy)) {
+			return free.DialContext(ctx, network, addr)
+		}
+		return guarded.DialContext(ctx, network, addr)
+	}
+}
+
+func mustURL(s string) *url.URL {
+	u, _ := url.Parse(s)
+	if u == nil {
+		u = &url.URL{}
+	}
+	return u
+}
+
+// hostPort is u's host with its port, the default one filled in.
+func hostPort(u *url.URL) string {
+	port := u.Port()
+	if port == "" {
+		port = "80"
+		if strings.EqualFold(u.Scheme, "https") {
+			port = "443"
+		}
+	}
+	return net.JoinHostPort(u.Hostname(), port)
+}
 
 // refuseInternalRedirect stops a redirect from an MCP endpoint to a
 // loopback, private or link-local address of another host:port. A 301 or
@@ -49,7 +110,7 @@ func refuseInternalRedirect(req *http.Request, via []*http.Request) error {
 		return nil
 	}
 	host := req.URL.Hostname()
-	ips, err := net.LookupIP(host)
+	ips, err := lookupIP(host)
 	if err != nil || len(ips) == 0 {
 		return fmt.Errorf("redirected to %s, which could not be resolved: not followed", req.URL.Host)
 	}

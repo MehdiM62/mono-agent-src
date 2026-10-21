@@ -81,3 +81,29 @@ func TestInternalAddressRanges(t *testing.T) {
 		}
 	}
 }
+
+// The check in CheckRedirect resolves the name on its own; the transport
+// dials with a separate lookup, so a name that answers a public address to
+// the first and an internal one to the second would pass it (DNS
+// rebinding). The dial itself refuses an internal address of another
+// host:port, whatever the earlier lookup said.
+func TestMCPRedirectDialRefusesInternalAddress(t *testing.T) {
+	prev := lookupIP
+	lookupIP = func(string) ([]net.IP, error) { return []net.IP{net.ParseIP("8.8.8.8")}, nil }
+	defer func() { lookupIP = prev }()
+	hit := false
+	internal := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { hit = true }))
+	defer internal.Close()
+	mcp := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, internal.URL+"/secret", http.StatusFound)
+	}))
+	defer mcp.Close()
+	tr := newHTTPTransport(mcp.URL+"/mcp", nil)
+	resp, err := tr.post(context.Background(), []byte(`{"jsonrpc":"2.0"}`))
+	if err == nil {
+		resp.Body.Close()
+	}
+	if hit || err == nil {
+		t.Errorf("the redirect was dialled (hit=%v, err=%v)", hit, err)
+	}
+}
