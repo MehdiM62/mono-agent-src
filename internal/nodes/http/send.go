@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/monoes/mono-agent/internal/credhttp"
+	"github.com/monoes/mono-agent/internal/secrets"
 	"github.com/monoes/mono-agent/internal/tracesig"
 )
 
@@ -177,6 +178,9 @@ func send(ctx context.Context, client *http.Client, ob *outbound, maxBody int64,
 	if err != nil {
 		return nil, err
 	}
+	if err := checkSecretHost(ctx, req, ob.body); err != nil {
+		return nil, err
+	}
 	if pol.marked {
 		req = credhttp.Mark(req, pol.sensitive...)
 	}
@@ -251,4 +255,18 @@ func buildRequest(ctx context.Context, ob *outbound, config, itemJSON map[string
 	// chain. Set after every configured header so none can replace it.
 	setTraceHeader(ctx, req, config, itemJSON)
 	return req, nil
+}
+
+// checkSecretHost holds a request that carries a secret read under the
+// owner's agent access (`secret agent-access on`) to the hosts that access
+// names: a secret in its address, headers or body goes nowhere else.
+func checkSecretHost(ctx context.Context, req *http.Request, body []byte) error {
+	if !secrets.UnderAgentAccess(ctx) {
+		return nil
+	}
+	texts := []string{req.URL.String(), string(body)}
+	for _, vs := range req.Header {
+		texts = append(texts, vs...)
+	}
+	return secrets.CheckSendHost(ctx, req.URL.String(), texts...)
 }

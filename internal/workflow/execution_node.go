@@ -35,7 +35,7 @@ type nodeTask struct {
 // nil when the node was handled without executing (already completed,
 // disabled, skipped, deferred, waiting for merge inputs, or a trigger).
 func (r *runner) prepare(node WorkflowNode) (*nodeTask, error) {
-	ctx := r.ctx
+	ctx := secrets.WithAccessNode(r.ctx, node.ID, node.Name)
 	dag := r.dag
 	logger := r.logger
 

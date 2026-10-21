@@ -50,6 +50,13 @@ func (n *SecretGetNode) Execute(ctx context.Context, input workflow.NodeInput, c
 	if why := secrets.ResolveRefusal(ctx); why != "" {
 		return nil, fmt.Errorf("vault.secret_get decrypts a vault entry, which this run may not: %s", why)
 	}
+	// Even where the owner turned agent access on (`secret agent-access on`),
+	// which lets an unapproved run use @secret references in the fields that
+	// take them: this node puts the plaintext into the item stream, and so
+	// into the run's outputs, for whoever started the run to read.
+	if workflow.AIAuthoredFrom(ctx) {
+		return nil, fmt.Errorf("vault.secret_get puts a secret's value in the run's output, which a workflow you haven't approved may not do, even with agent access on: use an @secret reference in the field that needs it, or approve the workflow")
+	}
 	name, _ := config["name"].(string)
 	if name == "" {
 		return nil, fmt.Errorf("vault.secret_get: name is required")

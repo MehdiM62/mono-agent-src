@@ -62,6 +62,7 @@ func (d Deps) newSecretCmd() *cobra.Command {
 		d.newSecretImportCmd(),
 		d.newSecretKeyringCmd(),
 		d.newSecretRebindCmd(),
+		d.newSecretAgentAccessCmd(),
 	)
 	return cmd
 }
