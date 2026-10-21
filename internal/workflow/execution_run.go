@@ -12,6 +12,7 @@ import (
 	"github.com/monoes/mono-agent/internal/connections"
 	"github.com/monoes/mono-agent/internal/fsconfine"
 	"github.com/monoes/mono-agent/internal/profiledir"
+	"github.com/monoes/mono-agent/internal/secrets"
 	"github.com/monoes/mono-agent/internal/vault"
 	"github.com/rs/zerolog"
 )
@@ -155,6 +156,11 @@ func RunExecution(
 	project := profiledir.Root(vault.DBFromContext(ctx), profile)
 	if approved, err := operatorApproved(ctx, store, wf); !approved {
 		ctx = WithUnapproved(withApprovalCheckError(ctx, err), project, ApproveHint(profile, wf.ID))
+		// The profile's owner may have let agent-written workflows read the vault
+		// (`secret agent-access on`). Not when the approval check itself failed.
+		if on, _ := secrets.AgentAccess(ctx, vault.DBFromContext(ctx), profile); on && err == nil {
+			ctx = secrets.AllowResolving(ctx)
+		}
 	} else if caller, ok := CalledByUnapproved(exec.TriggerData); ok {
 		hint := "this workflow was called by one you haven't approved: save or activate that one in the app or your terminal to let it"
 		if caller != "" {

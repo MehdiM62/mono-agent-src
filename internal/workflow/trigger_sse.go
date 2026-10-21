@@ -70,6 +70,11 @@ func (s *SSETriggerSource) Activate(w *Workflow, node *WorkflowNode, fire func(i
 		rctx := ctx
 		if ok, err := operatorApproved(ctx, NewSQLiteWorkflowStore(s.DB), w); !ok {
 			rctx = secrets.RefuseResolving(ctx, unapprovedSecrets(withApprovalCheckError(ctx, err), ApproveHint(w.ProfileID, w.ID)))
+			// Unless the profile's owner let agent-written workflows read the vault
+			// (`secret agent-access on`), and the approval check itself worked.
+			if on, _ := secrets.AgentAccess(ctx, s.DB, w.ProfileID); on && err == nil {
+				rctx = secrets.AllowResolving(rctx)
+			}
 		}
 		for k, v := range headers {
 			if strings.HasPrefix(v, "@secret:") {
