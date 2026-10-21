@@ -138,3 +138,26 @@ func TestAgentAccessMasksCommonDerivedForms(t *testing.T) {
 }
 
 var _ = context.Background
+
+// Review of #944 (A5): under a host-bound grant only the nodes that check
+// their destination read secrets.
+func TestAgentAccessHostBoundGrantRefusesNodesWithoutADestinationCheck(t *testing.T) {
+	e := newAccessEnv(t)
+	e.reg.Register("http.request", func() NodeExecutor { return echoProbe{} })
+	e.grant(t, secrets.AccessGrant{Hosts: []string{"api.example.com"}})
+	cfg := map[string]interface{}{"v": "@secret:vs"}
+	execID, err := e.run(t, chain("wf-mail", step("n1", "test.echoprobe", "Mail-like", cfg)), nil)
+	if !errors.Is(err, secrets.ErrResolveRefused) || !strings.Contains(err.Error(), "destination check") {
+		t.Fatalf("a node with no destination check read a secret: %v", err)
+	}
+	if strings.Contains(e.stored(t, execID), valVS) {
+		t.Error("the value was read")
+	}
+	if _, err := e.run(t, chain("wf-http", step("n2", "http.request", "Http", cfg)), nil); err != nil {
+		t.Errorf("a node with a destination check: %v", err)
+	}
+	e.grant(t, secrets.AccessGrant{AnyHost: true})
+	if _, err := e.run(t, chain("wf-any", step("n3", "test.echoprobe", "Any", cfg)), nil); err != nil {
+		t.Errorf("--any-host: %v", err)
+	}
+}

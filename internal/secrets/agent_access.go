@@ -113,11 +113,27 @@ type accessState struct {
 	names map[string]struct{} // secrets read in this run, by name
 }
 
-type accessNode struct{ id, name string }
+type accessNode struct{ id, name, typ string }
+
+// hostCheckedNodes are the node types that hold what they send to the
+// grant's hosts (CheckSendHost). Under a host-bound grant no other node
+// type reads a secret: it has no destination check, so the binding could
+// not hold.
+var hostCheckedNodes = map[string]bool{"http.request": true, "http.graphql": true, "mcp.call": true, "trigger.sse": true}
+
+// WithAccessNodeType names the type of the step ctx runs. Under a grant that
+// names hosts (not --any-host) only the types with a destination check may
+// read secrets. A context with no type (no step) is not held to this.
+func WithAccessNodeType(ctx context.Context, typ string) context.Context {
+	n, _ := ctx.Value(accessNodeKey{}).(accessNode)
+	n.typ = typ
+	return context.WithValue(ctx, accessNodeKey{}, n)
+}
 
 // WithAccessNode names the step ctx runs, for the audit of secrets it reads.
 func WithAccessNode(ctx context.Context, id, name string) context.Context {
-	return context.WithValue(ctx, accessNodeKey{}, accessNode{id, name})
+	prev, _ := ctx.Value(accessNodeKey{}).(accessNode)
+	return context.WithValue(ctx, accessNodeKey{}, accessNode{id: id, name: name, typ: prev.typ})
 }
 
 func accessOf(ctx context.Context) *accessState {
@@ -145,6 +161,11 @@ func (a *accessState) permit(ctx context.Context, ref, name string) error {
 	}
 	if !g.allowsSecret(name) {
 		return &refusedError{ref + " is not read from the vault: agent access covers only " + strings.Join(g.Secrets, ", ")}
+	}
+	if !g.AnyHost {
+		if n, _ := ctx.Value(accessNodeKey{}).(accessNode); n.typ != "" && !hostCheckedNodes[n.typ] {
+			return &refusedError{ref + " is not read from the vault: agent access is bound to hosts (--host) and a " + n.typ + " step has no destination check; use --any-host to allow it"}
+		}
 	}
 	return nil
 }

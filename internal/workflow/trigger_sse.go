@@ -74,7 +74,7 @@ func (s *SSETriggerSource) Activate(w *Workflow, node *WorkflowNode, fire func(i
 			// (`secret agent-access on`), and the approval check itself worked.
 			if g, _ := secrets.GetAgentAccess(ctx, s.DB, w.ProfileID); g != nil && err == nil {
 				rctx = secrets.AllowResolving(rctx, s.DB, w.ProfileID, secrets.AccessOrigin{WorkflowID: w.ID})
-				rctx = secrets.WithAccessNode(rctx, node.ID, node.Name)
+				rctx = secrets.WithAccessNodeType(secrets.WithAccessNode(rctx, node.ID, node.Name), node.Type)
 			}
 		}
 		for k, v := range headers {
