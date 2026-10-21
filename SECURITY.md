@@ -242,20 +242,55 @@ supported way to run a coding agent that you do not fully trust:
    Secret Service / KWallet / macOS keychain files and, where it can, the D-Bus
    session bus. It leaves loopback networking open.
 2. The agent does not run `monoagentcli` as you. It calls the daemon's HTTP API
-   (`127.0.0.1:9322`, `/profiles/{profile}/...`) with that profile's bearer token. The
-   token opens that one profile only, and the API is read-only unless the daemon
-   was started with `--allow-mutations`. You read the token outside the sandbox
-   (`monoagentcli --profile <p> secret reveal httpapi-token --reveal`)
-   and hand it to the agent through its environment, for example `MONOAGENT_API_TOKEN`.
-   The names are only a convention; nothing in mono-agent reads them.
+   (`127.0.0.1:9322`, `/profiles/{profile}/...`) with a token that opens that one
+   profile only. The API is read-only unless the daemon was started with
+   `--allow-mutations`.
+3. Give the agent a scoped token, not the profile's own bearer. You make it, outside the
+   sandbox, as yourself (creating and revoking a token, and reading one out with `env`, are
+   refused to an agent, the chat and a workflow, and the API has no route that makes one):
+
+   ```sh
+   monoagentcli --profile work agent-mode token create --name reviewer --scope read --expires 24h
+   eval "$(monoagentcli --profile work agent-mode env --token reviewer)"   # MONOAGENT_API_URL, MONOAGENT_API_TOKEN
+   monoagentcli agent-mode sandbox --runtime bwrap > agent-sandbox.sh
+   sh agent-sandbox.sh claude      # the variables pass through into the sandbox
+   ```
+
+   Scopes (each includes the ones before it): `read` is GET only (list, get, status);
+   `write` also validate and other changes that start and send nothing (tasks, documents and
+   people get routes in this class when the API gains them); `run` also runs, activates and
+   deactivates workflows. Vault secrets, sends, approvals (`hil approve|reject`) and the account
+   are never reachable with a token. A request above the token's scope is answered 403. A token
+   expires (24h unless `--expires` says otherwise, `never` to opt out), is revoked at once with
+   `agent-mode token revoke`, and only its SHA-256 is kept for checking it (compared in constant
+   time); its text is kept in the profile's vault so that `env` can hand it out, and removed on
+   revoke. Every request made with a token is recorded by token name, method, path and status,
+   never the token: `agent-mode token audit <name>`. A token opens the profile it was made for and
+   no other. The profile's own bearer (`secret reveal httpapi-token --reveal`) keeps working as the
+   full scope; start the server with `MONOAGENT_HTTPAPI_DISABLE_PROFILE_BEARER=1` to refuse it, so
+   that only scoped tokens open the API. Do not let the agent read the vault (see the agent secret
+   access setting) or it could read a wider token's text.
+4. `monoagentcli agent-mode status` (and an informational line in `doctor`) says whether the
+   process looks sandboxed: the `MONOAGENT_SANDBOX` marker the bwrap profile sets, a `~/.monoagent`
+   that cannot be listed, is empty or is a tmpfs mount, macOS App Sandbox's container id. This is
+   advisory only: a process can hide the marks, and finding none proves nothing. The sandbox is the
+   boundary, never this report.
 
 Limits: the profiles are written for Linux (bwrap), macOS (seatbelt) and Claude
 Code's settings; the seatbelt service names and Claude Code's setting keys were
 not checked against every release, so test that the agent cannot read
 `~/.monoagent` before you rely on one. An abstract-socket D-Bus session bus (some
-distributions) is not hidden by file masking. The bearer token is the agent's
-credential: anyone holding it can use the API as that profile, including the
-`X-Full-Outputs` header. Windows has no profile yet: use another OS user or a VM.
+distributions) is not hidden by file masking. A token is the agent's
+credential: anyone holding it can use the API as that profile within its scope. A
+profile's own bearer also allows the `X-Full-Outputs` header.
+Windows has no profile: it has no sandbox that a command can start a process in without
+extra installs, so `agent-mode sandbox --runtime windows` refuses and says what to use instead:
+WSL2 with the bwrap profile, a separate Windows user account for the agent, or Windows Sandbox / a VM,
+each reaching the API with a scoped token.
+
+Still deferred: unlocking the vault only with the user present, the macOS keychain ACL (needs a
+signed binary), hiding an abstract-socket D-Bus session bus under `--unshare-net`, and token
+routes for tasks, documents and people (the API has none yet).
 
 ### Where a saved connection's secret goes
 

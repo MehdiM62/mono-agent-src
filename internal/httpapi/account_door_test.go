@@ -13,6 +13,7 @@ import (
 
 	"github.com/monoes/mono-agent/internal/account/accounttest"
 	"github.com/monoes/mono-agent/internal/accountdoor/doortest"
+	"github.com/monoes/mono-agent/internal/agenttokens"
 	"github.com/monoes/mono-agent/internal/secrets"
 )
 
@@ -169,7 +170,7 @@ func TestAuthRefusesALockedAccountBeforeTheVault(t *testing.T) {
 
 	var ran bool
 	rec := httptest.NewRecorder()
-	s.profileAuth(func(http.ResponseWriter, *http.Request) { ran = true }).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/workflows", nil))
+	s.profileAuth(agenttokens.ScopeRead, func(http.ResponseWriter, *http.Request) { ran = true }).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/workflows", nil))
 
 	wantLoginRequired(t, rec, "locked", "not_logged_in")
 	entries, err := secrets.List(context.Background(), s.rt.db.DB, "default")

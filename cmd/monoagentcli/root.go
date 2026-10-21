@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/monoes/mono-agent/internal/account"
-	"github.com/monoes/mono-agent/internal/cli/agentmode"
 	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/cli/profilegate"
 	"github.com/monoes/mono-agent/internal/cli/workflowrun"
@@ -126,7 +125,7 @@ func buildRootCmd(installProvider bool) *cobra.Command {
 		newChatCmd(cfg),
 		newCoderCmd(cfg),
 		newSandboxCmd(cfg),
-		agentmode.NewCommand(),
+		newAgentModeCmd(cfg),
 		newOrgCmd(cfg),
 		newMCPCmd(cfg),
 		newHTTPAPICmd(cfg),
