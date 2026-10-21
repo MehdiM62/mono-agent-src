@@ -155,8 +155,11 @@ export async function extensionWorker(cdp, timeoutMs = WORKER_START_MS) {
     try {
       const { targetInfos } = await cdp.send("Target.getTargets");
       seen = targetInfos.map((t) => `${t.type} ${t.url}`).join("; ");
-      const sw = targetInfos.find((t) => t.type === "service_worker" && t.url.endsWith("/background.js"));
-      if (sw && (await scriptHasRun(cdp, sw.targetId))) return { id: new URL(sw.url).host, targetId: sw.targetId };
+      // Google Chrome ships component extensions with their own background.js
+      // workers: ours is the one that defines `gate`, not the first listed.
+      for (const sw of targetInfos.filter((t) => t.type === "service_worker" && t.url.endsWith("/background.js"))) {
+        if (await scriptHasRun(cdp, sw.targetId)) return { id: new URL(sw.url).host, targetId: sw.targetId };
+      }
     } catch (err) {
       seen = `listing failed: ${err.message}`;
     }
