@@ -235,6 +235,37 @@ func CheckSendHost(ctx context.Context, rawURL string, texts ...string) error {
 	return nil
 }
 
+// CheckSendVia is CheckSendHost for a request that goes through a proxy or
+// with certificate checks off: a request that carries a secret read under
+// agent access may use the proxy only when the grant names its host, and
+// never skips certificate checks unless the grant has no host binding.
+func CheckSendVia(ctx context.Context, proxy *url.URL, insecure bool, texts ...string) error {
+	if proxy != nil {
+		if err := CheckSendHost(ctx, proxy.String(), texts...); err != nil {
+			return fmt.Errorf("%w (proxy)", err)
+		}
+	}
+	if !insecure {
+		return nil
+	}
+	a := accessOf(ctx)
+	if a == nil {
+		return nil
+	}
+	for _, v := range a.values() {
+		for _, t := range texts {
+			if strings.Contains(t, v) {
+				g, err := GetAgentAccess(ctx, a.db, a.profileID)
+				if err != nil || g == nil || !g.AnyHost {
+					return fmt.Errorf("%w: a request that carries it does not skip certificate checks (allow_unauthorized_certs)", ErrHostNotAllowed)
+				}
+				return nil
+			}
+		}
+	}
+	return nil
+}
+
 // AgentAccess reports whether the profile's owner let agent-written
 // workflows read its vault (and the grant has not expired). A database with
 // no such table (a test's schema) says no.

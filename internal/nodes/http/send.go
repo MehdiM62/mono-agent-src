@@ -103,7 +103,11 @@ func newHTTPClient(o clientOptions) (*http.Client, func()) {
 	if o.insecure {
 		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} //nolint:gosec // allow_unauthorized_certs is the user's explicit choice
 	}
-	client := &http.Client{Timeout: o.timeout, Transport: transport}
+	var rt http.RoundTripper = transport
+	if o.proxy != nil || o.insecure {
+		rt = viaCheck{base: transport, proxy: o.proxy, insecure: o.insecure}
+	}
+	client := &http.Client{Timeout: o.timeout, Transport: rt}
 	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		if !o.followRedirects {
 			return http.ErrUseLastResponse
@@ -140,6 +144,37 @@ func newHTTPClient(o clientOptions) (*http.Client, func()) {
 	}
 	return client, transport.CloseIdleConnections
 }
+
+// viaCheck holds a request that carries an agent-access secret and goes
+// through a proxy or with certificate checks off to the grant's rules
+// (secrets.CheckSendVia); every hop, redirects included, is checked.
+type viaCheck struct {
+	base     *http.Transport
+	proxy    *url.URL
+	insecure bool
+}
+
+func (v viaCheck) RoundTrip(req *http.Request) (*http.Response, error) {
+	if secrets.UnderAgentAccess(req.Context()) {
+		texts := []string{req.URL.String()}
+		for _, vs := range req.Header {
+			texts = append(texts, vs...)
+		}
+		if req.GetBody != nil {
+			if rc, err := req.GetBody(); err == nil {
+				b, _ := io.ReadAll(rc)
+				rc.Close()
+				texts = append(texts, string(b))
+			}
+		}
+		if err := secrets.CheckSendVia(req.Context(), v.proxy, v.insecure, texts...); err != nil {
+			return nil, err
+		}
+	}
+	return v.base.RoundTrip(req)
+}
+
+func (v viaCheck) CloseIdleConnections() { v.base.CloseIdleConnections() }
 
 // outbound is one fully prepared request.
 type outbound struct {
