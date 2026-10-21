@@ -228,7 +228,7 @@ func prepare(ctx context.Context, st Store, nodeType string, t target, who Prepa
 		p := Payload{
 			PreparedBy: who, Action: t.action, Channel: t.channelOf(nodeType), Account: t.accountOf(nodeType, o.config),
 			Recipient: rec, Text: text, Subject: subject, Attachments: attachments(o.config), NodeType: nodeType,
-			Details: detailsOf(t, o.config), Unreviewable: unreviewable,
+			Details: detailsOf(ctx, st, t, o.config), Unreviewable: unreviewable,
 			Host: hostOf(nodeType, o.config), FetchURL: fetchURLOf(nodeType, o.config),
 		}
 		saved, connection := savedConnection(ctx, st, nodeType, o.config), ""
