@@ -238,7 +238,7 @@ func (d *Database) SchemaAhead(ctx context.Context) (dbVersion, binaryVersion in
 }
 
 // SnapshotBeforeProfileDelete writes a consistent copy of the database to
-// <backups>/pre-delete-profile-<UTC timestamp>.db (mode 0600) and returns its
+// <backups>/pre-delete-profile-<UTC timestamp>-<counter>.db (mode 0600) and returns its
 // path. Unlike the pre-migrate snapshots these are never pruned, and a
 // database that cannot be snapshotted is an error: the delete must not go on
 // without its backup.
@@ -252,13 +252,15 @@ func (d *Database) SnapshotBeforeProfileDelete(ctx context.Context) (string, err
 	}
 	defer conn.Close()
 	stamp := migrateNow().UTC().Format("20060102T150405")
-	name := fmt.Sprintf("pre-delete-profile-%s.db", stamp)
-	// Two deletes in the same second must not share a snapshot.
-	for n := 2; n < 1000; n++ {
+	// The counter is always there and zero-padded so that names sort in the
+	// order they were made (T-02.db would sort before T.db). Two deletes in
+	// the same second must not share a snapshot.
+	var name string
+	for n := 1; n < 1000; n++ {
+		name = fmt.Sprintf("pre-delete-profile-%s-%03d.db", stamp, n)
 		if _, err := os.Stat(filepath.Join(d.backupsDir(), name)); os.IsNotExist(err) {
 			break
 		}
-		name = fmt.Sprintf("pre-delete-profile-%s-%d.db", stamp, n)
 	}
 	return d.writeSnapshotAs(ctx, conn, name)
 }

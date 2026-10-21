@@ -56,7 +56,8 @@ const (
 	// backupNote is said wherever a backup path is.
 	backupNote = "It is a full copy of the database (every profile, not only this one), it is not encrypted, " +
 		"and only the oldest are deleted automatically (beyond the newest 3 and 30 days): `monoagentcli profile backups purge` removes these copies. " +
-		"The profile's vault key is deleted, so the vault secrets in that copy cannot be decrypted."
+		"The profile's vault key is deleted, so the vault secrets in that copy cannot be decrypted. " +
+		"Its synced message attachment files are deleted with the profile (unless --keep-attachments), so restoring the copy brings back messages whose attachment paths point at files that are gone; sync again to fetch them."
 )
 
 func (d Deps) newProfileUpdateCmd() *cobra.Command {
@@ -261,6 +262,13 @@ func (d Deps) newProfileDeleteCmd() *cobra.Command {
 				if err := os.Remove(filepath.Join(wfDir, name)); err != nil && !os.IsNotExist(err) {
 					impact.Warnings = append(impact.Warnings, fmt.Sprintf("workflow file %s was not removed: %v", name, err))
 				}
+			}
+			// Messages may have arrived since the list was made: re-check just before unlinking.
+			if kept, rerr := unreferenced(ctx, db.DB, attFiles); rerr != nil {
+				attFiles = nil
+				impact.Warnings = append(impact.Warnings, "attachment files were kept because their references could not be re-checked: "+rerr.Error())
+			} else {
+				attFiles = kept
 			}
 			impact.AttachmentsRemoved, attWarnings = removeAttachments(attFiles)
 			impact.Warnings = append(impact.Warnings, attWarnings...)

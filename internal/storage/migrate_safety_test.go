@@ -286,3 +286,25 @@ func TestSnapshotBeforeAdoptionIsSkippedWhenARecentOneExists(t *testing.T) {
 		t.Errorf("a call a day later: %v", listSnapshots(t, dir))
 	}
 }
+
+// Profile-delete snapshots made in one second list in the order they were made.
+func TestProfileDeleteBackupsSortInCreationOrder(t *testing.T) {
+	dir := t.TempDir()
+	db, _ := openWithData(t, dir)
+	prev := migrateNow
+	defer func() { migrateNow = prev }()
+	fixed := prev()
+	migrateNow = func() time.Time { return fixed }
+	var made []string
+	for i := 0; i < 3; i++ {
+		p, err := db.SnapshotBeforeProfileDelete(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		made = append(made, p)
+	}
+	listed, err := db.ProfileDeleteBackups()
+	if err != nil || strings.Join(listed, "\n") != strings.Join(made, "\n") {
+		t.Fatalf("listed %v, made %v (%v)", listed, made, err)
+	}
+}

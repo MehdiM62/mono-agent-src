@@ -1,6 +1,7 @@
 package profile
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -154,5 +155,24 @@ func TestRemoveAttachmentsDoesNotFollowSymlinks(t *testing.T) {
 	}
 	if n != 0 {
 		t.Errorf("removed %d, want 0", n)
+	}
+}
+
+// A file a message that arrived after the list was made points at is not
+// unlinked.
+func TestUnreferencedDropsFilesARemainingMessageNames(t *testing.T) {
+	dbPath := newProfileDocsCLITestDB(t)
+	id := createTestProfile(t, dbPath, "other")
+	shared := writeAttachment(t, "m-shared", "a.pdf")
+	free := writeAttachment(t, "m-free", "b.pdf")
+	db, err := storage.NewDatabase(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	seedMessage(t, db, id, "late", shared)
+	got, err := unreferenced(context.Background(), db.DB, []string{shared, free})
+	if err != nil || len(got) != 1 || got[0] != free {
+		t.Fatalf("unreferenced = %v, %v", got, err)
 	}
 }
