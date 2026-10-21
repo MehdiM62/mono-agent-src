@@ -229,6 +229,16 @@ test("page context redacts secrets in the address but keeps its identity, read o
   assert.doesNotMatch(JSON.stringify(out), /SECRET|pw@/);
 });
 
+test("a page the article reader finds nothing in is read from every frame, forms and all", async () => {
+  const q = "Q1 What is the maximum profit? GBP 700 GBP 200 I'm not sure";
+  const scripts = async (o) =>
+    o.target.allFrames
+      ? [{ result: { url: "https://a.example/p", text: "" } }, { result: { url: "https://a.example/frame", text: q } }]
+      : [{ result: { url: "https://a.example/p", title: "Application", text: "", selection: "" } }];
+  const { context } = await setup({ scripts }).send({ type: "chat_page_context" });
+  assert.match(context.text, /maximum profit/);
+});
+
 const YT = "https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=PL1";
 const ytTab = { id: 7, url: YT, title: "Never Gonna - YouTube" };
 const ytPage = async () => [{ result: { url: YT, title: "Never Gonna - YouTube", text: "visible page text", selection: "" } }];

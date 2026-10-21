@@ -15,8 +15,9 @@
  *   2. open_url opens the address in a NEW tab (http/https only) and is done;
  *   3. otherwise the tab must still be on the origin the card was proposed on,
  *      else nothing is done ("the page changed");
- *   4. the page's half (page_action_page.js) is put in with chrome.scripting
- *      and finds the element by its words and does the action. Only a refused
+ *   4. the page's half (page_action_page.js) is put in, in every frame, with
+ *      chrome.scripting. Each frame says what it matches by the element's words;
+ *      the one match, in whichever frame, gets the action. Only a refused
  *      injection falls back: once the step started it is never retried, and a
  *      failure then is "unknown_outcome". The page compares its own
  *      location.origin first. A page the browser refuses: the debugger path
@@ -60,21 +61,48 @@
   const UNKNOWN = "the page changed while the step ran; check the page";
   const unknown = () => answer("unknown_outcome", UNKNOWN);
 
-  /** inject puts the page's half in. Throws when the browser refuses the page: the only thing that falls back. */
-  const inject = (tabId) => chrome.scripting.executeScript({ target: { tabId }, files: [PAGE_FILE] });
+  /** inject puts the page's half into every frame. Throws when the browser refuses the page: the only thing that falls back. */
+  const inject = (tabId) => chrome.scripting.executeScript({ target: { tabId, allFrames: true }, files: [PAGE_FILE] });
+
+  const DEBUGGER_STEPS = new Set(["click", "double_click", "type"]);
+  // Steps that need no element when none is named.
+  const BARE = new Set(["scroll", "press_key"]);
 
   /**
-   * call runs the step. It is never retried: once it started, a failure leaves
-   * the outcome unknown, and the page checks the origin itself before it acts.
+   * call runs the step. Every frame says what it matches first (nothing is
+   * done); the step runs only when the frames together hold exactly one, and
+   * only in that frame. It is never retried: once it started, a failure
+   * leaves the outcome unknown, and the top frame checks the origin itself
+   * before it acts.
    */
   async function call(tabId, a, origin) {
+    let frameId = 0;
+    if (!(BARE.has(a.action) && !a.target)) {
+      let seen;
+      try {
+        seen = await chrome.scripting.executeScript({
+          target: { tabId, allFrames: true },
+          func: (action, target) => (globalThis.MonoPageAction ? globalThis.MonoPageAction.find(action, target) : null),
+          args: [a.action, a.target],
+        });
+      } catch {
+        return answer("unavailable", "the page could not be searched");
+      }
+      const hits = (seen || []).filter((r) => r && r.result && r.result.count > 0);
+      // An exact name in any frame outranks a looser one in another.
+      const tier = hits.some((r) => r.result.exact) ? hits.filter((r) => r.result.exact) : hits;
+      const total = tier.reduce((n, r) => n + r.result.count, 0);
+      if (total === 0) return answer("not_found", "not found");
+      if (total > 1) return answer("ambiguous", `ambiguous (${total} matches)`);
+      frameId = tier[0].frameId || 0;
+    }
     try {
       const [res] = await chrome.scripting.executeScript({
-        target: { tabId },
+        target: { tabId, frameIds: [frameId] },
         func: (action, target, text, expected) => globalThis.MonoPageAction.run(action, target, text, expected),
         args: [a.action, a.target, a.text, origin],
       });
-      return res && res.result ? Object.assign({ method: "script" }, res.result) : unknown();
+      return res && res.result ? Object.assign({ method: "script" }, frameId ? { frame: frameId } : {}, res.result) : unknown();
     } catch {
       return unknown();
     }
@@ -122,6 +150,8 @@
       scriptError = (err && err.message) || String(err);
     }
     if (!scriptError) return call(tab.tabId, a, was);
+    // The debugger path knows three steps; any other would be done as a click.
+    if (!DEBUGGER_STEPS.has(a.action)) return answer("unavailable", `this page cannot be acted on this way (${scriptError}); the coder can drive it`);
     try {
       return Object.assign({ method: "debugger" }, await viaDebugger(tab.tabId, a, was));
     } catch (err) {

@@ -30,7 +30,7 @@
  *
  * deps: chat() the conversation on screen, ask(message) the worker, profile(),
  * current() a token that changes when the panel switches profile, save(),
- * draw(), record (MonoPanelRecord, or null), page() the panel's page
+ * draw(), acted() (a page step ran: share the page again), record (MonoPanelRecord, or null), page() the panel's page
  * ({tabId, url}): a vault card saves an item on it, and a recording card
  * records the page it was proposed on, only while the panel shows it.
  */
@@ -159,6 +159,8 @@
         answer = { ok: false, error: errorOf(err), code: "call_failed" };
       }
       await settle(key, afterRun(answer, p.action), mine);
+      // The page changed under the step: the next message reads it again.
+      if (answer && answer.ok && p.action !== "open_url" && deps.acted) deps.acted();
     }
 
     // Hand to coder: a coder chat is queued for this tab with the card's words only.

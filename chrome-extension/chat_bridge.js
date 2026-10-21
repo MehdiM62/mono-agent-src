@@ -28,6 +28,7 @@
 
   const Core = () => root.MonoChatCore;
   const CONTEXT_TIMEOUT_MS = 8000;
+  const THIN_TEXT = 250; // below this the article reader found little: try every frame, forms included
   const CAPTIONS_TIMEOUT_MS = 20000; // a caption track, and the mobile-client retry when the first comes back empty
   const PAGE_FILES =["markdown.js", "readable.js"];
 
@@ -70,6 +71,28 @@
       selection = "";
     }
     return { url: location.href, title: document.title, text, selection };
+  }
+
+  /**
+   * The fallback reader: what a person sees, form controls and all. Run in
+   * every frame; walks open and closed shadow roots. Serialized: closes over nothing.
+   */
+  function readVisible() {
+    const out = [];
+    const walk = (node) => {
+      // chrome.dom reaches closed shadow roots too; a page cannot hide a form from its own reader.
+      const root = (globalThis.chrome && chrome.dom && chrome.dom.openOrClosedShadowRoot ? chrome.dom.openOrClosedShadowRoot(node) : null) || node.shadowRoot;
+      if (root) out.push(Array.from(root.children).map((c) => c.innerText || "").join("\n"));
+      for (const el of node.children || []) walk(el);
+    };
+    let text = "";
+    try {
+      text = document.body ? document.body.innerText || "" : "";
+      if (document.body) walk(document.body);
+    } catch {
+      /* keep what was read */
+    }
+    return { url: location.href, text: [text].concat(out).join("\n").trim() };
   }
 
   /** Runs `func` in the page's own world (YouTube's globals and its cookies live there). */
@@ -151,6 +174,18 @@
   const movedFrom = (expect, tab) =>
     !!expect && (typeof expect !== "object" || expect.tabId !== tab.id || !sameAddress(tab.url, expect.url));
 
+  /** Every frame's visible text, the page's own first; `fallback` when none can be read. */
+  async function readFrames(tabId, fallback) {
+    try {
+      const results = await chrome.scripting.executeScript({ target: { tabId, allFrames: true }, func: readVisible });
+      const parts = (results || []).map((r) => (r && r.result && r.result.text) || "").filter(Boolean);
+      const joined = parts.join("\n\n");
+      return joined.length > (fallback || "").length ? joined : fallback || "";
+    } catch {
+      return fallback || "";
+    }
+  }
+
   async function pageContext(msg) {
     const tab = await targetTab(msg);
     if (!tab || !tab.id) return { ok: true, context: null };
@@ -171,6 +206,7 @@
       // was queried: what was read must still be the page that was shown.
       if (msg.expect && res && res.result && !sameAddress(res.result.url, msg.expect.url)) return pageChanged();
       let raw = res && res.result;
+      if (raw && (raw.text || "").length < THIN_TEXT) raw = Object.assign({}, raw, { text: await readFrames(tab.id, raw.text) });
       if (raw && root.MonoYouTubeVideo && root.MonoYouTubeVideo.isVideoUrl(tab.url)) {
         raw = Object.assign({}, raw, await readCaptions(tab));
         // The captions took a while: they belong to the page that was shown.

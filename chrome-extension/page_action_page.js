@@ -37,6 +37,41 @@
   const SKIP_TAGS = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "HEAD", "META", "LINK", "TEMPLATE", "TITLE", "HTML"]);
   const NOT_TEXT_INPUTS = new Set(["checkbox", "radio", "submit", "button", "reset", "image", "file", "color", "range", "hidden"]);
 
+  const KEYS = new Set(["Tab", "Escape", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "PageUp", "PageDown", "Home", "End"]);
+  const CHECKABLE = 'input[type="checkbox"],input[type="radio"],[role="checkbox"],[role="radio"],[role="switch"]';
+
+  /** shadowOf: an element's shadow root, closed ones too (chrome.dom reaches them from an extension). */
+  const shadowOf = (el) => {
+    try {
+      const dom = root.chrome && root.chrome.dom;
+      return (dom && dom.openOrClosedShadowRoot ? dom.openOrClosedShadowRoot(el) : null) || el.shadowRoot || null;
+    } catch {
+      return el.shadowRoot || null;
+    }
+  };
+
+  /** deepAll: every element under doc, through shadow roots, in document order. */
+  function deepAll(doc) {
+    const out = [];
+    const walk = (parent) => {
+      for (const el of parent.querySelectorAll("*")) {
+        out.push(el);
+        if (out.length > MAX_ELEMENTS) return;
+        const sr = shadowOf(el);
+        if (sr) walk(sr);
+        if (out.length > MAX_ELEMENTS) return;
+      }
+    };
+    walk(doc);
+    return out;
+  }
+
+  /** closestDeep: el.closest that also leaves a shadow root through its host. */
+  function closestDeep(el, sel) {
+    for (let n = el; n; n = n.parentElement || (n.getRootNode && n.getRootNode().host) || null) if (n.matches && n.matches(sel)) return n;
+    return null;
+  }
+
   const squash = (s) => String(s == null ? "" : s).replace(/\s+/g, " ").trim();
   const low = (s) => s.toLowerCase();
 
@@ -95,7 +130,7 @@
     const exact = [];
     const partial = [];
     let seen = 0;
-    for (const el of doc.querySelectorAll("*")) {
+    for (const el of deepAll(doc)) {
       if (++seen > MAX_ELEMENTS) break;
       if (SKIP_TAGS.has(el.tagName)) continue;
       if (action === "type" && !editable(el)) continue;
@@ -111,7 +146,7 @@
     // The innermost of nested matches, then what a click on it lands on, once.
     const inner = tier.length > MAX_MATCHES ? tier : tier.filter(([el]) => !tier.some(([o]) => o !== el && el.contains(o)));
     const landing = (el) => {
-      const t = el.closest(ACTIONABLE) || el;
+      const t = closestDeep(el, ACTIONABLE) || el;
       // A label and its control are one target, hidden or not: the control is what the click reaches.
       return t.tagName === "LABEL" && t.control ? t.control : t;
     };
@@ -204,26 +239,113 @@
 
   const HELD = "that could submit or change something, so it was not clicked: press that yourself";
 
-  /** run does one approved action on the page; the result is plain data. origin: the origin the card was proposed on. */
+  /** checkable: the box, radio or switch a name points at: the element itself, inside it, or beside it in its row. */
+  function checkable(el) {
+    if (el.matches && el.matches(CHECKABLE)) return el;
+    const inner = el.querySelector && el.querySelector(CHECKABLE);
+    if (inner) return inner;
+    for (let n = el.parentElement, up = 0; n && up < 3; n = n.parentElement, up++) {
+      const own = n.querySelectorAll(CHECKABLE);
+      if (own.length === 1) return own[0];
+      if (own.length > 1) break;
+    }
+    return null;
+  }
+
+  const ownerAction = (action) => (action === "check" || action === "uncheck" ? "click" : action);
+
+  /**
+   * find says what `target` matches in this frame, without doing anything:
+   * {count, exact, matched, held}. The bridge asks every frame, and only when
+   * the answers add up to one match does it run the step, in that frame.
+   */
+  function find(action, target) {
+    const kind = ownerAction(action);
+    const found = resolve(root.document, target, kind === "select" || kind === "hover" || kind === "scroll" || kind === "press_key" ? "click" : kind);
+    let held = "";
+    if (found.count === 1) {
+      const el = found.elements[0];
+      held = action === "check" || action === "uncheck" ? (checkable(el) ? "" : "not_found") : action === "select" || action === "hover" || action === "scroll" || action === "press_key" ? "" : guard.call(el, action);
+    }
+    return { count: found.count, exact: found.exact, matched: found.matched.slice(0, 200), held };
+  }
+
+  function setChecked(el, want) {
+    const now = el.matches('input[type="checkbox"],input[type="radio"]') ? el.checked : el.getAttribute("aria-checked") === "true";
+    if (now === want) return true;
+    // A radio never unchecks itself: only another radio in its group can.
+    if (!want && el.matches('input[type="radio"],[role="radio"]')) return false;
+    press(el, 1);
+    return true;
+  }
+
+  function pickOption(el, text) {
+    const want = low(squash(text));
+    const sel = el.tagName === "SELECT" ? el : el.querySelector("select");
+    if (!sel) return false;
+    const opt = Array.from(sel.options).find((o) => low(squash(o.textContent)) === want || low(squash(o.value)) === want);
+    if (!opt || opt.disabled) return false;
+    sel.focus();
+    sel.value = opt.value;
+    sel.dispatchEvent(new Event("input", { bubbles: true }));
+    sel.dispatchEvent(new Event("change", { bubbles: true }));
+    return true;
+  }
+
+  function scrollTo(el, how) {
+    const w = String(how || "down").toLowerCase();
+    const box = el || root.document.scrollingElement || root.document.documentElement;
+    const page = el ? el.clientHeight : root.innerHeight;
+    const by = w === "up" ? -page * 0.8 : w === "top" ? -1e9 : w === "bottom" ? 1e9 : page * 0.8;
+    if (el) el.scrollBy({ top: by, behavior: "instant" });
+    else root.scrollBy({ top: by, behavior: "instant" });
+    return box;
+  }
+
+  function keyInto(el, key) {
+    const t = el || root.document.activeElement || root.document.body;
+    if (el && el.focus) el.focus();
+    const init = { key, code: key, bubbles: true, cancelable: true, composed: true };
+    t.dispatchEvent(new KeyboardEvent("keydown", init));
+    t.dispatchEvent(new KeyboardEvent("keyup", init));
+  }
+
+  /** run does one approved action on the page; the result is plain data. origin: the origin the card was proposed on (the top frame checks it). */
   function run(action, target, text, origin) {
-    if (typeof origin === "string" && root.location.origin !== origin) return { ok: false, code: "page_changed", error: "the page changed since this was suggested" };
-    const found = resolve(root.document, target, action);
-    if (found.count === 0) return { ok: false, code: "not_found", error: "not found" };
-    if (found.count > 1) return { ok: false, code: "ambiguous", error: `ambiguous (${found.count} matches)` };
-    const el = found.elements[0];
-    const blocked = guard.call(el, action);
-    if (blocked === "submit_blocked") return { ok: false, code: blocked, error: HELD };
-    if (blocked) return { ok: false, code: blocked, error: "that field is not one to type into" };
-    el.scrollIntoView({ block: "center", inline: "center" });
+    if (typeof origin === "string" && root === root.top && root.location.origin !== origin) return { ok: false, code: "page_changed", error: "the page changed since this was suggested" };
+    const bare = (action === "scroll" || action === "press_key") && !squash(target);
+    let el = null;
+    let found = { count: 1, exact: true, matched: "" };
+    if (!bare) {
+      const f = find(action, target);
+      if (f.count === 0) return { ok: false, code: "not_found", error: "not found" };
+      if (f.count > 1) return { ok: false, code: "ambiguous", error: `ambiguous (${f.count} matches)` };
+      if (f.held === "submit_blocked") return { ok: false, code: f.held, error: HELD };
+      if (f.held === "not_found") return { ok: false, code: "not_found", error: "no box, radio or switch is named that" };
+      if (f.held) return { ok: false, code: f.held, error: "that field is not one to type into" };
+      found = f;
+      el = resolve(root.document, target, ownerAction(action) === "type" ? "type" : "click").elements[0];
+    }
+    if (el) el.scrollIntoView({ block: "center", inline: "center" });
     if (action === "type") typeInto(el, String(text == null ? "" : text));
     else if (action === "double_click") {
       press(el, 1);
       press(el, 2);
       pointer(el, "dblclick", 2, { buttons: 0 });
     } else if (action === "click") press(el, 1);
-    else return { ok: false, code: "invalid", error: "unknown action" };
+    else if (action === "check" || action === "uncheck") {
+      if (!setChecked(checkable(el), action === "check")) return { ok: false, code: "not_allowed", error: "a radio is unchecked by choosing another in its group" };
+    } else if (action === "select") {
+      if (!pickOption(el, text)) return { ok: false, code: "not_found", error: "that option is not in the list" };
+    } else if (action === "hover") {
+      for (const t of ["pointerover", "mouseover", "pointerenter", "mouseenter", "pointermove", "mousemove"]) pointer(el, t, 0, { buttons: 0 });
+    } else if (action === "scroll") scrollTo(el, text);
+    else if (action === "press_key") {
+      if (!KEYS.has(String(text))) return { ok: false, code: "not_allowed", error: "that key is not one to press" };
+      keyInto(el, String(text));
+    } else return { ok: false, code: "invalid", error: "unknown action" };
     return { ok: true, matched: found.matched.slice(0, 200), exact: found.exact };
   }
 
-  root.MonoPageAction = { run, resolve, guard, bounded, HELD, ACTIONABLE };
+  root.MonoPageAction = { run, find, resolve, guard, bounded, HELD, ACTIONABLE, KEYS };
 })(globalThis);

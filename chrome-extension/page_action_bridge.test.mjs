@@ -23,6 +23,7 @@ function world(o = {}) {
         calls.scripts.push(opts);
         if (o.scriptFails) throw new Error("Cannot access contents of url \"chrome://extensions\"");
         if (opts.files) return [{ result: undefined }];
+        if (opts.target.allFrames) return o.frames || [{ frameId: 0, result: { count: 1, exact: true, matched: "x", held: "" } }];
         if (o.callFails) throw new Error("Frame with ID 0 was removed.");
         if (o.noResult) return [];
         return [{ result: o.pageReply || { ok: true } }];
@@ -65,9 +66,9 @@ const ask = (proposal, tab = TAB) => ({ type: "page_action_run", tab, proposal: 
 test("Run puts the page half in, then does the action there: script first", async () => {
   const w = world();
   assert.deepEqual(await w.send(ask()), { method: "script", ok: true });
-  assert.deepEqual(w.calls.scripts[0], { target: { tabId: 5 }, files: ["page_action_page.js"] });
-  assert.deepEqual(w.calls.scripts[1].args, ["double_click", "CV - Morteza Nokhodian 2025 Apr", "", "https://a.example"]);
-  assert.equal(w.calls.scripts[1].target.tabId, 5);
+  assert.deepEqual(w.calls.scripts[0], { target: { tabId: 5, allFrames: true }, files: ["page_action_page.js"] });
+  assert.deepEqual(w.calls.scripts[2].args, ["double_click", "CV - Morteza Nokhodian 2025 Apr", "", "https://a.example"]);
+  assert.equal(w.calls.scripts[2].target.tabId, 5);
   assert.deepEqual([w.calls.cdpRuns.length, w.calls.cdp.length, w.calls.detached.length], [0, 0, 0], "the debugger is not touched");
 });
 
@@ -154,7 +155,7 @@ test("when both ways are refused (chrome:// and store pages) the answer says so,
 test("typed text rides to the page as the card's text", async () => {
   const w = world();
   await w.send(ask({ action: "type", target: "Search", text: "annual report" }));
-  assert.deepEqual(w.calls.scripts[1].args, ["type", "Search", "annual report", "https://a.example"]);
+  assert.deepEqual(w.calls.scripts[2].args, ["type", "Search", "annual report", "https://a.example"]);
 });
 
 test("only a refused injection falls back: once the step started, a failure is an unknown outcome and is never retried", async () => {
@@ -162,7 +163,7 @@ test("only a refused injection falls back: once the step started, a failure is a
     const w = world(o);
     const out = await w.send(ask());
     assert.deepEqual(out, { ok: false, code: "unknown_outcome", error: "the page changed while the step ran; check the page" }, JSON.stringify(o));
-    assert.equal(w.calls.scripts.length, 2, "injected once, called once");
+    assert.equal(w.calls.scripts.length, 3, "injected once, searched once, called once");
     assert.deepEqual([w.calls.cdpRuns.length, w.calls.cdp.length, w.calls.detached.length], [0, 0, 0], "the debugger never repeats it");
   }
 });
@@ -171,7 +172,7 @@ test("the expected origin goes into the page's call, which compares its own loca
   const w = world({ pageReply: { ok: false, code: "page_changed", error: "the page changed since this was suggested" } });
   const out = await w.send(ask());
   assert.deepEqual([out.method, out.code], ["script", "page_changed"]);
-  assert.equal(w.calls.scripts[1].args[3], "https://a.example");
+  assert.equal(w.calls.scripts[2].args[3], "https://a.example");
 });
 
 test("a debugger step that failed after input was sent is an unknown outcome, not unavailable", async () => {
@@ -187,4 +188,35 @@ test("a file: page has no origin to compare, so it is never acted on", async () 
     assert.deepEqual([out.ok, out.code], [false, "page_changed"], `${card} -> ${live}`);
     assert.deepEqual([w.calls.scripts.length, w.calls.cdp.length], [0, 0]);
   }
+});
+
+test("every frame is searched; the step runs only in the frame that holds the one match", async () => {
+  const w = world({ frames: [{ frameId: 0, result: { count: 0, exact: false, matched: "", held: "" } }, { frameId: 7, result: { count: 1, exact: true, matched: "GBP 200", held: "" } }] });
+  const out = await w.send(ask({ action: "check", target: "GBP 200" }));
+  assert.deepEqual([out.ok, out.frame], [true, 7]);
+  assert.deepEqual(w.calls.scripts[1].target, { tabId: 5, allFrames: true });
+  assert.deepEqual(w.calls.scripts[2].target, { tabId: 5, frameIds: [7] });
+});
+
+test("one match in each of two frames is ambiguous, and nothing is done; an exact name beats a loose one", async () => {
+  const two = world({ frames: [{ frameId: 0, result: { count: 1, exact: true, matched: "a", held: "" } }, { frameId: 3, result: { count: 1, exact: true, matched: "a", held: "" } }] });
+  assert.deepEqual(await two.send(ask()), { ok: false, code: "ambiguous", error: "ambiguous (2 matches)" });
+  assert.equal(two.calls.scripts.length, 2, "no step was run");
+  const mixed = world({ frames: [{ frameId: 0, result: { count: 2, exact: false, matched: "a", held: "" } }, { frameId: 3, result: { count: 1, exact: true, matched: "a", held: "" } }] });
+  assert.equal((await mixed.send(ask())).frame, 3);
+});
+
+test("a step with no element (scroll, a key) is not searched for", async () => {
+  const w = world();
+  assert.equal((await w.send(ask({ action: "scroll", target: "", text: "down" }))).ok, true);
+  assert.equal(w.calls.scripts.length, 2, "injected, then run: no search");
+});
+
+test("a refused page is not driven by the debugger for a step it cannot do: it is not a click", async () => {
+  const w = world({ scriptFails: true });
+  for (const action of ["check", "select", "hover", "scroll", "press_key"]) {
+    const out = await w.send(ask({ action, target: action === "scroll" || action === "press_key" ? "" : "Country", text: action === "scroll" ? "down" : action === "press_key" ? "Tab" : "Ireland" }));
+    assert.equal(out.code, "unavailable", action);
+  }
+  assert.deepEqual([w.calls.cdpRuns.length, w.calls.cdp.length], [0, 0]);
 });

@@ -7,7 +7,7 @@
  * model's, steered by whatever page it read: every field is clamped and
  * stripped again here.
  *
- *   action   propose_page_action: click, double_click, type or open_url on
+ *   action   propose_page_action: click, double_click, type, check, uncheck, select, hover, scroll, press_key or open_url on
  *            the page the person is looking at. Run (page_action_bridge.js)
  *            does it, and only on their click.
  *   coder    propose_coder_handoff: a goal for the coder. Hand to coder
@@ -27,7 +27,12 @@
   const URL_CHARS = 2048;
   const GOAL_RUNES = 2000;
   const WHY_RUNES = 300;
-  const ACTIONS = new Set(["click", "double_click", "type", "open_url"]);
+  const ACTIONS = new Set(["click", "double_click", "type", "open_url", "check", "uncheck", "select", "hover", "scroll", "press_key"]);
+  // Steps that name an element, steps that need the words in `text`, steps that need no element.
+  const NEEDS_TARGET = new Set(["click", "double_click", "type", "check", "uncheck", "select", "hover"]);
+  const NEEDS_TEXT = new Set(["type", "select"]);
+  const SCROLLS = new Set(["up", "down", "top", "bottom"]);
+  const KEYS = new Set(["Tab", "Escape", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "PageUp", "PageDown", "Home", "End"]);
 
   const str = (v) => (typeof v === "string" ? v : "");
   const runes = (s, n) => [...str(s)].slice(0, n).join("");
@@ -77,17 +82,28 @@
         return {
           action,
           target: action && action !== "open_url" ? clean(p.target) : "",
-          text: action === "type" ? typed(p.text) : "",
+          text: action === "type" || action === "select" ? typed(p.text) : action === "scroll" || action === "press_key" ? line(p.text, 20) : "",
           url: action === "open_url" ? httpUrl(p.url) : "",
         };
       },
-      valid: (f) => (f.action === "open_url" ? !!f.url : !!f.action && !!f.target && (f.action !== "type" || !!f.text)),
+      valid: (f) => {
+        if (f.action === "open_url") return !!f.url;
+        if (f.action === "scroll") return SCROLLS.has(f.text);
+        if (f.action === "press_key") return KEYS.has(f.text);
+        return !!f.action && NEEDS_TARGET.has(f.action) && !!f.target && (!NEEDS_TEXT.has(f.action) || !!f.text);
+      },
       text: (p) => {
         const words = {
           click: `Click ${quoted(p.target)} on this page`,
           double_click: `Double-click ${quoted(p.target)} on this page`,
           type: `Type into ${quoted(p.target)} on this page (replaces what is in the field)`,
           open_url: `Open ${hostOf(p.url)} in a new tab`,
+          check: `Tick ${quoted(p.target)} on this page`,
+          uncheck: `Untick ${quoted(p.target)} on this page`,
+          select: `Choose ${quoted(p.text)} in ${quoted(p.target)} on this page`,
+          hover: `Hover over ${quoted(p.target)} on this page`,
+          scroll: `Scroll ${p.text === "top" || p.text === "bottom" ? "to the " + p.text : p.text} on this page`,
+          press_key: `Press ${p.text} on this page`,
         };
         const out = { title: words[p.action] || "" };
         if (p.action === "type") out.notes = p.text;

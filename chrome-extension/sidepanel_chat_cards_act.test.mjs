@@ -14,7 +14,7 @@ const { MonoChatCards: C, MonoChatProposals: P } = loadExtensionScripts(["privat
 const PAGE = { tabId: 5, url: "https://drive.example/folder/1" };
 const N = (c) => c.repeat(16);
 
-function world({ reply } = {}) {
+function world({ reply, acted } = {}) {
   const chat = {
     messages: [{
       id: "m1", role: "assistant", text: "", tools: [],
@@ -39,6 +39,7 @@ function world({ reply } = {}) {
     draw: () => {},
     record: null,
     page: () => page,
+    acted,
   });
   const card = (id) => chat.messages[0].proposals.find((p) => p.id === id);
   return { chat, calls, cards, card, setPage: (p) => (page = p), setAnswer: (fn) => (answer = fn), switchProfile: () => seq++ };
@@ -232,4 +233,17 @@ test("an answer arriving after the panel switched profile settles nothing", asyn
   const w = world({ reply: () => (w.switchProfile(), { ok: true }) });
   await w.cards.run(N("a"));
   assert.equal(w.card("a1").state, "sending");
+});
+
+test("a step that ran tells the panel to share the page again; a failed step, or a new tab, does not", async () => {
+  let n = 0;
+  const w = world({ acted: () => n++ });
+  await w.cards.run(N("a"));
+  assert.equal(n, 1);
+  w.setAnswer(() => ({ ok: false, code: "not_found", error: "not found" }));
+  await w.cards.run(N("b"));
+  assert.equal(n, 1, "nothing changed on the page");
+  w.setAnswer(() => ({ ok: true, method: "tab" }));
+  await w.cards.run(N("c"));
+  assert.equal(n, 1, "a new tab is not this page");
 });

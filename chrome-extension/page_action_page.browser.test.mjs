@@ -242,4 +242,70 @@ describe("page_action_page.js in a browser", { skip, concurrency: 1 }, () => {
     const here = await browser.evaluate("location.origin");
     assert.equal((await full("click", "Share", undefined, here)).ok, true);
   });
+
+  const QUIZ = `<!doctype html><meta charset=utf-8><body style="height:4000px">
+<form id=q onsubmit="window.__log.push('SUBMITTED'); return false">
+  <div class=row id=r1><input type=radio name=a id=a1><div>GBP 700 total profit</div></div>
+  <div class=row id=r2><input type=radio name=a id=a2><div>GBP 200 premium only</div></div>
+  <label><input type=checkbox id=news> Send me the newsletter</label>
+  <label for=country>Country</label><select id=country><option>France</option><option>Ireland</option></select>
+  <button id=cont>Continue</button>
+</form>
+<div id=host></div>
+<div id=menu>Products</div>
+<script>
+  window.__log = [];
+  document.querySelector("#host").attachShadow({ mode: "open" }).innerHTML = "<label>Shadow choice <input type=checkbox id=sc></label><button id=sb type=button>Inside shadow</button>";
+  document.querySelector("#menu").addEventListener("mouseover", () => window.__log.push("hover:menu"));
+  document.addEventListener("keydown", (e) => window.__log.push("key:" + e.key));
+  document.querySelector("#country").addEventListener("change", (e) => window.__log.push("country:" + e.target.value));
+</script>`;
+
+  it("ticks a radio inside a form by the words beside it, without submitting", async () => {
+    await open(QUIZ);
+    assert.deepEqual(await run("check", "GBP 200 premium only"), { ok: true });
+    assert.equal(await json("document.querySelector('#a2').checked"), true);
+    assert.equal(await json("document.querySelector('#a1').checked"), false);
+    assert.deepEqual(await log("SUBMITTED"), []);
+    assert.equal((await run("check", "Send me the newsletter")).ok, true);
+    assert.equal(await json("document.querySelector('#news').checked"), true);
+    assert.equal((await run("uncheck", "Send me the newsletter")).ok, true);
+    assert.equal(await json("document.querySelector('#news').checked"), false);
+    assert.equal((await run("uncheck", "GBP 200 premium only")).code, "not_allowed", "a radio is unchecked by choosing another");
+  });
+
+  it("check is for boxes: a button's words are not a box, and Continue is still held back", async () => {
+    await open(QUIZ);
+    assert.equal((await run("check", "Continue")).code, "not_found");
+    assert.equal((await run("click", "Continue")).code, "submit_blocked");
+    assert.deepEqual(await log("SUBMITTED"), []);
+  });
+
+  it("chooses an option in a drop-down, like a person: value, input, change", async () => {
+    await open(QUIZ);
+    assert.deepEqual(await run("select", "Country", "Ireland"), { ok: true });
+    assert.deepEqual(await log("country:"), ["country:Ireland"]);
+    assert.equal((await run("select", "Country", "Atlantis")).code, "not_found");
+  });
+
+  it("reaches an element inside an open shadow root", async () => {
+    await open(QUIZ);
+    assert.equal((await run("check", "Shadow choice")).ok, true);
+    assert.equal(await json("document.querySelector('#host').shadowRoot.querySelector('#sc').checked"), true);
+    assert.equal((await run("click", "Inside shadow")).ok, true);
+  });
+
+  it("hovers, scrolls the page, and presses only the safe keys", async () => {
+    await open(QUIZ);
+    assert.equal((await run("hover", "Products")).ok, true);
+    assert.deepEqual(await log("hover:"), ["hover:menu"]);
+    assert.equal((await run("scroll", "", "bottom")).ok, true);
+    assert.ok((await json("window.scrollY")) > 500);
+    assert.equal((await run("scroll", "", "top")).ok, true);
+    assert.equal(await json("window.scrollY"), 0);
+    assert.equal((await run("press_key", "", "Tab")).ok, true);
+    assert.deepEqual(await log("key:"), ["key:Tab"]);
+    assert.equal((await run("press_key", "", "Enter")).code, "not_allowed");
+    assert.deepEqual(await log("key:"), ["key:Tab"], "Enter was not pressed");
+  });
 });
