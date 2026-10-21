@@ -68,19 +68,21 @@ describe("signed out, the extension is a sign-in screen", { skip: browser ? fals
     await cdp.send("Page.enable", {}, panel);
     await cdp.send("Emulation.setDeviceMetricsOverride", { width: 400, height: 760, deviceScaleFactor: 1, mobile: false }, panel);
     await until(`location.pathname === "/signin.html" && document.readyState === "complete"`, "the sign-in screen");
-    await until(`!document.getElementById("signin-pair").hidden`, "the pairing line (this browser is unpaired)");
+    await until(`/running/.test(document.getElementById("signin-state").textContent)`, "the line saying MonoAgent is not running (no bridge here)");
     const screen = JSON.parse(await ev(panel, `JSON.stringify({
       title: document.getElementById("signin-title").textContent,
       command: document.getElementById("signin-command").textContent,
       buttons: [...document.querySelectorAll("button")].map((b) => b.id),
       fields: document.querySelectorAll("input, textarea, select, details, nav, [role=tab]").length,
-      pair: document.getElementById("signin-pair").textContent,
+      state: document.getElementById("signin-state").textContent,
+      tokenFieldHidden: document.getElementById("signin-pairing").hidden,
     })`));
     assert.equal(screen.title, "Sign in to MonoAgent");
     assert.equal(screen.command, "monoagentcli account login");
-    assert.deepEqual(screen.buttons, ["signin-copy", "signin-recheck"]);
-    assert.equal(screen.fields, 0);
-    assert.match(screen.pair, /monoagentcli extension pair/, "unpaired: told to pair after signing in");
+    assert.deepEqual(screen.buttons, ["signin-copy", "signin-pair-save", "signin-recheck"]);
+    assert.equal(screen.fields, 1, "the pairing token field exists but stays hidden: this browser pairs itself once a bridge runs");
+    assert.equal(screen.tokenFieldHidden, true);
+    assert.match(screen.state, /isn\u2019t running.*monoagentcli extension serve/, "no bridge: told to start it");
     await shot("signin-unpaired.png");
   });
 

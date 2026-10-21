@@ -703,9 +703,123 @@ against an agent running as you:
 - The `pair --open` gate is cosmetic against an agent with a shell, which
   can start a bridge of its own and open the pairing page itself.
 - An agent with a shell can also edit the files these commands manage.
+- "Operator-only" is a courtesy layer against a same-user agent: it can edit
+  `~/.monoagent/extension.pending.json` (which holds only hashes, but also the
+  claim states) or read `~/.monoagent/extension.token`, and it can read the
+  confirmation code off a screenshot. The people it really protects are other
+  OS users and other local software without your user's file access.
 
 So it is not a sandbox: it stops mistakes and planted instructions that
 go through the CLI.
+### Pairing a browser without typing a token (the claim)
+
+A freshly installed extension has no token. While this machine is signed in
+to monoes.me it asks `GET /monoagent/status` and then
+`POST /monoagent/pair/claim` on the bridge. What that yields depends on
+`extension autopair ask|auto|off` (setting `extension.autoPair`, read by the
+bridge on every request). `MONOAGENT_EXTENSION_AUTOPAIR` in the bridge's
+environment can only make it STRICTER than the stored setting (off < ask <
+auto; an unset setting is ask), and a value it does not recognise means `off`:
+`auto` in the environment never loosens a stored `ask`. `extension autopair`
+prints the mode in force and where it comes from (default, settings or env).
+An agent's shell cannot change the mode, approve or deny (operator-only; see
+the limits below).
+
+**Why `ask` is the default.** The `Origin` header a claim relies on is a
+string the caller chooses, not a credential. Any local process
+(`curl -H 'Origin: chrome-extension://x'`), any OTHER OS USER on the machine
+(loopback is shared between users) and any other browser extension with host
+permission for `127.0.0.1` can send an extension origin. A per-browser token
+grants what `~/.monoagent/extension.token` (mode 0600, readable only by you)
+grants: documents, vault, tasks, chat, form fill and the browser-control
+commands (page text, cookies, scripts). So an Origin check alone must not
+hand that out.
+
+- **ask (default).** The claim only records a pending request (an id, the
+  browser label, its origin; two minutes to live; at most five waiting, and at
+  most one per instance id: a repeat from the same instance replaces its own
+  waiting request; a full queue refuses new ones and drops none) and answers
+  with the id, a poll secret (32 random bytes; only its SHA-256 is stored,
+  compared in constant time) and a short confirmation code (`ABC-123`, derived
+  from the id and the secret; only a hash is stored). The browser's sign-in
+  screen shows the code. No token exists until you approve with that code:
+  `monoagentcli extension approve <id> --code ABC-123` (asked for at a prompt
+  in a terminal), or on the card in the app's Human in Loop queue (type the
+  code in its code field). The CLI and the card name the request (id, browser,
+  origin, instance) but never show the code, so you approve the request THEIR
+  browser is displaying: a forged request, whose code only its sender sees,
+  cannot be approved by mistake. There is no "approve the newest": with no id,
+  `approve` and `deny` act only when exactly one request is waiting, and with
+  several they list them and refuse (the newest is the forger's to choose).
+  `extension deny --all` clears the queue; `extension browsers list` says how
+  many are waiting. Approving prints the instance id and warns when it would
+  replace the token of a browser that is already paired. `extension deny`
+  refuses. The extension polls `GET /monoagent/pair/claim/<id>` with the secret
+  as a bearer; the poll that sees the approval receives the token once and the
+  record is destroyed. A wrong id, a wrong secret and another origin's request
+  all get the same 404. An approval made on the card's row by any route other
+  than `hil approve` or the app does not approve the claim. Everything a
+  browser supplies (label, origin, agent) has control and format characters
+  (terminal escapes, bidi overrides U+202A-202E and U+2066-2069) stripped when
+  it is stored, and the CLI prints it quoted. The pending and browsers files
+  are changed under one cross-process lock (`extension.lock`, flock or
+  LockFileEx), so the bridge and the CLI cannot undo each other's write; a
+  decided claim stays in the file, decided, until its browser collects it.
+  Protects against: other OS users, other extensions, scripts and anything
+  else that can reach the loopback port but cannot also read your browser's
+  screen. It does NOT protect against a user who approves a request they did
+  not start and types a code they were given; and it does not stop a forger
+  from filling the five slots (a nuisance, cleared with `deny --all`). A
+  process that can drive your approvals (your own shell) already holds your
+  account's power.
+- **auto (opt-in; single-user machines only).** The claim returns a token at
+  once, with no step and no check. Any extension, local process or other OS
+  user on this machine that can reach the bridge gets a token with full
+  powers while you are signed in, and 32 forged claims fill the paired-browser
+  table and permanently block legitimate pairing until you revoke them
+  (`extension browsers revoke`). Use it only on a machine only you use, only
+  while you are watching it, and switch back to `ask` afterwards.
+- **off.** No claims; every browser needs `extension pair`.
+
+In every mode, a claim or poll is refused (403, nothing recorded or handed
+out, a warning logged) unless: the TCP peer is loopback and the `Host` header
+is a loopback name (a DNS-rebound page sends its own domain); the `Origin` is
+`chrome-extension://` or `moz-extension://` (a claim with a web or no origin
+is refused; Chrome sends no `Origin` on the extension's GET poll, which is
+accepted because the secret is its proof, but a web origin on it is refused);
+`Sec-Fetch-Site` is not same-origin/same-site and `Sec-Fetch-Mode` is not
+`navigate`; the account guard says signed in; the origin made at most five
+claims in the last minute (per origin, so forged claims cannot use up the real
+extension's quota); and, when `MONOAGENT_EXTENSION_IDS` lists extension ids
+(comma-separated; an unpacked development build has its own id and must be
+listed), the origin is one of them. The id list narrows who can ask; it is
+still a header, so it is not a substitute for `ask`.
+
+Per-browser tokens are recorded (a SHA-256, a label, the origin, when, capped
+at 256 characters each) in `~/.monoagent/extension.browsers.json`, listed with
+`extension browsers list` and cut off alone with `extension browsers revoke
+<id>`; a live socket is closed within a few seconds of the revoke. The shared
+`extension.token` is never handed out; `extension reset` still ends it.
+At 32 paired browsers new pairings are refused until you revoke one: no valid
+token is ever evicted. A claim that names an instance id already paired cannot
+replace or delete that entry: it needs the entry's own token (a browser
+rotating its token) or, in `ask`, your approval of a card that says so.
+
+Remaining limits:
+
+- A forger can fill the pending queue (five slots, two minutes each) and so
+  delay the real extension's request; it can never obtain a token. Deny or
+  wait.
+- The pending-claim and browsers files are shared by the bridge and the CLI
+  as plain files with atomic renames and no cross-process lock; an approved
+  claim can mint only once (its entry id is the claim's), but two processes
+  racing on the same file can lose a write, which at worst means asking again.
+- A process running as you can already read `extension.token`, so the claim
+  adds nothing for it.
+- `/monoagent/status` says, to any loopback caller with no or an extension
+  `Origin`, whether an account is signed in, whether a browser is connected
+  and the pairing mode. It adds no CORS header, so a web page cannot read it.
+
 ### What the app shows of an agent's commands
 
 Coder chats and orgs show each tool call an agent makes: its command line,

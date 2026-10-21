@@ -34,6 +34,10 @@ type authFrame struct {
 	Profile  string `json:"profile,omitempty"`
 	Label    string `json:"label,omitempty"`
 	Version  string `json:"version,omitempty"`
+
+	// tokenID is the per-browser token (browser_tokens.go) the socket
+	// authenticated with; empty for the shared extension.token. Never on the wire.
+	tokenID string
 }
 
 // handleWS upgrades an incoming HTTP request to a WebSocket connection and
@@ -93,9 +97,16 @@ func (s *Server) authenticate(conn *websocket.Conn) (authFrame, bool) {
 	}
 
 	var auth authFrame
-	ok := json.Unmarshal(msg, &auth) == nil &&
-		auth.Type == "auth" &&
-		subtle.ConstantTimeCompare([]byte(auth.Token), []byte(s.token)) == 1
+	ok := json.Unmarshal(msg, &auth) == nil && auth.Type == "auth"
+	if ok {
+		if subtle.ConstantTimeCompare([]byte(auth.Token), []byte(s.token)) == 1 {
+			auth.tokenID = ""
+		} else if b, found := pairedBrowserForToken(auth.Token); found {
+			auth.tokenID = b.ID
+		} else {
+			ok = false
+		}
+	}
 	if !ok {
 		s.noteAuthFailure()
 		s.logger.Warn().Msg("rejected extension connection: bad or missing auth token")
@@ -107,19 +118,34 @@ func (s *Server) authenticate(conn *websocket.Conn) (authFrame, bool) {
 	return auth, true
 }
 
+// revokeCheckInterval is how often a per-browser socket checks its token is still paired.
+const revokeCheckInterval = 2 * time.Second
+
 // pingLoop periodically pings one browser's socket so a dead peer is
 // detected via the read deadline in handleWS/readLoop instead of hanging
 // indefinitely.
 func (s *Server) pingLoop(c *extConn, done <-chan struct{}) {
 	ticker := time.NewTicker(pingInterval)
 	defer ticker.Stop()
+	// A revoke is made by another process (the CLI), so the socket looks for
+	// it often: a revoked browser loses its connection in seconds.
+	revoked := time.NewTicker(revokeCheckInterval)
+	defer revoked.Stop()
 	for {
 		select {
+		case <-revoked.C:
+			if c.tokenID != "" && !pairedBrowserIDs()[c.tokenID] {
+				s.logger.Warn().Str("browser", c.tokenID).Msg("closing the socket of a revoked browser")
+				_ = c.ws.Close()
+				return
+			}
 		case <-ticker.C:
 			// Piggybacked on the ping: a capture whose chunks stopped
 			// arriving has nobody waiting on it when it was the extension
 			// flushing its queue, so something has to time it out.
 			s.sweepCaptures()
+			s.sweepRevoked()
+			s.expireClaims()
 			if err := c.ping(); err != nil {
 				return
 			}

@@ -3,9 +3,14 @@
 // worker) rather than evaluating the scripts. Its own profile directory
 // and a random DevTools port; no pairing token, so the extension never
 // dials a bridge -- the user's bridge on 9222 is never touched.
+//
+// Since the extension pairs itself (autopair.js), a fresh browser DOES ask a
+// bridge on 9222/9323 for a token. So the browser loads a copy of the
+// extension whose autopair.js asks no default port: none at all, or only
+// `bridgePort` when a test brings a private bridge of its own.
 
 import { spawn } from "node:child_process";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -43,8 +48,21 @@ export class Cdp {
   }
 }
 
-async function launchOnce(binary) {
+/** extensionCopy copies the extension into dir, asking only `ports` for a pairing. */
+async function extensionCopy(dir, ports) {
+  const to = join(dir, "extension");
+  await cp(HERE, to, { recursive: true, filter: (src) => !/\.test\.mjs$|[\\/]fixtures$/.test(src) });
+  const file = join(to, "autopair.js");
+  const src = await readFile(file, "utf8");
+  const patched = src.replace(/const PORTS = \[[^\]]*\];/, `const PORTS = ${JSON.stringify(ports)};`);
+  if (patched === src && JSON.stringify(ports) !== "[9222,9323]") throw new Error("autopair.js has no PORTS line to patch");
+  await writeFile(file, patched);
+  return to;
+}
+
+async function launchOnce(binary, { bridgePort = 0 } = {}) {
   const dir = await mkdtemp(join(tmpdir(), "mono-rec-ext-"));
+  const extDir = await extensionCopy(dir, bridgePort ? [bridgePort] : []);
   const child = spawn(
     binary,
     [
@@ -52,8 +70,8 @@ async function launchOnce(binary) {
       "--headless=new",
       "--remote-debugging-port=0",
       `--user-data-dir=${dir}`,
-      `--load-extension=${HERE}`,
-      `--disable-extensions-except=${HERE}`,
+      `--load-extension=${extDir}`,
+      `--disable-extensions-except=${extDir}`,
       "--no-first-run",
       "--no-default-browser-check",
       "--disable-gpu",
@@ -106,9 +124,9 @@ export const WORKER_START_MS = 30000;
  * (the extension is broken), where a thrown error would make the suite
  * skip as if there were no Chrome.
  */
-export async function start(binary, { attempts = 2, workerMs = WORKER_START_MS } = {}) {
+export async function start(binary, { attempts = 2, workerMs = WORKER_START_MS, bridgePort = 0 } = {}) {
   for (let attempt = 1; ; attempt++) {
-    const b = await launchOnce(binary);
+    const b = await launchOnce(binary, { bridgePort });
     try {
       b.worker = await extensionWorker(b.cdp, workerMs);
       return b;
@@ -132,13 +150,22 @@ export async function start(binary, { attempts = 2, workerMs = WORKER_START_MS }
  */
 export async function extensionWorker(cdp, timeoutMs = WORKER_START_MS) {
   const deadline = Date.now() + timeoutMs;
+  let seen = "no target listing";
   while (Date.now() < deadline) {
-    const { targetInfos } = await cdp.send("Target.getTargets");
-    const sw = targetInfos.find((t) => t.type === "service_worker" && t.url.endsWith("/background.js"));
-    if (sw && (await scriptHasRun(cdp, sw.targetId))) return { id: new URL(sw.url).host, targetId: sw.targetId };
+    try {
+      const { targetInfos } = await cdp.send("Target.getTargets");
+      seen = targetInfos.map((t) => `${t.type} ${t.url}`).join("; ");
+      // Google Chrome ships component extensions with their own background.js
+      // workers: ours is the one that defines `gate`, not the first listed.
+      for (const sw of targetInfos.filter((t) => t.type === "service_worker" && t.url.endsWith("/background.js"))) {
+        if (await scriptHasRun(cdp, sw.targetId)) return { id: new URL(sw.url).host, targetId: sw.targetId };
+      }
+    } catch (err) {
+      seen = `listing failed: ${err.message}`;
+    }
     await sleep(100);
   }
-  throw new Error(`the extension's service worker did not start within ${timeoutMs}ms`);
+  throw new Error(`the extension's service worker did not start within ${timeoutMs}ms (targets: ${seen}; probe: ${lastProbe})`);
 }
 
 /**
@@ -146,12 +173,16 @@ export async function extensionWorker(cdp, timeoutMs = WORKER_START_MS) {
  * runs top to bottom in one task, so once `gate` (near its top) exists,
  * everything it sets up at load exists too.
  */
+let lastProbe = "none";
 async function scriptHasRun(cdp, targetId) {
   let sessionId = "";
   try {
     ({ sessionId } = await cdp.send("Target.attachToTarget", { targetId, flatten: true }));
-    return await cdp.evaluate(sessionId, `typeof gate !== "undefined"`);
-  } catch {
+    const has = await cdp.evaluate(sessionId, `typeof gate !== "undefined"`);
+    lastProbe = `typeof gate !== "undefined" -> ${has}`;
+    return has;
+  } catch (err) {
+    lastProbe = err.message;
     return false; // the worker went away between the listing and the question
   } finally {
     if (sessionId) await cdp.send("Target.detachFromTarget", { sessionId }).catch(() => {});

@@ -55,7 +55,13 @@ func (d Deps) newAccountLoginCmd() *cobra.Command {
 			if err != nil || sent {
 				return err
 			}
-			return d.printAccountStatus(cmd, st)
+			if err := d.printAccountStatus(cmd, st); err != nil {
+				return err
+			}
+			if !d.JSONOutput() {
+				fmt.Fprintln(cmd.ErrOrStderr(), "Open browsers with the MonoAgent extension will connect automatically; no pairing step is needed.")
+			}
+			return nil
 		},
 	}
 	signIn = d.AddSignIn(cmd, "account login")

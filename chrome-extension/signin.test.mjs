@@ -18,13 +18,52 @@ test("signed in leaves the screen; anything else stays on it", () => {
 
 test("it says where MonoAgent stands", () => {
   assert.match(S.view({ status: "connected" }).state, /nobody is signed in/);
-  assert.match(S.view({ status: "disconnected" }).state, /not running/);
+  assert.match(S.view({ status: "disconnected" }).state, /isn\u2019t running.*monoagentcli extension serve/);
   assert.match(S.view({ status: "connecting" }).state, /Looking for MonoAgent/);
 });
 
-test("an unpaired browser is told to pair after signing in", () => {
-  assert.match(S.view({ status: "unpaired" }).pair, /After you sign in, run monoagentcli extension pair/);
+test("a bridge nobody is signed in to: sign in, and the window updates by itself", () => {
+  const v = S.view({ status: "unpaired", reason: "bridge_signed_out" });
+  assert.match(v.state, /Sign in in the MonoAgent app or run monoagentcli account login\. This window updates automatically/);
+  assert.equal(v.pair, "");
+  assert.equal(v.unpaired, false, "no token field: this browser pairs itself");
+});
+
+test("a request waiting for the owner says where to approve it, and offers no token box", () => {
+  const v = S.view({ status: "unpaired", reason: "pair_waiting" });
+  assert.match(v.state, /Waiting for approval in the MonoAgent app \(or run monoagentcli extension approve <id> --code <code>\)/);
+  assert.equal(v.unpaired, false);
+  assert.equal(v.pair, "");
+  assert.equal(v.code, "", "no code from the bridge, none shown");
+});
+
+test("a waiting request shows its confirmation code, and only while it waits", () => {
+  const v = S.view({ status: "unpaired", reason: "pair_waiting", code: "K7M-2QX" });
+  assert.match(v.code, /Code: K7M-2QX/);
+  assert.match(v.code, /approve only the request that shows this code/);
+  assert.equal(S.view({ status: "unpaired", reason: "pair_denied", code: "K7M-2QX" }).code, "");
+  assert.equal(S.view({ status: "connected", code: "K7M-2QX" }).code, "");
+});
+
+test("denied and expired requests say so and offer asking again or the manual path", () => {
+  const d = S.view({ status: "unpaired", reason: "pair_denied" });
+  assert.match(d.state, /denied/);
+  const e = S.view({ status: "unpaired", reason: "pair_expired" });
+  assert.match(e.state, /expired/);
+  for (const v of [d, e]) {
+    assert.equal(v.unpaired, true);
+    assert.match(v.pair, /Check again.*monoagentcli extension pair/);
+  }
+});
+
+test("automatic pairing off or refused: the manual path, kept as the fallback", () => {
+  for (const reason of ["autopair_off", "auth_rejected", ""]) {
+    const v = S.view({ status: "unpaired", reason });
+    assert.match(v.pair, /run monoagentcli extension pair, or paste the token/);
+    assert.equal(v.unpaired, true);
+  }
   assert.equal(S.view({ status: "connected" }).pair, "");
+  assert.equal(S.view({ status: "connected" }).unpaired, false);
 });
 
 test("what is kept is named, and said not to be sent until sign-in", () => {
