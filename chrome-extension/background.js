@@ -63,7 +63,7 @@ importScripts("cdp_proxy.js");
 importScripts("recorder_privacy.js", "recorder_outbox.js", "recorder_session.js", "recorder_wiring.js");
 // Asked before every dial; see doConnect. The same module the side panel uses,
 // so "is that really the bridge?" has exactly one implementation.
-importScripts("bridge_health.js");
+importScripts("bridge_health.js", "autopair.js");
 // The coder's browser commands (plan C1): agent_cdp.js first, every other
 // agent module registers with it; agent_commands.js, the dispatch, last.
 importScripts("agent_cdp.js", "agent_redact.js", "agent_tabs.js", "agent_screenshot.js", "agent_watch.js", "agent_a11y.js");
@@ -367,6 +367,54 @@ async function getPairingToken() {
   }
 }
 
+// Why an unpaired worker is unpaired, as the side panel's sign-in screen words it.
+const AUTOPAIR_SIGNED_OUT = "bridge_signed_out";
+const AUTOPAIR_OFF = "autopair_off";
+let staleSecret = null; // a token the bridge refused; replaced by a claim, never retried as it is
+let autoPairBackoffUntil = 0;
+
+/**
+ * tryAutoPair is one pass of the pairing-without-a-step state machine
+ * (autopair.js). It returns the token it was given, stored, or null after
+ * setting the status the person reads.
+ */
+async function tryAutoPair() {
+  if (Date.now() < autoPairBackoffUntil) return null;
+  let known = {};
+  try {
+    known = await chrome.storage.local.get(["wsUrl", "pairedWsUrl", "workingWsUrl"]);
+  } catch {
+    // probe the defaults
+  }
+  const r = await MonoAutoPair.step({ known, instance: binding.instance, label: binding.label });
+  switch (r.kind) {
+    case "claimed":
+      try {
+        await chrome.storage.local.set({ pairingToken: r.token, pairedWsUrl: r.wsUrl });
+      } catch (err) {
+        console.warn("[monoagent] could not store the pairing token:", err.message);
+        return null;
+      }
+      staleSecret = null;
+      console.log("[monoagent] Paired automatically with the bridge");
+      return r.token;
+    case "signed_out":
+      setStatus("unpaired", AUTOPAIR_SIGNED_OUT);
+      return null;
+    case "disabled":
+      setStatus("unpaired", AUTOPAIR_OFF);
+      return null;
+    case "refused":
+      autoPairBackoffUntil = Date.now() + MonoAutoPair.REFUSED_BACKOFF_MS;
+      console.warn("[monoagent] automatic pairing refused:", r.error);
+      setStatus("unpaired", AUTOPAIR_OFF);
+      return null;
+    default:
+      setStatus("disconnected", "no_bridge");
+      return null;
+  }
+}
+
 let connectingPromise = null;
 
 // Serialized: concurrent callers await/reuse the in-flight connection attempt
@@ -385,20 +433,32 @@ function connect() {
 }
 
 async function doConnect() {
-  setStatus("connecting");
-
-  const pairingSecret = await getPairingToken();
-  if (!pairingSecret) {
-    // Nothing to authenticate the WebSocket handshake with — the server
-    // will reject us immediately. Surface "unpaired" instead of spinning
-    // the fast-retry loop against a socket we can't ever open.
-    setStatus("unpaired");
-    fastRetryCount = FAST_RETRY_MAX;
-    return;
-  }
+  // The sign-in screen re-asks every few seconds while it is open: do not
+  // flash "looking for MonoAgent" over what it already says.
+  if (connectionStatus !== "unpaired") setStatus("connecting");
 
   await stickyLoaded;
   binding = await loadBinding();
+
+  let pairingSecret = await getPairingToken();
+  // No token, or the bridge turned ours away last time (a reset, another
+  // HOME): ask the bridge for one before giving up. It hands one out while
+  // the person is signed in to MonoAgent, so a new browser needs no step.
+  if (!pairingSecret || staleSecret === pairingSecret) {
+    const claimed = await tryAutoPair();
+    if (claimed) pairingSecret = claimed;
+  }
+  if (!pairingSecret) {
+    // Nothing to authenticate the WebSocket handshake with, so there is no
+    // socket to open. tryAutoPair has said why (connectionStatus/Reason): a
+    // bridge nobody is signed in to, a bridge that is not running, or
+    // automatic pairing turned off. A bridge that is not running keeps the
+    // fast retry going; the others are asked again by the alarm and by the
+    // sign-in screen while it is open.
+    if (connectionStatus === "connecting") setStatus("unpaired");
+    if (connectionStatus !== "disconnected") fastRetryCount = FAST_RETRY_MAX;
+    return;
+  }
 
   // Ask before dialling. Chrome logs every WebSocket that fails to connect as
   // an extension error — twice, once for the browser and once for onerror —
@@ -527,6 +587,7 @@ async function doConnect() {
       // (wrong/missing) pairing secret will only fail again. Stop and wait
       // for the user to re-pair via the side panel instead of hammering it.
       setStatus("unpaired", "auth_rejected");
+      staleSecret = pairingSecret;
       fastRetryCount = FAST_RETRY_MAX;
       return;
     }

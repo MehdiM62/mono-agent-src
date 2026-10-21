@@ -12,6 +12,7 @@
 
   const LOGIN_COMMAND = "monoagentcli account login";
   const PAIR_COMMAND = "monoagentcli extension pair";
+  const RECHECK_MS = 3000;
 
   function plural(n, one, many) {
     return `${n} ${n === 1 ? one : many}`;
@@ -23,11 +24,16 @@
    */
   function view(status) {
     const s = status || {};
-    const out = { signedIn: s.signedIn === true, unpaired: s.status === "unpaired", pair: "", queued: "", state: "" };
-    if (out.unpaired) {
-      // Signing in on the computer cannot clear this screen by itself: this
-      // browser only learns of it over a paired connection.
-      out.pair = `This browser is not connected to MonoAgent yet, so it cannot learn that you signed in. After you sign in, run ${PAIR_COMMAND}, or paste the token it prints below.`;
+    const out = { signedIn: s.signedIn === true, unpaired: false, pair: "", queued: "", state: "" };
+    const unpaired = s.status === "unpaired";
+    if (unpaired && s.reason === "bridge_signed_out") {
+      // The bridge is up, so signing in is all it takes: this browser pairs
+      // itself the moment the account is signed in, and this screen leaves.
+      out.state = "Sign in in the MonoAgent app or run monoagentcli account login. This window updates automatically.";
+    } else if (unpaired) {
+      // Automatic pairing is off or was refused: the manual path.
+      out.unpaired = true;
+      out.pair = `This browser could not connect to MonoAgent by itself. After you sign in, run ${PAIR_COMMAND}, or paste the token it prints below.`;
     }
     const q = s.queued || {};
     const parts = [];
@@ -37,9 +43,11 @@
     if (parts.length) {
       out.queued = `Waiting in this browser: ${parts.join(", ")}. Nothing is sent until you sign in; then it is sent as usual.`;
     }
-    if (s.status === "connected") out.state = "MonoAgent is running here, and says nobody is signed in.";
+    if (unpaired) {
+      // worded above
+    } else if (s.status === "connected") out.state = "MonoAgent is running here, and says nobody is signed in.";
     else if (s.status === "connecting") out.state = "Looking for MonoAgent on this computer…";
-    else if (s.status === "disconnected") out.state = "MonoAgent is not running on this computer. Start the app, sign in, then check again.";
+    else if (s.status === "disconnected") out.state = "MonoAgent isn\u2019t running. Start the app or run monoagentcli extension serve. This window updates automatically.";
     return out;
   }
 
@@ -106,4 +114,10 @@
     }
   });
   recheck();
+  // The bridge is asked again every few seconds while this screen is on: a
+  // sign-in in the app, or a bridge started after the browser, flips it by
+  // itself (the worker pairs this browser the moment the account is signed in).
+  setInterval(() => {
+    if (document.visibilityState !== "hidden") recheck();
+  }, RECHECK_MS);
 })(globalThis);

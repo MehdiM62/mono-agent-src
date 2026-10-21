@@ -18,18 +18,24 @@ test("signed in leaves the screen; anything else stays on it", () => {
 
 test("it says where MonoAgent stands", () => {
   assert.match(S.view({ status: "connected" }).state, /nobody is signed in/);
-  assert.match(S.view({ status: "disconnected" }).state, /not running/);
+  assert.match(S.view({ status: "disconnected" }).state, /isn\u2019t running.*monoagentcli extension serve/);
   assert.match(S.view({ status: "connecting" }).state, /Looking for MonoAgent/);
 });
 
-test("an unpaired browser is told to pair after signing in", () => {
-  assert.match(S.view({ status: "unpaired" }).pair, /After you sign in, run monoagentcli extension pair/);
-  assert.equal(S.view({ status: "connected" }).pair, "");
+test("a bridge nobody is signed in to: sign in, and the window updates by itself", () => {
+  const v = S.view({ status: "unpaired", reason: "bridge_signed_out" });
+  assert.match(v.state, /Sign in in the MonoAgent app or run monoagentcli account login\. This window updates automatically/);
+  assert.equal(v.pair, "");
+  assert.equal(v.unpaired, false, "no token field: this browser pairs itself");
 });
 
-test("an unpaired browser gets the token field; a paired one does not", () => {
-  assert.equal(S.view({ status: "unpaired" }).unpaired, true);
-  assert.match(S.view({ status: "unpaired" }).pair, /paste the token/);
+test("automatic pairing off or refused: the manual path, kept as the fallback", () => {
+  for (const reason of ["autopair_off", "auth_rejected", ""]) {
+    const v = S.view({ status: "unpaired", reason });
+    assert.match(v.pair, /run monoagentcli extension pair, or paste the token/);
+    assert.equal(v.unpaired, true);
+  }
+  assert.equal(S.view({ status: "connected" }).pair, "");
   assert.equal(S.view({ status: "connected" }).unpaired, false);
 });
 
