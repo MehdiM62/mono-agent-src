@@ -149,6 +149,10 @@ jobs:
       - name: Account tests with the dev tag
         run: go test -race -tags devaccount ./internal/account/... -count=1
       - name: Real-binary smoke
+        # The runner's Ubuntu forbids the unprivileged user namespace Chrome's sandbox needs
+        # (the zygote aborts), so the real-browser pairing test starts it with --no-sandbox.
+        env:
+          MONO_CHROME_NO_SANDBOX: "1"
         run: go test -tags devaccount ./internal/accountsmoke/ -count=1 -timeout 25m -v
 
   # The release guard (scripts/check-release-tags.sh) keeps the devaccount tag out of releases: this
