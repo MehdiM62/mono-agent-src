@@ -113,6 +113,7 @@ type accessState struct {
 	seen  map[string]struct{} // values resolved in this run, and their derived forms
 	names map[string]struct{} // secrets read in this run, by name
 	nodes map[string]struct{} // steps (by id) that resolved a secret in this run
+	read  bool                // some step of this run (or of the run that seeded it) read a secret
 }
 
 type accessNode struct{ id, name, typ string }
@@ -190,14 +191,18 @@ func (a *accessState) resolved(ctx context.Context, name, value string) error {
 }
 
 // carries reports whether a send by the step ctx runs carries a secret: the
-// step resolved one (whatever form it took on the way out: a Basic header
+// run has read one (see below), the step resolved one (whatever form it took on the way out: a Basic header
 // built from it, say), or one of texts holds a tracked value.
 func (a *accessState) carries(ctx context.Context, texts []string) bool {
 	n, _ := ctx.Value(accessNodeKey{}).(accessNode)
 	a.mu.Lock()
 	_, resolvedHere := a.nodes[n.id]
+	read := a.read
 	a.mu.Unlock()
-	if resolvedHere {
+	// Data flows between steps in forms nobody can list (a transformed echo
+	// of the secret), so once any step of the run has read one every send of
+	// the run is held to the grant's hosts.
+	if resolvedHere || read {
 		return true
 	}
 	for _, v := range a.values() {
@@ -217,6 +222,7 @@ func (a *accessState) track(name, value string) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.names[name] = struct{}{}
+	a.read = true
 	for _, f := range derivedForms(value) {
 		a.seen[f] = struct{}{}
 	}

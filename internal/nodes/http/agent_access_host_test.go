@@ -232,3 +232,83 @@ func TestCarryTextsDecodeBasicCredentials(t *testing.T) {
 		t.Errorf("decoded credentials are not scanned: %v", carryTexts(req))
 	}
 }
+
+// Review of #944 (F1): once any step of a run read a secret under a
+// host-bound grant, every send of the run is held to the grant's hosts, so a
+// transformed echo of the secret cannot be carried by another node to a
+// foreign host.
+func TestAgentAccessTaintFollowsDataBetweenNodes(t *testing.T) {
+	keyring.MockInit()
+	db, err := storage.NewDatabase(filepath.Join(t.TempDir(), "vault.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if err := db.ApplyMigrations(); err != nil {
+		t.Fatal(err)
+	}
+	base := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db.DB), "default")
+	if _, err := secrets.Add(base, db.DB, "default", "secret", "vs", map[string]string{"secret": "vsecret-777"}, "", "", ""); err != nil {
+		t.Fatal(err)
+	}
+	granted := newRecorder(t, func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("echo")) // a host that echoes what it is sent
+	})
+	foreign := newRecorder(t, nil)
+	foreignURL := strings.Replace(foreign.URL, "127.0.0.1", "localhost", 1)
+	if err := secrets.SetAgentAccessGrant(base, db.DB, "default", secrets.AccessGrant{Hosts: []string{"127.0.0.1"}}); err != nil {
+		t.Fatal(err)
+	}
+	send := func(ctx context.Context, node, url, body string) error {
+		ctx = secrets.WithAccessNode(ctx, node, node)
+		cfg := map[string]interface{}{"url": url, "method": "POST", "body": body}
+		outs, err := (&RequestNode{}).Execute(ctx, workflow.NodeInput{Items: []workflow.Item{workflow.NewItem(map[string]interface{}{})}}, cfg)
+		if err != nil {
+			return err
+		}
+		for _, o := range outs {
+			if o.Handle == "error" {
+				for _, it := range o.Items {
+					if msg, _ := it.JSON["error"].(string); msg != "" {
+						return errors.New(msg)
+					}
+				}
+			}
+		}
+		return nil
+	}
+	forms := map[string]string{
+		"replace": strings.ReplaceAll("vsecret-777", "-", ""),
+		"join":    strings.Join(strings.Split("vsecret-777", ""), "."),
+		"upper-e": strings.ReplaceAll("vsecret-777", "e", "E"),
+	}
+	for name, form := range forms {
+		ctx := secrets.AllowResolving(base, db.DB, "default", secrets.AccessOrigin{WorkflowID: "wf"})
+		if err := send(ctx, "A", granted.URL+"/e", "@secret:vs"); err != nil {
+			t.Fatalf("%s: node A: %v", name, err)
+		}
+		before := len(foreign.all())
+		err := send(ctx, "B", foreignURL+"/x", form)
+		if err == nil || !strings.Contains(err.Error(), secrets.ErrHostNotAllowed.Error()) {
+			t.Errorf("%s: node B sent a transformed secret to a foreign host: %v", name, err)
+		}
+		if n := len(foreign.all()); n != before {
+			t.Errorf("%s: the foreign host received %d request(s)", name, n-before)
+		}
+	}
+	// A run that read no secret may send anywhere; so may --any-host.
+	clean := secrets.AllowResolving(base, db.DB, "default", secrets.AccessOrigin{WorkflowID: "wf"})
+	if err := send(clean, "B", foreignURL+"/x", "plain"); err != nil {
+		t.Errorf("a run that read no secret was held: %v", err)
+	}
+	if err := secrets.SetAgentAccessGrant(base, db.DB, "default", secrets.AccessGrant{AnyHost: true}); err != nil {
+		t.Fatal(err)
+	}
+	anyHost := secrets.AllowResolving(base, db.DB, "default", secrets.AccessOrigin{WorkflowID: "wf"})
+	if err := send(anyHost, "A", granted.URL+"/e", "@secret:vs"); err != nil {
+		t.Fatal(err)
+	}
+	if err := send(anyHost, "B", foreignURL+"/x", "x"); err != nil {
+		t.Errorf("--any-host: %v", err)
+	}
+}

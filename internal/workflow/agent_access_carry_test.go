@@ -179,9 +179,11 @@ func TestAgentAccessStepThatResolvedASecretCarriesIt(t *testing.T) {
 	if err := secrets.CheckSendHost(reader, "http://api.example.com/x", "anything"); err != nil {
 		t.Errorf("a granted host: %v", err)
 	}
-	other := secrets.WithAccessNode(ctx, "n2", "Other")
-	if err := secrets.CheckSendHost(other, "http://127.0.0.1/x", "anything"); err != nil {
-		t.Errorf("a step that read no secret was held: %v", err)
+	// The whole run is tainted now (TestAgentAccessRunLevelTaint); a run that
+	// read nothing is not held.
+	fresh := secrets.WithAccessNode(secrets.AllowResolving(e.ctx, e.db.DB, "default", secrets.AccessOrigin{WorkflowID: "w", ExecutionID: "z"}), "n2", "Other")
+	if err := secrets.CheckSendHost(fresh, "http://127.0.0.1/x", "anything"); err != nil {
+		t.Errorf("a run that read no secret was held: %v", err)
 	}
 }
 
@@ -271,5 +273,30 @@ func TestAgentAccessQueuedChildRunsOnTheRealTriggerData(t *testing.T) {
 	}
 	if got := e.stored(t, id); strings.Contains(got, valVS) {
 		t.Errorf("the child's record holds the value: %s", got)
+	}
+}
+
+// Review of #944 (F1): the taint is run-level, and a run seeded with the
+// secrets its caller read starts tainted.
+func TestAgentAccessRunLevelTaint(t *testing.T) {
+	e := newAccessEnv(t)
+	e.grant(t, secrets.AccessGrant{Hosts: []string{"api.example.com"}})
+	ctx := secrets.AllowResolving(e.ctx, e.db.DB, "default", secrets.AccessOrigin{WorkflowID: "w", ExecutionID: "x"})
+	other := secrets.WithAccessNode(ctx, "n2", "Other")
+	if err := secrets.CheckSendHost(other, "http://127.0.0.1/x", "vsecret777"); err != nil {
+		t.Fatalf("a run that read nothing was held: %v", err)
+	}
+	if _, err := secrets.Resolve(secrets.WithAccessNode(ctx, "n1", "Reader"), e.db.DB, "default", "@secret:vs"); err != nil {
+		t.Fatal(err)
+	}
+	if err := secrets.CheckSendHost(other, "http://127.0.0.1/x", "vsecret777"); !errors.Is(err, secrets.ErrHostNotAllowed) {
+		t.Errorf("another step of a tainted run sent a transformed secret out: %v", err)
+	}
+	child := secrets.AllowResolving(e.ctx, e.db.DB, "default", secrets.AccessOrigin{WorkflowID: "c", ExecutionID: "y"})
+	if err := secrets.SeedResolved(child, []string{"vs"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := secrets.CheckSendHost(secrets.WithAccessNode(child, "c1", "C"), "http://127.0.0.1/x", "vsecret777"); !errors.Is(err, secrets.ErrHostNotAllowed) {
+		t.Errorf("a child seeded from a tainted run sent out: %v", err)
 	}
 }
