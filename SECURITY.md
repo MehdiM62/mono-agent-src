@@ -242,20 +242,65 @@ supported way to run a coding agent that you do not fully trust:
    Secret Service / KWallet / macOS keychain files and, where it can, the D-Bus
    session bus. It leaves loopback networking open.
 2. The agent does not run `monoagentcli` as you. It calls the daemon's HTTP API
-   (`127.0.0.1:9322`, `/profiles/{profile}/...`) with that profile's bearer token. The
-   token opens that one profile only, and the API is read-only unless the daemon
-   was started with `--allow-mutations`. You read the token outside the sandbox
-   (`monoagentcli --profile <p> secret reveal httpapi-token --reveal`)
-   and hand it to the agent through its environment, for example `MONOAGENT_API_TOKEN`.
-   The names are only a convention; nothing in mono-agent reads them.
+   (`127.0.0.1:9322`, `/profiles/{profile}/...`) with a token that opens that one
+   profile only. The API is read-only unless the daemon was started with
+   `--allow-mutations`.
+3. Give the agent a scoped token, not the profile's own bearer. You make it, outside the
+   sandbox, as yourself (creating and revoking a token, and reading one out with `env`, are
+   refused to an agent, the chat and a workflow, and the API has no route that makes one):
+
+   ```sh
+   monoagentcli --profile work agent-mode token create --name reviewer --scope read --expires 24h
+   eval "$(monoagentcli --profile work agent-mode env --token reviewer)"   # MONOAGENT_API_URL, MONOAGENT_API_TOKEN
+   monoagentcli agent-mode sandbox --runtime bwrap > agent-sandbox.sh
+   sh agent-sandbox.sh claude      # the variables pass through into the sandbox
+   ```
+
+   Scopes (each includes the ones before it): `read` is GET only (list, get, status);
+   `write` also validate and other changes that start and send nothing (tasks, documents and
+   people get routes in this class when the API gains them); `run` also runs, activates and
+   deactivates workflows. Mind what `run` means: it is the authority of every approved or active
+   workflow of the profile, including ones that send mail or read the vault, so scope a token to
+   what the agent should be able to start. The engine's approval gates apply whatever the caller:
+   an unapproved or AI-authored workflow is still refused `@secret` references and
+   `vault.secret_get`. Approvals (`hil approve|reject`) and anything else that spends the
+   profile's authority need the full scope, which only the profile's own bearer has; `X-Full-Outputs`
+   (unredacted run outputs) is honoured for that bearer alone. A request above the token's scope is
+   answered 403. A token
+   expires (24h unless `--expires` says otherwise, `never` to opt out), is revoked at once with
+   `agent-mode token revoke`, and only its SHA-256 is kept for checking it (compared in constant
+   time); its text is kept in the profile's vault so that `env` can hand it out, and removed on
+   revoke. Every request made with a token is recorded by token name, method, escaped path
+   (cut to 200 characters) and status, never the token: `agent-mode token audit <name>`. The row
+   is written before the request runs, and a token whose use cannot be recorded is refused with
+   503; the table keeps the last 10,000 rows. Vault entries named `agent-token-*` hold the tokens'
+   text: only the token commands write them, a workflow run never reads them (even with agent
+   secret access on), and an expired token's entry is removed the next time the tokens are listed. A token opens the profile it was made for and
+   no other. The profile's own bearer (`secret reveal httpapi-token --reveal`) keeps working as the
+   full scope; start the server with `MONOAGENT_HTTPAPI_DISABLE_PROFILE_BEARER=1` to refuse it, so
+   that only scoped tokens open the API. Do not let the agent read the vault (see the agent secret
+   access setting) or it could read a wider token's text.
+4. `monoagentcli agent-mode status` (and an informational line in `doctor`) says whether the
+   process looks sandboxed: the `MONOAGENT_SANDBOX` marker the bwrap profile sets, a `~/.monoagent`
+   that cannot be listed, is empty or is a tmpfs mount, macOS App Sandbox's container id. This is
+   advisory only: a process can hide the marks, and finding none proves nothing. The sandbox is the
+   boundary, never this report.
 
 Limits: the profiles are written for Linux (bwrap), macOS (seatbelt) and Claude
 Code's settings; the seatbelt service names and Claude Code's setting keys were
 not checked against every release, so test that the agent cannot read
 `~/.monoagent` before you rely on one. An abstract-socket D-Bus session bus (some
-distributions) is not hidden by file masking. The bearer token is the agent's
-credential: anyone holding it can use the API as that profile, including the
-`X-Full-Outputs` header. Windows has no profile yet: use another OS user or a VM.
+distributions) is not hidden by file masking. A token is the agent's
+credential: anyone holding it can use the API as that profile within its scope. A
+profile's own bearer also allows the `X-Full-Outputs` header.
+Windows has no profile: it has no sandbox that a command can start a process in without
+extra installs, so `agent-mode sandbox --runtime windows` refuses and says what to use instead:
+WSL2 with the bwrap profile, a separate Windows user account for the agent, or Windows Sandbox / a VM,
+each reaching the API with a scoped token.
+
+Still deferred: unlocking the vault only with the user present, the macOS keychain ACL (needs a
+signed binary), hiding an abstract-socket D-Bus session bus under `--unshare-net`, and token
+routes for tasks, documents and people (the API has none yet).
 
 ### Where a saved connection's secret goes
 
@@ -708,6 +753,27 @@ and the wording of the model's reply, including a link you may choose to
 click (its host is shown), and the task it proposes: read a card before you
 add it, as you read an Inbox task before approving it. The page text and the reply stay in the local
 conversation database like any chat.
+
+**Pictures in the chat (screenshots and attached images).** A screenshot of
+the tab, or pictures the person attaches, can go to the model, each only by
+the person's choice. A screenshot can show what the page text skips, so a
+look card shows it to the person first and waits for "Send to the model";
+that agreement is kept per site (origin) within one conversation, never for
+the conversation as a whole, so a page that earns one agreement cannot have a
+later card capture another site on a single Run. A capture is refused for a
+page that is not http(s), a literal private-network address, a tab that is
+not showing, and a tab whose id, full address, window or visibility changes
+between just before and just after the picture. The bridge and the CLI both
+re-check every image from its own bytes: PNG, JPEG, GIF or WebP only (not
+SVG), at most 3 of 2 MiB, at most 8192 pixels a side and 25 megapixels as the
+header claims (a few bytes can claim hundreds of megabytes), no animated GIF
+or WebP, and a header that cannot be read is refused; attached files over
+20 MiB are refused before the browser decodes them. The files are written
+0600 in a private folder for the one turn and removed after it; the bridge
+removes `monoagent-chat-images-*` folders of this user older than an hour at
+start, in case a crash or kill skipped that. Limit: the private-network check
+looks at the literal host only, so an internal hostname that resolves to a
+private address is not caught; the consent step is the control there.
 
 ### Saving to the vault from the extension (`vault.save`)
 

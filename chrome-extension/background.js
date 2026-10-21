@@ -44,6 +44,8 @@ importScripts("task_outbox.js", "task_bridge.js", "task_menu.js");
 // private_net.js says which addresses a vault card may not fetch from a public page.
 importScripts("private_net.js", "chat_proposals_act.js", "chat_proposals.js");
 importScripts("chat_context.js", "chat_core.js", "chat_bridge.js");
+// Pictures for the chat (issue #941): the screenshot a look card asks for, and the limits chat_bridge.js applies.
+importScripts("chat_look.js");
 // Handing work to the coder (C6): the side panel's Coder section and the
 // right-click items. Over ask.js too; the menu items hang under the capture
 // group's parent, so this follows it.
@@ -1698,6 +1700,9 @@ MonoAgentCommands.install({
 MonoPageActionBridge.install({
   detach: (tabId) => (debuggerPinned.has(tabId) ? undefined : detachDebugger(tabId)),
 });
+
+// The chat's Look at the page (page_look_capture): a screenshot of the card's tab, from the side panel only.
+MonoChatLook.install();
 
 // The toolbar button opens the side panel rather than a popup: a panel
 // stays open beside the page while the person reads, switches tabs and

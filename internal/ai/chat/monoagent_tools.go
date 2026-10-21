@@ -146,7 +146,7 @@ func (mt *MonoagentTools) untrustedContentSeen() (string, bool) {
 // cannot make them change or leak anything private. The proposal tools write
 // nothing either: the person confirms each proposal in the side panel
 // (monoagent_tools_proposals.go).
-var PageReadToolNames = []string{"list_workflows", "get_workflow", "list_node_types", proposeTaskTool, proposeRecordingTool, proposeVaultSaveTool, proposePageActionTool, proposeCoderTool}
+var PageReadToolNames = []string{"list_workflows", "get_workflow", "list_node_types", proposeTaskTool, proposeRecordingTool, proposeVaultSaveTool, proposePageActionTool, proposeLookTool, proposeCoderTool}
 
 // SetPageReadOnly confines this session to PageReadToolNames and counts the
 // turn's page text as untrusted content. Only the CLI's --tools

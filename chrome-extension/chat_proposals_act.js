@@ -10,6 +10,11 @@
  *   action   propose_page_action: click, double_click, type, check, uncheck, select, hover, scroll, press_key or open_url on
  *            the page the person is looking at. Run (page_action_bridge.js)
  *            does it, and only on their click.
+ *   look     propose_page_look: a screenshot of the tab, for a page drawn on a
+ *            canvas or words inside images. Run (chat_look.js) takes it; the
+ *            card shows it (a thumbnail, kept in memory only) and the first
+ *            time in a chat waits for "Send to the model" before it leaves the
+ *            browser. Never of a private-network page.
  *   coder    propose_coder_handoff: a goal for the coder. Hand to coder
  *            queues a coder chat (coder_bridge.js); the person presses Start
  *            in the MonoAgent app. The extension never starts the turn.
@@ -68,7 +73,7 @@
   // The target as the card says it: quoted, and short.
   const quoted = (v) => `“${runes(v, 80)}${[...str(v)].length > 80 ? "…" : ""}”`;
 
-  const TOOLS = { propose_page_action: "action", propose_coder_handoff: "coder" };
+  const TOOLS = { propose_page_action: "action", propose_page_look: "look", propose_coder_handoff: "coder" };
   const UNKNOWN = "Unknown outcome \u2014 check the page";
   const QUEUED = "Queued — press Start in the MonoAgent app.";
 
@@ -124,6 +129,40 @@
           actions,
           labels: { run: p.state === "failed" ? "Try again" : "Run", coder: "Hand to coder", dismiss: "Dismiss" },
           status: status !== undefined ? status : p.feedback || "",
+        };
+      },
+    },
+    look: {
+      heading: "Look at this page?",
+      fields: (p) => ({ why: line(p.why, WHY_RUNES) }),
+      valid: () => true,
+      text: (p) => {
+        const out = { title: "Send the model a screenshot of this tab", notes: p.why || "" };
+        const host = p.page ? hostOf(p.page.url) : "";
+        if (host) {
+          // The address shown has its secrets masked, as the coder's records do.
+          const shown = root.MonoAgentRedact ? root.MonoAgentRedact.url(String(p.page.url).split(/[?#]/)[0]) : host;
+          out.source = privateHost(host) ? `${host} is a private network address: it is never captured` : `of ${shown}`;
+        }
+        return out;
+      },
+      check: "A picture can show things the page text does not: check it before it is sent.",
+      states: new Set(["pending", "capturing", "preview", "sending", "done", "failed", "dismissed"]),
+      screen: (p) => {
+        const priv = !!p.page && privateHost(hostOf(p.page.url));
+        const actions = priv ? ["dismiss"] : { pending: ["run", "dismiss"], failed: ["run", "dismiss"], preview: ["send", "dismiss"] }[p.state] || [];
+        const status = {
+          capturing: "Taking the picture\u2026",
+          preview: "This is what the model will see. It goes nowhere until you press Send; check it for anything private.",
+          sending: "Sending\u2026",
+          dismissed: "Not sent",
+          done: p.feedback || "Sent.",
+        }[p.state];
+        return {
+          actions,
+          labels: { run: p.state === "failed" ? "Try again" : "Look at the page", send: "Send to the model", dismiss: "Dismiss" },
+          status: status !== undefined ? status : p.feedback || "",
+          image: p.state === "preview",
         };
       },
     },

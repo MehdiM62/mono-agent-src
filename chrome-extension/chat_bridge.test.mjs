@@ -34,7 +34,7 @@ function setup({ methods = ["chat.send", "chat.stop", "chat.events"], connected 
     tabs: { query: async () => (tab === undefined ? [{ id: 7, url: "https://a.example/p", title: "Page" }] : tab ? [tab] : []), get: async () => (tabNow ? tabNow() : tab === undefined ? { id: 7, url: "https://a.example/p", title: "Page" } : tab) },
     scripting: { executeScript: scripts || (async () => [{ result: { url: "https://a.example/p", title: "Page", text: "body", selection: "sel" } }]) },
   };
-  const env = loadExtensionScripts(["youtube_video.js", "chat_context.js", "chat_core.js", "chat_bridge.js"], {
+  const env = loadExtensionScripts(["youtube_video.js", "chat_context.js", "chat_core.js", "chat_look.js", "chat_bridge.js"], {
     ...(transcript ? { MonoYouTubeTranscript: transcript } : {}),
     chrome,
     MonoAsk,
@@ -402,4 +402,41 @@ test("page text is data: the page's own words are never run", async () => {
   const out = await t.send({ type: "chat_page_context" });
   assert.equal(out.context.text, hostile);
   assert.equal(typeof out.context.text, "string");
+});
+
+// Pictures (issue #941): the worker applies chat_look.js's rules whatever the panel sent.
+const B64_PNG = Buffer.concat([Buffer.from("\x89PNG\r\n\x1a\n", "latin1"), Buffer.alloc(32)]).toString("base64");
+const B64_JPG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(32)]).toString("base64");
+
+test("images go to chat.send as {mime, data}, their kind read from their own bytes", async () => {
+  const t = setup();
+  const out = await t.send({ type: "chat_send", message: "what is drawn?", images: [{ mime: "image/png", data: B64_PNG }, { data: B64_JPG }] });
+  assert.equal(out.ok, true);
+  assert.deepEqual(t.calls[0].params.images, [{ mime: "image/png", data: B64_PNG }, { mime: "image/jpeg", data: B64_JPG }]);
+});
+
+test("no images, no images param", async () => {
+  const t = setup();
+  await t.send({ type: "chat_send", message: "hi", images: [] });
+  assert.equal("images" in t.calls[0].params, false);
+});
+
+test("bad pictures are refused before anything is asked, and free the profile", async () => {
+  const t = setup();
+  const big = Buffer.concat([Buffer.from("\x89PNG\r\n\x1a\n", "latin1"), Buffer.alloc(2 * 1024 * 1024 + 1)]).toString("base64");
+  const bad = [
+    [{ mime: "image/png", data: Buffer.from("#!/bin/sh\n").toString("base64") }],
+    [{ mime: "image/jpeg", data: B64_PNG }],
+    [{ mime: "image/svg+xml", data: Buffer.from("<svg onload=x>").toString("base64") }],
+    [{ mime: "image/png", data: big }],
+    [{ mime: "image/png", data: B64_PNG }, { data: B64_PNG }, { data: B64_PNG }, { data: B64_PNG }],
+    "x",
+    [{ mime: "image/png" }],
+  ];
+  for (const images of bad) {
+    const out = await t.send({ type: "chat_send", message: "hi", images });
+    assert.equal(out.ok, false, JSON.stringify(images).slice(0, 60));
+  }
+  assert.deepEqual(t.calls, []);
+  assert.equal((await t.send({ type: "chat_send", message: "hi" })).ok, true, "the profile is free");
 });

@@ -37,7 +37,7 @@ func TestUnknownRuntimeIsRefused(t *testing.T) {
 }
 
 func TestCommandPrintsProfile(t *testing.T) {
-	cmd := NewCommand()
+	cmd := NewCommand(Deps{})
 	var buf bytes.Buffer
 	cmd.SetOut(&buf)
 	cmd.SetArgs([]string{"sandbox", "--runtime", "claude-code"})

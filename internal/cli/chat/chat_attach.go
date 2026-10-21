@@ -12,9 +12,12 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/spf13/cobra"
+
 	"github.com/monoes/mono-agent/internal/ai"
 	"github.com/monoes/mono-agent/internal/ai/chatevents"
 	"github.com/monoes/mono-agent/internal/cli/clicore"
+	"github.com/monoes/mono-agent/internal/imagecheck"
 	"github.com/monoes/mono-agent/internal/monomind"
 )
 
@@ -231,4 +234,90 @@ func formatSize(n int64) string {
 	default:
 		return strconv.FormatFloat(float64(n)/(1<<20), 'f', 1, 64) + " MB"
 	}
+}
+
+// A page-read turn (the side panel's chat) takes pictures too: a screenshot of
+// the tab the person asked the model to look at, or images they attached. They
+// are not copied anywhere (a page-read turn has no folder); they go straight to
+// `agent exec --attach`, so a monomind without that capability refuses the turn
+// rather than let the model answer about a picture it cannot see.
+const (
+	maxPageReadImages  = 3
+	pageReadImageBytes = 2 << 20
+)
+
+// pageReadImages checks the --attach files of a page-read turn: at most
+// maxPageReadImages regular files of at most pageReadImageBytes each whose first
+// bytes are a PNG, JPEG, GIF or WebP, whatever their names say. It returns their
+// absolute paths and refuses, before anything runs, when monomind cannot pass
+// them on.
+func pageReadImages(cmd *cobra.Command, paths []string) ([]string, error) {
+	if len(paths) > maxPageReadImages {
+		return nil, clicore.InvalidInput("--attach takes at most %d images in a page-read turn, got %d", maxPageReadImages, len(paths))
+	}
+	var out []string
+	for _, p := range paths {
+		abs, err := filepath.Abs(expandHome(p))
+		if err != nil {
+			return nil, clicore.InvalidInput("--attach %s: %v", p, err)
+		}
+		fi, err := os.Stat(abs)
+		switch {
+		case err != nil:
+			return nil, clicore.InvalidInput("--attach: %v", err)
+		case !fi.Mode().IsRegular():
+			return nil, clicore.InvalidInput("--attach %s is not a regular file", p)
+		case fi.Size() > pageReadImageBytes:
+			return nil, clicore.InvalidInput("--attach %s is %s; the limit is %s per image", p, formatSize(fi.Size()), formatSize(pageReadImageBytes))
+		}
+		head, err := readHead(abs, 12)
+		if err != nil {
+			return nil, clicore.InvalidInput("--attach %s: %v", p, err)
+		}
+		if !isImageHead(head) {
+			return nil, clicore.InvalidInput("--attach %s is not a PNG, JPEG, GIF or WebP image", p)
+		}
+		whole, err := os.ReadFile(abs)
+		if err != nil {
+			return nil, clicore.InvalidInput("--attach %s: %v", p, err)
+		}
+		if err := imagecheck.Check(whole); err != nil {
+			return nil, clicore.InvalidInput("--attach %s: %v", p, err)
+		}
+		out = append(out, abs)
+	}
+	if len(out) == 0 {
+		return nil, nil
+	}
+	caps, err := capabilityProbe(cmd)
+	if err != nil || !caps.Has(monomind.CapAgentExecAttachments) {
+		return nil, clicore.InvalidInput("this monomind cannot show images to the model (it lacks the %s capability); update monomind, or send the message without the picture", monomind.CapAgentExecAttachments)
+	}
+	return out, nil
+}
+
+func readHead(path string, n int) ([]byte, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	b := make([]byte, n)
+	m, _ := io.ReadFull(f, b)
+	return b[:m], nil
+}
+
+// isImageHead says whether b starts like a PNG, JPEG, GIF or WebP file.
+func isImageHead(b []byte) bool {
+	switch {
+	case len(b) >= 8 && string(b[:8]) == "\x89PNG\r\n\x1a\n":
+		return true
+	case len(b) >= 3 && b[0] == 0xff && b[1] == 0xd8 && b[2] == 0xff:
+		return true
+	case len(b) >= 6 && (string(b[:6]) == "GIF87a" || string(b[:6]) == "GIF89a"):
+		return true
+	case len(b) >= 12 && string(b[:4]) == "RIFF" && string(b[8:12]) == "WEBP":
+		return true
+	}
+	return false
 }

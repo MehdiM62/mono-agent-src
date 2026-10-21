@@ -31,6 +31,7 @@
   const Core = globalThis.MonoChatCore;
   const Render = globalThis.MonoChatRender;
   const Proposals = globalThis.MonoChatProposals;
+  const Look = globalThis.MonoChatLook;
   const el = (id) => document.getElementById(id);
 
   const log = el("chat-log");
@@ -44,10 +45,15 @@
   const filesBtn = el("chat-files");
   const summarizeBtn = el("chat-summarize");
   const pageChip = el("chat-page");
+  const attachBtn = el("chat-attach");
+  const attachInput = el("chat-attach-input");
+  const attachedRow = el("chat-attached");
   const notice = el("chat-notice");
   const stateEl = el("chat-state");
 
   const SUMMARIZE_PROMPT = "Summarize this page.";
+  // What the person's turn says when the model asked to see the page and they agreed (the picture itself is the attachment).
+  const LOOK_MESSAGE = "Here is the screenshot of the page that you asked to see.";
   // "fill the form" typed in the box does what the Fill form button does: the
   // chat's own model has no access to the profile, so it would only refuse.
   const FILL_INTENT = /^\s*(please\s+)?(auto-?)?fill(\s+(in|out|up))?\s+(the|this|my)?\s*(form|page|application)\b/i;
@@ -70,6 +76,8 @@
   let usePage = true;
   let refusal = ""; // why the last send was not made (the page changed under the chip)
   let drawQueued = false;
+  // Pictures the person picked for the next message ({name, image}): shrunk when picked, kept in memory only.
+  let pending = [];
   const nodes = new Map(); // message id -> { root, sig }
 
   const currentProfile = () => (typeof profiles !== "undefined" && profiles && profiles.current ? profiles.current.id || "" : "");
@@ -110,7 +118,7 @@
       // What the chat proposed: a card each, sent on only by the person's click.
       for (const p of (Proposals && m.proposals) || []) {
         const key = Proposals.keyOf(p);
-        box.appendChild(Proposals.card(document, p, { add: (value) => cards.confirm(key, value), dismiss: () => cards.dismiss(key), review: () => cards.review(key), run: () => cards.run(key), coder: () => cards.coder(key) }));
+        box.appendChild(Proposals.card(document, p, { add: (value) => cards.confirm(key, value), dismiss: () => cards.dismiss(key), review: () => cards.review(key), run: () => cards.run(key), coder: () => cards.coder(key), send: () => cards.send(key), thumb: () => cards.thumb(key) }));
       }
     } else if (m.role === "user") {
       const text = document.createElement("div");
@@ -122,6 +130,12 @@
         about.className = "chat-about";
         about.textContent = `Using this page: ${m.page}`;
         box.appendChild(about);
+      }
+      if (m.attached) {
+        const att = document.createElement("span");
+        att.className = "chat-about";
+        att.textContent = `With: ${m.attached}`;
+        box.appendChild(att);
       }
     } else {
       box.textContent = m.text;
@@ -189,6 +203,7 @@
     filesBtn.disabled = fillBtn.disabled;
     newBtn.disabled = busy() || (!chat.messages.length && !chat.conversation);
     const shareable = pageShareable();
+    attachBtn.disabled = !ready || busy() || pending.length >= Look.MAX_IMAGES;
     pageChip.disabled = !shareable;
     pageChip.setAttribute("aria-pressed", String(shareable && usePage));
     const title = (pageNow() && pageNow().title) || "";
@@ -207,7 +222,7 @@
 
   // What a click on a card does; the recording cards follow the Record section.
   const record = globalThis.MonoPanelRecord || null;
-  const cards = globalThis.MonoChatCards.create({ chat: () => chat, ask: (m) => ask(m), profile: () => profile, current: () => loadSeq, save, draw, record, page: pageNow, acted: () => { usePage = true; drawControls(); } });
+  const cards = globalThis.MonoChatCards.create({ chat: () => chat, ask: (m) => ask(m), profile: () => profile, current: () => loadSeq, save, draw, record, page: pageNow, acted: () => { usePage = true; drawControls(); }, sendLook: (image) => send(LOOK_MESSAGE, false, { images: [image], noPage: true, label: "a screenshot of the page" }) });
   if (record) record.onChange((event) => cards.follow(event));
 
   /** applyAll folds events in and tells whether anything changed. */
@@ -251,6 +266,8 @@
     if (mine !== loadSeq) return;
     usePage = !chat.messages.length; // only a conversation's first message shares the page by default
     refusal = "";
+    pending = [];
+    drawAttached();
     nodes.forEach((n) => n.root.remove());
     nodes.clear();
     draw();
@@ -344,9 +361,19 @@
   }
   const fillForm = () => runFill("form_fill");
 
-  async function send(text, forcePage) {
+  /**
+   * send sends one message. opts: images (picture attachments, default the
+   * ones the person picked), noPage (never the page's text with it), label
+   * (what the bubble says came with it). -> { sent } once the reply is over, or { sent:false, error }.
+   */
+  async function send(text, forcePage, opts) {
     const message = Core.checkMessage(text);
-    if (!message || busy() || availability !== "ready") return;
+    if (!message) return { sent: false, error: "there is nothing to send" };
+    if (busy()) return { sent: false, error: "a reply is still being written" };
+    if (availability !== "ready") return { sent: false, error: "chat is not available" };
+    const own = !opts || !opts.images;
+    const images = own ? pending.map((a) => a.image) : opts.images;
+    const label = (opts && opts.label) || (images.length ? `${images.length} image${images.length === 1 ? "" : "s"}` : "");
     // Card first: "fill the card" must not be taken for "fill the form".
     for (const [re, type] of [[FILL_CARD_INTENT, "card_fill"], [FILES_INTENT, "files_fill"], [FILL_INTENT, "form_fill"]]) {
       if (re.test(message)) {
@@ -354,38 +381,43 @@
         return runFill(type);
       }
     }
-    const sharing = pageShareable() && (forcePage || usePage);
+    const sharing = !(opts && opts.noPage) && pageShareable() && (forcePage || usePage);
     const tag = `c${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const sentFrom = profile;
     active = { tag };
     refusal = "";
     input.value = "";
+    const took = own ? pending : [];
+    if (own) pending = [];
+    drawAttached();
     draw();
 
     let context = null;
     if (sharing) {
       const got = await pageContext();
-      if (!active || active.tag !== tag) return;
+      if (!active || active.tag !== tag) return { sent: false, error: "the panel moved on" };
       if (got.refused) {
         active = null;
         refusal = got.refused;
         input.value = text; // nothing was sent: give back what was typed
+        pending = took;
+        drawAttached();
         draw();
-        return;
+        return { sent: false, error: got.refused };
       }
       context = got.context;
     }
-    if (!active || active.tag !== tag) return;
+    if (!active || active.tag !== tag) return { sent: false, error: "the panel moved on" };
 
     const shown = pageNow(); // the reply's cards are bound to this page
-    Core.startTurn(chat, message, Core.pageLabel(context), context != null, shown && { tabId: shown.tabId, url: shown.url });
+    Core.startTurn(chat, message, Core.pageLabel(context), context != null, shown && { tabId: shown.tabId, url: shown.url }, label);
     await save();
     draw();
 
     const answer = await ask({
-      type: "chat_send", tag, profile: sentFrom, conversation: chat.conversation, message, context,
+      type: "chat_send", tag, profile: sentFrom, conversation: chat.conversation, message, context, images,
     });
-    if (!active || active.tag !== tag) return; // the panel moved to another profile
+    if (!active || active.tag !== tag) return { sent: false, error: "the panel moved on" }; // the panel moved to another profile
     active = null;
     if (answer.ok) {
       const data = answer.data || {};
@@ -403,6 +435,54 @@
     // The turn may have outlived this request (the worker slept, the socket
     // dropped): ask the backend where it stands.
     if (!answer.ok && chat.conversation) sync();
+    return answer.ok ? { sent: true } : { sent: false, error: describeFailure(answer) };
+  }
+
+  // ── pictures the person attaches ──────────────────────────────────
+
+  function drawAttached() {
+    attachedRow.replaceChildren();
+    attachedRow.hidden = pending.length === 0;
+    pending.forEach((a, i) => {
+      const chip = document.createElement("span");
+      chip.className = "chat-attached-chip";
+      chip.textContent = a.name;
+      const drop = document.createElement("button");
+      drop.type = "button";
+      drop.className = "chat-attached-drop";
+      drop.textContent = "\u00d7";
+      drop.setAttribute("aria-label", `Remove ${a.name}`);
+      drop.addEventListener("click", () => {
+        pending.splice(i, 1);
+        drawAttached();
+        drawControls();
+      });
+      chip.appendChild(drop);
+      attachedRow.appendChild(chip);
+    });
+  }
+
+  async function attachPicked() {
+    const files = Array.from(attachInput.files || []);
+    attachInput.value = "";
+    refusal = "";
+    for (const f of files) {
+      if (pending.length >= Look.MAX_IMAGES) {
+        refusal = `At most ${Look.MAX_IMAGES} pictures go with a message.`;
+        break;
+      }
+      if (!/^image\/(png|jpeg|gif|webp)$/.test(f.type)) {
+        refusal = `${f.name} is not a PNG, JPEG, GIF or WebP picture.`;
+        continue;
+      }
+      try {
+        pending.push({ name: f.name.slice(0, 60), image: await Look.shrink(f, Look.realEnv()) });
+      } catch (err) {
+        refusal = `${f.name}: ${(err && err.message) || "it could not be attached"}`;
+      }
+    }
+    drawAttached();
+    drawControls();
   }
 
   function describeFailure(answer) {
@@ -423,6 +503,8 @@
     chat = Core.newState(null);
     usePage = true; // a new conversation shares its first page
     refusal = "";
+    pending = [];
+    drawAttached();
     await save(); // an empty conversation id: the next send starts a fresh one
     nodes.forEach((n) => n.root.remove());
     nodes.clear();
@@ -450,6 +532,8 @@
   cardBtn.addEventListener("click", () => runFill("card_fill"));
   filesBtn.addEventListener("click", () => runFill("files_fill"));
   summarizeBtn.addEventListener("click", () => send(SUMMARIZE_PROMPT, true));
+  attachBtn.addEventListener("click", () => attachInput.click());
+  attachInput.addEventListener("change", attachPicked);
   pageChip.addEventListener("click", () => {
     usePage = !usePage;
     drawControls();

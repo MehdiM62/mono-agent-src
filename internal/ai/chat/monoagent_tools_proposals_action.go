@@ -20,6 +20,7 @@ import (
 const (
 	proposePageActionTool = "propose_page_action"
 	proposeCoderTool      = "propose_coder_handoff"
+	proposeLookTool       = "propose_page_look"
 )
 
 const (
@@ -66,6 +67,19 @@ func pageActionToolDefs() []ToolDef {
 				"url":    strParam("open_url only: the full http(s) address"),
 			},
 			"required": []string{"action"},
+		},
+	}}, {Type: "function", Function: ToolFunction{
+		Name: proposeLookTool,
+		Description: "Ask to look at the page: a screenshot of the visible tab, for a page drawn on a canvas, text inside images, a chart or " +
+			"anything the page text does not hold. This sends nothing itself: the side panel shows the person a card, and only if they " +
+			"press Run does it take the picture, and the first time in a chat it shows them the picture before it goes anywhere. Pages on " +
+			"a private network are never captured. You then get the picture with the person's next turn. Use it only when the page text " +
+			"you have is not enough to answer. In why, say in a line what you need to see.",
+		Parameters: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"why": strParam("One line: what you need to see"),
+			},
 		},
 	}}, {Type: "function", Function: ToolFunction{
 		Name: proposeCoderTool,
@@ -149,6 +163,17 @@ func proposePageAction(args string) (string, error) {
 		}
 	}
 	return proposalAnswer(p)
+}
+
+// proposePageLook answers with the card that asks to look at the page. It captures nothing.
+func proposePageLook(args string) (string, error) {
+	var in struct {
+		Why string `json:"why"`
+	}
+	if err := json.Unmarshal([]byte(args), &in); err != nil {
+		return "", fmt.Errorf("propose_page_look: %w", err)
+	}
+	return proposalAnswer(proposal{Kind: "look", Why: cutRunes(cleanLine(in.Why), coderWhyRunes)})
 }
 
 // proposeCoderHandoff checks a hand-off and answers with it. It queues nothing.

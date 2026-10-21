@@ -68,6 +68,7 @@ require (
 	github.com/ysmood/leakless v0.9.0 // indirect
 	github.com/zalando/go-keyring v0.2.8 // indirect
 	golang.org/x/crypto v0.58.0 // indirect
+	golang.org/x/image v0.47.0 // indirect
 	golang.org/x/net v0.61.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect
 	golang.org/x/term v0.47.0 // indirect

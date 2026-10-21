@@ -10,10 +10,12 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/monoes/mono-agent/internal/account"
 	"github.com/monoes/mono-agent/internal/accountdoor"
+	"github.com/monoes/mono-agent/internal/agenttokens"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -41,6 +43,9 @@ type Server struct {
 	// readToken reads a profile's token from the vault without creating one
 	// ("" when it has none). A field so that a test can count the reads.
 	readToken func(ctx context.Context, profileID string) (string, error)
+	// tokens is the agent-token store, built on first use (agentTokens).
+	tokens     *agenttokens.Store
+	tokensOnce sync.Once
 	// warnOut receives the start-up warning (default stderr).
 	warnOut io.Writer
 }
@@ -51,6 +56,9 @@ func NewServer(opts Options) (*Server, error) {
 	opts.Addr = ResolveAddr(opts.Addr)
 	if !opts.AllowMutations {
 		opts.AllowMutations = os.Getenv("MONOAGENT_HTTPAPI_ALLOW_MUTATIONS") == "1"
+	}
+	if !opts.DisableProfileBearer {
+		opts.DisableProfileBearer = os.Getenv("MONOAGENT_HTTPAPI_DISABLE_PROFILE_BEARER") == "1"
 	}
 
 	rt, err := newRuntime(opts)
@@ -163,20 +171,20 @@ func (s *Server) routes() *http.ServeMux {
 
 	mux.HandleFunc("GET /health", s.handleHealth) // unauthenticated
 
-	mux.Handle("GET /profiles/{profile}/workflows", s.profileAuth(s.handleWorkflowList))
-	mux.Handle("GET /profiles/{profile}/workflows/{id}", s.profileAuth(s.handleWorkflowGet))
-	mux.Handle("GET /profiles/{profile}/workflows/{id}/executions", s.profileAuth(s.handleWorkflowExecutions))
-	mux.Handle("POST /profiles/{profile}/workflows/{id}/validate", s.profileAuth(s.handleWorkflowValidate))
-	mux.Handle("GET /nodes", s.anyProfileAuth(s.handleNodeList))
-	mux.Handle("GET /nodes/{type}/schema", s.anyProfileAuth(s.handleNodeSchema))
-	mux.Handle("GET /profiles/{profile}/hil", s.profileAuth(s.handleHilList))
+	mux.Handle("GET /profiles/{profile}/workflows", s.profileAuth(agenttokens.ScopeRead, s.handleWorkflowList))
+	mux.Handle("GET /profiles/{profile}/workflows/{id}", s.profileAuth(agenttokens.ScopeRead, s.handleWorkflowGet))
+	mux.Handle("GET /profiles/{profile}/workflows/{id}/executions", s.profileAuth(agenttokens.ScopeRead, s.handleWorkflowExecutions))
+	mux.Handle("POST /profiles/{profile}/workflows/{id}/validate", s.profileAuth(agenttokens.ScopeWrite, s.handleWorkflowValidate))
+	mux.Handle("GET /nodes", s.anyProfileAuth(agenttokens.ScopeRead, s.handleNodeList))
+	mux.Handle("GET /nodes/{type}/schema", s.anyProfileAuth(agenttokens.ScopeRead, s.handleNodeSchema))
+	mux.Handle("GET /profiles/{profile}/hil", s.profileAuth(agenttokens.ScopeRead, s.handleHilList))
 
 	if s.opts.AllowMutations {
-		mux.Handle("POST /profiles/{profile}/workflows/{id}/run", s.profileAuth(s.handleWorkflowRun))
-		mux.Handle("POST /profiles/{profile}/workflows/{id}/activate", s.profileAuth(s.handleWorkflowActivate))
-		mux.Handle("POST /profiles/{profile}/workflows/{id}/deactivate", s.profileAuth(s.handleWorkflowDeactivate))
-		mux.Handle("POST /profiles/{profile}/hil/{id}/approve", s.profileAuth(s.handleHilApprove))
-		mux.Handle("POST /profiles/{profile}/hil/{id}/reject", s.profileAuth(s.handleHilReject))
+		mux.Handle("POST /profiles/{profile}/workflows/{id}/run", s.profileAuth(agenttokens.ScopeRun, s.handleWorkflowRun))
+		mux.Handle("POST /profiles/{profile}/workflows/{id}/activate", s.profileAuth(agenttokens.ScopeRun, s.handleWorkflowActivate))
+		mux.Handle("POST /profiles/{profile}/workflows/{id}/deactivate", s.profileAuth(agenttokens.ScopeRun, s.handleWorkflowDeactivate))
+		mux.Handle("POST /profiles/{profile}/hil/{id}/approve", s.profileAuth(agenttokens.ScopeFull, s.handleHilApprove))
+		mux.Handle("POST /profiles/{profile}/hil/{id}/reject", s.profileAuth(agenttokens.ScopeFull, s.handleHilReject))
 	}
 
 	// The routes before profiles were explicit: refused for every method, with
@@ -248,11 +256,11 @@ func bearerCredential(r *http.Request) string {
 // wantFullOutputs mirrors `workflow run --full-outputs`: passing
 // X-Full-Outputs: 1 skips credential-key redaction of output items (the
 // 4KB per-item truncation still applies). It carries the same trust
-// implication as the CLI flag — the caller already holds the bearer
-// credential, i.e. is already authorized for this profile's data — so no
-// additional gate is applied here beyond that authentication.
+// implication as the CLI flag, so it is honoured only for the profile's own
+// bearer (scope full): a scoped agent token never switches redaction off, and
+// its header is ignored.
 func wantFullOutputs(r *http.Request) bool {
-	return r.Header.Get(fullOutputsHeader) == "1"
+	return r.Header.Get(fullOutputsHeader) == "1" && scopeOf(r) == agenttokens.ScopeFull
 }
 
 func redactItemsUnlessFull(r *http.Request, items []workflow.Item) []workflow.Item {

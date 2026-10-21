@@ -133,6 +133,7 @@
   function cloneMessage(m) {
     const out = { id: str(m.id), role: m.role, text: m.text };
     if (m.role === "user" && m.page) out.page = clip(m.page, TITLE_CAP);
+    if (m.role === "user" && m.attached) out.attached = clip(m.attached, TITLE_CAP);
     if (m.role === "assistant") {
       // Kept as saved: a reply cut off by a closed panel carries on from the
       // replay, and whoever restores it closes it once the backend says the
@@ -168,7 +169,7 @@
    * page: the page the panel showed ({tabId, url}), which the reply's cards
    * are bound to.
    */
-  function startTurn(state, text, pageTitle, withPage, page) {
+  function startTurn(state, text, pageTitle, withPage, page, attached) {
     closeOpen(state);
     // A new turn numbers its events from 1 again; its id is learned from the
     // first event that names it, or from the final reply.
@@ -176,6 +177,8 @@
     state.lastSeq = 0;
     const msg = { role: "user", text: str(text) };
     if (pageTitle) msg.page = pageTitle;
+    // What came with it besides words ("2 images"): said under the message, never stored as pixels.
+    if (attached) msg.attached = clip(String(attached), TITLE_CAP);
     // Any page counts, with or without a title or address: its text is the page's.
     if (pageTitle || withPage) state.readPage = true;
     state.turnPage = pageOf(page);

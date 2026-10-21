@@ -82,6 +82,7 @@ paths:
                 type: array
                 items: { $ref: "#/components/schemas/WorkflowSummary" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
   /profiles/{profile}/workflows/{id}:
     parameters: [{ $ref: "#/components/parameters/Profile" }]
     get:
@@ -95,6 +96,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Workflow" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
   /profiles/{profile}/workflows/{id}/executions:
     parameters: [{ $ref: "#/components/parameters/Profile" }]
@@ -115,6 +117,7 @@ paths:
                 type: array
                 items: { $ref: "#/components/schemas/ExecutionSummary" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
   /profiles/{profile}/workflows/{id}/validate:
     parameters: [{ $ref: "#/components/parameters/Profile" }]
@@ -144,6 +147,7 @@ paths:
                   errors: { type: array, items: { type: string } }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
   /profiles/{profile}/workflows/{id}/run:
     parameters: [{ $ref: "#/components/parameters/Profile" }]
@@ -180,6 +184,7 @@ paths:
               schema: { $ref: "#/components/schemas/ExecutionResult" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
   /profiles/{profile}/workflows/{id}/activate:
     parameters: [{ $ref: "#/components/parameters/Profile" }]
@@ -191,6 +196,7 @@ paths:
         "200": { description: Activated }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
   /profiles/{profile}/workflows/{id}/deactivate:
     parameters: [{ $ref: "#/components/parameters/Profile" }]
@@ -201,6 +207,7 @@ paths:
       responses:
         "200": { description: Deactivated }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
   /nodes:
     get:
@@ -220,6 +227,7 @@ paths:
                     category: { type: string }
                     title: { type: string }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
   /nodes/{type}/schema:
     get:
       operationId: getNodeSchema
@@ -241,6 +249,7 @@ paths:
                   type: { type: string }
                   schema: { type: object }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
   /profiles/{profile}/hil:
     parameters: [{ $ref: "#/components/parameters/Profile" }]
@@ -256,6 +265,7 @@ paths:
                 type: array
                 items: { $ref: "#/components/schemas/HilItem" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
   /profiles/{profile}/hil/{id}/approve:
     parameters: [{ $ref: "#/components/parameters/Profile" }]
     post:
@@ -273,6 +283,7 @@ paths:
       responses:
         "200": { description: Approved }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
   /profiles/{profile}/hil/{id}/reject:
     parameters: [{ $ref: "#/components/parameters/Profile" }]
@@ -283,6 +294,7 @@ paths:
       responses:
         "200": { description: Rejected }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
   /org-endpoint/{id}:
     post:
@@ -759,6 +771,15 @@ components:
       description: >
         Token generated on first server start and stored in this profile's
         secrets vault (name "httpapi-token"). Not required for GET /health.
+        This token has the full scope. A coding agent should get a scoped token
+        instead (`monoagentcli agent-mode token create --scope read|write|run`,
+        `mat-…`), sent the same way and bound to one profile, with an expiry and
+        revocable. Scopes: `read` = GET routes; `write` = also validate;
+        `run` = also run, activate and deactivate; approve and reject need the
+        full scope. A request above the token's scope is answered 403, and every
+        request made with a scoped token is audited (name, method, path, status).
+        The server refuses the profile's own token when started with
+        MONOAGENT_HTTPAPI_DISABLE_PROFILE_BEARER=1.
     apiKeyAuth:
       type: http
       scheme: bearer
@@ -792,6 +813,14 @@ components:
         token of another profile, and a profile that does not exist, are
         answered the same), or no valid monoes.me login on this machine
         (`login_required: true`)
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Forbidden:
+      description: >
+        The bearer is valid but its scope is below what the route needs
+        (see the bearerAuth scheme). Only a scoped agent token is ever refused
+        this way.
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }

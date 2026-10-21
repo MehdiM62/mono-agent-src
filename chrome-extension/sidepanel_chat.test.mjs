@@ -24,6 +24,7 @@ class Node_ {
   appendChild(c) { if (c.tag === "#fragment") { for (const k of [...c.children]) this.appendChild(k); return c; } c.remove?.(); c.parentNode = this; this.children.push(c); return c; }
   // As the real DOM: a reference node that is not a child is an error (NotFoundError), not "append".
   insertBefore(c, ref) { if (ref && ref.parentNode !== this) throw new Error("NotFoundError: the reference node is not a child"); c.remove?.(); c.parentNode = this; const i = ref ? this.children.indexOf(ref) : -1; if (i < 0) this.children.push(c); else this.children.splice(i, 0, c); return c; }
+  replaceChildren(...kids) { this.children = []; this._text = ""; kids.forEach((k) => this.appendChild(k)); }
   remove() { if (this.parentNode) { this.parentNode.children.splice(this.parentNode.children.indexOf(this), 1); this.parentNode = null; } }
   replaceWith(n) { const p = this.parentNode; const i = p.children.indexOf(this); n.remove?.(); n.parentNode = p; p.children[i] = n; this.parentNode = null; }
   setAttribute(k, v) { this.attrs[k] = String(v); }
@@ -39,7 +40,7 @@ class Node_ {
   get textContent() { return this._text + this.children.map((c) => c.textContent).join(""); }
 }
 
-const IDS = ["chat-log", "chat-empty", "chat-input", "chat-send", "chat-stop", "chat-new", "chat-fill", "chat-card", "chat-files", "chat-summarize", "chat-page", "chat-notice", "chat-state"];
+const IDS = ["chat-log", "chat-empty", "chat-input", "chat-send", "chat-stop", "chat-new", "chat-fill", "chat-card", "chat-files", "chat-summarize", "chat-page", "chat-attach", "chat-attach-input", "chat-attached", "chat-notice", "chat-state"];
 
 function setup({ replies = {}, stored = {}, pageNow = { tabId: 5, url: "https://a.example/p", title: "A page" }, profile = "p-work", record = null } = {}) {
   const els = {};
@@ -69,7 +70,7 @@ function setup({ replies = {}, stored = {}, pageNow = { tabId: 5, url: "https://
   const env = { document: doc, chrome, ask, profiles: { current: { id: profile } }, page: pageNow, here: { windowId: 1 }, CustomEvent: class { constructor(t) { this.type = t; } } };
   if (record) env.MonoPanelRecord = record;
   doc.dispatchEvent = (e) => sent.push({ event: e.type });
-  const sandbox = loadExtensionScripts(["chat_context.js", "chat_core.js", "chat_render.js", "private_net.js", "chat_proposals.js", "sidepanel_chat_cards.js", "sidepanel_chat.js"], env);
+  const sandbox = loadExtensionScripts(["chat_context.js", "chat_core.js", "chat_render.js", "private_net.js", "agent_redact.js", "chat_look.js", "chat_proposals_act.js", "chat_proposals.js", "sidepanel_chat_cards.js", "sidepanel_chat.js"], env);
   return {
     els, sent, store, doc, sandbox,
     progress: (tag, seq, stage, payload) => onMessage({ type: "chat_progress", tag, progress: { stage, detail: JSON.stringify({ seq, payload }) } }),
@@ -633,4 +634,51 @@ test("a send remembers the page it was sent from", async () => {
   t.enter();
   await settle(30);
   assert.deepEqual(t.store["chatLog:p-work"].turnPage, { tabId: 5, url: "https://a.example/p" });
+});
+
+// Looking at the page (issue #941): the picture is a chat turn of its own, with
+// the image attached, no page text, and a line under the bubble that it came with one.
+function findButton(node, text) {
+  if (node.tag === "button" && node.textContent === text) return node;
+  for (const c of node.children || []) {
+    const hit = findButton(c, text);
+    if (hit) return hit;
+  }
+  return null;
+}
+
+test("a look card: Run shows the picture, Send to the model sends it as a turn with the image and no page text", async () => {
+  const IMAGE = { mime: "image/jpeg", data: "/9j/AAAA", width: 800, height: 600, bytes: 4096 };
+  const card = { id: "l1", kind: "look", why: "canvas", untrustedPage: true, state: "pending", feedback: "", nonce: "a".repeat(16), page: { tabId: 5, url: "https://a.example/p" } };
+  const t = setup({
+    replies: { ...READY, page_look_capture: { ok: true, image: IMAGE }, chat_send: { ok: true, data: { conversation: "c-1", text: "A bar chart." } }, chat_events: { ok: true, events: [], turn_active: false } },
+    stored: { "chatConv:p-work": "c-1", "chatLog:p-work": { conversation: "c-1", lastSeq: 1, nextId: 3, messages: [{ id: "m1", role: "user", text: "what does the chart say?" }, { id: "m2", role: "assistant", text: "I need to see it.", tools: [], open: false, proposals: [card] }] } },
+  });
+  t.doc.fire("panel:profiles");
+  await settle(40);
+  const run = findButton(t.log()[1], "Look at the page");
+  assert.ok(run, "the card offers Look at the page");
+  run.fire("click");
+  await settle(40);
+  assert.deepEqual(t.sent.filter((m) => m.type === "chat_send"), [], "nothing is sent before the person agrees");
+  const send = findButton(t.log()[1], "Send to the model");
+  assert.ok(send, "the picture waits for Send to the model");
+  send.fire("click");
+  await settle(60);
+  const s = lastOf(t.sent, "chat_send");
+  assert.deepEqual(s.images, [IMAGE]);
+  assert.equal(s.context, null, "no page text goes with a picture");
+  assert.match(s.message, /screenshot/);
+  assert.match(t.log()[2].textContent, /With: a screenshot of the page/);
+  assert.equal(t.store["chatLog:p-work"].messages[1].proposals[0].state, "done");
+  assert.ok(!JSON.stringify(t.store).includes("/9j/AAAA"), "the picture is not stored");
+});
+
+test("a plain message carries no images", async () => {
+  const t = setup({ replies: { ...READY, chat_send: { ok: true, data: { conversation: "c-1", text: "ok" } } } });
+  await settle();
+  t.type("hi");
+  t.enter();
+  await settle(30);
+  assert.deepEqual(lastOf(t.sent, "chat_send").images, []);
 });

@@ -38,7 +38,7 @@ const (
 // proposalToolNames are the proposal tools. They are offered only in a
 // page-read session (PageReadToolNames), the one chat whose replies the
 // side panel turns into cards.
-var proposalToolNames = []string{proposeTaskTool, proposeRecordingTool, proposeVaultSaveTool, proposePageActionTool, proposeCoderTool}
+var proposalToolNames = []string{proposeTaskTool, proposeRecordingTool, proposeVaultSaveTool, proposePageActionTool, proposeLookTool, proposeCoderTool}
 
 const (
 	// proposalTitleRunes is the board's own title limit (tasks.MaxTitleRunes).
@@ -138,6 +138,8 @@ func (mt *MonoagentTools) executeProposal(name, args string) (string, bool, erro
 		out, err = proposeVaultSave(args)
 	case proposePageActionTool:
 		out, err = proposePageAction(args)
+	case proposeLookTool:
+		out, err = proposePageLook(args)
 	case proposeCoderTool:
 		out, err = proposeCoderHandoff(args)
 	default:
