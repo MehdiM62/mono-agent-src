@@ -34,6 +34,10 @@ type authFrame struct {
 	Profile  string `json:"profile,omitempty"`
 	Label    string `json:"label,omitempty"`
 	Version  string `json:"version,omitempty"`
+
+	// tokenID is the per-browser token (browser_tokens.go) the socket
+	// authenticated with; empty for the shared extension.token. Never on the wire.
+	tokenID string
 }
 
 // handleWS upgrades an incoming HTTP request to a WebSocket connection and
@@ -93,9 +97,16 @@ func (s *Server) authenticate(conn *websocket.Conn) (authFrame, bool) {
 	}
 
 	var auth authFrame
-	ok := json.Unmarshal(msg, &auth) == nil &&
-		auth.Type == "auth" &&
-		subtle.ConstantTimeCompare([]byte(auth.Token), []byte(s.token)) == 1
+	ok := json.Unmarshal(msg, &auth) == nil && auth.Type == "auth"
+	if ok {
+		if subtle.ConstantTimeCompare([]byte(auth.Token), []byte(s.token)) == 1 {
+			auth.tokenID = ""
+		} else if b, found := pairedBrowserForToken(auth.Token); found {
+			auth.tokenID = b.ID
+		} else {
+			ok = false
+		}
+	}
 	if !ok {
 		s.noteAuthFailure()
 		s.logger.Warn().Msg("rejected extension connection: bad or missing auth token")
@@ -120,6 +131,7 @@ func (s *Server) pingLoop(c *extConn, done <-chan struct{}) {
 			// arriving has nobody waiting on it when it was the extension
 			// flushing its queue, so something has to time it out.
 			s.sweepCaptures()
+			s.sweepRevoked()
 			if err := c.ping(); err != nil {
 				return
 			}

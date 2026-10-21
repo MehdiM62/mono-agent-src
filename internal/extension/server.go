@@ -91,6 +91,12 @@ type Server struct {
 	pairingNonces map[string]pairingNonceEntry
 	pairingMu     sync.Mutex
 
+	// The zero-step claim flow (autopair.go): the kill-switch reader and the
+	// rate-limit window.
+	claimMu    sync.Mutex
+	autoPair   func() bool
+	claimTimes []time.Time
+
 	// The self-description served at /monoagent/health (see status.go).
 	// lastAuthFailure is what lets that endpoint say "running, but this
 	// extension is not paired with me" instead of a bare "not connected".
@@ -268,6 +274,8 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("/monoagent/pair", s.handlePairPage)
 	mux.HandleFunc("/monoagent/pair/exchange", s.handlePairExchange)
 	mux.HandleFunc("/monoagent/pair/nonce", s.handlePairNonce)
+	mux.HandleFunc("/monoagent/status", s.handleClaimStatus)
+	mux.HandleFunc("/monoagent/pair/claim", s.handlePairClaim)
 	mux.HandleFunc("/monoagent/resolve", s.handleResolve)
 	mux.HandleFunc("/monoagent/browsers", s.handleBrowsers)
 

@@ -44,7 +44,7 @@ type browsersReport struct {
 const noBridgeHint = "No bridge is running. Start one with `monoagentcli extension serve`."
 
 func newExtensionBrowsersCmd(cfg *Deps) *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "browsers",
 		Short: "List the browsers attached to the bridge and the profile each one runs",
 		Long: "Every browser profile with the MonoAgent Bridge extension is its own browser here.\n" +
@@ -57,6 +57,8 @@ func newExtensionBrowsersCmd(cfg *Deps) *cobra.Command {
 			return runExtensionBrowsers(cmd.Context(), cfg, cmd.OutOrStdout())
 		},
 	}
+	cmd.AddCommand(newExtensionBrowsersListCmd(cfg), newExtensionBrowsersRevokeCmd(cfg))
+	return cmd
 }
 
 func newExtensionBindCmd(cfg *Deps) *cobra.Command {

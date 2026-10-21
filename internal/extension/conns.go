@@ -91,6 +91,7 @@ func (e *NoBrowserError) Error() string {
 // extConn is one browser's socket.
 type extConn struct {
 	id          string
+	tokenID     string // the per-browser token this socket authenticated with, if any
 	legacy      bool
 	version     string
 	connectedAt time.Time
@@ -104,7 +105,7 @@ type extConn struct {
 }
 
 func newExtConn(ws *websocket.Conn, auth authFrame, now time.Time) *extConn {
-	c := &extConn{id: legacyInstanceID, legacy: true, ws: ws, connectedAt: now}
+	c := &extConn{id: legacyInstanceID, legacy: true, ws: ws, connectedAt: now, tokenID: auth.tokenID}
 	if validInstanceID.MatchString(auth.Instance) {
 		c.id, c.legacy = auth.Instance, false
 	}

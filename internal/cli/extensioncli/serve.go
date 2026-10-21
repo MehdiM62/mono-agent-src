@@ -68,6 +68,7 @@ func newExtensionServer(logger zerolog.Logger, version string) *extension.Server
 		Profiles:   capturecli.ExtensionProfileSource(capturecli.DefaultDBPath),
 		Tasks:      extensionTaskSink(capturecli.DefaultDBPath),
 		Vault:      extensionVaultSink(capturecli.DefaultDBPath),
+		AutoPair:   extensionAutoPair(capturecli.DefaultDBPath),
 		FormFiller: extensionFormFiller(capturecli.DefaultDBPath, configuredSummaryRuntime()),
 		Version:    version,
 		InstallCaptureSummaries: func(srv *extension.Server, logf func(string, ...any)) {

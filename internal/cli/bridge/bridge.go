@@ -29,6 +29,9 @@ type Options struct {
 	Vault extension.VaultSink
 	// FormFiller answers the side panel's form.fill (the profile's documents).
 	FormFiller extension.FormFiller
+	// AutoPair reads the kill-switch of the zero-step pairing (`extension
+	// autopair`); nil means on.
+	AutoPair func() bool
 	// Version is this build, reported in the bridge's status.
 	Version string
 	// InstallCaptureSummaries wires the capture summaries and indexing into
@@ -62,6 +65,7 @@ func NewServer(logger zerolog.Logger, o Options) *extension.Server {
 	srv.SetChatBackend(extension.NewCLIChatBackend())
 	// form.fill: fill the page's form from the profile's own documents.
 	srv.SetFormFiller(o.FormFiller)
+	srv.SetAutoPair(o.AutoPair)
 	srv.SetVersion(o.Version)
 	// Every bridge that owns the connection writes the summaries its
 	// captures ask for. `extension serve` re-installs this with its own
