@@ -158,7 +158,14 @@ workflow's own fields, without you saving or activating each workflow.
   case, `-` and `_` swapped, hex), follows a sub-workflow the run calls, and
   survives a pause and resume. Any expression or code step can still transform
   a value into a form nobody listed (split it, reverse it, hash part of it),
-  and a transformed value is neither masked nor recognised by the host check.
+  and a transformed value is not masked. The host check does not depend on
+  recognising it: once any step of a run (or of the run that called it) has
+  read a secret under `--host`, every request of `http.request`,
+  `http.graphql`, `mcp.call` and `trigger.sse` in that run, proxy and
+  redirect hops included, goes only to the listed hosts. A run that never read
+  a secret sends anywhere, as before. The snapshot of a run paused while it
+  holds such values (a wait or a review) is stored sealed under the profile's
+  vault key, not as plain text.
   So `agent-access on` effectively trusts the agent-written workflows with
   the secrets and hosts you name: grant only secrets you accept an agent
   using, and prefer a short `--expires`.
@@ -643,6 +650,14 @@ widen what an earlier page reached the model with):
   something that grants, accepts, pays or deletes, and a box is only ticked
   when the page ties it to the named text (label, `for`, `aria-labelledby`,
   or its own name).
+  The guard reads words after folding: full-width and other compatibility
+  forms, zero-width, soft-hyphen and bidi characters, combining marks and
+  case do not hide them. It also holds `payment`, `disconnect`, `unlink`,
+  and a text of any length with such a verb that has a pointer cursor, a
+  `tabindex` or sits in a form. Remaining limit: a box with a default cursor,
+  outside a form, whose click listener acts on a long text cannot be told
+  from plain text and is not held; look-alike letters from another script
+  (a Cyrillic `а` in `delete`) are not folded either.
 - The page counts as untrusted content for every gate that remains
   (`checkInjectionGate`), and a model-supplied `confirm:true` is never
   consent for a gated tool: the gate is checked before `confirm` is read.

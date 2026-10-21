@@ -175,13 +175,17 @@
    */
   function guard(action, extra) {
     const CLICKABLE = "a,button,input,select,textarea,summary,label,[role],[onclick],[tabindex]";
+    // Judged on folded text: compatibility forms (full-width letters), invisible format characters
+    // (zero-width, soft hyphen, bidi marks), combining marks and case do not hide a word. The word
+    // lists are folded the same way, so "löschen" is matched as "loschen".
+    const fold = (t) => String(t == null ? "" : t).normalize("NFKD").replace(/[\p{Cf}\p{M}]/gu, "").toLowerCase();
     const VERBS =
-      "submit|send|post|publish|pay|buy|confirm|order|sign ?up|apply|delete|remove|archive|unsubscribe|subscribe|transfer|withdraw|authori[sz]e|allow|grant|donate|check ?out|add to (?:cart|bag|basket)|log ?out|log ?off|sign ?out|install|reset|revoke|erase|destroy|wipe|discard|deactivate|terminate|accept|agree|approve|continue|proceed|" +
+      "submit|send|post|publish|pay|payments?|disconnect|unlink|buy|confirm|order|sign ?up|apply|delete|remove|archive|unsubscribe|subscribe|transfer|withdraw|authori[sz]e|allow|grant|donate|check ?out|add to (?:cart|bag|basket)|log ?out|log ?off|sign ?out|install|reset|revoke|erase|destroy|wipe|discard|deactivate|terminate|accept|agree|approve|continue|proceed|" +
       "senden|absenden|bezahlen|kaufen|löschen|bestellen|entfernen|envoyer|payer|acheter|supprimer|enviar|pagar|comprar|eliminar|borrar|verwijderen|betalen|kopen|удалить|оплатить|купить|" +
       "cancel\\s+(?:my\\s+)?subscription|close\\s+(?:my\\s+)?account";
     // Chinese, Japanese and Korean have no spaces between words: these are tested as substrings.
     const CJK = "削除|購入|支払い|支払う|删除|购买|支付|付款|삭제|결제|구매";
-    const WORDS_RE = new RegExp("(?<![\\p{L}\\p{N}])(?:" + VERBS + ")(?![\\p{L}\\p{N}])|" + CJK, "iu");
+    const WORDS_RE = new RegExp("(?<![\\p{L}\\p{N}])(?:" + fold(VERBS) + ")(?![\\p{L}\\p{N}])|" + fold(CJK), "iu");
     const WORDS = WORDS_RE;
     // Nouns that look like a verb at the start of a file or row name.
     const NOUNS = /\b(?:purchase\s+orders?|orders?\s+(?:numbers?|history|status|id|confirmation)|delete\s+key|post\s*(?:code|box|card)|payment\s+terms)\b/gi;
@@ -189,7 +193,7 @@
     const sayings = (el) => {
       const by = (el.getAttribute("aria-labelledby") || "").split(/\s+/).map((id) => (el.ownerDocument.getElementById(id) || {}).textContent || "");
       const alts = Array.from(el.querySelectorAll("img[alt]")).map((i) => i.getAttribute("alt"));
-      return [el.getAttribute("aria-label"), ...by, el.textContent, el.value, el.getAttribute("title"), el.getAttribute("alt"), ...alts].filter(Boolean);
+      return [el.getAttribute("aria-label"), ...by, el.textContent, el.value, el.getAttribute("title"), el.getAttribute("alt"), ...alts].filter(Boolean).map(fold);
     };
     const said = (el) => sayings(el).join(" ");
     if (action === "consent") {
@@ -198,8 +202,8 @@
       const ASK =
         "delete|remove|erase|destroy|wipe|discard|revoke|deactivate|terminate|reset|authori[sz]e|allow|grant|accept|agree|approve|proceed|consent|confirm|pay|buy|purchase|order|subscribe|unsubscribe|donate|publish|install|" +
         "löschen|bezahlen|kaufen|bestellen|akzeptieren|zustimmen|supprimer|payer|acheter|accepter|eliminar|pagar|comprar|aceptar";
-      const ASKED = new RegExp("(?<![\\p{L}\\p{N}])(?:" + ASK + ")(?![\\p{L}\\p{N}])", "iu");
-      return ASKED.test(said(this) + " " + (extra || "")) ? "submit_blocked" : "";
+      const ASKED = new RegExp("(?<![\\p{L}\\p{N}])(?:" + fold(ASK) + ")(?![\\p{L}\\p{N}])", "iu");
+      return ASKED.test(said(this) + " " + fold(extra)) ? "submit_blocked" : "";
     }
     const list = [this];
     if (this.tagName === "LABEL" && this.control) list.push(this.control);
@@ -235,8 +239,10 @@
         // Rows of text (files, list items) are named by their words, not tested by them, except
         // for the words that destroy or buy once nouns such as "purchase order" are set aside.
         if (words(sayings(el).map((t) => t.replace(NOUNS, " ")))) return "submit_blocked";
-      } else if ((host || pointing || el.hasAttribute("tabindex") || (el.textContent || "").trim().length <= 80) && words(sayings(el))) {
-        // A listener cannot be seen from here, so a short bare text with such words is held too.
+      } else if ((host || pointing || inForm || el.hasAttribute("tabindex") || (el.textContent || "").trim().length <= 80) && words(sayings(el))) {
+        // A listener cannot be seen from here, so a short bare text with such words is held too,
+        // and a text of any length that looks clickable (pointer cursor, tabindex, inside a form).
+        // A long text in a default-cursor box outside a form is not detected (SECURITY.md).
         return "submit_blocked";
       }
       if (tag === "A" && el.hasAttribute("href")) {
@@ -250,7 +256,7 @@
         } catch {
           // keep the raw text
         }
-        if (WORDS.test(where.replace(/[\/_+=&?.-]+/g, " "))) return "submit_blocked";
+        if (WORDS.test(fold(where).replace(/[\/_+=&?.-]+/g, " "))) return "submit_blocked";
       }
     }
     return "";

@@ -408,6 +408,47 @@ describe("page_action_page.js in a browser", { skip, concurrency: 1 }, () => {
     assert.deepEqual(await run("click", "Read the guide"), { ok: true });
   });
 
+  // Review of #944 (F3): invisible characters, compatibility forms and
+  // combining marks do not hide a destructive word; the added words are held;
+  // a pointer-cursor container and a text in a form are held at any length.
+  it("holds a destructive word that is hidden by invisible characters, compatibility forms or marks", async () => {
+    const LONG = "Clicking here will permanently remove your entire account and every file that belongs to it from our servers.";
+    const cases = {
+      zwsp: "Dele\u200bte account",
+      softHyphen: "Del\u00adete account",
+      bidi: "Pay\u200fment now",
+      fullwidth: "\uff24\uff25\uff2c\uff25\uff34\uff25 account",
+      marks: "De\u0336l\u0336e\u0336te account",
+      payment: "Payment",
+      disconnect: "Disconnect bank",
+      unlink: "Unlink account",
+      signOutAll: "Sign out of all devices",
+      wipe: "Wipe device",
+      reset: "Reset everything",
+      removeKey: "Remove key",
+    };
+    const html = "<!doctype html><meta charset=utf-8><body>" +
+      Object.entries(cases).map(([k, v]) => `<button id=${k} type=button>${v}</button>`).join("") +
+      `<button id=aria type=button aria-label="Dele\u200bte it">x</button>` +
+      `<div id=ptr style="cursor:pointer">${LONG}</div>` +
+      `` +
+      `<div id=orders role=option>Purchase order 2025.pdf</div><button id=ok type=button>Open menu</button>` +
+      `<button id=ger type=button>L\u00f6schen</button>`;
+    await open(html);
+    for (const [k, v] of Object.entries(cases)) assert.equal((await run("click", v)).code, "submit_blocked", k);
+    assert.equal((await run("click", "Dele\u200bte it")).code, "submit_blocked", "an aria-label");
+    assert.equal((await run("click", LONG)).code, "submit_blocked", "a long pointer-cursor container");
+    assert.equal((await run("click", "Löschen")).code, "submit_blocked", "diacritics in the word list still match");
+    assert.deepEqual(await run("click", "Open menu"), { ok: true });
+    assert.deepEqual(await run("click", "Purchase order 2025.pdf"), { ok: true }, "the noun allow-list stays");
+  });
+
+  it("holds a long destructive text inside a form, though a plain one is let through", async () => {
+    const LONG = "Clicking here will permanently remove your entire account and every file that belongs to it from our servers.";
+    await open(`<!doctype html><meta charset=utf-8><body><form onsubmit="return false"><div id=informlong>${LONG}</div></form>`);
+    assert.equal((await run("click", LONG)).code, "submit_blocked");
+  });
+
   it("hovers, scrolls the page, and presses only the safe keys", async () => {
     await open(QUIZ);
     assert.equal((await run("hover", "Products")).ok, true);
