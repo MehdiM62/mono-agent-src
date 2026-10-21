@@ -295,6 +295,63 @@ describe("page_action_page.js in a browser", { skip, concurrency: 1 }, () => {
     assert.equal((await run("click", "Inside shadow")).ok, true);
   });
 
+  const CONSENT = `<!doctype html><meta charset=utf-8><body>
+<form onsubmit="window.__log.push('SUBMITTED'); return false">
+  <label><input type=checkbox id=del> Delete my account and all data</label>
+  <label for=ctc>Allow access to my contacts</label><input type=checkbox id=ctc>
+  <div role=switch aria-checked=false id=sw tabindex=0>Authorize payments</div>
+  <label for=ok>Remind me weekly</label><input type=checkbox id=ok>
+  <div id=terms><input type=checkbox id=t1><span>Terms of service</span><span>Marketing emails</span></div>
+  <div id=solo><input type=checkbox id=t2><span>Remember me</span></div>
+  <div id=lby><span id=lbl>Show hints</span><input type=checkbox id=t3 aria-labelledby=lbl></div>
+  <label for=act>Action</label><select id=act><option>Keep</option><option>Delete everything</option></select>
+  <label for=risky>Delete the selected rows</label><select id=risky><option>Yes</option><option>No</option></select>
+</form>
+<script>
+  window.__log = [];
+  for (const id of ["act", "risky"]) for (const t of ["input", "change"]) document.getElementById(id).addEventListener(t, () => window.__log.push(t + ":" + id));
+</script>`;
+
+  it("check holds back a box whose label is a consent or destructive verb; a plain box is ticked", async () => {
+    await open(CONSENT);
+    for (const [target, id] of [["Delete my account and all data", "del"], ["Allow access to my contacts", "ctc"], ["Authorize payments", "sw"]]) {
+      const out = await run("check", target);
+      assert.deepEqual([out.ok, out.code], [false, "submit_blocked"], target);
+      assert.match(out.error, /press that yourself/);
+      assert.notEqual(await json(`document.getElementById("${id}").checked || document.getElementById("${id}").getAttribute("aria-checked") === "true"`), true, id + " stays off");
+    }
+    assert.equal((await run("check", "Remind me weekly")).ok, true);
+    assert.equal(await json("document.getElementById('ok').checked"), true);
+  });
+
+  it("select holds back a destructive label or chosen option, and fires nothing", async () => {
+    await open(CONSENT);
+    assert.equal((await run("select", "Action", "Delete everything")).code, "submit_blocked", "the chosen option says delete");
+    assert.equal((await run("select", "Delete the selected rows", "Yes")).code, "submit_blocked", "the select's label says delete");
+    assert.deepEqual(await log("input:"), []);
+    assert.deepEqual(await log("change:"), []);
+    assert.equal((await run("select", "Action", "Keep")).ok, true, "a harmless option still works");
+  });
+
+  it("check resolves its box by the label, never by proximity: one label cannot tick a box beside it", async () => {
+    await open(CONSENT);
+    const out = await run("check", "Marketing emails");
+    assert.deepEqual([out.ok, out.code], [false, "ambiguous"], "the lone box in that row belongs to 'Terms of service'");
+    assert.equal(await json("document.getElementById('t1').checked"), false);
+    assert.equal((await run("check", "Remember me")).ok, true, "a box and its one text, side by side, are tied");
+    assert.equal(await json("document.getElementById('t2').checked"), true);
+    assert.equal((await run("check", "Show hints")).ok, true, "aria-labelledby ties a box to its text");
+    assert.equal(await json("document.getElementById('t3').checked"), true);
+    assert.deepEqual(await log("SUBMITTED"), []);
+  });
+
+  it("find says the frame it searched: its origin and address (a subframe step is checked against them)", async () => {
+    await open();
+    const out = await json("MonoPageAction.find('click', 'Share')");
+    assert.equal(out.origin, await json("location.origin"), "find says the frame's origin");
+    assert.ok(out.href, "and its address");
+  });
+
   it("hovers, scrolls the page, and presses only the safe keys", async () => {
     await open(QUIZ);
     assert.equal((await run("hover", "Products")).ok, true);
