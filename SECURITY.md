@@ -68,9 +68,12 @@ The commands that print a decrypted value (`secret reveal --reveal`,
 `secret export`, `connect get-oauth-client --reveal`, `profile info get
 --reveal`, `node run vault.secret_get`, `workflow run --full-outputs`) and
 `api key create` are refused (exit 3, `operator_only`) to a process the CLI
-recognises as an agent, the in-app chat or a workflow run. No secret
-resolves in a workflow you haven't approved, or in a step an agent runs on
-its own (`node run`, MCP `node_run`).
+recognises as an agent, the in-app chat or a workflow run. By default no
+secret resolves in a workflow you haven't approved, or in a step an agent
+runs on its own (`node run`, MCP `node_run`); `secret agent-access on` lifts
+the first of these, for the profile, as described under "Letting
+agent-written workflows read the vault" below. `vault.secret_get` is never
+lifted.
 
 This is a deterrent against mistakes and instructions planted in pages or
 messages, not a barrier:
@@ -112,6 +115,59 @@ messages, not a barrier:
   server or your own command, so a new writer can't reach it by accident.
 - An agent with full access to your computer can do anything you can,
   including reading the keyring.
+
+### Letting agent-written workflows read the vault
+
+`monoagentcli secret agent-access on` is a profile-wide switch that lets a
+run of a workflow you never approved (one the chat, an agent or another
+workflow wrote or changed) resolve `@secret:` references written in the
+workflow's own fields, without you saving or activating each workflow.
+
+- **Who sets it.** Only you: the command is refused (exit 3,
+  `operator_only`) to an agent, the chat or a workflow, as `secret reveal`
+  is, and so is clearing its audit. It lives in `profile_agent_secret_access`,
+  outside any workflow definition, so no import or settings key can turn it on.
+- **Default.** Off. A profile with no row behaves as before.
+- **Scope.** `--secret NAME[,NAME...]` limits it to those vault entries (default
+  all); `--expires 24h` ends it after that long (an expired grant is off);
+  `--host HOST[,HOST...]` limits where a secret may be sent, and one of
+  `--host` or `--any-host` is required. The grant is read again at every
+  resolution, so `agent-access off`, a narrower grant or an expiry stops
+  a run already under way at its next read.
+- **Where a secret may go.** With `--host`, a request of `http.request`,
+  `http.graphql` or `mcp.call` (http), or the connection of a `trigger.sse`
+  node, that carries a secret read under the switch (in its address, headers
+  or body) is refused unless its host is on the list. A saved connection's
+  token still goes only to the host the connection names, because the run
+  stays unapproved (an agent's workflow sets no connection host of its own).
+  With `--any-host` an agent's workflow can send an allowed secret to any
+  address it names; use it only for a profile whose secrets you accept an
+  agent using. That is the accepted risk of the broad mode.
+- **Audit.** Each secret an unapproved run reads under the switch is
+  recorded by name (workflow, run, step and time; never the value):
+  `secret agent-access audit [--json]`; only you clear it (`--clear`). A read
+  whose audit row cannot be written is refused.
+- **Values in outputs.** `vault.secret_get` stays refused to an unapproved
+  run, with the switch on as off. The values the run itself resolved
+  (6 characters or more) are masked, wherever they occur, in the step inputs,
+  outputs and errors it stores, so they don't show in `workflow_executions`,
+  MCP or `--full-outputs`.
+- **What still leaks.** A step can still move a value inside the run (an
+  `http.request` whose response or another step's output is used as a field,
+  a code step) or send it somewhere a host list does not look: the list
+  covers the HTTP, GraphQL, MCP-http and SSE paths, not other nodes that can
+  carry a `@secret:` in a field (mail, chat or database nodes), nor a
+  redirect that re-sends a request body. Values shorter than 6 characters are
+  neither masked nor bound to hosts. Logs written to your terminal or files
+  are not masked. A value that a service echoes back in a way that changes
+  its text (encoded, split) is not masked.
+- **What it does not lift.** The run stays unapproved: its file and program
+  limits stay (`workflow_approvals`), a reference that came from run data or
+  an expression is refused, and a failed approval check, a step an AI runs
+  outside a workflow (`node run`) and `vault.secret_get` stay refused.
+  A person or process that can run `monoagentcli` outside an agent's markers
+  can still turn the switch on, as they can approve a workflow: the bypasses
+  are the same as for `workflow_approvals`.
 
 ### A copy of `~/.monoagent` and the key store
 
