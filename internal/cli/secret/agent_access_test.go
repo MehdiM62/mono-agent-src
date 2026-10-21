@@ -71,3 +71,46 @@ func TestAgentAccessCannotBeChangedByAnAgent(t *testing.T) {
 		t.Fatalf("an agent reading it: %v %s", err, out)
 	}
 }
+
+// The CLI resolves --profile NAME to the profile's id only once the database
+// is open: the command must read it then, not before (the id is what the
+// table's foreign key names).
+func TestAgentAccessUsesTheProfileIDResolvedByOpeningTheDatabase(t *testing.T) {
+	db := newSecretCLITestDB(t)
+	seed, err := storage.NewDatabase(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := seed.DB.Exec(`INSERT INTO profiles (id, name) VALUES ('81ecb86c-id', 'monoes')`); err != nil {
+		t.Fatal(err)
+	}
+	seed.DB.Close()
+	d := testDeps(db, "", true)
+	open := d.OpenDB
+	resolved := false
+	d.OpenDB = func() (*storage.Database, error) { resolved = true; return open() }
+	d.ProfileID = func() string {
+		if resolved {
+			return "81ecb86c-id"
+		}
+		return "monoes"
+	}
+	cmd := NewCommand(d)
+	cmd.SetArgs([]string{"agent-access", "on", "--yes"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("on: %v", err)
+	}
+	out, err := runSecretCmdWith(d, "agent-access")
+	if err != nil || !strings.Contains(out, `"agent_access": true`) || !strings.Contains(out, "81ecb86c-id") {
+		t.Fatalf("status: %v %s", err, out)
+	}
+}
+
+func runSecretCmdWith(d Deps, args ...string) (string, error) {
+	cmd := NewCommand(d)
+	cmd.SetArgs(args)
+	var out strings.Builder
+	cmd.SetOut(&out)
+	err := cmd.Execute()
+	return out.String(), err
+}

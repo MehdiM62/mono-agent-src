@@ -31,10 +31,6 @@ func (d Deps) newSecretAgentAccessCmd() *cobra.Command {
 		Args:      cobra.MaximumNArgs(1),
 		ValidArgs: []string{"on", "off"},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			profileID := d.ProfileID()
-			if profileID == "" {
-				return ErrProfileRequired
-			}
 			if len(args) == 1 && args[0] != "on" && args[0] != "off" {
 				return fmt.Errorf("agent-access takes on or off, not %q", args[0])
 			}
@@ -51,6 +47,11 @@ func (d Deps) newSecretAgentAccessCmd() *cobra.Command {
 				return fmt.Errorf("initializing database: %w", err)
 			}
 			defer db.DB.Close()
+			// After OpenDB: only then is the profile resolved from a name to its id.
+			profileID := d.ProfileID()
+			if profileID == "" {
+				return ErrProfileRequired
+			}
 			if len(args) == 1 {
 				if err := secrets.SetAgentAccess(cmd.Context(), db.DB, profileID, args[0] == "on"); err != nil {
 					return fmt.Errorf("saving agent access: %w", err)
