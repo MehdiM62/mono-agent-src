@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/monoes/mono-agent/internal/account"
 	"github.com/monoes/mono-agent/internal/accountdoor"
+	"github.com/monoes/mono-agent/internal/agenttokens"
 	"github.com/monoes/mono-agent/internal/logging"
 	"github.com/monoes/mono-agent/internal/profiledir"
 )
@@ -32,6 +34,60 @@ func profileOf(r *http.Request) string {
 	return id
 }
 
+// A route declares the scope it needs: the narrowest scope of agent token that
+// may call it (agenttokens.Scope). The profile's own bearer is scope full and
+// reaches everything. A route with no class cannot be registered: profileAuth
+// and anyProfileAuth take it as an argument.
+//
+//	read  GET only: list, get, status.
+//	write mutations that start nothing and send nothing (validate; tasks, documents
+//	      and people when the API gains routes for them).
+//	run   starting or (de)activating a workflow.
+//	full  approvals, and anything else that spends the profile's authority:
+//	      vault secrets, sends and the account are never reachable below it.
+
+// statusWriter records the status a handler wrote, for the audit log.
+type statusWriter struct {
+	http.ResponseWriter
+	status int
+}
+
+func (w *statusWriter) WriteHeader(code int) {
+	if w.status == 0 {
+		w.status = code
+	}
+	w.ResponseWriter.WriteHeader(code)
+}
+
+func (w *statusWriter) Write(b []byte) (int, error) {
+	if w.status == 0 {
+		w.status = http.StatusOK
+	}
+	return w.ResponseWriter.Write(b)
+}
+
+func (w *statusWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+
+// agentTokens is the store of scoped agent tokens, over the server's database.
+func (s *Server) agentTokens() *agenttokens.Store {
+	s.tokensOnce.Do(func() { s.tokens = agenttokens.NewStore(s.rt.db.DB) })
+	return s.tokens
+}
+
+// scoped runs h for an agent token: refused with 403 when the token's scope is
+// below need, and either way audited (name, method, path, status; never the token).
+func (s *Server) scoped(tok agenttokens.Token, need agenttokens.Scope, h http.HandlerFunc, w http.ResponseWriter, r *http.Request) {
+	sw := &statusWriter{ResponseWriter: w}
+	if tok.Scope.Allows(need) {
+		h(sw, r)
+	} else {
+		writeError(sw, http.StatusForbidden, fmt.Sprintf("this token's scope (%s) does not allow this request (needs %s)", tok.Scope, need))
+	}
+	if err := s.agentTokens().RecordUse(context.WithoutCancel(r.Context()), tok, r.Method, r.URL.Path, sw.status); err != nil {
+		fmt.Fprintf(os.Stderr, "httpapi: warning: %v\n", err)
+	}
+}
+
 func writeUnauthorized(w http.ResponseWriter) {
 	w.Header().Set("WWW-Authenticate", "Bearer realm=monoagentcli-httpapi")
 	writeError(w, http.StatusUnauthorized, "missing or invalid bearer credential")
@@ -39,7 +95,7 @@ func writeUnauthorized(w http.ResponseWriter) {
 
 // profileAuth wraps h with the profile-scoped bearer check. h reads the
 // profile with profileOf.
-func (s *Server) profileAuth(h http.HandlerFunc) http.Handler {
+func (s *Server) profileAuth(need agenttokens.Scope, h http.HandlerFunc) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// A locked account is refused before the vault is opened or the bearer is read.
 		if err := account.Require(r.Context()); err != nil {
@@ -85,6 +141,15 @@ func (s *Server) profileAuth(h http.HandlerFunc) http.Handler {
 				matched = append(matched, id)
 			}
 		}
+		if s.opts.DisableProfileBearer {
+			matched = nil // the tokens above were still read: the work stays the same
+		}
+		if len(matched) == 0 && strings.HasPrefix(got, agenttokens.Prefix) {
+			if tok, err := s.agentTokens().Verify(ctx, got); err == nil && containsID(candidates, tok.ProfileID) {
+				s.scoped(tok, need, h, w, r.WithContext(context.WithValue(ctx, profileCtxKey{}, tok.ProfileID)))
+				return
+			}
+		}
 		switch {
 		case len(matched) == 0:
 			writeUnauthorized(w)
@@ -101,7 +166,7 @@ func (s *Server) profileAuth(h http.HandlerFunc) http.Handler {
 // anyProfileAuth wraps h, a handler of a global route (/nodes), with a bearer
 // check that accepts the token of any profile. It reads tokens, never creates
 // them.
-func (s *Server) anyProfileAuth(h http.HandlerFunc) http.Handler {
+func (s *Server) anyProfileAuth(need agenttokens.Scope, h http.HandlerFunc) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if err := account.Require(r.Context()); err != nil {
 			accountdoor.WriteUnauthorized(w, err)
@@ -131,12 +196,30 @@ func (s *Server) anyProfileAuth(h http.HandlerFunc) http.Handler {
 				ok = true
 			}
 		}
+		if s.opts.DisableProfileBearer {
+			ok = false
+		}
+		if !ok && strings.HasPrefix(got, agenttokens.Prefix) {
+			if tok, err := s.agentTokens().Verify(r.Context(), got); err == nil {
+				s.scoped(tok, need, h, w, r)
+				return
+			}
+		}
 		if !ok {
 			writeUnauthorized(w)
 			return
 		}
 		h(w, r)
 	})
+}
+
+func containsID(ids []string, id string) bool {
+	for _, c := range ids {
+		if c == id {
+			return true
+		}
+	}
+	return false
 }
 
 func allProfileIDs(ctx context.Context, db *sql.DB) ([]string, error) {

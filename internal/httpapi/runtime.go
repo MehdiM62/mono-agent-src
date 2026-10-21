@@ -47,6 +47,10 @@ type Options struct {
 	// activate/deactivate, hil approve/reject). Empty consults
 	// MONOAGENT_HTTPAPI_ALLOW_MUTATIONS=="1".
 	AllowMutations bool
+	// DisableProfileBearer refuses the profile's own bearer token (the vault entry),
+	// so only scoped agent tokens open the API. Empty consults
+	// MONOAGENT_HTTPAPI_DISABLE_PROFILE_BEARER=="1".
+	DisableProfileBearer bool
 	// Version is reported by /health.
 	Version string
 
