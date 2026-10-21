@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 )
 
 // Agent access to a profile's vault. By default a run of a workflow the
@@ -91,7 +92,7 @@ func HostOf(raw string) string {
 // each is audited. origin names the run for the audit.
 func AllowResolving(ctx context.Context, db *sql.DB, profileID string, origin AccessOrigin) context.Context {
 	ctx = context.WithValue(ctx, refuseResolvingKey{}, "")
-	return context.WithValue(ctx, accessKey{}, &accessState{db: db, profileID: profileID, origin: origin, seen: map[string]struct{}{}, names: map[string]struct{}{}})
+	return context.WithValue(ctx, accessKey{}, &accessState{db: db, profileID: profileID, origin: origin, seen: map[string]struct{}{}, names: map[string]struct{}{}, nodes: map[string]struct{}{}})
 }
 
 // AccessOrigin names the run an audit row belongs to.
@@ -111,6 +112,7 @@ type accessState struct {
 	mu    sync.Mutex
 	seen  map[string]struct{} // values resolved in this run, and their derived forms
 	names map[string]struct{} // secrets read in this run, by name
+	nodes map[string]struct{} // steps (by id) that resolved a secret in this run
 }
 
 type accessNode struct{ id, name, typ string }
@@ -181,7 +183,31 @@ func (a *accessState) resolved(ctx context.Context, name, value string) error {
 		return &refusedError{"@secret:" + name + " is not read from the vault: the audit of agent access could not be written (" + err.Error() + ")"}
 	}
 	a.track(name, value)
+	a.mu.Lock()
+	a.nodes[n.id] = struct{}{}
+	a.mu.Unlock()
 	return nil
+}
+
+// carries reports whether a send by the step ctx runs carries a secret: the
+// step resolved one (whatever form it took on the way out: a Basic header
+// built from it, say), or one of texts holds a tracked value.
+func (a *accessState) carries(ctx context.Context, texts []string) bool {
+	n, _ := ctx.Value(accessNodeKey{}).(accessNode)
+	a.mu.Lock()
+	_, resolvedHere := a.nodes[n.id]
+	a.mu.Unlock()
+	if resolvedHere {
+		return true
+	}
+	for _, v := range a.values() {
+		for _, t := range texts {
+			if strings.Contains(t, v) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // track remembers value, and the forms a step commonly derives from it, for
@@ -210,10 +236,14 @@ func derivedForms(v string) []string {
 		base64.RawStdEncoding.EncodeToString(b), base64.RawURLEncoding.EncodeToString(b),
 		url.QueryEscape(v), url.PathEscape(v),
 		string(j[1 : len(j)-1]),
-		strings.ToUpper(v), strings.ToLower(v),
 		strings.NewReplacer("-", "_", "_", "-").Replace(v),
 		strings.ReplaceAll(v, "-", "_"), strings.ReplaceAll(v, "_", "-"),
 		hex.EncodeToString(b), strings.ToUpper(hex.EncodeToString(b)),
+	}
+	// Case variants only of a value that is not a plain word: the upper or
+	// lower case of "secret" would mask ordinary text.
+	if len(v) >= 12 || strings.IndexFunc(v, func(r rune) bool { return !unicode.IsLetter(r) }) >= 0 {
+		forms = append(forms, strings.ToUpper(v), strings.ToLower(v))
 	}
 	seen := make(map[string]struct{}, len(forms))
 	out := forms[:0]
@@ -249,21 +279,25 @@ func ResolvedNames(ctx context.Context) []string {
 
 // SeedResolved tracks the values of the named secrets for masking, as if
 // ctx's run had read them (a sub-workflow's, or a resumed run's, earlier
-// reads). It reads within the grant and is not audited again; a name the
-// grant no longer covers, or that is gone, is skipped.
-func SeedResolved(ctx context.Context, names []string) {
+// reads). It reads within the grant and is not audited again. A name the
+// grant no longer covers, or that is gone or unreadable, is an error: its
+// old value could not be masked, so the run does not start.
+func SeedResolved(ctx context.Context, names []string) error {
 	a := accessOf(ctx)
 	if a == nil {
-		return
+		return nil
 	}
 	for _, name := range names {
 		if err := a.permit(ctx, secretRefPrefix+name, name); err != nil {
-			continue
+			return fmt.Errorf("secret %q read by the calling run can no longer be masked: %w", name, err)
 		}
-		if v, err := resolveEntry(ctx, a.db, a.profileID, secretRefPrefix+name, name); err == nil {
-			a.track(name, v)
+		v, err := resolveEntry(ctx, a.db, a.profileID, secretRefPrefix+name, name)
+		if err != nil {
+			return fmt.Errorf("secret %q read by the calling run can no longer be masked: %w", name, err)
 		}
+		a.track(name, v)
 	}
+	return nil
 }
 
 func (a *accessState) values() []string {
@@ -309,18 +343,7 @@ func CheckSendHost(ctx context.Context, rawURL string, texts ...string) error {
 	if a == nil {
 		return nil
 	}
-	carries := false
-	for _, v := range a.values() {
-		for _, t := range texts {
-			if strings.Contains(t, v) {
-				carries = true
-				break
-			}
-		}
-		if carries {
-			break
-		}
-	}
+	carries := a.carries(ctx, texts)
 	if !carries {
 		return nil
 	}
@@ -354,15 +377,10 @@ func CheckSendVia(ctx context.Context, proxy *url.URL, insecure bool, texts ...s
 	if a == nil {
 		return nil
 	}
-	for _, v := range a.values() {
-		for _, t := range texts {
-			if strings.Contains(t, v) {
-				g, err := GetAgentAccess(ctx, a.db, a.profileID)
-				if err != nil || g == nil || !g.AnyHost {
-					return fmt.Errorf("%w: a request that carries it does not skip certificate checks (allow_unauthorized_certs)", ErrHostNotAllowed)
-				}
-				return nil
-			}
+	if a.carries(ctx, texts) {
+		g, err := GetAgentAccess(ctx, a.db, a.profileID)
+		if err != nil || g == nil || !g.AnyHost {
+			return fmt.Errorf("%w: a request that carries it does not skip certificate checks (allow_unauthorized_certs)", ErrHostNotAllowed)
 		}
 	}
 	return nil

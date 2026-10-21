@@ -163,14 +163,8 @@ func RunExecution(
 			// What the run stores of its steps never shows the values it read.
 			r.store = &maskingStore{WorkflowStore: store, run: ctx}
 			// Secrets a calling run read before it called this one.
-			if names, ok := exec.TriggerData[SecretNamesKey].([]interface{}); ok {
-				var list []string
-				for _, n := range names {
-					if s, ok := n.(string); ok {
-						list = append(list, s)
-					}
-				}
-				secrets.SeedResolved(ctx, list)
+			if err := secrets.SeedResolved(ctx, secretNamesOf(exec.TriggerData[SecretNamesKey])); err != nil {
+				return err
 			}
 		}
 	} else if caller, ok := CalledByUnapproved(exec.TriggerData); ok {
@@ -216,7 +210,9 @@ func (r *runner) restore(raw string) error {
 	if err := json.Unmarshal([]byte(raw), &rs); err != nil {
 		return fmt.Errorf("resume: decode state for execution %s: %w", r.exec.ID, err)
 	}
-	secrets.SeedResolved(r.ctx, rs.SecretNames)
+	if err := secrets.SeedResolved(r.ctx, rs.SecretNames); err != nil {
+		return err
+	}
 	if rs.PendingInputs != nil {
 		r.pendingInputs = rs.PendingInputs
 	}

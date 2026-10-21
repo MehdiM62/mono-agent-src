@@ -115,6 +115,24 @@ func (e *WorkflowEngine) StartSubWorkflow(ctx context.Context, req SubWorkflowSt
 // never reaches the child's items.
 const SecretNamesKey = "_agent_secret_names"
 
+// secretNamesOf reads SecretNamesKey's value: a list of strings from the
+// queue, of interface values from a stored record.
+func secretNamesOf(v interface{}) []string {
+	switch l := v.(type) {
+	case []string:
+		return l
+	case []interface{}:
+		var out []string
+		for _, n := range l {
+			if s, ok := n.(string); ok {
+				out = append(out, s)
+			}
+		}
+		return out
+	}
+	return nil
+}
+
 // maskTriggerData is data with every value in values masked, for the copy
 // of a child's trigger data that is stored; the queue keeps the real one.
 func maskTriggerData(values []string, data map[string]interface{}) map[string]interface{} {

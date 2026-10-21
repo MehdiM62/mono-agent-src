@@ -161,3 +161,115 @@ func TestAgentAccessHostBoundGrantRefusesNodesWithoutADestinationCheck(t *testin
 		t.Errorf("--any-host: %v", err)
 	}
 }
+
+// Review of #944 (N1): a step that resolved a secret is held to the grant's
+// hosts whatever form the secret took on its way out.
+func TestAgentAccessStepThatResolvedASecretCarriesIt(t *testing.T) {
+	e := newAccessEnv(t)
+	e.grant(t, secrets.AccessGrant{Hosts: []string{"api.example.com"}})
+	ctx := secrets.AllowResolving(e.ctx, e.db.DB, "default", secrets.AccessOrigin{WorkflowID: "w", ExecutionID: "x"})
+	reader := secrets.WithAccessNode(ctx, "n1", "Reader")
+	if _, err := secrets.Resolve(reader, e.db.DB, "default", "@secret:vs"); err != nil {
+		t.Fatal(err)
+	}
+	// Nothing in the texts holds the value (a form nobody listed).
+	if err := secrets.CheckSendHost(reader, "http://127.0.0.1/x", "dXNlcjpzb21ldGhpbmc="); !errors.Is(err, secrets.ErrHostNotAllowed) {
+		t.Errorf("the step that read a secret sent to a foreign host: %v", err)
+	}
+	if err := secrets.CheckSendHost(reader, "http://api.example.com/x", "anything"); err != nil {
+		t.Errorf("a granted host: %v", err)
+	}
+	other := secrets.WithAccessNode(ctx, "n2", "Other")
+	if err := secrets.CheckSendHost(other, "http://127.0.0.1/x", "anything"); err != nil {
+		t.Errorf("a step that read no secret was held: %v", err)
+	}
+}
+
+// Review of #944 (N5): the case variants of a plain word are not tracked.
+func TestAgentAccessCaseVariantsOfAPlainWordAreNotMasked(t *testing.T) {
+	e := newAccessEnv(t)
+	e.grant(t, secrets.AccessGrant{AnyHost: true})
+	if _, err := secrets.Add(e.ctx, e.db.DB, "default", "secret", "word", map[string]string{"secret": "Status"}, "", "", ""); err != nil {
+		t.Fatal(err)
+	}
+	ctx := secrets.AllowResolving(e.ctx, e.db.DB, "default", secrets.AccessOrigin{WorkflowID: "w", ExecutionID: "x"})
+	if _, err := secrets.Resolve(ctx, e.db.DB, "default", "@secret:word"); err != nil {
+		t.Fatal(err)
+	}
+	if got := secrets.MaskResolved(ctx, "status STATUS Status"); got != "status STATUS ***" {
+		t.Errorf("got %q", got)
+	}
+}
+
+// Review of #944 (N4): a secret the parent passed that cannot be read again
+// fails the child instead of leaving the parent's value unmasked.
+func TestAgentAccessChildFailsWhenAPassedSecretCannotBeReread(t *testing.T) {
+	e := newAccessEnv(t)
+	e.grant(t, secrets.AccessGrant{AnyHost: true, Secrets: []string{"other"}})
+	child := chain("wf-child4", step("c1", "test.renameprobe", "Rename", nil))
+	child.Nodes[0].Type = TriggerTypeExecuteWorkflow
+	createSQLWorkflow(t, e.store, child)
+	cur, _ := e.store.GetWorkflow(e.ctx, "wf-child4")
+	dag, _ := BuildDAG(cur.Nodes, cur.Connections)
+	exec := &WorkflowExecution{ID: uuid.NewString(), WorkflowID: "wf-child4", ProfileID: "default", TriggerType: TriggerTypeExecuteWorkflow, TriggerNodeID: "wf-child4-t",
+		TriggerData: map[string]interface{}{
+			SubWorkflowItemsKey: []interface{}{map[string]interface{}{"v": valVS}},
+			SecretNamesKey:      []interface{}{"vs"},
+			UnapprovedCallerKey: "wf-parent",
+		}}
+	if err := e.store.CreateExecution(e.ctx, exec); err != nil {
+		t.Fatal(err)
+	}
+	err := RunExecution(e.ctx, exec, cur, dag, e.reg, e.store, nil, NewExpressionEngine(), zerolog.Nop())
+	if err == nil || !strings.Contains(err.Error(), "can no longer be masked") {
+		t.Fatalf("the child ran with a secret it could not mask: %v", err)
+	}
+	if got := e.stored(t, exec.ID); strings.Contains(got, valVS) {
+		t.Errorf("the record holds the value: %s", got)
+	}
+}
+
+// Review of #944 (N3): a queued child runs on the real trigger data the
+// queue holds, not on the masked stored copy.
+func TestAgentAccessQueuedChildRunsOnTheRealTriggerData(t *testing.T) {
+	e := newAccessEnv(t)
+	e.grant(t, secrets.AccessGrant{AnyHost: true})
+	var seen []string
+	e.reg.Register("test.seeprobe", func() NodeExecutor {
+		return nodeFunc{typ: "test.seeprobe", fn: func(_ context.Context, in NodeInput) error {
+			for _, it := range in.Items {
+				if v, ok := it.JSON["v"].(string); ok {
+					seen = append(seen, v)
+				}
+			}
+			return nil
+		}}
+	})
+	eng := newTestEngine(t, e.store, e.reg)
+	child := chain("wf-child3", step("c1", "test.seeprobe", "See", nil))
+	child.Nodes[0].Type = TriggerTypeExecuteWorkflow
+	createSQLWorkflow(t, e.store, child)
+
+	parent := secrets.AllowResolving(e.ctx, e.db.DB, "default", secrets.AccessOrigin{WorkflowID: "wf-parent", ExecutionID: "p1"})
+	if _, err := secrets.Resolve(parent, e.db.DB, "default", "@secret:vs"); err != nil {
+		t.Fatal(err)
+	}
+	parent = WithTrigger(vault.ContextWithExecIDs(parent, "wf-parent", "p1"), "trigger.schedule", map[string]interface{}{})
+	id, err := eng.StartSubWorkflow(parent, SubWorkflowStart{ParentExecutionID: "p1", ParentNodeID: "call", Workflow: "wf-child3", ItemIndex: -1,
+		Items: []Item{NewItem(map[string]interface{}{"v": valVS})}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	eng.handleExecution(e.ctx, ExecutionRequest{WorkflowID: "wf-child3", ExecutionID: id, TriggerType: TriggerTypeExecuteWorkflow, TriggerNodeID: "wf-child3-t",
+		TriggerData: map[string]interface{}{
+			SubWorkflowItemsKey: []interface{}{map[string]interface{}{"v": valVS}},
+			SecretNamesKey:      []string{"vs"},
+			UnapprovedCallerKey: "wf-parent",
+		}})
+	if len(seen) != 1 || seen[0] != valVS {
+		t.Errorf("the child saw %v, want the real value", seen)
+	}
+	if got := e.stored(t, id); strings.Contains(got, valVS) {
+		t.Errorf("the child's record holds the value: %s", got)
+	}
+}

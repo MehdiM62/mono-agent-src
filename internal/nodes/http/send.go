@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"net/http"
@@ -156,9 +157,9 @@ type viaCheck struct {
 
 func (v viaCheck) RoundTrip(req *http.Request) (*http.Response, error) {
 	if secrets.UnderAgentAccess(req.Context()) {
-		texts := []string{req.URL.String()}
-		for _, vs := range req.Header {
-			texts = append(texts, vs...)
+		texts := carryTexts(req)
+		if v.proxy != nil {
+			texts = append(texts, v.proxy.String())
 		}
 		if req.GetBody != nil {
 			if rc, err := req.GetBody(); err == nil {
@@ -299,9 +300,27 @@ func checkSecretHost(ctx context.Context, req *http.Request, body []byte) error 
 	if !secrets.UnderAgentAccess(ctx) {
 		return nil
 	}
-	texts := []string{req.URL.String(), string(body)}
-	for _, vs := range req.Header {
-		texts = append(texts, vs...)
-	}
+	texts := append(carryTexts(req), string(body))
 	return secrets.CheckSendHost(ctx, req.URL.String(), texts...)
+}
+
+// carryTexts are the parts of req a secret could ride in: its address
+// (userinfo included), every header value, and the credentials inside a
+// Basic token (base64 of "user:secret" is not a form of the secret alone).
+func carryTexts(req *http.Request) []string {
+	texts := []string{req.URL.String()}
+	for _, vs := range req.Header {
+		for _, v := range vs {
+			texts = append(texts, v)
+			if f := strings.Fields(v); len(f) == 2 && strings.EqualFold(f[0], "basic") {
+				if b, err := base64.StdEncoding.DecodeString(f[1]); err == nil {
+					texts = append(texts, string(b))
+					if _, pw, ok := strings.Cut(string(b), ":"); ok {
+						texts = append(texts, pw)
+					}
+				}
+			}
+		}
+	}
+	return texts
 }
