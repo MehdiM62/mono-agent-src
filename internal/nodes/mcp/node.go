@@ -252,6 +252,16 @@ func loadServer(ctx context.Context, config map[string]interface{}) (*serverConf
 			m[k] = r
 		}
 	}
+	// A secret read under the owner's agent access goes only to a host it names.
+	if srv.Transport == "http" {
+		sent := make([]string, 0, len(srv.Headers))
+		for _, v := range srv.Headers {
+			sent = append(sent, v)
+		}
+		if err := secrets.CheckSendHost(ctx, srv.URL, sent...); err != nil {
+			return nil, invalid("%v", err)
+		}
+	}
 	return srv, nil
 }
 
