@@ -27,6 +27,9 @@ const (
 	VaultKeyMismatch VaultState = "key-mismatch"
 	// VaultKeyringUnavailable: the OS keyring itself can't be reached.
 	VaultKeyringUnavailable VaultState = "keyring-unavailable"
+	// VaultNotBound: the key opens the wrapped DEK, but the DEK was made for another
+	// install (a copied database); `secret rebind` adopts it on purpose (#903).
+	VaultNotBound VaultState = "not-bound"
 	// VaultFileKeyring: the OS keyring is unavailable and the opted-in file
 	// keyring is in use; it is not unlocked here because that would prompt
 	// for its passphrase.
@@ -85,7 +88,10 @@ func CheckVault(ctx context.Context, db *sql.DB, profileID string) (VaultState, 
 	if err != nil {
 		return VaultKeyMismatch, fmt.Errorf("decoding stored KEK: %w", err)
 	}
-	if _, err := Decrypt(kek, wrappedDEK, wrappedNonce); err != nil {
+	if _, err := unwrapDEK(ctx, db, kek, wrappedDEK, wrappedNonce, profileID, false); err != nil {
+		if errors.Is(err, ErrNotBound) {
+			return VaultNotBound, err
+		}
 		return VaultKeyMismatch, fmt.Errorf("unwrapping DEK: %w", err)
 	}
 	return VaultOK, nil

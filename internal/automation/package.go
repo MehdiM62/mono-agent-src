@@ -27,6 +27,7 @@ type Package struct {
 	sha256 string    // archive bytes hash when opened with OpenFile
 
 	scriptsFlag *bool // index scriptsAllowed (registry packages)
+	downgraded  bool  // filed as built-in but failed verification (Get)
 	liveFlag    bool  // index liveRunConfirmed
 
 	library *LibraryOrigin // monoes.me provenance (library installs)

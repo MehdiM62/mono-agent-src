@@ -36,6 +36,11 @@ type ActionDef struct {
 	Loops       []LoopDef              `json:"loops,omitempty"`
 	ErrorConfig *GlobalErrorConfig     `json:"errorHandling,omitempty"`
 
+	// pkg is the package context the definition was read with (set by the
+	// loader when the DefSource is a ResolvingSource): the executor runs the
+	// definition against it, so definition and trust come from one snapshot.
+	pkg PackageContext
+
 	// --- package-era fields (spec §4.3) ---
 
 	// Schema is the editor "$schema" pointer; ignored at run time.
@@ -94,6 +99,19 @@ type genEntry struct {
 // removal). Without it the loader consults the source on every Load.
 type Generational interface{ Generation() string }
 
+// ResolvingSource is optionally implemented by a DefSource that can return a
+// definition together with the package context (and so the trust decision)
+// of the very snapshot it was read from. cacheable is false when that
+// snapshot was not verified: the loader must not keep such a definition, or
+// it could outlive the files that were read.
+type ResolvingSource interface {
+	Resolve(automation, actionType string) (data []byte, pkg PackageContext, cacheable bool, err error)
+}
+
+// Package returns the package context the definition was loaded with, or nil
+// when it was not loaded through a ResolvingSource.
+func (d *ActionDef) Package() PackageContext { return d.pkg }
+
 var defaultLoader *ActionLoader
 var loaderOnce sync.Once
 
@@ -151,7 +169,17 @@ func (l *ActionLoader) loadFromSource(src DefSource, key, platform, actionType s
 			return e.(genEntry).def, nil
 		}
 	}
-	fileData, err := src.Load(platform, actionType)
+	var (
+		fileData  []byte
+		pkg       PackageContext
+		cacheable = true
+		err       error
+	)
+	if rs, ok := src.(ResolvingSource); ok {
+		fileData, pkg, cacheable, err = rs.Resolve(platform, actionType)
+	} else {
+		fileData, err = src.Load(platform, actionType)
+	}
 	if err != nil {
 		l.srcCache.Delete(key)
 		return nil, fmt.Errorf("action definition not found: %s/%s: %w", platform, actionType, err)
@@ -159,6 +187,13 @@ func (l *ActionLoader) loadFromSource(src DefSource, key, platform, actionType s
 	def, err := ParseActionDef(fileData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse action definition %s/%s: %w", platform, actionType, err)
+	}
+	if !isNilPackage(pkg) {
+		def.pkg = pkg
+	}
+	if !cacheable {
+		l.srcCache.Delete(key)
+		return def, nil
 	}
 	if hasGen {
 		l.srcCache.Store(key, genEntry{gen: gen, def: def})

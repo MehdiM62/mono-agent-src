@@ -125,10 +125,59 @@ the monoes.me sign-in and the older library login (see "One sign-in per machine,
 never copied" and "Network use"). They cannot stop a program that decrypts the
 copy itself, or that reads the real database: such a program has what you have.
 
+Since this release (#903) the vault key is also bound to the install it was
+made in: the wrapped data key carries the canonical path of `monoagent.db`, so a
+copy of the database in another place, from an agent, a script or a backup
+restored elsewhere, does not open even though the key store gives it the same
+key, and `doctor` reports `not-bound`. A database from an earlier release has
+no binding: it is bound on the first open at your own `~/.monoagent` and refused
+anywhere else. After a move you made on purpose (a renamed home directory, a
+restore to a new place) run `monoagentcli secret rebind --from <old path of
+monoagent.db>`; it is the user's own command (an agent is refused). This stops
+the accidental copy only: a program that computes the original path's binding on
+purpose, or reads the real database, still has what you have.
+
+Two limits of the binding. The first open at your own install rewraps an
+earlier release's key under the binding, and that is one-way: an older bundled
+CLI (or app) opened on the same database afterwards sees a key mismatch, so
+update the CLI, the app and the app-bundled CLI together. And the bound path is
+compared as an exact string after symlinks are resolved: on a case-insensitive
+filesystem (default macOS and Windows volumes) the same file reached with
+different letter case is another path, so open the database by the exact path
+it was bound to, or run `secret rebind`. The copy's error, `doctor` and
+`secret rebind` name the path the key was made for when the database records it.
+
 To keep a tool or an agent you do not trust away from your credentials, run it
 where your key store is not: as another OS user, or in a container or virtual
 machine that has neither your home directory nor your key store. A `HOME` of its
 own is not enough.
+
+### Agent mode: a sandbox and the scoped HTTP API
+
+Against a process of your own OS user only an OS boundary works, so this is the
+supported way to run a coding agent that you do not fully trust:
+
+1. Print a sandbox profile and start the agent inside it:
+   `monoagentcli agent-mode sandbox --runtime bwrap > agent-sandbox.sh; sh agent-sandbox.sh claude`
+   (`--runtime seatbelt` for macOS `sandbox-exec`, `--runtime claude-code` for
+   Claude Code's own sandbox settings). The profile hides `~/.monoagent`, the
+   Secret Service / KWallet / macOS keychain files and, where it can, the D-Bus
+   session bus. It leaves loopback networking open.
+2. The agent does not run `monoagentcli` as you. It calls the daemon's HTTP API
+   (`127.0.0.1:9322`, `/profiles/{profile}/...`) with that profile's bearer token. The
+   token opens that one profile only, and the API is read-only unless the daemon
+   was started with `--allow-mutations`. You read the token outside the sandbox
+   (`monoagentcli --profile <p> secret reveal httpapi-token --reveal`)
+   and hand it to the agent through its environment, for example `MONOAGENT_API_TOKEN`.
+   The names are only a convention; nothing in mono-agent reads them.
+
+Limits: the profiles are written for Linux (bwrap), macOS (seatbelt) and Claude
+Code's settings; the seatbelt service names and Claude Code's setting keys were
+not checked against every release, so test that the agent cannot read
+`~/.monoagent` before you rely on one. An abstract-socket D-Bus session bus (some
+distributions) is not hidden by file masking. The bearer token is the agent's
+credential: anyone holding it can use the API as that profile, including the
+`X-Full-Outputs` header. Windows has no profile yet: use another OS user or a VM.
 
 ### Where a saved connection's secret goes
 
@@ -380,15 +429,25 @@ it wrote by hand under `~/.monoagent/actions`. Now:
   package's flags with `automation trust` (page scripts, real runs);
   showing them stays open. `login names` refuses an agent when it would
   open the site of a package that isn't built-in.
-- What counts as built-in is read from files your account can write.
-  Built-in packages are the ones the app seeds or installs from the official
-  library; nothing re-checks their files after that. Their files and their
-  trust tier are kept under `~/.monoagent/automations`. An agent that can
-  write there, as one working as you can, can change a built-in package's
-  actions or mark its own package built-in, and these checks don't stop it.
-  Only keeping agents out of `~/.monoagent` (a sandbox) does. Checking
-  built-in packages against hashes the app ships or monoes.me signs is
-  tracked in #900.
+- A package counts as built-in only while its files hash to an official
+  release of it. The hashes of the official packages (the ones in
+  `automations/`) ship inside the binary, and every run, `automation list`
+  and `automation info` checks the installed files against them. An agent
+  that edits a built-in package's files, or files its own package as
+  built-in in `~/.monoagent/automations`, gets an imported package, which
+  these checks refuse it. Still open: the overlay of selector fixes beside a
+  built-in is not hashed, and an official library item that is not in
+  `automations/` has no shipped hash and installs as imported. Hashes signed
+  by monoes.me would cover both (#900).
+  The check also requires the tree to hold only regular files and
+  directories (a symlink, special file or dotfile makes the package
+  imported), runs a built-in from the files that were hashed, and files each
+  hash for one release version with a minimum trusted version per package
+  (`official_hashes.json`): an older official release below that minimum is
+  imported, not built-in, so a known-vulnerable release cannot be put back
+  under the built-in tier. An official item newer than the app's shipped
+  hashes installs as imported, and `library install`/`update` warns that
+  agents are refused it until the app is updated.
 - If you start the app, the daemon or the browser bridge from an agent's
   shell, a chat or a workflow run, it inherits that agent's markers, and
   your own replays, verifies, logins and runs in it are refused as an

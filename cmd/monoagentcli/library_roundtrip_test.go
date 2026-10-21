@@ -202,7 +202,9 @@ func TestLibraryAdoptsSeededBuiltins(t *testing.T) {
 		t.Fatalf("update = %+v", up)
 	}
 	row = automationRow(t, f, "hackernews")
-	if row.Version != "1.2.0" || row.Source != automation.SourceMonoes || row.Trust != automation.TrustBuiltin || row.PreviousVersion != "1.1.0" {
+	// 1.2.0 is a release this binary has no hash for (#900): the package is
+	// installed but not built-in until an app release ships its hash.
+	if row.Version != "1.2.0" || row.Source != automation.SourceMonoes || row.Trust != automation.TrustImported || row.PreviousVersion != "1.1.0" {
 		t.Fatalf("updated row = %+v", row)
 	}
 }

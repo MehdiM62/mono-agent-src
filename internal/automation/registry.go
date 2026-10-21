@@ -190,15 +190,19 @@ func (r *Registry) Info(id string) (*InstalledInfo, error) {
 
 // info builds a row; hash computes Modified (hashes the package files).
 func (r *Registry) info(id string, e *indexEntry, hash bool) InstalledInfo {
+	trust := e.trust()
+	if !e.Removed {
+		trust = r.effectiveTrust(id, e)
+	}
 	info := InstalledInfo{
 		ID: id, Name: e.Name, Version: e.Version, Source: e.Source, Trust: e.Trust,
 		Enabled: e.Enabled, Removed: e.Removed, InstalledAt: e.InstalledAt,
 		PreviousVersion: e.Previous, PendingUpdate: e.PendingSeedVersion,
-		ScriptsAllowed:   scriptsAllowed(e.trust(), e.ScriptsAllowed),
-		LiveRunConfirmed: liveRunConfirmed(e.trust(), e.LiveRunConfirmed),
+		ScriptsAllowed:   scriptsAllowed(trust, e.ScriptsAllowed),
+		LiveRunConfirmed: liveRunConfirmed(trust, e.LiveRunConfirmed),
 		Library:          e.Library,
 	}
-	info.Trust = e.trust()
+	info.Trust = trust
 	if e.Removed {
 		info.Enabled = false
 		info.UnavailableReason = "uninstalled"
@@ -221,7 +225,7 @@ func (r *Registry) info(id string, e *indexEntry, hash bool) InstalledInfo {
 	if info.Tier == "" {
 		info.Tier = "standard"
 	}
-	p.Source, p.Trust = e.Source, e.trust()
+	p.Source, p.Trust = e.Source, trust
 	info.LegacyPlatform = p.LegacyAlias()
 	info.ContainsScripts = len(m.Permissions.Scripts) > 0 || len(p.ScriptFiles()) > 0
 	if m.Icon != "" && safePath(m.Icon) {
@@ -246,12 +250,24 @@ func (r *Registry) Get(id string) (*Package, error) {
 	if err != nil {
 		return nil, err
 	}
-	p, err := OpenDir(r.versionDir(id, e.Version))
+	trust, snap := r.effectiveTrustFS(id, e)
+	dir := r.versionDir(id, e.Version)
+	var p *Package
+	if snap != nil {
+		// A verified built-in runs from the files that were hashed.
+		p, err = OpenFS(snap, SourceLocal)
+		if err == nil {
+			p.Dir, err = filepath.Abs(dir)
+		}
+	} else {
+		p, err = OpenDir(dir)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("automation %s: %w", id, err)
 	}
 	p.Source = e.Source
-	p.Trust = e.trust()
+	p.Trust = trust
+	p.downgraded = e.trust() == TrustBuiltin && trust != TrustBuiltin
 	p.scriptsFlag, p.liveFlag = e.ScriptsAllowed, e.LiveRunConfirmed
 	p.reg = r
 	return p, nil

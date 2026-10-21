@@ -51,7 +51,7 @@ func TestListModelsUsesAgentModels(t *testing.T) {
 		{ID: "opus", ResolvedID: "claude-opus-5-5", Label: "Opus 5.5", Description: "Opus 5.5 · Most capable", EffortLevels: []string{"low", "medium", "high", "xhigh", "max"}},
 		{ID: "claude-sonnet-4-6", Label: "Sonnet 4.6", Description: "Efficient for routine tasks"},
 	}
-	if !reflect.DeepEqual(got, want) {
+	if len(got) < len(want) || !reflect.DeepEqual(got[:len(want)], want) {
 		t.Errorf("claude = %+v", got)
 	}
 
@@ -68,6 +68,33 @@ func TestListModelsUsesAgentModels(t *testing.T) {
 	// binary for that).
 	if _, err := ListModels(ctx, "codex", ""); err == nil {
 		t.Error("codex fallback without a binary should report the missing binary")
+	}
+}
+
+// The live list comes from whichever Claude Code monomind selected, which can
+// be older than a model that has been released since: the built-in models it
+// lacks are added after it, and the ones it has (by id, or as the concrete
+// model of an alias) are not listed twice.
+func TestListModelsAddsBuiltinClaudeModelsTheLiveListLacks(t *testing.T) {
+	fakeAgentModelsMonomind(t, true)
+	got, err := ListModels(context.Background(), "claude", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := map[string]int{}
+	for _, m := range got {
+		seen[m.ID]++
+	}
+	for _, id := range []string{"claude-haiku-5-5", "claude-sonnet-5-5", "claude-fable-5-1"} {
+		if seen[id] != 1 {
+			t.Errorf("%s listed %d times, want once: %+v", id, seen[id], got)
+		}
+	}
+	if seen["claude-opus-5-5"] != 0 {
+		t.Errorf("claude-opus-5-5 is what the live aliases resolve to, yet it is listed again: %+v", got)
+	}
+	if seen["claude-sonnet-4-6"] != 1 {
+		t.Errorf("claude-sonnet-4-6 listed %d times, want once", seen["claude-sonnet-4-6"])
 	}
 }
 
