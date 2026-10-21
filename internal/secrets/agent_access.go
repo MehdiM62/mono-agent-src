@@ -3,6 +3,8 @@ package secrets
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -89,7 +91,7 @@ func HostOf(raw string) string {
 // each is audited. origin names the run for the audit.
 func AllowResolving(ctx context.Context, db *sql.DB, profileID string, origin AccessOrigin) context.Context {
 	ctx = context.WithValue(ctx, refuseResolvingKey{}, "")
-	return context.WithValue(ctx, accessKey{}, &accessState{db: db, profileID: profileID, origin: origin, seen: map[string]struct{}{}})
+	return context.WithValue(ctx, accessKey{}, &accessState{db: db, profileID: profileID, origin: origin, seen: map[string]struct{}{}, names: map[string]struct{}{}})
 }
 
 // AccessOrigin names the run an audit row belongs to.
@@ -106,8 +108,9 @@ type accessState struct {
 	profileID string
 	origin    AccessOrigin
 
-	mu   sync.Mutex
-	seen map[string]struct{} // values resolved in this run
+	mu    sync.Mutex
+	seen  map[string]struct{} // values resolved in this run, and their derived forms
+	names map[string]struct{} // secrets read in this run, by name
 }
 
 type accessNode struct{ id, name string }
@@ -156,12 +159,90 @@ func (a *accessState) resolved(ctx context.Context, name, value string) error {
 	if err != nil {
 		return &refusedError{"@secret:" + name + " is not read from the vault: the audit of agent access could not be written (" + err.Error() + ")"}
 	}
-	if len(value) >= MinTrackedLen {
-		a.mu.Lock()
-		a.seen[value] = struct{}{}
-		a.mu.Unlock()
-	}
+	a.track(name, value)
 	return nil
+}
+
+// track remembers value, and the forms a step commonly derives from it, for
+// masking and the host binding. Best effort: an expression or code step can
+// transform a value into a form that is not listed here.
+func (a *accessState) track(name, value string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.names[name] = struct{}{}
+	for _, f := range derivedForms(value) {
+		a.seen[f] = struct{}{}
+	}
+}
+
+// derivedForms is v and its common encodings and case variants that are
+// long enough to track.
+func derivedForms(v string) []string {
+	if len(v) < MinTrackedLen {
+		return nil
+	}
+	j, _ := json.Marshal(v)
+	b := []byte(v)
+	forms := []string{
+		v,
+		base64.StdEncoding.EncodeToString(b), base64.URLEncoding.EncodeToString(b),
+		base64.RawStdEncoding.EncodeToString(b), base64.RawURLEncoding.EncodeToString(b),
+		url.QueryEscape(v), url.PathEscape(v),
+		string(j[1 : len(j)-1]),
+		strings.ToUpper(v), strings.ToLower(v),
+		strings.NewReplacer("-", "_", "_", "-").Replace(v),
+		strings.ReplaceAll(v, "-", "_"), strings.ReplaceAll(v, "_", "-"),
+		hex.EncodeToString(b), strings.ToUpper(hex.EncodeToString(b)),
+	}
+	seen := make(map[string]struct{}, len(forms))
+	out := forms[:0]
+	for _, f := range forms {
+		if len(f) < MinTrackedLen {
+			continue
+		}
+		if _, dup := seen[f]; !dup {
+			seen[f] = struct{}{}
+			out = append(out, f)
+		}
+	}
+	return out
+}
+
+// ResolvedNames are the names of the secrets read so far under ctx's agent
+// access (sorted); nil when ctx is not under it. Names, never values: a
+// resumed run or a sub-workflow re-reads them with SeedResolved.
+func ResolvedNames(ctx context.Context) []string {
+	a := accessOf(ctx)
+	if a == nil {
+		return nil
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	out := make([]string, 0, len(a.names))
+	for n := range a.names {
+		out = append(out, n)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// SeedResolved tracks the values of the named secrets for masking, as if
+// ctx's run had read them (a sub-workflow's, or a resumed run's, earlier
+// reads). It reads within the grant and is not audited again; a name the
+// grant no longer covers, or that is gone, is skipped.
+func SeedResolved(ctx context.Context, names []string) {
+	a := accessOf(ctx)
+	if a == nil {
+		return
+	}
+	for _, name := range names {
+		if err := a.permit(ctx, secretRefPrefix+name, name); err != nil {
+			continue
+		}
+		if v, err := resolveEntry(ctx, a.db, a.profileID, secretRefPrefix+name, name); err == nil {
+			a.track(name, v)
+		}
+	}
 }
 
 func (a *accessState) values() []string {

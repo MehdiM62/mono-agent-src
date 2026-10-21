@@ -19,6 +19,9 @@ import (
 // per-handle routing (items keyed by target node ID), so no per-handle output
 // schema is needed to resume correctly.
 type executionResumeState struct {
+	// SecretNames are the vault secrets the run had read under agent access
+	// (names only); a resume reads them again so it keeps masking.
+	SecretNames   []string          `json:"secret_names,omitempty"`
 	PendingInputs map[string][]Item `json:"pending_inputs"`
 	// PendingFrom names the node that fed each pending input ($prevNode).
 	PendingFrom    map[string]string `json:"pending_from,omitempty"`

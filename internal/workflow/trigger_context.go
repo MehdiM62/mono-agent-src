@@ -145,7 +145,7 @@ const AICallerKey = "_ai_caller"
 // started a run (AICallerKey, UnapprovedCallerKey) and which call started it
 // (SubWorkflowParentKey). SubWorkflowItemsKey is not one: a caller may pass
 // several items with it.
-var engineKeys = []string{AICallerKey, UnapprovedCallerKey, SubWorkflowParentKey}
+var engineKeys = []string{AICallerKey, UnapprovedCallerKey, SubWorkflowParentKey, SecretNamesKey}
 
 // StripEngineKeys removes from data, a caller's input (`workflow run
 // --input`, the HTTP API, MCP, a webhook's body, an evaluation's row), the

@@ -113,7 +113,7 @@ func RunExecution(
 		// The webhook chain trace and the AI-caller mark stay internal (the
 		// run's context has them): a workflow that echoes $json must not hand
 		// them on.
-		triggerItems:   buildTriggerItems(withoutTrace(withoutTrace(exec.TriggerData, WebhookTraceKey), AICallerKey)),
+		triggerItems:   buildTriggerItems(withoutTrace(withoutTrace(withoutTrace(exec.TriggerData, WebhookTraceKey), AICallerKey), SecretNamesKey)),
 		nodeOutputs:    make(map[string][]Item),
 		pendingInputs:  make(map[string][]Item),
 		pendingFrom:    make(map[string]string),
@@ -162,6 +162,16 @@ func RunExecution(
 			ctx = secrets.AllowResolving(ctx, vault.DBFromContext(ctx), profile, secrets.AccessOrigin{WorkflowID: wf.ID, ExecutionID: exec.ID})
 			// What the run stores of its steps never shows the values it read.
 			r.store = &maskingStore{WorkflowStore: store, run: ctx}
+			// Secrets a calling run read before it called this one.
+			if names, ok := exec.TriggerData[SecretNamesKey].([]interface{}); ok {
+				var list []string
+				for _, n := range names {
+					if s, ok := n.(string); ok {
+						list = append(list, s)
+					}
+				}
+				secrets.SeedResolved(ctx, list)
+			}
 		}
 	} else if caller, ok := CalledByUnapproved(exec.TriggerData); ok {
 		hint := "this workflow was called by one you haven't approved: save or activate that one in the app or your terminal to let it"
@@ -206,6 +216,7 @@ func (r *runner) restore(raw string) error {
 	if err := json.Unmarshal([]byte(raw), &rs); err != nil {
 		return fmt.Errorf("resume: decode state for execution %s: %w", r.exec.ID, err)
 	}
+	secrets.SeedResolved(r.ctx, rs.SecretNames)
 	if rs.PendingInputs != nil {
 		r.pendingInputs = rs.PendingInputs
 	}
@@ -307,6 +318,7 @@ func (r *runner) abandon(tasks []*nodeTask, msg string) {
 // rather than failing — resume picks up here once the pause is resolved.
 func (r *runner) pause(paused []*nodeTask) error {
 	state, mErr := json.Marshal(executionResumeState{
+		SecretNames:    secrets.ResolvedNames(r.ctx),
 		PendingInputs:  r.pendingInputs,
 		PendingFrom:    r.pendingFrom,
 		NodeOutputs:    r.nodeOutputs,

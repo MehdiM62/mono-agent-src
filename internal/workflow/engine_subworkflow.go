@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/monoes/mono-agent/internal/secrets"
 	"github.com/monoes/mono-agent/internal/vault"
 )
 
@@ -66,12 +67,20 @@ func (e *WorkflowEngine) StartSubWorkflow(ctx context.Context, req SubWorkflowSt
 		data[UnapprovedCallerKey] = id
 	}
 
+	// A parent under agent access tells the child which secrets it read, so
+	// the child masks them too; the child's stored trigger data is masked.
+	stored := data
+	if names := secrets.ResolvedNames(ctx); len(names) > 0 {
+		data[SecretNamesKey] = names
+		stored = maskTriggerData(secrets.ResolvedValues(ctx), data)
+	}
+
 	exec := &WorkflowExecution{
 		WorkflowID:  wf.ID,
 		ProfileID:   profileID,
 		Status:      "QUEUED",
 		TriggerType: TriggerTypeExecuteWorkflow,
-		TriggerData: data,
+		TriggerData: stored,
 	}
 	dctx, cancel := dbCtx()
 	defer cancel()
@@ -98,6 +107,21 @@ func (e *WorkflowEngine) StartSubWorkflow(ctx context.Context, req SubWorkflowSt
 		return exec.ID, fmt.Errorf("sub-workflow: %w", ErrQueueFull)
 	}
 	return exec.ID, nil
+}
+
+// SecretNamesKey is the trigger-data field that names the vault secrets a
+// parent run under agent access had read when it called this run (names,
+// never values), so this run masks them too. Like UnapprovedCallerKey it
+// never reaches the child's items.
+const SecretNamesKey = "_agent_secret_names"
+
+// maskTriggerData is data with every value in values masked, for the copy
+// of a child's trigger data that is stored; the queue keeps the real one.
+func maskTriggerData(values []string, data map[string]interface{}) map[string]interface{} {
+	if len(values) == 0 {
+		return data
+	}
+	return maskJSON(values, data)
 }
 
 // UnapprovedWorkflowCaller is the AI-caller mark (AICallerKey) of a
