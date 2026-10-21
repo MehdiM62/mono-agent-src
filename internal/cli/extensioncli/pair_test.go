@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -177,7 +178,11 @@ func pairJSON(t *testing.T) (pairReport, string) {
 func TestExtensionPairOpenJSON(t *testing.T) {
 	t.Run("opened", func(t *testing.T) {
 		base := startPairTestBridge(t, pairTestHome(t))
-		t.Setenv("BROWSER", "/bin/true")
+		trueBin, err := exec.LookPath("true") // /bin/true on Linux, /usr/bin/true on macOS
+		if err != nil {
+			t.Skip("no true binary to stand in for a browser")
+		}
+		t.Setenv("BROWSER", trueBin)
 		r, out := pairJSON(t)
 		if !r.Opened || !strings.HasPrefix(r.URL, base+"/monoagent/pair?n=") || r.Fallback != "" || r.Error != "" {
 			t.Errorf("report:\n%s", out)
