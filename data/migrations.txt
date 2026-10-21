@@ -95,3 +95,4 @@
 108_vault_images_client_id.sql
 109_vault_key_hints.sql
 110_profile_agent_secret_access.sql
+111_agent_secret_access_scope_audit.sql

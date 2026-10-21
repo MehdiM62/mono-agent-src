@@ -158,8 +158,10 @@ func RunExecution(
 		ctx = WithUnapproved(withApprovalCheckError(ctx, err), project, ApproveHint(profile, wf.ID))
 		// The profile's owner may have let agent-written workflows read the vault
 		// (`secret agent-access on`). Not when the approval check itself failed.
-		if on, _ := secrets.AgentAccess(ctx, vault.DBFromContext(ctx), profile); on && err == nil {
-			ctx = secrets.AllowResolving(ctx)
+		if g, _ := secrets.GetAgentAccess(ctx, vault.DBFromContext(ctx), profile); g != nil && err == nil {
+			ctx = secrets.AllowResolving(ctx, vault.DBFromContext(ctx), profile, secrets.AccessOrigin{WorkflowID: wf.ID, ExecutionID: exec.ID})
+			// What the run stores of its steps never shows the values it read.
+			r.store = &maskingStore{WorkflowStore: store, run: ctx}
 		}
 	} else if caller, ok := CalledByUnapproved(exec.TriggerData); ok {
 		hint := "this workflow was called by one you haven't approved: save or activate that one in the app or your terminal to let it"
@@ -195,7 +197,7 @@ func RunExecution(
 	defer cancel()
 	r.ctx = ctx
 
-	return r.timeoutErr(r.run())
+	return maskRunError(ctx, r.timeoutErr(r.run()))
 }
 
 // restore seeds the working state from a persisted executionResumeState.

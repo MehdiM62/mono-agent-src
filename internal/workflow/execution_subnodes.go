@@ -79,7 +79,7 @@ func (r *runner) resolveSubNodes(rootID string, exprCtx ExpressionContext, depth
 			if err := vault.ResolveConfig(r.ctx, db, stored, resolved); err != nil {
 				return nil, fmt.Errorf("sub-node %s (%s): %w", n.ID, n.Name, err)
 			}
-			if err := secrets.ResolveConfig(r.ctx, db, profile, stored, resolved); err != nil {
+			if err := secrets.ResolveConfig(secrets.WithAccessNode(r.ctx, n.ID, n.Name), db, profile, stored, resolved); err != nil {
 				return nil, fmt.Errorf("sub-node %s (%s): %w", n.ID, n.Name, err)
 			}
 		}
@@ -137,7 +137,7 @@ func (r *runner) callTool(ctx context.Context, n WorkflowNode, base ExpressionCo
 		if err := vault.ResolveConfig(ctx, db, stored, resolved); err != nil {
 			return nil, fmt.Errorf("tool %q: %w", n.Name, err)
 		}
-		if err := secrets.ResolveConfig(ctx, db, profile, stored, resolved); err != nil {
+		if err := secrets.ResolveConfig(secrets.WithAccessNode(ctx, n.ID, n.Name), db, profile, stored, resolved); err != nil {
 			return nil, fmt.Errorf("tool %q: %w", n.Name, err)
 		}
 	}

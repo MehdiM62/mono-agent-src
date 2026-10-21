@@ -69,6 +69,24 @@ func Resolve(ctx context.Context, db *sql.DB, profileID, ref string) (string, er
 		return ref, err
 	}
 	name := strings.TrimPrefix(ref, secretRefPrefix)
+	// Under the owner's agent access: within its scope, and audited.
+	if a := accessOf(ctx); a != nil {
+		if err := a.permit(ctx, ref, name); err != nil {
+			return ref, err
+		}
+		v, err := resolveEntry(ctx, db, profileID, ref, name)
+		if err != nil {
+			return ref, err
+		}
+		if err := a.resolved(ctx, name, v); err != nil {
+			return ref, err
+		}
+		return v, nil
+	}
+	return resolveEntry(ctx, db, profileID, ref, name)
+}
+
+func resolveEntry(ctx context.Context, db *sql.DB, profileID, ref, name string) (string, error) {
 
 	entries, err := List(ctx, db, profileID)
 	if err != nil {

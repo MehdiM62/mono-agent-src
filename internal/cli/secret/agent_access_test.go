@@ -36,7 +36,7 @@ func TestAgentAccessIsOffUntilTheUserTurnsItOn(t *testing.T) {
 	if out, _ := runSecretCmd(t, db, "agent-access"); !strings.Contains(out, `"agent_access": false`) {
 		t.Fatalf("still off: %s", out)
 	}
-	out, err = runSecretCmd(t, db, "agent-access", "on", "--yes")
+	out, err = runSecretCmd(t, db, "agent-access", "on", "--yes", "--any-host")
 	if err != nil || !strings.Contains(out, `"agent_access": true`) {
 		t.Fatalf("on: %v %s", err, out)
 	}
@@ -49,7 +49,7 @@ func TestAgentAccessIsOffUntilTheUserTurnsItOn(t *testing.T) {
 func TestAgentAccessCannotBeChangedByAnAgent(t *testing.T) {
 	db := newSecretCLITestDB(t)
 	profileP1(t, db)
-	if _, err := runSecretCmd(t, db, "agent-access", "on", "--yes"); err != nil {
+	if _, err := runSecretCmd(t, db, "agent-access", "on", "--yes", "--any-host"); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("CLAUDECODE", "1")
@@ -63,7 +63,7 @@ func TestAgentAccessCannotBeChangedByAnAgent(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("CLAUDECODE", "1")
-	if _, err := runSecretCmd(t, db, "agent-access", "on", "--yes"); err == nil {
+	if _, err := runSecretCmd(t, db, "agent-access", "on", "--yes", "--any-host"); err == nil {
 		t.Fatal("an agent turned it on")
 	}
 	out, err := runSecretCmd(t, db, "agent-access")
@@ -96,7 +96,7 @@ func TestAgentAccessUsesTheProfileIDResolvedByOpeningTheDatabase(t *testing.T) {
 		return "monoes"
 	}
 	cmd := NewCommand(d)
-	cmd.SetArgs([]string{"agent-access", "on", "--yes"})
+	cmd.SetArgs([]string{"agent-access", "on", "--yes", "--any-host"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("on: %v", err)
 	}
@@ -113,4 +113,62 @@ func runSecretCmdWith(d Deps, args ...string) (string, error) {
 	cmd.SetOut(&out)
 	err := cmd.Execute()
 	return out.String(), err
+}
+
+// Turning it on says where a secret may go: --host, or --any-host on purpose.
+func TestAgentAccessOnNeedsAHostOrAnyHostAndKeepsItsScope(t *testing.T) {
+	db := newSecretCLITestDB(t)
+	profileP1(t, db)
+	if _, err := runSecretCmd(t, db, "agent-access", "on", "--yes"); err == nil || !strings.Contains(err.Error(), "--any-host") {
+		t.Fatalf("on with neither --host nor --any-host: %v", err)
+	}
+	if _, err := runSecretCmd(t, db, "agent-access", "on", "--yes", "--host", "a.example", "--any-host"); err == nil {
+		t.Fatal("--host with --any-host")
+	}
+	if _, err := runSecretCmd(t, db, "agent-access", "on", "--yes", "--any-host", "--expires", "soon"); err == nil {
+		t.Fatal("a bad --expires")
+	}
+	if out, _ := runSecretCmd(t, db, "agent-access"); !strings.Contains(out, `"agent_access": false`) {
+		t.Fatalf("a refused on turned it on: %s", out)
+	}
+	out, err := runSecretCmd(t, db, "agent-access", "on", "--yes", "--host", "API.Example.com,https://hooks.example.org/x", "--secret", "a,b", "--expires", "24h")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`"agent_access": true`, `"api.example.com"`, `"hooks.example.org"`, `"a"`, `"b"`, `"any_host": false`, `"expires_at": "`} {
+		if !strings.Contains(out, want) {
+			t.Errorf("status lacks %s: %s", want, out)
+		}
+	}
+}
+
+func TestAgentAccessAuditListsNamesAndOnlyTheUserClearsIt(t *testing.T) {
+	dbPath := newSecretCLITestDB(t)
+	profileP1(t, dbPath)
+	db, err := storage.NewDatabase(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.DB.Exec(`INSERT INTO profile_agent_secret_audit (profile_id, workflow_id, execution_id, node_id, node_name, secret_name) VALUES ('p1', 'wf-1', 'ex-1', 'n1', 'Send', 'github')`); err != nil {
+		t.Fatal(err)
+	}
+	db.DB.Close()
+	out, err := runSecretCmd(t, dbPath, "agent-access", "audit")
+	if err != nil || !strings.Contains(out, `"secret": "github"`) || !strings.Contains(out, `"workflow_id": "wf-1"`) || !strings.Contains(out, `"execution_id": "ex-1"`) {
+		t.Fatalf("audit: %v %s", err, out)
+	}
+	t.Setenv("CLAUDECODE", "1")
+	if _, err := runSecretCmd(t, dbPath, "agent-access", "audit", "--clear"); err == nil || !strings.Contains(err.Error(), "CLAUDECODE is set") {
+		t.Fatalf("an agent cleared the audit: %v", err)
+	}
+	if out, err := runSecretCmd(t, dbPath, "agent-access", "audit"); err != nil || !strings.Contains(out, "github") {
+		t.Fatalf("an agent may read it: %v %s", err, out)
+	}
+	t.Setenv("CLAUDECODE", "")
+	if _, err := runSecretCmd(t, dbPath, "agent-access", "audit", "--clear"); err != nil {
+		t.Fatal(err)
+	}
+	if out, _ := runSecretCmd(t, dbPath, "agent-access", "audit"); strings.Contains(out, "github") {
+		t.Fatalf("not cleared: %s", out)
+	}
 }
