@@ -129,6 +129,11 @@ func peekKEK(profileID string) (kek []byte, found bool, err error) {
 	stored, err := keyringGet(keyringService, kekAccount(profileID))
 	if err != nil {
 		if errors.Is(err, keyring.ErrNotFound) {
+			// A working keychain (macOS) answers not-found, not an error; with the file
+			// keyring opted in, the key lives in the file (fetchOrCreateKEK puts it there).
+			if fileKeyringEnabled() {
+				return peekFileKEK(profileID)
+			}
 			return nil, false, nil
 		}
 		if fileKeyringEnabled() {
