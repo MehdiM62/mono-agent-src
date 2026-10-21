@@ -188,10 +188,16 @@ func checkStoredFields(executor NodeExecutor, stored, resolved map[string]interf
 			what = "the saved connection"
 		case "url": // mcp.call's: where the vault entry's headers go
 			what = "the address its headers go to"
+		case "command", "args": // mcp.call's: the program the vault entry's env goes to
+			what = "the program its env goes to"
 		case "username": // a browser node's: the session it signs in with
 			what = "the account it acts as"
 		}
-		return fmt.Errorf("%q: %s must be written in the workflow, not taken from its data", f, what)
+		hint := ""
+		if f == "url" {
+			hint = `; write the address as it is, or leave "url" out to use the vault entry's`
+		}
+		return fmt.Errorf("%q: %s must be written in the workflow, not taken from its data%s", f, what, hint)
 	}
 	return nil
 }

@@ -101,6 +101,12 @@ func (d *Database) SnapshotBeforeAdoption(ctx context.Context) {
 	}
 	var last sql.NullInt64
 	_ = conn.QueryRowContext(ctx, `SELECT MAX(version) FROM schema_migrations`).Scan(&last)
+	// The claim that follows can keep failing (a read-only database), and
+	// then this runs on every start: one snapshot of this schema version a
+	// day is enough.
+	if d.hasRecentAdoptionSnapshot(int(last.Int64)) {
+		return
+	}
 	name := fmt.Sprintf("pre-migrate-%s-v%03d-adopt.db", migrateNow().UTC().Format("20060102T150405"), last.Int64)
 	path, err := d.writeSnapshotAs(ctx, conn, name)
 	if err != nil {
@@ -111,6 +117,36 @@ func (d *Database) SnapshotBeforeAdoption(ctx context.Context) {
 	if err := prunePreMigrateSnapshots(d.backupsDir(), keepPreMigrateSnapshots); err != nil {
 		fmt.Fprintf(migrateStderr, "monoagent: warning: could not prune old database snapshots: %v\n", err)
 	}
+}
+
+// adoptionSnapshotEvery is how long an adoption snapshot of a schema version
+// stands in for a new one.
+const adoptionSnapshotEvery = time.Hour
+
+// hasRecentAdoptionSnapshot reports whether backups holds an adoption
+// snapshot of schema version v written within adoptionSnapshotEvery, not
+// dated in the future, and not older than the database's last change (one
+// that predates the data stands in for nothing).
+func (d *Database) hasRecentAdoptionSnapshot(v int) bool {
+	var changed time.Time
+	for _, suffix := range []string{"", "-wal"} {
+		if fi, err := os.Stat(d.dbPath + suffix); err == nil && fi.ModTime().After(changed) {
+			changed = fi.ModTime()
+		}
+	}
+	paths, _ := filepath.Glob(filepath.Join(d.backupsDir(), fmt.Sprintf("pre-migrate-*-v%03d-adopt.db", v)))
+	now := migrateNow()
+	for _, p := range paths {
+		fi, err := os.Stat(p)
+		if err != nil {
+			continue
+		}
+		age := now.Sub(fi.ModTime())
+		if age >= 0 && age < adoptionSnapshotEvery && !fi.ModTime().Before(changed) {
+			return true
+		}
+	}
+	return false
 }
 
 func (d *Database) writeSnapshot(ctx context.Context, conn *sql.Conn, lastApplied int) (string, error) {
@@ -216,7 +252,7 @@ func (d *Database) SchemaAhead(ctx context.Context) (dbVersion, binaryVersion in
 }
 
 // SnapshotBeforeProfileDelete writes a consistent copy of the database to
-// <backups>/pre-delete-profile-<UTC timestamp>.db (mode 0600) and returns its
+// <backups>/pre-delete-profile-<UTC timestamp>-<counter>.db (mode 0600) and returns its
 // path. Unlike the pre-migrate snapshots these are never pruned, and a
 // database that cannot be snapshotted is an error: the delete must not go on
 // without its backup.
@@ -230,13 +266,15 @@ func (d *Database) SnapshotBeforeProfileDelete(ctx context.Context) (string, err
 	}
 	defer conn.Close()
 	stamp := migrateNow().UTC().Format("20060102T150405")
-	name := fmt.Sprintf("pre-delete-profile-%s.db", stamp)
-	// Two deletes in the same second must not share a snapshot.
-	for n := 2; n < 1000; n++ {
+	// The counter is always there and zero-padded so that names sort in the
+	// order they were made (T-02.db would sort before T.db). Two deletes in
+	// the same second must not share a snapshot.
+	var name string
+	for n := 1; n < 1000; n++ {
+		name = fmt.Sprintf("pre-delete-profile-%s-%03d.db", stamp, n)
 		if _, err := os.Stat(filepath.Join(d.backupsDir(), name)); os.IsNotExist(err) {
 			break
 		}
-		name = fmt.Sprintf("pre-delete-profile-%s-%d.db", stamp, n)
 	}
 	return d.writeSnapshotAs(ctx, conn, name)
 }

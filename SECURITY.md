@@ -68,9 +68,12 @@ The commands that print a decrypted value (`secret reveal --reveal`,
 `secret export`, `connect get-oauth-client --reveal`, `profile info get
 --reveal`, `node run vault.secret_get`, `workflow run --full-outputs`) and
 `api key create` are refused (exit 3, `operator_only`) to a process the CLI
-recognises as an agent, the in-app chat or a workflow run. No secret
-resolves in a workflow you haven't approved, or in a step an agent runs on
-its own (`node run`, MCP `node_run`).
+recognises as an agent, the in-app chat or a workflow run. By default no
+secret resolves in a workflow you haven't approved, or in a step an agent
+runs on its own (`node run`, MCP `node_run`); `secret agent-access on` lifts
+the first of these, for the profile, as described under "Letting
+agent-written workflows read the vault" below. `vault.secret_get` is never
+lifted.
 
 This is a deterrent against mistakes and instructions planted in pages or
 messages, not a barrier:
@@ -112,6 +115,81 @@ messages, not a barrier:
   server or your own command, so a new writer can't reach it by accident.
 - An agent with full access to your computer can do anything you can,
   including reading the keyring.
+
+### Letting agent-written workflows read the vault
+
+`monoagentcli secret agent-access on` is a profile-wide switch that lets a
+run of a workflow you never approved (one the chat, an agent or another
+workflow wrote or changed) resolve `@secret:` references written in the
+workflow's own fields, without you saving or activating each workflow.
+
+- **Who sets it.** Only you: the command is refused (exit 3,
+  `operator_only`) to an agent, the chat or a workflow, as `secret reveal`
+  is, and so is clearing its audit. It lives in `profile_agent_secret_access`,
+  outside any workflow definition, so no import or settings key can turn it on.
+- **Default.** Off. A profile with no row behaves as before.
+- **Scope.** `--secret NAME[,NAME...]` limits it to those vault entries (default
+  all); `--expires 24h` ends it after that long (an expired grant is off);
+  `--host HOST[,HOST...]` limits where a secret may be sent, and one of
+  `--host` or `--any-host` is required. The grant is read again at every
+  resolution, so `agent-access off`, a narrower grant or an expiry stops
+  a run already under way at its next read.
+- **Where a secret may go.** With `--host`, a request of `http.request`,
+  `http.graphql` or `mcp.call` (http), or the connection of a `trigger.sse`
+  node, that carries a secret read under the switch (in its address, headers
+  or body) is refused unless its host is on the list. A saved connection's
+  token still goes only to the host the connection names, because the run
+  stays unapproved (an agent's workflow sets no connection host of its own).
+  With `--any-host` an agent's workflow can send an allowed secret to any
+  address it names; use it only for a profile whose secrets you accept an
+  agent using. That is the accepted risk of the broad mode.
+- **Audit.** Each secret an unapproved run reads under the switch is
+  recorded by name (workflow, run, step and time; never the value):
+  `secret agent-access audit [--json]`; only you clear it (`--clear`). A read
+  whose audit row cannot be written is refused.
+- **Values in outputs.** `vault.secret_get` stays refused to an unapproved
+  run, with the switch on as off. The values the run itself resolved
+  (6 characters or more) are masked, wherever they occur, in the step inputs,
+  outputs and errors it stores, so they don't show in `workflow_executions`,
+  MCP or `--full-outputs`.
+- **Masking is best-effort, and the switch trusts the workflow.** Masking
+  matches values as text. It also covers the common forms a step derives from
+  a value (base64 standard and URL, URL-encoded, JSON-escaped, upper and lower
+  case, `-` and `_` swapped, hex), follows a sub-workflow the run calls, and
+  survives a pause and resume. Any expression or code step can still transform
+  a value into a form nobody listed (split it, reverse it, hash part of it),
+  and a transformed value is not masked. The host check does not depend on
+  recognising it: once any step of a run (or of the run that called it) has
+  read a secret under `--host`, every request of `http.request`,
+  `http.graphql`, `mcp.call` and `trigger.sse` in that run, proxy and
+  redirect hops included, goes only to the listed hosts. A run that never read
+  a secret sends anywhere, as before. The snapshot of a run paused while it
+  holds such values (a wait or a review) is stored sealed under the profile's
+  vault key, not as plain text.
+  So `agent-access on` effectively trusts the agent-written workflows with
+  the secrets and hosts you name: grant only secrets you accept an agent
+  using, and prefer a short `--expires`.
+- **Nodes under `--host`.** With `--host` (not `--any-host`) only the nodes
+  that check their destination (`http.request`, `http.graphql`, `mcp.call`,
+  `trigger.sse`) read a secret; any other node (mail, chat, database,
+  file, shell, code and the rest) is refused the reference. A request that
+  carries a secret may use a `proxy` only when its host is on the list, and
+  never with `allow_unauthorized_certs`.
+- **What still leaks.** A step can still move a value inside the run (an
+  `http.request` whose response or another step's output is used as a field,
+  a code step) or send it somewhere a host list does not look: the list
+  covers the HTTP, GraphQL, MCP-http and SSE paths, nor does it look at a
+  redirect that re-sends a request body. Values shorter than 6 characters are
+  neither masked nor bound to hosts. Logs written to your terminal or files
+  are not masked. A value that a service echoes back in a way that changes
+  its text (encoded, split) is not masked.
+- **What it does not lift.** The run stays unapproved: its file and program
+  limits stay (`workflow_approvals`), a reference that came from run data or
+  an expression is refused, and a failed approval check, a step an AI runs
+  outside a workflow (`node run`) and `vault.secret_get` stay refused.
+  A person or process that can run `monoagentcli` outside an agent's markers
+  can still turn the switch on, as they can approve a workflow: the bypasses
+  are the same as for `workflow_approvals`.
 
 ### A copy of `~/.monoagent` and the key store
 
@@ -550,6 +628,36 @@ widen what an earlier page reached the model with):
   no workflow or canvas builder; no Bash; no knowledge-graph search. A tool
   that is not in that list is not registered with the model, and a call
   made for it anyway is refused ("not available in this session").
+- **Frames and page actions.** When the page's own text is thin, the panel
+  also reads every frame. Text from a frame of another origin is capped
+  (2000 characters each) and fenced as `[frame origin: <origin> - untrusted
+  frame content]` and closed by `[/frame content]` (the marker and header
+  patterns are stripped from the frame's own text), but it is still
+  page-controlled text that reaches the model, so it is a prompt-injection surface like the rest of the page.
+  What it can lead to is bounded as for any page text: a suggested step is
+  only a card, and nothing happens until the person presses Run. At Run the
+  step is found by its words across the tab's frames and done in the one
+  frame that matches; a step in an iframe is refused if that frame's
+  address changed since it was searched, and the finished card names the
+  frame's origin. Typing, choosing or ticking in a frame of another origin
+  is refused until the card has shown that frame's origin and the person
+  presses Run a second time. The click guard looks through shadow roots
+  for a form, applies the verb list (including accept, agree, approve,
+  continue, proceed) to every button, link, tabindex, role or `onclick`
+  target, blocks `javascript:` and `data:` links, and reads a link's path
+  and query for those verbs. Ticking a box or choosing a drop-down option is held
+  back (not done; the person does it) when the label or option says
+  something that grants, accepts, pays or deletes, and a box is only ticked
+  when the page ties it to the named text (label, `for`, `aria-labelledby`,
+  or its own name).
+  The guard reads words after folding: full-width and other compatibility
+  forms, zero-width, soft-hyphen and bidi characters, combining marks and
+  case do not hide them. It also holds `payment`, `disconnect`, `unlink`,
+  and a text of any length with such a verb that has a pointer cursor, a
+  `tabindex` or sits in a form. Remaining limit: a box with a default cursor,
+  outside a form, whose click listener acts on a long text cannot be told
+  from plain text and is not held; look-alike letters from another script
+  (a Cyrillic `а` in `delete`) are not folded either.
 - The page counts as untrusted content for every gate that remains
   (`checkInjectionGate`), and a model-supplied `confirm:true` is never
   consent for a gated tool: the gate is checked before `confirm` is read.

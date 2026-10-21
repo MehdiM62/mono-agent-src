@@ -93,6 +93,26 @@ func profileAttachments(ctx context.Context, db *sql.DB, profileID string) ([]st
 	return files, nil
 }
 
+// unreferenced drops from files every one a remaining message points at.
+// The list was made before the delete committed; a sync that saved the same
+// file for another profile's message since must not lose it.
+func unreferenced(ctx context.Context, db *sql.DB, files []string) ([]string, error) {
+	if len(files) == 0 {
+		return nil, nil
+	}
+	still, err := attachmentPaths(ctx, db, `id <> ?`, "")
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	for _, f := range files {
+		if !still[filepath.Clean(f)] {
+			out = append(out, f)
+		}
+	}
+	return out, nil
+}
+
 // plainFileUnder is true when f is a regular file (not a symlink) whose
 // folder, with links resolved, is inside root. A link planted in the
 // attachments folder must not turn a delete into one elsewhere.

@@ -70,6 +70,12 @@ func (s *SSETriggerSource) Activate(w *Workflow, node *WorkflowNode, fire func(i
 		rctx := ctx
 		if ok, err := operatorApproved(ctx, NewSQLiteWorkflowStore(s.DB), w); !ok {
 			rctx = secrets.RefuseResolving(ctx, unapprovedSecrets(withApprovalCheckError(ctx, err), ApproveHint(w.ProfileID, w.ID)))
+			// Unless the profile's owner let agent-written workflows read the vault
+			// (`secret agent-access on`), and the approval check itself worked.
+			if g, _ := secrets.GetAgentAccess(ctx, s.DB, w.ProfileID); g != nil && err == nil {
+				rctx = secrets.AllowResolving(rctx, s.DB, w.ProfileID, secrets.AccessOrigin{WorkflowID: w.ID})
+				rctx = secrets.WithAccessNodeType(secrets.WithAccessNode(rctx, node.ID, node.Name), node.Type)
+			}
 		}
 		for k, v := range headers {
 			if strings.HasPrefix(v, "@secret:") {
@@ -80,6 +86,15 @@ func (s *SSETriggerSource) Activate(w *Workflow, node *WorkflowNode, fire func(i
 				}
 				headers[k] = resolved
 			}
+		}
+		// A secret read under agent access goes only to a host it names.
+		hv := make([]string, 0, len(headers))
+		for _, v := range headers {
+			hv = append(hv, v)
+		}
+		if err := secrets.CheckSendHost(rctx, u.String(), hv...); err != nil {
+			cancel()
+			return nil, fmt.Errorf("%s: %w", TriggerNodeTypeSSE, err)
 		}
 	}
 	c := &sseConn{src: s, url: u.String(), headers: headers, label: fmt.Sprintf("workflow %s, node %s", w.ID, node.ID)}

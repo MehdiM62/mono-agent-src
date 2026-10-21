@@ -196,6 +196,12 @@ func (e *WorkflowEngine) handleExecution(ctx context.Context, req ExecutionReque
 		exec.TriggerNodeID = req.TriggerNodeID
 	}
 
+	// A sub-workflow's stored trigger data is masked; the queue keeps the real
+	// one, and the child runs on that (it masks what it stores).
+	if _, ok := req.TriggerData[SecretNamesKey]; ok && req.TriggerType == TriggerTypeExecuteWorkflow {
+		exec.TriggerData = req.TriggerData
+	}
+
 	// 4. Execute via runExecution (defined in execution.go).
 	runErr := e.runExecution(ctx, exec, wf, dag)
 

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/url"
 	"sort"
 	"strings"
 )
@@ -98,7 +99,7 @@ func checkDestinationGroup(group []string, use *CredentialUse, approved bool, st
 		}
 		if len(theirs) > 0 {
 			for _, m := range mine {
-				if !namedBy(m, theirs) {
+				if !namedBy(m, theirs) || !bareHostKeepsHTTPS(group, data, resolved[k]) {
 					return fmt.Errorf("%q: the saved connection %q sends its secret to %s, not %s: %w (change the connection to use another host)",
 						k, name, strings.Join(theirs, ", "), m, ErrCredentialDestination)
 				}
@@ -153,6 +154,35 @@ func writtenAsIs(stored interface{}, mine []string) bool {
 		}
 	}
 	return true
+}
+
+// bareHostKeepsHTTPS: a connection that names its host bare (no scheme, no
+// port) is for https on the default port, so a URL of the workflow that
+// names http:// or another port of that host isn't the connection's
+// destination. A connection that states a scheme or a port allows what
+// namedBy allows, and a value that isn't a URL is left to namedBy.
+func bareHostKeepsHTTPS(group []string, data map[string]interface{}, node interface{}) bool {
+	raw, _ := node.(string)
+	if !strings.Contains(raw, "://") {
+		return true
+	}
+	for _, k := range group {
+		theirs, _ := data[k].(string)
+		if theirs == "" {
+			continue
+		}
+		if strings.Contains(theirs, "://") {
+			return true
+		}
+		if _, port := splitDestination(destinationOf(theirs)); port != "" {
+			return true
+		}
+	}
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return false
+	}
+	return strings.EqualFold(u.Scheme, "https") && (u.Port() == "" || u.Port() == "443")
 }
 
 // namedBy reports whether destination d is one of theirs: the same host,

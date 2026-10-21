@@ -12,6 +12,7 @@ import (
 	"github.com/monoes/mono-agent/internal/connections"
 	"github.com/monoes/mono-agent/internal/fsconfine"
 	"github.com/monoes/mono-agent/internal/profiledir"
+	"github.com/monoes/mono-agent/internal/secrets"
 	"github.com/monoes/mono-agent/internal/vault"
 	"github.com/rs/zerolog"
 )
@@ -112,7 +113,7 @@ func RunExecution(
 		// The webhook chain trace and the AI-caller mark stay internal (the
 		// run's context has them): a workflow that echoes $json must not hand
 		// them on.
-		triggerItems:   buildTriggerItems(withoutTrace(withoutTrace(exec.TriggerData, WebhookTraceKey), AICallerKey)),
+		triggerItems:   buildTriggerItems(withoutTrace(withoutTrace(withoutTrace(exec.TriggerData, WebhookTraceKey), AICallerKey), SecretNamesKey)),
 		nodeOutputs:    make(map[string][]Item),
 		pendingInputs:  make(map[string][]Item),
 		pendingFrom:    make(map[string]string),
@@ -155,6 +156,17 @@ func RunExecution(
 	project := profiledir.Root(vault.DBFromContext(ctx), profile)
 	if approved, err := operatorApproved(ctx, store, wf); !approved {
 		ctx = WithUnapproved(withApprovalCheckError(ctx, err), project, ApproveHint(profile, wf.ID))
+		// The profile's owner may have let agent-written workflows read the vault
+		// (`secret agent-access on`). Not when the approval check itself failed.
+		if g, _ := secrets.GetAgentAccess(ctx, vault.DBFromContext(ctx), profile); g != nil && err == nil {
+			ctx = secrets.AllowResolving(ctx, vault.DBFromContext(ctx), profile, secrets.AccessOrigin{WorkflowID: wf.ID, ExecutionID: exec.ID})
+			// What the run stores of its steps never shows the values it read.
+			r.store = &maskingStore{WorkflowStore: store, run: ctx}
+			// Secrets a calling run read before it called this one.
+			if err := secrets.SeedResolved(ctx, secretNamesOf(exec.TriggerData[SecretNamesKey])); err != nil {
+				return err
+			}
+		}
 	} else if caller, ok := CalledByUnapproved(exec.TriggerData); ok {
 		hint := "this workflow was called by one you haven't approved: save or activate that one in the app or your terminal to let it"
 		if caller != "" {
@@ -189,14 +201,22 @@ func RunExecution(
 	defer cancel()
 	r.ctx = ctx
 
-	return r.timeoutErr(r.run())
+	return maskRunError(ctx, r.timeoutErr(r.run()))
 }
 
 // restore seeds the working state from a persisted executionResumeState.
 func (r *runner) restore(raw string) error {
+	profile, _ := vault.ProfileIDFromContext(r.ctx)
+	plain, err := openResumeState(r.ctx, vault.DBFromContext(r.ctx), profile, raw)
+	if err != nil {
+		return fmt.Errorf("resume: open state for execution %s: %w", r.exec.ID, err)
+	}
 	var rs executionResumeState
-	if err := json.Unmarshal([]byte(raw), &rs); err != nil {
+	if err := json.Unmarshal(plain, &rs); err != nil {
 		return fmt.Errorf("resume: decode state for execution %s: %w", r.exec.ID, err)
+	}
+	if err := secrets.SeedResolved(r.ctx, rs.SecretNames); err != nil {
+		return err
 	}
 	if rs.PendingInputs != nil {
 		r.pendingInputs = rs.PendingInputs
@@ -299,6 +319,7 @@ func (r *runner) abandon(tasks []*nodeTask, msg string) {
 // rather than failing — resume picks up here once the pause is resolved.
 func (r *runner) pause(paused []*nodeTask) error {
 	state, mErr := json.Marshal(executionResumeState{
+		SecretNames:    secrets.ResolvedNames(r.ctx),
 		PendingInputs:  r.pendingInputs,
 		PendingFrom:    r.pendingFrom,
 		NodeOutputs:    r.nodeOutputs,
@@ -311,8 +332,13 @@ func (r *runner) pause(paused []*nodeTask) error {
 	if mErr != nil {
 		return fmt.Errorf("pause: encode resume state for execution %s: %w", r.exec.ID, mErr)
 	}
+	profile, _ := vault.ProfileIDFromContext(r.ctx)
+	sealed, sErr := sealResumeState(r.ctx, vault.DBFromContext(r.ctx), profile, state, len(secrets.ResolvedNames(r.ctx)) > 0)
+	if sErr != nil {
+		return sErr
+	}
 	pauseCtx, pauseCancel := dbCtx()
-	werr := r.store.SetExecutionWaiting(pauseCtx, r.exec.ID, string(state))
+	werr := r.store.SetExecutionWaiting(pauseCtx, r.exec.ID, sealed)
 	if werr == nil {
 		recordPauseWindow(pauseCtx, r.store, r.exec.ID, earliestPause(paused))
 	}

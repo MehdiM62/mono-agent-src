@@ -349,6 +349,7 @@
       if (patch && kind && kind.states.has(patch.state)) p.state = patch.state;
       if (patch && typeof patch.feedback === "string") p.feedback = patch.feedback.slice(0, 300);
       if (patch && p.kind === "action" && "code" in patch) p.code = usableCode(patch.code) ? patch.code : undefined;
+      if (patch && p.kind === "action" && "frameOrigin" in patch) p.frameOrigin = typeof patch.frameOrigin === "string" ? patch.frameOrigin.slice(0, 120) : undefined;
       if (patch && p.kind === "recording" && usableRecording(patch.recordingId)) p.recordingId = patch.recordingId;
       if (patch && p.kind === "recording" && cleanGoal(patch.goal)) p.goal = cleanGoal(patch.goal);
       return true;

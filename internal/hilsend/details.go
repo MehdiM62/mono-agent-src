@@ -1,6 +1,8 @@
 package hilsend
 
 import (
+	"context"
+	"database/sql"
 	"encoding/json"
 	"strings"
 )
@@ -39,7 +41,7 @@ var emailDetails = []struct {
 // sends, the body type and the connection. A send that is no email has
 // none. Each value is the step's text on one line, with what breaks or
 // hides a line escaped (escapeHidden), so it can't add lines to `hil show`.
-func detailsOf(t target, config map[string]interface{}) []Detail {
+func detailsOf(ctx context.Context, st Store, t target, config map[string]interface{}) []Detail {
 	if t.action != ActionEmail {
 		return nil
 	}
@@ -69,9 +71,28 @@ func detailsOf(t target, config map[string]interface{}) []Detail {
 		if key == "inReplyTo" && opOf(config) == "send_draft" {
 			key = "draft"
 		}
+		if key == "connection" {
+			value = connectionLabel(ctx, st, value)
+		}
 		out = append(out, Detail{Key: key, Value: escapeHidden(value)})
 	}
 	return out
+}
+
+// connectionLabel is the saved connection id as the card shows it: its
+// name with the id in parentheses, or the bare id when the profile has no
+// such connection (or it has no name). Only the name is read, never the
+// connection's data.
+func connectionLabel(ctx context.Context, st Store, id string) string {
+	if st.DB == nil || st.Profile == "" || id == "" {
+		return id
+	}
+	var label sql.NullString
+	err := st.DB.QueryRowContext(ctx, `SELECT label FROM connections WHERE id = ? AND profile_id = ?`, id, st.Profile).Scan(&label)
+	if err != nil || strings.TrimSpace(label.String) == "" {
+		return id
+	}
+	return strings.TrimSpace(label.String) + " (" + id + ")"
 }
 
 // detailValue is v as the card shows it: a string as is, a list of strings

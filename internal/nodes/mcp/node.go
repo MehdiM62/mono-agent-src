@@ -7,7 +7,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -194,12 +196,20 @@ func loadServer(ctx context.Context, config map[string]interface{}) (*serverConf
 	if s := str(config, "transport"); s != "" {
 		srv.Transport = s
 	}
+	// A server entry's command and args win like its url: its env secrets
+	// go to the program it names and to no other.
 	if s := str(config, "command"); s != "" {
+		if srv.Command != "" && s != srv.Command {
+			return nil, invalid("command %q differs from the command of the server entry %q: the entry's env goes only to its own program; leave command out to use the entry's", s, str(config, "server"))
+		}
 		srv.Command = s
 	}
 	if args, err := stringList(config["args"]); err != nil {
 		return nil, invalid("args: %v", err)
 	} else if args != nil {
+		if srv.Command != "" && str(config, "server") != "" && !slices.Equal(args, srv.Args) {
+			return nil, invalid("args differ from the args of the server entry %q: the entry's env goes only to its own program; leave args out to use the entry's", str(config, "server"))
+		}
 		srv.Args = args
 	}
 	if s := str(config, "cwd"); s != "" {
@@ -208,10 +218,12 @@ func loadServer(ctx context.Context, config map[string]interface{}) (*serverConf
 	if s := str(config, "url"); s != "" {
 		// A server entry's url wins: its headers go there and nowhere else
 		// (#897). A differing node url could redirect them.
-		if srv.URL != "" && s != srv.URL {
-			return nil, invalid("url %q differs from the url of the server entry %q: the entry's headers go only to its own address", s, str(config, "server"))
+		if srv.URL != "" && !sameURL(s, srv.URL) {
+			return nil, invalid("url %q differs from the url of the server entry %q: the entry's headers go only to its own address; write the same address, or leave url out to use the entry's (a url with {{ }} is not accepted)", s, str(config, "server"))
 		}
-		srv.URL = s
+		if srv.URL == "" {
+			srv.URL = s
+		}
 	}
 	for key, dst := range map[string]*map[string]string{"env": &srv.Env, "headers": &srv.Headers} {
 		m, err := stringMap(config[key])
@@ -252,7 +264,33 @@ func loadServer(ctx context.Context, config map[string]interface{}) (*serverConf
 			m[k] = r
 		}
 	}
+	// A secret read under the owner's agent access goes only to a host it names.
+	if srv.Transport == "http" {
+		sent := make([]string, 0, len(srv.Headers))
+		for _, v := range srv.Headers {
+			sent = append(sent, v)
+		}
+		if err := secrets.CheckSendHost(ctx, srv.URL, sent...); err != nil {
+			return nil, invalid("%v", err)
+		}
+	}
 	return srv, nil
+}
+
+// sameURL compares two addresses without regard to a trailing slash or the
+// case of the scheme and host.
+func sameURL(a, b string) bool {
+	if a == b {
+		return true
+	}
+	ua, errA := url.Parse(a)
+	ub, errB := url.Parse(b)
+	if errA != nil || errB != nil {
+		return false
+	}
+	return strings.EqualFold(ua.Scheme, ub.Scheme) && strings.EqualFold(ua.Host, ub.Host) &&
+		strings.TrimSuffix(ua.EscapedPath(), "/") == strings.TrimSuffix(ub.EscapedPath(), "/") &&
+		ua.RawQuery == ub.RawQuery && ua.User.String() == ub.User.String()
 }
 
 // expandSecrets replaces every @secret:<name> in s with its vault value.
@@ -455,9 +493,11 @@ func stringMap(v interface{}) (map[string]string, error) {
 }
 
 // LiteralConfigFields: server names the vault entry the server is read from,
-// and url is where that entry's headers go: neither may come from the run's
-// data (workflow.LiteralConfigResolver).
-func (n *CallNode) LiteralConfigFields() []string { return []string{"server", "url"} }
+// url is where that entry's headers go, and command and args are the program
+// its env goes to: none may come from the run's data (workflow.LiteralConfigResolver).
+func (n *CallNode) LiteralConfigFields() []string {
+	return []string{"server", "url", "command", "args"}
+}
 
 // SecretTextFields: env and header values may hold @secret references inside
 // their text (workflow.SecretTextResolver).

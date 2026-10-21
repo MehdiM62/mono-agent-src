@@ -251,3 +251,121 @@ func TestSchemaAheadWithoutMigrationsTable(t *testing.T) {
 		t.Errorf("SchemaAhead created %d schema objects; it must be read-only", n)
 	}
 }
+
+// An adoption whose claim keeps failing (a read-only database) must not
+// run a full VACUUM INTO on every start: a snapshot for this schema
+// version taken in the last day stands.
+func TestSnapshotBeforeAdoptionIsSkippedWhenARecentOneExists(t *testing.T) {
+	captureMigrateStderr(t)
+	dir := t.TempDir()
+	db, _ := openWithData(t, dir)
+	ctx := context.Background()
+	count := func() int {
+		n := 0
+		for _, s := range listSnapshots(t, dir) {
+			if strings.HasSuffix(s, "-adopt.db") {
+				n++
+			}
+		}
+		return n
+	}
+	db.SnapshotBeforeAdoption(ctx)
+	if count() != 1 {
+		t.Fatalf("first call: %v", listSnapshots(t, dir))
+	}
+	prev := migrateNow
+	defer func() { migrateNow = prev }()
+	migrateNow = func() time.Time { return prev().Add(2 * time.Second) }
+	db.SnapshotBeforeAdoption(ctx)
+	if count() != 1 {
+		t.Errorf("a second call within the day took another: %v", listSnapshots(t, dir))
+	}
+	migrateNow = func() time.Time { return prev().Add(25 * time.Hour) }
+	db.SnapshotBeforeAdoption(ctx)
+	if count() != 2 {
+		t.Errorf("a call a day later: %v", listSnapshots(t, dir))
+	}
+}
+
+// A snapshot dated in the future, or older than the database's last
+// change, does not stand in for a new one (review of #944, B2).
+func TestAdoptionSnapshotSkipIgnoresFutureAndStaleOnes(t *testing.T) {
+	captureMigrateStderr(t)
+	dir := t.TempDir()
+	db, _ := openWithData(t, dir)
+	ctx := context.Background()
+	db.SnapshotBeforeAdoption(ctx)
+	var snap string
+	for _, s := range listSnapshots(t, dir) {
+		if strings.HasSuffix(s, "-adopt.db") {
+			snap = s
+		}
+	}
+	if snap == "" {
+		t.Fatal("no first snapshot")
+	}
+	path := snap
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(dir, "backups", snap)
+	}
+	count := func() int {
+		n := 0
+		for _, s := range listSnapshots(t, dir) {
+			if strings.HasSuffix(s, "-adopt.db") {
+				n++
+			}
+		}
+		return n
+	}
+	prev := migrateNow
+	defer func() { migrateNow = prev }()
+	step := time.Minute
+	migrateNow = func() time.Time { return prev().Add(step) }
+	future := time.Now().Add(48 * time.Hour)
+	if err := os.Chtimes(path, future, future); err != nil {
+		t.Fatal(err)
+	}
+	db.SnapshotBeforeAdoption(ctx)
+	if count() != 2 {
+		t.Errorf("a snapshot dated in the future stood in for a new one: %v", listSnapshots(t, dir))
+	}
+	// Stale: older than the database's last change.
+	for _, s := range listSnapshots(t, dir) {
+		p := s
+		if !filepath.IsAbs(p) {
+			p = filepath.Join(dir, "backups", s)
+		}
+		old := time.Now().Add(-30 * time.Minute)
+		_ = os.Chtimes(p, old, old)
+	}
+	step = 2 * time.Minute
+	now := time.Now()
+	_ = os.Chtimes(filepath.Join(dir, "monoagent.db"), now, now)
+	before := count()
+	db.SnapshotBeforeAdoption(ctx)
+	if count() != before+1 {
+		t.Errorf("a snapshot older than the database stood in for a new one: %v", listSnapshots(t, dir))
+	}
+}
+
+// Profile-delete snapshots made in one second list in the order they were made.
+func TestProfileDeleteBackupsSortInCreationOrder(t *testing.T) {
+	dir := t.TempDir()
+	db, _ := openWithData(t, dir)
+	prev := migrateNow
+	defer func() { migrateNow = prev }()
+	fixed := prev()
+	migrateNow = func() time.Time { return fixed }
+	var made []string
+	for i := 0; i < 3; i++ {
+		p, err := db.SnapshotBeforeProfileDelete(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		made = append(made, p)
+	}
+	listed, err := db.ProfileDeleteBackups()
+	if err != nil || strings.Join(listed, "\n") != strings.Join(made, "\n") {
+		t.Fatalf("listed %v, made %v (%v)", listed, made, err)
+	}
+}

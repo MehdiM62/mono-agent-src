@@ -55,6 +55,11 @@ func TestProposePageActionRefusesWhatItCannotName(t *testing.T) {
 		`{"action":"open_url","url":"javascript:alert(1)"}`,
 		`{"action":"open_url","url":"https://a b"}`,
 		`{"action":"open_url"}`,
+		`{"action":"check"}`,
+		`{"action":"select","target":"Country"}`,
+		`{"action":"scroll","text":"sideways"}`,
+		`{"action":"press_key","text":"Enter"}`,
+		`{"action":"press_key","target":"Search"}`,
 		`not json`,
 	} {
 		if _, err := mt.Execute("propose_page_action", args); err == nil {
@@ -88,5 +93,45 @@ func TestProposeCoderHandoffQueuesNothing(t *testing.T) {
 	}
 	if after := rowCount(t, db.DB); after != before {
 		t.Fatalf("a proposal wrote %d rows", after-before)
+	}
+}
+
+func TestProposePageActionTakesTheSafeSteps(t *testing.T) {
+	db := newMonoagentTestDB(t)
+	mt := NewMonoagentTools(db.DB, "/bin/monoagentcli", "default")
+	mt.SetPageReadOnly()
+	for _, c := range []struct{ args, action, target, text string }{
+		{`{"action":"check","target":" GBP 200 \n total profit"}`, "check", "GBP 200 total profit", ""},
+		{`{"action":"uncheck","target":"Newsletter"}`, "uncheck", "Newsletter", ""},
+		{`{"action":"select","target":"Country","text":"Ireland"}`, "select", "Country", "Ireland"},
+		{`{"action":"hover","target":"Menu"}`, "hover", "Menu", ""},
+		{`{"action":"scroll","text":" Down "}`, "scroll", "", "down"},
+		{`{"action":"press_key","text":"Tab"}`, "press_key", "", "Tab"},
+	} {
+		out, err := mt.Execute("propose_page_action", c.args)
+		if err != nil {
+			t.Fatalf("%s: %v", c.args, err)
+		}
+		_, p := proposalOf(t, out)
+		if p["action"] != c.action || str(p["target"]) != c.target || str(p["text"]) != c.text {
+			t.Errorf("%s -> %v", c.args, p)
+		}
+	}
+}
+
+func str(v interface{}) string { s, _ := v.(string); return s }
+
+func TestPageActionDescriptionStatesWhatIsHeld(t *testing.T) {
+	defs := pageActionToolDefs()
+	d := ""
+	for _, def := range defs {
+		if def.Function.Name == proposePageActionTool {
+			d = def.Function.Description
+		}
+	}
+	for _, want := range []string{"iframe", "grant, accept, pay or delete", "drop-down option", "does not tie"} {
+		if !strings.Contains(d, want) {
+			t.Errorf("description does not say %q: %s", want, d)
+		}
 	}
 }

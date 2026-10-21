@@ -78,6 +78,15 @@ const PAGE = `<!doctype html><meta charset=utf-8><body>
 <input id=hiddensub type=submit form=f style="display:none"><label id=lab for=hiddensub>Proceed to the next page</label>
 <button id=lb type=button aria-labelledby=lbl></button><span id=lbl hidden>Delete my account</span>
 <a id=alt href="#z"><img alt="Subscribe now" src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" width=20 height=20></a>
+<div id=bd>Delete account</div>
+<span id=sp>Pay now</span>
+<div role=option id=ro>Delete workspace</div>
+<div id=ger>Konto löschen</div>
+<div id=jp>削除</div>
+<div id=ru>Удалить</div>
+<button id=ic type=button aria-label="Delete">×</button>
+<div id=cs style="cursor:pointer">Cancel subscription</div>
+<div id=nest><div><span id=deep>Close account</span></div></div>
 <input id=tb type=button value="Send it" onclick="window.__log.push('tb')">
 <script>
   window.__log = [];
@@ -205,6 +214,17 @@ describe("page_action_page.js in a browser", { skip, concurrency: 1 }, () => {
     assert.deepEqual((await log("")).filter((x) => /^(click|mousedown|pointerdown|mouseup):(del|loesch|bez|comp|logout|cart|oc|tb)/.test(x) || x === "oc" || x === "tb"), [], "none was clicked");
   });
 
+  it("holds back destructive words on elements with no role, rows with a listener, other languages and icon buttons", async () => {
+    await open();
+    await browser.evaluate('document.querySelector("#ro").addEventListener("click", () => window.__log.push("ro-handler"))');
+    for (const target of ["Delete account", "Delete workspace", "Pay now", "Konto löschen", "削除", "Удалить", "Delete", "Cancel subscription", "Close account"]) {
+      const out = await run("click", target);
+      assert.equal(out.code, "submit_blocked", target);
+    }
+    assert.deepEqual((await log("")).filter((x) => /^(click|mousedown):(bd|sp|ro|ger|jp|ru|ic|cs|deep)|ro-handler/.test(x)), [], "none was clicked");
+    assert.deepEqual(await run("double_click", "Purchase order 2025.pdf"), { ok: true }, "a noun phrase in a plain row still opens");
+  });
+
   it("anything clickable inside a form is held back, whatever it says; a row outside is not", async () => {
     await open();
     assert.equal((await run("click", "Read more")).code, "submit_blocked", "a link in a form");
@@ -241,5 +261,205 @@ describe("page_action_page.js in a browser", { skip, concurrency: 1 }, () => {
     assert.deepEqual(await log("click:"), []);
     const here = await browser.evaluate("location.origin");
     assert.equal((await full("click", "Share", undefined, here)).ok, true);
+  });
+
+  const QUIZ = `<!doctype html><meta charset=utf-8><body style="height:4000px">
+<form id=q onsubmit="window.__log.push('SUBMITTED'); return false">
+  <div class=row id=r1><input type=radio name=a id=a1><div>GBP 700 total profit</div></div>
+  <div class=row id=r2><input type=radio name=a id=a2><div>GBP 200 premium only</div></div>
+  <label><input type=checkbox id=news> Send me the newsletter</label>
+  <label for=country>Country</label><select id=country><option>France</option><option>Ireland</option></select>
+  <button id=cont>Continue</button>
+</form>
+<div id=host></div>
+<div id=menu>Products</div>
+<script>
+  window.__log = [];
+  document.querySelector("#host").attachShadow({ mode: "open" }).innerHTML = "<label>Shadow choice <input type=checkbox id=sc></label><button id=sb type=button>Inside shadow</button>";
+  document.querySelector("#menu").addEventListener("mouseover", () => window.__log.push("hover:menu"));
+  document.addEventListener("keydown", (e) => window.__log.push("key:" + e.key));
+  document.querySelector("#country").addEventListener("change", (e) => window.__log.push("country:" + e.target.value));
+</script>`;
+
+  it("ticks a radio inside a form by the words beside it, without submitting", async () => {
+    await open(QUIZ);
+    assert.deepEqual(await run("check", "GBP 200 premium only"), { ok: true });
+    assert.equal(await json("document.querySelector('#a2').checked"), true);
+    assert.equal(await json("document.querySelector('#a1').checked"), false);
+    assert.deepEqual(await log("SUBMITTED"), []);
+    assert.equal((await run("check", "Send me the newsletter")).ok, true);
+    assert.equal(await json("document.querySelector('#news').checked"), true);
+    assert.equal((await run("uncheck", "Send me the newsletter")).ok, true);
+    assert.equal(await json("document.querySelector('#news').checked"), false);
+    assert.equal((await run("uncheck", "GBP 200 premium only")).code, "not_allowed", "a radio is unchecked by choosing another");
+  });
+
+  it("check is for boxes: a button's words are not a box, and Continue is still held back", async () => {
+    await open(QUIZ);
+    assert.equal((await run("check", "Continue")).code, "not_found");
+    assert.equal((await run("click", "Continue")).code, "submit_blocked");
+    assert.deepEqual(await log("SUBMITTED"), []);
+  });
+
+  it("chooses an option in a drop-down, like a person: value, input, change", async () => {
+    await open(QUIZ);
+    assert.deepEqual(await run("select", "Country", "Ireland"), { ok: true });
+    assert.deepEqual(await log("country:"), ["country:Ireland"]);
+    assert.equal((await run("select", "Country", "Atlantis")).code, "not_found");
+  });
+
+  it("reaches an element inside an open shadow root", async () => {
+    await open(QUIZ);
+    assert.equal((await run("check", "Shadow choice")).ok, true);
+    assert.equal(await json("document.querySelector('#host').shadowRoot.querySelector('#sc').checked"), true);
+    assert.equal((await run("click", "Inside shadow")).ok, true);
+  });
+
+  const CONSENT = `<!doctype html><meta charset=utf-8><body>
+<form onsubmit="window.__log.push('SUBMITTED'); return false">
+  <label><input type=checkbox id=del> Delete my account and all data</label>
+  <label for=ctc>Allow access to my contacts</label><input type=checkbox id=ctc>
+  <div role=switch aria-checked=false id=sw tabindex=0>Authorize payments</div>
+  <label for=ok>Remind me weekly</label><input type=checkbox id=ok>
+  <div id=terms><input type=checkbox id=t1><span>Terms of service</span><span>Marketing emails</span></div>
+  <div id=solo><input type=checkbox id=t2><span>Remember me</span></div>
+  <div id=lby><span id=lbl>Show hints</span><input type=checkbox id=t3 aria-labelledby=lbl></div>
+  <label for=act>Action</label><select id=act><option>Keep</option><option>Delete everything</option></select>
+  <label for=risky>Delete the selected rows</label><select id=risky><option>Yes</option><option>No</option></select>
+</form>
+<script>
+  window.__log = [];
+  for (const id of ["act", "risky"]) for (const t of ["input", "change"]) document.getElementById(id).addEventListener(t, () => window.__log.push(t + ":" + id));
+</script>`;
+
+  it("check holds back a box whose label is a consent or destructive verb; a plain box is ticked", async () => {
+    await open(CONSENT);
+    for (const [target, id] of [["Delete my account and all data", "del"], ["Allow access to my contacts", "ctc"], ["Authorize payments", "sw"]]) {
+      const out = await run("check", target);
+      assert.deepEqual([out.ok, out.code], [false, "submit_blocked"], target);
+      assert.match(out.error, /press that yourself/);
+      assert.notEqual(await json(`document.getElementById("${id}").checked || document.getElementById("${id}").getAttribute("aria-checked") === "true"`), true, id + " stays off");
+    }
+    assert.equal((await run("check", "Remind me weekly")).ok, true);
+    assert.equal(await json("document.getElementById('ok').checked"), true);
+  });
+
+  it("select holds back a destructive label or chosen option, and fires nothing", async () => {
+    await open(CONSENT);
+    assert.equal((await run("select", "Action", "Delete everything")).code, "submit_blocked", "the chosen option says delete");
+    assert.equal((await run("select", "Delete the selected rows", "Yes")).code, "submit_blocked", "the select's label says delete");
+    assert.deepEqual(await log("input:"), []);
+    assert.deepEqual(await log("change:"), []);
+    assert.equal((await run("select", "Action", "Keep")).ok, true, "a harmless option still works");
+  });
+
+  it("check resolves its box by the label, never by proximity: one label cannot tick a box beside it", async () => {
+    await open(CONSENT);
+    const out = await run("check", "Marketing emails");
+    assert.deepEqual([out.ok, out.code], [false, "ambiguous"], "the lone box in that row belongs to 'Terms of service'");
+    assert.equal(await json("document.getElementById('t1').checked"), false);
+    assert.equal((await run("check", "Remember me")).ok, true, "a box and its one text, side by side, are tied");
+    assert.equal(await json("document.getElementById('t2').checked"), true);
+    assert.equal((await run("check", "Show hints")).ok, true, "aria-labelledby ties a box to its text");
+    assert.equal(await json("document.getElementById('t3').checked"), true);
+    assert.deepEqual(await log("SUBMITTED"), []);
+  });
+
+  it("find says the frame it searched: its origin and address (a subframe step is checked against them)", async () => {
+    await open();
+    const out = await json("MonoPageAction.find('click', 'Share')");
+    assert.equal(out.origin, await json("location.origin"), "find says the frame's origin");
+    assert.ok(out.href, "and its address");
+  });
+
+  const SNEAKY = `<!doctype html><meta charset=utf-8><body>
+<form id=f onsubmit="window.__log.push('SUBMITTED'); return false"><div id=host></div></form>
+<div id=d1 tabindex=0 onfocus="void 0">Delete account</div>
+<div id=d2 role=switch tabindex=0>Revoke access</div>
+<a id=js href="javascript:window.__log.push('JS')">Open the guide</a>
+<a id=dl href="/account/delete?confirm=1">Download CV</a>
+<a id=ok href="/docs/guide">Read the guide</a>
+<button id=acc type=button>Accept all</button>
+<button id=agr type=button>I agree</button>
+<a id=dat href="data:text/html,hi">Preview thing</a>
+<script>
+  window.__log = [];
+  document.querySelector("#host").attachShadow({ mode: "open" }).innerHTML = "<button type=button id=sb>Shadow go</button>";
+  for (const el of document.querySelectorAll("[id]")) el.addEventListener("click", (e) => { window.__log.push("click:" + el.id); e.preventDefault(); });
+  document.querySelector("#host").shadowRoot.querySelector("#sb").addEventListener("click", () => window.__log.push("click:sb"));
+</script>`;
+
+  it("a button in a shadow root inside a form is held back like any in a form", async () => {
+    await open(SNEAKY);
+    assert.equal((await run("click", "Shadow go")).code, "submit_blocked");
+    assert.deepEqual(await log("click:sb"), []);
+  });
+
+  it("every actionable target is checked by its words, not just buttons and links", async () => {
+    await open(SNEAKY);
+    for (const t of ["Delete account", "Revoke access", "Accept all", "I agree"]) assert.equal((await run("click", t)).code, "submit_blocked", t);
+    assert.deepEqual(await log("click:"), []);
+  });
+
+  it("a link is judged by where it goes: javascript: and data: never, a path of delete held, a plain one fine", async () => {
+    await open(SNEAKY);
+    for (const t of ["Open the guide", "Preview thing", "Download CV"]) assert.equal((await run("click", t)).code, "submit_blocked", t);
+    assert.deepEqual(await log(""), [], "the javascript: link did not run");
+    assert.deepEqual(await run("click", "Read the guide"), { ok: true });
+  });
+
+  // Review of #944 (F3): invisible characters, compatibility forms and
+  // combining marks do not hide a destructive word; the added words are held;
+  // a pointer-cursor container and a text in a form are held at any length.
+  it("holds a destructive word that is hidden by invisible characters, compatibility forms or marks", async () => {
+    const LONG = "Clicking here will permanently remove your entire account and every file that belongs to it from our servers.";
+    const cases = {
+      zwsp: "Dele\u200bte account",
+      softHyphen: "Del\u00adete account",
+      bidi: "Pay\u200fment now",
+      fullwidth: "\uff24\uff25\uff2c\uff25\uff34\uff25 account",
+      marks: "De\u0336l\u0336e\u0336te account",
+      payment: "Payment",
+      disconnect: "Disconnect bank",
+      unlink: "Unlink account",
+      signOutAll: "Sign out of all devices",
+      wipe: "Wipe device",
+      reset: "Reset everything",
+      removeKey: "Remove key",
+    };
+    const html = "<!doctype html><meta charset=utf-8><body>" +
+      Object.entries(cases).map(([k, v]) => `<button id=${k} type=button>${v}</button>`).join("") +
+      `<button id=aria type=button aria-label="Dele\u200bte it">x</button>` +
+      `<div id=ptr style="cursor:pointer">${LONG}</div>` +
+      `` +
+      `<div id=orders role=option>Purchase order 2025.pdf</div><button id=ok type=button>Open menu</button>` +
+      `<button id=ger type=button>L\u00f6schen</button>`;
+    await open(html);
+    for (const [k, v] of Object.entries(cases)) assert.equal((await run("click", v)).code, "submit_blocked", k);
+    assert.equal((await run("click", "Dele\u200bte it")).code, "submit_blocked", "an aria-label");
+    assert.equal((await run("click", LONG)).code, "submit_blocked", "a long pointer-cursor container");
+    assert.equal((await run("click", "Löschen")).code, "submit_blocked", "diacritics in the word list still match");
+    assert.deepEqual(await run("click", "Open menu"), { ok: true });
+    assert.deepEqual(await run("click", "Purchase order 2025.pdf"), { ok: true }, "the noun allow-list stays");
+  });
+
+  it("holds a long destructive text inside a form, though a plain one is let through", async () => {
+    const LONG = "Clicking here will permanently remove your entire account and every file that belongs to it from our servers.";
+    await open(`<!doctype html><meta charset=utf-8><body><form onsubmit="return false"><div id=informlong>${LONG}</div></form>`);
+    assert.equal((await run("click", LONG)).code, "submit_blocked");
+  });
+
+  it("hovers, scrolls the page, and presses only the safe keys", async () => {
+    await open(QUIZ);
+    assert.equal((await run("hover", "Products")).ok, true);
+    assert.deepEqual(await log("hover:"), ["hover:menu"]);
+    assert.equal((await run("scroll", "", "bottom")).ok, true);
+    assert.ok((await json("window.scrollY")) > 500);
+    assert.equal((await run("scroll", "", "top")).ok, true);
+    assert.equal(await json("window.scrollY"), 0);
+    assert.equal((await run("press_key", "", "Tab")).ok, true);
+    assert.deepEqual(await log("key:"), ["key:Tab"]);
+    assert.equal((await run("press_key", "", "Enter")).code, "not_allowed");
+    assert.deepEqual(await log("key:"), ["key:Tab"], "Enter was not pressed");
   });
 });

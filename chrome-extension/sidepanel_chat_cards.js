@@ -30,7 +30,7 @@
  *
  * deps: chat() the conversation on screen, ask(message) the worker, profile(),
  * current() a token that changes when the panel switches profile, save(),
- * draw(), record (MonoPanelRecord, or null), page() the panel's page
+ * draw(), acted() (a page step ran: share the page again), record (MonoPanelRecord, or null), page() the panel's page
  * ({tabId, url}): a vault card saves an item on it, and a recording card
  * records the page it was proposed on, only while the panel shows it.
  */
@@ -127,10 +127,17 @@
         const did = { click: "clicked", double_click: "double-clicked", type: "typed into" }[action];
         // What was actually matched, so a partial match is never passed off as the words on the card.
         const name = String(a.matched || "").replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069]/g, " ").trim().slice(0, 200);
-        const text = action === "open_url" ? "Opened in a new tab." : did && name ? `Done: ${did} \u201c${name}\u201d` : "Done.";
+        const clean = (v) => String(v || "").replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069]/g, " ").trim().slice(0, 120);
+        // A step in a frame is the frame's page, not the one on the tab's address: say which.
+        const where = a.frame ? ` in an iframe${clean(a.frameOrigin) ? ` (${clean(a.frameOrigin)})` : ""}` : "";
+        const text = action === "open_url" ? "Opened in a new tab." : did && name ? `Done: ${did} \u201c${name}\u201d${where}` : `Done${where}.`;
         return { state: "done", feedback: text, code: null };
       }
       // No answer, or the call itself threw: it may have happened. Never offered again.
+      if (a.code === "frame_confirm") {
+        const o = String(a.frameOrigin || "").replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069]/g, " ").trim().slice(0, 120);
+        return { state: "failed", feedback: `Not done yet: that field is in an iframe (${o}), not the page itself. Press Run again to use it.`, code: "frame_confirm", frameOrigin: o };
+      }
       if (!answer || a.code === "unknown_outcome" || a.code === "call_failed") return { state: "unknown", feedback: Proposals.UNKNOWN, code: null };
       return { state: "failed", feedback: `Not done: ${a.error || "it failed"}`, code: a.code || "failed" };
     }
@@ -146,6 +153,7 @@
         if (moved) return settle(key, { feedback: moved });
       }
       const mine = deps.current();
+      const frameOrigin = p.code === "frame_confirm" && p.frameOrigin ? p.frameOrigin : "";
       Proposals.settle(deps.chat(), key, { state: "sending", feedback: "", code: null });
       deps.draw();
       let answer;
@@ -153,12 +161,15 @@
         answer = await deps.ask({
           type: "page_action_run",
           tab: tabOf(p.page),
+          ...(frameOrigin ? { frameOrigin } : {}),
           proposal: { id: p.id, kind: p.kind, action: p.action, target: p.target, text: p.text, url: p.url, nonce: p.nonce },
         });
       } catch (err) {
         answer = { ok: false, error: errorOf(err), code: "call_failed" };
       }
       await settle(key, afterRun(answer, p.action), mine);
+      // The page changed under the step: the next message reads it again.
+      if (answer && answer.ok && p.action !== "open_url" && deps.acted) deps.acted();
     }
 
     // Hand to coder: a coder chat is queued for this tab with the card's words only.

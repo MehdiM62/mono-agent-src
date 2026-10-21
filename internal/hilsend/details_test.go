@@ -223,3 +223,34 @@ func TestAnSMTPCardShowsItsHTMLFlag(t *testing.T) {
 		}
 	}
 }
+
+// The card names the connection by its name, with the id in parentheses; a
+// connection the profile doesn't have shows as the bare id.
+func TestAnEmailCardNamesItsConnection(t *testing.T) {
+	asAgent(t)
+	db := testDB(t)
+	if _, err := db.Exec(`CREATE TABLE connections (id TEXT, label TEXT, profile_id TEXT);
+		INSERT INTO connections VALUES ('conn-1', 'Work mail', 'p1'), ('conn-2', 'Theirs', 'other')`); err != nil {
+		t.Fatal(err)
+	}
+	for id, want := range map[string]string{"conn-1": "Work mail (conn-1)", "conn-2": "conn-2", "conn-3": "conn-3"} {
+		out, handled, err := Guard(ctxFor(db), "comm.email_send", workflow.NodeInput{},
+			map[string]interface{}{"to": "ada@example.test", "credential_id": id})
+		if err != nil || !handled {
+			t.Fatalf("%s: handled=%v err=%v", id, handled, err)
+		}
+		p, err := Store{db, "p1"}.Get(context.Background(), out[0].Items[0].JSON["hil_id"].(string))
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := ""
+		for _, d := range p.Details {
+			if d.Key == "connection" {
+				got = d.Value
+			}
+		}
+		if got != want {
+			t.Errorf("%s: connection shown as %q, want %q", id, got, want)
+		}
+	}
+}
