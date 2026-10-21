@@ -177,13 +177,21 @@
     const CLICKABLE = "a,button,input,select,textarea,summary,label,[role],[onclick],[tabindex]";
     const VERBS =
       "submit|send|post|publish|pay|buy|confirm|order|sign ?up|apply|delete|remove|archive|unsubscribe|subscribe|transfer|withdraw|authori[sz]e|allow|grant|donate|check ?out|add to (?:cart|bag|basket)|log ?out|log ?off|sign ?out|install|reset|revoke|erase|destroy|wipe|discard|deactivate|terminate|accept|agree|approve|continue|proceed|" +
-      "senden|absenden|bezahlen|kaufen|löschen|bestellen|envoyer|payer|acheter|supprimer|enviar|pagar|comprar|eliminar";
-    const WORDS = new RegExp("(?<![\\p{L}\\p{N}])(?:" + VERBS + ")(?![\\p{L}\\p{N}])", "iu");
-    const said = (el) => {
+      "senden|absenden|bezahlen|kaufen|löschen|bestellen|entfernen|envoyer|payer|acheter|supprimer|enviar|pagar|comprar|eliminar|borrar|verwijderen|betalen|kopen|удалить|оплатить|купить|" +
+      "cancel\\s+(?:my\\s+)?subscription|close\\s+(?:my\\s+)?account";
+    // Chinese, Japanese and Korean have no spaces between words: these are tested as substrings.
+    const CJK = "削除|購入|支払い|支払う|删除|购买|支付|付款|삭제|결제|구매";
+    const WORDS_RE = new RegExp("(?<![\\p{L}\\p{N}])(?:" + VERBS + ")(?![\\p{L}\\p{N}])|" + CJK, "iu");
+    const WORDS = WORDS_RE;
+    // Nouns that look like a verb at the start of a file or row name.
+    const NOUNS = /\b(?:purchase\s+orders?|orders?\s+(?:numbers?|history|status|id|confirmation)|delete\s+key|post\s*(?:code|box|card)|payment\s+terms)\b/gi;
+    // The words a target shows and the words it is named by, each judged on its own.
+    const sayings = (el) => {
       const by = (el.getAttribute("aria-labelledby") || "").split(/\s+/).map((id) => (el.ownerDocument.getElementById(id) || {}).textContent || "");
       const alts = Array.from(el.querySelectorAll("img[alt]")).map((i) => i.getAttribute("alt"));
-      return [el.getAttribute("aria-label"), ...by, el.textContent, el.value, el.getAttribute("title"), ...alts].filter(Boolean).join(" ");
+      return [el.getAttribute("aria-label"), ...by, el.textContent, el.value, el.getAttribute("title"), el.getAttribute("alt"), ...alts].filter(Boolean);
     };
+    const said = (el) => sayings(el).join(" ");
     if (action === "consent") {
       // A box or a drop-down: not a click, but ticking or choosing may grant, accept or delete.
       // `extra` is the words around it. Only the verbs that grant or destroy, not "send" or "post".
@@ -211,10 +219,26 @@
         if (n.matches && n.matches(CLICKABLE)) clickable = true;
       }
       if (inForm && clickable) return "submit_blocked";
-      const role = el.getAttribute("role");
-      // Rows of text (files, list items) are named by their words, not tested by them.
-      const plainRow = ["option", "row", "gridcell", "listitem", "treeitem"].includes(role) && !el.hasAttribute("onclick") && tag !== "A" && tag !== "BUTTON";
-      if (!plainRow && el.matches(CLICKABLE) && WORDS.test(said(el))) return "submit_blocked";
+      const ROWS = ["option", "row", "gridcell", "listitem", "treeitem"];
+      const isRow = (n) => ROWS.includes(n.getAttribute("role")) && !n.hasAttribute("onclick") && n.tagName !== "A" && n.tagName !== "BUTTON";
+      // The element, or one of its three nearest ancestors, that is clickable: that is what the click reaches.
+      let host = null;
+      for (let n = el, i = 0; n && n.matches && i < 4 && !host; n = n.parentElement, i++) if (n.matches(CLICKABLE)) host = n;
+      let pointing = false;
+      try {
+        pointing = el.ownerDocument.defaultView.getComputedStyle(el).cursor === "pointer";
+      } catch {
+        // no style, no cursor
+      }
+      const words = (list) => list.some((t) => WORDS.test(t));
+      if (host && isRow(host)) {
+        // Rows of text (files, list items) are named by their words, not tested by them, except
+        // for the words that destroy or buy once nouns such as "purchase order" are set aside.
+        if (words(sayings(el).map((t) => t.replace(NOUNS, " ")))) return "submit_blocked";
+      } else if ((host || pointing || el.hasAttribute("tabindex") || (el.textContent || "").trim().length <= 80) && words(sayings(el))) {
+        // A listener cannot be seen from here, so a short bare text with such words is held too.
+        return "submit_blocked";
+      }
       if (tag === "A" && el.hasAttribute("href")) {
         const raw = (el.getAttribute("href") || "").replace(/[\u0000-\u0020\u007f-\u009f]/g, "");
         if (/^(?:javascript|data|vbscript):/i.test(raw)) return "submit_blocked";

@@ -78,6 +78,15 @@ const PAGE = `<!doctype html><meta charset=utf-8><body>
 <input id=hiddensub type=submit form=f style="display:none"><label id=lab for=hiddensub>Proceed to the next page</label>
 <button id=lb type=button aria-labelledby=lbl></button><span id=lbl hidden>Delete my account</span>
 <a id=alt href="#z"><img alt="Subscribe now" src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" width=20 height=20></a>
+<div id=bd>Delete account</div>
+<span id=sp>Pay now</span>
+<div role=option id=ro>Delete workspace</div>
+<div id=ger>Konto löschen</div>
+<div id=jp>削除</div>
+<div id=ru>Удалить</div>
+<button id=ic type=button aria-label="Delete">×</button>
+<div id=cs style="cursor:pointer">Cancel subscription</div>
+<div id=nest><div><span id=deep>Close account</span></div></div>
 <input id=tb type=button value="Send it" onclick="window.__log.push('tb')">
 <script>
   window.__log = [];
@@ -203,6 +212,17 @@ describe("page_action_page.js in a browser", { skip, concurrency: 1 }, () => {
       assert.equal((await run("click", target)).code, "submit_blocked", target);
     }
     assert.deepEqual((await log("")).filter((x) => /^(click|mousedown|pointerdown|mouseup):(del|loesch|bez|comp|logout|cart|oc|tb)/.test(x) || x === "oc" || x === "tb"), [], "none was clicked");
+  });
+
+  it("holds back destructive words on elements with no role, rows with a listener, other languages and icon buttons", async () => {
+    await open();
+    await browser.evaluate('document.querySelector("#ro").addEventListener("click", () => window.__log.push("ro-handler"))');
+    for (const target of ["Delete account", "Delete workspace", "Pay now", "Konto löschen", "削除", "Удалить", "Delete", "Cancel subscription", "Close account"]) {
+      const out = await run("click", target);
+      assert.equal(out.code, "submit_blocked", target);
+    }
+    assert.deepEqual((await log("")).filter((x) => /^(click|mousedown):(bd|sp|ro|ger|jp|ru|ic|cs|deep)|ro-handler/.test(x)), [], "none was clicked");
+    assert.deepEqual(await run("double_click", "Purchase order 2025.pdf"), { ok: true }, "a noun phrase in a plain row still opens");
   });
 
   it("anything clickable inside a form is held back, whatever it says; a row outside is not", async () => {
