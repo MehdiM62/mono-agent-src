@@ -94,12 +94,12 @@ func imageOf(mime string, data []byte) (chatImage, bool) {
 
 const (
 	chatImagesPrefix = "monoagent-chat-images-"
-	chatImagesMaxAge = time.Hour
+	chatImagesMaxAge = 6 * time.Hour
 )
 
 // sweepChatImages removes folders a crashed or killed bridge left behind: the
 // direct children of dir named like writeChatImages' folders, real directories
-// (Lstat: a link is left alone) owned by this user and older than maxAge.
+// (Lstat: a link is left alone) owned by this user and whose newest file or own mtime is older than maxAge.
 func sweepChatImages(dir string, maxAge time.Duration, now time.Time) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -114,10 +114,25 @@ func sweepChatImages(dir string, maxAge time.Duration, now time.Time) {
 		if err != nil || !fi.IsDir() || fi.Mode()&os.ModeSymlink != 0 || !ownedByMe(fi) {
 			continue
 		}
-		if now.Sub(fi.ModTime()) > maxAge {
+		if now.Sub(newestModTime(p, fi.ModTime())) > maxAge {
 			_ = os.RemoveAll(p)
 		}
 	}
+}
+
+// newestModTime is the latest modification time of the folder and the files in it: a
+// folder still being written to is not abandoned however old its own mtime is.
+func newestModTime(dir string, newest time.Time) time.Time {
+	files, err := os.ReadDir(dir)
+	if err != nil {
+		return newest
+	}
+	for _, f := range files {
+		if info, err := f.Info(); err == nil && info.ModTime().After(newest) {
+			newest = info.ModTime()
+		}
+	}
+	return newest
 }
 
 // writeChatImages writes images into a new private folder, one 0600 file each,

@@ -164,8 +164,10 @@ func TestSweepChatImagesRemovesOnlyOldOwnFolders(t *testing.T) {
 			t.Fatal(err)
 		}
 		old := time.Now().Add(-age)
-		if err := os.Chtimes(p, old, old); err != nil {
-			t.Fatal(err)
+		for _, q := range []string{filepath.Join(p, "image-1.png"), p} {
+			if err := os.Chtimes(q, old, old); err != nil {
+				t.Fatal(err)
+			}
 		}
 		return p
 	}
@@ -189,5 +191,28 @@ func TestSweepChatImagesRemovesOnlyOldOwnFolders(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(target, "image-1.png")); err != nil {
 		t.Errorf("the link was followed: %v", err)
+	}
+}
+
+func TestSweepChatImagesGoesByTheNewestFileInTheFolder(t *testing.T) {
+	root := t.TempDir()
+	p := filepath.Join(root, "monoagent-chat-images-live")
+	if err := os.Mkdir(p, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	f := filepath.Join(p, "image-1.png")
+	if err := os.WriteFile(f, testPNG, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	old := time.Now().Add(-10 * time.Hour)
+	if err := os.Chtimes(p, old, old); err != nil {
+		t.Fatal(err)
+	}
+	sweepChatImages(root, chatImagesMaxAge, time.Now())
+	if _, err := os.Stat(p); err != nil {
+		t.Errorf("a folder with a fresh file was swept: %v", err)
+	}
+	if chatImagesMaxAge < 6*time.Hour {
+		t.Errorf("chatImagesMaxAge = %v, want >= 6h", chatImagesMaxAge)
 	}
 }
