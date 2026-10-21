@@ -17,6 +17,7 @@ import (
 	"github.com/monoes/mono-agent/internal/ai"
 	"github.com/monoes/mono-agent/internal/ai/chatevents"
 	"github.com/monoes/mono-agent/internal/cli/clicore"
+	"github.com/monoes/mono-agent/internal/imagecheck"
 	"github.com/monoes/mono-agent/internal/monomind"
 )
 
@@ -275,6 +276,13 @@ func pageReadImages(cmd *cobra.Command, paths []string) ([]string, error) {
 		}
 		if !isImageHead(head) {
 			return nil, clicore.InvalidInput("--attach %s is not a PNG, JPEG, GIF or WebP image", p)
+		}
+		whole, err := os.ReadFile(abs)
+		if err != nil {
+			return nil, clicore.InvalidInput("--attach %s: %v", p, err)
+		}
+		if err := imagecheck.Check(whole); err != nil {
+			return nil, clicore.InvalidInput("--attach %s: %v", p, err)
 		}
 		out = append(out, abs)
 	}

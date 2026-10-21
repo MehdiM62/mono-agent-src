@@ -1,17 +1,45 @@
 package extension
 
 import (
+	"bytes"
 	"encoding/base64"
+	"encoding/binary"
+	"hash/crc32"
+	"image"
+	"image/jpeg"
+	"image/png"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 var (
-	testPNG  = []byte("\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR....")
-	testJPEG = []byte("\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01")
+	testPNG  = encodeTest(func(b *bytes.Buffer, m image.Image) { _ = png.Encode(b, m) })
+	testJPEG = encodeTest(func(b *bytes.Buffer, m image.Image) { _ = jpeg.Encode(b, m, nil) })
 )
+
+func encodeTest(enc func(*bytes.Buffer, image.Image)) []byte {
+	var b bytes.Buffer
+	enc(&b, image.NewGray(image.Rect(0, 0, 4, 4)))
+	return b.Bytes()
+}
+
+// pngClaiming is a PNG header that claims w x h pixels at 1 bit each.
+func pngClaiming(w, h uint32) []byte {
+	ihdr := make([]byte, 13)
+	binary.BigEndian.PutUint32(ihdr[0:], w)
+	binary.BigEndian.PutUint32(ihdr[4:], h)
+	ihdr[8] = 1
+	chunk := append([]byte("IHDR"), ihdr...)
+	var b bytes.Buffer
+	b.WriteString("\x89PNG\r\n\x1a\n")
+	_ = binary.Write(&b, binary.BigEndian, uint32(13))
+	b.Write(chunk)
+	_ = binary.Write(&b, binary.BigEndian, crc32.ChecksumIEEE(chunk))
+	return b.Bytes()
+}
 
 func imageParam(mime string, data []byte) map[string]any {
 	return map[string]any{"mime": mime, "data": base64.StdEncoding.EncodeToString(data)}
@@ -94,6 +122,7 @@ func TestChatSendRefusesBadImagesBeforeAnyTurn(t *testing.T) {
 		"not a list":           "x",
 		"entry not an object":  []any{"x"},
 		"not base64":           []any{map[string]any{"mime": "image/png", "data": "!!!"}},
+		"claims 60000x60000":   []any{imageParam("image/png", pngClaiming(60000, 60000))},
 		"magic bytes disagree": []any{imageParam("image/png", testJPEG)},
 		"not an image at all":  []any{imageParam("image/png", []byte("#!/bin/sh\nrm\n"))},
 		"svg":                  []any{imageParam("image/svg+xml", []byte("<svg onload=x>"))},
@@ -121,5 +150,44 @@ func TestChatTurnArgvPassesEachImage(t *testing.T) {
 	}
 	if strings.Contains(strings.Join(chatTurnArgv(ChatTurnSpec{Profile: "p", Conversation: "c", Turn: "t"}), " "), "--attach") {
 		t.Error("a turn without images got --attach")
+	}
+}
+
+func TestSweepChatImagesRemovesOnlyOldOwnFolders(t *testing.T) {
+	root := t.TempDir()
+	mk := func(name string, age time.Duration) string {
+		p := filepath.Join(root, name)
+		if err := os.Mkdir(p, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(p, "image-1.png"), testPNG, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		old := time.Now().Add(-age)
+		if err := os.Chtimes(p, old, old); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	stale := mk("monoagent-chat-images-111", 2*time.Hour)
+	fresh := mk("monoagent-chat-images-222", time.Minute)
+	other := mk("something-else-333", 2*time.Hour)
+	// A link named like ours, pointing at a folder that must survive.
+	target := mk("target", 2*time.Hour)
+	link := filepath.Join(root, "monoagent-chat-images-link")
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatal(err)
+	}
+	sweepChatImages(root, time.Hour, time.Now())
+	if _, err := os.Stat(stale); !os.IsNotExist(err) {
+		t.Errorf("the old folder is still there: %v", err)
+	}
+	for _, p := range []string{fresh, other, target, link} {
+		if _, err := os.Lstat(p); err != nil {
+			t.Errorf("%s must be left alone: %v", p, err)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(target, "image-1.png")); err != nil {
+		t.Errorf("the link was followed: %v", err)
 	}
 }

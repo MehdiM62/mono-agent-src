@@ -1,6 +1,11 @@
 package chat
 
 import (
+	"bytes"
+	"encoding/binary"
+	"hash/crc32"
+	"image"
+	"image/png"
 	"os"
 	"path/filepath"
 	"strings"
@@ -20,6 +25,28 @@ func withCaps(t *testing.T, caps ...string) {
 	t.Cleanup(func() { capabilityProbe = old })
 }
 
+// realPNG is a small picture the size check can read; claimPNG is a header
+// that claims w x h pixels at 1 bit each.
+func claimPNG(w, h uint32) []byte {
+	ihdr := make([]byte, 13)
+	binary.BigEndian.PutUint32(ihdr[0:], w)
+	binary.BigEndian.PutUint32(ihdr[4:], h)
+	ihdr[8] = 1
+	chunk := append([]byte("IHDR"), ihdr...)
+	var b bytes.Buffer
+	b.WriteString("\x89PNG\r\n\x1a\n")
+	_ = binary.Write(&b, binary.BigEndian, uint32(13))
+	b.Write(chunk)
+	_ = binary.Write(&b, binary.BigEndian, crc32.ChecksumIEEE(chunk))
+	return b.Bytes()
+}
+
+func realPNG() []byte {
+	var b bytes.Buffer
+	_ = png.Encode(&b, image.NewGray(image.Rect(0, 0, 4, 4)))
+	return b.Bytes()
+}
+
 func lastExec(t *testing.T, argsLog string) string { return lastAgentExecLine(t, argsLog) }
 
 // A page-read turn hands its images straight to `agent exec --attach`: no copy
@@ -28,7 +55,7 @@ func TestPageReadTurnPassesImagesToTheRunner(t *testing.T) {
 	dbPath := newChatCLITestDB(t)
 	_, argsLog, _, _ := writeCapturingMonomind(t)
 	withCaps(t, "agent-exec", monomind.CapAgentExecAttachments)
-	shot := writeFile(t, filepath.Join(t.TempDir(), "look.png"), pngHeader)
+	shot := writeFile(t, filepath.Join(t.TempDir(), "look.png"), realPNG())
 
 	if _, err := runChatCmd(t, dbPath, os.Getenv(monomind.EnvOverride), "--runtime", "claude", "--tools", "monoagent:read", "--attach", shot, "--", "what is drawn?"); err != nil {
 		t.Fatal(err)
@@ -45,7 +72,7 @@ func TestPageReadImagesRefusedWithoutRunnerSupport(t *testing.T) {
 	dbPath := newChatCLITestDB(t)
 	_, argsLog, _, _ := writeCapturingMonomind(t)
 	withCaps(t, "agent-exec")
-	shot := writeFile(t, filepath.Join(t.TempDir(), "look.png"), pngHeader)
+	shot := writeFile(t, filepath.Join(t.TempDir(), "look.png"), realPNG())
 
 	_, err := runChatCmd(t, dbPath, os.Getenv(monomind.EnvOverride), "--runtime", "claude", "--tools", "monoagent:read", "--attach", shot, "--", "hi")
 	if exitCodeFor(err) != 3 || !strings.Contains(err.Error(), "agent-exec-attachments") {
@@ -63,16 +90,18 @@ func TestPageReadImagesRefusals(t *testing.T) {
 	_, argsLog, _, _ := writeCapturingMonomind(t)
 	withCaps(t, "agent-exec", monomind.CapAgentExecAttachments)
 	dir := t.TempDir()
-	png := writeFile(t, filepath.Join(dir, "a.png"), pngHeader)
+	png := writeFile(t, filepath.Join(dir, "a.png"), realPNG())
 	fake := writeFile(t, filepath.Join(dir, "fake.png"), []byte("#!/bin/sh\necho secret\n"))
 	big := writeFile(t, filepath.Join(dir, "big.png"), append(append([]byte{}, pngHeader...), make([]byte, pageReadImageBytes)...))
+	huge := writeFile(t, filepath.Join(dir, "huge.png"), claimPNG(60000, 60000))
 	cases := map[string][]string{
-		"not an image":   {fake},
-		"folder":         {dir},
-		"too large":      {big},
-		"too many":       {png, png, png, png},
-		"missing":        {filepath.Join(dir, "none.png")},
-		"one bad of two": {png, fake},
+		"claims 60000x60000": {huge},
+		"not an image":       {fake},
+		"folder":             {dir},
+		"too large":          {big},
+		"too many":           {png, png, png, png},
+		"missing":            {filepath.Join(dir, "none.png")},
+		"one bad of two":     {png, fake},
 	}
 	for name, files := range cases {
 		args := []string{"--runtime", "claude", "--tools", "monoagent:read"}
@@ -100,7 +129,7 @@ func TestJournaledPageReadTurnTakesImages(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	shot := writeFile(t, filepath.Join(t.TempDir(), "look.png"), pngHeader)
+	shot := writeFile(t, filepath.Join(t.TempDir(), "look.png"), realPNG())
 	if out, err := runChatCmd(t, dbPath, bin, "--conversation", conv.ID, "--turn", "t-1", "--tools", "monoagent:read", "--attach", shot, "--", "what is drawn?"); err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}

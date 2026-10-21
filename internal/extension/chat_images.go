@@ -6,6 +6,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/monoes/mono-agent/internal/imagecheck"
 )
 
 // chat.send's images: a screenshot of the tab the person asked the model to
@@ -71,6 +75,9 @@ func chatImages(req *Request) ([]chatImage, error) {
 		if !ok {
 			return nil, invalidParam("images[%d] is not a PNG, JPEG, GIF or WebP image of the type it says", i)
 		}
+		if err := imagecheck.Check(data); err != nil {
+			return nil, invalidParam("images[%d]: %v", i, err)
+		}
 		out = append(out, img)
 	}
 	return out, nil
@@ -85,10 +92,38 @@ func imageOf(mime string, data []byte) (chatImage, bool) {
 	return chatImage{}, false
 }
 
+const (
+	chatImagesPrefix = "monoagent-chat-images-"
+	chatImagesMaxAge = time.Hour
+)
+
+// sweepChatImages removes folders a crashed or killed bridge left behind: the
+// direct children of dir named like writeChatImages' folders, real directories
+// (Lstat: a link is left alone) owned by this user and older than maxAge.
+func sweepChatImages(dir string, maxAge time.Duration, now time.Time) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		if !strings.HasPrefix(e.Name(), chatImagesPrefix) {
+			continue
+		}
+		p := filepath.Join(dir, e.Name())
+		fi, err := os.Lstat(p)
+		if err != nil || !fi.IsDir() || fi.Mode()&os.ModeSymlink != 0 || !ownedByMe(fi) {
+			continue
+		}
+		if now.Sub(fi.ModTime()) > maxAge {
+			_ = os.RemoveAll(p)
+		}
+	}
+}
+
 // writeChatImages writes images into a new private folder, one 0600 file each,
 // and returns their paths and a cleanup that removes the folder.
 func writeChatImages(images []chatImage) ([]string, func(), error) {
-	dir, err := os.MkdirTemp("", "monoagent-chat-images-")
+	dir, err := os.MkdirTemp("", chatImagesPrefix)
 	if err != nil {
 		return nil, func() {}, fmt.Errorf("preparing the images: %w", err)
 	}

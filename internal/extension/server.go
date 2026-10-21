@@ -268,6 +268,7 @@ func NewServer(addr string, logger zerolog.Logger) *Server {
 // cancelled or the server shuts down.
 func (s *Server) Start(ctx context.Context) error {
 	s.ctx, s.cancel = context.WithCancel(ctx)
+	go sweepChatImages(os.TempDir(), chatImagesMaxAge, time.Now())
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/monoagent", s.handleWS)
