@@ -150,13 +150,19 @@ export async function start(binary, { attempts = 2, workerMs = WORKER_START_MS, 
  */
 export async function extensionWorker(cdp, timeoutMs = WORKER_START_MS) {
   const deadline = Date.now() + timeoutMs;
+  let seen = "no target listing";
   while (Date.now() < deadline) {
-    const { targetInfos } = await cdp.send("Target.getTargets");
-    const sw = targetInfos.find((t) => t.type === "service_worker" && t.url.endsWith("/background.js"));
-    if (sw && (await scriptHasRun(cdp, sw.targetId))) return { id: new URL(sw.url).host, targetId: sw.targetId };
+    try {
+      const { targetInfos } = await cdp.send("Target.getTargets");
+      seen = targetInfos.map((t) => `${t.type} ${t.url}`).join("; ");
+      const sw = targetInfos.find((t) => t.type === "service_worker" && t.url.endsWith("/background.js"));
+      if (sw && (await scriptHasRun(cdp, sw.targetId))) return { id: new URL(sw.url).host, targetId: sw.targetId };
+    } catch (err) {
+      seen = `listing failed: ${err.message}`;
+    }
     await sleep(100);
   }
-  throw new Error(`the extension's service worker did not start within ${timeoutMs}ms`);
+  throw new Error(`the extension's service worker did not start within ${timeoutMs}ms (targets: ${seen}; probe: ${lastProbe})`);
 }
 
 /**
@@ -164,12 +170,16 @@ export async function extensionWorker(cdp, timeoutMs = WORKER_START_MS) {
  * runs top to bottom in one task, so once `gate` (near its top) exists,
  * everything it sets up at load exists too.
  */
+let lastProbe = "none";
 async function scriptHasRun(cdp, targetId) {
   let sessionId = "";
   try {
     ({ sessionId } = await cdp.send("Target.attachToTarget", { targetId, flatten: true }));
-    return await cdp.evaluate(sessionId, `typeof gate !== "undefined"`);
-  } catch {
+    const has = await cdp.evaluate(sessionId, `typeof gate !== "undefined"`);
+    lastProbe = `typeof gate !== "undefined" -> ${has}`;
+    return has;
+  } catch (err) {
+    lastProbe = err.message;
     return false; // the worker went away between the listing and the question
   } finally {
     if (sessionId) await cdp.send("Target.detachFromTarget", { sessionId }).catch(() => {});
