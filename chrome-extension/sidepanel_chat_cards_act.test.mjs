@@ -256,3 +256,17 @@ test("a step that ran tells the panel to share the page again; a failed step, or
   await w.cards.run(N("c"));
   assert.equal(n, 1, "a new tab is not this page");
 });
+
+test("a field in another origin's frame shows that origin first; only a second Run confirms it", async () => {
+  let n = 0;
+  const w = world({ reply: (m) => (n++ === 0 ? { ok: false, code: "frame_confirm", frameOrigin: "https://ads.example", error: "x" } : { ok: true, frame: 7, frameOrigin: "https://ads.example" }) });
+  await w.cards.run(N("a"));
+  const c = w.card("a1");
+  assert.deepEqual([c.state, c.code], ["failed", "frame_confirm"]);
+  assert.match(c.feedback, /in an iframe \(https:\/\/ads\.example\)/);
+  assert.match(c.feedback, /Run again/);
+  assert.equal("frameOrigin" in w.calls[0], false, "the first Run confirms nothing");
+  await w.cards.run(N("a"));
+  assert.equal(w.calls[1].frameOrigin, "https://ads.example");
+  assert.equal(w.card("a1").state, "done");
+});

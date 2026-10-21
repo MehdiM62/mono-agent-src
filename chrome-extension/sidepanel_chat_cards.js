@@ -134,6 +134,10 @@
         return { state: "done", feedback: text, code: null };
       }
       // No answer, or the call itself threw: it may have happened. Never offered again.
+      if (a.code === "frame_confirm") {
+        const o = String(a.frameOrigin || "").replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069]/g, " ").trim().slice(0, 120);
+        return { state: "failed", feedback: `Not done yet: that field is in an iframe (${o}), not the page itself. Press Run again to use it.`, code: "frame_confirm", frameOrigin: o };
+      }
       if (!answer || a.code === "unknown_outcome" || a.code === "call_failed") return { state: "unknown", feedback: Proposals.UNKNOWN, code: null };
       return { state: "failed", feedback: `Not done: ${a.error || "it failed"}`, code: a.code || "failed" };
     }
@@ -149,6 +153,7 @@
         if (moved) return settle(key, { feedback: moved });
       }
       const mine = deps.current();
+      const frameOrigin = p.code === "frame_confirm" && p.frameOrigin ? p.frameOrigin : "";
       Proposals.settle(deps.chat(), key, { state: "sending", feedback: "", code: null });
       deps.draw();
       let answer;
@@ -156,6 +161,7 @@
         answer = await deps.ask({
           type: "page_action_run",
           tab: tabOf(p.page),
+          ...(frameOrigin ? { frameOrigin } : {}),
           proposal: { id: p.id, kind: p.kind, action: p.action, target: p.target, text: p.text, url: p.url, nonce: p.nonce },
         });
       } catch (err) {

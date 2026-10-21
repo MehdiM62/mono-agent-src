@@ -26,6 +26,7 @@ if (CHROME && typeof WebSocket === "function") {
 
 const FRAME = `<!doctype html><meta charset=utf-8><body>
 <button type=button id=hi onclick="window.__hits=(window.__hits||0)+1">Say hi</button>
+<label for=em>Email address</label><input id=em>
 <label><input type=checkbox id=me> Remember me</label>
 <label><input type=checkbox id=ctc> Allow access to my contacts</label>`;
 const topPage = (frameBase) => `<!doctype html><meta charset=utf-8><body><h1>Quiz</h1><iframe id=f src="${frameBase}/frame" width=500 height=200></iframe>`;
@@ -75,10 +76,10 @@ describe("page actions across a cross-origin iframe", { skip: browser ? false : 
     }
   }
 
-  const act = async (action, target, text = "") => {
+  const act = async (action, target, text = "", frameOrigin) => {
     await setup();
     const proposal = { id: "toolu_a", kind: "action", action, target, text };
-    return JSON.parse(await inSw(`MonoPageActionBridge.run({ tab: ${JSON.stringify(tab)}, proposal: ${JSON.stringify(proposal)} }).then((r) => JSON.stringify(r))`));
+    return JSON.parse(await inSw(`MonoPageActionBridge.run({ tab: ${JSON.stringify(tab)}, ${frameOrigin ? `frameOrigin: ${JSON.stringify(frameOrigin)}, ` : ""}proposal: ${JSON.stringify(proposal)} }).then((r) => JSON.stringify(r))`));
   };
   const frameEval = async (fn) => {
     const r = await inSw(`chrome.scripting.executeScript({ target: { tabId: ${tab.tabId}, allFrames: true }, world: "MAIN", func: ${fn} }).then((rs) => JSON.stringify(rs))`);
@@ -94,9 +95,18 @@ describe("page actions across a cross-origin iframe", { skip: browser ? false : 
     assert.equal(f.result, 1, "the iframe's page got the click");
   });
 
+  it("typing in a cross-origin iframe is refused with the frame's origin until that origin is confirmed", async () => {
+    const asked = await act("type", "Email address", "ada@example.com");
+    assert.deepEqual([asked.ok, asked.code, asked.frameOrigin], [false, "frame_confirm", frameBase]);
+    assert.equal((await frameEval("() => document.getElementById('em').value")).result, "", "nothing was typed");
+    const done = await act("type", "Email address", "ada@example.com", frameBase);
+    assert.equal(done.ok, true, JSON.stringify(done));
+    assert.equal((await frameEval("() => document.getElementById('em').value")).result, "ada@example.com");
+  });
+
   it("ticks a plain box in the iframe, and holds back a consent one", async () => {
-    assert.equal((await act("check", "Remember me")).ok, true);
-    const held = await act("check", "Allow access to my contacts");
+    assert.equal((await act("check", "Remember me", "", frameBase)).ok, true);
+    const held = await act("check", "Allow access to my contacts", "", frameBase);
     assert.deepEqual([held.ok, held.code], [false, "submit_blocked"]);
     const f = await frameEval("() => [document.getElementById('me').checked, document.getElementById('ctc').checked]");
     assert.deepEqual(f.result, [true, false]);

@@ -64,6 +64,8 @@
   /** inject puts the page's half into every frame. Throws when the browser refuses the page: the only thing that falls back. */
   const inject = (tabId) => chrome.scripting.executeScript({ target: { tabId, allFrames: true }, files: [PAGE_FILE] });
 
+  // Steps that put the person's words or choice into a page: not into a frame of another origin unasked.
+  const FRAME_CONFIRMED = new Set(["type", "select", "check", "uncheck"]);
   const DEBUGGER_STEPS = new Set(["click", "double_click", "type"]);
   // Steps that need no element when none is named.
   const BARE = new Set(["scroll", "press_key"]);
@@ -75,7 +77,7 @@
    * leaves the outcome unknown, and the top frame checks the origin itself
    * before it acts.
    */
-  async function call(tabId, a, origin) {
+  async function call(tabId, a, origin, confirmedFrame) {
     let frameId = 0;
     // The address the frame had when it was searched: a subframe is checked against it (its own origin is not the card's).
     let frameHref;
@@ -98,6 +100,11 @@
       if (total > 1) return answer("ambiguous", `ambiguous (${total} matches)`);
       frameId = tier[0].frameId || 0;
       if (frameId) frameHref = tier[0].result.href || "";
+      // Words typed, chosen or ticked in a frame from another site are the person's call: the card shows the frame first.
+      const foreign = tier[0].result.origin;
+      if (frameId && FRAME_CONFIRMED.has(a.action) && foreign !== origin && confirmedFrame !== foreign) {
+        return answer("frame_confirm", "that field is in an iframe from another site", { frameOrigin: String(foreign || "") });
+      }
     }
     try {
       const [res] = await chrome.scripting.executeScript({
@@ -152,7 +159,7 @@
     } catch (err) {
       scriptError = (err && err.message) || String(err);
     }
-    if (!scriptError) return call(tab.tabId, a, was);
+    if (!scriptError) return call(tab.tabId, a, was, typeof msg.frameOrigin === "string" ? msg.frameOrigin : "");
     // The debugger path knows three steps; any other would be done as a click.
     if (!DEBUGGER_STEPS.has(a.action)) return answer("unavailable", `this page cannot be acted on this way (${scriptError}); the coder can drive it`);
     try {

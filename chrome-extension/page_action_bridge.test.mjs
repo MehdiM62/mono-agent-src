@@ -191,7 +191,7 @@ test("a file: page has no origin to compare, so it is never acted on", async () 
 });
 
 test("every frame is searched; the step runs only in the frame that holds the one match", async () => {
-  const w = world({ frames: [{ frameId: 0, result: { count: 0, exact: false, matched: "", held: "" } }, { frameId: 7, result: { count: 1, exact: true, matched: "GBP 200", held: "" } }] });
+  const w = world({ frames: [{ frameId: 0, result: { count: 0, exact: false, matched: "", held: "" } }, { frameId: 7, result: { count: 1, exact: true, matched: "GBP 200", held: "", origin: "https://a.example", href: "https://a.example/q" } }] });
   const out = await w.send(ask({ action: "check", target: "GBP 200" }));
   assert.deepEqual([out.ok, out.frame], [true, 7]);
   assert.deepEqual(w.calls.scripts[1].target, { tabId: 5, allFrames: true });
@@ -234,4 +234,27 @@ test("a refused page is not driven by the debugger for a step it cannot do: it i
     assert.equal(out.code, "unavailable", action);
   }
   assert.deepEqual([w.calls.cdpRuns.length, w.calls.cdp.length], [0, 0]);
+});
+
+const FOREIGN = [{ frameId: 7, result: { count: 1, exact: true, matched: "Email", held: "", origin: "https://ads.example", href: "https://ads.example/f" } }];
+
+test("typing, choosing or ticking in a frame of another origin is refused until the person confirms that frame's origin", async () => {
+  for (const action of ["type", "select", "check", "uncheck"]) {
+    const w = world({ frames: FOREIGN });
+    const out = await w.send(ask({ action, target: "Email", text: "x" }));
+    assert.deepEqual([out.ok, out.code, out.frameOrigin], [false, "frame_confirm", "https://ads.example"], action);
+    assert.equal(w.calls.scripts.length, 2, "injected and searched; nothing was done");
+    const other = world({ frames: FOREIGN });
+    const wrong = await other.send(Object.assign(ask({ action, target: "Email", text: "x" }), { frameOrigin: "https://else.example" }));
+    assert.equal(wrong.code, "frame_confirm", "confirming another origin is not confirming this one");
+    const yes = world({ frames: FOREIGN });
+    const done = await yes.send(Object.assign(ask({ action, target: "Email", text: "x" }), { frameOrigin: "https://ads.example" }));
+    assert.deepEqual([done.ok, done.frame], [true, 7], action);
+  }
+});
+
+test("a click in another origin's frame, and typing in the tab's own origin frame, need no confirmation", async () => {
+  assert.equal((await world({ frames: FOREIGN }).send(ask({ action: "click", target: "Email" }))).ok, true);
+  const same = [{ frameId: 7, result: { count: 1, exact: true, matched: "Email", held: "", origin: "https://a.example", href: "https://a.example/f" } }];
+  assert.equal((await world({ frames: same }).send(ask({ action: "type", target: "Email", text: "x" }))).ok, true);
 });
