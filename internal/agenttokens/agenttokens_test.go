@@ -204,3 +204,31 @@ func TestAuditTableIsCapped(t *testing.T) {
 		t.Errorf("audit rows = %d, want 20", n)
 	}
 }
+
+func TestAuditPruneIsPerToken(t *testing.T) {
+	s := newStore(t)
+	ctx := context.Background()
+	defer func(n int) { auditKeepPerToken = n }(auditKeepPerToken)
+	auditKeepPerToken = 5
+	quiet, _, _ := s.Create(ctx, "default", "quiet", ScopeRead, 0)
+	noisy, _, _ := s.Create(ctx, "default", "noisy", ScopeRead, 0)
+	for i := 0; i < 3; i++ {
+		id, _ := s.BeginUse(ctx, quiet, "GET", "/q")
+		_ = s.FinishUse(ctx, id, 200)
+	}
+	for i := 0; i < 40; i++ {
+		id, _ := s.BeginUse(ctx, noisy, "GET", "/n")
+		_ = s.FinishUse(ctx, id, 200)
+	}
+	count := func(tok Token) int {
+		var n int
+		_ = s.db.QueryRow(`SELECT COUNT(*) FROM agent_token_audit WHERE token_id = ?`, tok.ID).Scan(&n)
+		return n
+	}
+	if n := count(quiet); n != 3 {
+		t.Errorf("quiet token rows = %d, want 3 (another token pushed them out)", n)
+	}
+	if n := count(noisy); n != 5 {
+		t.Errorf("noisy token rows = %d, want 5", n)
+	}
+}

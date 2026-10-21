@@ -338,8 +338,13 @@ func (s *Store) RevokeProfile(ctx context.Context, profileID string) (int, error
 	return int(n), nil
 }
 
-// auditKeep is how many audit rows the table keeps; older ones go on insert.
-var auditKeep = 10000
+// auditKeep is how many audit rows the whole table keeps; older ones go on insert.
+// auditKeepPerToken is how many one token keeps, so a busy token cannot push another
+// token's history out.
+var (
+	auditKeep         = 50000
+	auditKeepPerToken = 2000
+)
 
 // maxAuditPath bounds the stored path.
 const maxAuditPath = 200
@@ -364,7 +369,7 @@ func cleanPath(p string) string {
 
 // BeginUse audits a request made with t BEFORE it runs, with status 0 until FinishUse
 // fills it in; the caller refuses the request when this fails. It never takes the token
-// itself. It also keeps the table to auditKeep rows.
+// itself. It also prunes the table: auditKeepPerToken rows per token, auditKeep overall.
 func (s *Store) BeginUse(ctx context.Context, t Token, method, path string) (int64, error) {
 	now := s.now().UTC()
 	res, err := s.db.ExecContext(ctx,
@@ -374,6 +379,9 @@ func (s *Store) BeginUse(ctx context.Context, t Token, method, path string) (int
 		return 0, fmt.Errorf("auditing agent token use: %w", err)
 	}
 	id, _ := res.LastInsertId()
+	_, _ = s.db.ExecContext(ctx,
+		`DELETE FROM agent_token_audit WHERE token_id = ? AND id NOT IN (SELECT id FROM agent_token_audit WHERE token_id = ? ORDER BY id DESC LIMIT ?)`,
+		t.ID, t.ID, auditKeepPerToken)
 	_, _ = s.db.ExecContext(ctx, `DELETE FROM agent_token_audit WHERE id <= ?`, id-int64(auditKeep))
 	s.mu.Lock()
 	last, seen := s.touched[t.ID]
