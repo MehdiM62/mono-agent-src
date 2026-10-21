@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/monoes/mono-agent/internal/agenttokens"
 )
@@ -89,5 +90,32 @@ func TestATokenIsRefusedWhenTheAuditCannotBeWritten(t *testing.T) {
 	}
 	if rw := doReq(t, s, "GET", "/profiles/default/workflows", testToken(t, s, "default"), nil); rw.Code != http.StatusOK {
 		t.Errorf("the profile bearer: %d", rw.Code)
+	}
+}
+
+// A handler that panics must still leave its audit row with a final status (500), and the
+// panic must reach the caller's recovery.
+func TestScopedRecords500WhenTheHandlerPanics(t *testing.T) {
+	s := newTestServer(t, true)
+	ctx := context.Background()
+	tok, _, err := s.agentTokens().Create(ctx, "default", "p", agenttokens.ScopeRun, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	func() {
+		defer func() {
+			if recover() == nil {
+				t.Error("the panic was swallowed")
+			}
+		}()
+		rec := httptest.NewRecorder()
+		s.scoped(tok, agenttokens.ScopeRead, func(http.ResponseWriter, *http.Request) { panic("boom") }, rec, httptest.NewRequest("GET", "/x", nil))
+	}()
+	uses, err := s.agentTokens().Audit(ctx, tok, 5)
+	if err != nil || len(uses) != 1 {
+		t.Fatalf("audit = %v %v", uses, err)
+	}
+	if uses[0].Status != http.StatusInternalServerError {
+		t.Errorf("status = %d, want 500", uses[0].Status)
 	}
 }

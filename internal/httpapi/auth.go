@@ -87,13 +87,23 @@ func (s *Server) scoped(tok agenttokens.Token, need agenttokens.Scope, h http.Ha
 		return
 	}
 	sw := &statusWriter{ResponseWriter: w}
+	defer func() {
+		rec := recover()
+		status := sw.status
+		if rec != nil {
+			status = http.StatusInternalServerError
+		}
+		if err := s.agentTokens().FinishUse(ctx, auditID, status); err != nil {
+			fmt.Fprintf(os.Stderr, "httpapi: warning: %v\n", err)
+		}
+		if rec != nil {
+			panic(rec)
+		}
+	}()
 	if tok.Scope.Allows(need) {
 		h(sw, r.WithContext(context.WithValue(r.Context(), scopeCtxKey{}, tok.Scope)))
 	} else {
 		writeError(sw, http.StatusForbidden, fmt.Sprintf("this token's scope (%s) does not allow this request (needs %s)", tok.Scope, need))
-	}
-	if err := s.agentTokens().FinishUse(ctx, auditID, sw.status); err != nil {
-		fmt.Fprintf(os.Stderr, "httpapi: warning: %v\n", err)
 	}
 }
 
