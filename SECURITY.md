@@ -550,6 +550,21 @@ widen what an earlier page reached the model with):
   no workflow or canvas builder; no Bash; no knowledge-graph search. A tool
   that is not in that list is not registered with the model, and a call
   made for it anyway is refused ("not available in this session").
+- **Frames and page actions.** When the page's own text is thin, the panel
+  also reads every frame. Text from a frame of another origin is capped
+  (2000 characters each) and fenced as `[frame origin: <origin> - untrusted
+  frame content]`, but it is still page-controlled text that reaches the
+  model, so it is a prompt-injection surface like the rest of the page.
+  What it can lead to is bounded as for any page text: a suggested step is
+  only a card, and nothing happens until the person presses Run. At Run the
+  step is found by its words across the tab's frames and done in the one
+  frame that matches; a step in an iframe is refused if that frame's
+  address changed since it was searched, and the finished card names the
+  frame's origin. Ticking a box or choosing a drop-down option is held
+  back (not done; the person does it) when the label or option says
+  something that grants, accepts, pays or deletes, and a box is only ticked
+  when the page ties it to the named text (label, `for`, `aria-labelledby`,
+  or its own name).
 - The page counts as untrusted content for every gate that remains
   (`checkInjectionGate`), and a model-supplied `confirm:true` is never
   consent for a gated tool: the gate is checked before `confirm` is read.

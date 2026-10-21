@@ -37,6 +37,41 @@
   const SKIP_TAGS = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "HEAD", "META", "LINK", "TEMPLATE", "TITLE", "HTML"]);
   const NOT_TEXT_INPUTS = new Set(["checkbox", "radio", "submit", "button", "reset", "image", "file", "color", "range", "hidden"]);
 
+  const KEYS = new Set(["Tab", "Escape", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "PageUp", "PageDown", "Home", "End"]);
+  const CHECKABLE = 'input[type="checkbox"],input[type="radio"],[role="checkbox"],[role="radio"],[role="switch"]';
+
+  /** shadowOf: an element's shadow root, closed ones too (chrome.dom reaches them from an extension). */
+  const shadowOf = (el) => {
+    try {
+      const dom = root.chrome && root.chrome.dom;
+      return (dom && dom.openOrClosedShadowRoot ? dom.openOrClosedShadowRoot(el) : null) || el.shadowRoot || null;
+    } catch {
+      return el.shadowRoot || null;
+    }
+  };
+
+  /** deepAll: every element under doc, through shadow roots, in document order. */
+  function deepAll(doc) {
+    const out = [];
+    const walk = (parent) => {
+      for (const el of parent.querySelectorAll("*")) {
+        out.push(el);
+        if (out.length > MAX_ELEMENTS) return;
+        const sr = shadowOf(el);
+        if (sr) walk(sr);
+        if (out.length > MAX_ELEMENTS) return;
+      }
+    };
+    walk(doc);
+    return out;
+  }
+
+  /** closestDeep: el.closest that also leaves a shadow root through its host. */
+  function closestDeep(el, sel) {
+    for (let n = el; n; n = n.parentElement || (n.getRootNode && n.getRootNode().host) || null) if (n.matches && n.matches(sel)) return n;
+    return null;
+  }
+
   const squash = (s) => String(s == null ? "" : s).replace(/\s+/g, " ").trim();
   const low = (s) => s.toLowerCase();
 
@@ -95,7 +130,7 @@
     const exact = [];
     const partial = [];
     let seen = 0;
-    for (const el of doc.querySelectorAll("*")) {
+    for (const el of deepAll(doc)) {
       if (++seen > MAX_ELEMENTS) break;
       if (SKIP_TAGS.has(el.tagName)) continue;
       if (action === "type" && !editable(el)) continue;
@@ -111,9 +146,12 @@
     // The innermost of nested matches, then what a click on it lands on, once.
     const inner = tier.length > MAX_MATCHES ? tier : tier.filter(([el]) => !tier.some(([o]) => o !== el && el.contains(o)));
     const landing = (el) => {
-      const t = el.closest(ACTIONABLE) || el;
+      const t = closestDeep(el, ACTIONABLE) || el;
       // A label and its control are one target, hidden or not: the control is what the click reaches.
-      return t.tagName === "LABEL" && t.control ? t.control : t;
+      if (t.tagName === "LABEL" && t.control) return t.control;
+      // A text that a box names in aria-labelledby is that box.
+      const named = t.id && t.getRootNode().querySelectorAll ? Array.from(t.getRootNode().querySelectorAll(CHECKABLE)).filter((b) => (b.getAttribute("aria-labelledby") || "").split(/\s+/).includes(t.id)) : [];
+      return named.length === 1 ? named[0] : t;
     };
     const targets = new Map();
     for (const [el, name] of inner) {
@@ -135,7 +173,7 @@
    * English, German, French or Spanish. A plain row of text, such as a file
    * called "Purchase order.pdf", is not tested by its words.
    */
-  function guard(action) {
+  function guard(action, extra) {
     const CLICKABLE = "a,button,input,select,textarea,summary,label,[role],[onclick],[tabindex]";
     const VERBS =
       "submit|send|post|publish|pay|buy|confirm|order|sign ?up|apply|delete|remove|archive|unsubscribe|subscribe|transfer|withdraw|authori[sz]e|allow|grant|donate|check ?out|add to (?:cart|bag|basket)|log ?out|log ?off|sign ?out|install|reset|revoke|erase|destroy|wipe|discard|deactivate|terminate|" +
@@ -146,6 +184,15 @@
       const alts = Array.from(el.querySelectorAll("img[alt]")).map((i) => i.getAttribute("alt"));
       return [el.getAttribute("aria-label"), ...by, el.textContent, el.value, el.getAttribute("title"), ...alts].filter(Boolean).join(" ");
     };
+    if (action === "consent") {
+      // A box or a drop-down: not a click, but ticking or choosing may grant, accept or delete.
+      // `extra` is the words around it. Only the verbs that grant or destroy, not "send" or "post".
+      const ASK =
+        "delete|remove|erase|destroy|wipe|discard|revoke|deactivate|terminate|reset|authori[sz]e|allow|grant|accept|agree|consent|confirm|pay|buy|purchase|order|subscribe|unsubscribe|donate|publish|install|" +
+        "löschen|bezahlen|kaufen|bestellen|akzeptieren|zustimmen|supprimer|payer|acheter|accepter|eliminar|pagar|comprar|aceptar";
+      const ASKED = new RegExp("(?<![\\p{L}\\p{N}])(?:" + ASK + ")(?![\\p{L}\\p{N}])", "iu");
+      return ASKED.test(said(this) + " " + (extra || "")) ? "submit_blocked" : "";
+    }
     const list = [this];
     if (this.tagName === "LABEL" && this.control) list.push(this.control);
     for (const el of list) {
@@ -204,26 +251,155 @@
 
   const HELD = "that could submit or change something, so it was not clicked: press that yourself";
 
-  /** run does one approved action on the page; the result is plain data. origin: the origin the card was proposed on. */
-  function run(action, target, text, origin) {
-    if (typeof origin === "string" && root.location.origin !== origin) return { ok: false, code: "page_changed", error: "the page changed since this was suggested" };
-    const found = resolve(root.document, target, action);
-    if (found.count === 0) return { ok: false, code: "not_found", error: "not found" };
-    if (found.count > 1) return { ok: false, code: "ambiguous", error: `ambiguous (${found.count} matches)` };
-    const el = found.elements[0];
-    const blocked = guard.call(el, action);
-    if (blocked === "submit_blocked") return { ok: false, code: blocked, error: HELD };
-    if (blocked) return { ok: false, code: blocked, error: "that field is not one to type into" };
-    el.scrollIntoView({ block: "center", inline: "center" });
+  /**
+   * checkableOf: the box, radio or switch a name points at, and only when the
+   * page ties them: the element itself (its own name), its label (for= or
+   * wrapping), a box naming it in aria-labelledby, or a box standing beside
+   * that one text in a row of its own. {box, unclear}: unclear is a box that
+   * is merely near the words, which is not enough to tick it.
+   */
+  function checkableOf(el) {
+    if (el.matches && el.matches(CHECKABLE)) return { box: el, unclear: false };
+    if (el.tagName === "LABEL" && el.control && el.control.matches(CHECKABLE)) return { box: el.control, unclear: false };
+    const inner = el.tagName === "LABEL" ? el.querySelector(CHECKABLE) : null;
+    if (inner) return { box: inner, unclear: false };
+    if (el.id) {
+      const rootNode = el.getRootNode();
+      const by = Array.from(rootNode.querySelectorAll ? rootNode.querySelectorAll("[aria-labelledby]") : []).filter(
+        (b) => b.matches(CHECKABLE) && b.getAttribute("aria-labelledby").split(/\s+/).includes(el.id)
+      );
+      if (by.length === 1) return { box: by[0], unclear: false };
+    }
+    // A button or link is plainly not a box's text.
+    const row = el.matches("button,a,input,select,textarea,[role=button],[role=link]") ? null : el.parentElement;
+    if (!row) return { box: null, unclear: false };
+    const boxes = row.querySelectorAll(CHECKABLE);
+    if (boxes.length === 1) {
+      const b = boxes[0];
+      const beside = el.previousElementSibling === b || el.nextElementSibling === b;
+      // The row is that box and that one text, nothing else to be mistaken for its label.
+      if (beside && squash(row.textContent) === squash(el.textContent)) return { box: b, unclear: false };
+      return { box: null, unclear: true };
+    }
+    return { box: null, unclear: boxes.length > 1 };
+  }
+  const checkable = (el) => checkableOf(el).box;
+
+  const ownerAction = (action) => (action === "check" || action === "uncheck" ? "click" : action);
+
+  /** wordsAround: what a control and the element the card named say, with its labels. */
+  function wordsAround(control, named) {
+    return wordsOf(control).names.concat(squash(named.textContent).slice(0, 200)).join(" ");
+  }
+
+  /**
+   * find says what `target` matches in this frame, without doing anything:
+   * {count, exact, matched, held, origin, href}. The bridge asks every frame, and only when
+   * the answers add up to one match does it run the step, in that frame.
+   */
+  function find(action, target) {
+    const kind = ownerAction(action);
+    const found = resolve(root.document, target, kind === "select" || kind === "hover" || kind === "scroll" || kind === "press_key" ? "click" : kind);
+    let held = "";
+    if (found.count === 1) {
+      const el = found.elements[0];
+      if (action === "check" || action === "uncheck") {
+        const c = checkableOf(el);
+        held = c.box ? guard.call(c.box, "consent", wordsAround(c.box, el)) : c.unclear ? "ambiguous" : "not_found";
+      } else if (action === "select") {
+        held = guard.call(el, "consent", wordsAround(el, el));
+      } else held = action === "hover" || action === "scroll" || action === "press_key" ? "" : guard.call(el, action);
+    }
+    const loc = root.location;
+    return { count: found.count, exact: found.exact, matched: found.matched.slice(0, 200), held, origin: loc.origin, href: loc.href.split("#")[0] };
+  }
+
+  function setChecked(el, want) {
+    const now = el.matches('input[type="checkbox"],input[type="radio"]') ? el.checked : el.getAttribute("aria-checked") === "true";
+    if (now === want) return true;
+    // A radio never unchecks itself: only another radio in its group can.
+    if (!want && el.matches('input[type="radio"],[role="radio"]')) return false;
+    press(el, 1);
+    return true;
+  }
+
+  function pickOption(el, text) {
+    const want = low(squash(text));
+    const sel = el.tagName === "SELECT" ? el : el.querySelector("select");
+    if (!sel) return false;
+    const opt = Array.from(sel.options).find((o) => low(squash(o.textContent)) === want || low(squash(o.value)) === want);
+    if (!opt || opt.disabled) return false;
+    // Choosing fires input and change, which many pages treat as "go": the option's words count.
+    if (guard.call(opt, "consent", opt.value)) return "submit_blocked";
+    sel.focus();
+    sel.value = opt.value;
+    sel.dispatchEvent(new Event("input", { bubbles: true }));
+    sel.dispatchEvent(new Event("change", { bubbles: true }));
+    return true;
+  }
+
+  function scrollTo(el, how) {
+    const w = String(how || "down").toLowerCase();
+    const box = el || root.document.scrollingElement || root.document.documentElement;
+    const page = el ? el.clientHeight : root.innerHeight;
+    const by = w === "up" ? -page * 0.8 : w === "top" ? -1e9 : w === "bottom" ? 1e9 : page * 0.8;
+    if (el) el.scrollBy({ top: by, behavior: "instant" });
+    else root.scrollBy({ top: by, behavior: "instant" });
+    return box;
+  }
+
+  function keyInto(el, key) {
+    const t = el || root.document.activeElement || root.document.body;
+    if (el && el.focus) el.focus();
+    const init = { key, code: key, bubbles: true, cancelable: true, composed: true };
+    t.dispatchEvent(new KeyboardEvent("keydown", init));
+    t.dispatchEvent(new KeyboardEvent("keyup", init));
+  }
+
+  /** run does one approved action on the page; the result is plain data. origin: the origin the card was proposed on (the top frame checks it). */
+  function run(action, target, text, origin, frameHref) {
+    const changed = { ok: false, code: "page_changed", error: "the page changed since this was suggested" };
+    if (typeof origin === "string" && root === root.top && root.location.origin !== origin) return changed;
+    // A subframe: the document that was searched must still be the one acting.
+    if (typeof frameHref === "string" && root !== root.top && root.location.href.split("#")[0] !== frameHref) return changed;
+    const bare = (action === "scroll" || action === "press_key") && !squash(target);
+    let el = null;
+    let found = { count: 1, exact: true, matched: "" };
+    if (!bare) {
+      const f = find(action, target);
+      if (f.count === 0) return { ok: false, code: "not_found", error: "not found" };
+      if (f.count > 1) return { ok: false, code: "ambiguous", error: `ambiguous (${f.count} matches)` };
+      if (f.held === "submit_blocked") return { ok: false, code: f.held, error: HELD };
+      if (f.held === "ambiguous") return { ok: false, code: "ambiguous", error: "ambiguous: that text is not tied to a box (no label, for= or aria-labelledby)" };
+      if (f.held === "not_found") return { ok: false, code: "not_found", error: "no box, radio or switch is named that" };
+      if (f.held) return { ok: false, code: f.held, error: "that field is not one to type into" };
+      found = f;
+      el = resolve(root.document, target, ownerAction(action) === "type" ? "type" : "click").elements[0];
+    }
+    if (el) el.scrollIntoView({ block: "center", inline: "center" });
     if (action === "type") typeInto(el, String(text == null ? "" : text));
     else if (action === "double_click") {
       press(el, 1);
       press(el, 2);
       pointer(el, "dblclick", 2, { buttons: 0 });
     } else if (action === "click") press(el, 1);
-    else return { ok: false, code: "invalid", error: "unknown action" };
-    return { ok: true, matched: found.matched.slice(0, 200), exact: found.exact };
+    else if (action === "check" || action === "uncheck") {
+      if (!setChecked(checkable(el), action === "check")) return { ok: false, code: "not_allowed", error: "a radio is unchecked by choosing another in its group" };
+    } else if (action === "select") {
+      const picked = pickOption(el, text);
+      if (picked === "submit_blocked") return { ok: false, code: picked, error: HELD };
+      if (!picked) return { ok: false, code: "not_found", error: "that option is not in the list" };
+    } else if (action === "hover") {
+      for (const t of ["pointerover", "mouseover", "pointerenter", "mouseenter", "pointermove", "mousemove"]) pointer(el, t, 0, { buttons: 0 });
+    } else if (action === "scroll") scrollTo(el, text);
+    else if (action === "press_key") {
+      if (!KEYS.has(String(text))) return { ok: false, code: "not_allowed", error: "that key is not one to press" };
+      keyInto(el, String(text));
+    } else return { ok: false, code: "invalid", error: "unknown action" };
+    const done = { ok: true, matched: found.matched.slice(0, 200), exact: found.exact };
+    if (root !== root.top) done.frameOrigin = root.location.origin;
+    return done;
   }
 
-  root.MonoPageAction = { run, resolve, guard, bounded, HELD, ACTIONABLE };
+  root.MonoPageAction = { run, find, resolve, guard, bounded, HELD, ACTIONABLE, KEYS };
 })(globalThis);

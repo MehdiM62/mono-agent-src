@@ -14,7 +14,7 @@ const { MonoChatCards: C, MonoChatProposals: P } = loadExtensionScripts(["privat
 const PAGE = { tabId: 5, url: "https://drive.example/folder/1" };
 const N = (c) => c.repeat(16);
 
-function world({ reply } = {}) {
+function world({ reply, acted } = {}) {
   const chat = {
     messages: [{
       id: "m1", role: "assistant", text: "", tools: [],
@@ -39,6 +39,7 @@ function world({ reply } = {}) {
     draw: () => {},
     record: null,
     page: () => page,
+    acted,
   });
   const card = (id) => chat.messages[0].proposals.find((p) => p.id === id);
   return { chat, calls, cards, card, setPage: (p) => (page = p), setAnswer: (fn) => (answer = fn), switchProfile: () => seq++ };
@@ -156,6 +157,15 @@ test("a success says what was actually matched, so a partial match is not passed
   assert.ok(again.card("a1").feedback.length < 260);
 });
 
+test("a step done in an iframe says so, with the frame's origin, cleaned", async () => {
+  const w = world({ reply: () => ({ ok: true, method: "script", matched: "GBP 200", frame: 7, frameOrigin: "https://quiz.example\u202e" }) });
+  await w.cards.run(N("a"));
+  assert.equal(w.card("a1").feedback, "Done: double-clicked \u201cGBP 200\u201d in an iframe (https://quiz.example)");
+  const none = world({ reply: () => ({ ok: true, method: "script", frame: 3 }) });
+  await none.cards.run(N("a"));
+  assert.equal(none.card("a1").feedback, "Done in an iframe.");
+});
+
 test("a coder card with no page of its own refuses to queue instead of using the tab on screen", async () => {
   const w = world();
   w.card("c1").page = undefined;
@@ -232,4 +242,17 @@ test("an answer arriving after the panel switched profile settles nothing", asyn
   const w = world({ reply: () => (w.switchProfile(), { ok: true }) });
   await w.cards.run(N("a"));
   assert.equal(w.card("a1").state, "sending");
+});
+
+test("a step that ran tells the panel to share the page again; a failed step, or a new tab, does not", async () => {
+  let n = 0;
+  const w = world({ acted: () => n++ });
+  await w.cards.run(N("a"));
+  assert.equal(n, 1);
+  w.setAnswer(() => ({ ok: false, code: "not_found", error: "not found" }));
+  await w.cards.run(N("b"));
+  assert.equal(n, 1, "nothing changed on the page");
+  w.setAnswer(() => ({ ok: true, method: "tab" }));
+  await w.cards.run(N("c"));
+  assert.equal(n, 1, "a new tab is not this page");
 });
