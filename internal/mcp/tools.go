@@ -169,7 +169,7 @@ func allTools() []tool {
 		},
 		{
 			name:        "workflow_run",
-			description: "Trigger a saved workflow and wait (default 120s). Returns {execution_id, status, nodes:[{node_id, type, status, output_items}]}. A WAITING status means a Human-in-Loop node paused the run — use hil_list / hil_approve.",
+			description: "Trigger a saved workflow and wait (default 120s). Returns {execution_id, status, nodes:[{node_id, type, status, output_items}]}. A WAITING status means the run paused: for a Human-in-Loop node (use hil_list / hil_approve), a reply, or, unless wait_through_subworkflows is set, its own sub-workflows (check workflow_status).",
 			schema: objSchema(map[string]interface{}{
 				"id": strParam("Workflow ID"),
 				"input": map[string]interface{}{
@@ -177,6 +177,8 @@ func allTools() []tool {
 					"description": "Trigger data object, available downstream as {{ $json.<field> }}",
 				},
 				"timeout_seconds": map[string]interface{}{"type": "number", "description": "Wait limit in seconds (default 120, clamped to [1, 600])"},
+				"wait_through_subworkflows": map[string]interface{}{"type": "boolean",
+					"description": "Keep waiting while the run is paused only for its own sub-workflows (core.execute_workflow), which this server runs and then resumes it; a pause for a person still returns at once. Default false: any WAITING returns"},
 			}, "id"),
 			annotations:  map[string]bool{"readOnlyHint": false},
 			mutating:     true,

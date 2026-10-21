@@ -49,7 +49,9 @@ ENDPOINTS
 
   Only registered with --allow-mutations / MONOAGENT_HTTPAPI_ALLOW_MUTATIONS=1:
     POST /profiles/{profile}/workflows/{id}/run
-         trigger a workflow, wait for completion
+         trigger a workflow, wait for completion; any WAITING returns,
+         ?wait_through_subworkflows=true waits through a pause for the
+         run's own sub-workflows (a person's still returns)
     POST /profiles/{profile}/workflows/{id}/activate
          activate a workflow's triggers
     POST /profiles/{profile}/workflows/{id}/deactivate

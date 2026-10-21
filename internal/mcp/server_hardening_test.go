@@ -209,7 +209,7 @@ func TestWaitForExecutionObservesContextCancel(t *testing.T) {
 		cancel()
 	}()
 	start := time.Now()
-	exec := waitForExecution(ctx, rt, "no-such-execution", 10*time.Minute)
+	exec := waitForExecution(ctx, rt, "no-such-execution", 10*time.Minute, false)
 	if exec == nil || exec.Status != "UNKNOWN" {
 		t.Fatalf("cancelled wait = %+v, want UNKNOWN snapshot", exec)
 	}

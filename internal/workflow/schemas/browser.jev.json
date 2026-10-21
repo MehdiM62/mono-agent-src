@@ -43,6 +43,23 @@
       "type": "code"
     },
     {
+      "help": "Paths of files from this machine. Each time a click on an Upload button asks for a file chooser it is answered with the next file (an input that takes several gets all that are left) and the native dialog never opens. A run an AI started may only do this on local pages or at full-no-approvals； elsewhere use monoagentcli browser upload.",
+      "key": "files",
+      "label": "Files",
+      "language": "json",
+      "placeholder": "[\"~/Documents/cv.pdf\"]",
+      "required": false,
+      "rows": 3,
+      "type": "code"
+    },
+    {
+      "help": "Adds the profile's Info page (first_name, email, address…) to the values by key. ID and bank numbers are kept as secrets and photos and the card are never used. Values you list yourself win.",
+      "key": "profile_info",
+      "label": "Use Profile Info",
+      "required": false,
+      "type": "boolean"
+    },
+    {
       "default": "claude",
       "help": "Local agent that writes TYPE_TEXT values (monoagentcli agent scan --installed).",
       "key": "text_runtime",

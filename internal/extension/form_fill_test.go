@@ -316,3 +316,47 @@ func TestFormFillBusinessProfileAnswersGenericFields(t *testing.T) {
 		t.Errorf("the model was asked %d times", f.calls)
 	}
 }
+
+// generate lets the model write an answer to an open question in a textarea,
+// marked generated, and nowhere else.
+func TestFormFillGenerateWritesOnlyOpenTextareas(t *testing.T) {
+	answer := "```json\n" + `{"values":{
+		"msg":{"value":"I am Ada, an analyst with a love of engines.","fact":0,"generated":true},
+		"city":{"value":"Paris","fact":0,"generated":true},
+		"first":{"value":"Ada","fact":1}}}` + "\n```"
+	call := func(generate bool) (*fakeFiller, *FormFillReply) {
+		f := &fakeFiller{facts: []FormFact{{Source: "/docs/cv.pdf", Text: "Ada Lovelace, analyst."}}, answer: answer}
+		got, err := callChat(t, fillSrv(f), MethodFormFill, map[string]any{
+			"profile": "p1", "generate": generate,
+			"fields": []any{
+				fld("first", "First name", "text", nil),
+				fld("city", "City", "text", nil),
+				fld("msg", "Tell us about yourself", "textarea", nil),
+			},
+		}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return f, got.(*FormFillReply)
+	}
+
+	f, r := call(true)
+	if !strings.Contains(f.prompt, `"generated":true`) {
+		t.Errorf("the model was not told it may write: %s", f.prompt)
+	}
+	if len(r.Values) != 2 || r.Values[0].ID != "first" || r.Values[0].Generated {
+		t.Fatalf("values = %+v", r.Values)
+	}
+	if v := r.Values[1]; v.ID != "msg" || !v.Generated || v.Source != "generated" || !strings.HasPrefix(v.Value, "I am Ada") {
+		t.Errorf("the written answer = %+v", v)
+	}
+
+	// Without generate, the same answer is held to the facts.
+	f, r = call(false)
+	if strings.Contains(f.prompt, "WRITE") {
+		t.Errorf("the model was offered writing without generate: %s", f.prompt)
+	}
+	if len(r.Values) != 1 || r.Values[0].ID != "first" {
+		t.Errorf("values without generate = %+v", r.Values)
+	}
+}
