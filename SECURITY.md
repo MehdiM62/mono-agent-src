@@ -152,11 +152,26 @@ workflow's own fields, without you saving or activating each workflow.
   (6 characters or more) are masked, wherever they occur, in the step inputs,
   outputs and errors it stores, so they don't show in `workflow_executions`,
   MCP or `--full-outputs`.
+- **Masking is best-effort, and the switch trusts the workflow.** Masking
+  matches values as text. It also covers the common forms a step derives from
+  a value (base64 standard and URL, URL-encoded, JSON-escaped, upper and lower
+  case, `-` and `_` swapped, hex), follows a sub-workflow the run calls, and
+  survives a pause and resume. Any expression or code step can still transform
+  a value into a form nobody listed (split it, reverse it, hash part of it),
+  and a transformed value is neither masked nor recognised by the host check.
+  So `agent-access on` effectively trusts the agent-written workflows with
+  the secrets and hosts you name: grant only secrets you accept an agent
+  using, and prefer a short `--expires`.
+- **Nodes under `--host`.** With `--host` (not `--any-host`) only the nodes
+  that check their destination (`http.request`, `http.graphql`, `mcp.call`,
+  `trigger.sse`) read a secret; any other node (mail, chat, database,
+  file, shell, code and the rest) is refused the reference. A request that
+  carries a secret may use a `proxy` only when its host is on the list, and
+  never with `allow_unauthorized_certs`.
 - **What still leaks.** A step can still move a value inside the run (an
   `http.request` whose response or another step's output is used as a field,
   a code step) or send it somewhere a host list does not look: the list
-  covers the HTTP, GraphQL, MCP-http and SSE paths, not other nodes that can
-  carry a `@secret:` in a field (mail, chat or database nodes), nor a
+  covers the HTTP, GraphQL, MCP-http and SSE paths, nor does it look at a
   redirect that re-sends a request body. Values shorter than 6 characters are
   neither masked nor bound to hosts. Logs written to your terminal or files
   are not masked. A value that a service echoes back in a way that changes

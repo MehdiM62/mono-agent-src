@@ -40,7 +40,12 @@ func (d Deps) newSecretAgentAccessCmd() *cobra.Command {
 			"after that long (default: never); --host HOST[,HOST...] allows a secret to be sent only to\n" +
 			"those hosts by http.request, http.graphql, mcp.call (http) and trigger.sse. --host or --any-host\n" +
 			"is required: --any-host lets any workflow an agent wrote send any allowed secret to any address\n" +
-			"it names, so use it only for a profile whose secrets you accept an agent using.\n" +
+			"it names, so use it only for a profile whose secrets you accept an agent using. With --host,\n" +
+			"only those four node types read secrets and a proxy must be on the list.\n" +
+			"\n" +
+			"Masking of stored outputs is best-effort: it covers the value and its common encodings, but\n" +
+			"any expression or code step can transform a value past it. Turning this on therefore trusts\n" +
+			"the agent-written workflows with the secrets and hosts you name.\n" +
 			"\n" +
 			"Every secret read this way is logged by name (never value): `agent-access audit`.\n" +
 			"Only you can change it.",
@@ -57,7 +62,7 @@ func (d Deps) newSecretAgentAccessCmd() *cobra.Command {
 				}
 				if args[0] == "on" {
 					if !yes {
-						return fmt.Errorf("pass --yes to confirm: the secrets named (every one by default) become usable by agent-written workflows")
+						return fmt.Errorf("pass --yes to confirm: the secrets named (every one by default) become usable by agent-written workflows, and masking in their stored output is best-effort (any expression or code step can defeat it), so this trusts those workflows with the secrets and hosts you name")
 					}
 					var err error
 					if grant, err = buildGrant(names, hosts, anyHost, expires); err != nil {
