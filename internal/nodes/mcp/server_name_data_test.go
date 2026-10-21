@@ -82,6 +82,13 @@ func TestCallReadsOnlyTheServerTheWorkflowNames(t *testing.T) {
 		t.Errorf("a url built from the body: %v", err)
 	}
 
+	// The program an entry's env goes to is the third (a node command could replace it).
+	const cmdFromData = `"command": the program its env goes to must be written in the workflow, not taken from its data`
+	prog := map[string]interface{}{"server": "crm", "command": "{{ $json.body.c }}", "operation": "list_tools"}
+	if err := run(prog, map[string]interface{}{"c": "/bin/sh"}); err == nil || !strings.Contains(err.Error(), cmdFromData) {
+		t.Errorf("a command built from the body: %v", err)
+	}
+
 	// A header resolves references inside its text, so one the body put
 	// there is refused; text without one goes on to the (absent) server.
 	header := map[string]interface{}{"url": "http://127.0.0.1:1/mcp", "operation": "list_tools",

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -430,5 +431,60 @@ func TestServerEntryURLWins(t *testing.T) {
 	srv, err = loadServer(context.Background(), map[string]interface{}{"server": def})
 	if err != nil || srv.URL != "http://127.0.0.1:1/mcp" {
 		t.Fatalf("no node url: %v %+v", err, srv)
+	}
+}
+
+// A stdio server entry's command and args are pinned like its url: the
+// entry's env secrets go only to the program the entry names.
+func TestServerEntryCommandAndArgsArePinned(t *testing.T) {
+	def := `{"command":"/usr/bin/fake","args":["--serve"],"env":{"K":"v"}}`
+	ctx := context.Background()
+	for name, cfg := range map[string]map[string]interface{}{
+		"command":   {"server": def, "command": "/bin/sh"},
+		"args":      {"server": def, "args": []interface{}{"-c", "env"}},
+		"extra arg": {"server": def, "args": []interface{}{"--serve", "-c"}},
+	} {
+		if _, err := loadServer(ctx, cfg); err == nil || !strings.Contains(err.Error(), "of the server entry") {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+	for name, cfg := range map[string]map[string]interface{}{
+		"same":    {"server": def, "command": "/usr/bin/fake", "args": []interface{}{"--serve"}},
+		"omitted": {"server": def},
+	} {
+		if srv, err := loadServer(ctx, cfg); err != nil || srv.Command != "/usr/bin/fake" || len(srv.Args) != 1 {
+			t.Errorf("%s: %v %+v", name, err, srv)
+		}
+	}
+	// Without an entry the node names its own program.
+	if srv, err := loadServer(ctx, map[string]interface{}{"command": "/bin/echo", "args": []interface{}{"x"}}); err != nil || srv.Command != "/bin/echo" {
+		t.Errorf("no entry: %v %+v", err, srv)
+	}
+}
+
+// command and args must be written in the workflow, like url.
+func TestCommandAndArgsAreLiteralFields(t *testing.T) {
+	fields := (&CallNode{}).LiteralConfigFields()
+	for _, want := range []string{"command", "args"} {
+		if !slices.Contains(fields, want) {
+			t.Errorf("%q is not a literal field: %v", want, fields)
+		}
+	}
+}
+
+// A trailing slash and the case of scheme and host don't make a node url
+// differ from the entry's.
+func TestServerEntryURLComparedNormalised(t *testing.T) {
+	def := `{"url":"http://Example.com/mcp/","headers":{"X-Api-Key":"k"}}`
+	for _, u := range []string{"http://example.com/mcp", "HTTP://EXAMPLE.COM/mcp/", "http://example.com/mcp/"} {
+		if _, err := loadServer(context.Background(), map[string]interface{}{"server": def, "url": u}); err != nil {
+			t.Errorf("%s: %v", u, err)
+		}
+	}
+	for _, u := range []string{"http://example.com/MCP", "https://example.com/mcp", "http://example.com:81/mcp", "http://example.com/mcp?x=1"} {
+		_, err := loadServer(context.Background(), map[string]interface{}{"server": def, "url": u})
+		if err == nil || !strings.Contains(err.Error(), "leave url out") {
+			t.Errorf("%s: %v", u, err)
+		}
 	}
 }
