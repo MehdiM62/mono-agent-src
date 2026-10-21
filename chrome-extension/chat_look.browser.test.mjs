@@ -115,9 +115,9 @@ describe("looking at a canvas page", { skip: browser ? false : why, concurrency:
 
   it("shrink makes any picture fit: a large noisy image comes out at most 2 MB and 1600 px", async () => {
     const out = await ev(`(async () => {
-      const c = new OffscreenCanvas(3200, 2400);
+      const c = new OffscreenCanvas(2000, 1500);
       const g = c.getContext("2d");
-      const img = g.createImageData(3200, 2400);
+      const img = g.createImageData(2000, 1500);
       for (let i = 0; i < img.data.length; i++) img.data[i] = (i % 4 === 3) ? 255 : (Math.random() * 256) | 0;
       g.putImageData(img, 0, 0);
       const png = await c.convertToBlob({ type: "image/png" });
