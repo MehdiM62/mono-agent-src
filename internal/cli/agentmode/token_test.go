@@ -12,8 +12,10 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/monoes/mono-agent/internal/agenttokens"
+	"github.com/monoes/mono-agent/internal/secrets"
 	"github.com/monoes/mono-agent/internal/storage"
 )
 
@@ -243,5 +245,57 @@ func TestBwrapProfilePassesTheTokenEnvAndMarksTheSandbox(t *testing.T) {
 	out, err := c.CombinedOutput()
 	if err != nil || strings.TrimSpace(string(out)) != "http://u|mat-t|bwrap" {
 		t.Fatalf("%q %v", out, err)
+	}
+}
+
+func vaultNames(t *testing.T, p string) []string {
+	t.Helper()
+	db, err := storage.NewDatabase(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	entries, err := secrets.List(context.Background(), db.DB, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, e := range entries {
+		names = append(names, e.Name)
+	}
+	return names
+}
+
+// An expired token's text does not stay in the vault: listing, handing out (env) and
+// revoking all prune it.
+func TestExpiredTokensVaultTextIsPruned(t *testing.T) {
+	for _, cmd := range [][]string{{"token", "list"}, {"env", "--token", "gone"}} {
+		p := newDB(t)
+		if _, _, err := run(t, p, "", "token", "create", "--name", "gone", "--scope", "read", "--expires", "1ms"); err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := run(t, p, "", "token", "create", "--name", "live", "--scope", "read"); err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(20 * time.Millisecond)
+		_, _, _ = run(t, p, "", cmd...)
+		got := strings.Join(vaultNames(t, p), ",")
+		if got != "agent-token-live" {
+			t.Errorf("after %v the vault holds %q, want only agent-token-live", cmd, got)
+		}
+	}
+}
+
+// Revoking removes the vault text although the entry is reserved.
+func TestRevokeDropsTheReservedVaultEntry(t *testing.T) {
+	p := newDB(t)
+	if _, _, err := run(t, p, "", "token", "create", "--name", "x", "--scope", "read"); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := run(t, p, "", "token", "revoke", "x"); err != nil {
+		t.Fatal(err)
+	}
+	if n := vaultNames(t, p); len(n) != 0 {
+		t.Errorf("vault after revoke: %v", n)
 	}
 }

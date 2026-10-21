@@ -155,6 +155,9 @@ const MinTrackedLen = 6
 
 // permit is the grant's say on reading secret name now; it fails closed.
 func (a *accessState) permit(ctx context.Context, ref, name string) error {
+	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(name)), AgentTokenPrefix) {
+		return &refusedError{ref + " is not read from the vault: agent tokens are never read by a run"}
+	}
 	g, err := GetAgentAccess(ctx, a.db, a.profileID)
 	if err != nil {
 		return &refusedError{ref + " is not read from the vault: agent access could not be checked (" + err.Error() + ")"}

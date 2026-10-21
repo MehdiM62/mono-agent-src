@@ -15,11 +15,16 @@ import (
 // as for any entry.
 const ReservedEntry = "httpapi-token"
 
+// AgentTokenPrefix starts the name of each vault entry that keeps a scoped agent
+// token's text (`agent-mode token create`). Those entries are reserved like
+// ReservedEntry, and a run under agent access never reads them.
+const AgentTokenPrefix = "agent-token-"
+
 // ReservedTokenField is the field of ReservedEntry the server reads.
 const ReservedTokenField = "token"
 
 // ErrReservedEntry is the refusal of a write that reaches ReservedEntry.
-var ErrReservedEntry = errors.New(`the vault entry "httpapi-token" is the HTTP API's bearer, which only the user writes`)
+var ErrReservedEntry = errors.New(`the vault entry "httpapi-token" is the HTTP API's bearer, which only the user writes; the same goes for entries named "agent-token-*", the agent tokens`)
 
 type reservedWriteKey struct{}
 
@@ -28,12 +33,13 @@ func AllowReservedWrite(ctx context.Context) context.Context {
 	return context.WithValue(ctx, reservedWriteKey{}, true)
 }
 
-// IsReservedEntry reports whether name is ReservedEntry's, in any case and
-// with spaces around it.
+// IsReservedEntry reports whether name is ReservedEntry's or an agent token's
+// (AgentTokenPrefix), in any case and with spaces around it.
 func IsReservedEntry(name string) bool { return reservedName(name) }
 
 func reservedName(name string) bool {
-	return strings.EqualFold(strings.TrimSpace(name), ReservedEntry)
+	n := strings.ToLower(strings.TrimSpace(name))
+	return n == ReservedEntry || strings.HasPrefix(n, AgentTokenPrefix)
 }
 
 // checkReservedWrite refuses a write under a ctx that doesn't allow it

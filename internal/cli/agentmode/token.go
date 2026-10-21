@@ -30,7 +30,10 @@ func (d Deps) newTokenCmd() *cobra.Command {
 		Long: "A token opens the daemon's profile-scoped HTTP API (/profiles/{profile}/...) for one profile with a scope: " +
 			"read (GET only), write (also validate and other changes that start or send nothing) or run (also run and " +
 			"(de)activate workflows). It expires (24h unless --expires says otherwise) and can be revoked. " +
-			"Vault secrets, sends, approvals and the account are not reachable with any token, and the API has no way to make one. " +
+			"Mind what run means: it is the authority of EVERY approved or active workflow of the profile, including ones that " +
+			"send mail or read the vault; the engine's approval gates apply whatever the caller (an unapproved or AI-authored " +
+			"workflow is still refused @secret references and vault.secret_get), and approving or rejecting needs the " +
+			"profile's own bearer (scope full), which no token has. Scope a token to what the agent should be able to start. " +
 			"The profile's own bearer token keeps working as the full scope unless the server was started with " +
 			"MONOAGENT_HTTPAPI_DISABLE_PROFILE_BEARER=1.",
 	}
@@ -54,7 +57,31 @@ func (d Deps) withTokens(cmd *cobra.Command, fn func(ctx context.Context, db *db
 		return fmt.Errorf("initializing database: %w", err)
 	}
 	defer db.Close()
-	return fn(cmd.Context(), &dbHandle{Store: agenttokens.NewStore(db.DB), DB: db.DB}, d.ProfileID())
+	h := &dbHandle{Store: agenttokens.NewStore(db.DB), DB: db.DB}
+	profileID := d.ProfileID()
+	pruneInactive(cmd.Context(), h, profileID)
+	return fn(cmd.Context(), h, profileID)
+}
+
+// pruneInactive removes the vault text of every token that expired or was revoked, unless an
+// active token has the same name (a name is reusable once its token is revoked). Best effort.
+func pruneInactive(ctx context.Context, h *dbHandle, profileID string) {
+	toks, err := h.Store.List(ctx, profileID, true)
+	if err != nil {
+		return
+	}
+	now := time.Now()
+	live := map[string]bool{}
+	for _, t := range toks {
+		if t.Active(now) {
+			live[t.Name] = true
+		}
+	}
+	for _, t := range toks {
+		if !t.Active(now) && !live[t.Name] {
+			dropVaultCopy(ctx, h, profileID, t.Name)
+		}
+	}
 }
 
 func (d Deps) tokenErr(err error) error {
@@ -119,7 +146,7 @@ func (d Deps) newTokenCreateCmd() *cobra.Command {
 				}
 				// Keep the text in the vault so `env` can hand it out; a token that could not be kept
 				// could never be handed out, so it does not survive the failure.
-				if _, err := secrets.Add(ctx, h.DB, profileID, "secret", vaultPrefix+tok.Name,
+				if _, err := secrets.Add(secrets.AllowReservedWrite(ctx), h.DB, profileID, "secret", vaultPrefix+tok.Name,
 					map[string]string{"token": secret}, "", "", "agent-mode token "+tok.ID); err != nil {
 					_, _ = h.Store.Revoke(ctx, profileID, tok.ID)
 					return fmt.Errorf("keeping the token in the vault: %w", err)
@@ -233,7 +260,7 @@ func dropVaultCopy(ctx context.Context, h *dbHandle, profileID, name string) {
 	}
 	for _, e := range entries {
 		if e.Kind == "secret" && e.Name == vaultPrefix+name {
-			_ = secrets.Delete(ctx, h.DB, profileID, e.ID)
+			_ = secrets.Delete(secrets.AllowReservedWrite(ctx), h.DB, profileID, e.ID)
 		}
 	}
 }
