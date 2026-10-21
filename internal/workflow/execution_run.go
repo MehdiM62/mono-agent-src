@@ -206,8 +206,13 @@ func RunExecution(
 
 // restore seeds the working state from a persisted executionResumeState.
 func (r *runner) restore(raw string) error {
+	profile, _ := vault.ProfileIDFromContext(r.ctx)
+	plain, err := openResumeState(r.ctx, vault.DBFromContext(r.ctx), profile, raw)
+	if err != nil {
+		return fmt.Errorf("resume: open state for execution %s: %w", r.exec.ID, err)
+	}
 	var rs executionResumeState
-	if err := json.Unmarshal([]byte(raw), &rs); err != nil {
+	if err := json.Unmarshal(plain, &rs); err != nil {
 		return fmt.Errorf("resume: decode state for execution %s: %w", r.exec.ID, err)
 	}
 	if err := secrets.SeedResolved(r.ctx, rs.SecretNames); err != nil {
@@ -327,8 +332,13 @@ func (r *runner) pause(paused []*nodeTask) error {
 	if mErr != nil {
 		return fmt.Errorf("pause: encode resume state for execution %s: %w", r.exec.ID, mErr)
 	}
+	profile, _ := vault.ProfileIDFromContext(r.ctx)
+	sealed, sErr := sealResumeState(r.ctx, vault.DBFromContext(r.ctx), profile, state, len(secrets.ResolvedNames(r.ctx)) > 0)
+	if sErr != nil {
+		return sErr
+	}
 	pauseCtx, pauseCancel := dbCtx()
-	werr := r.store.SetExecutionWaiting(pauseCtx, r.exec.ID, string(state))
+	werr := r.store.SetExecutionWaiting(pauseCtx, r.exec.ID, sealed)
 	if werr == nil {
 		recordPauseWindow(pauseCtx, r.store, r.exec.ID, earliestPause(paused))
 	}

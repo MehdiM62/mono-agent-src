@@ -504,7 +504,11 @@ func waitingOnChildren(ctx context.Context, store WorkflowStore, exec *WorkflowE
 	}
 	var state executionResumeState
 	if exec.ResumeState != "" {
-		if err := json.Unmarshal([]byte(exec.ResumeState), &state); err != nil {
+		plain, err := openResumeState(ctx, db, exec.ProfileID, exec.ResumeState)
+		if err != nil {
+			return false, nil
+		}
+		if err := json.Unmarshal(plain, &state); err != nil {
 			return false, nil
 		}
 	}

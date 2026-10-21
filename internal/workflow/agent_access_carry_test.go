@@ -300,3 +300,57 @@ func TestAgentAccessRunLevelTaint(t *testing.T) {
 		t.Errorf("a child seeded from a tainted run sent out: %v", err)
 	}
 }
+
+// Review of #944 (F2): the snapshot of a paused run that read a secret is
+// sealed, not stored with the value in plain text, and the resumed run still
+// works on the real value.
+func TestAgentAccessPausedSnapshotIsSealedAndResumes(t *testing.T) {
+	e := newAccessEnv(t)
+	e.grant(t, secrets.AccessGrant{AnyHost: true})
+	open := false
+	var seen []string
+	e.reg.Register("test.gate", func() NodeExecutor { return gateNode{&open} })
+	e.reg.Register("test.seeprobe", func() NodeExecutor {
+		return nodeFunc{typ: "test.seeprobe", fn: func(_ context.Context, in NodeInput) error {
+			for _, it := range in.Items {
+				if v, ok := it.JSON["v"].(string); ok {
+					seen = append(seen, v)
+				}
+			}
+			return nil
+		}}
+	})
+	wf := chain("wf-seal",
+		step("g1", "test.echoprobe", "Echo", map[string]interface{}{"v": "@secret:vs"}),
+		step("g2", "test.gate", "Gate", nil),
+		step("g3", "test.seeprobe", "See", nil),
+	)
+	createSQLWorkflow(t, e.store, wf)
+	cur, _ := e.store.GetWorkflow(e.ctx, wf.ID)
+	dag, _ := BuildDAG(cur.Nodes, cur.Connections)
+	exec := &WorkflowExecution{ID: uuid.NewString(), WorkflowID: wf.ID, ProfileID: "default", TriggerType: "trigger.schedule", TriggerNodeID: wf.ID + "-t"}
+	if err := e.store.CreateExecution(e.ctx, exec); err != nil {
+		t.Fatal(err)
+	}
+	if err := RunExecution(e.ctx, exec, cur, dag, e.reg, e.store, nil, NewExpressionEngine(), zerolog.Nop()); !errors.Is(err, ErrExecutionPaused) {
+		t.Fatalf("first run: %v", err)
+	}
+	var raw string
+	if err := e.db.DB.QueryRow(`SELECT COALESCE(resume_state,'') FROM workflow_executions WHERE id = ?`, exec.ID).Scan(&raw); err != nil {
+		t.Fatal(err)
+	}
+	if raw == "" || strings.Contains(raw, valVS) || !strings.HasPrefix(raw, sealedResumePrefix) {
+		t.Fatalf("the stored snapshot is not sealed: %.80s", raw)
+	}
+	open = true
+	exec2 := &WorkflowExecution{ID: exec.ID, WorkflowID: wf.ID, ProfileID: "default", TriggerType: "trigger.schedule", TriggerNodeID: wf.ID + "-t", ResumeState: raw}
+	if err := RunExecution(e.ctx, exec2, cur, dag, e.reg, e.store, nil, NewExpressionEngine(), zerolog.Nop()); err != nil {
+		t.Fatalf("resume: %v", err)
+	}
+	if len(seen) != 1 || seen[0] != valVS {
+		t.Errorf("the resumed step saw %v, want the real value", seen)
+	}
+	if got := e.stored(t, exec.ID); strings.Contains(got, valVS) {
+		t.Errorf("a resumed run stored the value: %s", got)
+	}
+}
