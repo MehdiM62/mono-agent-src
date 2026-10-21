@@ -12,7 +12,8 @@
  *   chat_page_context  {context}  url, title, readable text, selection of the
  *                      panel's active tab, capped. The page is untrusted; it is
  *                      read as data and nothing in it is ever run.
- *   chat_send          {data}     {conversation, turn, text} when the turn ends
+ *   chat_send          {data}     {conversation, turn, text} when the turn ends;
+ *                      `images` ([{mime,data}], chat_look.js) go with it, re-checked here
  *   chat_stop, chat_events
  *
  * Runtime and model are the side panel's "AI for summaries" choice
@@ -275,6 +276,11 @@
     // Re-capped here whatever the panel sent: the cap is the worker's rule.
     const context = Core().buildContext(msg.context);
     if (context) params.context = context;
+
+    // Pictures: the worker's rule is chat_look.js's, whatever the panel sent.
+    if (!root.MonoChatLook && msg.images) throw new Error("this extension cannot send pictures; reload it");
+    const images = root.MonoChatLook ? root.MonoChatLook.checkImages(msg.images) : [];
+    if (images.length) params.images = images;
 
     sending.add(key);
     let remembered = false;

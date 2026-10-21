@@ -25,7 +25,8 @@ import (
 // never disagree about what a turn is.
 //
 //	chat.send   {profile?, conversation?, runtime?, model?, message,
-//	             context?:{url,title,text,selection}}
+//	             context?:{url,title,text,selection},
+//	             images?:[{mime,data(base64)}]}
 //	  progress  stage = chatevents type, detail = {"seq":N,"payload":{...}}
 //	  reply     {conversation, turn, text}
 //	chat.stop   {conversation}            -> {stopped: bool}   (ok when idle)
@@ -56,6 +57,11 @@ const (
 	chatMaxCtxDesc       = 4 * 1024
 	chatMaxCtxChannel    = 256
 	chatMaxModelBytes    = 128
+
+	// Pictures for the model: a screenshot of the tab, or images the person
+	// attached. The panel shrinks them to fit; these are the bridge's own limits.
+	chatMaxImages     = 3
+	chatMaxImageBytes = 2 << 20
 )
 
 // chatIDPattern is what a conversation or turn id must look like before it
@@ -69,6 +75,9 @@ type ChatTurnSpec struct {
 	Turn         string
 	Instance     string
 	Message      string
+	// Attach are image files written for this turn (0600, in a folder that goes
+	// when the turn ends); the runner gets them as `agent exec --attach`.
+	Attach []string
 }
 
 // ChatEvent is one journaled event of a turn.
@@ -251,6 +260,7 @@ func chatContext(req *Request) (pageContext, error) {
 type chatSend struct {
 	profile, conversation, runtime, model, message string
 	pc                                             pageContext
+	images                                         []chatImage
 }
 
 func parseChatSend(req *Request) (chatSend, error) {
@@ -278,7 +288,10 @@ func parseChatSend(req *Request) (chatSend, error) {
 	if len(c.message) > chatMaxMessage {
 		return c, invalidParam("message is longer than %d bytes", chatMaxMessage)
 	}
-	c.pc, err = chatContext(req)
+	if c.pc, err = chatContext(req); err != nil {
+		return c, err
+	}
+	c.images, err = chatImages(req)
 	return c, err
 }
 
@@ -327,6 +340,15 @@ func (cb *chatBridge) handleSend(ctx context.Context, req *Request, progress Pro
 	spec := ChatTurnSpec{
 		Profile: p.profile, Conversation: conv, Turn: "ext-t-" + randHex(8),
 		Instance: cb.instance, Message: withPageContext(p.pc, p.message),
+	}
+	if len(p.images) > 0 {
+		files, cleanup, ierr := writeChatImages(p.images)
+		if ierr != nil {
+			return nil, ierr
+		}
+		defer cleanup()
+		spec.Attach = files
+		spec.Message += imagesNote(len(files))
 	}
 	var text strings.Builder
 	var finished *chatevents.TurnFinishedPayload

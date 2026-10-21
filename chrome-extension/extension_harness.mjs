@@ -60,7 +60,7 @@ async function extensionCopy(dir, ports) {
   return to;
 }
 
-async function launchOnce(binary, { bridgePort = 0 } = {}) {
+async function launchOnce(binary, { bridgePort = 0, extraArgs = [] } = {}) {
   const dir = await mkdtemp(join(tmpdir(), "mono-rec-ext-"));
   const extDir = await extensionCopy(dir, bridgePort ? [bridgePort] : []);
   const child = spawn(
@@ -76,6 +76,7 @@ async function launchOnce(binary, { bridgePort = 0 } = {}) {
       "--no-default-browser-check",
       "--disable-gpu",
       "--window-size=1200,900",
+      ...extraArgs,
       "about:blank",
     ],
     { stdio: ["ignore", "ignore", "pipe"], detached: true }
@@ -124,9 +125,9 @@ export const WORKER_START_MS = 30000;
  * (the extension is broken), where a thrown error would make the suite
  * skip as if there were no Chrome.
  */
-export async function start(binary, { attempts = 2, workerMs = WORKER_START_MS, bridgePort = 0 } = {}) {
+export async function start(binary, { attempts = 2, workerMs = WORKER_START_MS, bridgePort = 0, extraArgs = [] } = {}) {
   for (let attempt = 1; ; attempt++) {
-    const b = await launchOnce(binary, { bridgePort });
+    const b = await launchOnce(binary, { bridgePort, extraArgs });
     try {
       b.worker = await extensionWorker(b.cdp, workerMs);
       return b;

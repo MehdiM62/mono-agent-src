@@ -310,11 +310,18 @@
       const kind = p && KINDS[p.kind];
       let state = kind && kind.states.has(p.state) && p.state !== "sending" ? p.state : "pending";
       if (state === "reviewing") state = "recorded";
+      // A look's picture lives in the panel's memory only: a card left at the preview starts over.
+      if (state === "preview" || state === "capturing") state = "pending";
       let feedback = p && p.feedback;
       // A Run cut off mid-send may have happened: it is never offered again.
       if (p && p.kind === "action" && p.state === "sending") {
         state = "unknown";
         feedback = Act.UNKNOWN;
+      }
+      // A picture cut off mid-send may have gone: it is not sent again unasked.
+      if (p && p.kind === "look" && p.state === "sending") {
+        state = "failed";
+        feedback = "Interrupted: the picture may or may not have been sent. Check the chat before trying again.";
       }
       const c = cardOf(p, p && p.id, p && p.untrustedPage, state, feedback);
       if (!c) continue;
@@ -434,6 +441,17 @@
       line("chat-proposal-title", v.title);
     }
     if (v.source) line("chat-proposal-source", v.source);
+    // A look's picture, from the panel's memory (never from the stored card).
+    if (v.image && on && on.thumb) {
+      const src = on.thumb();
+      if (/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(src || "")) {
+        const img = doc.createElement("img");
+        img.className = "chat-proposal-thumb";
+        img.alt = "The screenshot the model would see";
+        img.src = src;
+        box.appendChild(img);
+      }
+    }
     if (v.notes) line("chat-proposal-notes", v.notes);
     if (v.warning) line("chat-proposal-warning", v.warning);
     // What happened so far, then what can be done next (a recording card has both).

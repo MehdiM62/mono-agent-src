@@ -19,18 +19,25 @@
  *              which does it in the tab the card was proposed on, if that
  *              page is still there. A failed card also offers Hand to coder; one whose outcome is unknown (no
  *              answer, or cut off) is never run again.
+ *   look       Look at the page asks the worker for a screenshot of the card's tab
+ *              (page_look_capture, chat_look.js). The picture waits in this
+ *              file's memory (never in the stored card): the first time in a
+ *              chat the card shows it and waits for Send to the model; after
+ *              that Run sends it straight away. Sending is a normal chat turn
+ *              carrying the image (deps.sendLook).
  *   coder      Hand to coder queues a coder chat (coder_queue, kind "ask") for
  *              this tab with the card's goal and why, and nothing else: the
  *              person presses Start in the MonoAgent app, never the extension.
  *
- *   create(deps) -> { confirm(key), dismiss(key), review(key), run(key), coder(key), follow(event) }
+ *   create(deps) -> { confirm(key), dismiss(key), review(key), run(key), coder(key), follow(event), send(key), thumb(key) }
  *
  * A card is named by its key (MonoChatProposals.keyOf), not its call id:
  * two turns' cards can share a call id.
  *
  * deps: chat() the conversation on screen, ask(message) the worker, profile(),
  * current() a token that changes when the panel switches profile, save(),
- * draw(), acted() (a page step ran: share the page again), record (MonoPanelRecord, or null), page() the panel's page
+ * draw(), acted() (a page step ran: share the page again), sendLook(image) -> {sent, error}
+ * (the panel sends the screenshot as a chat turn), record (MonoPanelRecord, or null), page() the panel's page
  * ({tabId, url}): a vault card saves an item on it, and a recording card
  * records the page it was proposed on, only while the panel shows it.
  */
@@ -46,6 +53,13 @@
     const find = (key) => cardsOf().find((p) => keyOf(p) === key) || null;
     const errorOf = (err) => (err && err.message) || String(err);
     const tabOf = (page) => (page && page.tabId ? { tabId: page.tabId, url: page.url || "" } : null);
+
+    // A look's picture, by card key: in memory only, gone once sent or dismissed.
+    const shots = new Map();
+    const thumb = (key) => {
+      const shot = shots.get(key);
+      return shot ? `data:${shot.mime};base64,${shot.data}` : "";
+    };
 
     async function settle(key, patch, mine) {
       if (mine !== undefined && mine !== deps.current()) return; // another profile's chat is on screen now
@@ -142,9 +156,56 @@
       return { state: "failed", feedback: `Not done: ${a.error || "it failed"}`, code: a.code || "failed" };
     }
 
+    // Look at the page: take the picture; show it first unless this chat already agreed to send them.
+    async function lookRun(key) {
+      const p = find(key);
+      if (!p || !["pending", "failed"].includes(p.state)) return;
+      if (!p.page) return settle(key, { feedback: "This was not suggested for a page: ask again with the page open." });
+      const moved = movedFrom(p.page, "Look at the page", true);
+      if (moved) return settle(key, { feedback: moved });
+      const mine = deps.current();
+      Proposals.settle(deps.chat(), key, { state: "capturing", feedback: "" });
+      deps.draw();
+      let answer;
+      try {
+        answer = await deps.ask({ type: "page_look_capture", tab: tabOf(p.page) });
+      } catch (err) {
+        answer = { ok: false, error: errorOf(err) };
+      }
+      if (!answer || !answer.ok || !answer.image) {
+        return settle(key, { state: "failed", feedback: `Not taken: ${(answer && answer.error) || "no answer from the extension"}` }, mine);
+      }
+      shots.set(key, answer.image);
+      if (deps.chat().lookConsent) return lookSend(key);
+      await settle(key, { state: "preview", feedback: "" }, mine);
+    }
+
+    // Send to the model: the picture goes out as a chat turn, and this chat remembers the person agreed.
+    async function lookSend(key) {
+      const p = find(key);
+      const image = shots.get(key);
+      if (!p || p.kind !== "look" || !image || !["preview", "capturing"].includes(p.state)) return;
+      const mine = deps.current();
+      Proposals.settle(deps.chat(), key, { state: "sending", feedback: "" });
+      deps.draw();
+      let res;
+      try {
+        res = await deps.sendLook(image);
+      } catch (err) {
+        res = { sent: false, error: errorOf(err) };
+      }
+      shots.delete(key);
+      if (res && res.sent) {
+        deps.chat().lookConsent = true;
+        return settle(key, { state: "done", feedback: `Sent a screenshot (${image.width}\u00d7${image.height}, ${Math.max(1, Math.round(image.bytes / 1024))} KB).` }, mine);
+      }
+      await settle(key, { state: "failed", feedback: `Not sent: ${(res && res.error) || "it failed"}` }, mine);
+    }
+
     // Run: the click is the only thing that does anything, and only on the page the card was made for.
     async function run(key) {
       const p = find(key);
+      if (p && p.kind === "look") return lookRun(key);
       if (!p || p.kind !== "action" || !["pending", "failed"].includes(p.state)) return;
       if (p.state === "failed" && p.code === "submit_blocked") return;
       if (p.action !== "open_url") {
@@ -207,8 +268,9 @@
 
     async function dismiss(key) {
       const p = find(key);
-      const open = p && p.kind === "recording" ? ["pending", "empty", "refused"] : p && p.kind === "action" ? ["pending", "failed", "unknown"] : ["pending"];
+      const open = p && p.kind === "recording" ? ["pending", "empty", "refused"] : p && p.kind === "action" ? ["pending", "failed", "unknown"] : p && p.kind === "look" ? ["pending", "failed", "preview"] : ["pending"];
       if (!p || !open.includes(p.state)) return;
+      shots.delete(key);
       await settle(key, { state: "dismissed" });
     }
 
@@ -267,7 +329,7 @@
       }
     }
 
-    return { confirm, dismiss, review, run, coder, follow };
+    return { confirm, dismiss, review, run, coder, follow, send: lookSend, thumb };
   }
 
   root.MonoChatCards = { create };

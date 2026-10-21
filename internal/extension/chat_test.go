@@ -21,6 +21,7 @@ type fakeChat struct {
 	runErr   error
 	page     ChatEventsPage
 	listArgs []any
+	onRun    func(ChatTurnSpec) // called inside RunTurn, while the turn's files exist
 }
 
 func (f *fakeChat) CreateConversation(_ context.Context, profile, runtime, model string) (string, error) {
@@ -34,6 +35,9 @@ func (f *fakeChat) RunTurn(ctx context.Context, s ChatTurnSpec, on func(ChatEven
 	f.mu.Lock()
 	f.specs = append(f.specs, s)
 	f.mu.Unlock()
+	if f.onRun != nil {
+		f.onRun(s)
+	}
 	for _, e := range f.events {
 		on(e)
 	}

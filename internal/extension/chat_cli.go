@@ -58,8 +58,12 @@ func chatBase(profile string) []string {
 func chatTurnArgv(s ChatTurnSpec) []string {
 	// The message, page text included, goes over stdin: argv is world-readable
 	// in a process listing and has a size limit.
-	return append(chatBase(s.Profile), "chat", "--conversation="+s.Conversation, "--turn="+s.Turn,
+	argv := append(chatBase(s.Profile), "chat", "--conversation="+s.Conversation, "--turn="+s.Turn,
 		"--instance="+s.Instance, "--tools="+chatToolsMode, "--prompt-stdin")
+	for _, p := range s.Attach {
+		argv = append(argv, "--attach="+p)
+	}
+	return argv
 }
 
 // run execs the CLI to completion and returns stdout.
