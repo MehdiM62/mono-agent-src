@@ -101,6 +101,12 @@ func (d *Database) SnapshotBeforeAdoption(ctx context.Context) {
 	}
 	var last sql.NullInt64
 	_ = conn.QueryRowContext(ctx, `SELECT MAX(version) FROM schema_migrations`).Scan(&last)
+	// The claim that follows can keep failing (a read-only database), and
+	// then this runs on every start: one snapshot of this schema version a
+	// day is enough.
+	if d.hasRecentAdoptionSnapshot(int(last.Int64)) {
+		return
+	}
 	name := fmt.Sprintf("pre-migrate-%s-v%03d-adopt.db", migrateNow().UTC().Format("20060102T150405"), last.Int64)
 	path, err := d.writeSnapshotAs(ctx, conn, name)
 	if err != nil {
@@ -111,6 +117,22 @@ func (d *Database) SnapshotBeforeAdoption(ctx context.Context) {
 	if err := prunePreMigrateSnapshots(d.backupsDir(), keepPreMigrateSnapshots); err != nil {
 		fmt.Fprintf(migrateStderr, "monoagent: warning: could not prune old database snapshots: %v\n", err)
 	}
+}
+
+// adoptionSnapshotEvery is how long an adoption snapshot of a schema version
+// stands in for a new one.
+const adoptionSnapshotEvery = 24 * time.Hour
+
+// hasRecentAdoptionSnapshot reports whether backups holds an adoption
+// snapshot of schema version v written within adoptionSnapshotEvery.
+func (d *Database) hasRecentAdoptionSnapshot(v int) bool {
+	paths, _ := filepath.Glob(filepath.Join(d.backupsDir(), fmt.Sprintf("pre-migrate-*-v%03d-adopt.db", v)))
+	for _, p := range paths {
+		if fi, err := os.Stat(p); err == nil && migrateNow().Sub(fi.ModTime()) < adoptionSnapshotEvery {
+			return true
+		}
+	}
+	return false
 }
 
 func (d *Database) writeSnapshot(ctx context.Context, conn *sql.Conn, lastApplied int) (string, error) {

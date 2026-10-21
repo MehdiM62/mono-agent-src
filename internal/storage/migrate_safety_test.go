@@ -251,3 +251,38 @@ func TestSchemaAheadWithoutMigrationsTable(t *testing.T) {
 		t.Errorf("SchemaAhead created %d schema objects; it must be read-only", n)
 	}
 }
+
+// An adoption whose claim keeps failing (a read-only database) must not
+// run a full VACUUM INTO on every start: a snapshot for this schema
+// version taken in the last day stands.
+func TestSnapshotBeforeAdoptionIsSkippedWhenARecentOneExists(t *testing.T) {
+	captureMigrateStderr(t)
+	dir := t.TempDir()
+	db, _ := openWithData(t, dir)
+	ctx := context.Background()
+	count := func() int {
+		n := 0
+		for _, s := range listSnapshots(t, dir) {
+			if strings.HasSuffix(s, "-adopt.db") {
+				n++
+			}
+		}
+		return n
+	}
+	db.SnapshotBeforeAdoption(ctx)
+	if count() != 1 {
+		t.Fatalf("first call: %v", listSnapshots(t, dir))
+	}
+	prev := migrateNow
+	defer func() { migrateNow = prev }()
+	migrateNow = func() time.Time { return prev().Add(2 * time.Second) }
+	db.SnapshotBeforeAdoption(ctx)
+	if count() != 1 {
+		t.Errorf("a second call within the day took another: %v", listSnapshots(t, dir))
+	}
+	migrateNow = func() time.Time { return prev().Add(25 * time.Hour) }
+	db.SnapshotBeforeAdoption(ctx)
+	if count() != 2 {
+		t.Errorf("a call a day later: %v", listSnapshots(t, dir))
+	}
+}
