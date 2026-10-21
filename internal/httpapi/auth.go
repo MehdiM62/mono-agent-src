@@ -75,17 +75,37 @@ func (s *Server) agentTokens() *agenttokens.Store {
 }
 
 // scoped runs h for an agent token: refused with 403 when the token's scope is
-// below need, and either way audited (name, method, path, status; never the token).
+// below need, and either way audited (name, method, escaped path, status; never the
+// token). The audit row is written before h runs: a token whose use cannot be audited is
+// refused with 503. The token's scope travels in the request context (see scopeOf).
 func (s *Server) scoped(tok agenttokens.Token, need agenttokens.Scope, h http.HandlerFunc, w http.ResponseWriter, r *http.Request) {
+	ctx := context.WithoutCancel(r.Context())
+	auditID, err := s.agentTokens().BeginUse(ctx, tok, r.Method, r.URL.EscapedPath())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "httpapi: warning: %v\n", err)
+		writeError(w, http.StatusServiceUnavailable, "this token's use cannot be audited, so the request is refused")
+		return
+	}
 	sw := &statusWriter{ResponseWriter: w}
 	if tok.Scope.Allows(need) {
-		h(sw, r)
+		h(sw, r.WithContext(context.WithValue(r.Context(), scopeCtxKey{}, tok.Scope)))
 	} else {
 		writeError(sw, http.StatusForbidden, fmt.Sprintf("this token's scope (%s) does not allow this request (needs %s)", tok.Scope, need))
 	}
-	if err := s.agentTokens().RecordUse(context.WithoutCancel(r.Context()), tok, r.Method, r.URL.Path, sw.status); err != nil {
+	if err := s.agentTokens().FinishUse(ctx, auditID, sw.status); err != nil {
 		fmt.Fprintf(os.Stderr, "httpapi: warning: %v\n", err)
 	}
+}
+
+type scopeCtxKey struct{}
+
+// scopeOf is the scope the request was authenticated with: an agent token's, or full for
+// the profile's own bearer (which sets none).
+func scopeOf(r *http.Request) agenttokens.Scope {
+	if sc, ok := r.Context().Value(scopeCtxKey{}).(agenttokens.Scope); ok {
+		return sc
+	}
+	return agenttokens.ScopeFull
 }
 
 func writeUnauthorized(w http.ResponseWriter) {

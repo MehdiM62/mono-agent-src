@@ -259,13 +259,23 @@ supported way to run a coding agent that you do not fully trust:
    Scopes (each includes the ones before it): `read` is GET only (list, get, status);
    `write` also validate and other changes that start and send nothing (tasks, documents and
    people get routes in this class when the API gains them); `run` also runs, activates and
-   deactivates workflows. Vault secrets, sends, approvals (`hil approve|reject`) and the account
-   are never reachable with a token. A request above the token's scope is answered 403. A token
+   deactivates workflows. Mind what `run` means: it is the authority of every approved or active
+   workflow of the profile, including ones that send mail or read the vault, so scope a token to
+   what the agent should be able to start. The engine's approval gates apply whatever the caller:
+   an unapproved or AI-authored workflow is still refused `@secret` references and
+   `vault.secret_get`. Approvals (`hil approve|reject`) and anything else that spends the
+   profile's authority need the full scope, which only the profile's own bearer has; `X-Full-Outputs`
+   (unredacted run outputs) is honoured for that bearer alone. A request above the token's scope is
+   answered 403. A token
    expires (24h unless `--expires` says otherwise, `never` to opt out), is revoked at once with
    `agent-mode token revoke`, and only its SHA-256 is kept for checking it (compared in constant
    time); its text is kept in the profile's vault so that `env` can hand it out, and removed on
-   revoke. Every request made with a token is recorded by token name, method, path and status,
-   never the token: `agent-mode token audit <name>`. A token opens the profile it was made for and
+   revoke. Every request made with a token is recorded by token name, method, escaped path
+   (cut to 200 characters) and status, never the token: `agent-mode token audit <name>`. The row
+   is written before the request runs, and a token whose use cannot be recorded is refused with
+   503; the table keeps the last 10,000 rows. Vault entries named `agent-token-*` hold the tokens'
+   text: only the token commands write them, a workflow run never reads them (even with agent
+   secret access on), and an expired token's entry is removed the next time the tokens are listed. A token opens the profile it was made for and
    no other. The profile's own bearer (`secret reveal httpapi-token --reveal`) keeps working as the
    full scope; start the server with `MONOAGENT_HTTPAPI_DISABLE_PROFILE_BEARER=1` to refuse it, so
    that only scoped tokens open the API. Do not let the agent read the vault (see the agent secret

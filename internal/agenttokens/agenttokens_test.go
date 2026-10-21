@@ -134,7 +134,11 @@ func TestAuditHoldsTheNameNeverTheToken(t *testing.T) {
 	s := newStore(t)
 	ctx := context.Background()
 	tok, secret, _ := s.Create(ctx, "default", "bot", ScopeRead, 0)
-	if err := s.RecordUse(ctx, tok, "GET", "/profiles/default/workflows", 200); err != nil {
+	id, err := s.BeginUse(ctx, tok, "GET", "/profiles/default/workflows")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.FinishUse(ctx, id, 200); err != nil {
 		t.Fatal(err)
 	}
 	uses, err := s.Audit(ctx, tok, 10)
@@ -151,5 +155,52 @@ func TestAuditHoldsTheNameNeverTheToken(t *testing.T) {
 	rows.Close()
 	if strings.Contains(dump, secret) {
 		t.Fatal("audit holds the token")
+	}
+}
+
+// A path with control characters is stored escaped and cut short, and printed without them.
+func TestAuditPathIsEscapedTruncatedAndSanitized(t *testing.T) {
+	s := newStore(t)
+	ctx := context.Background()
+	tok, _, _ := s.Create(ctx, "default", "bot", ScopeRead, 0)
+	id, err := s.BeginUse(ctx, tok, "POST", "/a/\n\x1b[2Jevil/"+strings.Repeat("x", 500))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = s.FinishUse(ctx, id, 200)
+	var stored string
+	if err := s.db.QueryRow(`SELECT path FROM agent_token_audit`).Scan(&stored); err != nil {
+		t.Fatal(err)
+	}
+	if strings.ContainsAny(stored, "\n\x1b") || len(stored) > 200 {
+		t.Errorf("stored path %q (%d bytes)", stored, len(stored))
+	}
+	// A row written before this rule holds raw bytes: reading still prints them harmlessly.
+	_, _ = s.db.Exec(`INSERT INTO agent_token_audit (at, token_id, token_name, profile_id, method, path, status) VALUES ('2026-01-01T00:00:00.000Z', ?, 'bot', 'default', 'GET', ?, 200)`, tok.ID, "/x\n\x1b[2Jy")
+	uses, _ := s.Audit(ctx, tok, 10)
+	for _, u := range uses {
+		if strings.ContainsAny(u.Path, "\n\x1b") {
+			t.Errorf("audit printed %q", u.Path)
+		}
+	}
+}
+
+func TestAuditTableIsCapped(t *testing.T) {
+	s := newStore(t)
+	ctx := context.Background()
+	defer func(n int) { auditKeep = n }(auditKeep)
+	auditKeep = 20
+	tok, _, _ := s.Create(ctx, "default", "bot", ScopeRead, 0)
+	for i := 0; i < 50; i++ {
+		id, err := s.BeginUse(ctx, tok, "GET", "/p")
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = s.FinishUse(ctx, id, 200)
+	}
+	var n int
+	_ = s.db.QueryRow(`SELECT COUNT(*) FROM agent_token_audit`).Scan(&n)
+	if n != 20 {
+		t.Errorf("audit rows = %d, want 20", n)
 	}
 }

@@ -338,14 +338,43 @@ func (s *Store) RevokeProfile(ctx context.Context, profileID string) (int, error
 	return int(n), nil
 }
 
-// RecordUse audits one request made with t. It never takes the token itself.
-func (s *Store) RecordUse(ctx context.Context, t Token, method, path string, status int) error {
-	now := s.now().UTC()
-	if _, err := s.db.ExecContext(ctx,
-		`INSERT INTO agent_token_audit (at, token_id, token_name, profile_id, method, path, status) VALUES (?,?,?,?,?,?,?)`,
-		now.Format(timeFmt), t.ID, t.Name, t.ProfileID, method, path, status); err != nil {
-		return fmt.Errorf("auditing agent token use: %w", err)
+// auditKeep is how many audit rows the table keeps; older ones go on insert.
+var auditKeep = 10000
+
+// maxAuditPath bounds the stored path.
+const maxAuditPath = 200
+
+// cleanPath escapes control characters and cuts the path to maxAuditPath bytes, so a
+// crafted request path cannot put raw escape sequences in the log.
+func cleanPath(p string) string {
+	var b strings.Builder
+	for _, r := range p {
+		if r < 0x20 || r == 0x7f || (r >= 0x80 && r < 0xa0) {
+			fmt.Fprintf(&b, "\\x%02x", r)
+			continue
+		}
+		b.WriteRune(r)
 	}
+	out := b.String()
+	if len(out) > maxAuditPath {
+		out = strings.ToValidUTF8(out[:maxAuditPath], "")
+	}
+	return out
+}
+
+// BeginUse audits a request made with t BEFORE it runs, with status 0 until FinishUse
+// fills it in; the caller refuses the request when this fails. It never takes the token
+// itself. It also keeps the table to auditKeep rows.
+func (s *Store) BeginUse(ctx context.Context, t Token, method, path string) (int64, error) {
+	now := s.now().UTC()
+	res, err := s.db.ExecContext(ctx,
+		`INSERT INTO agent_token_audit (at, token_id, token_name, profile_id, method, path, status) VALUES (?,?,?,?,?,?,0)`,
+		now.Format(timeFmt), t.ID, t.Name, t.ProfileID, method, cleanPath(path))
+	if err != nil {
+		return 0, fmt.Errorf("auditing agent token use: %w", err)
+	}
+	id, _ := res.LastInsertId()
+	_, _ = s.db.ExecContext(ctx, `DELETE FROM agent_token_audit WHERE id <= ?`, id-int64(auditKeep))
 	s.mu.Lock()
 	last, seen := s.touched[t.ID]
 	due := !seen || now.Sub(last) >= lastUsedEvery
@@ -355,6 +384,14 @@ func (s *Store) RecordUse(ctx context.Context, t Token, method, path string, sta
 	s.mu.Unlock()
 	if due {
 		_, _ = s.db.ExecContext(ctx, `UPDATE agent_tokens SET last_used_at = ? WHERE id = ?`, now.Format(timeFmt), t.ID)
+	}
+	return id, nil
+}
+
+// FinishUse records the status the request ended with.
+func (s *Store) FinishUse(ctx context.Context, id int64, status int) error {
+	if _, err := s.db.ExecContext(ctx, `UPDATE agent_token_audit SET status = ? WHERE id = ?`, status, id); err != nil {
+		return fmt.Errorf("auditing agent token use: %w", err)
 	}
 	return nil
 }
@@ -379,6 +416,7 @@ func (s *Store) Audit(ctx context.Context, t Token, limit int) ([]Use, error) {
 			return nil, err
 		}
 		u.At, _ = time.Parse(timeFmt, at)
+		u.Path = cleanPath(u.Path)
 		out = append(out, u)
 	}
 	return out, rows.Err()

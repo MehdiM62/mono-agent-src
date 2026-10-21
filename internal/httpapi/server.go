@@ -256,11 +256,11 @@ func bearerCredential(r *http.Request) string {
 // wantFullOutputs mirrors `workflow run --full-outputs`: passing
 // X-Full-Outputs: 1 skips credential-key redaction of output items (the
 // 4KB per-item truncation still applies). It carries the same trust
-// implication as the CLI flag — the caller already holds the bearer
-// credential, i.e. is already authorized for this profile's data — so no
-// additional gate is applied here beyond that authentication.
+// implication as the CLI flag, so it is honoured only for the profile's own
+// bearer (scope full): a scoped agent token never switches redaction off, and
+// its header is ignored.
 func wantFullOutputs(r *http.Request) bool {
-	return r.Header.Get(fullOutputsHeader) == "1"
+	return r.Header.Get(fullOutputsHeader) == "1" && scopeOf(r) == agenttokens.ScopeFull
 }
 
 func redactItemsUnlessFull(r *http.Request, items []workflow.Item) []workflow.Item {
