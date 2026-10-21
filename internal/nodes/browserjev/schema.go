@@ -14,6 +14,10 @@ type NodeSchema struct {
 
 	Values string `json:"values" schema:"label=Values,type=code,language=json,rows=5,placeholder={\"From\": \"Zurich\"， \"email\": \"@secret:my-email\"},help=Name → value pairs typed into matching fields instead of asking the text runtime. Jev sees only the names (typed values are shown to it as <value:NAME>). @secret: values need an email/tel field or one whose label names the value (password inputs are never observed)."`
 
+	Files string `json:"files" schema:"label=Files,type=code,language=json,rows=3,placeholder=[\"~/Documents/cv.pdf\"],help=Paths of files from this machine. Each time a click on an Upload button asks for a file chooser it is answered with the next file (an input that takes several gets all that are left) and the native dialog never opens. A run an AI started may only do this on local pages or at full-no-approvals； elsewhere use monoagentcli browser upload."`
+
+	ProfileInfo bool `json:"profile_info" schema:"label=Use Profile Info,type=boolean,help=Adds the profile's Info page (first_name， email， address…) to the values by key. ID and bank numbers are kept as secrets and photos and the card are never used. Values you list yourself win."`
+
 	TextRuntime string `json:"text_runtime" schema:"label=Text Runtime,type=text,default=claude,help=Local agent that writes TYPE_TEXT values (monoagentcli agent scan --installed)."`
 
 	TextModel string `json:"text_model" schema:"label=Text Model,type=text,help=Model for the text runtime； a small one (e.g. haiku) keeps runs fast."`

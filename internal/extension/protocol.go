@@ -51,6 +51,7 @@ const (
 	CmdFocus          = "focus"
 	CmdScrollIntoView = "scroll_into_view"
 	CmdSetFiles       = "set_files"
+	CmdFormRun        = "form_run"
 
 	// Page-level input
 	CmdScroll        = "scroll"

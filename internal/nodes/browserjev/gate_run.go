@@ -252,3 +252,15 @@ func (g *runGate) output(out map[string]interface{}) {
 		out["tab_id"] = g.guard.TabID()
 	}
 }
+
+// uploadAllowed says whether the run may give the page a file from this
+// machine. A run the user started may; an AI-started run only on a page that
+// is local, or at full-no-approvals: elsewhere it would need the approval
+// `browser upload` raises, which a run cannot wait for.
+func (g *runGate) uploadAllowed(pageURL string) error {
+	if !g.ai || g.pol.Level == browserctl.LevelFullNoApprovals || browserctl.IsLocal(pageURL) {
+		return nil
+	}
+	return fmt.Errorf("%s started this run, and a file from this machine may not go to %s without the user's approval: use `monoagentcli browser upload` (which asks), or set the level to full-no-approvals",
+		g.who.name, browserctl.Origin(pageURL))
+}

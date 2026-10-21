@@ -35,6 +35,15 @@ func TestBrowserPermissionsShowAndSet(t *testing.T) {
 	if doc["levels"].(map[string]any)["coder"] != "ask" {
 		t.Fatalf("after set: %v", doc["levels"])
 	}
+	doc = bt.runJSON("permissions", "set", "all", "full")
+	for _, k := range browserctl.Kinds {
+		if doc["levels"].(map[string]any)[k] != "full" {
+			t.Fatalf("after set all: %v", doc["levels"])
+		}
+	}
+	if _, err := bt.run("permissions", "set", "all", "everything"); exitCodeFor(err) != 3 {
+		t.Fatalf("all with a bad level: %v", err)
+	}
 	doc = bt.runJSON("permissions", "site", "--", "https://bank.example/", "block")
 	if sites := doc["sites"].([]any); len(sites) != 1 || sites[0].(map[string]any)["rule"] != "block" || sites[0].(map[string]any)["origin"] != "https://bank.example" {
 		t.Fatalf("sites = %v", sites)

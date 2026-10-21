@@ -82,17 +82,23 @@ func newBrowserPermissionsCmd(cfg *globalConfig) *cobra.Command {
 		},
 	}
 	cmd.AddCommand(&cobra.Command{
-		Use:     "set <kind> <level>",
-		Short:   "Set a kind of agent's level (coder, org, chat, other)",
-		Example: "  monoagentcli browser permissions set chat dev",
+		Use:     "set <kind|all> <level>",
+		Short:   "Set a kind of agent's level (coder, org, chat, other), or every kind's with all",
+		Example: "  monoagentcli browser permissions set chat dev\n  monoagentcli browser permissions set all full",
 		Args:    cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if why := notOperator(); why != "" {
 				return operatorOnlyError("%s: an agent may not change browser permissions: ask the user to run `monoagentcli browser permissions set %s %s` or use Settings → Agent browser permissions", why, args[0], args[1])
 			}
+			kinds := []string{args[0]}
+			if args[0] == "all" {
+				kinds = browserctl.Kinds
+			}
 			return withPermissions(cfg, func(p *browserctl.Permissions) error {
-				if err := p.SetLevel(args[0], args[1]); err != nil {
-					return errInvalidInput("%v", err)
+				for _, k := range kinds {
+					if err := p.SetLevel(k, args[1]); err != nil {
+						return errInvalidInput("%v", err)
+					}
 				}
 				return nil
 			}, func(p browserctl.Permissions) error { return printPermissions(cmd, cfg, p) })

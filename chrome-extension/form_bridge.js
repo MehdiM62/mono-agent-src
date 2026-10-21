@@ -4,6 +4,7 @@
  *   form_fill  {profile, windowId}  ->  {ok, filled, found, sources?}
  *   card_fill  {profile, windowId}  ->  {ok, saved, filled}
  *   files_fill {profile, windowId}  ->  {ok, attached, found, names?}
+ *   form_run   {profile, tabId, what: fill|files, generate?}  (bridge command, from the command line)
  *
  * form_fill scans the active tab's form fields (form_page.js), asks the bridge
  * which of them the profile's Info page and documents can answer (`form.fill`),
@@ -32,6 +33,8 @@
   let running = false;
 
   async function activeTab(msg) {
+    // The command line names its tab (`browser fill`); the side panel never does.
+    if (Number.isInteger(msg.tabId)) return (await chrome.tabs.get(msg.tabId).catch(() => null)) || null;
     const query = Number.isInteger(msg.windowId) ? { active: true, windowId: msg.windowId } : { active: true, lastFocusedWindow: true };
     const [tab] = await chrome.tabs.query(query);
     return tab || null;
@@ -98,6 +101,7 @@
         return { ok: true, filled: 0, found: 0, none: true };
       }
       const params = { profile, url: scan.url, fields: asked.map(({ filled, ...rest }) => rest) };
+      if (msg.generate === true) params.generate = true;
       let ai = {};
       try {
         ai = (await root.MonoSummaryAI.sticky(chrome.storage.local)) || {};
@@ -118,7 +122,8 @@
       const sources = [...new Set(values.map((v) => v.source).filter(Boolean))];
       const filled = (done && done.filled) || 0;
       await askToSubmit(tab.id, filled);
-      return { ok: true, filled, found: asked.length, sources };
+      const generated = values.filter((v) => v.generated).length;
+      return { ok: true, filled, found: asked.length, sources, generated };
     });
   }
 
@@ -163,6 +168,19 @@
 
   const handlers = { form_fill: fill, card_fill: card, files_fill: files };
 
+  /**
+   * The command line's way in (`monoagentcli browser fill`, bridge command
+   * form_run): the text fields or the photo and scan boxes of one tab. The
+   * card is never done from here, only by its own button. A failure throws,
+   * which the bridge reports as the command's error.
+   */
+  async function run(msg) {
+    if (!Number.isInteger(msg.tabId)) throw new Error("form_run needs a tab");
+    if (msg.what !== "fill" && msg.what !== "files") throw new Error("form_run: what is fill or files");
+    const out = await (msg.what === "files" ? files : fill)(msg);
+    return out;
+  }
+
   function install() {
     chrome.runtime.onMessage.addListener((msg, sender, respond) => {
       const handler = msg && handlers[msg.type];
@@ -174,5 +192,5 @@
     });
   }
 
-  root.MonoForm = { install, fill, card, files };
+  root.MonoForm = { install, fill, card, files, run };
 })(globalThis);

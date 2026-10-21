@@ -2707,6 +2707,43 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
   Then `monoagentcli --profile <id> browser submit --hil <hil_id>` sends
   exactly that submit, once, from the same tab, only while it still shows
   the same page and form contents.
+- **File uploads.** `browser upload <selector> <file>...` puts files into a
+  file input; `--chooser` takes the button or label that opens the file
+  chooser instead and fills the input behind it, so no native dialog shows
+  (a page that opens its chooser from a detached input or
+  `showOpenFilePicker()` is not reached: `set_files: clicking it did not
+  open a file chooser`). Files are read by the CLI (any path, `~` expanded,
+  at most 10 and 20 MB together). For an agent the gate is the one of form
+  submits: on an allowed page that is not local, at every level but
+  `full-no-approvals`, the upload becomes a Human-in-Loop item (`via`
+  `upload`, every file named with its size and digest) and the command exits
+  **3** with `awaiting_approval`; after the user's approval,
+  `browser upload --hil <hil_id>` uploads exactly those files, once, and
+  refuses (`submit_changed`) a file that changed or another page. An
+  upload item cannot be used as a form submit, nor the reverse.
+  `browser permissions set all <level>` sets every kind of agent at once
+  (the user's, like `set <kind>`).
+- **Form fill.** `browser fill` runs the side panel's Fill form on a tab as
+  `--profile` (bridge command `form_run`): the profile's Info page and its
+  own documents answer the page's fields, passwords, card numbers and codes
+  are never filled, and nothing is submitted (the user is asked to press
+  Submit). `--generate` also lets the model write an answer to an open
+  question in a `textarea` from the facts alone (never a name, number, date or
+  address); those values come back `generated` and are counted in
+  `generated`. `--files` attaches the profile's stored photos and scans on
+  secure pages. It is gated like an upload: an agent's fill on an allowed
+  page that is not local waits for approval (`via` `fill`, bound to the
+  profile, the page and the flags), then `browser fill --hil <hil_id>`. A
+  held item is used only by its own command (`submit`, `upload`, `fill`).
+  An image for a file box can be made with a `gemini.generate_image` node,
+  then `browser upload` puts it in.
+- **browser.jev files and profile_info.** `files` (paths) answers the file
+  chooser an Upload click opens: the page's input is kept instead of the
+  native dialog and given the next file (all left, for a multiple input). An
+  AI-started run does it only on local pages or at full-no-approvals, else it
+  ends `blocked` and `browser upload` (which asks) is the way. `profile_info:
+  true` adds the profile's Info page to `values` by key (ID and bank numbers
+  as secrets; never photos or the card).
 - **browser.jev** arms the same guard (again whenever the page moves to
   another origin, before acting there) when an AI caller started its run: an
   agent's shell, a chat tool call (`run_workflow` starts `workflow run` with
