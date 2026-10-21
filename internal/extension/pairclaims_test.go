@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -434,4 +435,67 @@ func readPendingForTest(t *testing.T) ([]PendingClaim, error) {
 	}
 	defer unlock()
 	return readPendingLocked()
+}
+
+// Decided tombstones wait for their browser to collect the outcome; they must
+// not eat the slots a legitimate claim needs (a forger would keep the queue
+// full otherwise, even after the owner ran `deny --all`).
+func TestDecidedTombstonesDoNotConsumeQueueSlots(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	for i := 0; i < maxPendingClaims; i++ {
+		newClaimT(t, "forged"+strconv.Itoa(i))
+	}
+	if _, _, err := CreatePendingClaim(PendingClaim{Label: "x", Instance: "late"}); !errors.Is(err, ErrClaimsFull) {
+		t.Fatalf("full queue: err = %v", err)
+	}
+	if got, err := DenyAllPendingClaims(); err != nil || len(got) != maxPendingClaims {
+		t.Fatalf("deny all = %d, %v", len(got), err)
+	}
+	for round := 0; round < 3; round++ {
+		if _, _, err := CreatePendingClaim(PendingClaim{Label: "legit", Instance: "legit-" + strconv.Itoa(round)}); err != nil {
+			t.Fatalf("round %d: legitimate claim after deny --all: %v", round, err)
+		}
+		if _, err := DenyAllPendingClaims(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	list, _ := readPendingForTest(t)
+	if len(list) > 3*maxPendingClaims {
+		t.Fatalf("file holds %d records, cap is %d", len(list), 3*maxPendingClaims)
+	}
+}
+
+// Five wrong confirmation codes destroy the claim: the code cannot be guessed
+// against a claim that stays open.
+func TestWrongCodesDestroyTheClaim(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	c, code := newClaimT(t, "guess")
+	for i := 0; i < 5; i++ {
+		if _, err := DecidePendingClaim(c.ID, true, "ZZZ-ZZ"+strconv.Itoa(2+i)); !errors.Is(err, ErrBadCode) {
+			t.Fatalf("attempt %d: err = %v", i, err)
+		}
+	}
+	if _, err := DecidePendingClaim(c.ID, true, code); err == nil {
+		t.Fatal("the right code approved a claim after 5 wrong ones")
+	}
+	if left, _ := ListPendingClaims(); len(left) != 0 {
+		t.Fatalf("destroyed claim still waiting: %+v", left)
+	}
+}
+
+// Expired claims are pruned by every read-modify-write, not only by create.
+func TestDecisionPrunesExpiredClaims(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	old, _ := newClaimT(t, "old")
+	live, _ := newClaimT(t, "live")
+	expireClaimNow(t, old.ID)
+	if _, err := DecidePendingClaim(live.ID, false, ""); err != nil {
+		t.Fatal(err)
+	}
+	list, _ := readPendingForTest(t)
+	for _, c := range list {
+		if c.ID == old.ID {
+			t.Fatal("expired claim survived a decision")
+		}
+	}
 }

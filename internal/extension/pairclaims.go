@@ -49,6 +49,11 @@ const (
 	// is one waiting claim per instance id, and `extension deny --all` clears
 	// the queue.)
 	maxPendingClaims = 5
+	// maxClaimRecords bounds the file: decided tombstones do not count toward
+	// maxPendingClaims, but the oldest are dropped past this many records.
+	maxClaimRecords = 3 * maxPendingClaims
+	// maxCodeStrikes wrong confirmation codes destroy a pending claim.
+	maxCodeStrikes = 5
 	// PairCardKind marks a HIL item that is a pairing claim.
 	PairCardKind = "extension.pair"
 	// PairClaimWording is what the card tells the owner they are granting.
@@ -76,6 +81,9 @@ type PendingClaim struct {
 	// PairCode); the owner types the code they SEE in their browser to approve.
 	CodeHash string `json:"codeHash,omitempty"`
 	Status   string `json:"status"`
+	// Strikes counts wrong confirmation codes; at maxCodeStrikes the claim is
+	// destroyed (denied).
+	Strikes int `json:"strikes,omitempty"`
 	// DecidedAt is the tombstone: a claim the owner decided stays in the file,
 	// decided, until its browser collects the outcome or it expires, and a
 	// decided claim is never decided again or turned back to pending.
@@ -218,8 +226,28 @@ func createPendingClaim(c PendingClaim) (_ PendingClaim, secret string, replaced
 		}
 		list = kept
 	}
-	if len(list) >= maxPendingClaims {
+	pending := 0
+	for _, e := range list {
+		if e.Status == ClaimPending {
+			pending++
+		}
+	}
+	if pending >= maxPendingClaims {
 		return PendingClaim{}, "", nil, ErrClaimsFull
+	}
+	// Keep the file bounded: drop the oldest decided tombstones first.
+	for len(list) >= maxClaimRecords {
+		drop := -1
+		for i, e := range list {
+			if e.Status != ClaimPending {
+				drop = i
+				break
+			}
+		}
+		if drop == -1 {
+			break
+		}
+		list = append(list[:drop:drop], list[drop+1:]...)
 	}
 	if err := writePendingLocked(append(list, c)); err != nil {
 		return PendingClaim{}, "", nil, err
@@ -327,11 +355,20 @@ func DecidePendingClaim(idOrPrefix string, approve bool, code string) (PendingCl
 		return PendingClaim{}, err
 	}
 	now := time.Now()
+	list, _ = liveOnly(list, now)
 	hit, err := pickPending(list, idOrPrefix, now)
 	if err != nil {
 		return PendingClaim{}, err
 	}
 	if approve && subtle.ConstantTimeCompare([]byte(list[hit].CodeHash), []byte(codeDigest(list[hit].ID, code))) != 1 {
+		list[hit].Strikes++
+		if list[hit].Strikes >= maxCodeStrikes {
+			at := now.UTC()
+			list[hit].Status, list[hit].DecidedAt = ClaimDenied, &at
+		}
+		if err := writePendingLocked(list); err != nil {
+			return PendingClaim{}, err
+		}
 		return list[hit], ErrBadCode
 	}
 	list[hit].Status = ClaimDenied
@@ -360,6 +397,7 @@ func DenyAllPendingClaims() ([]PendingClaim, error) {
 	}
 	now := time.Now()
 	at := now.UTC()
+	list, _ = liveOnly(list, now)
 	var denied []PendingClaim
 	for i := range list {
 		if list[i].Status == ClaimPending && !now.After(list[i].ExpiresAt) {
