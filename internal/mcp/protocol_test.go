@@ -193,7 +193,7 @@ func TestWaitWithProgressStopsWithTheContext(t *testing.T) {
 	sent := 0
 	notify := notifyFunc(func(string, interface{}) { sent++ })
 	p := progressFrom(withProgress(withNotifier(ctx, notify), json.RawMessage(`{"progressToken":"w"}`)))
-	if exec := waitWithProgress(ctx, rt, "no-such", "no-such-wf", time.Minute, p); exec.Status != "UNKNOWN" {
+	if exec := waitWithProgress(ctx, rt, "no-such", "no-such-wf", time.Minute, false, p); exec.Status != "UNKNOWN" {
 		t.Fatalf("exec = %+v", exec)
 	}
 	if sent == 0 {

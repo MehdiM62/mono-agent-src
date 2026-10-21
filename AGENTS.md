@@ -733,7 +733,12 @@ unconditionally before this flag existed — add `--allow-mutations` to an
 existing MCP client config that relies on them.
 
 - `workflow_run`, `workflow_create`, `workflow_delete`,
-  `workflow_set_active`, `workflow_node_add`
+  `workflow_set_active`, `workflow_node_add`. `workflow_run` waits until the
+  run ends or pauses; any WAITING returns, a pause for the run's own
+  sub-workflows (`core.execute_workflow`) included. With
+  `wait_through_subworkflows: true` it waits through that pause, as the server
+  runs the children and resumes the run (`timed_out` if it is still paused
+  for them at the limit); a pause for a person still returns at once.
 - authoring, each the same steps as its command: `workflow_connect` /
   `workflow_disconnect` (`workflow connect|disconnect`), `workflow_node_update`
   (config replace, or `merge: true`) / `workflow_node_delete` (`workflow node
@@ -945,7 +950,9 @@ that profile's secrets vault (`--profile <p> secret list`, name
 `httpapi-token`). A token authorizes only the profile in the request path:
 another profile's token, an unknown profile and a missing token all get the
 same 401, so a caller cannot learn which profiles exist (`/nodes*` takes any
-profile's token). Output items go
+profile's token). `POST .../run` waits as MCP `workflow_run` does; add
+`?wait_through_subworkflows=true` to wait through a pause for the run's own
+sub-workflows. Output items go
 through the same redaction as `workflow run --json` — pass
 `X-Full-Outputs: 1` to opt out per request, mirroring
 `workflow run --full-outputs` (the CLI flag is the operator's only; the

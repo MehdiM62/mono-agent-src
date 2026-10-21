@@ -189,6 +189,18 @@ func (s *Server) handleWorkflowRun(w http.ResponseWriter, r *http.Request) {
 	if s.loadWorkflow(w, r) == nil {
 		return
 	}
+	// ?wait_through_subworkflows=true keeps waiting while the run is paused
+	// only for its own sub-workflows (the engine runs them and resumes it); by
+	// default any WAITING ends the wait.
+	var throughSubs bool
+	if v := r.URL.Query().Get("wait_through_subworkflows"); v != "" {
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "wait_through_subworkflows must be true or false")
+			return
+		}
+		throughSubs = b
+	}
 
 	var body struct {
 		Input          map[string]interface{} `json:"input"`
@@ -220,7 +232,7 @@ func (s *Server) handleWorkflowRun(w http.ResponseWriter, r *http.Request) {
 	}
 
 	timeout := clampTimeoutSeconds(body.TimeoutSeconds)
-	exec := waitForExecution(ctx, s.rt, execID, timeout)
+	exec := waitForExecution(ctx, s.rt, execID, timeout, throughSubs)
 	// A key holder can be an agent, as over MCP: reply tokens in the run's
 	// data are hidden (workflow.ReplyRedactor), X-Full-Outputs or not.
 	workflow.NewReplyRedactor(ctx, s.rt.db.DB, exec.ID).Execution(exec)
@@ -257,16 +269,23 @@ func (s *Server) handleWorkflowRun(w http.ResponseWriter, r *http.Request) {
 	if exec.ErrorMessage != "" {
 		result["error"] = exec.ErrorMessage
 	}
-	if exec.Status == "RUNNING" || exec.Status == "QUEUED" {
+	timedOut := exec.Status == "RUNNING" || exec.Status == "QUEUED"
+	if throughSubs {
+		// Still paused for its sub-workflows when the wait ran out: not
+		// finished either.
+		timedOut, _ = workflow.RecordInFlight(ctx, s.rt.store, exec)
+	}
+	if timedOut {
 		result["timed_out"] = true
 	}
 	writeJSON(w, http.StatusOK, result)
 }
 
 // waitForExecution polls the execution's status until it reaches a
-// terminal or paused status, the timeout elapses, or ctx is cancelled.
+// terminal or paused status, the timeout elapses, or ctx is cancelled; with
+// throughSubs a pause only for its own sub-workflows is waited through.
 // Mirrors internal/mcp/tools.go's waitForExecution.
-func waitForExecution(ctx context.Context, rt *runtime, executionID string, timeout time.Duration) *workflow.WorkflowExecution {
+func waitForExecution(ctx context.Context, rt *runtime, executionID string, timeout time.Duration, throughSubs bool) *workflow.WorkflowExecution {
 	deadline := time.Now().Add(timeout)
 	ticker := time.NewTicker(250 * time.Millisecond)
 	defer ticker.Stop()
@@ -280,22 +299,28 @@ func waitForExecution(ctx context.Context, rt *runtime, executionID string, time
 	for {
 		select {
 		case <-ticker.C:
-			status, err := rt.store.GetExecutionStatus(ctx, executionID)
+			status, inFlight, err := runInFlight(ctx, rt, executionID, throughSubs)
 			if err != nil || status == "" {
 				continue
 			}
-			switch status {
-			case "QUEUED", "RUNNING":
-				if time.Now().After(deadline) {
-					return load()
-				}
-			default: // SUCCESS, FAILED, CANCELLED, WAITING (HIL pause)
-				return load()
+			if !inFlight || time.Now().After(deadline) {
+				return load() // final, or paused (WAITING)
 			}
 		case <-ctx.Done():
 			return load()
 		}
 	}
+}
+
+// runInFlight is whether a run's wait goes on: it is QUEUED or RUNNING, or,
+// with throughSubs, WAITING only for its own sub-workflows, which the engine
+// runs and then resumes it (workflow.ExecutionInFlight).
+func runInFlight(ctx context.Context, rt *runtime, executionID string, throughSubs bool) (string, bool, error) {
+	if throughSubs {
+		return workflow.ExecutionInFlight(ctx, rt.store, executionID)
+	}
+	status, err := rt.store.GetExecutionStatus(ctx, executionID)
+	return status, status == "QUEUED" || status == "RUNNING", err
 }
 
 // clampTimeoutSeconds maps the run timeout_seconds body field to a
