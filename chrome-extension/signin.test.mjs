@@ -31,9 +31,18 @@ test("a bridge nobody is signed in to: sign in, and the window updates by itself
 
 test("a request waiting for the owner says where to approve it, and offers no token box", () => {
   const v = S.view({ status: "unpaired", reason: "pair_waiting" });
-  assert.match(v.state, /Waiting for approval in the MonoAgent app \(or run monoagentcli extension approve --latest\)/);
+  assert.match(v.state, /Waiting for approval in the MonoAgent app \(or run monoagentcli extension approve <id> --code <code>\)/);
   assert.equal(v.unpaired, false);
   assert.equal(v.pair, "");
+  assert.equal(v.code, "", "no code from the bridge, none shown");
+});
+
+test("a waiting request shows its confirmation code, and only while it waits", () => {
+  const v = S.view({ status: "unpaired", reason: "pair_waiting", code: "K7M-2QX" });
+  assert.match(v.code, /Code: K7M-2QX/);
+  assert.match(v.code, /approve only the request that shows this code/);
+  assert.equal(S.view({ status: "unpaired", reason: "pair_denied", code: "K7M-2QX" }).code, "");
+  assert.equal(S.view({ status: "connected", code: "K7M-2QX" }).code, "");
 });
 
 test("denied and expired requests say so and offer asking again or the manual path", () => {

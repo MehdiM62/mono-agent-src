@@ -28,7 +28,7 @@ func TestExtensionPairsItselfInARealBrowser(t *testing.T) {
 	}
 	script, _ := filepath.Abs("../../chrome-extension/autopair_e2e.mjs")
 
-	drive := func(t *testing.T, r *rig, mode string, onSignedOut, onWaiting func()) string {
+	drive := func(t *testing.T, r *rig, mode string, onSignedOut func(), onWaiting func(code string)) string {
 		t.Helper()
 		ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
 		defer cancel()
@@ -53,8 +53,8 @@ func TestExtensionPairsItselfInARealBrowser(t *testing.T) {
 				onSignedOut()
 				_, _ = io.WriteString(stdin, "go\n")
 			}
-			if line == "WAITING_OK" && onWaiting != nil {
-				onWaiting()
+			if strings.HasPrefix(line, "WAITING_OK ") && onWaiting != nil {
+				onWaiting(strings.TrimPrefix(line, "WAITING_OK "))
 				_, _ = io.WriteString(stdin, "go\n")
 			}
 		}
@@ -106,23 +106,34 @@ func TestExtensionPairsItselfInARealBrowser(t *testing.T) {
 		}
 	})
 
-	// approveLatest is what the owner does: the card is in the HIL queue with
-	// the wording, and `extension approve --latest` (the real CLI) lets it in.
-	approveLatest := func(t *testing.T, r *rig, wantCard bool) func() {
-		return func() {
+	// approveWithCode is what the owner does: the card is in the HIL queue with
+	// the wording (and without the code), and `extension approve --code` (the
+	// real CLI) with the code their browser's panel shows lets it in. A wrong
+	// code lets nothing in.
+	approveWithCode := func(t *testing.T, r *rig, wantCard bool) func(string) {
+		return func(code string) {
 			if got := paired(t, r); len(got) != 0 {
 				t.Errorf("a browser paired before the owner approved: %v", got)
 			}
 			if wantCard {
 				hil := r.run("hil", "list", "--json")
 				mustExit(t, hil, 0)
-				for _, want := range []string{"extension.pair", "claims access to your documents, vault, tasks and page control", "chrome-extension://"} {
+				for _, want := range []string{"extension.pair", "claims access to your documents, vault, tasks and page control", "chrome-extension://", "Compare the code shown in the browser panel"} {
 					if !strings.Contains(hil.stdout, want) {
 						t.Errorf("the HIL card lacks %q: %s", want, hil.stdout)
 					}
 				}
+				if strings.Contains(hil.stdout, code) {
+					t.Errorf("the HIL card shows the confirmation code: %s", hil.stdout)
+				}
 			}
-			res := r.run("extension", "approve", "--latest")
+			if wrong := r.run("extension", "approve", "--code", "AAA-AAA"); wrong.code == 0 {
+				t.Errorf("a wrong code approved the request: %s", wrong.stdout)
+			}
+			if got := paired(t, r); len(got) != 0 {
+				t.Errorf("a browser paired after a wrong code: %v", got)
+			}
+			res := r.run("extension", "approve", "--code", code)
 			mustExit(t, res, 0)
 		}
 	}
@@ -134,7 +145,7 @@ func TestExtensionPairsItselfInARealBrowser(t *testing.T) {
 		mustExit(t, r.run("hil", "list"), 0)
 		r.start("extension", "serve")
 		r.waitFor("the bridge", 60*time.Second, func() bool { return bridgeUp(r) })
-		drive(t, r, "ask", nil, approveLatest(t, r, true))
+		drive(t, r, "ask", nil, approveWithCode(t, r, true))
 		if got := paired(t, r); len(got) != 1 {
 			t.Fatalf("paired browsers after approval = %v, want 1", got)
 		}
@@ -152,7 +163,7 @@ func TestExtensionPairsItselfInARealBrowser(t *testing.T) {
 				}
 			}
 			r.signIn()
-		}, approveLatest(t, r, false))
+		}, approveWithCode(t, r, false))
 		if got := paired(t, r); len(got) != 1 {
 			t.Fatalf("paired browsers after signing in and approving = %v, want 1", got)
 		}

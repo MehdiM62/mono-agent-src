@@ -46,25 +46,34 @@ func newExtensionBrowsersListCmd(cfg *Deps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return printPaired(cmd.OutOrStdout(), cfg.JSONOutput(), pairedRows(list))
+			// Only how many wait, never who: a request's details are for the
+			// approve/deny commands and the card, not for a listing.
+			waiting, _ := extension.ListPendingClaims()
+			return printPaired(cmd.OutOrStdout(), cfg.JSONOutput(), pairedRows(list), len(waiting))
 		},
 	}
 }
 
-func printPaired(out io.Writer, asJSON bool, rows []pairedRow) error {
+func printPaired(out io.Writer, asJSON bool, rows []pairedRow, waiting int) error {
 	if asJSON {
-		return json.NewEncoder(out).Encode(map[string]any{"paired": rows})
+		return json.NewEncoder(out).Encode(map[string]any{"paired": rows, "pending": waiting})
 	}
 	if len(rows) == 0 {
 		fmt.Fprintln(out, "No browser has paired itself automatically.")
-		return nil
+	} else {
+		tw := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
+		fmt.Fprintln(tw, "ID\tLABEL\tBROWSER\tPAIRED")
+		for _, r := range rows {
+			fmt.Fprintf(tw, "%s\t%q\t%q\t%s\n", r.ID, r.Label, r.Agent, r.PairedAt)
+		}
+		if err := tw.Flush(); err != nil {
+			return err
+		}
 	}
-	tw := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(tw, "ID\tLABEL\tBROWSER\tPAIRED")
-	for _, r := range rows {
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", r.ID, r.Label, r.Agent, r.PairedAt)
+	if waiting > 0 {
+		fmt.Fprintf(out, "%d pairing request(s) waiting for approval: `monoagentcli extension approve` lists them; `extension deny --all` clears them.\n", waiting)
 	}
-	return tw.Flush()
+	return nil
 }
 
 func newExtensionBrowsersRevokeCmd(cfg *Deps) *cobra.Command {
@@ -90,7 +99,7 @@ func newExtensionBrowsersRevokeCmd(cfg *Deps) *cobra.Command {
 			if cfg.JSONOutput() {
 				return json.NewEncoder(cmd.OutOrStdout()).Encode(map[string]any{"revoked": pairedRows([]extension.PairedBrowser{gone})[0]})
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Revoked %s (%s). It is disconnected within about half a minute; to turn automatic pairing off for good: monoagentcli extension autopair off\n", gone.ID, gone.Label)
+			fmt.Fprintf(cmd.OutOrStdout(), "Revoked %s (%q). It is disconnected within about half a minute; to turn automatic pairing off for good: monoagentcli extension autopair off\n", gone.ID, gone.Label)
 			return nil
 		},
 	}

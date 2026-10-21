@@ -703,6 +703,11 @@ against an agent running as you:
 - The `pair --open` gate is cosmetic against an agent with a shell, which
   can start a bridge of its own and open the pairing page itself.
 - An agent with a shell can also edit the files these commands manage.
+- "Operator-only" is a courtesy layer against a same-user agent: it can edit
+  `~/.monoagent/extension.pending.json` (which holds only hashes, but also the
+  claim states) or read `~/.monoagent/extension.token`, and it can read the
+  confirmation code off a screenshot. The people it really protects are other
+  OS users and other local software without your user's file access.
 
 So it is not a sandbox: it stops mistakes and planted instructions that
 go through the CLI.
@@ -712,9 +717,13 @@ A freshly installed extension has no token. While this machine is signed in
 to monoes.me it asks `GET /monoagent/status` and then
 `POST /monoagent/pair/claim` on the bridge. What that yields depends on
 `extension autopair ask|auto|off` (setting `extension.autoPair`, read by the
-bridge on every request; `MONOAGENT_EXTENSION_AUTOPAIR=0|ask|auto` in the
-bridge's environment overrides it). An agent's shell cannot change the mode,
-approve or deny (operator-only).
+bridge on every request). `MONOAGENT_EXTENSION_AUTOPAIR` in the bridge's
+environment can only make it STRICTER than the stored setting (off < ask <
+auto; an unset setting is ask), and a value it does not recognise means `off`:
+`auto` in the environment never loosens a stored `ask`. `extension autopair`
+prints the mode in force and where it comes from (default, settings or env).
+An agent's shell cannot change the mode, approve or deny (operator-only; see
+the limits below).
 
 **Why `ask` is the default.** The `Origin` header a claim relies on is a
 string the caller chooses, not a credential. Any local process
@@ -727,29 +736,49 @@ commands (page text, cookies, scripts). So an Origin check alone must not
 hand that out.
 
 - **ask (default).** The claim only records a pending request (an id, the
-  browser label, its origin; two minutes to live; at most five waiting and two
-  per origin, a full queue refuses new ones and drops none) and answers with
-  the id and a poll secret (32 random bytes; only its SHA-256 is stored,
-  compared in constant time). No token exists until you approve: on the card
-  in the app's Human in Loop queue ("claims access to your documents, vault,
-  tasks and page control") or with `monoagentcli extension approve
-  <id>|--latest` (`extension deny` refuses). The extension polls
-  `GET /monoagent/pair/claim/<id>` with the secret as a bearer; the poll that
-  sees the approval receives the token once and the record is destroyed. A
-  wrong id, a wrong secret and another origin's request all get the same 404.
-  The side panel says "Waiting for approval in the MonoAgent app (or run
-  monoagentcli extension approve --latest)". An approval made on the card's
-  row by any route other than `hil approve` or the app does not approve the
-  claim. Protects against: other OS users, other extensions, scripts and
-  anything else that can reach the loopback port but cannot also answer the
-  prompt. It does NOT protect against a user who approves a request they did
-  not start; the card names the browser and origin to make that decision
-  informed. A process that can drive your approvals (your own shell) already
-  holds your account's power.
+  browser label, its origin; two minutes to live; at most five waiting, and at
+  most one per instance id: a repeat from the same instance replaces its own
+  waiting request; a full queue refuses new ones and drops none) and answers
+  with the id, a poll secret (32 random bytes; only its SHA-256 is stored,
+  compared in constant time) and a short confirmation code (`ABC-123`, derived
+  from the id and the secret; only a hash is stored). The browser's sign-in
+  screen shows the code. No token exists until you approve with that code:
+  `monoagentcli extension approve <id> --code ABC-123` (asked for at a prompt
+  in a terminal), or on the card in the app's Human in Loop queue (type the
+  code in its code field). The CLI and the card name the request (id, browser,
+  origin, instance) but never show the code, so you approve the request THEIR
+  browser is displaying: a forged request, whose code only its sender sees,
+  cannot be approved by mistake. There is no "approve the newest": with no id,
+  `approve` and `deny` act only when exactly one request is waiting, and with
+  several they list them and refuse (the newest is the forger's to choose).
+  `extension deny --all` clears the queue; `extension browsers list` says how
+  many are waiting. Approving prints the instance id and warns when it would
+  replace the token of a browser that is already paired. `extension deny`
+  refuses. The extension polls `GET /monoagent/pair/claim/<id>` with the secret
+  as a bearer; the poll that sees the approval receives the token once and the
+  record is destroyed. A wrong id, a wrong secret and another origin's request
+  all get the same 404. An approval made on the card's row by any route other
+  than `hil approve` or the app does not approve the claim. Everything a
+  browser supplies (label, origin, agent) has control and format characters
+  (terminal escapes, bidi overrides U+202A-202E and U+2066-2069) stripped when
+  it is stored, and the CLI prints it quoted. The pending and browsers files
+  are changed under one cross-process lock (`extension.lock`, flock or
+  LockFileEx), so the bridge and the CLI cannot undo each other's write; a
+  decided claim stays in the file, decided, until its browser collects it.
+  Protects against: other OS users, other extensions, scripts and anything
+  else that can reach the loopback port but cannot also read your browser's
+  screen. It does NOT protect against a user who approves a request they did
+  not start and types a code they were given; and it does not stop a forger
+  from filling the five slots (a nuisance, cleared with `deny --all`). A
+  process that can drive your approvals (your own shell) already holds your
+  account's power.
 - **auto (opt-in; single-user machines only).** The claim returns a token at
-  once. Any extension, local process or other OS user on this machine that can
-  reach the bridge gets one while you are signed in. Use it only on a machine
-  only you use and whose browsers you control.
+  once, with no step and no check. Any extension, local process or other OS
+  user on this machine that can reach the bridge gets a token with full
+  powers while you are signed in, and 32 forged claims fill the paired-browser
+  table and permanently block legitimate pairing until you revoke them
+  (`extension browsers revoke`). Use it only on a machine only you use, only
+  while you are watching it, and switch back to `ask` afterwards.
 - **off.** No claims; every browser needs `extension pair`.
 
 In every mode, a claim or poll is refused (403, nothing recorded or handed

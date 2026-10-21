@@ -86,6 +86,24 @@ func (d Deps) decisionError(id string, err error) error {
 	return err
 }
 
+// pairCardCode is the confirmation code the owner typed for a pairing card:
+// in --data, or in the card's editable "code" field.
+func pairCardCode(cmd *cobra.Command, db *sql.DB, cardID string) string {
+	var doc struct {
+		Code string `json:"code"`
+	}
+	if f := cmd.Flags().Lookup("data"); f != nil {
+		_ = json.Unmarshal([]byte(f.Value.String()), &doc)
+	}
+	if doc.Code == "" {
+		var raw string
+		if db.QueryRowContext(cmd.Context(), `SELECT editable_data FROM hil_pending WHERE id = ?`, cardID).Scan(&raw) == nil {
+			_ = json.Unmarshal([]byte(raw), &doc)
+		}
+	}
+	return doc.Code
+}
+
 // decidePairCard decides a browser's request to pair (a card the bridge filed
 // for extension.autoPair=ask). It is the owner's: an agent is refused. Only
 // this path and `extension approve` ever approve a claim, so an approval made
@@ -95,10 +113,18 @@ func (d Deps) decidePairCard(cmd *cobra.Command, db *sql.DB, cardID, claim strin
 	if err := clicore.RequireOperator(d.RequireOperator, "approve or deny a browser's request to pair"); err != nil {
 		return true, err
 	}
-	c, err := extension.DecidePendingClaim(claim, approve)
+	code := ""
+	if approve {
+		code = pairCardCode(cmd, db, cardID)
+	}
+	c, err := extension.DecidePendingClaim(claim, approve, code)
 	status := "rejected"
 	if approve {
 		status = "approved"
+	}
+	if errors.Is(err, extension.ErrBadCode) {
+		// Not decided: the card stays for the owner to try again with the code their browser shows.
+		return true, d.InvalidInput("%v (type the code in the card's code field, or pass --data '{\"code\":\"ABC-123\"}')", err)
 	}
 	if err != nil {
 		// Gone, expired or already decided: the card has nothing left to decide.

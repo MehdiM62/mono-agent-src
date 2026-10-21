@@ -24,7 +24,7 @@
    */
   function view(status) {
     const s = status || {};
-    const out = { signedIn: s.signedIn === true, unpaired: false, pair: "", queued: "", state: "" };
+    const out = { signedIn: s.signedIn === true, unpaired: false, pair: "", queued: "", state: "", code: "" };
     const unpaired = s.status === "unpaired";
     if (unpaired && s.reason === "bridge_signed_out") {
       // The bridge is up, so signing in is all it takes: this browser pairs
@@ -32,7 +32,9 @@
       out.state = "Sign in in the MonoAgent app or run monoagentcli account login. This window updates automatically.";
     } else if (unpaired && s.reason === "pair_waiting") {
       // The bridge holds this browser's request until the owner decides.
-      out.state = "Waiting for approval in the MonoAgent app (or run monoagentcli extension approve --latest). This window updates automatically.";
+      out.state = "Waiting for approval in the MonoAgent app (or run monoagentcli extension approve <id> --code <code>). This window updates automatically.";
+      // The owner types this code to approve; a request they did not start shows it to nobody they can ask.
+      if (s.code) out.code = `Code: ${s.code} \u2014 approve only the request that shows this code.`;
     } else if (unpaired && (s.reason === "pair_denied" || s.reason === "pair_expired")) {
       out.unpaired = true;
       out.state = s.reason === "pair_denied" ? "The request to pair this browser was denied." : "The request to pair this browser expired before it was approved.";
@@ -75,7 +77,7 @@
       return;
     }
     $("signin-pairing").hidden = !v.unpaired;
-    for (const [id, text] of [["signin-pair", v.pair], ["signin-queued", v.queued], ["signin-state", v.state]]) {
+    for (const [id, text] of [["signin-pair", v.pair], ["signin-queued", v.queued], ["signin-code", v.code], ["signin-state", v.state]]) {
       $(id).textContent = text;
       $(id).hidden = !text;
     }

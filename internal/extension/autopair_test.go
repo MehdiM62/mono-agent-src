@@ -126,8 +126,8 @@ func TestPairClaimModes(t *testing.T) {
 		t.Fatalf("claim with %s=0 = %d", AutoPairEnv, w.Code)
 	}
 	t.Setenv(AutoPairEnv, "auto")
-	if srv.PairMode() != PairModeAuto {
-		t.Fatalf("env auto = %q", srv.PairMode())
+	if srv.PairMode() != PairModeAsk {
+		t.Fatalf("env auto over an unset setting = %q, want ask: the env may not loosen", srv.PairMode())
 	}
 }
 

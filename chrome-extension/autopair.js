@@ -8,13 +8,15 @@
  *   GET  /monoagent/status             {service, signedIn, paired, pairMode}
  *   POST /monoagent/pair/claim         {instance, label, token?}
  *        -> {token, id}                                  (pairMode auto)
- *        -> 202 {pending, claimId, pollSecret, expiresAt} (pairMode ask)
+ *        -> 202 {pending, claimId, pollSecret, code, expiresAt} (pairMode ask)
  *   GET  /monoagent/pair/claim/<id>    Authorization: Bearer <pollSecret>
  *        -> {status: pending|approved|denied|expired, token?, id?}
  *
  * In ask mode (the default) the bridge hands out nothing until the OWNER
  * approves the request in the MonoAgent app or with `monoagentcli extension
  * approve`: the Origin header this request carries is not proof of anything.
+ * The reply's `code` (ABC-123) is what the panel shows while waiting; the owner
+ * types it to approve, so only the request THEIR browser shows can be approved.
  * `step` decides what to do from what the bridge says; the worker acts on the
  * answer:
  *
@@ -116,7 +118,7 @@
         ms
       );
       // No answer: the bridge is busy, the request still stands.
-      if (!r) return { kind: "pending", claimId: pending.claimId, pollSecret: pending.pollSecret, expiresAt: pending.expiresAt, wsUrl };
+      if (!r) return { kind: "pending", claimId: pending.claimId, pollSecret: pending.pollSecret, code: pending.code || "", expiresAt: pending.expiresAt, wsUrl };
       let doc = null;
       try {
         doc = await r.json();
@@ -127,7 +129,7 @@
         return { kind: "claimed", token: doc.token, id: String(doc.id || ""), wsUrl };
       }
       if (r.ok && doc && doc.status === "pending") {
-        return { kind: "pending", claimId: pending.claimId, pollSecret: pending.pollSecret, expiresAt: pending.expiresAt, wsUrl };
+        return { kind: "pending", claimId: pending.claimId, pollSecret: pending.pollSecret, code: pending.code || "", expiresAt: pending.expiresAt, wsUrl };
       }
       if (r.ok && doc && doc.status === "denied") return { kind: "denied", wsUrl };
       if (r.status === 404 || r.status === 410) return { kind: "expired", wsUrl };
@@ -152,7 +154,7 @@
       // not JSON: handled below
     }
     if (body && body.pending === true && body.claimId && body.pollSecret) {
-      return { kind: "pending", claimId: String(body.claimId), pollSecret: String(body.pollSecret), expiresAt: String(body.expiresAt || ""), wsUrl };
+      return { kind: "pending", claimId: String(body.claimId), pollSecret: String(body.pollSecret), code: String(body.code || ""), expiresAt: String(body.expiresAt || ""), wsUrl };
     }
     if (res.ok && body && typeof body.token === "string" && body.token) {
       return { kind: "claimed", token: body.token, id: String(body.id || ""), wsUrl };

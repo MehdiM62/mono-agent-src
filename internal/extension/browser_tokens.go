@@ -12,8 +12,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"sync"
 	"time"
+	"unicode"
 )
 
 // Per-browser pairing tokens, minted by the zero-step claim flow
@@ -61,14 +61,32 @@ var (
 	ErrClaimConsumed = errors.New("this pairing claim was already used")
 )
 
+// SafeText removes what makes text unsafe to print: control characters (an
+// ESC sequence rewrites a terminal; tabs and newlines become a space) and
+// format characters (the bidi overrides U+202A-202E and U+2066-2069 reorder
+// what follows), plus the line and paragraph separators. A browser chooses its
+// label and its Origin header, so everything it supplied goes through here
+// before it is stored, logged or shown.
+func SafeText(s string) string {
+	return strings.Map(func(r rune) rune {
+		switch {
+		case r == '\t' || r == '\n' || r == '\r':
+			return ' '
+		case unicode.IsControl(r), unicode.Is(unicode.Cf, r), unicode.Is(unicode.Zl, r), unicode.Is(unicode.Zp, r):
+			return -1
+		}
+		return r
+	}, s)
+}
+
+// clip is SafeText bounded to maxFieldLen bytes.
 func clip(s string) string {
+	s = strings.ToValidUTF8(SafeText(s), "")
 	if len(s) > maxFieldLen {
 		return strings.ToValidUTF8(s[:maxFieldLen], "")
 	}
 	return s
 }
-
-var browsersMu sync.Mutex
 
 func browsersPath() (string, error) {
 	home, err := os.UserHomeDir()
@@ -123,8 +141,11 @@ func writeBrowsersLocked(list []PairedBrowser) error {
 
 // ListPairedBrowsers returns the browsers the claim flow has paired, oldest first.
 func ListPairedBrowsers() ([]PairedBrowser, error) {
-	browsersMu.Lock()
-	defer browsersMu.Unlock()
+	unlock, err := lockState()
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
 	list, err := readBrowsersLocked()
 	if err != nil {
 		return nil, err
@@ -141,8 +162,11 @@ func RevokePairedBrowser(idOrPrefix string) (PairedBrowser, error) {
 	if len(idOrPrefix) < 4 {
 		return PairedBrowser{}, fmt.Errorf("%w: give at least 4 characters of the id", ErrNoSuchBrowser)
 	}
-	browsersMu.Lock()
-	defer browsersMu.Unlock()
+	unlock, err := lockState()
+	if err != nil {
+		return PairedBrowser{}, err
+	}
+	defer unlock()
 	list, err := readBrowsersLocked()
 	if err != nil {
 		return PairedBrowser{}, err
@@ -187,6 +211,16 @@ type mintOpts struct {
 // with ErrBrowserLimit, and an entry sharing b.Instance is replaced only with
 // its own token (o.RotateToken) or the owner's approval (o.ReplaceInstance).
 func addPairedBrowser(b PairedBrowser, o mintOpts) (token string, _ PairedBrowser, _ error) {
+	unlock, err := lockState()
+	if err != nil {
+		return "", PairedBrowser{}, err
+	}
+	defer unlock()
+	return addPairedBrowserLocked(b, o)
+}
+
+// addPairedBrowserLocked is addPairedBrowser for a caller that holds the state lock.
+func addPairedBrowserLocked(b PairedBrowser, o mintOpts) (token string, _ PairedBrowser, _ error) {
 	buf := make([]byte, 32)
 	if _, err := rand.Read(buf); err != nil {
 		return "", PairedBrowser{}, fmt.Errorf("generate token: %w", err)
@@ -204,8 +238,6 @@ func addPairedBrowser(b PairedBrowser, o mintOpts) (token string, _ PairedBrowse
 	b.TokenHash = hashToken(token)
 	b.PairedAt = time.Now().UTC()
 
-	browsersMu.Lock()
-	defer browsersMu.Unlock()
 	list, err := readBrowsersLocked()
 	if err != nil {
 		return "", PairedBrowser{}, err
@@ -241,8 +273,11 @@ func addPairedBrowser(b PairedBrowser, o mintOpts) (token string, _ PairedBrowse
 
 // pairedBrowserCount is how many browsers are paired.
 func pairedBrowserCount() int {
-	browsersMu.Lock()
-	defer browsersMu.Unlock()
+	unlock, err := lockState()
+	if err != nil {
+		return 0
+	}
+	defer unlock()
 	list, _ := readBrowsersLocked()
 	return len(list)
 }
@@ -254,8 +289,11 @@ func pairedBrowserForToken(token string) (PairedBrowser, bool) {
 		return PairedBrowser{}, false
 	}
 	want := hashToken(token)
-	browsersMu.Lock()
-	defer browsersMu.Unlock()
+	unlock, err := lockState()
+	if err != nil {
+		return PairedBrowser{}, false
+	}
+	defer unlock()
 	list, err := readBrowsersLocked()
 	if err != nil {
 		return PairedBrowser{}, false
@@ -270,14 +308,37 @@ func pairedBrowserForToken(token string) (PairedBrowser, bool) {
 	return found, ok
 }
 
-// pairedBrowserIDs is the set of ids still paired.
+// pairedBrowserIDs is the set of ids still paired, or nil when the state
+// cannot be read (a caller must not treat that as "nobody is paired").
 func pairedBrowserIDs() map[string]bool {
-	browsersMu.Lock()
-	defer browsersMu.Unlock()
+	unlock, err := lockState()
+	if err != nil {
+		return nil
+	}
+	defer unlock()
 	list, _ := readBrowsersLocked()
 	out := make(map[string]bool, len(list))
 	for _, e := range list {
 		out[e.ID] = true
 	}
 	return out
+}
+
+// PairedBrowserForInstance is the paired browser that holds this instance id.
+func PairedBrowserForInstance(instance string) (PairedBrowser, bool) {
+	if instance == "" {
+		return PairedBrowser{}, false
+	}
+	unlock, err := lockState()
+	if err != nil {
+		return PairedBrowser{}, false
+	}
+	defer unlock()
+	list, _ := readBrowsersLocked()
+	for _, e := range list {
+		if e.Instance == instance {
+			return e, true
+		}
+	}
+	return PairedBrowser{}, false
 }

@@ -36,6 +36,9 @@ type Deps struct {
 	// runs is the user's: bind, unbind, reset, pair --open and install
 	// --zip. Nil refuses (clicore.OperatorRefusal).
 	Refusal func() string
+	// StdinIsTerminal says whether a person can type at the command (nil:
+	// clicore.StdinIsTerminal). `extension approve` asks for its code there.
+	StdinIsTerminal func() bool
 }
 
 // operatorOnly refuses what only the user does, naming what and why.

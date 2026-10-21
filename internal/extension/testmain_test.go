@@ -10,6 +10,9 @@ import (
 
 // Tests never touch the real ~/.monoagent or the OS keychain.
 func TestMain(m *testing.M) {
+	if runHelper() {
+		return
+	}
 	keyring.MockInit()
 	testhome.Main(m)
 }

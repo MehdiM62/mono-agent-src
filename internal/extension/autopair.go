@@ -46,13 +46,16 @@ import (
 //   - when MONOAGENT_EXTENSION_IDS lists extension ids, the Origin is one of them;
 //   - the monoes.me account is signed in;
 //   - the origin made fewer than claimsPerWindow claims in the last claimWindow
-//     (per origin, so forged claims do not starve the real extension's).
+//     (per origin; the origin is a header the caller chooses, so this only
+//     keeps one origin from hammering).
 //
 // Unpacked development builds have a path-derived id and need to be listed in
 // MONOAGENT_EXTENSION_IDS when that list is used.
 
 const (
-	// AutoPairEnv overrides the setting: 0/false/off/no turns claims off, ask or auto forces that mode.
+	// AutoPairEnv can only make pairing stricter than the owner's setting
+	// (off < ask < auto): 0/false/off/no or any value it does not recognise
+	// means off, ask caps auto at ask, and auto never loosens a stored ask.
 	AutoPairEnv = "MONOAGENT_EXTENSION_AUTOPAIR"
 	// ExtensionIDsEnv is a comma-separated list of extension ids allowed to claim.
 	ExtensionIDsEnv = "MONOAGENT_EXTENSION_IDS"
@@ -81,6 +84,45 @@ func ParsePairMode(v string) string {
 		return PairModeAuto
 	}
 	return PairModeAsk
+}
+
+func pairModeRank(mode string) int {
+	switch mode {
+	case PairModeOff:
+		return 0
+	case PairModeAuto:
+		return 2
+	}
+	return 1
+}
+
+// Where the effective pairing mode comes from.
+const (
+	PairSourceDefault  = "default"
+	PairSourceSettings = "settings"
+	PairSourceEnv      = "env"
+)
+
+// ResolvePairMode is the mode in force and where it comes from. The owner's
+// stored setting (ask when unset) is the base; MONOAGENT_EXTENSION_AUTOPAIR
+// can only tighten it, and a value it does not recognise means off.
+func ResolvePairMode(stored string, storedSet bool) (mode, source string) {
+	mode, source = PairModeAsk, PairSourceDefault
+	if storedSet {
+		mode, source = ParsePairMode(stored), PairSourceSettings
+	}
+	raw := strings.ToLower(strings.TrimSpace(os.Getenv(AutoPairEnv)))
+	if raw == "" {
+		return mode, source
+	}
+	env := PairModeOff
+	if raw == PairModeAsk || raw == PairModeAuto {
+		env = raw
+	}
+	if pairModeRank(env) < pairModeRank(mode) {
+		return env, PairSourceEnv
+	}
+	return mode, source
 }
 
 // SetPairMode installs the reader of the pairing mode setting. nil means ask.
@@ -132,18 +174,17 @@ func (s *Server) cardJob(fn func(PairCards)) {
 // flushCards waits for the queued card operations (tests).
 func (s *Server) flushCards() { s.cardWG.Wait() }
 
-// PairMode is the mode in force: the environment first, then the setting.
+// PairMode is the mode in force: the owner's setting, tightened by the environment.
 func (s *Server) PairMode() string {
-	if v := strings.ToLower(strings.TrimSpace(os.Getenv(AutoPairEnv))); v != "" {
-		return ParsePairMode(v)
-	}
 	s.claimMu.Lock()
 	fn := s.pairMode
 	s.claimMu.Unlock()
-	if fn == nil {
-		return PairModeAsk
+	stored := ""
+	if fn != nil {
+		stored = fn()
 	}
-	return ParsePairMode(fn())
+	mode, _ := ResolvePairMode(stored, fn != nil)
+	return mode
 }
 
 // claimOrigin returns the extension id of an Origin header, and whether it is
@@ -256,6 +297,9 @@ type claimRequest struct {
 type claimReply struct {
 	Token string `json:"token,omitempty"`
 	ID    string `json:"id,omitempty"`
+	// Code is the confirmation code to show while the request waits (see
+	// PairCode); the owner types it to approve.
+	Code string `json:"code,omitempty"`
 	// Pending replies (ask mode): the extension polls with ClaimID and PollSecret.
 	Pending    bool   `json:"pending,omitempty"`
 	ClaimID    string `json:"claimId,omitempty"`
@@ -369,7 +413,7 @@ func (s *Server) handlePairClaim(w http.ResponseWriter, r *http.Request) {
 	}
 	if s.PairMode() == PairModeAsk {
 		s.expireClaims()
-		c, secret, err := CreatePendingClaim(PendingClaim{Label: label, Origin: origin, Agent: agent, Instance: req.Instance})
+		c, secret, replaced, err := createPendingClaim(PendingClaim{Label: label, Origin: origin, Agent: agent, Instance: req.Instance})
 		switch {
 		case errors.Is(err, ErrClaimsFull):
 			w.Header().Set("Retry-After", "60")
@@ -380,10 +424,13 @@ func (s *Server) handlePairClaim(w http.ResponseWriter, r *http.Request) {
 			writeJSONStatus(w, http.StatusInternalServerError, map[string]string{"error": "could not record the pairing request"})
 			return
 		}
+		for _, id := range replaced {
+			s.cardJob(func(cards PairCards) { cards.Settle(s.ctx, id, "expired") })
+		}
 		s.cardJob(func(cards PairCards) { cards.Open(s.ctx, c) })
 		s.logger.Info().Str("claim", c.ID).Str("label", c.Label).Str("origin", c.Origin).
 			Msg("browser asks to pair; approve with: monoagentcli extension approve " + c.ID)
-		writeJSONStatus(w, http.StatusAccepted, claimReply{Pending: true, ClaimID: c.ID, PollSecret: secret, ExpiresAt: c.ExpiresAt.Format(time.RFC3339), Status: ClaimPending})
+		writeJSONStatus(w, http.StatusAccepted, claimReply{Pending: true, ClaimID: c.ID, PollSecret: secret, Code: PairCode(c.ID, secret), ExpiresAt: c.ExpiresAt.Format(time.RFC3339), Status: ClaimPending})
 		return
 	}
 	token, entry, err := addPairedBrowser(PairedBrowser{
@@ -460,6 +507,9 @@ func (s *Server) expireClaims() {
 // sweepRevoked closes the sockets whose per-browser token has been revoked.
 func (s *Server) sweepRevoked() {
 	live := pairedBrowserIDs()
+	if live == nil {
+		return // the state could not be read: close nothing
+	}
 	s.connMu.Lock()
 	var drop []*extConn
 	for _, c := range s.conns {

@@ -89,7 +89,7 @@ test("the configured address is asked first", () => {
   assert.deepEqual(A.bases({ wsUrl: "ws://127.0.0.1:9500/monoagent" }), ["http://127.0.0.1:9500", "http://127.0.0.1:9222", "http://127.0.0.1:9323"]);
 });
 
-const pendingReply = json({ pending: true, claimId: "c1c1c1c1c1c1c1c1", pollSecret: "s".repeat(64), expiresAt: "2099-01-01T00:00:00Z" }, 202);
+const pendingReply = json({ pending: true, claimId: "c1c1c1c1c1c1c1c1", pollSecret: "s".repeat(64), code: "K7M-2QX", expiresAt: "2099-01-01T00:00:00Z" }, 202);
 
 test("ask mode: the claim comes back pending, with what is needed to poll; no token is assumed", async () => {
   const b = fakeBridge({ doc: { signedIn: true, pairMode: "ask" }, claim: pendingReply });
@@ -97,7 +97,17 @@ test("ask mode: the claim comes back pending, with what is needed to poll; no to
   assert.equal(r.kind, "pending");
   assert.equal(r.claimId, "c1c1c1c1c1c1c1c1");
   assert.equal(r.pollSecret, "s".repeat(64));
+  assert.equal(r.code, "K7M-2QX", "the code the owner compares comes with the claim");
   assert.equal(r.token, undefined);
+});
+
+test("a poll keeps showing the code stored with the request", async () => {
+  const b = fakeBridge({ doc: { signedIn: true, pairMode: "ask" }, poll: json({ status: "pending" }) });
+  const r = await A.step({ fetch: b.impl, pending: { claimId: "c1c1c1c1c1c1c1c1", pollSecret: "sec", code: "K7M-2QX" } });
+  assert.equal(r.kind, "pending");
+  assert.equal(r.code, "K7M-2QX");
+  const quiet = await A.step({ fetch: async () => null, timeoutMs: 20, pending: { claimId: "c1", pollSecret: "sec", code: "K7M-2QX" }, known: {} });
+  assert.notEqual(quiet.kind, "claimed");
 });
 
 test("a 202 without the poll handles is refused, not read as paired", async () => {

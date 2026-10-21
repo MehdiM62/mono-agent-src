@@ -14,7 +14,8 @@
  * ask:        the default mode, signed in: the panel shows "Waiting for
  *             approval", the browser holds no token; after "WAITING_OK" is
  *             printed and the driver prints "go" on stdin (it ran `extension
- *             approve --latest`) the panel flips to the normal one.
+ *             approve --code <code>`, with the code printed after WAITING_OK)
+ *             the panel flips to the normal one.
  * signed-out: the side panel shows the sign-in screen and, after "SIGNED_OUT_OK"
  *             is printed and the driver prints "go" on stdin (it signs in), the
  *             browser asks to pair and waits for approval, as in ask.
@@ -94,14 +95,17 @@ try {
   // The request is with the owner: the panel says where to approve it, no
   // token is stored, then the driver approves and the panel flips by itself.
   const waitThenApprove = async () => {
-    await until(`/Waiting for approval in the MonoAgent app \\(or run monoagentcli extension approve --latest\\)/.test(document.getElementById("signin-state")?.textContent || "")`, "the waiting-for-approval line", 45000);
+    await until(`/Waiting for approval in the MonoAgent app \\(or run monoagentcli extension approve <id> --code <code>\\)/.test(document.getElementById("signin-state")?.textContent || "")`, "the waiting-for-approval line", 45000);
+    // The panel shows the confirmation code the owner types to approve.
+    const code = JSON.parse(await ev(`JSON.stringify((/Code: ([A-Z2-9]{3}-[A-Z2-9]{3})/.exec(document.getElementById("signin-code")?.textContent || "") || [])[1] || "")`));
+    if (!/^[A-Z2-9]{3}-[A-Z2-9]{3}$/.test(code)) fail(`the waiting panel shows no confirmation code: ${JSON.stringify(code)}`);
     const screen = JSON.parse(await ev(`JSON.stringify({ pathname: location.pathname, tokenFieldHidden: document.getElementById("signin-pairing").hidden })`));
     if (screen.pathname !== "/signin.html" || !screen.tokenFieldHidden) fail("waiting for approval must be the sign-in screen without a token box");
     // Several polls pass with nothing handed out.
     await sleep(7000);
     if ((await stored()).pairingToken) fail("a token was stored before the owner approved");
     await shot("autopair-waiting.png");
-    console.log("WAITING_OK");
+    console.log(`WAITING_OK ${code}`);
     await lineOnStdin();
     await until(`${normalPanel} && document.documentElement.style.visibility === ""`, "the panel to flip to the normal one after approval", 45000);
     await paired();

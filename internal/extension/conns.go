@@ -129,7 +129,7 @@ func (c *extConn) setBinding(profile, label string) {
 }
 
 func cleanLabel(s string) string {
-	s = strings.Join(strings.Fields(s), " ")
+	s = strings.Join(strings.Fields(SafeText(s)), " ")
 	if r := []rune(s); len(r) > maxLabelLen {
 		s = string(r[:maxLabelLen])
 	}
