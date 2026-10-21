@@ -44,3 +44,13 @@ test("the side panel loads the page-action kinds before the proposals", () => {
   const act = html.indexOf('<script src="chat_proposals_act.js">');
   assert.ok(act !== -1 && act < html.indexOf('<script src="chat_proposals.js">'));
 });
+
+test("the worker loads chat_look.js before installing it once; the panel loads it before the chat", () => {
+  assert.ok(background.indexOf('importScripts("chat_look.js")') > background.indexOf("private_net.js"), "chat_look.js asks private_net.js");
+  assert.equal(count("MonoChatLook.install("), 1);
+  assert.ok(background.indexOf("MonoChatLook.install(") > background.indexOf('importScripts("chat_look.js")'));
+  const html = readFileSync(join(HERE, "sidepanel.html"), "utf8");
+  const at = (name) => html.indexOf(`<script src="${name}">`);
+  assert.ok(at("chat_look.js") !== -1 && at("chat_look.js") < at("sidepanel_chat.js"));
+  assert.ok(at("agent_redact.js") !== -1 && at("agent_redact.js") < at("chat_proposals_act.js"), "the look card masks the address it shows");
+});

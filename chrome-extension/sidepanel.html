@@ -140,7 +140,10 @@
           <label for="chat-input" class="sr-only">Message</label>
           <textarea id="chat-input" rows="2" maxlength="20000" placeholder="Message MonoAgent. Enter sends, Shift+Enter adds a line."></textarea>
         </div>
+        <div id="chat-attached" class="chat-attached" hidden></div>
+        <input type="file" id="chat-attach-input" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden />
         <div class="row row-start">
+          <button type="button" id="chat-attach" class="btn-secondary" title="Attach pictures to your next message (up to 3). They are shrunk here and sent to the model with it.">Attach picture</button>
           <button type="button" id="chat-send" class="btn-secondary">Send</button>
           <button type="button" id="chat-stop" class="btn-secondary" hidden>Stop</button>
         </div>
@@ -549,6 +552,8 @@
   <!-- What the chat proposes (a task, a recording): cards only the person's
        click acts on, and what each click does. After sidepanel_record.js. -->
   <script src="private_net.js"></script>
+  <script src="agent_redact.js"></script>
+  <script src="chat_look.js"></script>
   <script src="chat_proposals_act.js"></script>
   <script src="chat_proposals.js"></script>
   <script src="sidepanel_chat_cards.js"></script>

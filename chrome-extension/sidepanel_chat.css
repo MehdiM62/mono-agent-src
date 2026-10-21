@@ -309,3 +309,35 @@
 .chat-proposal[data-state="refused"] .chat-proposal-status {
   color: var(--err);
 }
+
+/* Pictures: the thumbnail on a look card, and the ones attached to the next message. */
+.chat-proposal-thumb {
+  display: block;
+  max-width: 100%;
+  max-height: 180px;
+  margin: 6px 0;
+  border: 1px solid var(--border, #8884);
+  border-radius: 6px;
+}
+.chat-attached {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 4px 0;
+}
+.chat-attached-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border: 1px solid var(--border, #8884);
+  border-radius: 10px;
+  font-size: 12px;
+}
+.chat-attached-drop {
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 0 2px;
+}

@@ -29,7 +29,9 @@ var imageKinds = []struct {
 }{
 	{"image/png", ".png", func(b []byte) bool { return bytes.HasPrefix(b, []byte("\x89PNG\r\n\x1a\n")) }},
 	{"image/jpeg", ".jpg", func(b []byte) bool { return bytes.HasPrefix(b, []byte{0xff, 0xd8, 0xff}) }},
-	{"image/gif", ".gif", func(b []byte) bool { return bytes.HasPrefix(b, []byte("GIF87a")) || bytes.HasPrefix(b, []byte("GIF89a")) }},
+	{"image/gif", ".gif", func(b []byte) bool {
+		return bytes.HasPrefix(b, []byte("GIF87a")) || bytes.HasPrefix(b, []byte("GIF89a"))
+	}},
 	{"image/webp", ".webp", func(b []byte) bool { return len(b) >= 12 && string(b[:4]) == "RIFF" && string(b[8:12]) == "WEBP" }},
 }
 
