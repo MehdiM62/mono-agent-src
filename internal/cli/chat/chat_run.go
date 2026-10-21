@@ -49,6 +49,17 @@ func runChat(cfg *Deps, cmd *cobra.Command, args []string, f *chatFlags) (retErr
 	}
 	ctx := cmd.Context()
 
+	// A page-read turn's --attach files are images for the model, handed
+	// straight to the runner (chat_attach.go); every other turn's go on to
+	// the coder-only handling below.
+	var pageImages []string
+	if pageRead && len(attach) > 0 {
+		if pageImages, err = pageReadImages(cmd, attach); err != nil {
+			return err
+		}
+		attach = nil
+	}
+
 	// A journaled turn takes its runtime, model and session from
 	// the conversation, and writes the event journal instead of the
 	// legacy transcript.
@@ -259,6 +270,7 @@ func runChat(cfg *Deps, cmd *cobra.Command, args []string, f *chatFlags) (retErr
 		// guidance files, so none of the overhead described above).
 		Sandbox:          monomind.TurnSandboxMode,
 		WorkspacePurpose: monomind.WorkspaceChat,
+		Attach:           pageImages,
 	}
 	if effort != "" {
 		set, _ := capabilityProbe(cmd)
