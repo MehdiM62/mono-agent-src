@@ -754,6 +754,27 @@ click (its host is shown), and the task it proposes: read a card before you
 add it, as you read an Inbox task before approving it. The page text and the reply stay in the local
 conversation database like any chat.
 
+**Pictures in the chat (screenshots and attached images).** A screenshot of
+the tab, or pictures the person attaches, can go to the model, each only by
+the person's choice. A screenshot can show what the page text skips, so a
+look card shows it to the person first and waits for "Send to the model";
+that agreement is kept per site (origin) within one conversation, never for
+the conversation as a whole, so a page that earns one agreement cannot have a
+later card capture another site on a single Run. A capture is refused for a
+page that is not http(s), a literal private-network address, a tab that is
+not showing, and a tab whose id, full address, window or visibility changes
+between just before and just after the picture. The bridge and the CLI both
+re-check every image from its own bytes: PNG, JPEG, GIF or WebP only (not
+SVG), at most 3 of 2 MiB, at most 8192 pixels a side and 25 megapixels as the
+header claims (a few bytes can claim hundreds of megabytes), no animated GIF
+or WebP, and a header that cannot be read is refused; attached files over
+20 MiB are refused before the browser decodes them. The files are written
+0600 in a private folder for the one turn and removed after it; the bridge
+removes `monoagent-chat-images-*` folders of this user older than an hour at
+start, in case a crash or kill skipped that. Limit: the private-network check
+looks at the literal host only, so an internal hostname that resolves to a
+private address is not caught; the consent step is the control there.
+
 ### Saving to the vault from the extension (`vault.save`)
 
 The side panel's confirm card saves an image or document you clicked Save on

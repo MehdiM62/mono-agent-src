@@ -36,6 +36,8 @@
   const MAX_IMAGES = 3;
   const MAX_BYTES = 2 * 1024 * 1024;
   const MAX_EDGE = 1600;
+  // A file bigger than this is refused before the browser decodes it.
+  const MAX_FILE = 20 * 1024 * 1024;
   const MIN_EDGE = 320;
   const MIMES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
   const QUALITIES = [0.85, 0.7, 0.55, 0.4];
@@ -118,6 +120,7 @@
    * -> {mime, data, width, height, bytes}
    */
   async function shrink(blob, env) {
+    if (blob && blob.size > MAX_FILE) throw new Error(`that file is over ${MAX_FILE / 1024 / 1024} MB`);
     let bitmap;
     try {
       bitmap = await env.createImageBitmap(blob);
@@ -175,10 +178,12 @@
     if (!live.active) return answer("not_visible", "that tab is not the one showing: switch to it, then press the button again");
     let image;
     try {
+      // The tab, its address and its window, read again just before and just after the picture:
+      // what is on screen is that tab's page only if none of them moved in between.
+      const same = (t) => t && t.id === live.id && t.url === live.url && t.windowId === live.windowId && t.active === true;
+      if (!same(await c.tabs.get(tab.tabId))) return answer("page_changed", "the page changed just before the picture was taken");
       const dataUrl = await c.tabs.captureVisibleTab(live.windowId, { format: "jpeg", quality: 90 });
-      // Navigated while it was taken: it may show another site.
-      const after = await c.tabs.get(tab.tabId);
-      if (originOf(after && after.url) !== was || !after.active) return answer("page_changed", "the page changed while the picture was taken");
+      if (!same(await c.tabs.get(tab.tabId))) return answer("page_changed", "the page changed while the picture was taken");
       const blob = await (await ((deps && deps.fetch) || root.fetch)(dataUrl)).blob();
       image = await shrink(blob, (deps && deps.env) || realEnv());
     } catch (err) {
@@ -199,5 +204,5 @@
     });
   }
 
-  root.MonoChatLook = { MAX_IMAGES, MAX_BYTES, MAX_EDGE, MIMES, kindOf, checkImages, whyNot, shrink, capture, install, realEnv };
+  root.MonoChatLook = { MAX_IMAGES, MAX_BYTES, MAX_EDGE, MAX_FILE, MIMES, kindOf, checkImages, whyNot, shrink, capture, install, realEnv };
 })(globalThis);

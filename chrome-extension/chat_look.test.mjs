@@ -83,7 +83,7 @@ test("shrink lowers quality, then size, until it fits; a picture that never fits
   await assert.rejects(L.shrink({ broken: true }, fakeEnv().env), /not a picture/);
 });
 
-function chromeFor({ tab = { id: 5, windowId: 2, active: true, url: "https://app.example/dash?token=abc123" }, after, shot = "data:image/jpeg;base64,/9j/AAAA" } = {}) {
+function chromeFor({ afterFrom = 2, tab = { id: 5, windowId: 2, active: true, url: "https://app.example/dash?token=abc123" }, after, shot = "data:image/jpeg;base64,/9j/AAAA" } = {}) {
   const calls = [];
   let gets = 0;
   return {
@@ -93,7 +93,7 @@ function chromeFor({ tab = { id: 5, windowId: 2, active: true, url: "https://app
         get: async (id) => {
           calls.push(["get", id]);
           if (tab === null) throw new Error("No tab");
-          return ++gets > 1 && after ? { ...tab, ...after } : tab;
+          return ++gets >= afterFrom && after ? { ...tab, ...after } : tab;
         },
         captureVisibleTab: async (win, opts) => {
           calls.push(["capture", win, opts]);
@@ -140,6 +140,34 @@ test("a tab that moved to another site while the picture was taken is not handed
   const out = await L.capture(MSG, { chrome: c.chrome, fetch: c.fetch, env: fakeEnv().env });
   assert.deepEqual([out.ok, out.code], [false, "page_changed"]);
   assert.equal(out.image, undefined);
+});
+
+test("the tab, its full address and its window are checked before and after the picture", async () => {
+  const dep = (c) => ({ chrome: c.chrome, fetch: c.fetch, env: fakeEnv().env });
+  const cases = [
+    ["moved on the same site after", 3, { url: "https://app.example/account/secrets" }, true],
+    ["window changed after", 3, { windowId: 9 }, true],
+    ["tab id swapped after", 3, { id: 6 }, true],
+    ["went to the background after", 3, { active: false }, true],
+    ["moved on the same site before", 2, { url: "https://app.example/account/secrets" }, false],
+    ["window changed before", 2, { windowId: 9 }, false],
+  ];
+  for (const [name, afterFrom, after, shot] of cases) {
+    const c = chromeFor({ afterFrom, after });
+    const out = await L.capture(MSG, dep(c));
+    assert.deepEqual([out.ok, out.code, out.image], [false, "page_changed", undefined], name);
+    assert.equal(captured(c), shot, `${name}: picture taken only if the change came after`);
+  }
+  const still = chromeFor();
+  assert.equal((await L.capture(MSG, dep(still))).ok, true);
+  assert.equal(still.calls.filter(([k]) => k === "get").length, 3, "read before, just before, and after");
+});
+
+test("a file over the size cap is refused before it is decoded", async () => {
+  let decoded = false;
+  const env = { ...fakeEnv().env, createImageBitmap: async () => ((decoded = true), { width: 10, height: 10 }) };
+  await assert.rejects(L.shrink({ size: L.MAX_FILE + 1 }, env), /over 20 MB/);
+  assert.equal(decoded, false);
 });
 
 test("a browser failure is an answer, not a throw", async () => {

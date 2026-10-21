@@ -15,7 +15,7 @@ const IMAGE = { mime: "image/jpeg", data: "/9j/SECRETPIXELS", width: 1280, heigh
 
 function world({ capture, sendLook, consent = false, page = PAGE, cardPage = PAGE } = {}) {
   const chat = {
-    lookConsent: consent,
+    lookOrigins: consent ? [new URL(cardPage.url).origin] : [],
     messages: [{
       id: "m1", role: "assistant", text: "", tools: [],
       proposals: [
@@ -63,13 +63,30 @@ test("once the person has agreed in a chat, Run sends straight away; a new chat 
   const w = world();
   await w.cards.run(N("a"));
   await w.cards.send(N("a"));
-  assert.equal(w.chat.lookConsent, true);
+  assert.deepEqual(w.chat.lookOrigins, ["https://app.example"]);
   await w.cards.run(N("b"));
   assert.equal(w.card("l2").state, "done");
   assert.equal(w.sends.length, 2);
   const fresh = world();
   await fresh.cards.run(N("a"));
   assert.equal(fresh.card("l1").state, "preview", "consent belongs to the chat");
+});
+
+test("agreeing for one site does not agree for another: a card for a new origin shows its picture first", async () => {
+  const BANK = { tabId: 6, url: "https://bank.example/account" };
+  const w = world({ consent: true });
+  w.chat.messages[0].proposals.push({ id: "l3", kind: "look", why: "", untrustedPage: true, state: "pending", feedback: "", nonce: N("c"), page: BANK });
+  w.move(BANK);
+  await w.cards.run(N("c"));
+  assert.equal(w.card("l3").state, "preview", "waits for Send to the model");
+  assert.deepEqual(w.sends, [], "nothing left the browser");
+  await w.cards.send(N("c"));
+  assert.equal(w.sends.length, 1);
+  assert.deepEqual(w.chat.lookOrigins.sort(), ["https://app.example", "https://bank.example"]);
+  // Back on the first site, that agreement still holds.
+  w.move(PAGE);
+  await w.cards.run(N("a"));
+  assert.equal(w.card("l1").state, "done");
 });
 
 test("the picture is never in the stored card or the chat state", async () => {
@@ -112,7 +129,7 @@ test("a send that fails says why and keeps nothing; trying again takes a new pic
   assert.equal(w.card("l1").state, "failed");
   assert.match(w.card("l1").feedback, /Not sent: this monomind cannot show images/);
   assert.equal(w.cards.thumb(N("a")), "");
-  assert.equal(w.chat.lookConsent, true);
+  assert.deepEqual(w.chat.lookOrigins, ["https://app.example"]);
 });
 
 test("a card made for another page does not capture this one", async () => {

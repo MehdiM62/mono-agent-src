@@ -156,7 +156,20 @@
       return { state: "failed", feedback: `Not done: ${a.error || "it failed"}`, code: a.code || "failed" };
     }
 
-    // Look at the page: take the picture; show it first unless this chat already agreed to send them.
+    // The site a look card is for. Agreeing to send one site's picture is not agreeing for another's.
+    const lookOrigin = (p) => {
+      try {
+        return new URL(p.page.url).origin;
+      } catch {
+        return "";
+      }
+    };
+    const lookAgreed = (p) => {
+      const o = lookOrigin(p);
+      return !!o && Array.isArray(deps.chat().lookOrigins) && deps.chat().lookOrigins.includes(o);
+    };
+
+    // Look at the page: take the picture; show it first unless this chat already agreed to send this site's.
     async function lookRun(key) {
       const p = find(key);
       if (!p || !["pending", "failed"].includes(p.state)) return;
@@ -176,11 +189,11 @@
         return settle(key, { state: "failed", feedback: `Not taken: ${(answer && answer.error) || "no answer from the extension"}` }, mine);
       }
       shots.set(key, answer.image);
-      if (deps.chat().lookConsent) return lookSend(key);
+      if (lookAgreed(p)) return lookSend(key);
       await settle(key, { state: "preview", feedback: "" }, mine);
     }
 
-    // Send to the model: the picture goes out as a chat turn, and this chat remembers the person agreed.
+    // Send to the model: the picture goes out as a chat turn, and this chat remembers the person agreed for that site.
     async function lookSend(key) {
       const p = find(key);
       const image = shots.get(key);
@@ -196,7 +209,9 @@
       }
       shots.delete(key);
       if (res && res.sent) {
-        deps.chat().lookConsent = true;
+        const chat = deps.chat();
+        const o = lookOrigin(p);
+        if (o) chat.lookOrigins = [...new Set([...(chat.lookOrigins || []), o])];
         return settle(key, { state: "done", feedback: `Sent a screenshot (${image.width}\u00d7${image.height}, ${Math.max(1, Math.round(image.bytes / 1024))} KB).` }, mine);
       }
       await settle(key, { state: "failed", feedback: `Not sent: ${(res && res.error) || "it failed"}` }, mine);
