@@ -609,14 +609,21 @@ widen what an earlier page reached the model with):
 - **Frames and page actions.** When the page's own text is thin, the panel
   also reads every frame. Text from a frame of another origin is capped
   (2000 characters each) and fenced as `[frame origin: <origin> - untrusted
-  frame content]`, but it is still page-controlled text that reaches the
-  model, so it is a prompt-injection surface like the rest of the page.
+  frame content]` and closed by `[/frame content]` (the marker and header
+  patterns are stripped from the frame's own text), but it is still
+  page-controlled text that reaches the model, so it is a prompt-injection surface like the rest of the page.
   What it can lead to is bounded as for any page text: a suggested step is
   only a card, and nothing happens until the person presses Run. At Run the
   step is found by its words across the tab's frames and done in the one
   frame that matches; a step in an iframe is refused if that frame's
   address changed since it was searched, and the finished card names the
-  frame's origin. Ticking a box or choosing a drop-down option is held
+  frame's origin. Typing, choosing or ticking in a frame of another origin
+  is refused until the card has shown that frame's origin and the person
+  presses Run a second time. The click guard looks through shadow roots
+  for a form, applies the verb list (including accept, agree, approve,
+  continue, proceed) to every button, link, tabindex, role or `onclick`
+  target, blocks `javascript:` and `data:` links, and reads a link's path
+  and query for those verbs. Ticking a box or choosing a drop-down option is held
   back (not done; the person does it) when the label or option says
   something that grants, accepts, pays or deletes, and a box is only ticked
   when the page ties it to the named text (label, `for`, `aria-labelledby`,

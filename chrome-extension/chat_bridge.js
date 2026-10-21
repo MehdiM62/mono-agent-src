@@ -198,7 +198,9 @@
           if (!text) return "";
           const there = originOf(r.result.url);
           if (!home || there === home) return text;
-          return `[frame origin: ${there || "unknown"} \u2014 untrusted frame content]\n${text.slice(0, FOREIGN_FRAME_CHARS)}`;
+          // Nothing inside the frame may close the fence early or open another one.
+          const body = text.slice(0, FOREIGN_FRAME_CHARS).replace(/\[\s*(?:\/\s*frame content|frame origin:)/gi, "(");
+          return `[frame origin: ${there || "unknown"} \u2014 untrusted frame content]\n${body}\n[/frame content]`;
         })
         .filter(Boolean);
       const joined = parts.join("\n\n");
