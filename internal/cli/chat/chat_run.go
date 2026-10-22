@@ -48,6 +48,11 @@ func runChat(cfg *Deps, cmd *cobra.Command, args []string, f *chatFlags) (retErr
 		return clicore.InvalidInput("--tools %s does not combine with --canvas", toolsPageRead)
 	}
 	ctx := cmd.Context()
+	// A coder turn's own spend cap, when --budget-usd was given (0 is no spend).
+	var turnCap *float64
+	if cmd.Flags().Changed("budget-usd") {
+		turnCap = &budget
+	}
 
 	// A page-read turn's --attach files are images for the model, handed
 	// straight to the runner (chat_attach.go); every other turn's go on to
@@ -107,18 +112,28 @@ func runChat(cfg *Deps, cmd *cobra.Command, args []string, f *chatFlags) (retErr
 		}()
 		runtime, model, resume, effort = conv.RuntimeID, conv.Model, conv.SessionID, conv.Effort
 		noHistory = true
-		if conv.Mode == ai.ModeCoder {
+		if access := conv.EffectiveAccess(); access != ai.AccessScoped {
 			if tools != "" {
-				return clicore.InvalidInput("--tools does not apply to a coder conversation: it has full access")
+				return clicore.InvalidInput("--tools does not apply to a %s conversation: it runs as a coder; only a scoped conversation takes it", access)
 			}
-			return runCoderTurn(cmd, cfg, journal, coderTurn{runtime: conv.RuntimeID, prompt: prompt, model: model, effort: conv.Effort, resume: resume, cwd: conv.Cwd, orgMode: conv.OrgMode, attachments: atts})
+			task := taskTurn(cfg, conv.ID, turnCap)
+			if task.budget != nil {
+				turnCap = task.budget
+			}
+			if task.err != nil {
+				return task.err
+			}
+			err := runCoderTurn(cmd, cfg, journal, coderTurn{runtime: conv.RuntimeID, prompt: prompt, model: model, effort: conv.Effort, resume: resume, cwd: conv.Cwd, orgMode: conv.OrgMode, access: access, attachments: atts, budget: turnCap, env: task.env, agentKind: task.kind, confine: task.confine})
+			task.end(err)
+			enforceLoweredAccess(cfg, jstore, jprofile, conv)
+			return err
 		}
 	}
 	if mode == ai.ModeCoder {
 		if tools != "" || canvasID != "" || historyID != "" {
 			return clicore.InvalidInput("--tools, --canvas and --history-id don't apply to --mode coder")
 		}
-		return runPlainCoderTurn(cmd, cfg, coderFolderChoice{cwd: coderCwd, root: coderRoot, newWorkspace: newWorkspace, profile: profileFold}, coderTurn{runtime: runtime, prompt: prompt, model: model, effort: effort, resume: resume}, attach)
+		return runPlainCoderTurn(cmd, cfg, coderFolderChoice{cwd: coderCwd, root: coderRoot, newWorkspace: newWorkspace, profile: profileFold}, coderTurn{runtime: runtime, prompt: prompt, model: model, effort: effort, resume: resume, budget: turnCap}, attach)
 	}
 	if mode != "" && mode != ai.ModeAssistant {
 		return clicore.InvalidInput("unknown --mode %q (assistant or coder)", mode)

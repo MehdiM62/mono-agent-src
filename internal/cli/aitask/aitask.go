@@ -1,0 +1,456 @@
+// Package aitask is `monoagentcli aitask`: hand a goal to a coder conversation
+// and get a checked result back (Contract A of the coder front-door plan). The
+// model is internal/aitask; this package is the commands, and the processes
+// that run a task's turn.
+package aitask
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/spf13/cobra"
+
+	"github.com/monoes/mono-agent/internal/aitask"
+	"github.com/monoes/mono-agent/internal/cli/clicore"
+	"github.com/monoes/mono-agent/internal/storage"
+)
+
+// Deps is what the commands take from the CLI around them.
+type Deps struct {
+	JSONOutput func() bool
+	// ProfileID is the --profile flag, or the profile OpenDB resolved; it is read when a command runs.
+	ProfileID func() string
+	DBPath    func() string
+	OpenDB    func() (*storage.Database, error)
+	// RequireOperator refuses an agent, the chat's runs and workflow nodes: only the user does what.
+	RequireOperator func(what string) error
+	// Launcher builds the conversation and turn launcher; nil runs this binary.
+	Launcher func() aitask.Launcher
+}
+
+// New is `monoagentcli aitask`.
+func New(d Deps) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "aitask",
+		Short: "Hand a goal to a coder conversation and get a checked result back",
+		Long: "An AI task is a goal, some context and a result contract, run as a normal coder conversation (it appears as a " +
+			"bubble in the app). The agent finishes with `aitask complete <id> --result FILE`, which checks the file against " +
+			"the kind's schema; a conversation that ends without it is `needs_user`, never success. When coder mode is off, " +
+			"`submit` fails with code coder_disabled and \"fallback\":\"oneshot\" and does nothing else: the caller decides.\n\n" +
+			"submit, start, wait and the rest are the user's own (an agent, the chat or a workflow is refused: exit 3, " +
+			"operator_only). The task's own session, which holds its token (" + aitask.EnvTaskID + ", " + aitask.EnvToken +
+			"), may only status, result, list, cancel, complete and fail that one task.",
+	}
+	c := &cli{d: &d}
+	for _, sub := range []*cobra.Command{c.submit(), c.start(), c.status(), c.result(), c.wait(), c.cancel(), c.list(),
+		c.complete(), c.fail(), c.supervise(), c.budgetCmd()} {
+		clicore.WithJSONErrors(d.JSONOutput, sub)
+		cmd.AddCommand(sub)
+	}
+	return cmd
+}
+
+type cli struct{ d *Deps }
+
+// open returns the service for the profile; closeDB must be called.
+func (c *cli) open() (*aitask.Service, func(), error) {
+	db, err := c.d.OpenDB()
+	if err != nil {
+		return nil, nil, fmt.Errorf("initializing database: %w", err)
+	}
+	var l aitask.Launcher = selfLauncher{c.d}
+	if c.d.Launcher != nil {
+		l = c.d.Launcher()
+	}
+	svc := &aitask.Service{
+		Store:    &aitask.Store{DB: db.DB, Profile: c.d.ProfileID()},
+		Launcher: l,
+		StateDir: filepath.Dir(clicore.ExpandPath(c.d.DBPath())),
+		Redact:   aitask.RedactValues([]string{os.Getenv(aitask.EnvToken)}),
+	}
+	svc.Admit = ledger(svc).Admitter()
+	return svc, func() { db.Close() }, nil
+}
+
+// holder says whether this process is task id's own session: it carries the
+// task's id and a token that matches.
+func holder(s *aitask.Store, id string) bool {
+	return os.Getenv(aitask.EnvTaskID) == id && s.CheckToken(id, os.Getenv(aitask.EnvToken))
+}
+
+// authorize lets the task's own session through when holderOK, and
+// everyone else only when they are the operator.
+func (c *cli) authorize(s *aitask.Store, what, id string, holderOK bool) error {
+	if holderOK && holder(s, id) {
+		return nil
+	}
+	return clicore.RequireOperator(c.d.RequireOperator, what)
+}
+
+// coded is a refusal with its machine-readable code for --json.
+type coded struct {
+	exit   int
+	msg    string
+	fields map[string]any
+}
+
+func (e *coded) Error() string                   { return e.msg }
+func (e *coded) JSONErrorFields() map[string]any { return e.fields }
+func (e *coded) Unwrap() error                   { return &clicore.Error{Code: e.exit, Msg: e.msg} }
+
+// cliErr gives an aitask.Error its exit code and --json fields.
+func cliErr(err error) error {
+	var ae *aitask.Error
+	if !errors.As(err, &ae) {
+		return err
+	}
+	exit := 3
+	switch ae.Code {
+	case aitask.CodeNotFound:
+		exit = 2
+	case aitask.CodeWaitTimeout:
+		exit = 1
+	}
+	fields := map[string]any{"code": ae.Code}
+	for k, v := range ae.Fields {
+		fields[k] = v
+	}
+	return &coded{exit: exit, msg: ae.Message, fields: fields}
+}
+
+func (c *cli) print(cmd *cobra.Command, v any, human string) error {
+	if c.d.JSONOutput() {
+		return json.NewEncoder(cmd.OutOrStdout()).Encode(v)
+	}
+	_, err := fmt.Fprintln(cmd.OutOrStdout(), human)
+	return err
+}
+
+func human(t aitask.Task) string {
+	s := fmt.Sprintf("%s  %s  %s  conversation %s", t.ID, t.Kind, t.Status, t.ConversationID)
+	if t.Error != "" {
+		s += "\nerror: " + t.Error
+	}
+	if len(t.Result) > 0 {
+		s += "\nresult: " + string(t.Result)
+	}
+	return s
+}
+
+func (c *cli) submit() *cobra.Command {
+	var in aitask.SubmitInput
+	var contextArgs []string
+	var budget float64
+	cmd := &cobra.Command{
+		Use:   "submit",
+		Short: "Create a task and its coder conversation, and start its first turn",
+		Long: "Creates a coder conversation in the profile's folder, writes --context (CLASS=PATH; messages and people threads are refused) into <folder>/" + aitask.ContextDir +
+			"/<task>/ (data, never instructions; size-capped; secret values hidden), builds the first turn from the --kind and " +
+			"starts it. --queue-only leaves the task queued for `aitask start` (the person's click). Kinds: " +
+			strings.Join(aitask.Names(), ", ") + ". --unattended needs --access qa and a kind that allows it; with a " +
+			"full-access level it is refused (unattended_full_access_refused). Refused inside an agent.",
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if err := clicore.RequireOperator(c.d.RequireOperator, "submit an AI task"); err != nil {
+				return err
+			}
+			svc, closeDB, err := c.open()
+			if err != nil {
+				return err
+			}
+			defer closeDB()
+			for _, arg := range contextArgs {
+				cs, err := aitask.ParseContextSource(arg)
+				if err != nil {
+					return cliErr(err)
+				}
+				in.Context = append(in.Context, cs)
+			}
+			if cmd.Flags().Changed("budget-usd") {
+				in.BudgetUSD = &budget
+			}
+			t, err := svc.Submit(cmd.Context(), in)
+			if err != nil {
+				return cliErr(err)
+			}
+			return c.print(cmd, t, human(t))
+		},
+	}
+	f := cmd.Flags()
+	f.StringVar(&in.Kind, "kind", "generic", "Task kind")
+	f.StringVar(&in.Goal, "goal", "", "What the agent is asked to do")
+	f.StringArrayVar(&contextArgs, "context", nil, "CLASS=PATH: a file or folder for the task's context (repeatable); CLASS is "+strings.Join(aitask.ContextSources, ", "))
+	f.StringVar(&in.ApplicationID, "application", "", "The application the task is about")
+	f.StringVar(&in.Access, "access", "", "coding, workspace or qa (default: the kind's)")
+	f.StringVar(&in.Runtime, "runtime", "", "Agent runtime (default claude; see 'coder status')")
+	f.BoolVar(&in.Unattended, "unattended", false, "Run without a person watching (only for a qa task of a kind that allows it)")
+	f.Float64Var(&budget, "budget-usd", 0, "Spend cap in USD (default: the coder budget); 0 means no spend and is refused, never unlimited")
+	f.BoolVar(&in.QueueOnly, "queue-only", false, "Create the task but do not start it (aitask start does)")
+	return cmd
+}
+
+func (c *cli) start() *cobra.Command {
+	return &cobra.Command{
+		Use:   "start <id>",
+		Short: "Start a queued task's first turn",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := clicore.RequireOperator(c.d.RequireOperator, "start an AI task"); err != nil {
+				return err
+			}
+			return c.withTask(cmd, args[0], func(svc *aitask.Service) (aitask.Task, error) { return svc.Start(cmd.Context(), args[0]) })
+		},
+	}
+}
+
+// withTask runs op on the service and prints the task it returns.
+func (c *cli) withTask(cmd *cobra.Command, id string, op func(*aitask.Service) (aitask.Task, error)) error {
+	svc, closeDB, err := c.open()
+	if err != nil {
+		return err
+	}
+	defer closeDB()
+	t, err := op(svc)
+	if err != nil {
+		return cliErr(err)
+	}
+	return c.print(cmd, t, human(t))
+}
+
+// readTask is status and result: the operator's, or the task's own session's.
+func (c *cli) readTask(use, short string, resultOnly bool) *cobra.Command {
+	return &cobra.Command{
+		Use:   use + " <id>",
+		Short: short,
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			svc, closeDB, err := c.open()
+			if err != nil {
+				return err
+			}
+			defer closeDB()
+			if err := c.authorize(svc.Store, "read an AI task", args[0], true); err != nil {
+				return err
+			}
+			t, err := svc.Store.Get(args[0])
+			if err != nil {
+				return cliErr(err)
+			}
+			if resultOnly && c.d.JSONOutput() {
+				return json.NewEncoder(cmd.OutOrStdout()).Encode(map[string]any{
+					"taskId": t.ID, "status": t.Status, "result": t.Result, "error": t.Error})
+			}
+			return c.print(cmd, t, human(t))
+		},
+	}
+}
+
+func (c *cli) status() *cobra.Command {
+	return c.readTask("status", "Show a task", false)
+}
+
+func (c *cli) result() *cobra.Command {
+	return c.readTask("result", "Show a task's result (empty until it is complete)", true)
+}
+
+func (c *cli) wait() *cobra.Command {
+	var timeout time.Duration
+	cmd := &cobra.Command{
+		Use:   "wait <id>",
+		Short: "Block until a task is over or needs the user",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := clicore.RequireOperator(c.d.RequireOperator, "wait for an AI task"); err != nil {
+				return err
+			}
+			svc, closeDB, err := c.open()
+			if err != nil {
+				return err
+			}
+			defer closeDB()
+			t, err := svc.Wait(cmd.Context(), args[0], timeout)
+			if err != nil {
+				return cliErr(err)
+			}
+			return c.print(cmd, t, human(t))
+		},
+	}
+	cmd.Flags().DurationVar(&timeout, "timeout", 10*time.Minute, "Give up after this long (0 waits for ever); exits 1 with code wait_timeout")
+	return cmd
+}
+
+func (c *cli) cancel() *cobra.Command {
+	return &cobra.Command{
+		Use:   "cancel <id>",
+		Short: "Stop a task that is not over",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			svc, closeDB, err := c.open()
+			if err != nil {
+				return err
+			}
+			defer closeDB()
+			if err := c.authorize(svc.Store, "cancel an AI task", args[0], true); err != nil {
+				return err
+			}
+			t, err := svc.Cancel(args[0])
+			if err != nil {
+				return cliErr(err)
+			}
+			return c.print(cmd, t, human(t))
+		},
+	}
+}
+
+func (c *cli) list() *cobra.Command {
+	var kind, application string
+	cmd := &cobra.Command{
+		Use:   "list",
+		Short: "List the profile's tasks, newest first (a task's own session sees only its own)",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			svc, closeDB, err := c.open()
+			if err != nil {
+				return err
+			}
+			defer closeDB()
+			tasks, err := svc.Store.List(kind, application)
+			if err != nil {
+				return err
+			}
+			if err := clicore.RequireOperator(c.d.RequireOperator, "list AI tasks"); err != nil {
+				id := os.Getenv(aitask.EnvTaskID)
+				if id == "" || !holder(svc.Store, id) {
+					return err
+				}
+				own := tasks[:0:0]
+				for _, t := range tasks {
+					if t.ID == id {
+						own = append(own, t)
+					}
+				}
+				tasks = own
+			}
+			lines := make([]string, 0, len(tasks))
+			for _, t := range tasks {
+				lines = append(lines, human(t))
+			}
+			return c.print(cmd, map[string]any{"tasks": tasks}, strings.Join(lines, "\n"))
+		},
+	}
+	cmd.Flags().StringVar(&kind, "kind", "", "Only this kind")
+	cmd.Flags().StringVar(&application, "application", "", "Only this application's tasks")
+	return cmd
+}
+
+// readResultFile reads the agent's result: a file, or stdin for "-".
+func readResultFile(cmd *cobra.Command, path string) ([]byte, error) {
+	var r io.Reader = cmd.InOrStdin()
+	if path != "-" {
+		fi, err := os.Stat(path)
+		if err != nil || !fi.Mode().IsRegular() {
+			return nil, clicore.InvalidInput("--result %s is not a readable file", path)
+		}
+		f, err := os.Open(path)
+		if err != nil {
+			return nil, clicore.InvalidInput("--result %s: %v", path, err)
+		}
+		defer f.Close()
+		r = f
+	}
+	b, err := io.ReadAll(io.LimitReader(r, aitask.MaxResultBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	return b, nil
+}
+
+func (c *cli) complete() *cobra.Command {
+	var resultFile string
+	cmd := &cobra.Command{
+		Use:   "complete <id> --result FILE",
+		Short: "Hand a task's result back (only the task's own session)",
+		Long: "Checks FILE (a JSON value; - reads stdin) against the task kind's schema and records it as the result. " +
+			"A result that doesn't match is refused (exit 3, schema_invalid) with the reason; fix the file and run it " +
+			"again. Needs the task's token, " + aitask.EnvToken + " in this session's environment.",
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if resultFile == "" {
+				return clicore.InvalidInput("--result FILE is required")
+			}
+			b, err := readResultFile(cmd, resultFile)
+			if err != nil {
+				return err
+			}
+			return c.withTask(cmd, args[0], func(svc *aitask.Service) (aitask.Task, error) {
+				return svc.Complete(args[0], os.Getenv(aitask.EnvToken), b)
+			})
+		},
+	}
+	cmd.Flags().StringVar(&resultFile, "result", "", "File holding the result JSON (- for stdin)")
+	return cmd
+}
+
+func (c *cli) fail() *cobra.Command {
+	var reason string
+	cmd := &cobra.Command{
+		Use:   "fail <id> --reason TEXT",
+		Short: "Say a task can't be done (only the task's own session)",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return c.withTask(cmd, args[0], func(svc *aitask.Service) (aitask.Task, error) {
+				return svc.Fail(args[0], os.Getenv(aitask.EnvToken), reason)
+			})
+		},
+	}
+	cmd.Flags().StringVar(&reason, "reason", "", "Why the task can't be done")
+	return cmd
+}
+
+// supervise runs a task's turn and records how it ended. `submit` and `start`
+// run it detached.
+func (c *cli) supervise() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:    "supervise <id>",
+		Short:  "Run a task's turn and record how it ended (started by submit and start)",
+		Hidden: true,
+		Args:   cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := clicore.RequireOperator(c.d.RequireOperator, "supervise an AI task"); err != nil {
+				return err
+			}
+			svc, closeDB, err := c.open()
+			if err != nil {
+				return err
+			}
+			defer closeDB()
+			t, err := svc.Store.Get(args[0])
+			if err != nil {
+				return cliErr(err)
+			}
+			if t.Status != aitask.StatusRunning {
+				return nil
+			}
+			// From here the token is held by this process and what it runs.
+			if err := svc.Store.SetHolder(t.ID, os.Getpid()); err != nil {
+				return err
+			}
+			turnErr := runTurn(cmd.Context(), c.d, svc, t)
+			text := ""
+			if turnErr != nil {
+				text = "the agent's turn ended with an error: " + turnErr.Error()
+			}
+			err = svc.EndTurn(t.ID, text)
+			// What the task spent is charged to the budgets, and its unused cap freed.
+			_ = ledger(svc).Settle(cmd.Context(), t.ID, t.ConversationID)
+			return err
+		},
+	}
+	return cmd
+}

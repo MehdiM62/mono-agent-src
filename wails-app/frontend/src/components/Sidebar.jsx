@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import {
   LayoutDashboard, Users,
   Terminal, PlayCircle, Settings, Image, Mail, KeyRound,
-  ChevronDown, Plus, Check, Building2, FolderOpen, FolderCog, Loader2, Briefcase, FileText, IdCard, Send, KanbanSquare
+  ChevronDown, Plus, Check, Building2, FolderOpen, FolderCog, Loader2, Briefcase, FileText, IdCard, Send, KanbanSquare, History
 } from 'lucide-react'
 import { GetVersion } from '../wailsjs/go/main/App'
 import * as WailsApp from '../wailsjs/go/main/App'
@@ -14,6 +14,7 @@ import AccountMenu from './account/AccountMenu.jsx'
 import NewProfileModal from './NewProfileModal.jsx'
 import { iconUrl } from './orgdesigner/roleIcons.js'
 import { tasksApi, onTasksChanged } from '../services/tasks.js'
+import { openHistory } from './history/historyBus.js'
 
 const GetProfiles          = WailsApp.GetProfiles          ?? (async () => [])
 const SwitchProfile        = WailsApp.SwitchProfile        ?? (async () => {})
@@ -26,6 +27,8 @@ const NAV_ITEMS = [
   { id: 'dashboard',   labelKey: 'dashboard',   icon: LayoutDashboard, section: 'MAIN' },
   { id: 'noderunner',  labelKey: 'noderunner',  icon: PlayCircle,      section: 'MAIN' },
   { id: 'orgs',        labelKey: 'orgs',        icon: Building2,       section: 'MAIN' },
+  // Not a page: opens the history drawer (components/history).
+  { id: 'history',     labelKey: 'history',     icon: History,         section: 'MAIN', opensDrawer: true },
   { id: 'people',      labelKey: 'people',      icon: Users,           section: 'DATA' },
   { id: 'publication', labelKey: 'publication', icon: Send, section: 'DATA' },
   { id: 'communications', labelKey: 'communications', icon: Mail,      section: 'DATA' },
@@ -339,18 +342,20 @@ export default function Sidebar({ activePage, onNavigate, stats, dbConnected }) 
             {NAV_ITEMS.filter(i => i.section === section).map(item => {
               const Icon = item.icon
               const badge = getBadge(item.id)
-              const isActive = activePage === item.id
+              const isActive = !item.opensDrawer && activePage === item.id
               const label = t(`sidebar.nav.${item.labelKey}`)
+              const activate = item.opensDrawer ? openHistory : () => onNavigate(item.id)
               return (
                 <div
                   key={item.id}
                   className={`nav-item ${isActive ? 'active' : ''}`}
-                  onClick={() => onNavigate(item.id)}
-                  onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onNavigate(item.id)}
+                  onClick={activate}
+                  onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && activate()}
                   role="button"
                   tabIndex={0}
                   aria-current={isActive ? 'page' : undefined}
                   aria-label={label}
+                  aria-haspopup={item.opensDrawer ? 'dialog' : undefined}
                 >
                   <Icon className="nav-icon" size={15} />
                   <span>{label}</span>

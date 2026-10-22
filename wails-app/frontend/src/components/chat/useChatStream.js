@@ -135,7 +135,7 @@ export function useChatStream({ conversationId, turnId }) {
 // reduceTurnEvents/loadTurnState are the historical sibling of hydrate()
 // above: loading a PAST turn's already-fetched events (a one-shot backlog
 // fetch, no live merge, no subscription) rather than observing a live one.
-// Used by AIChatPanel.jsx's loadConversation to rebuild each past turn's
+// Used by the chat bubble's transcript loader to rebuild each past turn's
 // state before feeding it to the same ChatTimeline/TurnStatus components a
 // live turn (via useChatStream above) uses.
 
@@ -170,7 +170,7 @@ export function reduceTurnEvents(events) {
 // this window's own next send() in that same conversation gets refused
 // (ErrTurnOwnedByOtherInstance), with nothing on screen explaining why.
 // Same principle the live-turn finalize path already applies (see its own
-// comment in AIChatPanel.jsx: "Pushed even when parts is empty: TurnStatus
+// comment in the old assistant panel: "Pushed even when parts is empty: TurnStatus
 // alone still truthfully reports a silent failure/stop rather than hiding
 // it") — an empty ChatTimeline plus the honest static TurnStatus label is
 // the correct, non-hiding rendering here too.

@@ -11,10 +11,10 @@ func TestBrowserPermissionsShowAndSet(t *testing.T) {
 	bt := newBrowserTest(t, false)
 	doc := bt.runJSON("permissions")
 	levels := doc["levels"].(map[string]any)
-	if levels["coder"] != "dev" || levels["other"] != "dev" || levels["chat"] != "full" || levels["org"] != "dev" {
+	if levels["coder"] != "dev" || levels["other"] != "dev" || levels["chat"] != "full" || levels["org"] != "dev" || levels["apply"] != "ask" {
 		t.Fatalf("default levels = %v", levels)
 	}
-	if kinds := doc["kinds"].([]any); len(kinds) != 4 || kinds[0].(map[string]any)["label"] != "Coder chats" || kinds[0].(map[string]any)["isDefault"] != true {
+	if kinds := doc["kinds"].([]any); len(kinds) != 5 || kinds[0].(map[string]any)["label"] != "Coder chats" || kinds[0].(map[string]any)["isDefault"] != true {
 		t.Fatalf("kinds = %v", kinds)
 	}
 	if cat := doc["catalog"].([]any); len(cat) != 5 || cat[0].(map[string]any)["id"] != "full-no-approvals" ||
@@ -43,6 +43,14 @@ func TestBrowserPermissionsShowAndSet(t *testing.T) {
 	}
 	if _, err := bt.run("permissions", "set", "all", "everything"); exitCodeFor(err) != 3 {
 		t.Fatalf("all with a bad level: %v", err)
+	}
+	// apply is never full-no-approvals: by name it is refused, under `all` it is left as it was.
+	if _, err := bt.run("permissions", "set", "apply", "full-no-approvals"); exitCodeFor(err) != 3 {
+		t.Fatalf("apply at full-no-approvals: %v", err)
+	}
+	doc = bt.runJSON("permissions", "set", "all", "full-no-approvals")
+	if l := doc["levels"].(map[string]any); l["apply"] != "full" || l["coder"] != "full-no-approvals" {
+		t.Fatalf("after set all full-no-approvals: %v", l)
 	}
 	doc = bt.runJSON("permissions", "site", "--", "https://bank.example/", "block")
 	if sites := doc["sites"].([]any); len(sites) != 1 || sites[0].(map[string]any)["rule"] != "block" || sites[0].(map[string]any)["origin"] != "https://bank.example" {

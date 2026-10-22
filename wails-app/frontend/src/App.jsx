@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import Sidebar from './components/Sidebar.jsx'
 import { usePendingCount } from './lib/usePendingCount.js'
 import StatusBar from './components/StatusBar.jsx'
@@ -6,9 +6,10 @@ import { startBackgroundHealth, subscribeHealth, summarize, isFixing } from './l
 import Toasts from './components/Toasts.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
 import ConfirmHost from './components/ConfirmDialog.jsx'
-import AIChatPanel from './components/AIChatPanel.jsx'
 import CoderBubbles from './components/bubbles/CoderBubbles.jsx'
 import { useCoderBubbles } from './components/bubbles/useCoderBubbles.js'
+import { CoderBubbleContext } from './components/bubbles/CoderBubbleContext.jsx'
+import HistoryPanel from './components/history/HistoryPanel.jsx'
 import { useOrgBubbleWatch } from './components/bubbles/useOrgBubbleWatch.js'
 import HumanInLoop from './pages/HumanInLoop.jsx'
 import Dashboard from './pages/Dashboard.jsx'
@@ -53,15 +54,6 @@ export default function App({ banners = null }) {
   // avoids paying every page's initial data-fetch cost at app startup while
   // still keeping state alive once a page has actually been opened.
   const [visitedPages, setVisitedPages] = useState(() => new Set(['dashboard']))
-  // Global AI Assistant chat — lifted here (rather than owned by whichever
-  // page happens to render it) so it's reachable from anywhere via the
-  // always-visible toggle in the top bar, and so opening/closing it, its
-  // selected runtime, and its conversation all survive navigating between
-  // pages. This is the general assistant (canvasMode=false); the Workflows
-  // editor's own chat toggle is a different tool — a workflow-builder
-  // assistant scoped to the currently open canvas — and stays separate.
-  const [globalChatOpen, setGlobalChatOpen] = useState(false)
-  const [globalChatRuntime, setGlobalChatRuntime] = useState('')
   const [globalHilOpen, setGlobalHilOpen] = useState(false)
   const [globalHilCount, setGlobalHilCount] = useState(0) // reported by the open drawer (incl. org items)
   const { count: pendingCount } = usePendingCount()     // Jev-free summary count, drawer closed
@@ -76,16 +68,11 @@ export default function App({ banners = null }) {
   // Running orgs as bubbles (#229): opened from the Orgs page, or on their
   // own when an org asks the person something.
   const onCloseOrgBubble = useOrgBubbleWatch(coderBubbles)
-  const { openConversation: openCoderBubble, openDraft: openCoderDraft } = coderBubbles
+  const { openConversation: openCoderBubble, openDraft: openCoderDraft, openNewChat } = coderBubbles
   const openCoderChat = useCallback((conv) => {
     if (conv) openCoderBubble(conv)
     else openCoderDraft()
   }, [openCoderBubble, openCoderDraft])
-
-  const openGlobalChat = useCallback((runtimeId) => {
-    if (runtimeId) setGlobalChatRuntime(runtimeId)
-    setGlobalChatOpen(true)
-  }, [])
 
   const openProfile = useCallback((id) => {
     setProfileId(id)
@@ -113,7 +100,7 @@ export default function App({ banners = null }) {
     setNavData(data || null)
     // A link to a person (an ask's recipient) opens their profile.
     if (page === 'people' && data?.person) { setProfileId(data.person); setActivePage('profile'); return }
-    if (page === 'orgs' && data?.org) setPendingOrgSelect({ name: data.org, tab: data.tab || 'overview' })
+    if (page === 'orgs' && data?.org) setPendingOrgSelect({ name: data.org, tab: data.tab || 'overview', run: data.run })
     setActivePage(page)
   }, [])
 
@@ -282,11 +269,11 @@ export default function App({ banners = null }) {
     connections: <Connections onRefresh={refreshStats} navData={activePage === 'connections' ? navData : null} />,
     vault: <ImageVault isActive={activePage === 'vault'} />,
     secretsVault: <Vault isActive={activePage === 'secretsVault'} />,
-    applications: <Applications isActive={activePage === 'applications'} />,
+    applications: <Applications isActive={activePage === 'applications'} navData={activePage === 'applications' ? navData : null} onNavigate={navigate} onOpenCoderChat={openCoderChat} />,
     documents: <Documents isActive={activePage === 'documents'} />,
     info: <Info isActive={activePage === 'info'} />,
     tasks: <Tasks isActive={activePage === 'tasks'} />,
-    ai: <Agents onOpenChat={openGlobalChat} />,
+    ai: <Agents />,
     orgs: <Orgs isActive={activePage === 'orgs'} onNavigate={navigate} pendingSelectOrgName={pendingOrgSelect} onConsumePendingSelect={() => setPendingOrgSelect(null)} />,
     logs:      <Logs logs={logs} onClear={() => { api.clearLogs(); setLogs([]) }} onRefresh={refreshLogs} />,
     settings:  <SettingsPage onNavigate={navigate} navData={activePage === 'settings' ? navData : null} isActive={activePage === 'settings'} />,
@@ -300,12 +287,16 @@ export default function App({ banners = null }) {
     postDetail: <PostDetail id={postId} onBack={closePost} onOpenURL={api.openURL} />,
   }
 
+  // Any page's Send-to-coder button reaches the bubbles through this (#957).
+  const coderBubbleContext = useMemo(() => ({ openDraft: openCoderDraft, openNewChat, navigate }), [openCoderDraft, openNewChat, navigate])
+
   const isDetailPage = activePage in detailPages
   // Guard against an unrecognized activePage (e.g. a stale/typo'd nav
   // target) — fall back to showing dashboard rather than a blank screen.
   const effectiveActivePage = (activePage in persistentPages || isDetailPage) ? activePage : 'dashboard'
 
   return (
+    <CoderBubbleContext.Provider value={coderBubbleContext}>
     <div className="app-layout">
       <Sidebar
         activePage={activePage}
@@ -345,41 +336,27 @@ export default function App({ banners = null }) {
           onProfile={openProfile}
           onNavigate={navigate}
         />
-
-        {/* Global AI Assistant — always available, opened/closed via the
-            fixed toggle button below; state and conversation persist across
-            page navigation since this is mounted once at the App level. */}
-        <AIChatPanel
-          workflowID="general"
-          canvasMode={false}
-          isOpen={globalChatOpen}
-          initialRuntime={globalChatRuntime}
-          onClose={() => setGlobalChatOpen(false)}
-          onOpenArtifact={onOpenArtifact}
-          onNavigate={navigate}
-          onOpenCoderChat={openCoderChat}
-        />
       </div>
 
-      {/* The global chat and human-in-loop toggles live inside StatusBar itself
-          now (bottom bar, far right) — small icons there rather than separate
+      {/* The new-chat and human-in-loop buttons live inside StatusBar itself
+          (bottom bar, far right) — small icons there rather than separate
           floating overlay buttons, reachable from anywhere in the app. */}
       <StatusBar
         stats={stats}
         dbConnected={dbConnected}
-        chatOpen={globalChatOpen}
-        onToggleChat={() => setGlobalChatOpen(v => !v)}
         hilOpen={globalHilOpen}
         hilCount={globalHilOpen ? globalHilCount : pendingCount}
         onToggleHil={() => setGlobalHilOpen(v => !v)}
         onOpenHealth={() => navigate('settings')}
       />
-      <CoderBubbles store={coderBubbles} onNavigate={navigate} onCloseOrg={onCloseOrgBubble} />
+      <CoderBubbles store={coderBubbles} onNavigate={navigate} onCloseOrg={onCloseOrgBubble} onOpenArtifact={onOpenArtifact} />
+      <HistoryPanel store={coderBubbles} onNavigate={navigate} />
       <Toasts onNavigate={navigate} />
       <ConfirmHost />
       {viewingArtifactDoc && (
         <FileViewerModal doc={viewingArtifactDoc} onClose={() => setViewingArtifactDoc(null)} />
       )}
     </div>
+    </CoderBubbleContext.Provider>
   )
 }

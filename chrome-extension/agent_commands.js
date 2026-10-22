@@ -92,6 +92,7 @@
     deps = d;
     root.MonoAgentCdp.install(d);
     root.MonoAgentSubmitGuard.install();
+    if (root.MonoSubmitObserve) root.MonoSubmitObserve.install();
     chrome.runtime.onMessage.addListener((msg, sender) => {
       if (!msg || msg.type !== STOP_MESSAGE) return false;
       const tabId = sender && sender.tab && sender.tab.id;

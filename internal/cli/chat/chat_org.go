@@ -144,6 +144,16 @@ func startDynamicOrg(ctx context.Context, cfg *Deps, journal *turnJournal, setti
 		staffer.Chooser = dynorg.JevChooser{Client: client}
 	}
 	limits := dynorg.Limits{MaxAgents: settings.OrgMaxAgents, MaxConcurrent: settings.OrgMaxConcurrent, BudgetUSD: settings.OrgBudgetUSD}
+	// A task's workers draw from a share of its remaining cap, never unlimited.
+	pool, taskExec, isTask, refuse := taskWorkers(db.DB, cfg, journal.conversationID, journal.turnID, settings, opts, monomind.Exec)
+	if isTask && taskExec == nil {
+		db.Close()
+		journal.notice(noticeOrgUnavailable, refuse, chatevents.SeverityWarning)
+		return nil, nil
+	}
+	if isTask {
+		limits.BudgetUSD = pool
+	}
 	base := monomind.ExecOptions{
 		Bin: opts.Bin, Settings: monomind.CoderSettings, MaxTurns: settings.MaxTurns, Timeout: settings.timeout(),
 		EffortFlag: opts.EffortFlag, Env: agentSendEnv(journal, "", ""),
@@ -152,7 +162,7 @@ func startDynamicOrg(ctx context.Context, cfg *Deps, journal *turnJournal, setti
 		reconcileTurnWorktrees(ctx, journal, t.cwd)
 	}
 	cond := dynorg.New(ctx, dynorg.Config{
-		Cwd: t.cwd, Limits: limits, Staffer: staffer, Base: base,
+		Cwd: t.cwd, Limits: limits, Staffer: staffer, Base: base, Exec: taskExec,
 		Writers: settings.OrgWriters, TurnID: journal.turnID,
 		ReadAccess: st.caps.Has(monomind.CapAgentExecAccessRead),
 		Emit:       journal,

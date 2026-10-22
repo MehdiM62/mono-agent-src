@@ -69,7 +69,7 @@ importScripts("bridge_health.js", "autopair.js");
 // The coder's browser commands (plan C1): agent_cdp.js first, every other
 // agent module registers with it; agent_commands.js, the dispatch, last.
 importScripts("agent_cdp.js", "agent_redact.js", "agent_tabs.js", "agent_screenshot.js", "agent_watch.js", "agent_a11y.js");
-importScripts("agent_submit_page.js", "agent_guard_bar.js", "agent_submit_guard.js", "agent_submit_prompt.js", "agent_commands.js");
+importScripts("agent_submit_page.js", "agent_guard_bar.js", "agent_submit_guard.js", "submit_observe.js", "agent_submit_prompt.js", "agent_commands.js");
 // The chat's Run on a page action card: the page's half, its debugger fallback
 // (through agent_cdp.js's attach and send), and the message handler.
 importScripts("page_action_page.js", "page_action_cdp.js", "page_action_bridge.js");

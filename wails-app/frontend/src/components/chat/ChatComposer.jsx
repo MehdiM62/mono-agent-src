@@ -3,7 +3,7 @@ import { Send, Square, Paperclip } from 'lucide-react'
 import { AttachmentChips } from './ChatAttachments.jsx'
 
 // ChatComposer is the draft textarea + send/stop control, extracted from
-// AIChatPanel so its own interaction rules (IME composition, auto-resize)
+// the old assistant panel so its own interaction rules (IME composition, auto-resize)
 // are independently testable. Fully controlled — the draft itself lives in
 // the parent's `value` state, so nothing here is lost across a presentation
 // change (docked/expanded/narrow) as long as the parent doesn't unmount.

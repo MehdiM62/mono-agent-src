@@ -13,6 +13,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/monoes/mono-agent/internal/ai"
 	"github.com/monoes/mono-agent/internal/ai/chatevents"
 	"github.com/monoes/mono-agent/internal/cli/clicore"
 )
@@ -89,6 +90,16 @@ type backgroundStop struct {
 	Stopped []int `json:"stopped"`
 	Gone    []int `json:"gone"`
 	Refused []int `json:"refused"`
+	// Survivors are the refused processes, and those that outlived SIGKILL,
+	// with why each is still running.
+	Survivors []survivor `json:"survivors,omitempty"`
+}
+
+// survivor is a recorded process that was not stopped and may still be alive.
+type survivor struct {
+	Pid     int    `json:"pid"`
+	Command string `json:"command,omitempty"`
+	Reason  string `json:"reason"`
 }
 
 // stopBackground stops each recorded process that is still the same
@@ -103,9 +114,15 @@ func stopBackground(refs []chatevents.ProcessRef, grace time.Duration) backgroun
 			res.Gone = append(res.Gone, r.Pid)
 		case r.Identity == "" || now != r.Identity:
 			res.Refused = append(res.Refused, r.Pid)
+			reason := "its identity was not recorded, so it cannot be told from another process that reused the pid"
+			if r.Identity != "" {
+				reason = "its pid now belongs to a process that cannot be shown to be the one the turn started"
+			}
+			res.Survivors = append(res.Survivors, survivor{Pid: r.Pid, Command: shortCommand(r.Pid), Reason: reason})
 		default:
 			if err := terminateProcess(r.Pid); err != nil {
 				res.Refused = append(res.Refused, r.Pid)
+				res.Survivors = append(res.Survivors, survivor{Pid: r.Pid, Command: shortCommand(r.Pid), Reason: "it could not be signalled: " + err.Error()})
 				continue
 			}
 			signalled = append(signalled, r.Pid)
@@ -119,9 +136,35 @@ func stopBackground(refs []chatevents.ProcessRef, grace time.Duration) backgroun
 		if processAlive(pid) {
 			_ = killProcess(pid)
 		}
+		if processAlive(pid) {
+			res.Survivors = append(res.Survivors, survivor{Pid: pid, Command: shortCommand(pid), Reason: "it outlived SIGKILL"})
+			continue
+		}
 		res.Stopped = append(res.Stopped, pid)
 	}
 	return res
+}
+
+// turnBackgroundRefs is every process the turn's coder.background notices
+// recorded as left running.
+func turnBackgroundRefs(store *ai.AIStore, profileID, conversationID, turnID string) ([]chatevents.ProcessRef, error) {
+	var refs []chatevents.ProcessRef
+	for after := int64(0); ; {
+		page, err := store.GetEvents(conversationID, turnID, profileID, after, 1000)
+		if err != nil {
+			return nil, chatStoreErr(err)
+		}
+		for _, ev := range page {
+			var n chatevents.NoticePayload
+			if ev.Type == chatevents.EventNotice && json.Unmarshal(ev.Payload, &n) == nil && n.Code == noticeCoderBackground {
+				refs = append(refs, n.Processes...)
+			}
+		}
+		if len(page) < 1000 {
+			return refs, nil
+		}
+		after = page[len(page)-1].Seq
+	}
 }
 
 func newCoderStopBackgroundCmd(cfg *Deps) *cobra.Command {
@@ -142,22 +185,9 @@ func newCoderStopBackgroundCmd(cfg *Deps) *cobra.Command {
 				return err
 			}
 			defer closeStore()
-			var refs []chatevents.ProcessRef
-			for after := int64(0); ; {
-				page, err := store.GetEvents(conversationID, turnID, profileID, after, 1000)
-				if err != nil {
-					return chatStoreErr(err)
-				}
-				for _, ev := range page {
-					var n chatevents.NoticePayload
-					if ev.Type == chatevents.EventNotice && json.Unmarshal(ev.Payload, &n) == nil && n.Code == noticeCoderBackground {
-						refs = append(refs, n.Processes...)
-					}
-				}
-				if len(page) < 1000 {
-					break
-				}
-				after = page[len(page)-1].Seq
+			refs, err := turnBackgroundRefs(store, profileID, conversationID, turnID)
+			if err != nil {
+				return err
 			}
 			res := stopBackground(refs, 3*time.Second)
 			if cfg.JSONOutput() {

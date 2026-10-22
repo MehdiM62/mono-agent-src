@@ -4,6 +4,12 @@ import {main} from '../models';
 import {connections} from '../models';
 import {workflow} from '../models';
 
+export function AITaskBudgetFor(arg1:string):Promise<string>;
+
+export function AITaskBudgets():Promise<string>;
+
+export function AITaskStatus():Promise<main.AITaskState>;
+
 export function AIFillProfileInfo(arg1:string,arg2:string):Promise<main.ProfileInfoAIFillResult>;
 
 export function APIConfigReset(arg1:boolean,arg2:boolean):Promise<main.APIConfigChange>;
@@ -102,6 +108,8 @@ export function CancelHealthRun(arg1:string):Promise<string>;
 
 export function CancelPlatformOAuth(arg1:string):Promise<string>;
 
+export function CancelAITask(arg1:string):Promise<main.AITask>;
+
 export function CancelWorkflow(arg1:string):Promise<void>;
 
 export function CheckForUpdate():Promise<main.UpdateInfo>;
@@ -116,6 +124,8 @@ export function ChooseProfileFolder():Promise<string>;
 
 export function ChooseWorkflowFile():Promise<string>;
 
+export function ClearAITaskBudget(arg1:string,arg2:string):Promise<string>;
+
 export function ClearLogs():Promise<void>;
 
 export function ClearProfileInfo(arg1:string):Promise<void>;
@@ -127,6 +137,8 @@ export function CoderEnable():Promise<string>;
 export function CoderSet(arg1:string,arg2:number,arg3:string,arg4:number,arg5:string):Promise<string>;
 
 export function CoderSetAppAccess(arg1:boolean):Promise<string>;
+
+export function ConfirmApplicationSubmitted(arg1:string):Promise<void>;
 
 export function CoderStatus():Promise<string>;
 
@@ -150,6 +162,8 @@ export function ControlOrg(arg1:string,arg2:string):Promise<string>;
 
 export function CreateChatConversation(arg1:string,arg2:string,arg3:string,arg4:string):Promise<string>;
 
+export function CreateChatConversationAccess(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string,arg6:string):Promise<main.Conversation>;
+
 export function CreateCoderConversation(arg1:string,arg2:string,arg3:string,arg4:string,arg5:boolean):Promise<string>;
 
 export function CreateOrgDesign(arg1:string):Promise<string>;
@@ -163,6 +177,8 @@ export function CreateWorkflowFromTemplate(arg1:string):Promise<main.WorkflowSum
 export function DaemonRestart():Promise<main.DaemonRestartResult>;
 
 export function DeleteChatConversation(arg1:string):Promise<string>;
+
+export function DeleteChatConversations(arg1:Array<string>):Promise<main.DeleteChatResult>;
 
 export function DeleteOrgDesign(arg1:string):Promise<string>;
 
@@ -212,6 +228,10 @@ export function GateApproveOrgAction(arg1:string,arg2:string,arg3:string):Promis
 
 export function GateRejectOrgAction(arg1:string,arg2:string,arg3:string):Promise<string>;
 
+export function GetAITask(arg1:string):Promise<main.AITask>;
+
+export function GetApplicationTab(arg1:string):Promise<main.ApplicationTab>;
+
 export function GetActiveProfile():Promise<main.ProfileInfo>;
 
 export function GetAgentRuntimeModels(arg1:string,arg2:string):Promise<string>;
@@ -224,11 +244,15 @@ export function GetAllTags():Promise<Array<main.TagInfo>>;
 
 export function GetApplication(arg1:string):Promise<main.ApplicationDetail>;
 
+export function GetApplicationAssets(arg1:string):Promise<main.ApplicationAssets>;
+
 export function GetApplications(arg1:string,arg2:string,arg3:string):Promise<Array<main.ApplicationSummary>>;
 
 export function GetBrowsers():Promise<main.BrowsersReport>;
 
 export function GetCaptureView(arg1:string):Promise<main.CaptureView>;
+
+export function GetChatConversationRecord(arg1:string):Promise<main.ChatConversationRecord>;
 
 export function GetChatEvents(arg1:string,arg2:string,arg3:number,arg4:number):Promise<string>;
 
@@ -480,6 +504,8 @@ export function ListCredentialsForNode(arg1:string):Promise<Array<main.Credentia
 
 export function ListExcludedDocuments():Promise<Array<main.ExcludedDocument>>;
 
+export function ListHistory(arg1:string,arg2:number,arg3:main.HistoryFilter):Promise<main.HistoryPage>;
+
 export function ListMonomindProjects():Promise<Array<main.MonomindProjectInfo>>;
 
 export function ListNeedsYou(arg1:string):Promise<string>;
@@ -610,6 +636,8 @@ export function RestoreExcludedDocument(arg1:string):Promise<void>;
 
 export function ResumeOrgAutonomy(arg1:string):Promise<string>;
 
+export function ResumeApplicationFill(arg1:string):Promise<main.AITask>;
+
 export function RevealProfileFolder(arg1:string):Promise<void>;
 
 export function RevealProfileInfo(arg1:string):Promise<string>;
@@ -660,6 +688,8 @@ export function SendOrgChat(arg1:string,arg2:string):Promise<string>;
 
 export function SendOrgMessage(arg1:string,arg2:string):Promise<string>;
 
+export function SetAITaskBudget(arg1:string,arg2:string,arg3:number):Promise<string>;
+
 export function SetAgentRosterAutoRevalidate(arg1:boolean):Promise<string>;
 
 export function SetApplicationStatus(arg1:string,arg2:string,arg3:string):Promise<void>;
@@ -669,6 +699,8 @@ export function SetAutomationTrust(arg1:string,arg2:string):Promise<string>;
 export function SetBrowserPermission(arg1:string,arg2:string):Promise<string>;
 
 export function SetBrowserSiteRule(arg1:string,arg2:string):Promise<string>;
+
+export function SetChatAccess(arg1:string,arg2:string,arg3:string,arg4:boolean):Promise<main.AccessChange>;
 
 export function SetChatOrgMode(arg1:string,arg2:string):Promise<string>;
 
@@ -693,6 +725,14 @@ export function ShowAutomation(arg1:string):Promise<string>;
 export function ShowPlatform(arg1:string):Promise<string>;
 
 export function ShowRecording(arg1:string):Promise<string>;
+
+export function SubmitAITask(arg1:string,arg2:string,arg3:Array<string>,arg4:string):Promise<main.AITask>;
+
+export function StartApplicationFill(arg1:string):Promise<main.AITask>;
+
+export function StartApplicationQueue(arg1:Array<string>,arg2:number):Promise<void>;
+
+export function SweepApplicationTabs():Promise<main.SweepResult>;
 
 export function StartAgentValidation(arg1:Array<string>,arg2:Array<string>,arg3:boolean):Promise<string>;
 

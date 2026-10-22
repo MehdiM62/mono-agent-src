@@ -89,7 +89,7 @@ describe('persistence', () => {
   it('keeps real conversations and the dock side, drops drafts', () => {
     const s = memory()
     saveState({ side: 'left', bubbles: [{ key: 'draft-1', conversationId: '' }, { key: 'c1', conversationId: 'c1', cwd: '/w', model: 'opus', runtime: 'codex' }] }, s)
-    expect(loadState(s)).toEqual({ side: 'left', bubbles: [{ key: 'c1', conversationId: 'c1', cwd: '/w', model: 'opus', runtime: 'codex' }] })
+    expect(loadState(s)).toEqual({ side: 'left', bubbles: [{ key: 'c1', conversationId: 'c1', cwd: '/w', model: 'opus', runtime: 'codex', access: '', title: '', effort: '', orgMode: '', taskId: '', taskKind: '' }] })
   })
   it('survives throwing or corrupt storage', () => {
     const throwing = { getItem: () => { throw new Error('denied') }, setItem: () => { throw new Error('denied') } }
@@ -217,5 +217,33 @@ describe('org bubbles (#229)', () => {
     const store = memoryStorage()
     store.setItem(STORAGE_KEY, JSON.stringify({ bubbles: [{ kind: 'org' }, { kind: 'org', orgName: 7 }, { kind: 'org', orgName: 'ok' }] }))
     expect(loadState(store).bubbles.map(b => b.key)).toEqual(['org:ok'])
+  })
+
+  describe('chat bubbles with access and title', () => {
+    const mem = () => { const m = {}; return { getItem: k => m[k] ?? null, setItem: (k, v) => { m[k] = v }, raw: m } }
+
+    it('round-trips access, title, effort, org mode and the task kind', () => {
+      const s = mem()
+      saveState({ side: 'right', bubbles: [{ key: 'c1', conversationId: 'c1', cwd: '', model: 'm', runtime: 'claude', access: 'scoped', title: 'Fix the bug', effort: 'high', orgMode: 'dynamic', taskId: 't1', taskKind: 'application-apply' }] }, s)
+      expect(loadState(s).bubbles[0]).toMatchObject({ access: 'scoped', title: 'Fix the bug', effort: 'high', orgMode: 'dynamic', taskId: 't1', taskKind: 'application-apply' })
+    })
+
+    it('reads a v1 entry written before levels as an unknown level, keeping its old fields', () => {
+      const s = mem()
+      s.setItem(STORAGE_KEY, JSON.stringify({ side: 'right', bubbles: [{ conversationId: 'old', cwd: '/w', model: 'opus', runtime: 'claude' }] }))
+      expect(loadState(s).bubbles[0]).toMatchObject({ key: 'old', conversationId: 'old', cwd: '/w', model: 'opus', runtime: 'claude', access: '' })
+    })
+
+    it('does not trust a stored level it does not know', () => {
+      const s = mem()
+      s.setItem(STORAGE_KEY, JSON.stringify({ bubbles: [{ conversationId: 'x', access: 'root' }] }))
+      expect(loadState(s).bubbles[0].access).toBe('')
+    })
+
+    it('keeps the four original fields on every saved bubble', () => {
+      const s = mem()
+      saveState({ side: 'right', bubbles: [{ key: 'c1', conversationId: 'c1', cwd: '/w', model: 'm', runtime: 'r', access: 'coding' }] }, s)
+      expect(JSON.parse(s.raw[STORAGE_KEY]).bubbles[0]).toMatchObject({ conversationId: 'c1', cwd: '/w', model: 'm', runtime: 'r' })
+    })
   })
 })

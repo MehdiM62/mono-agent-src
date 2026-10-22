@@ -35,6 +35,7 @@ vi.mock('../../services/api.js', () => ({
   onOrgRunStatus: () => () => {},
   newOrgEventsStreamId: () => 'stream',
 }))
+vi.mock('../../lib/chatAccessApi.js', () => ({ chatAccessApi: { record: () => Promise.resolve({ access: 'full', mode: 'coder' }), create: vi.fn(), setAccess: vi.fn() } }))
 vi.mock('../ConfirmDialog.jsx', () => ({ confirm: vi.fn() }))
 
 import CoderBubbles from './CoderBubbles.jsx'

@@ -11,7 +11,7 @@ function ChatBubble({ bubble, summary, expanded, onOpen, onClose, onDragStart, o
   const { t } = useTranslation()
   const [hover, setHover] = useState(false)
   const isOrg = bubble.kind === 'org'
-  const name = isOrg ? bubble.orgName : bubble.cwd ? titleOf(bubble.cwd) : t('bubbles.newChat')
+  const name = isOrg ? bubble.orgName : bubble.title || (bubble.cwd ? titleOf(bubble.cwd) : t('bubbles.newChat'))
   const cost = totalCost(summary)
   const estimated = costEstimated(summary)
   const label = (isOrg ? t('orgBubble.bubbleLabel', { name, status: t(`bubbles.${statusKey[summary.status] || 'statusIdle'}`) })
@@ -71,7 +71,7 @@ export function BubbleDock({ store, onOpen, onClose, registerEl, canCreate = tru
     setDragKey('')
   }
   const bubbleProps = b => ({
-    key: b.key, bubble: b, summary: store.summaryOf(b.key), expanded: b.key === expandedKey,
+    bubble: b, summary: store.summaryOf(b.key), expanded: b.key === expandedKey,
     onOpen: k => { setFanOpen(false); onOpen(k) }, onClose, onDragStart: setDragKey, onDropOn,
     dragging: dragKey === b.key, registerEl, titleOf,
   })
@@ -80,7 +80,7 @@ export function BubbleDock({ store, onOpen, onClose, registerEl, canCreate = tru
 
   return (
     <div className={`bubble-dock ${side}`} data-testid="bubble-dock" role="toolbar" aria-label={t('bubbles.dockLabel')}>
-      {visible.map(b => <ChatBubble {...bubbleProps(b)} />)}
+      {visible.map(b => <ChatBubble key={b.key} {...bubbleProps(b)} />)}
       {overflow.length > 0 && (
         <div className="bubble-wrap">
           <button type="button" className="bubble" data-status="idle" onClick={() => setFanOpen(o => !o)}
@@ -90,7 +90,7 @@ export function BubbleDock({ store, onOpen, onClose, registerEl, canCreate = tru
           </button>
           {fanOpen && (
             <div className="bubble-overflow" data-testid="bubble-overflow">
-              {overflow.map(b => <ChatBubble {...bubbleProps(b)} />)}
+              {overflow.map(b => <ChatBubble key={b.key} {...bubbleProps(b)} />)}
             </div>
           )}
         </div>

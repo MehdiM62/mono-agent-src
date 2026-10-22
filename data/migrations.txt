@@ -98,3 +98,10 @@
 111_agent_secret_access_scope_audit.sql
 112_agent_tokens.sql
 113_vault_document_exclusions.sql
+114_aitask.sql
+115_application_assets.sql
+117_application_tabs.sql
+118_ai_budgets.sql
+119_chat_access.sql
+120_ai_budget_pool.sql
+121_application_park_guards.sql

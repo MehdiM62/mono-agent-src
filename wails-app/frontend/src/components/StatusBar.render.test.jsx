@@ -34,20 +34,21 @@ describe('StatusBar HIL toggle', () => {
     cleanup()
   })
 
-  it('renders HIL toggle next to chat icon and handles click', () => {
+  it('renders HIL toggle next to the new-chat icon and handles click', async () => {
+    const { CoderBubbleContext } = await import('./bubbles/CoderBubbleContext.jsx')
     const onToggleHil = vi.fn()
-    const onToggleChat = vi.fn()
+    const openNewChat = vi.fn()
 
     render(
-      <StatusBar
-        stats={{ total_workflows: 5, total_people: 10, active_sessions: 1 }}
-        dbConnected={true}
-        chatOpen={false}
-        onToggleChat={onToggleChat}
-        hilOpen={false}
-        hilCount={3}
-        onToggleHil={onToggleHil}
-      />
+      <CoderBubbleContext.Provider value={{ openDraft: null, openNewChat, navigate: null }}>
+        <StatusBar
+          stats={{ total_workflows: 5, total_people: 10, active_sessions: 1 }}
+          dbConnected={true}
+          hilOpen={false}
+          hilCount={3}
+          onToggleHil={onToggleHil}
+        />
+      </CoderBubbleContext.Provider>
     )
 
     const hilBtn = screen.getByTestId('hil-status-toggle')
@@ -57,8 +58,25 @@ describe('StatusBar HIL toggle', () => {
     fireEvent.click(hilBtn)
     expect(onToggleHil).toHaveBeenCalledTimes(1)
 
-    const chatBtn = screen.getByTitle('Open AI Assistant')
-    fireEvent.click(chatBtn)
-    expect(onToggleChat).toHaveBeenCalledTimes(1)
+    fireEvent.click(screen.getByTitle('New chat'))
+    expect(openNewChat).toHaveBeenCalledTimes(1)
+    expect(openNewChat).toHaveBeenCalledWith()
+  })
+})
+
+describe('StatusBar new-chat button', () => {
+  afterEach(() => cleanup())
+
+  it('has an accessible name and shows no dead button without the bubble store', async () => {
+    render(<StatusBar stats={{}} dbConnected={true} />)
+    expect(screen.queryByLabelText('New chat')).toBeNull()
+    cleanup()
+    const { CoderBubbleContext } = await import('./bubbles/CoderBubbleContext.jsx')
+    render(
+      <CoderBubbleContext.Provider value={{ openDraft: null, openNewChat: vi.fn(), navigate: null }}>
+        <StatusBar stats={{}} dbConnected={true} />
+      </CoderBubbleContext.Provider>,
+    )
+    expect(screen.getByLabelText('New chat')).toBeInTheDocument()
   })
 })

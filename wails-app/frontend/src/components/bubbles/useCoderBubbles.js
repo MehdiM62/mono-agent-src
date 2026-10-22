@@ -3,6 +3,7 @@ import { api, onChatEvent, onOrgEvent } from '../../services/api.js'
 import {
   newDraftKey, emptySummary, applyChatEvent, summaryFromTurns, moveBubble, loadState, saveState, orgBubble, isOrgBubble,
 } from '../../lib/coderBubbles.js'
+import { isAccess } from '../../lib/chatAccess.js'
 import {
   emptyOrgSummary, applyOrgSummaryEvent, orgBubbleStatus, orgNeedsCount,
 } from '../../lib/orgBubble.js'
@@ -29,7 +30,8 @@ function rootRoleOf(design) {
 // subscription that updates every open bubble's summary, so a collapsed
 // chat costs a few fields, not a mounted transcript.
 //
-// A bubble is { key, conversationId, cwd, model, runtime }. A new coder chat is a
+// A bubble is { key, conversationId, cwd, model, runtime, access, title, effort,
+// orgMode, taskId, taskKind }. A new coder chat is a
 // draft (conversationId '') until its first message creates the
 // conversation; its key stays the same after that. A running org opened as
 // a bubble (#229) is { key: 'org:<name>', kind: 'org', orgName }: its
@@ -140,12 +142,10 @@ export function useCoderBubbles() {
 
   const collapse = useCallback(() => setExpandedKey(''), [])
 
-  const openDraft = useCallback(() => {
-    const key = newDraftKey()
-    setBubbles(list => [...list, { key, conversationId: '', cwd: '', model: '', runtime: '' }])
-    expand(key)
-    return key
-  }, [expand])
+  const getView = useCallback((key) => viewState.current[key] || {}, [])
+  const setView = useCallback((key, patch) => {
+    viewState.current[key] = { ...(viewState.current[key] || {}), ...patch }
+  }, [])
 
   // openConversation shows an existing coder conversation as a bubble,
   // reusing its bubble when it already has one.
@@ -154,13 +154,61 @@ export function useCoderBubbles() {
     const existing = byConversation.current[conv.id]
     if (existing) { expand(existing); return existing }
     const key = conv.id
-    setBubbles(list => [...list, { key, conversationId: conv.id, cwd: conv.cwd || '', model: conv.model || '', runtime: conv.runtimeId || conv.runtime || '' }])
+    setBubbles(list => [...list, {
+      key, conversationId: conv.id, cwd: conv.cwd || '', model: conv.model || '', runtime: conv.runtimeId || conv.runtime || '',
+      // A history row or a conversation record names its level; a bare { id } (a task's chat) is read from the row later.
+      access: isAccess(conv.access) ? conv.access : '', title: conv.title || '', effort: conv.effort || '', orgMode: conv.orgMode === 'dynamic' ? 'dynamic' : '',
+      taskId: conv.taskId || '', taskKind: '',
+      // Only a record or a history row that names the level makes it known; the pane looks the rest up.
+      verified: isAccess(conv.access),
+    }])
     Promise.resolve().then(() => api.getChatTurns(conv.id, '', 1))
       .then(res => setSummaries(s => ({ ...s, [key]: summaryFromTurns(Array.isArray(res?.items) ? res.items : []) })))
       .catch(() => {})
     expand(key)
     return key
   }, [expand])
+
+  // openDraft opens a new coder chat. Seeded with { prompt, setup, links,
+  // task, conversationId } (a "Send to coder" button, #957), the view starts
+  // with the prompt as its draft; a conversationId opens that conversation
+  // like openConversation does (the task's chat, already created) and task
+  // ({ taskId, goal, status, origin }) puts the task header on it. Called
+  // with nothing, or with a click event, it is a blank new chat.
+  const openDraft = useCallback((seed) => {
+    const opts = seed && typeof seed === 'object' && !seed.nativeEvent && !('target' in seed) ? seed : null
+    const key = opts?.conversationId
+      ? openConversation({ id: opts.conversationId })
+      : (() => {
+        const k = newDraftKey()
+        setBubbles(list => [...list, { key: k, conversationId: '', cwd: '', model: '', runtime: '', access: '', title: '', effort: '', orgMode: '', taskId: '', taskKind: '' }])
+        expand(k)
+        return k
+      })()
+    if (opts) {
+      const patch = {}
+      if (opts.prompt) patch.draft = String(opts.prompt)
+      if (opts.setup) patch.setup = opts.setup
+      if (opts.links) patch.links = opts.links
+      if (opts.task) {
+        patch.task = opts.task
+        // The kind outlives a restart on the bubble, so a confined bubble stays confined.
+        setBubbles(list => list.map(b => (b.key === key ? { ...b, taskId: opts.task.taskId || b.taskId, taskKind: opts.task.kind || b.taskKind } : b)))
+      }
+      if (Object.keys(patch).length) setView(key, patch)
+    }
+    return key
+  }, [expand, openConversation, setView])
+
+  // openNewChat opens a blank chat, optionally seeded ({ prompt, setup: {
+  // runtime, access, … } }). A stable function, for a toggle that has no
+  // props to plumb it through.
+  const openNewChat = useCallback((seed) => openDraft(seed || undefined), [openDraft])
+
+  // patchBubble changes fields on one bubble (its access after a change).
+  const patchBubble = useCallback((key, patch) => {
+    setBubbles(list => list.map(b => (b.key === key ? { ...b, ...patch } : b)))
+  }, [])
 
   // openOrg shows a running org as a bubble, reusing its bubble when it has
   // one. expand: false adds it collapsed (an org that asks the person
@@ -181,7 +229,10 @@ export function useCoderBubbles() {
   // message created one.
   const bindConversation = useCallback((key, conv) => {
     byConversation.current = { ...byConversation.current, [conv.id]: key }
-    setBubbles(list => list.map(b => (b.key === key ? { ...b, conversationId: conv.id, cwd: conv.cwd || b.cwd, model: conv.model || b.model, runtime: conv.runtime || b.runtime } : b)))
+    setBubbles(list => list.map(b => (b.key === key ? {
+      ...b, conversationId: conv.id, cwd: conv.cwd || b.cwd, model: conv.model || b.model, runtime: conv.runtime || b.runtime,
+      access: conv.access || b.access, verified: isAccess(conv.access) || b.verified, effort: conv.effort || b.effort, orgMode: conv.orgMode === 'dynamic' ? 'dynamic' : b.orgMode,
+    } : b)))
   }, [])
 
   // dropBubble only uses state setters and a ref.
@@ -190,11 +241,6 @@ export function useCoderBubbles() {
 
   const reorder = useCallback((fromKey, toKey) => setBubbles(list => moveBubble(list, fromKey, toKey)), [])
   const setSide = useCallback((next) => setSideState(next === 'left' ? 'left' : 'right'), [])
-
-  const getView = useCallback((key) => viewState.current[key] || {}, [])
-  const setView = useCallback((key, patch) => {
-    viewState.current[key] = { ...(viewState.current[key] || {}), ...patch }
-  }, [])
 
   // An org bubble's summary in the coder summary's shape (the dock reads
   // status, unread and cost), plus how many items wait for the person.
@@ -226,7 +272,7 @@ export function useCoderBubbles() {
     bubbles, side, expandedKey, summaries,
     summaryOf: key => (key.startsWith('org:') ? orgSummaryOf(key) : coderSummaryOf(key)),
     setHilNeeds,
-    expand, collapse, openDraft, openConversation, openOrg, bindConversation, close, reorder, setSide,
+    expand, collapse, openDraft, openNewChat, openConversation, openOrg, patchBubble, bindConversation, close, reorder, setSide,
     getView, setView,
     // bossOf is the org's boss once its design was read ('' before).
     bossOf: name => bosses.current[name] || '',

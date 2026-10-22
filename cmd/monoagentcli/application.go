@@ -25,6 +25,7 @@ import (
 // tender applications through a shared pending/applied/rejected/cancelled
 // pipeline. See docs/mastermind/specs/2026-09-05-applications-foundation-design.md.
 func newApplicationCmd(cfg *globalConfig) *cobra.Command {
+	wireApplicationFillStart(cfg)
 	return applicationcli.NewCommand(applicationcli.Deps{
 		JSONOutput:   func() bool { return cfg.JSONOutput },
 		ProfileID:    func() string { return cfg.ProfileID },

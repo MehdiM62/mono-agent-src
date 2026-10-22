@@ -72,8 +72,8 @@ func journaledAttachments(store *ai.AIStore, profileID, conversationID, turnID s
 		return nil, nil
 	}
 	// An unknown conversation is left to the admission, which says so.
-	if conv, err := store.GetConversation(conversationID, profileID); err == nil && conv.Mode != ai.ModeCoder {
-		return nil, clicore.InvalidInput("--attach applies only to coder chats; conversation %s is an assistant chat", conversationID)
+	if conv, err := store.GetConversation(conversationID, profileID); err == nil && conv.Scoped() {
+		return nil, clicore.InvalidInput("--attach applies only to coder chats; conversation %s is a scoped chat", conversationID)
 	}
 	if !attachTurnDir.MatchString(turnID) {
 		return nil, clicore.InvalidInput("--attach needs a --turn id of letters, digits, '.', '_' and '-' (it names the attachments folder)")

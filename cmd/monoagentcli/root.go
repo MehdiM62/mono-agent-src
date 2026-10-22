@@ -124,6 +124,7 @@ func buildRootCmd(installProvider bool) *cobra.Command {
 		newAgentCmd(cfg),
 		newChatCmd(cfg),
 		newCoderCmd(cfg),
+		newAitaskCmd(cfg),
 		newSandboxCmd(cfg),
 		newAgentModeCmd(cfg),
 		newOrgCmd(cfg),

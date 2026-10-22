@@ -33,6 +33,20 @@ type coderTurn struct {
 	resume  string
 	cwd     string
 	orgMode string // ai.OrgModeDynamic lets the agent spawn workers (#226)
+	// access is the conversation's level (ai.AccessCoding and up); "" is full,
+	// what a plain `chat --mode coder` turn has.
+	access string
+	// budget is a spend cap for this turn (--budget-usd, what an AI task's
+	// supervisor passes); nil asks for none. See turnBudget.
+	budget *float64
+	// env is added to the turn's environment (an AI task's id and token).
+	env map[string]string
+	// agentKind is the browser-permission kind the turn runs as (coder, or
+	// apply for an application-apply task's turn); "" is coder.
+	agentKind string
+	// confine, when set, makes this a confined turn (chat_apply.go): scoped
+	// tools, not full access, in the task's own folder.
+	confine *confinement
 	// attachments are the files attached to the turn, already copied into cwd.
 	attachments []chatevents.TurnAttachment
 }
@@ -60,6 +74,29 @@ func coderLeadSystemPrompt(ctx context.Context, db *sql.DB, cfg *Deps, cwd strin
 		}
 	}
 	return strings.Join(append(parts, cfg.PublicationPrompt()), "\n\n")
+}
+
+// turnBudget is the spend cap a coder turn runs under. A turn's own cap
+// (--budget-usd) can lower the operator's coder budget, never raise it: the
+// lower of the two wins (the operator's 0 is no cap set, so the turn's cap
+// stands alone). A turn cap of 0 or less is no spend and the turn is refused,
+// never run unlimited; so is a cap on a runtime that can't enforce one (kilo
+// takes no budget).
+func turnBudget(operator float64, turn *float64, runtime string) (float64, error) {
+	if turn == nil {
+		return operator, nil
+	}
+	if !validTurnCap(*turn) {
+		return 0, noBudgetError(*turn)
+	}
+	if runtime == "kilo" {
+		return 0, &coderError{code: "budget_unenforceable", err: &clicore.Error{Code: 3,
+			Msg: "kilo can't enforce a spend cap, so a turn with --budget-usd does not run on it"}}
+	}
+	if operator > 0 && operator < *turn {
+		return operator, nil
+	}
+	return *turn, nil
 }
 
 // dropKiloOptions clears the options kilo's runner refuses outright
@@ -93,9 +130,20 @@ func runCoderTurn(cmd *cobra.Command, cfg *Deps, journal *turnJournal, t coderTu
 		return fmt.Errorf("initializing database: %w", err)
 	}
 	settings, st, rt, err := requireCoderReady(cmd, db.DB, t.runtime)
+	settings = settings.forAccess(t.access)
 	// The profile block is read while the database is open; it never fails.
 	systemPrompt := coderLeadSystemPrompt(ctx, db.DB, cfg, t.cwd, settings.appAccess())
 	db.Close()
+	if err != nil {
+		return err
+	}
+	if t.confine != nil {
+		if err := t.confine.check(rt.ID); err != nil {
+			return err
+		}
+		t.cwd, t.orgMode, systemPrompt = t.confine.workDir, "", t.confine.systemPrompt()
+	}
+	budget, err := turnBudget(settings.BudgetUSD, t.budget, rt.ID)
 	if err != nil {
 		return err
 	}
@@ -119,14 +167,30 @@ func runCoderTurn(cmd *cobra.Command, cfg *Deps, journal *turnJournal, t coderTu
 		Settings:     monomind.CoderSettings,
 		MaxTurns:     settings.MaxTurns,
 		Timeout:      settings.timeout(),
-		BudgetUSD:    settings.BudgetUSD,
+		BudgetUSD:    budget,
 		SystemPrompt: systemPrompt,
 		Env:          agentSendEnv(journal, "lead", ""),
 		Attach:       nativeAttachments(st.caps, t.attachments),
 	}
 	// The coder kind of browser permissions, vouched for by a token that
 	// counts while this turn runs (its workers get their own, dynorg).
-	kindDone := addAgentKind(opts.Env, browserctl.KindCoder)
+	for k, v := range t.env {
+		opts.Env[k] = v
+	}
+	if t.confine != nil {
+		t.confine.apply(&opts)
+	}
+	kind := t.agentKind
+	if kind == "" {
+		kind = browserctl.KindCoder
+	}
+	var kindDone func()
+	if t.confine != nil && kind == browserctl.KindApply {
+		// The token names the task, so the browser verbs derive its folders from it.
+		kindDone = addKindEnv(opts.Env, func() ([]string, func(int), func()) { return browserctl.IssueApplyKind(t.confine.taskID) })
+	} else {
+		kindDone = addAgentKind(opts.Env, kind)
+	}
 	defer kindDone()
 	kiloDropped := dropKiloOptions(&opts)
 	onEvent := func(ev monomind.Event) {
@@ -264,9 +328,14 @@ func coderFolder(cmd *cobra.Command, cfg *Deps, c coderFolderChoice, runtime str
 	return dir, nil
 }
 
-// createCoderConversation is `chat history create --mode coder`; runtimeID
-// "" means claude.
-func createCoderConversation(cmd *cobra.Command, cfg *Deps, runtimeID, model, effort, workflowID string, folder coderFolderChoice) (ai.Conversation, error) {
+// createCoderConversation is `chat history create` above the scoped level
+// (--mode coder is full); runtimeID "" means claude.
+func createCoderConversation(cmd *cobra.Command, cfg *Deps, access, runtimeID, model, effort, workflowID string, folder coderFolderChoice) (ai.Conversation, error) {
+	// A conversation above scoped is a raise from nothing: an agent, the chat or
+	// a workflow must not make itself a full-access one to run next.
+	if err := clicore.RequireOperator(cfg.RequireOperator, "create a conversation above the scoped level"); err != nil {
+		return ai.Conversation{}, err
+	}
 	if runtimeID == "" {
 		runtimeID = monomind.DefaultCoderRuntime
 	}
@@ -279,13 +348,17 @@ func createCoderConversation(cmd *cobra.Command, cfg *Deps, runtimeID, model, ef
 		return ai.Conversation{}, err
 	}
 	defer closeDB()
-	return store.CreateConversationModeEffort(profileID, "agent", workflowID, runtimeID, "", model, ai.ModeCoder, dir, effort)
+	return store.CreateConversationAccess(profileID, "agent", workflowID, runtimeID, "", model, access, dir, effort)
 }
 
 // addAgentKind adds kind's vouched environment (browserctl.IssueAgentKind)
 // to env and returns its done.
 func addAgentKind(env map[string]string, kind string) (done func()) {
-	kindEnv, _, done := browserctl.IssueAgentKind(kind)
+	return addKindEnv(env, func() ([]string, func(int), func()) { return browserctl.IssueAgentKind(kind) })
+}
+
+func addKindEnv(env map[string]string, issue func() ([]string, func(int), func())) (done func()) {
+	kindEnv, _, done := issue()
 	for _, kv := range kindEnv {
 		if k, v, ok := strings.Cut(kv, "="); ok {
 			env[k] = v

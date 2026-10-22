@@ -117,9 +117,9 @@ func newChatHistoryCmd(cfg *Deps) *cobra.Command {
   monoagentcli --json chat history events <conversation-id> <turn-id> --after-seq 12`,
 	}
 	cmd.AddCommand(
-		newChatHistoryListCmd(cfg),
+		withListAll(cfg, newChatHistoryListCmd(cfg)),
 		newChatHistoryShowCmd(cfg),
-		newChatHistoryCreateCmd(cfg),
+		withDefaultAccess(cfg, newChatHistoryCreateCmd(cfg)),
 		newChatHistoryTurnsCmd(cfg),
 		newChatHistoryTurnCmd(cfg),
 		newChatHistoryEventsCmd(cfg),
@@ -128,6 +128,7 @@ func newChatHistoryCmd(cfg *Deps) *cobra.Command {
 		newChatHistoryReconcileCmd(cfg),
 		newChatHistoryTranscriptCmd(cfg),
 		newChatHistorySetOrgCmd(cfg),
+		newChatHistorySetAccessCmd(cfg),
 	)
 	return cmd
 }
@@ -204,7 +205,7 @@ func printConversation(cfg *Deps, c ai.ConversationRecord) error {
 }
 
 func newChatHistoryCreateCmd(cfg *Deps) *cobra.Command {
-	var runtimeID, model, effort, workflowID, mode, cwd string
+	var runtimeID, model, effort, workflowID, mode, access, cwd string
 	var newWorkspace, coderRoot, profileFolder bool
 	var orgMode string
 	cmd := &cobra.Command{
@@ -212,16 +213,21 @@ func newChatHistoryCreateCmd(cfg *Deps) *cobra.Command {
 		Short: "Create an agent conversation",
 		Long: "Create an agent conversation. --workflow is the tool and ownership context: " +
 			`"general" (the default), "draft", or a workflow id.` + "\n\n" +
-			"--mode coder creates a full-access conversation (see `coder`) that works in --cwd, or in a " +
-			"--profile-folder (the folder of the profile named by --profile), a --coder-root (the coder root folder itself, shared), or a fresh test folder with --new-workspace. " +
-			"The folder is fixed for the conversation's life.",
+			"--access picks the level: scoped (the default; the sandboxed assistant), or coding, workspace or full (a coder conversation, see `coder`) " +
+			"that works in --cwd, or in a --profile-folder (the folder of the profile named by --profile), a --coder-root (the coder root folder itself, shared), " +
+			"or a fresh test folder with --new-workspace; those levels need coder mode enabled. The folder is fixed for the conversation's life. " +
+			"--mode stays as an alias: assistant is scoped, coder is full. The JSON has both `access` and `mode`.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if mode == ai.ModeCoder {
+			level, err := resolveCreateAccess(mode, access)
+			if err != nil {
+				return err
+			}
+			if level != ai.AccessScoped {
 				if orgMode != ai.OrgModeSolo && orgMode != ai.OrgModeDynamic {
 					return clicore.InvalidInput("--org must be solo or dynamic")
 				}
-				conv, err := createCoderConversation(cmd, cfg, runtimeID, model, effort, workflowID, coderFolderChoice{cwd: cwd, root: coderRoot, newWorkspace: newWorkspace, profile: profileFolder})
+				conv, err := createCoderConversation(cmd, cfg, level, runtimeID, model, effort, workflowID, coderFolderChoice{cwd: cwd, root: coderRoot, newWorkspace: newWorkspace, profile: profileFolder})
 				if err != nil {
 					return err
 				}
@@ -240,15 +246,10 @@ func newChatHistoryCreateCmd(cfg *Deps) *cobra.Command {
 				runtimeID = rt
 			}
 			if cmd.Flags().Changed("org") {
-				return clicore.InvalidInput("--org only applies to --mode coder")
+				return clicore.InvalidInput("--org only applies above the scoped level (--access coding, workspace or full)")
 			}
-			switch mode {
-			case ai.ModeAssistant:
-				if cwd != "" || newWorkspace || coderRoot || profileFolder {
-					return clicore.InvalidInput("--cwd, --profile-folder, --coder-root and --new-workspace only apply to --mode coder")
-				}
-			default:
-				return clicore.InvalidInput("unknown --mode %q (assistant or coder)", mode)
+			if cwd != "" || newWorkspace || coderRoot || profileFolder {
+				return clicore.InvalidInput("--cwd, --profile-folder, --coder-root and --new-workspace only apply above the scoped level (--access coding, workspace or full)")
 			}
 			store, profileID, closeDB, err := openChatHistory(cfg)
 			if err != nil {
@@ -266,7 +267,8 @@ func newChatHistoryCreateCmd(cfg *Deps) *cobra.Command {
 	cmd.Flags().StringVar(&model, "model", "", "Model for the runtime")
 	cmd.Flags().StringVar(&effort, "effort", "", "Reasoning effort level for the model (e.g. low, medium, high, max)")
 	cmd.Flags().StringVar(&workflowID, "workflow", "general", "Workflow context")
-	cmd.Flags().StringVar(&mode, "mode", ai.ModeAssistant, "assistant, or coder for a full-access conversation")
+	cmd.Flags().StringVar(&mode, "mode", "", "Alias of --access: assistant is scoped, coder is full")
+	cmd.Flags().StringVar(&access, "access", "", "scoped (default), coding, workspace or full; every level above scoped needs coder mode enabled")
 	cmd.Flags().StringVar(&cwd, "cwd", "", "Coder mode: the folder the agent works in (any existing folder)")
 	cmd.Flags().BoolVar(&profileFolder, "profile-folder", false, "Coder mode: work in the folder of the profile named by --profile (see 'coder workspace default')")
 	cmd.Flags().BoolVar(&coderRoot, "coder-root", false, "Coder mode: work in the coder root folder itself (see 'coder set --workspace-root')")
@@ -404,8 +406,8 @@ func setOrgMode(cfg *Deps, id, mode string) (ai.Conversation, error) {
 	if err != nil {
 		return ai.Conversation{}, chatStoreErr(err)
 	}
-	if conv.Mode != ai.ModeCoder {
-		return ai.Conversation{}, clicore.InvalidInput("conversation %s is not a coder conversation; only coder chats can run a dynamic org", id)
+	if conv.Scoped() {
+		return ai.Conversation{}, clicore.InvalidInput("conversation %s is a scoped conversation; only coder chats can run a dynamic org", id)
 	}
 	if err := store.SetConversationOrgMode(id, profileID, mode); err != nil {
 		return ai.Conversation{}, chatStoreErr(err)

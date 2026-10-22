@@ -27,6 +27,9 @@ type Options struct {
 	Tasks extension.TaskSink
 	// Vault stores the files the side panel's confirm card saves (vault.save).
 	Vault extension.VaultSink
+	// Submits records form.submit_observed (a trusted submit seen in a parked
+	// application's tab); nil leaves the method out.
+	Submits extension.SubmitSink
 	// FormFiller answers the side panel's form.fill (the profile's documents).
 	FormFiller extension.FormFiller
 	// PairMode reads the pairing mode (`extension autopair ask|auto|off`);
@@ -68,6 +71,7 @@ func NewServer(logger zerolog.Logger, o Options) *extension.Server {
 	srv.SetChatBackend(extension.NewCLIChatBackend())
 	// form.fill: fill the page's form from the profile's own documents.
 	srv.SetFormFiller(o.FormFiller)
+	srv.SetSubmitSink(o.Submits)
 	srv.SetPairMode(o.PairMode)
 	srv.SetPairCards(o.PairCards)
 	srv.SetVersion(o.Version)

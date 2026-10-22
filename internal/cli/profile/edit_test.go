@@ -158,6 +158,9 @@ var seedOverrides = map[string]map[string]any{
 	"application_status_log": {"actor": "user"},
 	"workflow_executions":    {"status": "COMPLETED"},
 	"person_links":           {"relation": "same", "status": "confirmed", "person_a": 1, "person_b": 2},
+	"application_fills":      {"status": "filled"},
+	"application_tabs":       {"state": "parked"},
+	"application_links":      {"kind": "task"},
 }
 
 // notProfileOwned are tables with a column that looks like a link to a

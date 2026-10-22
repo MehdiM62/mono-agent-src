@@ -4,15 +4,19 @@ import * as WailsApp from '../wailsjs/go/main/App'
 import { confirm } from '../components/ConfirmDialog.jsx'
 import { notify } from '../services/api.js'
 import ApplicationsProcessPendingFlow from './ApplicationsProcessPendingFlow.jsx'
+import ApplicationDetailModal from '../components/applications/ApplicationDetailModal.jsx'
+import ApplyQueueButton from '../components/applications/ApplyQueueButton.jsx'
 import { useReloadOnActivate } from '../lib/useReloadOnActivate'
 
-const STATUS_TABS = ['pending', 'applied', 'rejected', 'cancelled', 'all']
+const STATUS_TABS = ['pending', 'awaiting_submit', 'needs_you', 'applied', 'rejected', 'cancelled', 'all']
 
 const STATUS_COLORS = {
   pending: { bg: 'rgba(245,158,11,0.12)', color: '#f59e0b' },
   applied: { bg: 'rgba(16,185,129,0.12)', color: '#10b981' },
   rejected: { bg: 'rgba(239,68,68,0.12)', color: '#ef4444' },
   cancelled: { bg: 'rgba(100,116,139,0.12)', color: '#64748b' },
+  awaiting_submit: { bg: 'rgba(0,180,216,0.15)', color: '#00b4d8' },
+  needs_you: { bg: 'rgba(244,63,94,0.15)', color: '#f43f5e' },
 }
 
 // Pure so it's directly unit-testable (see Applications.test.js) without
@@ -46,7 +50,7 @@ function StatusBadge({ status }) {
   const s = STATUS_COLORS[status] || { bg: '#1a2332', color: '#64748b' }
   return (
     <span style={{ background: s.bg, borderRadius: 3, padding: '1px 6px', fontFamily: 'var(--font-mono)', fontSize: 9, color: s.color }}>
-      {status}
+      {status.replace(/_/g, ' ')}
     </span>
   )
 }
@@ -55,7 +59,7 @@ function emptyAddForm() {
   return { kind: 'job', title: '', company: '', url: '', issuingOrg: '', submissionDeadline: '' }
 }
 
-export default function Applications({ isActive = true }) {
+export default function Applications({ isActive = true, navData = null, onNavigate, onOpenCoderChat }) {
   const [applications, setApplications] = useState([])
   const [statusTab, setStatusTab] = useState('pending')
   const [search, setSearch] = useState('')
@@ -65,6 +69,8 @@ export default function Applications({ isActive = true }) {
   const [showAdd, setShowAdd] = useState(false)
   const [addForm, setAddForm] = useState(emptyAddForm())
   const [showProcessPending, setShowProcessPending] = useState(false)
+  // Applications ticked for "Apply selected with coder".
+  const [picked, setPicked] = useState(() => new Set())
 
   const load = useCallback(async () => {
     try {
@@ -78,10 +84,26 @@ export default function Applications({ isActive = true }) {
   useEffect(() => { load() }, [load])
   useReloadOnActivate(isActive, load)
 
+  // A link from another page (the History drawer) names one application.
+  useEffect(() => {
+    const id = navData && navData.application
+    if (isActive && id) openDetail(String(id))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isActive, navData])
+
   const visible = useMemo(
     () => filterApplications(applications, { statusTab, search }),
     [applications, statusTab, search]
   )
+
+  // The queue takes applications still being worked on; only those get a tick box.
+  const queueable = (a) => a.status === 'pending' || a.status === 'needs_you'
+  const pickedIds = visible.filter(a => picked.has(a.id) && queueable(a)).map(a => a.id)
+  const togglePicked = (id) => setPicked(cur => {
+    const next = new Set(cur)
+    if (next.has(id)) next.delete(id); else next.add(id)
+    return next
+  })
 
   const openDetail = async (id) => {
     setSelectedId(id)
@@ -128,6 +150,9 @@ export default function Applications({ isActive = true }) {
         <h2 style={{ margin: 0, fontSize: 16, color: 'var(--text-primary)' }}>Applications</h2>
         <div style={{ flex: 1 }} />
         <button style={headerBtnStyle} onClick={() => setShowAdd(true)}><Plus size={13} /> Add</button>
+        {visible.some(queueable) && (
+          <ApplyQueueButton ids={pickedIds} style={headerBtnStyle} onStarted={() => { setPicked(new Set()); load() }} />
+        )}
         <button style={{ ...headerBtnStyle, background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.4)', color: '#10b981' }} onClick={() => setShowProcessPending(true)}>
           Process Pending
         </button>
@@ -144,7 +169,7 @@ export default function Applications({ isActive = true }) {
               border: `1px solid ${statusTab === tab ? 'rgba(0,180,216,0.4)' : 'rgba(255,255,255,0.1)'}`,
               color: statusTab === tab ? '#00b4d8' : 'var(--text-secondary)',
             }}
-          >{tab}</button>
+          >{tab.replace('_', ' ')}</button>
         ))}
         <input style={{ ...inputStyle, flex: 1, marginLeft: 8 }} placeholder="Search title, company, tags..." value={search} onChange={e => setSearch(e.target.value)} />
       </div>
@@ -155,6 +180,7 @@ export default function Applications({ isActive = true }) {
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
           <thead>
             <tr style={{ textAlign: 'left', color: 'var(--text-muted)', fontSize: 10, textTransform: 'uppercase' }}>
+              <th style={{ padding: '6px 8px', width: 24 }}><span className="sr-only" style={{ position: 'absolute', left: -9999 }}>Select</span></th>
               <th style={{ padding: '6px 8px' }}>Title</th>
               <th style={{ padding: '6px 8px' }}>Company / Org</th>
               <th style={{ padding: '6px 8px' }}>Kind</th>
@@ -166,52 +192,40 @@ export default function Applications({ isActive = true }) {
           <tbody>
             {visible.map(a => (
               <tr key={a.id} onClick={() => openDetail(a.id)} style={{ cursor: 'pointer', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                <td style={{ padding: '8px' }} onClick={e => e.stopPropagation()}>
+                  {queueable(a) && (
+                    <input type="checkbox" aria-label={`Select ${a.title} to apply with coder`} checked={picked.has(a.id)} onChange={() => togglePicked(a.id)} />
+                  )}
+                </td>
                 <td style={{ padding: '8px' }}>{a.title}</td>
                 <td style={{ padding: '8px' }}>{a.company}</td>
                 <td style={{ padding: '8px' }}>{a.kind}</td>
-                <td style={{ padding: '8px' }}><StatusBadge status={a.status} /></td>
+                <td style={{ padding: '8px' }}>
+                  <StatusBadge status={a.status} />
+                  {a.status === 'awaiting_submit' && <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>waiting for your submit</div>}
+                  {a.status === 'needs_you' && <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>reopen and refill</div>}
+                </td>
                 <td style={{ padding: '8px', color: 'var(--text-muted)' }}>{(a.tags || []).join(', ')}</td>
                 <td style={{ padding: '8px', color: 'var(--text-muted)' }}>{a.updated_at}</td>
               </tr>
             ))}
             {visible.length === 0 && (
-              <tr><td colSpan={6} style={{ padding: 16, textAlign: 'center', color: 'var(--text-muted)' }}>No applications.</td></tr>
+              <tr><td colSpan={7} style={{ padding: 16, textAlign: 'center', color: 'var(--text-muted)' }}>No applications.</td></tr>
             )}
           </tbody>
         </table>
       </div>
 
       {selectedId && detail && (
-        <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && closeDetail()} style={{ position: 'fixed', inset: 0, zIndex: 9000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.55)' }}>
-          <div style={{ background: 'var(--surface, #0d1520)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: 20, width: 520, maxHeight: '80vh', overflow: 'auto', fontFamily: 'var(--font-mono)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <h3 style={{ margin: 0, fontSize: 14 }}>{detail.title}</h3>
-              <StatusBadge status={detail.status} />
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 6 }}>
-              {detail.kind === 'job' ? detail.company : detail.issuing_org}
-              {' · '}
-              <a href="#" onClick={(e) => { e.preventDefault(); WailsApp.OpenURL?.(detail.url) }} style={{ color: '#00b4d8' }}>
-                {detail.url} <ExternalLink size={10} style={{ verticalAlign: 'middle' }} />
-              </a>
-            </div>
-            {detail.description && <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 10 }}>{detail.description}</p>}
-            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-              {detail.status === 'pending' && (
-                <button style={headerBtnStyle} onClick={() => handleSetStatus(detail.id, 'cancelled')}>Cancel Application</button>
-              )}
-            </div>
-            <h4 style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 16, textTransform: 'uppercase' }}>History</h4>
-            {(detail.status_log || []).map((e, i) => (
-              <div key={i} style={{ fontSize: 11, color: 'var(--text-muted)', padding: '3px 0' }}>
-                {e.created_at}: {e.from_status || '(created)'} → {e.to_status} ({e.actor})
-              </div>
-            ))}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
-              <button style={headerBtnStyle} onClick={closeDetail}>Close</button>
-            </div>
-          </div>
-        </div>
+        <ApplicationDetailModal
+          applicationId={selectedId}
+          detail={detail}
+          onClose={closeDetail}
+          onSetStatus={handleSetStatus}
+          onNavigate={onNavigate}
+          onOpenCoderChat={onOpenCoderChat}
+          onChanged={async () => { await load(); openDetail(selectedId) }}
+        />
       )}
 
       {showAdd && (

@@ -1839,6 +1839,63 @@ monoagentcli --profile work chat --mode coder --cwd ~/code/app -- "…"   # one 
   it only prints the settings. `TestEveryCoderSetFlagIsTheOperators` fails
   for a new flag until it is classified. `coder disable` is anyone's: it
   only turns coder mode off.
+- **Access levels.** A conversation has an `access` level, and the turn is
+  chosen by it, not by the mode: `scoped` is the sandboxed assistant
+  (mono-agent's own tools, canvas, page read), `coding`, `workspace` and
+  `full` are coder turns in the conversation's folder. `coding` is told
+  nothing about the profile (no summary in prompts, no MonoAgent surfaces
+  for a dynamic org's workers); `workspace` and `full` follow
+  `coder set --app-access`. `chat history create --access L` picks the
+  level (default scoped); `--mode assistant|coder` stays as an alias (scoped,
+  full) and the JSON carries both `access` and `mode`. Migration 119 makes
+  existing coder conversations `full`, the rest `scoped`.
+  - Coder mode must be enabled (`coder enable`) for every level above scoped:
+    to create one, to raise a conversation to one, and on every turn. With
+    it off only scoped can be chosen or created.
+  - `chat history set-access <conv> <level> [--expect <current>] [--cwd|--profile-folder|--coder-root|--new-workspace]`
+    (`--expect` applies the change in one conditional update only while the
+    conversation still has that level, else exit 6, `access_changed` with
+    `current`, and nothing runs; the app passes it):
+    raising a level is the operator's (exit 3, `operator_only` for an agent,
+    the chat or a workflow), and so is creating a conversation above scoped;
+    lowering it is anyone's. A scoped conversation
+    has no folder, so raising it needs one of the folder flags; one that has
+    a folder keeps it. A conversation starts a fresh session when it leaves
+    or enters scoped. A lowering takes effect before the next turn: the
+    background processes its turns left running are stopped, its kept org
+    workers forgotten, its open AI task's token revoked, the org set back to
+    solo. A turn that ends after its conversation was lowered does the same
+    for what it left behind. `TestChatSetAccessRaiseIsTheOperators` fails
+    for a new `set-access` flag until it is classified.
+  - Browser permissions follow the level: scoped turns are the chat kind,
+    every other level the coder kind, never the other way round. The
+    extension's chat creates its conversations `--access=scoped` and sends
+    every turn with `--tools monoagent:read`, which a conversation above
+    scoped refuses, so a page can't widen a scoped chat.
+  - `chat history list --all [--cursor C] [--limit N<=200] [--kind chat|org] [--status running|done|error|needs|idle] [--application ID] [--query TEXT]`
+    is the GUI's unified history: one row per agent conversation (`id`,
+    `kind:"chat"`, `title`, `status`, `updatedAt`, `runtime`, `model`, `effort`,
+    `access`, `mode`, `orgMode`, `cwd`, `workflowContext`, and the latest bound
+    AI task's `taskId`/`taskStatus`/`taskGoal`/`applicationId`) plus one row
+    per org run (`id:"org:<name>#<run>"`, `kind:"org"`, `orgName`, `runId`,
+    `costUsd`), as `{items, next_cursor, warnings}`. Chats are read in ONE
+    query (latest turn, first turn and latest task are joins), so a page costs
+    one statement. The status comes from the latest turn (`active` running,
+    `completed` done, `failed`/`interrupted` error, anything else idle) and is
+    `needs` while the latest task waits for the user. The title is the task
+    goal, else the first message trimmed to 60 characters, else the folder's
+    name, else "New chat"; both texts go through the redaction first. Org runs
+    come from `org report <name> --all`, cached 30 s per org; an org that
+    fails to report is a `warnings` entry, not an error. Extension chats
+    (`general`, scoped) are plain rows: nothing marks them as the extension's.
+  - `coder set --default-access scoped|coding|workspace|full` (operator only,
+    default scoped) is the level an operator-run `chat history create` with
+    no `--access`/`--mode` makes, when coder mode is enabled and the runtime is
+    ready (with `--profile-folder` unless a folder flag is given); otherwise
+    scoped. It never applies to an agent, the chat or a workflow: their
+    creation without flags stays scoped, and naming a level above scoped is
+    refused for them. `TestDefaultAccessAppliesOnlyToTheOperator` fails if
+    that check goes.
 - The mode and folder are fixed when the conversation is created. The
   CLIs key their sessions by folder, so a conversation always resumes in the
   same one.
@@ -3243,6 +3300,73 @@ fails with "workflow belongs to a different profile", check
 `monoagentcli ref connections` before writing anything that touches
 profiles or credentials.
 
+## Applications
+
+`monoagentcli --profile P application …` tracks job and tender applications. Statuses:
+`pending`, `awaiting_submit` (the form is filled, the human presses submit), `needs_you` (the
+fill stopped on something only the human can do), `applied`, `rejected`, `cancelled`; every
+change is logged in the status history. `applied` is reached only through `application send`.
+
+- `application show <id> --json --assets` (`get` is the same command) adds an `assets` object:
+  `posting` (url, capturedText, capturedAt, deadline), `documents` (the profile documents of this
+  application plus linked ones; `attached` is true for the linked ones), `fill`, `people`,
+  `messages`, `tasks`, `task` (the running aitask or `null`) and `links`.
+- `application link add|remove|list <id> --kind person|message|task|document|capture --ref ID`
+  ties things to an application; the same link twice is one link.
+- `application fill record <id> --status filling|filled|needs_you|submitted [--screenshot FILE]
+  [--note T] [--fields-json FILE]` replaces the last fill record; `application fill show <id>`
+  prints it (`status` is `none` before any). The screenshot must be a file inside the profile
+  folder; field values are capped (4000 bytes) and a value that looks like a secret is stored as
+  `[redacted]`. `--fields-json` holds `[{"label","value","source","generated"}]`.
+- `application fill start <id> [--runtime R]` (operator-only, like `aitask submit`) hands the
+  application to an `application-apply` coder task (internal/applyfill): it opens the posting's
+  form in the user's browser and fills the visible fields from the profile facts, then stops. It is
+  given three kinds of context and nothing else: `posting` (the captured posting text), `facts` (the
+  Info values the form fill uses, without ID, bank or card numbers) and `document` (the files of
+  THIS application). It never clicks submit, never fills hidden fields, passwords, card numbers or
+  one-time codes (the same vetting as the extension's form fill; a result that lists one is
+  dropped), and stops with `needs_you` on a login wall or CAPTCHA. One open task per application;
+  the task's conversation is linked as the application's `conversation`; the fill record is
+  `filling` until the task completes. When coder mode is off it fails with `coder_disabled` and
+  `"fallback":"oneshot"`. `application fill sync <id>` records a completed task's validated result
+  (fill record; status `awaiting_submit` for filled, `needs_you`) and is safe to repeat; a
+  completion hook calls the same `applyfill.Finalize`. Nothing here sets `applied`: only
+  `application send` does.
+- The `application-apply` task is **confined, not a full-access coder turn**, because its input is a job posting and a form page
+  written by strangers. Every turn of its conversation (first and follow-ups, operator-run only) runs on the claude runtime
+  with monomind's scoped access (no `--access full`, no settings sources, no tools), Bash limited to
+  `monoagentcli --profile P browser <open|navigate|reload|tabs|a11y|screenshot|wait|click|type|press|fill|upload>` and
+  `monoagentcli --profile P aitask complete|fail` (one literal command, no chaining), and a private working folder with read-only
+  copies of that task's context. On another runtime it is refused (`confinement_unenforceable`), and without a context snapshot
+  it is refused (`context_snapshot_failed`). Its browser kind is `apply`, taken from the task row, never from a flag or the
+  environment, so the `coder` level never applies to it.
+- **Parking.** A finished fill may name the tab it left open (`tabId`, `origin` in its result). `Finalize` checks the claim against
+  `browser tabs` as the operator sees them (the tab exists, sits in an agent group "Coder · ...", stands on the claimed web origin,
+  belongs to no other application) before it binds the tab in `application_tabs` (migration 117) as `parked`; a claim that fails is
+  not believed and is noted on the fill. The browser keeps no redirect chain, so a redirect target is the tab's own current origin.
+  A parked tab is refused to every agent (`ParkedTabError` in `internal/browserctl/park_guard.go`, on every tab selection); the
+  agent never closes it and never submits. The person submits in the tab.
+  - `application fill queue [id...|--pending] [--max-parked N] [--runtime R]` (operator-only, a foreground loop, Ctrl-C stops it)
+    fills the named pending or needs_you applications in turn, each as the confined `application-apply` task. At most N fills
+    run or wait for your submit at once (config `applications.max_parked`, operator-only, 1 to 10, default 3; the flag overrides
+    it for one run); a tab frees its slot when its application is sent, rejected or cancelled, or its tab is gone. A `needs_you`
+    result or a task that ended without one parks that application as `needs_you` with the reason and the queue moves on.
+  - `application fill resume <id>` (operator-only) starts a new task for an application whose tab is parked or lost and binds the
+    tab to that task alone (`active`): no other task can act on it. `application fill sweep` (operator-only) reconciles the
+    bindings with `browser tabs`: a tab that is gone turns its application into `needs_you` with "Reopen and refill"; a tab of a
+    finished application is closed. `application fill tab <id>` shows the binding and `submitObservedAt`.
+  - Submit detection: the extension (`chrome-extension/submit_observe.js`) tells the bridge `form.submit_observed {tab_id, origin,
+    url}` only for a trusted `submit` event in the top frame of an agent-group tab that follows a real user gesture (a trusted click
+    on the form's own submit control, or Enter inside it, within 3 s) and was not cancelled by the page, and then only when a
+    same-tab navigation follows within 10 s. A page's own `requestSubmit()`, a cancelled submit, a form that is merely hidden and a
+    page that only says "submitted" report nothing. The bridge matches the tab and origin to a parked application and records
+    `application_fills.submit_observed_at`. That is a hint to ask the person ("Looks submitted - confirm"); the status stays
+    `awaiting_submit` and `applied` is only ever `application send`.
+- Browser permissions have a kind `apply` (`browser permissions set apply <level>`, operator-only):
+  default `ask`, per-site allow rules apply, and it can never be `full-no-approvals`, so a submit
+  on a non-local site always waits for a person (a HIL item). `application apply` itself still fills
+  and submits nothing.
+
 ## Exit codes
 
 | Code | Meaning |
@@ -3253,6 +3377,8 @@ profiles or credentials.
 | 2 | not found (workflow, node type, HIL item, secret name, …). Includes `hil approve`/`hil reject`, `secret rm`/`secret update`, and `workflow delete` on unknown ids |
 | 3 | invalid input / validation failure |
 | 4 | auth or connection failure — including `login_required`: no valid monoes.me sign-in (see [monoes.me account](#monoesme-account)) |
+| 5 | `chat history set-access` lowered the level but a process the conversation's turns started could not be stopped (`survivors_remain`; the JSON lists each under `lowered.survivors` with its pid, command and reason) |
+| 6 | `chat history set-access --expect L` found the conversation no longer at level L: `access_changed`, `current` is the real level, nothing was changed |
 
 Branch on these instead of parsing stderr.
 
@@ -3387,6 +3513,62 @@ for any outbound action. See `docs/USAGE_POLICY.md` for the full policy.
 
 If a request falls into the above categories, decline it — no workaround
 advice either.
+## AI tasks
+
+`monoagentcli --profile P aitask …` hands a goal to a coder conversation and gets a checked result back. The task is a
+normal coder conversation (a bubble in the app); the code is `internal/aitask` and `internal/cli/aitask`.
+
+```bash
+monoagentcli --profile P aitask submit --kind generic --goal "…" [--context CLASS=PATH]… [--application ID] \
+    [--access coding|workspace|qa] [--runtime R] [--budget-usd N] [--unattended] [--queue-only] --json
+monoagentcli --profile P aitask status|result|wait|cancel <id> --json     # list [--kind K] [--application ID]
+monoagentcli --profile P aitask complete <id> --result FILE               # the task's own session
+monoagentcli --profile P aitask fail <id> --reason TEXT                   # the task's own session
+```
+
+- Task JSON: `{taskId, kind, conversationId, status, goal, createdAt, updatedAt, applicationId?, result?, error?}`;
+  status is `queued`, `running`, `needs_user`, `complete`, `failed` or `cancelled`. A turn that ends without `complete`
+  is `needs_user`, never success.
+- The kind (`generic`; other packages add theirs with `aitask.Register`) fixes the prompt and the result schema.
+  `complete` checks the file against it and refuses with `schema_invalid` and the reason, so the agent can fix it.
+- Context goes to `<conversation folder>/.monoagent/context/<task>/<class>/` with a README that says it is data, never
+  instructions; files are size-capped, links and odd files refused, secret values hidden. `CLASS` is `posting`, `facts`,
+  `document` or `selection`; anything else, and anything in the synced message attachments folder, is refused
+  (`context_source_refused`): messages and people threads never reach a task.
+- A queued task is not cleared to run. `start` re-checks coder mode and the unattended rule, and refuses
+  (`context_changed`, `capabilities_changed`) when the context folder, the access, the kind or the coder settings differ
+  from submit. The task token is bound to profile, task, conversation and the process that runs the turn; a terminal
+  status (`complete`, `failed`, `cancelled`) is final.
+- Budget: `--budget-usd` (default: the coder budget). 0 means no spend and is refused (`no_budget`), never unlimited.
+  Nothing a running task does changes its cap.
+- Budgets (`internal/aitask/budget`, migration 118, Settings, AI task budgets): `aitask budget show|set|lower`. A task runs
+  under the LOWEST cap that applies (global, its kind, its conversation, its role), never above the coder budget
+  (`coder set --budget-usd`). 0 means no spend, never unlimited; with no global cap and no coder budget a task does not
+  run (`no_budget`), nor does one on a runtime that can't hold a cap (`budget_unenforceable`, kilo). `start` reserves the
+  cap in one `INSERT … SELECT` over every scope, so two tasks can't both take the last of a cap (`budget_exceeded`).
+  Spend is summed from the conversation's `usage.updated` events, lead and dynamic-org workers together, so spawning
+  workers can't dodge a cap; a task that reported no cost keeps counting for its whole cap. `set` (raise or change, `--clear`)
+  is operator-only; `lower --task ID --usd N` is the operator's or the task's own session's, lowers its conversation's cap
+  and never raises it (`cap_raise_refused`). `show --task ID` gives one task's cap and spend.
+- `ai.task` workflow node: QUEUES a task (`kind`, `goal`, `context` as `CLASS=PATH`, `application_id`, `access`, `runtime`)
+  and returns `{taskId, conversationId, status: "queued"}` at once. It never starts or waits for the task (a person
+  starts it from the bubble queue; read the result later with `aitask result`), cannot run it unattended, and refuses any run
+  that is not the operator's (`operator.AIRun`: an unapproved or AI-authored workflow, an agent's, the chat's or an org trigger's run).
+- A message the user sends in a task's conversation after `needs_user` (or while it runs) is the task's next turn: the
+  operator's chat gives it a fresh token (the old one stops working) and the task goes back to `running`. An agent-run
+  turn, a finished task or another profile's task gets nothing. A coder turn's `--budget-usd` can lower the coder budget,
+  never raise it.
+- Coder mode off: `submit` exits 3 with `"code":"coder_disabled","fallback":"oneshot"` and creates nothing. It never
+  escalates or falls back by itself; the caller chooses.
+- `--unattended` is for a `qa` task of a kind that allows it, in a profile with a verified confinement (none is
+  verified yet, so `unattended_not_confined`). With a full-access level it is refused (`unattended_full_access_refused`).
+- `submit`, `start` and `wait` are the user's own: an agent, the chat or a workflow gets exit 3, `operator_only`. The
+  task's own session (it has `MONOAGENT_AITASK_ID` and `MONOAGENT_AITASK_TOKEN`; only the token's hash is stored) may
+  `status`, `result`, `list` (its own task only), `cancel`, `complete` and `fail` that one task. Anything that raises
+  access or changes routing stays operator-only (`TestEveryAitaskFlagIsClassified`).
+- Exit codes: 2 unknown task, 3 refusals (`unknown_kind`, `schema_invalid`, `bad_token`, `task_closed`, …), 1
+  `wait_timeout`.
+
 # monomind:start instructions:opencode
 # Monomind
 

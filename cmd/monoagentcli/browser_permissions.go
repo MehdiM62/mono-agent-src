@@ -83,7 +83,7 @@ func newBrowserPermissionsCmd(cfg *globalConfig) *cobra.Command {
 	}
 	cmd.AddCommand(&cobra.Command{
 		Use:     "set <kind|all> <level>",
-		Short:   "Set a kind of agent's level (coder, org, chat, other), or every kind's with all",
+		Short:   "Set a kind of agent's level (coder, apply, org, chat, other), or every kind's with all",
 		Example: "  monoagentcli browser permissions set chat dev\n  monoagentcli browser permissions set all full",
 		Args:    cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -96,6 +96,9 @@ func newBrowserPermissionsCmd(cfg *globalConfig) *cobra.Command {
 			}
 			return withPermissions(cfg, func(p *browserctl.Permissions) error {
 				for _, k := range kinds {
+					if args[0] == "all" && k == browserctl.KindApply && args[1] == browserctl.LevelFullNoApprovals {
+						continue // apply never gets it; `all` leaves apply as it is
+					}
 					if err := p.SetLevel(k, args[1]); err != nil {
 						return errInvalidInput("%v", err)
 					}

@@ -111,7 +111,7 @@ export function TurnStatus({ state, stopRequested, ownedByThisInstance = true, s
   // computeStatusLabel reads stopRequested/ownedByThisInstance/
   // streamsIncrementally off the object it's given, not as separate
   // arguments — but chatReducer's own state shape (see initialChatState())
-  // has none of these fields; AIChatPanel.jsx tracks stopRequested as its
+  // has none of these fields; the chat view tracks stopRequested as its
   // own local UI state, ownedByThisInstance comes from the raw
   // GetChatTurns turn record, and streamsIncrementally comes from the
   // active runtime's scan entry — none from event replay. Without merging

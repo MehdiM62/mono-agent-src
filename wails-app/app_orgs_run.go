@@ -221,13 +221,28 @@ func (a *App) RunOrg(orgName, task string) string {
 	a.runningCmds[key] = cmd
 	a.runningMu.Unlock()
 
-	runtime.EventsEmit(a.ctx, "org:runStatus", map[string]interface{}{"orgName": orgName, "status": "running"})
+	runtime.EventsEmit(a.ctx, "org:runStatus", orgRunStatusEvent(orgName, "running", "", ""))
+	emit := func(ev map[string]interface{}) { runtime.EventsEmit(a.ctx, "org:runStatus", ev) }
+	// The run id appears once the org writes its runtime file, a moment after
+	// the start: repeat the running event with it when it does.
+	go func() {
+		for i := 0; i < 6; i++ {
+			time.Sleep(500 * time.Millisecond)
+			a.runningMu.Lock()
+			still := a.runningCmds[key] == cmd
+			a.runningMu.Unlock()
+			if !still {
+				return
+			}
+			if id := a.orgRunID(orgName); id != "" {
+				a.emitOrgRunning(key, cmd, orgName, id, emit)
+				return
+			}
+		}
+	}()
 
 	go func() {
 		waitErr := waitChatProcess(cmd)
-		a.runningMu.Lock()
-		delete(a.runningCmds, key)
-		a.runningMu.Unlock()
 		status := "stopped"
 		message := ""
 		if waitErr != nil {
@@ -237,10 +252,75 @@ func (a *App) RunOrg(orgName, task string) string {
 		} else {
 			a.emitLog("ORG", "INFO", fmt.Sprintf("org run %s finished", orgName))
 		}
-		runtime.EventsEmit(a.ctx, "org:runStatus", map[string]interface{}{"orgName": orgName, "status": status, "message": message})
+		a.finishOrgRun(key, cmd, orgRunStatusEvent(orgName, status, message, a.orgRunID(orgName)), emit)
 	}()
 
 	return `{"ok":true}`
+}
+
+// orgEmitMu serializes the org run's terminal event with the delayed
+// "running" repeat, so a slow `org status` can never emit running after the
+// run ended.
+var orgEmitMu sync.Mutex
+
+// emitOrgRunning emits the running event carrying runID, only while cmd is
+// still the registered command for key; checked under orgEmitMu, right before
+// emitting.
+func (a *App) emitOrgRunning(key string, cmd *exec.Cmd, orgName, runID string, emit func(map[string]interface{})) bool {
+	orgEmitMu.Lock()
+	defer orgEmitMu.Unlock()
+	a.runningMu.Lock()
+	still := a.runningCmds[key] == cmd
+	a.runningMu.Unlock()
+	if !still {
+		return false
+	}
+	emit(orgRunStatusEvent(orgName, "running", "", runID))
+	return true
+}
+
+// finishOrgRun unregisters cmd, then emits the terminal event, both under
+// orgEmitMu: any poll result arriving later finds cmd gone and emits nothing.
+func (a *App) finishOrgRun(key string, cmd *exec.Cmd, ev map[string]interface{}, emit func(map[string]interface{})) {
+	orgEmitMu.Lock()
+	defer orgEmitMu.Unlock()
+	a.runningMu.Lock()
+	if a.runningCmds[key] == cmd {
+		delete(a.runningCmds, key)
+	}
+	a.runningMu.Unlock()
+	emit(ev)
+}
+
+// orgRunStatusEvent is the org:runStatus payload. runId is omitted while the
+// run is not known; the other fields are unchanged.
+func orgRunStatusEvent(orgName, status, message, runID string) map[string]interface{} {
+	ev := map[string]interface{}{"orgName": orgName, "status": status}
+	if status != "running" {
+		ev["message"] = message
+	}
+	if runID != "" {
+		ev["runId"] = runID
+	}
+	return ev
+}
+
+// orgRunID reads the org's current (or last) run id from `org status`; ""
+// when the status says nothing about a run.
+func (a *App) orgRunID(orgName string) string {
+	return runIDFromStatus(a.runOrgCLI("status", orgName))
+}
+
+// runIDFromStatus is the "run" of an `org status` answer ("" for an error
+// payload or a status with no run).
+func runIDFromStatus(out string) string {
+	var st struct {
+		Run string `json:"run"`
+	}
+	if json.Unmarshal([]byte(out), &st) != nil {
+		return ""
+	}
+	return st.Run
 }
 
 // goLogLine matches the Go log lines (timestamped) monoagentcli's startup
