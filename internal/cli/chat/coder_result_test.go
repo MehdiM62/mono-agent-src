@@ -2,6 +2,7 @@ package chat
 
 import (
 	"encoding/json"
+	"os"
 	"strings"
 	"testing"
 
@@ -53,5 +54,35 @@ func TestResultFieldsRoundTrip(t *testing.T) {
 	b, _ := json.Marshal(ev)
 	if !strings.Contains(string(b), `"agent_launches":{"total":2,"review":1}`) || strings.Contains(string(b), "context_warning") {
 		t.Errorf("re-encoded %s", b)
+	}
+}
+
+func TestCoderTurnCompactsAWarnedSessionInsteadOfWarning(t *testing.T) {
+	dbPath := newChatCLITestDB(t)
+	transcript := `  echo '{"v":1,"type":"session","session_id":"sess-1"}'
+` + resultFieldsTranscript
+	bin, argsLog := writeCoderMonomind(t, transcript)
+	withCoderCaps(t, monomind.CoderCapabilities...)
+	setCoderSettings(t, dbPath, coderSettings{Enabled: true})
+	conv, _ := openTestChatStore(t, dbPath).CreateConversationMode("default", "agent", "general", "claude", "", "", ai.ModeCoder, t.TempDir())
+	out, err := runChatCmd(t, dbPath, bin, "--conversation", conv.ID, "--turn", "turn-1", "--", "go")
+	if err != nil {
+		t.Fatalf("turn: %v\n%s", err, out)
+	}
+	args, _ := os.ReadFile(argsLog)
+	if !strings.Contains(string(args), "--resume sess-1") {
+		t.Errorf("the session was not resumed to compact it: %q", args)
+	}
+	compacted := false
+	for _, n := range parseJournaledTurn(t, out).byType(chatevents.EventNotice) {
+		var p chatevents.NoticePayload
+		json.Unmarshal(n.Payload, &p)
+		if p.Code == noticeCoderResult && strings.Contains(p.Message, "every further call") {
+			t.Errorf("the warning still shows: %q", p.Message)
+		}
+		compacted = compacted || strings.Contains(p.Message, "was compacted")
+	}
+	if !compacted {
+		t.Errorf("no compaction notice:\n%s", out)
 	}
 }

@@ -1927,7 +1927,10 @@ A claude coder lead caps its own agent launches: `MONOMIND_CODER_MAX_AGENTS`
 subagent model pinned through `CLAUDE_CODE_SUBAGENT_MODEL`. Both caps pass
 through `FilteredEnviron`. A `result` event's `unexpected_models` and
 `context_warning` (monomind 2.24.4) appear as `coder.result` warnings in the
-turn journal.
+turn journal. For a claude coder turn the context warning is not shown: the
+turn ends by compacting the session (`/compact` on the resumed session, which
+keeps its id) and journals an info notice; the warning only appears if that
+fails.
 
 #### Dynamic org (a coder chat that spawns workers)
 

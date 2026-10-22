@@ -160,6 +160,9 @@ func runCoderTurn(cmd *cobra.Command, cfg *Deps, journal *turnJournal, t coderTu
 		// ends journaled before the turn finishes.
 		closeOrg()
 	}
+	if journal != nil && err == nil {
+		compactContext(ctx, journal, opts, res)
+	}
 	if journal != nil {
 		if err != nil && res == nil {
 			res = &monomind.TurnResult{Err: &monomind.ProtocolError{Code: monomind.ErrRunnerError, Message: err.Error()}}

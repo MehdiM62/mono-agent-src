@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -264,12 +265,44 @@ func (j *turnJournal) resultNoticesLocked(ev monomind.Event) {
 	if len(ev.UnexpectedModels) > 0 {
 		msgs = append(msgs, "This turn also ran on "+strings.Join(ev.UnexpectedModels, ", ")+", not only the selected model.")
 	}
-	if ev.ContextWarning {
-		msgs = append(msgs, fmt.Sprintf("The conversation context reached %d tokens: every further call re-reads it. Consider a new conversation.", ev.PeakContextTokens))
+	if ev.ContextWarning && j.runtimeID == "claude" {
+		// Claude Code can compact its own session: the turn's end does that
+		// (compactContext) and says so; the warning only shows if it fails.
+		j.contextPeak = ev.PeakContextTokens
+	} else if ev.ContextWarning {
+		msgs = append(msgs, contextWarningText(ev.PeakContextTokens))
 	}
 	for _, m := range msgs {
 		j.forceFlushLocked()
 		bounded, _, _ := chatevents.BoundText(m, chatevents.MaxToolPreviewBytes)
 		_ = j.appendLocked(chatevents.EventNotice, chatevents.NoticePayload{Code: noticeCoderResult, Message: bounded, Severity: chatevents.SeverityWarning})
 	}
+}
+
+func contextWarningText(peak int64) string {
+	return fmt.Sprintf("The conversation context reached %d tokens: every further call re-reads it. Consider a new conversation.", peak)
+}
+
+// compactContext compacts the claude session of a turn the runner warned
+// about (`/compact` on the resumed session keeps its id), so the next turns
+// do not re-read the whole history. It journals what happened; a session it
+// could not compact keeps the plain warning.
+func compactContext(ctx context.Context, journal *turnJournal, opts monomind.ExecOptions, res *monomind.TurnResult) {
+	journal.mu.Lock()
+	peak := journal.contextPeak
+	journal.mu.Unlock()
+	if peak == 0 {
+		return
+	}
+	fail := func() { journal.notice(noticeCoderResult, contextWarningText(peak), chatevents.SeverityWarning) }
+	if res == nil || res.SessionID == "" || res.Err != nil {
+		fail()
+		return
+	}
+	opts.Prompt, opts.Resume, opts.Attach = "/compact", res.SessionID, nil
+	if r, err := monomind.Exec(ctx, opts, func(monomind.Event) {}); err != nil || r == nil || r.Err != nil {
+		fail()
+		return
+	}
+	journal.notice(noticeCoderResult, fmt.Sprintf("The conversation context reached %d tokens, so it was compacted to keep further calls cheap.", peak), chatevents.SeverityInfo)
 }
