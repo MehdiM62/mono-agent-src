@@ -185,8 +185,8 @@ func HashToken(token string) string {
 	return hex.EncodeToString(h[:])
 }
 
-// setToken stores the hash of the token the task's next turn runs with.
-func (s *Store) setToken(id, token string) error {
+// SetToken stores the hash of the token the task's next turn runs with.
+func (s *Store) SetToken(id, token string) error {
 	_, err := s.DB.Exec(`UPDATE ai_tasks SET token_hash = ? WHERE id = ? AND profile_id = ?`, HashToken(token), id, s.Profile)
 	return err
 }

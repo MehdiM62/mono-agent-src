@@ -134,7 +134,7 @@ func (s *Service) Start(ctx context.Context, id string) (Task, error) {
 		return t, err
 	}
 	token := NewToken()
-	if err := s.Store.setToken(id, token); err != nil {
+	if err := s.Store.SetToken(id, token); err != nil {
 		return Task{}, err
 	}
 	moved, err := s.Store.move(id, []string{StatusQueued}, StatusRunning, nil)
