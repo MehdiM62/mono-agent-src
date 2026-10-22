@@ -64,7 +64,7 @@ function prefersReducedMotion() {
 // them stop a running turn; the × closes the chat (onCloseChat, which
 // asks first when a turn is running). originRect is the bubble's screen rectangle, so
 // the overlay grows out of it.
-export function CoderChatOverlay({ bubble, store, originRect, onCollapse, onCloseChat, onNavigate, titleOf = folderName }) {
+export function CoderChatOverlay({ bubble, store, originRect, onCollapse, onCloseChat, onNavigate, onOpenArtifact, titleOf = folderName }) {
   const { t } = useTranslation()
   const view = store.getView(bubble.key)
   const [closing, setClosing] = useState(false)
@@ -297,6 +297,8 @@ export function CoderChatOverlay({ bubble, store, originRect, onCollapse, onClos
             initialScrollTop={view.scrollTop}
             onScroll={top => store.setView(bubble.key, { scrollTop: top })}
             onNavigate={onNavigate}
+            onOpenArtifact={onOpenArtifact}
+            runtime={runtime}
             agentFilter={agentFilter}
             agentFilterTurnId={shownTurnId}
             agentFilterName={filterName}

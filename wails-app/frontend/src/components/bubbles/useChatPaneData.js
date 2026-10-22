@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../../services/api.js'
+import { cachedAgentScan } from '../../lib/agentRuntimes.js'
 import { accessOfConversation } from '../../lib/chatAccess.js'
 import { aitaskBudgetApi } from '../settings/aitaskBudgetApi.js'
 
@@ -71,4 +72,20 @@ export function useResolveAccess(bubble, store) {
     })().catch(() => {})
     return () => { live = false }
   }, [key, conversationId, access, store])
+}
+
+// useStreamsIncrementally: whether a scoped chat's runtime streams its reply as
+// it goes (the scan entry's streams_incrementally), which decides what the turn
+// status says while it waits. True until the scan says otherwise.
+export function useStreamsIncrementally(runtime, active) {
+  const [streams, setStreams] = useState(true)
+  useEffect(() => {
+    if (!active || !runtime) return undefined
+    let live = true
+    Promise.resolve().then(() => cachedAgentScan())
+      .then(res => { if (live) setStreams((res?.agents || []).find(a => a.id === runtime)?.streams_incrementally !== false) })
+      .catch(() => {})
+    return () => { live = false }
+  }, [runtime, active])
+  return streams
 }
