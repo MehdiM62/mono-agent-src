@@ -6,6 +6,7 @@
 
 import { vaultRelatedCall } from '../components/chat/toolLinks.js'
 import { maskCredentials } from '../components/chat/credentials.js'
+import { isAccess } from './chatAccess.js'
 
 export const MAX_VISIBLE = 6
 export const STORAGE_KEY = 'monoagent:coderBubbles:v1'
@@ -145,7 +146,12 @@ export function loadState(storage = globalThis.localStorage) {
       ? parsed.bubbles.map(b => {
         if (b?.kind === 'org' && typeof b.orgName === 'string' && b.orgName) return orgBubble(b.orgName)
         if (b && typeof b.conversationId === 'string' && b.conversationId) {
-          return { key: b.conversationId, conversationId: b.conversationId, cwd: String(b.cwd || ''), model: String(b.model || ''), runtime: String(b.runtime || '') }
+          // A bubble saved before access levels was a coder chat, which always had full access.
+          return {
+            key: b.conversationId, conversationId: b.conversationId, cwd: String(b.cwd || ''), model: String(b.model || ''), runtime: String(b.runtime || ''),
+            access: isAccess(b.access) ? b.access : 'full', title: String(b.title || ''), effort: String(b.effort || ''),
+            orgMode: b.orgMode === 'dynamic' ? 'dynamic' : '', taskId: String(b.taskId || ''), taskKind: String(b.taskKind || ''),
+          }
         }
         return null
       }).filter(Boolean)
@@ -162,7 +168,11 @@ export function saveState(state, storage = globalThis.localStorage) {
     const bubbles = state.bubbles.filter(b => b.conversationId || (b.kind === 'org' && b.orgName))
       .map(b => (b.kind === 'org'
         ? { kind: 'org', orgName: b.orgName }
-        : { conversationId: b.conversationId, cwd: b.cwd || '', model: b.model || '', runtime: b.runtime || '' }))
+        : {
+          conversationId: b.conversationId, cwd: b.cwd || '', model: b.model || '', runtime: b.runtime || '',
+          // Additive fields: an older build reads the first four and ignores the rest.
+          access: b.access || '', title: b.title || '', effort: b.effort || '', orgMode: b.orgMode || '', taskId: b.taskId || '', taskKind: b.taskKind || '',
+        }))
     storage?.setItem(STORAGE_KEY, JSON.stringify({ bubbles, side: state.side === 'left' ? 'left' : 'right' }))
   } catch {
     // Storage unavailable: bubbles just won't come back after a restart.

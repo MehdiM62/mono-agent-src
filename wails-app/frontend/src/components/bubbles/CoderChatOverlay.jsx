@@ -6,6 +6,10 @@ import { CoderHeader, CoderBadge } from '../chat/CoderHeader.jsx'
 import { folderName } from '../chat/useCoderMode.js'
 import { runtimeLabel } from '../../lib/runtimeLabels.js'
 import { CoderChatView } from './CoderChatView.jsx'
+import { PaneSettings, SettingsButton } from './PaneSettings.jsx'
+import { useResolveAccess } from './useChatPaneData.js'
+import { chatAccessApi } from '../../lib/chatAccessApi.js'
+import { isAccess, isCoderAccess, isConfinedTask } from '../../lib/chatAccess.js'
 import { useCoderConversation } from './useCoderConversation.js'
 import { TaskHeaderCard } from './TaskHeaderCard.jsx'
 import { shouldCollapseOnBackdrop } from '../../lib/coderBubbles.js'
@@ -16,6 +20,7 @@ import './bubbles.css'
 import { isModalOpenAbove } from './modalAbove.js'
 
 const mono = 'var(--font-mono)'
+const chip = { fontFamily: mono, fontSize: 9.5, color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: 999, padding: '1px 7px', whiteSpace: 'nowrap' }
 const CLOSE_MS = 170
 
 // isModalOpen reports whether a dialog is open on top of the overlay
@@ -43,6 +48,12 @@ function chatAgentOf(stage, id) {
   return cur ? cur.id : id
 }
 
+// titleFromMessage is a message as a one-line chat title.
+function titleFromMessage(text) {
+  const line = String(text).replace(/\s+/g, ' ').trim()
+  return line.length > 48 ? `${line.slice(0, 47)}…` : line
+}
+
 function prefersReducedMotion() {
   return typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 }
@@ -67,23 +78,46 @@ export function CoderChatOverlay({ bubble, store, originRect, onCollapse, onClos
   const bodyRef = useRef(null)
   const pressOnBackdrop = useRef(false)
 
-  // create makes the coder conversation for a draft's first message, on the
-  // runtime, model and effort picked in its setup (CoderSetup).
+  // create makes the conversation for a draft's first message, at the access
+  // level, runtime, model and effort picked in its setup (ChatSetup). Above
+  // scoped it works in a folder: the one picked, else the profile's default.
   const create = useCallback(async () => {
     const runtime = setup.runtime
-    let cwd = setup.workspace?.kind === 'folder' ? setup.workspace.path : ''
+    const access = isAccess(setup.access) ? setup.access : 'scoped'
+    let cwd = ''
     let workspace = null
-    if (!cwd) {
-      workspace = await api.coderWorkspaceDefault(runtime)
-      cwd = workspace.path
+    if (isCoderAccess(access)) {
+      cwd = setup.workspace?.kind === 'folder' ? setup.workspace.path : ''
+      if (!cwd) {
+        workspace = await api.coderWorkspaceDefault(runtime)
+        cwd = workspace.path
+      }
     }
-    const conv = await api.createCoderConversation(runtime, setup.model, setup.effort || '', cwd, false)
-    const bound = { id: conv.id, cwd: conv.cwd || cwd, model: conv.model || setup.model, runtime: conv.runtimeId || runtime }
+    const made = await chatAccessApi.create('general', runtime, setup.model, setup.effort || '', access, cwd)
+    const bound = {
+      id: made.id, cwd: made.cwd || cwd, model: made.model || setup.model, runtime: made.runtimeId || runtime,
+      access: isAccess(made.access) ? made.access : access, effort: made.effort || setup.effort || '', orgMode: made.orgMode || '',
+    }
     store.bindConversation(bubble.key, bound)
     return { ...bound, workspace }
   }, [setup, store, bubble.key])
-  const conv = useCoderConversation({ conversationId: bubble.conversationId, create })
+  const access = bubble.conversationId ? bubble.access : (setup.access || '')
+  const confined = isConfinedTask({ kind: bubble.taskKind || view.task?.kind })
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const settingsBtn = useRef(null)
+  const settingsOpenRef = useRef(false)
+  settingsOpenRef.current = settingsOpen
+  const closeSettings = useCallback(() => { setSettingsOpen(false); settingsBtn.current?.focus?.() }, [])
+  useResolveAccess(bubble, store)
+  const conv = useCoderConversation({ conversationId: bubble.conversationId, create, access: access || 'full' })
 
+  // A chat with no folder (scoped) is named after its first message, as the
+  // history names it; a chat in a folder keeps the folder's name.
+  const firstMessage = conv.messages.find(m => m.role === 'user')?.content
+  useEffect(() => {
+    if (bubble.title || bubble.cwd || !bubble.conversationId || !firstMessage) return
+    store.patchBubble(bubble.key, { title: titleFromMessage(firstMessage) })
+  }, [store, bubble.key, bubble.title, bubble.cwd, bubble.conversationId, firstMessage])
   useEffect(() => { store.setView(bubble.key, { draft }) }, [store, bubble.key, draft])
   useEffect(() => { store.setView(bubble.key, { setup }) }, [store, bubble.key, setup])
   useEffect(() => { store.setView(bubble.key, { stageRatio, stageCollapsed }) }, [store, bubble.key, stageRatio, stageCollapsed])
@@ -102,19 +136,22 @@ export function CoderChatOverlay({ bubble, store, originRect, onCollapse, onClos
     setTimeout(onCollapse, CLOSE_MS)
   }, [closing, onCollapse])
 
-  // Esc closes an open node drawer, else collapses. Captured on window
-  // first, so the assistant panel under the overlay (which also closes on
-  // Esc) doesn't react to the same key; an open dialog handles its own Esc.
+  // Esc closes the settings popover, then an open node drawer, then collapses.
+  // It never stops a running turn: a collapsed chat keeps working, and Stop is
+  // its own button. Captured on window first, so the assistant panel under the
+  // overlay (which also closes on Esc) doesn't react to the same key; an open
+  // dialog handles its own Esc.
   useEffect(() => {
     const onKey = (e) => {
       if (e.key !== 'Escape' || isModalOpen()) return
       e.stopImmediatePropagation()
+      if (settingsOpenRef.current) { closeSettings(); return }
       if (selectedRef.current) { setSelectedAgent(null); return }
       collapse()
     }
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
-  }, [collapse])
+  }, [collapse, closeSettings])
 
   // Grow out of the bubble: the transform origin is the bubble's center,
   // relative to the overlay's own box.
@@ -174,7 +211,8 @@ export function CoderChatOverlay({ bubble, store, originRect, onCollapse, onClos
     }
   }, [liveConvId, liveTurnId, t])
 
-  const title = bubble.cwd ? titleOf(bubble.cwd) : t('bubbles.newChat')
+  const title = bubble.title || (bubble.cwd ? titleOf(bubble.cwd) : t('bubbles.newChat'))
+  const showStage = access !== 'scoped' && !confined
   const runtime = bubble.conversationId ? bubble.runtime : setup.runtime
   const model = bubble.model || setup.model
 
@@ -196,31 +234,46 @@ export function CoderChatOverlay({ bubble, store, originRect, onCollapse, onClos
       />
       <div ref={panelRef} role="dialog" aria-label={t('bubbles.chatLabel', { name: title })} data-testid="bubble-overlay"
         className={`bubble-overlay${closing ? ' closing' : ''}${narrow ? ' narrow' : ''}`}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-          {/* The folder row below carries the badge once there is a folder. */}
-          {!bubble.cwd && <CoderBadge />}
-          <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</span>
-          {(runtime || model) && (
-            <span style={{ fontFamily: mono, fontSize: 9.5, color: 'var(--cyan)', border: '1px solid var(--border-bright)', borderRadius: 999, padding: '1px 7px' }}>
-              {[runtime && runtimeLabel(runtime), model].filter(Boolean).join(' · ')}
-            </span>
+        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+          {/* Title and chips wrap among themselves on a narrow pane; the buttons stay on the right. */}
+          <div style={{ flex: '1 1 0', minWidth: 0, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            {/* The folder row below carries the badge once there is a folder. */}
+            {!bubble.cwd && isCoderAccess(access) && <CoderBadge />}
+            <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>{title}</span>
+            {(runtime || model) && (
+              <span style={{ ...chip, color: 'var(--cyan)', borderColor: 'var(--border-bright)', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>
+                {[runtime && runtimeLabel(runtime), model].filter(Boolean).join(' · ')}
+              </span>
+            )}
+            {confined ? (
+              <span data-testid="chip-confined" title={t('bubbles.pane.confinedWhy')} style={chip}>{t('bubbles.pane.confinedChip')}</span>
+            ) : isAccess(access) && (
+              <span data-testid="chip-access" title={t(`bubbles.pane.allows.${access}`)} style={chip}>{t('bubbles.pane.accessChip', { level: t(`bubbles.pane.level.${access}`) })}</span>
+            )}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+            {showStage && (
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setStageCollapsed(c => !c)}
+                aria-expanded={!stageCollapsed} title={stageCollapsed ? t('bubbles.showOrg') : t('bubbles.hideOrg')} style={{ gap: 4, fontSize: 10 }}>
+                {stageCollapsed ? <ChevronDown size={12} /> : <ChevronUp size={12} />} {t('bubbles.org')}
+              </button>
+            )}
+            {bubble.conversationId && <SettingsButton buttonRef={settingsBtn} open={settingsOpen} onToggle={() => setSettingsOpen(o => !o)} />}
+            <button type="button" className="btn btn-ghost btn-sm" onClick={collapse} title={t('bubbles.collapse')} aria-label={t('bubbles.collapse')} style={{ padding: '3px 6px' }}>
+              <Minimize2 size={13} />
+            </button>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={onCloseChat} title={t('bubbles.closeChat')} aria-label={t('bubbles.closeChat')} style={{ padding: '3px 6px' }}>
+              <X size={13} />
+            </button>
+          </div>
+          {settingsOpen && bubble.conversationId && (
+            <PaneSettings bubble={bubble} store={store} confined={confined} onNavigate={page => { collapse(); onNavigate?.(page) }} onClose={closeSettings} />
           )}
-          <span style={{ flex: 1 }} />
-          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setStageCollapsed(c => !c)}
-            aria-expanded={!stageCollapsed} title={stageCollapsed ? t('bubbles.showOrg') : t('bubbles.hideOrg')} style={{ gap: 4, fontSize: 10 }}>
-            {stageCollapsed ? <ChevronDown size={12} /> : <ChevronUp size={12} />} {t('bubbles.org')}
-          </button>
-          <button type="button" className="btn btn-ghost btn-sm" onClick={collapse} title={t('bubbles.collapse')} aria-label={t('bubbles.collapse')} style={{ padding: '3px 6px' }}>
-            <Minimize2 size={13} />
-          </button>
-          <button type="button" className="btn btn-ghost btn-sm" onClick={onCloseChat} title={t('bubbles.closeChat')} aria-label={t('bubbles.closeChat')} style={{ padding: '3px 6px' }}>
-            <X size={13} />
-          </button>
         </div>
         {bubble.cwd && <CoderHeader cwd={bubble.cwd} />}
         {view.task && <TaskHeaderCard task={view.task} onNavigate={onNavigate} />}
         <div ref={bodyRef} style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', position: 'relative' }}>
-          {!stageCollapsed && (
+          {showStage && !stageCollapsed && (
             <>
               <div style={{ height: `${Math.round(stageRatio * 100)}%`, flexShrink: 0 }}>
                 <OrgStage stage={stage} turnId={shown?.turnId || ''} working={conv.streaming}
@@ -236,6 +289,7 @@ export function CoderChatOverlay({ bubble, store, originRect, onCollapse, onClos
           <CoderChatView
             conv={conv}
             isDraft={!bubble.conversationId}
+            access={access}
             setup={setup}
             onSetupChange={patch => setSetup(s => ({ ...s, ...patch }))}
             draft={draft}
