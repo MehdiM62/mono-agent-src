@@ -83,6 +83,76 @@ export namespace main {
 	        this.reason = source["reason"];
 	    }
 	}
+	export class ParkedTab {
+	    applicationId: string;
+	    taskId: string;
+	    tabId: number;
+	    origin: string;
+	    state: string;
+	    updatedAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ParkedTab(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.applicationId = source["applicationId"];
+	        this.taskId = source["taskId"];
+	        this.tabId = source["tabId"];
+	        this.origin = source["origin"];
+	        this.state = source["state"];
+	        this.updatedAt = source["updatedAt"];
+	    }
+	}
+	export class ApplicationTab {
+	    applicationId: string;
+	    tab?: ParkedTab;
+	    submitObservedAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ApplicationTab(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.applicationId = source["applicationId"];
+	        this.tab = this.convertValues(source["tab"], ParkedTab);
+	        this.submitObservedAt = source["submitObservedAt"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class SweepResult {
+	    closed: string[];
+	    lost: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new SweepResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.closed = source["closed"];
+	        this.lost = source["lost"];
+	    }
+	}
 	export class APIAuto {
 	    available: boolean;
 	    missing?: string;

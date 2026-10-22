@@ -270,6 +270,10 @@ export function CoderSetAppAccess(arg1) {
   return window['go']['main']['App']['CoderSetAppAccess'](arg1);
 }
 
+export function ConfirmApplicationSubmitted(arg1) {
+  return window['go']['main']['App']['ConfirmApplicationSubmitted'](arg1);
+}
+
 export function CoderStatus() {
   return window['go']['main']['App']['CoderStatus']();
 }
@@ -440,6 +444,10 @@ export function GateRejectOrgAction(arg1, arg2, arg3) {
 
 export function GetAITask(arg1) {
   return window['go']['main']['App']['GetAITask'](arg1);
+}
+
+export function GetApplicationTab(arg1) {
+  return window['go']['main']['App']['GetApplicationTab'](arg1);
 }
 
 export function GetActiveProfile() {
@@ -1242,6 +1250,10 @@ export function ResumeOrgAutonomy(arg1) {
   return window['go']['main']['App']['ResumeOrgAutonomy'](arg1);
 }
 
+export function ResumeApplicationFill(arg1) {
+  return window['go']['main']['App']['ResumeApplicationFill'](arg1);
+}
+
 export function RevealProfileFolder(arg1) {
   return window['go']['main']['App']['RevealProfileFolder'](arg1);
 }
@@ -1420,6 +1432,14 @@ export function SubmitAITask(arg1, arg2, arg3, arg4) {
 
 export function StartApplicationFill(arg1) {
   return window['go']['main']['App']['StartApplicationFill'](arg1);
+}
+
+export function StartApplicationQueue(arg1, arg2) {
+  return window['go']['main']['App']['StartApplicationQueue'](arg1, arg2);
+}
+
+export function SweepApplicationTabs() {
+  return window['go']['main']['App']['SweepApplicationTabs']();
 }
 
 export function StartAgentValidation(arg1, arg2, arg3) {

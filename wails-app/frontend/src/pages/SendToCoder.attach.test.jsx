@@ -17,6 +17,7 @@ const { aitaskApi, App, api } = vi.hoisted(() => ({
     OpenJSONFilePicker: vi.fn(), ReadJSONFile: vi.fn(), EvaluateApplication: vi.fn(), HasGeneratedDocuments: vi.fn(),
     ApplyToApplication: vi.fn(), SendApplication: vi.fn(), SetApplicationStatus: vi.fn(),
     GetApplications: vi.fn(), GetApplication: vi.fn(), GetApplicationAssets: vi.fn(), AddApplication: vi.fn(),
+    StartApplicationQueue: vi.fn(), GetApplicationTab: vi.fn(), ConfirmApplicationSubmitted: vi.fn(),
     OpenURL: vi.fn(), OpenPathWithOS: vi.fn(), GetProfileDocumentData: vi.fn(), GetProfileDocumentText: vi.fn(),
   },
   api: { analyzeRecording: vi.fn(), verifyDraft: vi.fn(), saveDraft: vi.fn() },
@@ -196,5 +197,46 @@ describe('Apply with coder', () => {
     fireEvent.click(await screen.findByText('Lead Architect'))
     await screen.findByRole('banner', { name: 'Application header' })
     expect(screen.queryByRole('button', { name: 'Apply with coder' })).toBeNull()
+  })
+})
+
+describe('Applications list: apply selected with coder', () => {
+  const apps = [
+    { id: 'p1', title: 'Pending One', company: 'X', kind: 'job', status: 'pending', tags: [], updated_at: 'x' },
+    { id: 'p2', title: 'Pending Two', company: 'Y', kind: 'job', status: 'pending', tags: [], updated_at: 'x' },
+    { id: 'w1', title: 'Parked One', company: 'Z', kind: 'job', status: 'awaiting_submit', tags: [], updated_at: 'x' },
+  ]
+
+  it('ticks pending applications, starts the queue for exactly those, and parked rows say they wait for the person', async () => {
+    App.GetApplications.mockResolvedValue(apps)
+    App.StartApplicationQueue.mockResolvedValue(undefined)
+    render(wrap(<Applications />))
+    const apply = await screen.findByRole('button', { name: /Apply selected with coder/ })
+    expect(apply).toBeDisabled()
+    fireEvent.click(screen.getByLabelText('Select Pending One to apply with coder'))
+    fireEvent.click(screen.getByLabelText('Select Pending Two to apply with coder'))
+    fireEvent.click(screen.getByLabelText('Select Pending One to apply with coder'))
+    fireEvent.click(screen.getByRole('button', { name: 'Apply selected with coder (1)' }))
+    await waitFor(() => expect(App.StartApplicationQueue).toHaveBeenCalledWith(['p2'], 0))
+    expect(aitaskApi.status).toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'awaiting submit' }))
+    expect(await screen.findByText('waiting for your submit')).toBeInTheDocument()
+    expect(screen.queryByLabelText(/Select Parked One/)).toBeNull()
+  })
+
+  it('the detail of a parked application shows the waiting state; Confirm reloads the application', async () => {
+    App.GetApplications.mockResolvedValue([{ id: 'w1', title: 'Parked One', company: 'Z', kind: 'job', status: 'awaiting_submit', tags: [], updated_at: 'x' }])
+    App.GetApplication.mockResolvedValue({ ...mockApplicationDetail, id: 'w1', status: 'awaiting_submit' })
+    App.GetApplicationAssets.mockResolvedValue(mockApplicationAssets)
+    App.GetApplicationTab.mockResolvedValue({ applicationId: 'w1', tab: null, submitObservedAt: '2026-10-22T10:00:00Z' })
+    App.ConfirmApplicationSubmitted.mockResolvedValue(undefined)
+    render(wrap(<Applications />))
+    fireEvent.click(await screen.findByRole('button', { name: 'awaiting submit' }))
+    fireEvent.click(await screen.findByText('Parked One'))
+    expect(await screen.findByText('Waiting for your submit')).toBeInTheDocument()
+    const before = App.GetApplication.mock.calls.length
+    fireEvent.click(await screen.findByRole('button', { name: 'Confirm' }))
+    await waitFor(() => expect(App.GetApplication.mock.calls.length).toBeGreaterThan(before))
+    expect(App.ConfirmApplicationSubmitted).toHaveBeenCalledWith('w1')
   })
 })
