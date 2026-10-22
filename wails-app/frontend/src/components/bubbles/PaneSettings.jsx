@@ -125,7 +125,9 @@ export function PaneSettings({ bubble, store, confined, onNavigate, onClose }) {
   const ref = useRef(null)
   const coder = isCoderAccess(bubble.access)
   const cost = useCostVsCap(bubble.taskId || '', true)
-  const browser = useBrowserLevel(browserKindFor(bubble.access), true)
+  // A confined apply chat runs under the apply browser kind.
+  const browserKind = confined ? 'apply' : browserKindFor(bubble.access)
+  const browser = useBrowserLevel(browserKind, true)
 
   // Focus lands in the popover when it opens.
   useEffect(() => { ref.current?.querySelector('select, button')?.focus?.() }, [])
@@ -154,7 +156,7 @@ export function PaneSettings({ bubble, store, confined, onNavigate, onClose }) {
       <div style={row} data-testid="pane-browser">
         <span style={label}>{t('bubbles.pane.browser')}</span>
         <span style={value}>{browser === undefined ? t('bubbles.loading') : browser ? browser.label : t('bubbles.pane.unknown')}</span>
-        <button type="button" className="btn btn-ghost btn-sm" style={linkBtn} onClick={toSettings}>{t('bubbles.pane.browserLink', { kind: browserKindFor(bubble.access) })}</button>
+        <button type="button" className="btn btn-ghost btn-sm" style={linkBtn} onClick={toSettings}>{t('bubbles.pane.browserLink', { kind: browserKind })}</button>
       </div>
       {coder && !confined && <OrgRow bubble={bubble} store={store} />}
       {!coder && (

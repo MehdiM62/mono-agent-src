@@ -2,6 +2,10 @@ import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ArrowDown, Loader } from 'lucide-react'
 import { api, notify } from '../../services/api.js'
+import { ChatArtifactCard } from '../chat/ChatArtifactCard.jsx'
+import { openArtifact as revalidateAndOpenArtifact } from '../chat/chatArtifacts.js'
+import { useResolvedArtifacts } from '../chat/useResolvedArtifacts.js'
+import { useStreamsIncrementally } from './useChatPaneData.js'
 import { ChatTimeline } from '../chat/ChatTimeline.jsx'
 import { TurnStatus } from '../chat/TurnStatus.jsx'
 import { ChatComposer } from '../chat/ChatComposer.jsx'
@@ -25,7 +29,7 @@ const srOnly = { position: 'absolute', width: 1, height: 1, padding: 0, margin: 
 // CoderChatView is the chat half of an expanded coder bubble: the
 // transcript, the live turn and the composer. conv is useCoderConversation's
 // result; draft/onDraftChange keep the unsent text across collapses.
-export function CoderChatView({ conv, isDraft, access, setup, onSetupChange, draft, onDraftChange, initialScrollTop, onScroll, onNavigate, agentFilter = null, agentFilterTurnId = '', agentFilterName = '', onClearAgentFilter }) {
+export function CoderChatView({ conv, isDraft, access, setup, onSetupChange, draft, onDraftChange, initialScrollTop, onScroll, onNavigate, onOpenArtifact, runtime = '', agentFilter = null, agentFilterTurnId = '', agentFilterName = '', onClearAgentFilter }) {
   const { t } = useTranslation()
   const setupState = useChatSetup(isDraft, setup, onSetupChange)
   // The level this chat runs at: the draft's resolved pick, then the bubble's.
@@ -33,6 +37,23 @@ export function CoderChatView({ conv, isDraft, access, setup, onSetupChange, dra
   // Sends and workflow approvals this chat's agents prepared wait here, in
   // the same card the org bubble uses.
   const hil = useHilAsks({ conversationId: conv.conversationId || '' }, !!conv.conversationId)
+  // Cards for what a tool call produced (an org, a workflow, a document): every
+  // call of the finished turns and the live one, resolved once per (turn, call).
+  const artifactEntries = []
+  conv.messages.forEach(msg => {
+    if (msg.role === 'turn') Object.values(msg.state.calls).forEach(call => artifactEntries.push({ turnId: msg.turnId, call }))
+  })
+  Object.values(conv.liveTurn.calls || {}).forEach(call => artifactEntries.push({ turnId: conv.activeTurnId, call }))
+  const resolvedArtifacts = useResolvedArtifacts(artifactEntries)
+  // Re-validated at click time, not trusted from the cached snapshot.
+  const openArtifact = useCallback((call, artifact) => {
+    revalidateAndOpenArtifact(call, artifact, { api, notify, onOpen: onOpenArtifact })
+  }, [onOpenArtifact])
+  const artifactCards = (turnId, state) => Object.values(state.calls || {}).map(call => {
+    const artifact = resolvedArtifacts[`${turnId}:${call.callId}`]
+    return artifact ? <ChatArtifactCard key={call.callId} artifact={artifact} onOpenArtifact={() => openArtifact(call, artifact)} /> : null
+  })
+  const streamsIncrementally = useStreamsIncrementally(runtime, access === 'scoped')
   const scroll = useChatScroll(`${conv.messages.length}:${conv.liveTurn.lastSeq}:${hil.asks.length}`)
 
   // Put the transcript back where it was when the bubble collapsed.
@@ -110,6 +131,7 @@ export function CoderChatView({ conv, isDraft, access, setup, onSetupChange, dra
                 : msg.role === 'turn' ? (
                   <div key={i} className="chat-assistant-turn">
                     <ChatTimeline state={msg.state} turnId={msg.turnId} isLive={false} agentFilter={msg.turnId === agentFilterTurnId ? agentFilter : null} onNavigate={onNavigate} />
+                    {artifactCards(msg.turnId, msg.state)}
                     <TurnStatus state={msg.state} stopRequested={false} ownedByThisInstance={msg.ownedByThisInstance} />
                     {isAgentNotSetup(msg.state.terminal?.code) && <AgentSetupLink onNavigate={onNavigate} />}
                   </div>
@@ -123,7 +145,8 @@ export function CoderChatView({ conv, isDraft, access, setup, onSetupChange, dra
             {conv.streaming && (
               <div className="chat-assistant-turn">
                 <ChatTimeline state={conv.liveTurn} turnId={conv.activeTurnId} isLive agentFilter={conv.activeTurnId === agentFilterTurnId ? agentFilter : null} onNavigate={onNavigate} />
-                <TurnStatus state={conv.liveTurn} stopRequested={conv.stopRequested} />
+                {artifactCards(conv.activeTurnId, conv.liveTurn)}
+                <TurnStatus state={conv.liveTurn} stopRequested={conv.stopRequested} streamsIncrementally={streamsIncrementally} />
               </div>
             )}
           </WorkspaceImageContext.Provider>

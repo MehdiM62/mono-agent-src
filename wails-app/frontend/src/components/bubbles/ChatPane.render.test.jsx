@@ -74,7 +74,7 @@ describe('a new chat at an access level', () => {
     expect(api.getAgentRuntimeModels).toHaveBeenCalledWith('claude', '/bin/claude')
     expect(screen.getByLabelText('Access')).toHaveValue('scoped')
     // No folder picker for a scoped chat.
-    expect(screen.queryByTestId('coder-mode-picker')).toBeNull()
+    expect(screen.queryByTestId('folder-picker')).toBeNull()
 
     fireEvent.change(screen.getByLabelText('Effort'), { target: { value: 'high' } })
     fireEvent.change(box(), { target: { value: 'hello' } })
@@ -119,7 +119,7 @@ describe('a new chat at an access level', () => {
     const runtime = await screen.findByLabelText('Runtime')
     expect([...runtime.querySelectorAll('option')].map(o => o.value)).toEqual(['claude'])
     expect(scan).not.toHaveBeenCalled() // the slow scan is only for scoped chats
-    expect(screen.getByTestId('coder-mode-picker')).toBeInTheDocument()
+    expect(screen.getByTestId('folder-picker')).toBeInTheDocument()
     await waitFor(() => expect(screen.getByLabelText('Model')).toHaveValue('opus'))
     fireEvent.change(box(), { target: { value: 'fix it' } })
     fireEvent.keyDown(box(), { key: 'Enter' })
@@ -136,7 +136,7 @@ describe('a new chat at an access level', () => {
     await waitFor(() => expect(screen.getByLabelText('Access')).toHaveValue('coding'))
     fireEvent.change(screen.getByLabelText('Access'), { target: { value: 'scoped' } })
     await waitFor(() => expect([...screen.getByLabelText('Runtime').querySelectorAll('option')].map(o => o.value)).toEqual(['claude', 'gemini']))
-    expect(screen.queryByTestId('coder-mode-picker')).toBeNull()
+    expect(screen.queryByTestId('folder-picker')).toBeNull()
   })
 
   it('seeds the runtime from the entry point (the Agents page)', async () => {

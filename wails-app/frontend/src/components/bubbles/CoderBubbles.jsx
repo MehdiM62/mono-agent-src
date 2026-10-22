@@ -32,7 +32,7 @@ function useProfiles(bubbles) {
 // full chat; collapsed ones live as summaries in the store.
 // onCloseOrg(org, needs) hears that the person closed an org bubble while
 // needs items waited, so it isn't reopened for the same ones.
-export default function CoderBubbles({ store, onNavigate, onCloseOrg }) {
+export default function CoderBubbles({ store, onNavigate, onCloseOrg, onOpenArtifact }) {
   const { t } = useTranslation()
   const profiles = useProfiles(store.bubbles)
   const titleOf = useCallback(cwd => profileFolderName(cwd, profiles) || folderName(cwd), [profiles])
@@ -135,6 +135,7 @@ export default function CoderBubbles({ store, onNavigate, onCloseOrg }) {
           onCollapse={collapse}
           onCloseChat={() => closeChat(expanded.key)}
           titleOf={titleOf}
+          onOpenArtifact={onOpenArtifact}
           onNavigate={(page) => { collapse(); onNavigate?.(page) }}
         />
       )}

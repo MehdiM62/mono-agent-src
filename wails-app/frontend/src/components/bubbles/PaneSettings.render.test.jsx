@@ -43,7 +43,7 @@ const open = async (conv, task) => {
   render(<Harness conv={conv} task={task} />)
   await waitFor(() => expect(overlay()).toBeInTheDocument())
 }
-const kinds = [{ kind: 'chat', label: 'Chat', level: 'ask', isDefault: true }, { kind: 'coder', label: 'Coder', level: 'dev', isDefault: false }]
+const kinds = [{ kind: 'apply', label: 'Apply', level: 'ask', isDefault: true }, { kind: 'chat', label: 'Chat', level: 'ask', isDefault: true }, { kind: 'coder', label: 'Coder', level: 'dev', isDefault: false }]
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -251,6 +251,23 @@ describe('a confined application-apply chat', () => {
     expect(within(popover()).queryByLabelText('Access')).toBeNull()
     expect(screen.getByTestId('pane-access-confined')).toHaveTextContent('Confined to the browser')
     expect(within(popover()).queryByRole('switch')).toBeNull()
+  })
+
+  it('reads the apply browser level, not coder, with its own Settings link', async () => {
+    api.browserPermissions.mockResolvedValue({
+      kinds: [...kinds.filter(k => k.kind !== 'apply'), { kind: 'apply', label: 'Apply', level: 'ask', isDefault: true }], catalog: [{ id: 'ask', label: 'Ask first' }, { id: 'dev', label: 'Developer' }],
+    })
+    await open(coding, task)
+    fireEvent.click(gear())
+    await waitFor(() => expect(within(screen.getByTestId('pane-browser')).getByText('Ask first')).toBeInTheDocument())
+    expect(within(screen.getByTestId('pane-browser')).queryByText('Developer')).toBeNull()
+    expect(within(screen.getByTestId('pane-browser')).getByRole('button', { name: 'Browser access (apply) in Settings' })).toBeInTheDocument()
+  })
+
+  it('is confined the moment it opens from the button, with no stored state', async () => {
+    await open({ id: 'k7' }, { taskId: 't7', kind: 'application-apply', goal: 'g', status: 'running' })
+    expect(await screen.findByTestId('chip-confined')).toBeInTheDocument()
+    expect(store.bubbles[0].taskKind).toBe('application-apply')
   })
 
   it('stays confined after a restart, from the stored task kind', async () => {

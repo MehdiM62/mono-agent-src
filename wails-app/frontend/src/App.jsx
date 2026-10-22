@@ -373,7 +373,7 @@ export default function App({ banners = null }) {
         onToggleHil={() => setGlobalHilOpen(v => !v)}
         onOpenHealth={() => navigate('settings')}
       />
-      <CoderBubbles store={coderBubbles} onNavigate={navigate} onCloseOrg={onCloseOrgBubble} />
+      <CoderBubbles store={coderBubbles} onNavigate={navigate} onCloseOrg={onCloseOrgBubble} onOpenArtifact={onOpenArtifact} />
       <HistoryPanel store={coderBubbles} onNavigate={navigate} />
       <Toasts onNavigate={navigate} />
       <ConfirmHost />

@@ -28,6 +28,17 @@ function renderButton(ctx = {}, props = {}) {
 beforeEach(() => { vi.clearAllMocks() })
 afterEach(() => { cleanup(); vi.useRealTimers() })
 
+describe('SendToCoderButton task kind', () => {
+  it("passes the started task's kind, so an application-apply chat is confined when it opens", async () => {
+    aitaskApi.status.mockResolvedValue({ enabled: true })
+    aitaskApi.startFill.mockResolvedValue({ ...task, kind: 'application-apply' })
+    const ctx = renderButton({}, { kind: 'application-apply', start: () => aitaskApi.startFill('app-1') })
+    fireEvent.click(screen.getByRole('button', { name: /send to coder/i }))
+    await waitFor(() => expect(ctx.openDraft).toHaveBeenCalledTimes(1))
+    expect(ctx.openDraft.mock.calls[0][0].task.kind).toBe('application-apply')
+  })
+})
+
 describe('SendToCoderButton', () => {
   it('coder disabled: shows why and a Settings link, and never submits', async () => {
     aitaskApi.status.mockResolvedValue({ enabled: false, reason: 'Coder mode is off.' })
@@ -50,7 +61,7 @@ describe('SendToCoderButton', () => {
     expect(aitaskApi.submit).toHaveBeenCalledWith('generic', 'look at this', ['posting=/p.txt'], 'app-1')
     expect(ctx.openDraft).toHaveBeenCalledWith({
       conversationId: 'c1',
-      task: { taskId: 't1', goal: 'look at this', status: 'running', origin: { page: 'applications', label: 'Applications' } },
+      task: { taskId: 't1', kind: 'generic', goal: 'look at this', status: 'running', origin: { page: 'applications', label: 'Applications' } },
     })
   })
 
