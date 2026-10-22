@@ -583,6 +583,238 @@ export namespace main {
 	        this.cover_letter_pdf_document_id = source["cover_letter_pdf_document_id"];
 	    }
 	}
+	export class AssetAITask {
+	    taskId: string;
+	    conversationId: string;
+	    status: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AssetAITask(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.taskId = source["taskId"];
+	        this.conversationId = source["conversationId"];
+	        this.status = source["status"];
+	    }
+	}
+	export class AssetDocument {
+	    id: string;
+	    filename: string;
+	    kind: string;
+	    source: string;
+	    format: string;
+	    sizeBytes: number;
+	    createdAt: string;
+	    attached: boolean;
+	    path: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AssetDocument(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.filename = source["filename"];
+	        this.kind = source["kind"];
+	        this.source = source["source"];
+	        this.format = source["format"];
+	        this.sizeBytes = source["sizeBytes"];
+	        this.createdAt = source["createdAt"];
+	        this.attached = source["attached"];
+	        this.path = source["path"];
+	    }
+	}
+	export class AssetFillField {
+	    label: string;
+	    value: string;
+	    source: string;
+	    generated: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new AssetFillField(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.label = source["label"];
+	        this.value = source["value"];
+	        this.source = source["source"];
+	        this.generated = source["generated"];
+	    }
+	}
+	export class AssetFill {
+	    status: string;
+	    screenshot: string;
+	    updatedAt: string;
+	    fields: AssetFillField[];
+	    note: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AssetFill(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.status = source["status"];
+	        this.screenshot = source["screenshot"];
+	        this.updatedAt = source["updatedAt"];
+	        this.fields = this.convertValues(source["fields"], AssetFillField);
+	        this.note = source["note"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class AssetLink {
+	    kind: string;
+	    refId: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AssetLink(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.kind = source["kind"];
+	        this.refId = source["refId"];
+	    }
+	}
+	export class AssetMessage {
+	    id: string;
+	    channel: string;
+	    direction: string;
+	    subject: string;
+	    snippet: string;
+	    at: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AssetMessage(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.channel = source["channel"];
+	        this.direction = source["direction"];
+	        this.subject = source["subject"];
+	        this.snippet = source["snippet"];
+	        this.at = source["at"];
+	    }
+	}
+	export class AssetPerson {
+	    id: string;
+	    name: string;
+	    role: string;
+	    email: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AssetPerson(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.role = source["role"];
+	        this.email = source["email"];
+	    }
+	}
+	export class AssetPosting {
+	    url: string;
+	    capturedText: string;
+	    capturedAt: string;
+	    deadline: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AssetPosting(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.url = source["url"];
+	        this.capturedText = source["capturedText"];
+	        this.capturedAt = source["capturedAt"];
+	        this.deadline = source["deadline"];
+	    }
+	}
+	export class AssetTask {
+	    id: string;
+	    title: string;
+	    status: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AssetTask(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.title = source["title"];
+	        this.status = source["status"];
+	    }
+	}
+	export class ApplicationAssets {
+	    posting: AssetPosting;
+	    documents: AssetDocument[];
+	    fill: AssetFill;
+	    people: AssetPerson[];
+	    messages: AssetMessage[];
+	    tasks: AssetTask[];
+	    task: AssetAITask;
+	    links: AssetLink[];
+	
+	    static createFrom(source: any = {}) {
+	        return new ApplicationAssets(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.posting = this.convertValues(source["posting"], AssetPosting);
+	        this.documents = this.convertValues(source["documents"], AssetDocument);
+	        this.fill = this.convertValues(source["fill"], AssetFill);
+	        this.people = this.convertValues(source["people"], AssetPerson);
+	        this.messages = this.convertValues(source["messages"], AssetMessage);
+	        this.tasks = this.convertValues(source["tasks"], AssetTask);
+	        this.task = this.convertValues(source["task"], AssetAITask);
+	        this.links = this.convertValues(source["links"], AssetLink);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class BatchUploadResult {
 	    uploaded: number;
 	    unindexed: number;

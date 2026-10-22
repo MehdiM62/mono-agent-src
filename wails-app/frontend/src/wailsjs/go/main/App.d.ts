@@ -224,6 +224,8 @@ export function GetAllTags():Promise<Array<main.TagInfo>>;
 
 export function GetApplication(arg1:string):Promise<main.ApplicationDetail>;
 
+export function GetApplicationAssets(arg1:string):Promise<main.ApplicationAssets>;
+
 export function GetApplications(arg1:string,arg2:string,arg3:string):Promise<Array<main.ApplicationSummary>>;
 
 export function GetBrowsers():Promise<main.BrowsersReport>;

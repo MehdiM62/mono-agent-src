@@ -17,14 +17,18 @@ const (
 	KindTender Kind = "tender"
 )
 
-// Status is the closed 4-stage lifecycle.
+// Status is the closed lifecycle. awaiting_submit (a filled form waiting for
+// the human to press submit) and needs_you (the fill stopped on something only
+// the human can do) sit between pending and applied.
 type Status string
 
 const (
-	StatusPending   Status = "pending"
-	StatusApplied   Status = "applied"
-	StatusRejected  Status = "rejected"
-	StatusCancelled Status = "cancelled"
+	StatusPending        Status = "pending"
+	StatusAwaitingSubmit Status = "awaiting_submit"
+	StatusNeedsYou       Status = "needs_you"
+	StatusApplied        Status = "applied"
+	StatusRejected       Status = "rejected"
+	StatusCancelled      Status = "cancelled"
 )
 
 // Actor identifies who performed a status transition.

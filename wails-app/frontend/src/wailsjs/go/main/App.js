@@ -442,6 +442,10 @@ export function GetApplication(arg1) {
   return window['go']['main']['App']['GetApplication'](arg1);
 }
 
+export function GetApplicationAssets(arg1) {
+  return window['go']['main']['App']['GetApplicationAssets'](arg1);
+}
+
 export function GetApplications(arg1, arg2, arg3) {
   return window['go']['main']['App']['GetApplications'](arg1, arg2, arg3);
 }
