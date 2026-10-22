@@ -11,6 +11,8 @@ import ApplicationCoderTaskSection from './ApplicationCoderTaskSection.jsx'
 import FileViewerModal from '../FileViewerModal.jsx'
 import { fetchApplicationAssets } from './applicationAssets.js'
 
+const FOCUSABLE = 'a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])'
+
 export default function ApplicationDetailModal({
   applicationId,
   detail,
@@ -22,6 +24,7 @@ export default function ApplicationDetailModal({
   onChanged,
 }) {
   const overlayRef = useRef(null)
+  const dialogRef = useRef(null)
   const [assets, setAssets] = useState(initialAssets)
   const [loadingAssets, setLoadingAssets] = useState(!initialAssets)
   const [previewDoc, setPreviewDoc] = useState(null)
@@ -38,6 +41,24 @@ export default function ApplicationDetailModal({
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [onClose, previewDoc])
+
+  // Take focus on open, keep Tab inside the dialog, and give focus back on close.
+  useEffect(() => {
+    const previous = document.activeElement
+    dialogRef.current?.focus()
+    return () => { if (previous?.isConnected) previous.focus?.() }
+  }, [])
+
+  const trapTab = (e) => {
+    if (e.key !== 'Tab') return
+    const items = [...dialogRef.current.querySelectorAll(FOCUSABLE)].filter(el => !el.disabled && getComputedStyle(el).display !== 'none' && getComputedStyle(el).visibility !== 'hidden')
+    if (items.length === 0) { e.preventDefault(); return }
+    const first = items[0]
+    const last = items[items.length - 1]
+    const active = document.activeElement
+    if (e.shiftKey && (active === first || active === dialogRef.current)) { e.preventDefault(); last.focus() }
+    else if (!e.shiftKey && active === last) { e.preventDefault(); first.focus() }
+  }
 
   // Fetch assets safely with guard for missing binding
   useEffect(() => {
@@ -109,10 +130,14 @@ export default function ApplicationDetailModal({
         }}
       >
         <div
+          ref={dialogRef}
           role="dialog"
           aria-modal="true"
-          aria-label={`Application detail: ${effectiveDetail.title || 'Application'}`}
+          aria-labelledby="application-detail-label"
+          tabIndex={-1}
+          onKeyDown={trapTab}
           style={{
+            outline: 'none',
             background: 'var(--surface, #0d1520)',
             border: '1px solid rgba(255,255,255,0.1)',
             borderRadius: 10,
@@ -128,6 +153,10 @@ export default function ApplicationDetailModal({
             boxShadow: '0 20px 60px rgba(0,0,0,0.6)',
           }}
         >
+          <span id="application-detail-label" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' }}>
+            {`Application detail: ${effectiveDetail.title || 'Application'}`}
+          </span>
+
           {/* Section 1: Header */}
           <ApplicationHeader
             detail={effectiveDetail}
