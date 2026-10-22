@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { api, subscribeEvent } from '../../services/api.js'
-import { PAGE_SIZE, toFilter, mergePage } from '../../lib/historyModel.js'
+import { PAGE_SIZE, toFilter, mergePage, reconcileRefresh } from '../../lib/historyModel.js'
 
 const REFRESH_MS = 2000
 const QUERY_DEBOUNCE_MS = 300
+const TOMB_MS = 30000
 
 // useHistory pages ListHistory for the open drawer. While `open` it refreshes
 // the first page when a chat turn finishes or an org run changes status, at
@@ -20,6 +21,7 @@ export function useHistory({ open, kind, status, query, linked }) {
   const lastRefresh = useRef(0)
   const timer = useRef(null)
   const cursorRef = useRef('')
+  const tombs = useRef(new Map()) // id -> expiry: deleted rows a stale answer must not bring back
   const pages = useRef(1) // pages loaded; a refresh only moves the cursor while it is 1
   cursorRef.current = cursor
 
@@ -31,6 +33,13 @@ export function useHistory({ open, kind, status, query, linked }) {
   const filter = toFilter({ kind, status, query: debounced, linked })
   const filterKey = JSON.stringify(filter)
 
+  // alive drops rows deleted a moment ago (an answer already in flight may still list them).
+  const alive = rows => {
+    const now = Date.now()
+    for (const [id, until] of tombs.current) if (until < now) tombs.current.delete(id)
+    return rows.filter(r => !tombs.current.has(r.id))
+  }
+
   // load replaces the list (first page); a stale answer is dropped.
   const load = useCallback(async ({ silent = false } = {}) => {
     const mine = ++seq.current
@@ -38,7 +47,8 @@ export function useHistory({ open, kind, status, query, linked }) {
     try {
       const page = await api.listHistory('', PAGE_SIZE, JSON.parse(filterKey))
       if (mine !== seq.current) return
-      setItems(prev => (silent ? mergeRefresh(prev, page.items || []) : page.items || []))
+      const first = alive(page.items || [])
+      setItems(prev => (silent ? reconcileRefresh(alive(prev), first, !!page.next_cursor) : first))
       if (!silent || pages.current <= 1) { setCursor(page.next_cursor || ''); pages.current = 1 }
       setWarnings(page.warnings || [])
       setError('')
@@ -58,7 +68,7 @@ export function useHistory({ open, kind, status, query, linked }) {
     try {
       const page = await api.listHistory(c, PAGE_SIZE, JSON.parse(filterKey))
       if (mine !== seq.current) return
-      setItems(prev => mergePage(prev, page.items || []))
+      setItems(prev => mergePage(prev, alive(page.items || [])))
       setCursor(page.next_cursor || '')
       pages.current += 1
       if (page.warnings?.length) setWarnings(w => [...new Set([...w, ...page.warnings])])
@@ -91,15 +101,10 @@ export function useHistory({ open, kind, status, query, linked }) {
   }, [open, load])
 
   const removeLocal = useCallback(ids => {
+    ids.forEach(id => tombs.current.set(id, Date.now() + TOMB_MS))
     const gone = new Set(ids)
     setItems(prev => prev.filter(r => !gone.has(r.id)))
   }, [])
 
   return { items, cursor, warnings, loading, loadingMore, error, reload: load, loadMore, removeLocal }
-}
-
-// mergeRefresh puts a fresh first page on top of the rows already loaded.
-function mergeRefresh(prev, first) {
-  const fresh = new Set(first.map(r => r.id))
-  return [...first, ...prev.filter(r => !fresh.has(r.id))]
 }

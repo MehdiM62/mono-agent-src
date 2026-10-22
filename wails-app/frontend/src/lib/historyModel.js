@@ -44,6 +44,20 @@ export function toFilter({ kind = '', status = '', query = '', linked = false } 
 }
 
 
+// sortKey is the backend's list order key (newest first).
+export const sortKey = r => `${r.updatedAt}|${r.id}`
+
+// reconcileRefresh merges a fresh first page into the rows already loaded.
+// Rows the fresh page should have listed but did not (newer than its last
+// row, or anywhere when the page is the whole list) are gone: finished or
+// deleted. Rows beyond the page boundary are kept until the user scrolls.
+export function reconcileRefresh(prev, first, hasMore) {
+  if (!hasMore || first.length === 0) return first
+  const boundary = sortKey(first[first.length - 1])
+  const fresh = new Set(first.map(r => r.id))
+  return [...first, ...prev.filter(r => !fresh.has(r.id) && sortKey(r) < boundary)]
+}
+
 // mergePage appends a page, dropping ids already shown (a refresh can shift rows).
 export function mergePage(existing, page) {
   const seen = new Set(existing.map(r => r.id))
