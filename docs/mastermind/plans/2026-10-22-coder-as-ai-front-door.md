@@ -206,6 +206,46 @@ Findings are binding requirements for the phases that follow.
 8. **Budgets UI** (decision 5) and the non-blocking `ai.task` node (decision 3).
 9. **Docs + release**: AGENTS.md section, CHANGELOG, `ref` topic for agents.
 
+## 5a. Phase 0 results (read-only audit, 2026-10-22; nothing was run)
+
+**AI call sites (18 found).** Interactive and coder: assistant chat (`chat_run.go:426`), coder (`chat_coder.go:157`), dynorg
+workers, extension chat and coder bridge. Button-triggered one-shots: recording analysis (`recordanalyze/llm.go:159`,
+`RecordingReview.jsx:88`), application evaluate (`matching/evaluate.go:113`), profile info AI-fill (`Info.jsx:66`), extension
+form fill (`capturesummary.ExecRunner` after a model-free match), `agent test`, roster validation. Unattended and staying
+one-shot: capture summaries (hook after every capture), `browser.jev`, `agent.ask`, judge and guardrail nodes, org decisions,
+the OpenAI-compatible gateway, `agentgen` selector generation. Jev is a typed-answer classifier with many callers; it never
+writes text and is out of scope. `workflow generate` has no GUI caller. CV and cover-letter generation is template rendering
+with no model, and no AI-written reply exists in Communications or People today.
+
+**Applications.** DB statuses are pending, applied, rejected, cancelled (`applications.go:23-27`); "ready-to-send" is a UI
+step. `applied` is human-only and stays so: `application send` (ActorUser) is the only path, refused at
+`internal/cli/application/application.go:258`, `wails-app/app_applications.go:255` and `nodes/applications/set_status.go:41`.
+`TestBrowserFileNeverClicksAnything` (`internal/apply/browser_test.go:86`) source-greps `internal/apply` for form-interaction
+calls, so filling lives in a new package and the spec, the `application apply` help text and the `internal/apply` comments are
+corrected in the same change. New statuses need a table rebuild if migration 031 uses a CHECK constraint.
+
+**Links.** Only `vault_documents.application_id` (035) links to an application; messages, people, tasks, captures, HIL and
+conversations do not, so `application_links` (migration 115) carries them. `apply.Prepare` assumes exactly four generated
+documents in creation order; a coder-authored CV needs it to read links instead.
+
+**Chat merge (#959).** One shared `ai_chat_conversations` row already. About 25-35 non-test files and 30+ tests. Hard parts:
+`runCoderTurn` against the sandboxed assistant turn, the extension's one `--tools` mode per conversation, and keeping the
+operator-enable gate for the higher levels.
+
+**GUI.** `openDraft()` takes no arguments, so a button cannot seed a bubble: add `openDraft({prompt, setup, links})`
+(`setView(key,{draft,...})` already pre-fills in `CoderBubbles.jsx:~104`) and a context so pages outside `AIChatPanel` can
+reach `openCoderChat`. Attach points: Apply (`ApplicationsProcessPendingFlow.jsx:101`, `Applications.jsx`), Evaluate
+(`:88`, "Discuss"), `RecordingReview.jsx:88`, `Info.jsx:66`, `RunProblemPanel.jsx` (failed nodes as seed text),
+`Logs.jsx` error rows, a new Workflows entry for generate.
+
+**Blockers to design around.**
+1. The coder's browser level defaults to `dev` (`browserctl/permissions.go:77`): real job sites are refused until the operator
+   allows the origin or raises the level. The `apply` kind (§4b.4) needs operator-set levels and per-site allow rules.
+2. The submit block is the extension guard (`agent_submit_guard.js`), which cannot tell the person's submit from the
+   agent's. Unverified: whether the CLI arms it for KindCoder on non-local origins. Verify before the apply task is built.
+3. No files-by-application restriction exists in `browserctl`; it is new code (attachment grants, §4b.4).
+4. `ai.task` nodes only queue, never run, because unattended + full access is forbidden.
+
 ## 6. Verification
 
 - Unit: routing matrix (kind × coder enabled/disabled × caller kind); result-schema refusal and retry; context-folder escape
