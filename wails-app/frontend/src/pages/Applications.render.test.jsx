@@ -129,6 +129,21 @@ describe('Applications page render', () => {
     })
   })
 
+  it('opens the application a link from another page names (History drawer)', async () => {
+    render(<Applications navData={{ application: 'app-1' }} />)
+
+    await waitFor(() => {
+      expect(WailsApp.GetApplication).toHaveBeenCalledWith('app-1')
+      expect(screen.getByRole('dialog', { name: /Application detail/i })).toBeInTheDocument()
+    })
+  })
+
+  it('does not open a detail without a link or while the page is hidden', async () => {
+    render(<Applications isActive={false} navData={{ application: 'app-1' }} />)
+    await waitFor(() => expect(WailsApp.GetApplications).toHaveBeenCalled())
+    expect(WailsApp.GetApplication).not.toHaveBeenCalled()
+  })
+
   it('revert-proof: guards against missing GetApplicationAssets binding when opening detail', async () => {
     // Delete the Go binding to simulate it not yet existing
     const orig = WailsApp.GetApplicationAssets
