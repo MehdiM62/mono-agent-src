@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"encoding/json"
 	"errors"
 	"os"
 	"os/exec"
@@ -350,4 +351,90 @@ func (r *accessRig) setAccess(t *testing.T, operator error, args ...string) (str
 	var err error
 	out := captureStdout(t, func() { err = cmd.Execute() })
 	return out, err
+}
+
+// history runs `chat history <args>` with operator as the answer of the
+// operator check (nil is the user).
+func (r *accessRig) history(t *testing.T, operator error, args ...string) (string, error) {
+	t.Helper()
+	cfg := testDeps(&testConfig{DBPath: r.dbPath, ProfileID: "default", JSONOutput: true})
+	cfg.RequireOperator = func(string) error { return operator }
+	cmd := newChatCmd(cfg)
+	cmd.SetArgs(append([]string{"history"}, args...))
+	cmd.SilenceErrors, cmd.SilenceUsage = true, true
+	var err error
+	out := captureStdout(t, func() { err = cmd.Execute() })
+	return out, err
+}
+
+func (r *accessRig) count(t *testing.T) int {
+	t.Helper()
+	convs, _, err := r.store.ListConversations("default", "", 200)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return len(convs)
+}
+
+// Creating a conversation above scoped is the operator's, whatever the
+// spelling (--access, the --mode coder alias, a profile folder): an agent
+// makes none, and scoped stays open to anyone.
+func TestCreatingAboveScopedIsTheOperators(t *testing.T) {
+	r := newAccessRig(t, true)
+	for _, args := range [][]string{
+		{"--access", "full", "--profile-folder"}, {"--access", "workspace", "--new-workspace"},
+		{"--access", "coding", "--coder-root"}, {"--mode", "coder", "--new-workspace"},
+	} {
+		out, err := r.history(t, errNotOperator, append([]string{"create", "--runtime", "claude"}, args...)...)
+		if exitCodeFor(err) != 3 || !strings.Contains(err.Error(), "only the user") {
+			t.Errorf("an agent created %v: %v\n%s", args, err, out)
+		}
+	}
+	if n := r.count(t); n != 0 {
+		t.Fatalf("refused creations left %d conversation(s)", n)
+	}
+	for _, args := range [][]string{{}, {"--access", "scoped"}, {"--mode", "assistant"}} {
+		if out, err := r.history(t, errNotOperator, append([]string{"create", "--runtime", "claude"}, args...)...); err != nil {
+			t.Errorf("an agent's scoped create %v: %v\n%s", args, err, out)
+		}
+	}
+	if out, err := r.history(t, nil, "create", "--runtime", "claude", "--mode", "coder", "--new-workspace"); err != nil {
+		t.Errorf("the operator's create: %v\n%s", err, out)
+	}
+}
+
+// A process that cannot be shown to be the turn's own is not stopped: the
+// lowering still happens, lists it as a survivor and exits 5.
+func TestLoweringReportsTheProcessesItCouldNotStop(t *testing.T) {
+	r := newAccessRig(t, true)
+	c := r.conv(t, ai.AccessFull)
+	c2 := exec.Command("sleep", "60") // no exec-tree token: no identity
+	if err := c2.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { c2.Process.Kill(); c2.Wait() })
+	r.leaveBehind(t, c.ID, c2.Process.Pid)
+
+	out, err := r.setAccess(t, nil, c.ID, "scoped")
+	if exitCodeFor(err) != exitSurvivors {
+		t.Fatalf("exit %d, want %d: %v\n%s", exitCodeFor(err), exitSurvivors, err, out)
+	}
+	// The result, then the error document.
+	var change accessChange
+	if err := json.NewDecoder(strings.NewReader(out)).Decode(&change); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, `"survivors_remain"`) {
+		t.Errorf("no survivors_remain error document: %s", out)
+	}
+	if change.Access != "scoped" || change.Lowered == nil || len(change.Lowered.Survivors) != 1 ||
+		change.Lowered.Survivors[0].Pid != c2.Process.Pid || change.Lowered.Survivors[0].Command != "sleep 60" || change.Lowered.Survivors[0].Reason == "" {
+		t.Errorf("output: %s", out)
+	}
+	if got, _ := r.store.GetConversation(c.ID, "default"); got.Access != ai.AccessScoped {
+		t.Errorf("the level is %q: a survivor must not keep the old one", got.Access)
+	}
+	if !processAlive(c2.Process.Pid) {
+		t.Error("an unidentified process was killed")
+	}
 }

@@ -4,12 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"math"
 	"os"
 
 	"github.com/monoes/mono-agent/internal/aitask"
 	"github.com/monoes/mono-agent/internal/aitask/budget"
 	"github.com/monoes/mono-agent/internal/applyfill"
 	"github.com/monoes/mono-agent/internal/browserctl"
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 )
 
 // taskTurn is the AI-task side of a turn in a coder conversation. When the
@@ -36,16 +38,20 @@ import (
 func taskTurn(cfg *Deps, conversationID string, turnCap *float64) (run taskRun) {
 	run.end = func(error) {}
 	run.kind = browserctl.KindCoder
-	if cfg.RequireOperator == nil || cfg.RequireOperator("continue an AI task's turn") != nil {
-		return run
-	}
 	db, err := cfg.OpenDB()
 	if err != nil {
+		if cfg.RequireOperator == nil || cfg.RequireOperator("continue an AI task's turn") != nil {
+			return run
+		}
+		run.err = fmt.Errorf("looking up the conversation's task: %w", err)
 		return run
 	}
 	defer db.Close()
 	store := &aitask.Store{DB: db.DB, Profile: cfg.ProfileID()}
-	t, ok, err := store.OpenForConversation(conversationID)
+	// Confinement belongs to the conversation, not to the task's status: the
+	// newest task in any status decides, so an application-apply conversation
+	// stays confined after its task is complete, failed or cancelled.
+	t, ok, err := store.ForConversation(conversationID)
 	if err != nil {
 		run.err = fmt.Errorf("looking up the conversation's task: %w", err)
 		return run
@@ -54,12 +60,23 @@ func taskTurn(cfg *Deps, conversationID string, turnCap *float64) (run taskRun) 
 		return run
 	}
 	apply := t.Kind == applyfill.Kind
+	operator := cfg.RequireOperator != nil && cfg.RequireOperator("continue an AI task's turn") == nil
+	if !operator {
+		if apply {
+			run.err = clicore.OperatorOnly("only the user can continue an application task's conversation")
+		}
+		return run
+	}
 	if apply {
 		run.kind = browserctl.KindApply
 		if run.confine, err = confineApplyTurn(cfg, t.ID); err != nil {
 			run.kind, run.err = browserctl.KindCoder, err
 			return run
 		}
+	}
+	open := t.Status == aitask.StatusRunning || t.Status == aitask.StatusNeedsUser
+	if !open && !apply {
+		return run // an ordinary coder turn after a generic task is over
 	}
 	run.end = func(turnErr error) {
 		text := ""
@@ -68,28 +85,39 @@ func taskTurn(cfg *Deps, conversationID string, turnCap *float64) (run taskRun) 
 		}
 		if db, err := cfg.OpenDB(); err == nil {
 			defer db.Close()
-			_ = (&aitask.Service{Store: &aitask.Store{DB: db.DB, Profile: cfg.ProfileID()}}).EndTurn(t.ID, text)
+			if open {
+				_ = (&aitask.Service{Store: &aitask.Store{DB: db.DB, Profile: cfg.ProfileID()}}).EndTurn(t.ID, text)
+			}
 			// A follow-up turn's spend counts against the same caps as the first.
 			l := taskLedger(db.DB)
 			_ = l.Settle(context.Background(), t.ID, t.ConversationID)
 		}
 	}
-	if os.Getenv(aitask.EnvTaskID) == t.ID && store.CheckToken(t.ID, os.Getenv(aitask.EnvToken)) {
+	if open && os.Getenv(aitask.EnvTaskID) == t.ID && store.CheckToken(t.ID, os.Getenv(aitask.EnvToken)) {
 		return run
+	}
+	// An explicit cap is the turn's own spend limit: 0, negative or not finite
+	// is no spend, never "no limit" (absent is what asks for none).
+	asked := 0.0
+	if turnCap != nil {
+		if !validTurnCap(*turnCap) {
+			run.kind, run.confine, run.end, run.err = browserctl.KindCoder, nil, func(error) {}, noBudgetError(*turnCap)
+			return run
+		}
+		asked = *turnCap
 	}
 	// A follow-up is admitted again, against what is left of the task's cap and
 	// the turn's own, before it gets a token: a task with nothing left gets no turn.
 	l := taskLedger(db.DB)
-	asked := 0.0
-	if turnCap != nil {
-		asked = *turnCap
-	}
 	grant, err := l.AdmitTurn(context.Background(), budget.Admission{TaskID: t.ID, ConversationID: t.ConversationID, Kind: t.Kind, Runtime: t.Runtime}, asked)
 	if err != nil {
 		run.kind, run.confine, run.end, run.err = browserctl.KindCoder, nil, func(error) {}, err
 		return run
 	}
 	run.budget = &grant
+	if !open {
+		return run // a finished task never gets a token
+	}
 	token := aitask.NewToken()
 	if moved, err := store.Rebind(t.ID, token, os.Getpid()); err != nil || !moved {
 		_ = l.Settle(context.Background(), t.ID, t.ConversationID)
@@ -122,4 +150,12 @@ func taskLedger(db *sql.DB) *budget.Ledger {
 		l.Operator = st.BudgetUSD
 	}
 	return l
+}
+
+// validTurnCap says whether an explicit --budget-usd is a real spend limit.
+func validTurnCap(v float64) bool { return v > 0 && !math.IsNaN(v) && !math.IsInf(v, 0) }
+
+func noBudgetError(v float64) error {
+	return &coderError{code: "no_budget", err: &clicore.Error{Code: 3,
+		Msg: fmt.Sprintf("--budget-usd %v is not a spend limit: the turn was not run (0 is no spend, never unlimited; leave the flag out for none)", v)}}
 }

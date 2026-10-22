@@ -90,6 +90,16 @@ type backgroundStop struct {
 	Stopped []int `json:"stopped"`
 	Gone    []int `json:"gone"`
 	Refused []int `json:"refused"`
+	// Survivors are the refused processes, and those that outlived SIGKILL,
+	// with why each is still running.
+	Survivors []survivor `json:"survivors,omitempty"`
+}
+
+// survivor is a recorded process that was not stopped and may still be alive.
+type survivor struct {
+	Pid     int    `json:"pid"`
+	Command string `json:"command,omitempty"`
+	Reason  string `json:"reason"`
 }
 
 // stopBackground stops each recorded process that is still the same
@@ -104,9 +114,15 @@ func stopBackground(refs []chatevents.ProcessRef, grace time.Duration) backgroun
 			res.Gone = append(res.Gone, r.Pid)
 		case r.Identity == "" || now != r.Identity:
 			res.Refused = append(res.Refused, r.Pid)
+			reason := "its identity was not recorded, so it cannot be told from another process that reused the pid"
+			if r.Identity != "" {
+				reason = "its pid now belongs to a process that cannot be shown to be the one the turn started"
+			}
+			res.Survivors = append(res.Survivors, survivor{Pid: r.Pid, Command: shortCommand(r.Pid), Reason: reason})
 		default:
 			if err := terminateProcess(r.Pid); err != nil {
 				res.Refused = append(res.Refused, r.Pid)
+				res.Survivors = append(res.Survivors, survivor{Pid: r.Pid, Command: shortCommand(r.Pid), Reason: "it could not be signalled: " + err.Error()})
 				continue
 			}
 			signalled = append(signalled, r.Pid)
@@ -119,6 +135,10 @@ func stopBackground(refs []chatevents.ProcessRef, grace time.Duration) backgroun
 		}
 		if processAlive(pid) {
 			_ = killProcess(pid)
+		}
+		if processAlive(pid) {
+			res.Survivors = append(res.Survivors, survivor{Pid: pid, Command: shortCommand(pid), Reason: "it outlived SIGKILL"})
+			continue
 		}
 		res.Stopped = append(res.Stopped, pid)
 	}
