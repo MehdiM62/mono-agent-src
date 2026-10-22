@@ -3,6 +3,7 @@ package chat
 import (
 	"context"
 	"errors"
+	"math"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -301,6 +302,32 @@ func TestOnlyApplyConversationsKeepTheirConfinement(t *testing.T) {
 	r.turn(t, "t1", nil)
 	if got := r.kind(t); got != "coder" {
 		t.Errorf("another profile's application task confined this conversation: %q", got)
+	}
+}
+
+// An explicit --budget-usd that is not a real limit is refused before the
+// follow-up is admitted: it is no spend, never "no limit" and never a grant.
+func TestFollowUpRefusesAnExplicitCapThatIsNotALimit(t *testing.T) {
+	for name, v := range map[string]float64{"zero": 0, "negative": -1, "nan": math.NaN(), "+inf": math.Inf(1), "-inf": math.Inf(-1)} {
+		r := newTaskRig(t)
+		task, old := r.task(t, "default", aitask.StatusNeedsUser)
+		cfg := testDeps(&testConfig{DBPath: r.dbPath, ProfileID: "default"})
+		run := taskTurn(cfg, r.convID, &v)
+		var ce *coderError
+		if !errors.As(run.err, &ce) || ce.code != "no_budget" || run.budget != nil || run.env != nil {
+			t.Errorf("%s: err %v budget %v env %v", name, run.err, run.budget, run.env)
+		}
+		st, done := r.store(t, "default")
+		if !st.CheckToken(task.ID, old) {
+			t.Errorf("%s: the refused turn replaced the token", name)
+		}
+		done()
+	}
+	r := newTaskRig(t)
+	r.task(t, "default", aitask.StatusNeedsUser)
+	cap := 0.5
+	if run := taskTurn(testDeps(&testConfig{DBPath: r.dbPath, ProfileID: "default"}), r.convID, &cap); run.err != nil || run.budget == nil || *run.budget > cap {
+		t.Errorf("a real cap: err %v budget %v", run.err, run.budget)
 	}
 }
 

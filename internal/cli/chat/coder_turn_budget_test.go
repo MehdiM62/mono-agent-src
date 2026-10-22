@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"math"
 	"os"
 	"strings"
 	"testing"
@@ -75,3 +76,13 @@ func TestTurnBudgetOnKiloIsRefused(t *testing.T) {
 }
 
 func ptr(f float64) *float64 { return &f }
+
+// A turn's own cap that is not finite is no spend either: +Inf must not reach
+// the runtime as an unlimited budget.
+func TestTurnBudgetRefusesNonFiniteCaps(t *testing.T) {
+	for _, v := range []float64{math.Inf(1), math.Inf(-1), math.NaN()} {
+		if _, err := turnBudget(5, &v, "claude"); err == nil {
+			t.Errorf("a turn cap of %v was accepted", v)
+		}
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"math"
 	"os"
 
 	"github.com/monoes/mono-agent/internal/aitask"
@@ -95,8 +96,14 @@ func taskTurn(cfg *Deps, conversationID string, turnCap *float64) (run taskRun) 
 	if open && os.Getenv(aitask.EnvTaskID) == t.ID && store.CheckToken(t.ID, os.Getenv(aitask.EnvToken)) {
 		return run
 	}
+	// An explicit cap is the turn's own spend limit: 0, negative or not finite
+	// is no spend, never "no limit" (absent is what asks for none).
 	asked := 0.0
 	if turnCap != nil {
+		if !validTurnCap(*turnCap) {
+			run.kind, run.confine, run.end, run.err = browserctl.KindCoder, nil, func(error) {}, noBudgetError(*turnCap)
+			return run
+		}
 		asked = *turnCap
 	}
 	// A follow-up is admitted again, against what is left of the task's cap and
@@ -145,3 +152,10 @@ func taskLedger(db *sql.DB) *budget.Ledger {
 	return l
 }
 
+// validTurnCap says whether an explicit --budget-usd is a real spend limit.
+func validTurnCap(v float64) bool { return v > 0 && !math.IsNaN(v) && !math.IsInf(v, 0) }
+
+func noBudgetError(v float64) error {
+	return &coderError{code: "no_budget", err: &clicore.Error{Code: 3,
+		Msg: fmt.Sprintf("--budget-usd %v is not a spend limit: the turn was not run (0 is no spend, never unlimited; leave the flag out for none)", v)}}
+}
