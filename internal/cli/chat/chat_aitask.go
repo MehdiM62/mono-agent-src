@@ -40,7 +40,7 @@ func taskTurn(cfg *Deps, conversationID string, turnCap *float64) (run taskRun) 
 	run.kind = browserctl.KindCoder
 	db, err := cfg.OpenDB()
 	if err != nil {
-		if cfg.RequireOperator == nil || cfg.RequireOperator("continue an AI task's turn") != nil {
+		if clicore.RequireOperator(cfg.RequireOperator, "continue an AI task's turn") != nil {
 			return run
 		}
 		run.err = fmt.Errorf("looking up the conversation's task: %w", err)
@@ -60,7 +60,7 @@ func taskTurn(cfg *Deps, conversationID string, turnCap *float64) (run taskRun) 
 		return run
 	}
 	apply := t.Kind == applyfill.Kind
-	operator := cfg.RequireOperator != nil && cfg.RequireOperator("continue an AI task's turn") == nil
+	operator := clicore.RequireOperator(cfg.RequireOperator, "continue an AI task's turn") == nil
 	if !operator {
 		if apply {
 			run.err = clicore.OperatorOnly("only the user can continue an application task's conversation")

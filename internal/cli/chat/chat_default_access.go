@@ -4,6 +4,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/monoes/mono-agent/internal/ai"
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 )
 
 // withDefaultAccess makes `chat history create` without --access/--mode take
@@ -44,7 +45,7 @@ func withDefaultAccess(cfg *Deps, cmd *cobra.Command) *cobra.Command {
 // the chat's runs always get scoped: the default never lifts one of them
 // above what it could create by naming the level.
 func defaultCreateAccess(cmd *cobra.Command, cfg *Deps) string {
-	if cfg.RequireOperator == nil || cfg.RequireOperator("create a conversation at the default access") != nil {
+	if clicore.RequireOperator(cfg.RequireOperator, "create a conversation at the default access") != nil {
 		return ai.AccessScoped
 	}
 	db, err := cfg.OpenDB()
