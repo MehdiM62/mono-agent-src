@@ -39,6 +39,9 @@ type coderTurn struct {
 	budget *float64
 	// env is added to the turn's environment (an AI task's id and token).
 	env map[string]string
+	// agentKind is the browser-permission kind the turn runs as (coder, or
+	// apply for an application-apply task's turn); "" is coder.
+	agentKind string
 	// attachments are the files attached to the turn, already copied into cwd.
 	attachments []chatevents.TurnAttachment
 }
@@ -163,7 +166,11 @@ func runCoderTurn(cmd *cobra.Command, cfg *Deps, journal *turnJournal, t coderTu
 	for k, v := range t.env {
 		opts.Env[k] = v
 	}
-	kindDone := addAgentKind(opts.Env, browserctl.KindCoder)
+	kind := t.agentKind
+	if kind == "" {
+		kind = browserctl.KindCoder
+	}
+	kindDone := addAgentKind(opts.Env, kind)
 	defer kindDone()
 	kiloDropped := dropKiloOptions(&opts)
 	onEvent := func(ev monomind.Event) {

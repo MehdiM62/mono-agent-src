@@ -25,6 +25,7 @@ func newTaskRig(t *testing.T) *taskRig {
 	r := &taskRig{dbPath: newChatCLITestDB(t)}
 	r.envLog = filepath.Join(t.TempDir(), "env.log")
 	r.bin, _ = writeCoderMonomind(t, `  echo "ENV [$MONOAGENT_AITASK_ID] [$MONOAGENT_AITASK_TOKEN]" >> '`+r.envLog+`'
+  echo "KIND [$MONOAGENT_AGENT_KIND]" >> '`+r.envLog+`'
 `+coderTranscript)
 	withCoderCaps(t, monomind.CoderCapabilities...)
 	setCoderSettings(t, r.dbPath, coderSettings{Enabled: true})
@@ -48,9 +49,14 @@ func (r *taskRig) store(t *testing.T, profile string) (*aitask.Store, func()) {
 // task inserts a task on the rig's conversation with a token of its own.
 func (r *taskRig) task(t *testing.T, profile, status string) (aitask.Task, string) {
 	t.Helper()
+	return r.taskOfKind(t, profile, status, "generic")
+}
+
+func (r *taskRig) taskOfKind(t *testing.T, profile, status, kind string) (aitask.Task, string) {
+	t.Helper()
 	st, done := r.store(t, profile)
 	defer done()
-	task, err := st.Insert(aitask.Task{ID: aitask.NewID(), Kind: "generic", ConversationID: r.convID, Status: status, Goal: "g"})
+	task, err := st.Insert(aitask.Task{ID: aitask.NewID(), Kind: kind, ConversationID: r.convID, Status: status, Goal: "g"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -167,5 +173,88 @@ func TestFollowUpGetsNothingForTerminalQueuedOrOtherProfileTasks(t *testing.T) {
 			t.Errorf("%s: status %s -> %s", name, tc.status, got.Status)
 		}
 		done()
+	}
+}
+
+var kindLine = regexp.MustCompile(`KIND \[(.*)\]`)
+
+// kind is the browser-permission kind the fake monomind's turn ran as.
+func (r *taskRig) kind(t *testing.T) string {
+	t.Helper()
+	b, _ := os.ReadFile(r.envLog)
+	m := kindLine.FindStringSubmatch(string(b))
+	if m == nil {
+		t.Fatalf("the fake monomind logged no kind: %q", b)
+	}
+	return m[1]
+}
+
+func TestApplyTaskTurnsRunAsTheApplyKind(t *testing.T) {
+	for _, status := range []string{aitask.StatusNeedsUser, aitask.StatusRunning} {
+		r := newTaskRig(t)
+		r.taskOfKind(t, "default", status, "application-apply")
+		r.turn(t, "t1", nil)
+		if got := r.kind(t); got != "apply" {
+			t.Errorf("a follow-up on a %s application-apply task ran as %q, want apply", status, got)
+		}
+	}
+}
+
+// The first turn is run by the supervisor with the task's token already in its
+// environment (the holder): it is the apply kind too.
+func TestApplyTaskFirstTurnRunsAsTheApplyKind(t *testing.T) {
+	r := newTaskRig(t)
+	task, token := r.taskOfKind(t, "default", aitask.StatusRunning, "application-apply")
+	t.Setenv(aitask.EnvTaskID, task.ID)
+	t.Setenv(aitask.EnvToken, token)
+	r.turn(t, "t1", nil)
+	if got := r.kind(t); got != "apply" {
+		t.Fatalf("the holder's first turn ran as %q, want apply", got)
+	}
+}
+
+func TestOtherConversationsKeepTheCoderKind(t *testing.T) {
+	r := newTaskRig(t)
+	r.turn(t, "t1", nil)
+	if got := r.kind(t); got != "coder" {
+		t.Errorf("a conversation with no task ran as %q", got)
+	}
+	r = newTaskRig(t)
+	r.task(t, "default", aitask.StatusNeedsUser) // generic
+	r.turn(t, "t1", nil)
+	if got := r.kind(t); got != "coder" {
+		t.Errorf("another kind of task ran as %q", got)
+	}
+}
+
+func TestApplyKindNeedsAnOperatorAndAnOpenTaskOfThisProfile(t *testing.T) {
+	for name, tc := range map[string]struct {
+		profile, status string
+		operator        error
+	}{
+		"agent-run":     {"default", aitask.StatusNeedsUser, errors.New("an agent is running this")},
+		"complete":      {"default", aitask.StatusComplete, nil},
+		"failed":        {"default", aitask.StatusFailed, nil},
+		"cancelled":     {"default", aitask.StatusCancelled, nil},
+		"queued":        {"default", aitask.StatusQueued, nil},
+		"other profile": {"someone-else", aitask.StatusNeedsUser, nil},
+	} {
+		r := newTaskRig(t)
+		r.taskOfKind(t, tc.profile, tc.status, "application-apply")
+		r.turn(t, "t1", tc.operator)
+		if got := r.kind(t); got != "coder" {
+			t.Errorf("%s: ran as %q, want coder", name, got)
+		}
+	}
+}
+
+// An agent cannot pick apply by declaring it: the declared kind in its
+// environment is overwritten, and with no task row the turn is coder.
+func TestDeclaringApplyInTheEnvironmentDoesNotSelectIt(t *testing.T) {
+	r := newTaskRig(t)
+	t.Setenv("MONOAGENT_AGENT_KIND", "apply")
+	r.turn(t, "t1", nil)
+	if got := r.kind(t); got != "coder" {
+		t.Fatalf("ran as %q, want coder", got)
 	}
 }

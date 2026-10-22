@@ -4,6 +4,8 @@ import (
 	"os"
 
 	"github.com/monoes/mono-agent/internal/aitask"
+	"github.com/monoes/mono-agent/internal/applyfill"
+	"github.com/monoes/mono-agent/internal/browserctl"
 )
 
 // taskTurn is the AI-task side of a turn in a coder conversation. When the
@@ -19,20 +21,29 @@ import (
 // queued task (`aitask start` begins it) or another profile's. The first turn,
 // which `aitask supervise` runs with the task's token already in its
 // environment, keeps that token.
-func taskTurn(cfg *Deps, conversationID string) (env map[string]string, end func(error)) {
+//
+// kind is the browser-permission kind the turn runs as: apply for the turn of
+// an open application-apply task (the first turn and every follow-up), read
+// only from the task row of this profile once the caller is the operator,
+// else coder. Nothing an agent can set (a flag, the environment) picks it.
+func taskTurn(cfg *Deps, conversationID string) (env map[string]string, kind string, end func(error)) {
 	noop := func(error) {}
+	kind = browserctl.KindCoder
 	if cfg.RequireOperator == nil || cfg.RequireOperator("continue an AI task's turn") != nil {
-		return nil, noop
+		return nil, kind, noop
 	}
 	db, err := cfg.OpenDB()
 	if err != nil {
-		return nil, noop
+		return nil, kind, noop
 	}
 	defer db.Close()
 	store := &aitask.Store{DB: db.DB, Profile: cfg.ProfileID()}
 	t, ok, err := store.OpenForConversation(conversationID)
 	if err != nil || !ok {
-		return nil, noop
+		return nil, kind, noop
+	}
+	if t.Kind == applyfill.Kind {
+		kind = browserctl.KindApply
 	}
 	end = func(turnErr error) {
 		text := ""
@@ -45,11 +56,11 @@ func taskTurn(cfg *Deps, conversationID string) (env map[string]string, end func
 		}
 	}
 	if os.Getenv(aitask.EnvTaskID) == t.ID && store.CheckToken(t.ID, os.Getenv(aitask.EnvToken)) {
-		return nil, end
+		return nil, kind, end
 	}
 	token := aitask.NewToken()
 	if moved, err := store.Rebind(t.ID, token, os.Getpid()); err != nil || !moved {
-		return nil, noop
+		return nil, browserctl.KindCoder, noop
 	}
-	return map[string]string{aitask.EnvTaskID: t.ID, aitask.EnvToken: token}, end
+	return map[string]string{aitask.EnvTaskID: t.ID, aitask.EnvToken: token}, kind, end
 }
