@@ -34,6 +34,9 @@ type coderTurn struct {
 	resume  string
 	cwd     string
 	orgMode string // ai.OrgModeDynamic lets the agent spawn workers (#226)
+	// access is the conversation's level (ai.AccessCoding and up); "" is full,
+	// what a plain `chat --mode coder` turn has.
+	access string
 	// budget is a spend cap for this turn (--budget-usd, what an AI task's
 	// supervisor passes); nil asks for none. See turnBudget.
 	budget *float64
@@ -129,6 +132,7 @@ func runCoderTurn(cmd *cobra.Command, cfg *Deps, journal *turnJournal, t coderTu
 		return fmt.Errorf("initializing database: %w", err)
 	}
 	settings, st, rt, err := requireCoderReady(cmd, db.DB, t.runtime)
+	settings = settings.forAccess(t.access)
 	// The profile block is read while the database is open; it never fails.
 	systemPrompt := coderLeadSystemPrompt(ctx, db.DB, cfg, t.cwd, settings.appAccess())
 	db.Close()
@@ -326,9 +330,9 @@ func coderFolder(cmd *cobra.Command, cfg *Deps, c coderFolderChoice, runtime str
 	return dir, nil
 }
 
-// createCoderConversation is `chat history create --mode coder`; runtimeID
-// "" means claude.
-func createCoderConversation(cmd *cobra.Command, cfg *Deps, runtimeID, model, effort, workflowID string, folder coderFolderChoice) (ai.Conversation, error) {
+// createCoderConversation is `chat history create` above the scoped level
+// (--mode coder is full); runtimeID "" means claude.
+func createCoderConversation(cmd *cobra.Command, cfg *Deps, access, runtimeID, model, effort, workflowID string, folder coderFolderChoice) (ai.Conversation, error) {
 	if runtimeID == "" {
 		runtimeID = monomind.DefaultCoderRuntime
 	}
@@ -341,7 +345,7 @@ func createCoderConversation(cmd *cobra.Command, cfg *Deps, runtimeID, model, ef
 		return ai.Conversation{}, err
 	}
 	defer closeDB()
-	return store.CreateConversationModeEffort(profileID, "agent", workflowID, runtimeID, "", model, ai.ModeCoder, dir, effort)
+	return store.CreateConversationAccess(profileID, "agent", workflowID, runtimeID, "", model, access, dir, effort)
 }
 
 // addAgentKind adds kind's vouched environment (browserctl.IssueAgentKind)

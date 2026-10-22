@@ -105,7 +105,7 @@ func newCoderListCmd(cfg *Deps) *cobra.Command {
 				if err != nil {
 					return chatStoreErr(err)
 				}
-				if conv.Mode != ai.ModeCoder {
+				if conv.Scoped() {
 					return clicore.InvalidInput("conversation %s is not a coder conversation", conversation)
 				}
 				row, _, err := coderChat(store, profileID, conv)
@@ -145,7 +145,7 @@ func coderChats(store *ai.AIStore, profileID string, limit int) ([]coderChatRow,
 			return nil, err
 		}
 		for _, c := range convs {
-			if c.Mode != ai.ModeCoder {
+			if c.Scoped() {
 				continue
 			}
 			row, ok, err := coderChat(store, profileID, c)

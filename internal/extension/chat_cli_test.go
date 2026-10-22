@@ -147,7 +147,7 @@ func TestCLIBackendCreateConversation(t *testing.T) {
 	if err != nil || id != "conv-9" {
 		t.Fatalf("id=%q err=%v", id, err)
 	}
-	if got := readLog(t, log)[0]; got != "--profile=p-x --json chat history create --runtime=claude --workflow=general --model=haiku" {
+	if got := readLog(t, log)[0]; got != "--profile=p-x --json chat history create --runtime=claude --workflow=general --access=scoped --model=haiku" {
 		t.Fatalf("argv = %q", got)
 	}
 }

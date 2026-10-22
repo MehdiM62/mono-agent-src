@@ -1839,6 +1839,35 @@ monoagentcli --profile work chat --mode coder --cwd ~/code/app -- "…"   # one 
   it only prints the settings. `TestEveryCoderSetFlagIsTheOperators` fails
   for a new flag until it is classified. `coder disable` is anyone's: it
   only turns coder mode off.
+- **Access levels.** A conversation has an `access` level, and the turn is
+  chosen by it, not by the mode: `scoped` is the sandboxed assistant
+  (mono-agent's own tools, canvas, page read), `coding`, `workspace` and
+  `full` are coder turns in the conversation's folder. `coding` is told
+  nothing about the profile (no summary in prompts, no MonoAgent surfaces
+  for a dynamic org's workers); `workspace` and `full` follow
+  `coder set --app-access`. `chat history create --access L` picks the
+  level (default scoped); `--mode assistant|coder` stays as an alias (scoped,
+  full) and the JSON carries both `access` and `mode`. Migration 119 makes
+  existing coder conversations `full`, the rest `scoped`.
+  - Coder mode must be enabled (`coder enable`) for every level above scoped:
+    to create one, to raise a conversation to one, and on every turn. With
+    it off only scoped can be chosen or created.
+  - `chat history set-access <conv> <level> [--cwd|--profile-folder|--coder-root|--new-workspace]`:
+    raising a level is the operator's (exit 3, `operator_only` for an agent,
+    the chat or a workflow); lowering it is anyone's. A scoped conversation
+    has no folder, so raising it needs one of the folder flags; one that has
+    a folder keeps it. A conversation starts a fresh session when it leaves
+    or enters scoped. A lowering takes effect before the next turn: the
+    background processes its turns left running are stopped, its kept org
+    workers forgotten, its open AI task's token revoked, the org set back to
+    solo. A turn that ends after its conversation was lowered does the same
+    for what it left behind. `TestChatSetAccessRaiseIsTheOperators` fails
+    for a new `set-access` flag until it is classified.
+  - Browser permissions follow the level: scoped turns are the chat kind,
+    every other level the coder kind, never the other way round. The
+    extension's chat creates its conversations `--access=scoped` and sends
+    every turn with `--tools monoagent:read`, which a conversation above
+    scoped refuses, so a page can't widen a scoped chat.
 - The mode and folder are fixed when the conversation is created. The
   CLIs key their sessions by folder, so a conversation always resumes in the
   same one.

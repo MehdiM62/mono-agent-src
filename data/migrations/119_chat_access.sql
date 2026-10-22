@@ -1,0 +1,13 @@
+-- 119_chat_access.sql
+--
+-- A conversation's access level (ai_chat_conversations.access): scoped,
+-- coding, workspace or full. The turn runner chooses by it instead of by
+-- mode; mode stays on the row, derived from it, for older readers.
+--
+-- Like mode, cwd, effort and org_mode, the column cannot be added here:
+-- mode is itself added after the numbered migrations, by
+-- storage.ReconcileSchema, and the backfill reads it. The column is added
+-- there (reconcile_columns.go), once, with the backfill in the same
+-- transaction: rows with mode 'coder' become 'full' (what they always had),
+-- every other row 'scoped' (the column default, a CHECK limits it to the four
+-- levels). This file reserves the slot and records the schema intent.

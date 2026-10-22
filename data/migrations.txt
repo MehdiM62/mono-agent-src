@@ -102,3 +102,4 @@
 115_application_assets.sql
 117_application_tabs.sql
 118_ai_budgets.sql
+119_chat_access.sql

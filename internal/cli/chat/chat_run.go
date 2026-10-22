@@ -112,16 +112,17 @@ func runChat(cfg *Deps, cmd *cobra.Command, args []string, f *chatFlags) (retErr
 		}()
 		runtime, model, resume, effort = conv.RuntimeID, conv.Model, conv.SessionID, conv.Effort
 		noHistory = true
-		if conv.Mode == ai.ModeCoder {
+		if access := conv.EffectiveAccess(); access != ai.AccessScoped {
 			if tools != "" {
-				return clicore.InvalidInput("--tools does not apply to a coder conversation: it has full access")
+				return clicore.InvalidInput("--tools does not apply to a %s conversation: it runs as a coder; only a scoped conversation takes it", access)
 			}
 			task := taskTurn(cfg, conv.ID)
 			if task.err != nil {
 				return task.err
 			}
-			err := runCoderTurn(cmd, cfg, journal, coderTurn{runtime: conv.RuntimeID, prompt: prompt, model: model, effort: conv.Effort, resume: resume, cwd: conv.Cwd, orgMode: conv.OrgMode, attachments: atts, budget: turnCap, env: task.env, agentKind: task.kind, confine: task.confine})
+			err := runCoderTurn(cmd, cfg, journal, coderTurn{runtime: conv.RuntimeID, prompt: prompt, model: model, effort: conv.Effort, resume: resume, cwd: conv.Cwd, orgMode: conv.OrgMode, access: access, attachments: atts, budget: turnCap, env: task.env, agentKind: task.kind, confine: task.confine})
 			task.end(err)
+			enforceLoweredAccess(cfg, jstore, jprofile, conv)
 			return err
 		}
 	}
