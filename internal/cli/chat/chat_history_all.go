@@ -264,4 +264,3 @@ func truncateRunes(s string, n int) string {
 	r := []rune(s)
 	return strings.TrimSpace(string(r[:n-1])) + "…"
 }
-
