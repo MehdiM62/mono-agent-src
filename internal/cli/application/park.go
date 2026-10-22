@@ -273,6 +273,7 @@ func (d Deps) fillQueue(ctx context.Context, cmd *cobra.Command, args []string, 
 	tasks := &aitask.Store{DB: db.DB, Profile: profile}
 	q := applypark.Queue{
 		Store:  applypark.Store{DB: db.DB, Profile: profile},
+		Slots:  applypark.Slots{DB: db.DB, Profile: profile, Owner: aitask.NewID(), Pid: os.Getpid()},
 		Max:    maxParked,
 		Tick:   pollEvery,
 		Log:    func(f string, a ...any) { fmt.Fprintf(cmd.ErrOrStderr(), f+"\n", a...) },

@@ -2,6 +2,7 @@ package applyfill
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"strings"
 	"testing"
@@ -20,6 +21,14 @@ func withTabs(t *testing.T, tabs []applypark.LiveTab, err error) {
 
 func agentTab(id int, url string) applypark.LiveTab {
 	return applypark.LiveTab{TabID: id, GroupTitle: "Coder · Fill", URL: url}
+}
+
+// opened notes that the fixture task opened tab, as `browser open` does.
+func opened(t *testing.T, db *sql.DB, tab int) {
+	t.Helper()
+	if err := (applypark.Store{DB: db, Profile: profile}).RecordOpen(bg, "at-0123456789abcdef", tab); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func filled(app *applications.Application, tab int, origin string) Result {
@@ -45,6 +54,7 @@ func TestFinalizeParksTheTabTheBrowserConfirms(t *testing.T) {
 	db, _ := fixture(t)
 	app := newApp(t, db)
 	withTabs(t, []applypark.LiveTab{agentTab(12, "https://jobs.example/apply")}, nil)
+	opened(t, db, 12)
 	if err := Finalize(bg, db, profile, completed(t, app, filled(app, 12, "https://jobs.example"))); err != nil {
 		t.Fatal(err)
 	}
@@ -76,6 +86,7 @@ func TestFinalizeBindsNothingTheBrowserDoesNotConfirm(t *testing.T) {
 		db, _ := fixture(t)
 		app := newApp(t, db)
 		withTabs(t, c.tabs, c.err)
+		opened(t, db, 12)
 		if err := Finalize(bg, db, profile, completed(t, app, filled(app, c.tab, c.origin))); err != nil {
 			t.Fatalf("%s: a refused tab failed the whole fill: %v", name, err)
 		}
@@ -113,6 +124,7 @@ func TestFinalizeDoesNotParkAnOverApplicationsTab(t *testing.T) {
 		t.Fatal(err)
 	}
 	withTabs(t, []applypark.LiveTab{agentTab(12, "https://jobs.example/apply")}, nil)
+	opened(t, db, 12)
 	if err := Finalize(bg, db, profile, completed(t, app, filled(app, 12, "https://jobs.example"))); err != nil {
 		t.Fatal(err)
 	}
@@ -128,6 +140,7 @@ func TestFinalizeWithATabNeverSetsApplied(t *testing.T) {
 	db, _ := fixture(t)
 	app := newApp(t, db)
 	withTabs(t, []applypark.LiveTab{agentTab(12, "https://jobs.example/apply")}, nil)
+	opened(t, db, 12)
 	task := completed(t, app, filled(app, 12, "https://jobs.example"))
 	for i := 0; i < 2; i++ {
 		if err := Finalize(bg, db, profile, task); err != nil {
@@ -136,5 +149,36 @@ func TestFinalizeWithATabNeverSetsApplied(t *testing.T) {
 	}
 	if got := status(t, db, app.ID); got == applications.StatusApplied {
 		t.Fatal("a fill with a parked tab set applied")
+	}
+}
+
+// A fill result naming a tab that another task opened (or none did) is not
+// believed: nothing is bound and the other task's binding is untouched.
+func TestFinalizeRefusesATabAnotherTaskOpened(t *testing.T) {
+	db, _ := fixture(t)
+	victim := newApp(t, db)
+	thief := newApp(t, db)
+	withTabs(t, []applypark.LiveTab{agentTab(12, "https://jobs.example/apply")}, nil)
+	st := applypark.Store{DB: db, Profile: profile}
+	if err := st.RecordOpen(bg, "at-victim", 12); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Bind(bg, applypark.BindRequest{ApplicationID: victim.ID, TaskID: "at-victim", TabID: 12, Origin: "https://jobs.example",
+		Live: []applypark.LiveTab{agentTab(12, "https://jobs.example/apply")}}); err != nil {
+		t.Fatal(err)
+	}
+	// The thief's task ("at-0123456789abcdef") returns the victim's tab id and origin.
+	if err := Finalize(bg, db, profile, completed(t, thief, filled(thief, 12, "https://jobs.example"))); err != nil {
+		t.Fatal(err)
+	}
+	if tab, _ := st.Get(bg, thief.ID); tab != nil {
+		t.Fatalf("the thief got a binding: %+v", tab)
+	}
+	if tab, _ := st.Get(bg, victim.ID); tab == nil || tab.TaskID != "at-victim" || tab.TabID != 12 {
+		t.Fatalf("the victim's binding changed: %+v", tab)
+	}
+	fill, _ := applications.NewStore(db).GetFill(bg, profile, thief.ID)
+	if !strings.Contains(fill.Note, "not tracked") {
+		t.Fatalf("the refusal is not on the fill record: %q", fill.Note)
 	}
 }

@@ -3328,10 +3328,12 @@ change is logged in the status history. `applied` is reached only through `appli
     bindings with `browser tabs`: a tab that is gone turns its application into `needs_you` with "Reopen and refill"; a tab of a
     finished application is closed. `application fill tab <id>` shows the binding and `submitObservedAt`.
   - Submit detection: the extension (`chrome-extension/submit_observe.js`) tells the bridge `form.submit_observed {tab_id, origin,
-    url}` only for a `submit` event with `isTrusted` in the top frame of an agent-group tab, followed within 10 s by a same-tab
-    navigation or by the form being removed or hidden. A page that only says "submitted" reports nothing. The bridge matches the
-    tab and origin to a parked application and records `application_fills.submit_observed_at`. That is a hint to ask the person
-    ("Looks submitted - confirm"); the status stays `awaiting_submit` and `applied` is only ever `application send`.
+    url}` only for a trusted `submit` event in the top frame of an agent-group tab that follows a real user gesture (a trusted click
+    on the form's own submit control, or Enter inside it, within 3 s) and was not cancelled by the page, and then only when a
+    same-tab navigation follows within 10 s. A page's own `requestSubmit()`, a cancelled submit, a form that is merely hidden and a
+    page that only says "submitted" report nothing. The bridge matches the tab and origin to a parked application and records
+    `application_fills.submit_observed_at`. That is a hint to ask the person ("Looks submitted - confirm"); the status stays
+    `awaiting_submit` and `applied` is only ever `application send`.
 - Browser permissions have a kind `apply` (`browser permissions set apply <level>`, operator-only):
   default `ask`, per-site allow rules apply, and it can never be `full-no-approvals`, so a submit
   on a non-local site always waits for a person (a HIL item). `application apply` itself still fills

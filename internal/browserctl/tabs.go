@@ -71,6 +71,7 @@ func (s *Session) OpenTab(url, group string) (int, error) {
 	if created.TabID == 0 {
 		return 0, fmt.Errorf("create_tab: the extension answered without a tab id")
 	}
+	s.recordApplyOpen(created.TabID)
 	// Where it landed (a redirect), checked before anything else touches it.
 	if err := s.UseTab(created.TabID); err != nil {
 		if s.policy.Agent {
