@@ -150,6 +150,7 @@ func (d Deps) newFillCmd() *cobra.Command {
 		},
 	}
 	fill.AddCommand(record, show, d.newFillStartCmd(), d.newFillSyncCmd())
+	fill.AddCommand(d.parkCmds()...)
 	return fill
 }
 

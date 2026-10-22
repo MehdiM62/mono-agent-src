@@ -35,6 +35,10 @@ var Schema = map[string]any{
 		"status":     map[string]any{"enum": []any{StatusFilled, StatusNeedsYou}},
 		"screenshot": map[string]any{"type": "string"},
 		"note":       map[string]any{"type": "string"},
+		// The tab the fill left open, for parking (internal/applypark); both are
+		// checked against `browser tabs` before anything is bound.
+		"tabId":  map[string]any{"type": "integer"},
+		"origin": map[string]any{"type": "string"},
 		"fields": map[string]any{
 			"type": "array",
 			"items": map[string]any{
