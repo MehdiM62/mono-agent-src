@@ -187,7 +187,7 @@ describe('coder bubbles', () => {
     api.coderWorkspaceDefault.mockResolvedValue({ path: '/home/u/monoagent-coder', created: false })
     chatAccess.create.mockResolvedValue({ id: 'c9', cwd: '/home/u/monoagent-coder', model: 'opus', access: 'full' })
     render(<Harness />)
-    fireEvent.click(await screen.findByLabelText('New coder chat'))
+    fireEvent.click(await screen.findByLabelText('New chat'))
     await waitFor(() => expect(screen.getByTestId('chat-setup')).toBeInTheDocument())
     await waitFor(() => expect(screen.getByLabelText('Model')).toHaveValue('opus'))
     const box = within(overlay()).getByPlaceholderText('Type a message...')
@@ -216,7 +216,7 @@ describe('coder bubbles', () => {
     api.coderWorkspaceDefault.mockResolvedValue({ path: '/home/u/monoagent-coder', created: true })
     chatAccess.create.mockResolvedValue({ id: 'c9', cwd: '/home/u/monoagent-coder', model: 'gpt-5', runtimeId: 'codex', access: 'full' })
     render(<Harness />)
-    fireEvent.click(await screen.findByLabelText('New coder chat'))
+    fireEvent.click(await screen.findByLabelText('New chat'))
     const runtime = await screen.findByLabelText('Runtime')
     await waitFor(() => expect(runtime).toHaveValue('claude'))
     expect([...runtime.querySelectorAll('option')].map(o => o.value)).toEqual(['claude', 'codex'])
@@ -237,7 +237,7 @@ describe('coder bubbles', () => {
 
   it('asks before closing a new chat that has unsent text', async () => {
     render(<Harness />)
-    fireEvent.click(await screen.findByLabelText('New coder chat'))
+    fireEvent.click(await screen.findByLabelText('New chat'))
     await waitFor(() => expect(screen.getByLabelText('Model')).toHaveValue('opus'))
     fireEvent.change(within(overlay()).getByPlaceholderText('Type a message...'), { target: { value: 'a long plan' } })
     fireEvent.keyDown(window, { key: 'Escape' })
@@ -268,7 +268,7 @@ describe('coder bubbles', () => {
   it('still offers + when coder mode is off: a scoped chat needs no coder', async () => {
     api.coderStatus.mockResolvedValue({ enabled: false })
     render(<Harness />)
-    expect(await screen.findByLabelText('New coder chat')).toBeInTheDocument()
+    expect(await screen.findByLabelText('New chat')).toBeInTheDocument()
   })
 
   it('restores bubbles from a previous session', async () => {
@@ -327,13 +327,13 @@ describe('useCoderConversation', () => {
 describe('empty new chats', () => {
   it('discards a new chat collapsed with nothing typed, and keeps one with a draft', async () => {
     render(<Harness />)
-    fireEvent.click(await screen.findByLabelText('New coder chat'))
+    fireEvent.click(await screen.findByLabelText('New chat'))
     await waitFor(() => expect(overlay()).toBeInTheDocument())
     fireEvent.keyDown(window, { key: 'Escape' })
     await waitFor(() => expect(overlay()).toBeNull())
     expect(store.bubbles).toHaveLength(0)
 
-    fireEvent.click(screen.getByLabelText('New coder chat'))
+    fireEvent.click(screen.getByLabelText('New chat'))
     await waitFor(() => expect(screen.getByLabelText('Model')).toHaveValue('opus'))
     fireEvent.change(within(overlay()).getByPlaceholderText('Type a message...'), { target: { value: 'later' } })
     fireEvent.keyDown(window, { key: 'Escape' })

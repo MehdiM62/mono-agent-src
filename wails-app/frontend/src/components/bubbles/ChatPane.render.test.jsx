@@ -68,7 +68,7 @@ afterEach(cleanup)
 describe('a new chat at an access level', () => {
   it('starts scoped when coder is off, on any installed runtime, with the tool settings', async () => {
     render(<Harness seed={undefined} />)
-    fireEvent.click(await screen.findByLabelText('New coder chat'))
+    fireEvent.click(await screen.findByLabelText('New chat'))
     const runtime = await screen.findByLabelText('Runtime')
     expect([...runtime.querySelectorAll('option')].map(o => o.value)).toEqual(['claude', 'gemini'])
     await waitFor(() => expect(screen.getByLabelText('Model')).toHaveValue('opus'))
@@ -98,7 +98,7 @@ describe('a new chat at an access level', () => {
   it('sends a scoped turn without tools when Settings turned them off', async () => {
     localStorage.setItem('monoagent:assistantTools', '0')
     render(<Harness seed={undefined} />)
-    fireEvent.click(await screen.findByLabelText('New coder chat'))
+    fireEvent.click(await screen.findByLabelText('New chat'))
     await waitFor(() => expect(screen.getByLabelText('Model')).toHaveValue('opus'))
     fireEvent.change(box(), { target: { value: 'hi' } })
     fireEvent.keyDown(box(), { key: 'Enter' })
@@ -107,7 +107,7 @@ describe('a new chat at an access level', () => {
 
   it('offers only scoped while coder is off, with the reason and a Settings link, and never enables coder', async () => {
     render(<Harness seed={undefined} />)
-    fireEvent.click(await screen.findByLabelText('New coder chat'))
+    fireEvent.click(await screen.findByLabelText('New chat'))
     const access = await screen.findByLabelText('Access')
     for (const level of ['coding', 'workspace', 'full']) expect(within(access).getByRole('option', { name: new RegExp(level, 'i') })).toBeDisabled()
     expect(within(access).getByRole('option', { name: 'Scoped' })).not.toBeDisabled()
@@ -119,7 +119,7 @@ describe('a new chat at an access level', () => {
   it('takes the operator default level when coder is ready, on a coder-ready runtime, in the profile folder', async () => {
     api.coderStatus.mockResolvedValue(coderOn)
     render(<Harness seed={undefined} />)
-    fireEvent.click(await screen.findByLabelText('New coder chat'))
+    fireEvent.click(await screen.findByLabelText('New chat'))
     await waitFor(() => expect(screen.getByLabelText('Access')).toHaveValue('coding'))
     const runtime = await screen.findByLabelText('Runtime')
     expect([...runtime.querySelectorAll('option')].map(o => o.value)).toEqual(['claude'])
@@ -137,7 +137,7 @@ describe('a new chat at an access level', () => {
   it('switching the level to scoped swaps the runtime list for the installed ones', async () => {
     api.coderStatus.mockResolvedValue(coderOn)
     render(<Harness seed={undefined} />)
-    fireEvent.click(await screen.findByLabelText('New coder chat'))
+    fireEvent.click(await screen.findByLabelText('New chat'))
     await waitFor(() => expect(screen.getByLabelText('Access')).toHaveValue('coding'))
     fireEvent.change(screen.getByLabelText('Access'), { target: { value: 'scoped' } })
     await waitFor(() => expect([...screen.getByLabelText('Runtime').querySelectorAll('option')].map(o => o.value)).toEqual(['claude', 'gemini']))
@@ -155,7 +155,7 @@ describe('runtime scan and setup banner', () => {
   it('says monomind is missing and blocks sending, with the setup link', async () => {
     scan.mockResolvedValue({ error: 'monomind not found on PATH' })
     render(<Harness seed={undefined} />)
-    fireEvent.click(await screen.findByLabelText('New coder chat'))
+    fireEvent.click(await screen.findByLabelText('New chat'))
     const banner = await screen.findByTestId('setup-blocked')
     expect(banner).toHaveTextContent('monomind not found')
     expect(banner).toHaveTextContent('npm install -g @monoes/monomindcli')
@@ -165,7 +165,7 @@ describe('runtime scan and setup banner', () => {
   it('shows another error as is, and a retry scans again and recovers', async () => {
     scan.mockResolvedValueOnce({ error: 'handshake failed (exit 127)' })
     render(<Harness seed={undefined} />)
-    fireEvent.click(await screen.findByLabelText('New coder chat'))
+    fireEvent.click(await screen.findByLabelText('New chat'))
     expect(await screen.findByTestId('setup-blocked')).toHaveTextContent('handshake failed (exit 127)')
     fireEvent.click(screen.getByRole('button', { name: 'Scan again' }))
     await waitFor(() => expect(screen.getByLabelText('Runtime')).toHaveValue('claude'))
@@ -176,7 +176,7 @@ describe('runtime scan and setup banner', () => {
   it('names the case of no installed agent', async () => {
     scan.mockResolvedValue({ agents: [{ id: 'claude', installed: false }] })
     render(<Harness seed={undefined} />)
-    fireEvent.click(await screen.findByLabelText('New coder chat'))
+    fireEvent.click(await screen.findByLabelText('New chat'))
     const blocked = await screen.findByTestId('setup-blocked')
     expect(blocked).toHaveTextContent('No AI agent is installed.')
     fireEvent.click(within(blocked).getByRole('button', { name: /set up ai agents/i }))
@@ -186,14 +186,14 @@ describe('runtime scan and setup banner', () => {
   it('a runtime with no models blocks sending', async () => {
     api.getAgentRuntimeModels.mockResolvedValue([])
     render(<Harness seed={undefined} />)
-    fireEvent.click(await screen.findByLabelText('New coder chat'))
+    fireEvent.click(await screen.findByLabelText('New chat'))
     expect(await screen.findByTestId('setup-blocked')).toHaveTextContent('reports no models')
     expect(box()).toBeDisabled()
   })
 
   it('announces the composer reason change through the live region', async () => {
     render(<Harness seed={undefined} />)
-    fireEvent.click(await screen.findByLabelText('New coder chat'))
+    fireEvent.click(await screen.findByLabelText('New chat'))
     const live = await screen.findByRole('status', { name: 'Chat turn announcements' })
     await waitFor(() => expect(live).toHaveTextContent('You can send a message now.'))
   })
@@ -202,7 +202,7 @@ describe('runtime scan and setup banner', () => {
 describe('titles', () => {
   it('never puts a raw first prompt in the title or in storage', async () => {
     render(<Harness seed={undefined} />)
-    fireEvent.click(await screen.findByLabelText('New coder chat'))
+    fireEvent.click(await screen.findByLabelText('New chat'))
     await waitFor(() => expect(screen.getByLabelText('Model')).toHaveValue('opus'))
     fireEvent.change(box(), { target: { value: 'password: hunter2 please deploy' } })
     fireEvent.keyDown(box(), { key: 'Enter' })
@@ -225,7 +225,7 @@ describe('turn announcements', () => {
   it('announces a finished turn once, with a failed-tool count, through a persistent region', async () => {
     api.getChatTurns.mockResolvedValue({ items: [] })
     render(<Harness seed={undefined} />)
-    fireEvent.click(await screen.findByLabelText('New coder chat'))
+    fireEvent.click(await screen.findByLabelText('New chat'))
     await waitFor(() => expect(screen.getByLabelText('Model')).toHaveValue('opus'))
     fireEvent.change(box(), { target: { value: 'go' } })
     fireEvent.keyDown(box(), { key: 'Enter' })
