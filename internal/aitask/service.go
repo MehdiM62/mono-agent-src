@@ -62,6 +62,9 @@ type Service struct {
 	// back; nil leaves text as it is.
 	Redact    func(string) string
 	PollEvery time.Duration
+	// StateDir is the folder next to the database; verified context
+	// snapshots live under it (SnapshotContext).
+	StateDir string
 }
 
 // SubmitInput is `aitask submit`.
@@ -196,6 +199,14 @@ func (s *Service) Start(ctx context.Context, id string) (Task, error) {
 	if err := s.verifyAtStart(ctx, t); err != nil {
 		return Task{}, err
 	}
+	// The turn reads a verified, read-only copy, never the original folder.
+	snapshot, err := s.SnapshotContext(id)
+	if err != nil {
+		return Task{}, err
+	}
+	if err := s.Store.SetPrompt(id, useSnapshot(t.Prompt, id, snapshot)); err != nil {
+		return Task{}, err
+	}
 	token := NewToken()
 	if err := s.Store.SetToken(id, token); err != nil {
 		return Task{}, err
@@ -234,13 +245,6 @@ func (s *Service) verifyAtStart(ctx context.Context, t Task) error {
 	}
 	if CapsHash(t, kind, policy) != t.CapsHash {
 		return errf(CodeCapsChanged, "task %s was queued under other settings than are in force now (its access, kind or the coder settings changed): cancel it and submit it again", t.ID)
-	}
-	h, err := ContextHash(t.Cwd, t.ID)
-	if err != nil {
-		return err
-	}
-	if h != t.ContextHash {
-		return errf(CodeContextChanged, "the context folder of task %s changed since it was queued: cancel the task and submit it again", t.ID)
 	}
 	return nil
 }
