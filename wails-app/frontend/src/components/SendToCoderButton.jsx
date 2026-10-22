@@ -39,7 +39,8 @@ export default function SendToCoderButton({ kind = 'generic', goal, context = []
       }
       openDraft?.({
         conversationId: task.conversationId,
-        task: { taskId: task.taskId, goal: task.goal || goal, status: task.status, origin, doneLabel },
+        // kind lets the pane know a confined application-apply chat the moment it opens.
+        task: { taskId: task.taskId, kind: task.kind || kind, goal: task.goal || goal, status: task.status, origin, doneLabel },
       })
     } catch (err) {
       setNote({ text: String(err?.message || err), error: true })
