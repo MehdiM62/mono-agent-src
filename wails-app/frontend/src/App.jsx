@@ -62,7 +62,6 @@ export default function App({ banners = null }) {
   // editor's own chat toggle is a different tool — a workflow-builder
   // assistant scoped to the currently open canvas — and stays separate.
   const [globalChatOpen, setGlobalChatOpen] = useState(false)
-  const [globalChatRuntime, setGlobalChatRuntime] = useState('')
   const [globalHilOpen, setGlobalHilOpen] = useState(false)
   const [globalHilCount, setGlobalHilCount] = useState(0) // reported by the open drawer (incl. org items)
   const { count: pendingCount } = usePendingCount()     // Jev-free summary count, drawer closed
@@ -77,16 +76,11 @@ export default function App({ banners = null }) {
   // Running orgs as bubbles (#229): opened from the Orgs page, or on their
   // own when an org asks the person something.
   const onCloseOrgBubble = useOrgBubbleWatch(coderBubbles)
-  const { openConversation: openCoderBubble, openDraft: openCoderDraft } = coderBubbles
+  const { openConversation: openCoderBubble, openDraft: openCoderDraft, openNewChat } = coderBubbles
   const openCoderChat = useCallback((conv) => {
     if (conv) openCoderBubble(conv)
     else openCoderDraft()
   }, [openCoderBubble, openCoderDraft])
-
-  const openGlobalChat = useCallback((runtimeId) => {
-    if (runtimeId) setGlobalChatRuntime(runtimeId)
-    setGlobalChatOpen(true)
-  }, [])
 
   const openProfile = useCallback((id) => {
     setProfileId(id)
@@ -287,7 +281,7 @@ export default function App({ banners = null }) {
     documents: <Documents isActive={activePage === 'documents'} />,
     info: <Info isActive={activePage === 'info'} />,
     tasks: <Tasks isActive={activePage === 'tasks'} />,
-    ai: <Agents onOpenChat={openGlobalChat} />,
+    ai: <Agents />,
     orgs: <Orgs isActive={activePage === 'orgs'} onNavigate={navigate} pendingSelectOrgName={pendingOrgSelect} onConsumePendingSelect={() => setPendingOrgSelect(null)} />,
     logs:      <Logs logs={logs} onClear={() => { api.clearLogs(); setLogs([]) }} onRefresh={refreshLogs} />,
     settings:  <SettingsPage onNavigate={navigate} navData={activePage === 'settings' ? navData : null} isActive={activePage === 'settings'} />,
@@ -302,7 +296,7 @@ export default function App({ banners = null }) {
   }
 
   // Any page's Send-to-coder button reaches the bubbles through this (#957).
-  const coderBubbleContext = useMemo(() => ({ openDraft: openCoderDraft, navigate }), [openCoderDraft, navigate])
+  const coderBubbleContext = useMemo(() => ({ openDraft: openCoderDraft, openNewChat, navigate }), [openCoderDraft, openNewChat, navigate])
 
   const isDetailPage = activePage in detailPages
   // Guard against an unrecognized activePage (e.g. a stale/typo'd nav
@@ -358,7 +352,6 @@ export default function App({ banners = null }) {
           workflowID="general"
           canvasMode={false}
           isOpen={globalChatOpen}
-          initialRuntime={globalChatRuntime}
           onClose={() => setGlobalChatOpen(false)}
           onOpenArtifact={onOpenArtifact}
           onNavigate={navigate}
