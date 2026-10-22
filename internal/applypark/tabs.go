@@ -169,7 +169,7 @@ type BindRequest struct {
 }
 
 // Bind validates the claim against the browser's own tab list and records the
-// tab as parked. Nothing from the agent is trusted: the tab must exist, sit in
+// tab as parked. A task may claim only a tab it opened itself (RecordOpen). Nothing from the agent is trusted: the tab must exist, sit in
 // the agent's group, stand on the claimed origin, and belong to no other application. The claimed
 // origin is the posting's origin or the redirect target the browser reports for
 // that tab: the browser keeps no redirect chain, so the tab's own current origin
@@ -203,6 +203,11 @@ func (s Store) Bind(ctx context.Context, r BindRequest) error {
 	}
 	if liveOrigin != origin {
 		return invalid("tab %d is on %s, not %s", r.TabID, liveOrigin, origin)
+	}
+	if ok, err := s.opened(ctx, r.TaskID, r.TabID); err != nil {
+		return err
+	} else if !ok {
+		return invalid("tab %d was not opened by task %s", r.TabID, r.TaskID)
 	}
 	if h, err := s.Holder(ctx, r.TabID); err != nil {
 		return err

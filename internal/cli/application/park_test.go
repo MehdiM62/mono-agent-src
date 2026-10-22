@@ -75,6 +75,9 @@ func (b *browser) install(t *testing.T, dbPath string) {
 		if err != nil {
 			return nil, err
 		}
+		if err := (applypark.Store{DB: db.DB, Profile: "default"}).RecordOpen(context.Background(), task.ID, tab); err != nil {
+			return nil, err
+		}
 		if b.status == aitask.StatusComplete {
 			if _, err := db.DB.Exec(`UPDATE ai_tasks SET result_json = ? WHERE id = ?`, result, task.ID); err != nil {
 				return nil, err

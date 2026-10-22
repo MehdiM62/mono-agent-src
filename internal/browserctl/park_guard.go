@@ -3,8 +3,6 @@ package browserctl
 import (
 	"context"
 	"fmt"
-	"os"
-	"strings"
 
 	"github.com/monoes/mono-agent/internal/applypark"
 )
@@ -41,8 +39,21 @@ func (s *Session) parkGuard(id int) error {
 	if h == nil {
 		return nil
 	}
-	if h.State == applypark.StateActive && h.TaskID != "" && h.TaskID == strings.TrimSpace(os.Getenv(applypark.EnvTaskID)) {
+	if h.State == applypark.StateActive && h.TaskID != "" && h.TaskID == ApplyTaskID() {
 		return nil
 	}
 	return &ParkedTabError{TabID: id, ApplicationID: h.ApplicationID, State: string(h.State)}
+}
+
+// recordApplyOpen notes that the apply task this process runs for opened tab
+// id, so that its result can claim the tab later and no other task's can. The
+// task is the verified kind token's, not an environment variable. Best effort:
+// an unrecorded tab simply cannot be parked.
+func (s *Session) recordApplyOpen(id int) {
+	if s.db == nil || !s.policy.Agent {
+		return
+	}
+	if task := ApplyTaskID(); task != "" {
+		_ = applypark.Store{DB: s.db}.RecordOpen(context.Background(), task, id)
+	}
 }

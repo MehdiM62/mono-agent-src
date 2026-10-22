@@ -58,6 +58,9 @@ func live(tab int, url string) LiveTab {
 
 func bindOK(t *testing.T, st Store, id string, tab int) {
 	t.Helper()
+	if err := st.RecordOpen(bg, "at-1", tab); err != nil {
+		t.Fatal(err)
+	}
 	err := st.Bind(bg, BindRequest{ApplicationID: id, TaskID: "at-1", TabID: tab, Origin: "https://jobs.example",
 		Live: []LiveTab{live(tab, "https://jobs.example/apply")}})
 	if err != nil {
@@ -84,6 +87,16 @@ func TestBindValidatesAgainstTheBrowser(t *testing.T) {
 	_, st, apps := fixture(t)
 	id := newApp(t, apps, "https://jobs.example/1")
 	other := newApp(t, apps, "https://jobs.example/2")
+	for _, tab := range []int{7, 9, 11, 1 << 40} {
+		if tab <= maxTabID {
+			if err := st.RecordOpen(bg, "at-1", tab); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	if err := st.RecordOpen(bg, "at-2", 9); err != nil {
+		t.Fatal(err)
+	}
 	good := BindRequest{ApplicationID: id, TaskID: "at-1", TabID: 7, Origin: "https://jobs.example",
 		Live: []LiveTab{live(7, "https://jobs.example/apply")}}
 	bad := map[string]func(r *BindRequest){
@@ -317,6 +330,9 @@ func (f *fakeRunner) Finalize(ctx context.Context, id string) error {
 		return err
 	}
 	tab := int(atomic.AddInt32(&f.nextTab, 1)) + 100
+	if err := f.st.RecordOpen(ctx, "task-"+id, tab); err != nil {
+		return err
+	}
 	return f.st.Bind(ctx, BindRequest{ApplicationID: id, TaskID: "task-" + id, TabID: tab, Origin: "https://jobs.example",
 		Live: []LiveTab{live(tab, "https://jobs.example/apply")}})
 }
@@ -381,14 +397,14 @@ func TestQueueNeverExceedsTheCapAndStartsTheNextAfterOneEnds(t *testing.T) {
 		done <- out
 	}()
 	// With every fill held, exactly Max start, never more.
-	time.Sleep(60 * time.Millisecond)
+	time.Sleep(250 * time.Millisecond)
 	r.mu.Lock()
 	if len(r.started) != 2 {
 		t.Fatalf("started %d before any ended, want the cap of 2", len(r.started))
 	}
 	r.mu.Unlock()
 	close(r.gate) // the two fills end and park: the queue waits for the person
-	time.Sleep(60 * time.Millisecond)
+	time.Sleep(250 * time.Millisecond)
 	r.mu.Lock()
 	if len(r.started) != 2 {
 		t.Fatalf("started %d with 2 tabs parked, want 2: parked tabs hold their slots", len(r.started))
@@ -396,7 +412,7 @@ func TestQueueNeverExceedsTheCapAndStartsTheNextAfterOneEnds(t *testing.T) {
 	first, second := r.started[0], r.started[1]
 	r.mu.Unlock()
 	r.submitted <- first // the person submits one: its slot frees and the next starts
-	time.Sleep(60 * time.Millisecond)
+	time.Sleep(250 * time.Millisecond)
 	r.mu.Lock()
 	if len(r.started) != 3 {
 		t.Fatalf("started %d after a submit, want 3", len(r.started))
@@ -523,3 +539,43 @@ func TestAppliedIsNeverSetByAnyPath(t *testing.T) {
 		}
 	}
 }
+
+// A task may claim only a tab it opened: another task's tab, a tab opened by
+// the person and a tab nobody recorded are all refused, and the owner's
+// binding is untouched.
+func TestATaskCannotClaimAnotherTasksTab(t *testing.T) {
+	_, st, apps := fixture(t)
+	a := newApp(t, apps, "https://jobs.example/1")
+	b := newApp(t, apps, "https://jobs.example/2")
+	if err := st.RecordOpen(bg, "at-B", 20); err != nil {
+		t.Fatal(err)
+	}
+	claim := func(app, task string, tab int) error {
+		return st.Bind(bg, BindRequest{ApplicationID: app, TaskID: task, TabID: tab, Origin: "https://jobs.example",
+			Live: []LiveTab{live(tab, "https://jobs.example/apply")}})
+	}
+	if err := claim(b, "at-B", 20); err != nil {
+		t.Fatal(err)
+	}
+	if err := claim(a, "at-A", 20); !errors.Is(err, ErrInvalid) || !strings.Contains(err.Error(), "not opened by task at-A") {
+		t.Fatalf("A claimed B's tab: %v", err)
+	}
+	if err := claim(a, "at-A", 21); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("A claimed a tab nobody recorded: %v", err)
+	}
+	tab, _ := st.Get(bg, b)
+	if tab == nil || tab.TaskID != "at-B" || tab.TabID != 20 || tab.State != StateParked {
+		t.Fatalf("B's binding changed: %+v", tab)
+	}
+	if got, _ := st.Get(bg, a); got != nil {
+		t.Fatalf("A got a binding: %+v", got)
+	}
+	// Even a task that opened the tab cannot take it from another application.
+	if err := st.RecordOpen(bg, "at-A", 20); err != nil {
+		t.Fatal(err)
+	}
+	if err := claim(a, "at-A", 20); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("a bound tab was claimed: %v", err)
+	}
+}
+
