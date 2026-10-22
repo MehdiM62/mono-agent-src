@@ -66,3 +66,27 @@ func TestApplyKindHoldsSubmitFillAndUploadOnARealSite(t *testing.T) {
 		t.Fatal("upload is not gated")
 	}
 }
+
+// A configured coder level, even full-no-approvals, does not apply to an apply
+// agent: its own level (ask) binds and the submit is still held.
+func TestCoderFullNoApprovalsDoesNotLoosenApply(t *testing.T) {
+	setEnv(t, true)
+	browserctltest.AsAgentKind(t, browserctl.KindApply)
+	f := browserctltest.New()
+	f.AddTab("https://jobs.example/apply", "Coder · Agent", true)
+	p := browserctl.DefaultPermissions()
+	if err := p.SetLevel(browserctl.KindCoder, browserctl.LevelFullNoApprovals); err != nil {
+		t.Fatal(err)
+	}
+	p.SetSite("https://jobs.example", browserctl.RuleAllow)
+	s, err := browserctl.Open(browserctl.Options{Profile: "p1", Sender: f, Permissions: &p, DB: testdb.Open(t).DB})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !s.Gated() {
+		t.Fatal("coder=full-no-approvals let an apply agent submit without a hold")
+	}
+	if got := p.LevelOf(browserctl.AgentCaller()); got != browserctl.LevelAsk {
+		t.Fatalf("level of the apply agent = %q", got)
+	}
+}
