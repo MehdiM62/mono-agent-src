@@ -4,6 +4,8 @@ import {main} from '../models';
 import {connections} from '../models';
 import {workflow} from '../models';
 
+export function AITaskStatus():Promise<main.AITaskState>;
+
 export function AIFillProfileInfo(arg1:string,arg2:string):Promise<main.ProfileInfoAIFillResult>;
 
 export function APIConfigReset(arg1:boolean,arg2:boolean):Promise<main.APIConfigChange>;
@@ -101,6 +103,8 @@ export function BrowserPermissions():Promise<string>;
 export function CancelHealthRun(arg1:string):Promise<string>;
 
 export function CancelPlatformOAuth(arg1:string):Promise<string>;
+
+export function CancelAITask(arg1:string):Promise<main.AITask>;
 
 export function CancelWorkflow(arg1:string):Promise<void>;
 
@@ -211,6 +215,8 @@ export function ExportWorkflow(arg1:string):Promise<string>;
 export function GateApproveOrgAction(arg1:string,arg2:string,arg3:string):Promise<string>;
 
 export function GateRejectOrgAction(arg1:string,arg2:string,arg3:string):Promise<string>;
+
+export function GetAITask(arg1:string):Promise<main.AITask>;
 
 export function GetActiveProfile():Promise<main.ProfileInfo>;
 
@@ -695,6 +701,8 @@ export function ShowAutomation(arg1:string):Promise<string>;
 export function ShowPlatform(arg1:string):Promise<string>;
 
 export function ShowRecording(arg1:string):Promise<string>;
+
+export function SubmitAITask(arg1:string,arg2:string,arg3:Array<string>,arg4:string):Promise<main.AITask>;
 
 export function StartAgentValidation(arg1:Array<string>,arg2:Array<string>,arg3:boolean):Promise<string>;
 

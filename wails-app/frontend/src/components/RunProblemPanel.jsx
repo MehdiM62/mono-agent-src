@@ -1,14 +1,29 @@
 import { AlertCircle, X } from 'lucide-react'
 import { withoutAgentSetupMarker } from '../lib/agentSetup.js'
+import SendToCoderButton from './SendToCoderButton.jsx'
+import { selectionText } from './SendToCoderApi.js'
+
+// problemText is the failure as plain text for the coder: the run's error and
+// each failed node with its error.
+export function problemText(problem) {
+  const lines = []
+  if (problem.error) lines.push(withoutAgentSetupMarker(problem.error))
+  for (const f of problem.failed) lines.push(`${f.name}: ${withoutAgentSetupMarker(f.error || 'failed')}`)
+  return lines.join('\n')
+}
 
 // The "why did it fail" panel under the editor toolbar: the execution's own
 // error and each failed node's. problem is runProblem() from
 // lib/runFailure.js; clicking a node row selects that node on the canvas.
-export default function RunProblemPanel({ problem, onSelectNode, onClose }) {
+// onSendToCoder, when given, adds "Fix with coder": it is called with the
+// failure text and returns { goal, origin } (how to frame the task and which
+// tab it came from); the failure itself goes to the coder as selection text.
+export default function RunProblemPanel({ problem, onSelectNode, onClose, onSendToCoder }) {
   if (!problem) return null
   const failed = problem.status === 'FAILED'
   const tone = failed ? '#ef4444' : '#fbbf24'
   const nodeErrors = problem.failed.filter(f => f.error && f.error !== problem.error)
+  const coder = onSendToCoder ? onSendToCoder(problemText(problem)) : null
   return (
     <div role="alert" data-testid="run-problem" style={{
       display: 'flex', gap: 10, alignItems: 'flex-start',
@@ -37,6 +52,10 @@ export default function RunProblemPanel({ problem, onSelectNode, onClose }) {
           </button>
         ))}
       </div>
+      {coder && (
+        <SendToCoderButton label="Fix with coder" goal={coder.goal} origin={coder.origin}
+          context={() => [selectionText(problemText(problem))]} />
+      )}
       <button onClick={onClose} aria-label="Hide error" title="Hide error" style={{
         background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 2, display: 'flex',
       }}><X size={12} /></button>
