@@ -58,7 +58,7 @@ func ContextHash(cwd, taskID string) (string, error) {
 // and the launcher's policy fingerprint (the coder settings in force).
 func CapsHash(t Task, k Kind, policy string) string {
 	schema, _ := json.Marshal(k.Schema)
-	doc, _ := json.Marshal([]any{t.Kind, t.Access, t.Runtime, t.Unattended, FullAccess(t.Access), k.UnattendedOK,
+	doc, _ := json.Marshal([]any{t.Kind, t.Access, t.Runtime, t.Unattended, t.BudgetUSD, FullAccess(t.Access), k.UnattendedOK,
 		k.DefaultAccess, k.PromptTemplate, string(schema), policy})
 	sum := sha256.Sum256(doc)
 	return hex.EncodeToString(sum[:])

@@ -22,6 +22,8 @@ const (
 	CodeNotQueued          = "not_queued"
 	CodeTaskNotOnYourBoard = "not_your_task"
 	CodeContextSource      = "context_source_refused"
+	CodeUnattendedNoJail   = "unattended_not_confined"
+	CodeNoBudget           = "no_budget"
 	CodeContextChanged     = "context_changed"
 	CodeCapsChanged        = "capabilities_changed"
 )

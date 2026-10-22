@@ -50,6 +50,8 @@ type Task struct {
 	Cwd         string `json:"-"`
 	ContextHash string `json:"-"`
 	CapsHash    string `json:"-"`
+	// BudgetUSD is the spend cap; 0 is no spend, never unlimited.
+	BudgetUSD float64 `json:"-"`
 }
 
 // Store is the ai_tasks table of one profile.
@@ -68,7 +70,7 @@ func (s *Store) now() string {
 }
 
 const taskColumns = `id, profile_id, kind, conversation_id, status, goal, application_id, access, runtime,
-	unattended, prompt, cwd, context_hash, caps_hash, result_json, error, created_at, updated_at`
+	unattended, prompt, budget_usd, cwd, context_hash, caps_hash, result_json, error, created_at, updated_at`
 
 type scanner interface{ Scan(...any) error }
 
@@ -77,7 +79,7 @@ func scanTask(r scanner) (Task, error) {
 	var unattended int
 	var result string
 	err := r.Scan(&t.ID, &t.Profile, &t.Kind, &t.ConversationID, &t.Status, &t.Goal, &t.ApplicationID, &t.Access,
-		&t.Runtime, &unattended, &t.Prompt, &t.Cwd, &t.ContextHash, &t.CapsHash, &result, &t.Error, &t.CreatedAt, &t.UpdatedAt)
+		&t.Runtime, &unattended, &t.Prompt, &t.BudgetUSD, &t.Cwd, &t.ContextHash, &t.CapsHash, &result, &t.Error, &t.CreatedAt, &t.UpdatedAt)
 	t.Unattended = unattended != 0
 	if result != "" {
 		t.Result = json.RawMessage(result)
@@ -101,9 +103,9 @@ func (s *Store) Insert(t Task) (Task, error) {
 		un = 1
 	}
 	_, err := s.DB.Exec(`INSERT INTO ai_tasks (id, profile_id, kind, conversation_id, status, goal, application_id,
-		access, runtime, unattended, prompt, cwd, context_hash, caps_hash, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		access, runtime, unattended, prompt, budget_usd, cwd, context_hash, caps_hash, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		t.ID, t.Profile, t.Kind, t.ConversationID, t.Status, t.Goal, t.ApplicationID, t.Access, t.Runtime, un,
-		t.Prompt, t.Cwd, t.ContextHash, t.CapsHash, now, now)
+		t.Prompt, t.BudgetUSD, t.Cwd, t.ContextHash, t.CapsHash, now, now)
 	return t, err
 }
 

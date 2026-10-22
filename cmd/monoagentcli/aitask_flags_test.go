@@ -28,7 +28,7 @@ var aitaskPolicy = map[string]struct {
 }{
 	"submit": {"operator", map[string]string{
 		"kind": "routing", "goal": "input", "context": "input", "application": "input",
-		"access": "routing", "runtime": "routing", "unattended": "routing", "queue-only": "routing"}, []string{"--goal", "x"}},
+		"access": "routing", "runtime": "routing", "unattended": "routing", "queue-only": "routing", "budget-usd": "routing"}, []string{"--goal", "x"}},
 	"start":     {"operator", map[string]string{}, []string{"{other}"}},
 	"wait":      {"operator", map[string]string{"timeout": "input"}, []string{"{other}", "--timeout", "1s"}},
 	"supervise": {"operator", map[string]string{}, []string{"{other}"}},

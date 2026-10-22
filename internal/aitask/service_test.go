@@ -22,10 +22,14 @@ type fakeLauncher struct {
 	tokens    []string
 	detachErr error
 	policy    string
+	confined  bool
+	budget    float64
 }
 
-func (f *fakeLauncher) Ready(context.Context) error            { return f.readyErr }
-func (f *fakeLauncher) Policy(context.Context) (string, error) { return f.policy, nil }
+func (f *fakeLauncher) Ready(context.Context) error                    { return f.readyErr }
+func (f *fakeLauncher) Confined(context.Context) bool                  { return f.confined }
+func (f *fakeLauncher) DefaultBudget(context.Context) (float64, error) { return f.budget, nil }
+func (f *fakeLauncher) Policy(context.Context) (string, error)         { return f.policy, nil }
 func (f *fakeLauncher) CreateConversation(context.Context, string) (Conversation, error) {
 	f.created++
 	return Conversation{ID: "conv-1", Cwd: f.cwd, Runtime: "claude"}, nil
@@ -45,7 +49,7 @@ func newService(t *testing.T) (*Service, *fakeLauncher) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { db.Close() })
-	l := &fakeLauncher{cwd: t.TempDir()}
+	l := &fakeLauncher{cwd: t.TempDir(), budget: 5}
 	return &Service{Store: &Store{DB: db.DB, Profile: "p1"}, Launcher: l, PollEvery: 5 * time.Millisecond}, l
 }
 
@@ -150,6 +154,11 @@ func TestUnattendedNeedsAKindThatAllowsItAndAReadOnlyLevel(t *testing.T) {
 		t.Fatalf("generic does not allow unattended: %v", err)
 	}
 	Register(Kind{Name: "test-unattended", UnattendedOK: true, DefaultAccess: AccessQA})
+	// Without a verified confinement even a qa task of an allowing kind is refused.
+	if _, err := s.Submit(context.Background(), SubmitInput{Kind: "test-unattended", Goal: "g", Unattended: true}); code(err) != CodeUnattendedNoJail {
+		t.Fatalf("unconfined: %v", err)
+	}
+	s.Launcher.(*fakeLauncher).confined = true
 	task, err := s.Submit(context.Background(), SubmitInput{Kind: "test-unattended", Goal: "g", Unattended: true})
 	if err != nil || !task.Unattended || task.Access != AccessQA {
 		t.Fatalf("%+v %v", task, err)
@@ -479,5 +488,49 @@ func TestStartRechecksCoderAndTheEffectivePolicy(t *testing.T) {
 	}
 	if _, err := s.Start(context.Background(), task.ID); code(err) != CodeCapsChanged {
 		t.Fatalf("access edited in the row: %v", err)
+	}
+}
+
+func TestZeroBudgetMeansNoSpendNeverUnlimited(t *testing.T) {
+	s, l := newService(t)
+	zero, neg, ok := 0.0, -1.0, 2.5
+	for name, b := range map[string]*float64{"zero": &zero, "negative": &neg} {
+		if _, err := s.Submit(context.Background(), SubmitInput{Kind: "generic", Goal: "g", BudgetUSD: b}); code(err) != CodeNoBudget {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+	// No budget named and a default of 0 is the same: no spend.
+	l.budget = 0
+	if _, err := s.Submit(context.Background(), SubmitInput{Kind: "generic", Goal: "g"}); code(err) != CodeNoBudget {
+		t.Fatalf("default 0: %v", err)
+	}
+	if l.created != 0 || count(t, s) != 0 || len(l.detached) != 0 {
+		t.Fatalf("a refused budget left conversations=%d rows=%d turns=%v", l.created, count(t, s), l.detached)
+	}
+	task, err := s.Submit(context.Background(), SubmitInput{Kind: "generic", Goal: "g", BudgetUSD: &ok, QueueOnly: true})
+	if err != nil || task.BudgetUSD != 2.5 {
+		t.Fatalf("%+v %v", task, err)
+	}
+	// A row whose cap was zeroed does not start.
+	if _, err := s.Store.DB.Exec(`UPDATE ai_tasks SET budget_usd = 0 WHERE id = ?`, task.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Start(context.Background(), task.ID); code(err) != CodeNoBudget || len(l.detached) != 0 {
+		t.Fatalf("start with no budget: %v", err)
+	}
+}
+
+// A task's cap is set once, at submit: nothing a running task can do changes it.
+func TestNothingARunningTaskDoesChangesItsCap(t *testing.T) {
+	s, l := newService(t)
+	task := submit(t, s)
+	before := task.BudgetUSD
+	_ = s.EndTurn(task.ID, "e")
+	_, _ = s.Complete(task.ID, l.tokens[0], []byte(`{"summary":"x"}`))
+	_, _ = s.Fail(task.ID, l.tokens[0], "r")
+	_, _ = s.Cancel(task.ID)
+	got, _ := s.Store.Get(task.ID)
+	if got.BudgetUSD != before || before != 5 {
+		t.Fatalf("cap %v -> %v", before, got.BudgetUSD)
 	}
 }

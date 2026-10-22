@@ -11,6 +11,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 
@@ -67,6 +68,23 @@ func (l selfLauncher) Policy(context.Context) (string, error) {
 	b, _ := json.Marshal(s)
 	sum := sha256.Sum256(b)
 	return hex.EncodeToString(sum[:]), nil
+}
+
+// Confined is false: nothing here verifies a confinement (sandboxprobe only
+// guesses), so no profile runs unattended tasks yet.
+func (l selfLauncher) Confined(context.Context) bool { return false }
+
+func (l selfLauncher) DefaultBudget(context.Context) (float64, error) {
+	db, err := l.d.OpenDB()
+	if err != nil {
+		return 0, fmt.Errorf("initializing database: %w", err)
+	}
+	defer db.Close()
+	s, err := chatcli.LoadSettings(db.DB)
+	if err != nil {
+		return 0, err
+	}
+	return s.BudgetUSD, nil
 }
 
 func (l selfLauncher) CreateConversation(ctx context.Context, runtime string) (aitask.Conversation, error) {
@@ -159,7 +177,8 @@ func runTurn(ctx context.Context, d *Deps, svc *aitask.Service, t aitask.Task) e
 			}
 		}
 	}()
-	args := append(selfLauncher{d}.global(), "chat", "--conversation", t.ConversationID, "--turn", uuid.NewString(), "--prompt-stdin")
+	args := append(selfLauncher{d}.global(), "chat", "--conversation", t.ConversationID, "--turn", uuid.NewString(), "--prompt-stdin",
+		"--budget-usd", strconv.FormatFloat(t.BudgetUSD, 'f', -1, 64))
 	_, err := runSelf(ctx, args, strings.NewReader(t.Prompt), os.Environ())
 	return err
 }

@@ -143,6 +143,7 @@ func human(t aitask.Task) string {
 func (c *cli) submit() *cobra.Command {
 	var in aitask.SubmitInput
 	var contextArgs []string
+	var budget float64
 	cmd := &cobra.Command{
 		Use:   "submit",
 		Short: "Create a task and its coder conversation, and start its first turn",
@@ -168,6 +169,9 @@ func (c *cli) submit() *cobra.Command {
 				}
 				in.Context = append(in.Context, cs)
 			}
+			if cmd.Flags().Changed("budget-usd") {
+				in.BudgetUSD = &budget
+			}
 			t, err := svc.Submit(cmd.Context(), in)
 			if err != nil {
 				return cliErr(err)
@@ -183,6 +187,7 @@ func (c *cli) submit() *cobra.Command {
 	f.StringVar(&in.Access, "access", "", "coding, workspace or qa (default: the kind's)")
 	f.StringVar(&in.Runtime, "runtime", "", "Agent runtime (default claude; see 'coder status')")
 	f.BoolVar(&in.Unattended, "unattended", false, "Run without a person watching (only for a qa task of a kind that allows it)")
+	f.Float64Var(&budget, "budget-usd", 0, "Spend cap in USD (default: the coder budget); 0 means no spend and is refused, never unlimited")
 	f.BoolVar(&in.QueueOnly, "queue-only", false, "Create the task but do not start it (aitask start does)")
 	return cmd
 }

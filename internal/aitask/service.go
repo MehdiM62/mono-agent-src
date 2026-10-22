@@ -3,6 +3,7 @@ package aitask
 import (
 	"context"
 	"encoding/json"
+	"math"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -40,6 +41,13 @@ type Launcher interface {
 	// Policy is a fingerprint of the settings a task runs under (the coder
 	// settings): `start` refuses a task whose policy has changed since submit.
 	Policy(ctx context.Context) (string, error)
+	// Confined says whether this profile's tasks run inside a verified
+	// confinement (not a guess: sandboxprobe is advisory). Unattended tasks
+	// need it.
+	Confined(ctx context.Context) bool
+	// DefaultBudget is the spend cap, in USD, a task gets when submit names
+	// none (the operator's coder budget).
+	DefaultBudget(ctx context.Context) (float64, error)
 	CreateConversation(ctx context.Context, runtime string) (Conversation, error)
 	// Detach starts the process that runs task id's turn, with EnvTaskID and
 	// EnvToken in its environment, and returns without waiting for it.
@@ -66,6 +74,9 @@ type SubmitInput struct {
 	Runtime       string
 	Unattended    bool
 	QueueOnly     bool
+	// BudgetUSD is the spend cap; nil takes the launcher's default. 0 is no
+	// spend and the task is refused: it is never read as unlimited.
+	BudgetUSD *float64
 }
 
 // Submit creates the task and its coder conversation, writes its context and
@@ -94,10 +105,14 @@ func (s *Service) Submit(ctx context.Context, in SubmitInput) (Task, error) {
 	if access == "" {
 		access = AccessCoding
 	}
-	if err := checkUnattended(kind, access, in.Unattended); err != nil {
+	if err := s.checkUnattended(ctx, kind, access, in.Unattended); err != nil {
 		return Task{}, err
 	}
 	if err := s.Launcher.Ready(ctx); err != nil {
+		return Task{}, err
+	}
+	budget, err := s.budget(ctx, in.BudgetUSD)
+	if err != nil {
 		return Task{}, err
 	}
 	conv, err := s.Launcher.CreateConversation(ctx, in.Runtime)
@@ -106,7 +121,7 @@ func (s *Service) Submit(ctx context.Context, in SubmitInput) (Task, error) {
 	}
 	t := Task{ID: NewID(), Kind: kind.Name, ConversationID: conv.ID, Status: StatusQueued, Goal: goal,
 		ApplicationID: in.ApplicationID, Access: access, Runtime: conv.Runtime, Unattended: in.Unattended,
-		Profile: s.Store.Profile}
+		BudgetUSD: budget, Profile: s.Store.Profile}
 	files, err := WriteContext(conv.Cwd, t.ID, in.Context, s.Redact)
 	if err != nil {
 		return Task{}, err
@@ -132,7 +147,26 @@ func (s *Service) Submit(ctx context.Context, in SubmitInput) (Task, error) {
 	return s.Start(ctx, t.ID)
 }
 
-func checkUnattended(kind Kind, access string, unattended bool) error {
+// budget is the cap a task gets: the one asked for, else the default. Zero
+// or less is "no spend", which no task can run on.
+func (s *Service) budget(ctx context.Context, asked *float64) (float64, error) {
+	b := 0.0
+	if asked != nil {
+		b = *asked
+	} else {
+		var err error
+		if b, err = s.Launcher.DefaultBudget(ctx); err != nil {
+			return 0, err
+		}
+	}
+	if b <= 0 || math.IsNaN(b) || math.IsInf(b, 0) {
+		return 0, errf(CodeNoBudget, "the task's budget is %v USD: a budget of 0 means no spend, not unlimited, so it can't run. "+
+			"Ask for a positive --budget-usd, or the operator sets one with `coder set --budget-usd`", b)
+	}
+	return b, nil
+}
+
+func (s *Service) checkUnattended(ctx context.Context, kind Kind, access string, unattended bool) error {
 	if !unattended {
 		return nil
 	}
@@ -142,6 +176,9 @@ func checkUnattended(kind Kind, access string, unattended bool) error {
 	}
 	if !kind.UnattendedOK {
 		return errf(CodeInvalidInput, "kind %s can't run unattended", kind.Name)
+	}
+	if !s.Launcher.Confined(ctx) {
+		return errf(CodeUnattendedNoJail, "--unattended needs a profile whose tasks run in a verified confinement, and this one has none")
 	}
 	return nil
 }
@@ -185,8 +222,11 @@ func (s *Service) verifyAtStart(ctx context.Context, t Task) error {
 	if err != nil {
 		return err
 	}
-	if err := checkUnattended(kind, t.Access, t.Unattended); err != nil {
+	if err := s.checkUnattended(ctx, kind, t.Access, t.Unattended); err != nil {
 		return err
+	}
+	if t.BudgetUSD <= 0 {
+		return errf(CodeNoBudget, "task %s has no budget: 0 means no spend, so it does not run", t.ID)
 	}
 	policy, err := s.Launcher.Policy(ctx)
 	if err != nil {
