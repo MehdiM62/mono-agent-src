@@ -40,4 +40,3 @@ func applyScope(cfg *globalConfig) (*browserctl.ApplyScope, error) {
 func scopeError(err error) error {
 	return browserCLIError{error: errInvalidInput("%v", err), code: "path_not_allowed"}
 }
-
