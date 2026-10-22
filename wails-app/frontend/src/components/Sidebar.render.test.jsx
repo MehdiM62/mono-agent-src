@@ -73,3 +73,15 @@ it('names no profile when none exists', async () => {
   expect(screen.queryByText('Default')).not.toBeInTheDocument()
   expect(screen.getByText('New profile')).toBeInTheDocument()
 })
+
+it('History opens the history drawer instead of navigating', async () => {
+  const onNavigate = vi.fn()
+  const seen = vi.fn()
+  const { onHistoryRequest } = await import('./history/historyBus.js')
+  const off = onHistoryRequest(seen)
+  render(<Sidebar activePage="dashboard" onNavigate={onNavigate} stats={{}} dbConnected={true} />)
+  fireEvent.click(screen.getByText('sidebar.nav.history'))
+  expect(seen).toHaveBeenCalledWith('open')
+  expect(onNavigate).not.toHaveBeenCalled()
+  off()
+})
