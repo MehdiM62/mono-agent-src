@@ -59,7 +59,7 @@ function emptyAddForm() {
   return { kind: 'job', title: '', company: '', url: '', issuingOrg: '', submissionDeadline: '' }
 }
 
-export default function Applications({ isActive = true, onNavigate, onOpenCoderChat }) {
+export default function Applications({ isActive = true, navData = null, onNavigate, onOpenCoderChat }) {
   const [applications, setApplications] = useState([])
   const [statusTab, setStatusTab] = useState('pending')
   const [search, setSearch] = useState('')
@@ -83,6 +83,13 @@ export default function Applications({ isActive = true, onNavigate, onOpenCoderC
 
   useEffect(() => { load() }, [load])
   useReloadOnActivate(isActive, load)
+
+  // A link from another page (the History drawer) names one application.
+  useEffect(() => {
+    const id = navData && navData.application
+    if (isActive && id) openDetail(String(id))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isActive, navData])
 
   const visible = useMemo(
     () => filterApplications(applications, { statusTab, search }),

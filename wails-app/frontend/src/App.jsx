@@ -10,6 +10,7 @@ import AIChatPanel from './components/AIChatPanel.jsx'
 import CoderBubbles from './components/bubbles/CoderBubbles.jsx'
 import { useCoderBubbles } from './components/bubbles/useCoderBubbles.js'
 import { CoderBubbleContext } from './components/bubbles/CoderBubbleContext.jsx'
+import HistoryPanel from './components/history/HistoryPanel.jsx'
 import { useOrgBubbleWatch } from './components/bubbles/useOrgBubbleWatch.js'
 import HumanInLoop from './pages/HumanInLoop.jsx'
 import Dashboard from './pages/Dashboard.jsx'
@@ -277,7 +278,7 @@ export default function App({ banners = null }) {
     connections: <Connections onRefresh={refreshStats} navData={activePage === 'connections' ? navData : null} />,
     vault: <ImageVault isActive={activePage === 'vault'} />,
     secretsVault: <Vault isActive={activePage === 'secretsVault'} />,
-    applications: <Applications isActive={activePage === 'applications'} onNavigate={navigate} onOpenCoderChat={openCoderChat} />,
+    applications: <Applications isActive={activePage === 'applications'} navData={activePage === 'applications' ? navData : null} onNavigate={navigate} onOpenCoderChat={openCoderChat} />,
     documents: <Documents isActive={activePage === 'documents'} />,
     info: <Info isActive={activePage === 'info'} />,
     tasks: <Tasks isActive={activePage === 'tasks'} />,
@@ -373,6 +374,7 @@ export default function App({ banners = null }) {
         onOpenHealth={() => navigate('settings')}
       />
       <CoderBubbles store={coderBubbles} onNavigate={navigate} onCloseOrg={onCloseOrgBubble} />
+      <HistoryPanel store={coderBubbles} onNavigate={navigate} />
       <Toasts onNavigate={navigate} />
       <ConfirmHost />
       {viewingArtifactDoc && (
