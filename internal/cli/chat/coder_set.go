@@ -5,6 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/monoes/mono-agent/internal/ai"
 	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/dynorg"
 )
@@ -13,7 +14,7 @@ import (
 
 // operatorCoderFlags are the `coder set` flags only the operator changes:
 // where a full-access chat works and the caps on how far it goes.
-var operatorCoderFlags = []string{"workspace-root", "max-turns", "timeout", "budget-usd", "org-max-agents", "org-max-concurrent", "org-budget-usd"}
+var operatorCoderFlags = []string{"workspace-root", "max-turns", "timeout", "budget-usd", "org-max-agents", "org-max-concurrent", "org-budget-usd", "default-access"}
 
 // operatorOrgFlags are the dynamic-org `coder set` flags only the operator
 // changes, and why: what Jev (TypeSafe) is asked about the workers' briefs,
@@ -40,6 +41,7 @@ func newCoderSetCmd(cfg *Deps) *cobra.Command {
 		writers  string
 		sendAppr bool
 		appAcc   string
+		defAcc   string
 	)
 	c := coderSettingsCmd(cfg, "set", "Change coder mode's defaults", func(cmd *cobra.Command, s *coderSettings) error {
 		f := cmd.Flags()
@@ -123,6 +125,12 @@ func newCoderSetCmd(cfg *Deps) *cobra.Command {
 			}
 			s.OrgWriters = writers
 		}
+		if f.Changed("default-access") {
+			if !ai.ValidAccess(defAcc) {
+				return clicore.InvalidInput("--default-access must be scoped, coding, workspace or full")
+			}
+			s.DefaultAccess = defAcc
+		}
 		if f.Changed("send-approval") {
 			if err := clicore.RequireOperator(cfg.RequireOperator, "change the send-approval setting"); err != nil {
 				return err
@@ -150,6 +158,7 @@ func newCoderSetCmd(cfg *Deps) *cobra.Command {
 		"and effort the lead leaves open, with --org-router model too. Only removing the Jev key keeps briefs on this machine."
 	c.Flags().BoolVar(&sendAppr, "send-approval", true, "An agent's sends (email, DM, comment, post, connect, publish) wait for your approval (operator only)")
 	c.Flags().StringVar(&appAcc, "app-access", "", "on (default) or off: what agents are told and offered, not what they can do. Off, coder prompts carry no profile summary and a dynamic org's workers are not offered the workspace profile (MonoAgent's tasks, documents, people, vault, workflows and apps) or told about those surfaces; the coder lead keeps full access, a worker with a shell can still run monoagentcli, operator-only commands and the send gate still apply, and with a Jev key set a worker's brief still goes to Jev, whatever the router (operator only)")
+	c.Flags().StringVar(&defAcc, "default-access", "", "scoped (default), coding, workspace or full: the level an operator-run `chat history create` without --access makes when coder mode is ready; an agent-run creation stays scoped (operator only)")
 	c.Flags().StringVar(&root, "workspace-root", "", "Folder new test workspaces are created in (operator only)")
 	c.Flags().IntVar(&maxTurns, "max-turns", 0, "Agent turn cap per message (operator only)")
 	c.Flags().StringVar(&timeout, "timeout", "", "Wall-clock cap per message (e.g. 60m; operator only)")

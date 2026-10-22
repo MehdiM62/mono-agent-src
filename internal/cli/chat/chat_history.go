@@ -117,9 +117,9 @@ func newChatHistoryCmd(cfg *Deps) *cobra.Command {
   monoagentcli --json chat history events <conversation-id> <turn-id> --after-seq 12`,
 	}
 	cmd.AddCommand(
-		newChatHistoryListCmd(cfg),
+		withListAll(cfg, newChatHistoryListCmd(cfg)),
 		newChatHistoryShowCmd(cfg),
-		newChatHistoryCreateCmd(cfg),
+		withDefaultAccess(cfg, newChatHistoryCreateCmd(cfg)),
 		newChatHistoryTurnsCmd(cfg),
 		newChatHistoryTurnCmd(cfg),
 		newChatHistoryEventsCmd(cfg),

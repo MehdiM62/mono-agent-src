@@ -1869,6 +1869,30 @@ monoagentcli --profile work chat --mode coder --cwd ~/code/app -- "…"   # one 
     extension's chat creates its conversations `--access=scoped` and sends
     every turn with `--tools monoagent:read`, which a conversation above
     scoped refuses, so a page can't widen a scoped chat.
+  - `chat history list --all [--cursor C] [--limit N<=200] [--kind chat|org] [--status running|done|error|needs|idle] [--application ID] [--query TEXT]`
+    is the GUI's unified history: one row per agent conversation (`id`,
+    `kind:"chat"`, `title`, `status`, `updatedAt`, `runtime`, `model`, `effort`,
+    `access`, `mode`, `orgMode`, `cwd`, `workflowContext`, and the latest bound
+    AI task's `taskId`/`taskStatus`/`taskGoal`/`applicationId`) plus one row
+    per org run (`id:"org:<name>#<run>"`, `kind:"org"`, `orgName`, `runId`,
+    `costUsd`), as `{items, next_cursor, warnings}`. Chats are read in ONE
+    query (latest turn, first turn and latest task are joins), so a page costs
+    one statement. The status comes from the latest turn (`active` running,
+    `completed` done, `failed`/`interrupted` error, anything else idle) and is
+    `needs` while the latest task waits for the user. The title is the task
+    goal, else the first message trimmed to 60 characters, else the folder's
+    name, else "New chat"; both texts go through the redaction first. Org runs
+    come from `org report <name> --all`, cached 30 s per org; an org that
+    fails to report is a `warnings` entry, not an error. Extension chats
+    (`general`, scoped) are plain rows: nothing marks them as the extension's.
+  - `coder set --default-access scoped|coding|workspace|full` (operator only,
+    default scoped) is the level an operator-run `chat history create` with
+    no `--access`/`--mode` makes, when coder mode is enabled and the runtime is
+    ready (with `--profile-folder` unless a folder flag is given); otherwise
+    scoped. It never applies to an agent, the chat or a workflow: their
+    creation without flags stays scoped, and naming a level above scoped is
+    refused for them. `TestDefaultAccessAppliesOnlyToTheOperator` fails if
+    that check goes.
 - The mode and folder are fixed when the conversation is created. The
   CLIs key their sessions by folder, so a conversation always resumes in the
   same one.

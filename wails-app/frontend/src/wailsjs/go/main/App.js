@@ -318,6 +318,10 @@ export function CreateChatConversation(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['CreateChatConversation'](arg1, arg2, arg3, arg4);
 }
 
+export function CreateChatConversationAccess(arg1, arg2, arg3, arg4, arg5, arg6) {
+  return window['go']['main']['App']['CreateChatConversationAccess'](arg1, arg2, arg3, arg4, arg5, arg6);
+}
+
 export function CreateCoderConversation(arg1, arg2, arg3, arg4, arg5) {
   return window['go']['main']['App']['CreateCoderConversation'](arg1, arg2, arg3, arg4, arg5);
 }
@@ -344,6 +348,10 @@ export function DaemonRestart() {
 
 export function DeleteChatConversation(arg1) {
   return window['go']['main']['App']['DeleteChatConversation'](arg1);
+}
+
+export function DeleteChatConversations(arg1) {
+  return window['go']['main']['App']['DeleteChatConversations'](arg1);
 }
 
 export function DeleteOrgDesign(arg1) {
@@ -990,6 +998,10 @@ export function ListExcludedDocuments() {
   return window['go']['main']['App']['ListExcludedDocuments']();
 }
 
+export function ListHistory(arg1, arg2, arg3) {
+  return window['go']['main']['App']['ListHistory'](arg1, arg2, arg3);
+}
+
 export function ListMonomindProjects() {
   return window['go']['main']['App']['ListMonomindProjects']();
 }
@@ -1376,6 +1388,10 @@ export function SetBrowserPermission(arg1, arg2) {
 
 export function SetBrowserSiteRule(arg1, arg2) {
   return window['go']['main']['App']['SetBrowserSiteRule'](arg1, arg2);
+}
+
+export function SetChatAccess(arg1, arg2) {
+  return window['go']['main']['App']['SetChatAccess'](arg1, arg2);
 }
 
 export function SetChatOrgMode(arg1, arg2) {
