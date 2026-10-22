@@ -6,7 +6,6 @@ import { startBackgroundHealth, subscribeHealth, summarize, isFixing } from './l
 import Toasts from './components/Toasts.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
 import ConfirmHost from './components/ConfirmDialog.jsx'
-import AIChatPanel from './components/AIChatPanel.jsx'
 import CoderBubbles from './components/bubbles/CoderBubbles.jsx'
 import { useCoderBubbles } from './components/bubbles/useCoderBubbles.js'
 import { CoderBubbleContext } from './components/bubbles/CoderBubbleContext.jsx'
@@ -55,14 +54,6 @@ export default function App({ banners = null }) {
   // avoids paying every page's initial data-fetch cost at app startup while
   // still keeping state alive once a page has actually been opened.
   const [visitedPages, setVisitedPages] = useState(() => new Set(['dashboard']))
-  // Global AI Assistant chat — lifted here (rather than owned by whichever
-  // page happens to render it) so it's reachable from anywhere via the
-  // always-visible toggle in the top bar, and so opening/closing it, its
-  // selected runtime, and its conversation all survive navigating between
-  // pages. This is the general assistant (canvasMode=false); the Workflows
-  // editor's own chat toggle is a different tool — a workflow-builder
-  // assistant scoped to the currently open canvas — and stays separate.
-  const [globalChatOpen, setGlobalChatOpen] = useState(false)
   const [globalHilOpen, setGlobalHilOpen] = useState(false)
   const [globalHilCount, setGlobalHilCount] = useState(0) // reported by the open drawer (incl. org items)
   const { count: pendingCount } = usePendingCount()     // Jev-free summary count, drawer closed
@@ -345,29 +336,14 @@ export default function App({ banners = null }) {
           onProfile={openProfile}
           onNavigate={navigate}
         />
-
-        {/* Global AI Assistant — always available, opened/closed via the
-            fixed toggle button below; state and conversation persist across
-            page navigation since this is mounted once at the App level. */}
-        <AIChatPanel
-          workflowID="general"
-          canvasMode={false}
-          isOpen={globalChatOpen}
-          onClose={() => setGlobalChatOpen(false)}
-          onOpenArtifact={onOpenArtifact}
-          onNavigate={navigate}
-          onOpenCoderChat={openCoderChat}
-        />
       </div>
 
-      {/* The global chat and human-in-loop toggles live inside StatusBar itself
-          now (bottom bar, far right) — small icons there rather than separate
+      {/* The new-chat and human-in-loop buttons live inside StatusBar itself
+          (bottom bar, far right) — small icons there rather than separate
           floating overlay buttons, reachable from anywhere in the app. */}
       <StatusBar
         stats={stats}
         dbConnected={dbConnected}
-        chatOpen={globalChatOpen}
-        onToggleChat={() => setGlobalChatOpen(v => !v)}
         hilOpen={globalHilOpen}
         hilCount={globalHilOpen ? globalHilCount : pendingCount}
         onToggleHil={() => setGlobalHilOpen(v => !v)}
