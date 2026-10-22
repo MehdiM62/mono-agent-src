@@ -18,9 +18,9 @@ func (d Deps) newApplyCmd() *cobra.Command {
 		Use:   "apply <id>",
 		Short: "Prepare an application's documents and open the posting in a browser",
 		Long: "Generates (or reuses) the CV and cover letter for this application, then opens the job\n" +
-			"posting in a real browser window for you to complete and submit yourself — this command\n" +
-			"never fills in or submits the form on your behalf. Use `application send` afterward to\n" +
-			"record that you sent it.",
+			"posting in a real browser window. This command itself fills in and submits nothing: to have\n" +
+			"the coder fill in the form (it stops before the submit), run `application fill start`.\n" +
+			"Submitting is always yours; use `application send` afterward to record that you sent it.",
 		Args:    cobra.ExactArgs(1),
 		Example: `  monoagentcli application apply 1c2e... --cv-data-file cv.json --cover-letter-data-file letter.json`,
 		RunE: func(cmd *cobra.Command, args []string) error {

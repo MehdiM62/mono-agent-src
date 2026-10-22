@@ -3261,6 +3261,24 @@ change is logged in the status history. `applied` is reached only through `appli
   prints it (`status` is `none` before any). The screenshot must be a file inside the profile
   folder; field values are capped (4000 bytes) and a value that looks like a secret is stored as
   `[redacted]`. `--fields-json` holds `[{"label","value","source","generated"}]`.
+- `application fill start <id> [--runtime R]` (operator-only, like `aitask submit`) hands the
+  application to an `application-apply` coder task (internal/applyfill): it opens the posting's
+  form in the user's browser and fills the visible fields from the profile facts, then stops. It is
+  given three kinds of context and nothing else: `posting` (the captured posting text), `facts` (the
+  Info values the form fill uses, without ID, bank or card numbers) and `document` (the files of
+  THIS application). It never clicks submit, never fills hidden fields, passwords, card numbers or
+  one-time codes (the same vetting as the extension's form fill; a result that lists one is
+  dropped), and stops with `needs_you` on a login wall or CAPTCHA. One open task per application;
+  the task's conversation is linked as the application's `conversation`; the fill record is
+  `filling` until the task completes. When coder mode is off it fails with `coder_disabled` and
+  `"fallback":"oneshot"`. `application fill sync <id>` records a completed task's validated result
+  (fill record; status `awaiting_submit` for filled, `needs_you`) and is safe to repeat; a
+  completion hook calls the same `applyfill.Finalize`. Nothing here sets `applied`: only
+  `application send` does.
+- Browser permissions have a kind `apply` (`browser permissions set apply <level>`, operator-only):
+  default `ask`, per-site allow rules apply, and it can never be `full-no-approvals`, so a submit
+  on a non-local site always waits for a person (a HIL item). `application apply` itself still fills
+  and submits nothing.
 
 ## Exit codes
 
