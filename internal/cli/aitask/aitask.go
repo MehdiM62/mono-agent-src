@@ -49,7 +49,7 @@ func New(d Deps) *cobra.Command {
 	}
 	c := &cli{d: &d}
 	for _, sub := range []*cobra.Command{c.submit(), c.start(), c.status(), c.result(), c.wait(), c.cancel(), c.list(),
-		c.complete(), c.fail(), c.supervise()} {
+		c.complete(), c.fail(), c.supervise(), c.budgetCmd()} {
 		clicore.WithJSONErrors(d.JSONOutput, sub)
 		cmd.AddCommand(sub)
 	}
@@ -74,6 +74,7 @@ func (c *cli) open() (*aitask.Service, func(), error) {
 		StateDir: filepath.Dir(clicore.ExpandPath(c.d.DBPath())),
 		Redact:   aitask.RedactValues([]string{os.Getenv(aitask.EnvToken)}),
 	}
+	svc.Admit = ledger(svc).Admitter()
 	return svc, func() { db.Close() }, nil
 }
 
@@ -445,7 +446,10 @@ func (c *cli) supervise() *cobra.Command {
 			if turnErr != nil {
 				text = "the agent's turn ended with an error: " + turnErr.Error()
 			}
-			return svc.EndTurn(t.ID, text)
+			err = svc.EndTurn(t.ID, text)
+			// What the task spent is charged to the budgets, and its unused cap freed.
+			_ = ledger(svc).Settle(cmd.Context(), t.ID, t.ConversationID)
+			return err
 		},
 	}
 	return cmd
