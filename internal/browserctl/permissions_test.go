@@ -47,6 +47,9 @@ func TestPolicyByLevelAndKind(t *testing.T) {
 	}
 	for _, kind := range Kinds {
 		for level, w := range cases {
+			if !levelAllowed(kind, level) {
+				continue // apply is never full-no-approvals (permissions_apply_test.go)
+			}
 			p := DefaultPermissions()
 			if err := p.SetLevel(kind, level); err != nil {
 				t.Fatal(err)

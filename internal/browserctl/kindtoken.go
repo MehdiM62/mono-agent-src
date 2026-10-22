@@ -50,7 +50,7 @@ func KindTokenDir() (string, error) {
 	return filepath.Join(home, ".monoagent", "agent-kinds"), nil
 }
 
-// IssueAgentKind vouches for kind (KindCoder or KindOrg) for the agents
+// IssueAgentKind vouches for kind (KindCoder, KindApply or KindOrg) for the agents
 // this process starts: it writes the record (dir 0700, file 0600) and
 // returns the environment to give them, MONOAGENT_AGENT_KIND and
 // MONOAGENT_AGENT_KIND_TOKEN as "KEY=value". The record names this
@@ -63,7 +63,7 @@ func KindTokenDir() (string, error) {
 // and bind does nothing; any other kind gives no env.
 func IssueAgentKind(kind string) (env []string, bind func(pid int), done func()) {
 	bind, done = func(int) {}, func() {}
-	if kind != KindCoder && kind != KindOrg {
+	if kind != KindCoder && kind != KindApply && kind != KindOrg {
 		return nil, bind, done
 	}
 	env = []string{EnvAgentKind + "=" + kind}

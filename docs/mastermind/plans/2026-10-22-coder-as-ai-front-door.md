@@ -278,9 +278,9 @@ Question: can a coder-kind agent submit, fill or upload on a non-local origin wi
 at every level below `full-no-approvals`, through the CLI. Read from the code at the commit this section was added.
 
 - **Which level binds.** A coder turn is issued kind `coder` (`internal/cli/chat/chat_coder.go:129`, vouched by
-  `browserctl.IssueAgentKind`, `kindtoken.go:64`). `AgentCaller` (`permissions.go:459`) turns that token into
+  `browserctl.IssueAgentKind`, `kindtoken.go:64`). `AgentCaller` (`permissions.go:458`) turns that token into
   `Caller{Kind: coder}`, and a shell that declares a kind it cannot prove is kind `other` with the stricter of the two
-  levels (`LevelOf`, `permissions.go:487`). The coder default is `dev` (`permissions.go:77`).
+  levels (`LevelOf`, `permissions.go:482`). The coder default is `dev` (`permissions.go:77`).
 - **Reaching a non-local site.** `Policy.Check` (`policy.go:106`) lets an agent drive a non-local origin only at
   `full`/`full-no-approvals`, or with an allow rule, or (at `ask`) after a HIL item; `dev` refuses it.
 - **Submit.** `Policy.SubmitGated` (`policy.go:161`) is true for an agent on an allowed, non-local origin at every level
