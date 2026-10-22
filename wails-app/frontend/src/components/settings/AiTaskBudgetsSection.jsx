@@ -26,13 +26,16 @@ const AGENT_SCOPES = { conversation: 'Conversation', role: 'Role' }
 
 // CapForm adds or changes one cap: an optional key, an amount in USD, and a
 // button. scopes is a list of [scope, label] to choose from, or null for one fixed scope.
-function CapForm({ scope, scopes, keyLabel, busy, onSave, button }) {
+// Plain decimals only: Number() would also take '1e2', '0x10' and ' 5 '.
+export const PLAIN_DECIMAL = /^(\d+\.?\d*|\.\d+)$/
+
+function CapForm({ scope, scopes, keyLabel, busy, onSave, button, visibleLabel }) {
   const [pick, setPick] = useState(scopes ? scopes[0][0] : scope)
   const [key, setKey] = useState('')
   const [usd, setUsd] = useState('')
   const needsKey = keyLabel != null
   const n = Number(usd)
-  const valid = usd.trim() !== '' && Number.isFinite(n) && n >= 0 && (!needsKey || key.trim() !== '')
+  const valid = PLAIN_DECIMAL.test(usd.trim()) && Number.isFinite(n) && (!needsKey || key.trim() !== '')
   const submit = async (e) => {
     e.preventDefault()
     if (!valid) return
@@ -48,10 +51,11 @@ function CapForm({ scope, scopes, keyLabel, busy, onSave, button }) {
       {needsKey && (
         <input className="form-input" aria-label={keyLabel} placeholder={keyLabel} spellCheck={false}
           value={key} onChange={e => setKey(e.target.value)} disabled={busy}
-          style={{ flex: 1, minWidth: 140, fontFamily: mono, fontSize: 12 }} />
+          style={{ flex: '1 1 140px', minWidth: 0, fontFamily: mono, fontSize: 12 }} />
       )}
-      <input className="form-input" aria-label={`${keyLabel || 'Global'} cap in USD`} placeholder="USD" inputMode="decimal"
-        value={usd} onChange={e => setUsd(e.target.value)} disabled={busy} style={{ width: 90, fontFamily: mono, fontSize: 12 }} />
+      {visibleLabel && <label htmlFor={`cap-usd-${pick}`} style={{ ...name, fontSize: 12 }}>{visibleLabel}</label>}
+      <input id={`cap-usd-${pick}`} className="form-input" aria-label={`${keyLabel || 'Global'} cap in USD`} placeholder="USD" inputMode="decimal"
+        value={usd} onChange={e => setUsd(e.target.value)} disabled={busy} style={{ width: 90, maxWidth: '100%', fontFamily: mono, fontSize: 12 }} />
       <button type="submit" className="btn btn-primary btn-sm" disabled={busy || !valid}>{button}</button>
     </form>
   )
@@ -115,11 +119,11 @@ export default function AiTaskBudgetsSection() {
       {err && <div style={errText} role="alert">{err}</div>}
 
       <div style={{ ...label, marginTop: 6 }}>All tasks</div>
-      <div data-cap="global:" style={{ ...name, display: 'flex', gap: 12, alignItems: 'center' }}>
+      <div data-cap="global:" style={{ ...name, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
         {global ? <span>{money(global.usedUsd)} of {money(global.capUsd)}</span> : <span style={hint}>No global cap.</span>}
         {global && <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={() => clear(global)}>Remove</button>}
       </div>
-      <CapForm scope="global" busy={busy} onSave={save} button="Set cap" />
+      <CapForm scope="global" busy={busy} onSave={save} button="Set cap" visibleLabel="Cap for all tasks (USD)" />
 
       <div style={{ ...label, marginTop: 6 }}>Per kind of task</div>
       <CapRows caps={ofScope('kind')} busy={busy} onClear={clear} />

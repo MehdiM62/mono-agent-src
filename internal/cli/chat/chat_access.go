@@ -66,11 +66,17 @@ func resolveCreateAccess(mode, access string) (string, error) {
 	return access, nil
 }
 
+// exitSurvivors is the exit code of a lowering that left a privileged process
+// running (error code survivors_remain). The level is lowered all the same, so
+// no new privileged turn can start.
+const exitSurvivors = 5
+
 // loweredEffects is what lowering a conversation's access did.
 type loweredEffects struct {
-	Stopped        []int `json:"stopped"`         // background processes of its turns that were stopped
-	WorkersDropped bool  `json:"workers_dropped"` // its kept org workers were forgotten
-	TaskRevoked    bool  `json:"task_revoked"`    // its open AI task's token was replaced
+	Stopped        []int      `json:"stopped"`         // background processes of its turns that were stopped
+	Survivors      []survivor `json:"survivors"`       // recorded processes that were not stopped, with why
+	WorkersDropped bool       `json:"workers_dropped"` // its kept org workers were forgotten
+	TaskRevoked    bool       `json:"task_revoked"`    // its open AI task's token was replaced
 }
 
 // lowerAccessEffects takes the privileges of a conversation that now has less
@@ -78,7 +84,7 @@ type loweredEffects struct {
 // dynamic-org workers forgotten and its open AI task's token replaced by one
 // nobody holds. All of it runs before the next turn is admitted.
 func lowerAccessEffects(cfg *Deps, store *ai.AIStore, profileID, conversationID string) (loweredEffects, error) {
-	eff := loweredEffects{Stopped: []int{}}
+	eff := loweredEffects{Stopped: []int{}, Survivors: []survivor{}}
 	var refs []chatevents.ProcessRef
 	for cursor := ""; ; {
 		turns, next, err := store.ListTurns(conversationID, profileID, cursor, 200)
@@ -97,7 +103,9 @@ func lowerAccessEffects(cfg *Deps, store *ai.AIStore, profileID, conversationID 
 		}
 		cursor = next
 	}
-	eff.Stopped = append(eff.Stopped, stopBackground(refs, 3*time.Second).Stopped...)
+	stop := stopBackground(refs, 3*time.Second)
+	eff.Stopped = append(eff.Stopped, stop.Stopped...)
+	eff.Survivors = append(eff.Survivors, stop.Survivors...)
 	if err := store.ForgetOrgWorkers(profileID, conversationID); err != nil {
 		return eff, err
 	}
@@ -151,7 +159,8 @@ func newChatHistorySetAccessCmd(cfg *Deps) *cobra.Command {
 			"It takes effect from the next turn. " + clicore.OperatorOnlyHelp + " Raising a conversation's level is the operator's " +
 			"(exit 3, operator_only for an agent, the chat or a workflow) and needs coder mode enabled; lowering it is anyone's, " +
 			"and stops the processes its turns left running, forgets its kept org workers and revokes its open AI task's token " +
-			"before the next turn. A scoped conversation has no folder: raising it needs --cwd, --profile-folder, --coder-root " +
+			"before the next turn; one it cannot stop (no recorded identity, or it outlives SIGKILL) is listed under survivors and the " +
+			"command exits 5 (survivors_remain), the level lowered all the same. A scoped conversation has no folder: raising it needs --cwd, --profile-folder, --coder-root " +
 			"or --new-workspace. The conversation starts a fresh session when it leaves or enters scoped.",
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -197,9 +206,21 @@ func newChatHistorySetAccessCmd(cfg *Deps) *cobra.Command {
 			}
 			out.ConversationRecord = conv.Record()
 			if cfg.JSONOutput() {
-				return clicore.PrintJSON(out)
+				if err := clicore.PrintJSON(out); err != nil {
+					return err
+				}
+			} else {
+				fmt.Fprintf(cmd.OutOrStdout(), "conversation %s: access %s (was %s)\n", id, conv.EffectiveAccess(), prev)
+				if out.Lowered != nil {
+					for _, sv := range out.Lowered.Survivors {
+						fmt.Fprintf(cmd.OutOrStdout(), "  still running: %d %s: %s\n", sv.Pid, sv.Command, sv.Reason)
+					}
+				}
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "conversation %s: access %s (was %s)\n", id, conv.EffectiveAccess(), prev)
+			if out.Lowered != nil && len(out.Lowered.Survivors) > 0 {
+				return &coderError{code: "survivors_remain", err: &clicore.Error{Code: exitSurvivors, Msg: fmt.Sprintf(
+					"the level is lowered, but %d process(es) the conversation's turns started could not be stopped and may still hold the old access (see survivors); stop them yourself", len(out.Lowered.Survivors))}}
+			}
 			return nil
 		},
 	}

@@ -5,7 +5,7 @@
 .bubble-dock {
   position: fixed;
   bottom: 44px;
-  z-index: 70;
+  z-index: 9602; /* above the page dialogs (z 9000-9500): a bubble opened from one must stay visible and clickable */
   display: flex;
   flex-direction: column-reverse;
   align-items: center;
@@ -171,14 +171,14 @@
 .bubble-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 60;
+  z-index: 9600;
   background: rgba(2, 5, 9, 0.55);
   backdrop-filter: blur(2px);
   animation: fade-in 180ms ease-out;
 }
 .bubble-overlay {
   position: fixed;
-  z-index: 61;
+  z-index: 9601;
   top: 28px;
   bottom: 28px;
   left: 50%;

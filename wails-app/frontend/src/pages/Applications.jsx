@@ -50,7 +50,7 @@ function StatusBadge({ status }) {
   const s = STATUS_COLORS[status] || { bg: '#1a2332', color: '#64748b' }
   return (
     <span style={{ background: s.bg, borderRadius: 3, padding: '1px 6px', fontFamily: 'var(--font-mono)', fontSize: 9, color: s.color }}>
-      {status}
+      {status.replace(/_/g, ' ')}
     </span>
   )
 }

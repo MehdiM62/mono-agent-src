@@ -1854,7 +1854,8 @@ monoagentcli --profile work chat --mode coder --cwd ~/code/app -- "…"   # one 
     it off only scoped can be chosen or created.
   - `chat history set-access <conv> <level> [--cwd|--profile-folder|--coder-root|--new-workspace]`:
     raising a level is the operator's (exit 3, `operator_only` for an agent,
-    the chat or a workflow); lowering it is anyone's. A scoped conversation
+    the chat or a workflow), and so is creating a conversation above scoped;
+    lowering it is anyone's. A scoped conversation
     has no folder, so raising it needs one of the folder flags; one that has
     a folder keeps it. A conversation starts a fresh session when it leaves
     or enters scoped. A lowering takes effect before the next turn: the
@@ -3373,6 +3374,7 @@ change is logged in the status history. `applied` is reached only through `appli
 | 2 | not found (workflow, node type, HIL item, secret name, …). Includes `hil approve`/`hil reject`, `secret rm`/`secret update`, and `workflow delete` on unknown ids |
 | 3 | invalid input / validation failure |
 | 4 | auth or connection failure — including `login_required`: no valid monoes.me sign-in (see [monoes.me account](#monoesme-account)) |
+| 5 | `chat history set-access` lowered the level but a process the conversation's turns started could not be stopped (`survivors_remain`; the JSON lists each under `lowered.survivors` with its pid, command and reason) |
 
 Branch on these instead of parsing stderr.
 

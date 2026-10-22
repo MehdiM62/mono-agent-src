@@ -41,8 +41,8 @@ export default function ApplicationHeader({ detail, assets, onSetStatus, onClose
         borderBottom: '1px solid rgba(255,255,255,0.08)',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0, flex: 1 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0, flex: '1 1 240px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <h2
               style={{
@@ -110,7 +110,7 @@ export default function ApplicationHeader({ detail, assets, onSetStatus, onClose
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, flex: '0 1 auto', minWidth: 0, maxWidth: '100%', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           {canCancel && <ApplyWithCoderButton applicationId={detail.id} />}
           <SendToCoderButton label="Discuss in coder" goal="Discuss this application with me: its fit, the posting, and what to do next."
             applicationId={detail.id} origin={{ page: 'applications', label: 'Applications' }}

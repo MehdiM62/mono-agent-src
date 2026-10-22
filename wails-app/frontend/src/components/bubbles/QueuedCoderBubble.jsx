@@ -173,7 +173,7 @@ export function QueuedCoderStack({ items, side, onStart, onDismiss }) {
   return (
     <div data-testid="queued-coder-stack" aria-label={t('coderQueue.stackLabel', { defaultValue: 'Queued coder chats' })}
       style={{
-        position: 'fixed', bottom: 44, zIndex: 69, display: 'flex', flexDirection: 'column', gap: 8,
+        position: 'fixed', bottom: 44, zIndex: 9601, display: 'flex', flexDirection: 'column', gap: 8,
         maxHeight: 'calc(100vh - 120px)', overflowY: 'auto', ...(side === 'left' ? { left: 300 } : { right: 80 }),
       }}>
       {shown.map(it => <QueuedCoderBubble key={it.id} item={it} onStart={onStart} onDismiss={onDismiss} />)}

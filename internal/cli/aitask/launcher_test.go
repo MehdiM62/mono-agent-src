@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/monoes/mono-agent/internal/aitask"
+	"github.com/monoes/mono-agent/internal/operator"
 )
 
 // fakeSelf stands in for monoagentcli: a script that logs its argv and
@@ -20,7 +21,7 @@ func fakeSelf(t *testing.T, turnScript string) (log string) {
 	script := "#!/bin/sh\n" +
 		`echo "$*" >> '` + log + "'\n" +
 		"case \"$*\" in\n" +
-		`*"chat history create"*) echo '{"id":"conv-7","runtime_id":"claude","cwd":"` + dir + `"}'; exit 0;;` + "\n" +
+		`*"chat history create"*) env >> '` + log + `.env'; echo '{"id":"conv-7","runtime_id":"claude","cwd":"` + dir + `"}'; exit 0;;` + "\n" +
 		`*"chat --conversation"*) cat > '` + log + `.prompt'; echo "task=$MONOAGENT_AITASK_ID" >> '` + log + "'\n" + turnScript + "\n;;\n" +
 		"esac\n"
 	bin := filepath.Join(dir, "monoagentcli")
@@ -141,4 +142,29 @@ echo "$* id=$MONOAGENT_AITASK_ID token=$MONOAGENT_AITASK_TOKEN" >> '` + log + `'
 	}
 	b, _ := os.ReadFile(log)
 	t.Fatalf("the supervisor did not start with the task env: %s", b)
+}
+
+// `chat history create` above scoped is the operator's now, and the launcher
+// runs it for `submit` (operator-only itself): the child it starts carries no
+// agent, chat or workflow marker of its own, so it passes the check.
+func TestCreateConversationChildCarriesNoOperatorMarker(t *testing.T) {
+	log := fakeSelf(t, "exit 0")
+	for _, k := range operator.MarkerEnv() {
+		t.Setenv(k, "")
+	}
+	d := deps(t, nil)
+	if _, err := (selfLauncher{d}).CreateConversation(context.Background(), ""); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(log + ".env")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, line := range strings.Split(string(b), "\n") {
+		for _, k := range operator.MarkerEnv() {
+			if v, ok := strings.CutPrefix(line, k+"="); ok && v != "" {
+				t.Errorf("the child carries %s=%s, so `chat history create` would be refused as not the operator's", k, v)
+			}
+		}
+	}
 }

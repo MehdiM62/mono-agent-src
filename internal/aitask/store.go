@@ -259,6 +259,18 @@ func (s *Store) OpenForConversation(convID string) (Task, bool, error) {
 	return t, err == nil, err
 }
 
+// ForConversation returns the profile's newest task on conversation convID in
+// any status, for deciding what the conversation is (an application-apply one
+// stays confined after its task is over); ok is false when there is none.
+func (s *Store) ForConversation(convID string) (Task, bool, error) {
+	t, err := scanTask(s.DB.QueryRow(`SELECT `+taskColumns+` FROM ai_tasks WHERE profile_id = ? AND conversation_id = ?
+		ORDER BY created_at DESC, id DESC LIMIT 1`, s.Profile, convID))
+	if errors.Is(err, sql.ErrNoRows) {
+		return Task{}, false, nil
+	}
+	return t, err == nil, err
+}
+
 // Rebind hands an open task to a new turn: it mints the token that turn runs
 // with (the old one stops working), records pid as the process that holds it,
 // and puts the task back to running, in one conditional update. It does

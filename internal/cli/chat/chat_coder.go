@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"math"
 	"os"
 	"strings"
 
@@ -87,9 +86,8 @@ func turnBudget(operator float64, turn *float64, runtime string) (float64, error
 	if turn == nil {
 		return operator, nil
 	}
-	if *turn <= 0 || math.IsNaN(*turn) {
-		return 0, &coderError{code: "no_budget", err: &clicore.Error{Code: 3,
-			Msg: fmt.Sprintf("--budget-usd %v means no spend: the turn was not run (a budget of 0 is never unlimited)", *turn)}}
+	if !validTurnCap(*turn) {
+		return 0, noBudgetError(*turn)
 	}
 	if runtime == "kilo" {
 		return 0, &coderError{code: "budget_unenforceable", err: &clicore.Error{Code: 3,
@@ -333,6 +331,11 @@ func coderFolder(cmd *cobra.Command, cfg *Deps, c coderFolderChoice, runtime str
 // createCoderConversation is `chat history create` above the scoped level
 // (--mode coder is full); runtimeID "" means claude.
 func createCoderConversation(cmd *cobra.Command, cfg *Deps, access, runtimeID, model, effort, workflowID string, folder coderFolderChoice) (ai.Conversation, error) {
+	// A conversation above scoped is a raise from nothing: an agent, the chat or
+	// a workflow must not make itself a full-access one to run next.
+	if err := clicore.RequireOperator(cfg.RequireOperator, "create a conversation above the scoped level"); err != nil {
+		return ai.Conversation{}, err
+	}
 	if runtimeID == "" {
 		runtimeID = monomind.DefaultCoderRuntime
 	}

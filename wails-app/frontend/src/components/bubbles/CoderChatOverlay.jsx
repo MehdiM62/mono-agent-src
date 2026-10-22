@@ -13,6 +13,7 @@ import { LEAD_ID } from '../../lib/orgStage.js'
 import { OrgStage } from '../stage/OrgStage.jsx'
 import { StageDrawer } from '../stage/StageDrawer.jsx'
 import './bubbles.css'
+import { isModalOpenAbove } from './modalAbove.js'
 
 const mono = 'var(--font-mono)'
 const CLOSE_MS = 170
@@ -20,7 +21,7 @@ const CLOSE_MS = 170
 // isModalOpen reports whether a dialog is open on top of the overlay
 // (ConfirmDialog renders role="dialog" aria-modal="true").
 function isModalOpen() {
-  return !!document.querySelector('[aria-modal="true"]')
+  return isModalOpenAbove()
 }
 
 // shownTurn is the turn the stage shows: the running one, else the last
