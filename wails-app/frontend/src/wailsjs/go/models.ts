@@ -1258,6 +1258,9 @@ export namespace main {
 	    }
 	}
 	export class AccessChange {
+	    ok: boolean;
+	    code: string;
+	    current: string;
 	    conversation: Conversation;
 	    previousAccess: string;
 	    lowered: LoweredEffects;
@@ -1268,6 +1271,9 @@ export namespace main {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ok = source["ok"];
+	        this.code = source["code"];
+	        this.current = source["current"];
 	        this.conversation = this.convertValues(source["conversation"], Conversation);
 	        this.previousAccess = source["previousAccess"];
 	        this.lowered = this.convertValues(source["lowered"], LoweredEffects);
@@ -1290,6 +1296,40 @@ export namespace main {
 		    }
 		    return a;
 		}
+	}
+	export class ChatConversationRecord {
+	    ok: boolean;
+	    code: string;
+	    id: string;
+	    title: string;
+	    access: string;
+	    mode: string;
+	    runtime: string;
+	    model: string;
+	    effort: string;
+	    cwd: string;
+	    orgMode: string;
+	    workflowContext: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ChatConversationRecord(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ok = source["ok"];
+	        this.code = source["code"];
+	        this.id = source["id"];
+	        this.title = source["title"];
+	        this.access = source["access"];
+	        this.mode = source["mode"];
+	        this.runtime = source["runtime"];
+	        this.model = source["model"];
+	        this.effort = source["effort"];
+	        this.cwd = source["cwd"];
+	        this.orgMode = source["orgMode"];
+	        this.workflowContext = source["workflowContext"];
+	    }
 	}
 	export class Conversation {
 	    id: string;

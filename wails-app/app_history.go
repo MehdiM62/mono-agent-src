@@ -159,23 +159,58 @@ type LoweredEffects struct {
 	TaskRevoked    bool       `json:"taskRevoked"`
 }
 
-// AccessChange is the result of SetChatAccess. Lowered is set for a lowering.
+// AccessChange is the result of SetChatAccess. OK is false, with Code and
+// Current, when the change was refused before the CLI was asked: access_changed
+// (the real level is not the one the caller saw), expected_required,
+// confirm_required (a raise without ConfirmedRaise). Lowered is set for a
+// lowering; its Survivors are processes that could not be stopped, which is a
+// lowering that happened, not a failure.
 type AccessChange struct {
+	OK             bool            `json:"ok"`
+	Code           string          `json:"code"`
+	Current        string          `json:"current"`
 	Conversation   Conversation    `json:"conversation"`
 	PreviousAccess string          `json:"previousAccess"`
 	Lowered        *LoweredEffects `json:"lowered"`
 }
 
-// SetChatAccess is `chat history set-access`. Raising is the operator's and
-// the GUI window is the operator; a scoped conversation raised gets the
-// profile's folder.
-func (a *App) SetChatAccess(id, level string) (AccessChange, error) {
+// recordAccess is a conversation row's level, from its mode for an old row.
+func recordAccess(r ai.ConversationRecord) string {
+	if ai.ValidAccess(r.Access) {
+		return r.Access
+	}
+	return ai.AccessForMode(r.Mode)
+}
+
+// SetChatAccess is `chat history set-access`, guarded at this boundary: it
+// reads the conversation's real level from the CLI first and refuses when that
+// is not expectedCurrent (the level the UI believes; always required, so a
+// stale cached level can't change anything), and refuses a raise unless
+// confirmedRaise. The GUI window is the operator, so the CLI would let it
+// raise; the confirm is the user's click on the raise prompt. A lowering needs
+// no confirm. A change between this read and the CLI's own is settled by the
+// CLI: its previous_access is what comes back. A scoped conversation raised
+// gets the profile's folder.
+func (a *App) SetChatAccess(id, level, expectedCurrent string, confirmedRaise bool) (AccessChange, error) {
 	if err := a.signedOut(); err != nil {
 		return AccessChange{}, err
+	}
+	if !ai.ValidAccess(level) {
+		return AccessChange{}, fmt.Errorf("unknown access %q (scoped, coding, workspace or full)", level)
+	}
+	if expectedCurrent == "" {
+		return AccessChange{Code: "expected_required"}, nil
 	}
 	var cur ai.ConversationRecord
 	if err := a.historyCLI(&cur, "show", id); err != nil {
 		return AccessChange{}, err
+	}
+	real := recordAccess(cur)
+	if real != expectedCurrent {
+		return AccessChange{Code: "access_changed", Current: real}, nil
+	}
+	if ai.AccessRank(level) > ai.AccessRank(real) && !confirmedRaise {
+		return AccessChange{Code: "confirm_required", Current: real}, nil
 	}
 	args := []string{"set-access", id, level}
 	if cur.Cwd == "" && level != ai.AccessScoped {
@@ -194,7 +229,7 @@ func (a *App) SetChatAccess(id, level string) (AccessChange, error) {
 	if err := a.historyCLIKeepingOutput(&raw, args...); err != nil {
 		return AccessChange{}, err
 	}
-	out := AccessChange{Conversation: conversationOf(raw.ConversationRecord), PreviousAccess: raw.Previous}
+	out := AccessChange{OK: true, Current: recordAccess(raw.ConversationRecord), Conversation: conversationOf(raw.ConversationRecord), PreviousAccess: raw.Previous}
 	if l := raw.Lowered; l != nil {
 		out.Lowered = &LoweredEffects{Stopped: l.Stopped, Survivors: l.Survivors, WorkersDropped: l.WorkersDropped, TaskRevoked: l.TaskRevoked}
 		if out.Lowered.Stopped == nil {
@@ -205,6 +240,46 @@ func (a *App) SetChatAccess(id, level string) (AccessChange, error) {
 		}
 	}
 	return out, nil
+}
+
+// ChatConversationRecord is what the chat pane needs of one conversation. OK
+// is false with Code "not_found" for an unknown id.
+type ChatConversationRecord struct {
+	OK              bool   `json:"ok"`
+	Code            string `json:"code"`
+	ID              string `json:"id"`
+	Title           string `json:"title"`
+	Access          string `json:"access"`
+	Mode            string `json:"mode"`
+	Runtime         string `json:"runtime"`
+	Model           string `json:"model"`
+	Effort          string `json:"effort"`
+	Cwd             string `json:"cwd"`
+	OrgMode         string `json:"orgMode"`
+	WorkflowContext string `json:"workflowContext"`
+}
+
+// GetChatConversationRecord reads one conversation from the CLI
+// (`chat history list --all --id`), with the same redacted title the history
+// list shows.
+func (a *App) GetChatConversationRecord(id string) (ChatConversationRecord, error) {
+	if err := a.signedOut(); err != nil {
+		return ChatConversationRecord{}, err
+	}
+	if id == "" {
+		return ChatConversationRecord{Code: "not_found"}, nil
+	}
+	var page HistoryPage
+	if err := a.historyCLI(&page, "list", "--all", "--id", id, "--limit", "1"); err != nil {
+		return ChatConversationRecord{}, err
+	}
+	for _, r := range page.Items {
+		if r.ID == id {
+			return ChatConversationRecord{OK: true, ID: r.ID, Title: r.Title, Access: r.Access, Mode: r.Mode, Runtime: r.Runtime,
+				Model: r.Model, Effort: r.Effort, Cwd: r.Cwd, OrgMode: r.OrgMode, WorkflowContext: r.WorkflowContext}, nil
+		}
+	}
+	return ChatConversationRecord{Code: "not_found"}, nil
 }
 
 // DeleteChatResult says what DeleteChatConversations did, per id: Active ids
