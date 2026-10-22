@@ -260,6 +260,44 @@ reach `openCoderChat`. Attach points: Apply (`ApplicationsProcessPendingFlow.jsx
 3. No files-by-application restriction exists in `browserctl`; it is new code (attachment grants, §4b.4).
 4. `ai.task` nodes only queue, never run, because unattended + full access is forbidden.
 
+## 11. One chat surface (decided 2026-10-22; supersedes the "GUI follow-up" of #959)
+
+User decisions: every circle (bubble) is one parallel session or one org run; the access level and every control for the
+coder live in that session's pane; the chat history moves up to the main bar and lists chat runs and org runs together; the
+assistant panel (`AIChatPanel.jsx`) is merged in and removed. Security line kept from 4b.8: the pane shows the access level
+and may lower it, the budget cap and the browser level the same way; raising any of them is an explicit action in the GUI
+window (which runs as the operator) or in Settings, never an agent-reachable path, and the global Settings page stays for
+everything global (coder defaults, browser permissions per kind, budgets, org settings).
+
+Findings (map, 2026-10-22, read from code): the panel has ONE mount (`workflowID` always `general`) and its canvas mode is dead
+code; extension chats are rows in the same table (`general`, scoped) and will appear in the unified list unchanged. Bubbles
+are coder-only today (`createCoderConversation` is the only creator) and lack: scoped/assistant chats, a past-sessions list,
+clear history, runtime scan states, artifact cards. The panel lacks: attachments, asks, stage, task header, cost chip, rings.
+No title, status or task link on the conversation row. Org bubbles are keyed by org name, not run. Three exports move out of
+the panel first: `MessageBubble`, `newTurnId`, `composeLiveAnnouncement`.
+
+Waves (each merges to `integration/aitask` before the next; file ownership per wave):
+- **U1 Go: unified history and bindings.** `chat history list --all` (new file; task join, latest turn status, derived title
+  from the task goal or first user turn, application link) plus org run summaries (one row per org run, from the monomind
+  report; cached); `ListHistory` binding; `CreateChatConversation` with an access argument; `SetChatAccess` (lower is anyone's,
+  raise runs as the GUI operator with a confirm); a `coder set --default-access` (operator-only, default `scoped`) so new chats
+  start at the level the operator chose. Check whether org events carry a run id.
+- **U2 Frontend core: the pane.** Bubble kinds chat|org with access, title and (if available) run id; v2 persistence key with a
+  tolerant loader; scoped chats in a bubble (no folder, tools toggles, any installed runtime as in the panel); header chips and
+  a settings popover (runtime, model, effort, access level, cost vs cap, browser level for the conversation's kind, org mode,
+  tools); Agents page and the status-bar chat toggle open a bubble draft instead of the panel; shared exports moved to `chat/`.
+- **U3 Frontend: history in the main bar.** A history list (all chats and org runs, search, filter by kind/status/application,
+  clear/delete with the active-turn guard, open into a bubble; bubbles stay capped at 6 visible, the list holds the rest).
+- **U4 Port and delete.** Port the panel's tests (live region announcements, scan retry, runtime models, disabledReason banner,
+  Escape layering, setup link) to the bubble components, then delete `AIChatPanel.jsx` and `CoderModePicker`.
+- **U5 Orgs per run.** One circle per org run if events carry the run id; otherwise one circle per org showing its latest run,
+  older runs from the history list.
+- **U6 Verification.** Browser pass (headless, stubbed bindings and one pass against a scratch-HOME `wails dev`), codex review of
+  U1-U5, full Go + wails-app + frontend + extension suites.
+Risks: assistant vs coder semantics in one bubble (scoped has tools and no folder; coder-ready runtimes vs any installed runtime);
+org run identity; N+1 queries for history status; losing panel a11y behaviours; localStorage key migration.
+Not yet decided and defaulted: titles are derived (no rename) until the user asks; new chats default to scoped.
+
 ## 6. Verification
 
 - Unit: routing matrix (kind × coder enabled/disabled × caller kind); result-schema refusal and retry; context-folder escape
