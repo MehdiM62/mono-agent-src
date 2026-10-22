@@ -244,24 +244,63 @@ func TestOtherConversationsKeepTheCoderKind(t *testing.T) {
 	}
 }
 
-func TestApplyKindNeedsAnOperatorAndAnOpenTaskOfThisProfile(t *testing.T) {
-	for name, tc := range map[string]struct {
-		profile, status string
-		operator        error
-	}{
-		"agent-run":     {"default", aitask.StatusNeedsUser, errors.New("an agent is running this")},
-		"complete":      {"default", aitask.StatusComplete, nil},
-		"failed":        {"default", aitask.StatusFailed, nil},
-		"cancelled":     {"default", aitask.StatusCancelled, nil},
-		"queued":        {"default", aitask.StatusQueued, nil},
-		"other profile": {"someone-else", aitask.StatusNeedsUser, nil},
-	} {
+// Confinement is a property of the conversation: an application-apply
+// conversation runs every later turn confined, as the apply kind, with no
+// task token, even once its task is complete, failed or cancelled.
+func TestApplyConversationStaysConfinedAfterItsTaskIsOver(t *testing.T) {
+	for _, status := range []string{aitask.StatusComplete, aitask.StatusFailed, aitask.StatusCancelled} {
 		r := newTaskRig(t)
-		r.taskOfKind(t, tc.profile, tc.status, "application-apply")
-		r.turn(t, "t1", tc.operator)
-		if got := r.kind(t); got != "coder" {
-			t.Errorf("%s: ran as %q, want coder", name, got)
+		task, _ := r.taskOfKind(t, "default", status, "application-apply")
+		if err := r.turnErr(t, "t1", nil); err != nil {
+			t.Fatalf("%s: %v", status, err)
 		}
+		if got := r.kind(t); got != "apply" {
+			t.Errorf("%s: the follow-up ran as %q, want apply", status, got)
+		}
+		logged, _ := os.ReadFile(r.argsLog)
+		if strings.Contains(string(logged), "--access full") {
+			t.Errorf("%s: the follow-up ran with full access", status)
+		}
+		if !strings.Contains(string(logged), "--allow-bash-prefix") {
+			t.Errorf("%s: the follow-up ran without the confined command list", status)
+		}
+		if id, token := r.env(t); id != "" || token != "" {
+			t.Errorf("%s: a finished task handed out its env %q %q", status, id, token)
+		}
+		st, done := r.store(t, "default")
+		got, _ := st.Get(task.ID)
+		if got.Status != status {
+			t.Errorf("%s: the task moved to %s", status, got.Status)
+		}
+		done()
+	}
+}
+
+// A generic task's conversation after it is over is an ordinary coder turn,
+// and an application one is never run by anyone but the operator.
+func TestOnlyApplyConversationsKeepTheirConfinement(t *testing.T) {
+	r := newTaskRig(t)
+	r.task(t, "default", aitask.StatusComplete)
+	r.turn(t, "t1", nil)
+	if got := r.kind(t); got != "coder" {
+		t.Errorf("a finished generic task's conversation ran as %q", got)
+	}
+	for _, status := range []string{aitask.StatusNeedsUser, aitask.StatusComplete} {
+		r := newTaskRig(t)
+		r.taskOfKind(t, "default", status, "application-apply")
+		if err := r.turnErr(t, "t1", errors.New("an agent is running this")); err == nil {
+			t.Errorf("an agent ran a follow-up on a %s application task's conversation", status)
+		}
+		if logged, _ := os.ReadFile(r.argsLog); strings.Contains(string(logged), "agent exec") {
+			t.Errorf("%s: the agent's follow-up reached the runtime", status)
+		}
+	}
+	// Another profile's task row decides nothing here.
+	r = newTaskRig(t)
+	r.taskOfKind(t, "someone-else", aitask.StatusComplete, "application-apply")
+	r.turn(t, "t1", nil)
+	if got := r.kind(t); got != "coder" {
+		t.Errorf("another profile's application task confined this conversation: %q", got)
 	}
 }
 
@@ -346,14 +385,16 @@ func TestApplyTaskTurnIsConfinedNotFullAccess(t *testing.T) {
 
 // Without a snapshot of the task's context the turn is refused: never run as a coder.
 func TestApplyTaskTurnIsRefusedWithoutASnapshot(t *testing.T) {
-	r := newTaskRig(t)
-	r.taskOfKind(t, "default", aitask.StatusNeedsUser, "application-apply")
-	snapshotContext = func(*Deps, string) (string, error) { return "", errors.New("no snapshot") }
-	if err := r.turnErr(t, "t1", nil); err == nil {
-		t.Fatal("the turn ran")
-	}
-	if b, _ := os.ReadFile(r.argsLog); strings.Contains(string(b), "agent exec") {
-		t.Fatalf("monomind ran: %s", b)
+	for _, status := range []string{aitask.StatusNeedsUser, aitask.StatusComplete, aitask.StatusFailed, aitask.StatusCancelled} {
+		r := newTaskRig(t)
+		r.taskOfKind(t, "default", status, "application-apply")
+		snapshotContext = func(*Deps, string) (string, error) { return "", errors.New("no snapshot") }
+		if err := r.turnErr(t, "t1", nil); err == nil {
+			t.Fatalf("%s: the turn ran", status)
+		}
+		if b, _ := os.ReadFile(r.argsLog); strings.Contains(string(b), "agent exec") {
+			t.Fatalf("%s: monomind ran: %s", status, b)
+		}
 	}
 }
 
