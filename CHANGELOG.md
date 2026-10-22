@@ -108,6 +108,10 @@ Every command, tool and request that acts on a profile now names that profile. T
 - **`workflow validate` checks node settings against each node's schema.** Workflows with a missing required field, an unknown option or a dangling `$node[...]` reference now fail validation where they used to pass. Saving, activating and running are unchanged; scripts that check validate's exit code may start failing.
 - **`install.sh` installs to `~/.local/bin` when `/usr/local/bin` needs sudo**, and warns if an older copy elsewhere on your PATH would run instead.
 
+### Fixed
+
+- **Deleting a profile no longer fails with `FOREIGN KEY constraint failed`.** Rows of other profiles (or of none) that still named one of its people, such as a post or a workflow node target, blocked the delete. The reference is now cleared and the profile and everything it owns go.
+
 ### Security
 
 - **Animated PNG is refused (imagecheck).** An APNG used to pass the image check; a PNG with an `acTL` chunk is now refused, and the scan stays bounded.
