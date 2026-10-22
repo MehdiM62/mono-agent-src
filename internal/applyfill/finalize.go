@@ -102,6 +102,9 @@ func recordFor(db *sql.DB, profile string, res Result, extraRoots []string) (app
 	// The screenshot is kept when it is a file of the profile folder or of a
 	// folder the caller names (the task's own working folder).
 	for _, root := range append([]string{profiledir.Root(db, profile)}, extraRoots...) {
+		if root == "" {
+			continue
+		}
 		if p, err := insideFolder(root, res.Screenshot); err == nil {
 			f.Screenshot = p
 			break

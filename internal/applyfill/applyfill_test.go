@@ -266,3 +266,28 @@ func TestSourcesAreTheThreeClassesAndNothingElse(t *testing.T) {
 		t.Errorf("goal = %q", in.Goal())
 	}
 }
+
+func TestFinalizeKeepsAScreenshotInTheTasksWorkFolder(t *testing.T) {
+	db, _ := fixture(t)
+	app := newApp(t, db)
+	work := t.TempDir()
+	shot := filepath.Join(work, "shot.png")
+	if err := os.WriteFile(shot, []byte("png"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	task := completed(t, app, Result{Status: StatusFilled, Screenshot: shot, Fields: []Field{}})
+	if err := Finalize(bg, db, profile, task, work); err != nil {
+		t.Fatal(err)
+	}
+	fill, _ := applications.NewStore(db).GetFill(bg, profile, app.ID)
+	if fill.Screenshot == "" {
+		t.Fatal("a screenshot in the task's work folder was dropped")
+	}
+	// Without the work folder as a root, the same path is not kept.
+	if err := Finalize(bg, db, profile, task); err != nil {
+		t.Fatal(err)
+	}
+	if fill, _ = applications.NewStore(db).GetFill(bg, profile, app.ID); fill.Screenshot != "" {
+		t.Fatal("a screenshot outside every allowed folder was kept")
+	}
+}

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -227,6 +228,16 @@ func (d Deps) linkTask(ctx context.Context, store *applications.Store, id string
 	return store.RecordFill(ctx, profile, id, applications.Fill{Status: applications.FillFilling})
 }
 
+// taskWorkDir is the task's own working folder, where its screenshot is
+// kept (<db dir>/aitask/<task>/work); "" when the database path is unknown.
+func taskWorkDir(taskID string) string {
+	if FillStartWiring.DBPath == nil {
+		return ""
+	}
+	snapshot := aitask.SnapshotDir(filepath.Dir(clicore.ExpandPath(FillStartWiring.DBPath())), taskID)
+	return filepath.Join(filepath.Dir(snapshot), "work")
+}
+
 func (d Deps) newFillSyncCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "sync <id>",
@@ -252,7 +263,7 @@ func (d Deps) newFillSyncCmd() *cobra.Command {
 			if t == nil || t.Kind != applyfill.Kind {
 				return d.NotFound("application %s has no %s task", args[0], applyfill.Kind)
 			}
-			if err := applyfill.Finalize(cmd.Context(), db.DB, d.ProfileID(), *t); err != nil {
+			if err := applyfill.Finalize(cmd.Context(), db.DB, d.ProfileID(), *t, taskWorkDir(t.ID)); err != nil {
 				if errors.Is(err, applyfill.ErrNotFinished) {
 					return d.writeJSON(cmd, map[string]any{"applicationId": app.ID, "taskId": t.ID, "taskStatus": t.Status, "recorded": false})
 				}

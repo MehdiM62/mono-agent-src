@@ -53,7 +53,7 @@ func taskTurn(cfg *Deps, conversationID string) (run taskRun) {
 	apply := t.Kind == applyfill.Kind
 	if apply {
 		run.kind = browserctl.KindApply
-		if run.confine, err = confineApplyTurn(cfg.ProfileID(), t.ID); err != nil {
+		if run.confine, err = confineApplyTurn(cfg, t.ID); err != nil {
 			run.kind, run.err = browserctl.KindCoder, err
 			return run
 		}
