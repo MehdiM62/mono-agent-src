@@ -589,3 +589,35 @@ func TestSnapshotContextRefusesAChangedOriginalAndLeavesNoCopy(t *testing.T) {
 		t.Fatal("a refused snapshot left a copy")
 	}
 }
+
+// A result is cleaned before it is stored: a password-labelled field, a value
+// under a secret-named key, and key-shaped strings never reach result_json.
+func TestCompleteStoresNoSecrets(t *testing.T) {
+	s, l := newService(t)
+	task := submit(t, s)
+	result := `{"summary":"filled the form","fields":[
+		{"label":"Full name","value":"Ada Lovelace"},
+		{"label":"Password","value":"hunter2"},
+		{"label":"Verification code (OTP)","value":"481516"},
+		{"label":"Card number","value":4111111111111111},
+		{"label":"Website","value":"sk-live-0123456789abcdef"}],
+		"api_key":"abc","note":"ghp_0123456789abcdefghij","nested":{"cvv":"123"}}`
+	done, err := s.Complete(task.ID, l.tokens[0], []byte(result))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var stored string
+	if err := s.Store.DB.QueryRow(`SELECT result_json FROM ai_tasks WHERE id = ?`, task.ID).Scan(&stored); err != nil {
+		t.Fatal(err)
+	}
+	for _, leaked := range []string{"hunter2", "481516", "4111111111111111", "sk-live", "ghp_", `"abc"`, `"123"`} {
+		if strings.Contains(stored, leaked) || strings.Contains(string(done.Result), leaked) {
+			t.Errorf("%q reached result_json: %s", leaked, stored)
+		}
+	}
+	for _, kept := range []string{"Ada Lovelace", "filled the form", `"Password"`} {
+		if !strings.Contains(stored, kept) {
+			t.Errorf("%q was lost from the result: %s", kept, stored)
+		}
+	}
+}

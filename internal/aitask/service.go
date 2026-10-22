@@ -283,7 +283,8 @@ func (s *Service) Complete(id, token string, result []byte) (Task, error) {
 		return Task{}, &Error{Code: CodeSchemaInvalid, Fields: map[string]any{"reason": err.Error()},
 			Message: "the result does not match the " + kind.Name + " schema: " + err.Error() + ". Fix the file and run complete again."}
 	}
-	compact, _ := json.Marshal(v)
+	// Secrets leave the result before it is stored, whatever the agent wrote.
+	compact, _ := json.Marshal(RedactResult(v))
 	if s.Redact != nil {
 		compact = []byte(s.Redact(string(compact)))
 	}
