@@ -71,7 +71,7 @@ export function BubbleDock({ store, onOpen, onClose, registerEl, canCreate = tru
     setDragKey('')
   }
   const bubbleProps = b => ({
-    key: b.key, bubble: b, summary: store.summaryOf(b.key), expanded: b.key === expandedKey,
+    bubble: b, summary: store.summaryOf(b.key), expanded: b.key === expandedKey,
     onOpen: k => { setFanOpen(false); onOpen(k) }, onClose, onDragStart: setDragKey, onDropOn,
     dragging: dragKey === b.key, registerEl, titleOf,
   })
@@ -80,7 +80,7 @@ export function BubbleDock({ store, onOpen, onClose, registerEl, canCreate = tru
 
   return (
     <div className={`bubble-dock ${side}`} data-testid="bubble-dock" role="toolbar" aria-label={t('bubbles.dockLabel')}>
-      {visible.map(b => <ChatBubble {...bubbleProps(b)} />)}
+      {visible.map(b => <ChatBubble key={b.key} {...bubbleProps(b)} />)}
       {overflow.length > 0 && (
         <div className="bubble-wrap">
           <button type="button" className="bubble" data-status="idle" onClick={() => setFanOpen(o => !o)}
@@ -90,7 +90,7 @@ export function BubbleDock({ store, onOpen, onClose, registerEl, canCreate = tru
           </button>
           {fanOpen && (
             <div className="bubble-overflow" data-testid="bubble-overflow">
-              {overflow.map(b => <ChatBubble {...bubbleProps(b)} />)}
+              {overflow.map(b => <ChatBubble key={b.key} {...bubbleProps(b)} />)}
             </div>
           )}
         </div>
