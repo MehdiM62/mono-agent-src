@@ -3,6 +3,8 @@ package aitask
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -49,6 +51,22 @@ func (l selfLauncher) Ready(context.Context) error {
 			Fields:  map[string]any{"fallback": "oneshot"}}
 	}
 	return nil
+}
+
+// Policy fingerprints the coder settings in force.
+func (l selfLauncher) Policy(context.Context) (string, error) {
+	db, err := l.d.OpenDB()
+	if err != nil {
+		return "", fmt.Errorf("initializing database: %w", err)
+	}
+	defer db.Close()
+	s, err := chatcli.LoadSettings(db.DB)
+	if err != nil {
+		return "", err
+	}
+	b, _ := json.Marshal(s)
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:]), nil
 }
 
 func (l selfLauncher) CreateConversation(ctx context.Context, runtime string) (aitask.Conversation, error) {

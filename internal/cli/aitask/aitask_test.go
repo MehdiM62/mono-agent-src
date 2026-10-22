@@ -22,7 +22,8 @@ type fake struct {
 	detached []string
 }
 
-func (f *fake) Ready(context.Context) error { return nil }
+func (f *fake) Ready(context.Context) error            { return nil }
+func (f *fake) Policy(context.Context) (string, error) { return "p", nil }
 func (f *fake) CreateConversation(context.Context, string) (aitask.Conversation, error) {
 	return aitask.Conversation{ID: "conv-9", Cwd: f.cwd, Runtime: "claude"}, nil
 }

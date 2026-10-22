@@ -21,6 +21,8 @@ const (
 	CodeWaitTimeout        = "wait_timeout"
 	CodeNotQueued          = "not_queued"
 	CodeTaskNotOnYourBoard = "not_your_task"
+	CodeContextChanged     = "context_changed"
+	CodeCapsChanged        = "capabilities_changed"
 )
 
 // Error is a refusal with a machine-readable code. Fields are added to the

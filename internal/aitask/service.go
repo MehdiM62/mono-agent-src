@@ -37,6 +37,9 @@ type Launcher interface {
 	// Ready is nil when a coder conversation can be created, else the refusal
 	// (an *Error with CodeCoderDisabled when coder mode is off).
 	Ready(ctx context.Context) error
+	// Policy is a fingerprint of the settings a task runs under (the coder
+	// settings): `start` refuses a task whose policy has changed since submit.
+	Policy(ctx context.Context) (string, error)
 	CreateConversation(ctx context.Context, runtime string) (Conversation, error)
 	// Detach starts the process that runs task id's turn, with EnvTaskID and
 	// EnvToken in its environment, and returns without waiting for it.
@@ -91,14 +94,8 @@ func (s *Service) Submit(ctx context.Context, in SubmitInput) (Task, error) {
 	if access == "" {
 		access = AccessCoding
 	}
-	if in.Unattended {
-		if FullAccess(access) {
-			return Task{}, errf(CodeUnattendedFull, "--unattended needs a task that can't change anything (--access qa): "+
-				"the %s level has full access to this computer, and nobody would be there to see it", access)
-		}
-		if !kind.UnattendedOK {
-			return Task{}, errf(CodeInvalidInput, "kind %s can't run unattended", kind.Name)
-		}
+	if err := checkUnattended(kind, access, in.Unattended); err != nil {
+		return Task{}, err
 	}
 	if err := s.Launcher.Ready(ctx); err != nil {
 		return Task{}, err
@@ -117,6 +114,15 @@ func (s *Service) Submit(ctx context.Context, in SubmitInput) (Task, error) {
 	if t.Prompt, err = BuildPrompt(kind, t, files); err != nil {
 		return Task{}, err
 	}
+	t.Cwd = conv.Cwd
+	if t.ContextHash, err = ContextHash(conv.Cwd, t.ID); err != nil {
+		return Task{}, err
+	}
+	policy, err := s.Launcher.Policy(ctx)
+	if err != nil {
+		return Task{}, err
+	}
+	t.CapsHash = CapsHash(t, kind, policy)
 	if t, err = s.Store.Insert(t); err != nil {
 		return Task{}, err
 	}
@@ -126,12 +132,32 @@ func (s *Service) Submit(ctx context.Context, in SubmitInput) (Task, error) {
 	return s.Start(ctx, t.ID)
 }
 
+func checkUnattended(kind Kind, access string, unattended bool) error {
+	if !unattended {
+		return nil
+	}
+	if FullAccess(access) {
+		return errf(CodeUnattendedFull, "--unattended needs a task that can't change anything (--access qa): "+
+			"the %s level has full access to this computer, and nobody would be there to see it", access)
+	}
+	if !kind.UnattendedOK {
+		return errf(CodeInvalidInput, "kind %s can't run unattended", kind.Name)
+	}
+	return nil
+}
+
 // Start runs a queued task's turn (the person's click for a queued one).
-// Starting a task that is running or over returns it unchanged.
+// Starting a task that is running or over returns it unchanged. Being queued
+// is not permission to run: start re-checks that coder mode is still on, that
+// the context folder and the capabilities are what they were at submit, and
+// refuses (leaving the task queued) when they are not.
 func (s *Service) Start(ctx context.Context, id string) (Task, error) {
 	t, err := s.Store.Get(id)
 	if err != nil || t.Status != StatusQueued {
 		return t, err
+	}
+	if err := s.verifyAtStart(ctx, t); err != nil {
+		return Task{}, err
 	}
 	token := NewToken()
 	if err := s.Store.SetToken(id, token); err != nil {
@@ -149,6 +175,34 @@ func (s *Service) Start(ctx context.Context, id string) (Task, error) {
 		return Task{}, err
 	}
 	return s.Store.Get(id)
+}
+
+func (s *Service) verifyAtStart(ctx context.Context, t Task) error {
+	if err := s.Launcher.Ready(ctx); err != nil {
+		return err
+	}
+	kind, err := Lookup(t.Kind)
+	if err != nil {
+		return err
+	}
+	if err := checkUnattended(kind, t.Access, t.Unattended); err != nil {
+		return err
+	}
+	policy, err := s.Launcher.Policy(ctx)
+	if err != nil {
+		return err
+	}
+	if CapsHash(t, kind, policy) != t.CapsHash {
+		return errf(CodeCapsChanged, "task %s was queued under other settings than are in force now (its access, kind or the coder settings changed): cancel it and submit it again", t.ID)
+	}
+	h, err := ContextHash(t.Cwd, t.ID)
+	if err != nil {
+		return err
+	}
+	if h != t.ContextHash {
+		return errf(CodeContextChanged, "the context folder of task %s changed since it was queued: cancel the task and submit it again", t.ID)
+	}
+	return nil
 }
 
 // Complete records result as task id's result. Only the holder of token may,

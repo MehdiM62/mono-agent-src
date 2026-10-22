@@ -8,6 +8,9 @@
 -- complete or fail the task, bound to its profile, id and conversation); the token itself
 -- is never stored. holder_pid is the process that runs the task's turn; 0 until it starts. application_id is
 -- empty unless the task is about an application. prompt is the first turn's prompt.
+-- cwd, context_hash and caps_hash are what `start` checks before it runs a queued task:
+-- the conversation's folder, a hash of the context folder, and a hash of the effective
+-- capabilities (access, runtime, unattended, the kind and the coder policy) at submit.
 CREATE TABLE IF NOT EXISTS ai_tasks (
     id              TEXT PRIMARY KEY,
     profile_id      TEXT NOT NULL,
@@ -20,6 +23,9 @@ CREATE TABLE IF NOT EXISTS ai_tasks (
     runtime         TEXT NOT NULL DEFAULT '',
     unattended      INTEGER NOT NULL DEFAULT 0,
     prompt          TEXT NOT NULL DEFAULT '',
+    cwd             TEXT NOT NULL DEFAULT '',
+    context_hash    TEXT NOT NULL DEFAULT '',
+    caps_hash       TEXT NOT NULL DEFAULT '',
     token_hash      TEXT NOT NULL DEFAULT '',
     holder_pid      INTEGER NOT NULL DEFAULT 0,
     result_json     TEXT NOT NULL DEFAULT '',
