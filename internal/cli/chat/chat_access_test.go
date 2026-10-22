@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"encoding/json"
 	"errors"
 	"os"
 	"os/exec"
@@ -399,5 +400,41 @@ func TestCreatingAboveScopedIsTheOperators(t *testing.T) {
 	}
 	if out, err := r.history(t, nil, "create", "--runtime", "claude", "--mode", "coder", "--new-workspace"); err != nil {
 		t.Errorf("the operator's create: %v\n%s", err, out)
+	}
+}
+
+// A process that cannot be shown to be the turn's own is not stopped: the
+// lowering still happens, lists it as a survivor and exits 5.
+func TestLoweringReportsTheProcessesItCouldNotStop(t *testing.T) {
+	r := newAccessRig(t, true)
+	c := r.conv(t, ai.AccessFull)
+	c2 := exec.Command("sleep", "60") // no exec-tree token: no identity
+	if err := c2.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { c2.Process.Kill(); c2.Wait() })
+	r.leaveBehind(t, c.ID, c2.Process.Pid)
+
+	out, err := r.setAccess(t, nil, c.ID, "scoped")
+	if exitCodeFor(err) != exitSurvivors {
+		t.Fatalf("exit %d, want %d: %v\n%s", exitCodeFor(err), exitSurvivors, err, out)
+	}
+	// The result, then the error document.
+	var change accessChange
+	if err := json.NewDecoder(strings.NewReader(out)).Decode(&change); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, `"survivors_remain"`) {
+		t.Errorf("no survivors_remain error document: %s", out)
+	}
+	if change.Access != "scoped" || change.Lowered == nil || len(change.Lowered.Survivors) != 1 ||
+		change.Lowered.Survivors[0].Pid != c2.Process.Pid || change.Lowered.Survivors[0].Command != "sleep 60" || change.Lowered.Survivors[0].Reason == "" {
+		t.Errorf("output: %s", out)
+	}
+	if got, _ := r.store.GetConversation(c.ID, "default"); got.Access != ai.AccessScoped {
+		t.Errorf("the level is %q: a survivor must not keep the old one", got.Access)
+	}
+	if !processAlive(c2.Process.Pid) {
+		t.Error("an unidentified process was killed")
 	}
 }
