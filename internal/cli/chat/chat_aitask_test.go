@@ -16,7 +16,7 @@ import (
 
 type taskRig struct {
 	dbPath, convID, envLog, argsLog string
-	bin                    string
+	bin                             string
 }
 
 // newTaskRig has a coder conversation and a fake monomind that records the
