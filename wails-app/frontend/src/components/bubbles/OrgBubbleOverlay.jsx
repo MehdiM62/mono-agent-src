@@ -13,13 +13,14 @@ import { useRolesAccess } from '../orgdesigner/fullAccess.jsx'
 import { OrgChatView } from './OrgChatView.jsx'
 import { useOrgBubble } from './useOrgBubble.js'
 import './bubbles.css'
+import { isModalOpenAbove } from './modalAbove.js'
 import './asks.css'
 
 const mono = 'var(--font-mono)'
 const CLOSE_MS = 170
 
 function isModalOpen() {
-  return !!document.querySelector('[aria-modal="true"]')
+  return isModalOpenAbove()
 }
 
 function prefersReducedMotion() {
