@@ -11,6 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/monoes/mono-agent/internal/ai"
 	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/dynorg"
 	"github.com/monoes/mono-agent/internal/monomind"
@@ -53,6 +54,11 @@ type coderSettings struct {
 	// and the send gate apply either way, and routing still asks Jev when a
 	// Jev key is set. Only the operator changes it.
 	AppAccess *bool `json:"appAccess,omitempty"`
+	// DefaultAccess is the level an operator-run `chat history create`
+	// without --access/--mode makes when coder mode is ready: scoped (the
+	// default), coding, workspace or full. Only the operator changes it, and
+	// an agent-run creation never takes it (chat_default_access.go).
+	DefaultAccess string `json:"defaultAccess,omitempty"`
 }
 
 const (
@@ -94,6 +100,9 @@ func (s coderSettings) withDefaults() coderSettings {
 	if s.AppAccess == nil {
 		on := true
 		s.AppAccess = &on
+	}
+	if !ai.ValidAccess(s.DefaultAccess) {
+		s.DefaultAccess = ai.AccessScoped
 	}
 	return s
 }
@@ -299,6 +308,7 @@ func coderSettingsCmd(cfg *Deps, use, short string, change func(cmd *cobra.Comma
 			fmt.Fprintf(cmd.OutOrStdout(), "enabled: %v\nworkspace root: %s\nmax turns: %d\ntimeout: %s\nbudget: $%g\nready: %v\n",
 				st.Enabled, st.WorkspaceRoot, st.MaxTurns, st.Timeout, st.BudgetUSD, st.Ready)
 			fmt.Fprintf(cmd.OutOrStdout(), "app access (profile summary in prompts, org workers' MonoAgent surfaces): %s\n", onOff(st.appAccess()))
+			fmt.Fprintf(cmd.OutOrStdout(), "default access for new chats: %s\n", st.DefaultAccess)
 			if !st.Ready {
 				fmt.Fprintf(cmd.OutOrStdout(), "missing monomind capabilities: %v\n", st.MissingCapabilities)
 			}
