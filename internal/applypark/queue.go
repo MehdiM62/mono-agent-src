@@ -47,7 +47,9 @@ const (
 // when ctx ends (then the applications not yet started are reported
 // not_started). It never runs unattended.
 type Queue struct {
-	Store  Store
+	Store Store
+	// Slots reserves the cap across every queue process of the profile.
+	Slots  Slots
 	Max    int
 	Runner Runner
 	// Tick is how often a full queue looks again for a freed slot.
@@ -88,6 +90,11 @@ func (q Queue) Run(ctx context.Context, ids []string) ([]Outcome, error) {
 		}
 	}
 	finish := func(o Outcome) {
+		// The slot is given back before anyone is woken: a fill that parked now
+		// holds its slot as a tab, one that did not holds none.
+		write.Lock()
+		_ = q.Slots.Release(context.Background(), o.ApplicationID)
+		write.Unlock()
 		mu.Lock()
 		outcomes[o.ApplicationID] = o
 		delete(running, o.ApplicationID)
@@ -136,33 +143,40 @@ func (q Queue) Run(ctx context.Context, ids []string) ([]Outcome, error) {
 
 	next := 0
 	for {
-		if ctx.Err() == nil && next < len(ids) {
-			occupied, err := q.Store.Occupied(ctx)
+		if ctx.Err() == nil {
+			write.Lock()
+			err := q.Slots.Renew(ctx)
+			write.Unlock()
+			if err != nil {
+				q.logf("renewing slots: %v", err)
+			}
+		}
+		for ctx.Err() == nil && next < len(ids) {
+			id := ids[next]
+			mu.Lock()
+			_, dup := running[id]
+			mu.Unlock()
+			if dup {
+				next++
+				continue
+			}
+			write.Lock()
+			ok, err := q.Slots.Reserve(ctx, id, max)
+			write.Unlock()
 			if err != nil {
 				wg.Wait()
 				return q.report(ids, outcomes), err
 			}
+			if !ok {
+				break
+			}
+			next++
 			mu.Lock()
-			busy := 0
-			for id := range running {
-				// A running fill whose tab is already bound is counted once, as a tab.
-				if t, _ := q.Store.Get(ctx, id); t == nil || (t.State != StateParked && t.State != StateActive) {
-					busy++
-				}
-			}
-			for next < len(ids) && occupied+busy < max {
-				id := ids[next]
-				next++
-				if _, dup := running[id]; dup {
-					continue
-				}
-				running[id] = true
-				busy++
-				wg.Add(1)
-				q.logf("starting %s (%d of %d slots in use)", id, occupied+busy, max)
-				go runOne(id)
-			}
+			running[id] = true
 			mu.Unlock()
+			wg.Add(1)
+			q.logf("starting %s", id)
+			go runOne(id)
 		}
 		mu.Lock()
 		idle := len(running) == 0

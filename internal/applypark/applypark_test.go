@@ -375,7 +375,7 @@ func queueFixture(t *testing.T, n int) (*fakeRunner, Queue, []string) {
 		ids = append(ids, newApp(t, apps, fmt.Sprintf("https://jobs.example/%d", i)))
 	}
 	r := &fakeRunner{st: st, apps: apps, needsYou: map[string]bool{}, startErr: map[string]error{}}
-	q := Queue{Store: st, Max: 2, Runner: r, Tick: time.Millisecond,
+	q := Queue{Store: st, Slots: slotsFor(st, "queue-1", 1001), Max: 2, Runner: r, Tick: time.Millisecond,
 		Status: func(ctx context.Context, id string) (string, error) {
 			a, err := apps.Get(ctx, profile, id)
 			return string(a.Status), err
@@ -540,6 +540,10 @@ func TestAppliedIsNeverSetByAnyPath(t *testing.T) {
 	}
 }
 
+func slotsFor(st Store, owner string, pid int) Slots {
+	return Slots{DB: st.DB, Profile: st.Profile, Owner: owner, Pid: pid, Alive: func(int) bool { return true }}
+}
+
 // A task may claim only a tab it opened: another task's tab, a tab opened by
 // the person and a tab nobody recorded are all refused, and the owner's
 // binding is untouched.
@@ -579,3 +583,146 @@ func TestATaskCannotClaimAnotherTasksTab(t *testing.T) {
 	}
 }
 
+// Two queue processes of one profile share the cap: with max-parked 1 only one
+// fill starts, and when the holder dies its slot is released.
+func TestTwoQueuesShareTheCapAndADeadOneReleasesIt(t *testing.T) {
+	_, st, apps := fixture(t)
+	x := newApp(t, apps, "https://jobs.example/x")
+	y := newApp(t, apps, "https://jobs.example/y")
+	alive := map[int]bool{101: true, 102: true}
+	mk := func(owner string, pid int) Slots {
+		s := slotsFor(st, owner, pid)
+		s.Alive = func(p int) bool { return alive[p] }
+		return s
+	}
+	q1, q2 := mk("q1", 101), mk("q2", 102)
+	if ok, err := q1.Reserve(bg, x, 1); err != nil || !ok {
+		t.Fatalf("first reserve: %v %v", ok, err)
+	}
+	if ok, err := q2.Reserve(bg, y, 1); err != nil || ok {
+		t.Fatalf("second queue went past the cap: %v %v", ok, err)
+	}
+	if ok, _ := q2.Reserve(bg, x, 5); ok {
+		t.Fatal("another queue took an application already in flight")
+	}
+	// A parked tab counts too: q1's fill parks, and still no room for y.
+	if err := apps.SetStatus(bg, profile, x, applications.StatusAwaitingSubmit, applications.ActorSystem, "f"); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.RecordOpen(bg, "at-x", 30); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Bind(bg, BindRequest{ApplicationID: x, TaskID: "at-x", TabID: 30, Origin: "https://jobs.example",
+		Live: []LiveTab{live(30, "https://jobs.example/a")}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := q1.Release(bg, x); err != nil {
+		t.Fatal(err)
+	}
+	if ok, _ := q2.Reserve(bg, y, 1); ok {
+		t.Fatal("a parked tab did not hold its slot")
+	}
+	// q1 reserves again for another fill and dies: its slot goes with it.
+	z := newApp(t, apps, "https://jobs.example/z")
+	if ok, _ := q1.Reserve(bg, z, 2); !ok {
+		t.Fatal("q1 could not reserve with room")
+	}
+	if ok, _ := q2.Reserve(bg, y, 2); ok {
+		t.Fatal("cap 2: parked x plus in-flight z leave no room")
+	}
+	alive[101] = false
+	if ok, err := q2.Reserve(bg, y, 2); err != nil || !ok {
+		t.Fatalf("a dead queue's slot was not released: %v %v", ok, err)
+	}
+}
+
+func TestAStaleLeaseExpires(t *testing.T) {
+	_, st, apps := fixture(t)
+	x := newApp(t, apps, "https://jobs.example/x")
+	y := newApp(t, apps, "https://jobs.example/y")
+	clock := time.Now()
+	q1 := slotsFor(st, "q1", 1)
+	q1.Now = func() time.Time { return clock }
+	q1.Lease = time.Minute
+	q2 := slotsFor(st, "q2", 2)
+	q2.Now = func() time.Time { return clock }
+	if ok, _ := q1.Reserve(bg, x, 1); !ok {
+		t.Fatal("reserve")
+	}
+	clock = clock.Add(30 * time.Second)
+	if ok, _ := q2.Reserve(bg, y, 1); ok {
+		t.Fatal("a live lease was ignored")
+	}
+	if err := q1.Renew(bg); err != nil {
+		t.Fatal(err)
+	}
+	clock = clock.Add(45 * time.Second) // 75 s after reserving, 45 after renewing
+	if ok, _ := q2.Reserve(bg, y, 1); ok {
+		t.Fatal("a renewed lease expired")
+	}
+	clock = clock.Add(2 * time.Minute)
+	if ok, _ := q2.Reserve(bg, y, 1); !ok {
+		t.Fatal("an expired lease still held its slot")
+	}
+}
+
+// Two real queues over one database never run more fills than the cap.
+func TestTwoQueueRunsNeverExceedTheCap(t *testing.T) {
+	_, st, apps := fixture(t)
+	var ids1, ids2 []string
+	for i := 0; i < 3; i++ {
+		ids1 = append(ids1, newApp(t, apps, fmt.Sprintf("https://jobs.example/a%d", i)))
+		ids2 = append(ids2, newApp(t, apps, fmt.Sprintf("https://jobs.example/b%d", i)))
+	}
+	var inflight, peak int32
+	mkRunner := func() *gateRunner {
+		return &gateRunner{fakeRunner: fakeRunner{st: st, apps: apps, needsYou: map[string]bool{}, startErr: map[string]error{}}, inflight: &inflight, peak: &peak}
+	}
+	mkQueue := func(owner string, pid int, r *gateRunner) Queue {
+		return Queue{Store: st, Slots: slotsFor(st, owner, pid), Max: 1, Runner: r, Tick: time.Millisecond,
+			Status: func(ctx context.Context, id string) (string, error) {
+				a, err := apps.Get(ctx, profile, id)
+				return string(a.Status), err
+			}}
+	}
+	var wg sync.WaitGroup
+	for i, ids := range [][]string{ids1, ids2} {
+		q := mkQueue(fmt.Sprintf("q%d", i), 500+i, mkRunner())
+		wg.Add(1)
+		go func(ids []string) {
+			defer wg.Done()
+			ctx, cancel := context.WithTimeout(bg, 3*time.Second)
+			defer cancel()
+			_, _ = q.Run(ctx, ids)
+		}(ids)
+	}
+	wg.Wait()
+	if peak > 1 {
+		t.Fatalf("%d fills ran at once with max-parked 1 across two queues", peak)
+	}
+	if peak == 0 {
+		t.Fatal("nothing ran")
+	}
+}
+
+// gateRunner counts fills in flight across runners.
+type gateRunner struct {
+	fakeRunner
+	inflight, peak *int32
+}
+
+func (g *gateRunner) Start(ctx context.Context, id string) (string, error) {
+	n := atomic.AddInt32(g.inflight, 1)
+	for {
+		p := atomic.LoadInt32(g.peak)
+		if n <= p || atomic.CompareAndSwapInt32(g.peak, p, n) {
+			break
+		}
+	}
+	return g.fakeRunner.Start(ctx, id)
+}
+
+func (g *gateRunner) Finalize(ctx context.Context, id string) error {
+	defer atomic.AddInt32(g.inflight, -1)
+	return g.fakeRunner.Finalize(ctx, id)
+}
