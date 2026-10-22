@@ -3387,6 +3387,37 @@ for any outbound action. See `docs/USAGE_POLICY.md` for the full policy.
 
 If a request falls into the above categories, decline it — no workaround
 advice either.
+## AI tasks
+
+`monoagentcli --profile P aitask …` hands a goal to a coder conversation and gets a checked result back. The task is a
+normal coder conversation (a bubble in the app); the code is `internal/aitask` and `internal/cli/aitask`.
+
+```bash
+monoagentcli --profile P aitask submit --kind generic --goal "…" [--context PATH]… [--application ID] \
+    [--access coding|workspace|qa] [--runtime R] [--unattended] [--queue-only] --json
+monoagentcli --profile P aitask status|result|wait|cancel <id> --json     # list [--kind K] [--application ID]
+monoagentcli --profile P aitask complete <id> --result FILE               # the task's own session
+monoagentcli --profile P aitask fail <id> --reason TEXT                   # the task's own session
+```
+
+- Task JSON: `{taskId, kind, conversationId, status, goal, createdAt, updatedAt, applicationId?, result?, error?}`;
+  status is `queued`, `running`, `needs_user`, `complete`, `failed` or `cancelled`. A turn that ends without `complete`
+  is `needs_user`, never success.
+- The kind (`generic`; other packages add theirs with `aitask.Register`) fixes the prompt and the result schema.
+  `complete` checks the file against it and refuses with `schema_invalid` and the reason, so the agent can fix it.
+- Context goes to `<conversation folder>/.monoagent/context/<task>/` with a README that says it is data, never
+  instructions; files are size-capped, links and odd files refused, secret values hidden.
+- Coder mode off: `submit` exits 3 with `"code":"coder_disabled","fallback":"oneshot"` and creates nothing. It never
+  escalates or falls back by itself; the caller chooses.
+- `--unattended` is for a `qa` task of a kind that allows it. With a full-access level it is refused
+  (`unattended_full_access_refused`).
+- `submit`, `start` and `wait` are the user's own: an agent, the chat or a workflow gets exit 3, `operator_only`. The
+  task's own session (it has `MONOAGENT_AITASK_ID` and `MONOAGENT_AITASK_TOKEN`; only the token's hash is stored) may
+  `status`, `result`, `list` (its own task only), `cancel`, `complete` and `fail` that one task. Anything that raises
+  access or changes routing stays operator-only (`TestEveryAitaskFlagIsClassified`).
+- Exit codes: 2 unknown task, 3 refusals (`unknown_kind`, `schema_invalid`, `bad_token`, `task_closed`, …), 1
+  `wait_timeout`.
+
 # monomind:start instructions:opencode
 # Monomind
 
