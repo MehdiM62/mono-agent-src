@@ -1,0 +1,86 @@
+/* History drawer: a right-side, non-modal list of every chat and org run.
+   Status colours match the bubble status rings (bubbles.css). */
+.hist-drawer {
+  position: fixed; top: 0; right: 0; bottom: var(--hist-bottom, 26px);
+  width: min(400px, 100vw); z-index: 9400;
+  display: flex; flex-direction: column;
+  background: var(--surface); border-left: 1px solid var(--border-bright);
+  box-shadow: -10px 0 30px rgba(0, 0, 0, 0.45); color: var(--text-primary, #e6edf3);
+  font-size: 12px;
+}
+@media (max-width: 480px) { .hist-drawer { width: 100vw; border-left: none; } }
+.hist-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+.hist-head h2 { flex: 1; margin: 0; font-size: 14px; font-weight: 600; }
+.hist-btn {
+  display: inline-flex; align-items: center; gap: 5px; padding: 5px 9px; min-height: 26px;
+  background: var(--elevated); color: inherit; border: 1px solid var(--border-bright); border-radius: 6px;
+  font: inherit; cursor: pointer;
+}
+.hist-btn:hover:not(:disabled) { border-color: var(--cyan); }
+.hist-btn:disabled { opacity: 0.5; cursor: default; }
+.hist-btn.danger { color: var(--red); border-color: var(--danger-border); }
+.hist-icon-btn { display: inline-flex; padding: 6px; background: none; border: none; color: var(--text-muted); cursor: pointer; border-radius: 6px; }
+.hist-icon-btn:hover { color: var(--cyan); }
+.hist-drawer button:focus-visible, .hist-drawer input:focus-visible, .hist-drawer select:focus-visible { outline: 2px solid var(--cyan); outline-offset: 1px; }
+
+.hist-tools { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+.hist-search { display: flex; align-items: center; gap: 6px; padding: 0 8px; background: var(--base); border: 1px solid var(--border); border-radius: 6px; color: var(--text-muted); }
+.hist-search input { flex: 1; min-width: 0; padding: 7px 0; background: none; border: none; color: var(--text-primary, #e6edf3); font: inherit; outline: none; }
+.hist-search:focus-within { border-color: var(--cyan); }
+.hist-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.hist-chip { padding: 3px 10px; background: transparent; color: var(--text-muted); border: 1px solid var(--border); border-radius: 999px; font: inherit; cursor: pointer; }
+.hist-chip[aria-pressed="true"] { color: var(--cyan-bright); border-color: var(--cyan); background: var(--cyan-glow); }
+.hist-select { padding: 3px 6px; background: var(--base); color: inherit; border: 1px solid var(--border); border-radius: 6px; font: inherit; }
+.hist-actions { display: flex; align-items: center; gap: 8px; min-height: 26px; }
+.hist-count { flex: 1; color: var(--text-muted); }
+
+.hist-banner { display: flex; gap: 8px; align-items: baseline; margin: 0; padding: 7px 12px; color: var(--text-muted); background: var(--base); border-bottom: 1px solid var(--border-dim); }
+.hist-banner[data-tone="warn"] { color: var(--yellow); }
+.hist-link { margin-left: auto; background: none; border: none; color: var(--cyan); font: inherit; cursor: pointer; text-decoration: underline; }
+
+.hist-scroll { flex: 1; overflow-y: auto; min-height: 0; }
+.hist-list, .hist-skeleton { list-style: none; margin: 0; padding: 0; }
+.hist-row { display: grid; grid-template-columns: 22px 1fr; align-items: center; border-bottom: 1px solid var(--border-dim); }
+.hist-row[data-selected="true"] { background: var(--cyan-glow); }
+.hist-check { margin: 0 0 0 8px; accent-color: var(--cyan); }
+.hist-check-gap { width: 22px; }
+.hist-main { display: flex; gap: 8px; align-items: flex-start; width: 100%; min-width: 0; padding: 9px 12px 9px 6px; background: none; border: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.hist-main:hover { background: var(--cyan-glow); }
+.hist-kind { display: inline-flex; padding-top: 2px; color: var(--cyan-dim); }
+.hist-row[data-kind="org"] .hist-kind { color: var(--purple-light); }
+.hist-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.hist-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; }
+.hist-meta { display: flex; flex-wrap: wrap; gap: 4px 8px; color: var(--text-muted); font-size: 11px; }
+.hist-access { padding: 0 6px; border: 1px solid var(--border-bright); border-radius: 999px; }
+.hist-access[data-access="full"] { color: var(--red); border-color: var(--danger-border); }
+.hist-access[data-access="workspace"] { color: var(--orange); }
+.hist-side { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
+.hist-status { display: inline-flex; align-items: center; gap: 6px; }
+.hist-unread { min-width: 16px; padding: 0 4px; border-radius: 8px; background: var(--cyan); color: #04060a; font-size: 10px; font-weight: 700; text-align: center; }
+.hist-dot { width: 9px; height: 9px; border-radius: 50%; background: rgba(0, 180, 216, 0.35); }
+.hist-row[data-status="running"] .hist-dot { background: var(--cyan); box-shadow: 0 0 6px var(--cyan); animation: histPulse 1.4s ease-in-out infinite; }
+.hist-row[data-status="done"] .hist-dot { background: var(--green-neon); }
+.hist-row[data-status="error"] .hist-dot { background: var(--red); }
+.hist-row[data-status="needs"] .hist-dot { background: var(--yellow); animation: histPulse 1.2s ease-in-out infinite; }
+.hist-time { color: var(--text-muted); font-size: 10.5px; white-space: nowrap; }
+.hist-app {
+  grid-column: 2; display: inline-flex; align-items: center; gap: 5px; max-width: calc(100% - 30px); margin: -4px 12px 8px 30px;
+  padding: 2px 8px; background: none; color: var(--cyan); border: 1px solid var(--border); border-radius: 999px; font: inherit; font-size: 11px; cursor: pointer;
+}
+.hist-app span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hist-app:hover { border-color: var(--cyan); }
+
+.hist-skel-row { height: 52px; margin: 6px 12px; border-radius: 6px; background: linear-gradient(90deg, var(--elevated), var(--base), var(--elevated)); background-size: 200% 100%; animation: histShimmer 1.4s linear infinite; }
+.hist-state { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 18px 14px; }
+.hist-state p { margin: 0; }
+.hist-muted { color: var(--text-muted); }
+.hist-pre { margin: 6px 0 0; max-width: 100%; white-space: pre-wrap; word-break: break-word; font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); }
+.hist-more { display: flex; justify-content: center; padding: 10px; }
+.hist-spin { animation: histSpin 0.8s linear infinite; }
+
+@keyframes histPulse { 50% { opacity: 0.45; } }
+@keyframes histShimmer { to { background-position: -200% 0; } }
+@keyframes histSpin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .hist-dot, .hist-skel-row, .hist-spin { animation: none !important; }
+}
