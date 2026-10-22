@@ -13,6 +13,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/monoes/mono-agent/internal/ai"
 	"github.com/monoes/mono-agent/internal/ai/chatevents"
 	"github.com/monoes/mono-agent/internal/cli/clicore"
 )
@@ -124,6 +125,28 @@ func stopBackground(refs []chatevents.ProcessRef, grace time.Duration) backgroun
 	return res
 }
 
+// turnBackgroundRefs is every process the turn's coder.background notices
+// recorded as left running.
+func turnBackgroundRefs(store *ai.AIStore, profileID, conversationID, turnID string) ([]chatevents.ProcessRef, error) {
+	var refs []chatevents.ProcessRef
+	for after := int64(0); ; {
+		page, err := store.GetEvents(conversationID, turnID, profileID, after, 1000)
+		if err != nil {
+			return nil, chatStoreErr(err)
+		}
+		for _, ev := range page {
+			var n chatevents.NoticePayload
+			if ev.Type == chatevents.EventNotice && json.Unmarshal(ev.Payload, &n) == nil && n.Code == noticeCoderBackground {
+				refs = append(refs, n.Processes...)
+			}
+		}
+		if len(page) < 1000 {
+			return refs, nil
+		}
+		after = page[len(page)-1].Seq
+	}
+}
+
 func newCoderStopBackgroundCmd(cfg *Deps) *cobra.Command {
 	var conversationID, turnID string
 	cmd := &cobra.Command{
@@ -142,22 +165,9 @@ func newCoderStopBackgroundCmd(cfg *Deps) *cobra.Command {
 				return err
 			}
 			defer closeStore()
-			var refs []chatevents.ProcessRef
-			for after := int64(0); ; {
-				page, err := store.GetEvents(conversationID, turnID, profileID, after, 1000)
-				if err != nil {
-					return chatStoreErr(err)
-				}
-				for _, ev := range page {
-					var n chatevents.NoticePayload
-					if ev.Type == chatevents.EventNotice && json.Unmarshal(ev.Payload, &n) == nil && n.Code == noticeCoderBackground {
-						refs = append(refs, n.Processes...)
-					}
-				}
-				if len(page) < 1000 {
-					break
-				}
-				after = page[len(page)-1].Seq
+			refs, err := turnBackgroundRefs(store, profileID, conversationID, turnID)
+			if err != nil {
+				return err
 			}
 			res := stopBackground(refs, 3*time.Second)
 			if cfg.JSONOutput() {

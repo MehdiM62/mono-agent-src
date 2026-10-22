@@ -48,7 +48,10 @@ type Conversation struct {
 	// with full access inside Cwd, fixed at creation: Claude Code keys its
 	// sessions by folder, so resuming needs the same one.
 	Mode string `json:"mode"`
-	Cwd  string `json:"cwd"`
+	// Access is the conversation's access level (chat_access.go); Mode is
+	// derived from it.
+	Access string `json:"access"`
+	Cwd    string `json:"cwd"`
 	// OrgMode is a coder conversation's org: "solo" (the agent works
 	// alone) or "dynamic" (it can spawn workers, #226).
 	OrgMode    string `json:"orgMode,omitempty"`
@@ -89,6 +92,7 @@ type ConversationRecord struct {
 	Effort          string `json:"effort,omitempty"`
 	SessionID       string `json:"session_id"`
 	Mode            string `json:"mode"`
+	Access          string `json:"access"`
 	Cwd             string `json:"cwd"`
 	OrgMode         string `json:"org_mode,omitempty"`
 	CreatedAt       string `json:"created_at"`
@@ -100,7 +104,7 @@ func (c Conversation) Record() ConversationRecord {
 	return ConversationRecord{
 		ID: c.ID, ProfileID: c.ProfileID, Backend: c.Backend, WorkflowContext: c.WorkflowContext,
 		RuntimeID: c.RuntimeID, ProviderID: c.ProviderID, Model: c.Model, Effort: c.Effort, SessionID: c.SessionID,
-		Mode: c.Mode, Cwd: c.Cwd, OrgMode: c.OrgMode, CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt,
+		Mode: c.Mode, Access: c.EffectiveAccess(), Cwd: c.Cwd, OrgMode: c.OrgMode, CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt,
 	}
 }
 
@@ -109,7 +113,7 @@ func (r ConversationRecord) Conversation() Conversation {
 	return Conversation{
 		ID: r.ID, ProfileID: r.ProfileID, Backend: r.Backend, WorkflowContext: r.WorkflowContext,
 		RuntimeID: r.RuntimeID, ProviderID: r.ProviderID, Model: r.Model, Effort: r.Effort, SessionID: r.SessionID,
-		Mode: r.Mode, Cwd: r.Cwd, OrgMode: r.OrgMode, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
+		Mode: r.Mode, Access: r.Access, Cwd: r.Cwd, OrgMode: r.OrgMode, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 	}
 }
 

@@ -14,6 +14,14 @@ type addedColumn struct {
 	table, column, alter string
 }
 
+// columnBackfills run once, in the same transaction, right after the column
+// (keyed table.column) is added; never on a database that already has it.
+var columnBackfills = map[string]string{
+	// A coder conversation keeps the full access it always had; every other
+	// row is the column default, scoped.
+	"ai_chat_conversations.access": `UPDATE ai_chat_conversations SET access = 'full' WHERE mode = 'coder'`,
+}
+
 // addedColumns are healed by shape on every open, so a database built by
 // migrations alone ends up with the same columns, in the same order, as one
 // whose tables the old runtime DDL in internal/ai and internal/connections
@@ -28,6 +36,8 @@ var addedColumns = []addedColumn{
 	{"ai_chat_conversations", "cwd", `ALTER TABLE ai_chat_conversations ADD COLUMN cwd TEXT NOT NULL DEFAULT ''`},
 	{"ai_chat_conversations", "effort", `ALTER TABLE ai_chat_conversations ADD COLUMN effort TEXT NOT NULL DEFAULT ''`},
 	{"ai_chat_conversations", "org_mode", `ALTER TABLE ai_chat_conversations ADD COLUMN org_mode TEXT NOT NULL DEFAULT 'solo'`},
+	// 119: a conversation's access level, after mode so the backfill can read it.
+	{"ai_chat_conversations", "access", `ALTER TABLE ai_chat_conversations ADD COLUMN access TEXT NOT NULL DEFAULT 'scoped' CHECK (access IN ('scoped', 'coding', 'workspace', 'full'))`},
 }
 
 // reconcileAddedColumns adds every addedColumns entry whose table exists
@@ -78,6 +88,11 @@ func (d *Database) addColumnLocked(ctx context.Context, c addedColumn) error {
 	if !has {
 		if _, err := conn.ExecContext(ctx, c.alter); err != nil {
 			return fmt.Errorf("storage: reconcile: adding %s.%s: %w", c.table, c.column, err)
+		}
+		if q := columnBackfills[c.table+"."+c.column]; q != "" {
+			if _, err := conn.ExecContext(ctx, q); err != nil {
+				return fmt.Errorf("storage: reconcile: backfilling %s.%s: %w", c.table, c.column, err)
+			}
 		}
 		log.Printf("storage: reconcile: added %s.%s column", c.table, c.column)
 	}

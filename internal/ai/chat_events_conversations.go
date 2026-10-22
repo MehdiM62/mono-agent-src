@@ -37,14 +37,24 @@ func (s *AIStore) CreateConversationMode(profileID, backend, workflowContext, ru
 // CreateConversationModeEffort is CreateConversationMode with an explicit effort level.
 func (s *AIStore) CreateConversationModeEffort(profileID, backend, workflowContext, runtimeID, providerID, model, mode, cwd, effort string) (Conversation, error) {
 	switch mode {
-	case ModeAssistant:
-		cwd = ""
-	case ModeCoder:
-		if cwd == "" {
-			return Conversation{}, fmt.Errorf("create conversation: coder mode needs a folder")
-		}
+	case ModeAssistant, ModeCoder:
 	default:
 		return Conversation{}, fmt.Errorf("create conversation: unknown mode %q", mode)
+	}
+	return s.CreateConversationAccess(profileID, backend, workflowContext, runtimeID, providerID, model, AccessForMode(mode), cwd, effort)
+}
+
+// CreateConversationAccess creates a conversation at an access level:
+// scoped has no folder, every other level needs one. Mode is kept in step
+// (assistant for scoped, coder otherwise) for older readers.
+func (s *AIStore) CreateConversationAccess(profileID, backend, workflowContext, runtimeID, providerID, model, access, cwd, effort string) (Conversation, error) {
+	if !ValidAccess(access) {
+		return Conversation{}, fmt.Errorf("create conversation: unknown access %q", access)
+	}
+	if access == AccessScoped {
+		cwd = ""
+	} else if cwd == "" {
+		return Conversation{}, fmt.Errorf("create conversation: access %q needs a folder", access)
 	}
 	if profileID == "" {
 		return Conversation{}, ErrProfileRequired
@@ -59,7 +69,8 @@ func (s *AIStore) CreateConversationModeEffort(profileID, backend, workflowConte
 		ProviderID:      providerID,
 		Model:           model,
 		Effort:          effort,
-		Mode:            mode,
+		Mode:            ModeForAccess(access),
+		Access:          access,
 		Cwd:             cwd,
 		OrgMode:         OrgModeSolo,
 		HistoryKey:      uuid.NewString(),
@@ -67,9 +78,9 @@ func (s *AIStore) CreateConversationModeEffort(profileID, backend, workflowConte
 		UpdatedAt:       now,
 	}
 	const q = `INSERT INTO ai_chat_conversations
-		(id, profile_id, backend, workflow_context, runtime_id, provider_id, model, session_id, mode, cwd, history_key, created_at, updated_at, effort)
-		VALUES (?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?, ?, ?, ?)`
-	if _, err := s.db.Exec(q, c.ID, c.ProfileID, c.Backend, c.WorkflowContext, c.RuntimeID, c.ProviderID, c.Model, c.Mode, c.Cwd, c.HistoryKey, c.CreatedAt, c.UpdatedAt, c.Effort); err != nil {
+		(id, profile_id, backend, workflow_context, runtime_id, provider_id, model, session_id, mode, cwd, history_key, created_at, updated_at, effort, access)
+		VALUES (?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?)`
+	if _, err := s.db.Exec(q, c.ID, c.ProfileID, c.Backend, c.WorkflowContext, c.RuntimeID, c.ProviderID, c.Model, c.Mode, c.Cwd, c.HistoryKey, c.CreatedAt, c.UpdatedAt, c.Effort, c.Access); err != nil {
 		return Conversation{}, fmt.Errorf("create conversation: %w", err)
 	}
 	return c, nil
@@ -83,11 +94,11 @@ func (s *AIStore) GetConversation(id, profileID string) (Conversation, error) {
 	if profileID == "" {
 		return Conversation{}, ErrProfileRequired
 	}
-	const q = `SELECT id, profile_id, backend, workflow_context, runtime_id, provider_id, model, session_id, mode, cwd, history_key, created_at, updated_at, effort, org_mode
+	const q = `SELECT id, profile_id, backend, workflow_context, runtime_id, provider_id, model, session_id, mode, cwd, history_key, created_at, updated_at, effort, org_mode, access
 		FROM ai_chat_conversations WHERE id = ? AND profile_id = ?`
 	var c Conversation
 	err := s.db.QueryRow(q, id, profileID).Scan(
-		&c.ID, &c.ProfileID, &c.Backend, &c.WorkflowContext, &c.RuntimeID, &c.ProviderID, &c.Model, &c.SessionID, &c.Mode, &c.Cwd, &c.HistoryKey, &c.CreatedAt, &c.UpdatedAt, &c.Effort, &c.OrgMode,
+		&c.ID, &c.ProfileID, &c.Backend, &c.WorkflowContext, &c.RuntimeID, &c.ProviderID, &c.Model, &c.SessionID, &c.Mode, &c.Cwd, &c.HistoryKey, &c.CreatedAt, &c.UpdatedAt, &c.Effort, &c.OrgMode, &c.Access,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Conversation{}, ErrConversationNotFound
@@ -109,7 +120,7 @@ func (s *AIStore) ListConversations(profileID, cursor string, limit int) ([]Conv
 		limit = 50
 	}
 	args := []any{profileID}
-	q := `SELECT id, profile_id, backend, workflow_context, runtime_id, provider_id, model, session_id, mode, cwd, history_key, created_at, updated_at, effort, org_mode
+	q := `SELECT id, profile_id, backend, workflow_context, runtime_id, provider_id, model, session_id, mode, cwd, history_key, created_at, updated_at, effort, org_mode, access
 		FROM ai_chat_conversations WHERE profile_id = ?`
 	if cursor != "" {
 		q += ` AND updated_at || '|' || id < ?`
@@ -127,7 +138,7 @@ func (s *AIStore) ListConversations(profileID, cursor string, limit int) ([]Conv
 	var out []Conversation
 	for rows.Next() {
 		var c Conversation
-		if err := rows.Scan(&c.ID, &c.ProfileID, &c.Backend, &c.WorkflowContext, &c.RuntimeID, &c.ProviderID, &c.Model, &c.SessionID, &c.Mode, &c.Cwd, &c.HistoryKey, &c.CreatedAt, &c.UpdatedAt, &c.Effort, &c.OrgMode); err != nil {
+		if err := rows.Scan(&c.ID, &c.ProfileID, &c.Backend, &c.WorkflowContext, &c.RuntimeID, &c.ProviderID, &c.Model, &c.SessionID, &c.Mode, &c.Cwd, &c.HistoryKey, &c.CreatedAt, &c.UpdatedAt, &c.Effort, &c.OrgMode, &c.Access); err != nil {
 			return nil, "", fmt.Errorf("scan conversation: %w", err)
 		}
 		out = append(out, c)

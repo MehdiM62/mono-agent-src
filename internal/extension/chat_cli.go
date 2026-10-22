@@ -124,12 +124,19 @@ func lastJSONLine(b []byte) []byte {
 	return lines[len(lines)-1]
 }
 
-func (b *cliChatBackend) CreateConversation(ctx context.Context, profile, runtime, model string) (string, error) {
-	args := append(chatBase(profile), "chat", "history", "create", "--runtime="+runtime, "--workflow=general")
+// chatCreateArgv makes a panel conversation. The access is named, not left to
+// a default: the panel's chat is scoped (chatToolsMode on every turn), and
+// only the operator can raise it afterwards (`chat history set-access`).
+func chatCreateArgv(profile, runtime, model string) []string {
+	args := append(chatBase(profile), "chat", "history", "create", "--runtime="+runtime, "--workflow=general", "--access=scoped")
 	if model != "" {
 		args = append(args, "--model="+model)
 	}
-	out, err := b.run(ctx, args...)
+	return args
+}
+
+func (b *cliChatBackend) CreateConversation(ctx context.Context, profile, runtime, model string) (string, error) {
+	out, err := b.run(ctx, chatCreateArgv(profile, runtime, model)...)
 	if err != nil {
 		return "", err
 	}
