@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -70,6 +71,7 @@ func (c *cli) open() (*aitask.Service, func(), error) {
 	svc := &aitask.Service{
 		Store:    &aitask.Store{DB: db.DB, Profile: c.d.ProfileID()},
 		Launcher: l,
+		StateDir: filepath.Dir(clicore.ExpandPath(c.d.DBPath())),
 		Redact:   aitask.RedactValues([]string{os.Getenv(aitask.EnvToken)}),
 	}
 	return svc, func() { db.Close() }, nil

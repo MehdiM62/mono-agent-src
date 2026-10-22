@@ -1402,6 +1402,10 @@ export function SubmitAITask(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['SubmitAITask'](arg1, arg2, arg3, arg4);
 }
 
+export function StartApplicationFill(arg1) {
+  return window['go']['main']['App']['StartApplicationFill'](arg1);
+}
+
 export function StartAgentValidation(arg1, arg2, arg3) {
   return window['go']['main']['App']['StartAgentValidation'](arg1, arg2, arg3);
 }

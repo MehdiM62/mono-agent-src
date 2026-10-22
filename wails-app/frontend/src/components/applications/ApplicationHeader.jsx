@@ -2,6 +2,9 @@ import React from 'react'
 import { ExternalLink, Clock, X, Building2, Calendar } from 'lucide-react'
 import * as WailsApp from '../../wailsjs/go/main/App'
 import { StatusBadge, subtleBtnStyle } from './constants.jsx'
+import SendToCoderButton from '../SendToCoderButton.jsx'
+import ApplyWithCoderButton from '../ApplyWithCoderButton.jsx'
+import { selectionText } from '../SendToCoderApi.js'
 
 export default function ApplicationHeader({ detail, assets, onSetStatus, onClose }) {
   if (!detail) return null
@@ -107,7 +110,11 @@ export default function ApplicationHeader({ detail, assets, onSetStatus, onClose
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          {canCancel && <ApplyWithCoderButton applicationId={detail.id} />}
+          <SendToCoderButton label="Discuss in coder" goal="Discuss this application with me: its fit, the posting, and what to do next."
+            applicationId={detail.id} origin={{ page: 'applications', label: 'Applications' }}
+            context={[selectionText([title, orgName, postingUrl].filter(Boolean).join(' | '))]} />
           {canCancel && onSetStatus && (
             <button
               type="button"

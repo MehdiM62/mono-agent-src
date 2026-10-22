@@ -289,3 +289,10 @@ func (s *Store) EndTurn(id, turnErr string) error {
 	_, err := s.move(id, []string{StatusRunning}, StatusNeedsUser, extra)
 	return err
 }
+
+// SetPrompt replaces a task's first-turn prompt (start points it at the
+// verified context snapshot).
+func (s *Store) SetPrompt(id, prompt string) error {
+	_, err := s.DB.Exec(`UPDATE ai_tasks SET prompt = ? WHERE id = ? AND profile_id = ?`, prompt, id, s.Profile)
+	return err
+}

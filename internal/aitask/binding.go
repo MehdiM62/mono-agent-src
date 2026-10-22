@@ -16,7 +16,11 @@ import (
 // kind, never followed). A folder that is not there hashes as empty. Anything
 // added, removed or changed since submit changes it.
 func ContextHash(cwd, taskID string) (string, error) {
-	root := filepath.Join(cwd, filepath.FromSlash(ContextDir), taskID)
+	return HashDir(filepath.Join(cwd, filepath.FromSlash(ContextDir), taskID))
+}
+
+// HashDir is ContextHash of the folder root itself.
+func HashDir(root string) (string, error) {
 	var lines []string
 	err := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {

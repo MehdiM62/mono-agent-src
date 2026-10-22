@@ -40,7 +40,7 @@ export function TaskHeaderCard({ task, onNavigate }) {
       borderBottom: '1px solid var(--border)', fontFamily: 'var(--font-mono)', fontSize: 11, flexShrink: 0,
     }}>
       <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text)' }} title={task.goal}>{task.goal}</span>
-      <span style={{ color: 'var(--cyan)', border: '1px solid var(--border-bright)', borderRadius: 999, padding: '1px 7px' }}>{status || 'queued'}</span>
+      <span style={{ color: 'var(--cyan)', border: '1px solid var(--border-bright)', borderRadius: 999, padding: '1px 7px' }}>{status === 'complete' && task.doneLabel ? task.doneLabel : (status || 'queued')}</span>
       {origin?.page && onNavigate && (
         <button type="button" className="btn btn-ghost btn-sm" onClick={() => onNavigate(origin.page)}>Open in {origin.label || origin.page}</button>
       )}
