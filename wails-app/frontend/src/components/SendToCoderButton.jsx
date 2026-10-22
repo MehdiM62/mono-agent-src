@@ -3,7 +3,11 @@ import { Bot } from 'lucide-react'
 import { useSendToCoder } from './bubbles/CoderBubbleContext.jsx'
 import { aitaskApi } from './SendToCoderApi.js'
 
-const noteStyle = { fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.5 }
+// The note wraps and, in a wrapping flex row, takes its own line under the buttons.
+const noteStyle = {
+  fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.5,
+  flex: '1 0 100%', minWidth: 0, whiteSpace: 'normal', overflowWrap: 'anywhere', textAlign: 'left',
+}
 
 // SendToCoderButton hands a goal to the coder as an AI task (#957) and opens
 // the task's chat as a bubble. It is the opt-in beside an AI action that
@@ -45,7 +49,7 @@ export default function SendToCoderButton({ kind = 'generic', goal, context = []
   }
 
   return (
-    <span style={{ display: 'inline-flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
+    <span style={{ display: 'contents' }}>
       <button type="button" className={className} style={{ gap: 5, ...style }} onClick={send} disabled={busy} aria-busy={busy}>
         <Bot size={12} aria-hidden="true" /> {busy ? 'Sending…' : label}
       </button>
@@ -55,7 +59,7 @@ export default function SendToCoderButton({ kind = 'generic', goal, context = []
           {note.settings && (
             <>
               {' '}This action still runs the regular way.{' '}
-              {navigate && <a href="#settings" onClick={e => { e.preventDefault(); navigate('settings') }}>Open Settings</a>}
+              {navigate && <a href="#settings" style={{ color: 'var(--cyan, #00b4d8)' }} onClick={e => { e.preventDefault(); navigate('settings') }}>Open Settings</a>}
             </>
           )}
         </span>
