@@ -19,6 +19,7 @@ import (
 	choosenodes "github.com/monoes/mono-agent/internal/nodes/ai/choose"
 	crawlnodes "github.com/monoes/mono-agent/internal/nodes/ai/crawl"
 	aisubnodes "github.com/monoes/mono-agent/internal/nodes/aisub"
+	aitasknodes "github.com/monoes/mono-agent/internal/nodes/aitask"
 	applicationsnodes "github.com/monoes/mono-agent/internal/nodes/applications"
 	applynodes "github.com/monoes/mono-agent/internal/nodes/apply"
 	"github.com/monoes/mono-agent/internal/nodes/browserjev"
@@ -76,6 +77,7 @@ func Build(db *sql.DB) *workflow.NodeTypeRegistry {
 	documentsnodes.RegisterAll(registry, db)
 	matchingnodes.RegisterAll(registry, db)
 	applynodes.RegisterAll(registry, db)
+	aitasknodes.RegisterAll(registry, db) // ai.task: queues a coder task, never starts or waits
 
 	// Local AI agent nodes (monomind delegation) — no store needed.
 	agentnodes.RegisterAll(registry)

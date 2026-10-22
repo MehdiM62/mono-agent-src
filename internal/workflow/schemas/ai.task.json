@@ -1,0 +1,58 @@
+{
+  "_generated": true,
+  "credential_platform": null,
+  "fields": [
+    {
+      "help": "What the coder is asked to do. The task is queued; a person starts it from the bubble queue.",
+      "key": "goal",
+      "label": "Goal",
+      "required": true,
+      "rows": 4,
+      "type": "textarea"
+    },
+    {
+      "default": "generic",
+      "help": "The task kind (see aitask --help). Defaults to generic.",
+      "key": "kind",
+      "label": "Kind",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "help": "Each entry is CLASS=PATH with CLASS one of posting; facts; document; selection. Messages and people threads are refused.",
+      "item_type": "text",
+      "key": "context",
+      "label": "Context",
+      "required": false,
+      "type": "array"
+    },
+    {
+      "help": "Optional. The application the task is about.",
+      "key": "application_id",
+      "label": "Application ID",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "help": "Optional. coding; workspace or qa. Blank takes the kind's default.",
+      "key": "access",
+      "label": "Access",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "help": "Optional. The agent runtime. Blank takes the default.",
+      "key": "runtime",
+      "label": "Runtime",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "help": "Optional. Must match the workflow's profile (leave blank to use it).",
+      "key": "profile_id",
+      "label": "Profile ID",
+      "required": false,
+      "type": "text"
+    }
+  ]
+}
