@@ -78,8 +78,9 @@ describe('Applications page render', () => {
     await waitFor(() => {
       expect(screen.getByText('Senior Frontend Engineer')).toBeInTheDocument()
     })
-    expect(screen.getByText('awaiting_submit')).toBeInTheDocument()
-    expect(screen.getByText('needs_you')).toBeInTheDocument()
+    // The filter tab and the row badge say the same thing, without the underscore.
+    expect(screen.getAllByText('awaiting submit')).toHaveLength(2)
+    expect(screen.getAllByText('needs you')).toHaveLength(2)
   })
 
   it('opens application detail view on row click and renders all sections', async () => {
