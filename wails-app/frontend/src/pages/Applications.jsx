@@ -6,10 +6,8 @@ import { notify } from '../services/api.js'
 import ApplicationsProcessPendingFlow from './ApplicationsProcessPendingFlow.jsx'
 import ApplicationDetailModal from '../components/applications/ApplicationDetailModal.jsx'
 import { useReloadOnActivate } from '../lib/useReloadOnActivate'
-import SendToCoderButton from '../components/SendToCoderButton.jsx'
-import { selectionText } from '../components/SendToCoderApi.js'
 
-const STATUS_TABS = ['pending', 'applied', 'rejected', 'cancelled', 'all']
+const STATUS_TABS = ['pending', 'awaiting_submit', 'needs_you', 'applied', 'rejected', 'cancelled', 'all']
 
 const STATUS_COLORS = {
   pending: { bg: 'rgba(245,158,11,0.12)', color: '#f59e0b' },
@@ -149,7 +147,7 @@ export default function Applications({ isActive = true, onNavigate, onOpenCoderC
               border: `1px solid ${statusTab === tab ? 'rgba(0,180,216,0.4)' : 'rgba(255,255,255,0.1)'}`,
               color: statusTab === tab ? '#00b4d8' : 'var(--text-secondary)',
             }}
-          >{tab}</button>
+          >{tab.replace('_', ' ')}</button>
         ))}
         <input style={{ ...inputStyle, flex: 1, marginLeft: 8 }} placeholder="Search title, company, tags..." value={search} onChange={e => setSearch(e.target.value)} />
       </div>
@@ -195,14 +193,6 @@ export default function Applications({ isActive = true, onNavigate, onOpenCoderC
           onNavigate={onNavigate}
           onOpenCoderChat={onOpenCoderChat}
         />
-      )}
-
-      {selectedId && detail && (
-        <div style={{ position: 'fixed', right: 24, bottom: 24, zIndex: 9600 }}>
-          <SendToCoderButton label="Discuss in coder" goal="Discuss this application with me: its fit, the posting, and what to do next."
-            applicationId={selectedId} origin={{ page: 'applications', label: 'Applications' }}
-            context={[selectionText([detail.title, detail.company, detail.url].filter(Boolean).join(' | '))]} />
-        </div>
       )}
 
       {showAdd && (

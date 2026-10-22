@@ -7,6 +7,7 @@ export const aitaskApi = {
   status: () => Promise.resolve().then(() => GoApp.AITaskStatus()),
   submit: (kind, goal, context = [], applicationId = '') =>
     Promise.resolve().then(() => GoApp.SubmitAITask(kind, goal, context, applicationId)),
+  startFill: (applicationId) => Promise.resolve().then(() => GoApp.StartApplicationFill(applicationId)),
   get: (id) => Promise.resolve().then(() => GoApp.GetAITask(id)),
   cancel: (id) => Promise.resolve().then(() => GoApp.CancelAITask(id)),
 }

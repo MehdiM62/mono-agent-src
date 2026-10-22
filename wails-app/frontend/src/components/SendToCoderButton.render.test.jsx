@@ -5,7 +5,7 @@ import '@testing-library/jest-dom/vitest'
 import { render, screen, fireEvent, waitFor, cleanup, act } from '@testing-library/react'
 
 const { aitaskApi } = vi.hoisted(() => ({
-  aitaskApi: { status: vi.fn(), submit: vi.fn(), get: vi.fn(), cancel: vi.fn() },
+  aitaskApi: { status: vi.fn(), submit: vi.fn(), startFill: vi.fn(), get: vi.fn(), cancel: vi.fn() },
 }))
 vi.mock('./SendToCoderApi.js', async (orig) => ({ ...(await orig()), aitaskApi }))
 
@@ -128,5 +128,13 @@ describe('TaskHeaderCard', () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(12000) })
     expect(aitaskApi.get.mock.calls.length).toBe(calls)
     expect(screen.queryByRole('button', { name: 'Cancel' })).toBeNull()
+  })
+
+  it('says the done label, not just "complete", for a task that has one', async () => {
+    vi.useFakeTimers()
+    aitaskApi.get.mockResolvedValue({ status: 'complete' })
+    render(<TaskHeaderCard task={{ ...t, doneLabel: 'filled, waiting for you to submit' }} onNavigate={() => {}} />)
+    await act(async () => { await vi.advanceTimersByTimeAsync(4100) })
+    expect(screen.getByText('filled, waiting for you to submit')).toBeInTheDocument()
   })
 })
