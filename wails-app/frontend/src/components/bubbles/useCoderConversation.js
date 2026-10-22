@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api, notify } from '../../services/api.js'
 import { useChatStream, loadTurnState } from '../chat/useChatStream.js'
-import { newTurnId } from '../AIChatPanel.jsx'
+import { newTurnId } from '../chat/turnIds.js'
 
 // useCoderConversation is one expanded coder bubble's conversation (#227):
 // it loads the turns from the journal (`chat history`), re-attaches to a

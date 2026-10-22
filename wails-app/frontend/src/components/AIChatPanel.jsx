@@ -4,8 +4,7 @@ import { X, Trash2, Plus, History, Maximize2, Minimize2, ArrowDown, Loader } fro
 import { api, notify } from '../services/api.js'
 import { useChatStream, loadTurnState } from './chat/useChatStream.js'
 import { ChatTimeline } from './chat/ChatTimeline.jsx'
-import { ChatMarkdown } from './chat/ChatMarkdown.jsx'
-import { TurnStatus, computeStatusLabel } from './chat/TurnStatus.jsx'
+import { TurnStatus } from './chat/TurnStatus.jsx'
 import { ChatComposer } from './chat/ChatComposer.jsx'
 import { useChatScroll } from './chat/useChatScroll.js'
 import { ChatArtifactCard } from './chat/ChatArtifactCard.jsx'
@@ -15,8 +14,11 @@ import './chat/chat.css'
 import { cachedAgentScan, isMonomindNotFound } from '../lib/agentRuntimes.js'
 import { runtimeLabel } from '../lib/runtimeLabels.js'
 import { getAssistantTools, getAssistantAllowRuns } from '../lib/assistantTools.js'
-import { isAgentNotSetup, withoutAgentSetupMarker } from '../lib/agentSetup.js'
+import { isAgentNotSetup } from '../lib/agentSetup.js'
 import AgentSetupLink from './AgentSetupLink.jsx'
+import { MessageBubble } from './chat/messageBubble.jsx'
+import { newTurnId } from './chat/turnIds.js'
+import { composeLiveAnnouncement } from './chat/liveAnnouncement.js'
 import { CoderModePicker } from './chat/CoderModePicker.jsx'
 import { CoderHeader, CoderBadge, CoderInitNote } from './chat/CoderHeader.jsx'
 import { useCoderStatus, useRecentWorkspaces, useCoderRuntimeChoice, folderName, coderReady, fidelityNote } from './chat/useCoderMode.js'
@@ -33,58 +35,6 @@ const placeholderStyle = {
   color: '#e2e8f0',
   fontFamily: 'var(--font-mono)', fontSize: 10,
   minWidth: 0,
-}
-
-// Client-generated turn id (plan: "Client-created turn ID: registered
-// locally before Start"). crypto.randomUUID() is gated on a secure
-// context — Wails' custom-scheme webview origin isn't guaranteed to
-// qualify on every platform the way http://wails.localhost does on
-// Windows, so relying on it directly would make every send() throw on
-// whichever platforms don't. crypto.getRandomValues has no such
-// restriction, so build an RFC 4122 v4 string from it whenever
-// randomUUID isn't available instead of failing outright. Exported for
-// direct testing (jsdom/Node's crypto always has randomUUID, so the
-// fallback path needs to be exercised explicitly).
-export function newTurnId() {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID()
-  }
-  const bytes = crypto.getRandomValues(new Uint8Array(16))
-  bytes[6] = (bytes[6] & 0x0f) | 0x40
-  bytes[8] = (bytes[8] & 0x3f) | 0x80
-  const hex = [...bytes].map(b => b.toString(16).padStart(2, '0')).join('')
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
-}
-
-// composeLiveAnnouncement builds the one text fired into the panel's
-// persistent aria-live region when a turn finalizes. TurnStatus's own
-// per-turn "role=status" region only exists while {streaming && ...} is
-// mounted — at the exact moment a turn finishes, that block unmounts and a
-// *new* TurnStatus instance mounts inside the finalized message with the
-// terminal label already baked in. Most screen readers only announce a
-// mutation inside an already-present live region, not a freshly-inserted
-// node whose content is already set, so "Completed"/"Failed" would
-// otherwise go unannounced despite mid-stream status changes working fine.
-// Folds in any notices and tool failures already present at finalize time
-// (e.g. historySaved:false) — those otherwise have no live-region coverage
-// at all (NoticeBanner is plain, non-live DOM). Exported and pure/
-// deterministic like TurnStatus's own computeStatusLabel, for the same
-// direct-unit-testability reason.
-//
-// alreadyAnnouncedCount (default 0, so every existing caller/test is
-// unaffected) excludes the first N of turnState.notices from this summary —
-// the live-turn effect below announces mid-turn notices individually the
-// moment they arrive rather than waiting for finalize, and passes its own
-// running count here so a notice already spoken once is never repeated in
-// this finalize-time summary too.
-export function composeLiveAnnouncement(turnState, alreadyAnnouncedCount = 0) {
-  const { label } = computeStatusLabel(turnState, Date.now())
-  const parts = [`Response ${label.toLowerCase()}.`]
-  const failedCount = Object.values(turnState.calls || {}).filter(c => c.status === 'completed' && c.ok === false).length
-  if (failedCount === 1) parts.push('1 tool call failed.')
-  else if (failedCount > 1) parts.push(`${failedCount} tool calls failed.`)
-  for (const notice of (turnState.notices || []).slice(alreadyAnnouncedCount)) parts.push(notice.message)
-  return parts.join(' ')
 }
 
 // A conversation this panel lists for workflowID. "provider" conversations
@@ -107,65 +57,14 @@ function relativeTime(iso) {
   return `${Math.floor(hours / 24)}d ago`
 }
 
-// ── Message bubble ─────────────────────────────────────────────────────────────
-// Exported (like FileViewerModal's fileViewerKind) so the markdown-vs-plain
-// rendering choice is directly unit-testable without driving the whole
-// panel's streaming/session machinery. Reachable today only for 'user' and
-// 'error' roles — the reducer/ChatTimeline path (role:'turn') fully
-// replaced the old assistant-bubble-plus-inline-tool-cards rendering this
-// component used to also handle; a prior version's now-dead `toolCalls`
-// prop and its ToolCallCard were removed for exactly that reason (nothing
-// ever constructed a message carrying one).
-export function MessageBubble({ role, content, isError, code, onNavigate }) {
-  const isUser = role === 'user'
-  return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: isUser ? 'flex-end' : 'flex-start',
-      marginBottom: 8,
-    }}>
-      <div style={{
-        maxWidth: '88%',
-        padding: '8px 12px',
-        borderRadius: isUser ? '12px 12px 4px 12px' : '12px 12px 12px 4px',
-        background: isError
-          ? 'rgba(239,68,68,0.1)'
-          : isUser
-            ? 'rgba(0,180,216,0.15)'
-            : '#0d1a28',
-        border: isError
-          ? '1px solid rgba(239,68,68,0.25)'
-          : isUser
-            ? '1px solid rgba(0,180,216,0.25)'
-            : '1px solid rgba(0,180,216,0.08)',
-        color: isError ? '#fca5a5' : '#e2e8f0',
-      }}>
-        {isUser ? (
-          // Raw pre-wrap text — never reinterpreted as markdown syntax the
-          // user didn't intend (e.g. a typed "1. foo" becoming a list).
-          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, lineHeight: 1.55, wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
-            {content}
-          </div>
-        ) : (
-          // Error text renders through the same ChatMarkdown ChatTimeline
-          // uses for assistant text — scheme-gated links, no raw HTML, no
-          // auto-loaded images — rather than a second, less-careful
-          // markdown config (an error string ultimately traces back to a
-          // subprocess failure message, not first-party copy).
-          <ChatMarkdown content={withoutAgentSetupMarker(content)} />
-        )}
-        {isError && isAgentNotSetup({ code, message: content }) && <AgentSetupLink onNavigate={onNavigate} />}
-      </div>
-    </div>
-  )
-}
-
 // ── Main panel ─────────────────────────────────────────────────────────────────
 // onOpenCoderChat, when given, moves coder chats out of this panel into
 // the coder bubbles (#227): picking Coder opens a new coder bubble
 // (onOpenCoderChat(null)) and a past coder session opens as its bubble
 // (onOpenCoderChat(conversation)). Without it, coder chats run in the panel.
+// The shared chat pieces live in chat/; re-exported so the panel's own tests keep working until it is deleted.
+export { MessageBubble, newTurnId, composeLiveAnnouncement }
+
 export default function AIChatPanel({ workflowID, isOpen, onClose, onOpenArtifact, initialRuntime, canvasMode = true, onNavigate, onOpenCoderChat }) {
   const { t } = useTranslation()
   const [messages, setMessages]             = useState([])
