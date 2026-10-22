@@ -366,6 +366,10 @@ func deleteProfile(ctx context.Context, db *sql.DB, id string) ([]profileTable, 
 	if err != nil {
 		return nil, err
 	}
+	violationsBefore, err := foreignKeyViolations(ctx, tx)
+	if err != nil {
+		return nil, fmt.Errorf("check foreign keys: %w", err)
+	}
 	for _, e := range scope {
 		if _, err := tx.ExecContext(ctx, `DELETE FROM "`+e.Table+`" WHERE `+e.Where, sql.Named("p", id)); err != nil {
 			return nil, fmt.Errorf("delete from %s: %w", e.Table, err)
@@ -376,6 +380,9 @@ func deleteProfile(ctx context.Context, db *sql.DB, id string) ([]profileTable, 
 	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM settings WHERE key = 'active_profile_id' AND value = ?`, id); err != nil {
 		return nil, err
+	}
+	if err := repairDanglingReferences(ctx, tx, violationsBefore); err != nil {
+		return nil, fmt.Errorf("delete profile: %w", err)
 	}
 	if err := tx.Commit(); err != nil {
 		return nil, fmt.Errorf("delete profile: %w", err)
