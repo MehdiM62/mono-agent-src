@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { Terminal, Trash2, ArrowDown } from 'lucide-react'
 import RefreshButton from '../components/RefreshButton.jsx'
+import SendToCoderButton from '../components/SendToCoderButton.jsx'
+import { selectionText } from '../components/SendToCoderApi.js'
 
 const LEVEL_COLORS = {
   INFO:   { level: 'log-level-info',   msg: 'log-msg-info' },
@@ -134,6 +136,11 @@ export default function Logs({ logs, onClear, onRefresh }) {
                   <span className="log-time">{entry.time}</span>
                   <span className={`log-source ${colors.level}`}>[{(entry.source || 'SYS').slice(0, 6)}]</span>
                   <span className={colors.msg}>{entry.message}</span>
+                  {entry.level?.toUpperCase() === 'ERROR' && (
+                    <SendToCoderButton label="Ask coder about this" goal="Explain this error from the app's log and what to do about it."
+                      context={[selectionText(`[${entry.source || 'SYS'}] ${entry.message}`)]} origin={{ page: 'logs', label: 'Logs' }}
+                      className="btn btn-ghost btn-sm" style={{ marginLeft: 8 }} />
+                  )}
                 </div>
               )
             })}

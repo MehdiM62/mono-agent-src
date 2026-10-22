@@ -2321,6 +2321,7 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
           problem={execOverlay.problem}
           onSelectNode={(id) => { setSelectedId(id); setInspectorOpen(true) }}
           onClose={() => setProblemHidden(true)}
+          onSendToCoder={() => ({ goal: 'Work out why this workflow run failed and fix the workflow.', origin: { page: 'noderunner', label: 'Workflows' } })}
         />
       )}
 

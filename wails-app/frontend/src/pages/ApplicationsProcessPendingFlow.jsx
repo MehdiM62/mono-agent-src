@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import * as WailsApp from '../wailsjs/go/main/App'
 import { confirm } from '../components/ConfirmDialog.jsx'
+import SendToCoderButton from '../components/SendToCoderButton.jsx'
+import { selectionText } from '../components/SendToCoderApi.js'
 
 // computeNextStep is the flow's per-item state-machine decision function,
 // extracted pure and exported for direct unit testing (see
@@ -184,6 +186,11 @@ export default function ApplicationsProcessPendingFlow({ pendingApplications, on
               <div style={{ marginTop: 8, padding: 8, background: 'rgba(255,255,255,0.04)', borderRadius: 6 }}>
                 <div><strong>{verdict.verdict}</strong> (overall {verdict.overall_score?.toFixed(1)})</div>
                 <div style={{ color: 'var(--text-muted)', marginTop: 4 }}>{verdict.rationale}</div>
+                <div style={{ marginTop: 8 }}>
+                  <SendToCoderButton label="Discuss in coder" goal="Discuss whether this application fits me, and what would make it stronger."
+                    applicationId={current.id} origin={{ page: 'applications', label: 'Applications' }}
+                    context={[selectionText(`${current.title} at ${current.company}\nVerdict: ${verdict.verdict} (overall ${verdict.overall_score ?? '?'})\n${verdict.rationale || ''}`)]} />
+                </div>
               </div>
             )}
             {stage === 'evaluated' && mode === 'confirm' && (

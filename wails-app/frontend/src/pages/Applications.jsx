@@ -6,6 +6,8 @@ import { notify } from '../services/api.js'
 import ApplicationsProcessPendingFlow from './ApplicationsProcessPendingFlow.jsx'
 import ApplicationDetailModal from '../components/applications/ApplicationDetailModal.jsx'
 import { useReloadOnActivate } from '../lib/useReloadOnActivate'
+import SendToCoderButton from '../components/SendToCoderButton.jsx'
+import { selectionText } from '../components/SendToCoderApi.js'
 
 const STATUS_TABS = ['pending', 'applied', 'rejected', 'cancelled', 'all']
 
@@ -193,6 +195,14 @@ export default function Applications({ isActive = true, onNavigate, onOpenCoderC
           onNavigate={onNavigate}
           onOpenCoderChat={onOpenCoderChat}
         />
+      )}
+
+      {selectedId && detail && (
+        <div style={{ position: 'fixed', right: 24, bottom: 24, zIndex: 9600 }}>
+          <SendToCoderButton label="Discuss in coder" goal="Discuss this application with me: its fit, the posting, and what to do next."
+            applicationId={selectedId} origin={{ page: 'applications', label: 'Applications' }}
+            context={[selectionText([detail.title, detail.company, detail.url].filter(Boolean).join(' | '))]} />
+        </div>
       )}
 
       {showAdd && (

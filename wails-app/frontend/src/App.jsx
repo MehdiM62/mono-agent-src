@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import Sidebar from './components/Sidebar.jsx'
 import { usePendingCount } from './lib/usePendingCount.js'
 import StatusBar from './components/StatusBar.jsx'
@@ -9,6 +9,7 @@ import ConfirmHost from './components/ConfirmDialog.jsx'
 import AIChatPanel from './components/AIChatPanel.jsx'
 import CoderBubbles from './components/bubbles/CoderBubbles.jsx'
 import { useCoderBubbles } from './components/bubbles/useCoderBubbles.js'
+import { CoderBubbleContext } from './components/bubbles/CoderBubbleContext.jsx'
 import { useOrgBubbleWatch } from './components/bubbles/useOrgBubbleWatch.js'
 import HumanInLoop from './pages/HumanInLoop.jsx'
 import Dashboard from './pages/Dashboard.jsx'
@@ -300,12 +301,16 @@ export default function App({ banners = null }) {
     postDetail: <PostDetail id={postId} onBack={closePost} onOpenURL={api.openURL} />,
   }
 
+  // Any page's Send-to-coder button reaches the bubbles through this (#957).
+  const coderBubbleContext = useMemo(() => ({ openDraft: openCoderDraft, navigate }), [openCoderDraft, navigate])
+
   const isDetailPage = activePage in detailPages
   // Guard against an unrecognized activePage (e.g. a stale/typo'd nav
   // target) — fall back to showing dashboard rather than a blank screen.
   const effectiveActivePage = (activePage in persistentPages || isDetailPage) ? activePage : 'dashboard'
 
   return (
+    <CoderBubbleContext.Provider value={coderBubbleContext}>
     <div className="app-layout">
       <Sidebar
         activePage={activePage}
@@ -381,5 +386,6 @@ export default function App({ banners = null }) {
         <FileViewerModal doc={viewingArtifactDoc} onClose={() => setViewingArtifactDoc(null)} />
       )}
     </div>
+    </CoderBubbleContext.Provider>
   )
 }

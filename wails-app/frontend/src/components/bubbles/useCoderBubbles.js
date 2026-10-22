@@ -140,12 +140,10 @@ export function useCoderBubbles() {
 
   const collapse = useCallback(() => setExpandedKey(''), [])
 
-  const openDraft = useCallback(() => {
-    const key = newDraftKey()
-    setBubbles(list => [...list, { key, conversationId: '', cwd: '', model: '', runtime: '' }])
-    expand(key)
-    return key
-  }, [expand])
+  const getView = useCallback((key) => viewState.current[key] || {}, [])
+  const setView = useCallback((key, patch) => {
+    viewState.current[key] = { ...(viewState.current[key] || {}), ...patch }
+  }, [])
 
   // openConversation shows an existing coder conversation as a bubble,
   // reusing its bubble when it already has one.
@@ -161,6 +159,33 @@ export function useCoderBubbles() {
     expand(key)
     return key
   }, [expand])
+
+  // openDraft opens a new coder chat. Seeded with { prompt, setup, links,
+  // task, conversationId } (a "Send to coder" button, #957), the view starts
+  // with the prompt as its draft; a conversationId opens that conversation
+  // like openConversation does (the task's chat, already created) and task
+  // ({ taskId, goal, status, origin }) puts the task header on it. Called
+  // with nothing, or with a click event, it is a blank new chat.
+  const openDraft = useCallback((seed) => {
+    const opts = seed && typeof seed === 'object' && !seed.nativeEvent && !('target' in seed) ? seed : null
+    const key = opts?.conversationId
+      ? openConversation({ id: opts.conversationId })
+      : (() => {
+        const k = newDraftKey()
+        setBubbles(list => [...list, { key: k, conversationId: '', cwd: '', model: '', runtime: '' }])
+        expand(k)
+        return k
+      })()
+    if (opts) {
+      const patch = {}
+      if (opts.prompt) patch.draft = String(opts.prompt)
+      if (opts.setup) patch.setup = opts.setup
+      if (opts.links) patch.links = opts.links
+      if (opts.task) patch.task = opts.task
+      if (Object.keys(patch).length) setView(key, patch)
+    }
+    return key
+  }, [expand, openConversation, setView])
 
   // openOrg shows a running org as a bubble, reusing its bubble when it has
   // one. expand: false adds it collapsed (an org that asks the person
@@ -190,11 +215,6 @@ export function useCoderBubbles() {
 
   const reorder = useCallback((fromKey, toKey) => setBubbles(list => moveBubble(list, fromKey, toKey)), [])
   const setSide = useCallback((next) => setSideState(next === 'left' ? 'left' : 'right'), [])
-
-  const getView = useCallback((key) => viewState.current[key] || {}, [])
-  const setView = useCallback((key, patch) => {
-    viewState.current[key] = { ...(viewState.current[key] || {}), ...patch }
-  }, [])
 
   // An org bubble's summary in the coder summary's shape (the dock reads
   // status, unread and cost), plus how many items wait for the person.

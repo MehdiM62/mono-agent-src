@@ -7,6 +7,7 @@ import { folderName } from '../chat/useCoderMode.js'
 import { runtimeLabel } from '../../lib/runtimeLabels.js'
 import { CoderChatView } from './CoderChatView.jsx'
 import { useCoderConversation } from './useCoderConversation.js'
+import { TaskHeaderCard } from './TaskHeaderCard.jsx'
 import { shouldCollapseOnBackdrop } from '../../lib/coderBubbles.js'
 import { LEAD_ID } from '../../lib/orgStage.js'
 import { OrgStage } from '../stage/OrgStage.jsx'
@@ -216,6 +217,7 @@ export function CoderChatOverlay({ bubble, store, originRect, onCollapse, onClos
           </button>
         </div>
         {bubble.cwd && <CoderHeader cwd={bubble.cwd} />}
+        {view.task && <TaskHeaderCard task={view.task} onNavigate={onNavigate} />}
         <div ref={bodyRef} style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', position: 'relative' }}>
           {!stageCollapsed && (
             <>
