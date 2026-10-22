@@ -21,6 +21,8 @@ import "strings"
 //     sandbox for it (`sandbox fallback --set`).
 //   - automation.autoRepair: the recorder applies selector repairs without
 //     asking (automation.AutoRepairConfig).
+//   - applications.max_parked: how many filled application tabs may wait for
+//     the person's submit at once (internal/applypark; `application fill queue`).
 //   - coder_projects: the folder a site's queued coder chats work in, with
 //     full access (`coder projects map|unmap`).
 //
@@ -36,6 +38,7 @@ var reservedConfigs = []string{
 	"sandbox.fallback",
 	"automation.autoRepair",
 	"coder_projects",
+	"applications.max_parked",
 }
 
 // ReservedConfig reports whether name is a reserved config row, in any case

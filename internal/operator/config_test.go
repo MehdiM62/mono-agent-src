@@ -11,7 +11,7 @@ import (
 // the names their readers use; other rows are not.
 func TestReservedConfig(t *testing.T) {
 	for _, name := range []string{browserctl.PermissionsSetting, browserctl.AllowlistSetting, "coder_mode", "sandbox.fallback",
-		automation.AutoRepairConfig, "coder_projects", " Coder_Mode ", "BROWSER_AGENT_PERMISSIONS"} {
+		automation.AutoRepairConfig, "coder_projects", "applications.max_parked", " Coder_Mode ", "BROWSER_AGENT_PERMISSIONS"} {
 		if !ReservedConfig(name) {
 			t.Errorf("%q is not reserved", name)
 		}

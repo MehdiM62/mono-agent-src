@@ -3283,6 +3283,26 @@ change is logged in the status history. `applied` is reached only through `appli
   copies of that task's context. On another runtime it is refused (`confinement_unenforceable`), and without a context snapshot
   it is refused (`context_snapshot_failed`). Its browser kind is `apply`, taken from the task row, never from a flag or the
   environment, so the `coder` level never applies to it.
+- **Parking.** A finished fill may name the tab it left open (`tabId`, `origin` in its result). `Finalize` checks the claim against
+  `browser tabs` as the operator sees them (the tab exists, sits in an agent group "Coder · ...", stands on the claimed web origin,
+  belongs to no other application) before it binds the tab in `application_tabs` (migration 117) as `parked`; a claim that fails is
+  not believed and is noted on the fill. The browser keeps no redirect chain, so a redirect target is the tab's own current origin.
+  A parked tab is refused to every agent (`ParkedTabError` in `internal/browserctl/park_guard.go`, on every tab selection); the
+  agent never closes it and never submits. The person submits in the tab.
+  - `application fill queue [id...|--pending] [--max-parked N] [--runtime R]` (operator-only, a foreground loop, Ctrl-C stops it)
+    fills the named pending or needs_you applications in turn, each as the confined `application-apply` task. At most N fills
+    run or wait for your submit at once (config `applications.max_parked`, operator-only, 1 to 10, default 3; the flag overrides
+    it for one run); a tab frees its slot when its application is sent, rejected or cancelled, or its tab is gone. A `needs_you`
+    result or a task that ended without one parks that application as `needs_you` with the reason and the queue moves on.
+  - `application fill resume <id>` (operator-only) starts a new task for an application whose tab is parked or lost and binds the
+    tab to that task alone (`active`): no other task can act on it. `application fill sweep` (operator-only) reconciles the
+    bindings with `browser tabs`: a tab that is gone turns its application into `needs_you` with "Reopen and refill"; a tab of a
+    finished application is closed. `application fill tab <id>` shows the binding and `submitObservedAt`.
+  - Submit detection: the extension (`chrome-extension/submit_observe.js`) tells the bridge `form.submit_observed {tab_id, origin,
+    url}` only for a `submit` event with `isTrusted` in the top frame of an agent-group tab, followed within 10 s by a same-tab
+    navigation or by the form being removed or hidden. A page that only says "submitted" reports nothing. The bridge matches the
+    tab and origin to a parked application and records `application_fills.submit_observed_at`. That is a hint to ask the person
+    ("Looks submitted - confirm"); the status stays `awaiting_submit` and `applied` is only ever `application send`.
 - Browser permissions have a kind `apply` (`browser permissions set apply <level>`, operator-only):
   default `ask`, per-site allow rules apply, and it can never be `full-no-approvals`, so a submit
   on a non-local site always waits for a person (a HIL item). `application apply` itself still fills

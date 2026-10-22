@@ -100,4 +100,5 @@
 113_vault_document_exclusions.sql
 114_aitask.sql
 115_application_assets.sql
+117_application_tabs.sql
 118_ai_budgets.sql

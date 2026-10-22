@@ -13,6 +13,7 @@ import (
 
 	"github.com/monoes/mono-agent/internal/aitask"
 	"github.com/monoes/mono-agent/internal/applications"
+	"github.com/monoes/mono-agent/internal/applypark"
 	"github.com/monoes/mono-agent/internal/profiledir"
 )
 
@@ -22,6 +23,19 @@ type Result struct {
 	Screenshot string  `json:"screenshot"`
 	Fields     []Field `json:"fields"`
 	Note       string  `json:"note"`
+	// TabID and Origin name the tab the fill left open (applypark binds it).
+	TabID  int    `json:"tabId,omitempty"`
+	Origin string `json:"origin,omitempty"`
+}
+
+// Parking is how Finalize binds the tab a fill left open. Nil: no tab is
+// bound. The CLI sets it with a reader of `browser tabs`; tests with a fake.
+var Parking *ParkingConfig
+
+// ParkingConfig reads the browser for Finalize.
+type ParkingConfig struct {
+	// Live reads the browser's tabs as the operator sees them.
+	Live func(ctx context.Context, profile string) ([]applypark.LiveTab, error)
 }
 
 // ErrNotFinished: the task has no result to record yet.
@@ -47,6 +61,10 @@ func Finalize(ctx context.Context, db *sql.DB, profile string, t aitask.Task, ex
 	if err := aitask.Validate(Schema, mustDecode(t.Result)); err != nil {
 		return fmt.Errorf("task %s: %w", t.ID, err)
 	}
+	bindErr := bindTab(ctx, db, profile, t, res)
+	if bindErr != nil {
+		res.Note = strings.TrimSpace(res.Note + " (The open tab was not tracked: " + bindErr.Error() + ".)")
+	}
 	fill, to := recordFor(db, profile, res, extraRoots)
 	store := applications.NewStore(db)
 	if err := store.RecordFill(ctx, profile, t.ApplicationID, fill); err != nil {
@@ -60,6 +78,27 @@ func Finalize(ctx context.Context, db *sql.DB, profile string, t aitask.Task, ex
 		return nil
 	}
 	return store.SetStatus(ctx, profile, t.ApplicationID, to, applications.ActorSystem, "form fill by task "+t.ID)
+}
+
+// bindTab parks the tab the result names, after checking it against the
+// browser. A result with no tab binds nothing; a refused claim is reported in
+// the note, never believed.
+func bindTab(ctx context.Context, db *sql.DB, profile string, t aitask.Task, res Result) error {
+	if res.TabID == 0 && res.Origin == "" {
+		return nil
+	}
+	if app, err := applications.NewStore(db).Get(ctx, profile, t.ApplicationID); err != nil || !canMove(app.Status) {
+		return nil // over, or gone: its tab is not parked again
+	}
+	if Parking == nil || Parking.Live == nil {
+		return errors.New("no browser reader")
+	}
+	live, err := Parking.Live(ctx, profile)
+	if err != nil {
+		return err
+	}
+	return applypark.Store{DB: db, Profile: profile}.Bind(ctx, applypark.BindRequest{
+		ApplicationID: t.ApplicationID, TaskID: t.ID, TabID: res.TabID, Origin: res.Origin, Live: live})
 }
 
 func mustDecode(raw []byte) any {

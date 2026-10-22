@@ -78,6 +78,9 @@ func (s *Session) sendRaw(tabID int, cmdType string, params map[string]interface
 // tab is given blankWait to commit its page first; one that stays blank is
 // returned with blank set.
 func (s *Session) checkTab(id int) (u string, isBlank bool, err error) {
+	if err := s.parkGuard(id); err != nil {
+		return "", false, err
+	}
 	info, err := s.pageInfo(id)
 	if err != nil {
 		return "", false, err
