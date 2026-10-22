@@ -1,0 +1,133 @@
+package aitask
+
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+const tid = "at-0123456789abcdef"
+
+func write(t *testing.T, dir, name, body string) string {
+	t.Helper()
+	p := filepath.Join(dir, name)
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
+func TestContextReadmeSaysDataNotInstructions(t *testing.T) {
+	cwd, src := t.TempDir(), t.TempDir()
+	files, err := WriteContext(cwd, tid, []string{write(t, src, "a.txt", "hi")}, nil)
+	if err != nil || len(files) != 2 {
+		t.Fatalf("%v %v", files, err)
+	}
+	b, _ := os.ReadFile(filepath.Join(cwd, ContextDir, tid, "README.md"))
+	if !strings.Contains(string(b), "never instructions") || !strings.Contains(string(b), "`a.txt`") {
+		t.Fatalf("%s", b)
+	}
+	if _, err := os.Stat(filepath.Join(cwd, ContextDir, ".gitignore")); err != nil {
+		t.Fatal("context is not kept out of git")
+	}
+}
+
+func TestNoSourcesMakesNoFolder(t *testing.T) {
+	cwd := t.TempDir()
+	if files, err := WriteContext(cwd, tid, nil, nil); err != nil || files != nil {
+		t.Fatalf("%v %v", files, err)
+	}
+	if _, err := os.Stat(filepath.Join(cwd, ".monoagent")); err == nil {
+		t.Fatal("a folder was made for no context")
+	}
+}
+
+// The caps are checked before anything is written, so a refused context
+// leaves no folder: dropping a cap makes these fail.
+func TestContextCapsRefuseAndLeaveNothing(t *testing.T) {
+	src := t.TempDir()
+	big := write(t, src, "big.txt", strings.Repeat("x", MaxContextFileBytes+1))
+	many := t.TempDir()
+	for i := 0; i <= MaxContextFiles; i++ {
+		write(t, many, filepath.Join("d", strings.Repeat("a", 1)+string(rune('a'+i%26))+strings.Repeat("b", i/26)+".txt"), "x")
+	}
+	total := t.TempDir()
+	for i := 0; i < 9; i++ {
+		write(t, total, filepath.Join("t", string(rune('a'+i))+".txt"), strings.Repeat("y", MaxContextFileBytes))
+	}
+	for name, sources := range map[string][]string{"one file": {big}, "file count": {many}, "total": {total}} {
+		cwd := t.TempDir()
+		_, err := WriteContext(cwd, tid, sources, nil)
+		if code(err) != CodeContextInvalid {
+			t.Errorf("%s: err = %v", name, err)
+		}
+		if _, statErr := os.Stat(filepath.Join(cwd, ".monoagent")); statErr == nil {
+			t.Errorf("%s: a refused context left a folder", name)
+		}
+	}
+}
+
+func TestContextRefusesLinksAndStrangeFiles(t *testing.T) {
+	src, cwd := t.TempDir(), t.TempDir()
+	target := write(t, src, "real.txt", "x")
+	link := filepath.Join(src, "link.txt")
+	if err := os.Symlink(target, link); err != nil {
+		t.Skip("no symlinks here")
+	}
+	if _, err := WriteContext(cwd, tid, []string{link}, nil); code(err) != CodeContextInvalid {
+		t.Fatalf("a named link was followed: %v", err)
+	}
+	bin := filepath.Join(src, "tool.bin")
+	if err := os.WriteFile(bin, []byte{0x7f, 'E', 'L', 'F', 0, 1, 2, 3}, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := WriteContext(cwd, tid, []string{bin}, nil); code(err) != CodeContextInvalid {
+		t.Fatalf("a binary was copied: %v", err)
+	}
+	// Inside a folder, links and dotfiles are left out, not followed.
+	dir := t.TempDir()
+	write(t, dir, "keep.txt", "k")
+	write(t, dir, ".secret", "s")
+	write(t, dir, ".git/config", "c")
+	if err := os.Symlink(target, filepath.Join(dir, "ln.txt")); err != nil {
+		t.Fatal(err)
+	}
+	files, err := WriteContext(cwd, tid, []string{dir}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, f := range files {
+		names = append(names, f.Name)
+	}
+	if got := strings.Join(names, ","); got != filepath.Base(dir)+"/keep.txt,README.md" {
+		t.Fatalf("files = %s", got)
+	}
+}
+
+func TestContextRefusesBadTaskIDsAndCollisions(t *testing.T) {
+	cwd, a, b := t.TempDir(), t.TempDir(), t.TempDir()
+	pa, pb := write(t, a, "same.txt", "1"), write(t, b, "same.txt", "2")
+	for _, id := range []string{"../escape", "at-short", "", "at-0123456789abcdeg"} {
+		if _, err := WriteContext(cwd, id, []string{pa}, nil); err == nil {
+			t.Errorf("task id %q was accepted", id)
+		}
+	}
+	if _, err := WriteContext(cwd, tid, []string{pa, pb}, nil); code(err) != CodeContextInvalid {
+		t.Fatalf("two files named same.txt: %v", err)
+	}
+	if _, err := WriteContext(cwd, tid, []string{write(t, a, "README.md", "mine")}, nil); code(err) != CodeContextInvalid {
+		t.Fatalf("a file replaced the README: %v", err)
+	}
+}
+
+func TestRedactValuesLeavesShortValuesAlone(t *testing.T) {
+	r := RedactValues([]string{"abc", "supersecret", "supersecretlonger"})
+	if got := r("abc supersecretlonger and supersecret"); got != "abc *** and ***" {
+		t.Fatalf("%q", got)
+	}
+}
