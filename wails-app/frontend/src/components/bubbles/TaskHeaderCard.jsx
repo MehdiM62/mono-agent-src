@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { aitaskApi, taskIsDone } from '../SendToCoderApi.js'
+import { aitaskBudgetApi, money } from '../settings/aitaskBudgetApi.js'
 
 const POLL_MS = 4000
+const BUDGET_POLL_MS = 15000
 
 // TaskHeaderCard sits at the top of a coder bubble that is an AI task (#957):
 // what was asked, its status (kept fresh while it runs), a way back to the tab
@@ -18,6 +20,17 @@ export function TaskHeaderCard({ task, onNavigate }) {
       aitaskApi.get(task.taskId).then(t => { if (live && t?.status) setStatus(t.status) }).catch(() => {})
     }, POLL_MS)
     return () => { live = false; clearInterval(id) }
+  }, [task.taskId, status])
+
+  // What the task has spent against its cap; absent when the CLI can't say.
+  const [budget, setBudget] = useState(null)
+  useEffect(() => {
+    if (!task.taskId) return undefined
+    let live = true
+    const load = () => aitaskBudgetApi.forTask(task.taskId).then(b => { if (live && b?.capUsd > 0) setBudget(b) }).catch(() => {})
+    load()
+    const id = taskIsDone(status) ? null : setInterval(load, BUDGET_POLL_MS)
+    return () => { live = false; if (id) clearInterval(id) }
   }, [task.taskId, status])
 
   const cancel = async () => {
@@ -41,6 +54,11 @@ export function TaskHeaderCard({ task, onNavigate }) {
     }}>
       <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text)' }} title={task.goal}>{task.goal}</span>
       <span style={{ color: 'var(--cyan)', border: '1px solid var(--border-bright)', borderRadius: 999, padding: '1px 7px' }}>{status === 'complete' && task.doneLabel ? task.doneLabel : (status || 'queued')}</span>
+      {budget && (
+        <span data-testid="task-budget" title="Spent of this task's spend cap" style={{ color: 'var(--text-muted)' }}>
+          {budget.reported ? money(budget.spentUsd) : '–'} / {money(budget.capUsd)}
+        </span>
+      )}
       {origin?.page && onNavigate && (
         <button type="button" className="btn btn-ghost btn-sm" onClick={() => onNavigate(origin.page)}>Open in {origin.label || origin.page}</button>
       )}

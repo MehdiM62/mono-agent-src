@@ -14,6 +14,7 @@ import VaultKeyringSection from '../components/settings/VaultKeyringSection.jsx'
 import CoderModeSection from '../components/settings/CoderModeSection.jsx'
 import CoderOrgSection from '../components/settings/CoderOrgSection.jsx'
 import BrowserPermissionsSection from '../components/settings/BrowserPermissionsSection.jsx'
+import AiTaskBudgetsSection from '../components/settings/AiTaskBudgetsSection.jsx'
 import SandboxFallbackSection from '../components/settings/SandboxFallbackSection.jsx'
 import ProfileSection from '../components/settings/ProfileSection.jsx'
 import ApiKeysSection from '../components/settings/api/ApiKeysSection.jsx'
@@ -433,6 +434,14 @@ export default function Settings({ onNavigate, navData, isActive = true }) {
           </div>
 
           <BrowserPermissionsSection />
+
+          {/* Spend caps for AI tasks handed to the coder */}
+          <div style={headingStyle}>
+            <span style={headingText}>AI Task Budgets</span>
+            <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+          </div>
+
+          <AiTaskBudgetsSection />
 
           {/* Agent sandbox fallback */}
           <div style={headingStyle}>
