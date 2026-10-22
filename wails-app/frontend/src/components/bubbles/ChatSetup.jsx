@@ -4,7 +4,7 @@ import { api } from '../../services/api.js'
 import { ACCESS_LEVELS, isCoderAccess } from '../../lib/chatAccess.js'
 import { runtimeLabel } from '../../lib/runtimeLabels.js'
 import AgentSetupLink from '../AgentSetupLink.jsx'
-import { CoderModePicker } from '../chat/CoderModePicker.jsx'
+import { FolderPicker } from '../chat/FolderPicker.jsx'
 import { useRecentWorkspaces, coderReady, fidelityNote, missingText } from '../chat/useCoderMode.js'
 
 const mono = 'var(--font-mono)'
@@ -65,9 +65,10 @@ export function ChatSetup({ s, setup, onChange, onNavigate }) {
       )}
       {!coderOff && !s.coderOk && <div style={warn}>{t('bubbles.coderNotReady', { why: missingText(s.status) })}</div>}
       {s.coder && coderReady(s.status) && (
-        <CoderModePicker status={s.status} mode="coder" onModeChange={() => {}} workspaceOnly
-          workspace={setup.workspace} onWorkspaceChange={workspace => onChange({ workspace })}
-          recent={recent} onPickFolder={pickFolder} runtimeId={s.runtime} />
+        <div style={{ padding: '8px 12px', borderBottom: '1px solid rgba(0,180,216,0.06)' }}>
+          <FolderPicker status={s.status} workspace={setup.workspace} onWorkspaceChange={workspace => onChange({ workspace })}
+            recent={recent} onPickFolder={pickFolder} runtimeId={s.runtime} />
+        </div>
       )}
       {s.options.length > 0 && (
         <div style={{ display: 'flex', gap: 6, padding: '8px 12px', borderBottom: '1px solid rgba(0,180,216,0.06)' }}>
