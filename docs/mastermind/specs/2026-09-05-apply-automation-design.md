@@ -2,6 +2,16 @@
 
 Date: 2026-09-05
 Status: Approved (Phase 6 of the "ultimate job applier" feature)
+Superseded in part (2026-10-22): the decision NOT to auto-fill is reversed. A coder task of kind
+`application-apply` (`monoagentcli application fill start <id>`, internal/applyfill) now fills the
+visible form fields from the profile facts, in the user's browser, and stops. What is NOT reversed:
+nothing programmatic submits (the submit of an application on a real site is held for the user at
+every level of the `apply` browser-permission kind, which can never be full-no-approvals), `applied`
+is set only by the user (`application send`), and `internal/apply` still contains no form-interaction
+code (TestBrowserFileNeverClicksAnything). The "Out of Scope: adaptive form auto-fill" section below
+is the follow-up this note delivers; its "never expose a submit-capable tool" ideal is met by the
+submit gate (internal/browserctl) rather than by withholding tools. Design and checks:
+docs/mastermind/plans/2026-10-22-coder-as-ai-front-door.md sections 2d and 9.
 Branch: `worktree-feature+job-tender-applications`
 
 ## Context

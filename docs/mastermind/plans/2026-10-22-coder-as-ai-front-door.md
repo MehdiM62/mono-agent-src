@@ -271,3 +271,34 @@ reach `openCoderChat`. Attach points: Apply (`ApplicationsProcessPendingFlow.jsx
 5. Per-task spend caps: reuse `coder set --budget-usd`, or per-kind caps?
 6. Reverse the 2026-09-05 "no auto-fill" apply spec so the Applications tab can have the coder fill forms (stopping before
    submit, submit = HIL)? Recommended yes, as the first kind after the workflow pilot.
+
+## 9. Verified gates (apply worker, 2026-10-22)
+
+Question: can a coder-kind agent submit, fill or upload on a non-local origin without a person's approval? Answer: no,
+at every level below `full-no-approvals`, through the CLI. Read from the code at the commit this section was added.
+
+- **Which level binds.** A coder turn is issued kind `coder` (`internal/cli/chat/chat_coder.go:129`, vouched by
+  `browserctl.IssueAgentKind`, `kindtoken.go:64`). `AgentCaller` (`permissions.go:458`) turns that token into
+  `Caller{Kind: coder}`, and a shell that declares a kind it cannot prove is kind `other` with the stricter of the two
+  levels (`LevelOf`, `permissions.go:482`). The coder default is `dev` (`permissions.go:77`).
+- **Reaching a non-local site.** `Policy.Check` (`policy.go:106`) lets an agent drive a non-local origin only at
+  `full`/`full-no-approvals`, or with an allow rule, or (at `ask`) after a HIL item; `dev` refuses it.
+- **Submit.** `Policy.SubmitGated` (`policy.go:161`) is true for an agent on an allowed, non-local origin at every level
+  except `full-no-approvals`. `Session.Gated` (`gate.go:60`) uses it. Every browser verb runs inside `browserRun.act`
+  (`cmd/monoagentcli/browser.go:121-132`): `BeforeAct` (`gate.go:88`) arms the extension guard on the tab and fails
+  closed if it cannot be armed; `AfterAct` (`gate.go:128`) turns a submit the guard blocked into a HIL item. A click on a
+  submit-like control is probed and held up front (`browser_act.go:35`); Enter in a field and script submits are caught by
+  the page guard (`chrome-extension/agent_submit_guard.js`, header). `browser eval` is refused on a gated tab
+  (`browser_act.go:175`).
+- **Fill and upload.** `browser fill` (`browser_fill.go:59`) and `browser upload` (`browser_upload.go:55`) are held with a
+  HIL item when `Gated()`; they run only through `--hil <id>` after approval, bound to the page by a digest.
+- **Per tab and origin.** The guard is armed again before every action; the extension disarms a tab whose top page leaves
+  the armed origin and drops its records (`gate.go:104-107`, guard header), so a submit the person makes elsewhere is not
+  stopped.
+- **Gaps (not closed by this work).** (1) Fetch/XHR-only "forms" are not caught (`gate.go` header). (2) The guard cannot
+  tell the person's submit from the agent's (it shows a bar). (3) At `full-no-approvals` nothing is held; the coder level
+  can be set to it by the operator. (4) The coder agent's own Claude/Codex shell can use tools outside `browser` (its own
+  browser, curl): the policy is a courtesy layer, not a sandbox (`policy.go` header).
+- **Consequence for `apply`.** An apply task's turn is a coder turn, so today it runs at the coder level. The new `apply`
+  kind needs the turn to be issued `apply` (`chat_coder.go` is not in this worker's files: see NEEDS in the report).
+  Until then it is bound by the coder level, which is never looser than the apply one for submit.

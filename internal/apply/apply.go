@@ -1,10 +1,14 @@
 // internal/apply/apply.go
 
 // Package apply assembles everything needed to complete one job
-// application by hand (generated documents + the posting open in a
-// browser) — see docs/mastermind/specs/2026-09-05-apply-automation-design.md
-// for why this phase deliberately does not auto-fill or auto-submit
-// anything.
+// application (generated documents + the posting open in a browser).
+// This package itself fills and submits nothing, and has no form
+// interaction code. Filling the form is a separate step, the
+// application-apply coder task (internal/applyfill, started by
+// `application fill start`), which stops before the submit; the submit
+// stays with the user. See
+// docs/mastermind/specs/2026-09-05-apply-automation-design.md (the
+// no-auto-fill decision there is superseded in part, 2026-10-22).
 package apply
 
 import (

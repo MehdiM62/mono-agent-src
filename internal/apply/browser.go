@@ -17,8 +17,10 @@ import (
 var OpenForApplicationFunc = openForApplicationImpl
 
 // OpenForApplication opens jobURL as a new tab in the user's real,
-// already-logged-in Chrome via the MonoAgent browser extension, for a
-// human to complete the application by hand. This function contains no
+// already-logged-in Chrome via the MonoAgent browser extension, for the
+// application to be completed there: by hand, or filled in first by the
+// application-apply coder task (internal/applyfill), which stops before the
+// submit. This function contains no
 // interaction beyond navigation — a companion test in this package
 // mechanically enforces that this file never grows a form-interaction
 // call. There is no local-browser fallback: if the extension isn't

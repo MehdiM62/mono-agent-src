@@ -20,13 +20,14 @@ const PermissionsSetting = "browser_agent_permissions"
 // Kinds of agent.
 const (
 	KindCoder = "coder" // coder chats and their dynorg workers
+	KindApply = "apply" // the coder task that fills a job application (internal/applyfill)
 	KindOrg   = "org"   // monomind org roles, org triggers
 	KindChat  = "chat"  // the in-app chat and the workflow runs it starts
 	KindOther = "other" // any other agent shell (Claude Code, Codex, … in a terminal)
 )
 
 // Kinds lists every kind, in the order the GUI shows them.
-var Kinds = []string{KindCoder, KindOrg, KindChat, KindOther}
+var Kinds = []string{KindCoder, KindApply, KindOrg, KindChat, KindOther}
 
 // Levels, most to least access.
 const (
@@ -61,6 +62,8 @@ func KindLabel(kind string) string {
 	switch kind {
 	case KindCoder:
 		return "Coder chats"
+	case KindApply:
+		return "Application fill (coder task)"
 	case KindOrg:
 		return "Org roles"
 	case KindChat:
@@ -74,7 +77,11 @@ func KindLabel(kind string) string {
 // DefaultLevels are the levels of kinds the user did not set: dev pages
 // for every agent shell, as shipped in v0.141.0; the in-app chat keeps any
 // site behind submit approvals, as it had.
-var DefaultLevels = map[string]string{KindCoder: LevelDev, KindOrg: LevelDev, KindChat: LevelFull, KindOther: LevelDev}
+//
+// apply starts stricter, at ask, and can never be full-no-approvals: the
+// submit of an application on a real site always waits for a person
+// (levelAllowed).
+var DefaultLevels = map[string]string{KindCoder: LevelDev, KindApply: LevelAsk, KindOrg: LevelDev, KindChat: LevelFull, KindOther: LevelDev}
 
 // Site rules.
 const (
@@ -113,6 +120,12 @@ func validLevel(level string) bool {
 		}
 	}
 	return false
+}
+
+// levelAllowed reports whether kind may be set to level: apply never gets
+// full-no-approvals, whoever asks.
+func levelAllowed(kind, level string) bool {
+	return !(kind == KindApply && level == LevelFullNoApprovals)
 }
 
 func validKind(kind string) bool {
@@ -193,7 +206,7 @@ func parsePermissions(db *sql.DB, raw string, found bool) (p Permissions, legacy
 			legacy = true
 			continue
 		}
-		if validKind(k) && validLevel(v) {
+		if validKind(k) && validLevel(v) && levelAllowed(k, v) {
 			p.Levels[k] = v
 		}
 	}
@@ -307,6 +320,9 @@ func encodePermissions(p Permissions) (Permissions, string, error) {
 		if !validKind(k) || !validLevel(v) {
 			return out, "", fmt.Errorf("%s: %s is not a level for %s", PermissionsSetting, v, k)
 		}
+		if !levelAllowed(k, v) {
+			return out, "", fmt.Errorf("%s: %s can never be %s: a submit on a real site always waits for a person", PermissionsSetting, k, v)
+		}
 		out.Levels[k] = v
 	}
 	for _, s := range p.Sites {
@@ -323,7 +339,7 @@ func encodePermissions(p Permissions) (Permissions, string, error) {
 
 // Level is kind's level.
 func (p Permissions) Level(kind string) string {
-	if l, ok := p.Levels[kind]; ok {
+	if l, ok := p.Levels[kind]; ok && levelAllowed(kind, l) {
 		return l
 	}
 	return DefaultLevels[kind]
@@ -343,6 +359,9 @@ func (p *Permissions) SetLevel(kind, level string) error {
 	}
 	if p.Levels == nil {
 		p.Levels = map[string]string{}
+	}
+	if !levelAllowed(kind, level) {
+		return fmt.Errorf("%s can never be %s: a submit on a real site always waits for a person", kind, level)
 	}
 	p.Levels[kind] = level
 	return nil
@@ -431,7 +450,7 @@ func (p Permissions) PolicyForCaller(c Caller) Policy {
 
 // Environment that tells kinds of agent apart.
 const (
-	EnvAgentKind = "MONOAGENT_AGENT_KIND" // "coder" (coder turns, dynorg workers) or "org"
+	EnvAgentKind = "MONOAGENT_AGENT_KIND" // "coder" (coder turns, dynorg workers), "apply" or "org"
 	EnvAICaller  = "MONOAGENT_AI_CALLER"  // "chat": a run the in-app chat started
 )
 
@@ -492,7 +511,7 @@ func (p Permissions) LevelOf(c Caller) string {
 // declaredKind is the kind an agent shell's environment claims.
 func declaredKind() string {
 	switch kind := strings.TrimSpace(os.Getenv(EnvAgentKind)); {
-	case kind == KindCoder || kind == KindOrg:
+	case kind == KindCoder || kind == KindApply || kind == KindOrg:
 		return kind
 	case strings.TrimSpace(os.Getenv("MONOMIND_ORG_ROLE")) != "":
 		return KindOrg
