@@ -4,6 +4,7 @@ import { MessageSquare, UserCheck } from 'lucide-react'
 import { getHealth, subscribeHealth, summarize } from '../lib/health.js'
 import { GetVersion, CheckForUpdate, AppSelfUpdate } from '../wailsjs/go/main/App'
 import { subscribeEvent } from '../services/api.js'
+import { useSendToCoder } from './bubbles/CoderBubbleContext.jsx'
 
 // HealthDot: the latest System health verdict (the background check runs on
 // start and every 30 minutes, see lib/health.js); click opens Settings.
@@ -35,6 +36,11 @@ function HealthDot({ onOpen }) {
 }
 
 export default function StatusBar({ stats, dbConnected, chatOpen, onToggleChat, hilOpen, hilCount = 0, onToggleHil, onOpenHealth }) {
+  // The assistant toggle opens a new chat bubble; without the bubble store
+  // (a bar rendered alone) it keeps the old panel toggle.
+  // TODO: call openNewChat() from the same context once the pane worker lands it.
+  const { openDraft } = useSendToCoder()
+  const openAssistant = openDraft ? () => openDraft() : onToggleChat
   const running = stats?.executions_by_status?.RUNNING || 0
   const total   = stats?.total_workflows || 0
   const people  = stats?.total_people || 0
@@ -242,7 +248,7 @@ export default function StatusBar({ stats, dbConnected, chatOpen, onToggleChat, 
             button. */}
         {onToggleChat && (
           <button
-            onClick={onToggleChat}
+            onClick={openAssistant}
             title={chatOpen ? 'Close AI Assistant' : 'Open AI Assistant'}
             aria-label={chatOpen ? 'Close AI Assistant' : 'Open AI Assistant'}
             style={{

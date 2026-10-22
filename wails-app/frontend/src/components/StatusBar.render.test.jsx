@@ -62,3 +62,21 @@ describe('StatusBar HIL toggle', () => {
     expect(onToggleChat).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('StatusBar assistant toggle', () => {
+  afterEach(() => cleanup())
+
+  it('opens a new chat bubble when the bubble store is provided', async () => {
+    const { CoderBubbleContext } = await import('./bubbles/CoderBubbleContext.jsx')
+    const openDraft = vi.fn()
+    const onToggleChat = vi.fn()
+    render(
+      <CoderBubbleContext.Provider value={{ openDraft, navigate: null }}>
+        <StatusBar stats={{}} dbConnected={true} chatOpen={false} onToggleChat={onToggleChat} />
+      </CoderBubbleContext.Provider>,
+    )
+    fireEvent.click(screen.getByLabelText('Open AI Assistant'))
+    expect(openDraft).toHaveBeenCalledTimes(1)
+    expect(onToggleChat).not.toHaveBeenCalled()
+  })
+})
