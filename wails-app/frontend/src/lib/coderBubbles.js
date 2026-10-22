@@ -146,10 +146,10 @@ export function loadState(storage = globalThis.localStorage) {
       ? parsed.bubbles.map(b => {
         if (b?.kind === 'org' && typeof b.orgName === 'string' && b.orgName) return orgBubble(b.orgName)
         if (b && typeof b.conversationId === 'string' && b.conversationId) {
-          // A bubble saved before access levels was a coder chat, which always had full access.
+          // No stored level is unknown, never assumed: the pane looks the real one up.
           return {
             key: b.conversationId, conversationId: b.conversationId, cwd: String(b.cwd || ''), model: String(b.model || ''), runtime: String(b.runtime || ''),
-            access: isAccess(b.access) ? b.access : 'full', title: String(b.title || ''), effort: String(b.effort || ''),
+            access: isAccess(b.access) ? b.access : '', title: String(b.title || ''), effort: String(b.effort || ''),
             orgMode: b.orgMode === 'dynamic' ? 'dynamic' : '', taskId: String(b.taskId || ''), taskKind: String(b.taskKind || ''),
           }
         }

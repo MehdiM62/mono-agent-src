@@ -89,7 +89,7 @@ describe('persistence', () => {
   it('keeps real conversations and the dock side, drops drafts', () => {
     const s = memory()
     saveState({ side: 'left', bubbles: [{ key: 'draft-1', conversationId: '' }, { key: 'c1', conversationId: 'c1', cwd: '/w', model: 'opus', runtime: 'codex' }] }, s)
-    expect(loadState(s)).toEqual({ side: 'left', bubbles: [{ key: 'c1', conversationId: 'c1', cwd: '/w', model: 'opus', runtime: 'codex', access: 'full', title: '', effort: '', orgMode: '', taskId: '', taskKind: '' }] })
+    expect(loadState(s)).toEqual({ side: 'left', bubbles: [{ key: 'c1', conversationId: 'c1', cwd: '/w', model: 'opus', runtime: 'codex', access: '', title: '', effort: '', orgMode: '', taskId: '', taskKind: '' }] })
   })
   it('survives throwing or corrupt storage', () => {
     const throwing = { getItem: () => { throw new Error('denied') }, setItem: () => { throw new Error('denied') } }
@@ -228,16 +228,16 @@ describe('org bubbles (#229)', () => {
       expect(loadState(s).bubbles[0]).toMatchObject({ access: 'scoped', title: 'Fix the bug', effort: 'high', orgMode: 'dynamic', taskId: 't1', taskKind: 'application-apply' })
     })
 
-    it('reads a v1 entry written before levels as a full-access coder chat, keeping its old fields', () => {
+    it('reads a v1 entry written before levels as an unknown level, keeping its old fields', () => {
       const s = mem()
       s.setItem(STORAGE_KEY, JSON.stringify({ side: 'right', bubbles: [{ conversationId: 'old', cwd: '/w', model: 'opus', runtime: 'claude' }] }))
-      expect(loadState(s).bubbles[0]).toMatchObject({ key: 'old', conversationId: 'old', cwd: '/w', model: 'opus', runtime: 'claude', access: 'full' })
+      expect(loadState(s).bubbles[0]).toMatchObject({ key: 'old', conversationId: 'old', cwd: '/w', model: 'opus', runtime: 'claude', access: '' })
     })
 
     it('does not trust a stored level it does not know', () => {
       const s = mem()
       s.setItem(STORAGE_KEY, JSON.stringify({ bubbles: [{ conversationId: 'x', access: 'root' }] }))
-      expect(loadState(s).bubbles[0].access).toBe('full')
+      expect(loadState(s).bubbles[0].access).toBe('')
     })
 
     it('keeps the four original fields on every saved bubble', () => {
