@@ -21,6 +21,7 @@ const (
 	CodeWaitTimeout        = "wait_timeout"
 	CodeNotQueued          = "not_queued"
 	CodeTaskNotOnYourBoard = "not_your_task"
+	CodeContextSource      = "context_source_refused"
 	CodeContextChanged     = "context_changed"
 	CodeCapsChanged        = "capabilities_changed"
 )

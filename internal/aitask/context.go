@@ -9,9 +9,12 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/monoes/mono-agent/internal/attachments"
 )
 
 // ContextDir is where a task's context lands, relative to the conversation's
@@ -55,6 +58,54 @@ func RedactValues(values []string) func(string) string {
 	}
 }
 
+// What a task's context may come from. Synced messages, people threads and
+// anything else that a third party wrote to the user are not on the list: a
+// task runs with a shell, and AGENTS.md keeps those out of shell turns.
+const (
+	SourcePosting   = "posting"   // a web posting the user is looking at
+	SourceFacts     = "facts"     // the profile's own facts
+	SourceDocument  = "document"  // a document registered to the profile
+	SourceSelection = "selection" // text the user selected or pasted
+)
+
+// ContextSources are the allowed classes.
+var ContextSources = []string{SourcePosting, SourceFacts, SourceDocument, SourceSelection}
+
+// ContextSource is one file or folder of context and what it is.
+type ContextSource struct {
+	Class string
+	Path  string
+}
+
+// ParseContextSource reads "class=path".
+func ParseContextSource(arg string) (ContextSource, error) {
+	class, path, ok := strings.Cut(arg, "=")
+	if !ok || path == "" || class == "" {
+		return ContextSource{}, errf(CodeContextSource, "--context takes CLASS=PATH, with CLASS one of %s (got %q)",
+			strings.Join(ContextSources, ", "), arg)
+	}
+	return ContextSource{Class: class, Path: path}, nil
+}
+
+// checkSources refuses a class that is not allowed and any path inside the
+// folder where synced message attachments live, whatever its class says.
+func checkSources(sources []ContextSource) error {
+	for _, s := range sources {
+		if !slices.Contains(ContextSources, s.Class) {
+			return errf(CodeContextSource, "context from %q is refused: a task is given only %s (messages and people threads never reach a task)",
+				s.Class, strings.Join(ContextSources, ", "))
+		}
+		abs, err := filepath.Abs(s.Path)
+		if err != nil {
+			return errf(CodeContextInvalid, "%s: %v", s.Path, err)
+		}
+		if within(attachments.Dir(), abs) {
+			return errf(CodeContextSource, "%s is a synced message attachment: messages never reach a task", s.Path)
+		}
+	}
+	return nil
+}
+
 type pending struct {
 	name string
 	src  string
@@ -68,12 +119,15 @@ type pending struct {
 // copied: a named file that can't be is a context_invalid error, so nothing is
 // silently left out. It returns the files written; none when sources is empty
 // (and then no folder is made).
-func WriteContext(cwd, taskID string, sources []string, redact func(string) string) ([]ContextFile, error) {
+func WriteContext(cwd, taskID string, sources []ContextSource, redact func(string) string) ([]ContextFile, error) {
 	if len(sources) == 0 {
 		return nil, nil
 	}
 	if !taskIDPattern.MatchString(taskID) {
 		return nil, errf(CodeInvalidInput, "%q is not a task id", taskID)
+	}
+	if err := checkSources(sources); err != nil {
+		return nil, err
 	}
 	files, err := collect(sources)
 	if err != nil {
@@ -122,12 +176,12 @@ func WriteContext(cwd, taskID string, sources []string, redact func(string) stri
 
 // collect resolves sources to the files to copy, named relative to the
 // context folder, checking the caps before anything is written.
-func collect(sources []string) ([]pending, error) {
+func collect(sources []ContextSource) ([]pending, error) {
 	var files []pending
 	seen := map[string]string{}
 	var total int64
 	add := func(name, src string, size int64) error {
-		if strings.ContainsAny(name, "\x00\r\n") || name == contextReadme {
+		if strings.ContainsAny(name, "\x00\r\n") {
 			return errf(CodeContextInvalid, "%q can't be a context file name", name)
 		}
 		if prev, dup := seen[name]; dup {
@@ -144,7 +198,8 @@ func collect(sources []string) ([]pending, error) {
 		files = append(files, pending{name: name, src: src, size: size})
 		return nil
 	}
-	for _, src := range sources {
+	for _, cs := range sources {
+		src := cs.Path
 		abs, err := filepath.Abs(src)
 		if err != nil {
 			return nil, errf(CodeContextInvalid, "%s: %v", src, err)
@@ -157,7 +212,7 @@ func collect(sources []string) ([]pending, error) {
 		case fi.Mode()&fs.ModeSymlink != 0:
 			return nil, errf(CodeContextInvalid, "%s is a symbolic link: name the file itself", src)
 		case fi.Mode().IsRegular():
-			if err := add(filepath.Base(abs), abs, fi.Size()); err != nil {
+			if err := add(cs.Class+"/"+filepath.Base(abs), abs, fi.Size()); err != nil {
 				return nil, err
 			}
 		case fi.IsDir():
@@ -183,7 +238,7 @@ func collect(sources []string) ([]pending, error) {
 					return err
 				}
 				rel, _ := filepath.Rel(abs, p)
-				return add(base+"/"+filepath.ToSlash(rel), p, info.Size())
+				return add(cs.Class+"/"+base+"/"+filepath.ToSlash(rel), p, info.Size())
 			})
 			if err != nil {
 				var ae *Error

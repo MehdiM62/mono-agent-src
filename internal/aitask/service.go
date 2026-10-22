@@ -60,7 +60,7 @@ type Service struct {
 type SubmitInput struct {
 	Kind          string
 	Goal          string
-	Context       []string
+	Context       []ContextSource
 	ApplicationID string
 	Access        string
 	Runtime       string

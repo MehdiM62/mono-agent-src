@@ -142,10 +142,11 @@ func human(t aitask.Task) string {
 
 func (c *cli) submit() *cobra.Command {
 	var in aitask.SubmitInput
+	var contextArgs []string
 	cmd := &cobra.Command{
 		Use:   "submit",
 		Short: "Create a task and its coder conversation, and start its first turn",
-		Long: "Creates a coder conversation in the profile's folder, writes --context into <folder>/" + aitask.ContextDir +
+		Long: "Creates a coder conversation in the profile's folder, writes --context (CLASS=PATH; messages and people threads are refused) into <folder>/" + aitask.ContextDir +
 			"/<task>/ (data, never instructions; size-capped; secret values hidden), builds the first turn from the --kind and " +
 			"starts it. --queue-only leaves the task queued for `aitask start` (the person's click). Kinds: " +
 			strings.Join(aitask.Names(), ", ") + ". --unattended needs --access qa and a kind that allows it; with a " +
@@ -160,6 +161,13 @@ func (c *cli) submit() *cobra.Command {
 				return err
 			}
 			defer closeDB()
+			for _, arg := range contextArgs {
+				cs, err := aitask.ParseContextSource(arg)
+				if err != nil {
+					return cliErr(err)
+				}
+				in.Context = append(in.Context, cs)
+			}
 			t, err := svc.Submit(cmd.Context(), in)
 			if err != nil {
 				return cliErr(err)
@@ -170,7 +178,7 @@ func (c *cli) submit() *cobra.Command {
 	f := cmd.Flags()
 	f.StringVar(&in.Kind, "kind", "generic", "Task kind")
 	f.StringVar(&in.Goal, "goal", "", "What the agent is asked to do")
-	f.StringArrayVar(&in.Context, "context", nil, "File or folder to copy into the task's context (repeatable)")
+	f.StringArrayVar(&contextArgs, "context", nil, "CLASS=PATH: a file or folder for the task's context (repeatable); CLASS is "+strings.Join(aitask.ContextSources, ", "))
 	f.StringVar(&in.ApplicationID, "application", "", "The application the task is about")
 	f.StringVar(&in.Access, "access", "", "coding, workspace or qa (default: the kind's)")
 	f.StringVar(&in.Runtime, "runtime", "", "Agent runtime (default claude; see 'coder status')")
