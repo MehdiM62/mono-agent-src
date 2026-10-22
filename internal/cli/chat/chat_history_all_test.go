@@ -401,3 +401,20 @@ func TestHistoryAllFlagsNeedAll(t *testing.T) {
 		t.Error("--limit over 200 must be refused")
 	}
 }
+
+func TestHistoryAllIDFilter(t *testing.T) {
+	dbPath := newChatCLITestDB(t)
+	store, db := openTestChatStore(t, dbPath), rawDB(t, dbPath)
+	a := seedConv(t, store, db, ai.AccessScoped, "2026-10-22T10:00:01Z")
+	seedConv(t, store, db, ai.AccessScoped, "2026-10-22T10:00:02Z")
+	stubOrgs(t, []string{"alpha"}, func(string) (json.RawMessage, error) { return json.RawMessage(goodReport), nil })
+	if _, err := db.Exec(`UPDATE profiles SET root_dir = ? WHERE id = 'default'`, t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
+	if got := listAll(t, dbPath, "--id", a.ID); len(got.Items) != 1 || got.Items[0].ID != a.ID {
+		t.Fatalf("--id = %+v", got.Items)
+	}
+	if got := listAll(t, dbPath, "--id", "nope"); len(got.Items) != 0 {
+		t.Fatalf("unknown id = %+v", got.Items)
+	}
+}
