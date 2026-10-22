@@ -177,7 +177,10 @@ describe('runtime scan and setup banner', () => {
     scan.mockResolvedValue({ agents: [{ id: 'claude', installed: false }] })
     render(<Harness seed={undefined} />)
     fireEvent.click(await screen.findByLabelText('New coder chat'))
-    expect(await screen.findByTestId('setup-blocked')).toHaveTextContent('No AI agent is installed.')
+    const blocked = await screen.findByTestId('setup-blocked')
+    expect(blocked).toHaveTextContent('No AI agent is installed.')
+    fireEvent.click(within(blocked).getByRole('button', { name: /set up ai agents/i }))
+    expect(navigate).toHaveBeenCalledWith('ai')
   })
 
   it('a runtime with no models blocks sending', async () => {
