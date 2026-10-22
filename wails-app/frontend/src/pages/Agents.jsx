@@ -155,7 +155,7 @@ export default function Agents() {
   const loadAgents = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
     try {
-      // Shared TTL-cached scan — an AIChatPanel first-open right after this
+      // Shared TTL-cached scan — a new chat's runtime scan right after this
       // page scanned reconciles against the same result, no second 7s scan.
       const res = await cachedAgentScan()
       if (!res || res.error) {

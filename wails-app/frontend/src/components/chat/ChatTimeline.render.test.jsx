@@ -356,7 +356,7 @@ describe('TurnStatus component', () => {
   it('shows the "Stopping" label when the stopRequested PROP is true, even though reducer state never carries that field', () => {
     // Regression: computeStatusLabel reads stopRequested off the object
     // it's passed — the component used to call it with bare `state` alone,
-    // so this prop (tracked separately in AIChatPanel.jsx, never part of
+    // so this prop (tracked separately by the chat view, never part of
     // chatReducer's own state shape) never reached it. Only the icon
     // swapped; the text label was stuck on whatever it would otherwise be.
     const state = reduce([ev('turn.started', { backend: 'agent', text: 'hi' }, 1)])
@@ -365,7 +365,7 @@ describe('TurnStatus component', () => {
     expect(screen.queryByText('Waiting for response')).not.toBeInTheDocument()
   })
 
-  // Cross-instance ownership label (AIChatPanel.jsx's loadConversation
+  // Cross-instance ownership label (the chat view's transcript loader
   // threads GetChatTurns' ownedByThisInstance through as its own prop, the
   // same way it already does for stopRequested — see the regression test
   // above for why that field can't live inside chatReducer's own state).

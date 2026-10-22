@@ -6,7 +6,7 @@ import { runtimeLabel } from '../../lib/runtimeLabels.js'
 // FolderPicker is where a coding chat works: the active profile's folder
 // (default), a folder picked with the native dialog, or a recent one, and
 // which runtimes are ready. workspace is { kind: 'root' } or { kind:
-// 'folder', path }. Shown by a chat's setup and by CoderModePicker.
+// 'folder', path }. Shown by a new chat's setup.
 
 const mono = 'var(--font-mono)'
 const CYAN = '#00b4d8'
