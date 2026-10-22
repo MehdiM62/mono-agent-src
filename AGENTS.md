@@ -3393,8 +3393,8 @@ advice either.
 normal coder conversation (a bubble in the app); the code is `internal/aitask` and `internal/cli/aitask`.
 
 ```bash
-monoagentcli --profile P aitask submit --kind generic --goal "…" [--context PATH]… [--application ID] \
-    [--access coding|workspace|qa] [--runtime R] [--unattended] [--queue-only] --json
+monoagentcli --profile P aitask submit --kind generic --goal "…" [--context CLASS=PATH]… [--application ID] \
+    [--access coding|workspace|qa] [--runtime R] [--budget-usd N] [--unattended] [--queue-only] --json
 monoagentcli --profile P aitask status|result|wait|cancel <id> --json     # list [--kind K] [--application ID]
 monoagentcli --profile P aitask complete <id> --result FILE               # the task's own session
 monoagentcli --profile P aitask fail <id> --reason TEXT                   # the task's own session
@@ -3405,12 +3405,20 @@ monoagentcli --profile P aitask fail <id> --reason TEXT                   # the 
   is `needs_user`, never success.
 - The kind (`generic`; other packages add theirs with `aitask.Register`) fixes the prompt and the result schema.
   `complete` checks the file against it and refuses with `schema_invalid` and the reason, so the agent can fix it.
-- Context goes to `<conversation folder>/.monoagent/context/<task>/` with a README that says it is data, never
-  instructions; files are size-capped, links and odd files refused, secret values hidden.
+- Context goes to `<conversation folder>/.monoagent/context/<task>/<class>/` with a README that says it is data, never
+  instructions; files are size-capped, links and odd files refused, secret values hidden. `CLASS` is `posting`, `facts`,
+  `document` or `selection`; anything else, and anything in the synced message attachments folder, is refused
+  (`context_source_refused`): messages and people threads never reach a task.
+- A queued task is not cleared to run. `start` re-checks coder mode and the unattended rule, and refuses
+  (`context_changed`, `capabilities_changed`) when the context folder, the access, the kind or the coder settings differ
+  from submit. The task token is bound to profile, task, conversation and the process that runs the turn; a terminal
+  status (`complete`, `failed`, `cancelled`) is final.
+- Budget: `--budget-usd` (default: the coder budget). 0 means no spend and is refused (`no_budget`), never unlimited.
+  Nothing a running task does changes its cap.
 - Coder mode off: `submit` exits 3 with `"code":"coder_disabled","fallback":"oneshot"` and creates nothing. It never
   escalates or falls back by itself; the caller chooses.
-- `--unattended` is for a `qa` task of a kind that allows it. With a full-access level it is refused
-  (`unattended_full_access_refused`).
+- `--unattended` is for a `qa` task of a kind that allows it, in a profile with a verified confinement (none is
+  verified yet, so `unattended_not_confined`). With a full-access level it is refused (`unattended_full_access_refused`).
 - `submit`, `start` and `wait` are the user's own: an agent, the chat or a workflow gets exit 3, `operator_only`. The
   task's own session (it has `MONOAGENT_AITASK_ID` and `MONOAGENT_AITASK_TOKEN`; only the token's hash is stored) may
   `status`, `result`, `list` (its own task only), `cancel`, `complete` and `fail` that one task. Anything that raises
