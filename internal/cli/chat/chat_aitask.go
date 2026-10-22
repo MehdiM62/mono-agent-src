@@ -1,10 +1,12 @@
 package chat
 
 import (
+	"context"
 	"fmt"
 	"os"
 
 	"github.com/monoes/mono-agent/internal/aitask"
+	"github.com/monoes/mono-agent/internal/aitask/budget"
 	"github.com/monoes/mono-agent/internal/applyfill"
 	"github.com/monoes/mono-agent/internal/browserctl"
 )
@@ -66,6 +68,12 @@ func taskTurn(cfg *Deps, conversationID string) (run taskRun) {
 		if db, err := cfg.OpenDB(); err == nil {
 			defer db.Close()
 			_ = (&aitask.Service{Store: &aitask.Store{DB: db.DB, Profile: cfg.ProfileID()}}).EndTurn(t.ID, text)
+			// A follow-up turn's spend counts against the same caps as the first.
+			l := &budget.Ledger{DB: db.DB}
+			if st, err := loadCoderSettings(db.DB); err == nil {
+				l.Operator = st.BudgetUSD
+			}
+			_ = l.Settle(context.Background(), t.ID, t.ConversationID)
 		}
 	}
 	if os.Getenv(aitask.EnvTaskID) == t.ID && store.CheckToken(t.ID, os.Getenv(aitask.EnvToken)) {

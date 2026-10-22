@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/monoes/mono-agent/internal/ai"
 	"github.com/monoes/mono-agent/internal/aitask"
+	"github.com/monoes/mono-agent/internal/aitask/budget"
 	"github.com/monoes/mono-agent/internal/monomind"
 	"github.com/monoes/mono-agent/internal/storage"
 )
@@ -442,5 +444,44 @@ func TestApplyTaskTurnNeverStartsADynamicOrg(t *testing.T) {
 		if got := strings.Contains(r.execArgs(t), "--tools-file"); got != wantTools {
 			t.Errorf("%s task with a dynamic org: org tools given = %v, want %v", kind, got, wantTools)
 		}
+	}
+}
+
+// A follow-up turn's spend is charged to the task's budgets when the turn
+// ends, as the first turn's is: without Settle the cost the conversation has
+// journaled never reaches the ledger.
+func TestFollowUpTurnSpendIsSettledAgainstTheTasksCaps(t *testing.T) {
+	r := newTaskRig(t)
+	task, _ := r.task(t, "default", aitask.StatusNeedsUser)
+	st, done := r.store(t, "default")
+	defer done()
+	l := &budget.Ledger{DB: st.DB}
+	if err := l.SetCap(budget.ScopeConversation, r.convID, 5, "test"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.DB.Exec(`INSERT INTO ai_budget_reservations (task_id, conversation_id, kind, reserved_usd, released, created_at) VALUES (?,?,?,?,0,'x')`,
+		task.ID, r.convID, "generic", 5); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.DB.Exec(`INSERT INTO ai_chat_turns (id, conversation_id, profile_id, prompt, created_at, updated_at) VALUES ('prev',?, 'default','p','x','x')`, r.convID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.DB.Exec(`INSERT INTO ai_chat_events (profile_id, conversation_id, turn_id, seq, created_at, version, type, payload) VALUES ('default',?,'prev',1,'x',1,'usage.updated',?)`,
+		r.convID, `{"costUsd":1.25,"source":"result"}`); err != nil {
+		t.Fatal(err)
+	}
+	r.turn(t, "t1", nil)
+	var spent float64
+	var released int
+	if err := st.DB.QueryRow(`SELECT COALESCE(SUM(spent_usd),0) FROM ai_budget_spend WHERE task_id = ?`, task.ID).Scan(&spent); err != nil {
+		t.Fatal(err)
+	}
+	_ = st.DB.QueryRow(`SELECT released FROM ai_budget_reservations WHERE task_id = ?`, task.ID).Scan(&released)
+	if spent < 1.25 || released != 1 {
+		t.Fatalf("spend %v, released %d: the follow-up turn was not settled", spent, released)
+	}
+	rep, err := l.Report(context.Background())
+	if err != nil || len(rep.Caps) != 1 || rep.Caps[0].UsedUSD < 1.25 || rep.Caps[0].UsedUSD > 5 {
+		t.Fatalf("conversation cap use = %+v (%v)", rep.Caps, err)
 	}
 }
