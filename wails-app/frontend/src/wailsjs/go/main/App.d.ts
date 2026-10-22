@@ -704,6 +704,8 @@ export function ShowRecording(arg1:string):Promise<string>;
 
 export function SubmitAITask(arg1:string,arg2:string,arg3:Array<string>,arg4:string):Promise<main.AITask>;
 
+export function StartApplicationFill(arg1:string):Promise<main.AITask>;
+
 export function StartAgentValidation(arg1:Array<string>,arg2:Array<string>,arg3:boolean):Promise<string>;
 
 export function StartChatTurn(arg1:string,arg2:string,arg3:string,arg4:boolean,arg5:boolean,arg6:Array<string>):Promise<string>;

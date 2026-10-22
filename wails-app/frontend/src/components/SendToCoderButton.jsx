@@ -10,8 +10,10 @@ const noteStyle = { fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--
 // otherwise runs as a one-shot: with coder mode off it says so and links to
 // Settings, never turning coder on itself, and the one-shot stays available.
 // context is the CLASS=PATH entries or selection-text=<text> (selectionText()).
-// origin = { page, label } names the tab the task came from.
-export default function SendToCoderButton({ kind = 'generic', goal, context = [], applicationId = '', label = 'Send to coder', origin, className = 'btn btn-secondary btn-sm', style }) {
+// origin = { page, label } names the tab the task came from. start, when given,
+// replaces the submit: an async () => task (e.g. the application fill), and
+// doneLabel is what the task header says once it completes.
+export default function SendToCoderButton({ kind = 'generic', goal, context = [], applicationId = '', label = 'Send to coder', origin, start, doneLabel, className = 'btn btn-secondary btn-sm', style }) {
   const { openDraft, navigate } = useSendToCoder()
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState(null) // { text, error?, settings? }
@@ -26,14 +28,14 @@ export default function SendToCoderButton({ kind = 'generic', goal, context = []
         setNote({ text: state?.reason || 'Coder mode is off.', settings: true })
         return
       }
-      const task = await aitaskApi.submit(kind, typeof goal === 'function' ? goal() : goal, typeof context === 'function' ? context() : context, applicationId)
+      const task = start ? await start() : await aitaskApi.submit(kind, typeof goal === 'function' ? goal() : goal, typeof context === 'function' ? context() : context, applicationId)
       if (task?.fallback === 'oneshot') {
         setNote({ text: task.reason || 'Coder mode is off.', settings: true })
         return
       }
       openDraft?.({
         conversationId: task.conversationId,
-        task: { taskId: task.taskId, goal: task.goal, status: task.status, origin },
+        task: { taskId: task.taskId, goal: task.goal || goal, status: task.status, origin, doneLabel },
       })
     } catch (err) {
       setNote({ text: String(err?.message || err), error: true })

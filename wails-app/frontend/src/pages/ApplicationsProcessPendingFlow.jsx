@@ -2,6 +2,7 @@ import { useState } from 'react'
 import * as WailsApp from '../wailsjs/go/main/App'
 import { confirm } from '../components/ConfirmDialog.jsx'
 import SendToCoderButton from '../components/SendToCoderButton.jsx'
+import ApplyWithCoderButton from '../components/ApplyWithCoderButton.jsx'
 import { selectionText } from '../components/SendToCoderApi.js'
 
 // computeNextStep is the flow's per-item state-machine decision function,
@@ -196,6 +197,7 @@ export default function ApplicationsProcessPendingFlow({ pendingApplications, on
             {stage === 'evaluated' && mode === 'confirm' && (
               <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
                 <button style={btnStyle} disabled={busy} onClick={() => decide('apply')}>Apply</button>
+                <ApplyWithCoderButton applicationId={current.id} className="" style={btnStyle} />
                 <button style={btnStyle} disabled={busy} onClick={() => decide('skip')}>Skip</button>
                 <button style={{ ...btnStyle, color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)' }} disabled={busy} onClick={() => decide('not-interested')}>Not Interested</button>
               </div>

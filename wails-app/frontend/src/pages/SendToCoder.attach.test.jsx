@@ -9,7 +9,7 @@ import '../i18n.js'
 // hands the coder the right goal and context. Only the AI-task bindings and
 // each page's own data calls are faked.
 const { aitaskApi, App, api } = vi.hoisted(() => ({
-  aitaskApi: { status: vi.fn(), submit: vi.fn(), get: vi.fn(), cancel: vi.fn() },
+  aitaskApi: { status: vi.fn(), submit: vi.fn(), startFill: vi.fn(), get: vi.fn(), cancel: vi.fn() },
   App: {
     GetProfileInfoFields: vi.fn(), GetProfileInfo: vi.fn(), SetProfileInfo: vi.fn(), ClearProfileInfo: vi.fn(),
     RevealProfileInfo: vi.fn(), SetProfileInfoPhoto: vi.fn(), GetProfileInfoPhoto: vi.fn(), AIFillProfileInfo: vi.fn(),
@@ -105,8 +105,6 @@ describe('Send to coder attach points', () => {
     expect(applicationId).toBe('app-1')
     expect(context[0]).toContain('Backend Engineer at Acme')
     expect(context[0]).toContain('solid fit')
-    // The Apply-with-coder button belongs to a later task.
-    expect(screen.queryByRole('button', { name: /apply with coder/i })).toBeNull()
   })
 
   it('Applications: the open detail has "Discuss in coder" for that application', async () => {
@@ -118,7 +116,85 @@ describe('Send to coder attach points', () => {
     render(wrap(<Applications />))
     expect(screen.queryByRole('button', { name: /Discuss in coder/ })).toBeNull()
     fireEvent.click(await screen.findByText('Lead Architect'))
+    const header = await screen.findByRole('banner', { name: 'Application header' })
+    expect(header).toContainElement(screen.getByRole('button', { name: /Discuss in coder/ }))
     const [, , , applicationId] = await clickAndGetSubmit(/Discuss in coder/)
-    expect(applicationId).toBe('app-1')
+    expect(applicationId).toBe(mockApplicationDetail.id)
+  })
+
+  it('Applications: the status filter lists awaiting submit and needs you', async () => {
+    App.GetApplications.mockResolvedValue([
+      { id: 'a1', title: 'Parked One', company: 'X', kind: 'job', status: 'awaiting_submit', tags: [], updated_at: 'x' },
+      { id: 'a2', title: 'Stuck Two', company: 'Y', kind: 'job', status: 'needs_you', tags: [], updated_at: 'x' },
+    ])
+    render(wrap(<Applications />))
+    fireEvent.click(await screen.findByRole('button', { name: 'awaiting submit' }))
+    expect(await screen.findByText('Parked One')).toBeInTheDocument()
+    expect(screen.queryByText('Stuck Two')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'needs you' }))
+    expect(await screen.findByText('Stuck Two')).toBeInTheDocument()
+  })
+})
+
+describe('Apply with coder', () => {
+  const fill = { taskId: 't9', conversationId: 'c9', status: 'queued', goal: 'Fill in the form', applicationId: 'app-1' }
+  const flow = () => render(wrap(<ApplicationsProcessPendingFlow pendingApplications={[{ id: 'app-1', title: 'Backend Engineer', company: 'Acme' }]} onClose={() => {}} />))
+  async function evaluated() {
+    App.EvaluateApplication.mockResolvedValue({ verdict: 'GOOD', overall_score: 8, rationale: 'solid fit' })
+    App.HasGeneratedDocuments.mockResolvedValue(false)
+    flow()
+    fireEvent.click(screen.getByRole('button', { name: 'Start' }))
+    return screen.findByRole('button', { name: 'Apply with coder' })
+  }
+
+  it('Process pending: starts the fill, opens its chat, and the header will say filled, waiting for you to submit', async () => {
+    aitaskApi.startFill.mockResolvedValue(fill)
+    fireEvent.click(await evaluated())
+    await waitFor(() => expect(openDraft).toHaveBeenCalledTimes(1))
+    expect(aitaskApi.startFill).toHaveBeenCalledWith('app-1')
+    expect(aitaskApi.submit).not.toHaveBeenCalled()
+    const seed = openDraft.mock.calls[0][0]
+    expect(seed.conversationId).toBe('c9')
+    expect(seed.task).toMatchObject({ taskId: 't9', doneLabel: 'filled, waiting for you to submit' })
+    expect(JSON.stringify(seed)).not.toMatch(/submitted/i)
+  })
+
+  it('coder disabled: says why, starts nothing, and the regular Apply is still there', async () => {
+    aitaskApi.status.mockResolvedValue({ enabled: false, reason: 'Coder mode is off.' })
+    fireEvent.click(await evaluated())
+    expect(await screen.findByText(/Coder mode is off\./)).toBeInTheDocument()
+    expect(aitaskApi.startFill).not.toHaveBeenCalled()
+    expect(openDraft).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Apply' })).toBeEnabled()
+  })
+
+  it('a fallback from the fill start opens nothing', async () => {
+    aitaskApi.startFill.mockResolvedValue({ fallback: 'oneshot', reason: 'turned off just now' })
+    fireEvent.click(await evaluated())
+    expect(await screen.findByText(/turned off just now/)).toBeInTheDocument()
+    expect(openDraft).not.toHaveBeenCalled()
+  })
+
+  it('detail header: Discuss in coder is in the header, Apply with coder only while the application is being worked on', async () => {
+    App.GetApplication.mockResolvedValue({ ...mockApplicationDetail, id: 'app-1', status: 'pending' })
+    App.GetApplicationAssets.mockResolvedValue(mockApplicationAssets)
+    App.GetApplications.mockResolvedValue([{ id: 'app-1', title: 'Lead Architect', company: 'OmniCorp', kind: 'job', status: 'pending', tags: [], updated_at: 'x' }])
+    aitaskApi.startFill.mockResolvedValue(fill)
+    render(wrap(<Applications />))
+    fireEvent.click(await screen.findByText('Lead Architect'))
+    const header = await screen.findByRole('banner', { name: 'Application header' })
+    expect(header).toContainElement(screen.getByRole('button', { name: /Discuss in coder/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Apply with coder' }))
+    await waitFor(() => expect(aitaskApi.startFill).toHaveBeenCalledWith('app-1'))
+  })
+
+  it('detail header: no Apply with coder once the application is applied', async () => {
+    App.GetApplication.mockResolvedValue({ ...mockApplicationDetail, id: 'app-1', status: 'applied' })
+    App.GetApplicationAssets.mockResolvedValue(mockApplicationAssets)
+    App.GetApplications.mockResolvedValue([{ id: 'app-1', title: 'Lead Architect', company: 'OmniCorp', kind: 'job', status: 'pending', tags: [], updated_at: 'x' }])
+    render(wrap(<Applications />))
+    fireEvent.click(await screen.findByText('Lead Architect'))
+    await screen.findByRole('banner', { name: 'Application header' })
+    expect(screen.queryByRole('button', { name: 'Apply with coder' })).toBeNull()
   })
 })
