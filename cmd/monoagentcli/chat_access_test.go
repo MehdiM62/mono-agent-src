@@ -65,7 +65,7 @@ func TestChatSetAccessRaiseIsTheOperators(t *testing.T) {
 	}
 	values := map[string][]string{
 		"cwd": {"--cwd=" + t.TempDir()}, "profile-folder": {"--profile-folder"},
-		"coder-root": {"--coder-root"}, "new-workspace": {"--new-workspace"},
+		"coder-root": {"--coder-root"}, "new-workspace": {"--new-workspace"}, "expect": {"--expect=scoped"},
 	}
 	cmd := newChatCmd(cfg)
 	sub, _, err := cmd.Find([]string{"history", "set-access"})
