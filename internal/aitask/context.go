@@ -95,15 +95,39 @@ func checkSources(sources []ContextSource) error {
 			return errf(CodeContextSource, "context from %q is refused: a task is given only %s (messages and people threads never reach a task)",
 				s.Class, strings.Join(ContextSources, ", "))
 		}
-		abs, err := filepath.Abs(s.Path)
-		if err != nil {
-			return errf(CodeContextInvalid, "%s: %v", s.Path, err)
-		}
-		if within(attachments.Dir(), abs) {
+		if inAttachments(s.Path) {
 			return errf(CodeContextSource, "%s is a synced message attachment: messages never reach a task", s.Path)
 		}
 	}
 	return nil
+}
+
+// canonicalPath is p made absolute with every symlink resolved, on the file
+// and on every ancestor. The part of p that does not exist yet is kept as
+// written, below the resolved part that does.
+func canonicalPath(p string) string {
+	abs, err := filepath.Abs(p)
+	if err != nil {
+		return filepath.Clean(p)
+	}
+	rest := ""
+	for cur := abs; ; {
+		if r, err := filepath.EvalSymlinks(cur); err == nil {
+			return filepath.Join(r, rest)
+		}
+		parent := filepath.Dir(cur)
+		if parent == cur {
+			return abs
+		}
+		rest = filepath.Join(filepath.Base(cur), rest)
+		cur = parent
+	}
+}
+
+// inAttachments reports whether p, resolved, is the synced message attachments
+// folder or inside it.
+func inAttachments(p string) bool {
+	return within(canonicalPath(attachments.Dir()), canonicalPath(p))
 }
 
 type pending struct {
@@ -229,6 +253,14 @@ func collect(sources []ContextSource) ([]pending, error) {
 						return filepath.SkipDir
 					}
 					return nil
+				}
+				// A folder that holds the message attachments (the state
+				// folder, say) does not hand them over: that part is skipped.
+				if inAttachments(p) {
+					if d.IsDir() {
+						return filepath.SkipDir
+					}
+					return errf(CodeContextSource, "%s is a synced message attachment: messages never reach a task", p)
 				}
 				if d.IsDir() || !d.Type().IsRegular() {
 					return nil // folders hold files; a link or device never leaves the source
