@@ -309,3 +309,53 @@ func TestTaskStatusReportsSpendAndWhetherItWasReported(t *testing.T) {
 		t.Fatalf("after: %+v %v", st, err)
 	}
 }
+
+// A follow-up turn is admitted against what is left of the task's cap: a task
+// that spent 0.80 of 1 gets a turn capped at 0.20, an exhausted one gets
+// none, and a released reservation never makes the spend drop out.
+func TestAdmitTurnGivesOnlyWhatIsLeft(t *testing.T) {
+	ctx := context.Background()
+	r := newRig(t, 0)
+	_ = r.l.SetCap(ScopeGlobal, "", 10, "operator")
+	a := r.task("c1", "generic", 1)
+	if _, err := r.l.Admit(ctx, a); err != nil {
+		t.Fatal(err)
+	}
+	r.usage("c1", "turn-1", "", 0.8)
+	if err := r.l.Settle(ctx, a.TaskID, "c1"); err != nil { // the first turn ends
+		t.Fatal(err)
+	}
+	got, err := r.l.AdmitTurn(ctx, a, 0)
+	if err != nil || got < 0.1999 || got > 0.2001 {
+		t.Fatalf("follow-up grant = %v, %v; want 0.20", got, err)
+	}
+	// While it runs, the task holds 0.80 spent plus its 0.20.
+	rep, _ := r.l.Report(ctx)
+	if rep.Caps[0].UsedUSD < 0.9999 || rep.Caps[0].UsedUSD > 1.0001 {
+		t.Fatalf("global use while the follow-up runs = %v, want 1.00", rep.Caps[0].UsedUSD)
+	}
+	// A smaller turn cap wins.
+	if got, err := r.l.AdmitTurn(ctx, a, 0.05); err != nil || got < 0.0499 || got > 0.0501 {
+		t.Fatalf("capped grant = %v, %v", got, err)
+	}
+	// The follow-up spends all 0.20; the next one is refused with the hint.
+	r.usage("c1", "turn-2", "", 0.2)
+	if err := r.l.Settle(ctx, a.TaskID, "c1"); err != nil {
+		t.Fatal(err)
+	}
+	_, err = r.l.AdmitTurn(ctx, a, 0)
+	if code(err) != aitask.CodeNoBudget || !strings.Contains(err.Error(), "Settings > AI task budgets") {
+		t.Fatalf("a follow-up on an exhausted cap: %v", err)
+	}
+	// A lowered conversation cap bounds the follow-up too.
+	b := r.task("c2", "generic", 5)
+	if _, err := r.l.Admit(ctx, b); err != nil {
+		t.Fatal(err)
+	}
+	r.usage("c2", "turn-1", "", 1)
+	_ = r.l.Settle(ctx, b.TaskID, "c2")
+	_ = r.l.SetCap(ScopeConversation, "c2", 1.5, "operator")
+	if got, err := r.l.AdmitTurn(ctx, b, 0); err != nil || got < 0.4999 || got > 0.5001 {
+		t.Fatalf("grant under a lowered conversation cap = %v, %v; want 0.50", got, err)
+	}
+}

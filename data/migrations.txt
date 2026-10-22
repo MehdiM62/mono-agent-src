@@ -103,3 +103,4 @@
 117_application_tabs.sql
 118_ai_budgets.sql
 119_chat_access.sql
+120_ai_budget_pool.sql
