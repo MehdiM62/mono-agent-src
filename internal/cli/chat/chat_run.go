@@ -116,7 +116,10 @@ func runChat(cfg *Deps, cmd *cobra.Command, args []string, f *chatFlags) (retErr
 			if tools != "" {
 				return clicore.InvalidInput("--tools does not apply to a coder conversation: it has full access")
 			}
-			return runCoderTurn(cmd, cfg, journal, coderTurn{runtime: conv.RuntimeID, prompt: prompt, model: model, effort: conv.Effort, resume: resume, cwd: conv.Cwd, orgMode: conv.OrgMode, attachments: atts, budget: turnCap})
+			taskEnv, endTask := taskTurn(cfg, conv.ID)
+			err := runCoderTurn(cmd, cfg, journal, coderTurn{runtime: conv.RuntimeID, prompt: prompt, model: model, effort: conv.Effort, resume: resume, cwd: conv.Cwd, orgMode: conv.OrgMode, attachments: atts, budget: turnCap, env: taskEnv})
+			endTask(err)
+			return err
 		}
 	}
 	if mode == ai.ModeCoder {

@@ -37,6 +37,8 @@ type coderTurn struct {
 	// budget is a spend cap for this turn (--budget-usd, what an AI task's
 	// supervisor passes); nil asks for none. See turnBudget.
 	budget *float64
+	// env is added to the turn's environment (an AI task's id and token).
+	env map[string]string
 	// attachments are the files attached to the turn, already copied into cwd.
 	attachments []chatevents.TurnAttachment
 }
@@ -158,6 +160,9 @@ func runCoderTurn(cmd *cobra.Command, cfg *Deps, journal *turnJournal, t coderTu
 	}
 	// The coder kind of browser permissions, vouched for by a token that
 	// counts while this turn runs (its workers get their own, dynorg).
+	for k, v := range t.env {
+		opts.Env[k] = v
+	}
 	kindDone := addAgentKind(opts.Env, browserctl.KindCoder)
 	defer kindDone()
 	kiloDropped := dropKiloOptions(&opts)
