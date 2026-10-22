@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { MessageSquare, Building2, Link2 } from 'lucide-react'
-import { relativeTime } from '../../lib/historyModel.js'
+import { relativeTime, orgRunLabel } from '../../lib/historyModel.js'
 
 // One session in the history list: a chat or an org run. The row's main
 // button opens it; the checkbox (chats only) selects it for deletion; the
@@ -34,6 +34,7 @@ export default function HistoryRow({ row, live, selected, onToggle, onOpen, onOp
             {runtime && <span>{runtime}</span>}
             {row.access && <span className="hist-access" data-access={row.access}>{t(`history.access_${row.access}`, { defaultValue: row.access })}</span>}
             {isOrg && row.orgName && row.orgName !== title && <span>{row.orgName}</span>}
+            {isOrg && (row.runId || row.updatedAt) && <span className="hist-run">{orgRunLabel(row)}</span>}
           </span>
         </span>
         <span className="hist-side">

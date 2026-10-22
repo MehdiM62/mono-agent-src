@@ -8,11 +8,11 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key, o) => (o && o.count != null ? `${key}:${o.count}` : o && o.title ? `${key}:${o.title}` : key) }),
 }))
 
-const { listHistory, deleteChats, handlers, confirmMock } = vi.hoisted(() => ({
-  listHistory: vi.fn(), deleteChats: vi.fn(), handlers: {}, confirmMock: vi.fn(),
+const { listHistory, deleteChats, handlers, confirmMock, getOrgStatus } = vi.hoisted(() => ({
+  listHistory: vi.fn(), deleteChats: vi.fn(), handlers: {}, confirmMock: vi.fn(), getOrgStatus: vi.fn(),
 }))
 vi.mock('../../services/api.js', () => ({
-  api: { listHistory, deleteChatConversations: deleteChats },
+  api: { listHistory, deleteChatConversations: deleteChats, getOrgStatus },
   subscribeEvent: (name, cb) => { handlers[name] = cb; return () => { delete handlers[name] } },
 }))
 vi.mock('../ConfirmDialog.jsx', () => ({ confirm: confirmMock }))
@@ -40,6 +40,7 @@ const open = async () => { await act(async () => { openHistory() }) }
 
 beforeEach(() => {
   vi.clearAllMocks()
+  getOrgStatus.mockResolvedValue({ status: 'running', run: 'r-live' })
   for (const k of Object.keys(handlers)) delete handlers[k]
   listHistory.mockResolvedValue(page([chat('c1'), org('r1'), chat('c2', { applicationId: 'app9', taskGoal: 'Fill OmniCorp form', access: 'full', status: 'needs' })]))
 })
@@ -65,7 +66,26 @@ describe('HistoryPanel', () => {
     expect(s.openConversation).toHaveBeenCalledWith({ id: 'c1', cwd: undefined, model: 'opus', runtime: 'claude' })
     await open()
     fireEvent.click(await screen.findByText('Run r1'))
-    expect(s.openOrg).toHaveBeenCalledWith('acme')
+    await waitFor(() => expect(s.openOrg).toHaveBeenCalledWith('acme'))
+  })
+
+  it('opens the latest run of an org as its bubble', async () => {
+    listHistory.mockResolvedValue(page([org('r9', { runId: 'r-live', status: 'done' })]))
+    const { s, onNavigate } = mount()
+    await open()
+    fireEvent.click(await screen.findByText('Run r9'))
+    await waitFor(() => expect(s.openOrg).toHaveBeenCalledWith('acme'))
+    expect(onNavigate).not.toHaveBeenCalled()
+  })
+
+  it('sends an older run of an org to the Orgs tab with that run selected', async () => {
+    listHistory.mockResolvedValue(page([org('r8', { runId: 'r-old-12345', status: 'done', updatedAt: '2026-10-20T10:00:00Z' })]))
+    const { s, onNavigate } = mount()
+    await open()
+    expect(await screen.findByText('run r-old-12 \u00b7 2026-10-20')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Run r8'))
+    await waitFor(() => expect(onNavigate).toHaveBeenCalledWith('orgs', { org: 'acme', run: 'r-old-12345' }))
+    expect(s.openOrg).not.toHaveBeenCalled()
   })
 
   it('goes to the application from a linked row', async () => {
@@ -98,13 +118,12 @@ describe('HistoryPanel', () => {
     await waitFor(() => expect(listHistory).toHaveBeenLastCalledWith('', 30, expect.objectContaining({ status: 'error' })))
   })
 
-  it('the linked chip hides unlinked rows', async () => {
+  it('the linked chip asks the CLI for any application link', async () => {
     mount()
     await open()
     await screen.findByText('Chat c1')
     fireEvent.click(screen.getByRole('button', { name: 'history.linked' }))
-    expect(screen.queryByText('Chat c1')).toBeNull()
-    expect(screen.getByText('Chat c2')).toBeInTheDocument()
+    await waitFor(() => expect(listHistory).toHaveBeenLastCalledWith('', 30, expect.objectContaining({ application: 'any' })))
   })
 
   it('loads the next page with next_cursor', async () => {

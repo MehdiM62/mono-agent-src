@@ -8,7 +8,7 @@ const QUERY_DEBOUNCE_MS = 300
 // useHistory pages ListHistory for the open drawer. While `open` it refreshes
 // the first page when a chat turn finishes or an org run changes status, at
 // most once per REFRESH_MS, and once on open.
-export function useHistory({ open, kind, status, query }) {
+export function useHistory({ open, kind, status, query, linked }) {
   const [items, setItems] = useState([])
   const [cursor, setCursor] = useState('')
   const [warnings, setWarnings] = useState([])
@@ -28,7 +28,7 @@ export function useHistory({ open, kind, status, query }) {
     return () => clearTimeout(id)
   }, [query])
 
-  const filter = toFilter({ kind, status, query: debounced })
+  const filter = toFilter({ kind, status, query: debounced, linked })
   const filterKey = JSON.stringify(filter)
 
   // load replaces the list (first page); a stale answer is dropped.
