@@ -1,6 +1,9 @@
 package ai
 
-import "testing"
+import (
+	"errors"
+	"testing"
+)
 
 // The old modes are aliases: assistant is scoped, coder is full, and Mode
 // follows the level on every row.
@@ -66,5 +69,44 @@ func TestSetConversationAccess(t *testing.T) {
 	}
 	if _, err := s.SetConversationAccess(c.ID, "other", AccessScoped, ""); err == nil {
 		t.Error("another profile moved the conversation")
+	}
+}
+
+// The expected-level move is one conditional UPDATE: a row that changed since
+// the caller read it is refused and nothing else about it is touched.
+func TestSetConversationAccessIfRefusesAChangedRow(t *testing.T) {
+	s, _ := newChatEventStore(t)
+	c, _ := s.CreateConversationAccess("default", "agent", "general", "claude", "", "", AccessFull, t.TempDir(), "")
+	if err := s.BindConversationSession(c.ID, "default", "claude", "sess-1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetConversationOrgMode(c.ID, "default", OrgModeDynamic); err != nil {
+		t.Fatal(err)
+	}
+	// The caller read "full"; another process lowers it to coding first.
+	if _, err := s.SetConversationAccess(c.ID, "default", AccessCoding, ""); err != nil {
+		t.Fatal(err)
+	}
+	_, err := s.SetConversationAccessIf(c.ID, "default", AccessScoped, "", AccessFull)
+	var changed *AccessChangedError
+	if !errors.As(err, &changed) || changed.Current != AccessCoding {
+		t.Fatalf("err = %v", err)
+	}
+	got, _ := s.GetConversation(c.ID, "default")
+	if got.Access != AccessCoding || got.SessionID != "sess-1" || got.OrgMode != OrgModeDynamic || got.Mode != ModeCoder {
+		t.Errorf("a refused move changed the row: %+v", got)
+	}
+	// With the level it expects, it applies like the unconditional one.
+	down, err := s.SetConversationAccessIf(c.ID, "default", AccessScoped, "", AccessCoding)
+	if err != nil || down.Access != AccessScoped || down.Mode != ModeAssistant || down.SessionID != "" || down.OrgMode != OrgModeSolo {
+		t.Fatalf("expected move: %+v %v", down, err)
+	}
+	fresh, _ := s.CreateConversationAccess("default", "agent", "general", "claude", "", "", AccessScoped, "", "")
+	if _, err := s.SetConversationAccessIf(fresh.ID, "default", AccessCoding, "", AccessScoped); err == nil || errors.As(err, &changed) {
+		t.Errorf("a scoped row with no folder was raised from nowhere, or reported as changed: %v", err)
+	}
+	up, err := s.SetConversationAccessIf(fresh.ID, "default", AccessWorkspace, t.TempDir(), AccessScoped)
+	if err != nil || up.Access != AccessWorkspace || up.Cwd == "" {
+		t.Fatalf("raise with a folder: %+v %v", up, err)
 	}
 }
