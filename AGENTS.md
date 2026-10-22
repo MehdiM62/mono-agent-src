@@ -3434,6 +3434,10 @@ monoagentcli --profile P aitask fail <id> --reason TEXT                   # the 
   status (`complete`, `failed`, `cancelled`) is final.
 - Budget: `--budget-usd` (default: the coder budget). 0 means no spend and is refused (`no_budget`), never unlimited.
   Nothing a running task does changes its cap.
+- A message the user sends in a task's conversation after `needs_user` (or while it runs) is the task's next turn: the
+  operator's chat gives it a fresh token (the old one stops working) and the task goes back to `running`. An agent-run
+  turn, a finished task or another profile's task gets nothing. A coder turn's `--budget-usd` can lower the coder budget,
+  never raise it.
 - Coder mode off: `submit` exits 3 with `"code":"coder_disabled","fallback":"oneshot"` and creates nothing. It never
   escalates or falls back by itself; the caller chooses.
 - `--unattended` is for a `qa` task of a kind that allows it, in a profile with a verified confinement (none is

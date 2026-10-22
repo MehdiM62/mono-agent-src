@@ -335,19 +335,13 @@ func (s *Service) Cancel(id string) (Task, error) {
 	return s.Store.Get(id)
 }
 
-// EndTurn is what the process that ran a task's turn reports when the turn is
-// over: a task still running was not completed, so it needs the user (with
-// the turn's error, if it ended in one). A task that is already over stays.
+// EndTurn records how a task's turn ended (see Store.EndTurn); the error is
+// redacted first.
 func (s *Service) EndTurn(id, turnErr string) error {
-	extra := map[string]any{}
-	if turnErr != "" {
-		if s.Redact != nil {
-			turnErr = s.Redact(turnErr)
-		}
-		extra["error"] = clip(turnErr)
+	if s.Redact != nil {
+		turnErr = s.Redact(turnErr)
 	}
-	_, err := s.Store.move(id, []string{StatusRunning}, StatusNeedsUser, extra)
-	return err
+	return s.Store.EndTurn(id, turnErr)
 }
 
 // Wait blocks until task id is over or needs the user, ctx ends, or timeout

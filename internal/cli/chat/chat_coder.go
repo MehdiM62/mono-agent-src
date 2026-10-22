@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"strings"
 
@@ -33,6 +34,11 @@ type coderTurn struct {
 	resume  string
 	cwd     string
 	orgMode string // ai.OrgModeDynamic lets the agent spawn workers (#226)
+	// budget is a spend cap for this turn (--budget-usd, what an AI task's
+	// supervisor passes); nil asks for none. See turnBudget.
+	budget *float64
+	// env is added to the turn's environment (an AI task's id and token).
+	env map[string]string
 	// attachments are the files attached to the turn, already copied into cwd.
 	attachments []chatevents.TurnAttachment
 }
@@ -60,6 +66,30 @@ func coderLeadSystemPrompt(ctx context.Context, db *sql.DB, cfg *Deps, cwd strin
 		}
 	}
 	return strings.Join(append(parts, cfg.PublicationPrompt()), "\n\n")
+}
+
+// turnBudget is the spend cap a coder turn runs under. A turn's own cap
+// (--budget-usd) can lower the operator's coder budget, never raise it: the
+// lower of the two wins (the operator's 0 is no cap set, so the turn's cap
+// stands alone). A turn cap of 0 or less is no spend and the turn is refused,
+// never run unlimited; so is a cap on a runtime that can't enforce one (kilo
+// takes no budget).
+func turnBudget(operator float64, turn *float64, runtime string) (float64, error) {
+	if turn == nil {
+		return operator, nil
+	}
+	if *turn <= 0 || math.IsNaN(*turn) {
+		return 0, &coderError{code: "no_budget", err: &clicore.Error{Code: 3,
+			Msg: fmt.Sprintf("--budget-usd %v means no spend: the turn was not run (a budget of 0 is never unlimited)", *turn)}}
+	}
+	if runtime == "kilo" {
+		return 0, &coderError{code: "budget_unenforceable", err: &clicore.Error{Code: 3,
+			Msg: "kilo can't enforce a spend cap, so a turn with --budget-usd does not run on it"}}
+	}
+	if operator > 0 && operator < *turn {
+		return operator, nil
+	}
+	return *turn, nil
 }
 
 // dropKiloOptions clears the options kilo's runner refuses outright
@@ -99,6 +129,10 @@ func runCoderTurn(cmd *cobra.Command, cfg *Deps, journal *turnJournal, t coderTu
 	if err != nil {
 		return err
 	}
+	budget, err := turnBudget(settings.BudgetUSD, t.budget, rt.ID)
+	if err != nil {
+		return err
+	}
 	if fi, err := os.Stat(t.cwd); err != nil || !fi.IsDir() {
 		return clicore.InvalidInput("this coder conversation's folder %s no longer exists; start a new conversation", t.cwd)
 	}
@@ -119,13 +153,16 @@ func runCoderTurn(cmd *cobra.Command, cfg *Deps, journal *turnJournal, t coderTu
 		Settings:     monomind.CoderSettings,
 		MaxTurns:     settings.MaxTurns,
 		Timeout:      settings.timeout(),
-		BudgetUSD:    settings.BudgetUSD,
+		BudgetUSD:    budget,
 		SystemPrompt: systemPrompt,
 		Env:          agentSendEnv(journal, "lead", ""),
 		Attach:       nativeAttachments(st.caps, t.attachments),
 	}
 	// The coder kind of browser permissions, vouched for by a token that
 	// counts while this turn runs (its workers get their own, dynorg).
+	for k, v := range t.env {
+		opts.Env[k] = v
+	}
 	kindDone := addAgentKind(opts.Env, browserctl.KindCoder)
 	defer kindDone()
 	kiloDropped := dropKiloOptions(&opts)

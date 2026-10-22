@@ -48,6 +48,11 @@ func runChat(cfg *Deps, cmd *cobra.Command, args []string, f *chatFlags) (retErr
 		return clicore.InvalidInput("--tools %s does not combine with --canvas", toolsPageRead)
 	}
 	ctx := cmd.Context()
+	// A coder turn's own spend cap, when --budget-usd was given (0 is no spend).
+	var turnCap *float64
+	if cmd.Flags().Changed("budget-usd") {
+		turnCap = &budget
+	}
 
 	// A page-read turn's --attach files are images for the model, handed
 	// straight to the runner (chat_attach.go); every other turn's go on to
@@ -111,14 +116,17 @@ func runChat(cfg *Deps, cmd *cobra.Command, args []string, f *chatFlags) (retErr
 			if tools != "" {
 				return clicore.InvalidInput("--tools does not apply to a coder conversation: it has full access")
 			}
-			return runCoderTurn(cmd, cfg, journal, coderTurn{runtime: conv.RuntimeID, prompt: prompt, model: model, effort: conv.Effort, resume: resume, cwd: conv.Cwd, orgMode: conv.OrgMode, attachments: atts})
+			taskEnv, endTask := taskTurn(cfg, conv.ID)
+			err := runCoderTurn(cmd, cfg, journal, coderTurn{runtime: conv.RuntimeID, prompt: prompt, model: model, effort: conv.Effort, resume: resume, cwd: conv.Cwd, orgMode: conv.OrgMode, attachments: atts, budget: turnCap, env: taskEnv})
+			endTask(err)
+			return err
 		}
 	}
 	if mode == ai.ModeCoder {
 		if tools != "" || canvasID != "" || historyID != "" {
 			return clicore.InvalidInput("--tools, --canvas and --history-id don't apply to --mode coder")
 		}
-		return runPlainCoderTurn(cmd, cfg, coderFolderChoice{cwd: coderCwd, root: coderRoot, newWorkspace: newWorkspace, profile: profileFold}, coderTurn{runtime: runtime, prompt: prompt, model: model, effort: effort, resume: resume}, attach)
+		return runPlainCoderTurn(cmd, cfg, coderFolderChoice{cwd: coderCwd, root: coderRoot, newWorkspace: newWorkspace, profile: profileFold}, coderTurn{runtime: runtime, prompt: prompt, model: model, effort: effort, resume: resume, budget: turnCap}, attach)
 	}
 	if mode != "" && mode != ai.ModeAssistant {
 		return clicore.InvalidInput("unknown --mode %q (assistant or coder)", mode)
