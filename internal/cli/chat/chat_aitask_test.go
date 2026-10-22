@@ -425,3 +425,22 @@ func TestApplyTurnUsesTheRealSnapshotAndATaskWorkFolder(t *testing.T) {
 		t.Errorf("snapshot file mode = %v, want read-only", fi.Mode().Perm())
 	}
 }
+
+// A dynamic-org conversation that is bound to an apply task runs alone: no
+// org tools for the lead, so no workers (which would be issued the coder kind).
+func TestApplyTaskTurnNeverStartsADynamicOrg(t *testing.T) {
+	for kind, wantTools := range map[string]bool{"generic": true, "application-apply": false} {
+		t.Setenv("TYPESAFE_API_KEY", "")
+		r := newTaskRig(t)
+		withCoderCaps(t, append(monomind.CoderCapabilities, monomind.CapAgentExecFullAccessTools, monomind.CapAgentExecAccessRead)...)
+		withCoderScan(t, orgScan(true))
+		if err := openTestChatStore(t, r.dbPath).SetConversationOrgMode(r.convID, "default", ai.OrgModeDynamic); err != nil {
+			t.Fatal(err)
+		}
+		r.taskOfKind(t, "default", aitask.StatusNeedsUser, kind)
+		r.turn(t, "t1", nil)
+		if got := strings.Contains(r.execArgs(t), "--tools-file"); got != wantTools {
+			t.Errorf("%s task with a dynamic org: org tools given = %v, want %v", kind, got, wantTools)
+		}
+	}
+}

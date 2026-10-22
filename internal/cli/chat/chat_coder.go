@@ -182,7 +182,13 @@ func runCoderTurn(cmd *cobra.Command, cfg *Deps, journal *turnJournal, t coderTu
 	if kind == "" {
 		kind = browserctl.KindCoder
 	}
-	kindDone := addAgentKind(opts.Env, kind)
+	var kindDone func()
+	if t.confine != nil && kind == browserctl.KindApply {
+		// The token names the task, so the browser verbs derive its folders from it.
+		kindDone = addKindEnv(opts.Env, func() ([]string, func(int), func()) { return browserctl.IssueApplyKind(t.confine.taskID) })
+	} else {
+		kindDone = addAgentKind(opts.Env, kind)
+	}
 	defer kindDone()
 	kiloDropped := dropKiloOptions(&opts)
 	onEvent := func(ev monomind.Event) {
@@ -341,7 +347,11 @@ func createCoderConversation(cmd *cobra.Command, cfg *Deps, runtimeID, model, ef
 // addAgentKind adds kind's vouched environment (browserctl.IssueAgentKind)
 // to env and returns its done.
 func addAgentKind(env map[string]string, kind string) (done func()) {
-	kindEnv, _, done := browserctl.IssueAgentKind(kind)
+	return addKindEnv(env, func() ([]string, func(int), func()) { return browserctl.IssueAgentKind(kind) })
+}
+
+func addKindEnv(env map[string]string, issue func() ([]string, func(int), func())) (done func()) {
+	kindEnv, _, done := issue()
 	for _, kv := range kindEnv {
 		if k, v, ok := strings.Cut(kv, "="); ok {
 			env[k] = v

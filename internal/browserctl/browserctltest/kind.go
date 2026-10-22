@@ -28,3 +28,21 @@ func AsAgentKind(t testing.TB, kind string) {
 		t.Setenv(k, v)
 	}
 }
+
+// AsApplyTask is AsAgentKind for the apply kind of AI task taskID
+// (browserctl.IssueApplyKind): the token's record names the task.
+func AsApplyTask(t testing.TB, taskID string) {
+	t.Helper()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	env, _, done := browserctl.IssueApplyKind(taskID)
+	t.Cleanup(done)
+	if len(env) != 2 {
+		t.Fatalf("no token issued for the apply kind: %q", env)
+	}
+	for _, kv := range env {
+		k, v, _ := strings.Cut(kv, "=")
+		t.Setenv(k, v)
+	}
+}
