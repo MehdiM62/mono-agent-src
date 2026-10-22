@@ -191,6 +191,19 @@ describe('HistoryPanel', () => {
     expect(opener).toHaveFocus()
   })
 
+  it('Escape closes the drawer when focus fell to the body, but not under a modal', async () => {
+    mount()
+    await open()
+    await screen.findByText('Chat c1')
+    document.activeElement.blur()
+    const modal = document.createElement('div'); modal.setAttribute('aria-modal', 'true'); document.body.appendChild(modal)
+    fireEvent.keyDown(document.body, { key: 'Escape' })
+    expect(screen.getByRole('dialog', { name: 'history.title' })).toBeInTheDocument()
+    modal.remove()
+    fireEvent.keyDown(document.body, { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
   describe('delete', () => {
     it('confirms, deletes chats only, and explains a still-active row', async () => {
       confirmMock.mockResolvedValue(true)

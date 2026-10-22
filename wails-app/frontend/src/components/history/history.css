@@ -26,6 +26,8 @@
 .hist-tools { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--border); }
 .hist-search { display: flex; align-items: center; gap: 6px; padding: 0 8px; background: var(--base); border: 1px solid var(--border); border-radius: 6px; color: var(--text-muted); }
 .hist-search input { flex: 1; min-width: 0; padding: 7px 0; background: none; border: none; color: var(--text-primary, #e6edf3); font: inherit; outline: none; }
+/* the label draws the focus ring for its input */
+.hist-drawer .hist-search input:focus-visible { outline: none; }
 .hist-search:focus-within { border-color: var(--cyan); }
 .hist-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .hist-chip { padding: 3px 10px; background: transparent; color: var(--text-muted); border: 1px solid var(--border); border-radius: 999px; font: inherit; cursor: pointer; }
@@ -38,7 +40,7 @@
 .hist-banner[data-tone="warn"] { color: var(--yellow); }
 .hist-link { margin-left: auto; background: none; border: none; color: var(--cyan); font: inherit; cursor: pointer; text-decoration: underline; }
 
-.hist-scroll { flex: 1; overflow-y: auto; min-height: 0; }
+.hist-scroll { flex: 1; overflow-y: auto; min-height: 0; padding-bottom: 64px; } /* clears the floating new-chat bubble */
 .hist-list, .hist-skeleton { list-style: none; margin: 0; padding: 0; }
 .hist-row { display: grid; grid-template-columns: 22px 1fr; align-items: center; border-bottom: 1px solid var(--border-dim); }
 .hist-row[data-selected="true"] { background: var(--cyan-glow); }

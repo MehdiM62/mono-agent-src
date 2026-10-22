@@ -40,7 +40,7 @@ export default function HistoryPanel({ store, onNavigate }) {
   useEffect(() => onHistoryRequest(mode => {
     setOpen(prev => {
       if (mode === 'toggle' && prev) return false
-      if (!prev) opener.current = document.activeElement
+      if (!prev) { opener.current = document.activeElement; setNotice(null) }
       return true
     })
   }), [])
@@ -54,7 +54,20 @@ export default function HistoryPanel({ store, onNavigate }) {
 
   useEffect(() => { if (open) drawer.current?.querySelector('input[type="search"]')?.focus() }, [open])
 
-  const onKeyDown = (e) => { if (e.key === 'Escape') { e.stopPropagation(); close() } }
+  // Escape closes while focus is inside the drawer or nowhere (after a
+  // confirm closes focus falls to <body>); a modal on top (the confirm) and
+  // other surfaces that own focus (an expanded bubble) keep their own Escape.
+  useEffect(() => {
+    if (!open) return undefined
+    const onKey = (e) => {
+      if (e.key !== 'Escape' || e.defaultPrevented) return
+      if (document.querySelector('[aria-modal="true"]')) return
+      const inside = drawer.current?.contains(e.target)
+      if (inside || e.target === document.body || e.target === document.documentElement) close()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [open, close])
 
   // Infinite scroll: load the next page when the end of the list is near. A
   // linked-only view keeps loading while pages still hold nothing to show.
@@ -153,7 +166,6 @@ export default function HistoryPanel({ store, onNavigate }) {
       aria-modal="false"
       aria-labelledby="hist-title"
       data-testid="history-panel"
-      onKeyDown={onKeyDown}
     >
       <header className="hist-head">
         <h2 id="hist-title">{t('history.title')}</h2>
