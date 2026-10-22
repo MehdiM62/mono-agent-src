@@ -37,7 +37,9 @@ var aitaskPolicy = map[string]struct {
 	"cancel":    {"either", map[string]string{}, []string{"{id}"}},
 	"list":      {"either", map[string]string{"kind": "filter", "application": "filter"}, nil},
 	"complete":  {"holder", map[string]string{"result": "input"}, []string{"{id}", "--result", "{file}"}},
-	"fail":      {"holder", map[string]string{"reason": "input"}, []string{"{id}", "--reason", "cannot"}},
+	// "nested": has subcommands of its own, classified in aitask_budget_flags_test.go.
+	"budget": {"nested", map[string]string{}, nil},
+	"fail":   {"holder", map[string]string{"reason": "input"}, []string{"{id}", "--reason", "cannot"}},
 }
 
 func TestEveryAitaskFlagIsClassified(t *testing.T) {

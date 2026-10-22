@@ -158,4 +158,7 @@ var Manifest = []ManifestEntry{
 
 	// --- applications.prepare (apply) ---
 	{NodeType: "applications.prepare", GoFile: "internal/nodes/apply/prepare_schema.go", StructName: "PrepareNodeSchema"},
+
+	// --- ai.task (queues a coder task) ---
+	{NodeType: "ai.task", GoFile: "internal/nodes/aitask/node_schema.go", StructName: "TaskNodeSchema"},
 }

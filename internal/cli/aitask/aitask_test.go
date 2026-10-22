@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/monoes/mono-agent/internal/aitask"
+	"github.com/monoes/mono-agent/internal/aitask/budget"
 	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/storage"
 	"github.com/monoes/mono-agent/internal/testhome"
@@ -47,6 +48,11 @@ func deps(t *testing.T, l func() aitask.Launcher) *Deps {
 				return nil, err
 			}
 			if err := db.ApplyMigrations(); err != nil {
+				db.Close()
+				return nil, err
+			}
+			// A task runs only under a spend cap (internal/aitask/budget).
+			if err := (&budget.Ledger{DB: db.DB}).SetCap(budget.ScopeGlobal, "", 100, "test"); err != nil {
 				db.Close()
 				return nil, err
 			}

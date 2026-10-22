@@ -4,6 +4,10 @@ import {main} from '../models';
 import {connections} from '../models';
 import {workflow} from '../models';
 
+export function AITaskBudgetFor(arg1:string):Promise<string>;
+
+export function AITaskBudgets():Promise<string>;
+
 export function AITaskStatus():Promise<main.AITaskState>;
 
 export function AIFillProfileInfo(arg1:string,arg2:string):Promise<main.ProfileInfoAIFillResult>;
@@ -119,6 +123,8 @@ export function ChooseInstructionsFile():Promise<string>;
 export function ChooseProfileFolder():Promise<string>;
 
 export function ChooseWorkflowFile():Promise<string>;
+
+export function ClearAITaskBudget(arg1:string,arg2:string):Promise<string>;
 
 export function ClearLogs():Promise<void>;
 
@@ -667,6 +673,8 @@ export function SendDraftPersonMessage(arg1:string):Promise<main.PersonMessage>;
 export function SendOrgChat(arg1:string,arg2:string):Promise<string>;
 
 export function SendOrgMessage(arg1:string,arg2:string):Promise<string>;
+
+export function SetAITaskBudget(arg1:string,arg2:string,arg3:number):Promise<string>;
 
 export function SetAgentRosterAutoRevalidate(arg1:boolean):Promise<string>;
 
