@@ -138,6 +138,8 @@ export function CoderSet(arg1:string,arg2:number,arg3:string,arg4:number,arg5:st
 
 export function CoderSetAppAccess(arg1:boolean):Promise<string>;
 
+export function ConfirmApplicationSubmitted(arg1:string):Promise<void>;
+
 export function CoderStatus():Promise<string>;
 
 export function CoderStopBackground(arg1:string,arg2:string):Promise<string>;
@@ -223,6 +225,8 @@ export function GateApproveOrgAction(arg1:string,arg2:string,arg3:string):Promis
 export function GateRejectOrgAction(arg1:string,arg2:string,arg3:string):Promise<string>;
 
 export function GetAITask(arg1:string):Promise<main.AITask>;
+
+export function GetApplicationTab(arg1:string):Promise<main.ApplicationTab>;
 
 export function GetActiveProfile():Promise<main.ProfileInfo>;
 
@@ -624,6 +628,8 @@ export function RestoreExcludedDocument(arg1:string):Promise<void>;
 
 export function ResumeOrgAutonomy(arg1:string):Promise<string>;
 
+export function ResumeApplicationFill(arg1:string):Promise<main.AITask>;
+
 export function RevealProfileFolder(arg1:string):Promise<void>;
 
 export function RevealProfileInfo(arg1:string):Promise<string>;
@@ -713,6 +719,10 @@ export function ShowRecording(arg1:string):Promise<string>;
 export function SubmitAITask(arg1:string,arg2:string,arg3:Array<string>,arg4:string):Promise<main.AITask>;
 
 export function StartApplicationFill(arg1:string):Promise<main.AITask>;
+
+export function StartApplicationQueue(arg1:Array<string>,arg2:number):Promise<void>;
+
+export function SweepApplicationTabs():Promise<main.SweepResult>;
 
 export function StartAgentValidation(arg1:Array<string>,arg2:Array<string>,arg3:boolean):Promise<string>;
 
