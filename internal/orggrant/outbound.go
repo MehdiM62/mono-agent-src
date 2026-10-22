@@ -299,6 +299,9 @@ var outboundNodes = setOf(
 	// Local agent turns in the workspace-write sandbox: nothing in the
 	// node keeps the runtime from using its tools.
 	"ai.extract_page", "applications.evaluate",
+	// Queues a coder task for a person to start: it acts on nothing itself,
+	// but what it queues can, so a grant needs a decision.
+	"ai.task",
 	"browser.jev", // goal-driven agent in the user's browser
 	"mcp.call",    // calls any tool of an arbitrary MCP server
 	// Runs another workflow, which may contain any outbound node.
