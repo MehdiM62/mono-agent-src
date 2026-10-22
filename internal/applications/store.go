@@ -157,8 +157,10 @@ func (s *Store) Create(ctx context.Context, app *Application) error {
 // allowedTransitions is the closed transition graph. rejected/cancelled
 // have no outgoing edges (terminal).
 var allowedTransitions = map[Status][]Status{
-	StatusPending: {StatusApplied, StatusCancelled},
-	StatusApplied: {StatusRejected, StatusCancelled},
+	StatusPending:        {StatusApplied, StatusCancelled, StatusAwaitingSubmit, StatusNeedsYou},
+	StatusAwaitingSubmit: {StatusApplied, StatusCancelled, StatusNeedsYou, StatusPending},
+	StatusNeedsYou:       {StatusApplied, StatusCancelled, StatusAwaitingSubmit, StatusPending},
+	StatusApplied:        {StatusRejected, StatusCancelled},
 }
 
 func isAllowedTransition(from, to Status) bool {
