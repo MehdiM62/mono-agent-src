@@ -48,7 +48,7 @@ auto-fill, and a test enforces that `apply/browser.go` has no form-interaction c
 | Applications: Apply / Process pending | CV + letter documents, open the posting, human fills | **Coder task `application-apply`**: context = application, job text, CV/letter, profile facts; the agent fills the form through the browser CLI and stops before submit |
 | Applications: evaluate / match | `matching` one-shot, Jev | stays one-shot; "Discuss in coder" |
 | Extension form fill | tool-less `form.fill` | stays the fast path; "Fill with coder" for multi-page, uploads, custom widgets, login walls |
-| Communications / People | drafts and replies | **Coder task `draft-reply`** with the thread as context; the send is an HIL card (already the rule) |
+| Communications / People | drafts and replies | stays a tool-less one-shot: synced messages never reach a shell turn (§4b.2); "Discuss in coder" only on text the user selects |
 | Workflows / Node runner | workflow generate, failed runs | Phase 2 pilot and "fix this run" |
 | Automations (recordings) | `AnalyzeRecording` one-shot | Task |
 | Documents / Image vault | generation, captions | CV/letter authoring is a Task; captions and tags stay one-shot |
@@ -151,6 +151,40 @@ level, dynamic org staffing with Jev/pick, all runtimes, the profile context blo
 What does not change (these are the contract, not gaps): operator-only commands and settings (`coder set`, browser
 permissions, approvals that release messages to people, `ai.route.*`); sends wait for HIL; unapproved-workflow program/file
 guards; no secret values in prompts or results. Removing any of these is a separate decision for the user.
+
+## 4b. Security review of this plan (codex, read-only, 2026-10-22) and what changed
+
+Findings are binding requirements for the phases that follow.
+
+1. **Task capability (critical).** `complete` and `cancel` need caller binding: the token is bound to profile, task,
+   conversation and the executing process; cancel is authorised separately; terminal states are atomic and final (a late
+   `complete` cannot resurrect a cancelled task). Core phase.
+2. **Untrusted content never reaches a shell turn (critical).** AGENTS.md says synced messages must never reach a shell-enabled
+   turn, and the plan had broken that. Changes: `application-apply` context is only the posting (web data, fenced like coder
+   queue), the profile's own facts and its registered documents, never messages or people threads; the `draft-reply` kind
+   is **dropped from coder routing** and stays a tool-less one-shot (Communications gets "Discuss in coder" only on text the
+   user pastes or selects). The application page may show messages; no task is given them.
+3. **Confinement is transitive.** A workflow run that is unapproved or AI-authored may not start a coder task (the `ai.task`
+   node refuses, like `execute_command` does); the caller's restrictions bound the task. Node phase.
+4. **Upload/fill gates stay.** Today an agent `browser fill`/upload on a non-local origin waits for approval. Autonomous
+   application filling therefore needs its own browser-permission **kind** (`apply`), set by the operator in Settings, never
+   by an agent; until the operator sets it, fills ask. An attachment grant is bound to application + file digest + origin +
+   task, and "profile documents" means the documents registered to that application only.
+5. **Disclosure before submit.** Typing is disclosure. The agent fills only visible fields it can map to a profile fact, using the
+   `form.fill` vetting (hidden fields, secrets, card/OTP fields dropped); anything unmapped is left empty and listed in the
+   report. The submit guard does not cover fetch/XHR-only sends, which is documented as a known gap.
+6. **State machine for submit.** Approval is authorisation only. `applied` needs an extension observation bound to task, tab and
+   a trusted submit event plus navigation, and an ambiguous result always asks the person ("Mark applied"). A page that merely
+   shows "submitted" never moves the status.
+7. **Tab isolation.** Task-scoped browser capabilities, revoked while a tab is parked or the person is signing in, and
+   re-validated against the application on every operation; resume is an explicit, task-bound action. No shared profile-root
+   context between concurrent applications.
+8. **Unified chat.** Migration defaults are the stricter of chat's and coder's; upgrades are operator-only; a downgrade
+   terminates privileged processes and revokes capabilities before the next turn.
+9. **Budgets.** One operator-owned aggregate ledger across descendants and retries with atomic reservation; zero is "no
+   spend", never "unlimited"; a runtime that cannot enforce or report cost cannot run a capped task.
+10. **Queue admission is not start authority.** The click binds an immutable context hash and the effective capabilities;
+    policy is re-checked at start; unattended means a verified-confined profile only.
 
 ## 5. Phases
 
