@@ -4,6 +4,7 @@ import * as WailsApp from '../wailsjs/go/main/App'
 import { confirm } from '../components/ConfirmDialog.jsx'
 import { notify } from '../services/api.js'
 import ApplicationsProcessPendingFlow from './ApplicationsProcessPendingFlow.jsx'
+import ApplicationDetailModal from '../components/applications/ApplicationDetailModal.jsx'
 import { useReloadOnActivate } from '../lib/useReloadOnActivate'
 
 const STATUS_TABS = ['pending', 'applied', 'rejected', 'cancelled', 'all']
@@ -13,6 +14,8 @@ const STATUS_COLORS = {
   applied: { bg: 'rgba(16,185,129,0.12)', color: '#10b981' },
   rejected: { bg: 'rgba(239,68,68,0.12)', color: '#ef4444' },
   cancelled: { bg: 'rgba(100,116,139,0.12)', color: '#64748b' },
+  awaiting_submit: { bg: 'rgba(0,180,216,0.15)', color: '#00b4d8' },
+  needs_you: { bg: 'rgba(244,63,94,0.15)', color: '#f43f5e' },
 }
 
 // Pure so it's directly unit-testable (see Applications.test.js) without
@@ -55,7 +58,7 @@ function emptyAddForm() {
   return { kind: 'job', title: '', company: '', url: '', issuingOrg: '', submissionDeadline: '' }
 }
 
-export default function Applications({ isActive = true }) {
+export default function Applications({ isActive = true, onNavigate, onOpenCoderChat }) {
   const [applications, setApplications] = useState([])
   const [statusTab, setStatusTab] = useState('pending')
   const [search, setSearch] = useState('')
@@ -182,36 +185,14 @@ export default function Applications({ isActive = true }) {
       </div>
 
       {selectedId && detail && (
-        <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && closeDetail()} style={{ position: 'fixed', inset: 0, zIndex: 9000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.55)' }}>
-          <div style={{ background: 'var(--surface, #0d1520)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: 20, width: 520, maxHeight: '80vh', overflow: 'auto', fontFamily: 'var(--font-mono)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <h3 style={{ margin: 0, fontSize: 14 }}>{detail.title}</h3>
-              <StatusBadge status={detail.status} />
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 6 }}>
-              {detail.kind === 'job' ? detail.company : detail.issuing_org}
-              {' · '}
-              <a href="#" onClick={(e) => { e.preventDefault(); WailsApp.OpenURL?.(detail.url) }} style={{ color: '#00b4d8' }}>
-                {detail.url} <ExternalLink size={10} style={{ verticalAlign: 'middle' }} />
-              </a>
-            </div>
-            {detail.description && <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 10 }}>{detail.description}</p>}
-            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-              {detail.status === 'pending' && (
-                <button style={headerBtnStyle} onClick={() => handleSetStatus(detail.id, 'cancelled')}>Cancel Application</button>
-              )}
-            </div>
-            <h4 style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 16, textTransform: 'uppercase' }}>History</h4>
-            {(detail.status_log || []).map((e, i) => (
-              <div key={i} style={{ fontSize: 11, color: 'var(--text-muted)', padding: '3px 0' }}>
-                {e.created_at}: {e.from_status || '(created)'} → {e.to_status} ({e.actor})
-              </div>
-            ))}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
-              <button style={headerBtnStyle} onClick={closeDetail}>Close</button>
-            </div>
-          </div>
-        </div>
+        <ApplicationDetailModal
+          applicationId={selectedId}
+          detail={detail}
+          onClose={closeDetail}
+          onSetStatus={handleSetStatus}
+          onNavigate={onNavigate}
+          onOpenCoderChat={onOpenCoderChat}
+        />
       )}
 
       {showAdd && (
