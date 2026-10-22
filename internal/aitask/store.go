@@ -245,3 +245,47 @@ func (s *Store) CheckToken(id, token string) bool {
 	}
 	return pid == 0 || ProcessWithin(pid)
 }
+
+// OpenForConversation returns the profile's task on conversation convID that
+// is still open (running or waiting for the user), newest first; ok is false
+// when there is none. A queued task is not open: `start` begins it, and a
+// finished one is never reopened.
+func (s *Store) OpenForConversation(convID string) (Task, bool, error) {
+	t, err := scanTask(s.DB.QueryRow(`SELECT `+taskColumns+` FROM ai_tasks WHERE profile_id = ? AND conversation_id = ?
+		AND status IN ('running','needs_user') ORDER BY created_at DESC, id DESC LIMIT 1`, s.Profile, convID))
+	if errors.Is(err, sql.ErrNoRows) {
+		return Task{}, false, nil
+	}
+	return t, err == nil, err
+}
+
+// Rebind hands an open task to a new turn: it mints the token that turn runs
+// with (the old one stops working), records pid as the process that holds it,
+// and puts the task back to running, in one conditional update. It does
+// nothing, and reports false, for a task that is queued or over.
+func (s *Store) Rebind(id, token string, pid int) (bool, error) {
+	t, err := s.Get(id)
+	if err != nil {
+		return false, err
+	}
+	res, err := s.DB.Exec(`UPDATE ai_tasks SET status = 'running', token_hash = ?, holder_pid = ?, updated_at = ?
+		WHERE id = ? AND profile_id = ? AND status IN ('running','needs_user')`,
+		HashToken(t.Profile, t.ID, t.ConversationID, token), pid, s.now(), id, s.Profile)
+	if err != nil {
+		return false, err
+	}
+	n, _ := res.RowsAffected()
+	return n == 1, nil
+}
+
+// EndTurn is what the process that ran a task's turn reports when it is over:
+// a task still running was not completed, so it needs the user (with the
+// turn's error, if it ended in one). A task that is already over stays.
+func (s *Store) EndTurn(id, turnErr string) error {
+	extra := map[string]any{}
+	if turnErr != "" {
+		extra["error"] = clip(turnErr)
+	}
+	_, err := s.move(id, []string{StatusRunning}, StatusNeedsUser, extra)
+	return err
+}
