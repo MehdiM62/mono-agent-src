@@ -42,6 +42,14 @@ function FillStatusBadge({ status }) {
   )
 }
 
+// On a narrow dialog each field stacks: label over value, then its source.
+const STACK_CSS = `@media (max-width: 560px) {
+  .fill-report thead { position: absolute; left: -9999px; }
+  .fill-report, .fill-report tbody, .fill-report tr, .fill-report td { display: block !important; width: 100% !important; max-width: none !important; box-sizing: border-box; }
+  .fill-report td { padding: 2px 8px !important; text-align: left !important; overflow-wrap: anywhere; }
+  .fill-report tr { padding: 6px 0; }
+}`
+
 export default function ApplicationFillSection({ fill }) {
   const [showScreenshot, setShowScreenshot] = useState(true)
 
@@ -153,7 +161,9 @@ export default function ApplicationFillSection({ fill }) {
           {/* Field report table */}
           {hasFields && (
             <div style={{ overflowX: 'auto' }}>
+              <style>{STACK_CSS}</style>
               <table
+                className="fill-report"
                 role="table"
                 aria-label="Field report table"
                 style={{
