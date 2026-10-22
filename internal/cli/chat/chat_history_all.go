@@ -71,8 +71,8 @@ type historyPage struct {
 }
 
 type historyFilter struct {
-	cursor, kind, status, application, query string
-	limit                                    int
+	cursor, kind, status, application, query, id string
+	limit                                        int
 }
 
 // sortKey is what the cursor compares: updated_at|id, as ListConversations.
@@ -85,7 +85,7 @@ func withListAll(cfg *Deps, cmd *cobra.Command) *cobra.Command {
 	plain := cmd.RunE
 	cmd.RunE = func(c *cobra.Command, args []string) error {
 		if !all {
-			for _, name := range []string{"kind", "status", "application", "query"} {
+			for _, name := range []string{"kind", "status", "application", "query", "id"} {
 				if c.Flags().Changed(name) {
 					return clicore.InvalidInput("--%s needs --all", name)
 				}
@@ -130,6 +130,7 @@ func withListAll(cfg *Deps, cmd *cobra.Command) *cobra.Command {
 	fl.StringVar(&f.kind, "kind", "", "With --all: only chat or org rows")
 	fl.StringVar(&f.status, "status", "", "With --all: only rows that are running, done, error, needs or idle")
 	fl.StringVar(&f.application, "application", "", "With --all: only conversations whose AI task belongs to this application id, or to any application with \"any\"")
+	fl.StringVar(&f.id, "id", "", "With --all: only this conversation (no org rows)")
 	fl.StringVar(&f.query, "query", "", "With --all: only rows whose title, folder or model contains this text")
 	return cmd
 }
@@ -150,7 +151,7 @@ func listHistory(cmd *cobra.Command, cfg *Deps, f historyFilter) (historyPage, e
 			return page, err
 		}
 	}
-	if f.kind != histKindChat && f.application == "" {
+	if f.kind != histKindChat && f.application == "" && f.id == "" {
 		orgs, warns := orgHistoryRows(cmd.Context(), profiledir.Root(db.DB, profileID), f)
 		rows = append(rows, orgs...)
 		page.Warnings = append(page.Warnings, warns...)
@@ -198,6 +199,10 @@ func queryHistoryRows(db historyQuerier, profileID string, f historyFilter, limi
 	if f.cursor != "" {
 		inner += ` AND c.updated_at || '|' || c.id < ?`
 		args = append(args, f.cursor)
+	}
+	if f.id != "" {
+		inner += ` AND c.id = ?`
+		args = append(args, f.id)
 	}
 	if f.application == histApplicationAny {
 		outer += ` AND application_id <> ''`

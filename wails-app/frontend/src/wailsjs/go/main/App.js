@@ -498,6 +498,10 @@ export function GetCaptureView(arg1) {
   return window['go']['main']['App']['GetCaptureView'](arg1);
 }
 
+export function GetChatConversationRecord(arg1) {
+  return window['go']['main']['App']['GetChatConversationRecord'](arg1);
+}
+
 export function GetChatEvents(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['GetChatEvents'](arg1, arg2, arg3, arg4);
 }
@@ -1390,8 +1394,8 @@ export function SetBrowserSiteRule(arg1, arg2) {
   return window['go']['main']['App']['SetBrowserSiteRule'](arg1, arg2);
 }
 
-export function SetChatAccess(arg1, arg2) {
-  return window['go']['main']['App']['SetChatAccess'](arg1, arg2);
+export function SetChatAccess(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['SetChatAccess'](arg1, arg2, arg3, arg4);
 }
 
 export function SetChatOrgMode(arg1, arg2) {

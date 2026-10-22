@@ -3,6 +3,7 @@
 package main
 
 import (
+	"os"
 	"strings"
 	"testing"
 )
@@ -61,8 +62,8 @@ func TestSetChatAccessRaiseGivesAScopedChatTheProfileFolder(t *testing.T) {
 *) echo '{"id":"c1","access":"workspace","cwd":"/p","previous_access":"scoped"}';;
 esac
 `)
-	got, err := a.SetChatAccess("c1", "workspace")
-	if err != nil || got.Conversation.Access != "workspace" || got.PreviousAccess != "scoped" || got.Lowered != nil {
+	got, err := a.SetChatAccess("c1", "workspace", "scoped", true)
+	if err != nil || !got.OK || got.Conversation.Access != "workspace" || got.PreviousAccess != "scoped" || got.Lowered != nil {
 		t.Fatalf("got %+v, %v", got, err)
 	}
 	want := "--profile work --json chat history show c1\n--profile work --json chat history set-access c1 workspace --profile-folder"
@@ -71,19 +72,60 @@ esac
 	}
 }
 
-func TestSetChatAccessLoweringReturnsTheSurvivors(t *testing.T) {
-	a, log := aitaskApp(t, `case "$*" in
-*" show "*) echo '{"id":"c1","access":"full","cwd":"/p"}';;
-*) echo '{"id":"c1","access":"scoped","cwd":"/p","previous_access":"full","lowered":{"stopped":[11],"survivors":[{"pid":12,"command":"sleep","reason":"not stopped"}],"workers_dropped":true,"task_revoked":true}}';;
+// Each refusal happens before set-access is run.
+func TestSetChatAccessGuards(t *testing.T) {
+	for _, c := range []struct {
+		name, level, expected, code, current string
+		confirm                              bool
+	}{
+		{"stale expected", "scoped", "coding", "access_changed", "scoped", false},
+		{"empty expected", "scoped", "", "expected_required", "", true},
+		{"raise without confirm", "full", "scoped", "confirm_required", "scoped", false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			a, log := aitaskApp(t, `case "$*" in
+*" show "*) echo '{"id":"c1","access":"scoped","cwd":""}';;
+*) echo '{"id":"c1","access":"full","previous_access":"scoped"}';;
 esac
 `)
-	got, err := a.SetChatAccess("c1", "scoped")
+			got, err := a.SetChatAccess("c1", c.level, c.expected, c.confirm)
+			if err != nil || got.OK || got.Code != c.code || got.Current != c.current {
+				t.Fatalf("got %+v, %v", got, err)
+			}
+			if raw, err := os.ReadFile(log); err == nil && strings.Contains(string(raw), "set-access") {
+				t.Fatalf("set-access ran: %s", raw)
+			}
+		})
+	}
+}
+
+// A lowering needs no confirm.
+func TestSetChatAccessLoweringNeedsNoConfirm(t *testing.T) {
+	a, log := aitaskApp(t, `case "$*" in
+*" show "*) echo '{"id":"c1","access":"full","cwd":"/p"}';;
+*) echo '{"id":"c1","access":"coding","cwd":"/p","previous_access":"full","lowered":{"stopped":[11],"survivors":[],"workers_dropped":true,"task_revoked":true}}';;
+esac
+`)
+	got, err := a.SetChatAccess("c1", "coding", "full", false)
 	l := got.Lowered
-	if err != nil || l == nil || len(l.Stopped) != 1 || len(l.Survivors) != 1 || l.Survivors[0].Pid != 12 || !l.WorkersDropped || !l.TaskRevoked {
+	if err != nil || !got.OK || l == nil || len(l.Stopped) != 1 || !l.WorkersDropped || !l.TaskRevoked {
 		t.Fatalf("got %+v, %v", got, err)
 	}
 	if calls := loggedArgs(t, log); strings.HasSuffix(calls[1], "--profile-folder") {
 		t.Fatalf("a lowering must not name a folder: %v", calls)
+	}
+}
+
+// The level changed between our read and the CLI's: the CLI's result wins.
+func TestSetChatAccessCLIResultWinsOverARace(t *testing.T) {
+	a, _ := aitaskApp(t, `case "$*" in
+*" show "*) echo '{"id":"c1","access":"full","cwd":"/p"}';;
+*) echo '{"id":"c1","access":"scoped","cwd":"/p","previous_access":"coding","lowered":{"stopped":[],"survivors":[],"workers_dropped":true,"task_revoked":false}}';;
+esac
+`)
+	got, err := a.SetChatAccess("c1", "scoped", "full", false)
+	if err != nil || !got.OK || got.PreviousAccess != "coding" || got.Current != "scoped" {
+		t.Fatalf("got %+v, %v", got, err)
 	}
 }
 
@@ -93,7 +135,7 @@ func TestSetChatAccessRefusalIsAnError(t *testing.T) {
 *) echo '{"error":"only the user can raise","code":"operator_only"}'; exit 3;;
 esac
 `)
-	if _, err := a.SetChatAccess("c1", "full"); err == nil || !strings.Contains(err.Error(), "only the user") {
+	if _, err := a.SetChatAccess("c1", "full", "scoped", true); err == nil || !strings.Contains(err.Error(), "only the user") {
 		t.Fatalf("err = %v", err)
 	}
 }
@@ -128,8 +170,27 @@ func TestSetChatAccessSurvivorsRemainIsNotAFailure(t *testing.T) {
    echo '{"error":"the level is lowered, but 1 process(es) remain","code":"survivors_remain"}'; exit 5;;
 esac
 `)
-	got, err := a.SetChatAccess("c1", "scoped")
-	if err != nil || got.Conversation.Access != "scoped" || got.Lowered == nil || len(got.Lowered.Survivors) != 1 || got.Lowered.Survivors[0].Pid != 12 {
+	got, err := a.SetChatAccess("c1", "scoped", "full", false)
+	if err != nil || !got.OK || got.Conversation.Access != "scoped" || got.Lowered == nil || len(got.Lowered.Survivors) != 1 || got.Lowered.Survivors[0].Pid != 12 {
+		t.Fatalf("got %+v, %v", got, err)
+	}
+}
+
+func TestGetChatConversationRecord(t *testing.T) {
+	a, log := aitaskApp(t, `echo '{"items":[{"id":"c1","kind":"chat","title":"Hello","access":"coding","mode":"coder","runtime":"claude","model":"sonnet","effort":"high","cwd":"/p","orgMode":"solo","workflowContext":"general"}],"next_cursor":"","warnings":[]}'`+"\n")
+	got, err := a.GetChatConversationRecord("c1")
+	if err != nil || !got.OK || got.Title != "Hello" || got.Access != "coding" || got.Runtime != "claude" || got.Cwd != "/p" || got.OrgMode != "solo" {
+		t.Fatalf("got %+v, %v", got, err)
+	}
+	if calls := loggedArgs(t, log); strings.Join(calls, "\n") != "--profile work --json chat history list --all --id c1 --limit 1" {
+		t.Fatalf("calls = %v", calls)
+	}
+}
+
+func TestGetChatConversationRecordNotFound(t *testing.T) {
+	a, _ := aitaskApp(t, `echo '{"items":[],"next_cursor":"","warnings":[]}'`+"\n")
+	got, err := a.GetChatConversationRecord("nope")
+	if err != nil || got.OK || got.Code != "not_found" {
 		t.Fatalf("got %+v, %v", got, err)
 	}
 }
