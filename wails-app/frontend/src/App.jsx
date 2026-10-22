@@ -282,7 +282,7 @@ export default function App({ banners = null }) {
     connections: <Connections onRefresh={refreshStats} navData={activePage === 'connections' ? navData : null} />,
     vault: <ImageVault isActive={activePage === 'vault'} />,
     secretsVault: <Vault isActive={activePage === 'secretsVault'} />,
-    applications: <Applications isActive={activePage === 'applications'} />,
+    applications: <Applications isActive={activePage === 'applications'} onNavigate={navigate} onOpenCoderChat={openCoderChat} />,
     documents: <Documents isActive={activePage === 'documents'} />,
     info: <Info isActive={activePage === 'info'} />,
     tasks: <Tasks isActive={activePage === 'tasks'} />,
