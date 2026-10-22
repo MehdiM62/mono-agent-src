@@ -1,5 +1,5 @@
-/* chat/chat.css — Task 4 additions for the interactive-agent-chat panel.
-   Most of this panel's styling stays inline (matching AIChatPanel.jsx's
+/* chat/chat.css — Task 4 additions for the interactive-agent-chat views.
+   Most of this panel's styling stays inline (matching the old panel's
    existing convention); this file exists only for the handful of things
    inline React style objects can't express: a shared animation keyframe
    reference and a hover state. @keyframes spin and index.css's global

@@ -35,12 +35,10 @@ function HealthDot({ onOpen }) {
   )
 }
 
-export default function StatusBar({ stats, dbConnected, chatOpen, onToggleChat, hilOpen, hilCount = 0, onToggleHil, onOpenHealth }) {
-  // The assistant toggle opens a new chat bubble; without the bubble store
-  // (a bar rendered alone) it keeps the old panel toggle.
-  // TODO: call openNewChat() from the same context once the pane worker lands it.
-  const { openDraft } = useSendToCoder()
-  const openAssistant = openDraft ? () => openDraft() : onToggleChat
+export default function StatusBar({ stats, dbConnected, hilOpen, hilCount = 0, onToggleHil, onOpenHealth }) {
+  // The assistant button opens a new chat bubble; a bar rendered without the
+  // bubble store has nothing to open, so it shows no button.
+  const { openNewChat } = useSendToCoder()
   const running = stats?.executions_by_status?.RUNNING || 0
   const total   = stats?.total_workflows || 0
   const people  = stats?.total_people || 0
@@ -240,29 +238,25 @@ export default function StatusBar({ stats, dbConnected, chatOpen, onToggleChat, 
           </button>
         )}
 
-        {/* AI Assistant toggle — small icon at the far right of the bar,
-            not a separate floating overlay (that kept colliding with
-            page-specific top-right controls no matter where it was placed;
-            see App.jsx). Only rendered when a handler is actually wired
-            up, so a caller that doesn't pass onToggleChat gets no dead
-            button. */}
-        {onToggleChat && (
+        {/* New chat: small icon at the far right of the bar, reachable from
+            anywhere in the app. */}
+        {openNewChat && (
           <button
-            onClick={openAssistant}
-            title={chatOpen ? 'Close AI Assistant' : 'Open AI Assistant'}
-            aria-label={chatOpen ? 'Close AI Assistant' : 'Open AI Assistant'}
+            onClick={() => openNewChat()}
+            title="New chat"
+            aria-label="New chat"
             style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               width: 18, height: 18, padding: 0,
               background: 'transparent',
               border: 'none',
               borderRadius: 3,
-              color: chatOpen ? '#00b4d8' : 'var(--text-dim)',
+              color: 'var(--text-dim)',
               cursor: 'pointer',
               transition: 'color .15s',
             }}
-            onMouseEnter={e => { if (!chatOpen) e.currentTarget.style.color = '#00b4d8' }}
-            onMouseLeave={e => { if (!chatOpen) e.currentTarget.style.color = 'var(--text-dim)' }}
+            onMouseEnter={e => { e.currentTarget.style.color = '#00b4d8' }}
+            onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-dim)' }}
           >
             <MessageSquare size={12} />
           </button>

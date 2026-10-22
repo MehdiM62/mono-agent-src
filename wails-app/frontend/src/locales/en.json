@@ -1154,14 +1154,14 @@
     "chooseHint": "Any folder you trust"
   },
   "bubbles": {
-    "dockLabel": "Coder chats",
+    "dockLabel": "Chats",
     "newChat": "New chat",
-    "newCoderChat": "New coder chat",
+    "newCoderChat": "New chat",
     "bubbleLabel": "{{name}}, {{status}}",
     "unread_one": "{{count}} new reply",
     "unread_other": "{{count}} new replies",
     "costEstimated": "Partly estimated from the tokens used: some runtimes report no cost",
-    "more": "{{count}} more coder chats",
+    "more": "{{count}} more chats",
     "closeChat": "Close this chat",
     "closeNamed": "Close {{name}}",
     "moveDock": "Move the chat bubbles to the other side",

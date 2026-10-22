@@ -238,7 +238,7 @@ describe('useChatStream', () => {
 // The historical sibling of this file's own hydrate(): loading a PAST
 // turn's already-fetched events (a one-shot backlog fetch, no live merge,
 // no subscription) rather than observing a live one. Used by
-// AIChatPanel.jsx's loadConversation to rebuild each past turn's state
+// the chat bubble's transcript loader to rebuild each past turn's state
 // before feeding it to the same ChatTimeline/TurnStatus components a live
 // turn uses.
 describe('reduceTurnEvents', () => {

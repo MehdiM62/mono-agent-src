@@ -1,7 +1,7 @@
 // Assistant tool access settings (GX2 contract): whether the AI chat panels
 // pass tools / allowRuns to StartChatTurn. Both default ON and
 // are persisted to localStorage; toggled from Settings → "Assistant tool
-// access" and read at render/send time by AIChatPanel. Unset (never
+// access" and read at render/send time by the chat bubbles. Unset (never
 // touched) reads as ON — only an explicit '0' turns either off, so a user
 // who deliberately disabled one keeps that choice across app updates.
 

@@ -30,7 +30,7 @@ function NoticeBanner({ notice }) {
 // ChatTimeline renders one turn's ordered parts (interleaved assistant text
 // and tool steps, in actual arrival order — never re-sorted or grouped by
 // kind) plus any nonfatal notices. Pure presentation over chatReducer
-// state; AIChatPanel.jsx supplies the state, live (via useChatStream) or
+// state; the chat bubble supplies the state, live (via useChatStream) or
 // reconstructed from history (via reduceTurnEvents).
 //
 // turnId/isLive are passed straight through to each ToolActivityCard — see

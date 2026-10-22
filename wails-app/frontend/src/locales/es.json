@@ -1112,14 +1112,14 @@
     "chooseHint": "Cualquier carpeta de confianza"
   },
   "bubbles": {
-    "dockLabel": "Chats de código",
+    "dockLabel": "Chats",
     "newChat": "Nuevo chat",
-    "newCoderChat": "Nuevo chat de código",
+    "newCoderChat": "Nuevo chat",
     "bubbleLabel": "{{name}}, {{status}}",
     "unread_one": "{{count}} respuesta nueva",
     "unread_other": "{{count}} respuestas nuevas",
     "costEstimated": "Estimado en parte a partir de los tokens usados: algunos runtimes no informan su costo",
-    "more": "{{count}} chats de código más",
+    "more": "{{count}} chats más",
     "closeChat": "Cerrar este chat",
     "closeNamed": "Cerrar {{name}}",
     "moveDock": "Mover las burbujas de chat al otro lado",
