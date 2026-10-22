@@ -74,9 +74,11 @@ export function CoderChatView({ conv, isDraft, access, accessState = 'ready', on
   }, [attachments.length])
   const removeAttachment = useCallback(id => setAttachments(list => list.filter(a => a.id !== id)), [])
 
+  // The composer is disabled while blocked, but a send must not get through any other way either.
+  const blockedRef = useRef(false)
   const send = useCallback(async () => {
     const text = draft
-    if (!text.trim()) return
+    if (!text.trim() || blockedRef.current) return
     const sent = attachments
     onDraftChange('')
     setAttachments([])
@@ -90,6 +92,7 @@ export function CoderChatView({ conv, isDraft, access, accessState = 'ready', on
   // An open conversation is sent to only once the backend has said its access level.
   const accessBlocked = !isDraft && accessState !== 'ready'
   const blocked = (isDraft && setupState.state !== 'ready') || accessBlocked
+  blockedRef.current = blocked
   const reason = accessBlocked
     ? (accessState === 'failed'
       ? <>{t('bubbles.pane.accessFailed')} <button type="button" className="btn btn-ghost btn-sm" style={{ fontSize: 10 }} onClick={onRetryAccess}>{t('bubbles.pane.retryAccess')}</button></>
