@@ -70,11 +70,11 @@ func (l *Ledger) Admit(ctx context.Context, in Admission) (float64, error) {
 	}
 	if !eff.Set {
 		return 0, &aitask.Error{Code: aitask.CodeNoBudget,
-			Message: "no spend cap is set (no global budget and no coder budget), so the task does not run: the operator sets one in Settings, AI task budgets"}
+			Message: "no spend cap is set (no global budget and no coder budget), so the task does not run; " + aitask.BudgetHint}
 	}
 	if eff.USD <= 0 || in.Requested <= 0 {
 		return 0, &aitask.Error{Code: aitask.CodeNoBudget,
-			Message: fmt.Sprintf("the budget that applies (%s) is %v USD: 0 means no spend, not unlimited, so the task does not run", eff.Source, minPositive(eff.USD, in.Requested))}
+			Message: fmt.Sprintf("the budget that applies (%s) is %v USD: 0 means no spend, not unlimited, so the task does not run; %s", eff.Source, minPositive(eff.USD, in.Requested), aitask.BudgetHint)}
 	}
 	reserve := min(in.Requested, eff.USD)
 

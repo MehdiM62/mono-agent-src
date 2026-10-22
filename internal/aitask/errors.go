@@ -41,3 +41,6 @@ func (e *Error) Error() string { return e.Message }
 func errf(code, format string, a ...any) *Error {
 	return &Error{Code: code, Message: fmt.Sprintf(format, a...)}
 }
+
+// BudgetHint ends every no_budget refusal at start: where a budget is set.
+const BudgetHint = "set a budget in Settings > AI task budgets or run: monoagentcli aitask budget set --scope global --usd USD (operator only)"

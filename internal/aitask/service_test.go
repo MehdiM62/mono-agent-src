@@ -518,7 +518,8 @@ func TestZeroBudgetMeansNoSpendNeverUnlimited(t *testing.T) {
 	if _, err := s.Store.DB.Exec(`UPDATE ai_tasks SET budget_usd = 0 WHERE id = ?`, task.ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.Start(context.Background(), task.ID); code(err) != CodeNoBudget || len(l.detached) != 0 {
+	if _, err := s.Start(context.Background(), task.ID); code(err) != CodeNoBudget || len(l.detached) != 0 ||
+		!strings.Contains(err.Error(), "Settings > AI task budgets") || !strings.Contains(err.Error(), "aitask budget set --scope global") {
 		t.Fatalf("start with no budget: %v", err)
 	}
 }
