@@ -149,7 +149,7 @@ func (d Deps) newFillCmd() *cobra.Command {
 			return d.writeJSON(cmd, f)
 		},
 	}
-	fill.AddCommand(record, show)
+	fill.AddCommand(record, show, d.newFillStartCmd(), d.newFillSyncCmd())
 	return fill
 }
 
