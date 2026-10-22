@@ -92,7 +92,8 @@ export default function HistoryPanel({ store, onNavigate }) {
       if (orgRunTarget(row, st) === 'bubble') store.openOrg(row.orgName)
       else onNavigate?.('orgs', { org: row.orgName, run: row.runId || undefined })
     } else {
-      store.openConversation({ id: row.id, cwd: row.cwd, model: row.model, runtime: row.runtime })
+      // The whole row: the pane takes access, mode and the rest from it.
+      store.openConversation(row)
     }
     close()
   }
