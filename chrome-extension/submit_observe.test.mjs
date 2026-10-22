@@ -54,15 +54,6 @@ test("a trusted submit followed by a navigation is reported once, with no query 
   assert.equal(t.asked.length, 1, "one submit is reported once");
 });
 
-test("a trusted submit followed by the form going away is reported", async () => {
-  const t = setup();
-  t.send("submit");
-  t.send("form_changed");
-  await settle();
-  assert.equal(t.asked.length, 1);
-  assert.equal(t.asked[0].params.tab_id, 7);
-});
-
 test("an SPA's history change after a trusted submit is reported", async () => {
   const t = setup();
   t.send("submit");
@@ -73,7 +64,6 @@ test("an SPA's history change after a trusted submit is reported", async () => {
 test("nothing is reported without a trusted submit: a page that says 'submitted', a bare navigation, a bare form change", async () => {
   const t = setup();
   await t.commit(7, "https://jobs.example/thanks"); // 'Application submitted' page, no submit event
-  t.send("form_changed");
   await t.history(7, "https://jobs.example/spa");
   await settle();
   assert.deepEqual(t.asked, []);
@@ -134,40 +124,35 @@ test("the observer is injected only into tabs of an agent group, in the top fram
 
 // --- the page half ----------------------------------------------------------
 
-/** A window with just enough DOM: addEventListener, a form, a MutationObserver. */
+/** A window with just enough DOM: listeners by type, a form with a submit button. */
 function pageWorld() {
-  const handlers = [];
+  const handlers = {};
   class Form {
-    constructor() { this.isConnected = true; this.hidden = false; this.style = { display: "block", visibility: "visible" }; }
+    constructor() {
+      this.inputs = [];
+    }
+    contains(el) {
+      return el === this || this.inputs.includes(el);
+    }
   }
-  const observers = [];
-  class MO {
-    constructor(fn) { this.fn = fn; observers.push(this); }
-    observe() {}
-    disconnect() { this.off = true; }
-  }
-  const win = {
-    addEventListener: (type, fn, capture) => handlers.push({ type, fn, capture }),
+  const mk = (tag, type, form) => {
+    const el = { tagName: tag, form, getAttribute: (n) => (n === "type" ? type : null), closest: () => el };
+    return el;
   };
-  const globals = {
-    window: win,
-    HTMLFormElement: Form,
-    MutationObserver: MO,
-    getComputedStyle: (f) => f.style,
-    document: { documentElement: {} },
-    chrome: { runtime: { sendMessage: (m) => sent.push(m) } },
-  };
-  return { win, handlers, Form, observers, globals };
+  const win = { addEventListener: (type, fn) => (handlers[type] ||= []).push(fn) };
+  const globals = { window: win, HTMLFormElement: Form };
+  const fire = (type, ev) => (handlers[type] || []).forEach((fn) => fn(ev));
+  return { handlers, Form, globals, fire, mk };
 }
 
-function withGlobals(globals, fn) {
+async function withGlobals(globals, fn) {
   const saved = {};
   for (const k of Object.keys(globals)) {
     saved[k] = Object.getOwnPropertyDescriptor(globalThis, k);
     Object.defineProperty(globalThis, k, { value: globals[k], configurable: true, writable: true });
   }
   try {
-    return fn();
+    return await fn();
   } finally {
     for (const k of Object.keys(globals)) {
       if (saved[k]) Object.defineProperty(globalThis, k, saved[k]);
@@ -176,26 +161,96 @@ function withGlobals(globals, fn) {
   }
 }
 
-test("the page half reports only trusted submit events of forms, and a form that goes away", () => {
+/** world installs the observer and returns helpers; `sent` is what the page sent the worker. */
+function observed(body) {
   const { S, pageSent } = setup();
   const w = pageWorld();
-  withGlobals(w.globals, () => {
-    assert.equal(S.installObserver("__k", S.MESSAGE, 1000), true);
-    assert.equal(S.installObserver("__k", S.MESSAGE, 1000), true);
-    const submits = w.handlers.filter((h) => h.type === "submit");
-    assert.equal(submits.length, 1, "installed once");
-    assert.equal(submits[0].capture, true);
+  return withGlobals(w.globals, async () => {
+    assert.equal(S.installObserver("__k", S.MESSAGE), true);
+    assert.equal(S.installObserver("__k", S.MESSAGE), true);
+    assert.equal(w.handlers.submit.length, 1, "installed once");
     const form = new w.Form();
-    submits[0].fn({ isTrusted: false, target: form }); // page script's submit
-    submits[0].fn({ isTrusted: true, target: {} }); // not a form
-    assert.deepEqual(pageSent, []);
-    submits[0].fn({ isTrusted: true, target: form });
-    assert.deepEqual(pageSent, [{ type: S.MESSAGE, stage: "submit" }]);
-    // The form is still there: a change elsewhere reports nothing.
-    w.observers.forEach((o) => o.fn());
-    assert.equal(pageSent.length, 1);
-    form.isConnected = false; // confirmation replaced the form
-    w.observers.forEach((o) => o.fn());
-    assert.deepEqual(pageSent.at(-1), { type: S.MESSAGE, stage: "form_changed" });
+    const button = w.mk("BUTTON", "submit", form);
+    const field = { tagName: "INPUT" };
+    form.inputs.push(field);
+    await body({ S, w, form, button, field, sent: pageSent });
   });
-});
+}
+
+const tick = () => new Promise((r) => setTimeout(r, 5));
+
+test("a scripted requestSubmit with no gesture reports nothing, though its event is trusted", () =>
+  observed(async ({ w, form, sent }) => {
+    w.fire("submit", { isTrusted: true, target: form, submitter: null, defaultPrevented: false });
+    await tick();
+    assert.deepEqual(sent, []);
+  }));
+
+test("a gesture on the page but not on this form's submit control does not count", () =>
+  observed(async ({ w, form, button, sent }) => {
+    w.fire("click", { isTrusted: true, target: { tagName: "DIV", closest: () => null } }); // the person clicked elsewhere
+    w.fire("submit", { isTrusted: true, target: form, submitter: null, defaultPrevented: false });
+    w.fire("click", { isTrusted: false, target: button }); // a script's click
+    w.fire("submit", { isTrusted: true, target: form, submitter: button, defaultPrevented: false });
+    w.fire("click", { isTrusted: true, target: w.mk("BUTTON", "submit", new w.Form()) }); // another form's button
+    w.fire("submit", { isTrusted: true, target: form, submitter: button, defaultPrevented: false });
+    await tick();
+    assert.deepEqual(sent, []);
+  }));
+
+test("a submit the page cancelled reports nothing (preventDefault, then hide the form)", () =>
+  observed(async ({ w, form, button, sent }) => {
+    w.fire("click", { isTrusted: true, target: button });
+    const ev = { isTrusted: true, target: form, submitter: button, defaultPrevented: false };
+    w.fire("submit", ev);
+    ev.defaultPrevented = true; // the page's handler ran after ours and cancelled it
+    await tick();
+    assert.deepEqual(sent, []);
+  }));
+
+test("the genuine path: a click on the submit control, an uncancelled submit", () =>
+  observed(async ({ S, w, form, button, sent }) => {
+    w.fire("click", { isTrusted: true, target: button });
+    w.fire("submit", { isTrusted: true, target: form, submitter: button, defaultPrevented: false });
+    await tick();
+    assert.deepEqual(sent, [{ type: S.MESSAGE, stage: "submit" }]);
+  }));
+
+test("Enter inside a field of the form counts; Enter in a textarea or outside does not", () =>
+  observed(async ({ S, w, form, field, sent }) => {
+    w.fire("keydown", { isTrusted: true, key: "Enter", target: { tagName: "TEXTAREA" } });
+    w.fire("submit", { isTrusted: true, target: form, submitter: null, defaultPrevented: false });
+    w.fire("keydown", { isTrusted: true, key: "Enter", target: {} });
+    w.fire("submit", { isTrusted: true, target: form, submitter: null, defaultPrevented: false });
+    await tick();
+    assert.deepEqual(sent, []);
+    w.fire("keydown", { isTrusted: true, key: "Enter", target: field });
+    w.fire("submit", { isTrusted: true, target: form, submitter: null, defaultPrevented: false });
+    await tick();
+    assert.equal(sent.length, 1);
+  }));
+
+test("a gesture is used once and goes stale", () =>
+  observed(async ({ S, w, form, button, sent }) => {
+    w.fire("click", { isTrusted: true, target: button });
+    w.fire("submit", { isTrusted: true, target: form, submitter: button, defaultPrevented: false });
+    w.fire("submit", { isTrusted: true, target: form, submitter: button, defaultPrevented: false });
+    w.fire("click", { isTrusted: true, target: button });
+    const real = Date.now;
+    Date.now = () => real() + 4000;
+    try {
+      w.fire("submit", { isTrusted: true, target: form, submitter: button, defaultPrevented: false });
+    } finally {
+      Date.now = real;
+    }
+    await tick();
+    assert.equal(sent.length, 1);
+  }));
+
+test("a real click followed by the page's own requestSubmit() (no submitter) does not count", () =>
+  observed(async ({ w, form, button, sent }) => {
+    w.fire("click", { isTrusted: true, target: button });
+    w.fire("submit", { isTrusted: true, target: form, submitter: null, defaultPrevented: false });
+    await tick();
+    assert.deepEqual(sent, []);
+  }));
