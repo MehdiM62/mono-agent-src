@@ -221,7 +221,24 @@ func (a *App) RunOrg(orgName, task string) string {
 	a.runningCmds[key] = cmd
 	a.runningMu.Unlock()
 
-	runtime.EventsEmit(a.ctx, "org:runStatus", map[string]interface{}{"orgName": orgName, "status": "running"})
+	runtime.EventsEmit(a.ctx, "org:runStatus", orgRunStatusEvent(orgName, "running", "", ""))
+	// The run id appears once the org writes its runtime file, a moment after
+	// the start: repeat the running event with it when it does.
+	go func() {
+		for i := 0; i < 6; i++ {
+			time.Sleep(500 * time.Millisecond)
+			a.runningMu.Lock()
+			_, still := a.runningCmds[key]
+			a.runningMu.Unlock()
+			if !still {
+				return
+			}
+			if id := a.orgRunID(orgName); id != "" {
+				runtime.EventsEmit(a.ctx, "org:runStatus", orgRunStatusEvent(orgName, "running", "", id))
+				return
+			}
+		}
+	}()
 
 	go func() {
 		waitErr := waitChatProcess(cmd)
@@ -237,10 +254,41 @@ func (a *App) RunOrg(orgName, task string) string {
 		} else {
 			a.emitLog("ORG", "INFO", fmt.Sprintf("org run %s finished", orgName))
 		}
-		runtime.EventsEmit(a.ctx, "org:runStatus", map[string]interface{}{"orgName": orgName, "status": status, "message": message})
+		runtime.EventsEmit(a.ctx, "org:runStatus", orgRunStatusEvent(orgName, status, message, a.orgRunID(orgName)))
 	}()
 
 	return `{"ok":true}`
+}
+
+// orgRunStatusEvent is the org:runStatus payload. runId is omitted while the
+// run is not known; the other fields are unchanged.
+func orgRunStatusEvent(orgName, status, message, runID string) map[string]interface{} {
+	ev := map[string]interface{}{"orgName": orgName, "status": status}
+	if status != "running" {
+		ev["message"] = message
+	}
+	if runID != "" {
+		ev["runId"] = runID
+	}
+	return ev
+}
+
+// orgRunID reads the org's current (or last) run id from `org status`; ""
+// when the status says nothing about a run.
+func (a *App) orgRunID(orgName string) string {
+	return runIDFromStatus(a.runOrgCLI("status", orgName))
+}
+
+// runIDFromStatus is the "run" of an `org status` answer ("" for an error
+// payload or a status with no run).
+func runIDFromStatus(out string) string {
+	var st struct {
+		Run string `json:"run"`
+	}
+	if json.Unmarshal([]byte(out), &st) != nil {
+		return ""
+	}
+	return st.Run
 }
 
 // goLogLine matches the Go log lines (timestamped) monoagentcli's startup
