@@ -147,6 +147,21 @@ func (s *Store) List(kind, applicationID string) ([]Task, error) {
 	return out, rows.Err()
 }
 
+// ForApplication is the task shown on an application's page: its open task
+// when it has one, else the latest. A nil task means none.
+func (s *Store) ForApplication(applicationID string) (*Task, error) {
+	ts, err := s.List("", applicationID)
+	if err != nil || len(ts) == 0 {
+		return nil, err
+	}
+	for i := range ts {
+		if !Terminal(ts[i].Status) {
+			return &ts[i], nil
+		}
+	}
+	return &ts[0], nil
+}
+
 // move changes a task's status in one statement that holds only while the
 // task is in one of from, so two callers never both win. extra are more
 // columns to set ("error = ?" ...) with their values.
