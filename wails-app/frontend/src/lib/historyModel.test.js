@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { bubbleKeyOf, liveStatus, relativeTime, toFilter, orgRunTarget, orgRunLabel, mergePage, deleteOutcome, chatIdsOnly } from './historyModel.js'
+import { bubbleKeyOf, liveStatus, relativeTime, toFilter, reconcileRefresh, orgRunTarget, orgRunLabel, mergePage, deleteOutcome, chatIdsOnly } from './historyModel.js'
 
 describe('historyModel', () => {
   it('keys chats by id and orgs by name', () => {
@@ -42,5 +42,13 @@ describe('historyModel', () => {
   it('splits a delete result and never lets org runs through', () => {
     expect(deleteOutcome({ deleted: ['a'], active: ['b'], failed: { c: 'boom' } })).toEqual({ deleted: ['a'], active: ['b'], failed: [{ id: 'c', message: 'boom' }] })
     expect(chatIdsOnly([{ kind: 'chat', id: 'a' }, { kind: 'org', id: 'o' }])).toEqual(['a'])
+  })
+  it('reconciles a refreshed first page with the loaded rows', () => {
+    const r = (id, n) => ({ id, updatedAt: `2026-10-22T10:0${n}:00Z` })
+    const prev = [r('a', 9), r('b', 8), r('c', 5), r('d', 1)]
+    // b is newer than the page's last row and missing: gone; c and d lie beyond the boundary: kept
+    expect(reconcileRefresh(prev, [r('a', 9), r('e', 7)], true).map(x => x.id)).toEqual(['a', 'e', 'c', 'd'])
+    // a complete page is the whole list
+    expect(reconcileRefresh(prev, [r('a', 9)], false).map(x => x.id)).toEqual(['a'])
   })
 })

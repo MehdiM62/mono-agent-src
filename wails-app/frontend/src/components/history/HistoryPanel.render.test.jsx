@@ -63,7 +63,8 @@ describe('HistoryPanel', () => {
     const { s } = mount()
     await open()
     fireEvent.click(await screen.findByText('Chat c1'))
-    expect(s.openConversation).toHaveBeenCalledWith({ id: 'c1', cwd: undefined, model: 'opus', runtime: 'claude' })
+    // the complete row reaches the store (access, mode, title, task...)
+    expect(s.openConversation).toHaveBeenCalledWith(expect.objectContaining({ id: 'c1', kind: 'chat', title: 'Chat c1', access: 'coding', runtime: 'claude', model: 'opus', status: 'done' }))
     await open()
     fireEvent.click(await screen.findByText('Run r1'))
     await waitFor(() => expect(s.openOrg).toHaveBeenCalledWith('acme'))
@@ -221,6 +222,62 @@ describe('HistoryPanel', () => {
     modal.remove()
     fireEvent.keyDown(document.body, { key: 'Escape' })
     expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  describe('refresh reconciliation', () => {
+    const at = n => new Date(Date.UTC(2026, 9, 22, 12, 0, 0) - n * 60000).toISOString()
+
+    it('drops a row from a status filter once its turn finished', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true })
+      const running = [chat('c1', { status: 'running', updatedAt: at(1) }), chat('c2', { status: 'running', updatedAt: at(2) })]
+      listHistory.mockResolvedValue(page(running))
+      mount()
+      await open()
+      fireEvent.change(await screen.findByRole('combobox', { name: 'history.statusLabel' }), { target: { value: 'running' } })
+      await waitFor(() => expect(listHistory).toHaveBeenLastCalledWith('', 30, expect.objectContaining({ status: 'running' })))
+      await screen.findByText('Chat c1')
+      await act(async () => { vi.advanceTimersByTime(2100) })
+      listHistory.mockResolvedValue(page([running[1]]))
+      await act(async () => { handlers['chat:event']({ type: 'turn.finished' }) })
+      await waitFor(() => expect(screen.queryByText('Chat c1')).toBeNull())
+      expect(screen.getByText('Chat c2')).toBeInTheDocument()
+    })
+
+    it('keeps rows beyond the first page through a refresh', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true })
+      const p1 = [chat('c1', { updatedAt: at(1) }), chat('c2', { updatedAt: at(2) })]
+      listHistory.mockResolvedValueOnce(page(p1, { next_cursor: 'k2' })).mockResolvedValueOnce(page([chat('c3', { updatedAt: at(3) })]))
+      mount()
+      await open()
+      fireEvent.click(await screen.findByRole('button', { name: 'history.loadMore' }))
+      await screen.findByText('Chat c3')
+      await act(async () => { vi.advanceTimersByTime(2100) })
+      listHistory.mockResolvedValue(page([chat('c0', { updatedAt: at(0) }), p1[1]], { next_cursor: 'k9' }))
+      await act(async () => { handlers['chat:event']({ type: 'turn.finished' }) })
+      await screen.findByText('Chat c0')
+      expect(screen.getByText('Chat c3')).toBeInTheDocument() // beyond the boundary: kept
+      expect(screen.queryByText('Chat c1')).toBeNull() // newer than the boundary and missing: gone
+    })
+
+    it('a refresh already in flight cannot bring a deleted row back', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true })
+      confirmMock.mockResolvedValue(true)
+      mount()
+      await open()
+      await screen.findByText('Chat c1')
+      await act(async () => { vi.advanceTimersByTime(2100) })
+      let release
+      const stale = page([chat('c1'), org('r1'), chat('c2', { applicationId: 'app9', status: 'needs' })])
+      listHistory.mockImplementationOnce(() => new Promise(r => { release = () => r(stale) }))
+      await act(async () => { handlers['chat:event']({ type: 'turn.finished' }) })
+      deleteChats.mockResolvedValue({ deleted: ['c1'], active: [], failed: {} })
+      fireEvent.click(screen.getByRole('checkbox', { name: 'history.select:Chat c1' }))
+      fireEvent.click(screen.getByRole('button', { name: 'history.deleteSelected' }))
+      await waitFor(() => expect(deleteChats).toHaveBeenCalled())
+      await waitFor(() => expect(screen.queryByText('Chat c1')).toBeNull())
+      await act(async () => { release() })
+      expect(screen.queryByText('Chat c1')).toBeNull()
+    })
   })
 
   describe('delete', () => {
