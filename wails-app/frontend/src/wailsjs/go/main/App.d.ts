@@ -162,6 +162,8 @@ export function ControlOrg(arg1:string,arg2:string):Promise<string>;
 
 export function CreateChatConversation(arg1:string,arg2:string,arg3:string,arg4:string):Promise<string>;
 
+export function CreateChatConversationAccess(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string,arg6:string):Promise<main.Conversation>;
+
 export function CreateCoderConversation(arg1:string,arg2:string,arg3:string,arg4:string,arg5:boolean):Promise<string>;
 
 export function CreateOrgDesign(arg1:string):Promise<string>;
@@ -175,6 +177,8 @@ export function CreateWorkflowFromTemplate(arg1:string):Promise<main.WorkflowSum
 export function DaemonRestart():Promise<main.DaemonRestartResult>;
 
 export function DeleteChatConversation(arg1:string):Promise<string>;
+
+export function DeleteChatConversations(arg1:Array<string>):Promise<main.DeleteChatResult>;
 
 export function DeleteOrgDesign(arg1:string):Promise<string>;
 
@@ -498,6 +502,8 @@ export function ListCredentialsForNode(arg1:string):Promise<Array<main.Credentia
 
 export function ListExcludedDocuments():Promise<Array<main.ExcludedDocument>>;
 
+export function ListHistory(arg1:string,arg2:number,arg3:main.HistoryFilter):Promise<main.HistoryPage>;
+
 export function ListMonomindProjects():Promise<Array<main.MonomindProjectInfo>>;
 
 export function ListNeedsYou(arg1:string):Promise<string>;
@@ -691,6 +697,8 @@ export function SetAutomationTrust(arg1:string,arg2:string):Promise<string>;
 export function SetBrowserPermission(arg1:string,arg2:string):Promise<string>;
 
 export function SetBrowserSiteRule(arg1:string,arg2:string):Promise<string>;
+
+export function SetChatAccess(arg1:string,arg2:string):Promise<main.AccessChange>;
 
 export function SetChatOrgMode(arg1:string,arg2:string):Promise<string>;
 
