@@ -102,6 +102,22 @@ func IngestCapture(ctx context.Context, profileID, path string) error {
 // runIngest runs one knowledge_ingest call in dir with MONOMIND_CWD set to
 // monomindDir, and decides success from the tool's own payload.
 func runIngest(ctx context.Context, dir, monomindDir string, params map[string]string) error {
+	return runKnowledgeTool(ctx, dir, monomindDir, "knowledge_ingest", params)
+}
+
+// ForgetDocument removes the document at path from profileID's Second Brain
+// (knowledge_remove): hidden from search until it is ingested again. It errors
+// when monomind does not have the path indexed.
+func ForgetDocument(ctx context.Context, db *sql.DB, profileID, path string) error {
+	profileDir := profiledir.MonomindDir(db, profileID)
+	if err := runKnowledgeTool(ctx, profiledir.Root(db, profileID), profileDir, "knowledge_remove", map[string]string{"path": path}); err != nil {
+		return fmt.Errorf("monomind.ForgetDocument: %w", err)
+	}
+	return nil
+}
+
+// runKnowledgeTool runs one knowledge_* call that answers with a success flag.
+func runKnowledgeTool(ctx context.Context, dir, monomindDir, tool string, params map[string]string) error {
 	bin, err := findIn(dir)
 	if err != nil {
 		return err
@@ -114,12 +130,12 @@ func runIngest(ctx context.Context, dir, monomindDir string, params map[string]s
 	cctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 
-	cmd := exec.CommandContext(cctx, bin, "mcp", "exec", "-t", "knowledge_ingest", "-p", string(raw), "--format", "json")
+	cmd := exec.CommandContext(cctx, bin, "mcp", "exec", "-t", tool, "-p", string(raw), "--format", "json")
 	cmd.Dir = dir
 	cmd.Env = PinEnvIn(append(FilteredEnviron(), "MONOMIND_CWD="+monomindDir), bin, dir)
 	out, err := cmd.Output()
 	if err != nil {
-		return fmt.Errorf("knowledge_ingest: %w", err)
+		return fmt.Errorf("%s: %w", tool, err)
 	}
 
 	jsonStr, err := extractJSONObject(string(out))
@@ -142,9 +158,9 @@ func runIngest(ctx context.Context, dir, monomindDir string, params map[string]s
 	// envelope-level flag and the inner payload's own success field.
 	if envelope.Result.IsError || !payload.Success {
 		if payload.Error != "" {
-			return fmt.Errorf("knowledge_ingest: %s", payload.Error)
+			return fmt.Errorf("%s: %s", tool, payload.Error)
 		}
-		return fmt.Errorf("knowledge_ingest reported failure with no error message")
+		return fmt.Errorf("%s reported failure with no error message", tool)
 	}
 	return nil
 }

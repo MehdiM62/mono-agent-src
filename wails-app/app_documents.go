@@ -126,6 +126,51 @@ func (a *App) DeleteProfileDocument(id string) error {
 	return a.runMonoCLI("", nil, "profile", "documents", "rm", id)
 }
 
+// RemoveProfileDocument removes a document from MonoAgent: an uploaded one
+// is deleted; an auto-discovered one (a file in the profile folder) leaves
+// the index and the knowledge graph and is excluded, so the folder scan does
+// not add it back. deleteFile also deletes the discovered file from the
+// profile folder on disk (the CLI validates that it lies inside it).
+func (a *App) RemoveProfileDocument(id string, deleteFile bool) error {
+	if err := a.signedOut(); err != nil {
+		return err
+	}
+	args := []string{"profile", "documents", "remove", id}
+	if deleteFile {
+		args = append(args, "--delete-file")
+	}
+	return a.runMonoCLI("", nil, args...)
+}
+
+// ExcludedDocument is a document removed from MonoAgent whose file is still
+// in the profile folder.
+type ExcludedDocument struct {
+	Path         string `json:"path"`
+	RelativePath string `json:"relative_path"`
+	Filename     string `json:"filename"`
+	ExcludedAt   string `json:"excluded_at"`
+}
+
+// ListExcludedDocuments lists the profile's excluded documents.
+func (a *App) ListExcludedDocuments() ([]ExcludedDocument, error) {
+	if err := a.signedOut(); err != nil {
+		return nil, err
+	}
+	out := []ExcludedDocument{}
+	if err := a.runMonoCLI("", &out, "profile", "documents", "excluded"); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// RestoreExcludedDocument lets the folder scan add an excluded document again.
+func (a *App) RestoreExcludedDocument(path string) error {
+	if err := a.signedOut(); err != nil {
+		return err
+	}
+	return a.runMonoCLI("", nil, "profile", "documents", "restore", path)
+}
+
 // IndexProfileDocument runs (or re-runs) knowledge_ingest for a single
 // already-tracked document -- the on-demand action for a "Not indexed" or
 // "Stale" row; never triggered automatically by discovery. Reuses

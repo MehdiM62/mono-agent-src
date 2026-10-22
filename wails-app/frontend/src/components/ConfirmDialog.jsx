@@ -3,6 +3,8 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 // Promise-based confirm to replace blocking native window.confirm(), which looks
 // foreign in a styled Wails app and freezes the webview. Usage:
 //   if (!(await confirm('Delete this?'))) return
+// With opts.checkbox = { label, warning } the dialog also shows an unchecked
+// checkbox, and confirming resolves { checked } (truthy) instead of true.
 const bus = new EventTarget()
 let pendingResolve = null
 
@@ -23,15 +25,16 @@ function settle(value) {
 // ConfirmHost renders the dialog; mount once near the app root.
 export default function ConfirmHost() {
   const [req, setReq] = useState(null)
+  const [checked, setChecked] = useState(false)
   const dialogRef = useRef(null)
 
   const close = useCallback((value) => {
-    settle(value)
+    settle(value === true && req?.checkbox ? { checked } : value)
     setReq(null)
-  }, [])
+  }, [req, checked])
 
   useEffect(() => {
-    const handler = (e) => setReq(e.detail)
+    const handler = (e) => { setChecked(false); setReq(e.detail) }
     bus.addEventListener('confirm:open', handler)
     return () => bus.removeEventListener('confirm:open', handler)
   }, [])
@@ -101,6 +104,17 @@ export default function ConfirmHost() {
         <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: 18 }}>
           {req.message}
         </div>
+        {req.checkbox && (
+          <div style={{ marginBottom: 18 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: 'var(--text)' }}>
+              <input type="checkbox" checked={checked} onChange={(e) => setChecked(e.target.checked)} />
+              {req.checkbox.label}
+            </label>
+            {req.checkbox.warning && (
+              <div style={{ fontSize: 11.5, color: '#ef4444', marginTop: 6, lineHeight: 1.4 }}>{req.checkbox.warning}</div>
+            )}
+          </div>
+        )}
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
           <button
             onClick={() => close(false)}

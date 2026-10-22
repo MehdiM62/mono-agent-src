@@ -950,6 +950,10 @@ export function ListCredentialsForNode(arg1) {
   return window['go']['main']['App']['ListCredentialsForNode'](arg1);
 }
 
+export function ListExcludedDocuments() {
+  return window['go']['main']['App']['ListExcludedDocuments']();
+}
+
 export function ListMonomindProjects() {
   return window['go']['main']['App']['ListMonomindProjects']();
 }
@@ -1186,6 +1190,10 @@ export function RemovePersonTag(arg1, arg2) {
   return window['go']['main']['App']['RemovePersonTag'](arg1, arg2);
 }
 
+export function RemoveProfileDocument(arg1, arg2) {
+  return window['go']['main']['App']['RemoveProfileDocument'](arg1, arg2);
+}
+
 export function RerecordSelector(arg1, arg2) {
   return window['go']['main']['App']['RerecordSelector'](arg1, arg2);
 }
@@ -1196,6 +1204,10 @@ export function ResolveOrgChat(arg1, arg2, arg3, arg4) {
 
 export function RestoreAutomation(arg1) {
   return window['go']['main']['App']['RestoreAutomation'](arg1);
+}
+
+export function RestoreExcludedDocument(arg1) {
+  return window['go']['main']['App']['RestoreExcludedDocument'](arg1);
 }
 
 export function ResumeOrgAutonomy(arg1) {

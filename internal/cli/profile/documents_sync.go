@@ -2,6 +2,8 @@
 package profile
 
 import (
+	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 
@@ -73,16 +75,24 @@ func (d Deps) newProfileDocumentsSyncCmd() *cobra.Command {
 			if root == "" {
 				return d.InvalidInput("invalid profile id %q", d.ProfileID())
 			}
-			files, err := docscan.Scan(root)
+			files, r, err := scanFolder(cmd.Context(), db.DB, d.ProfileID(), root)
 			if err != nil {
-				return fmt.Errorf("scanning %s: %w", root, err)
+				return err
 			}
-			found := make([]vault.DiscoveredFile, len(files))
-			for i, f := range files {
-				found[i] = vault.DiscoveredFile{Path: f.Path, Filename: f.Filename, SizeBytes: f.SizeBytes}
-			}
-			r := vault.SyncDiscoveredDocuments(cmd.Context(), db.DB, d.ProfileID(), found)
 			return PrintFolderSync(cmd, d.JSONOutput(), "documents", newFolderSyncResult(d.ProfileID(), root, len(files), r))
 		},
 	}
+}
+
+// scanFolder reconciles profileID's vault_documents with the documents under root.
+func scanFolder(ctx context.Context, db *sql.DB, profileID, root string) ([]docscan.FileInfo, vault.ReconcileResult, error) {
+	files, err := docscan.Scan(root)
+	if err != nil {
+		return nil, vault.ReconcileResult{}, fmt.Errorf("scanning %s: %w", root, err)
+	}
+	found := make([]vault.DiscoveredFile, len(files))
+	for i, f := range files {
+		found[i] = vault.DiscoveredFile{Path: f.Path, Filename: f.Filename, SizeBytes: f.SizeBytes}
+	}
+	return files, vault.SyncDiscoveredDocuments(ctx, db, profileID, found), nil
 }

@@ -118,7 +118,8 @@ func (d Deps) newProfileDocumentsCmd() *cobra.Command {
 		Short: "Manage uploaded profile documents",
 	}
 	cmd.AddCommand(d.newProfileDocumentsListCmd(), d.newProfileDocumentsGetCmd(), d.newProfileDocumentsCaptureCmd(),
-		d.newProfileDocumentsRmCmd(), d.newProfileDocumentsIndexCmd(), d.newProfileDocumentsSyncCmd())
+		d.newProfileDocumentsRmCmd(), d.newProfileDocumentsIndexCmd(), d.newProfileDocumentsSyncCmd(),
+		d.newProfileDocumentsRemoveCmd(), d.newProfileDocumentsExcludedCmd(), d.newProfileDocumentsRestoreCmd())
 	return cmd
 }
 

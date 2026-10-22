@@ -432,11 +432,20 @@ func SyncDiscoveredDocuments(ctx context.Context, db *sql.DB, profileID string, 
 		return res
 	}
 
+	excluded, err := excludedPaths(ctx, db, profileID)
+	if err != nil {
+		res.Errs = []error{fmt.Errorf("vault.ReconcileDiscoveredDocuments: %w", err)}
+		return res
+	}
+
 	foundPaths := make(map[string]bool, len(found))
 	for _, f := range found {
 		foundPaths[f.Path] = true
 		size, tracked := existing[f.Path]
 		if !tracked {
+			if excluded[f.Path] {
+				continue // the user removed it from MonoAgent
+			}
 			// RegisterDiscoveredDocument's own lookup matches by path
 			// regardless of source, so a path already tracked under a
 			// different source (e.g. "upload") correctly reports

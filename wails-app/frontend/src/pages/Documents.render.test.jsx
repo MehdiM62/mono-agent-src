@@ -13,6 +13,9 @@ vi.mock('../wailsjs/go/main/App', () => ({
   ListProfileDocuments: vi.fn(),
   IndexProfileDocument: vi.fn(),
   DeleteProfileDocument: vi.fn(),
+  RemoveProfileDocument: vi.fn(),
+  ListExcludedDocuments: vi.fn(),
+  RestoreExcludedDocument: vi.fn(),
   UploadProfileDocument: vi.fn(),
   OpenAnyFilePicker: vi.fn(),
   SearchProfileKnowledge: vi.fn(),
@@ -23,7 +26,7 @@ vi.mock('../wailsjs/go/main/App', () => ({
 const freshDoc = { id: 'doc-1', filename: 'resume.pdf', source: 'upload', size_bytes: 100, created_at: '2026-01-01', indexed: true, stale: false }
 // never indexed — needs indexing
 const notIndexedDoc = { id: 'doc-2', filename: 'notes.md', source: 'upload', size_bytes: 200, created_at: '2026-01-02', indexed: false, stale: false }
-// indexed but stale — needs re-indexing, and NOT deletable (discovered)
+// indexed but stale — needs re-indexing; auto-discovered ("Profile folder")
 const staleDiscoveredDoc = { id: 'doc-3', filename: 'AGENTS.md', source: 'discovered', size_bytes: 300, created_at: '2026-01-03', indexed: true, stale: true }
 
 beforeEach(() => {
@@ -31,6 +34,9 @@ beforeEach(() => {
   WailsApp.ListProfileDocuments.mockResolvedValue([freshDoc, notIndexedDoc, staleDiscoveredDoc])
   WailsApp.IndexProfileDocument.mockResolvedValue({ indexed: true })
   WailsApp.DeleteProfileDocument.mockResolvedValue(undefined)
+  WailsApp.RemoveProfileDocument.mockResolvedValue(undefined)
+  WailsApp.ListExcludedDocuments.mockResolvedValue([])
+  WailsApp.RestoreExcludedDocument.mockResolvedValue(undefined)
 })
 
 afterEach(() => {
@@ -88,20 +94,48 @@ describe('Documents "Index all"', () => {
 })
 
 describe('Documents "Delete selected"', () => {
-  it('confirms once, then deletes only the non-discovered documents in the selection', async () => {
+  it('confirms once, deleting uploads and removing auto-discovered documents from MonoAgent', async () => {
     await renderLoaded()
 
     const [, row1, , row3] = screen.getAllByRole('checkbox')
-    fireEvent.click(row1) // freshDoc, source: upload — deletable
-    fireEvent.click(row3) // staleDiscoveredDoc, source: discovered — NOT deletable
+    fireEvent.click(row1) // freshDoc, source: upload
+    fireEvent.click(row3) // staleDiscoveredDoc, source: discovered
 
     fireEvent.click(screen.getByRole('button', { name: /Delete selected/ }))
 
     const { confirm } = await import('../components/ConfirmDialog.jsx')
     await waitFor(() => expect(confirm).toHaveBeenCalledTimes(1))
+    // an auto-discovered document in the selection offers the on-disk choice
+    expect(confirm.mock.calls[0][1].checkbox.label).toMatch(/delete the file from the profile folder on disk/i)
+    expect(confirm.mock.calls[0][0]).toMatch(/1 of them is in your profile folder/)
 
-    await waitFor(() => expect(WailsApp.DeleteProfileDocument).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(WailsApp.RemoveProfileDocument).toHaveBeenCalledTimes(1))
     expect(WailsApp.DeleteProfileDocument).toHaveBeenCalledWith('doc-1')
-    expect(WailsApp.DeleteProfileDocument).not.toHaveBeenCalledWith('doc-3')
+    expect(WailsApp.RemoveProfileDocument).toHaveBeenCalledWith('doc-3', false) // file kept by default
+  })
+
+  it('passes deleteFile when the box is ticked, and offers no box for uploads only', async () => {
+    const { confirm } = await import('../components/ConfirmDialog.jsx')
+    confirm.mockResolvedValueOnce({ checked: true })
+    await renderLoaded()
+    fireEvent.click(screen.getByLabelText('Select AGENTS.md'))
+    fireEvent.click(screen.getByRole('button', { name: /Delete selected/ }))
+    await waitFor(() => expect(WailsApp.RemoveProfileDocument).toHaveBeenCalledWith('doc-3', true))
+
+    confirm.mockClear()
+    fireEvent.click(screen.getByLabelText('Select resume.pdf'))
+    fireEvent.click(screen.getByRole('button', { name: /Delete selected/ }))
+    await waitFor(() => expect(confirm).toHaveBeenCalledTimes(1))
+    expect(confirm.mock.calls[0][1].checkbox).toBeUndefined()
+  })
+
+  it('lists excluded documents behind "Show excluded" and restores one', async () => {
+    WailsApp.ListExcludedDocuments.mockResolvedValue([{ path: '/p/career-profile.md', relative_path: 'career-profile.md', filename: 'career-profile.md', excluded_at: 't' }])
+    await renderLoaded()
+    expect(screen.queryByText('career-profile.md')).not.toBeInTheDocument()
+    fireEvent.click(await screen.findByRole('button', { name: /Show excluded \(1\)/ }))
+    expect(screen.getByText('career-profile.md')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Restore career-profile.md' }))
+    await waitFor(() => expect(WailsApp.RestoreExcludedDocument).toHaveBeenCalledWith('/p/career-profile.md'))
   })
 })

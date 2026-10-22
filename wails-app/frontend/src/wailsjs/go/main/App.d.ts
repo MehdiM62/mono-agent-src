@@ -478,6 +478,8 @@ export function ListConnections(arg1:string):Promise<Array<connections.SafeConne
 
 export function ListCredentialsForNode(arg1:string):Promise<Array<main.CredentialOption>>;
 
+export function ListExcludedDocuments():Promise<Array<main.ExcludedDocument>>;
+
 export function ListMonomindProjects():Promise<Array<main.MonomindProjectInfo>>;
 
 export function ListNeedsYou(arg1:string):Promise<string>;
@@ -596,11 +598,15 @@ export function RemoveOrgRole(arg1:string,arg2:string,arg3:string):Promise<strin
 
 export function RemovePersonTag(arg1:string,arg2:string):Promise<void>;
 
+export function RemoveProfileDocument(arg1:string,arg2:boolean):Promise<void>;
+
 export function RerecordSelector(arg1:string,arg2:string):Promise<string>;
 
 export function ResolveOrgChat(arg1:string,arg2:string,arg3:boolean,arg4:string):Promise<string>;
 
 export function RestoreAutomation(arg1:string):Promise<string>;
+
+export function RestoreExcludedDocument(arg1:string):Promise<void>;
 
 export function ResumeOrgAutonomy(arg1:string):Promise<string>;
 

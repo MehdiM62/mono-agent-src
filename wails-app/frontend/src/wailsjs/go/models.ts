@@ -845,6 +845,24 @@ export namespace main {
 	        this.verdicts = source["verdicts"];
 	    }
 	}
+	export class ExcludedDocument {
+	    path: string;
+	    relative_path: string;
+	    filename: string;
+	    excluded_at: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ExcludedDocument(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.relative_path = source["relative_path"];
+	        this.filename = source["filename"];
+	        this.excluded_at = source["excluded_at"];
+	    }
+	}
 	export class ExportResult {
 	    output_dir: string;
 	    people_count: number;

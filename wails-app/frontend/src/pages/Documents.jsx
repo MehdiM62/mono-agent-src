@@ -211,26 +211,33 @@ export default function Documents({ isActive = true }) {
     setBulkBusy(null)
   }
 
-  // "discovered" documents aren't owned by the app (see handleDelete's
-  // single-item sibling and the per-row Delete button's own source check)
-  // -- silently skipped here rather than erroring, with the skip count
-  // surfaced in the confirm prompt so it's never a silent no-op.
-  const runBulkDelete = async (candidateDocs) => {
-    const toDelete = candidateDocs.filter(d => d.source !== 'discovered')
-    const skipped = candidateDocs.length - toDelete.length
-    if (toDelete.length === 0) {
-      notify('delete', "Nothing to delete — the selected documents are all auto-discovered and can't be deleted.")
-      return
-    }
+  // Deleting an upload deletes MonoAgent's copy. Deleting an auto-discovered
+  // ("Profile folder") document removes it from MonoAgent -- index and
+  // knowledge graph -- and excludes it so the folder scan does not add it
+  // back; its file stays on disk unless the user ticks the box below.
+  const runBulkDelete = async (toDelete) => {
+    if (toDelete.length === 0) return
+    const discovered = toDelete.filter(d => d.source === 'discovered')
     const label = toDelete.length === 1 ? `"${toDelete[0].filename}"` : `${toDelete.length} documents`
-    const suffix = skipped > 0 ? ` (${skipped} auto-discovered document${skipped === 1 ? '' : 's'} in your selection will be skipped)` : ''
     const captures = toDelete.filter(isCapture).length
     const captureNote = captures > 0 ? ` Browser captures are deleted with all their saved files.` : ''
-    const ok = await confirm(
-      `Delete ${label}? This removes ${toDelete.length === 1 ? 'it' : 'them'} from the knowledge index too.${captureNote}${suffix}`,
-      { title: 'Delete Documents', confirmLabel: 'Delete', danger: true },
+    const discoveredNote = discovered.length > 0
+      ? ` ${discovered.length === toDelete.length ? (discovered.length === 1 ? 'It is' : 'They are') : `${discovered.length} of them ${discovered.length === 1 ? 'is' : 'are'}`} in your profile folder: ${discovered.length === 1 ? 'it is' : 'they are'} removed from MonoAgent (the "Show excluded" list brings ${discovered.length === 1 ? 'it' : 'them'} back) and the file stays on disk.`
+      : ''
+    const answer = await confirm(
+      `Delete ${label}? This removes ${toDelete.length === 1 ? 'it' : 'them'} from the knowledge index too.${captureNote}${discoveredNote}`,
+      {
+        title: 'Delete Documents', confirmLabel: 'Delete', danger: true,
+        ...(discovered.length > 0 && {
+          checkbox: {
+            label: 'Also delete the file from the profile folder on disk',
+            warning: 'This permanently deletes the file from your disk. It cannot be undone.',
+          },
+        }),
+      },
     )
-    if (!ok) return
+    if (!answer) return
+    const deleteFile = !!answer.checked
 
     setBulkBusy('delete')
     setBulkProgress({ done: 0, total: toDelete.length })
@@ -238,7 +245,8 @@ export default function Documents({ isActive = true }) {
     const deletedIds = new Set()
     for (const d of toDelete) {
       try {
-        await WailsApp.DeleteProfileDocument(d.id)
+        if (d.source === 'discovered') await WailsApp.RemoveProfileDocument(d.id, deleteFile)
+        else await WailsApp.DeleteProfileDocument(d.id)
         deletedIds.add(d.id)
       } catch (e) {
         failed++
@@ -247,11 +255,29 @@ export default function Documents({ isActive = true }) {
       setBulkProgress(p => ({ ...p, done: p.done + 1 }))
     }
     load()
+    loadExcluded()
     setSelectedIds(s => { const n = new Set(s); deletedIds.forEach(id => n.delete(id)); return n })
     if (failed === 0) {
       notify('delete', `Deleted ${toDelete.length} document${toDelete.length === 1 ? '' : 's'}.`)
     }
     setBulkBusy(null)
+  }
+
+  // "Show excluded": auto-discovered documents removed from MonoAgent.
+  const [showExcluded, setShowExcluded] = useState(false)
+  const [excluded, setExcluded] = useState([])
+  const loadExcluded = useCallback(async () => {
+    try { setExcluded((await WailsApp.ListExcludedDocuments()) || []) } catch { setExcluded([]) }
+  }, [])
+  useEffect(() => { loadExcluded() }, [loadExcluded])
+  const handleRestore = async (item) => {
+    try {
+      await WailsApp.RestoreExcludedDocument(item.path)
+      await loadExcluded()
+      load()
+    } catch (e) {
+      notify('restore', `Restore failed: ${e}`)
+    }
   }
 
   const handleDelete = async (id, filename, capture = false) => {
@@ -493,11 +519,9 @@ export default function Documents({ isActive = true }) {
                       {indexingIds.has(d.id) ? <div className="spinner" style={{ width: 12, height: 12 }} /> : <PlayCircle size={12} />}
                     </button>
                   )}
-                  {d.source !== 'discovered' && (
-                    <button style={{ ...btnStyle, color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', padding: '4px 8px' }} title={isCapture(d) ? 'Delete this capture' : 'Delete'} aria-label={`Delete ${d.filename}`} onClick={(e) => { e.stopPropagation(); handleDelete(d.id, d.filename, isCapture(d)) }}>
-                      <Trash2 size={12} />
-                    </button>
-                  )}
+                  <button style={{ ...btnStyle, color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', padding: '4px 8px' }} title={isCapture(d) ? 'Delete this capture' : d.source === 'discovered' ? 'Remove from MonoAgent' : 'Delete'} aria-label={`Delete ${d.filename}`} onClick={(e) => { e.stopPropagation(); d.source === 'discovered' ? runBulkDelete([d]) : handleDelete(d.id, d.filename, isCapture(d)) }}>
+                    <Trash2 size={12} />
+                  </button>
                 </td>
               </tr>
             ))}
@@ -509,6 +533,24 @@ export default function Documents({ isActive = true }) {
           </tbody>
         </table>
       </div>
+
+      {excluded.length > 0 && (
+        <div style={{ marginTop: 12, fontSize: 11, fontFamily: 'var(--font-mono)' }}>
+          <button style={{ ...btnStyle, padding: '3px 8px' }} onClick={() => setShowExcluded(v => !v)}>
+            {showExcluded ? 'Hide excluded' : `Show excluded (${excluded.length})`}
+          </button>
+          {showExcluded && (
+            <ul aria-label="Excluded documents" style={{ listStyle: 'none', padding: 0, margin: '8px 0 0' }}>
+              {excluded.map(item => (
+                <li key={item.path} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 0', color: 'var(--text-muted)' }}>
+                  <span style={{ flex: 1 }} title={item.path}>{item.relative_path || item.filename}</span>
+                  <button style={{ ...btnStyle, padding: '3px 8px' }} aria-label={`Restore ${item.relative_path || item.filename}`} onClick={() => handleRestore(item)}>Restore</button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {viewingDoc?.capture && <CaptureViewerModal doc={viewingDoc} onClose={() => setViewingDoc(null)} />}
       {viewingDoc && !viewingDoc.capture && <FileViewerModal doc={viewingDoc} onClose={() => setViewingDoc(null)} />}
