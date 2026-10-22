@@ -1222,7 +1222,13 @@
         "scan-error": "No se pudo usar monomind.",
         "no-runtime": "No hay ningún agente de IA instalado.",
         "no-models": "Este runtime no informa de modelos, así que no se puede chatear."
-      }
+      },
+      "accessUnknownWhy": "El nivel de acceso de este chat aún no está confirmado, así que no se puede cambiar ni enviarle mensajes.",
+      "accessChecking": "Comprobando el nivel de acceso de este chat…",
+      "accessFailed": "No se pudo leer el nivel de acceso de este chat, así que aún no se puede usar.",
+      "retryAccess": "Reintentar",
+      "accessChanged": "Su acceso ya había cambiado a {{level}}. No se cambió nada.",
+      "accessRefused": "Se rechazó el cambio. No se cambió nada."
     }
   },
   "agentRow": {
