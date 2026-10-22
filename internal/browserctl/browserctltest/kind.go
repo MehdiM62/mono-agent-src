@@ -8,7 +8,7 @@ import (
 )
 
 // AsAgentKind gives the test the environment a spawner gives an agent of
-// kind (browserctl.KindCoder or KindOrg): the declared kind and the token
+// kind (browserctl.KindCoder, KindApply or KindOrg): the declared kind and the token
 // browserctl.IssueAgentKind issues for it, its record under a temporary
 // HOME so a test never writes to the user's. The caller sets the agent
 // marker itself (CLAUDECODE, MONOAGENT_AGENT_CONTEXT, ...), as a spawner

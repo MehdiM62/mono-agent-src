@@ -33,7 +33,7 @@ var ErrNotFinished = errors.New("the application-apply task has not completed")
 // hook of the kind; running it twice records the same thing once. It never
 // sets applied (the user's) and never moves an application that is already
 // applied, rejected or cancelled.
-func Finalize(ctx context.Context, db *sql.DB, profile string, t aitask.Task) error {
+func Finalize(ctx context.Context, db *sql.DB, profile string, t aitask.Task, extraRoots ...string) error {
 	if t.Kind != Kind || t.ApplicationID == "" {
 		return fmt.Errorf("task %s is not an %s task for an application", t.ID, Kind)
 	}
@@ -47,7 +47,7 @@ func Finalize(ctx context.Context, db *sql.DB, profile string, t aitask.Task) er
 	if err := aitask.Validate(Schema, mustDecode(t.Result)); err != nil {
 		return fmt.Errorf("task %s: %w", t.ID, err)
 	}
-	fill, to := recordFor(db, profile, res)
+	fill, to := recordFor(db, profile, res, extraRoots)
 	store := applications.NewStore(db)
 	if err := store.RecordFill(ctx, profile, t.ApplicationID, fill); err != nil {
 		return err
@@ -77,7 +77,7 @@ func canMove(s applications.Status) bool {
 // Fields that must not have been filled are dropped and counted in the note;
 // everything is cut to the record's caps; a screenshot outside the profile
 // folder is not kept.
-func recordFor(db *sql.DB, profile string, res Result) (applications.Fill, applications.Status) {
+func recordFor(db *sql.DB, profile string, res Result, extraRoots []string) (applications.Fill, applications.Status) {
 	fields, dropped := Vet(res.Fields)
 	note := cut(res.Note, maxNote-120)
 	if dropped > 0 {
@@ -99,8 +99,16 @@ func recordFor(db *sql.DB, profile string, res Result) (applications.Fill, appli
 		f.Fields = append(f.Fields, applications.FillField{Label: label, Value: cut(x.Value, maxValue),
 			Source: cut(x.Source, maxSource), Generated: x.Generated})
 	}
-	if p, err := insideFolder(profiledir.Root(db, profile), res.Screenshot); err == nil {
-		f.Screenshot = p
+	// The screenshot is kept when it is a file of the profile folder or of a
+	// folder the caller names (the task's own working folder).
+	for _, root := range append([]string{profiledir.Root(db, profile)}, extraRoots...) {
+		if root == "" {
+			continue
+		}
+		if p, err := insideFolder(root, res.Screenshot); err == nil {
+			f.Screenshot = p
+			break
+		}
 	}
 	return f, to
 }

@@ -186,6 +186,20 @@ Findings are binding requirements for the phases that follow.
 10. **Queue admission is not start authority.** The click binds an immutable context hash and the effective capabilities;
     policy is re-checked at start; unattended means a verified-confined profile only.
 
+11. **The application-apply agent is confined, not a full-access coder (decided 2026-10-22, the one deliberate narrowing).** The user
+    asked for coder with full capability; this kind is the exception because its input is hostile web content (a job posting,
+    and the form page itself). A full-access turn in the profile folder could, on a prompt injection, read other
+    applications' documents and facts, rewrite their queued context, or run curl past the browser policy. So its turns (the
+    first and every follow-up in its conversation, operator-run only) run as: monomind scoped access (no `--access full`, no
+    settings sources, no bridged tools); Bash only for literal prefixes `monoagentcli --profile P browser <verb>` for the
+    listed verbs (not eval, console, network, submit, close, permissions) and `aitask complete|fail`, which monomind checks
+    before running and which refuses chaining; a working folder of its own outside the profile folder holding read-only copies of
+    that task's context only (`aitask.SnapshotContext`, hash-verified copy); the browser kind `apply` read only from the task
+    row, so a configured `coder` level, even full-no-approvals, never applies to it. The context text is given in the
+    session instructions as data, because the agent has no file tool. Enforcement of the prefix list is verified for the
+    claude runtime only; on any other runtime the task is refused, not run unconfined. Known residual: `browser upload` takes any
+    path the CLI can read; on a real site it is held for approval, and a files-by-application restriction is still to be built.
+
 ## 5. Phases
 
 0. **Audit (small).** Verify which of bubble v2 Points 1-4 and #226 follow-ups shipped; read `nodes/browserjev` and

@@ -3275,6 +3275,14 @@ change is logged in the status history. `applied` is reached only through `appli
   (fill record; status `awaiting_submit` for filled, `needs_you`) and is safe to repeat; a
   completion hook calls the same `applyfill.Finalize`. Nothing here sets `applied`: only
   `application send` does.
+- The `application-apply` task is **confined, not a full-access coder turn**, because its input is a job posting and a form page
+  written by strangers. Every turn of its conversation (first and follow-ups, operator-run only) runs on the claude runtime
+  with monomind's scoped access (no `--access full`, no settings sources, no tools), Bash limited to
+  `monoagentcli --profile P browser <open|navigate|reload|tabs|a11y|screenshot|wait|click|type|press|fill|upload>` and
+  `monoagentcli --profile P aitask complete|fail` (one literal command, no chaining), and a private working folder with read-only
+  copies of that task's context. On another runtime it is refused (`confinement_unenforceable`), and without a context snapshot
+  it is refused (`context_snapshot_failed`). Its browser kind is `apply`, taken from the task row, never from a flag or the
+  environment, so the `coder` level never applies to it.
 - Browser permissions have a kind `apply` (`browser permissions set apply <level>`, operator-only):
   default `ask`, per-site allow rules apply, and it can never be `full-no-approvals`, so a submit
   on a non-local site always waits for a person (a HIL item). `application apply` itself still fills

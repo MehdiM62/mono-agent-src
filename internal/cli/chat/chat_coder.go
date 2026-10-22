@@ -39,6 +39,12 @@ type coderTurn struct {
 	budget *float64
 	// env is added to the turn's environment (an AI task's id and token).
 	env map[string]string
+	// agentKind is the browser-permission kind the turn runs as (coder, or
+	// apply for an application-apply task's turn); "" is coder.
+	agentKind string
+	// confine, when set, makes this a confined turn (chat_apply.go): scoped
+	// tools, not full access, in the task's own folder.
+	confine *confinement
 	// attachments are the files attached to the turn, already copied into cwd.
 	attachments []chatevents.TurnAttachment
 }
@@ -129,6 +135,12 @@ func runCoderTurn(cmd *cobra.Command, cfg *Deps, journal *turnJournal, t coderTu
 	if err != nil {
 		return err
 	}
+	if t.confine != nil {
+		if err := t.confine.check(rt.ID); err != nil {
+			return err
+		}
+		t.cwd, t.orgMode, systemPrompt = t.confine.workDir, "", t.confine.systemPrompt()
+	}
 	budget, err := turnBudget(settings.BudgetUSD, t.budget, rt.ID)
 	if err != nil {
 		return err
@@ -163,7 +175,14 @@ func runCoderTurn(cmd *cobra.Command, cfg *Deps, journal *turnJournal, t coderTu
 	for k, v := range t.env {
 		opts.Env[k] = v
 	}
-	kindDone := addAgentKind(opts.Env, browserctl.KindCoder)
+	if t.confine != nil {
+		t.confine.apply(&opts)
+	}
+	kind := t.agentKind
+	if kind == "" {
+		kind = browserctl.KindCoder
+	}
+	kindDone := addAgentKind(opts.Env, kind)
 	defer kindDone()
 	kiloDropped := dropKiloOptions(&opts)
 	onEvent := func(ev monomind.Event) {
