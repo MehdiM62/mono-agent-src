@@ -5,6 +5,7 @@ import { confirm } from '../components/ConfirmDialog.jsx'
 import { notify } from '../services/api.js'
 import ApplicationsProcessPendingFlow from './ApplicationsProcessPendingFlow.jsx'
 import ApplicationDetailModal from '../components/applications/ApplicationDetailModal.jsx'
+import ApplyQueueButton from '../components/applications/ApplyQueueButton.jsx'
 import { useReloadOnActivate } from '../lib/useReloadOnActivate'
 
 const STATUS_TABS = ['pending', 'awaiting_submit', 'needs_you', 'applied', 'rejected', 'cancelled', 'all']
@@ -68,6 +69,8 @@ export default function Applications({ isActive = true, onNavigate, onOpenCoderC
   const [showAdd, setShowAdd] = useState(false)
   const [addForm, setAddForm] = useState(emptyAddForm())
   const [showProcessPending, setShowProcessPending] = useState(false)
+  // Applications ticked for "Apply selected with coder".
+  const [picked, setPicked] = useState(() => new Set())
 
   const load = useCallback(async () => {
     try {
@@ -85,6 +88,15 @@ export default function Applications({ isActive = true, onNavigate, onOpenCoderC
     () => filterApplications(applications, { statusTab, search }),
     [applications, statusTab, search]
   )
+
+  // The queue takes applications still being worked on; only those get a tick box.
+  const queueable = (a) => a.status === 'pending' || a.status === 'needs_you'
+  const pickedIds = visible.filter(a => picked.has(a.id) && queueable(a)).map(a => a.id)
+  const togglePicked = (id) => setPicked(cur => {
+    const next = new Set(cur)
+    if (next.has(id)) next.delete(id); else next.add(id)
+    return next
+  })
 
   const openDetail = async (id) => {
     setSelectedId(id)
@@ -131,6 +143,9 @@ export default function Applications({ isActive = true, onNavigate, onOpenCoderC
         <h2 style={{ margin: 0, fontSize: 16, color: 'var(--text-primary)' }}>Applications</h2>
         <div style={{ flex: 1 }} />
         <button style={headerBtnStyle} onClick={() => setShowAdd(true)}><Plus size={13} /> Add</button>
+        {visible.some(queueable) && (
+          <ApplyQueueButton ids={pickedIds} style={headerBtnStyle} onStarted={() => { setPicked(new Set()); load() }} />
+        )}
         <button style={{ ...headerBtnStyle, background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.4)', color: '#10b981' }} onClick={() => setShowProcessPending(true)}>
           Process Pending
         </button>
@@ -158,6 +173,7 @@ export default function Applications({ isActive = true, onNavigate, onOpenCoderC
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
           <thead>
             <tr style={{ textAlign: 'left', color: 'var(--text-muted)', fontSize: 10, textTransform: 'uppercase' }}>
+              <th style={{ padding: '6px 8px', width: 24 }}><span className="sr-only" style={{ position: 'absolute', left: -9999 }}>Select</span></th>
               <th style={{ padding: '6px 8px' }}>Title</th>
               <th style={{ padding: '6px 8px' }}>Company / Org</th>
               <th style={{ padding: '6px 8px' }}>Kind</th>
@@ -169,16 +185,25 @@ export default function Applications({ isActive = true, onNavigate, onOpenCoderC
           <tbody>
             {visible.map(a => (
               <tr key={a.id} onClick={() => openDetail(a.id)} style={{ cursor: 'pointer', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                <td style={{ padding: '8px' }} onClick={e => e.stopPropagation()}>
+                  {queueable(a) && (
+                    <input type="checkbox" aria-label={`Select ${a.title} to apply with coder`} checked={picked.has(a.id)} onChange={() => togglePicked(a.id)} />
+                  )}
+                </td>
                 <td style={{ padding: '8px' }}>{a.title}</td>
                 <td style={{ padding: '8px' }}>{a.company}</td>
                 <td style={{ padding: '8px' }}>{a.kind}</td>
-                <td style={{ padding: '8px' }}><StatusBadge status={a.status} /></td>
+                <td style={{ padding: '8px' }}>
+                  <StatusBadge status={a.status} />
+                  {a.status === 'awaiting_submit' && <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>waiting for your submit</div>}
+                  {a.status === 'needs_you' && <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>reopen and refill</div>}
+                </td>
                 <td style={{ padding: '8px', color: 'var(--text-muted)' }}>{(a.tags || []).join(', ')}</td>
                 <td style={{ padding: '8px', color: 'var(--text-muted)' }}>{a.updated_at}</td>
               </tr>
             ))}
             {visible.length === 0 && (
-              <tr><td colSpan={6} style={{ padding: 16, textAlign: 'center', color: 'var(--text-muted)' }}>No applications.</td></tr>
+              <tr><td colSpan={7} style={{ padding: 16, textAlign: 'center', color: 'var(--text-muted)' }}>No applications.</td></tr>
             )}
           </tbody>
         </table>
@@ -192,6 +217,7 @@ export default function Applications({ isActive = true, onNavigate, onOpenCoderC
           onSetStatus={handleSetStatus}
           onNavigate={onNavigate}
           onOpenCoderChat={onOpenCoderChat}
+          onChanged={async () => { await load(); openDetail(selectedId) }}
         />
       )}
 

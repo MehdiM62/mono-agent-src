@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import ApplicationHeader from './ApplicationHeader.jsx'
+import ApplicationParkedPanel from './ApplicationParkedPanel.jsx'
 import ApplicationPostingSection from './ApplicationPostingSection.jsx'
 import ApplicationDocumentsSection from './ApplicationDocumentsSection.jsx'
 import ApplicationFillSection from './ApplicationFillSection.jsx'
@@ -18,6 +19,7 @@ export default function ApplicationDetailModal({
   onSetStatus,
   onNavigate,
   onOpenCoderChat,
+  onChanged,
 }) {
   const overlayRef = useRef(null)
   const [assets, setAssets] = useState(initialAssets)
@@ -133,6 +135,8 @@ export default function ApplicationDetailModal({
             onSetStatus={onSetStatus}
             onClose={onClose}
           />
+
+          <ApplicationParkedPanel detail={effectiveDetail} assets={assets} onChanged={onChanged} />
 
           {/* Section 2: Posting */}
           <ApplicationPostingSection posting={assets?.posting} />
