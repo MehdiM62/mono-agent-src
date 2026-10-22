@@ -2,8 +2,12 @@
 package main
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"os/exec"
 	"strings"
 
 	"github.com/monoes/mono-agent/internal/ai"
@@ -187,7 +191,7 @@ func (a *App) SetChatAccess(id, level string) (AccessChange, error) {
 			TaskRevoked    bool       `json:"task_revoked"`
 		} `json:"lowered"`
 	}
-	if err := a.historyCLI(&raw, args...); err != nil {
+	if err := a.historyCLIKeepingOutput(&raw, args...); err != nil {
 		return AccessChange{}, err
 	}
 	out := AccessChange{Conversation: conversationOf(raw.ConversationRecord), PreviousAccess: raw.Previous}
@@ -240,4 +244,46 @@ func (a *App) historyCLI(result any, args ...string) error {
 		return err
 	}
 	return a.jsonCLIInto(result, full)
+}
+
+// exitSurvivorsRemain is the CLI's exit for a lowering that took effect but
+// left processes it could not stop; the result is still on stdout.
+const exitSurvivorsRemain = 5
+
+// historyCLIKeepingOutput is historyCLI for set-access: exit 5
+// (survivors_remain) is not a failure to lower, so the result printed before
+// it is decoded and returned, with the survivors in it.
+func (a *App) historyCLIKeepingOutput(result any, args ...string) error {
+	full, err := a.scopedArgs(append([]string{"chat", "history"}, args...)...)
+	if err != nil {
+		return err
+	}
+	bin, err := findMonoAgentCLI()
+	if err != nil {
+		return err
+	}
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	cmd := exec.CommandContext(ctx, bin, full...)
+	suppressConsole(cmd)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
+	var ee *exec.ExitError
+	if err != nil && !(errors.As(err, &ee) && ee.ExitCode() == exitSurvivorsRemain) {
+		var ref aitaskRefusal
+		_ = json.Unmarshal([]byte(lastLine(string(out))), &ref)
+		msg := ref.Error
+		if msg == "" {
+			msg = cliStderr(stderr.Bytes())
+		}
+		if msg == "" {
+			msg = err.Error()
+		}
+		return &aitaskError{msg: msg, code: ref.Code, fallback: ref.Fallback}
+	}
+	// The first JSON document is the result; a --json error document may follow.
+	return json.NewDecoder(bytes.NewReader(out)).Decode(result)
 }

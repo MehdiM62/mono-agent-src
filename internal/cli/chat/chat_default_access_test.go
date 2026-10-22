@@ -45,6 +45,11 @@ func TestDefaultAccessAppliesOnlyToTheOperator(t *testing.T) {
 	if code != 0 || accessOf(t, out) != ai.AccessScoped {
 		t.Fatalf("agent creation (exit %d) = %s, want scoped", code, out)
 	}
+	// Against the merged creation check: naming a level above scoped is still
+	// the operator's, and the default does not open a way round it.
+	if _, code = createAs(t, r.dbPath, false, "--access", "workspace", "--new-workspace"); code != 3 {
+		t.Fatalf("agent creation above scoped: exit %d, want 3", code)
+	}
 	// An explicit level beats the default.
 	out, code = createAs(t, r.dbPath, true, "--access", "scoped")
 	if code != 0 || accessOf(t, out) != ai.AccessScoped {

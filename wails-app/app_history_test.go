@@ -118,3 +118,18 @@ esac
 		t.Fatalf("calls = %v", calls)
 	}
 }
+
+// Exit 5 (survivors_remain) is a lowering that happened: the typed result comes
+// back, not an error, and a trailing error document is ignored.
+func TestSetChatAccessSurvivorsRemainIsNotAFailure(t *testing.T) {
+	a, _ := aitaskApp(t, `case "$*" in
+*" show "*) echo '{"id":"c1","access":"full","cwd":"/p"}';;
+*) echo '{"id":"c1","access":"scoped","cwd":"/p","previous_access":"full","lowered":{"stopped":[],"survivors":[{"pid":12,"command":"sleep","reason":"not stopped"}],"workers_dropped":true,"task_revoked":false}}'
+   echo '{"error":"the level is lowered, but 1 process(es) remain","code":"survivors_remain"}'; exit 5;;
+esac
+`)
+	got, err := a.SetChatAccess("c1", "scoped")
+	if err != nil || got.Conversation.Access != "scoped" || got.Lowered == nil || len(got.Lowered.Survivors) != 1 || got.Lowered.Survivors[0].Pid != 12 {
+		t.Fatalf("got %+v, %v", got, err)
+	}
+}
