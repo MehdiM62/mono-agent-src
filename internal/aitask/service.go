@@ -65,6 +65,9 @@ type Service struct {
 	// StateDir is the folder next to the database; verified context
 	// snapshots live under it (SnapshotContext).
 	StateDir string
+	// Admit, when set, reserves the task's spend cap at start and returns the
+	// cap its turn runs under; its refusal keeps the task queued (budget).
+	Admit func(context.Context, Task) (float64, error)
 }
 
 // SubmitInput is `aitask submit`.
@@ -198,6 +201,11 @@ func (s *Service) Start(ctx context.Context, id string) (Task, error) {
 	}
 	if err := s.verifyAtStart(ctx, t); err != nil {
 		return Task{}, err
+	}
+	if s.Admit != nil {
+		if _, err := s.Admit(ctx, t); err != nil {
+			return Task{}, err
+		}
 	}
 	// The turn reads a verified, read-only copy, never the original folder.
 	snapshot, err := s.SnapshotContext(id)
