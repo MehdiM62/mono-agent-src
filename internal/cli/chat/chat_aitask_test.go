@@ -37,6 +37,12 @@ func newTaskRig(t *testing.T) *taskRig {
 		t.Fatal(err)
 	}
 	r.convID = conv.ID
+	// A task's turns run only under a spend cap.
+	st, done := r.store(t, "default")
+	defer done()
+	if err := (&budget.Ledger{DB: st.DB}).SetCap(budget.ScopeGlobal, "", 100, "test"); err != nil {
+		t.Fatal(err)
+	}
 	return r
 }
 
@@ -62,7 +68,7 @@ func (r *taskRig) taskOfKind(t *testing.T, profile, status, kind string) (aitask
 	}
 	st, done := r.store(t, profile)
 	defer done()
-	task, err := st.Insert(aitask.Task{ID: aitask.NewID(), Kind: kind, ConversationID: r.convID, Status: status, Goal: "g"})
+	task, err := st.Insert(aitask.Task{ID: aitask.NewID(), Kind: kind, ConversationID: r.convID, Status: status, Goal: "g", BudgetUSD: 5})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -398,7 +404,7 @@ func TestApplyTurnUsesTheRealSnapshotAndATaskWorkFolder(t *testing.T) {
 	st, done := r.store(t, "default")
 	defer done()
 	if _, err := st.Insert(aitask.Task{ID: id, Kind: "application-apply", ConversationID: r.convID, Status: aitask.StatusNeedsUser,
-		Goal: "g", Cwd: convCwd, ContextHash: hash}); err != nil {
+		Goal: "g", Cwd: convCwd, ContextHash: hash, BudgetUSD: 5}); err != nil {
 		t.Fatal(err)
 	}
 	stateDir := filepath.Dir(r.dbPath)
@@ -481,7 +487,60 @@ func TestFollowUpTurnSpendIsSettledAgainstTheTasksCaps(t *testing.T) {
 		t.Fatalf("spend %v, released %d: the follow-up turn was not settled", spent, released)
 	}
 	rep, err := l.Report(context.Background())
-	if err != nil || len(rep.Caps) != 1 || rep.Caps[0].UsedUSD < 1.25 || rep.Caps[0].UsedUSD > 5 {
+	used := 0.0
+	for _, c := range rep.Caps {
+		if c.Scope == budget.ScopeConversation {
+			used = c.UsedUSD
+		}
+	}
+	if err != nil || used < 1.25 || used > 5 {
 		t.Fatalf("conversation cap use = %+v (%v)", rep.Caps, err)
+	}
+}
+
+// A follow-up turn is admitted again: it is capped at what is left of the task's
+// cap, and refused (the turn never runs) when nothing is left. Without the
+// admission the turn runs under the optional turn cap alone.
+func TestFollowUpTurnIsAdmittedAgainstTheRemainingCap(t *testing.T) {
+	r := newTaskRig(t)
+	task, _ := r.task(t, "default", aitask.StatusNeedsUser)
+	st, done := r.store(t, "default")
+	defer done()
+	if _, err := st.DB.Exec(`UPDATE ai_tasks SET budget_usd = 1 WHERE id = ?`, task.ID); err != nil {
+		t.Fatal(err)
+	}
+	l := &budget.Ledger{DB: st.DB}
+	if _, err := l.Admit(context.Background(), budget.Admission{TaskID: task.ID, ConversationID: r.convID, Kind: "generic", Runtime: "claude", Requested: 1}); err != nil {
+		t.Fatal(err)
+	}
+	spend := func(turn string, seq int, cost string) {
+		t.Helper()
+		if _, err := st.DB.Exec(`INSERT OR IGNORE INTO ai_chat_turns (id, conversation_id, profile_id, prompt, created_at, updated_at) VALUES (?,?, 'default','p','x','x')`, turn, r.convID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := st.DB.Exec(`INSERT INTO ai_chat_events (profile_id, conversation_id, turn_id, seq, created_at, version, type, payload) VALUES ('default',?,?,?,'x',1,'usage.updated',?)`,
+			r.convID, turn, seq, `{"costUsd":`+cost+`,"source":"result"}`); err != nil {
+			t.Fatal(err)
+		}
+	}
+	spend("earlier", 1, "0.8")
+	if err := l.Settle(context.Background(), task.ID, r.convID); err != nil {
+		t.Fatal(err)
+	}
+	r.turn(t, "t1", nil)
+	if args := r.execArgs(t); !regexp.MustCompile(`--budget-usd (0\.2|0\.1999999)`).MatchString(args) {
+		t.Fatalf("the follow-up was not capped at the remaining 0.20: %s", args)
+	}
+	// The cap is spent: the next follow-up is refused before anything runs.
+	spend("t1", 900, "0.2")
+	if err := os.Remove(r.envLog); err != nil {
+		t.Fatal(err)
+	}
+	err := r.turnErr(t, "t2", nil)
+	if err == nil || !strings.Contains(err.Error(), "Settings > AI task budgets") {
+		t.Fatalf("a follow-up on an exhausted cap: %v", err)
+	}
+	if _, serr := os.Stat(r.envLog); serr == nil {
+		t.Fatal("the refused turn ran")
 	}
 }

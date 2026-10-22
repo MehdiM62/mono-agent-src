@@ -116,7 +116,10 @@ func runChat(cfg *Deps, cmd *cobra.Command, args []string, f *chatFlags) (retErr
 			if tools != "" {
 				return clicore.InvalidInput("--tools does not apply to a %s conversation: it runs as a coder; only a scoped conversation takes it", access)
 			}
-			task := taskTurn(cfg, conv.ID)
+			task := taskTurn(cfg, conv.ID, turnCap)
+			if task.budget != nil {
+				turnCap = task.budget
+			}
 			if task.err != nil {
 				return task.err
 			}

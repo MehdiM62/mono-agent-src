@@ -78,21 +78,11 @@ func (l *Ledger) Admit(ctx context.Context, in Admission) (float64, error) {
 	}
 	reserve := min(in.Requested, eff.USD)
 
-	conds, err := l.conditions(in)
+	where, wargs, err := l.fitWhere(in, reserve)
 	if err != nil {
 		return 0, err
 	}
-	var where []string
-	args := []any{in.TaskID, in.ConversationID, in.Kind, reserve, l.now()}
-	for _, c := range conds {
-		if c.role != "" {
-			where = append(where, `(SELECT COALESCE(SUM(spent_usd), 0) FROM ai_budget_spend WHERE role = ? AND task_id != ?) + ? <= ?`)
-			args = append(args, c.role, in.TaskID, reserve, c.cap+epsilon)
-			continue
-		}
-		where = append(where, fmt.Sprintf(`(SELECT COALESCE(SUM(%s), 0) FROM ai_budget_reservations r WHERE r.task_id != ? %s) + ? <= ?`, taskUsage, c.sql))
-		args = append(args, append(append([]any{in.TaskID}, c.args...), reserve, c.cap+epsilon)...)
-	}
+	args := append([]any{in.TaskID, in.ConversationID, in.Kind, reserve, l.now()}, wargs...)
 	q := `INSERT INTO ai_budget_reservations (task_id, conversation_id, kind, reserved_usd, released, created_at)
 		SELECT ?, ?, ?, ?, 0, ?`
 	if len(where) > 0 {
@@ -108,6 +98,28 @@ func (l *Ledger) Admit(ctx context.Context, in Admission) (float64, error) {
 	}
 	_, _ = l.DB.ExecContext(ctx, `UPDATE ai_tasks SET budget_usd = ? WHERE id = ? AND budget_usd > ?`, reserve, in.TaskID, reserve)
 	return reserve, nil
+}
+
+// fitWhere are the conditions, and their arguments, for the task to hold total
+// USD at once without any cap it falls in going over (not counting the task's
+// own earlier hold).
+func (l *Ledger) fitWhere(in Admission, total float64) ([]string, []any, error) {
+	conds, err := l.conditions(in)
+	if err != nil {
+		return nil, nil, err
+	}
+	var where []string
+	var args []any
+	for _, c := range conds {
+		if c.role != "" {
+			where = append(where, `(SELECT COALESCE(SUM(spent_usd), 0) FROM ai_budget_spend WHERE role = ? AND task_id != ?) + ? <= ?`)
+			args = append(args, c.role, in.TaskID, total, c.cap+epsilon)
+			continue
+		}
+		where = append(where, fmt.Sprintf(`(SELECT COALESCE(SUM(%s), 0) FROM ai_budget_reservations r WHERE r.task_id != ? %s) + ? <= ?`, taskUsage, c.sql))
+		args = append(args, append(append([]any{in.TaskID}, c.args...), total, c.cap+epsilon)...)
+	}
+	return where, args, nil
 }
 
 func minPositive(a, b float64) float64 {
