@@ -351,3 +351,53 @@ func (r *accessRig) setAccess(t *testing.T, operator error, args ...string) (str
 	out := captureStdout(t, func() { err = cmd.Execute() })
 	return out, err
 }
+
+// history runs `chat history <args>` with operator as the answer of the
+// operator check (nil is the user).
+func (r *accessRig) history(t *testing.T, operator error, args ...string) (string, error) {
+	t.Helper()
+	cfg := testDeps(&testConfig{DBPath: r.dbPath, ProfileID: "default", JSONOutput: true})
+	cfg.RequireOperator = func(string) error { return operator }
+	cmd := newChatCmd(cfg)
+	cmd.SetArgs(append([]string{"history"}, args...))
+	cmd.SilenceErrors, cmd.SilenceUsage = true, true
+	var err error
+	out := captureStdout(t, func() { err = cmd.Execute() })
+	return out, err
+}
+
+func (r *accessRig) count(t *testing.T) int {
+	t.Helper()
+	convs, _, err := r.store.ListConversations("default", "", 200)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return len(convs)
+}
+
+// Creating a conversation above scoped is the operator's, whatever the
+// spelling (--access, the --mode coder alias, a profile folder): an agent
+// makes none, and scoped stays open to anyone.
+func TestCreatingAboveScopedIsTheOperators(t *testing.T) {
+	r := newAccessRig(t, true)
+	for _, args := range [][]string{
+		{"--access", "full", "--profile-folder"}, {"--access", "workspace", "--new-workspace"},
+		{"--access", "coding", "--coder-root"}, {"--mode", "coder", "--new-workspace"},
+	} {
+		out, err := r.history(t, errNotOperator, append([]string{"create", "--runtime", "claude"}, args...)...)
+		if exitCodeFor(err) != 3 || !strings.Contains(err.Error(), "only the user") {
+			t.Errorf("an agent created %v: %v\n%s", args, err, out)
+		}
+	}
+	if n := r.count(t); n != 0 {
+		t.Fatalf("refused creations left %d conversation(s)", n)
+	}
+	for _, args := range [][]string{{}, {"--access", "scoped"}, {"--mode", "assistant"}} {
+		if out, err := r.history(t, errNotOperator, append([]string{"create", "--runtime", "claude"}, args...)...); err != nil {
+			t.Errorf("an agent's scoped create %v: %v\n%s", args, err, out)
+		}
+	}
+	if out, err := r.history(t, nil, "create", "--runtime", "claude", "--mode", "coder", "--new-workspace"); err != nil {
+		t.Errorf("the operator's create: %v\n%s", err, out)
+	}
+}

@@ -333,6 +333,11 @@ func coderFolder(cmd *cobra.Command, cfg *Deps, c coderFolderChoice, runtime str
 // createCoderConversation is `chat history create` above the scoped level
 // (--mode coder is full); runtimeID "" means claude.
 func createCoderConversation(cmd *cobra.Command, cfg *Deps, access, runtimeID, model, effort, workflowID string, folder coderFolderChoice) (ai.Conversation, error) {
+	// A conversation above scoped is a raise from nothing: an agent, the chat or
+	// a workflow must not make itself a full-access one to run next.
+	if err := clicore.RequireOperator(cfg.RequireOperator, "create a conversation above the scoped level"); err != nil {
+		return ai.Conversation{}, err
+	}
 	if runtimeID == "" {
 		runtimeID = monomind.DefaultCoderRuntime
 	}
