@@ -48,6 +48,12 @@ function chatAgentOf(stage, id) {
   return cur ? cur.id : id
 }
 
+// titleFromMessage is a message as a one-line chat title.
+function titleFromMessage(text) {
+  const line = String(text).replace(/\s+/g, ' ').trim()
+  return line.length > 48 ? `${line.slice(0, 47)}…` : line
+}
+
 function prefersReducedMotion() {
   return typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 }
@@ -105,6 +111,13 @@ export function CoderChatOverlay({ bubble, store, originRect, onCollapse, onClos
   useResolveAccess(bubble, store)
   const conv = useCoderConversation({ conversationId: bubble.conversationId, create, access: access || 'full' })
 
+  // A chat with no folder (scoped) is named after its first message, as the
+  // history names it; a chat in a folder keeps the folder's name.
+  const firstMessage = conv.messages.find(m => m.role === 'user')?.content
+  useEffect(() => {
+    if (bubble.title || bubble.cwd || !bubble.conversationId || !firstMessage) return
+    store.patchBubble(bubble.key, { title: titleFromMessage(firstMessage) })
+  }, [store, bubble.key, bubble.title, bubble.cwd, bubble.conversationId, firstMessage])
   useEffect(() => { store.setView(bubble.key, { draft }) }, [store, bubble.key, draft])
   useEffect(() => { store.setView(bubble.key, { setup }) }, [store, bubble.key, setup])
   useEffect(() => { store.setView(bubble.key, { stageRatio, stageCollapsed }) }, [store, bubble.key, stageRatio, stageCollapsed])
@@ -222,33 +235,37 @@ export function CoderChatOverlay({ bubble, store, originRect, onCollapse, onClos
       <div ref={panelRef} role="dialog" aria-label={t('bubbles.chatLabel', { name: title })} data-testid="bubble-overlay"
         className={`bubble-overlay${closing ? ' closing' : ''}${narrow ? ' narrow' : ''}`}>
         <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-          {/* The folder row below carries the badge once there is a folder. */}
-          {!bubble.cwd && isCoderAccess(access) && <CoderBadge />}
-          <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</span>
-          {(runtime || model) && (
-            <span style={{ fontFamily: mono, fontSize: 9.5, color: 'var(--cyan)', border: '1px solid var(--border-bright)', borderRadius: 999, padding: '1px 7px' }}>
-              {[runtime && runtimeLabel(runtime), model].filter(Boolean).join(' · ')}
-            </span>
-          )}
-          {confined ? (
-            <span data-testid="chip-confined" title={t('bubbles.pane.confinedWhy')} style={chip}>{t('bubbles.pane.confinedChip')}</span>
-          ) : isAccess(access) && (
-            <span data-testid="chip-access" title={t(`bubbles.pane.allows.${access}`)} style={chip}>{t('bubbles.pane.accessChip', { level: t(`bubbles.pane.level.${access}`) })}</span>
-          )}
-          <span style={{ flex: 1 }} />
-          {showStage && (
-            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setStageCollapsed(c => !c)}
-              aria-expanded={!stageCollapsed} title={stageCollapsed ? t('bubbles.showOrg') : t('bubbles.hideOrg')} style={{ gap: 4, fontSize: 10 }}>
-              {stageCollapsed ? <ChevronDown size={12} /> : <ChevronUp size={12} />} {t('bubbles.org')}
+          {/* Title and chips wrap among themselves on a narrow pane; the buttons stay on the right. */}
+          <div style={{ flex: '1 1 0', minWidth: 0, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            {/* The folder row below carries the badge once there is a folder. */}
+            {!bubble.cwd && isCoderAccess(access) && <CoderBadge />}
+            <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>{title}</span>
+            {(runtime || model) && (
+              <span style={{ ...chip, color: 'var(--cyan)', borderColor: 'var(--border-bright)', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>
+                {[runtime && runtimeLabel(runtime), model].filter(Boolean).join(' · ')}
+              </span>
+            )}
+            {confined ? (
+              <span data-testid="chip-confined" title={t('bubbles.pane.confinedWhy')} style={chip}>{t('bubbles.pane.confinedChip')}</span>
+            ) : isAccess(access) && (
+              <span data-testid="chip-access" title={t(`bubbles.pane.allows.${access}`)} style={chip}>{t('bubbles.pane.accessChip', { level: t(`bubbles.pane.level.${access}`) })}</span>
+            )}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+            {showStage && (
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setStageCollapsed(c => !c)}
+                aria-expanded={!stageCollapsed} title={stageCollapsed ? t('bubbles.showOrg') : t('bubbles.hideOrg')} style={{ gap: 4, fontSize: 10 }}>
+                {stageCollapsed ? <ChevronDown size={12} /> : <ChevronUp size={12} />} {t('bubbles.org')}
+              </button>
+            )}
+            {bubble.conversationId && <SettingsButton buttonRef={settingsBtn} open={settingsOpen} onToggle={() => setSettingsOpen(o => !o)} />}
+            <button type="button" className="btn btn-ghost btn-sm" onClick={collapse} title={t('bubbles.collapse')} aria-label={t('bubbles.collapse')} style={{ padding: '3px 6px' }}>
+              <Minimize2 size={13} />
             </button>
-          )}
-          {bubble.conversationId && <SettingsButton buttonRef={settingsBtn} open={settingsOpen} onToggle={() => setSettingsOpen(o => !o)} />}
-          <button type="button" className="btn btn-ghost btn-sm" onClick={collapse} title={t('bubbles.collapse')} aria-label={t('bubbles.collapse')} style={{ padding: '3px 6px' }}>
-            <Minimize2 size={13} />
-          </button>
-          <button type="button" className="btn btn-ghost btn-sm" onClick={onCloseChat} title={t('bubbles.closeChat')} aria-label={t('bubbles.closeChat')} style={{ padding: '3px 6px' }}>
-            <X size={13} />
-          </button>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={onCloseChat} title={t('bubbles.closeChat')} aria-label={t('bubbles.closeChat')} style={{ padding: '3px 6px' }}>
+              <X size={13} />
+            </button>
+          </div>
           {settingsOpen && bubble.conversationId && (
             <PaneSettings bubble={bubble} store={store} confined={confined} onNavigate={page => { collapse(); onNavigate?.(page) }} onClose={closeSettings} />
           )}

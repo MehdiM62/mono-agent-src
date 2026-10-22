@@ -85,6 +85,9 @@ describe('a new chat at an access level', () => {
     await waitFor(() => expect(api.startChatTurn).toHaveBeenCalledWith('c9', expect.any(String), 'hello', true, true))
     await waitFor(() => expect(store.bubbles[0]).toMatchObject({ conversationId: 'c9', access: 'scoped' }))
     expect(JSON.parse(localStorage.getItem('monoagent:coderBubbles:v1')).bubbles[0].access).toBe('scoped')
+    // A chat with no folder is named after its first message, in the pane and on the dock.
+    await waitFor(() => expect(store.bubbles[0].title).toBe('hello'))
+    expect(document.querySelector('[data-bubble="new-draft"], [data-bubble]')).toHaveAttribute('aria-label', expect.stringContaining('hello'))
   })
 
   it('sends a scoped turn without tools when Settings turned them off', async () => {

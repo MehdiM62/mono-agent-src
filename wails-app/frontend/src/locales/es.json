@@ -1112,7 +1112,7 @@
   },
   "bubbles": {
     "dockLabel": "Chats de código",
-    "newChat": "Nuevo chat de código",
+    "newChat": "Nuevo chat",
     "newCoderChat": "Nuevo chat de código",
     "bubbleLabel": "{{name}}, {{status}}",
     "unread_one": "{{count}} respuesta nueva",

@@ -1154,7 +1154,7 @@
   },
   "bubbles": {
     "dockLabel": "Coder chats",
-    "newChat": "New coder chat",
+    "newChat": "New chat",
     "newCoderChat": "New coder chat",
     "bubbleLabel": "{{name}}, {{status}}",
     "unread_one": "{{count}} new reply",

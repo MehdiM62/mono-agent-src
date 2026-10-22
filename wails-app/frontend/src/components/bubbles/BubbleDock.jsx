@@ -11,7 +11,7 @@ function ChatBubble({ bubble, summary, expanded, onOpen, onClose, onDragStart, o
   const { t } = useTranslation()
   const [hover, setHover] = useState(false)
   const isOrg = bubble.kind === 'org'
-  const name = isOrg ? bubble.orgName : bubble.cwd ? titleOf(bubble.cwd) : t('bubbles.newChat')
+  const name = isOrg ? bubble.orgName : bubble.title || (bubble.cwd ? titleOf(bubble.cwd) : t('bubbles.newChat'))
   const cost = totalCost(summary)
   const estimated = costEstimated(summary)
   const label = (isOrg ? t('orgBubble.bubbleLabel', { name, status: t(`bubbles.${statusKey[summary.status] || 'statusIdle'}`) })

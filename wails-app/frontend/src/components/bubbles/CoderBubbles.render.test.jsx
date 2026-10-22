@@ -244,12 +244,12 @@ describe('coder bubbles', () => {
     const key = store.bubbles[0].key
 
     mockConfirm.mockResolvedValueOnce(false)
-    fireEvent.click(screen.getByLabelText('Close New coder chat'))
+    fireEvent.click(screen.getByLabelText('Close New chat'))
     await waitFor(() => expect(mockConfirm).toHaveBeenCalledTimes(1))
     expect(bubble(key)).toBeInTheDocument()
 
     mockConfirm.mockResolvedValueOnce(true)
-    fireEvent.click(screen.getByLabelText('Close New coder chat'))
+    fireEvent.click(screen.getByLabelText('Close New chat'))
     await waitFor(() => expect(bubble(key)).toBeNull())
   })
 
